@@ -1723,6 +1723,24 @@ function Settings:_wallpaperSubItems(key)
             if touchmenu_instance then touchmenu_instance:updateItems() end
         end,
     }
+    -- WHERE THE PICTURES COME FROM, shown whether or not there are any.
+    --
+    -- It used to appear only when the folder was empty, on the reasoning that
+    -- a reader with pictures already knows where they live. Bundling one
+    -- breaks that: the folder is never empty on a fresh install, so the line
+    -- that names the folder would never be seen by the readers who most need
+    -- it -- they would have to delete the shipped picture to find out how to
+    -- add their own (maintainer).
+    --
+    -- A disabled row at the END rather than the top: it is a footnote to the
+    -- list, and the reader is here to pick a picture first.
+    local function folderHint()
+        local dir = Wallpaper.dir() or "?"
+        return {
+            text    = T(_("Images are loaded from %1"), dir),
+            enabled = false,
+        }
+    end
     local list = Wallpaper.list()
     if #list == 0 then
         items[#items + 1] = {
@@ -1745,8 +1763,12 @@ function Settings:_wallpaperSubItems(key)
                 apply()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
+            -- Divider above the footnote, so it reads as a note rather than
+            -- as one more thing that might be pickable.
+            separator = (_i == #list) or nil,
         }
     end
+    items[#items + 1] = folderHint()
     return items
 end
 

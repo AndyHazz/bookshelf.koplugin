@@ -3890,25 +3890,6 @@ function Settings:_librarySubItems()
                 end
             end,
         },
-        self:_choiceRow{
-            label   = _("Pagination format"),
-            help    = _("What the counter at the bottom of the shelf shows. "
-                .. "Pages gives a page number. Books names the ones on screen "
-                .. "out of the whole shelf (\"9-16 of 247\"), which stays "
-                .. "exact however many books a page happens to hold."),
-            key     = "pagination_format",
-            default = "pages",
-            options = {
-                { value = "books", label = function() return _("Books") end },
-                { value = "pages", label = function() return _("Pages") end },
-            },
-            on_change = function()
-                if self._bw and self._bw._rebuild then
-                    self._bw:_rebuild()
-                    UIManager:setDirty(self._bw, "ui")
-                end
-            end,
-        },
         {
             text = _("Hide single-book series and genres"),
             help_text = _("When a series or genre contains only one book, hide"

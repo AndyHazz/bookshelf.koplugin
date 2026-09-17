@@ -1,22 +1,28 @@
 -- tests/_test_pagination_format.lua
--- What the footer counter counts: books, or pages.
+-- What the footer counts, and why the shelf decides rather than the reader.
 --
--- WHAT NEEDS PINNING. The counter reads as a RANGE of books in every mode --
--- "9-16 of 247". That was a deliberate unification: spine pages hold a
--- variable number of books, so "Page 3 of 27" is a fiction there, and a page
--- number also lies whenever the cursor is misaligned, while a range is always
--- true. Pages survived internally -- the jump dialog and skip-ten still steer
--- by them -- and only the display changed.
+-- THE RULE. A spine page holds a variable number of books, so "page 3 of 27"
+-- is a number nothing on screen can be checked against -- and the page map
+-- that produces it comes from a second planning pass that does not always
+-- agree with the render. A RANGE is arithmetic on the cursor and the total:
+-- always true, and true from the very first paint. Every other style pages by
+-- a fixed grid, where the page number is the honest summary and the one every
+-- other pager on the device shows.
 --
--- Some readers want the page number back, so it is a setting. The range stays
--- the default, since the reasoning above has not changed.
+-- IT WAS A SETTING FIRST, and that was the mistake. It asked the reader to
+-- decide something they have no way to judge, and the wrong half of the answer
+-- looked like a bug rather than a preference: a page count that corrected
+-- itself on the first turn after a restart ("page 1 of 3, then when I go to
+-- next page it says 2 of 9"). The shelf knows which answer it can stand
+-- behind, so the shelf picks.
 --
--- The open-ended form matters in both: an OPDS feed that has not been walked
--- to the end knows a lower bound only, and the "+" is what says so. Dropping
--- it in one format and not the other would make a partly-walked catalogue
--- claim a total it does not have.
+-- The open-ended "+" belongs to both forms: an OPDS feed that has not been
+-- walked to the end knows a lower bound only, and dropping the plus in either
+-- would have a partly-walked catalogue claim a total it does not have.
 --
--- Usage (from plugin root): lua tests/_test_pagination_format.lua
+-- HAIR SPACES (U+200A) sit around the range's dash; they live in the msgid so
+-- translators keep or drop them deliberately.
+--
 package.path = "./?.lua;./?/init.lua;" .. package.path
 local helpers = dofile("tests/_helpers.lua")
 local t  = helpers.runner()
@@ -32,7 +38,7 @@ local HAIR = "\xe2\x80\x8a"
 local function run(stored, first, last, total, open_ended, page, pages, ovr_page, ovr_pages)
     local env = {
         BookshelfWidget = {},
-        BookshelfSettings = { read = function(_k, dflt) return stored == nil and dflt or stored end },
+        BookshelfSettings = { read = function(_k, dflt) return dflt end },
         _ = function(x) return x end,
         T = function(fmt, ...)
             local args = { ... }
@@ -42,55 +48,50 @@ local function run(stored, first, last, total, open_ended, page, pages, ovr_page
         tostring = tostring, tonumber = tonumber, math = math, pcall = pcall,
     }
     local fn = assert(load(
-        "return function(self, first, last, total, open_ended, page, pages)\n" .. body .. "\nend",
+        "return function(self, first, last, total, open_ended, page, pages)\n"
+            .. body .. "\nend",
         "counter", "t", env))
     -- Stands in for a shelf with no page map: both map calls answer nil, so
     -- the old fields stand. The map-backed path is exercised below.
-    local self_ = { page = page or 1, _totalPages = function() return pages or 1 end }
+    -- `stored` now says which SHELF this is: "spines" or anything else.
+    local self_ = { page = page or 1, _totalPages = function() return pages or 1 end,
+                    _isSpineMode = function() return stored == "spines" end }
     return fn()(self_, first, last, total, open_ended, ovr_page, ovr_pages)
 end
 
-t.test("an untouched library counts pages", function()
-    -- The range was the default first, because a page number is a fiction on
-    -- a spine shelf whose pages hold a variable number of books. It lost:
-    -- readers read "1-16 of 247" as a book count rather than as a position,
-    -- and a page number is what every other pager on the device shows
-    -- (maintainer). The range is one tap away and loses nothing.
-    eq(run(nil, 9, 16, 247, false, 3, 27), "Page 3 of 27")
+t.test("a spine shelf counts books, because its pages vary", function()
+    eq(run("spines", 9, 16, 247, false, 3, 27),
+       "9" .. HAIR .. "-" .. HAIR .. "16 of 247")
 end)
 
-t.test("the books format keeps its open-ended plus", function()
-    eq(run("books", 9, 16, 247, true), "9" .. HAIR .. "-" .. HAIR .. "16 of 247+")
+t.test("every other style counts pages", function()
+    eq(run("covers", 9, 16, 247, false, 3, 27), "Page 3 of 27")
+    eq(run("list",   9, 16, 247, false, 3, 27), "Page 3 of 27")
 end)
 
-t.test("the pages format reads as a page number", function()
-    eq(run("pages", 9, 16, 247, false, 3, 27), "Page 3 of 27")
-end)
-
-t.test("the pages format keeps the open-ended plus too", function()
+t.test("the open-ended plus survives in both forms", function()
     -- A partly-walked OPDS feed must not claim a total it does not have.
-    eq(run("pages", 9, 16, 247, true, 3, 27), "Page 3 of 27+")
+    eq(run("spines", 9, 16, 247, true, 3, 27),
+       "9" .. HAIR .. "-" .. HAIR .. "16 of 247+")
+    eq(run("covers", 9, 16, 247, true, 3, 27), "Page 3 of 27+")
 end)
 
-t.test("an unknown value falls back to books rather than showing nothing", function()
-    eq(run("furlongs", 9, 16, 247, false), "9" .. HAIR .. "-" .. HAIR .. "16 of 247")
+t.test("the reader is no longer asked to choose", function()
+    -- The whole footprint, not just the row: a key left behind reads as a
+    -- setting that stopped working.
+    local set = io.open("lib/bookshelf_settings.lua"):read("*a")
+    assert(not set:find("pagination_format", 1, true),
+        "the setting row or its key is still in the menu")
+    assert(not src:find("pagination_format", 1, true),
+        "the counter still reads a setting")
+    assert(src:find("if not self:_isSpineMode() then", 1, true),
+        "the counter no longer decides by shelf style")
 end)
 
 t.test("the probe can force the widest numbers, not today's", function()
     -- Otherwise a shelf that grows from page 9 to page 100 outgrows the slot
     -- its width was measured for.
-    eq(run("pages", 1, 1, 1, true, 3, 27, 999, 999), "Page 999 of 999+")
-end)
-
-t.test("the footer and its width probe use the same builder", function()
-    -- The probe measures the widest text the slot must hold. Two builders
-    -- would size the slot for one format and paint the other into it.
-    local uses = select(2, src:gsub("_pageCounterText%(", ""))
-    assert(uses >= 3, "expected the definition plus both call sites, found " .. uses)
-    local probe = src:match("local probe = FooterSlots.probeNumber%(counter_total%)(.-)slots = FooterSlots.widths")
-    assert(probe, "the probe block moved")
-    assert(probe:find("_pageCounterText", 1, true),
-        "the probe still builds its own text, so the slot can be sized for the wrong format")
+    eq(run("covers", 1, 1, 1, true, 3, 27, 999, 999), "Page 999 of 999+")
 end)
 
 t.test("the map answers both numbers when there is one", function()
@@ -104,13 +105,14 @@ t.test("the map answers both numbers when there is one", function()
         page = 1,                                  -- the stale field
         _totalPages = function() return 3 end,     -- the stale estimate
         _cursor = 40,
+        _isSpineMode = function() return false end,
         _spinePageIndexForCursor = function(_s, cur) return 4 end,
         _spineTotalPages = function() return 9 end,
     }
     local body = src:match(
         "\nfunction BookshelfWidget:_pageCounterText%(first, last, total, open_ended, page, pages%)\n(.-)\nend\n")
     local env = {
-        BookshelfSettings = { read = function() return "pages" end },
+        BookshelfSettings = { read = function(_k, d) return d end },
         _ = function(x) return x end, pcall = pcall, math = math,
         T = function(fmt, ...) local a = { ... }
             return (fmt:gsub("%%(%d)", function(n) return tostring(a[tonumber(n)]) end)) end,
@@ -125,13 +127,14 @@ end)
 t.test("a page number past the end is clamped to the map", function()
     local env_self = {
         page = 12, _totalPages = function() return 12 end, _cursor = 1,
+        _isSpineMode = function() return false end,
         _spinePageIndexForCursor = function() return nil end,
         _spineTotalPages = function() return 9 end,
     }
     local body = src:match(
         "\nfunction BookshelfWidget:_pageCounterText%(first, last, total, open_ended, page, pages%)\n(.-)\nend\n")
     local env = {
-        BookshelfSettings = { read = function() return "pages" end },
+        BookshelfSettings = { read = function(_k, d) return d end },
         _ = function(x) return x end, pcall = pcall, math = math,
         T = function(fmt, ...) local a = { ... }
             return (fmt:gsub("%%(%d)", function(n) return tostring(a[tonumber(n)]) end)) end,

@@ -6384,7 +6384,24 @@ end
 -- page/pages override the live values, which is what lets the width probe
 -- measure the WIDEST text the slot may ever hold rather than today's.
 function BookshelfWidget:_pageCounterText(first, last, total, open_ended, page, pages)
-    if BookshelfSettings.read("pagination_format", "pages") == "pages" then
+    -- WHICH FORM, decided by the shelf rather than by a setting. The two
+    -- counters are not preferences, they are answers to what the shelf can
+    -- honestly say about itself.
+    --
+    -- A spine page holds a variable number of books, so "page 3 of 27" is a
+    -- number nothing on screen can be checked against, and the page map that
+    -- produces it is built by a second pass that does not always agree with
+    -- the render. A range is arithmetic on the cursor and the total: always
+    -- true, and true from the first paint.
+    --
+    -- Every other style pages by a fixed grid, where the page number IS the
+    -- honest summary and the one every other pager on the device shows.
+    --
+    -- This replaced a reader-facing choice. Offering it asked the reader to
+    -- decide something they have no way to judge, and the wrong half of the
+    -- answer was wrong in a way that looked like a bug: a page count that
+    -- corrected itself on the first turn after a restart.
+    if not self:_isSpineMode() then
         -- BOTH NUMBERS FROM ONE SOURCE, which on a spine shelf is the page
         -- MAP. self.page and self._total_pages are maintained separately and
         -- can be a step apart: _total_pages starts life as a capacity

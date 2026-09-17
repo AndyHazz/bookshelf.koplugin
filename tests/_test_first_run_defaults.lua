@@ -77,11 +77,16 @@ t.test("panel shading defaults to Heavy", function()
         .. "was the reason it was raised")
 end)
 
-t.test("the footer counts pages", function()
-    assert(widget:find('BookshelfSettings.read("pagination_format", "pages")', 1, true),
-        "the counter's own default changed")
-    local row = set:match('key     = "pagination_format",\n%s*default = "(%a+)"')
-    eq(row, "pages", "the menu row's default disagrees with the counter's")
+t.test("the footer's counter is not a setting at all", function()
+    -- It was one, briefly. The shelf decides now: a spine page holds a
+    -- variable number of books so it counts books, every other style pages by
+    -- a fixed grid so it counts pages. Pinned here because it IS part of what
+    -- a new install sees, and because a leftover key would read as a setting
+    -- that stopped working.
+    assert(not set:find("pagination_format", 1, true),
+        "the pagination setting is back in the menu")
+    assert(widget:find("if not self:_isSpineMode() then", 1, true),
+        "the counter no longer decides by shelf style")
 end)
 
 t.done()

@@ -86,6 +86,12 @@ M.FREQ_RESERVE_AT = 1.5
 -- nothing gives nothing up, so the odd bookless row costs no shelf.
 M.ROW_END_CHANCE = 0.28
 
+-- Odds that survive pick()'s scaling by the level, for the one placement that
+-- is a promise rather than a roll (see screenGuaranteed). A plain 1 would not
+-- do: pick multiplies by the frequency, so at Rarely a "certainty" of 1 comes
+-- back out as 0.5 and rolls anyway.
+M.CHANCE_CERTAIN = math.huge
+
 -- The shelf on screen may pin its own frequency, so the value is pushed in
 -- rather than read from the library setting alone: a chip's pin is resolved
 -- against the global by the widget (BookshelfWidget:_chipListValue) and handed
@@ -125,6 +131,58 @@ end
 -- reservesRowEnds() -> should a shelf keep a slot free at its end?
 function M.reservesRowEnds()
     return M.frequency() >= M.FREQ_RESERVE_AT
+end
+
+-- ── The per-SCREEN promise ────────────────────────────────────────────────
+--
+-- Every placement above is opportunistic: a piece appears when a gap happens
+-- to be wide enough. On a plain shelf that can mean never. A shelf with no
+-- groups has no section breaks at all -- the default Home shelf, flattened
+-- folders, is exactly that -- and a densely packed row leaves a few dozen
+-- pixels at its end, under MIN_GAP_DP. Both channels empty, at every level
+-- below the top one, for ever: "I have it set to 'often' on my home shelf,
+-- and no ornaments appear on any page" (maintainer).
+--
+-- So a level also says how often a SCREEN is promised a piece, and on a
+-- promised screen that has nothing else standing, one takes width off a row
+-- end and stands there. Space stops being the thing that decides.
+--
+-- One screen in N. Always means every screen; Often lands about one in three,
+-- which with the opportunistic placements on top reads as the "every 2-3
+-- screens" that was asked for. None promises nothing, and must: a level whose
+-- own name is None cannot force anything.
+M.SCREEN_PERIOD = { [0] = 0, [0.5] = 6, [1] = 3, [2] = 1 }
+
+function M.screenPeriod()
+    local f = M.frequency()
+    local best, dist = 0, math.huge
+    for level, period in pairs(M.SCREEN_PERIOD) do
+        local d = math.abs(level - f)
+        if d < dist then best, dist = period, d end
+    end
+    return best
+end
+
+-- screenGuaranteed(seed) -> is THIS screen promised a piece?
+--
+-- Hashed from the page, not counted, so a page composes the same way every
+-- time it is shown -- a shelf that decorates itself differently on each visit
+-- reads as a bug rather than as variety.
+function M.screenGuaranteed(seed)
+    local period = M.screenPeriod()
+    if period <= 0 then return false end
+    if period == 1 then return true end
+    return (M.hash(tostring(seed)) % period) == 0
+end
+
+-- screenCount() -> how many pieces are already standing on this screen.
+--
+-- The forced row-end piece is a LAST resort: a screen that already has one
+-- between two groups keeps its books.
+function M.screenCount()
+    local n = 0
+    for _k in pairs(M._used) do n = n + 1 end
+    return n
 end
 
 

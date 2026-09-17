@@ -1125,7 +1125,13 @@ t.test("a reserved row end is usually, not always, taken: Lots leaves about one 
     -- one constant gives Often about half its row ends and Lots most of them.
     local src = io.open("lib/bookshelf_spine_shelf.lua"):read("a")
     local plan = src:match("\nfunction SpineShelf%.plan%(items, opts%)\n(.-)\nfunction SpineShelf%.")
-    assert(plan:find("chance    = Orn.ROW_END_CHANCE", 1, true), "the row-end pick still uses chance 1")
+    -- The ORDINARY path still rolls. A promised screen with nothing standing
+    -- gets a certainty instead (see _test_ornament_screen_cadence), and that
+    -- is the only route to one.
+    assert(plan:find("or Orn.ROW_END_CHANCE", 1, true),
+        "the row-end pick no longer rolls on the ordinary path")
+    assert(plan:find("owed and Orn.CHANCE_CERTAIN", 1, true),
+        "the forced placement is no longer expressed as a certainty")
     local O = fresh()
     -- Lots, as a per-shelf pin: the frequency has no library setting behind
     -- it any more, so stubbing the store would set nothing.

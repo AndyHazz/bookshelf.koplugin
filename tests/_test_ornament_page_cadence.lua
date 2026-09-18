@@ -219,23 +219,83 @@ t.test("the rotation starts somewhere in the folder, and still cycles", function
         "reseeding here would disturb anything else drawing random numbers")
 end)
 
-t.test("a piece that cannot fit the gap steps aside instead of taking the slot", function()
-    -- Reported with twelve test ornaments in the folder: "I still have cacti
-    -- and the template plant on the same ends of the shelfs on pages 2 and
-    -- 3." The rotation was handing out turns evenly, but a chosen entry that
-    -- came out too small for THIS gap ended the attempt -- so the gap stayed
-    -- empty and only the two files that happen to fit a row end ever showed.
+t.test("the rotation turns over the pieces that FIT, in equal shares", function()
+    -- Reported twice, with twelve test ornaments in the folder: "I still have
+    -- cacti and the template plant on the same ends of the shelfs on pages 2
+    -- and 3", and again after the first attempt at a fix.
+    --
+    -- The first attempt sized a candidate and, if it came out too small,
+    -- walked on to the next. That removed the empty gaps but not the bias:
+    -- the walk always steps the same way, so a piece that can NEVER fit hands
+    -- its turn to the same successor every single time. On the maintainer's
+    -- device the two widest files came out 121px against a 124px floor and
+    -- donated all of their turns to entries 1 and 2 -- cactus and template --
+    -- which then stood three times as often as anything else.
+    --
+    -- Deciding the fit set FIRST and rotating inside it gives every eligible
+    -- piece exactly one turn.
     local body = orn:match("\nfunction M%.pick%(seed, gap_px, stand_h, entries, o%)\n(.-)\nend\n")
     assert(body, "pick not found")
-    assert(body:find("local function sizeFor(entry)", 1, true),
-        "the size is not worked out per candidate")
-    -- The walk must consult the size, not just whether it is already standing.
-    local walk = body:match("(for step = 0, #entries %- 1 do.-end)")
-    assert(walk and walk:find("sizeFor(cand)", 1, true),
-        "the walk still stops at the first unused entry whatever its size")
-    -- And a repeat is still better than a hole when nothing unused fits.
-    assert(select(2, body:gsub("for step = 0, #entries %- 1 do", "")) == 2,
-        "the fallback walk over already-standing pieces is gone")
+    assert(body:find("local fits = {}", 1, true),
+        "the fit set is not worked out before the rotation")
+    local rot = body:match("local idx = M.rotationFor%(seed, ([^)]+)%)")
+    eq(rot, "#fits",
+        "the rotation still indexes the whole folder, so a piece that cannot "
+        .. "fit keeps donating its turn to whatever follows it")
+
+    -- And the property itself, through the real pick() at the geometry the
+    -- device reported: a 974px row end, books standing 415px.
+    local M = {
+        HEIGHT_FRAC = tonumber(orn:match("M.HEIGHT_FRAC%s*=%s*([%d.]+)")),
+        MIN_H_FRAC  = tonumber(orn:match("M.MIN_H_FRAC%s*=%s*([%d.]+)")),
+        CHANCE = 0.5, _used = {}, _rot = {}, _rot_n = 0, _rot_start = 0,
+        frequency = function() return 1 end,
+        hash = function() return 0 end,
+        budgetLeft = function() return 99 end,
+    }
+    M.rotationFor = function(seed, count)
+        if not count or count <= 1 then return 1 end
+        local had = M._rot[seed]
+        if had then return ((had - 1) % count) + 1 end
+        local idx = ((M._rot_n + M._rot_start) % count) + 1
+        M._rot[seed] = idx
+        M._rot_n = M._rot_n + 1
+        return idx
+    end
+    local pick = assert(load("return function(seed, gap_px, stand_h, entries, o)\n"
+        .. body .. "\nend", "pick", "t",
+        { M = M, math = math, tostring = tostring, type = type,
+          pairs = pairs, ipairs = ipairs }))()
+    local pool, aspects = {}, { 0.57, 0.57, 0.48, 0.75, 1.0, 1.5, 2.0, 2.5,
+                                3.0, 4.0, 5.0, 6.5, 8.0, 9.0 }
+    for i, a in ipairs(aspects) do
+        pool[i] = { name = "f" .. i, aspect = a, overhang = 0 }
+    end
+    local GAP, STAND, PAGES = 974, 415, 120
+    local seen = {}
+    for page = 1, PAGES do
+        for within = 1, 2 do
+            M._used = {}                       -- beginScreen, once per page
+            local pl = pick("page" .. page .. "|rowend|" .. within, GAP, STAND,
+                            pool, { chance = math.huge, min_h_frac = 0.3 })
+            assert(pl, "the gap was left empty although something fits")
+            seen[pl.entry.name] = (seen[pl.entry.name] or 0) + 1
+        end
+    end
+    local lo, hi, standing = math.huge, 0, 0
+    for i = 1, #pool do
+        local c = seen[pool[i].name] or 0
+        if c > 0 then
+            standing = standing + 1
+            lo, hi = math.min(lo, c), math.max(hi, c)
+        end
+    end
+    assert(standing >= 10, "only " .. standing .. " of the folder ever stood")
+    -- Perfectly even is what the rotation gives; allow one for rounding when
+    -- the page count is not a multiple of the fit-set size.
+    assert(hi - lo <= 1, string.format(
+        "shares run %d..%d across the %d files that can stand; the rotation "
+        .. "is favouring some of them", lo, hi, standing))
 end)
 
 t.test("a wide ornament is given room instead of being dropped", function()
@@ -250,20 +310,15 @@ t.test("a wide ornament is given room instead of being dropped", function()
     -- book however little is left -- so a row that gave up everything would
     -- show a single spine with the ornament over it. That is the only limit:
     -- the row keeps room for a few average books and the piece has the rest.
-    local KEEP  = tonumber(orn:match("M.ROW_END_KEEP_BOOKS%s*=%s*(%d+)"))
     local FRAC  = tonumber(orn:match("M.ROW_END_MIN_H_FRAC%s*=%s*([%d.]+)"))
     local HFRAC = tonumber(orn:match("M.HEIGHT_FRAC%s*=%s*([%d.]+)"))
     local MFRAC = tonumber(orn:match("M.MIN_H_FRAC%s*=%s*([%d.]+)"))
-    assert(KEEP and FRAC, "the row-end constants are gone")
-    assert(KEEP >= 1, "the row must keep room for at least one book besides "
-        .. "the one fillRows seats anyway")
-    assert(KEEP <= 8, "keeping " .. tostring(KEEP) .. " books back is a cap "
-        .. "on the ornament by another name")
+    assert(FRAC, "the row-end constants are gone")
     assert(FRAC < MFRAC, "a row end must allow a lower piece than a gap does")
 
     -- The slot: everything but `keep`, floored at the old square so no shelf
     -- is offered less than it was before.
-    local keep_expr = shelf:match("orn.keep = (Orn.ROW_END_KEEP_BOOKS.-)\n%s*local square")
+    local keep_expr = shelf:match("(local face_h = SpineLayout.-)\n%s*local square")
     local room_expr = shelf:match("local room%s*=%s*([^\n]+)")
     local slot = shelf:match("local room%s*=.-\n%s*[^\n]*\n%s*orn.row_end = ([^\n]+)")
     assert(room_expr and room_expr:find("content_w", 1, true)
@@ -279,8 +334,11 @@ t.test("a wide ornament is given room instead of being dropped", function()
     -- actual books: one pass plans a page and the other the whole library, so
     -- a statistic over `widths` would put them out of step and repeat page
     -- numbers again.
-    assert(keep_expr:find("ref_w_dp", 1, true),
-        "the floor is not the average book derived from opts")
+    assert(keep_expr:find("faceOutWidth", 1, true),
+        "the width held back is not a face-out cover, which is the widest "
+        .. "single thing a row can hold and the one that overflowed")
+    assert(keep_expr:find("opts.row_h", 1, true),
+        "the floor is not derived from opts")
     assert(not keep_expr:find("widths", 1, true)
            and not keep_expr:find("entries", 1, true),
         "the floor reads the actual books, which the two planning passes "
@@ -327,9 +385,12 @@ t.test("a wide ornament is given room instead of being dropped", function()
     }
     local pick = assert(load("return function(seed, gap_px, stand_h, entries, o)\n"
         .. body .. "\nend", "pick", "t", env))()
-    local STAND, CONTENT, BOOK_W, GAP = 280, 1135, 44, 6
+    -- PW5 home tab, measured off a device screenshot and confirmed by an
+    -- on-device probe: a 1135px row, books standing 280px, one face-out
+    -- cover about 200px wide.
+    local STAND, CONTENT, COVER_W, GAP = 280, 1135, 200, 6
     local square = math.floor(STAND * HFRAC)
-    local slot_w = math.max(square, CONTENT - KEEP * (BOOK_W + GAP) - 2 * GAP)
+    local slot_w = math.max(square, CONTENT - (COVER_W + GAP) - 2 * GAP)
     assert(slot_w > CONTENT / 2,
         "the slot came out at " .. slot_w .. "px of " .. CONTENT
         .. "; a piece that spans the shelf still cannot")

@@ -148,11 +148,21 @@ function SpineLayout.faceOutWidth(spine_h, aspect)
     return w
 end
 
--- fillRows(widths, avail_w, gap) -> { {first=i, last=j}, ... }
+-- fillRows(widths, avail_w, gap, empty_ok) -> { {first=i, last=j}, ... }
 --
--- Greedy left-to-right fill. Every row holds at least one book even when
+-- Greedy left-to-right fill. A row normally holds at least one book even when
 -- that book alone is wider than the shelf (it gets clipped by the painter
 -- rather than looping forever here).
+--
+-- empty_ok(row_index) lifts that for one row at a time: answer true and a row
+-- whose remaining width cannot seat even its first book is emitted EMPTY
+-- (last = first - 1) and the book tries again on the next row. The shelf uses
+-- it for a row carrying a wide ornament: reserving 85% of the row and then
+-- seating a face-out cover in what was left put the cover past the end of the
+-- plank (device report, "a face out book appearing off the edge of the
+-- shelf"). A row may stand as its ornament alone -- "we don't always need to
+-- have a book" -- but never two empty rows running, so a book wider than any
+-- row still lands somewhere instead of looping.
 --
 -- gap is either one number, or an array where gap[i] is the gap painted
 -- BEFORE book i (so a group boundary can be wider than the gap inside a
@@ -167,7 +177,7 @@ local function availFn(avail_w)
 end
 SpineLayout.availFn = availFn
 
-function SpineLayout.fillRows(widths, avail_w, gap)
+function SpineLayout.fillRows(widths, avail_w, gap, empty_ok)
     gap = gap or 0
     local gaps = type(gap) == "table" and gap or nil
     local flat = gaps and 0 or gap
@@ -175,23 +185,36 @@ function SpineLayout.fillRows(widths, avail_w, gap)
     local rows = {}
     local x, first
     local limit = avail(1)
-    for i, w in ipairs(widths) do
+    local n, i, was_empty = #widths, 1, false
+    while i <= n do
+        local w = widths[i]
         if not first then
-            first, x = i, w
+            if w > limit and empty_ok and not was_empty and empty_ok(#rows + 1) then
+                -- No room for even one book beside whatever this row reserved.
+                -- Let the row stand on that alone and try this book again on
+                -- the next one; `was_empty` stops the retry repeating.
+                rows[#rows + 1] = { first = i, last = i - 1, empty = true }
+                was_empty = true
+                limit = avail(#rows + 1)
+            else
+                first, x, was_empty = i, w, false
+                i = i + 1
+            end
         else
             local g = gaps and (gaps[i] or 0) or flat
             local need = x + g + w
             if need > limit then
                 rows[#rows + 1] = { first = first, last = i - 1 }
-                first, x = i, w
+                first, x = nil, nil
                 limit = avail(#rows + 1)
             else
                 x = need
+                i = i + 1
             end
         end
     end
     if first then
-        rows[#rows + 1] = { first = first, last = #widths }
+        rows[#rows + 1] = { first = first, last = n }
     end
     return rows
 end

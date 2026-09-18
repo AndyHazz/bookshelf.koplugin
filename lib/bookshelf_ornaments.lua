@@ -63,23 +63,16 @@ M.HEIGHT_FRAC   = 0.8    -- height as a fraction of the books' stand height
 -- just over some hidden limit"). The square is not a rule anybody chose; it
 -- is just what falls out of using the height for the width too.
 --
--- There is no aesthetic ceiling here. An ornament that spans most of the
--- shelf is a decoration somebody drew that way, and the slack and bare-plank
--- pieces already stand at whatever width the shelf happens to leave them.
+-- There is no ceiling here worth the name. An ornament that spans the shelf
+-- is a decoration somebody drew that way, and the row it stands on carries no
+-- books rather than squeezing one in beside it: "I have no issue with a png
+-- taking a full shelf, we don't always need to have a book" (maintainer).
 --
--- The one real constraint is mechanical: a row-end slot is taken off the row
--- BEFORE the books are packed, and SpineLayout.fillRows gives every row at
--- least one book however little room is left -- so a row that gave up
--- everything would show one lonely spine with an ornament over it. The row
--- therefore keeps room for this many average books and the piece may have the
--- whole of the rest. On an ordinary shelf that is roughly five sixths of the
--- row, which is to say: no practical limit.
---
--- Average, not actual: the widths of the books on a given row are not known
--- to both planning passes (one plans a page, the other the whole library), so
--- a floor measured off them would drift the two apart. spineWidthDp(nil) is
--- the average book's width and both passes compute it the same.
-M.ROW_END_KEEP_BOOKS = 4
+-- What the row does hold back is one book's width, measured on the widest
+-- thing a row can hold -- a face-out cover. Without it a row is FORCED to
+-- seat a book (SpineLayout.fillRows seats at least one), and with only a
+-- sliver left that book gets painted past the end of the plank, which is what
+-- the device showed. The slot itself is worked out in bookshelf_spine_shelf.
 -- A section break stays an aside: it widens a gap BETWEEN two books, in the
 -- middle of a row, where a big piece reads as a hole rather than as an end
 -- piece. A quarter of the row is as much as that is allowed to take.
@@ -854,32 +847,49 @@ function M.pick(seed, gap_px, stand_h, entries, o)
         if height < min_h or width < 1 then return nil end
         return width, height
     end
-    -- Seeded choice first, then walk on. Walking (rather than re-hashing)
-    -- keeps the seed's influence: the same screen composed the same way still
-    -- lands the same way.
-    local idx = M.rotationFor(seed, #entries)
+    -- WHICH PIECES CAN STAND HERE, before the rotation gets a say.
+    --
+    -- The rotation used to index the WHOLE folder and the fit test came
+    -- afterwards: a turn that landed on a piece too wide for this gap walked
+    -- forward to the next one that fitted. That sounds harmless and is not.
+    -- The walk always steps the same way, so a piece that never fits hands its
+    -- turn to the same successor every time, for good. Measured on the
+    -- device with a fourteen-file folder: the two widest files (8:1 and 9:1,
+    -- which come out 121px against a 124px floor) donated every one of their
+    -- turns to entries 1 and 2, so those two stood three times as often as
+    -- anything else and turned up on page after page -- "I still have cacti
+    -- and the template plant on the same ends of the shelfs on pages 2 and 3".
+    --
+    -- Sizing everything first and rotating through what FITS gives every
+    -- eligible piece exactly one turn in the cycle and takes the walk
+    -- direction out of it. The fit set is a function of gap_px and stand_h,
+    -- both of which the two planning passes agree on for a given seed, so the
+    -- count behind the rotation is stable and the passes still match.
+    local fits = {}
+    for _i = 1, #entries do
+        local cand = entries[_i]
+        local w, h = sizeFor(cand)
+        if w then fits[#fits + 1] = { entry = cand, w = w, h = h } end
+    end
+    if #fits == 0 then return nil end
+    -- Seeded choice first, then walk on within the fitting set. Walking
+    -- (rather than re-hashing) keeps the seed's influence: the same screen
+    -- composed the same way still lands the same way.
+    local idx = M.rotationFor(seed, #fits)
     local entry, width, height
-    for step = 0, #entries - 1 do
-        local cand = entries[((idx - 1 + step) % #entries) + 1]
-        if cand and not M._used[cand.name or cand.path] then
-            local w, h = sizeFor(cand)
-            if w then entry, width, height = cand, w, h break end
+    for step = 0, #fits - 1 do
+        local cand = fits[((idx - 1 + step) % #fits) + 1]
+        if not M._used[cand.entry.name or cand.entry.path] then
+            entry, width, height = cand.entry, cand.w, cand.h
+            break
         end
     end
     if not entry then
-        -- Nothing unused fits. Rather than leave the gap empty, try a repeat:
-        -- a piece already standing elsewhere on this screen still reads better
-        -- than a hole, and this is the old "every one already up" fallback
-        -- widened to cover "every one that fits is already up".
-        for step = 0, #entries - 1 do
-            local cand = entries[((idx - 1 + step) % #entries) + 1]
-            if cand then
-                local w, h = sizeFor(cand)
-                if w then entry, width, height = cand, w, h break end
-            end
-        end
+        -- Every fitting piece is already standing on this screen. A repeat
+        -- still reads better than a hole, so take the turn's own piece.
+        local cand = fits[idx]
+        entry, width, height = cand.entry, cand.w, cand.h
     end
-    if not entry then return nil end
     local below = math.floor(height * entry.overhang)
     -- Marked only now: pick bails out above on several paths (too short, too
     -- narrow, the odds), and an entry that never stood must not be counted as

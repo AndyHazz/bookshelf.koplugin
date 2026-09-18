@@ -2744,23 +2744,30 @@ function SpineShelf.plan(items, opts)
             -- down to the budget by pick itself.
             if (Orn.frequency and Orn.frequency() > 0)
                     or (Orn.reservesRowEnds and Orn.reservesRowEnds()) then
-                -- The most a row-end piece may be OFFERED: everything the
-                -- row can spare once it has kept room for a few average
-                -- books. Not a share of the row and not a stand-height
-                -- square -- an ornament drawn to span the shelf should span
-                -- the shelf. What stops it taking the LOT is that this width
-                -- comes off before the books are packed and fillRows always
-                -- seats at least one book, so a row that gave up everything
-                -- would show one lonely spine underneath. See
-                -- Orn.ROW_END_KEEP_BOOKS.
+                -- The most a row-end piece may be OFFERED: all but one
+                -- book's width. Not a share of the row and not a
+                -- stand-height square -- a piece drawn to span the shelf
+                -- spans the shelf, and the row it stands on simply carries
+                -- no books ("I have no issue with a png taking a full shelf,
+                -- we don't always need to have a book").
                 --
-                -- ref_w_dp is the average book's width under this shelf's
-                -- thickness modifiers, and it is derived from opts alone --
-                -- the actual widths on a row are not something both planning
-                -- passes can agree on.
-                orn.keep = Orn.ROW_END_KEEP_BOOKS
-                           * (Screen:scaleBySize(math.max(8, ref_w_dp))
-                              + book_gap)
+                -- One book's width is still held back, and the book it is
+                -- measured for is the WIDEST a row can hold: a face-out
+                -- cover, not an average spine. Holding back four average
+                -- spines was not enough -- a face-out is wider than all four
+                -- -- so the row seated one anyway and painted it past the end
+                -- of the plank. With a cover's width kept, no row is ever
+                -- forced to overflow; a row that still cannot fit its book
+                -- stands empty instead (SpineLayout.fillRows, empty_ok).
+                --
+                -- Derived from opts alone: the ACTUAL widths on a row are
+                -- not something the two planning passes can agree on, since
+                -- one plans a page and the other the whole library.
+                local face_h = SpineLayout.spineHeight(opts.row_h,
+                                                       SpineLayout.DEFAULT_ASPECT)
+                orn.keep = SpineLayout.faceOutWidth(face_h,
+                                                    SpineLayout.DEFAULT_ASPECT)
+                           + book_gap
                 local square = math.floor(orn.stand_h * Orn.HEIGHT_FRAC)
                 local room   = (opts.content_w or 0) - orn.keep - 2 * orn.pad
                 -- Never offered less than it was before the widening.
@@ -3323,7 +3330,12 @@ function SpineShelf.plan(items, opts)
         if pl then return content_w_books - (pl.w + 2 * orn.pad) end
         return content_w_books
     end
-    local rows = SpineLayout.fillRows(widths, availAt, gaps)
+    -- A row may stand as its ornament alone, but only a row that HAS one:
+    -- everywhere else the "at least one book" rule still holds. rowPiece is
+    -- memoised per row, so both planning passes answer this the same way.
+    local rows = SpineLayout.fillRows(widths, availAt, gaps, function(r)
+        return rowPiece(r) ~= nil
+    end)
     while #rows > (opts.n_rows or 1) do table.remove(rows) end
     -- Even the shelves out. The fill has decided WHICH books are on this page
     -- -- greedy packs the most it can, and the cursor step, the page map and
@@ -3338,7 +3350,12 @@ function SpineShelf.plan(items, opts)
     -- chip (n_rows = math.huge, for pagination) says balance = false; the
     -- cap is a backstop, since the DP is rows x books and the visible shelf
     -- never has more than a handful of rows.
-    if #rows > 1 and opts.balance ~= false and #rows <= 8 then
+    -- An empty row is a row the balancer cannot speak about: it re-breaks a
+    -- run of books across a fixed number of rows and has no way to express
+    -- "this one holds none". Keep the greedy break in that case.
+    local has_empty = false
+    for r = 1, #rows do if rows[r].empty then has_empty = true break end end
+    if #rows > 1 and opts.balance ~= false and #rows <= 8 and not has_empty then
         local runs = {}
         for i = 1, #entries do runs[i] = entries[i].run_idx end
         local _tb = _gettime()

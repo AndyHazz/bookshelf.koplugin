@@ -2744,21 +2744,27 @@ function SpineShelf.plan(items, opts)
             -- down to the budget by pick itself.
             if (Orn.frequency and Orn.frequency() > 0)
                     or (Orn.reservesRowEnds and Orn.reservesRowEnds()) then
-                -- The most a row-end piece may be OFFERED -- a quarter of
-                -- the row, the same share a section break may take, or the
-                -- old stand-height square where that comes out wider. Taking
-                -- the larger of the two means no shelf is offered LESS than
-                -- it was before; what changes is that a shelf with ordinary
-                -- rows now offers a slot wider than it is tall, which is what
-                -- a broad ornament needs to stand at all. See ASIDE_SHARE.
+                -- The most a row-end piece may be OFFERED: everything the
+                -- row can spare once it has kept room for a few average
+                -- books. Not a share of the row and not a stand-height
+                -- square -- an ornament drawn to span the shelf should span
+                -- the shelf. What stops it taking the LOT is that this width
+                -- comes off before the books are packed and fillRows always
+                -- seats at least one book, so a row that gave up everything
+                -- would show one lonely spine underneath. See
+                -- Orn.ROW_END_KEEP_BOOKS.
                 --
-                -- Still only an offer. The row gives up the width of the
-                -- piece that actually stands on it (availAt, below), so a
-                -- wider slot costs nothing on the rows that take a narrow
-                -- piece or none.
+                -- ref_w_dp is the average book's width under this shelf's
+                -- thickness modifiers, and it is derived from opts alone --
+                -- the actual widths on a row are not something both planning
+                -- passes can agree on.
+                orn.keep = Orn.ROW_END_KEEP_BOOKS
+                           * (Screen:scaleBySize(math.max(8, ref_w_dp))
+                              + book_gap)
                 local square = math.floor(orn.stand_h * Orn.HEIGHT_FRAC)
-                local share  = orn.budget
-                orn.row_end = math.max(square, share) + 2 * orn.pad
+                local room   = (opts.content_w or 0) - orn.keep - 2 * orn.pad
+                -- Never offered less than it was before the widening.
+                orn.row_end = math.max(square, room) + 2 * orn.pad
             end
             pcall(Orn.ensureTemplate)
             -- One page, one set: plan() runs once per page and before any row
@@ -2771,12 +2777,14 @@ function SpineShelf.plan(items, opts)
     -- the full width and it packs a book into the strip the other paints an
     -- ornament in.
     --
-    -- Dropped entirely on a shelf too narrow to spare it: a reservation worth
-    -- a third of the row would cost books to gain decoration.
+    -- Dropped entirely on a shelf too narrow to spare it. Normally the slot
+    -- is sized to leave exactly `keep` behind, so this only bites when the
+    -- stand-height floor above pushed it past that -- tall rows on a narrow
+    -- screen, where a reservation would cost books to gain decoration.
     local content_w_books = opts.content_w or 0
     if orn and orn.row_end and orn.row_end > 0
-            and content_w_books <= orn.row_end * 3 then
-        orn.row_end = nil   -- a shelf too narrow to spare a third of itself
+            and content_w_books - orn.row_end < (orn.keep or 0) then
+        orn.row_end = nil
     end
 
     -- ── Flatten ─────────────────────────────────────────────────────────

@@ -63,17 +63,31 @@ M.HEIGHT_FRAC   = 0.8    -- height as a fraction of the books' stand height
 -- just over some hidden limit"). The square is not a rule anybody chose; it
 -- is just what falls out of using the height for the width too.
 --
--- The rule that WAS chosen is the section break's: an ornament may take a
--- quarter of the row, no more -- an aside, not an exhibit. So the row end
--- asks for the same quarter, or the old square where that is bigger (tall
--- rows on a narrow screen), and never less than it asked for before. Nothing
--- else changes: the row gives up the width of the piece that actually stands
--- on it, not the width offered.
+-- There is no aesthetic ceiling here. An ornament that spans most of the
+-- shelf is a decoration somebody drew that way, and the slack and bare-plank
+-- pieces already stand at whatever width the shelf happens to leave them.
+--
+-- The one real constraint is mechanical: a row-end slot is taken off the row
+-- BEFORE the books are packed, and SpineLayout.fillRows gives every row at
+-- least one book however little room is left -- so a row that gave up
+-- everything would show one lonely spine with an ornament over it. The row
+-- therefore keeps room for this many average books and the piece may have the
+-- whole of the rest. On an ordinary shelf that is roughly five sixths of the
+-- row, which is to say: no practical limit.
+--
+-- Average, not actual: the widths of the books on a given row are not known
+-- to both planning passes (one plans a page, the other the whole library), so
+-- a floor measured off them would drift the two apart. spineWidthDp(nil) is
+-- the average book's width and both passes compute it the same.
+M.ROW_END_KEEP_BOOKS = 4
+-- A section break stays an aside: it widens a gap BETWEEN two books, in the
+-- middle of a row, where a big piece reads as a hole rather than as an end
+-- piece. A quarter of the row is as much as that is allowed to take.
 M.ASIDE_SHARE   = 0.25
--- ...and a piece that has to spread to fill that quarter may stand shorter
--- than one wedged into a gap between books. There is nothing above a row end
--- to crowd, so a low wide piece reads as an ornament rather than as a
--- mistake, where the same piece squeezed between two spines would not.
+-- ...and a piece that spreads across a row-end slot may stand shorter than
+-- one wedged into a gap between books. There is nothing above a row end to
+-- crowd, so a low wide piece reads as an ornament rather than as a mistake,
+-- where the same piece squeezed between two spines would not.
 M.ROW_END_MIN_H_FRAC = 0.3
 M.CHANCE        = 0.5    -- fraction of eligible gaps that get an ornament
 M.GROUP_CHANCE  = 0.08   -- ...and of the gaps BETWEEN sections on a grouping

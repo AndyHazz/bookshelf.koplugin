@@ -241,33 +241,59 @@ end)
 t.test("a wide ornament is given room instead of being dropped", function()
     -- "Can we make space for wider ornaments, instead of discarding them?
     -- Otherwise users will wonder why their ornament never appears if it's
-    -- just over some hidden limit ..." (maintainer).
+    -- just over some hidden limit ..." and then, of the quarter-row cap that
+    -- first replaced it: "I don't think there's any downside to allowing
+    -- ornaments that stretch the full width of the shelf?" (maintainer).
     --
-    -- The limit WAS the row-end slot: a stand-height square, which is not a
-    -- rule anybody chose, just what falls out of using the height for the
-    -- width too. Anything wider was shrunk to fit and then dropped for being
-    -- short. The slot now asks for a quarter of the row -- the one share the
-    -- shelf does declare, the same one a section break may take -- and a piece
-    -- spread across it may stand lower than one wedged between two spines.
-    local SHARE = tonumber(orn:match("M.ASIDE_SHARE%s*=%s*([%d.]+)"))
+    -- There is one, and it is not about taste. The row-end width comes off
+    -- the row BEFORE the books are packed, and fillRows seats at least one
+    -- book however little is left -- so a row that gave up everything would
+    -- show a single spine with the ornament over it. That is the only limit:
+    -- the row keeps room for a few average books and the piece has the rest.
+    local KEEP  = tonumber(orn:match("M.ROW_END_KEEP_BOOKS%s*=%s*(%d+)"))
     local FRAC  = tonumber(orn:match("M.ROW_END_MIN_H_FRAC%s*=%s*([%d.]+)"))
     local HFRAC = tonumber(orn:match("M.HEIGHT_FRAC%s*=%s*([%d.]+)"))
     local MFRAC = tonumber(orn:match("M.MIN_H_FRAC%s*=%s*([%d.]+)"))
-    assert(SHARE and FRAC, "the row-end constants are gone")
+    assert(KEEP and FRAC, "the row-end constants are gone")
+    assert(KEEP >= 1, "the row must keep room for at least one book besides "
+        .. "the one fillRows seats anyway")
+    assert(KEEP <= 8, "keeping " .. tostring(KEEP) .. " books back is a cap "
+        .. "on the ornament by another name")
     assert(FRAC < MFRAC, "a row end must allow a lower piece than a gap does")
 
-    -- The slot itself: the larger of the two, so no shelf is offered less
-    -- than it was before.
-    local slot = shelf:match("local square = math.floor%(orn.stand_h %* Orn.HEIGHT_FRAC%)\n%s*local share%s*=%s*orn.budget\n%s*orn.row_end = ([^\n]+)")
-    assert(slot and slot:find("math.max(square, share)", 1, true),
-        "the row-end slot is no longer max(stand-height square, a quarter of the row)")
+    -- The slot: everything but `keep`, floored at the old square so no shelf
+    -- is offered less than it was before.
+    local keep_expr = shelf:match("orn.keep = (Orn.ROW_END_KEEP_BOOKS.-)\n%s*local square")
+    local room_expr = shelf:match("local room%s*=%s*([^\n]+)")
+    local slot = shelf:match("local room%s*=.-\n%s*[^\n]*\n%s*orn.row_end = ([^\n]+)")
+    assert(room_expr and room_expr:find("content_w", 1, true)
+           and room_expr:find("orn.keep", 1, true),
+        "the slot is not what the row can spare once the books have their "
+        .. "room; it is a fixed share again (" .. tostring(room_expr) .. ")")
+    assert(keep_expr, "the books-kept-back floor is gone")
+    assert(slot and slot:find("math.max(square, room)", 1, true),
+        "the row-end slot is no longer max(stand-height square, what the row can spare)")
     assert(shelf:find("min_h_frac = Orn.ROW_END_MIN_H_FRAC", 1, true),
         "the row-end pick does not pass its own minimum height")
+    -- THE TWO-PASS TRAP. The floor must come from opts, never from the row's
+    -- actual books: one pass plans a page and the other the whole library, so
+    -- a statistic over `widths` would put them out of step and repeat page
+    -- numbers again.
+    assert(keep_expr:find("ref_w_dp", 1, true),
+        "the floor is not the average book derived from opts")
+    assert(not keep_expr:find("widths", 1, true)
+           and not keep_expr:find("entries", 1, true),
+        "the floor reads the actual books, which the two planning passes "
+        .. "cannot agree on")
+    -- And the narrow-shelf guard drops the reservation by the same measure,
+    -- not by the old fixed third.
+    assert(shelf:find("content_w_books - orn.row_end < (orn.keep or 0)", 1, true),
+        "the guard no longer asks whether the books still have their room")
+    assert(not shelf:find("content_w_books <= orn.row_end * 3", 1, true),
+        "the fixed one-third guard is back; it fires on every shelf now")
 
-    -- The slot is now derived from content_w as well as the row height, and
-    -- it feeds fillRows, so BOTH planning passes have to arrive at the same
-    -- number or the page boundaries drift apart again. They do only because
-    -- both build content_w by the same subtraction.
+    -- Both planning passes have to arrive at the same slot, and they do only
+    -- because both build content_w by the same subtraction.
     local calls = {}
     for body in widget:gmatch("SpineShelf.plan%(items, {\n(.-)\n%s*}%)") do
         -- One pass reads the stashed dims (d.content_w), the other the locals
@@ -287,7 +313,8 @@ t.test("a wide ornament is given room instead of being dropped", function()
         "the pagination pass reads dims that are no longer the render's own")
 
     -- And the behaviour, run through the real pick(). PW5 geometry, measured
-    -- off a device screenshot: books stand 280px on a 1135px row.
+    -- off a device screenshot: books stand 280px on a 1135px row, and an
+    -- average spine is 44px wide beside a 6px gap.
     local body = orn:match("\nfunction M%.pick%(seed, gap_px, stand_h, entries, o%)\n(.-)\nend\n")
     assert(body, "pick not found")
     local env = {
@@ -300,10 +327,12 @@ t.test("a wide ornament is given room instead of being dropped", function()
     }
     local pick = assert(load("return function(seed, gap_px, stand_h, entries, o)\n"
         .. body .. "\nend", "pick", "t", env))()
-    local STAND, CONTENT = 280, 1135
+    local STAND, CONTENT, BOOK_W, GAP = 280, 1135, 44, 6
     local square = math.floor(STAND * HFRAC)
-    local slot_w = math.max(square, math.floor(CONTENT * SHARE))
-    assert(slot_w > square, "the quarter row must be the wider offer on a normal shelf")
+    local slot_w = math.max(square, CONTENT - KEEP * (BOOK_W + GAP) - 2 * GAP)
+    assert(slot_w > CONTENT / 2,
+        "the slot came out at " .. slot_w .. "px of " .. CONTENT
+        .. "; a piece that spans the shelf still cannot")
     local function stands(gap, aspect, frac)
         env.M._used = {}
         return pick("s", gap, STAND, { { name = "w", aspect = aspect, overhang = 0 } },
@@ -315,21 +344,17 @@ t.test("a wide ornament is given room instead of being dropped", function()
     local wide = stands(slot_w, 2.0, MFRAC)
     assert(wide, "a 2:1 ornament is still dropped at a row end")
     assert(wide.w <= slot_w, "the piece overflowed the slot it was offered")
-    -- Three to one needs the other half: spread across the quarter row it
-    -- comes out low, and the gap's floor would still refuse it.
-    assert(not stands(slot_w, 3.0, MFRAC),
-        "a 3:1 piece already cleared the gap's floor; the lower row-end floor proves nothing")
-    local wider = stands(slot_w, 3.0, FRAC)
-    assert(wider, "a 3:1 ornament is still dropped at a row end")
-    -- ...and one that fits either way keeps its full height now rather than
-    -- being shrunk to the square.
-    local mid_old = stands(square, 1.5, nil)
-    local mid_new = stands(slot_w, 1.5, FRAC)
-    assert(mid_old and mid_new and mid_new.h > mid_old.h,
-        "a 1.5:1 piece is still being shrunk to fit the old square")
-    -- The quarter is a real ceiling, not a formality: something absurd is
-    -- still refused rather than drawn as a sliver.
-    assert(not stands(slot_w, 8.0, FRAC), "an 8:1 sliver was allowed to stand")
+    -- A four-to-one banner keeps its FULL height: it is not being squeezed
+    -- into a corner, it is standing along the shelf.
+    local banner = stands(slot_w, 4.0, FRAC)
+    assert(banner and banner.h == math.floor(STAND * HFRAC),
+        "a 4:1 ornament no longer stands at full height")
+    -- And something genuinely panoramic still stands, low and long, rather
+    -- than vanishing: the lower row-end floor is what buys this.
+    assert(not stands(slot_w, 9.0, MFRAC),
+        "a 9:1 piece already cleared the gap's floor; the lower row-end floor "
+        .. "proves nothing")
+    assert(stands(slot_w, 9.0, FRAC), "a 9:1 ornament is still dropped")
 end)
 
 t.done()

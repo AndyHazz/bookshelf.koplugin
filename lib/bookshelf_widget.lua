@@ -6086,9 +6086,22 @@ end
 -- first, then the library default of favourites -- the face-out
 -- favourite is half the fun of the mode. Old boolean pins normalise
 -- (true/nil were "favourites face out: yes", false was "no").
-local FACE_OUT_MODES = {
-    none = true, favorites = true, first = true, reading = true, all = true,
-}
+-- DERIVED, never a second list. This was written out by hand and drifted:
+-- it never gained "unread" or "recent", and later "first_unread". When only
+-- one reason is ticked faceOutSave stores it as a bare STRING, so those
+-- arrived here, failed the check, were discarded as unrecognised, and the
+-- shelf fell through to the favourites default -- a ticked reason that
+-- quietly did nothing ("I have series view open with first unread in series,
+-- and hardly any books are face out"). SpineShelf.FACE_REASONS is the list;
+-- "none" and "all" are the two answers that are not reasons.
+local function _faceOutModes()
+    local modes = { none = true, all = true }
+    local ok, SS = pcall(require, "lib/bookshelf_spine_shelf")
+    if ok and SS and SS.FACE_REASONS then
+        for _i = 1, #SS.FACE_REASONS do modes[SS.FACE_REASONS[_i]] = true end
+    end
+    return modes
+end
 -- Returns the setting AS STORED -- a table, a string, or a boolean -- and
 -- lets SpineShelf.faceOutSpec do the interpreting. It used to normalise to one
 -- of the five strings here and answer nil for anything else, which silently
@@ -6100,7 +6113,7 @@ function BookshelfWidget:_spineFaceOut()
     local function isSet(v)
         local t = type(v)
         if t == "table" or t == "boolean" then return true end
-        return t == "string" and FACE_OUT_MODES[v] == true
+        return t == "string" and _faceOutModes()[v] == true
     end
     local tab = require("lib/bookshelf_tab_model").getById(self.chip)
     if tab and isSet(tab.spine_face_out) then return tab.spine_face_out end

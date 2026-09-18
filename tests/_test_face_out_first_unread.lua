@@ -126,4 +126,44 @@ t.test("the picker groups the reasons the way a reader thinks", function()
         "the new reason has no label, so its button would be blank")
 end)
 
+t.test("every reason survives the widget's own gate, stored as a bare string", function()
+    -- THE BUG THAT MADE THE FEATURE DO NOTHING. faceOutSave stores a single
+    -- ticked reason as a bare STRING, and the widget had its own hand-written
+    -- list of strings it would accept -- which never gained "unread" or
+    -- "recent", and then not "first_unread" either. An unrecognised string was
+    -- treated as "not set", so the chip's pin was dropped and the shelf fell
+    -- back to favourites: the reason was ticked in the menu and did nothing
+    -- ("hardly any books are face out").
+    --
+    -- Derived from FACE_REASONS now, so the two cannot drift again.
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    assert(not w:match("local FACE_OUT_MODES = {"),
+        "the widget keeps its own list of face-out modes again")
+    local fn = w:match("local function _faceOutModes%(%)(.-)\nend")
+    assert(fn, "_faceOutModes is gone")
+    assert(fn:find("SS.FACE_REASONS", 1, true),
+        "the accepted modes are not derived from the single list")
+    assert(fn:find("none = true", 1, true) and fn:find("all = true", 1, true),
+        "none/all are answers rather than reasons and must be added explicitly")
+
+    -- ...and it really does accept every one of them.
+    local ss = io.open("lib/bookshelf_spine_shelf.lua"):read("*a")
+    local reasons = {}
+    for name in ss:match("SpineShelf.FACE_REASONS = (%b{})"):gmatch('"([%a_]+)"') do
+        reasons[#reasons + 1] = name
+    end
+    assert(#reasons >= 5, "could not read FACE_REASONS")
+    local modes = assert(load(
+        "local require = ...\nreturn (function()" .. fn .. "\nend)()",
+        "modes", "t"))(function()
+            return { FACE_REASONS = reasons }
+        end)
+    -- pcall(require, ...) is used inside, so hand it a stub that answers.
+    for _i = 1, #reasons do
+        assert(modes[reasons[_i]], reasons[_i]
+            .. " is rejected by the widget, so ticking it alone does nothing")
+    end
+    assert(modes.none and modes.all, "none/all must still be accepted")
+end)
+
 t.done()

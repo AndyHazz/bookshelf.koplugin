@@ -1,7 +1,7 @@
 msgid ""
 msgstr ""
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-18 17:26+0100\n"
+"POT-Creation-Date: 2026-09-18 20:00+0100\n"
 "Language: vi\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -1124,6 +1124,10 @@ msgstr "Cài đặt module…"
 msgid "No micro-modules available"
 msgstr "Không có micro-modules sẵn sàng"
 
+#: lib/bookshelf_hero_regions.lua:103
+msgid "[if:page_num]%page_num / %page_count[else]%book_pct[/if]  %bar  [if:book_time_left]%book_time_left LEFT[/if]"
+msgstr ""
+
 #: lib/bookshelf_icons_catalogue.lua:20 lib/bookshelf_settings.lua:133
 msgid "All"
 msgstr "Tất cả"
@@ -1700,6 +1704,10 @@ msgstr "%d trong %d đã hoàn thành"
 #, lua-format
 msgid "Line %d"
 msgstr "Dòng %d"
+
+#: lib/bookshelf_list_lines.lua:200
+msgid "%bar{rel}[if:page_count]%spacer[if:book_pct]%book_pct of [/if]%page_count pages[else]%book_pct[/if]"
+msgstr ""
 
 #: lib/bookshelf_menu_shortcut.lua:216
 msgid "Menu unavailable"
@@ -2333,15 +2341,13 @@ msgstr "Mức che nền bảng trên và thanh chân trang để các nút vẫn
 msgid "Transparent"
 msgstr "Trong suốt"
 
-#: lib/bookshelf_settings.lua:1570 lib/bookshelf_settings.lua:1578
-msgid "Light"
-msgstr "Nhạt"
+#: lib/bookshelf_settings.lua:1570
+msgid "Low"
+msgstr ""
 
-#: lib/bookshelf_settings.lua:1571 lib/bookshelf_settings.lua:3512
-#: lib/bookshelf_settings.lua:3539 micromodules/analogue_clock.lua:189
-#: micromodules/trivia.lua:65
-msgid "Medium"
-msgstr "Trung bình"
+#: lib/bookshelf_settings.lua:1571
+msgid "Moderate"
+msgstr ""
 
 #: lib/bookshelf_settings.lua:1572
 msgid "Heavy"
@@ -2354,6 +2360,10 @@ msgstr "Đặc"
 #: lib/bookshelf_settings.lua:1577
 msgid "Auto (follow device)"
 msgstr "Tự động (theo thiết bị)"
+
+#: lib/bookshelf_settings.lua:1578
+msgid "Light"
+msgstr "Nhạt"
 
 #: lib/bookshelf_settings.lua:1579
 msgid "Dark"
@@ -2970,6 +2980,10 @@ msgstr "Áp dụng dạng sóng dithering màu khi vẽ lại bìa sách để g
 #: lib/bookshelf_settings.lua:3511 lib/bookshelf_settings.lua:3538
 msgid "Fast"
 msgstr "Nhanh"
+
+#: lib/bookshelf_settings.lua:3512 lib/bookshelf_settings.lua:3539
+msgid "Normal"
+msgstr ""
 
 #: lib/bookshelf_settings.lua:3513 lib/bookshelf_settings.lua:3540
 msgid "Slow"
@@ -4170,7 +4184,7 @@ msgstr "Không thể lấy bản phát hành mới nhất."
 msgid "Latest release has no downloadable zip."
 msgstr "Bản phát hành mới nhất không có tệp zip để tải xuống."
 
-#: lib/bookshelf_wallpaper.lua:573
+#: lib/bookshelf_wallpaper.lua:625
 msgid "wallpapers"
 msgstr "ảnh nền"
 
@@ -5270,6 +5284,10 @@ msgstr "Đồng hồ truyền thống"
 msgid "Small"
 msgstr "Nhỏ"
 
+#: micromodules/analogue_clock.lua:189
+msgid "Medium"
+msgstr "Trung bình"
+
 #: micromodules/analogue_clock.lua:190
 msgid "Large"
 msgstr "Lớn"
@@ -5834,6 +5852,10 @@ msgstr "Phương tiện"
 #: micromodules/trivia.lua:64
 msgid "Easy"
 msgstr "Dễ"
+
+#: micromodules/trivia.lua:65
+msgid "Average"
+msgstr ""
 
 #: micromodules/trivia.lua:66
 msgid "Hard"

@@ -85,6 +85,7 @@
 
 local BookshelfSettings = require("lib/bookshelf_settings_store")
 local ListGeom          = require("lib/bookshelf_list_geom")
+local _                 = require("lib/bookshelf_i18n").gettext
 
 local Lines = {}
 
@@ -185,8 +186,19 @@ Lines.DEFAULTS = {
         alignment = "left",
     },
     {
-        template  = "%bar{rel}[if:page_count]%spacer[if:book_pct]"
-                 .. "%book_pct of [/if]%page_count pages[else]%book_pct[/if]",
+        -- TRANSLATABLE, tokens and all. "of" and "pages" are English words
+        -- sitting in a template, and they shipped untranslated in every
+        -- language (issue 418). Handing a translator the WHOLE template
+        -- rather than the two words apart from it is deliberate: bare "of"
+        -- and "pages" are exactly the context-free msgids that made Light
+        -- and Medium collide across unrelated menus, and a language that
+        -- needs the count before the unit, or no preposition at all, can
+        -- only say so if it can move the tokens.
+        --
+        -- The tokens and the [if:]/[else]/[/if] structure must survive the
+        -- translation; _test_list_lines pins that for every locale.
+        template  = _("%bar{rel}[if:page_count]%spacer[if:book_pct]"
+                 .. "%book_pct of [/if]%page_count pages[else]%book_pct[/if]"),
         font_size  = 14,
         bold       = false,
         uppercase  = false,

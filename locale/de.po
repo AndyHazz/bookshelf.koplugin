@@ -3,7 +3,7 @@
 msgid ""
 msgstr ""
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-18 17:26+0100\n"
+"POT-Creation-Date: 2026-09-18 20:00+0100\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -1126,6 +1126,10 @@ msgstr "Modul-Einstellungen…"
 msgid "No micro-modules available"
 msgstr "Keine Mikromodule verfügbar"
 
+#: lib/bookshelf_hero_regions.lua:103
+msgid "[if:page_num]%page_num / %page_count[else]%book_pct[/if]  %bar  [if:book_time_left]%book_time_left LEFT[/if]"
+msgstr ""
+
 #: lib/bookshelf_icons_catalogue.lua:20 lib/bookshelf_settings.lua:133
 msgid "All"
 msgstr "Alle"
@@ -1702,6 +1706,10 @@ msgstr "%d von %d beendet"
 #, lua-format
 msgid "Line %d"
 msgstr "Zeile %d"
+
+#: lib/bookshelf_list_lines.lua:200
+msgid "%bar{rel}[if:page_count]%spacer[if:book_pct]%book_pct of [/if]%page_count pages[else]%book_pct[/if]"
+msgstr ""
 
 #: lib/bookshelf_menu_shortcut.lua:216
 msgid "Menu unavailable"
@@ -2335,15 +2343,13 @@ msgstr "Wie stark der obere Bereich und die Fußzeile abgedunkelt werden, damit 
 msgid "Transparent"
 msgstr "Transparent"
 
-#: lib/bookshelf_settings.lua:1570 lib/bookshelf_settings.lua:1578
-msgid "Light"
-msgstr "Hell"
+#: lib/bookshelf_settings.lua:1570
+msgid "Low"
+msgstr ""
 
-#: lib/bookshelf_settings.lua:1571 lib/bookshelf_settings.lua:3512
-#: lib/bookshelf_settings.lua:3539 micromodules/analogue_clock.lua:189
-#: micromodules/trivia.lua:65
-msgid "Medium"
-msgstr "Mittel"
+#: lib/bookshelf_settings.lua:1571
+msgid "Moderate"
+msgstr ""
 
 #: lib/bookshelf_settings.lua:1572
 msgid "Heavy"
@@ -2356,6 +2362,10 @@ msgstr "Deckend"
 #: lib/bookshelf_settings.lua:1577
 msgid "Auto (follow device)"
 msgstr "Automatisch (Gerät folgen)"
+
+#: lib/bookshelf_settings.lua:1578
+msgid "Light"
+msgstr "Hell"
 
 #: lib/bookshelf_settings.lua:1579
 msgid "Dark"
@@ -2972,6 +2982,10 @@ msgstr "Wendet beim Neuzeichnen der Buchcover die Farb-Dithering-Wellenform an, 
 #: lib/bookshelf_settings.lua:3511 lib/bookshelf_settings.lua:3538
 msgid "Fast"
 msgstr "Schnell"
+
+#: lib/bookshelf_settings.lua:3512 lib/bookshelf_settings.lua:3539
+msgid "Normal"
+msgstr ""
 
 #: lib/bookshelf_settings.lua:3513 lib/bookshelf_settings.lua:3540
 msgid "Slow"
@@ -4172,7 +4186,7 @@ msgstr "Aktuellstes Release konnte nicht abgerufen werden."
 msgid "Latest release has no downloadable zip."
 msgstr "Das aktuellste Release enthält keine herunterladbare ZIP-Datei."
 
-#: lib/bookshelf_wallpaper.lua:573
+#: lib/bookshelf_wallpaper.lua:625
 msgid "wallpapers"
 msgstr "Hintergrundbilder"
 
@@ -5272,6 +5286,10 @@ msgstr "Analoguhr"
 msgid "Small"
 msgstr "Klein"
 
+#: micromodules/analogue_clock.lua:189
+msgid "Medium"
+msgstr "Mittel"
+
 #: micromodules/analogue_clock.lua:190
 msgid "Large"
 msgstr "Groß"
@@ -5836,6 +5854,10 @@ msgstr "Fahrzeuge"
 #: micromodules/trivia.lua:64
 msgid "Easy"
 msgstr "Leicht"
+
+#: micromodules/trivia.lua:65
+msgid "Average"
+msgstr ""
 
 #: micromodules/trivia.lua:66
 msgid "Hard"

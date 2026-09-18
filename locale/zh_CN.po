@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-18 17:26+0100\n"
+"POT-Creation-Date: 2026-09-18 20:00+0100\n"
 "PO-Revision-Date: 2026-06-20 04:29+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
@@ -1134,6 +1134,10 @@ msgstr "模块设置…"
 msgid "No micro-modules available"
 msgstr "没有可用的微模块"
 
+#: lib/bookshelf_hero_regions.lua:103
+msgid "[if:page_num]%page_num / %page_count[else]%book_pct[/if]  %bar  [if:book_time_left]%book_time_left LEFT[/if]"
+msgstr ""
+
 #: lib/bookshelf_icons_catalogue.lua:20 lib/bookshelf_settings.lua:133
 msgid "All"
 msgstr "全部"
@@ -1710,6 +1714,10 @@ msgstr "已读完 %d / %d"
 #, lua-format
 msgid "Line %d"
 msgstr "第 %d 行"
+
+#: lib/bookshelf_list_lines.lua:200
+msgid "%bar{rel}[if:page_count]%spacer[if:book_pct]%book_pct of [/if]%page_count pages[else]%book_pct[/if]"
+msgstr ""
 
 #: lib/bookshelf_menu_shortcut.lua:216
 msgid "Menu unavailable"
@@ -2343,15 +2351,13 @@ msgstr "为顶部面板和底栏添加多少遮罩，使按钮叠在图片上时
 msgid "Transparent"
 msgstr "透明"
 
-#: lib/bookshelf_settings.lua:1570 lib/bookshelf_settings.lua:1578
-msgid "Light"
-msgstr "浅色"
+#: lib/bookshelf_settings.lua:1570
+msgid "Low"
+msgstr ""
 
-#: lib/bookshelf_settings.lua:1571 lib/bookshelf_settings.lua:3512
-#: lib/bookshelf_settings.lua:3539 micromodules/analogue_clock.lua:189
-#: micromodules/trivia.lua:65
-msgid "Medium"
-msgstr "中"
+#: lib/bookshelf_settings.lua:1571
+msgid "Moderate"
+msgstr ""
 
 #: lib/bookshelf_settings.lua:1572
 msgid "Heavy"
@@ -2364,6 +2370,10 @@ msgstr "不透明"
 #: lib/bookshelf_settings.lua:1577
 msgid "Auto (follow device)"
 msgstr "自动 (跟随设备)"
+
+#: lib/bookshelf_settings.lua:1578
+msgid "Light"
+msgstr "浅色"
 
 #: lib/bookshelf_settings.lua:1579
 msgid "Dark"
@@ -2984,6 +2994,10 @@ msgstr "重绘书籍封面时使用彩色抖动波形，让封面在彩色墨水
 #: lib/bookshelf_settings.lua:3511 lib/bookshelf_settings.lua:3538
 msgid "Fast"
 msgstr "快"
+
+#: lib/bookshelf_settings.lua:3512 lib/bookshelf_settings.lua:3539
+msgid "Normal"
+msgstr ""
 
 #: lib/bookshelf_settings.lua:3513 lib/bookshelf_settings.lua:3540
 msgid "Slow"
@@ -4184,7 +4198,7 @@ msgstr "无法获取最新版本。"
 msgid "Latest release has no downloadable zip."
 msgstr "最新发布版本没有可下载的压缩包。"
 
-#: lib/bookshelf_wallpaper.lua:573
+#: lib/bookshelf_wallpaper.lua:625
 msgid "wallpapers"
 msgstr "壁纸"
 
@@ -5284,6 +5298,10 @@ msgstr "指针时钟"
 msgid "Small"
 msgstr "小"
 
+#: micromodules/analogue_clock.lua:189
+msgid "Medium"
+msgstr "中"
+
 #: micromodules/analogue_clock.lua:190
 msgid "Large"
 msgstr "大"
@@ -5848,6 +5866,10 @@ msgstr "交通工具"
 #: micromodules/trivia.lua:64
 msgid "Easy"
 msgstr "简单"
+
+#: micromodules/trivia.lua:65
+msgid "Average"
+msgstr ""
 
 #: micromodules/trivia.lua:66
 msgid "Hard"

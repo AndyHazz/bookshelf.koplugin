@@ -114,7 +114,30 @@ M.CHANCE_CERTAIN = math.huge
 -- and a cap counted per screen would give plan()'s two callers different
 -- answers and break page boundaries again (see pageGuaranteed). A curve is a
 -- pure function of the level, so both passes still agree.
-M.GROUP_LEVEL = { [0] = 0, [0.5] = 0.2, [1] = 0.7, [2] = 2 }
+M.GROUP_LEVEL = { [0] = 0, [0.5] = 0, [1] = 0.7, [2] = 2 }
+
+-- The row end gets a curve too, and for the same reason: it is the channel
+-- that was actually doing the work on a grouped chip (instrumented: six
+-- placements at 0.28 against one section break at 0.08), so damping the
+-- section breaks alone left Rarely at "9 ornaments across 11 pages... often 2
+-- on a page", which is not rare.
+--
+-- ZERO at Rarely. That setting is then exactly its promise -- one page in
+-- four stands a piece, and no other channel adds to it -- which is both rare
+-- and predictable. Everything above it keeps a roll on top of the promise.
+M.ROW_END_LEVEL = { [0] = 0, [0.5] = 0, [1] = 0.7, [2] = 2 }
+
+local function levelFrom(curve)
+    local f = M.frequency()
+    local best, dist = 0, math.huge
+    for level, mul in pairs(curve) do
+        local d = math.abs(level - f)
+        if d < dist then best, dist = mul, d end
+    end
+    return best
+end
+
+function M.rowEndLevel() return levelFrom(M.ROW_END_LEVEL) end
 
 -- ── A ceiling for the channels that can have one ──────────────────────────
 --
@@ -148,15 +171,7 @@ function M.budgetLeft()
     return M.pageBudget() - n
 end
 
-function M.groupLevel()
-    local f = M.frequency()
-    local best, dist = 0, math.huge
-    for level, mul in pairs(M.GROUP_LEVEL) do
-        local d = math.abs(level - f)
-        if d < dist then best, dist = mul, d end
-    end
-    return best
-end
+function M.groupLevel() return levelFrom(M.GROUP_LEVEL) end
 
 -- ── The per-PAGE promise ──────────────────────────────────────────────────
 --
@@ -723,13 +738,26 @@ end
 M._rot   = {}
 M._rot_n = 0
 M.ROT_MAX = 512
+-- Where in the folder the rotation begins.
+--
+-- It used to begin at the first file every time, so the first piece a reader
+-- saw after every restart was whichever name sorts first, and a folder of
+-- many ornaments always introduced itself in the same order. The rotation
+-- still hands them out in turn -- that is what gives every file an equal
+-- share -- it just no longer starts from the same end (maintainer: "it should
+-- cycle through them all, starting at a random position in the file list").
+--
+-- os.time() rather than math.random: no reseeding, so nothing else that draws
+-- random numbers is disturbed by when ornaments happen to be first asked for.
+M._rot_start = nil
 function M.rotationFor(seed, count)
     if not count or count <= 1 then return 1 end
+    if not M._rot_start then M._rot_start = os.time() end
     local key = tostring(seed)
     local had = M._rot[key]
     if had then return ((had - 1) % count) + 1 end
     if M._rot_n >= M.ROT_MAX then M._rot, M._rot_n = {}, 0 end
-    local idx = (M._rot_n % count) + 1
+    local idx = ((M._rot_n + M._rot_start) % count) + 1
     M._rot[key] = idx
     M._rot_n = M._rot_n + 1
     return idx

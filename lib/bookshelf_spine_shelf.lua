@@ -3276,6 +3276,11 @@ function SpineShelf.plan(items, opts)
                 min_h     = Screen:scaleBySize(Orn.MIN_H_DP),
                 max_below = orn.max_below,
                 chance    = owed and Orn.CHANCE_CERTAIN or Orn.ROW_END_CHANCE,
+                -- Damped like the section breaks, and zero at Rarely, so that
+                -- setting is exactly its per-page promise. The promise itself
+                -- passes CHANCE_CERTAIN above and is unaffected by the level.
+                level     = (not owed) and Orn.rowEndLevel
+                            and Orn.rowEndLevel() or nil,
             })
         if ok_p and pl then
             -- Which side the page's first piece stands on is the PAGE's

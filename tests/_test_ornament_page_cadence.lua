@@ -137,11 +137,15 @@ t.test("the curve is a pure function of the level, not a per-screen count", func
     -- the gap it stands in, so it changes how many books fit, and a count kept
     -- per screen would give plan()'s two callers different answers -- the same
     -- crack that made page numbers repeat.
-    local body = orn:match("\nfunction M.groupLevel%(%)\n(.-)\nend\n")
-    assert(body, "M.groupLevel missing")
+    -- Both curves go through one resolver now; what matters is that it reads
+    -- only the level, never what is already on screen.
+    local body = orn:match("local function levelFrom%(curve%)(.-)\nend\n")
+    assert(body, "levelFrom missing")
     assert(not body:find("screenCount", 1, true) and not body:find("_used", 1, true),
-        "the group curve counts what is already on screen; that splits the "
+        "the curve counts what is already on screen; that splits the "
         .. "two planning passes")
+    assert(orn:find("function M.groupLevel() return levelFrom(M.GROUP_LEVEL) end", 1, true),
+        "the group curve no longer goes through it")
     assert(shelf:find("level     = orn.mod.groupLevel", 1, true),
         "the section-break pick no longer uses the damped curve")
 end)
@@ -181,6 +185,38 @@ t.test("only the channels that cannot move a book are capped", function()
     -- And the two that are safe say so.
     eq(select(2, shelf:gsub("budgeted  = true", "")), 2,
         "expected exactly the two render-only channels to be capped")
+end)
+
+t.test("Rarely is exactly its promise, with no channel adding to it", function()
+    -- "9 ornaments across 11 pages... often 2 on a page. That's not rare
+    -- enough." Both opportunistic channels are zero at that level, so the
+    -- only placements left are the promised ones: one page in four.
+    local GRP = load("return " .. orn:match("M.GROUP_LEVEL = (%b{})"))()
+    local ROW = load("return " .. orn:match("M.ROW_END_LEVEL = (%b{})"))()
+    eq(GRP[0.5], 0, "section breaks still roll at Rarely")
+    eq(ROW[0.5], 0, "row ends still roll at Rarely")
+    assert(ROW[1] > 0 and GRP[1] > 0, "Often lost its rolls as well")
+    -- The promise must NOT be damped, or Rarely places nothing at all.
+    assert(shelf:find("level     = (not owed) and Orn.rowEndLevel", 1, true),
+        "the level is applied to the promised placement too, which would "
+        .. "cancel it at Rarely")
+end)
+
+t.test("the rotation starts somewhere in the folder, and still cycles", function()
+    -- "It should cycle through them all, starting at a random position in the
+    -- file list." It began at the first file every time, so a folder always
+    -- introduced itself in the same order after every restart.
+    local body = orn:match("\nfunction M.rotationFor%(seed, count%)\n(.-)\nend\n")
+    assert(body, "rotationFor missing")
+    assert(body:find("M._rot_start", 1, true), "the start is not offset")
+    assert(body:find("((M._rot_n + M._rot_start) % count) + 1", 1, true),
+        "the offset does not reach the index, so it still starts at file one")
+    -- Handing them out in TURN is what gives every file an equal share; an
+    -- offset must not become a random pick per seed.
+    assert(body:find("M._rot_n + 1", 1, true) or orn:find("M._rot_n = M._rot_n + 1", 1, true),
+        "the rotation no longer advances one at a time")
+    assert(not body:find("math.random", 1, true),
+        "reseeding here would disturb anything else drawing random numbers")
 end)
 
 t.done()

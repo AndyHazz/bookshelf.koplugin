@@ -62,6 +62,39 @@ t.test("Always covers every page, None none, Often about half", function()
         "Often promised " .. often .. " of 200 pages; expected about half")
 end)
 
+t.test("neighbouring seeds get scattered answers, not neighbouring ones", function()
+    -- THE CLUMPING. Every seeded decision is taken modulo something small --
+    -- the odds are h % 100, the per-page promise h % period -- and plain djb2
+    -- over strings differing in their last byte moves the answer by exactly
+    -- that byte. An on-device probe caught it: h % 100 ran 23, 24, 25 ...
+    -- straight up the rows of a page, so a row's ornament was not a coin
+    -- toss but a contiguous run, and a two-row page gave both rows a piece or
+    -- neither. Pages came in clumps with long gaps between.
+    local pre = orn:match("(local bxor\n.-\nend\n)")
+    local hfn = orn:match("(function M.hash%(s%).-\nend)")
+    assert(pre and hfn, "the hash or its xor helper moved")
+    local M = {}
+    assert(load(pre .. "\n" .. hfn, "hash", "t",
+        { math = math, pcall = pcall, require = require, M = M }))()
+    -- Neighbouring row seeds must not give neighbouring odds.
+    local runs, last = 0, nil
+    for i = 1, 40 do
+        local v = M.hash("page2|rowend|" .. i) % 100
+        if last and v == last + 1 then runs = runs + 1 end
+        last = v
+    end
+    assert(runs <= 3, runs .. " of 40 neighbouring seeds still stepped by one")
+    -- And the spread has to be usable: the odds are a modulo of this.
+    local lo, hi, sum = math.huge, 0, 0
+    for i = 1, 200 do
+        local v = M.hash("page" .. i .. "|rowend|1") % 100
+        lo, hi, sum = math.min(lo, v), math.max(hi, v), sum + v
+    end
+    assert(lo < 10 and hi > 90, "the odds only reach " .. lo .. ".." .. hi)
+    local mean = sum / 200
+    assert(mean > 35 and mean < 65, "mean of h %% 100 is " .. mean)
+end)
+
 t.test("the promise is seeded on the ORDINAL, which both passes can state", function()
     local body = orn:match("\nfunction M.pageGuaranteed%(page%)\n(.-)\nend\n")
     assert(body, "M.pageGuaranteed missing")
@@ -209,7 +242,7 @@ t.test("the rotation starts somewhere in the folder, and still cycles", function
     local body = orn:match("\nfunction M.rotationFor%(seed, count%)\n(.-)\nend\n")
     assert(body, "rotationFor missing")
     assert(body:find("M._rot_start", 1, true), "the start is not offset")
-    assert(body:find("((M._rot_n + M._rot_start) % count) + 1", 1, true),
+    assert(body:find("+ M._rot_start) % count) + 1", 1, true),
         "the offset does not reach the index, so it still starts at file one")
     -- Handing them out in TURN is what gives every file an equal share; an
     -- offset must not become a random pick per seed.
@@ -217,6 +250,42 @@ t.test("the rotation starts somewhere in the folder, and still cycles", function
         "the rotation no longer advances one at a time")
     assert(not body:find("math.random", 1, true),
         "reseeding here would disturb anything else drawing random numbers")
+end)
+
+t.test("consecutive turns land apart in the folder, and still cover it", function()
+    -- "png's 2 and 3 appear on page 2 and on page 3." Turns handed out one
+    -- after another went to files one after another, so the two rows of a
+    -- page showed neighbours and the next page carried straight on -- a slow
+    -- march through the folder that reads as the same few pieces recurring.
+    -- A stride coprime to the set size visits every piece exactly once per
+    -- cycle without visiting them in order.
+    local fn = orn:match("\nfunction M.rotationStride%(count%)\n(.-)\nend\n")
+    assert(fn, "M.rotationStride missing")
+    assert(orn:find("M._rot_n * M.rotationStride(count)", 1, true),
+        "the stride is not applied to the turn counter")
+    local STRIDES = load("return " .. orn:match("M.ROT_STRIDES = (%b{})"))()
+    local function gcd(a, b) while b ~= 0 do a, b = b, a % b end return a end
+    local function stride(count)
+        for _i = 1, #STRIDES do
+            local st = STRIDES[_i]
+            if st < count and gcd(st, count) == 1 then return st end
+        end
+        return 1
+    end
+    for count = 2, 40 do
+        local st = stride(count)
+        eq(gcd(st, count), 1, "stride " .. st .. " shares a factor with "
+            .. count .. ", so the cycle would skip pieces")
+        -- Full coverage: n turns must visit all n pieces.
+        local hit = {}
+        for n = 0, count - 1 do hit[(n * st) % count] = true end
+        local n_hit = 0
+        for _k in pairs(hit) do n_hit = n_hit + 1 end
+        eq(n_hit, count, "a cycle of " .. count .. " only reached " .. n_hit)
+        if count > 3 then
+            assert(st > 1, "count " .. count .. " fell back to file order")
+        end
+    end
 end)
 
 t.test("the rotation turns over the pieces that FIT, in equal shares", function()

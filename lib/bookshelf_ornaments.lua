@@ -735,10 +735,51 @@ function M.sizeOf(path, head)
 end
 
 -- hash(s) -> non-negative integer, djb2 (LuaJIT-safe arithmetic).
+-- Bitwise xor that works on both interpreters: LuaJIT is Lua 5.1, where the
+-- binary `~` operator does not exist, and the tests run under 5.4.
+local bxor
+do
+    local ok_bit, bit = pcall(require, "bit")
+    if ok_bit and bit and bit.bxor then
+        bxor = function(a, b) return bit.bxor(a, b) % 4294967296 end
+    else
+        bxor = function(a, b)
+            local r, m = 0, 1
+            for _i = 1, 32 do
+                local x, y = a % 2, b % 2
+                if x ~= y then r = r + m end
+                a, b, m = (a - x) / 2, (b - y) / 2, m * 2
+            end
+            return r
+        end
+    end
+end
+
+-- djb2, then an avalanche so neighbouring seeds do not give neighbouring
+-- answers.
+--
+-- WHY THE MIX MATTERS. Every seeded decision here is taken modulo something
+-- small: the odds are `h % 100`, the per-page promise is `h % period`. Plain
+-- djb2 over strings that differ only in their last byte moves the result by
+-- exactly that byte's difference, so "page2|rowend|1" and "page2|rowend|2"
+-- came out one apart. An on-device probe caught the consequence: `h % 100`
+-- ran 23, 24, 25 ... straight up the rows of a page, so whether a row got an
+-- ornament was not a per-row coin toss at all -- it was a contiguous run, and
+-- a two-row page therefore gave BOTH its rows a piece or neither. Pages
+-- arrived in clumps with long deserts between them, which reads as the same
+-- few ornaments over and over rather than as "often".
+--
+-- The finisher is the 32-bit xorshift-multiply from MurmurHash3; two inputs a
+-- byte apart now differ across the whole word. Same function of the same
+-- seed, so both planning passes still agree -- only the spread changes.
 function M.hash(s)
     local h = 5381
     for i = 1, #s do h = (h * 33 + s:byte(i)) % 4294967296 end
-    return h
+    h = bxor(h, math.floor(h / 65536))          -- h ^ (h >> 16)
+    h = (h * 2246822507) % 4294967296
+    h = bxor(h, math.floor(h / 8192))           -- h ^ (h >> 13)
+    h = (h * 3266489909) % 4294967296
+    return bxor(h, math.floor(h / 65536))
 end
 
 -- pick(seed, gap_px, stand_h, entries, o) -> placement or nil.
@@ -778,6 +819,26 @@ M.ROT_MAX = 512
 -- os.time() rather than math.random: no reseeding, so nothing else that draws
 -- random numbers is disturbed by when ornaments happen to be first asked for.
 M._rot_start = nil
+-- How far the rotation JUMPS between one turn and the next.
+--
+-- Taking turns in file order gives every piece an equal share, which is the
+-- point, but it also means two turns handed out together land side by side in
+-- the folder -- so the two rows of one page showed neighbouring files, and the
+-- next page carried on from there ("png's 2 and 3 appear on page 2 and on
+-- page 3"). Stepping by a number COPRIME to the set size still visits every
+-- piece exactly once per cycle; it just does not visit them in folder order.
+-- The first candidate coprime to the count wins, so the step adapts to
+-- however many pieces happen to fit.
+M.ROT_STRIDES = { 7, 5, 3, 2 }
+local function gcd(a, b) while b ~= 0 do a, b = b, a % b end return a end
+function M.rotationStride(count)
+    for _i = 1, #M.ROT_STRIDES do
+        local st = M.ROT_STRIDES[_i]
+        if st < count and gcd(st, count) == 1 then return st end
+    end
+    return 1
+end
+
 function M.rotationFor(seed, count)
     if not count or count <= 1 then return 1 end
     if not M._rot_start then M._rot_start = os.time() end
@@ -785,7 +846,7 @@ function M.rotationFor(seed, count)
     local had = M._rot[key]
     if had then return ((had - 1) % count) + 1 end
     if M._rot_n >= M.ROT_MAX then M._rot, M._rot_n = {}, 0 end
-    local idx = ((M._rot_n + M._rot_start) % count) + 1
+    local idx = ((M._rot_n * M.rotationStride(count) + M._rot_start) % count) + 1
     M._rot[key] = idx
     M._rot_n = M._rot_n + 1
     return idx

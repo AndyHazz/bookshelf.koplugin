@@ -7200,11 +7200,12 @@ function BookshelfWidget:_totalPages()
     return self._total_pages or 1
 end
 
--- _openPageJump — opens a numeric InputDialog so the user can type a page
--- number to jump to. Uses KOReader's standard InputDialog with input_type =
--- "number" so the on-screen keyboard shows the numeric keypad on touch
--- devices. The Go button validates the input is in [1, total_pages]; bad
--- input shows a brief InfoMessage and leaves the dialog open.
+-- _openPageJump — opens an InputDialog so the user can jump by typing. What
+-- it asks for follows the footer: a PAGE number where the footer prints one,
+-- a BOOK number on a spine shelf, whose footer prints a book range because
+-- its pages hold a variable number of books. The Go button validates the
+-- input against that same total; bad input shows a brief InfoMessage and
+-- leaves the dialog open.
 -- _jumpToLetterPrefix(prefix) -- shared by the page-jump dialog's "Go to
 -- letter" button. Fetches the full sorted list, finds the first item whose
 -- sort-key value starts with `prefix` (case-insensitive), and sets the
@@ -7355,7 +7356,24 @@ function BookshelfWidget:_openPageJump()
     local InputDialog = require("ui/widget/inputdialog")
     local InfoMessage = require("ui/widget/infomessage")
     local bw          = self
-    local total       = bw:_totalPages()
+    -- ASK FOR WHAT THE FOOTER SHOWS. A grid shelf pages by a fixed number of
+    -- covers, so "page 3" is exact and the footer says so. A spine shelf
+    -- holds a variable number of books a page, its footer shows a BOOK range
+    -- ("31-38 of 243"), and a page number there is the same fiction the
+    -- footer already refuses to print: it comes from a second planning pass
+    -- whose page map can disagree with what the render lays out.
+    --
+    -- Worse than fiction, it was wrong arithmetic. The jump multiplied the
+    -- page by _viewSize(), which is the fixed-grid rule the spine shelf does
+    -- not follow, so a typed page landed neither where the map said nor where
+    -- the render would draw.
+    --
+    -- A book number needs none of that: the cursor IS the book index, and a
+    -- spine page starts at the cursor, so the jump lands on a real page
+    -- boundary by construction.
+    local spine       = bw:_isSpineMode()
+    local total       = spine and (bw._total_items or 0) or bw:_totalPages()
+    if total < 1 then total = 1 end
     local dialog
     local first_row = {
         {
@@ -7381,12 +7399,14 @@ function BookshelfWidget:_openPageJump()
         },
     }
     dialog = InputDialog:new{
-        title       = _("Enter text, letter or page number"),
-        -- Start empty: pre-filling the current page number just forced the
-        -- user to clear it before typing anything else. Show the current
-        -- page as a placeholder hint instead so the context is still there.
+        title       = spine and _("Enter text, letter or book number")
+                             or _("Enter text, letter or page number"),
+        -- Start empty: pre-filling the current number just forced the user to
+        -- clear it before typing anything else. Show where they are as a
+        -- placeholder hint instead, so the context is still there: the first
+        -- book on screen when the footer counts books, the page otherwise.
         input       = "",
-        input_hint  = tostring(bw.page),
+        input_hint  = tostring(spine and (bw._cursor or 1) or bw.page),
         description = string.format(_("(a - z) or (1 - %d)"), total),
         buttons = {
             first_row,
@@ -7397,19 +7417,26 @@ function BookshelfWidget:_openPageJump()
                     callback = function() UIManager:close(dialog) end,
                 },
                 {
-                    text             = _("Go to page"),
+                    text             = spine and _("Go to book") or _("Go to page"),
                     is_enter_default = true,
                     callback         = function()
                         local n = tonumber(dialog:getInputText())
                         if not n or n < 1 or n > total then
                             UIManager:show(InfoMessage:new{
-                                text    = string.format(_("Page must be between 1 and %d"), total),
+                                text    = string.format(spine
+                                    and _("Book must be between 1 and %d")
+                                    or  _("Page must be between 1 and %d"), total),
                                 timeout = 2,
                             })
                             return
                         end
-                        local view = bw:_viewSize()
-                        bw._cursor = math.max(1, (math.floor(n) - 1) * view + 1)
+                        if spine then
+                            -- The cursor is the book index. No grid, no map.
+                            bw._cursor = math.floor(n)
+                        else
+                            local view = bw:_viewSize()
+                            bw._cursor = math.max(1, (math.floor(n) - 1) * view + 1)
+                        end
                         bw:_clampCursor()
                         bw:_syncPageFromCursor()
                         UIManager:close(dialog)

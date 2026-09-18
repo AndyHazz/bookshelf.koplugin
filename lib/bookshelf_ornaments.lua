@@ -783,37 +783,68 @@ function M.pick(seed, gap_px, stand_h, entries, o)
     local chance = (o.chance or M.CHANCE) * level
     if chance <= 0 then return nil end
     if chance < 1 and (h % 100) >= math.floor(chance * 100) then return nil end
-    -- Seeded choice first, then walk on until one is not already standing on
-    -- this screen. Walking (rather than re-hashing) keeps the seed's influence:
-    -- the same screen composed the same way still lands the same way.
+    -- SIZE IS PART OF THE CHOICE, not a test applied after it.
+    --
+    -- This used to pick one entry -- the next in the rotation that was not
+    -- already standing on this screen -- work out its size, and give up if it
+    -- came out too small. With a folder of similar pieces that is invisible.
+    -- With a mixed folder it means the WIDE ones never appear and, worse, the
+    -- gaps they were chosen for stay empty: a reader who adds a dozen
+    -- ornaments sees the same two over and over, because those two are the
+    -- ones that happen to fit a row end (reported with twelve test pieces in
+    -- the folder: "I still have cacti and the template plant on the same ends
+    -- of the shelfs on pages 2 and 3").
+    --
+    -- So the walk keeps going until it finds one that FITS. The rotation still
+    -- decides where the walk starts, which is what gives every file its turn;
+    -- what changed is that an entry which cannot fit this particular gap steps
+    -- aside instead of taking the slot and leaving it empty.
+    local function sizeFor(entry)
+        local height = math.floor((stand_h or 0) * M.HEIGHT_FRAC)
+        local width  = math.floor(height * entry.aspect)
+        if width > gap_px then
+            width  = gap_px
+            height = math.floor(width / entry.aspect)
+        end
+        if entry.overhang > 0 and o.max_below then
+            -- Shrink so the overhang never reaches past the plank's front.
+            local below = height * entry.overhang
+            if below > o.max_below then
+                height = math.floor(o.max_below / entry.overhang)
+                width  = math.floor(height * entry.aspect)
+            end
+        end
+        local frac  = o.min_h_frac or M.MIN_H_FRAC
+        local min_h = math.max(o.min_h or 1, math.floor((stand_h or 0) * frac))
+        if height < min_h or width < 1 then return nil end
+        return width, height
+    end
+    -- Seeded choice first, then walk on. Walking (rather than re-hashing)
+    -- keeps the seed's influence: the same screen composed the same way still
+    -- lands the same way.
     local idx = M.rotationFor(seed, #entries)
-    local entry
+    local entry, width, height
     for step = 0, #entries - 1 do
         local cand = entries[((idx - 1 + step) % #entries) + 1]
         if cand and not M._used[cand.name or cand.path] then
-            entry = cand
-            break
+            local w, h = sizeFor(cand)
+            if w then entry, width, height = cand, w, h break end
         end
     end
-    -- Every one already up: a repeat beats an empty gap.
-    entry = entry or entries[idx]
-    local height = math.floor((stand_h or 0) * M.HEIGHT_FRAC)
-    local width  = math.floor(height * entry.aspect)
-    if width > gap_px then
-        width  = gap_px
-        height = math.floor(width / entry.aspect)
-    end
-    if entry.overhang > 0 and o.max_below then
-        -- Shrink so the overhang never reaches past the plank's front.
-        local below = height * entry.overhang
-        if below > o.max_below then
-            height = math.floor(o.max_below / entry.overhang)
-            width  = math.floor(height * entry.aspect)
+    if not entry then
+        -- Nothing unused fits. Rather than leave the gap empty, try a repeat:
+        -- a piece already standing elsewhere on this screen still reads better
+        -- than a hole, and this is the old "every one already up" fallback
+        -- widened to cover "every one that fits is already up".
+        for step = 0, #entries - 1 do
+            local cand = entries[((idx - 1 + step) % #entries) + 1]
+            if cand then
+                local w, h = sizeFor(cand)
+                if w then entry, width, height = cand, w, h break end
+            end
         end
     end
-    local frac  = o.min_h_frac or M.MIN_H_FRAC
-    local min_h = math.max(o.min_h or 1, math.floor((stand_h or 0) * frac))
-    if height < min_h or width < 1 then return nil end
+    if not entry then return nil end
     local below = math.floor(height * entry.overhang)
     -- Marked only now: pick bails out above on several paths (too short, too
     -- narrow, the odds), and an entry that never stood must not be counted as

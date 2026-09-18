@@ -219,4 +219,23 @@ t.test("the rotation starts somewhere in the folder, and still cycles", function
         "reseeding here would disturb anything else drawing random numbers")
 end)
 
+t.test("a piece that cannot fit the gap steps aside instead of taking the slot", function()
+    -- Reported with twelve test ornaments in the folder: "I still have cacti
+    -- and the template plant on the same ends of the shelfs on pages 2 and
+    -- 3." The rotation was handing out turns evenly, but a chosen entry that
+    -- came out too small for THIS gap ended the attempt -- so the gap stayed
+    -- empty and only the two files that happen to fit a row end ever showed.
+    local body = orn:match("\nfunction M%.pick%(seed, gap_px, stand_h, entries, o%)\n(.-)\nend\n")
+    assert(body, "pick not found")
+    assert(body:find("local function sizeFor(entry)", 1, true),
+        "the size is not worked out per candidate")
+    -- The walk must consult the size, not just whether it is already standing.
+    local walk = body:match("(for step = 0, #entries %- 1 do.-end)")
+    assert(walk and walk:find("sizeFor(cand)", 1, true),
+        "the walk still stops at the first unused entry whatever its size")
+    -- And a repeat is still better than a hole when nothing unused fits.
+    assert(select(2, body:gsub("for step = 0, #entries %- 1 do", "")) == 2,
+        "the fallback walk over already-standing pieces is gone")
+end)
+
 t.done()

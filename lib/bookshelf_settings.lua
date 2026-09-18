@@ -187,7 +187,7 @@ function Settings:_pickTokenViaLibraryModal(LibraryModal, dialog)
         config = {
             title = _("Insert token"),
             help_title = _("Bookshelf tokens"),
-            help_text = _([==[Tokens are placeholders that get replaced with live data when the book detail view or status line renders.
+            help_text = _([==[Tokens are placeholders that get replaced with live data when the top panel or status line renders.
 
   %title — %book_pct
   → Dune — 36%
@@ -2590,7 +2590,7 @@ function Settings:_settingsSubItems()
     items[#items + 1] = self:_heroSubItems({ "status" })[1]
     items[#items].enabled_func = function() return self._bw ~= nil end
     items[#items + 1] = {
-        text                = _("Edit book detail view"),
+        text                = _("Edit top panel content"),
         help_text = _("The lines of book information shown in the top panel:"
             .. " title, author, rating, metadata, description, tags and"
             .. " progress. Tap a line to edit its template; hold to toggle"
@@ -4159,7 +4159,7 @@ function Settings:_advancedSubItems()
             end,
         },
         {
-            text = ICON_RESET .. _("Reset book detail area to defaults"),
+            text = ICON_RESET .. _("Reset top panel content to defaults"),
             help_text = _("Clears your top-panel customizations and "
                 .. "restores the fresh-install detail layout, including the "
                 .. "bundled title (Inter ExtraBold) and author (Caveat) fonts. "
@@ -4167,7 +4167,7 @@ function Settings:_advancedSubItems()
             callback = function(touchmenu_instance)
                 local ConfirmBox = require("ui/widget/confirmbox")
                 UIManager:show(ConfirmBox:new{
-                    text = _("Reset the book detail area to default settings?\n\n"
+                    text = _("Reset the top panel's content to default settings?\n\n"
                         .. "All top-panel text and font customizations will be "
                         .. "lost. The Bookshelf UI font and shelf menu are unaffected."),
                     ok_text = _("Reset"),
@@ -4629,7 +4629,7 @@ function Settings:_pickFontScale(touchmenu_instance)
 
     dialog = ButtonDialog:new{
         dismissable = false,  -- nudge-dialog lockdown; see _pickCoverBadgeFontScale
-        title = _("Book detail font scale"),
+        title = _("Top panel font scale"),
         buttons = {
             {
                 { text = "-10",  callback = function() nudge(-10) end },

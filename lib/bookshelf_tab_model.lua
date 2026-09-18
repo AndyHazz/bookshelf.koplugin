@@ -72,14 +72,20 @@ function TabModel.DEFAULTS()
           group_display = "collage", enabled = true  },
         { id = "authors",   label = tr("Authors"),    source = { kind = "authors"   },
           filter = {}, sort_priority = { { key = "author_surname", reverse = false } }, enabled = false },
+        -- GENRES ships ON and Favourites OFF. Both are the maintainer's own
+        -- arrangement, adopted for the same reason as Home's spines and
+        -- Series' collage: a first launch should show what the shelf is for.
+        -- Genres is the one that demonstrates stacks, and a favourites shelf
+        -- is empty until the reader has starred something, so it opens on
+        -- nothing. Favourites is one long-press away for anyone who wants it.
         { id = "genres",    label = tr("Genres"),     source = { kind = "genres"    },
-          filter = {}, sort_priority = { { key = "book_count",  reverse = true  } }, enabled = false },
+          filter = {}, sort_priority = { { key = "book_count",  reverse = true  } }, enabled = true  },
         { id = "tags",      label = tr("Tags"),       source = { kind = "tags"      },
           filter = {}, sort_priority = { { key = "book_count",  reverse = true  } }, enabled = false },
         { id = "languages", label = tr("Languages"),  source = { kind = "languages" },
           filter = {}, sort_priority = { { key = "book_count",  reverse = true  } }, enabled = false },
         { id = "favorites", label = tr("Favorites"), source = { kind = "favorites" },
-          filter = {}, sort_priority = { { key = "date_added",  reverse = true  } }, enabled = true  },
+          filter = {}, sort_priority = { { key = "date_added",  reverse = true  } }, enabled = false },
     }
 end
 

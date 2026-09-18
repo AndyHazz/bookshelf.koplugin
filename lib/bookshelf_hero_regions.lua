@@ -3,39 +3,8 @@
 -- defaults, sparse-field resolution, persistence helpers, and the
 -- canonical render order. Pure Lua, KOReader-free at load time.
 
--- Marks a string for EXTRACTION without translating it here: gettext's
--- gettext_noop, spelled the usual way. This module must stay KOReader-free at
--- load -- its own tests require it with no KOReader present -- so it cannot
--- call the real gettext where the defaults table is built. xgettext still has
--- to SEE the string, though, or a translator is never offered it and the
--- template ships in English whatever tr() does at runtime; the POT command
--- passes --keyword=N_ for this.
---
--- Declared above DEFAULTS on purpose. The table is built at load, so a helper
--- declared below it is nil at exactly the moment it is called.
-local function N_(s) return s end
-
 local Regions = {}
 
--- Translated lazily, never at load: this module's contract is to be pure Lua
--- and KOReader-free when required (its tests load it with no KOReader at all),
--- and bookshelf_i18n pulls KOReader in. So DEFAULTS keeps the English source
--- string, which is also the msgid, and anything HANDING a default template to
--- a caller passes it through here first.
---
--- Why a template is translatable at all: "LEFT" in the progress line is an
--- English word inside it, and it shipped untranslated in every language --
--- the same fault reported against the list view as issue 418. The whole
--- template is the unit, so a language can move the word or drop it where the
--- time already reads as remaining.
-local function tr(template)
-    if type(template) ~= "string" or template == "" then return template end
-    local ok, i18n = pcall(require, "lib/bookshelf_i18n")
-    if not (ok and i18n and i18n.gettext) then return template end
-    local ok_t, out = pcall(i18n.gettext, template)
-    return (ok_t and type(out) == "string" and out ~= "") and out or template
-end
-Regions._tr = tr
 
 Regions.SETTINGS_KEY = "bookshelf_hero_regions"
 
@@ -86,7 +55,7 @@ Regions.DEFAULTS = {
         alignment = "right",
     },
     author = {
-        template  = "[if:authors]%authors[else]%author[/if]",
+        template  = "%authors_short",
         font_face = nil,
         font_size = 16,
         bold      = false,
@@ -104,7 +73,7 @@ Regions.DEFAULTS = {
         disabled  = true,     -- off by default; user opts in
     },
     description = {
-        template  = "%description",
+        template  = "[if:rating]%rating \xC2\xB7 [/if]%description",
         font_face = nil,
         font_size = 14,
         bold      = false,
@@ -112,7 +81,7 @@ Regions.DEFAULTS = {
         -- no `uppercase` — would be hostile on a long blurb
     },
     progress = {
-        template   = N_("[if:page_num]%page_num / %page_count[else]%book_pct[/if]  %bar  [if:book_time_left]%book_time_left LEFT[/if]"),
+        template   = "%book_pct  %bar  [if:book_time_left]%book_time_left[/if]",
         font_face  = nil,
         font_size  = 14,
         bold       = true,
@@ -178,11 +147,6 @@ end
 local function resolveOne(key, raw)
     local default = Regions.DEFAULTS[key]
     local out = shallowCopy(default) or {}
-    -- A template the READER wrote is theirs, in whatever language they wrote
-    -- it; only one falling through from DEFAULTS gets translated. Tracked
-    -- rather than tested at the end, because a stored template that happens
-    -- to equal the default is still the reader's.
-    local from_default = true
     if type(raw) == "table" then
         for k, v in pairs(raw) do
             local vt = type(v)
@@ -193,11 +157,8 @@ local function resolveOne(key, raw)
         -- Reject malformed template (must be a string).
         if type(raw.template) ~= "string" then
             out.template = default.template
-        else
-            from_default = false
         end
     end
-    if from_default then out.template = tr(out.template) end
     return out
 end
 

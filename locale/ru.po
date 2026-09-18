@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: bookshelf\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-18 20:00+0100\n"
+"POT-Creation-Date: 2026-09-18 20:21+0100\n"
 "PO-Revision-Date: 2026-09-15 00:00+0300\n"
 "Last-Translator: \n"
 "Language-Team: Russian\n"
@@ -369,7 +369,7 @@ msgid "Authors"
 msgstr "Авторы"
 
 #: lib/bookshelf_chip_editor.lua:385 lib/bookshelf_chip_editor.lua:2579
-#: lib/bookshelf_settings.lua:536 lib/bookshelf_tab_model.lua:75
+#: lib/bookshelf_settings.lua:536 lib/bookshelf_tab_model.lua:81
 #: lib/bookshelf_widget.lua:1606 lib/bookshelf_widget.lua:20074
 msgid "Genres"
 msgstr "Жанры"
@@ -384,12 +384,12 @@ msgid "Ratings"
 msgstr "Оценки"
 
 #: lib/bookshelf_chip_editor.lua:389 lib/bookshelf_chip_editor.lua:2597
-#: lib/bookshelf_tab_model.lua:79
+#: lib/bookshelf_tab_model.lua:85
 msgid "Languages"
 msgstr "Языки"
 
 #: lib/bookshelf_chip_editor.lua:390 lib/bookshelf_chip_editor.lua:1728
-#: lib/bookshelf_collection_manager.lua:118 lib/bookshelf_tab_model.lua:81
+#: lib/bookshelf_collection_manager.lua:118 lib/bookshelf_tab_model.lua:87
 #: lib/bookshelf_widget.lua:17904 lib/bookshelf_widget.lua:17941
 msgid "Favorites"
 msgstr "Избранное"
@@ -1134,10 +1134,6 @@ msgstr "Настройки модуля…"
 #: lib/bookshelf_start_menu_edit.lua:483
 msgid "No micro-modules available"
 msgstr "Нет доступных микромодулей"
-
-#: lib/bookshelf_hero_regions.lua:103
-msgid "[if:page_num]%page_num / %page_count[else]%book_pct[/if]  %bar  [if:book_time_left]%book_time_left LEFT[/if]"
-msgstr ""
 
 #: lib/bookshelf_icons_catalogue.lua:20 lib/bookshelf_settings.lua:133
 msgid "All"
@@ -2033,7 +2029,7 @@ msgstr "Токены Bookshelf"
 
 #: lib/bookshelf_settings.lua:190
 msgid ""
-"Tokens are placeholders that get replaced with live data when the book detail view or status line renders.\n"
+"Tokens are placeholders that get replaced with live data when the top panel or status line renders.\n"
 "\n"
 "  %title — %book_pct\n"
 "  → Dune — 36%\n"
@@ -2043,15 +2039,6 @@ msgid ""
 "  [if:series]Book %series_num of %series_name[/if]\n"
 "  [if:batt<20]LOW %batt[/if]"
 msgstr ""
-"Токены — это заполнители, которые заменяются актуальными данными при отображении сведений о книге или строки состояния.\n"
-"\n"
-"  %title — %book_pct\n"
-"  → Дюна — 36%\n"
-"\n"
-"Заключите содержимое в [if:foo]…[/if], чтобы показывать его только при наличии значения токена. Добавьте [else]…[/if] для запасного варианта.\n"
-"\n"
-"  [if:series]Книга %series_num из серии %series_name[/if]\n"
-"  [if:batt<20]НИЗКИЙ %batt[/if]"
 
 #: lib/bookshelf_settings.lua:213
 msgid "Search tokens…"
@@ -2650,8 +2637,8 @@ msgid "Cover badge size"
 msgstr "Размер значка на обложке"
 
 #: lib/bookshelf_settings.lua:2593
-msgid "Edit book detail view"
-msgstr "Изменить сведения о книге"
+msgid "Edit top panel content"
+msgstr ""
 
 #: lib/bookshelf_settings.lua:2594
 msgid "The lines of book information shown in the top panel: title, author, rating, metadata, description, tags and progress. Tap a line to edit its template; hold to toggle it. The status line at the top has its own entry."
@@ -3211,8 +3198,8 @@ msgstr ""
 "Все созданные или изменённые пользовательские полки будут потеряны. Другие настройки Bookshelf (текст верхней панели, шрифты, цвета) не затрагиваются."
 
 #: lib/bookshelf_settings.lua:4162
-msgid "Reset book detail area to defaults"
-msgstr "Сбросить сведения о книге по умолчанию"
+msgid "Reset top panel content to defaults"
+msgstr ""
 
 #: lib/bookshelf_settings.lua:4163
 msgid "Clears your top-panel customizations and restores the fresh-install detail layout, including the bundled title (Inter ExtraBold) and author (Caveat) fonts. The Bookshelf UI font and shelf menu are unaffected."
@@ -3220,13 +3207,10 @@ msgstr "Очищает настройки верхней панели и вос�
 
 #: lib/bookshelf_settings.lua:4170
 msgid ""
-"Reset the book detail area to default settings?\n"
+"Reset the top panel's content to default settings?\n"
 "\n"
 "All top-panel text and font customizations will be lost. The Bookshelf UI font and shelf menu are unaffected."
 msgstr ""
-"Сбросить область сведений о книге к настройкам по умолчанию?\n"
-"\n"
-"Все настройки текста и шрифтов верхней панели будут потеряны. Шрифт интерфейса Bookshelf и меню полок не затрагиваются."
 
 #: lib/bookshelf_settings.lua:4190
 msgid "BETA: Read calibre metadata.calibre"
@@ -3265,8 +3249,8 @@ msgid "Accept"
 msgstr "Принять"
 
 #: lib/bookshelf_settings.lua:4632
-msgid "Book detail font scale"
-msgstr "Масштаб шрифта сведений о книге"
+msgid "Top panel font scale"
+msgstr ""
 
 #: lib/bookshelf_settings.lua:4698
 msgid "Micro-modules font scale"
@@ -3711,12 +3695,12 @@ msgstr "Недавние"
 msgid "Latest"
 msgstr "Последние"
 
-#: lib/bookshelf_tab_model.lua:77 lib/bookshelf_widget.lua:1607
+#: lib/bookshelf_tab_model.lua:83 lib/bookshelf_widget.lua:1607
 #: lib/bookshelf_widget.lua:20081
 msgid "Tags"
 msgstr "Теги"
 
-#: lib/bookshelf_tab_model.lua:191 lib/bookshelf_widget.lua:1223
+#: lib/bookshelf_tab_model.lua:197 lib/bookshelf_widget.lua:1223
 msgid "Kobo"
 msgstr "Kobo"
 
@@ -6084,6 +6068,45 @@ msgstr "Обновлено %1 мин назад"
 #: micromodules/weather.lua:460 micromodules/weather.lua:546
 msgid "Updated %1h ago"
 msgstr "Обновлено %1 ч назад"
+
+#~ msgid ""
+#~ "Tokens are placeholders that get replaced with live data when the book detail view or status line renders.\n"
+#~ "\n"
+#~ "  %title — %book_pct\n"
+#~ "  → Dune — 36%\n"
+#~ "\n"
+#~ "Wrap content in [if:foo]…[/if] to show it only when the token has a value. Add [else]…[/if] for a fallback.\n"
+#~ "\n"
+#~ "  [if:series]Book %series_num of %series_name[/if]\n"
+#~ "  [if:batt<20]LOW %batt[/if]"
+#~ msgstr ""
+#~ "Токены — это заполнители, которые заменяются актуальными данными при отображении сведений о книге или строки состояния.\n"
+#~ "\n"
+#~ "  %title — %book_pct\n"
+#~ "  → Дюна — 36%\n"
+#~ "\n"
+#~ "Заключите содержимое в [if:foo]…[/if], чтобы показывать его только при наличии значения токена. Добавьте [else]…[/if] для запасного варианта.\n"
+#~ "\n"
+#~ "  [if:series]Книга %series_num из серии %series_name[/if]\n"
+#~ "  [if:batt<20]НИЗКИЙ %batt[/if]"
+
+#~ msgid "Edit book detail view"
+#~ msgstr "Изменить сведения о книге"
+
+#~ msgid "Reset book detail area to defaults"
+#~ msgstr "Сбросить сведения о книге по умолчанию"
+
+#~ msgid ""
+#~ "Reset the book detail area to default settings?\n"
+#~ "\n"
+#~ "All top-panel text and font customizations will be lost. The Bookshelf UI font and shelf menu are unaffected."
+#~ msgstr ""
+#~ "Сбросить область сведений о книге к настройкам по умолчанию?\n"
+#~ "\n"
+#~ "Все настройки текста и шрифтов верхней панели будут потеряны. Шрифт интерфейса Bookshelf и меню полок не затрагиваются."
+
+#~ msgid "Book detail font scale"
+#~ msgstr "Масштаб шрифта сведений о книге"
 
 #~ msgid "and a list when expanded or in a folder."
 #~ msgstr "а на полноэкранных полках и в папке — список."

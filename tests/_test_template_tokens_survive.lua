@@ -119,9 +119,11 @@ t.test("there are locale files to check, and templates among them", function()
     local pot = io.open("locale/bookshelf.pot"):read("*a")
     assert(pot:find("page_count pages", 1, true),
         "the list's progress template is not in the catalogue")
-    assert(pot:find("book_time_left LEFT", 1, true),
-        "the top panel's progress template is not in the catalogue; is "
-        .. "--keyword=N_ missing from the xgettext command?")
+    -- The top panel's templates are deliberately NOT catalogued: they carry
+    -- no words, and that module cannot call gettext where its defaults are
+    -- built anyway. The test below keeps them wordless.
+    assert(not pot:find("book_time_left LEFT", 1, true),
+        "the top panel's progress line has its English 'LEFT' back")
 end)
 
 t.test("a translated template keeps every token the source had", function()
@@ -157,27 +159,14 @@ t.test("a translated template keeps its conditionals balanced", function()
        .. table.concat(bad, "\n   "))
 end)
 
-t.test("the shipped default templates are translatable and well formed", function()
-    -- The two that carry English words inside token syntax. If either stops
-    -- going through _(), it ships untranslated again (issue 418).
+t.test("the list's progress template is translatable and well formed", function()
+    -- It carries English words ("of", "pages") inside token syntax, so it has
+    -- to go through _() or it ships untranslated (issue 418).
     local ll = io.open("lib/bookshelf_list_lines.lua"):read("*a")
-    local hr = io.open("lib/bookshelf_hero_regions.lua"):read("*a")
     assert(ll:match('template%s*=%s*_%('),
         "the list's progress line is no longer translatable")
-    assert(hr:match("Regions._tr = tr"),
-        "the top panel's defaults no longer go through a translator")
-    assert(hr:match('template%s*=%s*N_%('),
-        "the top panel's progress template is no longer marked for extraction")
-    -- ...and the module must stay KOReader-free at load, which is why that
-    -- one translates lazily rather than importing i18n at the top.
-    assert(not hr:match('^local _ = require'),
-        "bookshelf_hero_regions imports i18n at load; its contract is to be "
-        .. "pure Lua when required, and its own tests load it without KOReader")
-    -- Every conditional in a shipped template closes.
-    -- Joined across the Lua `..` continuations, or only the first fragment
-    -- is measured and every wrapped template looks unbalanced.
     local n = 0
-    for call in (ll .. hr):gmatch('template%s*=%s*N?_%((.-)%),\n') do
+    for call in ll:gmatch('template%s*=%s*_%((.-)%),\n') do
         local tpl = ""
         for piece in call:gmatch('"([^"]*)"') do tpl = tpl .. piece end
         if tpl ~= "" then
@@ -187,7 +176,38 @@ t.test("the shipped default templates are translatable and well formed", functio
             eq(o, c, "a shipped template's conditionals do not balance: " .. tpl)
         end
     end
-    assert(n >= 2, "expected both shipped templates; found " .. n)
+    assert(n >= 1, "the list's translatable template is gone")
+end)
+
+t.test("no top panel default template contains a word to translate", function()
+    -- The other half of issue 418 was "LEFT" in the top panel's progress
+    -- line. Rather than translate it, the default now says the same thing
+    -- with tokens alone -- the time already reads as remaining -- which is
+    -- better than shipping an English word for fifteen languages to carry.
+    --
+    -- Asserted as an INVARIANT rather than left to memory: bookshelf_hero_
+    -- regions is KOReader-free at load and so cannot call gettext where its
+    -- defaults are built, which means any English word added to one of these
+    -- is untranslatable by construction. Strip the tokens and conditionals
+    -- and nothing with letters may remain.
+    local hr = io.open("lib/bookshelf_hero_regions.lua"):read("*a")
+    local checked = 0
+    for tpl in hr:gmatch('template%s*=%s*"([^"]*)"') do
+        if tpl ~= "" then
+            checked = checked + 1
+            local bare = tpl:gsub("%%[%a_]+{[^}]*}", " ")   -- %bar{rel}
+                            :gsub("%%[%a_]+", " ")          -- %book_pct
+                            :gsub("%[if:[%a_]+%]", " ")     -- [if:x]
+                            :gsub("%[/if%]", " ")
+                            :gsub("%[else%]", " ")
+                            :gsub("\\x%x%x", " ")           -- escaped bytes
+            local word = bare:match("%a%a+")
+            assert(not word, string.format(
+                "a top panel default carries the word %q, which cannot be "
+                .. "translated from this module: %s", tostring(word), tpl))
+        end
+    end
+    assert(checked >= 5, "expected the shipped templates; found " .. checked)
 end)
 
 t.done()

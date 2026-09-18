@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-18 20:00+0100\n"
+"POT-Creation-Date: 2026-09-18 20:21+0100\n"
 "PO-Revision-Date: 2026-06-20 04:29+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
@@ -368,7 +368,7 @@ msgid "Authors"
 msgstr "作者"
 
 #: lib/bookshelf_chip_editor.lua:385 lib/bookshelf_chip_editor.lua:2579
-#: lib/bookshelf_settings.lua:536 lib/bookshelf_tab_model.lua:75
+#: lib/bookshelf_settings.lua:536 lib/bookshelf_tab_model.lua:81
 #: lib/bookshelf_widget.lua:1606 lib/bookshelf_widget.lua:20074
 msgid "Genres"
 msgstr "类型"
@@ -383,12 +383,12 @@ msgid "Ratings"
 msgstr "评分"
 
 #: lib/bookshelf_chip_editor.lua:389 lib/bookshelf_chip_editor.lua:2597
-#: lib/bookshelf_tab_model.lua:79
+#: lib/bookshelf_tab_model.lua:85
 msgid "Languages"
 msgstr "语言"
 
 #: lib/bookshelf_chip_editor.lua:390 lib/bookshelf_chip_editor.lua:1728
-#: lib/bookshelf_collection_manager.lua:118 lib/bookshelf_tab_model.lua:81
+#: lib/bookshelf_collection_manager.lua:118 lib/bookshelf_tab_model.lua:87
 #: lib/bookshelf_widget.lua:17904 lib/bookshelf_widget.lua:17941
 msgid "Favorites"
 msgstr "收藏夹"
@@ -1133,10 +1133,6 @@ msgstr "模块设置…"
 #: lib/bookshelf_start_menu_edit.lua:483
 msgid "No micro-modules available"
 msgstr "没有可用的微模块"
-
-#: lib/bookshelf_hero_regions.lua:103
-msgid "[if:page_num]%page_num / %page_count[else]%book_pct[/if]  %bar  [if:book_time_left]%book_time_left LEFT[/if]"
-msgstr ""
 
 #: lib/bookshelf_icons_catalogue.lua:20 lib/bookshelf_settings.lua:133
 msgid "All"
@@ -2032,7 +2028,7 @@ msgstr "Bookshelf 占位符"
 
 #: lib/bookshelf_settings.lua:190
 msgid ""
-"Tokens are placeholders that get replaced with live data when the book detail view or status line renders.\n"
+"Tokens are placeholders that get replaced with live data when the top panel or status line renders.\n"
 "\n"
 "  %title — %book_pct\n"
 "  → Dune — 36%\n"
@@ -2042,15 +2038,6 @@ msgid ""
 "  [if:series]Book %series_num of %series_name[/if]\n"
 "  [if:batt<20]LOW %batt[/if]"
 msgstr ""
-"占位符用于在渲染图书详情、状态栏时自动替换为实时数据。\n"
-"\n"
-"  %title — %book_pct\n"
-"  → 沙丘 — 36%\n"
-"\n"
-"当内容被[if：foo]…[/if]包围，只在Token有值时显示。添加[else]…[/if]作为备选内容。\n"
-"\n"
-"  [if：series]Book %series_num of %series_name[/if]\n"
-"  [if：batt<20]LOW %batt[/if]"
 
 #: lib/bookshelf_settings.lua:213
 msgid "Search tokens…"
@@ -2648,10 +2635,9 @@ msgstr "重置为默认颜色"
 msgid "Cover badge size"
 msgstr "封面徽章大小"
 
-# 为了在菜单上的排版美观，在不影响理解的情况下，精简了翻译
 #: lib/bookshelf_settings.lua:2593
-msgid "Edit book detail view"
-msgstr "书籍详情..."
+msgid "Edit top panel content"
+msgstr ""
 
 #: lib/bookshelf_settings.lua:2594
 msgid "The lines of book information shown in the top panel: title, author, rating, metadata, description, tags and progress. Tap a line to edit its template; hold to toggle it. The status line at the top has its own entry."
@@ -3214,8 +3200,8 @@ msgstr ""
 "所有自行新增、修改的自定义书架将会被清除；Bookshelf 其余配置 (顶部面板文本、字体、配色)保持不变。"
 
 #: lib/bookshelf_settings.lua:4162
-msgid "Reset book detail area to defaults"
-msgstr "重置书籍详情区域为默认值"
+msgid "Reset top panel content to defaults"
+msgstr ""
 
 #: lib/bookshelf_settings.lua:4163
 msgid "Clears your top-panel customizations and restores the fresh-install detail layout, including the bundled title (Inter ExtraBold) and author (Caveat) fonts. The Bookshelf UI font and shelf menu are unaffected."
@@ -3223,13 +3209,10 @@ msgstr "清除你对顶部面板的自定义，恢复为全新安装时的详情
 
 #: lib/bookshelf_settings.lua:4170
 msgid ""
-"Reset the book detail area to default settings?\n"
+"Reset the top panel's content to default settings?\n"
 "\n"
 "All top-panel text and font customizations will be lost. The Bookshelf UI font and shelf menu are unaffected."
 msgstr ""
-"是否将书籍详情区域恢复为默认设置？\n"
-"\n"
-"顶部面板的所有文字与字体自定义都将丢失。Bookshelf 界面字体和书架菜单不受影响。"
 
 #: lib/bookshelf_settings.lua:4190
 msgid "BETA: Read calibre metadata.calibre"
@@ -3268,8 +3251,8 @@ msgid "Accept"
 msgstr "接受"
 
 #: lib/bookshelf_settings.lua:4632
-msgid "Book detail font scale"
-msgstr "书籍详情字体比例"
+msgid "Top panel font scale"
+msgstr ""
 
 #: lib/bookshelf_settings.lua:4698
 msgid "Micro-modules font scale"
@@ -3714,12 +3697,12 @@ msgstr "在读"
 msgid "Latest"
 msgstr "新书"
 
-#: lib/bookshelf_tab_model.lua:77 lib/bookshelf_widget.lua:1607
+#: lib/bookshelf_tab_model.lua:83 lib/bookshelf_widget.lua:1607
 #: lib/bookshelf_widget.lua:20081
 msgid "Tags"
 msgstr "标签"
 
-#: lib/bookshelf_tab_model.lua:191 lib/bookshelf_widget.lua:1223
+#: lib/bookshelf_tab_model.lua:197 lib/bookshelf_widget.lua:1223
 msgid "Kobo"
 msgstr "Kobo"
 
@@ -6087,6 +6070,46 @@ msgstr "%1 分钟前更新"
 #: micromodules/weather.lua:460 micromodules/weather.lua:546
 msgid "Updated %1h ago"
 msgstr "%1 小时前更新"
+
+#~ msgid ""
+#~ "Tokens are placeholders that get replaced with live data when the book detail view or status line renders.\n"
+#~ "\n"
+#~ "  %title — %book_pct\n"
+#~ "  → Dune — 36%\n"
+#~ "\n"
+#~ "Wrap content in [if:foo]…[/if] to show it only when the token has a value. Add [else]…[/if] for a fallback.\n"
+#~ "\n"
+#~ "  [if:series]Book %series_num of %series_name[/if]\n"
+#~ "  [if:batt<20]LOW %batt[/if]"
+#~ msgstr ""
+#~ "占位符用于在渲染图书详情、状态栏时自动替换为实时数据。\n"
+#~ "\n"
+#~ "  %title — %book_pct\n"
+#~ "  → 沙丘 — 36%\n"
+#~ "\n"
+#~ "当内容被[if：foo]…[/if]包围，只在Token有值时显示。添加[else]…[/if]作为备选内容。\n"
+#~ "\n"
+#~ "  [if：series]Book %series_num of %series_name[/if]\n"
+#~ "  [if：batt<20]LOW %batt[/if]"
+
+# 为了在菜单上的排版美观，在不影响理解的情况下，精简了翻译
+#~ msgid "Edit book detail view"
+#~ msgstr "书籍详情..."
+
+#~ msgid "Reset book detail area to defaults"
+#~ msgstr "重置书籍详情区域为默认值"
+
+#~ msgid ""
+#~ "Reset the book detail area to default settings?\n"
+#~ "\n"
+#~ "All top-panel text and font customizations will be lost. The Bookshelf UI font and shelf menu are unaffected."
+#~ msgstr ""
+#~ "是否将书籍详情区域恢复为默认设置？\n"
+#~ "\n"
+#~ "顶部面板的所有文字与字体自定义都将丢失。Bookshelf 界面字体和书架菜单不受影响。"
+
+#~ msgid "Book detail font scale"
+#~ msgstr "书籍详情字体比例"
 
 #~ msgid "and a list when expanded or in a folder."
 #~ msgstr "展开或进入文件夹时则显示列表。"

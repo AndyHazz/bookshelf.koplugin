@@ -1567,8 +1567,8 @@ end
 -- go see-through with the strips rather than drifting out of step.
 Settings.SCRIM_LEVELS = {
     { value = 0,    label = function() return _("Transparent") end },
-    { value = 0.35, label = function() return _("Light") end },
-    { value = 0.6,  label = function() return _("Medium") end },
+    { value = 0.35, label = function() return _("Low") end },
+    { value = 0.6,  label = function() return _("Moderate") end },
     { value = 0.85, label = function() return _("Heavy") end },
     { value = 1,    label = function() return _("Solid") end },
 }
@@ -3509,7 +3509,7 @@ function Settings:_behaviourSubItems()
         local PageWipe = require("lib/bookshelf_page_wipe")
         local MODE_LABELS = { off    = _("Off"),
                               fast   = _("Fast"),
-                              medium = _("Medium"),
+                              medium = _("Normal"),
                               slow   = _("Slow") }
         local default = PageWipe.DEFAULTS[key]
         local function cur()
@@ -3536,7 +3536,7 @@ function Settings:_behaviourSubItems()
                 return {
                     row(_("Off"),    "off"),
                     row(_("Fast"),   "fast"),
-                    row(_("Medium"), "medium"),
+                    row(_("Normal"), "medium"),
                     row(_("Slow"),   "slow"),
                 }
             end,

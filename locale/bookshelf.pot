@@ -2334,13 +2334,19 @@ msgstr ""
 msgid "Transparent"
 msgstr ""
 
-#: lib/bookshelf_settings.lua:1570 lib/bookshelf_settings.lua:1578
+#: lib/bookshelf_settings.lua:1570
+msgid "Low"
+msgstr ""
+
+#: lib/bookshelf_settings.lua:1571
+msgid "Moderate"
+msgstr ""
+
+#: lib/bookshelf_settings.lua:1578
 msgid "Light"
 msgstr ""
 
-#: lib/bookshelf_settings.lua:1571 lib/bookshelf_settings.lua:3512
-#: lib/bookshelf_settings.lua:3539 micromodules/analogue_clock.lua:189
-#: micromodules/trivia.lua:65
+#: micromodules/analogue_clock.lua:189
 msgid "Medium"
 msgstr ""
 
@@ -2942,6 +2948,10 @@ msgstr ""
 
 #: lib/bookshelf_settings.lua:3511 lib/bookshelf_settings.lua:3538
 msgid "Fast"
+msgstr ""
+
+#: lib/bookshelf_settings.lua:3512 lib/bookshelf_settings.lua:3539
+msgid "Normal"
 msgstr ""
 
 #: lib/bookshelf_settings.lua:3513 lib/bookshelf_settings.lua:3540
@@ -5750,6 +5760,10 @@ msgstr ""
 
 #: micromodules/trivia.lua:64
 msgid "Easy"
+msgstr ""
+
+#: micromodules/trivia.lua:65
+msgid "Average"
 msgstr ""
 
 #: micromodules/trivia.lua:66

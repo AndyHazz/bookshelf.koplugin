@@ -1105,10 +1105,27 @@ function()
     -- FrameContainer:getSize() counts bordersize. Toggling the thickness would
     -- resize the frame and shift every row on the page each time the selection
     -- moved.
-    assert(row_src:match("bordersize%s*=%s*BORDER"),
-        "the row's border must be present in every state, at a constant "
-        .. "thickness; only its COLOUR may depend on focus")
-    assert(row_src:match("color%s*=%s*%(focused"),
+    -- The invariant is that border + padding is CONSTANT, not that the
+    -- border is literally BORDER everywhere. Over a wallpaper an unfocused
+    -- row paints no card at all, so it draws no border either -- the border
+    -- would otherwise outline the very plate being withheld -- and hands that
+    -- width to the padding instead. Same total, same row height, nothing
+    -- shifts. Asserting the literal caught that as a regression when it is
+    -- the opposite: the rule held, the spelling changed.
+    local border = row_src:match("card_border%s*=%s*BORDER")
+    assert(border, "the row no longer starts from a full-thickness border")
+    local swap = row_src:match("card_border%s*=%s*0%s*\n%s*card_pad%s*=%s*([^\n]+)")
+    assert(swap and swap:find("INNER + BORDER", 1, true), string.format(
+        "a row that drops its border must give the width to padding, or "
+        .. "every row in the band changes height; padding became %q",
+        tostring(swap)))
+    assert(row_src:match("bordersize%s*=%s*card_border"),
+        "the frame no longer takes the thickness that was reasoned about")
+    -- The colour still turns on focus, through the `ring` term below rather
+    -- than on `focused` directly -- same condition, named once so the
+    -- marks-itself exception cannot drift apart from the colour that depends
+    -- on it.
+    assert(row_src:match("color%s*=%s*ring and ListRow%.ROW_FG or ListRow%.ROW_BG"),
         "the selection box should change colour on focus")
     -- ...unless the row's content already marks itself. A button row is a
     -- SpineWidget card that thickens its OWN border when selected, and the row

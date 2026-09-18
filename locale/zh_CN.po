@@ -589,7 +589,7 @@ msgstr "系列首本"
 
 #: lib/bookshelf_chip_editor.lua:1730
 msgid "First unread in series"
-msgstr ""
+msgstr "系列首本未读"
 
 #: lib/bookshelf_chip_editor.lua:1731 lib/bookshelf_settings.lua:3559
 msgid "Currently reading"
@@ -1717,7 +1717,7 @@ msgstr "第 %d 行"
 
 #: lib/bookshelf_list_lines.lua:200
 msgid "%bar{rel}[if:page_count]%spacer[if:book_pct]%book_pct of [/if]%page_count pages[else]%book_pct[/if]"
-msgstr ""
+msgstr "%bar{rel}[if:page_count]%spacer[if:book_pct]%book_pct，[/if]共 %page_count 页[else]%book_pct[/if]"
 
 #: lib/bookshelf_menu_shortcut.lua:216
 msgid "Menu unavailable"
@@ -2042,6 +2042,15 @@ msgid ""
 "  [if:series]Book %series_num of %series_name[/if]\n"
 "  [if:batt<20]LOW %batt[/if]"
 msgstr ""
+"占位符用于在渲染顶部面板或状态条时自动替换为实时数据。\n"
+"\n"
+"  %title — %book_pct\n"
+"  → 沙丘 — 36%\n"
+"\n"
+"用 [if:foo]…[/if] 包围内容，只在该占位符有值时才显示。添加 [else]…[/if] 可指定备选内容。\n"
+"\n"
+"  [if:series]Book %series_num of %series_name[/if]\n"
+"  [if:batt<20]LOW %batt[/if]"
 
 #: lib/bookshelf_settings.lua:213
 msgid "Search tokens…"
@@ -2344,11 +2353,11 @@ msgstr "透明"
 
 #: lib/bookshelf_settings.lua:1570
 msgid "Low"
-msgstr ""
+msgstr "轻微"
 
 #: lib/bookshelf_settings.lua:1571
 msgid "Moderate"
-msgstr ""
+msgstr "适中"
 
 #: lib/bookshelf_settings.lua:1572
 msgid "Heavy"
@@ -2641,7 +2650,7 @@ msgstr "封面徽章大小"
 
 #: lib/bookshelf_settings.lua:2593
 msgid "Edit top panel content"
-msgstr ""
+msgstr "编辑顶部面板内容"
 
 #: lib/bookshelf_settings.lua:2594
 msgid "The lines of book information shown in the top panel: title, author, rating, metadata, description, tags and progress. Tap a line to edit its template; hold to toggle it. The status line at the top has its own entry."
@@ -2987,7 +2996,7 @@ msgstr "快"
 
 #: lib/bookshelf_settings.lua:3512 lib/bookshelf_settings.lua:3539
 msgid "Normal"
-msgstr ""
+msgstr "正常"
 
 #: lib/bookshelf_settings.lua:3513 lib/bookshelf_settings.lua:3540
 msgid "Slow"
@@ -3205,7 +3214,7 @@ msgstr ""
 
 #: lib/bookshelf_settings.lua:4162
 msgid "Reset top panel content to defaults"
-msgstr ""
+msgstr "将顶部面板内容重置为默认值"
 
 #: lib/bookshelf_settings.lua:4163
 msgid "Clears your top-panel customizations and restores the fresh-install detail layout, including the bundled title (Inter ExtraBold) and author (Caveat) fonts. The Bookshelf UI font and shelf menu are unaffected."
@@ -3217,6 +3226,9 @@ msgid ""
 "\n"
 "All top-panel text and font customizations will be lost. The Bookshelf UI font and shelf menu are unaffected."
 msgstr ""
+"是否将顶部面板内容恢复为默认设置？\n"
+"\n"
+"顶部面板的所有文字与字体自定义都将丢失。Bookshelf 界面字体和书架菜单不受影响。"
 
 #: lib/bookshelf_settings.lua:4190
 msgid "BETA: Read calibre metadata.calibre"
@@ -3256,7 +3268,7 @@ msgstr "接受"
 
 #: lib/bookshelf_settings.lua:4632
 msgid "Top panel font scale"
-msgstr ""
+msgstr "顶部面板字体比例"
 
 #: lib/bookshelf_settings.lua:4698
 msgid "Micro-modules font scale"
@@ -5856,7 +5868,7 @@ msgstr "简单"
 
 #: micromodules/trivia.lua:65
 msgid "Average"
-msgstr ""
+msgstr "中等"
 
 #: micromodules/trivia.lua:66
 msgid "Hard"

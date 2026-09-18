@@ -582,7 +582,7 @@ msgstr "Prvá v sérii"
 
 #: lib/bookshelf_chip_editor.lua:1730
 msgid "First unread in series"
-msgstr ""
+msgstr "Prvá neprečítaná v sérii"
 
 #: lib/bookshelf_chip_editor.lua:1731 lib/bookshelf_settings.lua:3559
 msgid "Currently reading"
@@ -1710,7 +1710,7 @@ msgstr "Riadok %d"
 
 #: lib/bookshelf_list_lines.lua:200
 msgid "%bar{rel}[if:page_count]%spacer[if:book_pct]%book_pct of [/if]%page_count pages[else]%book_pct[/if]"
-msgstr ""
+msgstr "%bar{rel}[if:page_count]%spacer[if:book_pct]%book_pct z [/if]%page_count strán[else]%book_pct[/if]"
 
 #: lib/bookshelf_menu_shortcut.lua:216
 msgid "Menu unavailable"
@@ -2035,6 +2035,15 @@ msgid ""
 "  [if:series]Book %series_num of %series_name[/if]\n"
 "  [if:batt<20]LOW %batt[/if]"
 msgstr ""
+"Tokeny sú zástupné znaky, ktoré sa pri vykreslení horného panela alebo stavového riadku nahradia aktuálnymi údajmi.\n"
+"\n"
+"  %title — %book_pct\n"
+"  → Dune — 36%\n"
+"\n"
+"Obsah vložený do [if:foo]…[/if] sa zobrazí iba vtedy, keď má token hodnotu. Pridajte [else]…[/if] pre náhradnú možnosť.\n"
+"\n"
+"  [if:series]Kniha %series_num zo série %series_name[/if]\n"
+"  [if:batt<20]NÍZKA %batt[/if]"
 
 #: lib/bookshelf_settings.lua:213
 msgid "Search tokens…"
@@ -2337,11 +2346,11 @@ msgstr "Priehľadné"
 
 #: lib/bookshelf_settings.lua:1570
 msgid "Low"
-msgstr ""
+msgstr "Slabé"
 
 #: lib/bookshelf_settings.lua:1571
 msgid "Moderate"
-msgstr ""
+msgstr "Mierne"
 
 #: lib/bookshelf_settings.lua:1572
 msgid "Heavy"
@@ -2634,7 +2643,7 @@ msgstr "Veľkosť odznaku obálky"
 
 #: lib/bookshelf_settings.lua:2593
 msgid "Edit top panel content"
-msgstr ""
+msgstr "Upraviť obsah horného panela"
 
 #: lib/bookshelf_settings.lua:2594
 msgid "The lines of book information shown in the top panel: title, author, rating, metadata, description, tags and progress. Tap a line to edit its template; hold to toggle it. The status line at the top has its own entry."
@@ -2977,7 +2986,7 @@ msgstr "Rýchlo"
 
 #: lib/bookshelf_settings.lua:3512 lib/bookshelf_settings.lua:3539
 msgid "Normal"
-msgstr ""
+msgstr "Normálne"
 
 #: lib/bookshelf_settings.lua:3513 lib/bookshelf_settings.lua:3540
 msgid "Slow"
@@ -3195,7 +3204,7 @@ msgstr ""
 
 #: lib/bookshelf_settings.lua:4162
 msgid "Reset top panel content to defaults"
-msgstr ""
+msgstr "Obnoviť predvolený obsah horného panela"
 
 #: lib/bookshelf_settings.lua:4163
 msgid "Clears your top-panel customizations and restores the fresh-install detail layout, including the bundled title (Inter ExtraBold) and author (Caveat) fonts. The Bookshelf UI font and shelf menu are unaffected."
@@ -3207,6 +3216,9 @@ msgid ""
 "\n"
 "All top-panel text and font customizations will be lost. The Bookshelf UI font and shelf menu are unaffected."
 msgstr ""
+"Obnoviť predvolené nastavenia obsahu horného panela?\n"
+"\n"
+"Všetky úpravy textu a písiem horného panela sa stratia. Písmo rozhrania Bookshelf a ponuka políc nie sú ovplyvnené."
 
 #: lib/bookshelf_settings.lua:4190
 msgid "BETA: Read calibre metadata.calibre"
@@ -3246,7 +3258,7 @@ msgstr "Prijať"
 
 #: lib/bookshelf_settings.lua:4632
 msgid "Top panel font scale"
-msgstr ""
+msgstr "Mierka písma horného panela"
 
 #: lib/bookshelf_settings.lua:4698
 msgid "Micro-modules font scale"
@@ -5846,7 +5858,7 @@ msgstr "Ľahké"
 
 #: micromodules/trivia.lua:65
 msgid "Average"
-msgstr ""
+msgstr "Stredné"
 
 #: micromodules/trivia.lua:66
 msgid "Hard"

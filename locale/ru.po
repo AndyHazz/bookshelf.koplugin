@@ -590,7 +590,7 @@ msgstr "Первая в серии"
 
 #: lib/bookshelf_chip_editor.lua:1730
 msgid "First unread in series"
-msgstr ""
+msgstr "Первая непрочитанная в серии"
 
 #: lib/bookshelf_chip_editor.lua:1731 lib/bookshelf_settings.lua:3559
 msgid "Currently reading"
@@ -1718,7 +1718,7 @@ msgstr "Строка %d"
 
 #: lib/bookshelf_list_lines.lua:200
 msgid "%bar{rel}[if:page_count]%spacer[if:book_pct]%book_pct of [/if]%page_count pages[else]%book_pct[/if]"
-msgstr ""
+msgstr "%bar{rel}[if:page_count]%spacer[if:book_pct]%book_pct из [/if]%page_count стр.[else]%book_pct[/if]"
 
 #: lib/bookshelf_menu_shortcut.lua:216
 msgid "Menu unavailable"
@@ -2043,6 +2043,15 @@ msgid ""
 "  [if:series]Book %series_num of %series_name[/if]\n"
 "  [if:batt<20]LOW %batt[/if]"
 msgstr ""
+"Токены — это заполнители, которые заменяются актуальными данными при отображении верхней панели или строки состояния.\n"
+"\n"
+"  %title — %book_pct\n"
+"  → Дюна — 36%\n"
+"\n"
+"Заключите содержимое в [if:foo]…[/if], чтобы показывать его только при наличии значения токена. Добавьте [else]…[/if] для запасного варианта.\n"
+"\n"
+"  [if:series]Книга %series_num из серии %series_name[/if]\n"
+"  [if:batt<20]НИЗКИЙ %batt[/if]"
 
 #: lib/bookshelf_settings.lua:213
 msgid "Search tokens…"
@@ -2642,7 +2651,7 @@ msgstr "Размер значка на обложке"
 
 #: lib/bookshelf_settings.lua:2593
 msgid "Edit top panel content"
-msgstr ""
+msgstr "Изменить содержимое верхней панели"
 
 #: lib/bookshelf_settings.lua:2594
 msgid "The lines of book information shown in the top panel: title, author, rating, metadata, description, tags and progress. Tap a line to edit its template; hold to toggle it. The status line at the top has its own entry."
@@ -3203,7 +3212,7 @@ msgstr ""
 
 #: lib/bookshelf_settings.lua:4162
 msgid "Reset top panel content to defaults"
-msgstr ""
+msgstr "Сбросить содержимое верхней панели по умолчанию"
 
 #: lib/bookshelf_settings.lua:4163
 msgid "Clears your top-panel customizations and restores the fresh-install detail layout, including the bundled title (Inter ExtraBold) and author (Caveat) fonts. The Bookshelf UI font and shelf menu are unaffected."
@@ -3215,6 +3224,9 @@ msgid ""
 "\n"
 "All top-panel text and font customizations will be lost. The Bookshelf UI font and shelf menu are unaffected."
 msgstr ""
+"Сбросить содержимое верхней панели к настройкам по умолчанию?\n"
+"\n"
+"Все настройки текста и шрифтов верхней панели будут потеряны. Шрифт интерфейса Bookshelf и меню полок не затрагиваются."
 
 #: lib/bookshelf_settings.lua:4190
 msgid "BETA: Read calibre metadata.calibre"
@@ -3254,7 +3266,7 @@ msgstr "Принять"
 
 #: lib/bookshelf_settings.lua:4632
 msgid "Top panel font scale"
-msgstr ""
+msgstr "Масштаб шрифта верхней панели"
 
 #: lib/bookshelf_settings.lua:4698
 msgid "Micro-modules font scale"

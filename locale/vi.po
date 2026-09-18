@@ -579,7 +579,7 @@ msgstr "Cuốn đầu trong Series"
 
 #: lib/bookshelf_chip_editor.lua:1730
 msgid "First unread in series"
-msgstr ""
+msgstr "Cuốn đầu chưa đọc trong Series"
 
 #: lib/bookshelf_chip_editor.lua:1731 lib/bookshelf_settings.lua:3559
 msgid "Currently reading"
@@ -1707,7 +1707,7 @@ msgstr "Dòng %d"
 
 #: lib/bookshelf_list_lines.lua:200
 msgid "%bar{rel}[if:page_count]%spacer[if:book_pct]%book_pct of [/if]%page_count pages[else]%book_pct[/if]"
-msgstr ""
+msgstr "%bar{rel}[if:page_count]%spacer[if:book_pct]%book_pct của [/if]%page_count trang[else]%book_pct[/if]"
 
 #: lib/bookshelf_menu_shortcut.lua:216
 msgid "Menu unavailable"
@@ -2032,6 +2032,15 @@ msgid ""
 "  [if:series]Book %series_num of %series_name[/if]\n"
 "  [if:batt<20]LOW %batt[/if]"
 msgstr ""
+"Token là các phần giữ chỗ được thay bằng dữ liệu thực khi bảng trên hoặc hàng trạng thái được vẽ.\n"
+"\n"
+"  %title — %book_pct\n"
+"  → Dune — 36%\n"
+"\n"
+"Bọc nội dung trong [if:foo]…[/if] để chỉ hiện khi token có giá trị. Thêm [else]…[/if] để có nội dung thay thế.\n"
+"\n"
+"  [if:series]Cuốn %series_num của %series_name[/if]\n"
+"  [if:batt<20]YẾU %batt[/if]"
 
 #: lib/bookshelf_settings.lua:213
 msgid "Search tokens…"
@@ -2334,11 +2343,11 @@ msgstr "Trong suốt"
 
 #: lib/bookshelf_settings.lua:1570
 msgid "Low"
-msgstr ""
+msgstr "Nhẹ"
 
 #: lib/bookshelf_settings.lua:1571
 msgid "Moderate"
-msgstr ""
+msgstr "Vừa"
 
 #: lib/bookshelf_settings.lua:1572
 msgid "Heavy"
@@ -2631,7 +2640,7 @@ msgstr "Kích thước bейджи che phủ"
 
 #: lib/bookshelf_settings.lua:2593
 msgid "Edit top panel content"
-msgstr ""
+msgstr "Chỉnh sửa nội dung bảng trên"
 
 #: lib/bookshelf_settings.lua:2594
 msgid "The lines of book information shown in the top panel: title, author, rating, metadata, description, tags and progress. Tap a line to edit its template; hold to toggle it. The status line at the top has its own entry."
@@ -2974,7 +2983,7 @@ msgstr "Nhanh"
 
 #: lib/bookshelf_settings.lua:3512 lib/bookshelf_settings.lua:3539
 msgid "Normal"
-msgstr ""
+msgstr "Bình thường"
 
 #: lib/bookshelf_settings.lua:3513 lib/bookshelf_settings.lua:3540
 msgid "Slow"
@@ -3192,7 +3201,7 @@ msgstr ""
 
 #: lib/bookshelf_settings.lua:4162
 msgid "Reset top panel content to defaults"
-msgstr ""
+msgstr "Đặt nội dung bảng trên về mặc định"
 
 #: lib/bookshelf_settings.lua:4163
 msgid "Clears your top-panel customizations and restores the fresh-install detail layout, including the bundled title (Inter ExtraBold) and author (Caveat) fonts. The Bookshelf UI font and shelf menu are unaffected."
@@ -3204,6 +3213,9 @@ msgid ""
 "\n"
 "All top-panel text and font customizations will be lost. The Bookshelf UI font and shelf menu are unaffected."
 msgstr ""
+"Đặt lại nội dung bảng trên về cài đặt mặc định?\n"
+"\n"
+"Toàn bộ văn bản và tùy chỉnh phông của bảng trên sẽ bị mất. Phông giao diện Bookshelf và menu kệ không bị ảnh hưởng."
 
 #: lib/bookshelf_settings.lua:4190
 msgid "BETA: Read calibre metadata.calibre"
@@ -3243,7 +3255,7 @@ msgstr "Chấp nhận"
 
 #: lib/bookshelf_settings.lua:4632
 msgid "Top panel font scale"
-msgstr ""
+msgstr "Kích thước phông bảng trên"
 
 #: lib/bookshelf_settings.lua:4698
 msgid "Micro-modules font scale"
@@ -5843,7 +5855,7 @@ msgstr "Dễ"
 
 #: micromodules/trivia.lua:65
 msgid "Average"
-msgstr ""
+msgstr "Trung bình"
 
 #: micromodules/trivia.lua:66
 msgid "Hard"

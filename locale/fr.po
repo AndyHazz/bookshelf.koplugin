@@ -581,7 +581,7 @@ msgstr "Premier de la série"
 
 #: lib/bookshelf_chip_editor.lua:1730
 msgid "First unread in series"
-msgstr ""
+msgstr "Premier non lu de la série"
 
 #: lib/bookshelf_chip_editor.lua:1731 lib/bookshelf_settings.lua:3559
 msgid "Currently reading"
@@ -1709,7 +1709,7 @@ msgstr "Ligne %d"
 
 #: lib/bookshelf_list_lines.lua:200
 msgid "%bar{rel}[if:page_count]%spacer[if:book_pct]%book_pct of [/if]%page_count pages[else]%book_pct[/if]"
-msgstr ""
+msgstr "%bar{rel}[if:page_count]%spacer[if:book_pct]%book_pct sur [/if]%page_count pages[else]%book_pct[/if]"
 
 #: lib/bookshelf_menu_shortcut.lua:216
 msgid "Menu unavailable"
@@ -2034,6 +2034,15 @@ msgid ""
 "  [if:series]Book %series_num of %series_name[/if]\n"
 "  [if:batt<20]LOW %batt[/if]"
 msgstr ""
+"Les jetons sont des espaces réservés qui sont remplacés par des données en temps réel lors du rendu du panneau supérieur ou de la ligne d'état.\n"
+"\n"
+"  %title — %book_pct\n"
+"  → Dune — 36%\n"
+"\n"
+"Entourez du contenu avec [if:foo]…[/if] pour ne l'afficher que lorsque le jeton a une valeur. Ajoutez [else]…[/if] pour une valeur de repli.\n"
+"\n"
+"  [if:series]Livre %series_num de %series_name[/if]\n"
+"  [if:batt<20]FAIBLE %batt[/if]"
 
 #: lib/bookshelf_settings.lua:213
 msgid "Search tokens…"
@@ -2336,11 +2345,11 @@ msgstr "Transparent"
 
 #: lib/bookshelf_settings.lua:1570
 msgid "Low"
-msgstr ""
+msgstr "Léger"
 
 #: lib/bookshelf_settings.lua:1571
 msgid "Moderate"
-msgstr ""
+msgstr "Modéré"
 
 #: lib/bookshelf_settings.lua:1572
 msgid "Heavy"
@@ -2633,7 +2642,7 @@ msgstr "Taille des badges de couverture"
 
 #: lib/bookshelf_settings.lua:2593
 msgid "Edit top panel content"
-msgstr ""
+msgstr "Modifier le contenu du panneau supérieur"
 
 #: lib/bookshelf_settings.lua:2594
 msgid "The lines of book information shown in the top panel: title, author, rating, metadata, description, tags and progress. Tap a line to edit its template; hold to toggle it. The status line at the top has its own entry."
@@ -2976,7 +2985,7 @@ msgstr "Rapide"
 
 #: lib/bookshelf_settings.lua:3512 lib/bookshelf_settings.lua:3539
 msgid "Normal"
-msgstr ""
+msgstr "Normal"
 
 #: lib/bookshelf_settings.lua:3513 lib/bookshelf_settings.lua:3540
 msgid "Slow"
@@ -3194,7 +3203,7 @@ msgstr ""
 
 #: lib/bookshelf_settings.lua:4162
 msgid "Reset top panel content to defaults"
-msgstr ""
+msgstr "Réinitialiser le contenu du panneau supérieur aux valeurs par défaut"
 
 #: lib/bookshelf_settings.lua:4163
 msgid "Clears your top-panel customizations and restores the fresh-install detail layout, including the bundled title (Inter ExtraBold) and author (Caveat) fonts. The Bookshelf UI font and shelf menu are unaffected."
@@ -3206,6 +3215,9 @@ msgid ""
 "\n"
 "All top-panel text and font customizations will be lost. The Bookshelf UI font and shelf menu are unaffected."
 msgstr ""
+"Réinitialiser le contenu du panneau supérieur aux paramètres par défaut ?\n"
+"\n"
+"Toutes les personnalisations de texte et de police du panneau supérieur seront perdues. La police de l'interface Bookshelf et le menu des étagères ne sont pas affectés."
 
 #: lib/bookshelf_settings.lua:4190
 msgid "BETA: Read calibre metadata.calibre"
@@ -3245,7 +3257,7 @@ msgstr "Accepter"
 
 #: lib/bookshelf_settings.lua:4632
 msgid "Top panel font scale"
-msgstr ""
+msgstr "Échelle de police du panneau supérieur"
 
 #: lib/bookshelf_settings.lua:4698
 msgid "Micro-modules font scale"
@@ -5845,7 +5857,7 @@ msgstr "Facile"
 
 #: micromodules/trivia.lua:65
 msgid "Average"
-msgstr ""
+msgstr "Moyen"
 
 #: micromodules/trivia.lua:66
 msgid "Hard"

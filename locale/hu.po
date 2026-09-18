@@ -585,7 +585,7 @@ msgstr "Sorozat első kötete"
 
 #: lib/bookshelf_chip_editor.lua:1730
 msgid "First unread in series"
-msgstr ""
+msgstr "Sorozat első olvasatlan kötete"
 
 #: lib/bookshelf_chip_editor.lua:1731 lib/bookshelf_settings.lua:3559
 msgid "Currently reading"
@@ -1713,7 +1713,7 @@ msgstr "Sor %d"
 
 #: lib/bookshelf_list_lines.lua:200
 msgid "%bar{rel}[if:page_count]%spacer[if:book_pct]%book_pct of [/if]%page_count pages[else]%book_pct[/if]"
-msgstr ""
+msgstr "%bar{rel}[if:page_count]%spacer[if:book_pct]%book_pct / [/if]%page_count oldal[else]%book_pct[/if]"
 
 #: lib/bookshelf_menu_shortcut.lua:216
 msgid "Menu unavailable"
@@ -2038,6 +2038,15 @@ msgid ""
 "  [if:series]Book %series_num of %series_name[/if]\n"
 "  [if:batt<20]LOW %batt[/if]"
 msgstr ""
+"A tokenek helyőrzők, amelyek helyére élő adatok kerülnek, amikor a felső panel vagy az állapotsor megjelenik.\n"
+"\n"
+"  %title — %book_pct\n"
+"  → Dune — 36%\n"
+"\n"
+"Tedd a tartalmat [if:foo]…[/if] közé, hogy csak akkor jelenjen meg, ha a tokennek van értéke. Az [else]…[/if] tartalék szöveget ad hozzá.\n"
+"\n"
+"  [if:series]%series_name sorozat %series_num. kötete[/if]\n"
+"  [if:batt<20]ALACSONY %batt[/if]"
 
 #: lib/bookshelf_settings.lua:213
 msgid "Search tokens…"
@@ -2340,11 +2349,11 @@ msgstr "Átlátszó"
 
 #: lib/bookshelf_settings.lua:1570
 msgid "Low"
-msgstr ""
+msgstr "Enyhe"
 
 #: lib/bookshelf_settings.lua:1571
 msgid "Moderate"
-msgstr ""
+msgstr "Mérsékelt"
 
 #: lib/bookshelf_settings.lua:1572
 msgid "Heavy"
@@ -2637,7 +2646,7 @@ msgstr "Borító jelvény mérete"
 
 #: lib/bookshelf_settings.lua:2593
 msgid "Edit top panel content"
-msgstr ""
+msgstr "Felső panel tartalmának szerkesztése"
 
 #: lib/bookshelf_settings.lua:2594
 msgid "The lines of book information shown in the top panel: title, author, rating, metadata, description, tags and progress. Tap a line to edit its template; hold to toggle it. The status line at the top has its own entry."
@@ -2980,7 +2989,7 @@ msgstr "Gyors"
 
 #: lib/bookshelf_settings.lua:3512 lib/bookshelf_settings.lua:3539
 msgid "Normal"
-msgstr ""
+msgstr "Normál"
 
 #: lib/bookshelf_settings.lua:3513 lib/bookshelf_settings.lua:3540
 msgid "Slow"
@@ -3198,7 +3207,7 @@ msgstr ""
 
 #: lib/bookshelf_settings.lua:4162
 msgid "Reset top panel content to defaults"
-msgstr ""
+msgstr "Felső panel tartalmának visszaállítása alapértékekre"
 
 #: lib/bookshelf_settings.lua:4163
 msgid "Clears your top-panel customizations and restores the fresh-install detail layout, including the bundled title (Inter ExtraBold) and author (Caveat) fonts. The Bookshelf UI font and shelf menu are unaffected."
@@ -3210,6 +3219,9 @@ msgid ""
 "\n"
 "All top-panel text and font customizations will be lost. The Bookshelf UI font and shelf menu are unaffected."
 msgstr ""
+"Visszaállítod a felső panel tartalmát az alapértelmezett beállításokra?\n"
+"\n"
+"A felső panel minden szövege és betűtípus-testreszabása elveszik. A Bookshelf felhasználói felület betűtípusát és a polcmenüt nem érinti."
 
 #: lib/bookshelf_settings.lua:4190
 msgid "BETA: Read calibre metadata.calibre"
@@ -3249,7 +3261,7 @@ msgstr "Elfogad"
 
 #: lib/bookshelf_settings.lua:4632
 msgid "Top panel font scale"
-msgstr ""
+msgstr "Felső panel betűméret-skálázása"
 
 #: lib/bookshelf_settings.lua:4698
 msgid "Micro-modules font scale"
@@ -5849,7 +5861,7 @@ msgstr "Könnyű"
 
 #: micromodules/trivia.lua:65
 msgid "Average"
-msgstr ""
+msgstr "Közepes"
 
 #: micromodules/trivia.lua:66
 msgid "Hard"

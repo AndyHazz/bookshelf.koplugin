@@ -3181,7 +3181,7 @@ msgid ""
 "Reset the top panel's content to default settings?\n"
 "\n"
 "All top-panel text and font customizations will be lost. The Bookshelf UI font and shelf menu are unaffected."
-msgstr ""
+msgstr "Reset the top panel's content to default settings?\n\nAll top-panel text and font customisations will be lost. The Bookshelf UI font and shelf menu are unaffected."
 
 #: lib/bookshelf_settings.lua:4190
 msgid "BETA: Read calibre metadata.calibre"

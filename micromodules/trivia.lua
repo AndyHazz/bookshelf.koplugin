@@ -62,7 +62,7 @@ local CATEGORIES = {
 local DIFFICULTIES = {
     { text = _("Any"), value = "", icon = "dice-multiple" },
     { text = _("Easy"), value = "easy", raw_icon = "★☆☆" },
-    { text = _("Medium"), value = "medium", raw_icon = "★★☆" },
+    { text = _("Average"), value = "medium", raw_icon = "★★☆" },
     { text = _("Hard"), value = "hard", raw_icon = "★★★" },
 }
 

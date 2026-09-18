@@ -137,8 +137,25 @@ t.test("the pagination plan does not balance every row of the chip", function()
     -- balanceRows is a DP over rows x books; asked for all 415 rows of a
     -- 1234-book chip it took 585ms, for boundaries the pages never use.
     local w = read("lib/bookshelf_widget.lua")
-    local pf = body(w, "\nfunction BookshelfWidget:_spinePageFirsts%(%)\n")
+    local pf = body(w, "\nfunction BookshelfWidget:_spinePageFirsts%(build%)\n")
     assert(pf:find("balance%s*=%s*false"), "_spinePageFirsts still asks for a balanced plan")
+    -- ...and it is not built unless somebody asks. The map plans every book
+    -- in the chip, which on a big folder is a second of sidecar reads on the
+    -- way in, and nothing on a spine shelf shows a page number.
+    assert(pf:find("if not build then return nil end", 1, true),
+        "_spinePageFirsts builds on demand from anyone, which is what made "
+        .. "entering a folder slow")
+    for _, caller in ipairs{ "_spineTotalPages", "_spinePageIndexForCursor" } do
+        local b = body(w, "\nfunction BookshelfWidget:" .. caller .. "%(")
+        assert(not b:find("_spinePageFirsts(true)", 1, true),
+            caller .. " builds the page map; it runs on every rebuild")
+    end
+    for _, caller in ipairs{ "_spineCursorForPage", "_spinePrevPageCursor" } do
+        local b = body(w, "\nfunction BookshelfWidget:" .. caller .. "%(")
+        assert(b:find("_spinePageFirsts(true)", 1, true),
+            caller .. " no longer builds the map, so a page jump has nothing "
+            .. "to land on")
+    end
     local src = read("lib/bookshelf_spine_shelf.lua")
     local plan = body(src, "\nfunction SpineShelf%.plan%(items, opts%)\n")
     assert(plan:find("opts%.balance ~= false"), "plan ignores balance = false")

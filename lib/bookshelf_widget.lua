@@ -6190,11 +6190,30 @@ end
 -- back-wrap, history-less back-steps, page-jump and skip land on real page
 -- boundaries instead of the item-based cursor ceiling (the '247-247 of 247'
 -- wrap, then one-more-book-per-back-step).
-function BookshelfWidget:_spinePageFirsts()
+-- BUILDING IT IS THE EXPENSIVE THING, so nothing gets it by accident.
+--
+-- The build plans EVERY book in the chip -- width, which means page count,
+-- which means a sidecar read for any book whose count or read status is not
+-- already in the facts store. On a 200-book folder that is a second or more
+-- of file I/O on the way in ("transitions into some collections can freeze
+-- for several seconds", Kindle 11th gen).
+--
+-- It used to happen on every folder entry, because _syncPageFromCursor asked
+-- the map which page the cursor was on. Nothing on a spine shelf SHOWS a page
+-- number -- the footer counts books ("9-16 of 247"), the go-to dialog asks for
+-- a book, and forward/back paging steps by the render's own next_item -- so
+-- 200 books were planned to answer a question with no reader.
+--
+-- Now `build` is opt-in and only the things that genuinely need a boundary
+-- pass it: jump to page, jump to last, and the no-history back-step. They are
+-- deliberate presses, they pay once, and the answer is cached for the footer
+-- and everything else afterwards.
+function BookshelfWidget:_spinePageFirsts(build)
     local c = self._spine_fetch_cache
     if c and c.page_firsts and c.firsts_shelves == self:_nShelves() then
         return c.page_firsts
     end
+    if not build then return nil end
     local d = self._shelf_dims
     if not d or not d.content_w or not d.shelf_h then return nil end
     local items = c and c.items
@@ -6248,7 +6267,7 @@ end
 
 -- _spineCursorForPage(p) / _spinePrevPageCursor(cur) — page-map lookups.
 function BookshelfWidget:_spineCursorForPage(p)
-    local firsts = self:_spinePageFirsts()
+    local firsts = self:_spinePageFirsts(true)
     if not firsts then return nil end
     if p < 1 then p = 1 end
     if p > #firsts then p = #firsts end
@@ -6256,7 +6275,7 @@ function BookshelfWidget:_spineCursorForPage(p)
 end
 
 function BookshelfWidget:_spinePrevPageCursor(cur)
-    local firsts = self:_spinePageFirsts()
+    local firsts = self:_spinePageFirsts(true)
     if not firsts then return nil end
     local prev
     for i = 1, #firsts do
@@ -6273,8 +6292,13 @@ end
 -- "next" (cursor-based) kept working (device report).
 function BookshelfWidget:_spineTotalPages()
     if not self:_isSpineMode() then return nil end
-    local ok, _cur, n = pcall(self._spineCursorForPage, self, 1)
-    if ok and n and n > 0 then
+    -- Reads the map, never builds it: this is called while the footer is
+    -- being built, which is every rebuild, and building there is what made
+    -- entering a folder slow. Until something asks for a boundary the
+    -- caller's view-size estimate stands; once it has, this sharpens it.
+    local firsts = self:_spinePageFirsts()
+    local n = firsts and #firsts or nil
+    if n and n > 0 then
         -- Keep the cached count honest too: at the initial _rebuild the map
         -- isn't available yet (no shelf dims), so _total_pages starts as the
         -- estimate; the first caller with a real answer corrects it.
@@ -6288,6 +6312,9 @@ end
 -- page map, or nil when unavailable.
 function BookshelfWidget:_spinePageIndexForCursor(cur)
     if not self:_isSpineMode() then return nil end
+    -- Never builds: this is called from _syncPageFromCursor on every page
+    -- turn and rebuild. If the map happens to exist it sharpens the answer;
+    -- if not, the caller's view-size estimate stands.
     local ok, firsts = pcall(self._spinePageFirsts, self)
     if not ok or not firsts or #firsts == 0 then return nil end
     local page = 1

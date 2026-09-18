@@ -15,7 +15,7 @@ msgstr "Bookshelf"
 
 #: _meta.lua:20
 msgid "A nice-looking home screen for KOReader: pick a book from your shelf and read it."
-msgstr "Una pantalla de inicio bonita para KOReader: elija un libro de su estantería y léalo."
+msgstr "Una pantalla de inicio bonita para KOReader: elige un libro de tu estantería y léelo."
 
 #: lib/bookshelf_action_chooser.lua:22
 msgid "Plugin…"
@@ -89,7 +89,7 @@ msgstr "Leyendo"
 #: lib/bookshelf_widget.lua:17576 micromodules/random_unread.lua:235
 #: micromodules/shelf_size.lua:20
 msgid "On hold"
-msgstr "En pausa"
+msgstr "En espera"
 
 #: lib/bookshelf_bulk_actions.lua:114 lib/bookshelf_filter.lua:250
 #: lib/bookshelf_filter.lua:269 lib/bookshelf_tokens.lua:263
@@ -845,7 +845,7 @@ msgstr "Colecciones · %d libros"
 
 #: lib/bookshelf_collection_manager.lua:609
 msgid "Tap a collection to cycle through: no change, add to all, remove from all. Save returns the diff to the bulk menu."
-msgstr "Toque una colección para alternar entre: sin cambios, añadir a todos, quitar de todos. Guardar devuelve los cambios al menú de acciones masivas."
+msgstr "Toca una colección para alternar entre: sin cambios, añadir a todos, quitar de todos. Guardar devuelve los cambios al menú de acciones masivas."
 
 #: lib/bookshelf_collection_manager.lua:627
 msgid "Edit collections"
@@ -857,7 +857,7 @@ msgstr "Gestionar colecciones"
 
 #: lib/bookshelf_collection_manager.lua:688
 msgid "Tap a custom collection to rename, delete, or pin it to the shelf menu. Long-press a book on the shelf and tap Collections… to add or remove it from collections."
-msgstr "Toque una colección personalizada para renombrarla, eliminarla o fijarla en el menú de estanterías. Mantenga pulsado un libro en la estantería y toque Colecciones… para añadirlo o quitarlo de las colecciones."
+msgstr "Toca una colección personalizada para renombrarla, eliminarla o fijarla en el menú de estanterías. Mantén pulsado un libro en la estantería y toca Colecciones… para añadirlo o quitarlo de las colecciones."
 
 #: lib/bookshelf_collection_manager.lua:800
 msgid "Add to all"
@@ -1080,7 +1080,7 @@ msgstr "No hay micro-módulos disponibles"
 
 #: lib/bookshelf_icons_catalogue.lua:20 lib/bookshelf_settings.lua:133
 msgid "All"
-msgstr "Todo"
+msgstr "Todos"
 
 #: lib/bookshelf_icons_catalogue.lua:21
 msgid "Dynamic"
@@ -2025,7 +2025,7 @@ msgstr "Descripción"
 
 #: lib/bookshelf_settings.lua:418
 msgid "Tags (interactive)"
-msgstr "Etiquetas (interactivo)"
+msgstr "Etiquetas (interactivas)"
 
 #: lib/bookshelf_settings.lua:524
 msgid "Show tags line"
@@ -2163,7 +2163,7 @@ msgstr "Insignia de pausa + portada atenuada"
 
 #: lib/bookshelf_settings.lua:963
 msgid "On-hold display"
-msgstr "Visualización de libros en pausa"
+msgstr "Visualización de libros en espera"
 
 #: lib/bookshelf_settings.lua:998
 msgid "Always"
@@ -2817,7 +2817,7 @@ msgstr "Doble toque para abrir libros"
 
 #: lib/bookshelf_settings.lua:3072
 msgid "When enabled, opening a book from the hero card or from a shelf cover in expanded mode requires two taps -- the first selects the cover (focus ring), the second commits. Useful if you tend to open books accidentally while browsing. Regular shelf covers (with the hero visible) already work this way -- tap stages the book as the hero preview, tap the hero opens it -- and are unaffected by this setting."
-msgstr "Cuando está activado, abrir un libro desde la tarjeta destacada o desde una portada de estantería en modo ampliado requiere dos toques: el primero selecciona la portada (anillo de foco) y el segundo confirma. Útil si suele abrir libros sin querer mientras navega. Las portadas normales de la estantería (con la tarjeta destacada visible) ya funcionan así: un toque coloca el libro como vista previa destacada y un toque sobre la destacada lo abre, y no se ven afectadas por este ajuste."
+msgstr "Cuando está activado, abrir un libro desde la tarjeta destacada o desde una portada de estantería en modo ampliado requiere dos toques: el primero selecciona la portada (anillo de foco) y el segundo confirma. Útil si sueles abrir libros sin querer mientras navegas. Las portadas normales de la estantería (con la tarjeta destacada visible) ya funcionan así: un toque coloca el libro como vista previa destacada y un toque sobre la destacada lo abre, y no se ven afectadas por este ajuste."
 
 #: lib/bookshelf_settings.lua:3097
 msgid "Page turn animation"
@@ -2901,7 +2901,7 @@ msgstr "Biblioteca de imágenes"
 
 #: lib/bookshelf_settings.lua:3296
 msgid "Where Bookshelf looks for custom cover images. For stacks, place files like authors/author-name.jpg into the matching subfolder (authors, series, genres, collections). For folders, drop a cover.jpg into the folder itself. See the README for more matching options."
-msgstr "Dónde busca Bookshelf las imágenes de portada personalizadas. Para las pilas, coloque archivos como authors/author-name.jpg en la subcarpeta correspondiente (authors, series, genres, collections). Para las carpetas, ponga un cover.jpg dentro de la propia carpeta. Consulte el README para más opciones de coincidencia."
+msgstr "Dónde busca Bookshelf las imágenes de portada personalizadas. Para las pilas, coloca archivos como authors/author-name.jpg en la subcarpeta correspondiente (authors, series, genres, collections). Para las carpetas, pon un cover.jpg dentro de la propia carpeta. Consulta el README para más opciones de coincidencia."
 
 #: lib/bookshelf_settings.lua:3304
 msgid "Include folder names in search results"
@@ -2917,7 +2917,7 @@ msgstr "Ordenar texto chino por pinyin"
 
 #: lib/bookshelf_settings.lua:3323
 msgid "Sorts Chinese characters by their Mandarin pinyin reading, so Chinese titles and authors file alphabetically alongside Latin names. When off, Chinese text sorts in Unicode order (roughly by radical and stroke count), after Latin names. Japanese kanji are also affected, so leave this off for Japanese-language libraries."
-msgstr "Ordena los caracteres chinos por su lectura en pinyin del mandarín, de modo que los títulos y autores chinos se ordenan alfabéticamente junto a los nombres latinos. Cuando está desactivado, el texto chino se ordena en orden Unicode (aproximadamente por radical y número de trazos), después de los nombres latinos. Los kanji japoneses también se ven afectados, así que deje esta opción desactivada para bibliotecas en japonés."
+msgstr "Ordena los caracteres chinos por su lectura en pinyin del mandarín, de modo que los títulos y autores chinos se ordenan alfabéticamente junto a los nombres latinos. Cuando está desactivado, el texto chino se ordena en orden Unicode (aproximadamente por radical y número de trazos), después de los nombres latinos. Los kanji japoneses también se ven afectados, así que deja esta opción desactivada para bibliotecas en japonés."
 
 #: lib/bookshelf_settings.lua:3373
 msgid "Show status line"
@@ -3005,7 +3005,7 @@ msgstr "Para usuarios con una biblioteca gestionada por Calibre. Lee el archivo 
 
 #: lib/bookshelf_settings.lua:3566
 msgid "BETA: Kobo library shelf"
-msgstr "BETA: estantería de biblioteca Kobo"
+msgstr "BETA: Estantería de biblioteca Kobo"
 
 #: lib/bookshelf_settings.lua:3567
 msgid "Adds a \"Kobo\" shelf that surfaces your Kobo virtual library (the books managed by the Kobo store / OGKevin's kobo.koplugin). Read-only; covers and opening depend on that plugin. Kobo devices only."
@@ -3529,7 +3529,7 @@ msgstr "Estado de lectura, valor bruto para condicionales (unread / reading / on
 
 #: lib/bookshelf_tokens.lua:84
 msgid "Reading status as a readable label (Unread / Reading / On hold / Finished)"
-msgstr "Estado de lectura como etiqueta legible (Sin leer / Leyendo / En pausa / Terminado)"
+msgstr "Estado de lectura como etiqueta legible (Sin leer / Leyendo / En espera / Terminado)"
 
 #: lib/bookshelf_tokens.lua:85
 msgid "Favorite icon, empty when not a favorite"
@@ -3985,7 +3985,7 @@ msgstr "Aún no hay lecturas recientes · Abre un libro y aparecerá aquí"
 
 #: lib/bookshelf_widget.lua:1912
 msgid "No books here yet · Pick a folder to use as your KOReader library and books in it will appear here."
-msgstr "Aún no hay libros aquí · Elija una carpeta para usar como biblioteca de KOReader y los libros que contenga aparecerán aquí."
+msgstr "Aún no hay libros aquí · Elige una carpeta para usar como biblioteca de KOReader y los libros que contenga aparecerán aquí."
 
 #: lib/bookshelf_widget.lua:1938
 #, lua-format
@@ -4039,7 +4039,7 @@ msgid ""
 msgstr ""
 "Este libro de Kindle debe convertirse antes de que KOReader pueda leerlo.\n"
 "\n"
-"La conversión la realiza el complemento Biblioteca virtual de Kindle. Puede tardar unos minutos, no se puede detener una vez iniciada y la pantalla no responderá mientras dure.\n"
+"La conversión la realiza el plugin Biblioteca virtual de Kindle. Puede tardar unos minutos, no se puede detener una vez iniciada y la pantalla no responderá mientras dure.\n"
 "\n"
 "Solo ocurre la primera vez que abres un libro."
 
@@ -4318,7 +4318,7 @@ msgstr "%1 descargado. ¿Leerlo ahora?"
 
 #: lib/bookshelf_widget.lua:15682 lib/bookshelf_widget.lua:16153
 msgid "Read"
-msgstr "Leído"
+msgstr "Leer"
 
 #: lib/bookshelf_widget.lua:15690
 msgid "Not now"
@@ -4801,7 +4801,7 @@ msgstr "Más tarde"
 
 #: main.lua:398
 msgid "Bookshelf requires the CoverBrowser plugin. Enable it under Settings > More plugins."
-msgstr "Bookshelf requiere el plugin CoverBrowser. Actívelo en Ajustes > Más plugins."
+msgstr "Bookshelf requiere el plugin CoverBrowser. Actívalo en Ajustes > Más plugins."
 
 #: main.lua:476 main.lua:480 main.lua:511
 msgid "bookshelf"
@@ -5761,7 +5761,7 @@ msgstr "Error de la API del tiempo"
 
 #: micromodules/weather.lua:239
 msgid "Weather settings"
-msgstr "Configuración del tiempo"
+msgstr "Ajustes del tiempo"
 
 #: micromodules/weather.lua:244
 msgid "City: %1"

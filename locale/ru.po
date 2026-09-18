@@ -613,7 +613,7 @@ msgstr "Последние %1"
 
 #: lib/bookshelf_chip_editor.lua:1758
 msgid "Face out: %1 reasons"
-msgstr "Лицевой стороной: причин — %1"
+msgstr "Лицевой стороной: причин %1"
 
 #: lib/bookshelf_chip_editor.lua:1802
 msgid "Recently added (%1)"
@@ -2322,7 +2322,7 @@ msgstr "Как по умолчанию"
 
 #: lib/bookshelf_settings.lua:1517
 msgid "A different picture for full screen shelves. That view is wall-to-wall covers and spines, where a backdrop that reads well behind the top panel is often too busy. A shelf with its own picture keeps it in both views."
-msgstr "Отдельная картинка для полноэкранных полок. В этом режиме весь экран занят обложками и корешками, и фон, который хорошо читается за верхней панелью, здесь часто оказывается слишком пёстрым. Полка со своей картинкой сохраняет её в обоих режимах."
+msgstr "Отдельная картинка для полноэкранных полок. В этом режиме весь экран занят обложками и корешками, и фон, который хорошо смотрится за верхней панелью, здесь часто оказывается слишком пёстрым. Полка со своей картинкой сохраняет её в обоих режимах."
 
 #: lib/bookshelf_settings.lua:1527
 msgid "Background color: %1"
@@ -2344,23 +2344,29 @@ msgstr "Насколько затенять верхнюю панель и ни�
 msgid "Transparent"
 msgstr "Прозрачное"
 
-#: lib/bookshelf_settings.lua:1570 lib/bookshelf_settings.lua:1578
-msgid "Light"
-msgstr "Светлое"
+#: lib/bookshelf_settings.lua:1570
+msgid "Low"
+msgstr "Слабое"
 
-#: lib/bookshelf_settings.lua:1571 lib/bookshelf_settings.lua:3512
-#: lib/bookshelf_settings.lua:3539 micromodules/analogue_clock.lua:189
-#: micromodules/trivia.lua:65
+#: lib/bookshelf_settings.lua:1571
+msgid "Moderate"
+msgstr "Умеренное"
+
+#: lib/bookshelf_settings.lua:1578
+msgid "Light"
+msgstr "Светлая"
+
+#: micromodules/analogue_clock.lua:189
 msgid "Medium"
-msgstr "Средне"
+msgstr "Средние"
 
 #: lib/bookshelf_settings.lua:1572
 msgid "Heavy"
-msgstr "Плотное"
+msgstr "Сильное"
 
 #: lib/bookshelf_settings.lua:1573
 msgid "Solid"
-msgstr "Сплошное"
+msgstr "Непрозрачное"
 
 #: lib/bookshelf_settings.lua:1577
 msgid "Auto (follow device)"
@@ -2368,7 +2374,7 @@ msgstr "Авто (как на устройстве)"
 
 #: lib/bookshelf_settings.lua:1579
 msgid "Dark"
-msgstr "Тёмное"
+msgstr "Тёмная"
 
 #: lib/bookshelf_settings.lua:1740
 msgid "Images are loaded from %1"
@@ -2982,6 +2988,10 @@ msgstr "Применять цветовую волну дизеринга при
 msgid "Fast"
 msgstr "Быстро"
 
+#: lib/bookshelf_settings.lua:3512 lib/bookshelf_settings.lua:3539
+msgid "Normal"
+msgstr "Нормально"
+
 #: lib/bookshelf_settings.lua:3513 lib/bookshelf_settings.lua:3540
 msgid "Slow"
 msgstr "Медленно"
@@ -3184,7 +3194,7 @@ msgstr "Сбросить меню полок по умолчанию"
 
 #: lib/bookshelf_settings.lua:4115
 msgid "Clears your custom shelf menu (which shelves are shown, their order, their labels and icons, their sources and filters and sorts) and restores the fresh-install set: Home / Recent / Series / Favorites enabled, the rest available to toggle on. Also returns the active shelf to Home and the page indicator to 1. Other settings (top-panel text, fonts, colors) are unaffected."
-msgstr "Очищает пользовательское меню полок (какие полки показаны, их порядок, названия и значки, источники, фильтры и сортировку) и восстанавливает набор новой установки: включены «Главная / Недавние / Серии / Избранное», остальные доступны для включения. Активной снова становится полка «Главная», а индикатор страницы сбрасывается на 1. Другие настройки (текст верхней панели, шрифты и цвета) не затрагиваются."
+msgstr "Очищает пользовательское меню полок (какие полки показаны, их порядок, названия и значки, источники, фильтры и сортировку) и восстанавливает набор по умолчанию: включены «Главная / Недавние / Серии / Избранное», остальные доступны для включения. Активной снова становится полка «Главная», а индикатор страницы сбрасывается на 1. Другие настройки (текст верхней панели, шрифты и цвета) не затрагиваются."
 
 #: lib/bookshelf_settings.lua:4126
 msgid ""
@@ -3202,7 +3212,7 @@ msgstr "Сбросить сведения о книге по умолчанию"
 
 #: lib/bookshelf_settings.lua:4163
 msgid "Clears your top-panel customizations and restores the fresh-install detail layout, including the bundled title (Inter ExtraBold) and author (Caveat) fonts. The Bookshelf UI font and shelf menu are unaffected."
-msgstr "Очищает настройки верхней панели и восстанавливает макет сведений новой установки, включая встроенные шрифты заголовка (Inter ExtraBold) и автора (Caveat). Шрифт интерфейса Bookshelf и меню полок не затрагиваются."
+msgstr "Очищает настройки верхней панели и восстанавливает макет сведений по умолчанию, включая встроенные шрифты заголовка (Inter ExtraBold) и автора (Caveat). Шрифт интерфейса Bookshelf и меню полок не затрагиваются."
 
 #: lib/bookshelf_settings.lua:4170
 msgid ""
@@ -5845,6 +5855,10 @@ msgstr "Транспорт"
 #: micromodules/trivia.lua:64
 msgid "Easy"
 msgstr "Легко"
+
+#: micromodules/trivia.lua:65
+msgid "Average"
+msgstr "Средне"
 
 #: micromodules/trivia.lua:66
 msgid "Hard"

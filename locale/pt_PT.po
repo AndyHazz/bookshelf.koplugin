@@ -3,7 +3,7 @@
 msgid ""
 msgstr ""
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-18 14:51+0100\n"
+"POT-Creation-Date: 2026-09-18 17:26+0100\n"
 "Language: pt_PT\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -528,7 +528,7 @@ msgstr "Atualizar este catálogo"
 
 #: lib/bookshelf_chip_editor.lua:1427
 msgid "How many count as recently added"
-msgstr ""
+msgstr "Quantos contam como adicionados recentemente"
 
 #: lib/bookshelf_chip_editor.lua:1448 lib/bookshelf_menu_host.lua:135
 #: lib/bookshelf_widget.lua:1627
@@ -537,7 +537,7 @@ msgstr "Voltar"
 
 #: lib/bookshelf_chip_editor.lua:1455
 msgid "Recently added"
-msgstr ""
+msgstr "Adicionados recentemente"
 
 #: lib/bookshelf_chip_editor.lua:1571
 msgid "Show as"
@@ -545,11 +545,11 @@ msgstr "Mostrar como"
 
 #: lib/bookshelf_chip_editor.lua:1666
 msgid "Auto shows covers by default,"
-msgstr ""
+msgstr "Automático mostra capas por predefinição,"
 
 #: lib/bookshelf_chip_editor.lua:1667
-msgid "and a list when expanded or in a folder."
-msgstr ""
+msgid "and a list in full screen or a folder."
+msgstr "e uma lista em ecrã inteiro ou numa pasta."
 
 #: lib/bookshelf_chip_editor.lua:1671
 msgid "List columns"
@@ -600,19 +600,19 @@ msgstr "Capa à vista"
 
 #: lib/bookshelf_chip_editor.lua:1751
 msgid "Newest %1"
-msgstr ""
+msgstr "%1 mais recentes"
 
 #: lib/bookshelf_chip_editor.lua:1758
 msgid "Face out: %1 reasons"
-msgstr ""
+msgstr "Capa à vista: %1 motivos"
 
 #: lib/bookshelf_chip_editor.lua:1802
 msgid "Recently added (%1)"
-msgstr ""
+msgstr "Adicionados recentemente (%1)"
 
 #: lib/bookshelf_chip_editor.lua:1805
 msgid "How many: %1"
-msgstr ""
+msgstr "Quantos: %1"
 
 #: lib/bookshelf_chip_editor.lua:1901 lib/bookshelf_chip_editor.lua:2698
 #: lib/bookshelf_chip_editor.lua:2875 lib/bookshelf_chip_editor.lua:2933
@@ -622,15 +622,15 @@ msgstr "Concluído"
 
 #: lib/bookshelf_chip_editor.lua:1912
 msgid "Ticked books stand face out. Tick as many reasons as you like."
-msgstr ""
+msgstr "Os livros assinalados ficam com a capa à vista. Assinale tantos motivos quantos quiser."
 
 #: lib/bookshelf_chip_editor.lua:1972
 msgid "Rarely"
-msgstr ""
+msgstr "Raramente"
 
 #: lib/bookshelf_chip_editor.lua:1973
 msgid "Often"
-msgstr ""
+msgstr "Frequentemente"
 
 #: lib/bookshelf_chip_editor.lua:1974 lib/bookshelf_settings.lua:998
 msgid "Always"
@@ -642,7 +642,7 @@ msgstr "Autor na lombada"
 
 #: lib/bookshelf_chip_editor.lua:1997
 msgid "Ornaments"
-msgstr ""
+msgstr "Ornamentos"
 
 #: lib/bookshelf_chip_editor.lua:2022
 msgid "Folder tiles: "
@@ -2103,7 +2103,7 @@ msgstr "Número máximo de linhas de etiquetas"
 
 #: lib/bookshelf_settings.lua:592
 msgid "How many rows of tag pills the top panel shows before the rest collapse into a tappable +N button."
-msgstr ""
+msgstr "Quantas linhas de pílulas de etiqueta o painel superior mostra antes de as restantes serem agrupadas num botão +N tocável."
 
 #: lib/bookshelf_settings.lua:597 lib/bookshelf_settings.lua:3138
 msgid "Set"
@@ -2115,7 +2115,7 @@ msgstr "Mostrar texto abaixo das capas"
 
 #: lib/bookshelf_settings.lua:706
 msgid "A line of text under each cover, on the regular shelf and full screen shelves alike. Choose what it shows, or None to let covers use the full row. Text size follows the Cover labels setting under Text size."
-msgstr ""
+msgstr "Uma linha de texto sob cada capa, tanto na estante normal como nas estantes em ecrã inteiro. Escolha o que mostra, ou Nenhum para deixar as capas ocuparem a linha toda. O tamanho do texto segue a definição Rótulos das capas em Tamanho do texto."
 
 #: lib/bookshelf_settings.lua:720
 msgid "True cover aspect ratio"
@@ -2123,7 +2123,7 @@ msgstr "Proporção real da capa"
 
 #: lib/bookshelf_settings.lua:721
 msgid "Show each cover at its real shape instead of a uniform book rectangle. Covers keep the same width but vary in height: on the shelf they sit along the bottom shelf line, and in the top panel they align to the top. Wide or square covers stop being cropped or stretched. Off by default (uniform grid)."
-msgstr ""
+msgstr "Mostra cada capa com a sua forma real, em vez de um retângulo de livro uniforme. As capas mantêm a mesma largura, mas variam em altura: na estante assentam na linha inferior da prateleira e, no painel superior, alinham pelo topo. As capas largas ou quadradas deixam de ser cortadas ou esticadas. Desativado por predefinição (grelha uniforme)."
 
 #: lib/bookshelf_settings.lua:751
 msgid "(default)"
@@ -2301,43 +2301,43 @@ msgstr "Mover para baixo"
 
 #: lib/bookshelf_settings.lua:1505
 msgid "Default wallpaper image: %1"
-msgstr ""
+msgstr "Imagem de papel de parede predefinida: %1"
 
 #: lib/bookshelf_settings.lua:1514
 msgid "Full screen shelves image: %1"
-msgstr ""
+msgstr "Imagem das estantes em ecrã inteiro: %1"
 
 #: lib/bookshelf_settings.lua:1515 lib/bookshelf_settings.lua:1696
 msgid "Same as default"
-msgstr ""
+msgstr "Igual à predefinição"
 
 #: lib/bookshelf_settings.lua:1517
 msgid "A different picture for full screen shelves. That view is wall-to-wall covers and spines, where a backdrop that reads well behind the top panel is often too busy. A shelf with its own picture keeps it in both views."
-msgstr ""
+msgstr "Uma imagem diferente para as estantes em ecrã inteiro. Essa vista é composta por capas e lombadas de ponta a ponta, onde um fundo que se lê bem por trás do painel superior é muitas vezes demasiado carregado. Uma estante com a sua própria imagem mantém-na em ambas as vistas."
 
 #: lib/bookshelf_settings.lua:1527
 msgid "Background color: %1"
-msgstr ""
+msgstr "Cor de fundo: %1"
 
 #: lib/bookshelf_settings.lua:1533
 msgid "Background color (% black)"
-msgstr ""
+msgstr "Cor de fundo (% preto)"
 
 #: lib/bookshelf_settings.lua:1546
 msgid "Panel shading: %1"
-msgstr ""
+msgstr "Sombreado dos painéis: %1"
 
 #: lib/bookshelf_settings.lua:1548
 msgid "How much to shade the top panel and the footer so the buttons stay legible over a picture. Transparent lets the wallpaper through untouched, which reads well over a plain texture and poorly over a busy photograph. Solid hides the picture behind those strips entirely."
-msgstr ""
+msgstr "Quanto sombrear o painel superior e o rodapé para que os botões continuem legíveis sobre uma imagem. Transparente deixa passar o papel de parede intacto, o que resulta bem sobre uma textura simples e mal sobre uma fotografia carregada. Sólido oculta por completo a imagem por trás dessas faixas."
 
 #: lib/bookshelf_settings.lua:1569
 msgid "Transparent"
-msgstr ""
+msgstr "Transparente"
 
 #: lib/bookshelf_settings.lua:1570 lib/bookshelf_settings.lua:1578
 msgid "Light"
-msgstr ""
+msgstr "Claro"
 
 #: lib/bookshelf_settings.lua:1571 lib/bookshelf_settings.lua:3512
 #: lib/bookshelf_settings.lua:3539 micromodules/analogue_clock.lua:189
@@ -2347,27 +2347,27 @@ msgstr "Médio"
 
 #: lib/bookshelf_settings.lua:1572
 msgid "Heavy"
-msgstr ""
+msgstr "Forte"
 
 #: lib/bookshelf_settings.lua:1573
 msgid "Solid"
-msgstr ""
+msgstr "Sólido"
 
 #: lib/bookshelf_settings.lua:1577
 msgid "Auto (follow device)"
-msgstr ""
+msgstr "Automático (seguir o dispositivo)"
 
 #: lib/bookshelf_settings.lua:1579
 msgid "Dark"
-msgstr ""
+msgstr "Escuro"
 
 #: lib/bookshelf_settings.lua:1740
 msgid "Images are loaded from %1"
-msgstr ""
+msgstr "As imagens são carregadas a partir de %1"
 
 #: lib/bookshelf_settings.lua:1747
 msgid "No images in %1"
-msgstr ""
+msgstr "Nenhuma imagem em %1"
 
 #: lib/bookshelf_settings.lua:1852 lib/bookshelf_settings.lua:1859
 #: lib/bookshelf_settings.lua:2055 lib/bookshelf_settings.lua:2060
@@ -2376,7 +2376,7 @@ msgstr "predefinição"
 
 #: lib/bookshelf_settings.lua:1949
 msgid "Ornaments: %1"
-msgstr ""
+msgstr "Ornamentos: %1"
 
 #: lib/bookshelf_settings.lua:1954
 msgid ""
@@ -2384,6 +2384,9 @@ msgid ""
 "\n"
 "How often they appear is set per shelf: long-press a shelf chip, then Shelf style."
 msgstr ""
+"Pequenas peças que ficam nos espaços de uma estante de lombadas. Coloque ficheiros PNG ou SVG em %1 e aparecem aí.\n"
+"\n"
+"A frequência com que aparecem é definida por estante: mantenha pressionada uma estante e depois abra Estilo da estante."
 
 #: lib/bookshelf_settings.lua:1972
 msgid ""
@@ -2394,14 +2397,20 @@ msgid ""
 "\n"
 "How often they appear is set per shelf, in Shelf style."
 msgstr ""
+"%1 ornamentos instalados.\n"
+"\n"
+"Pasta:\n"
+"%2\n"
+"\n"
+"A frequência com que aparecem é definida por estante, em Estilo da estante."
 
 #: lib/bookshelf_settings.lua:2002
 msgid "Accent colors"
-msgstr ""
+msgstr "Cores de realce"
 
 #: lib/bookshelf_settings.lua:2017
 msgid "Shelf theme: %1"
-msgstr ""
+msgstr "Tema da estante: %1"
 
 #: lib/bookshelf_settings.lua:2019
 msgid ""
@@ -2409,6 +2418,9 @@ msgid ""
 "\n"
 "Covers, wallpaper and ornaments are pictures and are never inverted; only the shelf's own colors change."
 msgstr ""
+"Cores claras ou escuras para a estante, independentemente do modo noturno do KOReader -- para que possa manter o resto do KOReader claro e ainda assim ter uma estante escura.\n"
+"\n"
+"As capas, o papel de parede e os ornamentos são imagens e nunca são invertidos; apenas as cores próprias da estante mudam."
 
 #: lib/bookshelf_settings.lua:2107
 msgid "◐ Editing night-mode colors (tap to switch)"
@@ -2420,15 +2432,15 @@ msgstr "☀ A editar as cores do modo diurno (toque para alternar)"
 
 #: lib/bookshelf_settings.lua:2140
 msgid "Text ink"
-msgstr ""
+msgstr "Tinta do texto"
 
 #: lib/bookshelf_settings.lua:2142
 msgid "The color of the shelf's own text. Black by default in the light theme and white in the dark one. Covers, wallpaper and ornaments are pictures and are never recolored."
-msgstr ""
+msgstr "A cor do texto próprio da estante. Preto por predefinição no tema claro e branco no escuro. As capas, o papel de parede e os ornamentos são imagens e nunca são recoloridos."
 
 #: lib/bookshelf_settings.lua:2150
 msgid "Text ink (% black)"
-msgstr ""
+msgstr "Tinta do texto (% preto)"
 
 #: lib/bookshelf_settings.lua:2160
 msgid "Progress bar"
@@ -2496,27 +2508,27 @@ msgstr "Fundo da marca (% preto)"
 
 #: lib/bookshelf_settings.lua:2281
 msgid "Shelf menu background"
-msgstr ""
+msgstr "Fundo do menu de estantes"
 
 #: lib/bookshelf_settings.lua:2283
 msgid "The solid bar behind the shelf menu. White by day and black at night unless you change it. The panels have their own colour."
-msgstr ""
+msgstr "A barra sólida por trás do menu de estantes. Branca de dia e preta à noite, salvo se a alterar. Os painéis têm a sua própria cor."
 
 #: lib/bookshelf_settings.lua:2289
 msgid "Shelf menu background (% black)"
-msgstr ""
+msgstr "Fundo do menu de estantes (% preto)"
 
 #: lib/bookshelf_settings.lua:2299
 msgid "Micro-module background"
-msgstr ""
+msgstr "Fundo dos micro-módulos"
 
 #: lib/bookshelf_settings.lua:2301
 msgid "The card behind each micro-module. Kept solid: the text inside a module draws its own opaque background, so a see-through card shows a box behind every line."
-msgstr ""
+msgstr "O cartão por trás de cada micro-módulo. Mantido sólido: o texto dentro de um módulo desenha o seu próprio fundo opaco, pelo que um cartão transparente mostra uma caixa por trás de cada linha."
 
 #: lib/bookshelf_settings.lua:2307
 msgid "Micro-module background (% black)"
-msgstr ""
+msgstr "Fundo dos micro-módulos (% preto)"
 
 #: lib/bookshelf_settings.lua:2318
 msgid "Border color"
@@ -2624,7 +2636,7 @@ msgstr "Editar visualização de detalhes do livro"
 
 #: lib/bookshelf_settings.lua:2594
 msgid "The lines of book information shown in the top panel: title, author, rating, metadata, description, tags and progress. Tap a line to edit its template; hold to toggle it. The status line at the top has its own entry."
-msgstr ""
+msgstr "As linhas de informação do livro mostradas no painel superior: título, autor, avaliação, metadados, descrição, etiquetas e progresso. Toque numa linha para editar o seu modelo; mantenha pressionado para a ativar ou desativar. A linha de estado no topo tem a sua própria entrada."
 
 #: lib/bookshelf_settings.lua:2611
 msgid "Cover display"
@@ -2647,8 +2659,8 @@ msgid "Bookshelf UI font: %1"
 msgstr "Fonte da interface do Bookshelf: %1"
 
 #: lib/bookshelf_settings.lua:2642
-msgid "The font Bookshelf uses for its own UI text (shelf names, labels, metadata). Pick any installed font (same picker as the top panel); '(Default)' follows your KOReader UI font. The title and author have their own fonts in the hero card editor."
-msgstr ""
+msgid "The font Bookshelf uses for its own UI text (shelf names, labels, metadata). Pick any installed font (same picker as the top panel); '(Default)' follows your KOReader UI font. The title and author have their own fonts in the book detail editor."
+msgstr "O tipo de letra que o Bookshelf usa no seu próprio texto de interface (nomes das estantes, rótulos, metadados). Escolha qualquer tipo de letra instalado (o mesmo seletor do painel superior); '(Predefinição)' segue o tipo de letra da interface do KOReader. O título e o autor têm os seus próprios tipos de letra no editor de detalhes do livro."
 
 #: lib/bookshelf_settings.lua:2660 lib/bookshelf_settings.lua:2662
 #: lib/bookshelf_settings.lua:3560
@@ -2657,7 +2669,7 @@ msgstr "Micro-módulos"
 
 #: lib/bookshelf_settings.lua:2664
 msgid "Where micro-modules appear. Each surface is independent: In start menu shows module cards in the start-menu launcher; In top panel adds a shelf-menu entry that swaps the book for the grid; Full-screen button adds a footer button opening a full-screen grid. The top panel and full screen shelves keep their own module lists. Turn all three off to disable micro-modules entirely."
-msgstr ""
+msgstr "Onde aparecem os micro-módulos. Cada superfície é independente: No menu inicial mostra cartões de módulo no iniciador do menu inicial; No painel superior acrescenta uma entrada no menu de estantes que troca o livro pela grelha; Botão de ecrã inteiro acrescenta um botão no rodapé que abre uma grelha em ecrã inteiro. O painel superior e as estantes em ecrã inteiro mantêm as suas próprias listas de módulos. Desligue as três para desativar completamente os micro-módulos."
 
 #: lib/bookshelf_settings.lua:2716
 msgid "In start menu"
@@ -2665,7 +2677,7 @@ msgstr "No menu inicial"
 
 #: lib/bookshelf_settings.lua:2717
 msgid "In the top panel"
-msgstr ""
+msgstr "No painel superior"
 
 #: lib/bookshelf_settings.lua:2718
 msgid "Full-screen button"
@@ -2755,11 +2767,11 @@ msgstr "Analisa a biblioteca e vincula os livros ao Hardcover, obtendo os detalh
 
 #: lib/bookshelf_settings.lua:3063
 msgid "Show Hardcover ratings"
-msgstr ""
+msgstr "Mostrar avaliações do Hardcover"
 
 #: lib/bookshelf_settings.lua:3064
 msgid "When enabled, the rating row shows the cached public Hardcover rating instead of KOReader's local rating. Enabling this also turns on the rating row. Normal Bookshelf rendering only reads the local cache."
-msgstr ""
+msgstr "Quando ativado, a linha de avaliação mostra a avaliação pública do Hardcover em cache em vez da avaliação local do KOReader. Ativar isto também liga a linha de avaliação. A renderização normal do Bookshelf lê apenas a cache local."
 
 #: lib/bookshelf_settings.lua:3087
 msgid "Use Hardcover metadata"
@@ -2899,15 +2911,15 @@ msgstr "Todos os dados do Hardcover foram removidos (%1 livro(s) desvinculado(s)
 
 #: lib/bookshelf_settings.lua:3326
 msgid "Full screen shelves font scale"
-msgstr ""
+msgstr "Escala do tipo de letra das estantes em ecrã inteiro"
 
 #: lib/bookshelf_settings.lua:3362
 msgid "Disable spine mode shadows"
-msgstr ""
+msgstr "Desativar as sombras no modo de lombadas"
 
 #: lib/bookshelf_settings.lua:3363
 msgid "Spine shelves paint a recess behind the books and a shadow either side of each spine, which is what makes the shelf look deep. Turn this off if drawing it is slow on your device; the books then sit flat on the shelf."
-msgstr ""
+msgstr "As estantes de lombadas desenham um recesso atrás dos livros e uma sombra de cada lado de cada lombada, que é o que dá profundidade à estante. Desative isto se o desenho for lento no seu dispositivo; os livros passam então a assentar rentes à prateleira."
 
 #: lib/bookshelf_settings.lua:3385
 msgid "Instant book close (beta)"
@@ -2935,7 +2947,7 @@ msgstr "Cache de capas"
 
 #: lib/bookshelf_settings.lua:3432
 msgid "How much memory to use for ready-scaled book covers. A bigger cache keeps more covers warm -- smoother paging and preloading -- at the cost of RAM. Default %1 MB on this device. Lower it if memory is tight; raise it on a device with plenty of RAM. (How many covers that holds depends on their size: roughly 200-400 small grayscale covers, fewer large or color ones.)"
-msgstr ""
+msgstr "Quanta memória usar para as capas de livros já redimensionadas. Uma cache maior mantém mais capas quentes -- paginação e pré-carregamento mais suaves -- ao custo de RAM. Predefinição de %1 MB neste dispositivo. Reduza-a se a memória for escassa; aumente-a num dispositivo com bastante RAM. (Quantas capas cabem depende do tamanho delas: cerca de 200-400 capas pequenas em tons de cinzento, menos se forem grandes ou a cores.)"
 
 #: lib/bookshelf_settings.lua:3445
 msgid "Clear cover cache"
@@ -2967,15 +2979,15 @@ msgstr "Lento"
 
 #: lib/bookshelf_settings.lua:3594
 msgid "Top panel starts with"
-msgstr ""
+msgstr "O painel superior começa com"
 
 #: lib/bookshelf_settings.lua:3596
 msgid "What the top panel above the shelf shows when it opens: the book you're currently reading, or a grid of micro-modules (clock, quote, random book, reading goals…). You can also switch between them from the shelf menu."
-msgstr ""
+msgstr "O que o painel superior acima da estante mostra quando abre: o livro que está a ler neste momento, ou uma grelha de micro-módulos (relógio, citação, livro aleatório, metas de leitura…). Também pode alternar entre eles a partir do menu de estantes."
 
 #: lib/bookshelf_settings.lua:3615
 msgid "Show the book's details"
-msgstr ""
+msgstr "Mostrar os detalhes do livro"
 
 #: lib/bookshelf_settings.lua:3616
 msgid "Open with a single tap"
@@ -2987,19 +2999,19 @@ msgstr "Abrir com toque duplo"
 
 #: lib/bookshelf_settings.lua:3639
 msgid "Tap a book in full screen shelves"
-msgstr ""
+msgstr "Tocar num livro nas estantes em ecrã inteiro"
 
 #: lib/bookshelf_settings.lua:3642
-msgid "What tapping a book does in full screen shelves: show that book's detail in the hero area, open it with a single tap, or open it with a double tap (first tap selects). The top panel's own double-tap-to-open is the next row."
-msgstr ""
+msgid "What tapping a book does in full screen shelves: show that book's detail in the top panel, open it with a single tap, or open it with a double tap (first tap selects). The top panel's own double-tap-to-open is the next row."
+msgstr "O que acontece ao tocar num livro nas estantes em ecrã inteiro: mostrar os detalhes desse livro no painel superior, abri-lo com um único toque, ou abri-lo com um toque duplo (o primeiro toque seleciona). O toque duplo para abrir do próprio painel superior está na linha seguinte."
 
 #: lib/bookshelf_settings.lua:3655
 msgid "Double tap to open books"
 msgstr "Toque duplo para abrir livros"
 
 #: lib/bookshelf_settings.lua:3656
-msgid "When enabled, opening a book from the top panel card or from a shelf cover in expanded mode requires two taps -- the first selects the cover (focus ring), the second commits. Useful if you tend to open books accidentally while browsing. Regular shelf covers (with the top panel visible) already work this way -- tap stages the book as the hero preview, tap the top panel opens it -- and are unaffected by this setting."
-msgstr ""
+msgid "When enabled, opening a book from the top panel card or from a shelf cover in full screen shelves requires two taps -- the first selects the cover (focus ring), the second commits. Useful if you tend to open books accidentally while browsing. Regular shelf covers (with the top panel visible) already work this way -- tap stages the book in the top panel, tapping that opens it -- and are unaffected by this setting."
+msgstr "Quando ativado, abrir um livro a partir do cartão do painel superior ou de uma capa nas estantes em ecrã inteiro exige dois toques -- o primeiro seleciona a capa (contorno de foco), o segundo confirma. Útil se costuma abrir livros por acidente enquanto navega. As capas normais da estante (com o painel superior visível) já funcionam assim -- um toque coloca o livro no painel superior e tocar nele abre-o -- e não são afetadas por esta definição."
 
 #: lib/bookshelf_settings.lua:3681
 msgid "Page turn animation"
@@ -3071,19 +3083,19 @@ msgstr "Como os nomes dos autores são apresentados na estante Autores. Automát
 
 #: lib/bookshelf_settings.lua:3894
 msgid "Spine text direction"
-msgstr ""
+msgstr "Direção do texto na lombada"
 
 #: lib/bookshelf_settings.lua:3895
 msgid "Which way a title runs down a spine. British and American books are printed to read downwards; Continental European printing runs the other way. Spines only."
-msgstr ""
+msgstr "Em que sentido corre um título ao longo da lombada. Os livros britânicos e americanos são impressos para se lerem de cima para baixo; a impressão da Europa continental segue o sentido contrário. Apenas para lombadas."
 
 #: lib/bookshelf_settings.lua:3901
 msgid "Top to bottom"
-msgstr ""
+msgstr "De cima para baixo"
 
 #: lib/bookshelf_settings.lua:3902
 msgid "Bottom to top"
-msgstr ""
+msgstr "De baixo para cima"
 
 #: lib/bookshelf_settings.lua:3916
 msgid "Hide single-book series and genres"
@@ -3163,17 +3175,17 @@ msgstr "Repor o menu de estantes para as predefinições"
 
 #: lib/bookshelf_settings.lua:4115
 msgid "Clears your custom shelf menu (which shelves are shown, their order, their labels and icons, their sources and filters and sorts) and restores the fresh-install set: Home / Recent / Series / Favorites enabled, the rest available to toggle on. Also returns the active shelf to Home and the page indicator to 1. Other settings (top-panel text, fonts, colors) are unaffected."
-msgstr ""
+msgstr "Limpa o seu menu de estantes personalizado (que estantes são mostradas, a sua ordem, os seus rótulos e ícones, as suas fontes, filtros e ordenações) e repõe o conjunto de instalação de raiz: Início / Recentes / Séries / Favoritos ativados, os restantes disponíveis para ativar. Também devolve a estante ativa a Início e o indicador de página a 1. As outras definições (texto do painel superior, tipos de letra, cores) não são afetadas."
 
 #: lib/bookshelf_settings.lua:4126
 msgid ""
 "Reset the shelf menu to default settings?\n"
 "\n"
-"All custom shelves you have created or edited will be lost. Other Bookshelf settings (hero text, fonts, colors) are unaffected."
+"All custom shelves you have created or edited will be lost. Other Bookshelf settings (top panel text, fonts, colors) are unaffected."
 msgstr ""
 "Repor o menu de estantes para as predefinições?\n"
 "\n"
-"Todas as estantes personalizadas criadas ou editadas serão perdidas. Outras configurações do Bookshelf (texto do destaque, fontes, cores) não são afetadas."
+"Todas as estantes personalizadas criadas ou editadas serão perdidas. Outras configurações do Bookshelf (texto do painel superior, fontes, cores) não são afetadas."
 
 #: lib/bookshelf_settings.lua:4162
 msgid "Reset book detail area to defaults"
@@ -3181,7 +3193,7 @@ msgstr "Repor a área de detalhes do livro para as predefinições"
 
 #: lib/bookshelf_settings.lua:4163
 msgid "Clears your top-panel customizations and restores the fresh-install detail layout, including the bundled title (Inter ExtraBold) and author (Caveat) fonts. The Bookshelf UI font and shelf menu are unaffected."
-msgstr ""
+msgstr "Limpa as suas personalizações do painel superior e repõe a disposição de detalhes de instalação de raiz, incluindo os tipos de letra incluídos para o título (Inter ExtraBold) e para o autor (Caveat). O tipo de letra da interface do Bookshelf e o menu de estantes não são afetados."
 
 #: lib/bookshelf_settings.lua:4170
 msgid ""
@@ -3189,6 +3201,9 @@ msgid ""
 "\n"
 "All top-panel text and font customizations will be lost. The Bookshelf UI font and shelf menu are unaffected."
 msgstr ""
+"Repor a área de detalhes do livro para as predefinições?\n"
+"\n"
+"Todas as personalizações de texto e tipo de letra do painel superior serão perdidas. O tipo de letra da interface do Bookshelf e o menu de estantes não são afetados."
 
 #: lib/bookshelf_settings.lua:4190
 msgid "BETA: Read calibre metadata.calibre"
@@ -3208,11 +3223,11 @@ msgstr "Adiciona uma estante \"Kobo\" que exibe a sua biblioteca virtual Kobo (o
 
 #: lib/bookshelf_settings.lua:4543
 msgid "Rows and columns set how much of the screen the shelf takes; the top panel above fills whatever is left. List and spine shelves use that same space with their own row counts, so covers are shown here while you adjust it."
-msgstr ""
+msgstr "As linhas e colunas definem quanto do ecrã a estante ocupa; o painel superior acima preenche o que sobrar. As estantes de lista e de lombadas usam esse mesmo espaço com as suas próprias contagens de linhas, por isso as capas são mostradas aqui enquanto ajusta."
 
 #: lib/bookshelf_settings.lua:4551 main.lua:705
 msgid "Adjust shelf/top panel size"
-msgstr ""
+msgstr "Ajustar o tamanho da estante/painel superior"
 
 #: lib/bookshelf_settings.lua:4565
 msgid "Columns: "
@@ -3232,7 +3247,7 @@ msgstr "Escala do tipo de letra de detalhes do livro"
 
 #: lib/bookshelf_settings.lua:4698
 msgid "Micro-modules font scale"
-msgstr ""
+msgstr "Escala do tipo de letra dos micro-módulos"
 
 #: lib/bookshelf_settings.lua:4763
 msgid "Shelf menu font scale"
@@ -3324,7 +3339,7 @@ msgstr "Texto da lista"
 
 #: lib/bookshelf_settings.lua:5478
 msgid "Top panel"
-msgstr ""
+msgstr "Painel superior"
 
 #: lib/bookshelf_settings.lua:5480 lib/bookshelf_widget.lua:13377
 msgid "Micro-modules"
@@ -3356,7 +3371,7 @@ msgstr "Limite do cache de capas"
 
 #: lib/bookshelf_settings.lua:5550
 msgid "Memory budget for ready-scaled book covers (MB). Higher = smoother paging and preloading, more RAM. Default %1 MB on this device."
-msgstr ""
+msgstr "Limite de memória para as capas de livros já redimensionadas (MB). Mais alto = paginação e pré-carregamento mais suaves, mais RAM. Predefinição de %1 MB neste dispositivo."
 
 #: lib/bookshelf_settings.lua:5673
 msgid ""
@@ -3365,6 +3380,10 @@ msgid ""
 "\n"
 "Remove it and restart, or updates may appear to do nothing."
 msgstr ""
+"Está instalada outra cópia do Bookshelf, que também está a ser carregada:\n"
+"%1\n"
+"\n"
+"Remova-a e reinicie, ou as atualizações podem parecer não fazer nada."
 
 #: lib/bookshelf_settings.lua:5708
 msgid "Link copied to clipboard"
@@ -3433,7 +3452,7 @@ msgstr "Ligado: os nomes das estantes e o caminho de navegação são mostrados 
 
 #: lib/bookshelf_settings.lua:6010
 msgid "Tap a shelf to edit it. Long-press to show or hide it."
-msgstr ""
+msgstr "Toque numa estante para a editar. Mantenha pressionado para a mostrar ou ocultar."
 
 #: lib/bookshelf_settings.lua:6015
 msgid "+ Add new shelf"
@@ -4155,7 +4174,7 @@ msgstr "A versão mais recente não possui zip para download."
 
 #: lib/bookshelf_wallpaper.lua:573
 msgid "wallpapers"
-msgstr ""
+msgstr "papéis de parede"
 
 #: lib/bookshelf_widget.lua:1579
 msgid "Search results"
@@ -4333,7 +4352,7 @@ msgstr "Ir para a letra"
 
 #: lib/bookshelf_widget.lua:7402
 msgid "Enter text, letter or book number"
-msgstr ""
+msgstr "Introduza o texto, letra ou número do livro"
 
 #: lib/bookshelf_widget.lua:7403
 msgid "Enter text, letter or page number"
@@ -4346,7 +4365,7 @@ msgstr "(a - z) ou (1 - %d)"
 
 #: lib/bookshelf_widget.lua:7420
 msgid "Go to book"
-msgstr ""
+msgstr "Ir para o livro"
 
 #: lib/bookshelf_widget.lua:7420
 msgid "Go to page"
@@ -4355,7 +4374,7 @@ msgstr "Ir para a página"
 #: lib/bookshelf_widget.lua:7427
 #, lua-format
 msgid "Book must be between 1 and %d"
-msgstr ""
+msgstr "O livro deve estar entre 1 e %d"
 
 #: lib/bookshelf_widget.lua:7428
 #, lua-format
@@ -4372,7 +4391,7 @@ msgstr "Repor os módulos para a predefinição"
 
 #: lib/bookshelf_widget.lua:13390
 msgid "Remove micro-modules (re-enable in settings)"
-msgstr ""
+msgstr "Remover micro-módulos (reativar nas definições)"
 
 #: lib/bookshelf_widget.lua:13519 lib/bookshelf_widget.lua:21444
 msgid "Bulk selection isn't available in remote catalog views."
@@ -5040,16 +5059,16 @@ msgid "Open Bookshelf"
 msgstr "Abrir Bookshelf"
 
 #: main.lua:706
-msgid "Open a small overlay that lets you set the number of columns and rows of books on the shelf, with the bookshelf visible behind it. Cover size follows the column count and the hero area fills the space left over. Changes preview in realtime; Accept keeps them, Cancel reverts."
-msgstr "Abre uma pequena sobreposição que permite definir o número de colunas e linhas de livros na estante, com o Bookshelf visível ao fundo. O tamanho da capa segue a contagem de colunas e a área de destaque preenche o espaço restante. As alterações são previstas em tempo real; Aceitar mantém-nas, Cancelar reverte-as."
+msgid "Open a small overlay that lets you set the number of columns and rows of books on the shelf, with the bookshelf visible behind it. Cover size follows the column count and the top panel fills the space left over. Changes preview in realtime; Accept keeps them, Cancel reverts."
+msgstr "Abre uma pequena sobreposição que permite definir o número de colunas e linhas de livros na estante, com o Bookshelf visível ao fundo. O tamanho da capa segue a contagem de colunas e o painel superior preenche o espaço restante. As alterações são previstas em tempo real; Aceitar mantém-nas, Cancelar reverte-as."
 
 #: main.lua:721
 msgid "Edit shelves…"
-msgstr ""
+msgstr "Editar estantes…"
 
 #: main.lua:745
 msgid "Background and colors"
-msgstr ""
+msgstr "Fundo e cores"
 
 #: main.lua:758
 msgid "Hardcover enrichment"
@@ -5105,7 +5124,7 @@ msgstr "Bookshelf: página anterior de estantes"
 
 #: main.lua:1014
 msgid "Bookshelf: full screen shelves on or off"
-msgstr ""
+msgstr "Bookshelf: ativar ou desativar estantes em ecrã inteiro"
 
 #: main.lua:1020
 msgid "Bookshelf: toggle bulk selection mode"
@@ -6034,6 +6053,30 @@ msgstr "Atualizado há %1m"
 #: micromodules/weather.lua:460 micromodules/weather.lua:546
 msgid "Updated %1h ago"
 msgstr "Atualizado há %1h"
+
+#~ msgid "and a list when expanded or in a folder."
+#~ msgstr "e uma lista quando expandido ou numa pasta."
+
+#~ msgid "The font Bookshelf uses for its own UI text (shelf names, labels, metadata). Pick any installed font (same picker as the top panel); '(Default)' follows your KOReader UI font. The title and author have their own fonts in the hero card editor."
+#~ msgstr "O tipo de letra que o Bookshelf usa no seu próprio texto de interface (nomes das estantes, rótulos, metadados). Escolha qualquer tipo de letra instalado (o mesmo seletor do painel superior); '(Predefinição)' segue o tipo de letra da interface do KOReader. O título e o autor têm os seus próprios tipos de letra no editor do cartão de destaque."
+
+#~ msgid "What tapping a book does in full screen shelves: show that book's detail in the hero area, open it with a single tap, or open it with a double tap (first tap selects). The top panel's own double-tap-to-open is the next row."
+#~ msgstr "O que acontece ao tocar num livro nas estantes em ecrã inteiro: mostrar os detalhes desse livro na área de destaque, abri-lo com um único toque, ou abri-lo com um toque duplo (o primeiro toque seleciona). O toque duplo para abrir do próprio painel superior está na linha seguinte."
+
+#~ msgid "When enabled, opening a book from the top panel card or from a shelf cover in expanded mode requires two taps -- the first selects the cover (focus ring), the second commits. Useful if you tend to open books accidentally while browsing. Regular shelf covers (with the top panel visible) already work this way -- tap stages the book as the hero preview, tap the top panel opens it -- and are unaffected by this setting."
+#~ msgstr "Quando ativado, abrir um livro a partir do cartão do painel superior ou de uma capa da estante em modo expandido exige dois toques -- o primeiro seleciona a capa (contorno de foco), o segundo confirma. Útil se costuma abrir livros por acidente enquanto navega. As capas normais da estante (com o painel superior visível) já funcionam assim -- um toque coloca o livro como pré-visualização em destaque, tocar no painel superior abre-o -- e não são afetadas por esta definição."
+
+#~ msgid ""
+#~ "Reset the shelf menu to default settings?\n"
+#~ "\n"
+#~ "All custom shelves you have created or edited will be lost. Other Bookshelf settings (hero text, fonts, colors) are unaffected."
+#~ msgstr ""
+#~ "Repor o menu de estantes para as predefinições?\n"
+#~ "\n"
+#~ "Todas as estantes personalizadas criadas ou editadas serão perdidas. Outras configurações do Bookshelf (texto do destaque, fontes, cores) não são afetadas."
+
+#~ msgid "Open a small overlay that lets you set the number of columns and rows of books on the shelf, with the bookshelf visible behind it. Cover size follows the column count and the hero area fills the space left over. Changes preview in realtime; Accept keeps them, Cancel reverts."
+#~ msgstr "Abre uma pequena sobreposição que permite definir o número de colunas e linhas de livros na estante, com o Bookshelf visível ao fundo. O tamanho da capa segue a contagem de colunas e a área de destaque preenche o espaço restante. As alterações são previstas em tempo real; Aceitar mantém-nas, Cancelar reverte-as."
 
 #~ msgid "No"
 #~ msgstr "Não"

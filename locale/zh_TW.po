@@ -3,7 +3,7 @@
 msgid ""
 msgstr ""
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-18 14:51+0100\n"
+"POT-Creation-Date: 2026-09-18 17:26+0100\n"
 "Last-Translator: edison4uk (via Gemini, issue #308)\n"
 "Language-Team: Traditional Chinese\n"
 "Language: zh_TW\n"
@@ -531,7 +531,7 @@ msgstr "重新整理此目錄"
 
 #: lib/bookshelf_chip_editor.lua:1427
 msgid "How many count as recently added"
-msgstr ""
+msgstr "多少本算是最近新增"
 
 #: lib/bookshelf_chip_editor.lua:1448 lib/bookshelf_menu_host.lua:135
 #: lib/bookshelf_widget.lua:1627
@@ -540,7 +540,7 @@ msgstr "返回"
 
 #: lib/bookshelf_chip_editor.lua:1455
 msgid "Recently added"
-msgstr ""
+msgstr "最近新增"
 
 #: lib/bookshelf_chip_editor.lua:1571
 msgid "Show as"
@@ -548,11 +548,11 @@ msgstr "顯示為"
 
 #: lib/bookshelf_chip_editor.lua:1666
 msgid "Auto shows covers by default,"
-msgstr ""
+msgstr "「自動」預設顯示封面，"
 
 #: lib/bookshelf_chip_editor.lua:1667
-msgid "and a list when expanded or in a folder."
-msgstr ""
+msgid "and a list in full screen or a folder."
+msgstr "全螢幕或進入資料夾時則顯示清單。"
 
 #: lib/bookshelf_chip_editor.lua:1671
 msgid "List columns"
@@ -603,19 +603,19 @@ msgstr "封面朝外"
 
 #: lib/bookshelf_chip_editor.lua:1751
 msgid "Newest %1"
-msgstr ""
+msgstr "最新 %1 本"
 
 #: lib/bookshelf_chip_editor.lua:1758
 msgid "Face out: %1 reasons"
-msgstr ""
+msgstr "封面朝外：%1 項條件"
 
 #: lib/bookshelf_chip_editor.lua:1802
 msgid "Recently added (%1)"
-msgstr ""
+msgstr "最近新增 (%1)"
 
 #: lib/bookshelf_chip_editor.lua:1805
 msgid "How many: %1"
-msgstr ""
+msgstr "數量：%1"
 
 #: lib/bookshelf_chip_editor.lua:1901 lib/bookshelf_chip_editor.lua:2698
 #: lib/bookshelf_chip_editor.lua:2875 lib/bookshelf_chip_editor.lua:2933
@@ -625,15 +625,15 @@ msgstr "完成"
 
 #: lib/bookshelf_chip_editor.lua:1912
 msgid "Ticked books stand face out. Tick as many reasons as you like."
-msgstr ""
+msgstr "勾選的書籍會封面朝外陳列。可同時勾選任意多項條件。"
 
 #: lib/bookshelf_chip_editor.lua:1972
 msgid "Rarely"
-msgstr ""
+msgstr "偶爾"
 
 #: lib/bookshelf_chip_editor.lua:1973
 msgid "Often"
-msgstr ""
+msgstr "經常"
 
 #: lib/bookshelf_chip_editor.lua:1974 lib/bookshelf_settings.lua:998
 msgid "Always"
@@ -645,7 +645,7 @@ msgstr "書脊顯示作者"
 
 #: lib/bookshelf_chip_editor.lua:1997
 msgid "Ornaments"
-msgstr ""
+msgstr "擺飾"
 
 #: lib/bookshelf_chip_editor.lua:2022
 msgid "Folder tiles: "
@@ -2106,7 +2106,7 @@ msgstr "標籤最多顯示行數"
 
 #: lib/bookshelf_settings.lua:592
 msgid "How many rows of tag pills the top panel shows before the rest collapse into a tappable +N button."
-msgstr ""
+msgstr "頂部面板最多顯示幾列標籤膠囊，其餘的會收合成一個可點擊的 +N 按鈕。"
 
 #: lib/bookshelf_settings.lua:597 lib/bookshelf_settings.lua:3138
 msgid "Set"
@@ -2118,7 +2118,7 @@ msgstr "在封面下方顯示文字"
 
 #: lib/bookshelf_settings.lua:706
 msgid "A line of text under each cover, on the regular shelf and full screen shelves alike. Choose what it shows, or None to let covers use the full row. Text size follows the Cover labels setting under Text size."
-msgstr ""
+msgstr "在每個封面下方顯示一行文字，一般書架與全螢幕書架皆適用。可選擇要顯示的內容，或選擇「無」讓封面占滿整列。文字大小依「文字大小」中的「封面標籤」設定。"
 
 #: lib/bookshelf_settings.lua:720
 msgid "True cover aspect ratio"
@@ -2126,7 +2126,7 @@ msgstr "保持封面原始比例"
 
 #: lib/bookshelf_settings.lua:721
 msgid "Show each cover at its real shape instead of a uniform book rectangle. Covers keep the same width but vary in height: on the shelf they sit along the bottom shelf line, and in the top panel they align to the top. Wide or square covers stop being cropped or stretched. Off by default (uniform grid)."
-msgstr ""
+msgstr "以封面的真實形狀顯示，而非統一的書籍矩形。封面寬度相同、高度各異：在書架上會沿著底部的層板線對齊，在頂部面板中則靠上對齊。寬幅或方形封面不再被裁切或拉伸。預設關閉 (統一網格)。"
 
 #: lib/bookshelf_settings.lua:751
 msgid "(default)"
@@ -2304,43 +2304,43 @@ msgstr "下移"
 
 #: lib/bookshelf_settings.lua:1505
 msgid "Default wallpaper image: %1"
-msgstr ""
+msgstr "預設桌布圖片：%1"
 
 #: lib/bookshelf_settings.lua:1514
 msgid "Full screen shelves image: %1"
-msgstr ""
+msgstr "全螢幕書架圖片：%1"
 
 #: lib/bookshelf_settings.lua:1515 lib/bookshelf_settings.lua:1696
 msgid "Same as default"
-msgstr ""
+msgstr "與預設相同"
 
 #: lib/bookshelf_settings.lua:1517
 msgid "A different picture for full screen shelves. That view is wall-to-wall covers and spines, where a backdrop that reads well behind the top panel is often too busy. A shelf with its own picture keeps it in both views."
-msgstr ""
+msgstr "為全螢幕書架指定另一張圖片。該檢視中封面與書脊鋪滿整個畫面，在頂部面板後方好看的背景，放在這裡往往顯得雜亂。已自行指定圖片的書架，在兩種檢視中都會沿用自己的圖片。"
 
 #: lib/bookshelf_settings.lua:1527
 msgid "Background color: %1"
-msgstr ""
+msgstr "背景顏色：%1"
 
 #: lib/bookshelf_settings.lua:1533
 msgid "Background color (% black)"
-msgstr ""
+msgstr "背景顏色 (% 黑色度)"
 
 #: lib/bookshelf_settings.lua:1546
 msgid "Panel shading: %1"
-msgstr ""
+msgstr "面板遮罩：%1"
 
 #: lib/bookshelf_settings.lua:1548
 msgid "How much to shade the top panel and the footer so the buttons stay legible over a picture. Transparent lets the wallpaper through untouched, which reads well over a plain texture and poorly over a busy photograph. Solid hides the picture behind those strips entirely."
-msgstr ""
+msgstr "為頂部面板與底部列加上多少遮罩，讓按鈕疊在圖片上時仍清晰可讀。「透明」會讓桌布原樣透出，在素雅的紋理上效果良好，在繁複的照片上則不佳。「不透明」則會完全遮住這兩條區域後方的圖片。"
 
 #: lib/bookshelf_settings.lua:1569
 msgid "Transparent"
-msgstr ""
+msgstr "透明"
 
 #: lib/bookshelf_settings.lua:1570 lib/bookshelf_settings.lua:1578
 msgid "Light"
-msgstr ""
+msgstr "淺色"
 
 #: lib/bookshelf_settings.lua:1571 lib/bookshelf_settings.lua:3512
 #: lib/bookshelf_settings.lua:3539 micromodules/analogue_clock.lua:189
@@ -2350,27 +2350,27 @@ msgstr "中等"
 
 #: lib/bookshelf_settings.lua:1572
 msgid "Heavy"
-msgstr ""
+msgstr "濃重"
 
 #: lib/bookshelf_settings.lua:1573
 msgid "Solid"
-msgstr ""
+msgstr "不透明"
 
 #: lib/bookshelf_settings.lua:1577
 msgid "Auto (follow device)"
-msgstr ""
+msgstr "自動 (跟隨裝置)"
 
 #: lib/bookshelf_settings.lua:1579
 msgid "Dark"
-msgstr ""
+msgstr "深色"
 
 #: lib/bookshelf_settings.lua:1740
 msgid "Images are loaded from %1"
-msgstr ""
+msgstr "圖片從 %1 載入"
 
 #: lib/bookshelf_settings.lua:1747
 msgid "No images in %1"
-msgstr ""
+msgstr "%1 中沒有圖片"
 
 #: lib/bookshelf_settings.lua:1852 lib/bookshelf_settings.lua:1859
 #: lib/bookshelf_settings.lua:2055 lib/bookshelf_settings.lua:2060
@@ -2379,7 +2379,7 @@ msgstr "預設"
 
 #: lib/bookshelf_settings.lua:1949
 msgid "Ornaments: %1"
-msgstr ""
+msgstr "擺飾：%1"
 
 #: lib/bookshelf_settings.lua:1954
 msgid ""
@@ -2387,6 +2387,9 @@ msgid ""
 "\n"
 "How often they appear is set per shelf: long-press a shelf chip, then Shelf style."
 msgstr ""
+"立在書脊書架空隙處的小裝飾。將 PNG 或 SVG 檔案放入 %1，它們就會出現在那裡。\n"
+"\n"
+"出現頻率可依各書架個別設定：長按書架按鈕，然後開啟「書架樣式」。"
 
 #: lib/bookshelf_settings.lua:1972
 msgid ""
@@ -2397,14 +2400,20 @@ msgid ""
 "\n"
 "How often they appear is set per shelf, in Shelf style."
 msgstr ""
+"已安裝 %1 個擺飾。\n"
+"\n"
+"資料夾：\n"
+"%2\n"
+"\n"
+"出現頻率可依各書架個別設定，位於「書架樣式」中。"
 
 #: lib/bookshelf_settings.lua:2002
 msgid "Accent colors"
-msgstr ""
+msgstr "強調色"
 
 #: lib/bookshelf_settings.lua:2017
 msgid "Shelf theme: %1"
-msgstr ""
+msgstr "書架主題：%1"
 
 #: lib/bookshelf_settings.lua:2019
 msgid ""
@@ -2412,6 +2421,9 @@ msgid ""
 "\n"
 "Covers, wallpaper and ornaments are pictures and are never inverted; only the shelf's own colors change."
 msgstr ""
+"為書架選擇淺色或深色，與 KOReader 的夜間模式各自獨立，因此您可以讓 KOReader 其餘部分維持淺色，書架仍保持深色。\n"
+"\n"
+"封面、桌布與擺飾都是圖片，永遠不會被反相；只有書架本身的顏色會改變。"
 
 #: lib/bookshelf_settings.lua:2107
 msgid "◐ Editing night-mode colors (tap to switch)"
@@ -2423,15 +2435,15 @@ msgstr "☀ 正在編輯日間模式色彩（點擊切換）"
 
 #: lib/bookshelf_settings.lua:2140
 msgid "Text ink"
-msgstr ""
+msgstr "文字墨色"
 
 #: lib/bookshelf_settings.lua:2142
 msgid "The color of the shelf's own text. Black by default in the light theme and white in the dark one. Covers, wallpaper and ornaments are pictures and are never recolored."
-msgstr ""
+msgstr "書架本身文字的顏色。淺色主題下預設為黑色，深色主題下預設為白色。封面、桌布與擺飾都是圖片，永遠不會被重新上色。"
 
 #: lib/bookshelf_settings.lua:2150
 msgid "Text ink (% black)"
-msgstr ""
+msgstr "文字墨色 (% 黑色度)"
 
 #: lib/bookshelf_settings.lua:2160
 msgid "Progress bar"
@@ -2499,27 +2511,27 @@ msgstr "徽章背景 (% 黑色度)"
 
 #: lib/bookshelf_settings.lua:2281
 msgid "Shelf menu background"
-msgstr ""
+msgstr "書架選單背景"
 
 #: lib/bookshelf_settings.lua:2283
 msgid "The solid bar behind the shelf menu. White by day and black at night unless you change it. The panels have their own colour."
-msgstr ""
+msgstr "書架選單後方的實色橫列。除非另行變更，白天為白色、夜間為黑色。各面板另有自己的顏色。"
 
 #: lib/bookshelf_settings.lua:2289
 msgid "Shelf menu background (% black)"
-msgstr ""
+msgstr "書架選單背景 (% 黑色度)"
 
 #: lib/bookshelf_settings.lua:2299
 msgid "Micro-module background"
-msgstr ""
+msgstr "微型模組背景"
 
 #: lib/bookshelf_settings.lua:2301
 msgid "The card behind each micro-module. Kept solid: the text inside a module draws its own opaque background, so a see-through card shows a box behind every line."
-msgstr ""
+msgstr "每個微型模組後方的卡片。維持不透明：模組內的文字會繪製自己的不透明底色，因此半透明的卡片會讓每一行文字後方都露出一個方塊。"
 
 #: lib/bookshelf_settings.lua:2307
 msgid "Micro-module background (% black)"
-msgstr ""
+msgstr "微型模組背景 (% 黑色度)"
 
 #: lib/bookshelf_settings.lua:2318
 msgid "Border color"
@@ -2627,7 +2639,7 @@ msgstr "編輯書籍詳細頁面"
 
 #: lib/bookshelf_settings.lua:2594
 msgid "The lines of book information shown in the top panel: title, author, rating, metadata, description, tags and progress. Tap a line to edit its template; hold to toggle it. The status line at the top has its own entry."
-msgstr ""
+msgstr "頂部面板中顯示的書籍資訊列：書名、作者、評分、元資料、簡介、標籤與閱讀進度。點擊某一列可編輯它的範本；長按可開啟或關閉該列。頂部的狀態列有自己的項目。"
 
 #: lib/bookshelf_settings.lua:2611
 msgid "Cover display"
@@ -2650,8 +2662,8 @@ msgid "Bookshelf UI font: %1"
 msgstr "Bookshelf 介面字型：%1"
 
 #: lib/bookshelf_settings.lua:2642
-msgid "The font Bookshelf uses for its own UI text (shelf names, labels, metadata). Pick any installed font (same picker as the top panel); '(Default)' follows your KOReader UI font. The title and author have their own fonts in the hero card editor."
-msgstr ""
+msgid "The font Bookshelf uses for its own UI text (shelf names, labels, metadata). Pick any installed font (same picker as the top panel); '(Default)' follows your KOReader UI font. The title and author have their own fonts in the book detail editor."
+msgstr "Bookshelf 介面文字 (書架名稱、標籤、元資料) 所使用的字型。可挑選任何已安裝的字型 (與頂部面板使用同一個挑選器)；「(預設)」會跟隨您的 KOReader 介面字型。書名與作者在書籍詳細資訊編輯器中另有各自的字型。"
 
 #: lib/bookshelf_settings.lua:2660 lib/bookshelf_settings.lua:2662
 #: lib/bookshelf_settings.lua:3560
@@ -2660,7 +2672,7 @@ msgstr "微型模組"
 
 #: lib/bookshelf_settings.lua:2664
 msgid "Where micro-modules appear. Each surface is independent: In start menu shows module cards in the start-menu launcher; In top panel adds a shelf-menu entry that swaps the book for the grid; Full-screen button adds a footer button opening a full-screen grid. The top panel and full screen shelves keep their own module lists. Turn all three off to disable micro-modules entirely."
-msgstr ""
+msgstr "微型模組出現的位置。各處相互獨立：「在開始選單中」會在開始選單裡顯示模組卡片；「在頂部面板中」會在書架選單新增一個項目，以模組網格取代目前書籍；「全螢幕按鈕」會在底部列新增一個按鈕，開啟全螢幕網格。頂部面板與全螢幕書架各自保有自己的模組清單。三者全部關閉即可完全停用微型模組。"
 
 #: lib/bookshelf_settings.lua:2716
 msgid "In start menu"
@@ -2668,7 +2680,7 @@ msgstr "在開始選單中"
 
 #: lib/bookshelf_settings.lua:2717
 msgid "In the top panel"
-msgstr ""
+msgstr "在頂部面板中"
 
 #: lib/bookshelf_settings.lua:2718
 msgid "Full-screen button"
@@ -2758,11 +2770,11 @@ msgstr "掃描藏書庫並將書籍關聯至 Hardcover，同時取得符合項�
 
 #: lib/bookshelf_settings.lua:3063
 msgid "Show Hardcover ratings"
-msgstr ""
+msgstr "顯示 Hardcover 評分"
 
 #: lib/bookshelf_settings.lua:3064
 msgid "When enabled, the rating row shows the cached public Hardcover rating instead of KOReader's local rating. Enabling this also turns on the rating row. Normal Bookshelf rendering only reads the local cache."
-msgstr ""
+msgstr "啟用後，評分列會顯示快取的 Hardcover 公開評分，而非 KOReader 的本機評分。啟用此項也會一併開啟評分列。Bookshelf 平時顯示時只會讀取本機快取。"
 
 #: lib/bookshelf_settings.lua:3087
 msgid "Use Hardcover metadata"
@@ -2902,15 +2914,15 @@ msgstr "已移除所有 Hardcover 資料（已取消關聯 %1 本書籍）。"
 
 #: lib/bookshelf_settings.lua:3326
 msgid "Full screen shelves font scale"
-msgstr ""
+msgstr "全螢幕書架字型縮放"
 
 #: lib/bookshelf_settings.lua:3362
 msgid "Disable spine mode shadows"
-msgstr ""
+msgstr "停用書脊模式陰影"
 
 #: lib/bookshelf_settings.lua:3363
 msgid "Spine shelves paint a recess behind the books and a shadow either side of each spine, which is what makes the shelf look deep. Turn this off if drawing it is slow on your device; the books then sit flat on the shelf."
-msgstr ""
+msgstr "書脊書架會在書籍後方繪製凹槽，並在每個書脊兩側加上陰影，書架的立體深度便由此而來。若您的裝置繪製起來較慢，可將此關閉；書籍將改為平貼在書架上。"
 
 #: lib/bookshelf_settings.lua:3385
 msgid "Instant book close (beta)"
@@ -2938,7 +2950,7 @@ msgstr "封面快取"
 
 #: lib/bookshelf_settings.lua:3432
 msgid "How much memory to use for ready-scaled book covers. A bigger cache keeps more covers warm -- smoother paging and preloading -- at the cost of RAM. Default %1 MB on this device. Lower it if memory is tight; raise it on a device with plenty of RAM. (How many covers that holds depends on their size: roughly 200-400 small grayscale covers, fewer large or color ones.)"
-msgstr ""
+msgstr "用於存放已縮放好的書籍封面的記憶體大小。快取越大，能保持就緒的封面越多，換頁與預先載入也更順暢，代價是占用更多記憶體。本裝置預設為 %1 MB。記憶體吃緊時請調低；記憶體充裕的裝置可以調高。(能容納多少封面取決於封面尺寸：約 200-400 張小尺寸灰階封面，大尺寸或彩色封面則更少。)"
 
 #: lib/bookshelf_settings.lua:3445
 msgid "Clear cover cache"
@@ -2970,15 +2982,15 @@ msgstr "慢速"
 
 #: lib/bookshelf_settings.lua:3594
 msgid "Top panel starts with"
-msgstr ""
+msgstr "頂部面板開啟時顯示"
 
 #: lib/bookshelf_settings.lua:3596
 msgid "What the top panel above the shelf shows when it opens: the book you're currently reading, or a grid of micro-modules (clock, quote, random book, reading goals…). You can also switch between them from the shelf menu."
-msgstr ""
+msgstr "書架上方的頂部面板開啟時顯示的內容：您目前正在閱讀的書籍，或一組微型模組網格 (時鐘、摘句、隨機選書、閱讀目標…)。您也可以從書架選單切換。"
 
 #: lib/bookshelf_settings.lua:3615
 msgid "Show the book's details"
-msgstr ""
+msgstr "顯示書籍詳細資訊"
 
 #: lib/bookshelf_settings.lua:3616
 msgid "Open with a single tap"
@@ -2990,19 +3002,19 @@ msgstr "雙擊開啟"
 
 #: lib/bookshelf_settings.lua:3639
 msgid "Tap a book in full screen shelves"
-msgstr ""
+msgstr "在全螢幕書架中點擊書籍"
 
 #: lib/bookshelf_settings.lua:3642
-msgid "What tapping a book does in full screen shelves: show that book's detail in the hero area, open it with a single tap, or open it with a double tap (first tap selects). The top panel's own double-tap-to-open is the next row."
-msgstr ""
+msgid "What tapping a book does in full screen shelves: show that book's detail in the top panel, open it with a single tap, or open it with a double tap (first tap selects). The top panel's own double-tap-to-open is the next row."
+msgstr "在全螢幕書架中點擊書籍的行為：在頂部面板顯示該書的詳細資訊、單擊開啟，或雙擊開啟 (第一次點擊為選取)。頂部面板本身的雙擊開啟設定在下一列。"
 
 #: lib/bookshelf_settings.lua:3655
 msgid "Double tap to open books"
 msgstr "雙擊開啟書籍"
 
 #: lib/bookshelf_settings.lua:3656
-msgid "When enabled, opening a book from the top panel card or from a shelf cover in expanded mode requires two taps -- the first selects the cover (focus ring), the second commits. Useful if you tend to open books accidentally while browsing. Regular shelf covers (with the top panel visible) already work this way -- tap stages the book as the hero preview, tap the top panel opens it -- and are unaffected by this setting."
-msgstr ""
+msgid "When enabled, opening a book from the top panel card or from a shelf cover in full screen shelves requires two taps -- the first selects the cover (focus ring), the second commits. Useful if you tend to open books accidentally while browsing. Regular shelf covers (with the top panel visible) already work this way -- tap stages the book in the top panel, tapping that opens it -- and are unaffected by this setting."
+msgstr "啟用後，從頂部面板卡片或全螢幕書架中的書架封面開啟書籍需要點擊兩次：第一次選取封面 (顯示選取框)，第二次才會開啟。若您在瀏覽時容易誤開書籍，此設定很有用。一般書架封面 (頂部面板可見時) 本來就是這樣運作的，點擊會將書籍放進頂部面板，再點擊它才會開啟，因此不受此設定影響。"
 
 #: lib/bookshelf_settings.lua:3681
 msgid "Page turn animation"
@@ -3074,19 +3086,19 @@ msgstr "設定在作者書架上顯示作者姓名的方式。「自動」會保
 
 #: lib/bookshelf_settings.lua:3894
 msgid "Spine text direction"
-msgstr ""
+msgstr "書脊文字方向"
 
 #: lib/bookshelf_settings.lua:3895
 msgid "Which way a title runs down a spine. British and American books are printed to read downwards; Continental European printing runs the other way. Spines only."
-msgstr ""
+msgstr "書名在書脊上的排列方向。英美書籍印刷時為由上往下閱讀；歐陸的印刷方向則相反。僅適用於書脊。"
 
 #: lib/bookshelf_settings.lua:3901
 msgid "Top to bottom"
-msgstr ""
+msgstr "由上而下"
 
 #: lib/bookshelf_settings.lua:3902
 msgid "Bottom to top"
-msgstr ""
+msgstr "由下而上"
 
 #: lib/bookshelf_settings.lua:3916
 msgid "Hide single-book series and genres"
@@ -3166,17 +3178,17 @@ msgstr "重置書架選單為預設值"
 
 #: lib/bookshelf_settings.lua:4115
 msgid "Clears your custom shelf menu (which shelves are shown, their order, their labels and icons, their sources and filters and sorts) and restores the fresh-install set: Home / Recent / Series / Favorites enabled, the rest available to toggle on. Also returns the active shelf to Home and the page indicator to 1. Other settings (top-panel text, fonts, colors) are unaffected."
-msgstr ""
+msgstr "清除您自訂的書架選單 (顯示哪些書架、它們的順序、名稱與圖示、來源、篩選與排序)，並還原為全新安裝時的組合：啟用「主頁 / 最近閱讀 / 系列 / 我的最愛」，其餘可自行開啟。同時將目前書架切回主頁，頁碼指示重設為 1。其他設定 (頂部面板文字、字型、顏色) 不受影響。"
 
 #: lib/bookshelf_settings.lua:4126
 msgid ""
 "Reset the shelf menu to default settings?\n"
 "\n"
-"All custom shelves you have created or edited will be lost. Other Bookshelf settings (hero text, fonts, colors) are unaffected."
+"All custom shelves you have created or edited will be lost. Other Bookshelf settings (top panel text, fonts, colors) are unaffected."
 msgstr ""
 "確定要將書架選單重置為預設設定？\n"
 "\n"
-"您建立或編輯的所有自訂書架均將遺失。其他 Bookshelf 設定（焦點文字、字型、色彩）不受影響。"
+"您建立或編輯的所有自訂書架均將遺失。其他 Bookshelf 設定（頂部面板文字、字型、色彩）不受影響。"
 
 #: lib/bookshelf_settings.lua:4162
 msgid "Reset book detail area to defaults"
@@ -3184,7 +3196,7 @@ msgstr "重置書籍詳細資訊區域為預設值"
 
 #: lib/bookshelf_settings.lua:4163
 msgid "Clears your top-panel customizations and restores the fresh-install detail layout, including the bundled title (Inter ExtraBold) and author (Caveat) fonts. The Bookshelf UI font and shelf menu are unaffected."
-msgstr ""
+msgstr "清除您對頂部面板的自訂設定，並還原為全新安裝時的詳細資訊版面，包括內附的書名字型 (Inter ExtraBold) 與作者字型 (Caveat)。Bookshelf 介面字型與書架選單不受影響。"
 
 #: lib/bookshelf_settings.lua:4170
 msgid ""
@@ -3192,6 +3204,9 @@ msgid ""
 "\n"
 "All top-panel text and font customizations will be lost. The Bookshelf UI font and shelf menu are unaffected."
 msgstr ""
+"是否將書籍詳細資訊區域重設為預設值？\n"
+"\n"
+"頂部面板的所有文字與字型自訂設定都將遺失。Bookshelf 介面字型與書架選單不受影響。"
 
 #: lib/bookshelf_settings.lua:4190
 msgid "BETA: Read calibre metadata.calibre"
@@ -3211,11 +3226,11 @@ msgstr "新增一個「Kobo」書架，呈現您的 Kobo 虛擬藏書庫（由 K
 
 #: lib/bookshelf_settings.lua:4543
 msgid "Rows and columns set how much of the screen the shelf takes; the top panel above fills whatever is left. List and spine shelves use that same space with their own row counts, so covers are shown here while you adjust it."
-msgstr ""
+msgstr "列數與欄數決定書架占用多少畫面；上方的頂部面板則填滿剩下的空間。清單書架與書脊書架使用同一塊空間，但各有自己的列數設定，因此調整時這裡以封面顯示。"
 
 #: lib/bookshelf_settings.lua:4551 main.lua:705
 msgid "Adjust shelf/top panel size"
-msgstr ""
+msgstr "調整書架/頂部面板大小"
 
 #: lib/bookshelf_settings.lua:4565
 msgid "Columns: "
@@ -3235,7 +3250,7 @@ msgstr "書籍詳細資訊字型縮放"
 
 #: lib/bookshelf_settings.lua:4698
 msgid "Micro-modules font scale"
-msgstr ""
+msgstr "微型模組字型縮放"
 
 #: lib/bookshelf_settings.lua:4763
 msgid "Shelf menu font scale"
@@ -3327,7 +3342,7 @@ msgstr "清單文字"
 
 #: lib/bookshelf_settings.lua:5478
 msgid "Top panel"
-msgstr ""
+msgstr "頂部面板"
 
 #: lib/bookshelf_settings.lua:5480 lib/bookshelf_widget.lua:13377
 msgid "Micro-modules"
@@ -3359,7 +3374,7 @@ msgstr "封面快取記憶體預算"
 
 #: lib/bookshelf_settings.lua:5550
 msgid "Memory budget for ready-scaled book covers (MB). Higher = smoother paging and preloading, more RAM. Default %1 MB on this device."
-msgstr ""
+msgstr "用於存放已縮放好的書籍封面的記憶體上限 (MB)。數值越高，換頁與預先載入越順暢，占用的記憶體也越多。本裝置預設為 %1 MB。"
 
 #: lib/bookshelf_settings.lua:5673
 msgid ""
@@ -3368,6 +3383,10 @@ msgid ""
 "\n"
 "Remove it and restart, or updates may appear to do nothing."
 msgstr ""
+"偵測到另一份 Bookshelf 已安裝，並且同樣被載入：\n"
+"%1\n"
+"\n"
+"請將其移除並重新啟動，否則更新可能看起來毫無作用。"
 
 #: lib/bookshelf_settings.lua:5708
 msgid "Link copied to clipboard"
@@ -3436,7 +3455,7 @@ msgstr "開啟：書架名稱與路徑列均以大寫顯示，此為預設外觀
 
 #: lib/bookshelf_settings.lua:6010
 msgid "Tap a shelf to edit it. Long-press to show or hide it."
-msgstr ""
+msgstr "點擊書架即可編輯，長按可顯示或隱藏。"
 
 #: lib/bookshelf_settings.lua:6015
 msgid "+ Add new shelf"
@@ -4158,7 +4177,7 @@ msgstr "最新發布版本不包含可下載的 zip 檔案。"
 
 #: lib/bookshelf_wallpaper.lua:573
 msgid "wallpapers"
-msgstr ""
+msgstr "桌布"
 
 #: lib/bookshelf_widget.lua:1579
 msgid "Search results"
@@ -4336,7 +4355,7 @@ msgstr "移至字母"
 
 #: lib/bookshelf_widget.lua:7402
 msgid "Enter text, letter or book number"
-msgstr ""
+msgstr "輸入文字、字母或書籍編號"
 
 #: lib/bookshelf_widget.lua:7403
 msgid "Enter text, letter or page number"
@@ -4349,7 +4368,7 @@ msgstr "(a - z) 或 (1 - %d)"
 
 #: lib/bookshelf_widget.lua:7420
 msgid "Go to book"
-msgstr ""
+msgstr "移至書籍"
 
 #: lib/bookshelf_widget.lua:7420
 msgid "Go to page"
@@ -4358,7 +4377,7 @@ msgstr "移至頁碼"
 #: lib/bookshelf_widget.lua:7427
 #, lua-format
 msgid "Book must be between 1 and %d"
-msgstr ""
+msgstr "書籍編號必須介於 1 到 %d 之間"
 
 #: lib/bookshelf_widget.lua:7428
 #, lua-format
@@ -4375,7 +4394,7 @@ msgstr "重置模組為預設值"
 
 #: lib/bookshelf_widget.lua:13390
 msgid "Remove micro-modules (re-enable in settings)"
-msgstr ""
+msgstr "移除微型模組 (可於設定中重新啟用)"
 
 #: lib/bookshelf_widget.lua:13519 lib/bookshelf_widget.lua:21444
 msgid "Bulk selection isn't available in remote catalog views."
@@ -5043,16 +5062,16 @@ msgid "Open Bookshelf"
 msgstr "開啟 Bookshelf"
 
 #: main.lua:706
-msgid "Open a small overlay that lets you set the number of columns and rows of books on the shelf, with the bookshelf visible behind it. Cover size follows the column count and the hero area fills the space left over. Changes preview in realtime; Accept keeps them, Cancel reverts."
-msgstr "開啟小浮動視窗，讓您在背景保留書架視圖的情況下設定書架的欄數與列數。封面大小將隨欄數調整，其餘空間則由焦點區域填滿。變更會即時預覽；點擊「接受」套用，點擊「取消」復原。"
+msgid "Open a small overlay that lets you set the number of columns and rows of books on the shelf, with the bookshelf visible behind it. Cover size follows the column count and the top panel fills the space left over. Changes preview in realtime; Accept keeps them, Cancel reverts."
+msgstr "開啟小浮動視窗，讓您在背景保留書架視圖的情況下設定書架的欄數與列數。封面大小將隨欄數調整，其餘空間則由頂部面板填滿。變更會即時預覽；點擊「接受」套用，點擊「取消」復原。"
 
 #: main.lua:721
 msgid "Edit shelves…"
-msgstr ""
+msgstr "編輯書架…"
 
 #: main.lua:745
 msgid "Background and colors"
-msgstr ""
+msgstr "背景與顏色"
 
 #: main.lua:758
 msgid "Hardcover enrichment"
@@ -5108,7 +5127,7 @@ msgstr "Bookshelf：上一頁書架"
 
 #: main.lua:1014
 msgid "Bookshelf: full screen shelves on or off"
-msgstr ""
+msgstr "Bookshelf：開啟或關閉全螢幕書架"
 
 #: main.lua:1020
 msgid "Bookshelf: toggle bulk selection mode"
@@ -6037,6 +6056,30 @@ msgstr "%1 分鐘前更新"
 #: micromodules/weather.lua:460 micromodules/weather.lua:546
 msgid "Updated %1h ago"
 msgstr "%1 小時前更新"
+
+#~ msgid "and a list when expanded or in a folder."
+#~ msgstr "展開或進入資料夾時則顯示清單。"
+
+#~ msgid "The font Bookshelf uses for its own UI text (shelf names, labels, metadata). Pick any installed font (same picker as the top panel); '(Default)' follows your KOReader UI font. The title and author have their own fonts in the hero card editor."
+#~ msgstr "Bookshelf 介面文字 (書架名稱、標籤、元資料) 所使用的字型。可挑選任何已安裝的字型 (與頂部面板使用同一個挑選器)；「(預設)」會跟隨您的 KOReader 介面字型。書名與作者在焦點卡片編輯器中另有各自的字型。"
+
+#~ msgid "What tapping a book does in full screen shelves: show that book's detail in the hero area, open it with a single tap, or open it with a double tap (first tap selects). The top panel's own double-tap-to-open is the next row."
+#~ msgstr "在全螢幕書架中點擊書籍的行為：在焦點區域顯示該書的詳細資訊、單擊開啟，或雙擊開啟 (第一次點擊為選取)。頂部面板本身的雙擊開啟設定在下一列。"
+
+#~ msgid "When enabled, opening a book from the top panel card or from a shelf cover in expanded mode requires two taps -- the first selects the cover (focus ring), the second commits. Useful if you tend to open books accidentally while browsing. Regular shelf covers (with the top panel visible) already work this way -- tap stages the book as the hero preview, tap the top panel opens it -- and are unaffected by this setting."
+#~ msgstr "啟用後，從頂部面板卡片或展開模式下的書架封面開啟書籍需要點擊兩次：第一次選取封面 (顯示選取框)，第二次才會開啟。若您在瀏覽時容易誤開書籍，此設定很有用。一般書架封面 (頂部面板可見時) 本來就是這樣運作的，點擊會將書籍放進焦點預覽，再點擊頂部面板才會開啟，因此不受此設定影響。"
+
+#~ msgid ""
+#~ "Reset the shelf menu to default settings?\n"
+#~ "\n"
+#~ "All custom shelves you have created or edited will be lost. Other Bookshelf settings (hero text, fonts, colors) are unaffected."
+#~ msgstr ""
+#~ "確定要將書架選單重置為預設設定？\n"
+#~ "\n"
+#~ "您建立或編輯的所有自訂書架均將遺失。其他 Bookshelf 設定（焦點文字、字型、色彩）不受影響。"
+
+#~ msgid "Open a small overlay that lets you set the number of columns and rows of books on the shelf, with the bookshelf visible behind it. Cover size follows the column count and the hero area fills the space left over. Changes preview in realtime; Accept keeps them, Cancel reverts."
+#~ msgstr "開啟小浮動視窗，讓您在背景保留書架視圖的情況下設定書架的欄數與列數。封面大小將隨欄數調整，其餘空間則由焦點區域填滿。變更會即時預覽；點擊「接受」套用，點擊「取消」復原。"
 
 #~ msgid "No"
 #~ msgstr "否"

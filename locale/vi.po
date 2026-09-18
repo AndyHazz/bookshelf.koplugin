@@ -1,7 +1,7 @@
 msgid ""
 msgstr ""
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-18 14:51+0100\n"
+"POT-Creation-Date: 2026-09-18 17:26+0100\n"
 "Language: vi\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -526,7 +526,7 @@ msgstr "Làm mới danh mục này"
 
 #: lib/bookshelf_chip_editor.lua:1427
 msgid "How many count as recently added"
-msgstr ""
+msgstr "Bao nhiêu cuốn được tính là mới thêm gần đây"
 
 #: lib/bookshelf_chip_editor.lua:1448 lib/bookshelf_menu_host.lua:135
 #: lib/bookshelf_widget.lua:1627
@@ -535,7 +535,7 @@ msgstr "Lùi"
 
 #: lib/bookshelf_chip_editor.lua:1455
 msgid "Recently added"
-msgstr ""
+msgstr "Mới thêm gần đây"
 
 #: lib/bookshelf_chip_editor.lua:1571
 msgid "Show as"
@@ -543,11 +543,11 @@ msgstr "Hiển thị dưới dạng"
 
 #: lib/bookshelf_chip_editor.lua:1666
 msgid "Auto shows covers by default,"
-msgstr ""
+msgstr "Tự động sẽ hiển thị bìa theo mặc định,"
 
 #: lib/bookshelf_chip_editor.lua:1667
-msgid "and a list when expanded or in a folder."
-msgstr ""
+msgid "and a list in full screen or a folder."
+msgstr "và danh sách khi ở toàn màn hình hoặc trong thư mục."
 
 #: lib/bookshelf_chip_editor.lua:1671
 msgid "List columns"
@@ -598,19 +598,19 @@ msgstr "Quay bìa ra ngoài"
 
 #: lib/bookshelf_chip_editor.lua:1751
 msgid "Newest %1"
-msgstr ""
+msgstr "%1 cuốn mới nhất"
 
 #: lib/bookshelf_chip_editor.lua:1758
 msgid "Face out: %1 reasons"
-msgstr ""
+msgstr "Quay bìa ra ngoài: %1 lý do"
 
 #: lib/bookshelf_chip_editor.lua:1802
 msgid "Recently added (%1)"
-msgstr ""
+msgstr "Mới thêm gần đây (%1)"
 
 #: lib/bookshelf_chip_editor.lua:1805
 msgid "How many: %1"
-msgstr ""
+msgstr "Bao nhiêu: %1"
 
 #: lib/bookshelf_chip_editor.lua:1901 lib/bookshelf_chip_editor.lua:2698
 #: lib/bookshelf_chip_editor.lua:2875 lib/bookshelf_chip_editor.lua:2933
@@ -620,15 +620,15 @@ msgstr "Hoàn thành"
 
 #: lib/bookshelf_chip_editor.lua:1912
 msgid "Ticked books stand face out. Tick as many reasons as you like."
-msgstr ""
+msgstr "Những cuốn sách được đánh dấu sẽ quay bìa ra ngoài. Bạn có thể đánh dấu bao nhiêu lý do tùy thích."
 
 #: lib/bookshelf_chip_editor.lua:1972
 msgid "Rarely"
-msgstr ""
+msgstr "Hiếm khi"
 
 #: lib/bookshelf_chip_editor.lua:1973
 msgid "Often"
-msgstr ""
+msgstr "Thường xuyên"
 
 #: lib/bookshelf_chip_editor.lua:1974 lib/bookshelf_settings.lua:998
 msgid "Always"
@@ -640,7 +640,7 @@ msgstr "Tác giả trên gáy sách"
 
 #: lib/bookshelf_chip_editor.lua:1997
 msgid "Ornaments"
-msgstr ""
+msgstr "Vật trang trí"
 
 #: lib/bookshelf_chip_editor.lua:2022
 msgid "Folder tiles: "
@@ -2101,7 +2101,7 @@ msgstr "Số hàng thẻ tag tối đa"
 
 #: lib/bookshelf_settings.lua:592
 msgid "How many rows of tag pills the top panel shows before the rest collapse into a tappable +N button."
-msgstr ""
+msgstr "Số hàng thẻ tag mà bảng trên hiển thị trước khi phần còn lại thu gọn thành một nút +N có thể chạm được."
 
 #: lib/bookshelf_settings.lua:597 lib/bookshelf_settings.lua:3138
 msgid "Set"
@@ -2113,7 +2113,7 @@ msgstr "Hiển thị văn bản dưới đây bao gồm"
 
 #: lib/bookshelf_settings.lua:706
 msgid "A line of text under each cover, on the regular shelf and full screen shelves alike. Choose what it shows, or None to let covers use the full row. Text size follows the Cover labels setting under Text size."
-msgstr ""
+msgstr "Một dòng chữ dưới mỗi bìa sách, trên kệ thường cũng như trên kệ toàn màn hình. Chọn nội dung hiển thị, hoặc Không để bìa dùng trọn cả hàng. Cỡ chữ theo thiết lập Nhãn bìa trong mục Kích thước văn bản."
 
 #: lib/bookshelf_settings.lua:720
 msgid "True cover aspect ratio"
@@ -2121,7 +2121,7 @@ msgstr "Tỷ lệ khung hình bìa thật"
 
 #: lib/bookshelf_settings.lua:721
 msgid "Show each cover at its real shape instead of a uniform book rectangle. Covers keep the same width but vary in height: on the shelf they sit along the bottom shelf line, and in the top panel they align to the top. Wide or square covers stop being cropped or stretched. Off by default (uniform grid)."
-msgstr ""
+msgstr "Hiển thị mỗi bìa theo đúng hình dạng thật của nó thay vì một khung sách chữ nhật đồng nhất. Các bìa giữ nguyên chiều rộng nhưng khác nhau về chiều cao: trên kệ chúng nằm theo đường kệ phía dưới, còn trong bảng trên chúng canh theo mép trên. Bìa rộng hoặc bìa vuông sẽ không còn bị cắt xén hay kéo giãn. Mặc định tắt (lưới đồng nhất)."
 
 #: lib/bookshelf_settings.lua:751
 msgid "(default)"
@@ -2299,43 +2299,43 @@ msgstr "Di chuyển xuống"
 
 #: lib/bookshelf_settings.lua:1505
 msgid "Default wallpaper image: %1"
-msgstr ""
+msgstr "Ảnh nền mặc định: %1"
 
 #: lib/bookshelf_settings.lua:1514
 msgid "Full screen shelves image: %1"
-msgstr ""
+msgstr "Ảnh nền kệ toàn màn hình: %1"
 
 #: lib/bookshelf_settings.lua:1515 lib/bookshelf_settings.lua:1696
 msgid "Same as default"
-msgstr ""
+msgstr "Giống mặc định"
 
 #: lib/bookshelf_settings.lua:1517
 msgid "A different picture for full screen shelves. That view is wall-to-wall covers and spines, where a backdrop that reads well behind the top panel is often too busy. A shelf with its own picture keeps it in both views."
-msgstr ""
+msgstr "Một ảnh khác dành cho kệ toàn màn hình. Chế độ xem đó phủ kín màn hình bằng bìa và gáy sách, nơi một ảnh nền vốn hợp khi nằm sau bảng trên thường lại quá rối. Kệ nào có ảnh riêng thì vẫn giữ ảnh đó ở cả hai chế độ xem."
 
 #: lib/bookshelf_settings.lua:1527
 msgid "Background color: %1"
-msgstr ""
+msgstr "Màu nền: %1"
 
 #: lib/bookshelf_settings.lua:1533
 msgid "Background color (% black)"
-msgstr ""
+msgstr "Màu nền (% đen)"
 
 #: lib/bookshelf_settings.lua:1546
 msgid "Panel shading: %1"
-msgstr ""
+msgstr "Độ che bảng: %1"
 
 #: lib/bookshelf_settings.lua:1548
 msgid "How much to shade the top panel and the footer so the buttons stay legible over a picture. Transparent lets the wallpaper through untouched, which reads well over a plain texture and poorly over a busy photograph. Solid hides the picture behind those strips entirely."
-msgstr ""
+msgstr "Mức che nền bảng trên và thanh chân trang để các nút vẫn dễ đọc khi nằm trên một bức ảnh. Trong suốt sẽ để ảnh nền hiện nguyên vẹn, hợp với nền vân đơn giản nhưng kém với ảnh chụp nhiều chi tiết. Đặc sẽ che hoàn toàn bức ảnh phía sau những dải đó."
 
 #: lib/bookshelf_settings.lua:1569
 msgid "Transparent"
-msgstr ""
+msgstr "Trong suốt"
 
 #: lib/bookshelf_settings.lua:1570 lib/bookshelf_settings.lua:1578
 msgid "Light"
-msgstr ""
+msgstr "Nhạt"
 
 #: lib/bookshelf_settings.lua:1571 lib/bookshelf_settings.lua:3512
 #: lib/bookshelf_settings.lua:3539 micromodules/analogue_clock.lua:189
@@ -2345,27 +2345,27 @@ msgstr "Trung bình"
 
 #: lib/bookshelf_settings.lua:1572
 msgid "Heavy"
-msgstr ""
+msgstr "Đậm"
 
 #: lib/bookshelf_settings.lua:1573
 msgid "Solid"
-msgstr ""
+msgstr "Đặc"
 
 #: lib/bookshelf_settings.lua:1577
 msgid "Auto (follow device)"
-msgstr ""
+msgstr "Tự động (theo thiết bị)"
 
 #: lib/bookshelf_settings.lua:1579
 msgid "Dark"
-msgstr ""
+msgstr "Tối"
 
 #: lib/bookshelf_settings.lua:1740
 msgid "Images are loaded from %1"
-msgstr ""
+msgstr "Ảnh được nạp từ %1"
 
 #: lib/bookshelf_settings.lua:1747
 msgid "No images in %1"
-msgstr ""
+msgstr "Không có ảnh nào trong %1"
 
 #: lib/bookshelf_settings.lua:1852 lib/bookshelf_settings.lua:1859
 #: lib/bookshelf_settings.lua:2055 lib/bookshelf_settings.lua:2060
@@ -2374,7 +2374,7 @@ msgstr "mặc định"
 
 #: lib/bookshelf_settings.lua:1949
 msgid "Ornaments: %1"
-msgstr ""
+msgstr "Vật trang trí: %1"
 
 #: lib/bookshelf_settings.lua:1954
 msgid ""
@@ -2382,6 +2382,9 @@ msgid ""
 "\n"
 "How often they appear is set per shelf: long-press a shelf chip, then Shelf style."
 msgstr ""
+"Những hình nhỏ đứng vào chỗ trống trên kệ gáy sách. Thả các tệp PNG hoặc SVG vào %1 là chúng sẽ xuất hiện ở đó.\n"
+"\n"
+"Tần suất xuất hiện được đặt riêng cho từng kệ: nhấn giữ một kệ, sau đó mở Kiểu kệ."
 
 #: lib/bookshelf_settings.lua:1972
 msgid ""
@@ -2392,14 +2395,20 @@ msgid ""
 "\n"
 "How often they appear is set per shelf, in Shelf style."
 msgstr ""
+"Đã cài %1 vật trang trí.\n"
+"\n"
+"Thư mục:\n"
+"%2\n"
+"\n"
+"Tần suất xuất hiện được đặt riêng cho từng kệ, trong Kiểu kệ."
 
 #: lib/bookshelf_settings.lua:2002
 msgid "Accent colors"
-msgstr ""
+msgstr "Màu nhấn"
 
 #: lib/bookshelf_settings.lua:2017
 msgid "Shelf theme: %1"
-msgstr ""
+msgstr "Giao diện kệ: %1"
 
 #: lib/bookshelf_settings.lua:2019
 msgid ""
@@ -2407,6 +2416,9 @@ msgid ""
 "\n"
 "Covers, wallpaper and ornaments are pictures and are never inverted; only the shelf's own colors change."
 msgstr ""
+"Màu sáng hoặc màu tối cho kệ, độc lập với chế độ đêm của KOReader -- nên bạn có thể giữ phần còn lại của KOReader ở màu sáng mà vẫn có một chiếc kệ tối.\n"
+"\n"
+"Bìa, ảnh nền và vật trang trí đều là hình ảnh nên không bao giờ bị đảo màu; chỉ màu sắc riêng của kệ thay đổi."
 
 #: lib/bookshelf_settings.lua:2107
 msgid "◐ Editing night-mode colors (tap to switch)"
@@ -2418,15 +2430,15 @@ msgstr "☀ Chỉnh sửa màu ngày (nhấn để chuyển)"
 
 #: lib/bookshelf_settings.lua:2140
 msgid "Text ink"
-msgstr ""
+msgstr "Màu mực chữ"
 
 #: lib/bookshelf_settings.lua:2142
 msgid "The color of the shelf's own text. Black by default in the light theme and white in the dark one. Covers, wallpaper and ornaments are pictures and are never recolored."
-msgstr ""
+msgstr "Màu chữ riêng của kệ. Mặc định là đen ở giao diện sáng và trắng ở giao diện tối. Bìa, ảnh nền và vật trang trí đều là hình ảnh nên không bao giờ bị đổi màu."
 
 #: lib/bookshelf_settings.lua:2150
 msgid "Text ink (% black)"
-msgstr ""
+msgstr "Màu mực chữ (% đen)"
 
 #: lib/bookshelf_settings.lua:2160
 msgid "Progress bar"
@@ -2494,27 +2506,27 @@ msgstr "Nền badge (% đen)"
 
 #: lib/bookshelf_settings.lua:2281
 msgid "Shelf menu background"
-msgstr ""
+msgstr "Nền menu kệ"
 
 #: lib/bookshelf_settings.lua:2283
 msgid "The solid bar behind the shelf menu. White by day and black at night unless you change it. The panels have their own colour."
-msgstr ""
+msgstr "Thanh nền đặc phía sau menu kệ. Mặc định là trắng vào ban ngày và đen vào ban đêm trừ khi bạn đổi. Các bảng có màu riêng của chúng."
 
 #: lib/bookshelf_settings.lua:2289
 msgid "Shelf menu background (% black)"
-msgstr ""
+msgstr "Nền menu kệ (% đen)"
 
 #: lib/bookshelf_settings.lua:2299
 msgid "Micro-module background"
-msgstr ""
+msgstr "Nền mô-đun nhỏ"
 
 #: lib/bookshelf_settings.lua:2301
 msgid "The card behind each micro-module. Kept solid: the text inside a module draws its own opaque background, so a see-through card shows a box behind every line."
-msgstr ""
+msgstr "Thẻ nền phía sau mỗi mô-đun nhỏ. Luôn để đặc: chữ bên trong một mô-đun tự vẽ nền mờ đục của riêng nó, nên một thẻ trong suốt sẽ làm lộ ra một ô phía sau từng dòng."
 
 #: lib/bookshelf_settings.lua:2307
 msgid "Micro-module background (% black)"
-msgstr ""
+msgstr "Nền mô-đun nhỏ (% đen)"
 
 #: lib/bookshelf_settings.lua:2318
 msgid "Border color"
@@ -2622,7 +2634,7 @@ msgstr "Chỉnh sửa chế độ xem chi tiết sách"
 
 #: lib/bookshelf_settings.lua:2594
 msgid "The lines of book information shown in the top panel: title, author, rating, metadata, description, tags and progress. Tap a line to edit its template; hold to toggle it. The status line at the top has its own entry."
-msgstr ""
+msgstr "Các dòng thông tin sách hiển thị trong bảng trên: tiêu đề, tác giả, đánh giá, meta dữ liệu, mô tả, thẻ và tiến trình. Chạm vào một dòng để chỉnh sửa mẫu của nó; nhấn giữ để bật tắt dòng đó. Hàng trạng thái ở trên cùng có mục riêng."
 
 #: lib/bookshelf_settings.lua:2611
 msgid "Cover display"
@@ -2645,8 +2657,8 @@ msgid "Bookshelf UI font: %1"
 msgstr "Font UI Bookshelf: %1"
 
 #: lib/bookshelf_settings.lua:2642
-msgid "The font Bookshelf uses for its own UI text (shelf names, labels, metadata). Pick any installed font (same picker as the top panel); '(Default)' follows your KOReader UI font. The title and author have their own fonts in the hero card editor."
-msgstr ""
+msgid "The font Bookshelf uses for its own UI text (shelf names, labels, metadata). Pick any installed font (same picker as the top panel); '(Default)' follows your KOReader UI font. The title and author have their own fonts in the book detail editor."
+msgstr "Phông chữ Bookshelf dùng cho văn bản giao diện của chính nó (tên kệ, nhãn, meta dữ liệu). Chọn bất kỳ phông nào đã cài (cùng bộ chọn với bảng trên); '(Mặc định)' sẽ theo phông giao diện KOReader của bạn. Tiêu đề và tác giả có phông riêng trong trình chỉnh sửa chi tiết sách."
 
 #: lib/bookshelf_settings.lua:2660 lib/bookshelf_settings.lua:2662
 #: lib/bookshelf_settings.lua:3560
@@ -2655,7 +2667,7 @@ msgstr "Modul vi mô"
 
 #: lib/bookshelf_settings.lua:2664
 msgid "Where micro-modules appear. Each surface is independent: In start menu shows module cards in the start-menu launcher; In top panel adds a shelf-menu entry that swaps the book for the grid; Full-screen button adds a footer button opening a full-screen grid. The top panel and full screen shelves keep their own module lists. Turn all three off to disable micro-modules entirely."
-msgstr ""
+msgstr "Nơi các mô-đun nhỏ xuất hiện. Mỗi bề mặt là độc lập: Trong menu bắt đầu sẽ hiển thị các thẻ mô-đun trong trình khởi chạy menu bắt đầu; Trong bảng trên sẽ thêm một mục vào menu kệ để đổi cuốn sách lấy lưới mô-đun; Nút full-screen sẽ thêm một nút ở chân trang để mở lưới mô-đun toàn màn hình. Bảng trên và kệ toàn màn hình giữ danh sách mô-đun riêng của chúng. Tắt cả ba để vô hiệu hóa hoàn toàn các mô-đun nhỏ."
 
 #: lib/bookshelf_settings.lua:2716
 msgid "In start menu"
@@ -2663,7 +2675,7 @@ msgstr "Trong menu bắt đầu"
 
 #: lib/bookshelf_settings.lua:2717
 msgid "In the top panel"
-msgstr ""
+msgstr "Trong bảng trên"
 
 #: lib/bookshelf_settings.lua:2718
 msgid "Full-screen button"
@@ -2753,11 +2765,11 @@ msgstr "Quét thư viện và liên kết sách với Hardcover, đồng thời 
 
 #: lib/bookshelf_settings.lua:3063
 msgid "Show Hardcover ratings"
-msgstr ""
+msgstr "Hiển thị đánh giá Hardcover"
 
 #: lib/bookshelf_settings.lua:3064
 msgid "When enabled, the rating row shows the cached public Hardcover rating instead of KOReader's local rating. Enabling this also turns on the rating row. Normal Bookshelf rendering only reads the local cache."
-msgstr ""
+msgstr "Khi bật, hàng đánh giá sẽ hiển thị điểm Hardcover công khai đã lưu trong bộ nhớ đệm thay cho điểm đánh giá cục bộ của KOReader. Bật tùy chọn này cũng bật luôn hàng đánh giá. Khi hiển thị bình thường, Bookshelf chỉ đọc bộ nhớ đệm cục bộ."
 
 #: lib/bookshelf_settings.lua:3087
 msgid "Use Hardcover metadata"
@@ -2897,15 +2909,15 @@ msgstr "Tất cả dữ liệu Hardcover đã được xóa (%1 book(s) unlinked
 
 #: lib/bookshelf_settings.lua:3326
 msgid "Full screen shelves font scale"
-msgstr ""
+msgstr "Kích thước phông kệ toàn màn hình"
 
 #: lib/bookshelf_settings.lua:3362
 msgid "Disable spine mode shadows"
-msgstr ""
+msgstr "Tắt đổ bóng ở chế độ gáy sách"
 
 #: lib/bookshelf_settings.lua:3363
 msgid "Spine shelves paint a recess behind the books and a shadow either side of each spine, which is what makes the shelf look deep. Turn this off if drawing it is slow on your device; the books then sit flat on the shelf."
-msgstr ""
+msgstr "Kệ gáy sách vẽ một hốc lõm phía sau các cuốn sách và một vệt bóng ở hai bên mỗi gáy, đó là thứ làm cho chiếc kệ trông có chiều sâu. Hãy tắt nếu việc vẽ này chậm trên thiết bị của bạn; khi đó sách sẽ nằm phẳng trên kệ."
 
 #: lib/bookshelf_settings.lua:3385
 msgid "Instant book close (beta)"
@@ -2933,7 +2945,7 @@ msgstr "Bộ nhớ đệm bìa sách"
 
 #: lib/bookshelf_settings.lua:3432
 msgid "How much memory to use for ready-scaled book covers. A bigger cache keeps more covers warm -- smoother paging and preloading -- at the cost of RAM. Default %1 MB on this device. Lower it if memory is tight; raise it on a device with plenty of RAM. (How many covers that holds depends on their size: roughly 200-400 small grayscale covers, fewer large or color ones.)"
-msgstr ""
+msgstr "Lượng bộ nhớ dùng cho các bìa sách đã được thu phóng sẵn. Bộ nhớ đệm lớn hơn giữ được nhiều bìa sẵn sàng hơn -- lật trang và tải trước mượt hơn -- nhưng tốn RAM hơn. Mặc định %1 MB trên thiết bị này. Hãy giảm xuống nếu bộ nhớ eo hẹp; tăng lên trên thiết bị có nhiều RAM. (Số bìa chứa được tùy theo kích thước của chúng: khoảng 200-400 bìa thang xám nhỏ, ít hơn với bìa lớn hoặc bìa màu.)"
 
 #: lib/bookshelf_settings.lua:3445
 msgid "Clear cover cache"
@@ -2965,15 +2977,15 @@ msgstr "Chậm"
 
 #: lib/bookshelf_settings.lua:3594
 msgid "Top panel starts with"
-msgstr ""
+msgstr "Bảng trên khởi đầu với"
 
 #: lib/bookshelf_settings.lua:3596
 msgid "What the top panel above the shelf shows when it opens: the book you're currently reading, or a grid of micro-modules (clock, quote, random book, reading goals…). You can also switch between them from the shelf menu."
-msgstr ""
+msgstr "Bảng trên phía trên kệ sẽ hiển thị gì khi mở: cuốn sách bạn đang đọc, hoặc một lưới các mô-đun nhỏ (đồng hồ, trích dẫn, sách ngẫu nhiên, mục tiêu đọc…). Bạn cũng có thể chuyển qua lại giữa chúng từ menu kệ."
 
 #: lib/bookshelf_settings.lua:3615
 msgid "Show the book's details"
-msgstr ""
+msgstr "Hiển thị chi tiết cuốn sách"
 
 #: lib/bookshelf_settings.lua:3616
 msgid "Open with a single tap"
@@ -2985,19 +2997,19 @@ msgstr "Mở bằng nhấn đúp"
 
 #: lib/bookshelf_settings.lua:3639
 msgid "Tap a book in full screen shelves"
-msgstr ""
+msgstr "Chạm vào một cuốn sách trong kệ toàn màn hình"
 
 #: lib/bookshelf_settings.lua:3642
-msgid "What tapping a book does in full screen shelves: show that book's detail in the hero area, open it with a single tap, or open it with a double tap (first tap selects). The top panel's own double-tap-to-open is the next row."
-msgstr ""
+msgid "What tapping a book does in full screen shelves: show that book's detail in the top panel, open it with a single tap, or open it with a double tap (first tap selects). The top panel's own double-tap-to-open is the next row."
+msgstr "Việc chạm vào một cuốn sách trong kệ toàn màn hình sẽ làm gì: hiển thị chi tiết cuốn đó ở bảng trên, mở nó bằng một lần chạm, hoặc mở bằng chạm đúp (lần chạm đầu để chọn). Tùy chọn chạm đúp để mở của riêng bảng trên nằm ở hàng kế tiếp."
 
 #: lib/bookshelf_settings.lua:3655
 msgid "Double tap to open books"
 msgstr "Nhấn gấp đôi để mở sách"
 
 #: lib/bookshelf_settings.lua:3656
-msgid "When enabled, opening a book from the top panel card or from a shelf cover in expanded mode requires two taps -- the first selects the cover (focus ring), the second commits. Useful if you tend to open books accidentally while browsing. Regular shelf covers (with the top panel visible) already work this way -- tap stages the book as the hero preview, tap the top panel opens it -- and are unaffected by this setting."
-msgstr ""
+msgid "When enabled, opening a book from the top panel card or from a shelf cover in full screen shelves requires two taps -- the first selects the cover (focus ring), the second commits. Useful if you tend to open books accidentally while browsing. Regular shelf covers (with the top panel visible) already work this way -- tap stages the book in the top panel, tapping that opens it -- and are unaffected by this setting."
+msgstr "Khi bật, việc mở một cuốn sách từ thẻ ở bảng trên hoặc từ một bìa trên kệ toàn màn hình sẽ cần hai lần chạm -- lần đầu chọn bìa (viền tiêu điểm), lần thứ hai xác nhận. Hữu ích nếu bạn hay lỡ tay mở sách khi đang duyệt. Bìa trên kệ thường (khi bảng trên đang hiện) vốn đã hoạt động như vậy -- chạm để đưa cuốn sách lên bảng trên, chạm vào đó để mở nó -- và không bị thiết lập này ảnh hưởng."
 
 #: lib/bookshelf_settings.lua:3681
 msgid "Page turn animation"
@@ -3069,19 +3081,19 @@ msgstr "Cách hiển thị tên tác giả trên kệ Tác giả. Tự động g
 
 #: lib/bookshelf_settings.lua:3894
 msgid "Spine text direction"
-msgstr ""
+msgstr "Hướng chữ trên gáy sách"
 
 #: lib/bookshelf_settings.lua:3895
 msgid "Which way a title runs down a spine. British and American books are printed to read downwards; Continental European printing runs the other way. Spines only."
-msgstr ""
+msgstr "Tiêu đề chạy theo chiều nào trên gáy sách. Sách Anh và Mỹ được in để đọc từ trên xuống; cách in ở lục địa châu Âu thì ngược lại. Chỉ áp dụng cho gáy sách."
 
 #: lib/bookshelf_settings.lua:3901
 msgid "Top to bottom"
-msgstr ""
+msgstr "Từ trên xuống dưới"
 
 #: lib/bookshelf_settings.lua:3902
 msgid "Bottom to top"
-msgstr ""
+msgstr "Từ dưới lên trên"
 
 #: lib/bookshelf_settings.lua:3916
 msgid "Hide single-book series and genres"
@@ -3161,17 +3173,17 @@ msgstr "Đặt menu kệ về mặc định"
 
 #: lib/bookshelf_settings.lua:4115
 msgid "Clears your custom shelf menu (which shelves are shown, their order, their labels and icons, their sources and filters and sorts) and restores the fresh-install set: Home / Recent / Series / Favorites enabled, the rest available to toggle on. Also returns the active shelf to Home and the page indicator to 1. Other settings (top-panel text, fonts, colors) are unaffected."
-msgstr ""
+msgstr "Xóa menu kệ tùy chỉnh của bạn (những kệ nào được hiển thị, thứ tự của chúng, nhãn và biểu tượng, nguồn, bộ lọc và cách sắp xếp của chúng) và khôi phục bộ mặc định như khi mới cài: bật Trang chủ / Gần đây / Series / Sách yêu thích, phần còn lại có thể bật lên. Đồng thời đưa kệ đang hoạt động về Trang chủ và số trang về 1. Các thiết lập khác (văn bản bảng trên, phông chữ, màu sắc) không bị ảnh hưởng."
 
 #: lib/bookshelf_settings.lua:4126
 msgid ""
 "Reset the shelf menu to default settings?\n"
 "\n"
-"All custom shelves you have created or edited will be lost. Other Bookshelf settings (hero text, fonts, colors) are unaffected."
+"All custom shelves you have created or edited will be lost. Other Bookshelf settings (top panel text, fonts, colors) are unaffected."
 msgstr ""
 "Đặt lại menu kệ về cài đặt mặc định?\n"
 "\n"
-"Mọi kệ tùy chỉnh bạn đã tạo hoặc chỉnh sửa sẽ bị mất. Các cài đặt khác của Bookshelf (văn bản khu vực chính, font, màu sắc) không bị ảnh hưởng."
+"Mọi kệ tùy chỉnh bạn đã tạo hoặc chỉnh sửa sẽ bị mất. Các cài đặt khác của Bookshelf (văn bản bảng trên, font, màu sắc) không bị ảnh hưởng."
 
 #: lib/bookshelf_settings.lua:4162
 msgid "Reset book detail area to defaults"
@@ -3179,7 +3191,7 @@ msgstr "Đặt khu vực chi tiết cuốn sách về mặc định"
 
 #: lib/bookshelf_settings.lua:4163
 msgid "Clears your top-panel customizations and restores the fresh-install detail layout, including the bundled title (Inter ExtraBold) and author (Caveat) fonts. The Bookshelf UI font and shelf menu are unaffected."
-msgstr ""
+msgstr "Xóa các tùy chỉnh bảng trên của bạn và khôi phục bố cục chi tiết như khi mới cài, bao gồm cả phông tiêu đề (Inter ExtraBold) và phông tác giả (Caveat) đi kèm. Phông giao diện Bookshelf và menu kệ không bị ảnh hưởng."
 
 #: lib/bookshelf_settings.lua:4170
 msgid ""
@@ -3187,6 +3199,9 @@ msgid ""
 "\n"
 "All top-panel text and font customizations will be lost. The Bookshelf UI font and shelf menu are unaffected."
 msgstr ""
+"Đặt khu vực chi tiết cuốn sách về thiết lập mặc định?\n"
+"\n"
+"Mọi tùy chỉnh văn bản và phông chữ của bảng trên sẽ bị mất. Phông giao diện Bookshelf và menu kệ không bị ảnh hưởng."
 
 #: lib/bookshelf_settings.lua:4190
 msgid "BETA: Read calibre metadata.calibre"
@@ -3206,11 +3221,11 @@ msgstr "Thêm một kệ \"Kobo\" hiển thị thư viện ảo Kobo của bạn
 
 #: lib/bookshelf_settings.lua:4543
 msgid "Rows and columns set how much of the screen the shelf takes; the top panel above fills whatever is left. List and spine shelves use that same space with their own row counts, so covers are shown here while you adjust it."
-msgstr ""
+msgstr "Số hàng và số cột quyết định kệ chiếm bao nhiêu phần màn hình; bảng trên phía trên sẽ lấp đầy phần còn lại. Kệ danh sách và kệ gáy sách dùng đúng khoảng đó với số hàng riêng của chúng, nên ở đây hiển thị dạng bìa trong lúc bạn điều chỉnh."
 
 #: lib/bookshelf_settings.lua:4551 main.lua:705
 msgid "Adjust shelf/top panel size"
-msgstr ""
+msgstr "Điều chỉnh kích thước kệ/bảng trên"
 
 #: lib/bookshelf_settings.lua:4565
 msgid "Columns: "
@@ -3230,7 +3245,7 @@ msgstr "Độ phông sách chi tiết"
 
 #: lib/bookshelf_settings.lua:4698
 msgid "Micro-modules font scale"
-msgstr ""
+msgstr "Kích thước phông mô-đun nhỏ"
 
 #: lib/bookshelf_settings.lua:4763
 msgid "Shelf menu font scale"
@@ -3322,7 +3337,7 @@ msgstr "Văn bản danh sách"
 
 #: lib/bookshelf_settings.lua:5478
 msgid "Top panel"
-msgstr ""
+msgstr "Bảng trên"
 
 #: lib/bookshelf_settings.lua:5480 lib/bookshelf_widget.lua:13377
 msgid "Micro-modules"
@@ -3354,7 +3369,7 @@ msgstr "Ngân sách bộnhớ cache"
 
 #: lib/bookshelf_settings.lua:5550
 msgid "Memory budget for ready-scaled book covers (MB). Higher = smoother paging and preloading, more RAM. Default %1 MB on this device."
-msgstr ""
+msgstr "Ngân sách bộ nhớ cho các bìa sách đã thu phóng sẵn (MB). Cao hơn = lật trang và tải trước mượt hơn, tốn RAM hơn. Mặc định %1 MB trên thiết bị này."
 
 #: lib/bookshelf_settings.lua:5673
 msgid ""
@@ -3363,6 +3378,10 @@ msgid ""
 "\n"
 "Remove it and restart, or updates may appear to do nothing."
 msgstr ""
+"Một bản Bookshelf khác đang được cài đặt và cũng đang được nạp:\n"
+"%1\n"
+"\n"
+"Hãy xóa nó rồi khởi động lại, nếu không các bản cập nhật có thể trông như chẳng có tác dụng gì."
 
 #: lib/bookshelf_settings.lua:5708
 msgid "Link copied to clipboard"
@@ -3431,7 +3450,7 @@ msgstr "Bật: tên kệ và đường dẫn phân cấp khi đi sâu được h
 
 #: lib/bookshelf_settings.lua:6010
 msgid "Tap a shelf to edit it. Long-press to show or hide it."
-msgstr ""
+msgstr "Chạm vào một kệ để chỉnh sửa. Nhấn giữ để hiện hoặc ẩn kệ đó."
 
 #: lib/bookshelf_settings.lua:6015
 msgid "+ Add new shelf"
@@ -4153,7 +4172,7 @@ msgstr "Bản phát hành mới nhất không có tệp zip để tải xuống.
 
 #: lib/bookshelf_wallpaper.lua:573
 msgid "wallpapers"
-msgstr ""
+msgstr "ảnh nền"
 
 #: lib/bookshelf_widget.lua:1579
 msgid "Search results"
@@ -4331,7 +4350,7 @@ msgstr "Đi đến chữ cái"
 
 #: lib/bookshelf_widget.lua:7402
 msgid "Enter text, letter or book number"
-msgstr ""
+msgstr "Nhập văn bản, chữ cái hoặc số thứ tự sách"
 
 #: lib/bookshelf_widget.lua:7403
 msgid "Enter text, letter or page number"
@@ -4344,7 +4363,7 @@ msgstr "(a - z) hoặc (1 - %d)"
 
 #: lib/bookshelf_widget.lua:7420
 msgid "Go to book"
-msgstr ""
+msgstr "Đi đến sách"
 
 #: lib/bookshelf_widget.lua:7420
 msgid "Go to page"
@@ -4353,7 +4372,7 @@ msgstr "Đi đến trang"
 #: lib/bookshelf_widget.lua:7427
 #, lua-format
 msgid "Book must be between 1 and %d"
-msgstr ""
+msgstr "Sách phải nằm trong khoảng từ 1 đến %d"
 
 #: lib/bookshelf_widget.lua:7428
 #, lua-format
@@ -4370,7 +4389,7 @@ msgstr "Đặt lại các mô-đun về mặc định"
 
 #: lib/bookshelf_widget.lua:13390
 msgid "Remove micro-modules (re-enable in settings)"
-msgstr ""
+msgstr "Bỏ các mô-đun nhỏ (bật lại trong cài đặt)"
 
 #: lib/bookshelf_widget.lua:13519 lib/bookshelf_widget.lua:21444
 msgid "Bulk selection isn't available in remote catalog views."
@@ -5038,16 +5057,16 @@ msgid "Open Bookshelf"
 msgstr "Mở Kệ sách"
 
 #: main.lua:706
-msgid "Open a small overlay that lets you set the number of columns and rows of books on the shelf, with the bookshelf visible behind it. Cover size follows the column count and the hero area fills the space left over. Changes preview in realtime; Accept keeps them, Cancel reverts."
-msgstr "Mở một lớp phủ nhỏ cho phép bạn đặt số cột và hàng sách trên kệ, với tủ sách vẫn hiển thị phía sau. Kích thước bìa theo số cột và khu vực chính lấp đầy phần không gian còn lại. Thay đổi được xem trước theo thời gian thực; Chấp nhận để giữ lại, Hủy để hoàn tác."
+msgid "Open a small overlay that lets you set the number of columns and rows of books on the shelf, with the bookshelf visible behind it. Cover size follows the column count and the top panel fills the space left over. Changes preview in realtime; Accept keeps them, Cancel reverts."
+msgstr "Mở một lớp phủ nhỏ cho phép bạn đặt số cột và hàng sách trên kệ, với tủ sách vẫn hiển thị phía sau. Kích thước bìa theo số cột và bảng trên lấp đầy phần không gian còn lại. Thay đổi được xem trước theo thời gian thực; Chấp nhận để giữ lại, Hủy để hoàn tác."
 
 #: main.lua:721
 msgid "Edit shelves…"
-msgstr ""
+msgstr "Chỉnh sửa kệ…"
 
 #: main.lua:745
 msgid "Background and colors"
-msgstr ""
+msgstr "Nền và màu sắc"
 
 #: main.lua:758
 msgid "Hardcover enrichment"
@@ -5103,7 +5122,7 @@ msgstr "Bookshelf: trang kệ trước"
 
 #: main.lua:1014
 msgid "Bookshelf: full screen shelves on or off"
-msgstr ""
+msgstr "Bookshelf: bật hoặc tắt kệ toàn màn hình"
 
 #: main.lua:1020
 msgid "Bookshelf: toggle bulk selection mode"
@@ -6032,6 +6051,30 @@ msgstr "Đã cập nhật %1m trước"
 #: micromodules/weather.lua:460 micromodules/weather.lua:546
 msgid "Updated %1h ago"
 msgstr "Đã cập nhật %1h trước"
+
+#~ msgid "and a list when expanded or in a folder."
+#~ msgstr "và hiển thị danh sách khi mở rộng hoặc khi ở trong thư mục."
+
+#~ msgid "The font Bookshelf uses for its own UI text (shelf names, labels, metadata). Pick any installed font (same picker as the top panel); '(Default)' follows your KOReader UI font. The title and author have their own fonts in the hero card editor."
+#~ msgstr "Phông chữ Bookshelf dùng cho văn bản giao diện của chính nó (tên kệ, nhãn, meta dữ liệu). Chọn bất kỳ phông nào đã cài (cùng bộ chọn với bảng trên); '(Mặc định)' sẽ theo phông giao diện KOReader của bạn. Tiêu đề và tác giả có phông riêng trong trình chỉnh sửa thẻ chi tiết sách."
+
+#~ msgid "What tapping a book does in full screen shelves: show that book's detail in the hero area, open it with a single tap, or open it with a double tap (first tap selects). The top panel's own double-tap-to-open is the next row."
+#~ msgstr "Việc chạm vào một cuốn sách trong kệ toàn màn hình sẽ làm gì: hiển thị chi tiết cuốn đó ở khu vực chi tiết sách, mở nó bằng một lần chạm, hoặc mở bằng chạm đúp (lần chạm đầu để chọn). Tùy chọn chạm đúp để mở của riêng bảng trên nằm ở hàng kế tiếp."
+
+#~ msgid "When enabled, opening a book from the top panel card or from a shelf cover in expanded mode requires two taps -- the first selects the cover (focus ring), the second commits. Useful if you tend to open books accidentally while browsing. Regular shelf covers (with the top panel visible) already work this way -- tap stages the book as the hero preview, tap the top panel opens it -- and are unaffected by this setting."
+#~ msgstr "Khi bật, việc mở một cuốn sách từ thẻ ở bảng trên hoặc từ một bìa trên kệ ở chế độ mở rộng sẽ cần hai lần chạm -- lần đầu chọn bìa (viền tiêu điểm), lần thứ hai xác nhận. Hữu ích nếu bạn hay lỡ tay mở sách khi đang duyệt. Bìa trên kệ thường (khi bảng trên đang hiện) vốn đã hoạt động như vậy -- chạm để đưa cuốn sách lên xem trước ở bảng trên, chạm vào bảng trên để mở nó -- và không bị thiết lập này ảnh hưởng."
+
+#~ msgid ""
+#~ "Reset the shelf menu to default settings?\n"
+#~ "\n"
+#~ "All custom shelves you have created or edited will be lost. Other Bookshelf settings (hero text, fonts, colors) are unaffected."
+#~ msgstr ""
+#~ "Đặt lại menu kệ về cài đặt mặc định?\n"
+#~ "\n"
+#~ "Mọi kệ tùy chỉnh bạn đã tạo hoặc chỉnh sửa sẽ bị mất. Các cài đặt khác của Bookshelf (văn bản khu vực chính, font, màu sắc) không bị ảnh hưởng."
+
+#~ msgid "Open a small overlay that lets you set the number of columns and rows of books on the shelf, with the bookshelf visible behind it. Cover size follows the column count and the hero area fills the space left over. Changes preview in realtime; Accept keeps them, Cancel reverts."
+#~ msgstr "Mở một lớp phủ nhỏ cho phép bạn đặt số cột và hàng sách trên kệ, với tủ sách vẫn hiển thị phía sau. Kích thước bìa theo số cột và khu vực chính lấp đầy phần không gian còn lại. Thay đổi được xem trước theo thời gian thực; Chấp nhận để giữ lại, Hủy để hoàn tác."
 
 #~ msgid "No"
 #~ msgstr "Không"

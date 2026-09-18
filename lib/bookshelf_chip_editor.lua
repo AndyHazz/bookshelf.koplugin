@@ -1664,7 +1664,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         -- a translator rather than being half of one split mid-clause.
         if show_auto_note then
             rows[#rows + 1] = note(_("Auto shows covers by default,"))
-            rows[#rows + 1] = note(_("and a list when expanded or in a folder."))
+            rows[#rows + 1] = note(_("and a list in full screen or a folder."))
         end
 
         if show_list then

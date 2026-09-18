@@ -706,7 +706,7 @@ function Bookshelf:buildMenuItems(menu_items)
         help_text = _("Open a small overlay that lets you set the number of"
             .. " columns and rows of books on the shelf, with the bookshelf"
             .. " visible behind it. Cover size follows the column count and"
-            .. " the hero area fills the space left over. Changes preview in"
+            .. " the top panel fills the space left over. Changes preview in"
             .. " realtime; Accept keeps them, Cancel reverts."),
         enabled_func   = function() return outer:_isShowing() end,
         keep_menu_open = true,

@@ -2642,7 +2642,7 @@ function Settings:_settingsSubItems()
         help_text = _("The font Bookshelf uses for its own UI text (shelf names, "
             .. "labels, metadata). Pick any installed font (same picker as the "
             .. "top panel); '(Default)' follows your KOReader UI font. The "
-            .. "title and author have their own fonts in the hero card editor."),
+            .. "title and author have their own fonts in the book detail editor."),
         keep_menu_open = true,
         callback = function(touchmenu_instance) self:_pickBookshelfUIFont(touchmenu_instance) end,
     }
@@ -3640,7 +3640,7 @@ function Settings:_behaviourSubItems()
                 .. tap_labels[BookshelfSettings.expandedTapAction()]
         end,
         help_text = _("What tapping a book does in full screen shelves: show"
-            .. " that book's detail in the hero area, open it with a single"
+            .. " that book's detail in the top panel, open it with a single"
             .. " tap, or open it with a double tap (first tap selects). The"
             .. " top panel's own double-tap-to-open is the next row."),
         sub_item_table_func = function()
@@ -3654,13 +3654,13 @@ function Settings:_behaviourSubItems()
     items[#items + 1] = {
         text = _("Double tap to open books"),
         help_text = _("When enabled, opening a book from the top panel "
-            .. "card or from a shelf cover in expanded mode requires "
+            .. "card or from a shelf cover in full screen shelves requires "
             .. "two taps -- the first selects the cover (focus "
             .. "ring), the second commits. Useful if you tend to "
             .. "open books accidentally while browsing. Regular "
             .. "shelf covers (with the top panel visible) already work "
-            .. "this way -- tap stages the book as the hero "
-            .. "preview, tap the top panel opens it -- and are "
+            .. "this way -- tap stages the book in the top "
+            .. "panel, tapping that opens it -- and are "
             .. "unaffected by this setting."),
         checked_func   = function()
             return BookshelfSettings.isTrue("tap_to_open_double")
@@ -4125,8 +4125,8 @@ function Settings:_advancedSubItems()
                 UIManager:show(ConfirmBox:new{
                     text = _("Reset the shelf menu to default settings?\n\n"
                         .. "All custom shelves you have created or edited "
-                        .. "will be lost. Other Bookshelf settings (hero "
-                        .. "text, fonts, colors) are unaffected."),
+                        .. "will be lost. Other Bookshelf settings (top "
+                        .. "panel text, fonts, colors) are unaffected."),
                     ok_text = _("Reset"),
                     ok_callback = function()
                         BookshelfSettings.delete("tabs")

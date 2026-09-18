@@ -11,3 +11,8 @@ luac.out
 _branch_marker.txt
 
 assets/bookshelf-social.*
+
+# msgfmt artefacts: untracked and not ignored before, so a stale one could
+# slip into a release zip (zip -r does not honour .gitignore, but this keeps
+# the tree clean and the intent recorded).
+*.mo

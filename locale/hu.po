@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-18 20:21+0100\n"
+"POT-Creation-Date: 2026-09-18 20:39+0100\n"
 "PO-Revision-Date: 2026-06-14 12:00+0100\n"
 "Last-Translator: \n"
 "Language-Team: Hungarian\n"
@@ -67,7 +67,7 @@ msgstr "Válassz egy műveletet"
 msgid "Unknown"
 msgstr "Ismeretlen"
 
-#: lib/bookshelf_book_repository.lua:6559 lib/bookshelf_chip_editor.lua:2346
+#: lib/bookshelf_book_repository.lua:6559 lib/bookshelf_chip_editor.lua:2354
 #: lib/bookshelf_filter.lua:280
 msgid "Unrated"
 msgstr "Nincs értékelve"
@@ -112,14 +112,14 @@ msgstr "Értékelés"
 msgid "(clear)"
 msgstr "(törlés)"
 
-#: lib/bookshelf_bulk_actions.lua:160 lib/bookshelf_chip_editor.lua:2865
+#: lib/bookshelf_bulk_actions.lua:160 lib/bookshelf_chip_editor.lua:2873
 msgid "Clear"
 msgstr "Törlés"
 
 #: lib/bookshelf_bulk_actions.lua:165 lib/bookshelf_bulk_actions.lua:424
 #: lib/bookshelf_chip_editor.lua:656 lib/bookshelf_chip_editor.lua:999
-#: lib/bookshelf_chip_editor.lua:2100 lib/bookshelf_chip_editor.lua:2150
-#: lib/bookshelf_chip_editor.lua:2286 lib/bookshelf_chip_editor.lua:2612
+#: lib/bookshelf_chip_editor.lua:2108 lib/bookshelf_chip_editor.lua:2158
+#: lib/bookshelf_chip_editor.lua:2294 lib/bookshelf_chip_editor.lua:2620
 #: lib/bookshelf_collection_manager.lua:334
 #: lib/bookshelf_collection_manager.lua:410
 #: lib/bookshelf_collection_manager.lua:417
@@ -159,7 +159,7 @@ msgid "Favorite"
 msgstr "Kedvenc"
 
 #: lib/bookshelf_bulk_actions.lua:214 lib/bookshelf_chip_editor.lua:386
-#: lib/bookshelf_chip_editor.lua:2584 lib/bookshelf_settings.lua:535
+#: lib/bookshelf_chip_editor.lua:2592 lib/bookshelf_settings.lua:535
 #: lib/bookshelf_widget.lua:20073
 msgid "Collections"
 msgstr "Gyűjtemények"
@@ -193,7 +193,7 @@ msgid "Pending changes discarded"
 msgstr "A függő módosítások elvetve"
 
 #: lib/bookshelf_bulk_actions.lua:329 lib/bookshelf_bulk_actions.lua:345
-#: lib/bookshelf_chip_editor.lua:976 lib/bookshelf_chip_editor.lua:2449
+#: lib/bookshelf_chip_editor.lua:976 lib/bookshelf_chip_editor.lua:2457
 #: lib/bookshelf_collection_manager.lua:378
 #: lib/bookshelf_collection_manager.lua:408
 #: lib/bookshelf_opds_catalog_editor.lua:104 lib/bookshelf_settings.lua:1406
@@ -268,7 +268,7 @@ msgid "Refresh"
 msgstr "Frissítés"
 
 #: lib/bookshelf_changelog.lua:148 lib/bookshelf_chip_editor.lua:1398
-#: lib/bookshelf_chip_editor.lua:2250 lib/bookshelf_chip_editor.lua:3065
+#: lib/bookshelf_chip_editor.lua:2258 lib/bookshelf_chip_editor.lua:3073
 #: lib/bookshelf_collection_manager.lua:549 lib/bookshelf_folder_picker.lua:168
 #: lib/bookshelf_icons_library.lua:496 lib/bookshelf_line_editor.lua:158
 #: lib/bookshelf_module_picker.lua:225 lib/bookshelf_reviews_modal.lua:526
@@ -333,52 +333,52 @@ msgstr "Legutóbb hozzáadott"
 msgid "Book count"
 msgstr "Könyvek száma"
 
-#: lib/bookshelf_chip_editor.lua:379 lib/bookshelf_chip_editor.lua:2554
+#: lib/bookshelf_chip_editor.lua:379 lib/bookshelf_chip_editor.lua:2562
 msgid "Home (folders)"
 msgstr "Kezdőlap (mappák)"
 
-#: lib/bookshelf_chip_editor.lua:380 lib/bookshelf_chip_editor.lua:2555
+#: lib/bookshelf_chip_editor.lua:380 lib/bookshelf_chip_editor.lua:2563
 msgid "Home (flattened)"
 msgstr "Kezdőlap (egyszintű)"
 
-#: lib/bookshelf_chip_editor.lua:381 lib/bookshelf_chip_editor.lua:2547
+#: lib/bookshelf_chip_editor.lua:381 lib/bookshelf_chip_editor.lua:2555
 msgid "Recently read"
 msgstr "Legutóbb olvasott"
 
-#: lib/bookshelf_chip_editor.lua:382 lib/bookshelf_chip_editor.lua:2548
+#: lib/bookshelf_chip_editor.lua:382 lib/bookshelf_chip_editor.lua:2556
 msgid "Latest added"
 msgstr "Legújabban hozzáadott"
 
 #: lib/bookshelf_chip_editor.lua:383 lib/bookshelf_chip_editor.lua:398
-#: lib/bookshelf_chip_editor.lua:2569 lib/bookshelf_filter.lua:37
+#: lib/bookshelf_chip_editor.lua:2577 lib/bookshelf_filter.lua:37
 #: lib/bookshelf_settings.lua:534 lib/bookshelf_settings.lua:677
 #: lib/bookshelf_sort_engine.lua:506 lib/bookshelf_tab_model.lua:69
 #: lib/bookshelf_widget.lua:1605 lib/bookshelf_widget.lua:20072
 msgid "Series"
 msgstr "Sorozatok"
 
-#: lib/bookshelf_chip_editor.lua:384 lib/bookshelf_chip_editor.lua:2574
+#: lib/bookshelf_chip_editor.lua:384 lib/bookshelf_chip_editor.lua:2582
 #: lib/bookshelf_settings.lua:135 lib/bookshelf_tab_model.lua:73
 #: lib/bookshelf_tokens.lua:30 lib/bookshelf_widget.lua:1604
 msgid "Authors"
 msgstr "Szerzők"
 
-#: lib/bookshelf_chip_editor.lua:385 lib/bookshelf_chip_editor.lua:2579
+#: lib/bookshelf_chip_editor.lua:385 lib/bookshelf_chip_editor.lua:2587
 #: lib/bookshelf_settings.lua:536 lib/bookshelf_tab_model.lua:81
 #: lib/bookshelf_widget.lua:1606 lib/bookshelf_widget.lua:20074
 msgid "Genres"
 msgstr "Műfajok"
 
-#: lib/bookshelf_chip_editor.lua:387 lib/bookshelf_chip_editor.lua:2588
+#: lib/bookshelf_chip_editor.lua:387 lib/bookshelf_chip_editor.lua:2596
 msgid "Formats"
 msgstr "Formátumok"
 
-#: lib/bookshelf_chip_editor.lua:388 lib/bookshelf_chip_editor.lua:2593
+#: lib/bookshelf_chip_editor.lua:388 lib/bookshelf_chip_editor.lua:2601
 #: lib/bookshelf_widget.lua:1609 lib/bookshelf_widget.lua:19264
 msgid "Ratings"
 msgstr "Értékelések"
 
-#: lib/bookshelf_chip_editor.lua:389 lib/bookshelf_chip_editor.lua:2597
+#: lib/bookshelf_chip_editor.lua:389 lib/bookshelf_chip_editor.lua:2605
 #: lib/bookshelf_tab_model.lua:85
 msgid "Languages"
 msgstr "Nyelvek"
@@ -430,7 +430,7 @@ msgstr "Nyelv"
 msgid "OPDS catalog"
 msgstr "OPDS-katalógus"
 
-#: lib/bookshelf_chip_editor.lua:409 lib/bookshelf_chip_editor.lua:2623
+#: lib/bookshelf_chip_editor.lua:409 lib/bookshelf_chip_editor.lua:2631
 msgid "Kindle Virtual Library"
 msgstr "Kindle virtuális könyvtár"
 
@@ -446,7 +446,7 @@ msgstr "OPDS: %1"
 msgid "Insert icon…"
 msgstr "Ikon beszúrása…"
 
-#: lib/bookshelf_chip_editor.lua:707 lib/bookshelf_chip_editor.lua:2047
+#: lib/bookshelf_chip_editor.lua:707 lib/bookshelf_chip_editor.lua:2055
 msgid "OK"
 msgstr "OK"
 
@@ -571,7 +571,7 @@ msgstr "Gerincsorok"
 msgid "Spine thickness"
 msgstr "Gerincvastagság"
 
-#: lib/bookshelf_chip_editor.lua:1727 lib/bookshelf_chip_editor.lua:1971
+#: lib/bookshelf_chip_editor.lua:1727 lib/bookshelf_chip_editor.lua:1979
 #: lib/bookshelf_settings.lua:678 lib/bookshelf_settings.lua:881
 #: lib/bookshelf_settings.lua:940 lib/bookshelf_settings.lua:1506
 #: lib/bookshelf_settings.lua:1711 lib/bookshelf_shelf_row.lua:339
@@ -583,266 +583,270 @@ msgstr "Nincs"
 msgid "First in series"
 msgstr "Sorozat első kötete"
 
-#: lib/bookshelf_chip_editor.lua:1730 lib/bookshelf_settings.lua:3559
+#: lib/bookshelf_chip_editor.lua:1730
+msgid "First unread in series"
+msgstr ""
+
+#: lib/bookshelf_chip_editor.lua:1731 lib/bookshelf_settings.lua:3559
 msgid "Currently reading"
 msgstr "Jelenleg olvasom"
 
-#: lib/bookshelf_chip_editor.lua:1731 lib/bookshelf_filter.lua:249
+#: lib/bookshelf_chip_editor.lua:1732 lib/bookshelf_filter.lua:249
 #: lib/bookshelf_filter.lua:266 lib/bookshelf_tokens.lua:260
 #: micromodules/random_unread.lua:233 micromodules/shelf_size.lua:19
 msgid "Unread"
 msgstr "Olvasatlan"
 
-#: lib/bookshelf_chip_editor.lua:1732 micromodules/random_unread.lua:232
+#: lib/bookshelf_chip_editor.lua:1733 micromodules/random_unread.lua:232
 msgid "All books"
 msgstr "Minden könyv"
 
-#: lib/bookshelf_chip_editor.lua:1743 lib/bookshelf_chip_editor.lua:1745
-#: lib/bookshelf_chip_editor.lua:1760 lib/bookshelf_chip_editor.lua:1908
+#: lib/bookshelf_chip_editor.lua:1744 lib/bookshelf_chip_editor.lua:1746
+#: lib/bookshelf_chip_editor.lua:1761 lib/bookshelf_chip_editor.lua:1916
 msgid "Face out"
 msgstr "Borítóval kifelé"
 
-#: lib/bookshelf_chip_editor.lua:1751
+#: lib/bookshelf_chip_editor.lua:1752
 msgid "Newest %1"
 msgstr "Legújabb %1"
 
-#: lib/bookshelf_chip_editor.lua:1758
+#: lib/bookshelf_chip_editor.lua:1759
 msgid "Face out: %1 reasons"
 msgstr "Borítóval kifelé: %1 szempont"
 
-#: lib/bookshelf_chip_editor.lua:1802
+#: lib/bookshelf_chip_editor.lua:1803
 msgid "Recently added (%1)"
 msgstr "Nemrég hozzáadott (%1)"
 
-#: lib/bookshelf_chip_editor.lua:1805
+#: lib/bookshelf_chip_editor.lua:1806
 msgid "How many: %1"
 msgstr "Hány darab: %1"
 
-#: lib/bookshelf_chip_editor.lua:1901 lib/bookshelf_chip_editor.lua:2698
-#: lib/bookshelf_chip_editor.lua:2875 lib/bookshelf_chip_editor.lua:2933
-#: lib/bookshelf_chip_editor.lua:2996 lib/bookshelf_widget.lua:21097
+#: lib/bookshelf_chip_editor.lua:1909 lib/bookshelf_chip_editor.lua:2706
+#: lib/bookshelf_chip_editor.lua:2883 lib/bookshelf_chip_editor.lua:2941
+#: lib/bookshelf_chip_editor.lua:3004 lib/bookshelf_widget.lua:21097
 msgid "Done"
 msgstr "Kész"
 
-#: lib/bookshelf_chip_editor.lua:1912
+#: lib/bookshelf_chip_editor.lua:1920
 msgid "Ticked books stand face out. Tick as many reasons as you like."
 msgstr "A bejelölt könyvek borítóval kifelé állnak. Annyi szempontot jelölhetsz be, amennyit szeretnél."
 
-#: lib/bookshelf_chip_editor.lua:1972
+#: lib/bookshelf_chip_editor.lua:1980
 msgid "Rarely"
 msgstr "Ritkán"
 
-#: lib/bookshelf_chip_editor.lua:1973
+#: lib/bookshelf_chip_editor.lua:1981
 msgid "Often"
 msgstr "Gyakran"
 
-#: lib/bookshelf_chip_editor.lua:1974 lib/bookshelf_settings.lua:998
+#: lib/bookshelf_chip_editor.lua:1982 lib/bookshelf_settings.lua:998
 msgid "Always"
 msgstr "Mindig"
 
-#: lib/bookshelf_chip_editor.lua:1991
+#: lib/bookshelf_chip_editor.lua:1999
 msgid "Author on spine"
 msgstr "Szerző a gerincen"
 
-#: lib/bookshelf_chip_editor.lua:1997
+#: lib/bookshelf_chip_editor.lua:2005
 msgid "Ornaments"
 msgstr "Díszek"
 
-#: lib/bookshelf_chip_editor.lua:2022
+#: lib/bookshelf_chip_editor.lua:2030
 msgid "Folder tiles: "
 msgstr "Mappastílus: "
 
-#: lib/bookshelf_chip_editor.lua:2025
+#: lib/bookshelf_chip_editor.lua:2033
 msgid "Folder tiles"
 msgstr "Mappastílus"
 
-#: lib/bookshelf_chip_editor.lua:2054
+#: lib/bookshelf_chip_editor.lua:2062
 msgid "Shelf style"
 msgstr "Polc stílusa"
 
-#: lib/bookshelf_chip_editor.lua:2122
+#: lib/bookshelf_chip_editor.lua:2130
 msgid "Save downloads from this catalog to…"
 msgstr "A katalógus letöltéseinek mentése ide…"
 
-#: lib/bookshelf_chip_editor.lua:2126
+#: lib/bookshelf_chip_editor.lua:2134
 msgid "Choose folder…"
 msgstr "Mappa kiválasztása…"
 
-#: lib/bookshelf_chip_editor.lua:2130
+#: lib/bookshelf_chip_editor.lua:2138
 msgid "Save downloads to…"
 msgstr "Letöltések mentése ide…"
 
-#: lib/bookshelf_chip_editor.lua:2141 lib/bookshelf_chip_editor.lua:2142
+#: lib/bookshelf_chip_editor.lua:2149 lib/bookshelf_chip_editor.lua:2150
 msgid "KOReader's download folder"
 msgstr "A KOReader letöltési mappája"
 
-#: lib/bookshelf_chip_editor.lua:2202 lib/bookshelf_chip_editor.lua:2290
+#: lib/bookshelf_chip_editor.lua:2210 lib/bookshelf_chip_editor.lua:2298
 msgid "Choose "
 msgstr "Válassz "
 
-#: lib/bookshelf_chip_editor.lua:2203 lib/bookshelf_chip_editor.lua:2836
+#: lib/bookshelf_chip_editor.lua:2211 lib/bookshelf_chip_editor.lua:2844
 #: lib/bookshelf_folder_picker.lua:137 lib/bookshelf_library_modal.lua:517
 #: lib/bookshelf_widget.lua:7380 lib/bookshelf_widget.lua:20403
 msgid "Search…"
 msgstr "Keresés…"
 
-#: lib/bookshelf_chip_editor.lua:2428
+#: lib/bookshelf_chip_editor.lua:2436
 msgid "Choose OPDS catalog"
 msgstr "Válassz OPDS-katalógust"
 
-#: lib/bookshelf_chip_editor.lua:2430
+#: lib/bookshelf_chip_editor.lua:2438
 msgid "Add catalog…"
 msgstr "Katalógus hozzáadása…"
 
-#: lib/bookshelf_chip_editor.lua:2445 lib/bookshelf_line_editor.lua:615
+#: lib/bookshelf_chip_editor.lua:2453 lib/bookshelf_line_editor.lua:615
 #: lib/bookshelf_widget.lua:19332 lib/bookshelf_widget.lua:20057
 #: lib/bookshelf_widget.lua:20155
 msgid "Edit"
 msgstr "Szerkesztés"
 
-#: lib/bookshelf_chip_editor.lua:2521
+#: lib/bookshelf_chip_editor.lua:2529
 msgid "Choose folder within home folder"
 msgstr "Mappa kiválasztása a kezdőmappán belül"
 
-#: lib/bookshelf_chip_editor.lua:2523 lib/bookshelf_folder_picker.lua:111
+#: lib/bookshelf_chip_editor.lua:2531 lib/bookshelf_folder_picker.lua:111
 msgid "Browse device…"
 msgstr "Eszköz böngészése…"
 
-#: lib/bookshelf_chip_editor.lua:2549
+#: lib/bookshelf_chip_editor.lua:2557
 msgid "★ Favorites"
 msgstr "★ Kedvencek"
 
-#: lib/bookshelf_chip_editor.lua:2562
+#: lib/bookshelf_chip_editor.lua:2570
 msgid "Specific folder…"
 msgstr "Megadott mappa…"
 
-#: lib/bookshelf_chip_editor.lua:2564
+#: lib/bookshelf_chip_editor.lua:2572
 msgid "Flattened folder…"
 msgstr "Egyszintű mappa…"
 
-#: lib/bookshelf_chip_editor.lua:2570
+#: lib/bookshelf_chip_editor.lua:2578
 msgid "Specific series…"
 msgstr "Megadott sorozat…"
 
-#: lib/bookshelf_chip_editor.lua:2575
+#: lib/bookshelf_chip_editor.lua:2583
 msgid "Specific author…"
 msgstr "Megadott szerző…"
 
-#: lib/bookshelf_chip_editor.lua:2580
+#: lib/bookshelf_chip_editor.lua:2588
 msgid "Specific genre…"
 msgstr "Megadott műfaj…"
 
-#: lib/bookshelf_chip_editor.lua:2585
+#: lib/bookshelf_chip_editor.lua:2593
 msgid "Specific collection…"
 msgstr "Megadott gyűjtemény…"
 
-#: lib/bookshelf_chip_editor.lua:2589
+#: lib/bookshelf_chip_editor.lua:2597
 msgid "Specific format…"
 msgstr "Megadott formátum…"
 
-#: lib/bookshelf_chip_editor.lua:2594
+#: lib/bookshelf_chip_editor.lua:2602
 msgid "Specific rating…"
 msgstr "Megadott értékelés…"
 
-#: lib/bookshelf_chip_editor.lua:2598
+#: lib/bookshelf_chip_editor.lua:2606
 msgid "Specific language…"
 msgstr "Megadott nyelv…"
 
-#: lib/bookshelf_chip_editor.lua:2607
+#: lib/bookshelf_chip_editor.lua:2615
 msgid "OPDS catalog…"
 msgstr "OPDS-katalógus…"
 
-#: lib/bookshelf_chip_editor.lua:2626
+#: lib/bookshelf_chip_editor.lua:2634
 msgid "Shelf source"
 msgstr "Polc forrása"
 
-#: lib/bookshelf_chip_editor.lua:2694
+#: lib/bookshelf_chip_editor.lua:2702
 msgid "Clear all filters"
 msgstr "Összes szűrő törlése"
 
-#: lib/bookshelf_chip_editor.lua:2701
+#: lib/bookshelf_chip_editor.lua:2709
 msgid "Pick filters to narrow the shelf. Several picks in the same row match any of them, so picking two genres shows books in either. Picks in different rows must all match, so adding a 5-star rating then limits those to 5-star books only. Numbers below filter choices show how many books currently match based on other selected filters."
 msgstr "Válassz szűrőket a polc szűkítéséhez. Ugyanabban a sorban több választás bármelyikének megfelelhet – két műfaj kiválasztása mindkét műfaj könyveit mutatja. Különböző sorok választásainak mindegyike teljesülnie kell: egy 5 csillagos értékelés hozzáadása csak az 5 csillagos könyvekre szűkíti a listát. A szűrési lehetőségek alatti számok megmutatják, hány könyv felel meg jelenleg a többi kiválasztott szűrőnek."
 
-#: lib/bookshelf_chip_editor.lua:2703
+#: lib/bookshelf_chip_editor.lua:2711
 msgid "Filters"
 msgstr "Szűrők"
 
-#: lib/bookshelf_chip_editor.lua:2753
+#: lib/bookshelf_chip_editor.lua:2761
 msgid "Series filter"
 msgstr "Sorozatszűrő"
 
-#: lib/bookshelf_chip_editor.lua:2768
+#: lib/bookshelf_chip_editor.lua:2776
 msgid "Reading status filter"
 msgstr "Olvasási állapot szűrő"
 
-#: lib/bookshelf_chip_editor.lua:2769
+#: lib/bookshelf_chip_editor.lua:2777
 msgid "Genre filter"
 msgstr "Műfajszűrő"
 
-#: lib/bookshelf_chip_editor.lua:2770
+#: lib/bookshelf_chip_editor.lua:2778
 msgid "Language filter"
 msgstr "Nyelvszűrő"
 
-#: lib/bookshelf_chip_editor.lua:2771
+#: lib/bookshelf_chip_editor.lua:2779
 msgid "Format filter"
 msgstr "Formátumszűrő"
 
-#: lib/bookshelf_chip_editor.lua:2772
+#: lib/bookshelf_chip_editor.lua:2780
 msgid "Rating filter"
 msgstr "Értékelésszűrő"
 
-#: lib/bookshelf_chip_editor.lua:2773
+#: lib/bookshelf_chip_editor.lua:2781
 msgid "Collection filter"
 msgstr "Gyűjteményszűrő"
 
-#: lib/bookshelf_chip_editor.lua:2775
+#: lib/bookshelf_chip_editor.lua:2783
 msgid "Filter"
 msgstr "Szűrő"
 
-#: lib/bookshelf_chip_editor.lua:2911 micromodules/trivia.lua:42
+#: lib/bookshelf_chip_editor.lua:2919 micromodules/trivia.lua:42
 #: micromodules/trivia.lua:63 micromodules/trivia.lua:70
 #: micromodules/trivia.lua:402
 msgid "Any"
 msgstr "Bármilyen"
 
-#: lib/bookshelf_chip_editor.lua:2931
+#: lib/bookshelf_chip_editor.lua:2939
 msgid "(none in library)"
 msgstr "(nincs a könyvtárban)"
 
-#: lib/bookshelf_chip_editor.lua:2989
+#: lib/bookshelf_chip_editor.lua:2997
 msgid "(no folder filters - tap to remove once added)"
 msgstr "(nincs mapp aszűrő – hozzáadás után koppintással eltávolítható)"
 
-#: lib/bookshelf_chip_editor.lua:2993
+#: lib/bookshelf_chip_editor.lua:3001
 msgid "Add folder to include"
 msgstr "Belefogl alandó mappa hozzáadása"
 
-#: lib/bookshelf_chip_editor.lua:2994
+#: lib/bookshelf_chip_editor.lua:3002
 msgid "Add folder to exclude"
 msgstr "Kizárandó mappa hozzáadása"
 
-#: lib/bookshelf_chip_editor.lua:2999
+#: lib/bookshelf_chip_editor.lua:3007
 msgid "Folder filter"
 msgstr "Mapp aszűrő"
 
-#: lib/bookshelf_chip_editor.lua:3057
+#: lib/bookshelf_chip_editor.lua:3065
 msgid "Clear sort"
 msgstr "Rendezés törlése"
 
-#: lib/bookshelf_chip_editor.lua:3113
+#: lib/bookshelf_chip_editor.lua:3121
 msgid "Sort groups by"
 msgstr "Csoportok rendezése"
 
-#: lib/bookshelf_chip_editor.lua:3115
+#: lib/bookshelf_chip_editor.lua:3123
 msgid "Within each group, then by"
 msgstr "Csoporton belül ezután"
 
-#: lib/bookshelf_chip_editor.lua:3117
+#: lib/bookshelf_chip_editor.lua:3125
 msgid "Sort by"
 msgstr "Rendezés"
 
-#: lib/bookshelf_chip_editor.lua:3119
+#: lib/bookshelf_chip_editor.lua:3127
 msgid "Then by"
 msgstr "Majd"
 

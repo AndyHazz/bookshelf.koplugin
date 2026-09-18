@@ -874,7 +874,13 @@ end
 --   false        -> none
 --   "first"      -> first in series
 --   { ... }      -> the set itself
-SpineShelf.FACE_REASONS = { "favorites", "first", "reading", "unread", "recent" }
+-- "first_unread" is the next one to read in a run rather than the run's head:
+-- once a series is part-read its first book is the least interesting cover on
+-- the shelf, and the one the reader wants shown is the one they have not got
+-- to yet ("show cover only the first unread book in the series. Basically the
+-- next unread in the series").
+SpineShelf.FACE_REASONS = { "favorites", "first", "first_unread", "reading",
+                            "unread", "recent" }
 SpineShelf.FACE_RECENT_DEFAULT = 5
 
 -- faceOutSpec(v) -> { favorites=, first=, reading=, all=, recent=N|nil }
@@ -2832,6 +2838,8 @@ function SpineShelf.plan(items, opts)
     -- The newest N across this shelf's WHOLE list, worked out once: a per-book
     -- test would re-sort the library for every spine.
     local face_recent = SpineShelf.recentSet(flat, face_spec.recent)
+    -- One entry per run: the first member that turns out to be unread.
+    local first_unread_seen = {}
 
     -- Resume INSIDE an item. A group bigger than a page cannot be paged
     -- through in item units, so a page that starts partway through one is
@@ -3046,6 +3054,21 @@ function SpineShelf.plan(items, opts)
             -- has genuinely never been opened.
             src._spine_status_checked = true
         end
+        -- THE NEXT ONE TO READ in this run. Marked here rather than in
+        -- _flattenItems because that runs before any status is known, and
+        -- "unread" is a status question. This loop walks the flattened list in
+        -- order, so the first member of a run that comes up unread IS the
+        -- earliest unread one; first_unread_seen closes the run so the rest
+        -- stay spine-on.
+        --
+        -- Only inside a run of more than one: a lone book is not a series, and
+        -- facing every unread standalone out is what the separate "Unread"
+        -- reason already does.
+        if f.in_group and not first_unread_seen[f.run_idx]
+                and SpineShelf.isUnread(src) then
+            first_unread_seen[f.run_idx] = true
+            f.first_unread_of_group = true
+        end
         -- Decided AFTER the status block: the "reading" mode needs
         -- src.status. Books only -- a plain folder keeps its spine.
         -- ANY reason is enough. They are not ranked: a book that is both a
@@ -3058,6 +3081,7 @@ function SpineShelf.plan(items, opts)
             else
                 face_out = (face_spec.favorites and fav)
                     or (face_spec.first and f.first_of_group == true)
+                    or (face_spec.first_unread and f.first_unread_of_group == true)
                     or (face_spec.reading and src.status == "reading")
                     or (face_spec.unread and SpineShelf.isUnread(src))
                     or (face_recent ~= nil and face_recent[src.filepath] == true)

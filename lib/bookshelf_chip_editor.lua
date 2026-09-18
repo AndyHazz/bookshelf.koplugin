@@ -1727,6 +1727,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                 none      = _("None"),
                 favorites = _("Favorites"),
                 first     = _("First in series"),
+                first_unread = _("First unread in series"),
                 reading   = _("Currently reading"),
                 unread    = _("Unread"),
                 all       = _("All books"),
@@ -1865,12 +1866,15 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                     showFace = function()
                         local spec = faceOutSpec()
                         local sub_rows = {
-                            -- Reading beside Favourites: the two are read as a
-                            -- pair ("spines for what I have read, covers for
-                            -- what I have not"); Unread and First in series
-                            -- likewise.
-                            { toggle("favorites"), toggle("reading") },
-                            { toggle("unread"),    toggle("first") },
+                            -- Ordered by how a reader thinks about the shelf
+                            -- rather than by when each reason was added.
+                            -- READING STATE first, the pair most people answer
+                            -- with; then the two SERIES reasons together,
+                            -- because "first in series" and "first unread in
+                            -- series" are the same question asked of a
+                            -- shelf you have started or one you have not.
+                            { toggle("unread"), toggle("reading") },
+                            { toggle("first"),  toggle("first_unread") },
                             -- How many count as "recently added", as a button
                             -- the reader can see: a 20-book shelf and a
                             -- 2000-book one want different answers.
@@ -1883,9 +1887,13 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                                         if on_change then on_change() end
                                     end, showFace)
                                 end } },
-                            -- The two that are not reasons but answers on
-                            -- their own.
-                            { { id = "face_all", text = allLabel(spec),
+                            -- Favourites sits with the two that are not
+                            -- reasons but answers on their own: it is the
+                            -- odd one out of the reasons (nothing to do with
+                            -- reading or series) and the bottom row is where
+                            -- the whole-shelf answers live.
+                            { toggle("favorites"),
+                              { id = "face_all", text = allLabel(spec),
                                 callback = function()
                                     draft.spine_face_out = "all"
                                     changed()

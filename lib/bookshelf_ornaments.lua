@@ -54,6 +54,27 @@ M.MIN_H_FRAC    = 0.45   -- ...nor one shrunk (to fit a narrow gap) below this s
                          -- of the books' height: ornaments scale with the shelf,
                          -- a speck beside tall books looked wrong (user report)
 M.HEIGHT_FRAC   = 0.8    -- height as a fraction of the books' stand height
+-- THE ROW END, where width is the scarce thing and height is not.
+--
+-- The slot used to be a stand-height SQUARE. Anything wider than that was
+-- shrunk to fit and, once the shrinking took it under MIN_H_FRAC, dropped --
+-- so a broad ornament simply never appeared, and nothing on screen said why
+-- (maintainer: "users will wonder why their ornament never appears if it's
+-- just over some hidden limit"). The square is not a rule anybody chose; it
+-- is just what falls out of using the height for the width too.
+--
+-- The rule that WAS chosen is the section break's: an ornament may take a
+-- quarter of the row, no more -- an aside, not an exhibit. So the row end
+-- asks for the same quarter, or the old square where that is bigger (tall
+-- rows on a narrow screen), and never less than it asked for before. Nothing
+-- else changes: the row gives up the width of the piece that actually stands
+-- on it, not the width offered.
+M.ASIDE_SHARE   = 0.25
+-- ...and a piece that has to spread to fill that quarter may stand shorter
+-- than one wedged into a gap between books. There is nothing above a row end
+-- to crowd, so a low wide piece reads as an ornament rather than as a
+-- mistake, where the same piece squeezed between two spines would not.
+M.ROW_END_MIN_H_FRAC = 0.3
 M.CHANCE        = 0.5    -- fraction of eligible gaps that get an ornament
 M.GROUP_CHANCE  = 0.08   -- ...and of the gaps BETWEEN sections on a grouping
                          -- chip, which are far more numerous: the same odds

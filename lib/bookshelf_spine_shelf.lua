@@ -2724,8 +2724,10 @@ function SpineShelf.plan(items, opts)
                 pad       = math.max(book_gap, b),
                 max_below = inset + fh,
                 -- Never more than a quarter of the row: a section break is
-                -- an aside, not an exhibit.
-                budget    = math.floor((opts.content_w or 0) * 0.25),
+                -- an aside, not an exhibit. Same share the row-end slot asks
+                -- for; see Orn.ASIDE_SHARE.
+                budget    = math.floor((opts.content_w or 0)
+                                       * (Orn.ASIDE_SHARE or 0.25)),
             }
             -- Row-end reservation, at the higher frequencies only.
             --
@@ -2742,11 +2744,21 @@ function SpineShelf.plan(items, opts)
             -- down to the budget by pick itself.
             if (Orn.frequency and Orn.frequency() > 0)
                     or (Orn.reservesRowEnds and Orn.reservesRowEnds()) then
-                -- The most a row-end piece may be asked to take: one
-                -- stand-height square. Which rows actually give anything up,
-                -- and how much, is decided per row below.
-                orn.row_end = math.floor(orn.stand_h * Orn.HEIGHT_FRAC)
-                             + 2 * orn.pad
+                -- The most a row-end piece may be OFFERED -- a quarter of
+                -- the row, the same share a section break may take, or the
+                -- old stand-height square where that comes out wider. Taking
+                -- the larger of the two means no shelf is offered LESS than
+                -- it was before; what changes is that a shelf with ordinary
+                -- rows now offers a slot wider than it is tall, which is what
+                -- a broad ornament needs to stand at all. See ASIDE_SHARE.
+                --
+                -- Still only an offer. The row gives up the width of the
+                -- piece that actually stands on it (availAt, below), so a
+                -- wider slot costs nothing on the rows that take a narrow
+                -- piece or none.
+                local square = math.floor(orn.stand_h * Orn.HEIGHT_FRAC)
+                local share  = orn.budget
+                orn.row_end = math.max(square, share) + 2 * orn.pad
             end
             pcall(Orn.ensureTemplate)
             -- One page, one set: plan() runs once per page and before any row
@@ -3274,6 +3286,10 @@ function SpineShelf.plan(items, opts)
             orn.row_end - 2 * orn.pad, orn.stand_h, nil, {
                 min_gap   = Screen:scaleBySize(Orn.MIN_GAP_DP),
                 min_h     = Screen:scaleBySize(Orn.MIN_H_DP),
+                -- Lower than a gap's floor on purpose: a wide piece spread
+                -- across the slot comes out low, and at a row end there is
+                -- nothing above it for that to look wrong against.
+                min_h_frac = Orn.ROW_END_MIN_H_FRAC,
                 max_below = orn.max_below,
                 chance    = owed and Orn.CHANCE_CERTAIN or Orn.ROW_END_CHANCE,
                 -- Damped like the section breaks, and zero at Rarely, so that

@@ -238,4 +238,98 @@ t.test("a piece that cannot fit the gap steps aside instead of taking the slot",
         "the fallback walk over already-standing pieces is gone")
 end)
 
+t.test("a wide ornament is given room instead of being dropped", function()
+    -- "Can we make space for wider ornaments, instead of discarding them?
+    -- Otherwise users will wonder why their ornament never appears if it's
+    -- just over some hidden limit ..." (maintainer).
+    --
+    -- The limit WAS the row-end slot: a stand-height square, which is not a
+    -- rule anybody chose, just what falls out of using the height for the
+    -- width too. Anything wider was shrunk to fit and then dropped for being
+    -- short. The slot now asks for a quarter of the row -- the one share the
+    -- shelf does declare, the same one a section break may take -- and a piece
+    -- spread across it may stand lower than one wedged between two spines.
+    local SHARE = tonumber(orn:match("M.ASIDE_SHARE%s*=%s*([%d.]+)"))
+    local FRAC  = tonumber(orn:match("M.ROW_END_MIN_H_FRAC%s*=%s*([%d.]+)"))
+    local HFRAC = tonumber(orn:match("M.HEIGHT_FRAC%s*=%s*([%d.]+)"))
+    local MFRAC = tonumber(orn:match("M.MIN_H_FRAC%s*=%s*([%d.]+)"))
+    assert(SHARE and FRAC, "the row-end constants are gone")
+    assert(FRAC < MFRAC, "a row end must allow a lower piece than a gap does")
+
+    -- The slot itself: the larger of the two, so no shelf is offered less
+    -- than it was before.
+    local slot = shelf:match("local square = math.floor%(orn.stand_h %* Orn.HEIGHT_FRAC%)\n%s*local share%s*=%s*orn.budget\n%s*orn.row_end = ([^\n]+)")
+    assert(slot and slot:find("math.max(square, share)", 1, true),
+        "the row-end slot is no longer max(stand-height square, a quarter of the row)")
+    assert(shelf:find("min_h_frac = Orn.ROW_END_MIN_H_FRAC", 1, true),
+        "the row-end pick does not pass its own minimum height")
+
+    -- The slot is now derived from content_w as well as the row height, and
+    -- it feeds fillRows, so BOTH planning passes have to arrive at the same
+    -- number or the page boundaries drift apart again. They do only because
+    -- both build content_w by the same subtraction.
+    local calls = {}
+    for body in widget:gmatch("SpineShelf.plan%(items, {\n(.-)\n%s*}%)") do
+        -- One pass reads the stashed dims (d.content_w), the other the locals
+        -- they were stashed FROM; drop the prefix and the subtraction must be
+        -- the same one.
+        calls[#calls + 1] = (body:match("content_w%s*=%s*([^\n]-),?\n") or "")
+                            :gsub("d%.", "")
+    end
+    eq(#calls, 2, "expected the render plan and the pagination plan, no more")
+    eq(calls[1], calls[2],
+        "the two planning passes no longer compute the same content width, "
+        .. "so they will disagree about the row-end slot and page boundaries")
+    -- ...and the stash really is those locals, not a second measurement.
+    local stash = widget:match("self._shelf_dims = {\n(.-)\n%s*}")
+    assert(stash and stash:find("content_w%s*=%s*content_w")
+           and stash:find("shelf_h%s*=%s*shelf_h"),
+        "the pagination pass reads dims that are no longer the render's own")
+
+    -- And the behaviour, run through the real pick(). PW5 geometry, measured
+    -- off a device screenshot: books stand 280px on a 1135px row.
+    local body = orn:match("\nfunction M%.pick%(seed, gap_px, stand_h, entries, o%)\n(.-)\nend\n")
+    assert(body, "pick not found")
+    local env = {
+        M = { HEIGHT_FRAC = HFRAC, MIN_H_FRAC = MFRAC, CHANCE = 0.5, _used = {},
+              frequency = function() return 1 end,
+              rotationFor = function() return 1 end,
+              hash = function() return 0 end,
+              budgetLeft = function() return 99 end },
+        math = math, tostring = tostring, type = type, pairs = pairs,
+    }
+    local pick = assert(load("return function(seed, gap_px, stand_h, entries, o)\n"
+        .. body .. "\nend", "pick", "t", env))()
+    local STAND, CONTENT = 280, 1135
+    local square = math.floor(STAND * HFRAC)
+    local slot_w = math.max(square, math.floor(CONTENT * SHARE))
+    assert(slot_w > square, "the quarter row must be the wider offer on a normal shelf")
+    local function stands(gap, aspect, frac)
+        env.M._used = {}
+        return pick("s", gap, STAND, { { name = "w", aspect = aspect, overhang = 0 } },
+                    { chance = math.huge, min_h_frac = frac })
+    end
+    -- Two to one: dropped by the old square, stands in the wider slot. This
+    -- is the slot's doing alone -- it clears the gap's own floor.
+    assert(not stands(square, 2.0, MFRAC), "the old slot took a 2:1 piece; this test proves nothing")
+    local wide = stands(slot_w, 2.0, MFRAC)
+    assert(wide, "a 2:1 ornament is still dropped at a row end")
+    assert(wide.w <= slot_w, "the piece overflowed the slot it was offered")
+    -- Three to one needs the other half: spread across the quarter row it
+    -- comes out low, and the gap's floor would still refuse it.
+    assert(not stands(slot_w, 3.0, MFRAC),
+        "a 3:1 piece already cleared the gap's floor; the lower row-end floor proves nothing")
+    local wider = stands(slot_w, 3.0, FRAC)
+    assert(wider, "a 3:1 ornament is still dropped at a row end")
+    -- ...and one that fits either way keeps its full height now rather than
+    -- being shrunk to the square.
+    local mid_old = stands(square, 1.5, nil)
+    local mid_new = stands(slot_w, 1.5, FRAC)
+    assert(mid_old and mid_new and mid_new.h > mid_old.h,
+        "a 1.5:1 piece is still being shrunk to fit the old square")
+    -- The quarter is a real ceiling, not a formality: something absurd is
+    -- still refused rather than drawn as a sliver.
+    assert(not stands(slot_w, 8.0, FRAC), "an 8:1 sliver was allowed to stand")
+end)
+
 t.done()

@@ -346,10 +346,20 @@ M._ensured = false
 -- to already know the feature exists, find the folder, and guess what belongs
 -- in it. One picture in place answers all three.
 --
--- Seeded ONLY when the folder is created, never topped up, so a reader who
--- deletes one does not find it back next launch -- the same rule the ornament
--- template follows.
+-- Seeded ONCE PER FILE, recorded in a setting, so a reader who deletes one
+-- does not find it back next launch.
+--
+-- It used to key off the folder's creation instead, which is a worse proxy
+-- for the same intent in two ways. A folder that already exists but is EMPTY
+-- -- which is every device that ran a build where seeding was broken, and
+-- every reader who cleared it out and then wondered where the example went --
+-- could never be seeded again. And a picture added to a LATER release would
+-- reach only people installing fresh, never anyone upgrading.
+--
+-- The record is a list of names, so deleting one is remembered per picture
+-- rather than for the folder as a whole.
 M.SEED_SUBDIR = "assets/wallpapers"
+M.SEEDED_SETTING = "wallpaper_seeded"
 
 -- copyFile(src, dst) -> true if the bytes landed.
 --
@@ -376,24 +386,45 @@ end
 --
 -- Silent on every failure: a missing seed folder (a source checkout that never
 -- ran the build, say) is not a reason to keep a reader out of the feature.
-function M.seedDir(d)
+-- seedSource() -- where the shipped pictures live, resolved from this file's
+-- own location (the idiom bookshelf_i18n and start_menu_modules use: it works
+-- whether the plugin was loaded by absolute path on a device or relatively by
+-- the test runner). One level up from lib/ is the plugin root.
+function M.seedSource()
+    local libdir = debug.getinfo(1, "S").source:match("^@(.+/)") or "./"
+    return libdir .. "../" .. M.SEED_SUBDIR
+end
+
+function M.seedDir(d, skip)
     local fs = lfs()
     if not (d and fs) then return end
+    skip = skip or {}
     -- This file's own directory, the idiom bookshelf_i18n and
     -- start_menu_modules already use -- it resolves whether the plugin was
     -- loaded by absolute path (the device) or relative (the test runner).
     -- One level up from lib/ is the plugin root.
-    local libdir = debug.getinfo(1, "S").source:match("^@(.+/)") or "./"
-    local from = libdir .. "../" .. M.SEED_SUBDIR
+    local from = M.seedSource()
     if fs.attributes(from, "mode") ~= "directory" then return end
-    local ok_iter, iter = pcall(fs.dir, from)
-    if not ok_iter then return end
-    for name in iter do
-        local ext = name:match("%.([^%.]+)$")
-        if name ~= "." and name ~= ".." and ext and EXTS[ext:lower()] then
-            pcall(copyFile, from .. "/" .. name, d .. "/" .. name)
+    -- The `for` statement takes fs.dir's returns DIRECTLY, and that is the
+    -- whole point of the closure. lfs.dir returns TWO values -- the iterator
+    -- and the directory object it needs as its state -- and the first cut
+    -- wrote `local ok, iter = pcall(fs.dir, from)`, which kept the iterator
+    -- and dropped the state. Every call then died on "directory metatable
+    -- expected, got nil", inside a pcall at the call site, so the bundled
+    -- picture was never copied on any device and nothing ever said so.
+    local seeded = {}
+    pcall(function()
+        for name in fs.dir(from) do
+            local ext = name:match("%.([^%.]+)$")
+            if name ~= "." and name ~= ".." and ext and EXTS[ext:lower()]
+                    and not skip[name] then
+                if copyFile(from .. "/" .. name, d .. "/" .. name) then
+                    seeded[#seeded + 1] = name
+                end
+            end
         end
-    end
+    end)
+    return seeded
 end
 
 function M.ensureDir()
@@ -407,12 +438,33 @@ function M.ensureDir()
     end
     -- Seed only on CREATION: existing readers keep whatever they have, and a
     -- deleted seed stays deleted.
-    if fs.attributes(d, "mode") ~= "directory" then
-        pcall(fs.mkdir, d)
-        if fs.attributes(d, "mode") == "directory" then
-            pcall(M.seedDir, d)
+    if fs.attributes(d, "mode") ~= "directory" then pcall(fs.mkdir, d) end
+    if fs.attributes(d, "mode") ~= "directory" then return end
+    -- Copy any shipped picture this install has not handed over before. The
+    -- record is what stops a deleted one coming back; the folder's existence
+    -- is not, because an empty folder and a cleared-out one look the same.
+    local ok_set, Set = pcall(require, "lib/bookshelf_settings_store")
+    if not (ok_set and Set) then return end
+    local done = Set.read(M.SEEDED_SETTING) or {}
+    if type(done) ~= "table" then done = {} end
+    local seen = {}
+    for _i = 1, #done do seen[done[_i]] = true end
+    local pending = false
+    pcall(function()
+        for name in fs.dir(M.seedSource() or "") do
+            local ext = name:match("%.([^%.]+)$")
+            if name ~= "." and name ~= ".." and ext and EXTS[ext:lower()]
+                    and not seen[name] then
+                pending = true
+            end
         end
-    end
+    end)
+    if not pending then return end
+    local ok_seed, seeded = pcall(M.seedDir, d, seen)
+    if not (ok_seed and seeded) then return end
+    for _i = 1, #seeded do done[#done + 1] = seeded[_i] end
+    pcall(Set.save, M.SEEDED_SETTING, done)
+    pcall(Set.flush)
 end
 
 -- ── which file ─────────────────────────────────────────────────────────────

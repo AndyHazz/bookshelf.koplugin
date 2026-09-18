@@ -78,11 +78,26 @@ local lfs_shim = {
         end
     end,
     mkdir = function(path) return os.execute("mkdir -p '" .. path .. "'") end,
+    -- TWO return values, like the real thing, and an iterator that REFUSES to
+    -- run without its state. lfs.dir returns (iterator, directory_object);
+    -- code that keeps only the first and drops the second dies on "directory
+    -- metatable expected, got nil". The old shim returned a single self-
+    -- contained closure, so it could not tell correct code from that -- and
+    -- did not: the bundled wallpaper was never copied on any device, for a
+    -- month, with this suite green throughout.
     dir = function(path)
         local list = {}
         for name in sh("ls -a '" .. path .. "'"):gmatch("[^\n]+") do list[#list + 1] = name end
-        local i = 0
-        return function() i = i + 1; return list[i] end
+        local state = { i = 0, __isdir = true }
+        local function iter(st)
+            if type(st) ~= "table" or not st.__isdir then
+                error("bad argument #1 to '(for generator)' (directory "
+                      .. "metatable expected, got " .. type(st) .. ")", 2)
+            end
+            st.i = st.i + 1
+            return list[st.i]
+        end
+        return iter, state
     end,
 }
 
@@ -1364,23 +1379,72 @@ t.test("the overlay's launcher glyphs drop their white backing over a picture", 
         "the backing must be nil, not false: FrameContainer tests `if self.background then`")
 end)
 
-t.test("the folder is seeded on creation, and only then", function()
+t.test("a shipped picture is handed over once, and only once", function()
     -- An empty wallpaper folder documents nothing: the reader has to already
     -- know the feature exists, find the folder, and guess what belongs in it.
     -- One picture in place answers all three.
     --
-    -- But seeding must be tied to CREATION, not to the folder being empty: top
-    -- it up on every launch and a reader who deleted the seed finds it back
-    -- next time, which reads as the plugin ignoring them. Same rule as the
-    -- ornament template.
-    local wp = io.open("lib/bookshelf_wallpaper.lua"):read("a")
-    local body = wp:match("function M%.ensureDir%(%).-\nend")
-    assert(body, "ensureDir could not be located")
-    assert(body:match("seedDir"), "the folder is never seeded")
-    -- The seed call must sit INSIDE the branch that made the directory.
-    local made = body:match('if fs%.attributes%(d, "mode"%) ~= "directory" then(.-)\n    end')
-    assert(made and made:match("seedDir"),
-        "seeding runs outside the creation branch -- deleted seeds will return")
+    -- It must not come BACK, though: top the folder up every launch and a
+    -- reader who deleted the example finds it again next time, which reads as
+    -- the plugin ignoring them.
+    --
+    -- The first rule for that was "seed only when we create the folder", and
+    -- it is the wrong proxy twice over. A folder that exists but is EMPTY can
+    -- never be seeded -- which is every device that ran the build where the
+    -- copy was silently broken -- and a picture added in a LATER release
+    -- reaches only fresh installs, never an upgrade. So the record is per
+    -- FILE, in a setting.
+    local W = fresh()
+    W.SEED_SUBDIR = "assets/wallpapers"          -- the real shipped folder
+    local store = {}
+    package.loaded["lib/bookshelf_settings_store"] = {
+        read  = function(k) return store[k] end,
+        save  = function(k, v) store[k] = v end,
+        flush = function() end,
+    }
+    local names = {}
+    for n in lfs_shim.dir("assets/wallpapers") do
+        if n ~= "." and n ~= ".." then names[#names + 1] = n end
+    end
+    assert(#names > 0, "nothing is shipped to seed with")
+
+    -- 1. A folder that does not exist yet: created and seeded.
+    local d = scratch() .. "/settings"
+    W._data_dir = d; W._lfs = lfs_shim; W._ensured = false
+    W.ensureDir()
+    local dir = d .. "/" .. W.SUBDIR
+    eq(lfs_shim.attributes(dir, "mode"), "directory", "the folder was not created")
+    for _i = 1, #names do
+        eq(lfs_shim.attributes(dir .. "/" .. names[_i], "mode"), "file",
+           names[_i] .. " was not seeded")
+    end
+    assert(store[W.SEEDED_SETTING], "the handover was not recorded")
+
+    -- 2. The reader deletes it. It must NOT come back.
+    os.execute("rm -f '" .. dir .. "/" .. names[1] .. "'")
+    W._ensured = false
+    W.ensureDir()
+    eq(lfs_shim.attributes(dir .. "/" .. names[1], "mode"), nil,
+       "a deleted picture came back; the reader's choice must stick")
+
+    -- 3. An EXISTING EMPTY folder with no record -- the state every device
+    --    was left in by the broken copy -- is seeded.
+    local d2 = scratch() .. "/settings"
+    local dir2 = d2 .. "/" .. W.SUBDIR
+    lfs_shim.mkdir(dir2)
+    eq(lfs_shim.attributes(dir2, "mode"), "directory", "setup failed")
+    store = {}
+    package.loaded["lib/bookshelf_settings_store"] = {
+        read  = function(k) return store[k] end,
+        save  = function(k, v) store[k] = v end,
+        flush = function() end,
+    }
+    W._data_dir = d2; W._lfs = lfs_shim; W._ensured = false
+    W.ensureDir()
+    eq(lfs_shim.attributes(dir2 .. "/" .. names[1], "mode"), "file",
+       "an existing empty folder was never seeded -- the folder-creation "
+       .. "rule is back")
+    package.loaded["lib/bookshelf_settings_store"] = nil
 end)
 
 t.test("seeding copies the shipped pictures byte for byte", function()

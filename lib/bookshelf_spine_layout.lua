@@ -154,6 +154,14 @@ end
 -- that book alone is wider than the shelf (it gets clipped by the painter
 -- rather than looping forever here).
 --
+-- avail is called as avail(row_index, first_book_index) -- the book that will
+-- start that row. The shelf needs it to identify a PAGE by its first book
+-- rather than by a page ordinal: the ordinal reaches the render through a
+-- lookup that can be stale, and when it is, two different pages plan as the
+-- same one and get the same ornaments (device log: two renders, different
+-- books, both `page_index=3`). The book is the page's own, so it is right by
+-- construction in both planning passes.
+--
 -- empty_ok(row_index) lifts that for one row at a time: answer true and a row
 -- whose remaining width cannot seat even its first book is emitted EMPTY
 -- (last = first - 1) and the book tries again on the next row. The shelf uses
@@ -184,8 +192,8 @@ function SpineLayout.fillRows(widths, avail_w, gap, empty_ok)
     local avail = availFn(avail_w)
     local rows = {}
     local x, first
-    local limit = avail(1)
     local n, i, was_empty = #widths, 1, false
+    local limit = avail(1, 1)
     while i <= n do
         local w = widths[i]
         if not first then
@@ -195,7 +203,7 @@ function SpineLayout.fillRows(widths, avail_w, gap, empty_ok)
                 -- the next one; `was_empty` stops the retry repeating.
                 rows[#rows + 1] = { first = i, last = i - 1, empty = true }
                 was_empty = true
-                limit = avail(#rows + 1)
+                limit = avail(#rows + 1, i)
             else
                 first, x, was_empty = i, w, false
                 i = i + 1
@@ -206,7 +214,7 @@ function SpineLayout.fillRows(widths, avail_w, gap, empty_ok)
             if need > limit then
                 rows[#rows + 1] = { first = first, last = i - 1 }
                 first, x = nil, nil
-                limit = avail(#rows + 1)
+                limit = avail(#rows + 1, i)
             else
                 x = need
                 i = i + 1

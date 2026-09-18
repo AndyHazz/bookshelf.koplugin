@@ -1081,7 +1081,7 @@ t.test("row-end ornaments alternate sides down a screen", function()
     eq(SpineShelf.rowEndSide(nil, 1), "right", "an unknown side reads as right, as pick does")
     -- and plan uses the FIRST row's side as the base for the rest
     local plan = src:match("\nfunction SpineShelf%.plan%(items, opts%)\n.-\nend\n"):gsub("%-%-[^\n]*", "")
-    assert(plan:find("SpineShelf.rowEndSide(SpineShelf.rowEndBase(page),", 1, true),
+    assert(plan:find("SpineShelf.rowEndSide(SpineShelf.rowEndBase(key),", 1, true),
         "plan does not alternate the pieces from the page's base side")
 end)
 
@@ -1094,23 +1094,35 @@ t.test("the first row's side comes from the page's parity, so neighbouring pages
     -- time. Odd pages start one side, even pages the other; a page still
     -- composes the same way every time it is shown.
     local src = io.open("lib/bookshelf_spine_shelf.lua"):read("a")
-    local body = src:match("\nfunction SpineShelf%.rowEndBase%(page_index%)\n.-\nend\n")
+    local body = src:match("\nfunction SpineShelf%.rowEndBase%(page_key%)\n.-\nend\n")
     assert(body, "rowEndBase not found")
     local SpineShelf = {}
-    assert(load(body, "rowEndBase", "t", { SpineShelf = SpineShelf, tonumber = tonumber }))()
+    assert(load(body, "rowEndBase", "t",
+        { SpineShelf = SpineShelf, tonumber = tonumber, tostring = tostring,
+          pcall = pcall, require = require }))()
     eq(SpineShelf.rowEndBase(1), "right")
     eq(SpineShelf.rowEndBase(2), "left")
     eq(SpineShelf.rowEndBase(3), "right")
     eq(SpineShelf.rowEndBase("2"), "left", "a page number as a string still counts")
-    eq(SpineShelf.rowEndBase(nil), "right", "no page (the pagination plan) reads as the first")
     assert(SpineShelf.rowEndBase(7) ~= SpineShelf.rowEndBase(8), "neighbours must differ")
+    -- A page is NAMED by its first book now, not numbered, because the number
+    -- reaches the render through a lookup that can go stale. A name still has
+    -- to give a side, and two different names must not always agree.
+    local sides = {}
+    for _i, name in ipairs({ "/a.epub", "/b.epub", "/c.epub", "/d.epub",
+                             "/e.epub", "/f.epub" }) do
+        sides[#sides + 1] = SpineShelf.rowEndBase(name)
+    end
+    local l, r = 0, 0
+    for _i = 1, #sides do
+        assert(sides[_i] == "left" or sides[_i] == "right", "a name gave no side")
+        if sides[_i] == "left" then l = l + 1 else r = r + 1 end
+    end
+    assert(l > 0 and r > 0, "every page name landed on the same side")
     local plan = src:match("\nfunction SpineShelf%.plan%(items, opts%)\n(.-)\nfunction SpineShelf%.")
     assert(plan, "plan not found")
-    -- The ordinal, not opts.page_index: the pagination pass is never given
-    -- one, so reading it there produced page 1 for the whole library while the
-    -- render used the real number. Both derive the ordinal now.
-    assert(plan:find("SpineShelf.rowEndBase(page)", 1, true),
-        "plan does not take the base side from the page's parity")
+    assert(plan:find("SpineShelf.rowEndBase(key)", 1, true),
+        "plan does not take the base side from the page's own identity")
     assert(not plan:find("row_orn[1] and row_orn[1].side or pl.side", 1, true),
         "plan still hashes the first row's side")
 end)
@@ -1120,9 +1132,9 @@ t.test("rows that get a piece alternate by PIECE, so a bookless row does not pai
     local plan = src:match("\nfunction SpineShelf%.plan%(items, opts%)\n(.-)\nfunction SpineShelf%.")
     -- Counted per PAGE, so the count cannot run on across a page boundary in
     -- the pagination pass.
-    assert(plan:find("placed_on[page] = (placed_on[page] or 0) + 1", 1, true),
+    assert(plan:find("placed_on[key] = (placed_on[key] or 0) + 1", 1, true),
         "the side must alternate over the pieces placed, not the row index")
-    assert(plan:find("SpineShelf.rowEndSide(SpineShelf.rowEndBase(page),", 1, true),
+    assert(plan:find("SpineShelf.rowEndSide(SpineShelf.rowEndBase(key),", 1, true),
         "the alternation no longer starts from the page's base side")
 end)
 

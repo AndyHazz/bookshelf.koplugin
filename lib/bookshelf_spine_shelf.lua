@@ -2617,8 +2617,16 @@ end
 -- so a page still composes the same way every time it is shown (a far jump
 -- between two pages of one parity shows the same pattern; accepted). No
 -- page -- the pagination plan spans them all -- reads as the first.
-function SpineShelf.rowEndBase(page_index)
-    local p = tonumber(page_index) or 1
+function SpineShelf.rowEndBase(page_key)
+    -- Takes the page's NAME (its first book) as well as an ordinal: the
+    -- ordinal reaches the render through a lookup that can go stale, and a
+    -- stale one made neighbouring pages mirror the wrong way round. Hashed
+    -- either way, so the two cases behave alike.
+    local p = tonumber(page_key)
+    if not p then
+        local ok, Orn = pcall(require, "lib/bookshelf_ornaments")
+        p = (ok and Orn and Orn.hash) and Orn.hash("side:" .. tostring(page_key)) or 1
+    end
     if p % 2 == 0 then return "left" end
     return "right"
 end
@@ -3281,10 +3289,43 @@ function SpineShelf.plan(items, opts)
         end
         return tonumber(opts.page_index) or 1, r
     end
+    -- WHICH PAGE THIS IS, named by its own first book rather than by an
+    -- ordinal.
+    --
+    -- The ordinal was the third thing to go wrong here and the worst,
+    -- because it is silent. The render does not work its page number out; it
+    -- is handed one, from a lookup into the page map that the OTHER planning
+    -- pass builds. When that map and the render disagree about where a page
+    -- starts -- and the reservation below is itself part of what decides that,
+    -- so they can -- two consecutive renders come through with the same
+    -- number. The device log caught exactly that: `page_index=3` twice, once
+    -- starting at "Shards of Honour" and once at "The Burning Side", and both
+    -- pages were handed the same ornament.
+    --
+    -- A page's first book is not a lookup. The render's is the book it is
+    -- actually drawing; the pagination pass records each page's as it reaches
+    -- it. Both are "the first book on this page", so they agree when the
+    -- boundaries agree and neither can go stale when they do not.
+    --
+    -- The earlier reverted attempt seeded on `the plan's first book`, which
+    -- is the CHIP's first book in the pagination pass and the page's in the
+    -- render -- a different quantity in each. Tracking it per page is the
+    -- correction to that.
+    local page_name = {}
+    local function pageKey(r, i)
+        local page = pageOf(r)
+        if page_name[page] == nil then
+            local e = i and entries[i]
+            page_name[page] = e and ((e.book and e.book.filepath)
+                                     or e.name or e.title) or false
+        end
+        return page_name[page] or ("p" .. page)
+    end
     local row_orn, row_seen, placed_on = {}, {}, {}
-    local function rowPiece(r)
+    local function rowPiece(r, i)
         if row_seen[r] then return row_orn[r] end
         row_seen[r] = true
+        local key = pageKey(r, i)
         if not (orn and orn.row_end and orn.row_end > 0) then return nil end
         local Orn = orn.mod
         local page, within = pageOf(r)
@@ -3295,9 +3336,9 @@ function SpineShelf.plan(items, opts)
         -- again. A page that gets both is a page with two ornaments on it,
         -- which is no worse than a page with one.
         local owed = within == 1 and Orn.pageGuaranteed
-                     and Orn.pageGuaranteed(page)
+                     and Orn.pageGuaranteed(key)
         local ok_p, pl = pcall(Orn.pick,
-            "page" .. page .. "|rowend|" .. within,
+            "page[" .. tostring(key) .. "]|rowend|" .. within,
             orn.row_end - 2 * orn.pad, orn.stand_h, nil, {
                 min_gap   = Screen:scaleBySize(Orn.MIN_GAP_DP),
                 min_h     = Screen:scaleBySize(Orn.MIN_H_DP),
@@ -3318,15 +3359,15 @@ function SpineShelf.plan(items, opts)
             -- parity, so neighbouring pages mirror each other; pieces below it
             -- alternate, counted by PIECE so a row that took none does not
             -- leave two neighbours on the same side.
-            placed_on[page] = (placed_on[page] or 0) + 1
-            pl.side = SpineShelf.rowEndSide(SpineShelf.rowEndBase(page),
-                                            placed_on[page])
+            placed_on[key] = (placed_on[key] or 0) + 1
+            pl.side = SpineShelf.rowEndSide(SpineShelf.rowEndBase(key),
+                                            placed_on[key])
             row_orn[r] = pl
         end
         return row_orn[r]
     end
-    local function availAt(r)
-        local pl = r and rowPiece(r)
+    local function availAt(r, i)
+        local pl = r and rowPiece(r, i)
         if pl then return content_w_books - (pl.w + 2 * orn.pad) end
         return content_w_books
     end

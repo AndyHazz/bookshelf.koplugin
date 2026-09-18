@@ -117,7 +117,7 @@ t.test("both planners derive the same page for a row", function()
         "the pagination plan no longer states its page size, so plan() has to guess")
 end)
 
-t.test("the row-end decision has no cap, and is not keyed on a book", function()
+t.test("the row-end decision has no cap, and names the page by its OWN first book", function()
     local plan = shelf:match("\nfunction SpineShelf%.plan%(items, opts%)\n(.-)\nfunction SpineShelf%.")
     assert(plan, "plan not found")
     -- It used to stop at 8 rows, which in the whole-library pass is the first
@@ -125,10 +125,27 @@ t.test("the row-end decision has no cap, and is not keyed on a book", function()
     assert(not plan:find("math.min(opts.n_rows or 1, 8)", 1, true),
         "the row-end loop is capped again; in the pagination pass that caps "
         .. "the whole library rather than a page")
-    assert(not plan:find('tostring(first_fp) .. "|rowend|"', 1, true),
-        "the row-end seed is a book again, which differs between the passes")
-    assert(plan:find('"page" .. page .. "|rowend|" .. within', 1, true),
-        "the row-end seed is not page-relative")
+    -- THE ORDINAL WAS THE PROBLEM. The render does not work its page number
+    -- out; it is handed one, looked up in the page map the OTHER planning
+    -- pass builds. The device log caught two consecutive renders arriving as
+    -- page_index=3 -- one starting at "Shards of Honour", one at "The Burning
+    -- Side" -- and both were handed the same ornament. The seed must not be
+    -- able to go stale like that.
+    assert(not plan:find('"page" .. page .. "|rowend|" .. within', 1, true),
+        "the seed is the page ORDINAL again, which reaches the render through "
+        .. "a lookup that can be stale")
+    assert(plan:find('"page[" .. tostring(key) .. "]|rowend|" .. within', 1, true),
+        "the row-end seed is not the page's own name")
+    -- ...and the name is the page's first book, recorded per page as the fill
+    -- reaches it. The reverted first attempt used `the plan's first book`,
+    -- which is the CHIP's first book in one pass and the page's in the other.
+    local keyfn = plan:match("local function pageKey%(r, i%)(.-)\n    end")
+    assert(keyfn, "pageKey is gone")
+    assert(keyfn:find("page_name[page]", 1, true) and keyfn:find("entries[i]", 1, true),
+        "the page's name is not taken from the book that starts it")
+    assert(plan:find("local function availAt(r, i)", 1, true),
+        "availAt no longer receives the book that starts the row, so the "
+        .. "pagination pass cannot name a page as it reaches it")
 end)
 
 t.test("page-relative options stay out of the entries cache key", function()

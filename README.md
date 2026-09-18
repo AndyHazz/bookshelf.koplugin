@@ -13,7 +13,7 @@ A friendly home screen for KOReader. Browse your library by series, author, genr
   <img src="assets/screenshot-home.png" width="19%" alt="Bookshelf home screen" />
   <img src="assets/screenshot-series.png" width="19%" alt="A shelf grouped by series" />
   <img src="assets/screenshot-shelf-editor.png" width="19%" alt="The shelf editor" />
-  <img src="assets/screenshot-hero-editor.png" width="19%" alt="The hero card line editor" />
+  <img src="assets/screenshot-hero-editor.png" width="19%" alt="The top panel card line editor" />
   <img src="assets/screenshot-search.png" width="19%" alt="Library search results" />
 </p>
 
@@ -61,7 +61,7 @@ Each shelf remembers its own **filters** (reading status, genre, language, forma
 
 **To edit a shelf:** long-press it. The footer of the editor has **+ Add new shelf** if you'd like to start a fresh one.
 
-The same menu (**menu -> Bookshelf shelves…**) also has **Shelf menu font size** for adjusting how big the shelves render across the top of the screen.
+The same menu (**menu -> Edit shelves…**) also has **Shelf menu font size** for adjusting how big the shelves render across the top of the screen.
 
 When you have more shelves than fit across the screen, the bar splits into pages: tap the **>** / **<** chevrons at the end of the row, or swipe left/right on the bar, to move between them (the active shelf's page shows first). On e-ink the change plays as a wipe -- see [Animations](#animations).
 
@@ -73,11 +73,11 @@ Folder names aren't searched by default: in most libraries the folders mirror th
 
 On an [OPDS catalogue](#opds-catalogues) shelf, the same search icon searches the catalogue itself (when the catalogue supports search), so you can look up a title or author across the whole catalogue rather than just the page on screen.
 
-### The hero card (top of the shelf area)
+### The top panel (above the shelf)
 
-The big card at the top of the screen previews the focused book. Tap a cover on the grid to focus it; the card refreshes with its title, author, description, rating, and progress. Tap the hero card cover to open the book.
+The big card at the top of the screen previews the focused book. Tap a cover on the grid to focus it; the card refreshes with its title, author, description, rating, and progress. Tap the top panel card cover to open the book.
 
-The hero card has eight sections you can show, hide, or restyle:
+The top panel card has eight sections you can show, hide, or restyle:
 
 - **Status line** -- top right; defaults to disk space, battery, frontlight, Wi-Fi, and time.
 - **Rating** -- five tappable stars (off by default; tap a star to set or clear).
@@ -88,7 +88,7 @@ The hero card has eight sections you can show, hide, or restyle:
 - **Tags (interactive)** -- a strip of tappable pills for the book's author, series, genres, collections, and parent folder. Tap a pill to jump straight to that shelf. Off by default.
 - **Progress** -- bottom-anchored line with an inline progress bar.
 
-To edit them, open **menu -> Settings -> Edit book detail view** (see [Customising the hero card](#customising-the-hero-card) below).
+To edit them, open **menu -> Settings -> Edit book detail view** (see [Customising the top panel](#customising-the-top-panel) below).
 
 ### Micro-modules on the home screen
 
@@ -100,31 +100,31 @@ The home screen can show a grid of **micro-modules** -- small live panels like a
 
 Micro-modules can appear in three independent places, each its own on/off checkbox under **Bookshelf settings -> Micro modules**:
 
-- **In hero area** -- a **grid** entry at the right of the shelf menu swaps the book preview at the top of the screen for the grid (tap it to toggle between the two).
+- **In the top panel** -- a **grid** entry at the right of the shelf menu swaps the book preview at the top of the screen for the grid (tap it to toggle between the two).
 - **Full-screen button** -- a grid button sits in the footer opposite the start menu; tapping it opens the modules full-screen as a dashboard, with the status line across the top. Close it with the **X**, a tap on empty space, or Back. The usual KOReader gestures (top-edge menu, edge swipes for brightness, corner actions) still work over it.
 - **In start menu** -- module cards appear in the [start menu](#micro-modules) launcher alongside your other items.
 
-You can run any combination. The **hero** and **full-screen** views keep **separate module lists**, so you can show different modules in each -- the full-screen list starts as a copy of your hero modules and then the two diverge as you edit them. Turning all three off disables micro-modules entirely (a quick way to rule them out when troubleshooting).
+You can run any combination. The **top panel** and **full-screen** views keep **separate module lists**, so you can show different modules in each -- the full-screen list starts as a copy of your top-panel modules and then the two diverge as you edit them. Turning all three off disables micro-modules entirely (a quick way to rule them out when troubleshooting).
 
 In either grid:
 
-- **Long-press a module** to move it, make it wider or narrower (`-` / `+`), add another from the picker (**+**), or remove it. In the hero grid you can also send a module to one of four **pages**; the full-screen view shows everything at once, so it has no pages.
-- **Swipe left/right** on the hero grid, or tap the in-grid arrows, to flip between pages.
-- **Long-press the grid shelf** to reset the hero grid to its defaults, or to remove micro-modules from the hero area.
+- **Long-press a module** to move it, make it wider or narrower (`-` / `+`), add another from the picker (**+**), or remove it. In the module grid you can also send a module to one of four **pages**; the full-screen view shows everything at once, so it has no pages.
+- **Swipe left/right** on the module grid, or tap the in-grid arrows, to flip between pages.
+- **Long-press the grid shelf** to reset the module grid to its defaults, or to remove micro-modules from the top panel.
 - On **physical-button (D-pad) devices**, move the cursor across the grid with the arrow keys, open a module with the centre key, and long-press to edit it.
 
-The grid packs square modules (clocks, launcher icons) tightly and lets text modules fill the rest of the row. Set the number of **columns and rows** under **menu -> Edit shelf size**. Hero micro-modules have their own entry under **menu -> Settings -> Text size** so you can scale the grid independently of the book hero.
+The grid packs square modules (clocks, launcher icons) tightly and lets text modules fill the rest of the row. Set the number of **columns and rows** under **menu -> Adjust shelf/top panel size**. Micro-modules have their own entry under **menu -> Settings -> Text size** so you can scale the grid independently of the book detail view.
 
 ### The shelf grid (the books)
 
 Each cover on the grid is either a book or a stack of books (for series, authors, etc.).
 
-- **Tap** a book to preview it in the hero card.
-- **Tap** the hero card cover to actually open the book.
+- **Tap** a book to preview it in the top panel card.
+- **Tap** the top panel card cover to actually open the book.
 - **Long-press** a book to open the book menu (see below).
 - **Long-press** a stack to pin it to the shelf menu as its own shelf.
-- **Swipe up** to collapse the hero and show more books at once.
-- **Swipe down** on the hero to restore it; **swipe down** on the shelf area to refresh the library after adding new books over USB or Calibre.
+- **Swipe up** to collapse the top panel and show more books at once.
+- **Swipe down** on the top panel to restore it; **swipe down** on the shelf area to refresh the library after adding new books over USB or Calibre.
 
 Every shelf shows a line of text under each cover -- the title by default. One setting drives it everywhere: **menu -> Settings -> Cover display -> Show text below covers** picks Title, Author, Series, or None (covers then use the full row). Its text size is **Cover labels** under **Settings -> Text size**. Books without covers already show their title and author on the placeholder itself, so those skip the extra label.
 
@@ -132,11 +132,11 @@ The full gesture reference is in [Gestures cheatsheet](#gestures-cheatsheet) bel
 
 ### List view
 
-Any shelf can be a text list instead of covers. Long-press the shelf and pick **List** under Show as, or hold the page range in the footer to cycle whichever shelf you are looking at through covers, list and spines. Every shelf shows **Covers** until you change it; the third option, **Auto**, switches that shelf to a list whenever it is expanded or drilled into a folder or stack, and back to covers on the two rows under the hero. The same dialog sets how many **rows** (1 to 12) and **columns** (1 to 3) the list uses, and pinching the shelf fits one more or one fewer row.
+Any shelf can be a text list instead of covers. Long-press the shelf and pick **List** under Show as, or hold the page range in the footer to cycle whichever shelf you are looking at through covers, list and spines. Every shelf shows **Covers** until you change it; the third option, **Auto**, switches that shelf to a list whenever it is expanded or drilled into a folder or stack, and back to covers on the two rows under the top panel. The same dialog sets how many **rows** (1 to 12) and **columns** (1 to 3) the list uses, and pinching the shelf fits one more or one fewer row.
 
 Search results keep their own view -- covers unless you say otherwise. Long-press the **Search results** pill (or hold the page number) while viewing results to pick Covers, List or Auto for them.
 
-Rows are built from the same editable lines as the hero card: up to six per row, each with its own template, font, size, weight, slant, case and alignment, edited under **menu > Settings > List view**. Tokens work in every line, so a row can carry a progress bar (`%bar`, or `%bar{rel}` to make its length reflect how long the book is), file size, dates, or anything else from the [Token cheatsheet](#token-cheatsheet). As rows get shorter, lines drop from the bottom up, so the title and author are the last to go.
+Rows are built from the same editable lines as the top panel card: up to six per row, each with its own template, font, size, weight, slant, case and alignment, edited under **menu > Settings > List view**. Tokens work in every line, so a row can carry a progress bar (`%bar`, or `%bar{rel}` to make its length reflect how long the book is), file size, dates, or anything else from the [Token cheatsheet](#token-cheatsheet). As rows get shorter, lines drop from the bottom up, so the title and author are the last to go.
 
 Series, authors and folders draw as a fan of their members' covers; OPDS subcatalogues become full-width buttons. The list's text size lives under **Settings > Text size**.
 
@@ -145,7 +145,7 @@ Series, authors and folders draw as a fan of their members' covers; OPDS subcata
 The third style. Books stand edge-on on a wooden plank, the way they do on a real shelf, so a lot of them fit at once and the shelf reads as an object rather than a grid.
 
 <p align="center">
-  <img src="assets/screenshot-spines-shelf.png" width="45%" alt="A spine shelf with the hero card above it" />
+  <img src="assets/screenshot-spines-shelf.png" width="45%" alt="A spine shelf with the top panel card above it" />
   <img src="assets/screenshot-spines-series.png" width="45%" alt="A full-screen spine shelf grouped by series, with section labels" />
 </p>
 
@@ -161,9 +161,17 @@ Long-press a shelf and pick **Spines** under Show as, or hold the page range in 
 
 **Grouping.** On a grouped shelf (series, authors, genres) there are no folders to drill into -- the groups are flattened onto the shelf and each run gets a label at the shelf's edge. Everything is out where you can see it.
 
-**Ornaments.** Drop SVG files into KOReader's `icons/bookshelf.ornaments` folder and they turn up now and then in the gaps, standing on the plank like the books. A potted plant and a cactus are seeded there to start you off; delete them if you would rather not see them and they stay deleted. `template.svg` carries the conventions in its comments: the bottom of the viewBox is the plank surface, `bookshelf:overhang=N` lets part of the shape hang over the front edge, and the renderer is small, so bold solid shapes work and text, filters and masks do not.
+**Spine text direction.** Which way a title runs down a spine: **Top to bottom** (the default, how British and American books are printed) or **Bottom to top** (Continental European). Set it once for the whole library under **menu -> Settings -> Library & search**.
 
-**Shelf plank colour** is under **Settings -> Colours**. The lit top surface and the shaded front edge are both tinted from that one colour; the default is light oak.
+**Ornaments.** Drop PNG or SVG files into KOReader's `icons/bookshelf.ornaments` folder and they turn up in the gaps, standing on the plank like the books. A potted plant and a cactus are seeded there to start you off; delete them if you would rather not see them and they stay deleted.
+
+How often they appear is per shelf, next to **Author on spine** in the shelf's style dialog: **None**, **Rarely**, **Often** or **Always**. Above None, every so often a page is promised a piece whether or not a wide enough gap happens to fall there, so a densely packed shelf still gets some.
+
+Shape is up to you. A row end offers as much width as the row can spare once it has kept room for one book, so a broad ornament stands at full height rather than being shrunk away, and a row that cannot fit a book beside one simply carries the ornament alone. Pieces take turns, so everything in the folder gets its share rather than the same two recurring.
+
+`template.svg` carries the conventions in its comments: the bottom of the viewBox is the plank surface, `bookshelf:overhang=N` lets part of the shape hang over the front edge, and the renderer is small, so bold solid shapes work and text, filters and masks do not.
+
+**Shelf plank colour** is under **Settings -> Background and colours -> Accent colours**. The lit top surface and the shaded front edge are both tinted from that one colour; the default is light oak.
 
 Spines are not available for OPDS catalogues, which have no local page counts or cover art to measure.
 
@@ -223,7 +231,7 @@ Micro-modules are small live panels. Add them to the start menu through **Add ne
 - **Reading goal** -- progress towards a daily reading target.
 - **Reading stats** -- time and pages read today and this week (needs the `statistics` plugin).
 - **Reading streak** -- your current and best reading streak, in days and weeks (needs the `statistics` plugin).
-- **Random book** -- rolls an unread book from the current shelf (or your whole library) into the hero card; tap the dice for another.
+- **Random book** -- rolls an unread book from the current shelf (or your whole library) into the top panel card; tap the dice for another.
 - **Shelf count** -- how many books are on the current shelf.
 - **Countdown** -- "N days until <your label>" for a date you pick; counts up ("N days since…") once the date has passed. Add it more than once for several dates, each with its own label.
 - **Weather**, **On this day**, **Trivia**, **Daily fun** (jokes, facts and riddles) -- live content from the internet.
@@ -235,7 +243,7 @@ Each module can carry its own settings (reached via **Module settings…** when 
 
 ## The book menu (long-press a cover)
 
-Long-press any cover on the shelf or in the hero card -- or tap a book's **+N** tags pill -- to open the book detail popup, a tabbed window with everything about the book. The header shows a cover thumbnail, the title and author, and (when the book has bookmarks or highlights) a **N bookmarks ›** link in the top-right corner; tap it to open KOReader's bookmark browser for that book and jump into it. Along the bottom sit **Close**, two **zoom** buttons (magnifier icons) for text size, and **Open**.
+Long-press any cover on the shelf or in the top panel card -- or tap a book's **+N** tags pill -- to open the book detail popup, a tabbed window with everything about the book. The header shows a cover thumbnail, the title and author, and (when the book has bookmarks or highlights) a **N bookmarks ›** link in the top-right corner; tap it to open KOReader's bookmark browser for that book and jump into it. Along the bottom sit **Close**, two **zoom** buttons (magnifier icons) for text size, and **Open**.
 
 There are five tabs:
 
@@ -292,7 +300,7 @@ Bookshelf can browse online book catalogues (OPDS) as ordinary shelves -- Projec
 
 Covers download in the background as you browse, a few at a time, and appear as they land; until one arrives its book shows a placeholder with the title and author. Nothing is fetched for pages you never look at.
 
-**Previewing and downloading.** Tap a book to preview it in the hero card -- the description comes straight from the catalogue, and the cover is fetched in the background and appears in the hero and on the shelf as it lands. Tap the same cover again (or the hero) for the download view: available formats are grouped under **Recommended** and **Alternatives**, with the best format for KOReader listed first, and **Read now** opens the book as soon as it arrives. Downloads are saved into your library folder -- by default wherever KOReader's own download folder points, or your home folder if that isn't set. Each catalogue shelf can file its downloads somewhere of its own instead: long-press the shelf to edit it and use **Saves to**, so (say) Gutenberg classics and your own server's books land in different folders. The folder has to sit inside your home folder, otherwise the books would never appear on your shelves. The catalogue's description stays with the book after download, so the hero and book menu keep showing it.
+**Previewing and downloading.** Tap a book to preview it in the top panel card -- the description comes straight from the catalogue, and the cover is fetched in the background and appears in the top panel and on the shelf as it lands. Tap the same cover again (or the top panel card) for the download view: available formats are grouped under **Recommended** and **Alternatives**, with the best format for KOReader listed first, and **Read now** opens the book as soon as it arrives. Downloads are saved into your library folder -- by default wherever KOReader's own download folder points, or your home folder if that isn't set. Each catalogue shelf can file its downloads somewhere of its own instead: long-press the shelf to edit it and use **Saves to**, so (say) Gutenberg classics and your own server's books land in different folders. The folder has to sit inside your home folder, otherwise the books would never appear on your shelves. The catalogue's description stays with the book after download, so the top panel and book menu keep showing it.
 
 **Big catalogues, and finding the end.** Large catalogues load as you go: the page indicator reads "page N of M+", where the **+** means nobody knows yet how far it goes, and paging forward pulls the next batch. Catalogues are not reliable about their own size -- most don't say, and at least one advertises a round number it never actually serves -- so the count is what's loaded rather than a promise.
 
@@ -356,7 +364,7 @@ If you also use `hardcoverapp.koplugin`, Bookshelf can link books to Hardcover a
 - **Use Hardcover image** / **Use Hardcover description** -- per-book toggles (shown once linked) that override the book's own cover or description with Hardcover's. See below for how these are set automatically.
 - **Clear link** -- remove the Hardcover link.
 
-When a book is linked, its popup gains a **Reviews** tab (and the hero rating row's "N reviews" opens the popup straight to it). Reviews are filtered to spoiler-free ones, and cached, so they reopen offline once fetched.
+When a book is linked, its popup gains a **Reviews** tab (and the rating row's "N reviews" opens the popup straight to it). Reviews are filtered to spoiler-free ones, and cached, so they reopen offline once fetched.
 
 **Linking the whole library at once.** **Hardcover enrichment -> Auto-link all books** links every unlinked book in one pass, fetching each match's details (description, cover, rating) as it goes. You pick how to match:
 
@@ -369,7 +377,7 @@ It contacts Hardcover at about one book per second with cancellable progress, an
 
 **Ratings and metadata.** Two more options sit in the **Hardcover enrichment** menu:
 
-- **Show Hardcover ratings in hero** -- the hero rating row shows the cached public Hardcover rating instead of KOReader's local one (and turns the rating row on).
+- **Show Hardcover ratings** -- the rating row shows the cached public Hardcover rating instead of KOReader's local one (and turns the rating row on).
 - **Use Hardcover metadata** -- for linked books, shows Hardcover's title, author, series and genres in place of the book's own (a clean switch, no merging). This feeds sorting, search and series grouping for those books; non-linked books are untouched. **Hardcover genres used** caps how many of a book's genres become tag pills and genre stacks. Covers and descriptions stay under their per-book toggles. The metadata is always cached, so this only decides whether it's used.
 
 **Managing the cache.** **Hardcover enrichment -> Manage Hardcover data** holds **Refresh ratings only**, **Refresh linked book details**, **Clear cache (keeps links)**, and **Remove all Hardcover data** (unlinks everything and restores any covers Bookshelf installed).
@@ -382,12 +390,14 @@ Bookshelf does not rewrite EPUB files. Descriptions, ratings and the other cache
 
 ## Layout
 
-Open **menu -> Edit shelf size…** for a live overlay that resizes the grid without leaving the home screen. Two nudge rows:
+**The footer counter** says what it can stand behind. A cover or list shelf pages by a fixed grid, so it reads "Page 3 of 27". A spine shelf fits a variable number of books to a row, so a page number there would be a guess -- it reads a book range instead, "9-16 of 247". Tapping it opens the go-to dialog, which asks for whichever of the two is on screen: a page number on a grid shelf, a book number on a spine shelf. The same dialog takes a letter to jump to, or any text to search for.
+
+Open **menu -> Adjust shelf/top panel size…** for a live overlay that resizes the grid without leaving the home screen. Two nudge rows:
 
 - **Columns** -- how many covers fit across, which also sets how large they render.
 - **Rows** -- how many rows of them the shelf gets.
 
-Together they decide how the screen is divided: the shelf takes what these two ask for and the hero card above fills whatever is left. List and spine shelves use that same space with their own row counts, which is why the shelf previews as covers while the overlay is open.
+Together they decide how the screen is divided: the shelf takes what these two ask for and the top panel card above fills whatever is left. List and spine shelves use that same space with their own row counts, which is why the shelf previews as covers while the overlay is open.
 
 The layout auto-fits your screen and orientation, so the same settings adapt between portrait and landscape. Changes preview in real time behind the overlay; **Accept** keeps them, **Cancel** reverts. Pinching the shelf itself is the quicker way to the same thing, and on list and spine shelves it moves in half steps, so four rows can become three rather than jumping to two.
 
@@ -426,17 +436,34 @@ Each cover can show small badges and bars at the corners. Configure them under *
 - **Show page count** -- a page-count pill in the bottom-right ("123 p"). (For EPUBs it works once you've opened the book at least once.)
 - **Show series #** -- a "#3" badge on covers in a series. Tri-state: Always, Within series folder (so mixed shelves stay clean), or Never.
 
-The colours of these elements are set separately under **Settings -> Colors** (see below).
+The colours of these elements are set separately under **menu -> Background and colours -> Accent colours** (see below).
 
-The same **Cover display** menu also has **True cover aspect ratio**. Off by default, Bookshelf fits every cover to a uniform book rectangle; turn this on to show each cover at its real shape instead. Covers keep the same width but vary in height -- on the shelf they sit along the bottom shelf line, in the hero area they align to the top -- so wide or square covers stop being cropped or stretched.
+The same **Cover display** menu also has **True cover aspect ratio**. Off by default, Bookshelf fits every cover to a uniform book rectangle; turn this on to show each cover at its real shape instead. Covers keep the same width but vary in height -- on the shelf they sit along the bottom shelf line, in the top panel they align to the top -- so wide or square covers stop being cropped or stretched.
 
 Two more rows in that menu change how a cover is drawn rather than how it is sized. **Square cover corners** replaces the rounded card shape with square ones, and **No cover drop shadow** draws covers flat against the page rather than raised off it, giving their reserved pixels back to the cover so it grows slightly. They are independent, so a flatter grid can keep the shadow or lose it separately. Both are off by default, and list view's cover column is unaffected either way -- a table cell has never had the chrome.
 
 ---
 
-## Colours
+## Background and colours
 
-Open **menu -> Settings -> Colors** to recolour the cover chrome. Bookshelf keeps **independent day-mode and night-mode palettes** -- the top row of the menu shows which one you're editing ("Editing day-mode colours" / "Editing night-mode colours") and tapping it flips night mode so you can set each theme. Anything you leave unset uses a sensible default for that mode.
+Everything that decides how the shelf looks now lives in one place: **menu -> Background and colours**, one level up from Settings. It used to be split between a Colours menu and a separate Wallpaper menu, which put the theme, the background colour and the panel shading in three different places.
+
+### Wallpaper
+
+- **Default wallpaper image** -- a picture behind the whole shelf. Drop your own into `koreader/settings/wallpapers` (the menu tells you the path and offers to create it) and they appear in the list. One is bundled: **Leafy wallpaper**.
+- **Full screen shelves image** -- a different picture for full screen shelves. That view is wall-to-wall covers and spines, where a backdrop that reads well behind the top panel is often too busy.
+- **Background colour** -- the page ground. Useful on its own with no wallpaper at all, and it is what shows through anywhere the picture is kept out.
+- **Panel shading** -- how much the top panel and the footer are shaded so their buttons stay legible over a picture: **Transparent**, **Light**, **Heavy** (the default) or **Solid**. Transparent reads well over a plain texture and poorly over a busy photograph; Solid hides the picture behind those strips entirely.
+
+### Shelf theme
+
+**Light**, **Dark**, or **Auto (follow device)** -- light or dark colours for the shelf independently of KOReader's night mode, so you can keep the reader dark and the shelf light, or the other way round.
+
+**Text ink** sets the colour of the shelf's own text: black by default in the light theme, white in the dark one. Covers, wallpaper and accent colours are unaffected.
+
+### Accent colours
+
+The rest of the palette sits under **Accent colours**, grouped by what it affects. Bookshelf keeps **independent day-mode and night-mode palettes** -- the top row shows which one you're editing ("Editing day-mode colours" / "Editing night-mode colours") and tapping it flips night mode so you can set each theme. Anything you leave unset uses a sensible default for that mode.
 
 Each colour is chosen as a "% black on screen" value (so it reads the same way in both modes), and long-pressing a row resets just that colour. The pickers:
 
@@ -447,6 +474,9 @@ Each colour is chosen as a "% black on screen" value (so it reads the same way i
 - **Border color** -- one shared colour for cover frames, badge borders, the bookmark/star halos, the cardboard edge on folder and stack cards, and placeholder (no-image) covers.
 - **Folder overlay background** -- the cardboard fill behind folder and stack cards.
 - **Folder text color** -- the label text on those cards (the card outline follows Border colour).
+- **Shelf plank colour** -- the plank the Spines style stands its books on; the lit top surface and the shaded front edge are both tinted from it.
+- **Shelf menu background** -- the solid bar behind the shelf menu. White by day and black at night unless you change it.
+- **Micro-module background** -- the card behind each micro-module.
 - **Reset to default colors** -- restore the whole palette for the current mode.
 
 On colour e-ink panels (Kaleido), a separate **Color panel dithering** toggle under **Advanced -> Performance tweaks** keeps covers at full saturation when the shelf redraws; it's on by default, and the row only appears on colour devices.
@@ -476,7 +506,7 @@ What it adds:
 - Calibre's title, authors, series, tags, language and description win over the values embedded in the book file, so edits made in Calibre show up without reconverting books
 - Calibre's author sort ("Le Guin, Ursula K.") orders author shelves, including hand-edited sort values
 - A custom column of the **Series** type gives its books a second series shelf alongside the primary one
-- **Any custom column you create in Calibre** can be shown in a token line via `%calibre{name}`, using the column's lookup name: a column `#mood` renders with `%calibre{mood}` (the `#` is optional). Text, fixed-value lists, numbers, dates, yes/no and multi-value columns all work; the one exception is long-text ("Comments"-type) columns, which are too big for a one-line token. This works anywhere tokens do -- hero card sections, list view lines, and conditionals like `[if:calibre{mood}="cosy"]`
+- **Any custom column you create in Calibre** can be shown in a token line via `%calibre{name}`, using the column's lookup name: a column `#mood` renders with `%calibre{mood}` (the `#` is optional). Text, fixed-value lists, numbers, dates, yes/no and multi-value columns all work; the one exception is long-text ("Comments"-type) columns, which are too big for a one-line token. This works anywhere tokens do -- top panel card sections, list view lines, and conditionals like `[if:calibre{mood}="cosy"]`
 - Three standard Calibre fields are exposed the same way: `%calibre{pubdate}` (publication year), `%calibre{publisher}` and `%calibre{rating}`. Date columns -- standard or custom -- show as the year
 
 **What can be shelved, and what can only be shown.** Calibre's **tags** become genres, so they drive genre shelves, the genre filter and `%genres` exactly like tags read from the book file. A custom column of the **Series** type gets its own series shelf, as above. Every other custom column is display-only: it can be printed in a token line and tested in a conditional, but you cannot yet build a shelf per column or filter by one.
@@ -500,9 +530,9 @@ Whichever you choose, variant spellings of the same author are merged into one e
 
 ---
 
-## Customising the hero card
+## Customising the top panel
 
-Open **menu -> Settings -> Edit book detail view** to toggle each of the book's sections on or off; tap a section's row to open its **line editor**. The status line (the strip of device and reading info at the very top) is configured the same way from its own **Status line** entry just above, and the hero card's overall text size lives under **Settings -> Text size -> Hero card**.
+Open **menu -> Settings -> Edit book detail view** to toggle each of the book's sections on or off; tap a section's row to open its **line editor**. The status line (the strip of device and reading info at the very top) is configured the same way from its own **Status line** entry just above, and the top panel card's overall text size lives under **Settings -> Text size -> Top panel**.
 
 **Show status line.** Bookshelf can put this same line across the top of the reader, so it does not change as you move between the shelf and a book. The switch lives under **menu -> Settings -> Advanced -> While reading**, alongside the other things Bookshelf can draw into the reader; the line itself is still edited here, and the reader follows. It is drawn by the same code that draws it on the shelf, so the two are identical by construction. This works on its own; if you also use [Bookends](https://github.com/AndyHazz/bookends.koplugin), its top row and any top-anchored progress bar move down to make space.
 
@@ -526,11 +556,11 @@ The line editor lets you change the text and styling of one section. You'll see 
 | **Cancel** | Revert and close. |
 | **Save** | Persist and close. |
 
-Edits update the hero card behind the editor in real time.
+Edits update the top panel card behind the editor in real time.
 
 ### Tokens (placeholders)
 
-Any text in a hero section can include **tokens** -- placeholders that get replaced with live data. For example, `%title` becomes the book title; `%book_pct` becomes the percentage read.
+Any text in a top panel section can include **tokens** -- placeholders that get replaced with live data. For example, `%title` becomes the book title; `%book_pct` becomes the percentage read.
 
 You can wrap things in `[if:...]...[/if]` to show them only when the relevant data exists. For instance, `[if:series]%series_name #%series_num[/if]` only renders when the book is in a series.
 
@@ -543,12 +573,12 @@ The full token list is in the [Token cheatsheet](#token-cheatsheet) below.
 Bookshelf ships three open-licensed fonts (see `fonts/CREDITS.md`):
 
 - **Roboto Condensed** (Apache 2.0) -- the default Bookshelf UI font on new installs.
-- **Inter ExtraBold** (OFL) -- default hero title.
-- **Caveat** (OFL) -- default hero author.
+- **Inter ExtraBold** (OFL) -- default top panel title.
+- **Caveat** (OFL) -- default top panel author.
 
 Set the interface font under **Bookshelf settings -> Bookshelf UI font** (defaults to
 *Follow KOReader UI font* for existing users). The fonts are also copied into your font
-folder so they're selectable in the hero card's font picker after a restart. Existing
+folder so they're selectable in the top panel card's font picker after a restart. Existing
 users can adopt the new detail look via **Reset book detail area to defaults**.
 
 ---
@@ -603,33 +633,34 @@ Once found, the counts feed spine widths, `%page_count`, `%pages_left`, and `%ba
 Everything beyond this point is the full feature reference. Expand any section you need.
 
 <a id="gestures-cheatsheet"></a>
+<a id="gestures-cheatsheet"></a>
 <details>
 <summary><strong>Gestures cheatsheet</strong></summary>
 
 | Gesture | Where | What it does |
 |---------|-------|--------------|
-| **Tap** | Shelf cover (normal mode) | Preview the book in the hero card |
-| **Tap** | Shelf cover (expanded mode) | Open the book directly |
-| **Tap** | Hero card cover | Open the previewed book |
+| **Tap** | Shelf cover (normal mode) | Preview the book in the top panel card |
+| **Tap** | Shelf cover (full screen mode) | Open the book directly |
+| **Tap** | Top panel cover | Open the previewed book |
 | **Tap** | OPDS catalogue cover (already previewed) | Open the download view |
 | **Tap** | OPDS folder tile | Drill into the category |
-| **Tap** | Hero card description | Open the full description in a scrollable viewer |
-| **Tap** | Hero card star | Set / clear the book's rating |
+| **Tap** | Top panel description | Open the full description in a scrollable viewer |
+| **Tap** | Top panel star | Set / clear the book's rating |
 | **Tap** | Shelf | Switch shelf |
 | **Tap** | Search icon | Open the library search |
-| **Tap** | "9-16 of 247" footer | Open the go-to dialog: jump by page number, jump to the first item starting with a letter, or search the library |
+| **Tap** | The footer counter | Open the go-to dialog: jump by number, jump to the first item starting with a letter, or search the library |
 | **Tap** | First / prev / next / last chevrons | Page navigation |
 | **Long-press** | Shelf | Open the shelf editor |
 | **Long-press** | Shelf book cover | Open the per-book menu |
 | **Long-press** | Shelf stack cover (series, author, etc.) | Pin the stack to the shelf menu |
 | **Long-press** | Prev / next chevron | Skip 10 pages back / forward (clamped to first / last) |
-| **Long-press** | Hero card | Open the per-book menu for the previewed book |
-| **Swipe west** (<-) | Hero card | Cycle preview to the next book in the active shelf |
+| **Long-press** | Top panel | Open the per-book menu for the previewed book |
+| **Swipe west** (<-) | Top panel | Cycle preview to the next book in the active shelf |
 | **Swipe west** (<-) | Anywhere else | Next page; on the last page, drills out or switches shelf |
-| **Swipe east** (->) | Hero card | Cycle preview to the previous book |
+| **Swipe east** (->) | Top panel | Cycle preview to the previous book |
 | **Swipe east** (->) | Anywhere else | Previous page / drill back out / previous shelf |
-| **Swipe north** (up) | Anywhere | Collapse hero to a thin status strip; expand the grid |
-| **Swipe south** (down) | Hero | Restore the full hero from expanded mode |
+| **Swipe north** (up) | Anywhere | Collapse the top panel to a thin status strip; expand the grid |
+| **Swipe south** (down) | Top panel | Restore the full top panel from full screen |
 | **Swipe south** (down) | Shelf area | Refresh the library walk |
 | **Back** (physical key) | Drilled into a stack | Pop one drill level back out to the parent shelf |
 
@@ -638,6 +669,7 @@ The pagination row uses wide tap zones across the middle 75% of the screen. The 
 </details>
 
 <a id="keyboard-and-d-pad"></a>
+<a id="keyboard-and-d-pad"></a>
 <details>
 <summary><strong>Keyboard and D-pad (non-touch devices)</strong></summary>
 
@@ -645,7 +677,7 @@ Everything on the shelf is reachable with physical keys.
 
 | Key | What it does |
 |-----|--------------|
-| **Arrow keys** | Move the cursor. Focus moves between the shelf menu, the hero card, the shelf grid and the footer as you run out of room in each. |
+| **Arrow keys** | Move the cursor. Focus moves between the shelf menu, the top panel card, the shelf grid and the footer as you run out of room in each. |
 | **Press** (centre) | Act on whatever has focus: open the focused book, switch to the focused shelf, press the focused footer button. |
 | **ScreenKB + Press** | The context menu -- the equivalent of a long-press. See below. |
 | **Shift + Press** | Same, for external and desktop keyboards. |
@@ -655,18 +687,19 @@ Everything on the shelf is reachable with physical keys.
 
 **The context-menu chord is the important one.** It is how a non-touch device reaches anything a touch device gets by long-pressing:
 
-- On the **hero card** or a **shelf book**, it opens the [book menu](#the-book-menu-long-press-a-cover) -- description, tags, reviews, rating, reading status, and the rest.
+- On the **top panel card** or a **shelf book**, it opens the [book menu](#the-book-menu-long-press-a-cover) -- description, tags, reviews, rating, reading status, and the rest.
 - On a **shelf**, it opens the shelf editor.
 - On a **stack** (series, author, etc.), it opens the pin / add / remove menu.
 
 The chords are KOReader's own (they match `FocusManager`'s hold gestures), so they are the same ones the rest of KOReader uses. The **Menu** key is deliberately left alone -- it belongs to KOReader's own menu on devices that have one.
 
-Within the hero card the cover is a single focus target: the rating stars, description and tag pills alongside it are not separately focusable, so use the context-menu chord to reach them.
+Within the top panel card the cover is a single focus target: the rating stars, description and tag pills alongside it are not separately focusable, so use the context-menu chord to reach them.
 
 **Back in the reader.** Pressing Back after opening a book is KOReader's setting, not Bookshelf's: it defaults to walking your position history *inside* the book, which is empty in a freshly opened one, so it falls through to "Exit KOReader?". If you would rather Back returned you to the shelf, set **menu -> Navigation -> Back in reader -> Go to file browser**. Bookshelf picks that up and shows the shelf, the same as the Home action does.
 
 </details>
 
+<a id="shelf-sources-filters-and-sorts"></a>
 <a id="shelf-sources-filters-and-sorts"></a>
 <details>
 <summary><strong>Shelf sources, filters, and sorts</strong></summary>
@@ -721,13 +754,13 @@ Defaults adjust to the source (e.g. Recent defaults to *Last opened*; Latest add
 </details>
 
 <details>
-<summary><strong>Hero card line editor</strong></summary>
+<summary><strong>Top panel line editor</strong></summary>
 
 The book detail card has **eight editable sections**: Status, Rating, Title, Author, Metadata, Description, Tags (interactive), and Progress. The Tags section shows tappable pills rather than a text template, so it has no line editor; toggle it on or off like the others.
 
 Open **menu -> Edit book detail view** to toggle each section on or off. Tap a section's row (when its toggle is on) to open the **line editor**.
 
-Edits live-update the hero behind the editor on every keystroke; only the right column of the card is rebuilt, so the cover stays untouched.
+Edits live-update the top panel behind the editor on every keystroke; only the right column of the card is rebuilt, so the cover stays untouched.
 
 #### Editor buttons
 
@@ -761,6 +794,7 @@ The icon picker is built in and needs no extra plugins.
 
 </details>
 
+<a id="token-cheatsheet"></a>
 <a id="token-cheatsheet"></a>
 <details>
 <summary><strong>Token cheatsheet</strong></summary>
@@ -837,7 +871,7 @@ Statistics tokens auto-hide when the plugin is absent or the book has no recorde
 | `%books_read` | *13* (books in your whole library marked Finished) |
 | `%books_started` | Books with any reading time recorded by the statistics plugin |
 
-These are library-wide rather than per-book, so they suit the hero status line and micro-modules.
+These are library-wide rather than per-book, so they suit the top panel's status line and micro-modules.
 
 #### Time and date
 
@@ -909,7 +943,7 @@ Existing v1 settings migrate automatically on first launch -- legacy keys are re
 |-----|-------|
 | `tabs` | Ordered list of shelf records (id, label, icon, source, filter, sort_priority, enabled). |
 | `hero_regions` | Per-section overrides (sparse). One entry per section (status / rating / title / author / metadata / description / tags / progress) with any subset of template, font_face, font_size, bold, uppercase, alignment, disabled, bar_style, bar_height. The interactive **tags** section also takes per-category toggles (show_author / show_series / show_collections / show_genres / show_folder) plus font_size and alignment. |
-| `font_scale` | Global zoom for hero text (50-200%). |
+| `font_scale` | Global zoom for top panel text (50-200%). |
 | `chip_font_scale` | Shelf menu font size (50-300%). |
 | `chip_flex_widths` | Boolean. When true, longer-labelled shelves get more horizontal space than icon-only ones. |
 | `active_chip` / `active_page` / `drill_path` | Persisted navigation state, restored on KOReader restart. |
@@ -920,7 +954,7 @@ Existing v1 settings migrate automatically on first launch -- legacy keys are re
 | `bookshelf_ui_font` | Chosen Bookshelf interface font (a resolvable font face). Absent = follow KOReader's UI font. |
 | `cover_cache_mb` | Memory budget (MB) for the scaled-cover cache (default 24). The legacy `cover_cache_size` count key is discarded on first load. |
 | `hardcover_links` / `hardcover_enrichment` / `hardcover_ratings` / `hardcover_reviews` | Optional Hardcover link and cached description/cover/rating/review metadata used by the Hardcover enrichment menu. |
-| `hardcover_hero_rating` | Show cached Hardcover ratings in the hero rating row instead of KOReader's local rating. |
+| `hardcover_hero_rating` | Show cached Hardcover ratings in the rating row instead of KOReader's local rating. |
 | `hardcover_use_metadata` | Use Hardcover's title/author/series/genres for linked books in place of their own. |
 | `hardcover_max_genres` | How many of a linked book's Hardcover genres to use (when `hardcover_use_metadata` is on). |
 | `calibre_metadata` | BETA. Read metadata from `metadata.calibre` if present. |
@@ -945,7 +979,7 @@ Existing v1 settings migrate automatically on first launch -- legacy keys are re
 
 - **`%bar` styling lives in the Progress section.** Inserting `%bar` in another section still renders the widget, but uses the bordered default style and 100% height since the Bar style / Bar height buttons only appear in the Progress section's editor.
 - **Italic** is reachable only via the font picker (by selecting an italic family). The line editor has no italic toggle because `TextBoxWidget` doesn't synthesise italic from upright fonts.
-- **Inline format tags** render in **list view** lines only: `[b]`, `[i]`, `[font=NAME]` and `[size=N]` (also `[size=+N]` / `[size=-N]`, relative to the enclosing run). `[u]` is accepted but draws nothing. Hero card sections strip all of them, so use that section's own Bold button there.
+- **Inline format tags** render in **list view** lines only: `[b]`, `[i]`, `[font=NAME]` and `[size=N]` (also `[size=+N]` / `[size=-N]`, relative to the enclosing run). `[u]` is accepted but draws nothing. Top panel sections strip all of them, so use that section's own Bold button there.
 - **Page count for EPUBs** requires opening the book at least once. The count comes from KOReader's pagemap or reading statistics, both of which are populated only after the first paginate.
 
 </details>

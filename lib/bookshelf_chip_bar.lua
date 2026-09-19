@@ -513,6 +513,75 @@ function PointerJoin:paintTo(bb, x, y)
     else          bb:paintRect(x + self.inset, y, w, self.height, self.color) end
 end
 
+-- _actionButton(o) -> a widget exactly o.w by o.h
+--
+-- The currently-reading and micro-modules buttons, in ONE place. Both chip
+-- layouts draw them: the strip as a cell in the row, the breadcrumb as a
+-- fixed-width box before the pills. They were built twice and drifted three
+-- times in a week -- the theme colours, the outline, the roof's join -- so
+-- they are built here instead and the callers pass only what actually
+-- differs between them.
+--
+--   o.content   the glyph / icon / label that sits in the middle
+--   o.w, o.h    the OUTER size, border included
+--   o.fill      body background; nil leaves the ground (or a wallpaper) showing
+--   o.invert    invert the body's rect, which is the default selected look
+--   o.border    the outline's colour
+--   o.pointer   nil, or { color =, outline = } to put a roof on it
+local function _actionButton(o)
+    local b = Size.border.thin
+    -- bordersize 0 on the body and the outline supplied by a FrameContainer
+    -- around it: an InvertedFrame that inverts its own border leaves a white
+    -- ring on a KT6. The body is sized DOWN so the border comes out of o.w,
+    -- not added to it -- callers lay out on o.w and, in the strip, record it
+    -- for hit-testing.
+    local body = InvertedFrame:new{
+        _invert    = o.invert and true or false,
+        bordersize = 0,
+        margin     = 0,
+        padding    = 0,
+        background = o.fill,
+        CenterContainer:new{
+            dimen = Geom:new{ w = o.w - 2 * b, h = o.h - 2 * b },
+            o.content,
+        },
+    }
+    local widget = FrameContainer:new{
+        bordersize = b,
+        color      = o.border,
+        margin     = 0,
+        padding    = 0,
+        body,
+    }
+    if not o.pointer then return widget end
+    -- The roof, pointing up at the hero slot this button controls. Anchored
+    -- with a negative y so it paints above the button without taking layout
+    -- space, and joined to it: see PointerJoin, which covers the frame's top
+    -- border so the two read as one silhouette rather than a triangle
+    -- stacked on a box.
+    local pointer_h = math.max(Screen:scaleBySize(5), math.floor(o.h * 0.25))
+    local pointer = UpTrianglePointer:new{
+        width   = o.w,
+        height  = pointer_h,
+        color   = o.pointer.color,
+        outline = o.pointer.outline,
+        border  = b,
+    }
+    pointer.overlap_offset = { 0, -pointer_h }
+    local join = PointerJoin:new{
+        width  = o.w,
+        height = b,
+        inset  = b,
+        color  = o.pointer.color,
+    }
+    return OverlapGroup:new{
+        dimen = Geom:new{ w = o.w, h = o.h },
+        widget,
+        join,      -- after the frame, so it covers its top border
+        pointer,
+    }
+end
+
 -- Breadcrumb pill rendered as a black-outlined tag (white interior) with
 -- an arrow tip on the right. Pills CHAIN by overlapping the right tip
 -- of one with the left "notch" (empty space) of the next. The widget's
@@ -1116,22 +1185,77 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
                 ink)
         end
         local is_cursor = is_cursor_pre
-        local chip_body = InvertedFrame:new{
-            -- A custom colour is painted for real, so the inversion that
-            -- normally produces the selected look must be off for this chip.
-            _invert    = is_active and not is_cursor and not has_custom,
-            bordersize = 0,
-            margin     = 0,
-            padding    = 0,
-            -- paper (opaque) for the active chip, which inverts; chip_paper
-            -- (nothing, under a wallpaper) for the rest.
-            background = has_custom and fill_c
-                         or ((is_active and not is_cursor) and paper or chip_paper),
-            CenterContainer:new{
+        -- An action chip that points at the hero (currently reading, micro
+        -- modules) is a BUTTON, and the breadcrumb layout draws that same
+        -- button inside a frame of its own. Here it had none: on a
+        -- wallpapered shelf, where the strip's own edge is the theme's
+        -- near-white ink, the filled cell simply ended -- a white block with
+        -- no edge, next to a drilled-in copy of itself that was cleanly
+        -- outlined. Reported from a PW5 with both on screen.
+        --
+        -- Same frame, same colour rule, so the two cannot drift: black once
+        -- the cell is painted for real, the strip's own ink otherwise.
+        -- An action chip that points at the hero (currently reading, micro
+        -- modules) is a BUTTON, and the breadcrumb layout draws that same
+        -- button with a frame of its own. Here the cell had none and leaned
+        -- on the strip's outline for its edge -- which on a wallpapered
+        -- shelf is the theme's near-white ink, so a filled cell simply
+        -- ended. Reported from a PW5 with the drilled-in copy, cleanly
+        -- outlined, on the same screen.
+        --
+        -- Same builder, so there is nothing left to drift. It is placed a
+        -- border OUTSIDE the cell, over the strip's own edge, rather than
+        -- inside it: a frame within the cell leaves that edge showing as a
+        -- second, lighter line around the first -- "a white border outside
+        -- the black border". Landing on the edge replaces it, and the body
+        -- inside still measures exactly w by self.height.
+        local wants_button = chip.action and is_active and not chip._page_dir
+        local chip_body
+        if wants_button then
+            local bb = Size.border.thin
+            local btn = _actionButton{
+                content = cell_content,
+                w       = w + 2 * bb,
+                h       = self.height + 2 * bb,
+                fill    = has_custom and fill_c
+                          or ((is_active and not is_cursor) and paper or chip_paper),
+                invert  = is_active and not is_cursor and not has_custom,
+                border  = has_custom and Blitbuffer.COLOR_BLACK or _stripInk(),
+                pointer = {
+                    -- The pointer is an extension of the chip's silhouette,
+                    -- so it follows the chip's own fill (#294). Black is
+                    -- what the invert path produces, hence the default.
+                    color   = has_custom and fill_c or Blitbuffer.COLOR_BLACK,
+                    -- Only for a custom fill: the default fill is the same
+                    -- black as the border, so an outline would draw black on
+                    -- black and change nothing.
+                    outline = has_custom and Blitbuffer.COLOR_BLACK or nil,
+                },
+            }
+            btn.overlap_offset = { -bb, -bb }
+            chip_body = OverlapGroup:new{
+                -- the CELL's size, so the row lays out on w as it always did
                 dimen = Geom:new{ w = w, h = self.height },
-                cell_content,
-            },
-        }
+                btn,
+            }
+        else
+            chip_body = InvertedFrame:new{
+                -- A custom colour is painted for real, so the inversion that
+                -- normally produces the selected look must be off for this chip.
+                _invert    = is_active and not is_cursor and not has_custom,
+                bordersize = 0,
+                margin     = 0,
+                padding    = 0,
+                -- paper (opaque) for the active chip, which inverts; chip_paper
+                -- (nothing, under a wallpaper) for the rest.
+                background = has_custom and fill_c
+                             or ((is_active and not is_cursor) and paper or chip_paper),
+                CenterContainer:new{
+                    dimen = Geom:new{ w = w, h = self.height },
+                    cell_content,
+                },
+            }
+        end
         local chip_slot = chip_body
         if is_pending or is_cursor then
             local pb   = Size.border.thick
@@ -1150,37 +1274,6 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
                 dimen = Geom:new{ w = w, h = self.height },
                 chip_body,
                 ring,
-            }
-        end
-        if chip.action and is_active and not chip._page_dir then
-            -- Selected action chip points up at the hero cover above.
-            local pointer_h = math.max(Screen:scaleBySize(5),
-                                       math.floor(self.height * 0.25))
-            local pointer = UpTrianglePointer:new{
-                width  = w,
-                height = pointer_h,
-                -- The pointer is an extension of the chip's silhouette, so it
-                -- follows the chip's own fill (#294). Black is what the invert
-                -- path produces, hence the default.
-                color  = has_custom and fill_c or Blitbuffer.COLOR_BLACK,
-                -- ...and carries the strip's border on its sloped edges, so it
-                -- reads as part of the outlined chip rather than a bare wedge
-                -- of colour. Only for a custom fill: the default fill is the
-                -- same black as the border, so an outline would draw black on
-                -- black and change nothing.
-                outline = has_custom and Blitbuffer.COLOR_BLACK or nil,
-                border  = Size.border.thin,
-            }
-            -- Deliberately NOT lifted clear of the frame's border: the last
-            -- rows land ON the strip's top edge and paint over it, which is
-            -- what JOINS the pointer to the chip. Lifting it clear leaves a
-            -- solid line across the base and the two read as a triangle
-            -- stacked on a box rather than one silhouette.
-            pointer.overlap_offset = { 0, -pointer_h }
-            chip_slot = OverlapGroup:new{
-                dimen = Geom:new{ w = w, h = self.height },
-                chip_slot,
-                pointer,
             }
         end
         row[#row + 1] = chip_slot
@@ -1372,11 +1465,7 @@ function ChipBar:_initBreadcrumb()
     end
     local current_widget, current_w
     if current_chip then
-        local outer_h = self.height
-        local b       = Size.border.thin
-        local inner_h = outer_h - 2 * b  -- so FrameContainer's borders sit INSIDE outer_h
-        current_w = math.floor(outer_h * 1.6)
-        local inner_w = current_w - 2 * b
+        current_w = math.floor(self.height * 1.6)
         local glyph_face, glyph_bold = _iconFace(_scaled(18))
         -- Action chips (currently reading / search / micro-modules) use the same
         -- selected language as the chips, so they honour the same colour (#294).
@@ -1385,88 +1474,27 @@ function ChipBar:_initBreadcrumb()
             act_fill, act_ink = _activeChipColors()
         end
         local act_has = (type(act_fill) ~= "nil") -- see has_custom above (ffi __eq)
-        local glyph = TextWidget:new{
-            text    = current_chip.nerd_glyph or "",
-            face    = glyph_face,
-            bold    = glyph_bold,
-            fgcolor = act_ink or Blitbuffer.COLOR_BLACK,
-        }
-        -- Match chips-mode visual exactly: an InvertedFrame body
-        -- (bordersize=0 to avoid the KT6 white-ring-after-invert bug,
-        -- see chips-mode comment at line ~542) wrapped in a thin
-        -- FrameContainer that supplies the visible outline. selected
-        -- (hero == lastfile) flips the body inverted; otherwise the
-        -- icon sits in a white cell with a thin black border. Inner
-        -- body is sized inner_h so the FrameContainer's borders bring
-        -- the painted footprint up to outer_h exactly — matches the
-        -- breadcrumb segment height to the pixel.
-        local body = InvertedFrame:new{
-            _invert    = (current_chip.selected and not act_has) and true or false,
-            bordersize = 0,
-            margin     = 0,
-            padding    = 0,
-            background = act_has and act_fill or Blitbuffer.COLOR_WHITE,
-            CenterContainer:new{
-                dimen = Geom:new{ w = inner_w, h = inner_h },
-                glyph,
+        -- The same button the strip draws, from the same builder -- the two
+        -- have to be indistinguishable, and building them separately is what
+        -- let them drift apart before. Only the ground differs: here it is
+        -- the shelf, so an unfilled button still wants an opaque cell.
+        current_widget = _actionButton{
+            content = TextWidget:new{
+                text    = current_chip.nerd_glyph or "",
+                face    = glyph_face,
+                bold    = glyph_bold,
+                fgcolor = act_ink or Blitbuffer.COLOR_BLACK,
             },
-        }
-        current_widget = FrameContainer:new{
-            bordersize = b,
-            -- Black once the cell is painted for real, exactly as the
-            -- breadcrumb pill outlines itself. _stripInk() is the STRIP's own
-            -- ink, which on a dark shelf is the same near-white as the fill:
-            -- the outline then vanished into the cell, and the white block
-            -- read a pixel taller than the chips-mode one it should match.
-            color      = act_has and Blitbuffer.COLOR_BLACK or _stripInk(),
-            margin     = 0,
-            padding    = 0,
-            body,
-        }
-        -- Selected-state "up triangle" pointer (same affordance as
-        -- chips-mode): a black roof pointing at the hero cover above,
-        -- anchored via negative y so it paints into the strip's top
-        -- margin. Matches chips-mode dimensions so the same visual
-        -- weight reads in both modes.
-        if current_chip.selected then
-            local pointer_h = math.max(Screen:scaleBySize(5),
-                                       math.floor(self.height * 0.25))
-            local pointer = UpTrianglePointer:new{
-                width  = current_w,
-                height = pointer_h,
-                -- Follows the chip's fill, as above (#294), and takes the
-                -- border on its slopes for the same reason.
+            w       = current_w,
+            h       = self.height,
+            fill    = act_has and act_fill or Blitbuffer.COLOR_WHITE,
+            invert  = current_chip.selected and not act_has,
+            border  = act_has and Blitbuffer.COLOR_BLACK or _stripInk(),
+            pointer = current_chip.selected and {
                 color   = act_has and act_fill or Blitbuffer.COLOR_BLACK,
                 outline = act_has and Blitbuffer.COLOR_BLACK or nil,
-                border  = Size.border.thin,
-            }
-            -- Same lift as chips mode, but it does NOT join the same way.
-            -- There the offset is measured from the cell's CONTENT top, so
-            -- the last rows land on the STRIP's border and paint it out.
-            -- This group's origin is this button's own FRAME top, so the
-            -- pointer stops one border clear of it and the frame's top edge
-            -- draws a line across the join: a triangle stacked on a box.
-            --
-            -- Dropping the pointer onto the border would close the gap, but
-            -- it also costs the triangle a row of its height and it sits
-            -- visibly low. Paint the border out underneath it instead: the
-            -- pointer keeps its full height at its natural place, and the
-            -- rule stops a border short at each end so the frame keeps its
-            -- corners and the outline still runs unbroken up the slopes.
-            pointer.overlap_offset = { 0, -pointer_h }
-            local join = PointerJoin:new{
-                width  = current_w,
-                height = b,
-                inset  = b,
-                color  = pointer.color,   -- same fill, so the two read as one
-            }
-            current_widget = OverlapGroup:new{
-                dimen = Geom:new{ w = current_w, h = self.height },
-                current_widget,
-                join,                     -- after the frame, so it covers it
-                pointer,
-            }
-        end
+            } or nil,
+        }
     end
 
     -- Arrow-left prefix is reserved for the explicit Back pill in search

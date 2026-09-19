@@ -76,7 +76,9 @@ t.test("both layouts ask the one helper", function()
         end
     end
     eq(calls, 2, "one call per layout, found " .. calls)
-    local crumb = src:match("(Pull the currently%-reading chip from the chips list.-UpTrianglePointer)")
+    -- the breadcrumb block runs from its comment to the _actionButton call
+    -- that ends it (the pointer itself now lives inside that builder)
+    local crumb = src:match("(Pull the currently%-reading chip from the chips list.-_actionButton{)")
     assert(crumb, "the breadcrumb currently-reading block moved")
     assert(crumb:find("_activeChipColors", 1, true),
         "the breadcrumb button must take the same pair as the chips-mode one")

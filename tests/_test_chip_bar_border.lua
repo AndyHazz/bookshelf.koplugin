@@ -156,59 +156,6 @@ t.test("the apex is outlined too, not left open", function()
     assert(painted > 0, "the apex row was not painted at all")
 end)
 
--- ── the pointer JOINS the chip, it does not sit on it ──────────────────────
--- overlap_offset is measured from the chip's CONTENT top, which is inside the
--- frame, so lifting by pointer_h alone leaves the pointer's last rows ON the
--- strip's top border and painting over it. That is deliberate: overpainting
--- the border across the pointer's own width is what merges the two into ONE
--- silhouette, with the outline running up the slopes and continuing along the
--- strip either side.
---
--- Lifting it clear of the border was tried and rejected: it gives the pointer
--- its full-width base back, but leaves a solid line across the join, and the
--- two then read as a triangle stacked on a box rather than one shape. The
--- narrower-looking base is the price of the join.
-t.test("the pointer is NOT lifted clear of the frame border", function()
-    local lifts = 0
-    for expr in src:gmatch("pointer%.overlap_offset = { 0, ([^}]+) }") do
-        lifts = lifts + 1
-        assert(expr:match("^%-pointer_h$"),
-            "a pointer is lifted by " .. expr .. "; clearing the border would "
-            .. "leave a line across the join and split the silhouette in two")
-    end
-    assert(lifts >= 2, "expected both pointer sites, found " .. lifts)
-end)
-
--- ...but the same lift does not JOIN the same way in both places, because the
--- two are measured in different spaces. Chips mode offsets from the cell's
--- CONTENT top (the cell carries no frame of its own), so the last rows land
--- on the STRIP's border and paint it out. The breadcrumb button owns its
--- frame, and its group's origin is that frame's OUTER top, so the pointer
--- stops one border clear and the top edge draws a line across the join --
--- reported on a PW5, drilled into a folder.
---
--- Dropping the pointer onto the border closes it, but costs a row of triangle
--- and reads low (maintainer, 2026-09-19). The border is painted out under it
--- instead, which is what PointerJoin is for: pointer height is untouched.
-t.test("the breadcrumb pointer joins by painting its own border out", function()
-    local crumb = src:match("(Same lift as chips mode.-\n        end\n)")
-    assert(crumb, "the breadcrumb pointer block moved or was renamed")
-    assert(crumb:find("PointerJoin:new", 1, true),
-        "the breadcrumb pointer has nothing painting the frame's top edge "
-        .. "out beneath it, so the join shows as a line")
-    -- over the frame, so order in the group matters
-    local order = crumb:match("OverlapGroup:new{.-}")
-        or crumb:match("OverlapGroup:new{(.-)\n            }")
-    assert(crumb:find("current_widget,", 1, true), "the frame left the group")
-    local i_frame = crumb:find("current_widget,%s*\n")
-    local i_join  = crumb:find("join,", 1, true)
-    assert(i_frame and i_join and i_join > i_frame,
-        "the join must be painted AFTER the frame it covers")
-    -- the SAME fill as the pointer, or the rule is visible in its own right
-    assert(crumb:match("color%s*=%s*pointer%.color"),
-        "the join must take the pointer's own fill")
-end)
-
 -- Painted for real, like the pointer above: the rule's whole job is which
 -- pixels it touches.
 local join_body = src:match("\nfunction PointerJoin:paintTo%(bb, x, y%)\n(.-)\nend\n")
@@ -284,39 +231,89 @@ t.test("nothing is painted when the inset would swallow the rule", function()
     for x = -4, 8 do assert(px[x .. ",0"] == nil, "painted at x=" .. x) end
 end)
 
--- ── and that the breadcrumb button actually uses it ────────────────────────
+-- ── ONE builder, two layouts ──────────────────────────────────────────────
 --
--- The two pointer sites lift by the same -pointer_h but do NOT join the same
--- way, because the offsets are measured in different spaces. Chips mode
--- offsets from the cell's CONTENT top (the cell carries no frame of its own),
--- so the last rows land on the STRIP's border and paint it out. The
--- breadcrumb button owns its frame, and its group's origin is that frame's
--- OUTER top, so the pointer stops one border clear and the top edge draws a
--- line across the join -- reported on a PW5, drilled into a folder.
---
--- Dropping the pointer onto the border closes it, but costs a row of triangle
--- and reads low (maintainer, 2026-09-19), hence the rule instead.
-t.test("the breadcrumb pointer joins by painting its own border out", function()
-    local crumb = src:match("(Same lift as chips mode.-\n        end\n)")
-    assert(crumb, "the breadcrumb pointer block moved or was renamed")
-    assert(crumb:find("PointerJoin:new", 1, true),
-        "nothing paints the frame's top edge out beneath the pointer, so the "
-        .. "join shows as a line across it")
-    local i_frame = crumb:find("current_widget,", 1, true)
-    local i_join  = crumb:find("join,", 1, true)
-    assert(i_frame and i_join and i_join > i_frame,
-        "OverlapGroup paints in order: the join must come AFTER the frame")
-    assert(crumb:match("color%s*=%s*pointer%.color"),
-        "the join must take the pointer's own fill, or it shows in its own right")
-    assert(crumb:match("inset%s*=%s*b") and crumb:match("height%s*=%s*b"),
-        "both must be the frame's own border width")
+-- These buttons are drawn in both chip layouts: the strip as a cell in the
+-- row, the breadcrumb as a fixed box before the pills. They were built twice
+-- and drifted three times in a week - the theme colours, then the outline,
+-- then the roof's join, each reported from a PW5 with both on screen. They
+-- come from _actionButton now, and the point of these tests is that they
+-- keep coming from there.
+t.test("neither layout builds a pointer, a join or an outline of its own", function()
+    local fn = src:match("\nlocal function _actionButton%(o%)\n.-\nend\n")
+    assert(fn, "_actionButton moved or was renamed")
+    for _, what in ipairs({ "UpTrianglePointer:new", "PointerJoin:new" }) do
+        local total = select(2, src:gsub(what, ""))
+        local mine  = select(2, fn:gsub(what, ""))
+        assert(total == 1 and mine == 1,
+            what .. " appears " .. total .. " time(s), " .. mine
+            .. " of them in _actionButton -- a second copy is how these two "
+            .. "drifted apart before")
+    end
+    local calls = select(2, src:gsub("_actionButton{", ""))
+    assert(calls == 2, "expected one call per layout, found " .. calls)
 end)
 
-t.test("the join is only where a pointer needs it", function()
-    -- Chips mode joins by overpainting the strip's border and must not grow a
-    -- second mechanism doing the same job.
-    local uses = select(2, src:gsub("PointerJoin:new", ""))
-    assert(uses == 1, "expected one join site (the breadcrumb button), found " .. uses)
+t.test("the pointer is NOT lifted clear of the frame's border", function()
+    local fn = src:match("\nlocal function _actionButton%(o%)\n(.-)\nend\n")
+    local expr = fn:match("pointer%.overlap_offset = { 0, ([^}]+) }")
+    assert(expr == "-pointer_h", "the pointer is lifted by " .. tostring(expr))
+    -- ...which stops it one border clear of the frame it sits on, so the
+    -- frame's top edge draws a line across the join and the two read as a
+    -- triangle stacked on a box. The join is what closes that.
+    assert(fn:find("PointerJoin:new", 1, true), "nothing covers that border")
+    local i_frame = fn:find("\n        widget,", 1, true)
+    local i_join  = fn:find("\n        join,", 1, true)
+    local i_ptr   = fn:find("\n        pointer,", 1, true)
+    assert(i_frame and i_join and i_ptr, "the overlap group lost a member")
+    assert(i_join > i_frame, "the join must be painted AFTER the frame it covers")
+    local args = fn:match("PointerJoin:new{(.-)}")
+    assert(args:match("inset%s*=%s*b"),
+        "the join must stop a border short at each end, or it eats the "
+        .. "frame's corners and the outline no longer meets the slopes")
+    assert(args:match("color%s*=%s*o%.pointer%.color"),
+        "the join must take the pointer's own fill, or it shows in its own right")
+end)
+
+t.test("the border comes OUT of the declared width, not added to it", function()
+    local fn = src:match("\nlocal function _actionButton%(o%)\n(.-)\nend\n")
+    assert(fn:match("o%.w %- 2 %* b") and fn:match("o%.h %- 2 %* b"),
+        "callers lay out on o.w and the strip records it for hit-testing, so "
+        .. "the frame has to fit inside it")
+    assert(fn:match("bordersize = 0"),
+        "the body must not carry the border itself -- an InvertedFrame that "
+        .. "inverts its own border leaves a white ring on a KT6")
+end)
+
+-- ── where the strip puts it ────────────────────────────────────────────────
+--
+-- The cell sits just inside the strip's own outline. A button framed WITHIN
+-- the cell therefore has that outline immediately outside its border, and on
+-- a dark theme the strip's ink is near-white: "it looks like the button has a
+-- white border outside the black border" (maintainer, on the render).
+-- Painting it a border further out lands it ON the strip's edge and replaces
+-- it, so the button carries one outline, as the drilled-in one does.
+t.test("the strip's button lands ON the strip's edge, not inside it", function()
+    local call = src:match("(local wants_button.-\n        local chip_slot)")
+    assert(call, "the chips-mode button block moved or was renamed")
+    assert(call:match("w%s*=%s*w %+ 2 %* bb") and call:match("h%s*=%s*self%.height %+ 2 %* bb"),
+        "the button must be a border bigger than the cell on every side")
+    assert(call:match("overlap_offset = { %-bb, %-bb }"),
+        "...and offset back by one, or it covers the cell instead of the edge")
+    -- the enclosing group still measures the CELL: the row lays out on w and
+    -- _chip_dimens records it for hit-testing
+    assert(call:match("dimen = Geom:new{ w = w, h = self%.height }"),
+        "the slot must still report the cell's own size")
+end)
+
+t.test("only the chips that point at the hero are buttons", function()
+    local call = src:match("local wants_button = ([^\n]+)")
+    assert(call and call:match("chip%.action and is_active"),
+        "wants_button reads: " .. tostring(call))
+    -- every other chip keeps the plain cell it always had
+    local body = src:match("(local wants_button.-\n        local chip_slot)")
+    assert(body:find("else", 1, true) and body:find("InvertedFrame:new", 1, true),
+        "the ordinary chips lost their plain body")
 end)
 
 t.done()

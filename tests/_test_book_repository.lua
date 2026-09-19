@@ -5916,7 +5916,11 @@ test("getFolderSections: books arrive in tree order, tagged with their folder", 
         if key == "modification" then return 100
         elseif key == "mode" then return dirs[fp] and "directory" or "file" end
     end
-    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 3 }
+    -- Mixed ON, so the sections stand in plain tree order. With it off they
+    -- are partitioned instead, which the block at the end of this test
+    -- covers -- getAll does the same for the tree view.
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 3,
+                          collate_mixed = true }
     _G._test_bim_data = {
         ["/lib/loose.epub"]                = { title = "Loose" },
         ["/lib/Culture/c1.epub"]           = { title = "C One" },
@@ -5943,6 +5947,22 @@ test("getFolderSections: books arrive in tree order, tagged with their folder", 
     assert(out[1].shelf_section == nil, "the root run carries no label")
     assert(out[2].shelf_section == "Culture", "got " .. tostring(out[2].shelf_section))
     assert(out[4].shelf_section == "Discworld", "got " .. tostring(out[4].shelf_section))
+
+    -- ...and with "folders and files mixed" OFF, the same partition the tree
+    -- view gets: every folder before the root's own loose books. Without it
+    -- the spine shelf put the newest root book ahead of everything while
+    -- cover and list mode showed folders first from the same settings.
+    _G._test_settings.collate_mixed = false
+    Repo.invalidateWalkCache()
+    local part = Repo.getFolderSections(20, 0)
+    local porder = {}
+    for i = 1, #part do porder[i] = part[i].filepath end
+    assert(porder[1] == "/lib/Culture/c1.epub", "got " .. tostring(porder[1]))
+    assert(porder[#porder] == "/lib/loose.epub",
+        "the root's loose book should come last, got " .. tostring(porder[#porder]))
+    -- the folders keep their own tree order between themselves
+    assert(porder[3] == "/lib/Discworld/d1.epub", "got " .. tostring(porder[3]))
+    _G._test_settings.collate_mixed = true
     assert(out[5].shelf_section == "Witches", "got " .. tostring(out[5].shelf_section))
     assert(out[2].shelf_section_path == "/lib/Culture",
         "got " .. tostring(out[2].shelf_section_path))

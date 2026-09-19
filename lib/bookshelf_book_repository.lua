@@ -5947,6 +5947,33 @@ function Repo.getFolderSections(limit, offset, sort_priority_override, filter, o
     local walk  = cachedWalk(root, depth)
     local FolderSections = require("lib/bookshelf_folder_sections")
     local sections = FolderSections.group(walk, root)
+    -- KOReader's "folders and files mixed", which getAll honours for the
+    -- tree view by putting every folder before every file. The spine shelf
+    -- reads the same library through this producer instead, and it never
+    -- asked: sections come out in TREE order, which puts the root's own
+    -- loose books first because the walk starts there. With the setting off
+    -- and the chip sorted by date added, that showed the newest root book
+    -- ahead of everything and the first folder pages later -- the opposite
+    -- of what cover and list mode showed from the same settings (reported
+    -- on a Home shelf).
+    --
+    -- The sections ARE the folders here and the label-less one is the root's
+    -- loose files, so the partition is a single move: everything else keeps
+    -- its tree order, and a folder still stands with its own books.
+    local mixed = G_reader_settings
+                  and G_reader_settings:isTrue("collate_mixed") or false
+    if not mixed then
+        local folders, loose = {}, {}
+        for i = 1, #sections do
+            local s = sections[i]
+            if s.label then folders[#folders + 1] = s
+            else             loose[#loose + 1] = s end
+        end
+        if #loose > 0 and #folders > 0 then
+            sections = folders
+            for i = 1, #loose do sections[#sections + 1] = loose[i] end
+        end
+    end
     -- The walk already statted every file, so carry mtime and size across:
     -- a chip sorted by "Added" or by file size has something to compare on
     -- without a second pass over the filesystem.

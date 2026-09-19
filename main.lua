@@ -127,6 +127,22 @@ local _expect_onshow_takeover = false
 -- a scheduled backstop so a close that opens no shelf can't leave it stuck.
 local _restoring_from_reader = false
 
+-- One-shot, set by onCloseDocument on the path that WILL re-show the shelf,
+-- consumed by onCloseWidget a moment later in the same close. ReaderUI:onClose
+-- dispatches CloseDocument first and closes its own widget second, so our two
+-- handlers run back to back: the first schedules the return to a shelf that is
+-- still parked on the stack, the second used to close that very shelf. The
+-- scheduled show() then had nothing live to adopt and cold-created a
+-- replacement -- a full _rebuild (hero, a getAll hydrate of the visible page,
+-- every shelf row) on the close path, where the warm branch runs the much
+-- lighter softRefresh instead (issue 422).
+--
+-- Set only after every early return in onCloseDocument, so the closes that DO
+-- need the shelf gone still get it: KOReader exiting needs the window stack to
+-- drain (#302), and closeShelfToFileManager's destination is the raw file
+-- browser. Timed backstop for a close whose CloseWidget never reaches us.
+local _close_returns_to_shelf = false
+
 -- Close a TouchMenu we received as the first callback argument. Used
 -- whenever a menu callback changes the visible UI layer (e.g. opens or
 -- closes the bookshelf widget, switches start_with) — without this, the
@@ -1852,6 +1868,17 @@ function Bookshelf:onCloseWidget()
     -- a 200ms+ rebuild and two full repaints, visible as a flash ~30s
     -- after leaving a book.
     if require("lib/bookshelf_reader_park").isFinishingClose() then return end
+    -- The reader closing back to US (onCloseDocument set this one statement
+    -- earlier in the same ReaderUI:onClose). Keeping the shelf on the stack is
+    -- the whole point: the scheduled re-show then adopts it and takes show()'s
+    -- warm branch -- a hero column swap, one spine repaint, and a shelf
+    -- re-sort only where the chip's sort depends on read state -- instead of
+    -- cold-creating a replacement and rebuilding the page from scratch while
+    -- the user waits (issue 422).
+    if _close_returns_to_shelf then
+        _close_returns_to_shelf = false
+        return
+    end
     if not UIManager:isWidgetShown(_live_widget) then return end
     UIManager:close(_live_widget)
 end
@@ -2016,6 +2043,11 @@ function Bookshelf:onCloseDocument()
     -- The file has to be read HERE: CloseDocument fires inside ReaderUI:onClose
     -- before closeDocument() nils self.document, so by the tick below it's gone.
     local closed_file = self.ui and self.ui.document and self.ui.document.file
+    -- Hold the shelf through the CloseWidget cascade still to come in this
+    -- same ReaderUI:onClose, so the show() below finds it live and warm
+    -- rather than rebuilding the page on the close path (issue 422).
+    _close_returns_to_shelf = true
+    UIManager:scheduleIn(2, function() _close_returns_to_shelf = false end)
     _expect_onshow_takeover = true
     UIManager:scheduleIn(5, function() _expect_onshow_takeover = false end)
     UIManager:nextTick(function()
@@ -2038,6 +2070,16 @@ function Bookshelf:onCloseDocument()
             end)
             return
         end
+        -- No FileManager was spawned here because KOReader's own close route
+        -- (ReaderUI:onHome > showFileManager) already made one, and it went
+        -- ON TOP of the shelf. That used to be harmless: the shelf had been
+        -- closed in the CloseWidget cascade, so the show() below cold-created
+        -- a replacement and UIManager:show stacked it above the FM. Now that
+        -- the shelf survives the close (issue 422), the warm show() adopts a
+        -- widget sitting UNDER the file browser and paints nothing the user
+        -- can see -- so splice it back on top first, the same pairing the
+        -- branch above uses.
+        self:_raiseInPlace()
         self:show()
     end)
 end

@@ -372,7 +372,8 @@ t.test("...and the separator between them is the line", function()
     -- outline's black put black between two inverted chips, which are black
     -- themselves, and the line went missing altogether (maintainer, on a
     -- PW5, the morning after it was introduced).
-    local sep = src:match("(THREE CASES.-\n            end\n)")
+    -- the whole decision, from the first branch to the widget it colours
+    local sep = src:match("(local sep_color.-LineWidget)")
     assert(sep, "the separator block moved or was renamed")
     assert(sep:match("_separatorOnFill%(custom%)"),
         "a custom fill needs the luminance answer, not a fixed colour")
@@ -401,6 +402,18 @@ t.test("the pending ring lands on the strip's edge too", function()
        and pend:match("out_r%s*=%s*%(i == #render_chips%) and rb or separator_w"),
         "the ring must reach over the separator, or an extra line shows "
         .. "between it and the neighbouring chip")
+    -- Reaching over it is not enough on its own: the separator BEFORE a chip
+    -- is painted before it, the one after is painted after, so on the right
+    -- the separator won and showed as a second edge beside the ring. It went
+    -- unnoticed until someone selected LEFTWARDS. Colouring it settles it
+    -- whichever way round the two are painted.
+    local sep = src:match("(local function _touchesTap.-LineWidget)")
+    assert(sep, "the tap-adjacent separator rule moved or was renamed")
+    assert(sep:match("c%.key == self%._pending_key")
+       and sep:match("c%.key == self%.focused_key"),
+        "both the tapped chip and the focused one carry a ring")
+    assert(sep:match("sep_color = _stripInk%(%)"),
+        "a separator beside the ring must take the ring's own colour")
 end)
 
 -- ── the breadcrumb pill's tip ─────────────────────────────────────────────

@@ -1199,8 +1199,22 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
             --                 ink here painted white onto the white active
             --                 chip, and the border beside Home went missing
             --                 (maintainer, on device).
+            -- A separator next to the chip being tapped is part of that
+            -- tap's ring, not a division. The ring already reaches over the
+            -- column on both sides, but the separator BEFORE a chip is
+            -- painted before it and the one after is painted after -- so on
+            -- the right the separator won and showed as a second edge beside
+            -- the ring. Only when selecting leftwards, which is how it came
+            -- in (maintainer, on a PW5). Colouring it settles it whichever
+            -- way round the two are painted.
+            local function _touchesTap(c)
+                if not c then return false end
+                return c.key == self._pending_key or c.key == self.focused_key
+            end
             local sep_color
-            if prev_filled and cur_filled then
+            if _touchesTap(render_chips[i - 1]) or _touchesTap(chip) then
+                sep_color = _stripInk()
+            elseif prev_filled and cur_filled then
                 -- _separatorOnFill answers WHITE for a nil fill, which is the
                 -- DEFAULT case: no custom chip colour set. That was right
                 -- while a filled chip could only be black, and wrong the

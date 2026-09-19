@@ -782,16 +782,19 @@ local function arrowPillFrame(label, h, chained, glyph)
                 bb:paintRect(x + row_start, y + dy, body_w - row_start, 1, WHITE)
             end
         end
-        -- Right tip inner.
-        local inner_tip_w = tip_w - 2 * b
-        if inner_tip_w > 0 then
-            local inner_hh = (inner_h - 1) / 2
-            for dy_inner = 0, inner_h - 1 do
-                local from_inner = math.abs(dy_inner - inner_hh)
-                local row_w = math.max(0, math.floor(inner_tip_w * (1 - from_inner / inner_hh) + 0.5))
-                if row_w > 0 then
-                    bb:paintRect(x + body_w, y + dy_inner + b, row_w, 1, WHITE)
-                end
+        -- Right tip inner. Measured from the OUTER taper less the border,
+        -- not from a taper of its own. Two tapers, each rounded on its own
+        -- terms, agreed on the row width often enough to leave the outline
+        -- with HOLES in it: on a PW5 the rows either side of the apex had no
+        -- black at all and the tip was open, with single stray pixels
+        -- further up and down the slope. Taking the border off the row the
+        -- black actually painted leaves exactly b of it on every row.
+        for dy = b, h - b - 1 do
+            local from_center = math.abs(dy - hh)
+            local outer_w = math.max(0, math.floor(tip_w * (1 - from_center / hh) + 0.5))
+            local row_w = outer_w - b
+            if row_w > 0 then
+                bb:paintRect(x + body_w, y + dy, row_w, 1, WHITE)
             end
         end
     end
@@ -1211,16 +1214,18 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
                 -- makes the strip's own colour the line that shows on it,
                 -- the same answer the one-filled case reaches.
                 --
-                -- Since 2026-09-19 both of them are BUTTONS, each with an
-                -- outline of its own, and neither draws the side facing this
-                -- column (no_l / no_r below). So this column IS the line
-                -- between them, and it takes the outline's own colour -- one
-                -- pixel, not the three that the two outlines and a separator
-                -- of their own made.
-                local pair = _activeChipColors()
-                sep_color = (type(pair) ~= "nil")
-                            and Blitbuffer.COLOR_BLACK
-                            or  _stripInk()
+                -- Both are BUTTONS since 2026-09-19 and neither draws the
+                -- side facing this column (no_l / no_r below), so this one
+                -- pixel IS the line between them. It still has to CONTRAST
+                -- with the fill rather than match the outline: taking the
+                -- outline's black put black between two inverted chips,
+                -- which are black themselves, and the line vanished
+                -- (maintainer, on a PW5). The two answers below already
+                -- solve exactly that, one per kind of fill.
+                local custom = _selectedChipColors()
+                sep_color = (type(custom) ~= "nil")
+                            and _separatorOnFill(custom)
+                            or  _stripGround()
             elseif prev_filled or cur_filled then
                 sep_color = _stripGround()
             else
@@ -1364,25 +1369,28 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
         end
         local chip_slot = chip_body
         if is_pending or is_cursor then
-            local pb   = Size.border.thick
-            local eb   = Size.border.thin
-            -- Held a border clear of the cell's edge. Drawn flush, its top
-            -- and bottom ran straight into the strip's own edge and the two
-            -- read as one fat line -- the inner border spilling over the
-            -- outer one (maintainer, on a tap). The gap keeps them separate.
-            local ring = FrameContainer:new{
-                bordersize = pb,
-                -- The "we heard you" ring while a chip loads. It has to be
-                -- seen, and black on a dark strip is not: it was drawing, it
-                -- just matched the bar (maintainer). _stripInk is black on a
-                -- light strip, which is what it always was.
-                color      = _stripInk(),
-                margin     = 0,
-                padding    = 0,
-                Widget:new{ dimen = Geom:new{
-                    w = w - 2*pb - 2*eb, h = self.height - 2*pb - 2*eb } },
+            local pb = Size.border.thick
+            local rb = Size.border.thin
+            -- The "we heard you" ring while a chip loads. It has to be seen,
+            -- and black on a dark strip is not: it was drawing, it just
+            -- matched the bar (maintainer). _stripInk is black on a light
+            -- strip, which is what it always was.
+            --
+            -- Laid on the strip's own edge, like a button's outline, rather
+            -- than inside the cell. Inside it, drawn flush, its top and
+            -- bottom ran into that edge and the two read as one fat line;
+            -- held a border clear of it instead, the gap between them showed
+            -- as a thin light line all the way round. Landing on the edge
+            -- REPLACES it, which is neither.
+            local ring = EdgeRing:new{
+                width  = w,
+                height = self.height,
+                color  = _stripInk(),
+                bw     = pb,
+                out_t  = rb, out_b = rb,
+                out_l  = (i == 1) and rb or 0,
+                out_r  = (i == #render_chips) and rb or 0,
             }
-            ring.overlap_offset = { eb, eb }
             chip_slot = OverlapGroup:new{
                 dimen = Geom:new{ w = w, h = self.height },
                 chip_body,

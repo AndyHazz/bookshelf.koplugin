@@ -368,14 +368,49 @@ t.test("neither button draws the side facing another button", function()
 end)
 
 t.test("...and the separator between them is the line", function()
-    -- Same colour as the outline it stands in for, or the boundary changes
-    -- colour halfway along the strip.
+    -- It has to CONTRAST with the fill, not match the outline. Taking the
+    -- outline's black put black between two inverted chips, which are black
+    -- themselves, and the line went missing altogether (maintainer, on a
+    -- PW5, the morning after it was introduced).
     local sep = src:match("(THREE CASES.-\n            end\n)")
     assert(sep, "the separator block moved or was renamed")
-    assert(sep:match("local pair = _activeChipColors%(%)"),
-        "it must ask the same helper the outline does")
-    assert(sep:find("Blitbuffer.COLOR_BLACK", 1, true),
-        "...and reach the same answer")
+    assert(sep:match("_separatorOnFill%(custom%)"),
+        "a custom fill needs the luminance answer, not a fixed colour")
+    assert(sep:match("or%s+_stripGround%(%)"),
+        "and an inverted fill is the opposite of the strip, so the strip's "
+        .. "own colour is what shows on it")
+    assert(not sep:find("Blitbuffer.COLOR_BLACK", 1, true),
+        "a fixed black here is invisible between two inverted chips")
+end)
+
+t.test("the pending ring lands on the strip's edge too", function()
+    -- Inside the cell and flush, its top and bottom ran into that edge and
+    -- read as one fat line. Held a border clear of it, the gap showed as a
+    -- thin light line all the way round. On it is neither.
+    local pend = src:match("(if is_pending or is_cursor then.-\n        end\n)")
+    assert(pend, "the pending-ring block moved or was renamed")
+    assert(pend:find("EdgeRing:new", 1, true),
+        "the ring must reach onto the strip's edge, as a button's outline does")
+    assert(pend:match("out_t%s*=%s*rb") and pend:match("out_b%s*=%s*rb"),
+        "top and bottom always touch it")
+    assert(pend:match("bw%s*=%s*pb"), "it is still the THICK border")
+end)
+
+-- ── the breadcrumb pill's tip ─────────────────────────────────────────────
+--
+-- The tip was drawn as two tapers, an outer black and an inner white, each
+-- rounded on its own terms. They agreed on the row width often enough to
+-- leave the outline with holes: on a PW5 two rows of the slope had no black
+-- at all. The inner one is measured off the outer now.
+t.test("the pill's tip keeps its outline on every row", function()
+    local body = src:match("(Right tip inner.-\n        end\n)")
+    assert(body, "the pill's inner-tip block moved or was renamed")
+    assert(body:match("local outer_w"),
+        "the inner taper must be measured from the OUTER one")
+    assert(body:match("outer_w %- b"),
+        "...less the border, so b of it survives on every row")
+    assert(not body:find("inner_tip_w", 1, true),
+        "a taper of its own is what left the holes")
 end)
 
 t.test("a skipped side leaves the others alone", function()

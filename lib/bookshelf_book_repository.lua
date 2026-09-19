@@ -3685,15 +3685,33 @@ function Repo.folderCoverPaths(path, sort_priority, limit, opts)
         end
     end
 
-    local function record(fp)
-        local rec = opts.light_cache and _lightMetaForFp(opts.light_cache, fp)
+    -- The sort needs a record per candidate, and building one per book is a
+    -- BookInfoManager lookup each. opts.light_cache_fn hands over the shared
+    -- batched light-metadata map instead -- one build for the whole library,
+    -- already warm on the paths that matter (the shelf's own fetch builds it),
+    -- and a table lookup per book after that. Resolved at most once per call
+    -- and only for a folder big enough to earn it: a page of two-book folders
+    -- must not be what triggers a library-wide batch.
+    local LIGHT_CACHE_WORTH_IT = 8
+    local _light, _light_asked
+    local function lightCache()
+        if opts.light_cache then return opts.light_cache end
+        if not _light_asked then
+            _light_asked = true
+            if opts.light_cache_fn then _light = opts.light_cache_fn() end
+        end
+        return _light
+    end
+    local function record(fp, cache)
+        local rec = cache and _lightMetaForFp(cache, fp)
                     or _buildBookMetaLight(fp)
         return rec or { filepath = fp }
     end
     local function ordered(list)
         if #list < 2 or not sort_priority or #sort_priority == 0 then return list end
+        local cache = (#list >= LIGHT_CACHE_WORTH_IT) and lightCache() or opts.light_cache
         local recs = {}
-        for i = 1, #list do recs[i] = record(list[i]) end
+        for i = 1, #list do recs[i] = record(list[i], cache) end
         table.sort(recs, SortEngine.chainedComparator(sort_priority))
         local out = {}
         for i = 1, #recs do out[i] = recs[i].filepath end
@@ -3911,6 +3929,20 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
     -- filtered chip must front its folders with a book that matches, which is
     -- what the shape-level leader did before.
     local _cover_match_built, _cover_match
+    -- Lazy, once per fetch: the batched light-metadata map the folder ordering
+    -- can sort from. Not built up front -- most pages never need it, and the
+    -- shelf's own paths usually have it cached already (light_meta: HIT).
+    local _cover_light, _cover_light_asked
+    local function _coverLightCache()
+        if not _cover_light_asked then
+            _cover_light_asked = true
+            local home_cl  = G_reader_settings:readSetting("home_dir") or "/"
+            local depth_cl = BookshelfSettings.read("latest_walk_depth") or 3
+            local ok_cl, map = pcall(_getLightMetaCache, home_cl, depth_cl)
+            _cover_light = ok_cl and map or nil
+        end
+        return _cover_light
+    end
     local function _folderCoverFps(folder_path)
         if not _cover_match_built then
             _cover_match_built = true
@@ -3923,7 +3955,8 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
             end
         end
         local ok, fps = pcall(Repo.folderCoverPaths, folder_path, priority, 4,
-                              { match = _cover_match })
+                              { match = _cover_match,
+                                light_cache_fn = _coverLightCache })
         return (ok and fps) or {}
     end
     -- reverse only applies on the fallback path; chip sort_priority

@@ -785,7 +785,18 @@ function ChipBar:_paintGround(bb, x, y, w, h)
 end
 
 function ChipBar:paintTo(bb, x, y)
-    self:_paintGround(bb, x, y, self.width, self.height)
+    -- Over what the strip PAINTS, not what it declares. The chips row sits
+    -- inside a Size.border.thin FrameContainer, so the paint is 2*border
+    -- taller than self.height -- the same discrepancy the page-flip region
+    -- has to allow for above (issue 352's ghost line), and the wipe already
+    -- lays its ground over the whole region for exactly this reason. A
+    -- ground of self.height left the row's last line bare: a hairline of
+    -- wallpaper between an unfilled chip and the strip's bottom edge,
+    -- spotted on a PW5.
+    local painted = self[1] and self[1].getSize and self[1]:getSize() or nil
+    self:_paintGround(bb, x, y,
+        math.max(self.width  or 0, painted and painted.w or 0),
+        math.max(self.height or 0, painted and painted.h or 0))
     InputContainer.paintTo(self, bb, x, y)
 end
 
@@ -1209,7 +1220,10 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
         -- second, lighter line around the first -- "a white border outside
         -- the black border". Landing on the edge replaces it, and the body
         -- inside still measures exactly w by self.height.
-        local wants_button = chip.action and is_active and not chip._page_dir
+        -- EVERY filled chip, not just the ones with a roof. The selected
+        -- shelf reads as a button in exactly the way the currently-reading
+        -- one does, and the maintainer asked for the same border on it.
+        local wants_button = is_active and not chip._page_dir
         local chip_body
         if wants_button then
             local bb = Size.border.thin
@@ -1221,7 +1235,9 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
                           or ((is_active and not is_cursor) and paper or chip_paper),
                 invert  = is_active and not is_cursor and not has_custom,
                 border  = has_custom and Blitbuffer.COLOR_BLACK or _stripInk(),
-                pointer = {
+                -- ...but only an ACTION chip points at the hero. A shelf
+                -- chip is a destination, not a control over what is above.
+                pointer = chip.action and {
                     -- The pointer is an extension of the chip's silhouette,
                     -- so it follows the chip's own fill (#294). Black is
                     -- what the invert path produces, hence the default.
@@ -1230,7 +1246,7 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
                     -- black as the border, so an outline would draw black on
                     -- black and change nothing.
                     outline = has_custom and Blitbuffer.COLOR_BLACK or nil,
-                },
+                } or nil,
             }
             btn.overlap_offset = { -bb, -bb }
             chip_body = OverlapGroup:new{

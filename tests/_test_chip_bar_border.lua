@@ -306,14 +306,38 @@ t.test("the strip's button lands ON the strip's edge, not inside it", function()
         "the slot must still report the cell's own size")
 end)
 
-t.test("only the chips that point at the hero are buttons", function()
+t.test("every FILLED chip is a button, but only an action chip gets a roof", function()
+    -- The selected shelf reads as a button in the way the currently-reading
+    -- one does, and takes the same border (maintainer, 2026-09-19). The roof
+    -- does not follow: it says "this controls what is above", which a shelf
+    -- chip does not.
     local call = src:match("local wants_button = ([^\n]+)")
-    assert(call and call:match("chip%.action and is_active"),
+    assert(call and call:match("^is_active") and not call:find("chip.action", 1, true),
         "wants_button reads: " .. tostring(call))
-    -- every other chip keeps the plain cell it always had
     local body = src:match("(local wants_button.-\n        local chip_slot)")
+    assert(body:match("pointer = chip%.action and"),
+        "the roof must still be an action chip's alone")
+    -- every unfilled chip keeps the plain cell it always had
     assert(body:find("else", 1, true) and body:find("InvertedFrame:new", 1, true),
         "the ordinary chips lost their plain body")
+end)
+
+-- ── the strip's ground ─────────────────────────────────────────────────────
+--
+-- An unfilled chip has NO background of its own (it would hide a wallpaper),
+-- so what reads as its fill is the strip's ground. That ground was laid over
+-- self.height while the row sits inside a border, so the strip paints two
+-- rows taller than it - and the row's last line came up bare: a hairline of
+-- wallpaper between an unfilled chip and the strip's bottom edge, spotted on
+-- a PW5. The page-flip region (issue 352) and the wipe already allow for the
+-- same discrepancy; the paint did not.
+t.test("the ground covers what the strip PAINTS, not what it declares", function()
+    local body = src:match("\nfunction ChipBar:paintTo%(bb, x, y%)\n(.-)\nend\n")
+    assert(body, "ChipBar:paintTo moved or was renamed")
+    assert(body:find("self[1]", 1, true) and body:find("getSize", 1, true),
+        "the ground must measure the painted child, not self.width/self.height")
+    assert(body:match("math%.max"),
+        "...and take whichever is bigger, as the page-flip region does")
 end)
 
 t.done()

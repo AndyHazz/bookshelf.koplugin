@@ -1923,6 +1923,15 @@ local _light_meta_cache = {}  -- { [key] = { map = {[fp]=record}, expires_at = n
 -- and memoise. Invalidated alongside the walk cache and inside
 -- cachedWalk's files-changed branch.
 local _folder_book_paths_cache = {}  -- { [path] = { paths = {...} } }
+-- Ordered tile books per folder, keyed by folder + the sort that produced the
+-- order (see Repo.folderCoverPaths). The ordering costs a light metadata
+-- record per book IN the folder, so without this it ran again on every fetch
+-- that put the same tile on screen: every page turn, every chip pre-warm,
+-- every rebuild. The member list is the input, so this shares its lifetime
+-- and is cleared wherever _folder_book_paths_cache is; the key's `s:<key>:`
+-- segments let invalidateReadStateCache drop just the orders a read moves.
+local _folder_cover_cache = {}
+local _folder_cover_cache_order = {}  -- insertion order backing the SHAPE_CACHE_MAX eviction
 -- Per-file progress cache. DocSettings:open() does a Lua-parse from disk
 -- per call, which dominates loops that read percent / summary.status for
 -- many books in a row (getAll's prefetch on the Home chip is the obvious
@@ -2150,6 +2159,8 @@ function Repo.invalidateWalkCache()
     _bySource_cache_order = {}
     _light_meta_cache = {}
     _folder_book_paths_cache = {}
+    _folder_cover_cache = {}
+    _folder_cover_cache_order = {}
     _progress_cache   = {}
     -- Sticky last-good Book records (see the declaration above) have no
     -- other invalidation path; a walk invalidation is the broadest signal
@@ -2271,6 +2282,17 @@ function Repo.invalidateReadStateCache()
         for _i, tok in ipairs(READ_STATE_SORT_TOKENS) do
             if k:find(tok, 1, true) then
                 _bySource_cache[k] = nil
+                break
+            end
+        end
+    end
+    -- Same rule for the folder tiles: "the book this folder opens with" can
+    -- only move when read state does, and only for a sort that reads it, so a
+    -- title or filename order survives a book being closed.
+    for k in pairs(_folder_cover_cache) do
+        for _i, tok in ipairs(READ_STATE_SORT_TOKENS) do
+            if k:find(tok, 1, true) then
+                _folder_cover_cache[k] = nil
                 break
             end
         end
@@ -2889,6 +2911,8 @@ local function cachedWalk(home, depth)
             _bySource_cache_order = {}
             _light_meta_cache = {}
             _folder_book_paths_cache = {}
+            _folder_cover_cache = {}
+            _folder_cover_cache_order = {}
         end
         local dir_count = 0
         for _k in pairs(dirs) do dir_count = dir_count + 1 end
@@ -3622,6 +3646,29 @@ function Repo.folderCoverPaths(path, sort_priority, limit, opts)
     limit = limit or 4
     if not path or path == "" or limit <= 0 then return {} end
     opts = opts or {}
+    -- Memo key: the folder, the sort that produced the order, and the limit.
+    -- A FILTERED call is never memoised -- opts.match is a compiled closure,
+    -- so nothing about it can go in a key, and serving a filtered tile from an
+    -- unfiltered order would front a folder with a book the filter excludes.
+    -- The `s:<key>:` segments match READ_STATE_SORT_TOKENS on purpose, so
+    -- invalidateReadStateCache drops exactly the orders that a book being read
+    -- can reorder and leaves title/filename ones standing.
+    local ckey
+    if not opts.match then
+        local parts = {}
+        for _i = 1, #(sort_priority or {}) do
+            local lv = sort_priority[_i]
+            parts[#parts + 1] = "s:" .. (lv.key or "")
+                .. ":" .. (lv.reverse and "r" or "f")
+        end
+        ckey = path .. "\0" .. table.concat(parts, ";") .. ";l:" .. limit
+        local hit = _folder_cover_cache[ckey]
+        if hit then
+            local out = {}
+            for _i = 1, #hit do out[_i] = hit[_i] end
+            return out
+        end
+    end
     local all = Repo.getFolderBookPaths(path) or {}
     if #all == 0 then return {} end
 
@@ -3638,15 +3685,33 @@ function Repo.folderCoverPaths(path, sort_priority, limit, opts)
         end
     end
 
-    local function record(fp)
-        local rec = opts.light_cache and _lightMetaForFp(opts.light_cache, fp)
+    -- The sort needs a record per candidate, and building one per book is a
+    -- BookInfoManager lookup each. opts.light_cache_fn hands over the shared
+    -- batched light-metadata map instead -- one build for the whole library,
+    -- already warm on the paths that matter (the shelf's own fetch builds it),
+    -- and a table lookup per book after that. Resolved at most once per call
+    -- and only for a folder big enough to earn it: a page of two-book folders
+    -- must not be what triggers a library-wide batch.
+    local LIGHT_CACHE_WORTH_IT = 8
+    local _light, _light_asked
+    local function lightCache()
+        if opts.light_cache then return opts.light_cache end
+        if not _light_asked then
+            _light_asked = true
+            if opts.light_cache_fn then _light = opts.light_cache_fn() end
+        end
+        return _light
+    end
+    local function record(fp, cache)
+        local rec = cache and _lightMetaForFp(cache, fp)
                     or _buildBookMetaLight(fp)
         return rec or { filepath = fp }
     end
     local function ordered(list)
         if #list < 2 or not sort_priority or #sort_priority == 0 then return list end
+        local cache = (#list >= LIGHT_CACHE_WORTH_IT) and lightCache() or opts.light_cache
         local recs = {}
-        for i = 1, #list do recs[i] = record(list[i]) end
+        for i = 1, #list do recs[i] = record(list[i], cache) end
         table.sort(recs, SortEngine.chainedComparator(sort_priority))
         local out = {}
         for i = 1, #recs do out[i] = recs[i].filepath end
@@ -3663,6 +3728,11 @@ function Repo.folderCoverPaths(path, sort_priority, limit, opts)
             if #out >= limit then break end
             out[#out + 1] = fp
         end
+    end
+    if ckey then
+        local keep = {}
+        for _i = 1, #out do keep[_i] = out[_i] end
+        _capInsert(_folder_cover_cache, _folder_cover_cache_order, ckey, keep)
     end
     return out
 end
@@ -3859,6 +3929,20 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
     -- filtered chip must front its folders with a book that matches, which is
     -- what the shape-level leader did before.
     local _cover_match_built, _cover_match
+    -- Lazy, once per fetch: the batched light-metadata map the folder ordering
+    -- can sort from. Not built up front -- most pages never need it, and the
+    -- shelf's own paths usually have it cached already (light_meta: HIT).
+    local _cover_light, _cover_light_asked
+    local function _coverLightCache()
+        if not _cover_light_asked then
+            _cover_light_asked = true
+            local home_cl  = G_reader_settings:readSetting("home_dir") or "/"
+            local depth_cl = BookshelfSettings.read("latest_walk_depth") or 3
+            local ok_cl, map = pcall(_getLightMetaCache, home_cl, depth_cl)
+            _cover_light = ok_cl and map or nil
+        end
+        return _cover_light
+    end
     local function _folderCoverFps(folder_path)
         if not _cover_match_built then
             _cover_match_built = true
@@ -3871,7 +3955,8 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
             end
         end
         local ok, fps = pcall(Repo.folderCoverPaths, folder_path, priority, 4,
-                              { match = _cover_match })
+                              { match = _cover_match,
+                                light_cache_fn = _coverLightCache })
         return (ok and fps) or {}
     end
     -- reverse only applies on the fallback path; chip sort_priority
@@ -5862,6 +5947,33 @@ function Repo.getFolderSections(limit, offset, sort_priority_override, filter, o
     local walk  = cachedWalk(root, depth)
     local FolderSections = require("lib/bookshelf_folder_sections")
     local sections = FolderSections.group(walk, root)
+    -- KOReader's "folders and files mixed", which getAll honours for the
+    -- tree view by putting every folder before every file. The spine shelf
+    -- reads the same library through this producer instead, and it never
+    -- asked: sections come out in TREE order, which puts the root's own
+    -- loose books first because the walk starts there. With the setting off
+    -- and the chip sorted by date added, that showed the newest root book
+    -- ahead of everything and the first folder pages later -- the opposite
+    -- of what cover and list mode showed from the same settings (reported
+    -- on a Home shelf).
+    --
+    -- The sections ARE the folders here and the label-less one is the root's
+    -- loose files, so the partition is a single move: everything else keeps
+    -- its tree order, and a folder still stands with its own books.
+    local mixed = G_reader_settings
+                  and G_reader_settings:isTrue("collate_mixed") or false
+    if not mixed then
+        local folders, loose = {}, {}
+        for i = 1, #sections do
+            local s = sections[i]
+            if s.label then folders[#folders + 1] = s
+            else             loose[#loose + 1] = s end
+        end
+        if #loose > 0 and #folders > 0 then
+            sections = folders
+            for i = 1, #loose do sections[#sections + 1] = loose[i] end
+        end
+    end
     -- The walk already statted every file, so carry mtime and size across:
     -- a chip sorted by "Added" or by file size has something to compare on
     -- without a second pass over the filesystem.

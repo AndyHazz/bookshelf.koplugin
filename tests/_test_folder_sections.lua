@@ -140,4 +140,84 @@ t.test("sections: a wrapper folder at the top level joins the root run", functio
     eq(shape(s), { { label = nil, n = 2 } })
 end)
 
+-- ── "folders and files mixed", which the spine shelf reads through here ──
+--
+-- getAll honours KOReader's setting for the tree view: every folder before
+-- every file. The spine shelf reads the same library through
+-- Repo.getFolderSections instead, and that never asked - sections come out
+-- in TREE order, which puts the root's own loose books FIRST because the
+-- walk starts there. With the setting off and the chip sorted by date added,
+-- the newest root book stood ahead of everything and the first folder paged
+-- later, while cover and list mode showed folders first from the same
+-- settings (reported on a Home shelf).
+t.test("mixed off: the root's loose books go last, folders keep tree order", function()
+    local rsrc = io.open("lib/bookshelf_book_repository.lua"):read("*a")
+    local block = rsrc:match("(local mixed = G_reader_settings.-\n    end\n)")
+    assert(block, "the partition moved or was renamed")
+    local env = { G_reader_settings = { isTrue = function(_s, k)
+                      return k == "collate_mixed" and false end } }
+    local fn = assert(load("local sections = ...\n" .. block
+                           .. "\nreturn sections", "partition", "t", env))
+    local out = fn({ { label = nil, path = "/r" },
+                     { label = "Culture", path = "/r/Culture" },
+                     { label = "Discworld", path = "/r/Discworld" } })
+    local got = {}
+    for i = 1, #out do got[i] = out[i].label or "<root>" end
+    eq(table.concat(got, ","), "Culture,Discworld,<root>",
+       "folders first, in the order the walk found them, root's own books after")
+end)
+
+t.test("mixed on: tree order stands, which is what it always did", function()
+    local rsrc = io.open("lib/bookshelf_book_repository.lua"):read("*a")
+    local block = rsrc:match("(local mixed = G_reader_settings.-\n    end\n)")
+    local env = { G_reader_settings = { isTrue = function(_s, k)
+                      return k == "collate_mixed" and true end } }
+    local fn = assert(load("local sections = ...\n" .. block
+                           .. "\nreturn sections", "partition", "t", env))
+    local out = fn({ { label = nil, path = "/r" }, { label = "Culture" } })
+    eq(out[1].label or "<root>", "<root>", "mixed must leave the order alone")
+end)
+
+t.test("a library with no loose books, or no folders, is left alone", function()
+    local rsrc = io.open("lib/bookshelf_book_repository.lua"):read("*a")
+    local block = rsrc:match("(local mixed = G_reader_settings.-\n    end\n)")
+    local env = { G_reader_settings = { isTrue = function() return false end } }
+    local function run(list)
+        local fn = assert(load("local sections = ...\n" .. block
+                               .. "\nreturn sections", "partition", "t", env))
+        return fn(list)
+    end
+    eq(#run({ { label = "A" }, { label = "B" } }), 2, "folders only")
+    eq((run({ { label = nil } }))[1].label, nil, "root only")
+    eq(#run({}), 0, "an empty library must not error")
+end)
+
+-- ── and the shelf has to notice the toggle ────────────────────────────────
+--
+-- Turning it back ON left the shelf as it was. The spine shelf fetches its
+-- WHOLE list once and keeps it for 30 seconds, keyed on the chip and the
+-- drill tip alone -- a settings toggle changes neither, so the rebuild the
+-- watcher schedules re-rendered the list it already had, in the old order,
+-- until the TTL lapsed. Cover and list refetch per page, which is why only
+-- spine mode looked stuck.
+t.test("a mixed toggle drops the spine shelf's cached fetch", function()
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    local block = w:match("(local current_mixed = G_reader_settings.-\n        end\n)")
+    assert(block, "the collate_mixed watcher moved or was renamed")
+    assert(block:find("invalidateAllCache", 1, true),
+        "the tree view's shape cache must still be dropped")
+    assert(block:find("self._spine_fetch_cache = nil", 1, true),
+        "the spine shelf keeps serving its cached list, in the old order")
+end)
+
+t.test("...and the cached fetch really is blind to the setting", function()
+    -- If the key ever grows a settings generation this test is the reminder
+    -- that the explicit drop above can go with it.
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    local key = w:match("local key = (tostring%(self%.chip%)[^\n]+)")
+    assert(key, "the spine fetch key moved or was renamed")
+    assert(not key:find("generation", 1, true),
+        "the key now carries a generation: " .. key)
+end)
+
 t.done()

@@ -258,7 +258,7 @@ local SAMPLE_STEPS = 8
 
 local function _nightMode()
     local ok, night = pcall(function()
-        return G_reader_settings and G_reader_settings:isTrue("night_mode")
+        return require("lib/bookshelf_night_mode_sync").active()
     end)
     return ok and night or false
 end
@@ -913,6 +913,43 @@ function SpineShelf.faceOutEmpty(spec)
         if spec[k] then return false end
     end
     return true
+end
+
+-- recentSetForItems(items, n) -> the same set, from a chip's WHOLE item list.
+--
+-- recentSet answers about the entries it is HANDED, and plan() is handed one
+-- screen in the render pass -- so computing it in there put N face-outs on
+-- every screen instead of N across the shelf, which is not what "Recently
+-- added 5" says. The caller works it out once from the full list and passes
+-- it to plan() as data; see the face_recent_set option.
+--
+-- Flattened first, because a group item carries its books rather than being
+-- one: on a spine shelf the members stand individually, so the newest N has
+-- to be chosen from the books, not from the groups they arrive in.
+function SpineShelf.recentSetForItems(items, n)
+    if not n or n <= 0 then return nil end
+    return SpineShelf.recentSet(SpineShelf._flattenItems(items or {}), n)
+end
+
+-- isFirstInSeries(src) -> true when the book is book ONE of a named series.
+--
+-- The "first in series" reason is answered by the shelf's own run heads
+-- wherever the shelf HAS runs: a series group's first member, a folder
+-- section's first book. A plain shelf has none -- every book is its own item
+-- and its own run -- so nothing faced out at all, which is what issue 425
+-- reported from a Home shelf with the reason switched on. There the only
+-- thing that can answer is the book's own place in its series.
+--
+-- Both halves are required. The number alone would face out every book that
+-- happens to carry an index of 1 with no series to be first of, which an
+-- embedded "#1" with no name gives you (see the issue 127 guard in the
+-- repository). series_num is a STRING on these records and can be "1", "1.0"
+-- or "01", so it is compared as a number.
+function SpineShelf.isFirstInSeries(src)
+    if not src then return false end
+    local name = src.series_name
+    if type(name) ~= "string" or name == "" then return false end
+    return tonumber(src.series_num) == 1
 end
 
 -- recentSet(flat, n) -> { [filepath] = true } for the n most recently ADDED.
@@ -2837,9 +2874,21 @@ function SpineShelf.plan(items, opts)
     local flat = SpineShelf._flattenItems(items)
     -- The newest N across this shelf's WHOLE list, worked out once: a per-book
     -- test would re-sort the library for every spine.
-    local face_recent = SpineShelf.recentSet(flat, face_spec.recent)
+    -- Worked out by the CALLER from the chip's whole item list, because
+    -- "the newest N" is a fact about the shelf and `flat` here is one screen
+    -- of it in the render pass. A caller that hands none still gets the old
+    -- answer rather than no answer, which is wrong by a screen but never
+    -- blank; every caller in this plugin passes one.
+    local face_recent = opts.face_recent_set
+    if face_recent == nil then
+        face_recent = SpineShelf.recentSet(flat, face_spec.recent)
+    end
     -- One entry per run: the first member that turns out to be unread.
     local first_unread_seen = {}
+    -- ...and one per SERIES, for the books a plain shelf leaves standing on
+    -- their own. See the run rule below: same question, asked of the series
+    -- rather than of the run, because a plain shelf has no runs to ask.
+    local first_unread_series = {}
 
     -- Resume INSIDE an item. A group bigger than a page cannot be paged
     -- through in item units, so a page that starts partway through one is
@@ -2963,6 +3012,9 @@ function SpineShelf.plan(items, opts)
                         title         = full.title,
                         series_num    = full.series_num
                                         and tostring(full.series_num) or nil,
+                        -- ...and the NAME, which isFirstInSeries needs: a
+                        -- number with no series is not first of anything.
+                        series_name   = full.series_name,
                         page_count    = full.page_count,
                         cover_sizetag = full.cover_sizetag,
                         author        = full.author
@@ -2982,6 +3034,10 @@ function SpineShelf.plan(items, opts)
                 if (not bk.series_num or tostring(bk.series_num) == "")
                         and hyd.series_num and hyd.series_num ~= "" then
                     bk.series_num = hyd.series_num
+                end
+                if (not bk.series_name or bk.series_name == "")
+                        and hyd.series_name and hyd.series_name ~= "" then
+                    bk.series_name = hyd.series_name
                 end
                 if not bk.page_count and hyd.page_count then
                     bk.page_count = hyd.page_count
@@ -3069,6 +3125,25 @@ function SpineShelf.plan(items, opts)
             first_unread_seen[f.run_idx] = true
             f.first_unread_of_group = true
         end
+        -- The same question for a book standing on its own, which on a plain
+        -- shelf is every book: the first unread of ITS SERIES rather than of
+        -- its run. Issue 425 asked for "first in series" to mean something on
+        -- an ungrouped shelf, and this reason needs the same answer or the
+        -- pair of them disagree about what a series is.
+        --
+        -- First in SHELF order, exactly as the run rule is - this loop walks
+        -- the list in order and the series' first unread to come up closes
+        -- it. On a shelf sorted by series that is the lowest-numbered unread,
+        -- which is what the reason means; on one sorted by date added it is
+        -- whichever of them the reader's own ordering puts first, and the run
+        -- rule has always behaved that way too.
+        local sname = src.series_name
+        if not f.in_group and type(sname) == "string" and sname ~= ""
+                and not first_unread_series[sname]
+                and SpineShelf.isUnread(src) then
+            first_unread_series[sname] = true
+            f.first_unread_in_series = true
+        end
         -- Decided AFTER the status block: the "reading" mode needs
         -- src.status. Books only -- a plain folder keeps its spine.
         -- ANY reason is enough. They are not ranked: a book that is both a
@@ -3080,8 +3155,19 @@ function SpineShelf.plan(items, opts)
                 face_out = true
             else
                 face_out = (face_spec.favorites and fav)
-                    or (face_spec.first and f.first_of_group == true)
-                    or (face_spec.first_unread and f.first_unread_of_group == true)
+                    -- The shelf's run heads answer this wherever the shelf
+                    -- has runs. Where a book stands on its own -- a plain
+                    -- Home shelf, where every book is its own item -- its
+                    -- place in its series answers instead, which is what
+                    -- the reason reads as when there is no grouping to be
+                    -- first of (issue 425). A book already inside a run is
+                    -- left to the head rule, so a grouped shelf is
+                    -- unchanged.
+                    or (face_spec.first and (f.first_of_group == true
+                        or (not f.in_group
+                            and SpineShelf.isFirstInSeries(src))))
+                    or (face_spec.first_unread and (f.first_unread_of_group == true
+                        or f.first_unread_in_series == true))
                     or (face_spec.reading and src.status == "reading")
                     or (face_spec.unread and SpineShelf.isUnread(src))
                     or (face_recent ~= nil and face_recent[src.filepath] == true)

@@ -181,7 +181,7 @@ local SHADOW_GRAY_NIGHT = Blitbuffer.gray(0.15)
 local function _shadowGray()
     local ok, colors = pcall(CoverProgress.resolvedColors)
     if ok and colors and colors.card_shadow then return colors.card_shadow end
-    if G_reader_settings:isTrue("night_mode") then
+    if require("lib/bookshelf_night_mode_sync").active() then
         return SHADOW_GRAY_NIGHT
     end
     return SHADOW_GRAY_DAY
@@ -206,7 +206,7 @@ local FALLBACK_INNER_BG_DAY   = Blitbuffer.COLOR_WHITE
 local FALLBACK_OUTER_BG_NIGHT = Blitbuffer.gray(0.12)
 local FALLBACK_INNER_BG_NIGHT = Blitbuffer.gray(0.16)
 local function _fallbackBgs()
-    if G_reader_settings:isTrue("night_mode") then
+    if require("lib/bookshelf_night_mode_sync").active() then
         return FALLBACK_OUTER_BG_NIGHT, FALLBACK_INNER_BG_NIGHT
     end
     return FALLBACK_OUTER_BG_DAY, FALLBACK_INNER_BG_DAY

@@ -21,7 +21,9 @@ local t = helpers.runner()
 local widget = io.open("lib/bookshelf_widget.lua"):read("*a")
 local micro  = io.open("lib/bookshelf_micro_fullscreen.lua"):read("*a")
 
-local paint = widget:match("(inner_vgroup%.paintTo = function%(slf, bb, x, y%).-\n            end\n)")
+-- The override lives in BookshelfWidget:_attachTopPanel, which both the
+-- shelf and the empty-chip branch call (issue 423).
+local paint = widget:match("(vgroup%.paintTo = function%(slf, bb, x, y%).-\n    end\n)")
 assert(paint, "the list-mode panel paint override moved")
 local code = paint:gsub("%-%-[^\n]*", "")
 

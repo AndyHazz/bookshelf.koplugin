@@ -55,6 +55,11 @@ local function callCoverPaths(priority, limit, match)
         SortEngine = SortEngine,
         _buildBookMetaLight = function(fp) return { filepath = fp, title = TITLES[fp] } end,
         _lightMetaForFp = function(_, fp) return { filepath = fp, title = TITLES[fp] } end,
+        -- The per-folder memo the function now consults (its own suite is
+        -- _test_folder_cover_cache); a fresh one per call keeps every case
+        -- here measuring the ordering itself.
+        _folder_cover_cache = {}, _folder_cover_cache_order = {},
+        _capInsert = function(cache, _order, key, value) cache[key] = value end,
         ipairs = ipairs, table = table, type = type,
     }
     local fn, err = load("return function(path, sort_priority, limit, opts)\n" .. body .. "\nend",

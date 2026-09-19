@@ -1270,8 +1270,13 @@ t.test("the top panel is one band, attached above the hero swap", function()
     -- disappear the first time the reader changed books. Painting from
     -- inner_vgroup, which outlives every swap, is what makes it stick.
     local src = io.open("lib/bookshelf_widget.lua"):read("a")
-    assert(src:match("inner_vgroup%.paintTo = function"),
-        "the top panel is no longer painted from the group that outlives the "
+    -- Painted by _attachTopPanel, which wraps whatever GROUP it is handed:
+    -- the shelf's inner_vgroup, and the empty chip's own group (issue 423).
+    assert(src:match("function BookshelfWidget:_attachTopPanel")
+           and src:match("vgroup%.paintTo = function"),
+        "the top panel is no longer painted from a group's own paintTo")
+    assert(src:match("_attachTopPanel%(inner_vgroup"),
+        "the shelf no longer hands the panel the group that outlives the "
         .. "hero swap")
     local hero_src = io.open("lib/bookshelf_hero_card.lua"):read("a")
     assert(not hero_src:match("function HeroCard:paintTo"),

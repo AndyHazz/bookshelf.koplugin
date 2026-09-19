@@ -80,7 +80,9 @@ t.test("labels get a plate over a background colour too, not only over a picture
     -- is for; it used to appear only when a picture was showing. _rebuild
     -- hands Wallpaper the painted ground colour when there is no picture
     -- (Wallpaper.setGround), so the row can ask for either.
-    local block = row_src:match("\n    local plate_fill\n    do\n(.-)\n    end\n")
+    -- the declaration carries the Wallpaper handle and the shading strength
+    -- alongside the fill now, so match the line loosely
+    local block = row_src:match("\n    local plate_fill[^\n]*\n    do\n(.-)\n    end\n")
     assert(block, "the plate_fill block moved")
     assert(block:find("Wallpaper.isShowing()", 1, true), "a picture no longer gives a plate")
     assert(block:find("Wallpaper.ground()", 1, true), "a background colour gives no plate")

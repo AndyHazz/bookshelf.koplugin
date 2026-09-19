@@ -2038,7 +2038,10 @@ function BookshelfWidget:_rebuild()
                 ratings=1, favorites=1 }
             if _source_kind and not builtin_kinds[_source_kind] then
                 placeholder_text = string.format(
-                    _("No books in %s yet \xC2\xB7 Long-press the shelf to edit its source or filter"),
+                    -- "the shelf" reads as the shelf AREA, which is not
+                    -- what takes the long press: the shelf's own name in the
+                    -- menu above is.
+                    _("No books in %s yet \xC2\xB7 Long-press it in the shelf menu to edit its source or filter"),
                     _tab and _tab.label or self.chip)
             else
                 placeholder_text = string.format(_("No books in %s yet"), self:_chipLabel())
@@ -2052,7 +2055,7 @@ function BookshelfWidget:_rebuild()
         if _tab and _tab.filter and Filter.isActive(_tab.filter) then
             local label = _tab.label or self:_chipLabel()
             placeholder_text = string.format(
-                _("Nothing in %s yet \xC2\xB7 Long-press the shelf to edit its filter"),
+                _("Nothing in %s yet \xC2\xB7 Long-press it in the shelf menu to edit its filter"),
                 label)
         end
 
@@ -2204,6 +2207,18 @@ function BookshelfWidget:_rebuild()
             }
         end
         self._hero_parent = empty_vgroup        -- hero lives at index 1
+        -- The same panel the shelf gets behind its top band. An empty CHIP
+        -- still shows the hero and the chip bar, and without this they stood
+        -- on the bare wallpaper: unreadable, and showing whatever the last
+        -- frame had left there (issue 423). The gap here is a plain PAD span,
+        -- not hero_chip_pad, so the band is measured from what is actually in
+        -- this group.
+        self:_attachTopPanel(empty_vgroup, {
+            band_h    = hero_h + (hide_chip_bar and 0 or (PAD + chip_h)),
+            content_w = content_w,
+            PAD       = PAD,
+            list_full = false,
+        })
         local empty_frame = FrameContainer:new{
             bordersize = 0,
             padding    = PAD,
@@ -2390,26 +2405,8 @@ function BookshelfWidget:_rebuild()
     -- split that follows has to know whether a panel will bleed down over
     -- the space above row 1. One decision, two uses; deciding twice is how
     -- the two drift.
-    local panel_strength = self:wallpaperScrimStrength()
-    -- The dark theme with no picture: panel and page are both black, and
-    -- blending one over the other is a full-band read-modify-write of the
-    -- framebuffer, every paint, for no visible change.
-    if self:_groundState().panel_redundant then panel_strength = 0 end
-    local top_panel_bleed = 0
-    local panel_colors, PanelWallpaper
-    if panel_strength > 0 then
-        local ok_cp, CoverProgress = pcall(require, "lib/bookshelf_cover_progress")
-        local ok_wp, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
-        local colors = ok_cp and CoverProgress.resolvedColors
-            and select(2, pcall(CoverProgress.resolvedColors)) or nil
-        if ok_wp and colors and colors.panel_bg then
-            panel_colors, PanelWallpaper = colors, Wallpaper
-            -- PAD - floor(PAD/2), not floor(PAD/2): this puts the panel edge
-            -- at floor(PAD/2) from the SCREEN edge, which is where the footer
-            -- panel puts its own, so the two line up on an odd padding too.
-            top_panel_bleed = PAD - math.floor(PAD / 2)
-        end
-    end
+    local panel_strength, panel_colors, PanelWallpaper, top_panel_bleed =
+        self:_topPanelPlan(PAD)
     -- ── The grid's outer gaps ───────────────────────────────────────────
     -- One PAD above row 1 and one after every row looked bottom-heavy on
     -- every device: the panel bleeds over the top gap, the footer's icons sit
@@ -2484,87 +2481,25 @@ function BookshelfWidget:_rebuild()
     -- be dropped by the next swap and would need re-attaching in three
     -- places. The group outlives every one of them, and painting from it puts
     -- the panel down before any child draws over it.
-    if panel_colors then
-        local Wallpaper, colors = PanelWallpaper, panel_colors
-        do
-            local bleed  = top_panel_bleed
-            local band_h = hero_h
-            if not hide_chip_bar then
-                band_h = band_h + hero_chip_pad + chip_h
-            end
-            local ground = colors.panel_bg
-            local pw     = content_w + bleed * 2
-            local ph     = band_h + bleed * 2
-            local radius = Size.radius.window
-            -- LIST MODE takes one panel behind everything, down to and
-            -- including the footer.
-            --
-            -- A list row is text on a thin rule, with none of a cover's own
-            -- ground to carry it, so over a picture the whole shelf fades to
-            -- the point of being unreadable -- far worse than covers or
-            -- spines, which bring their own opaque card. Panelling just the
-            -- rows would then leave the gaps between them on bare picture, so
-            -- the panel runs the whole way, exactly as the full-screen
-            -- micro-module view does.
-            --
-            -- The footer's own scrim is suppressed in this mode (see
-            -- _buildFooterRow): the area is already tinted here, and tinting
-            -- it twice would leave the footer a darker band inside the panel.
-            local list_full = self:_isListMode() and true or false
-            self._panel_covers_footer = list_full
-            local inner_paint = inner_vgroup.paintTo
-            inner_vgroup.paintTo = function(slf, bb, x, y)
-                local px, py = x - bleed, y - bleed
-                local w2, h2 = pw, ph
-                -- Kept for the rule below: the footer's top edge, which only
-                -- exists as a boundary while this one panel covers it. Only
-                -- the Y is taken from the panel; the rule's width is the
-                -- CONTENT's, so it lines up with the chip strip above rather
-                -- than with the panel, which bleeds past it on both sides.
-                local rule_y
-                if list_full then
-                    -- Width and bottom from the footer's own definition, so
-                    -- this panel cannot drift from the one the shelf draws.
-                    local fx, fy, fw, fh = self:footerPanelRect()
-                    if fx then
-                        px, w2 = fx, fw
-                        h2 = (fy + fh) - py
-                        rule_y = fy
-                    end
-                end
-                -- Clamp rather than trust the blitter: it bounds the rect it
-                -- is handed, but the corner spans are computed BEFORE that,
-                -- so a negative origin rounds the wrong pixels.
-                if px < 0 then w2 = w2 + px; px = 0 end
-                if py < 0 then h2 = h2 + py; py = 0 end
-                Wallpaper.scrim(bb, px, py, w2, h2, ground, panel_strength, radius)
-                -- Tell restore() where the tint is. Anything that puts the
-                -- picture back inside this rect has to put the TINTED picture
-                -- back, or it punches a bright hole in the panel -- which is
-                -- what the hero cover's rounded corners were doing.
-                Wallpaper.setPanel(px, py, w2, h2, ground, panel_strength, radius)
-                -- A hairline where the footer panel's top edge would be.
-                --
-                -- In this mode the footer has no panel of its own -- the one
-                -- above swallowed it, deliberately, so the area is not tinted
-                -- twice -- and that leaves its glyphs in the same unbroken
-                -- surface as the shelf above, with nothing to sit against.
-                -- They read as misaligned rather than as a bar. The
-                -- full-screen micro module met this first and answered it the
-                -- same way (lib/bookshelf_micro_fullscreen.lua, the footer
-                -- rule): a rule restores the boundary without splitting the
-                -- panel back into two objects. Same colour and thickness as
-                -- that one, so the two views are a matched pair.
-                --
-                -- Painted BEFORE the content: the footer row draws over it,
-                -- so a glyph that reaches the edge is not cut by the rule.
-                if rule_y then
-                    bb:paintRect(x, rule_y, content_w, Size.line.medium,
-                                 Blitbuffer.gray(0.4))
-                end
-                return inner_paint(slf, bb, x, y)
-            end
+    do
+        local band_h = hero_h
+        if not hide_chip_bar then
+            band_h = band_h + hero_chip_pad + chip_h
         end
+        self:_attachTopPanel(inner_vgroup, {
+            band_h    = band_h,
+            content_w = content_w,
+            PAD       = PAD,
+            -- LIST MODE takes one panel behind everything, down to and
+            -- including the footer. A list row is text on a thin rule, with
+            -- none of a cover's own ground to carry it, so over a picture the
+            -- whole shelf fades to the point of being unreadable -- far worse
+            -- than covers or spines, which bring their own opaque card.
+            -- Panelling just the rows would then leave the gaps between them
+            -- on bare picture, so the panel runs the whole way, exactly as the
+            -- full-screen micro-module view does.
+            list_full = self:_isListMode() and true or false,
+        })
     end
 
     local shelf_first_idx = #inner_vgroup + 1
@@ -9361,6 +9296,119 @@ end
 -- (cover image + title) then bleed through the chip strip area on the next
 -- BIM-poll repaint, which is what the user sees as "the hero card reappears
 -- behind the listing" after swiping up while covers are still loading.
+-- _topPanelPlan(PAD) -> strength, colors, Wallpaper, bleed
+--
+-- Whether the shelf puts a panel behind its top band, and in what colour.
+-- Decided in one place because two callers need the same answer: _rebuild's
+-- gap split has to know whether a panel will bleed down over the space above
+-- row 1, and the painter below has to tint exactly that band.
+function BookshelfWidget:_topPanelPlan(PAD)
+    local strength = self:wallpaperScrimStrength()
+    -- The dark theme with no picture: panel and page are both black, and
+    -- blending one over the other is a full-band read-modify-write of the
+    -- framebuffer, every paint, for no visible change.
+    if self:_groundState().panel_redundant then strength = 0 end
+    if strength <= 0 then return 0, nil, nil, 0 end
+    local ok_cp, CoverProgress = pcall(require, "lib/bookshelf_cover_progress")
+    local ok_wp, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
+    local colors = ok_cp and CoverProgress.resolvedColors
+        and select(2, pcall(CoverProgress.resolvedColors)) or nil
+    if not (ok_wp and colors and colors.panel_bg) then return 0, nil, nil, 0 end
+    -- PAD - floor(PAD/2), not floor(PAD/2): this puts the panel edge at
+    -- floor(PAD/2) from the SCREEN edge, which is where the footer panel puts
+    -- its own, so the two line up on an odd padding too.
+    return strength, colors, Wallpaper, PAD - math.floor(PAD / 2)
+end
+
+-- _attachTopPanel(vgroup, opts) -> true when a panel was attached
+--
+-- One panel behind the hero, the gap under it, AND the shelf menu, rather
+-- than one each: two abutting panels show a seam wherever their rounded
+-- corners meet, and the pair reads as two objects when the reader is looking
+-- at one band of chrome.
+--
+-- Attached to the GROUP, not to the hero, and that is load-bearing. The hero
+-- is swapped in place (_swapHeroInPlace) and comes in three shapes -- card,
+-- expanded strip, micro -- so a paintTo on the hero would be dropped by the
+-- next swap and would need re-attaching in three places. The group outlives
+-- every one of them, and painting from it puts the panel down before any
+-- child draws over it.
+--
+-- Both tree builders call this. The empty-chip branch used to return before
+-- the panel was painted, on the reasoning that an empty library has no hero
+-- to band -- but an empty CHIP still shows the hero and the chip bar, and
+-- over a wallpaper they were left standing on the bare picture with whatever
+-- the last frame had put there showing through (issue 423).
+function BookshelfWidget:_attachTopPanel(vgroup, opts)
+    local strength, colors, Wallpaper, bleed = self:_topPanelPlan(opts.PAD)
+    if strength <= 0 or not colors then
+        self._panel_covers_footer = false
+        return false
+    end
+    local content_w = opts.content_w
+    local ground    = colors.panel_bg
+    local pw        = content_w + bleed * 2
+    local ph        = opts.band_h + bleed * 2
+    local radius    = Size.radius.window
+    local list_full = opts.list_full and true or false
+    -- The footer's own scrim is suppressed in list mode (see _buildFooterRow):
+    -- the area is already tinted here, and tinting it twice would leave the
+    -- footer a darker band inside the panel.
+    self._panel_covers_footer = list_full
+    local inner_paint = vgroup.paintTo
+    vgroup.paintTo = function(slf, bb, x, y)
+        local px, py = x - bleed, y - bleed
+        local w2, h2 = pw, ph
+        -- Kept for the rule below: the footer's top edge, which only exists
+        -- as a boundary while this one panel covers it. Only the Y is taken
+        -- from the panel; the rule's width is the CONTENT's, so it lines up
+        -- with the chip strip above rather than with the panel, which bleeds
+        -- past it on both sides.
+        local rule_y
+        if list_full then
+            -- Width and bottom from the footer's own definition, so this
+            -- panel cannot drift from the one the shelf draws.
+            local fx, fy, fw, fh = self:footerPanelRect()
+            if fx then
+                px, w2 = fx, fw
+                h2 = (fy + fh) - py
+                rule_y = fy
+            end
+        end
+        -- Clamp rather than trust the blitter: it bounds the rect it is
+        -- handed, but the corner spans are computed BEFORE that, so a
+        -- negative origin rounds the wrong pixels.
+        if px < 0 then w2 = w2 + px; px = 0 end
+        if py < 0 then h2 = h2 + py; py = 0 end
+        Wallpaper.scrim(bb, px, py, w2, h2, ground, strength, radius)
+        -- Tell restore() where the tint is. Anything that puts the picture
+        -- back inside this rect has to put the TINTED picture back, or it
+        -- punches a bright hole in the panel -- which is what the hero
+        -- cover's rounded corners were doing.
+        Wallpaper.setPanel(px, py, w2, h2, ground, strength, radius)
+        -- A hairline where the footer panel's top edge would be.
+        --
+        -- In this mode the footer has no panel of its own -- the one above
+        -- swallowed it, deliberately, so the area is not tinted twice -- and
+        -- that leaves its glyphs in the same unbroken surface as the shelf
+        -- above, with nothing to sit against. They read as misaligned rather
+        -- than as a bar. The full-screen micro module met this first and
+        -- answered it the same way (lib/bookshelf_micro_fullscreen.lua, the
+        -- footer rule): a rule restores the boundary without splitting the
+        -- panel back into two objects. Same colour and thickness as that one,
+        -- so the two views are a matched pair.
+        --
+        -- Painted BEFORE the content: the footer row draws over it, so a
+        -- glyph that reaches the edge is not cut by the rule.
+        if rule_y then
+            bb:paintRect(x, rule_y, content_w, Size.line.medium,
+                         Blitbuffer.gray(0.4))
+        end
+        return inner_paint(slf, bb, x, y)
+    end
+    return true
+end
+
 function BookshelfWidget:_swapHeroInPlace()
     -- While the module grid is showing (micro + not expanded) there's no book
     -- hero to swap; re-render the GRID instead so a d-pad focus-ring change

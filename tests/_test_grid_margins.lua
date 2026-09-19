@@ -172,8 +172,13 @@ end)
 t.test("the top panel is decided once, and the split sees its bleed", function()
     local src = read("lib/bookshelf_widget.lua")
     local body = src:match("\nfunction BookshelfWidget:_rebuild%(%)\n(.-)\nend\n")
-    local n = select(2, body:gsub("PAD %- math%.floor%(PAD / 2%)", ""))
-    assert(n == 1, "the panel bleed is computed " .. n .. " times in _rebuild; expected once")
+    -- The decision lives in _topPanelPlan, which _rebuild and the empty-chip
+    -- branch both ask (issue 423 gave the empty branch the same panel). Once
+    -- in the file, and _rebuild takes the answer rather than re-deriving it.
+    local n = select(2, src:gsub("PAD %- math%.floor%(PAD / 2%)", ""))
+    assert(n == 1, "the panel bleed is computed " .. n .. " times; expected once")
+    assert(body:find("self:_topPanelPlan(PAD)", 1, true),
+        "_rebuild must take the panel decision from _topPanelPlan")
     assert(body:find("top_bleed = top_panel_bleed", 1, true), "the split is not told the panel bleed")
     assert(body:find("foot_offset", 1, true), "the split is not told the footer inset")
     -- Spine rows hang a section badge below the plank: the last gap must clear it.

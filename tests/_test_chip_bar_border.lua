@@ -254,56 +254,66 @@ t.test("neither layout builds a pointer, a join or an outline of its own", funct
     assert(calls == 2, "expected one call per layout, found " .. calls)
 end)
 
-t.test("the pointer is NOT lifted clear of the frame's border", function()
+t.test("the pointer is NOT lifted clear of the outline", function()
     local fn = src:match("\nlocal function _actionButton%(o%)\n(.-)\nend\n")
-    local expr = fn:match("pointer%.overlap_offset = { 0, ([^}]+) }")
-    assert(expr == "-pointer_h", "the pointer is lifted by " .. tostring(expr))
-    -- ...which stops it one border clear of the frame it sits on, so the
-    -- frame's top edge draws a line across the join and the two read as a
-    -- triangle stacked on a box. The join is what closes that.
-    assert(fn:find("PointerJoin:new", 1, true), "nothing covers that border")
-    local i_frame = fn:find("\n        widget,", 1, true)
-    local i_join  = fn:find("\n        join,", 1, true)
-    local i_ptr   = fn:find("\n        pointer,", 1, true)
-    assert(i_frame and i_join and i_ptr, "the overlap group lost a member")
-    assert(i_join > i_frame, "the join must be painted AFTER the frame it covers")
+    local expr = fn:match("pointer%.overlap_offset = { %-ol, ([^}]+) }")
+    assert(expr and expr:match("^%-pointer_h %- ot$"),
+        "the pointer is lifted by " .. tostring(expr) .. "; anything more "
+        .. "stops it clear of the outline, and the outline then draws a line "
+        .. "across the join -- a triangle stacked on a box")
+    assert(fn:find("PointerJoin:new", 1, true), "nothing covers that edge")
+    local i_ring = fn:find("\n        ring,", 1, true)
+    local i_join = fn:find("group[#group + 1] = join", 1, true)
+    local i_ptr  = fn:find("group[#group + 1] = pointer", 1, true)
+    assert(i_ring and i_join and i_ptr, "the overlap group lost a member")
+    assert(i_join > i_ring and i_join > i_ptr,
+        "the join covers the ring's top edge AND the pointer's own base row, "
+        .. "so it has to be painted after both")
     local args = fn:match("PointerJoin:new{(.-)}")
     assert(args:match("inset%s*=%s*b"),
         "the join must stop a border short at each end, or it eats the "
-        .. "frame's corners and the outline no longer meets the slopes")
+        .. "ring's corners and the outline no longer meets the slopes")
     assert(args:match("color%s*=%s*o%.pointer%.color"),
         "the join must take the pointer's own fill, or it shows in its own right")
 end)
 
-t.test("the border comes OUT of the declared width, not added to it", function()
+-- ── which sides of the outline reach outward ───────────────────────────────
+--
+-- Two reports, one after the other, and the fix has to satisfy both. An
+-- outline drawn inside the cell leaves the strip's own edge showing as a
+-- second, lighter line around it: "a white border outside the black border".
+-- An outline pushed out on EVERY side paints over the separator, and the
+-- button then runs into the chip beside it whenever both are filled the same
+-- way. So each side goes out only where the strip's edge is what lies beyond.
+t.test("the outline reaches out per side, not all round", function()
     local fn = src:match("\nlocal function _actionButton%(o%)\n(.-)\nend\n")
-    assert(fn:match("o%.w %- 2 %* b") and fn:match("o%.h %- 2 %* b"),
-        "callers lay out on o.w and the strip records it for hit-testing, so "
-        .. "the frame has to fit inside it")
-    assert(fn:match("bordersize = 0"),
-        "the body must not carry the border itself -- an InvertedFrame that "
-        .. "inverts its own border leaves a white ring on a KT6")
+    assert(fn:find("EdgeRing:new", 1, true) and not fn:find("FrameContainer:new", 1, true),
+        "a FrameContainer cannot do this -- its four sides are all alike")
+    for _, side in ipairs({ "out_l", "out_r", "out_t", "out_b" }) do
+        assert(fn:find(side, 1, true), "the ring lost " .. side)
+    end
 end)
 
--- ── where the strip puts it ────────────────────────────────────────────────
---
--- The cell sits just inside the strip's own outline. A button framed WITHIN
--- the cell therefore has that outline immediately outside its border, and on
--- a dark theme the strip's ink is near-white: "it looks like the button has a
--- white border outside the black border" (maintainer, on the render).
--- Painting it a border further out lands it ON the strip's edge and replaces
--- it, so the button carries one outline, as the drilled-in one does.
-t.test("the strip's button lands ON the strip's edge, not inside it", function()
+t.test("the strip asks for it on the sides that touch its edge", function()
     local call = src:match("(local wants_button.-\n        local chip_slot)")
     assert(call, "the chips-mode button block moved or was renamed")
-    assert(call:match("w%s*=%s*w %+ 2 %* bb") and call:match("h%s*=%s*self%.height %+ 2 %* bb"),
-        "the button must be a border bigger than the cell on every side")
-    assert(call:match("overlap_offset = { %-bb, %-bb }"),
-        "...and offset back by one, or it covers the cell instead of the edge")
-    -- the enclosing group still measures the CELL: the row lays out on w and
-    -- _chip_dimens records it for hit-testing
-    assert(call:match("dimen = Geom:new{ w = w, h = self%.height }"),
-        "the slot must still report the cell's own size")
+    local out = call:match("out%s*=%s*{(.-)}")
+    assert(out, "the chips-mode button no longer says where its edges go")
+    assert(out:match("t = bb") and out:match("b = bb"),
+        "top and bottom always touch the strip's edge")
+    assert(out:match("l = %(i == 1%)") and out:match("r = %(i == #render_chips%)"),
+        "left and right only at the ends of the row; anywhere else a "
+        .. "separator lies beyond and has to keep its contrasting line")
+end)
+
+t.test("the body fills the cell, so the outline sits ON its edge", function()
+    local fn = src:match("\nlocal function _actionButton%(o%)\n(.-)\nend\n")
+    assert(fn:match("dimen = Geom:new{ w = o%.w, h = o%.h }"),
+        "the body must measure the full cell now -- the ring paints on its "
+        .. "edge rather than taking a border out of it")
+    assert(fn:match("bordersize = 0"),
+        "the body must not carry a border itself -- an InvertedFrame that "
+        .. "inverts its own border leaves a white ring on a KT6")
 end)
 
 t.test("every FILLED chip is a button, but only an action chip gets a roof", function()

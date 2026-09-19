@@ -513,6 +513,57 @@ function PointerJoin:paintTo(bb, x, y)
     else          bb:paintRect(x + self.inset, y, w, self.height, self.color) end
 end
 
+-- The roof's height. Shared, because the refresh that repaints a tapped chip
+-- has to cover it: scoped to the cell alone, the rectangle repainted in one
+-- frame and the triangle above it in the next.
+local function _pointerHeight(h)
+    return math.max(Screen:scaleBySize(5), math.floor(h * 0.25))
+end
+
+-- _EdgeRing -- the outline around a chip that is a BUTTON.
+--
+-- Not a FrameContainer, because the four sides do not all belong in the same
+-- place. A button inside the strip has the strip's own edge immediately
+-- outside it, and an outline drawn within the cell leaves that edge showing
+-- as a second, lighter line around the first -- "a white border outside the
+-- black border". So a side whose neighbour is the STRIP's edge is pushed out
+-- onto it and replaces it, while a side whose neighbour is another chip stays
+-- at the cell's edge, leaving the separator to keep its contrasting line
+-- between the two. Both were reported from a PW5, one after the other.
+--
+-- out_l / out_r / out_t / out_b say how far each side is pushed out.
+local EdgeRing = require("ui/widget/widget"):extend{
+    width  = nil,
+    height = nil,
+    color  = nil,
+    bw     = 1,
+    out_l  = 0, out_r = 0, out_t = 0, out_b = 0,
+}
+function EdgeRing:init()
+    self.dimen = Geom:new{ w = self.width, h = self.height }
+end
+function EdgeRing:paintTo(bb, x, y)
+    local bw = self.bw
+    local x0, y0 = x - self.out_l, y - self.out_t
+    local x1     = x + self.width  + self.out_r   -- exclusive
+    local y1     = y + self.height + self.out_b
+    local rw, rh = x1 - x0, y1 - y0
+    if rw <= 0 or rh <= 0 or bw <= 0 then return end
+    -- paintRectRGB32 for the reason the pointer gives (#294): paintRect
+    -- flattens a custom colour to its luminance.
+    local rgb32 = bb.paintRectRGB32 and self.color and self.color.getColorRGB32
+                  and self.color:getColorRGB32() or nil
+    local function rect(rx, ry, rww, rhh)
+        if rww <= 0 or rhh <= 0 then return end
+        if rgb32 then bb:paintRectRGB32(rx, ry, rww, rhh, rgb32)
+        else          bb:paintRect(rx, ry, rww, rhh, self.color) end
+    end
+    rect(x0, y0, rw, bw)            -- top
+    rect(x0, y1 - bw, rw, bw)       -- bottom
+    rect(x0, y0, bw, rh)            -- left
+    rect(x1 - bw, y0, bw, rh)       -- right
+end
+
 -- _actionButton(o) -> a widget exactly o.w by o.h
 --
 -- The currently-reading and micro-modules buttons, in ONE place. Both chip
@@ -529,12 +580,14 @@ end
 --   o.border    the outline's colour
 --   o.pointer   nil, or { color =, outline = } to put a roof on it
 local function _actionButton(o)
-    local b = Size.border.thin
-    -- bordersize 0 on the body and the outline supplied by a FrameContainer
-    -- around it: an InvertedFrame that inverts its own border leaves a white
-    -- ring on a KT6. The body is sized DOWN so the border comes out of o.w,
-    -- not added to it -- callers lay out on o.w and, in the strip, record it
-    -- for hit-testing.
+    local b   = Size.border.thin
+    local out = o.out or {}
+    local ol, ort = out.l or 0, out.r or 0
+    local ot, ob  = out.t or 0, out.b or 0
+    -- The body fills the cell; the outline is painted ON its edge by the ring
+    -- below, and pushed outward only where the strip's own edge is what lies
+    -- beyond. bordersize 0 here for its own reason: an InvertedFrame that
+    -- inverts its own border leaves a white ring on a KT6.
     local body = InvertedFrame:new{
         _invert    = o.invert and true or false,
         bordersize = 0,
@@ -542,44 +595,49 @@ local function _actionButton(o)
         padding    = 0,
         background = o.fill,
         CenterContainer:new{
-            dimen = Geom:new{ w = o.w - 2 * b, h = o.h - 2 * b },
+            dimen = Geom:new{ w = o.w, h = o.h },
             o.content,
         },
     }
-    local widget = FrameContainer:new{
-        bordersize = b,
-        color      = o.border,
-        margin     = 0,
-        padding    = 0,
-        body,
+    local ring = EdgeRing:new{
+        width = o.w, height = o.h, color = o.border, bw = b,
+        out_l = ol, out_r = ort, out_t = ot, out_b = ob,
     }
-    if not o.pointer then return widget end
+    local group = OverlapGroup:new{
+        dimen = Geom:new{ w = o.w, h = o.h },
+        body,
+        ring,
+    }
+    if not o.pointer then return group end
     -- The roof, pointing up at the hero slot this button controls. Anchored
     -- with a negative y so it paints above the button without taking layout
-    -- space, and joined to it: see PointerJoin, which covers the frame's top
-    -- border so the two read as one silhouette rather than a triangle
+    -- space, and NOT lifted clear of the outline: the join below covers that
+    -- top edge so the two read as one silhouette rather than a triangle
     -- stacked on a box.
-    local pointer_h = math.max(Screen:scaleBySize(5), math.floor(o.h * 0.25))
+    local pointer_h = _pointerHeight(o.h)
     local pointer = UpTrianglePointer:new{
-        width   = o.w,
+        width   = o.w + ol + ort,
         height  = pointer_h,
         color   = o.pointer.color,
         outline = o.pointer.outline,
         border  = b,
     }
-    pointer.overlap_offset = { 0, -pointer_h }
+    pointer.overlap_offset = { -ol, -pointer_h - ot }
+    -- Over the ring's top edge, wherever that landed, and a border short at
+    -- each end so the ring still turns its two top corners. After the
+    -- pointer, because an outlined pointer draws its whole taper in the
+    -- outline colour before insetting the fill: its base row would otherwise
+    -- leave a few dark pixels at each end of the join.
     local join = PointerJoin:new{
-        width  = o.w,
+        width  = o.w + ol + ort,
         height = b,
         inset  = b,
         color  = o.pointer.color,
     }
-    return OverlapGroup:new{
-        dimen = Geom:new{ w = o.w, h = o.h },
-        widget,
-        join,      -- after the frame, so it covers its top border
-        pointer,
-    }
+    join.overlap_offset = { -ol, -ot }
+    group[#group + 1] = pointer
+    group[#group + 1] = join
+    return group
 end
 
 -- Breadcrumb pill rendered as a black-outlined tag (white interior) with
@@ -1227,32 +1285,37 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
         local chip_body
         if wants_button then
             local bb = Size.border.thin
-            local btn = _actionButton{
+            chip_body = _actionButton{
                 content = cell_content,
-                w       = w + 2 * bb,
-                h       = self.height + 2 * bb,
+                w       = w,
+                h       = self.height,
                 fill    = has_custom and fill_c
                           or ((is_active and not is_cursor) and paper or chip_paper),
                 invert  = is_active and not is_cursor and not has_custom,
                 border  = has_custom and Blitbuffer.COLOR_BLACK or _stripInk(),
-                -- ...but only an ACTION chip points at the hero. A shelf
-                -- chip is a destination, not a control over what is above.
+                -- Top and bottom always touch the strip's edge; left only for
+                -- the first chip and right only for the last. Anywhere else a
+                -- SEPARATOR lies beyond, and it has to keep its contrasting
+                -- line -- without that the button and the chip beside it run
+                -- together whenever both are filled the same way (maintainer,
+                -- currently reading against a selected shelf on a PW5).
+                out     = {
+                    t = bb, b = bb,
+                    l = (i == 1) and bb or 0,
+                    r = (i == #render_chips) and bb or 0,
+                },
+                -- ...but only an ACTION chip points at the hero. A shelf chip
+                -- is a destination, not a control over what is above.
                 pointer = chip.action and {
                     -- The pointer is an extension of the chip's silhouette,
-                    -- so it follows the chip's own fill (#294). Black is
-                    -- what the invert path produces, hence the default.
+                    -- so it follows the chip's own fill (#294). Black is what
+                    -- the invert path produces, hence the default.
                     color   = has_custom and fill_c or Blitbuffer.COLOR_BLACK,
                     -- Only for a custom fill: the default fill is the same
                     -- black as the border, so an outline would draw black on
                     -- black and change nothing.
                     outline = has_custom and Blitbuffer.COLOR_BLACK or nil,
                 } or nil,
-            }
-            btn.overlap_offset = { -bb, -bb }
-            chip_body = OverlapGroup:new{
-                -- the CELL's size, so the row lays out on w as it always did
-                dimen = Geom:new{ w = w, h = self.height },
-                btn,
             }
         else
             chip_body = InvertedFrame:new{
@@ -1275,6 +1338,11 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
         local chip_slot = chip_body
         if is_pending or is_cursor then
             local pb   = Size.border.thick
+            local eb   = Size.border.thin
+            -- Held a border clear of the cell's edge. Drawn flush, its top
+            -- and bottom ran straight into the strip's own edge and the two
+            -- read as one fat line -- the inner border spilling over the
+            -- outer one (maintainer, on a tap). The gap keeps them separate.
             local ring = FrameContainer:new{
                 bordersize = pb,
                 -- The "we heard you" ring while a chip loads. It has to be
@@ -1284,8 +1352,10 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
                 color      = _stripInk(),
                 margin     = 0,
                 padding    = 0,
-                Widget:new{ dimen = Geom:new{ w = w - 2*pb, h = self.height - 2*pb } },
+                Widget:new{ dimen = Geom:new{
+                    w = w - 2*pb - 2*eb, h = self.height - 2*pb - 2*eb } },
             }
+            ring.overlap_offset = { eb, eb }
             chip_slot = OverlapGroup:new{
                 dimen = Geom:new{ w = w, h = self.height },
                 chip_body,
@@ -1715,12 +1785,18 @@ function ChipBar:flashPending(key)
     if not d or not self.show_parent or not self.dimen then return end
     self._pending_key = key
     self:_buildChipRow()
-    local b = Size.border.thin
+    -- Over everything the chip paints, not just its cell. A selected action
+    -- chip carries a roof ABOVE the strip and an outline a border outside
+    -- the cell, and a region scoped to the cell left both out: the rectangle
+    -- came back in this frame and the triangle in the next, which reads as
+    -- the button changing shape in two steps (maintainer, on a PW5).
+    local b  = Size.border.thin
+    local ph = _pointerHeight(self.height)
     UIManager:setDirty(self.show_parent, "fast", Geom:new{
-        x = self.dimen.x + b + d.x,
-        y = self.dimen.y + b,
-        w = d.w,
-        h = self.height,
+        x = self.dimen.x + d.x,          -- cell x, less the outline's border
+        y = self.dimen.y - ph,           -- strip top, less the roof
+        w = d.w + 2 * b,
+        h = ph + self.height + 2 * b,    -- ...to the strip's painted bottom
     })
     UIManager:forceRePaint()
 end

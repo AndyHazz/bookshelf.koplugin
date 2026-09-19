@@ -1386,7 +1386,12 @@ function ChipBar:_initBreadcrumb()
         }
         current_widget = FrameContainer:new{
             bordersize = b,
-            color      = _stripInk(),
+            -- Black once the cell is painted for real, exactly as the
+            -- breadcrumb pill outlines itself. _stripInk() is the STRIP's own
+            -- ink, which on a dark shelf is the same near-white as the fill:
+            -- the outline then vanished into the cell, and the white block
+            -- read a pixel taller than the chips-mode one it should match.
+            color      = act_has and Blitbuffer.COLOR_BLACK or _stripInk(),
             margin     = 0,
             padding    = 0,
             body,

@@ -1923,6 +1923,15 @@ local _light_meta_cache = {}  -- { [key] = { map = {[fp]=record}, expires_at = n
 -- and memoise. Invalidated alongside the walk cache and inside
 -- cachedWalk's files-changed branch.
 local _folder_book_paths_cache = {}  -- { [path] = { paths = {...} } }
+-- Ordered tile books per folder, keyed by folder + the sort that produced the
+-- order (see Repo.folderCoverPaths). The ordering costs a light metadata
+-- record per book IN the folder, so without this it ran again on every fetch
+-- that put the same tile on screen: every page turn, every chip pre-warm,
+-- every rebuild. The member list is the input, so this shares its lifetime
+-- and is cleared wherever _folder_book_paths_cache is; the key's `s:<key>:`
+-- segments let invalidateReadStateCache drop just the orders a read moves.
+local _folder_cover_cache = {}
+local _folder_cover_cache_order = {}  -- insertion order backing the SHAPE_CACHE_MAX eviction
 -- Per-file progress cache. DocSettings:open() does a Lua-parse from disk
 -- per call, which dominates loops that read percent / summary.status for
 -- many books in a row (getAll's prefetch on the Home chip is the obvious
@@ -2150,6 +2159,8 @@ function Repo.invalidateWalkCache()
     _bySource_cache_order = {}
     _light_meta_cache = {}
     _folder_book_paths_cache = {}
+    _folder_cover_cache = {}
+    _folder_cover_cache_order = {}
     _progress_cache   = {}
     -- Sticky last-good Book records (see the declaration above) have no
     -- other invalidation path; a walk invalidation is the broadest signal
@@ -2271,6 +2282,17 @@ function Repo.invalidateReadStateCache()
         for _i, tok in ipairs(READ_STATE_SORT_TOKENS) do
             if k:find(tok, 1, true) then
                 _bySource_cache[k] = nil
+                break
+            end
+        end
+    end
+    -- Same rule for the folder tiles: "the book this folder opens with" can
+    -- only move when read state does, and only for a sort that reads it, so a
+    -- title or filename order survives a book being closed.
+    for k in pairs(_folder_cover_cache) do
+        for _i, tok in ipairs(READ_STATE_SORT_TOKENS) do
+            if k:find(tok, 1, true) then
+                _folder_cover_cache[k] = nil
                 break
             end
         end
@@ -2889,6 +2911,8 @@ local function cachedWalk(home, depth)
             _bySource_cache_order = {}
             _light_meta_cache = {}
             _folder_book_paths_cache = {}
+            _folder_cover_cache = {}
+            _folder_cover_cache_order = {}
         end
         local dir_count = 0
         for _k in pairs(dirs) do dir_count = dir_count + 1 end
@@ -3622,6 +3646,29 @@ function Repo.folderCoverPaths(path, sort_priority, limit, opts)
     limit = limit or 4
     if not path or path == "" or limit <= 0 then return {} end
     opts = opts or {}
+    -- Memo key: the folder, the sort that produced the order, and the limit.
+    -- A FILTERED call is never memoised -- opts.match is a compiled closure,
+    -- so nothing about it can go in a key, and serving a filtered tile from an
+    -- unfiltered order would front a folder with a book the filter excludes.
+    -- The `s:<key>:` segments match READ_STATE_SORT_TOKENS on purpose, so
+    -- invalidateReadStateCache drops exactly the orders that a book being read
+    -- can reorder and leaves title/filename ones standing.
+    local ckey
+    if not opts.match then
+        local parts = {}
+        for _i = 1, #(sort_priority or {}) do
+            local lv = sort_priority[_i]
+            parts[#parts + 1] = "s:" .. (lv.key or "")
+                .. ":" .. (lv.reverse and "r" or "f")
+        end
+        ckey = path .. "\0" .. table.concat(parts, ";") .. ";l:" .. limit
+        local hit = _folder_cover_cache[ckey]
+        if hit then
+            local out = {}
+            for _i = 1, #hit do out[_i] = hit[_i] end
+            return out
+        end
+    end
     local all = Repo.getFolderBookPaths(path) or {}
     if #all == 0 then return {} end
 
@@ -3663,6 +3710,11 @@ function Repo.folderCoverPaths(path, sort_priority, limit, opts)
             if #out >= limit then break end
             out[#out + 1] = fp
         end
+    end
+    if ckey then
+        local keep = {}
+        for _i = 1, #out do keep[_i] = out[_i] end
+        _capInsert(_folder_cover_cache, _folder_cover_cache_order, ckey, keep)
     end
     return out
 end

@@ -11114,13 +11114,36 @@ end
 function BookshelfWidget:_rebuildRefreshBelowHero()
     local prev_hero  = self._hero_parent and self._hero_parent[1]
     local hero_dimen = prev_hero and prev_hero.dimen
-    self:_rebuild()
-    local below_y
+    local old_bottom
     if hero_dimen and hero_dimen.y and hero_dimen.h then
-        below_y = hero_dimen.y + hero_dimen.h
-    elseif self._hero_dims and self._hero_dims.hero_h then
-        below_y = (self._hero_dims.PAD or 0) + self._hero_dims.hero_h
+        old_bottom = hero_dimen.y + hero_dimen.h
     end
+    self:_rebuild()
+    local new_bottom
+    if self._hero_dims and self._hero_dims.hero_h then
+        new_bottom = (self._hero_dims.PAD or 0) + self._hero_dims.hero_h
+    end
+    -- BOTH bottoms, and the band starts at whichever is higher.
+    --
+    -- The premise below -- that a chip switch leaves the hero pixel-identical
+    -- -- holds for the book it shows and not for its HEIGHT: the hero sizes
+    -- itself from the shelf's own layout, so two shelves with different styles
+    -- (spines against covers), different row counts, or one of them empty,
+    -- give heroes of different heights. Scoping from the OLD bottom alone then
+    -- left the rows between the two heroes out of the refresh, and the panel
+    -- kept the previous shelf's pixels there until something else repainted
+    -- the screen. The framebuffer was right the whole time, which is why it
+    -- survived a screenshot and only showed in a photograph (issue 423,
+    -- reporter's trace: two refreshes at y=596 and y=650 on the same pair of
+    -- shelves).
+    local below_y
+    if old_bottom and new_bottom then
+        below_y = math.min(old_bottom, new_bottom)
+    else
+        below_y = old_bottom or new_bottom
+    end
+    local hero_same = (old_bottom == nil) or (new_bottom == nil)
+        or (old_bottom == new_bottom)
     -- The hero cover's drop shadow fills the bottom SHADOW_OFFSET strip of the
     -- card, so its lower edge lands exactly on below_y. A scoped "ui" refresh
     -- whose hard top boundary sits flush against that soft-grey gradient leaves
@@ -11130,7 +11153,9 @@ function BookshelfWidget:_rebuildRefreshBelowHero()
     -- refresh. SHADOW_OFFSET mirrors the value in bookshelf_spine_widget /
     -- bookshelf_hero_card.
     if below_y then
-        below_y = below_y + Screen:scaleBySize(4)
+        -- Only when the two heroes end in the same place. Where they do not,
+        -- the 4px would eat into the band that has to be repainted.
+        if hero_same then below_y = below_y + Screen:scaleBySize(4) end
         UIManager:setDirty(self, function()
             return "ui", Geom:new{ x = 0, y = below_y, w = self.width, h = self.height - below_y }, self.dithered
         end)

@@ -486,6 +486,33 @@ function UpTrianglePointer:paintTo(bb, x, y)
     end
 end
 
+-- A short rule in a chip's own fill, painted over the top border row of the
+-- frame a pointer sits on. Only the breadcrumb currently-reading button needs
+-- it: its pointer is lifted from the FRAME's top rather than from a cell's
+-- content top, so it lands one border clear and the border shows through as a
+-- line across the join. `inset` keeps that many pixels at each end, so the
+-- frame's corners survive and the pointer's outline still meets the box's.
+local PointerJoin = require("ui/widget/widget"):extend{
+    width  = nil,
+    height = nil,
+    color  = nil,
+    inset  = 0,
+}
+function PointerJoin:init()
+    self.dimen = Geom:new{ w = self.width, h = self.height }
+end
+function PointerJoin:paintTo(bb, x, y)
+    local w = self.width - 2 * self.inset
+    if w <= 0 then return end
+    -- paintRectRGB32 where it exists, for the reason the pointer uses it:
+    -- paintRect flattens a custom fill to its luminance (#294), and this rule
+    -- has to be the SAME colour as the pointer above it or the join shows.
+    local rgb32 = bb.paintRectRGB32 and self.color and self.color.getColorRGB32
+                  and self.color:getColorRGB32() or nil
+    if rgb32 then bb:paintRectRGB32(x + self.inset, y, w, self.height, rgb32)
+    else          bb:paintRect(x + self.inset, y, w, self.height, self.color) end
+end
+
 -- Breadcrumb pill rendered as a black-outlined tag (white interior) with
 -- an arrow tip on the right. Pills CHAIN by overlapping the right tip
 -- of one with the left "notch" (empty space) of the next. The widget's
@@ -1413,11 +1440,30 @@ function ChipBar:_initBreadcrumb()
                 outline = act_has and Blitbuffer.COLOR_BLACK or nil,
                 border  = Size.border.thin,
             }
-            -- Joined to the chip, as above.
+            -- Same lift as chips mode, but it does NOT join the same way.
+            -- There the offset is measured from the cell's CONTENT top, so
+            -- the last rows land on the STRIP's border and paint it out.
+            -- This group's origin is this button's own FRAME top, so the
+            -- pointer stops one border clear of it and the frame's top edge
+            -- draws a line across the join: a triangle stacked on a box.
+            --
+            -- Dropping the pointer onto the border would close the gap, but
+            -- it also costs the triangle a row of its height and it sits
+            -- visibly low. Paint the border out underneath it instead: the
+            -- pointer keeps its full height at its natural place, and the
+            -- rule stops a border short at each end so the frame keeps its
+            -- corners and the outline still runs unbroken up the slopes.
             pointer.overlap_offset = { 0, -pointer_h }
+            local join = PointerJoin:new{
+                width  = current_w,
+                height = b,
+                inset  = b,
+                color  = pointer.color,   -- same fill, so the two read as one
+            }
             current_widget = OverlapGroup:new{
                 dimen = Geom:new{ w = current_w, h = self.height },
                 current_widget,
+                join,                     -- after the frame, so it covers it
                 pointer,
             }
         end

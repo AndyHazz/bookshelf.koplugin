@@ -179,4 +179,144 @@ t.test("the pointer is NOT lifted clear of the frame border", function()
     assert(lifts >= 2, "expected both pointer sites, found " .. lifts)
 end)
 
+-- ...but the same lift does not JOIN the same way in both places, because the
+-- two are measured in different spaces. Chips mode offsets from the cell's
+-- CONTENT top (the cell carries no frame of its own), so the last rows land
+-- on the STRIP's border and paint it out. The breadcrumb button owns its
+-- frame, and its group's origin is that frame's OUTER top, so the pointer
+-- stops one border clear and the top edge draws a line across the join --
+-- reported on a PW5, drilled into a folder.
+--
+-- Dropping the pointer onto the border closes it, but costs a row of triangle
+-- and reads low (maintainer, 2026-09-19). The border is painted out under it
+-- instead, which is what PointerJoin is for: pointer height is untouched.
+t.test("the breadcrumb pointer joins by painting its own border out", function()
+    local crumb = src:match("(Same lift as chips mode.-\n        end\n)")
+    assert(crumb, "the breadcrumb pointer block moved or was renamed")
+    assert(crumb:find("PointerJoin:new", 1, true),
+        "the breadcrumb pointer has nothing painting the frame's top edge "
+        .. "out beneath it, so the join shows as a line")
+    -- over the frame, so order in the group matters
+    local order = crumb:match("OverlapGroup:new{.-}")
+        or crumb:match("OverlapGroup:new{(.-)\n            }")
+    assert(crumb:find("current_widget,", 1, true), "the frame left the group")
+    local i_frame = crumb:find("current_widget,%s*\n")
+    local i_join  = crumb:find("join,", 1, true)
+    assert(i_frame and i_join and i_join > i_frame,
+        "the join must be painted AFTER the frame it covers")
+    -- the SAME fill as the pointer, or the rule is visible in its own right
+    assert(crumb:match("color%s*=%s*pointer%.color"),
+        "the join must take the pointer's own fill")
+end)
+
+-- Painted for real, like the pointer above: the rule's whole job is which
+-- pixels it touches.
+local join_body = src:match("\nfunction PointerJoin:paintTo%(bb, x, y%)\n(.-)\nend\n")
+assert(join_body, "could not find PointerJoin:paintTo - renamed?")
+
+local function paintJoin(w, h, inset, fill, rgb32_capable)
+    local px = {}
+    local function put(_s, x, y, rw, rh, c)   -- called as bb:paintRect(...)
+        for iy = y, y + rh - 1 do
+            for ix = x, x + rw - 1 do px[ix .. "," .. iy] = c end
+        end
+    end
+    local bb = { paintRect = put }
+    if rgb32_capable then bb.paintRectRGB32 = put end
+    local self_ = { width = w, height = h, color = fill, inset = inset }
+    local fn = compile("local self, bb, x, y = ...\n" .. join_body,
+                       { math = math }, "PointerJoin:paintTo")
+    fn(self_, bb, 0, 0)
+    return px
+end
+
+t.test("the join covers the border row between its two ends", function()
+    local px = paintJoin(40, 1, 1, WHITE, false)
+    for x = 1, 38 do
+        assert(px[x .. ",0"] == WHITE,
+            "x=" .. x .. " left uncovered; the frame's top edge shows through "
+            .. "there as a line between the box and the pointer")
+    end
+end)
+
+t.test("...and keeps the frame's corners at both ends", function()
+    -- Painting the full width would eat the border's corners, and the
+    -- pointer's outline would no longer meet the box's.
+    local px = paintJoin(40, 1, 1, WHITE, false)
+    assert(px["0,0"] == nil, "the left corner was painted over")
+    assert(px["39,0"] == nil, "the right corner was painted over")
+end)
+
+t.test("a thick border is covered to its full depth", function()
+    -- Size.border.thin is scaled, so it is 2px on a 300dpi panel. Covering
+    -- only the first row would leave the line the rule exists to remove.
+    local px = paintJoin(40, 2, 2, WHITE, false)
+    assert(px["20,0"] == WHITE and px["20,1"] == WHITE,
+        "both rows of a 2px border must be covered")
+    assert(px["1,0"] == nil, "and the inset must follow the border's width")
+end)
+
+t.test("it prefers the RGB32 path where the buffer has one", function()
+    -- paintRect flattens a custom fill to its luminance (#294). A grey rule
+    -- across the join is the same visible seam in a different colour.
+    local calls = {}
+    local function rec(name)
+        return function(_s, x, y, w, h, c) calls[#calls + 1] = name end
+    end
+    local self_ = { width = 40, height = 1, color = WHITE, inset = 1 }
+    local bb = { paintRect = rec("flat"), paintRectRGB32 = rec("rgb32") }
+    -- a colour that can answer in RGB32, as a real Blitbuffer colour does
+    self_.color = { getColorRGB32 = function() return "RGB" end }
+    compile("local self, bb, x, y = ...\n" .. join_body,
+            { math = math }, "PointerJoin:paintTo")(self_, bb, 0, 0)
+    assert(calls[1] == "rgb32", "took the flattening path: " .. tostring(calls[1]))
+end)
+
+t.test("a colour with no RGB32 of its own still paints", function()
+    local px = paintJoin(40, 1, 1, WHITE, true)   -- WHITE has no getColorRGB32
+    assert(px["20,0"] == WHITE, "the rule dropped out entirely")
+end)
+
+t.test("nothing is painted when the inset would swallow the rule", function()
+    -- A narrow chip on a chunky border: better a visible seam than a rule
+    -- painted backwards across the whole strip.
+    local px = paintJoin(4, 1, 2, WHITE, false)
+    for x = -4, 8 do assert(px[x .. ",0"] == nil, "painted at x=" .. x) end
+end)
+
+-- ── and that the breadcrumb button actually uses it ────────────────────────
+--
+-- The two pointer sites lift by the same -pointer_h but do NOT join the same
+-- way, because the offsets are measured in different spaces. Chips mode
+-- offsets from the cell's CONTENT top (the cell carries no frame of its own),
+-- so the last rows land on the STRIP's border and paint it out. The
+-- breadcrumb button owns its frame, and its group's origin is that frame's
+-- OUTER top, so the pointer stops one border clear and the top edge draws a
+-- line across the join -- reported on a PW5, drilled into a folder.
+--
+-- Dropping the pointer onto the border closes it, but costs a row of triangle
+-- and reads low (maintainer, 2026-09-19), hence the rule instead.
+t.test("the breadcrumb pointer joins by painting its own border out", function()
+    local crumb = src:match("(Same lift as chips mode.-\n        end\n)")
+    assert(crumb, "the breadcrumb pointer block moved or was renamed")
+    assert(crumb:find("PointerJoin:new", 1, true),
+        "nothing paints the frame's top edge out beneath the pointer, so the "
+        .. "join shows as a line across it")
+    local i_frame = crumb:find("current_widget,", 1, true)
+    local i_join  = crumb:find("join,", 1, true)
+    assert(i_frame and i_join and i_join > i_frame,
+        "OverlapGroup paints in order: the join must come AFTER the frame")
+    assert(crumb:match("color%s*=%s*pointer%.color"),
+        "the join must take the pointer's own fill, or it shows in its own right")
+    assert(crumb:match("inset%s*=%s*b") and crumb:match("height%s*=%s*b"),
+        "both must be the frame's own border width")
+end)
+
+t.test("the join is only where a pointer needs it", function()
+    -- Chips mode joins by overpainting the strip's border and must not grow a
+    -- second mechanism doing the same job.
+    local uses = select(2, src:gsub("PointerJoin:new", ""))
+    assert(uses == 1, "expected one join site (the breadcrumb button), found " .. uses)
+end)
+
 t.done()

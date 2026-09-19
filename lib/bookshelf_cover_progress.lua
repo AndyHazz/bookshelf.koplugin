@@ -931,7 +931,19 @@ function M.resolvedColors()
         card_shadow       = _paint(card_shadow_raw),
         -- The spine shelf's plank wood; its lit/shaded faces are tinted
         -- from this one pick in bookshelf_spine_shelf.
-        plank             = _paint(plank_raw),
+        --
+        -- NOT through _paint, alone among these. Every other colour here is
+        -- written in PAINT space, for a frame that inverts -- a night
+        -- chrome_bg of 0xFF is a black bar because the frame flips it -- and
+        -- `flip` is what corrects that when the shelf's theme and the frame
+        -- disagree. The wood is written in DISPLAY space instead: "#B08050"
+        -- in both palettes, the same oak day and night, because the spine
+        -- shelf pre-inverts it itself against the SCREEN's own flag
+        -- (_plankFinish, constantInNight). Flipping it here as well inverted
+        -- it once too often, and brown inverted is BLUE -- reported with the
+        -- shelf theme pinned to Dark on a device that was not in night mode,
+        -- and again with it pinned to Light on one that was.
+        plank             = Color.parseColorValue(plank_raw, is_color),
         shadow            = _paint({ hex = shadow_hex }),
         folder_bg         = folder_bg_raw and _paint(folder_bg_raw) or nil,
         ribbon_bg         = ribbon_bg_raw and _paint(ribbon_bg_raw) or nil,

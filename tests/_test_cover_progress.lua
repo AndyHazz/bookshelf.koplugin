@@ -489,13 +489,24 @@ test("the resolved cache knows about both axes", function()
         "the palette cache never records the frame state")
 end)
 
-test("every palette colour goes through the flip", function()
+test("every palette colour goes through the flip, bar the one that must not", function()
     -- One missed parse is one colour left inverted against all the others.
+    --
+    -- The PLANK is the single exception, and deliberately so. These colours
+    -- are written in paint space, for a frame that inverts, which is what
+    -- the flip corrects when the shelf's theme and the frame disagree. The
+    -- wood is written in DISPLAY space -- the same "#B08050" in both
+    -- palettes -- because the spine shelf pre-inverts it itself against the
+    -- screen's flag. Flipped here too it came out blue, which is what brown
+    -- inverted is (reported with the theme pinned to Dark by day).
     local src = io.open("lib/bookshelf_cover_progress.lua"):read("a")
     local body = src:match("function M%.resolvedColors%(%).-_resolved_flip  = flip")
     assert(body, "resolvedColors could not be located")
     local raw = select(2, body:gsub("Color%.parseColorValue%(", ""))
-    eq(raw, 1, "expected only _paint's own parse to remain")
+    eq(raw, 2, "expected _paint's own parse and the plank's, and nothing else")
+    assert(body:match("plank%s+= Color%.parseColorValue%(plank_raw"),
+        "the second direct parse is not the plank's -- some other colour has "
+        .. "been taken out of the flip")
 end)
 
 test("inverting a stored value keeps its shape", function()

@@ -827,12 +827,12 @@ end
 -- lived only in paintTo vanished for the length of every swipe.
 function ChipBar:_paintGround(bb, x, y, w, h)
     if not self.solid_ground then return false end
-    -- NOT in breadcrumb mode. The solid bar exists because a row of chips is a
-    -- dense band of small labels that needs its own ground; a breadcrumb is an
-    -- icon, a pill or two and the folder name, and filling the strip for that
-    -- paints a mostly-empty slab across the screen. The crumb text sits on the
-    -- panel instead, the way the status line does.
-    if self.breadcrumb_path and #self.breadcrumb_path > 0 then return false end
+    -- Breadcrumb mode has it too, since 2026-09-19. It used to be chips-only,
+    -- on the grounds that a breadcrumb is an icon, a pill or two and a folder
+    -- name, and a ground for that is a mostly-empty slab. But with the two
+    -- modes side by side the maintainer asked for them to match, and half a
+    -- bar reads worse than a full one: drilling in changed the whole shape of
+    -- the strip and moved the button with it.
     local ok, CoverProgress = pcall(require, "lib/bookshelf_cover_progress")
     if not (ok and CoverProgress and CoverProgress.resolvedColors) then return false end
     local ok_c, colors = pcall(CoverProgress.resolvedColors)
@@ -1576,6 +1576,11 @@ function ChipBar:_initBreadcrumb()
             fill    = act_has and act_fill or Blitbuffer.COLOR_WHITE,
             invert  = current_chip.selected and not act_has,
             border  = act_has and Blitbuffer.COLOR_BLACK or _stripInk(),
+            -- First in the row, so three of its sides are the band's own
+            -- edge and its outline replaces them. To its right is a pill,
+            -- which carries an outline of its own.
+            out     = { t = Size.border.thin, b = Size.border.thin,
+                        l = Size.border.thin, r = 0 },
             pointer = current_chip.selected and {
                 color   = act_has and act_fill or Blitbuffer.COLOR_BLACK,
                 outline = act_has and Blitbuffer.COLOR_BLACK or nil,
@@ -1720,7 +1725,7 @@ function ChipBar:_initBreadcrumb()
             visible[#visible + 1] = crumb_pills[i]
         end
         row, zones, total_w = build(visible)
-        if total_w <= self.width then break end
+        if total_w <= self.width - 2 * Size.border.thin then break end
         if first_visible > #crumb_pills then break end
         first_visible = first_visible + 1
     end
@@ -1748,7 +1753,26 @@ function ChipBar:_initBreadcrumb()
         end
     end
     self._breadcrumb_zones = zones
-    self[1] = row
+    -- Stretched to the band's width first. A breadcrumb row is only as wide
+    -- as its pills, and a frame around that stops halfway across the screen
+    -- while the ground behind it does not.
+    local band_b = Size.border.thin
+    row = OverlapGroup:new{
+        dimen = Geom:new{ w = self.width - 2 * band_b, h = self.height },
+        row,
+    }
+    -- The same band the chips row sits in, for the same reason its ground is
+    -- painted now: the two modes are one strip and should not change shape
+    -- between them. Also what makes the currently-reading button land in the
+    -- same place in both - the chips strip PAINTS 2*border taller than it
+    -- declares, so a breadcrumb row without the frame sat 2px shy of it.
+    self[1] = FrameContainer:new{
+        bordersize = Size.border.thin,
+        color      = _stripInk(),
+        margin     = 0,
+        padding    = 0,
+        row,
+    }
 end
 
 -- ─── Pre-paint feedback ─────────────────────────────────────────────────────

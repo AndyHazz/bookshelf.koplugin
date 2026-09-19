@@ -371,6 +371,32 @@ local function _selectedChipColors()
     return fill, ink
 end
 
+-- _activeChipColors() -> fill, ink  (nil = "no pair, invert yourself")
+--
+-- What a SELECTED chip paints with. The reader's own choice first (#294);
+-- failing that, on a manually dark shelf, the theme's. An active chip normally
+-- renders by INVERTING its own rect, and a dark strip gives it nothing to
+-- invert -- the fill is cleared under a wallpaper -- so it vanishes or comes
+-- back the wrong way round. An explicit pair paints for real: the bar's own
+-- colour as ink on the theme's ink as fill, which is the inversion the strip
+-- cannot perform for itself.
+--
+-- BOTH layouts ask here. Breadcrumb mode used to ask only for the reader's
+-- custom pair, so with none set on a dark shelf the currently-reading button
+-- and its pointer fell back to inverting: a black cell with a white glyph and
+-- a black roof, against the white cell, dark glyph and white roof the same
+-- button shows at top level. Reported on a drilled-in shelf.
+local function _activeChipColors()
+    local fill, ink = _selectedChipColors()
+    if type(fill) ~= "nil" then return fill, ink end
+    if not _chipThemeFlips() then return nil end
+    local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
+    if not (ok and CP and CP.resolvedColors) then return nil end
+    local ok_c, colors = pcall(CP.resolvedColors)
+    if not (ok_c and colors and colors.chrome_bg) then return nil end
+    return _chipInk(), colors.chrome_bg
+end
+
 local ChipBar = InputContainer:extend{
     -- Set by the shelf when something is painted behind the strip.
     has_wallpaper = false,
@@ -1027,26 +1053,7 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
         local is_cursor_pre = (self.focused_key == chip.key)
         local want_custom = is_active and not is_cursor_pre
         local fill_c, ink_c
-        if want_custom then fill_c, ink_c = _selectedChipColors() end
-        -- MANUAL DARK: an active chip normally renders by inverting its own
-        -- rect, which needs an opaque ground to invert. On a dark strip there
-        -- is none -- the chip's fill is cleared under a wallpaper -- so the
-        -- inversion had nothing to work on and the active chip vanished.
-        --
-        -- Given an explicit pair instead it paints for real, exactly as it
-        -- does when the reader has chosen chip colours: the bar's own colour
-        -- as ink on the theme's ink as fill, which is the inversion the strip
-        -- cannot perform for itself.
-        if want_custom and type(fill_c) == "nil" and _chipThemeFlips() then
-            local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
-            if ok and CP and CP.resolvedColors then
-                local ok_c, colors = pcall(CP.resolvedColors)
-                if ok_c and colors and colors.chrome_bg then
-                    fill_c = _chipInk()
-                    ink_c  = colors.chrome_bg
-                end
-            end
-        end
+        if want_custom then fill_c, ink_c = _activeChipColors() end
         -- Plain boolean, NOT `fill_c == nil`: Blitbuffer colours are ffi cdata
         -- with an __eq metamethod, and comparing one to nil routes through it
         -- and crashes indexing the nil operand (same trap bookshelf_color's
@@ -1348,7 +1355,7 @@ function ChipBar:_initBreadcrumb()
         -- selected language as the chips, so they honour the same colour (#294).
         local act_fill, act_ink
         if current_chip.selected then
-            act_fill, act_ink = _selectedChipColors()
+            act_fill, act_ink = _activeChipColors()
         end
         local act_has = (type(act_fill) ~= "nil") -- see has_custom above (ffi __eq)
         local glyph = TextWidget:new{

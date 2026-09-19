@@ -9233,8 +9233,23 @@ function BookshelfWidget:softRefresh()
     -- expanded mode (where the hero is a different widget without
     -- replaceRightColumn) and book-switch cases.
     local hero = self._hero_card or (self._hero_parent and self._hero_parent[1])
+    -- ... but only while the hero still stands for the same book. "Same book
+    -- is still currently reading" holds for a book opened FROM the hero, and
+    -- not for the commoner gesture: a tap on a shelf cover makes that book
+    -- the current one, and the right column then comes back as the new book
+    -- beside the old book's cover. The cold-create close hid this by
+    -- rebuilding the whole hero every time; keeping the shelf alive across
+    -- the close (issue 422) makes this the normal route home. Compare against
+    -- whatever the right column would render -- a staged preview, else the
+    -- current book -- and fall through to the whole-hero swap when they have
+    -- parted. That is one cover, not a page: shelves and chips stand.
+    local hero_fp   = hero and hero.book and hero.book.filepath
+    local target_fp = (self._preview_book and self._preview_book.filepath)
+        or (Repo.currentFilepath and Repo.currentFilepath())
+    local hero_book_changed = hero_fp and target_fp and hero_fp ~= target_fp
     local right_col_ok = false
-    if hero and hero.replaceRightColumn and not self._expanded then
+    if hero and hero.replaceRightColumn and not self._expanded
+            and not hero_book_changed then
         local Regions = require("lib/bookshelf_hero_regions")
         right_col_ok = self:_swapHeroRightColumnInPlace(Regions.read(), nil)
     end

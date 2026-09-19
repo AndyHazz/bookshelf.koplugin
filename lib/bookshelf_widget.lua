@@ -1045,6 +1045,13 @@ function BookshelfWidget:_rebuild()
            and self._last_collate_mixed ~= current_mixed then
             local Repo = require("lib/bookshelf_book_repository")
             if Repo.invalidateAllCache then Repo.invalidateAllCache() end
+            -- ...and the SPINE shelf's own whole-list fetch, which is keyed
+            -- on the chip and the drill tip alone and holds for 30 seconds.
+            -- A toggle changes neither, so the rebuild below re-rendered the
+            -- list it already had -- in the old order -- and the shelf only
+            -- caught up once the TTL lapsed. Cover and list mode refetch per
+            -- page, which is why only spine mode looked stuck.
+            self._spine_fetch_cache = nil
         end
         self._last_collate_mixed = current_mixed
     end

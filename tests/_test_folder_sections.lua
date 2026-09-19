@@ -192,4 +192,32 @@ t.test("a library with no loose books, or no folders, is left alone", function()
     eq(#run({}), 0, "an empty library must not error")
 end)
 
+-- ── and the shelf has to notice the toggle ────────────────────────────────
+--
+-- Turning it back ON left the shelf as it was. The spine shelf fetches its
+-- WHOLE list once and keeps it for 30 seconds, keyed on the chip and the
+-- drill tip alone -- a settings toggle changes neither, so the rebuild the
+-- watcher schedules re-rendered the list it already had, in the old order,
+-- until the TTL lapsed. Cover and list refetch per page, which is why only
+-- spine mode looked stuck.
+t.test("a mixed toggle drops the spine shelf's cached fetch", function()
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    local block = w:match("(local current_mixed = G_reader_settings.-\n        end\n)")
+    assert(block, "the collate_mixed watcher moved or was renamed")
+    assert(block:find("invalidateAllCache", 1, true),
+        "the tree view's shape cache must still be dropped")
+    assert(block:find("self._spine_fetch_cache = nil", 1, true),
+        "the spine shelf keeps serving its cached list, in the old order")
+end)
+
+t.test("...and the cached fetch really is blind to the setting", function()
+    -- If the key ever grows a settings generation this test is the reminder
+    -- that the explicit drop above can go with it.
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    local key = w:match("local key = (tostring%(self%.chip%)[^\n]+)")
+    assert(key, "the spine fetch key moved or was renamed")
+    assert(not key:find("generation", 1, true),
+        "the key now carries a generation: " .. key)
+end)
+
 t.done()

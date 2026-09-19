@@ -75,7 +75,10 @@ t.test("both layouts ask the one helper", function()
             calls = calls + 1
         end
     end
-    eq(calls, 2, "one call per layout, found " .. calls)
+    -- One per layout at least. There is a third since 2026-09-19: the
+    -- separator between two filled chips takes the outline's own colour, and
+    -- that is the same question, so it asks the same helper.
+    assert(calls >= 2, "expected a call per layout, found " .. calls)
     -- the breadcrumb block runs from its comment to the _actionButton call
     -- that ends it (the pointer itself now lives inside that builder)
     local crumb = src:match("(Pull the currently%-reading chip from the chips list.-_actionButton{)")

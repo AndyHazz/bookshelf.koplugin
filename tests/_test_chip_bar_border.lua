@@ -350,4 +350,87 @@ t.test("the ground covers what the strip PAINTS, not what it declares", function
         "...and take whichever is bigger, as the page-flip region does")
 end)
 
+-- ── two buttons meeting ────────────────────────────────────────────────────
+--
+-- Each drawing its own outline at the boundary, with the separator between
+-- them, made THREE columns of it: measured 117/118/119 all black between two
+-- pink-filled chips. One is wanted, so neither draws the facing side and the
+-- separator is the line.
+t.test("neither button draws the side facing another button", function()
+    local body = src:match("\nfunction EdgeRing:paintTo%(bb, x, y%)\n(.-)\nend\n")
+    assert(body, "EdgeRing:paintTo moved or was renamed")
+    assert(body:match("if not self%.no_l then") and body:match("if not self%.no_r then"),
+        "a side must be skippable, or two buttons meeting draw two outlines")
+    local call = src:match("(local wants_button.-\n        local chip_slot)")
+    assert(call:match("no_l = _isButton%(render_chips%[i %- 1%]%)")
+       and call:match("no_r = _isButton%(render_chips%[i %+ 1%]%)"),
+        "each button must skip the side whose neighbour is another button")
+end)
+
+t.test("...and the separator between them is the line", function()
+    -- Same colour as the outline it stands in for, or the boundary changes
+    -- colour halfway along the strip.
+    local sep = src:match("(THREE CASES.-\n            end\n)")
+    assert(sep, "the separator block moved or was renamed")
+    assert(sep:match("local pair = _activeChipColors%(%)"),
+        "it must ask the same helper the outline does")
+    assert(sep:find("Blitbuffer.COLOR_BLACK", 1, true),
+        "...and reach the same answer")
+end)
+
+t.test("a skipped side leaves the others alone", function()
+    local join_like = src:match("\nfunction EdgeRing:paintTo%(bb, x, y%)\n(.-)\nend\n")
+    local px = {}
+    local function put(_s, x, y, w, h, c)
+        for iy = y, y + h - 1 do
+            for ix = x, x + w - 1 do px[ix .. "," .. iy] = c end
+        end
+    end
+    local self_ = { width = 10, height = 6, color = WHITE, bw = 1,
+                    out_l = 0, out_r = 0, out_t = 0, out_b = 0,
+                    no_l = false, no_r = true }
+    compile("local self, bb, x, y = ...\n" .. join_like,
+            { math = math }, "EdgeRing:paintTo")(self_, { paintRect = put }, 0, 0)
+    assert(px["0,3"] == WHITE, "the left side went missing with it")
+    assert(px["9,3"] == nil, "the right side was drawn although skipped")
+    assert(px["5,0"] == WHITE and px["5,5"] == WHITE,
+        "top and bottom must still run the full width, up to the boundary")
+end)
+
+-- ── the tap flash stays on the strip's own ground ──────────────────────────
+--
+-- "fast" is A2: two tones and nothing between. Over the strip's solid ground
+-- that is exactly right, and it is why the flash is quick. Extended over the
+-- band above it to take in the roof, the wallpaper up there came back as a
+-- white block on a PW5.
+t.test("the pending flash does not reach above the strip", function()
+    local body = src:match("\nfunction ChipBar:flashPending%(key%)\n(.-)\nend\n")
+    assert(body, "flashPending moved or was renamed")
+    assert(body:find('"fast"', 1, true), "the flash is meant to be quick")
+    local y = body:match("\n%s*y = ([^,\n]+),")
+    assert(y and y:match("^self%.dimen%.y$"),
+        "y is " .. tostring(y) .. "; anything above the strip is not solid "
+        .. "ground and A2 will crush it")
+    local h = body:match("\n%s*h = ([^,\n]+),")
+    assert(h and not h:find("ph", 1, true),
+        "h is " .. tostring(h) .. "; the roof is the rebuild's business")
+end)
+
+-- ── the breadcrumb band stops at the trail ─────────────────────────────────
+t.test("the deepest crumb is outside the band", function()
+    local build = src:match("(local function build%(visible_pills%).-\n    end\n)")
+    assert(build, "the breadcrumb build helper moved or was renamed")
+    assert(build:match("outer%[#outer %+ 1%] = deepest_widget"),
+        "the deepest crumb must be added OUTSIDE the framed band -- it is "
+        .. "the name of where you are, not another control")
+    assert(build:match("band,"), "the band lost its row")
+    assert(build:match("return outer, zones, cursor, band_w"),
+        "the band's width has to come back out, or the ground cannot stop at it")
+    local paint = src:match("\nfunction ChipBar:paintTo%(bb, x, y%)\n(.-)\nend\n")
+    assert(paint:find("self._band_w or", 1, true),
+        "the ground must stop at the band in breadcrumb mode")
+    assert(src:find("self._band_w = nil", 1, true),
+        "...and chips mode must clear it, or a stale one narrows the strip")
+end)
+
 t.done()

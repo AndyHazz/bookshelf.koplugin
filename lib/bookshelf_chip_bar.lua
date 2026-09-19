@@ -538,6 +538,10 @@ local EdgeRing = require("ui/widget/widget"):extend{
     color  = nil,
     bw     = 1,
     out_l  = 0, out_r = 0, out_t = 0, out_b = 0,
+    -- ...and a side can be left undrawn, where the neighbour is another
+    -- button. Both drawing at that boundary makes three columns of it -- the
+    -- two outlines and the separator between them - where one is wanted.
+    no_l   = false, no_r = false,
 }
 function EdgeRing:init()
     self.dimen = Geom:new{ w = self.width, h = self.height }
@@ -560,8 +564,8 @@ function EdgeRing:paintTo(bb, x, y)
     end
     rect(x0, y0, rw, bw)            -- top
     rect(x0, y1 - bw, rw, bw)       -- bottom
-    rect(x0, y0, bw, rh)            -- left
-    rect(x1 - bw, y0, bw, rh)       -- right
+    if not self.no_l then rect(x0, y0, bw, rh) end
+    if not self.no_r then rect(x1 - bw, y0, bw, rh) end
 end
 
 -- _actionButton(o) -> a widget exactly o.w by o.h
@@ -602,6 +606,8 @@ local function _actionButton(o)
     local ring = EdgeRing:new{
         width = o.w, height = o.h, color = o.border, bw = b,
         out_l = ol, out_r = ort, out_t = ot, out_b = ob,
+        no_l  = out.no_l and true or false,
+        no_r  = out.no_r and true or false,
     }
     local group = OverlapGroup:new{
         dimen = Geom:new{ w = o.w, h = o.h },
@@ -852,8 +858,11 @@ function ChipBar:paintTo(bb, x, y)
     -- wallpaper between an unfilled chip and the strip's bottom edge,
     -- spotted on a PW5.
     local painted = self[1] and self[1].getSize and self[1]:getSize() or nil
+    -- _band_w, when the breadcrumb layout set one, stops the ground at the
+    -- end of the pill trail: the deepest crumb is the name of where you are,
+    -- and it sits on the shelf rather than on a slab of its own.
     self:_paintGround(bb, x, y,
-        math.max(self.width  or 0, painted and painted.w or 0),
+        self._band_w or math.max(self.width or 0, painted and painted.w or 0),
         math.max(self.height or 0, painted and painted.h or 0))
     InputContainer.paintTo(self, bb, x, y)
 end
@@ -977,6 +986,7 @@ end
 -- Build (or rebuild) the chip row for the current self._page.
 -- Called by _initChips on first build and by _gotoPage on page change.
 function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_w, paper, LineWidget)
+    self._band_w = nil   -- chips fill the strip; only breadcrumb mode narrows it
     -- Allow callers to pass nil when re-entering from _gotoPage, which
     -- stores the computed values on self for reuse.
     if flex_indices == nil then
@@ -1157,6 +1167,12 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
     local row = HorizontalGroup:new{}
     self._chip_dimens = {}
 
+    -- A chip that draws an outline of its own. Its neighbours need to know:
+    -- two of them meeting would otherwise draw two outlines and a separator
+    -- into the one boundary.
+    local function _isButton(c)
+        return (c and isFilled(c) and not c._page_dir) and true or false
+    end
     for i, chip in ipairs(render_chips) do
         if i > 1 then
             -- Between two filled chips the separator has to contrast with
@@ -1194,10 +1210,17 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
                 -- frame, so it is always the opposite of the strip -- which
                 -- makes the strip's own colour the line that shows on it,
                 -- the same answer the one-filled case reaches.
-                local custom = _selectedChipColors()
-                sep_color = (type(custom) ~= "nil")
-                            and _separatorOnFill(custom)
-                            or  _stripGround()
+                --
+                -- Since 2026-09-19 both of them are BUTTONS, each with an
+                -- outline of its own, and neither draws the side facing this
+                -- column (no_l / no_r below). So this column IS the line
+                -- between them, and it takes the outline's own colour -- one
+                -- pixel, not the three that the two outlines and a separator
+                -- of their own made.
+                local pair = _activeChipColors()
+                sep_color = (type(pair) ~= "nil")
+                            and Blitbuffer.COLOR_BLACK
+                            or  _stripInk()
             elseif prev_filled or cur_filled then
                 sep_color = _stripGround()
             else
@@ -1303,6 +1326,10 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
                     t = bb, b = bb,
                     l = (i == 1) and bb or 0,
                     r = (i == #render_chips) and bb or 0,
+                    -- and where the neighbour is another button, leave the
+                    -- facing side to the separator between them
+                    no_l = _isButton(render_chips[i - 1]),
+                    no_r = _isButton(render_chips[i + 1]),
                 },
                 -- ...but only an ACTION chip points at the hero. A shelf chip
                 -- is a destination, not a control over what is above.
@@ -1659,9 +1686,16 @@ function ChipBar:_initBreadcrumb()
     -- pill's tip overhangs into the next pill's notch area — pills
     -- visually overlap by tip_w and chain together.
     local function build(visible_pills)
-        local row    = HorizontalGroup:new{}
+        -- The BAND: the currently-reading button and the pill trail, inside
+        -- the same framed, grounded strip the chips row gets. The deepest
+        -- crumb is NOT in it -- it is the name of where you are, not another
+        -- control, and the maintainer asked for it to sit on the shelf the
+        -- way the status line does rather than on a slab of its own.
+        local band   = HorizontalGroup:new{}
+        local row    = band
         local zones  = {}
-        local cursor = 0
+        local bb     = Size.border.thin
+        local cursor = bb   -- everything in the band is inside its frame
         if current_widget then
             row[#row + 1] = current_widget
             -- depth = -2 is the sentinel for "currently reading" action.
@@ -1683,15 +1717,26 @@ function ChipBar:_initBreadcrumb()
             zones[#zones + 1] = { x = cursor, w = cp.width, depth = cp.depth }
             cursor = cursor + cp.width
         end
+        local band_w = cursor + bb        -- the framed band's outer width
+        local outer = HorizontalGroup:new{
+            FrameContainer:new{
+                bordersize = bb,
+                color      = _stripInk(),
+                margin     = 0,
+                padding    = 0,
+                band,
+            },
+        }
+        cursor = band_w
         if deepest_widget then
             -- Plain text for the active folder. Gap = tip_w + large
             -- inset so the text sits well clear of the last pill's
             -- tip apex, mirroring the breathing room a chained pill
             -- gives its own text via the extra-tip_w left padding.
             local gap_w = pill_tip_w + Size.padding.large
-            row[#row + 1] = HorizontalSpan:new{ width = gap_w }
+            outer[#outer + 1] = HorizontalSpan:new{ width = gap_w }
             cursor = cursor + gap_w
-            row[#row + 1] = deepest_widget
+            outer[#outer + 1] = deepest_widget
             -- Register a tap zone for the deepest crumb. The previous
             -- behaviour left it inert (depth = #path was a no-op for
             -- _drillBackTo), but search mode now uses this as a second
@@ -1699,7 +1744,8 @@ function ChipBar:_initBreadcrumb()
             zones[#zones + 1] = { x = cursor, w = deepest_w, depth = n }
             cursor = cursor + deepest_w
         end
-        return row, zones, cursor
+        -- the band's width, so paintTo can keep its ground off the crumb
+        return outer, zones, cursor, band_w
     end
 
     -- Try to fit all parents. If the chain overflows, drop the
@@ -1709,7 +1755,7 @@ function ChipBar:_initBreadcrumb()
     -- depth of the FIRST hidden parent so the user can pop back into
     -- the truncated middle.
     local first_visible = 1
-    local row, zones, total_w
+    local row, zones, total_w, band_w
     while true do
         local visible = {}
         if first_visible > 1 then
@@ -1724,8 +1770,8 @@ function ChipBar:_initBreadcrumb()
         for i = first_visible, #crumb_pills do
             visible[#visible + 1] = crumb_pills[i]
         end
-        row, zones, total_w = build(visible)
-        if total_w <= self.width - 2 * Size.border.thin then break end
+        row, zones, total_w, band_w = build(visible)
+        if total_w <= self.width then break end
         if first_visible > #crumb_pills then break end
         first_visible = first_visible + 1
     end
@@ -1743,7 +1789,7 @@ function ChipBar:_initBreadcrumb()
                     margin     = 0, padding = 0,
                     Widget:new{ dimen = Geom:new{ w = z.w - 2*pb, h = self.height - 2*pb } },
                 }
-                ring.overlap_offset = { z.x, 0 }
+                ring.overlap_offset = { z.x, Size.border.thin }
                 row = OverlapGroup:new{
                     dimen = Geom:new{ w = self.width, h = self.height },
                     row, ring,
@@ -1753,26 +1799,10 @@ function ChipBar:_initBreadcrumb()
         end
     end
     self._breadcrumb_zones = zones
-    -- Stretched to the band's width first. A breadcrumb row is only as wide
-    -- as its pills, and a frame around that stops halfway across the screen
-    -- while the ground behind it does not.
-    local band_b = Size.border.thin
-    row = OverlapGroup:new{
-        dimen = Geom:new{ w = self.width - 2 * band_b, h = self.height },
-        row,
-    }
-    -- The same band the chips row sits in, for the same reason its ground is
-    -- painted now: the two modes are one strip and should not change shape
-    -- between them. Also what makes the currently-reading button land in the
-    -- same place in both - the chips strip PAINTS 2*border taller than it
-    -- declares, so a breadcrumb row without the frame sat 2px shy of it.
-    self[1] = FrameContainer:new{
-        bordersize = Size.border.thin,
-        color      = _stripInk(),
-        margin     = 0,
-        padding    = 0,
-        row,
-    }
+    -- How far the ground reaches. Chips mode fills the strip; here it stops
+    -- at the end of the trail so the deepest crumb keeps the shelf behind it.
+    self._band_w = band_w
+    self[1] = row
 end
 
 -- ─── Pre-paint feedback ─────────────────────────────────────────────────────
@@ -1809,18 +1839,22 @@ function ChipBar:flashPending(key)
     if not d or not self.show_parent or not self.dimen then return end
     self._pending_key = key
     self:_buildChipRow()
-    -- Over everything the chip paints, not just its cell. A selected action
-    -- chip carries a roof ABOVE the strip and an outline a border outside
-    -- the cell, and a region scoped to the cell left both out: the rectangle
-    -- came back in this frame and the triangle in the next, which reads as
-    -- the button changing shape in two steps (maintainer, on a PW5).
-    local b  = Size.border.thin
-    local ph = _pointerHeight(self.height)
+    -- The chip's cell plus the border band around it: a button's outline is
+    -- drawn a border outside the cell and a region scoped to the cell alone
+    -- left it unrepainted.
+    --
+    -- And no further. It is tempting to take in the roof above the strip as
+    -- well, but "fast" is A2 -- two tones, nothing in between -- and that is
+    -- only safe over the strip's own solid ground. Extended over the band
+    -- above it, the wallpaper up there came back as a white block on a PW5.
+    -- The roof does not need it anyway: it appears when the chip's selected
+    -- state changes, which is the rebuild's business, not this flash's.
+    local b = Size.border.thin
     UIManager:setDirty(self.show_parent, "fast", Geom:new{
         x = self.dimen.x + d.x,          -- cell x, less the outline's border
-        y = self.dimen.y - ph,           -- strip top, less the roof
+        y = self.dimen.y,                -- the strip's own top edge
         w = d.w + 2 * b,
-        h = ph + self.height + 2 * b,    -- ...to the strip's painted bottom
+        h = self.height + 2 * b,         -- ...to its painted bottom
     })
     UIManager:forceRePaint()
 end

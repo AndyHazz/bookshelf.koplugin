@@ -38,7 +38,7 @@ local function _ink()
     -- Twelve call sites per hero build; the answer moves only with the
     -- settings generation or the night flag.
     local gen   = BookshelfSettings.generation and BookshelfSettings.generation() or 0
-    local night = (G_reader_settings and G_reader_settings:isTrue("night_mode")) and true or false
+    local night = require("lib/bookshelf_night_mode_sync").active()
     local m = _ink_memo
     if m and m.gen == gen and m.night == night then return m.v end
     local v

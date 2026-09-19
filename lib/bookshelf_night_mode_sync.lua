@@ -57,6 +57,35 @@ local function bool(v)
     return v and true or false
 end
 
+--- active(screen) -> will the frame be painted inverted?
+--
+-- THE one answer to "is night mode on", for every decision about how to
+-- PAINT. There are two pieces of state and they are written in different
+-- places: this flag, flipped by fb:toggleNightMode() together with the
+-- panel's HW inversion, and the persisted "night_mode" setting, written
+-- afterwards by DeviceListener:onToggleNightMode. Anything that flips the
+-- screen without going through that handler -- a home-screen replacement
+-- with its own night control -- leaves the two disagreeing.
+--
+-- The flag wins, because it is what the frame will actually do: ImageWidget
+-- pre-inverts against it, so the wallpaper, the covers and the ornaments are
+-- already drawn for it. A palette keyed on the setting instead painted day
+-- colours behind a picture pre-inverted for night, which reads as day and
+-- night swapped over (issue 426). With the two in step -- every ordinary
+-- session -- this returns exactly what the setting would have.
+--
+-- The field starts life ABSENT rather than false (see repair below), so a
+-- non-boolean means "no screen state to read" and the setting answers.
+function NightModeSync.active(screen)
+    if screen == nil then
+        local ok, device = pcall(require, "device")
+        screen = ok and device and device.screen or nil
+    end
+    local panel = screen and screen.night_mode
+    if type(panel) == "boolean" then return panel end
+    return bool(G_reader_settings and G_reader_settings:isTrue("night_mode"))
+end
+
 --- repair(screen) -> true if the panel was out of step and has been reset.
 --
 -- `screen` is Device.screen. Returns false for every not-applicable case

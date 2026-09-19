@@ -129,7 +129,7 @@ local PANEL_SHADOW_DIST  = Screen:scaleBySize(2)
 local PANEL_SHADOW_DAY   = Blitbuffer.gray(0.5)
 local PANEL_SHADOW_NIGHT = Blitbuffer.gray(0.15)
 local function _panelShadowGray()
-    if G_reader_settings and G_reader_settings:isTrue("night_mode") then
+    if require("lib/bookshelf_night_mode_sync").active() then
         return PANEL_SHADOW_NIGHT
     end
     return PANEL_SHADOW_DAY

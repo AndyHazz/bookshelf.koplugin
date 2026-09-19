@@ -764,7 +764,23 @@ M.THEME_SETTING = "shelf_theme"   -- "auto" (default) | "dark" | "light"
 
 -- theme() -> want_dark, inverting
 function M.theme()
-    local inverting = G_reader_settings:isTrue("night_mode") or false
+    -- Screen.night_mode, not the setting, wherever there is a screen to ask.
+    --
+    -- There are two pieces of night-mode state and they are written in
+    -- different places: ffi/framebuffer's own flag, flipped by
+    -- fb:toggleNightMode() along with the panel's HW inversion, and the
+    -- persisted "night_mode" setting, written afterwards by
+    -- DeviceListener:onToggleNightMode. Anything that flips the screen without
+    -- going through that handler -- a home-screen replacement with its own
+    -- night control -- leaves them disagreeing.
+    --
+    -- The flag is the one that decides what the frame will look like: it is
+    -- what ImageWidget pre-inverts against, so it is what the wallpaper, the
+    -- covers and the ornaments are already drawn for. A palette keyed on the
+    -- setting instead painted day colours behind a picture pre-inverted for
+    -- night, which reads as day and night swapped over (issue 426). The
+    -- setting stays as the fallback for anything with no screen to read.
+    local inverting = require("lib/bookshelf_night_mode_sync").active(Screen)
     local want = BookshelfSettings.read(M.THEME_SETTING)
     local dark
     if want == "dark" then
@@ -935,7 +951,7 @@ end
 -- generation counter as resolvedColors().
 function M.rawColors()
     local gen      = BookshelfSettings.generation()
-    local is_night = G_reader_settings:isTrue("night_mode") or false
+    local is_night = require("lib/bookshelf_night_mode_sync").active(Screen)
     if _raw_cache and _raw_gen == gen and _raw_night == is_night then
         return _raw_cache
     end

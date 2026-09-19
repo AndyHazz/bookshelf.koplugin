@@ -8938,7 +8938,7 @@ function BookshelfWidget.squashCoverOpen(rect, opts)
     if not bb then return end
     -- Night mode inverts the framebuffer at refresh, so the revealed page must
     -- be PAINTED black to DISPLAY white. Same rule as flexCoverOpen's.
-    local night = G_reader_settings:isTrue("night_mode")
+    local night = require("lib/bookshelf_night_mode_sync").active()
     local page_color = night and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_WHITE
 
     local border = SpineWidget.CARD_BORDER or Screen:scaleBySize(1)
@@ -8982,7 +8982,7 @@ function BookshelfWidget.flexCoverOpen(rect, opts)
     -- Night mode inverts the framebuffer at refresh, so paint the logical
     -- colours swapped there: the page block must DISPLAY white and the
     -- hairline frame dark in both modes.
-    local night = G_reader_settings:isTrue("night_mode")
+    local night = require("lib/bookshelf_night_mode_sync").active()
     local page_color = night and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_WHITE
     local ink_color  = night and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
     -- Flex the cover open around an axis ~5% in from its left edge, as if

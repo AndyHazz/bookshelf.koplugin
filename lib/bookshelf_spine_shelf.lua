@@ -258,7 +258,7 @@ local SAMPLE_STEPS = 8
 
 local function _nightMode()
     local ok, night = pcall(function()
-        return G_reader_settings and G_reader_settings:isTrue("night_mode")
+        return require("lib/bookshelf_night_mode_sync").active()
     end)
     return ok and night or false
 end

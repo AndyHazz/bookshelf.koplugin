@@ -231,7 +231,7 @@ local function _cardColors()
     -- bookshelf_widget's require ordering.
     local CoverProgress = require("lib/bookshelf_cover_progress")
     local indicator_colors = CoverProgress.resolvedColors()
-    local is_night = G_reader_settings:isTrue("night_mode")
+    local is_night = require("lib/bookshelf_night_mode_sync").active()
     local function constantInNight(color)
         if is_night then return color:invert() end
         return color

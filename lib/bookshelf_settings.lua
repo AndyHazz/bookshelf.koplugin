@@ -1790,7 +1790,9 @@ local MenuIcons  = require("lib/bookshelf_menu_icons")
 local ICON_RESET = MenuIcons.RESET .. "  "
 
 local function _isNight()
-    return G_reader_settings:isTrue("night_mode") or false
+    -- The same answer the palette uses, so the picker edits the slot the
+    -- shelf is actually painting from (issue 426).
+    return require("lib/bookshelf_night_mode_sync").active()
 end
 local function _byteToScreenPct(byte)
     if _isNight() then
@@ -2103,7 +2105,9 @@ function Settings:_colorsSubItems()
     return {
         {
             text_func = function()
-                if G_reader_settings:isTrue("night_mode") then
+                -- Matches _isNight / modeSuffix, so the label names the
+                -- slot the picker is really editing (issue 426).
+                if require("lib/bookshelf_night_mode_sync").active() then
                     return _("\xe2\x97\x90 Editing night-mode colors (tap to switch)")
                 end
                 return _("\xe2\x98\x80 Editing day-mode colors (tap to switch)")

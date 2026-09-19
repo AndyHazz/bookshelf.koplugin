@@ -1388,8 +1388,14 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
                 color  = _stripInk(),
                 bw     = pb,
                 out_t  = rb, out_b = rb,
-                out_l  = (i == 1) and rb or 0,
-                out_r  = (i == #render_chips) and rb or 0,
+                -- Out to the strip's edge at the ends of the row, and over
+                -- the SEPARATOR everywhere else. Stopped at the cell, the
+                -- separator stayed visible as an extra line between the ring
+                -- and the chip before it -- two edges where the tap should
+                -- read as one (maintainer, on a PW5). Taking the column in
+                -- butts the ring straight up against the neighbour.
+                out_l  = (i == 1) and rb or separator_w,
+                out_r  = (i == #render_chips) and rb or separator_w,
             }
             chip_slot = OverlapGroup:new{
                 dimen = Geom:new{ w = w, h = self.height },

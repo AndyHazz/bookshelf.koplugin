@@ -394,6 +394,13 @@ t.test("the pending ring lands on the strip's edge too", function()
     assert(pend:match("out_t%s*=%s*rb") and pend:match("out_b%s*=%s*rb"),
         "top and bottom always touch it")
     assert(pend:match("bw%s*=%s*pb"), "it is still the THICK border")
+    -- and it takes the separator's column with it. Stopped at the cell, the
+    -- separator stayed visible as an extra line between the ring and the
+    -- chip before it: two edges where the tap should read as one.
+    assert(pend:match("out_l%s*=%s*%(i == 1%) and rb or separator_w")
+       and pend:match("out_r%s*=%s*%(i == #render_chips%) and rb or separator_w"),
+        "the ring must reach over the separator, or an extra line shows "
+        .. "between it and the neighbouring chip")
 end)
 
 -- ── the breadcrumb pill's tip ─────────────────────────────────────────────

@@ -2041,7 +2041,7 @@ function BookshelfWidget:_rebuild()
                     -- "the shelf" reads as the shelf AREA, which is not
                     -- what takes the long press: the shelf's own name in the
                     -- menu above is.
-                    _("No books in %s yet \xC2\xB7 Long-press it in the shelf menu to edit its source or filter"),
+                    _("No books in %s yet \xC2\xB7 Long-press it in the shelf menu above to edit its source or filter"),
                     _tab and _tab.label or self.chip)
             else
                 placeholder_text = string.format(_("No books in %s yet"), self:_chipLabel())
@@ -2055,7 +2055,7 @@ function BookshelfWidget:_rebuild()
         if _tab and _tab.filter and Filter.isActive(_tab.filter) then
             local label = _tab.label or self:_chipLabel()
             placeholder_text = string.format(
-                _("Nothing in %s yet \xC2\xB7 Long-press it in the shelf menu to edit its filter"),
+                _("Nothing in %s yet \xC2\xB7 Long-press it in the shelf menu above to edit its filter"),
                 label)
         end
 

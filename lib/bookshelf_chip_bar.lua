@@ -1573,6 +1573,15 @@ function ChipBar:_initBreadcrumb()
     -- resets the hero to the lastfile.
     local face_text, face_text_bold = BFont:getFace("infofont", _scaled(16), { bold = true })
     local n         = #self.breadcrumb_path
+    -- Everything in this band is this tall, and the band has no frame of its
+    -- own. The chips band's frame is what gives its rows an edge, because a
+    -- chip only draws one when it is filled; here the button and every pill
+    -- carry their own. A frame around them put its line immediately outside
+    -- theirs and the border came out 2px, against 1px everywhere else
+    -- (maintainer, on a PW5). The +2*border keeps the band's painted height
+    -- equal to the chips band's, so the button does not move between modes.
+    local band_b = Size.border.thin
+    local band_h = self.height + 2 * band_b
 
     -- Pull the currently-reading chip from the chips list. Renders as
     -- a fixed-width icon box matching the chips-mode action width so
@@ -1607,15 +1616,14 @@ function ChipBar:_initBreadcrumb()
                 fgcolor = act_ink or Blitbuffer.COLOR_BLACK,
             },
             w       = current_w,
-            h       = self.height,
+            h       = band_h,
             fill    = act_has and act_fill or Blitbuffer.COLOR_WHITE,
             invert  = current_chip.selected and not act_has,
             border  = act_has and Blitbuffer.COLOR_BLACK or _stripInk(),
-            -- First in the row, so three of its sides are the band's own
-            -- edge and its outline replaces them. To its right is a pill,
-            -- which carries an outline of its own.
-            out     = { t = Size.border.thin, b = Size.border.thin,
-                        l = Size.border.thin, r = 0 },
+            -- Its outline IS the band's edge here, so it reaches nowhere.
+            -- The pill to its right carries one too, and one of the two has
+            -- to give way or the divider between them comes out 2px.
+            out     = { no_r = true },
             pointer = current_chip.selected and {
                 color   = act_has and act_fill or Blitbuffer.COLOR_BLACK,
                 outline = act_has and Blitbuffer.COLOR_BLACK or nil,
@@ -1641,7 +1649,7 @@ function ChipBar:_initBreadcrumb()
     local has_back = type(self.back_label) == "string" and self.back_label ~= ""
     if has_back then
         local back_text = ARROW_LEFT .. " " .. self.back_label
-        back_pill, back_pill_w = arrowPillFrame(back_text, self.height, false)
+        back_pill, back_pill_w = arrowPillFrame(back_text, band_h, false)
     end
 
     -- Chip pill at depth 0 (e.g. "HOME"). chained=true when there's a
@@ -1652,13 +1660,13 @@ function ChipBar:_initBreadcrumb()
     -- they're in a separate "search" context, not nested under their
     -- previously-active chip.
     local pill, pill_w, pill_tip_w = arrowPillFrame(
-        self.chip_pill_label or "", self.height, has_back, self.chip_pill_glyph)
+        self.chip_pill_label or "", band_h, has_back, self.chip_pill_glyph)
 
     -- Chained pills for parent entries (1..n-1).
     local crumb_pills = {}
     for i = 1, n - 1 do
         local label = (self.breadcrumb_path[i].label or ""):gsub("/$", "")
-        local cp_widget, cp_w, cp_tip_w = arrowPillFrame(label, self.height, true)
+        local cp_widget, cp_w, cp_tip_w = arrowPillFrame(label, band_h, true)
         crumb_pills[#crumb_pills + 1] = {
             widget = cp_widget,
             width  = cp_w,
@@ -1702,8 +1710,7 @@ function ChipBar:_initBreadcrumb()
         local band   = HorizontalGroup:new{}
         local row    = band
         local zones  = {}
-        local bb     = Size.border.thin
-        local cursor = bb   -- everything in the band is inside its frame
+        local cursor = 0
         if current_widget then
             row[#row + 1] = current_widget
             -- depth = -2 is the sentinel for "currently reading" action.
@@ -1725,17 +1732,8 @@ function ChipBar:_initBreadcrumb()
             zones[#zones + 1] = { x = cursor, w = cp.width, depth = cp.depth }
             cursor = cursor + cp.width
         end
-        local band_w = cursor + bb        -- the framed band's outer width
-        local outer = HorizontalGroup:new{
-            FrameContainer:new{
-                bordersize = bb,
-                color      = _stripInk(),
-                margin     = 0,
-                padding    = 0,
-                band,
-            },
-        }
-        cursor = band_w
+        local band_w = cursor             -- where the trail ends
+        local outer = HorizontalGroup:new{ band }
         if deepest_widget then
             -- Plain text for the active folder. Gap = tip_w + large
             -- inset so the text sits well clear of the last pill's
@@ -1767,7 +1765,7 @@ function ChipBar:_initBreadcrumb()
     while true do
         local visible = {}
         if first_visible > 1 then
-            local ep, ew, etw = arrowPillFrame("…", self.height, true)
+            local ep, ew, etw = arrowPillFrame("…", band_h, true)
             visible[1] = {
                 widget = ep,
                 width  = ew,
@@ -1795,11 +1793,11 @@ function ChipBar:_initBreadcrumb()
                     bordersize = pb,
                     color      = Blitbuffer.COLOR_BLACK,
                     margin     = 0, padding = 0,
-                    Widget:new{ dimen = Geom:new{ w = z.w - 2*pb, h = self.height - 2*pb } },
+                    Widget:new{ dimen = Geom:new{ w = z.w - 2*pb, h = band_h - 2*pb } },
                 }
-                ring.overlap_offset = { z.x, Size.border.thin }
+                ring.overlap_offset = { z.x, 0 }
                 row = OverlapGroup:new{
-                    dimen = Geom:new{ w = self.width, h = self.height },
+                    dimen = Geom:new{ w = self.width, h = band_h },
                     row, ring,
                 }
                 break

@@ -458,7 +458,17 @@ t.test("the deepest crumb is outside the band", function()
     assert(build:match("outer%[#outer %+ 1%] = deepest_widget"),
         "the deepest crumb must be added OUTSIDE the framed band -- it is "
         .. "the name of where you are, not another control")
-    assert(build:match("band,"), "the band lost its row")
+    assert(build:match("HorizontalGroup:new{ band }"),
+        "the outer row must carry the band and nothing else before the crumb")
+    -- and the band must NOT frame itself: the chips band's frame is what
+    -- gives its rows an edge, because a chip only draws one when filled.
+    -- Here the button and every pill carry their own, and a frame outside
+    -- them made every border 2px against 1px elsewhere.
+    assert(not build:find("FrameContainer:new", 1, true),
+        "a frame here doubles every border in the band")
+    assert(src:match("local band_h = self%.height %+ 2 %* band_b"),
+        "the band still has to paint as tall as the chips band, or the "
+        .. "button moves when you drill in")
     assert(build:match("return outer, zones, cursor, band_w"),
         "the band's width has to come back out, or the ground cannot stop at it")
     local paint = src:match("\nfunction ChipBar:paintTo%(bb, x, y%)\n(.-)\nend\n")

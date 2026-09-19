@@ -228,9 +228,10 @@ function ShelfRow.new(opts)
     -- ground, and a plate would put a box around every title in the grid.
     local PLATE_PAD_X = Screen:scaleBySize(5)
     local PLATE_PAD_Y = Screen:scaleBySize(2)
-    local plate_fill
+    local plate_fill, plate_wp, plate_strength
     do
         local ok_wp, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
+        plate_wp = ok_wp and Wallpaper or nil
         -- A plate whenever the ground is painted: a picture, or a background
         -- colour (the shelf tells Wallpaper about that ground before the rows
         -- are built; the dark theme paints one too, and its plate is the page
@@ -269,19 +270,56 @@ function ShelfRow.new(opts)
     local function plateTextWidth(w)
         return plate_fill and math.max(8, w - 2 * PLATE_PAD_X) or w
     end
+    -- How hard the plate tints, from the same "Panel shading" setting the top
+    -- panel and the footer use. It was an opaque fill, which read as a solid
+    -- box under every cover and ignored a reader who had turned the shading
+    -- down (or off) everywhere else. Same colour, same geometry, same rounding
+    -- -- painted as a scrim so the picture shows through it by as much as the
+    -- rest of the chrome does.
+    if plate_fill and plate_wp and plate_wp.SCRIM_SETTING then
+        -- The shading setting itself, NOT Wallpaper.scrimStrength(): that one
+        -- also returns 0 for "transparent buttons", which is a choice about
+        -- the CHROME. A label under a cover is one of the surfaces that has no
+        -- legible alternative -- the same reason the shelf planks, the list
+        -- rows and the hero text are not gated on it either.
+        local v = BookshelfSettings.read(plate_wp.SCRIM_SETTING)
+        if type(v) ~= "number" then v = plate_wp.SCRIM_DEFAULT end
+        if v < 0 then v = 0 elseif v > 1 then v = 1 end
+        plate_strength = v
+        -- Shading turned off: no plate at all, which is what the setting
+        -- asks for. The label keeps its themed ink and sits on the ground,
+        -- exactly as it does on a plain page.
+        if type(plate_strength) == "number" and plate_strength <= 0 then
+            plate_fill = nil
+        end
+    end
+    local PLATE_RADIUS = Screen:scaleBySize(2)
     local function plated(widget)
         if not plate_fill then return widget end
-        return FrameContainer:new{
-            background     = plate_fill,
+        local frame = FrameContainer:new{
+            -- No background: the fill below is a scrim, and a FrameContainer
+            -- that also filled would paint the colour twice -- opaque first,
+            -- tint on top -- and the shading setting would do nothing.
             bordersize     = 0,
             margin         = 0,
-            radius         = Screen:scaleBySize(2),
+            radius         = PLATE_RADIUS,
             padding_top    = PLATE_PAD_Y,
             padding_bottom = PLATE_PAD_Y,
             padding_left   = PLATE_PAD_X,
             padding_right  = PLATE_PAD_X,
             widget,
         }
+        if not (plate_wp and plate_wp.scrim) then return frame end
+        local inner_paint = frame.paintTo
+        frame.paintTo = function(slf, bb, x, y)
+            local ok_sz, sz = pcall(slf.getSize, slf)
+            if ok_sz and sz and sz.w and sz.h then
+                pcall(plate_wp.scrim, bb, x, y, sz.w, sz.h,
+                      plate_fill, plate_strength, PLATE_RADIUS)
+            end
+            return inner_paint(slf, bb, x, y)
+        end
+        return frame
     end
     local label_gap = Size.padding.default
     -- Expanded-shelf font scale: applied to the label face below

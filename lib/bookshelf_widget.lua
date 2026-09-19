@@ -5881,6 +5881,30 @@ end
 -- left-to-right at their page-count widths, so the per-page count is only
 -- known here; it is stashed on the widget (_spine_shown) for the footer's
 -- "first-last of total" range and the pager's step size.
+-- _spineFaceRecent(all_items) -> { [filepath] = true } | nil
+--
+-- The "Recently added N" face-out reason, answered ONCE for the chip. It
+-- means the newest N on the shelf, and plan() only ever sees a screen in the
+-- render pass -- so left to plan() it showed N face-outs on every screen.
+-- Memoised on the fetch cache, which a chip switch, a chip edit and the
+-- 30-second TTL all replace, so it cannot outlive the list it describes.
+function BookshelfWidget:_spineFaceRecent(all_items)
+    if type(all_items) ~= "table" then return nil end
+    local SpineShelf = require("lib/bookshelf_spine_shelf")
+    local spec = SpineShelf.faceOutSpec(self:_spineFaceOut())
+    local n = spec and spec.recent
+    if not n then return nil end
+    local c = self._spine_fetch_cache
+    if c and c.face_recent_n == n and c.face_recent_for == all_items then
+        return c.face_recent
+    end
+    local set = SpineShelf.recentSetForItems(all_items, n)
+    if c then
+        c.face_recent, c.face_recent_n, c.face_recent_for = set, n, all_items
+    end
+    return set
+end
+
 function BookshelfWidget:_buildSpineRows(items, content_w, shelf_h, PAD, n_rows)
     local SpineShelf = require("lib/bookshelf_spine_shelf")
     local shared = self:_shelfCallbacks()
@@ -5894,6 +5918,10 @@ function BookshelfWidget:_buildSpineRows(items, content_w, shelf_h, PAD, n_rows)
         group_gap  = Screen:scaleBySize(SpineShelf.GROUP_GAP_DP),
         n_rows     = n_rows,
         face_out   = self:_spineFaceOut(),
+        -- From the chip's WHOLE list, not the page this call renders.
+        face_recent_set = self:_spineFaceRecent(
+            (self._draft_items_cache and self._draft_items_cache.all_items)
+            or items),
         thickness_pct = self:_chipListValue("spine_thickness_pct"),
         -- Resume inside an item. A group bigger than a page is ONE item, so
         -- the cursor alone cannot say "start at its 53rd book".
@@ -6194,6 +6222,10 @@ function BookshelfWidget:_spinePageFirsts(build)
             -- produces are not the ones the render follows.
             rows_per_page = self:_nShelves(),
             face_out   = self:_spineFaceOut(),
+            -- Already the whole list here, but passed for the same reason:
+            -- the two passes must agree on which books stand face out or
+            -- they pack differently.
+            face_recent_set = self:_spineFaceRecent(items),
             thickness_pct = self:_chipListValue("spine_thickness_pct"),
             -- Pagination only. Balancing every row of the chip jointly was
             -- 585ms on a PW5 at 1234 books (balanceRows is a DP over rows x

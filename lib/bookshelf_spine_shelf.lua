@@ -915,6 +915,22 @@ function SpineShelf.faceOutEmpty(spec)
     return true
 end
 
+-- recentSetForItems(items, n) -> the same set, from a chip's WHOLE item list.
+--
+-- recentSet answers about the entries it is HANDED, and plan() is handed one
+-- screen in the render pass -- so computing it in there put N face-outs on
+-- every screen instead of N across the shelf, which is not what "Recently
+-- added 5" says. The caller works it out once from the full list and passes
+-- it to plan() as data; see the face_recent_set option.
+--
+-- Flattened first, because a group item carries its books rather than being
+-- one: on a spine shelf the members stand individually, so the newest N has
+-- to be chosen from the books, not from the groups they arrive in.
+function SpineShelf.recentSetForItems(items, n)
+    if not n or n <= 0 then return nil end
+    return SpineShelf.recentSet(SpineShelf._flattenItems(items or {}), n)
+end
+
 -- isFirstInSeries(src) -> true when the book is book ONE of a named series.
 --
 -- The "first in series" reason is answered by the shelf's own run heads
@@ -2858,7 +2874,15 @@ function SpineShelf.plan(items, opts)
     local flat = SpineShelf._flattenItems(items)
     -- The newest N across this shelf's WHOLE list, worked out once: a per-book
     -- test would re-sort the library for every spine.
-    local face_recent = SpineShelf.recentSet(flat, face_spec.recent)
+    -- Worked out by the CALLER from the chip's whole item list, because
+    -- "the newest N" is a fact about the shelf and `flat` here is one screen
+    -- of it in the render pass. A caller that hands none still gets the old
+    -- answer rather than no answer, which is wrong by a screen but never
+    -- blank; every caller in this plugin passes one.
+    local face_recent = opts.face_recent_set
+    if face_recent == nil then
+        face_recent = SpineShelf.recentSet(flat, face_spec.recent)
+    end
     -- One entry per run: the first member that turns out to be unread.
     local first_unread_seen = {}
     -- ...and one per SERIES, for the books a plain shelf leaves standing on

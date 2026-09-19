@@ -11121,13 +11121,33 @@ end
 function BookshelfWidget:_rebuildRefreshBelowHero()
     local prev_hero  = self._hero_parent and self._hero_parent[1]
     local hero_dimen = prev_hero and prev_hero.dimen
-    self:_rebuild()
-    local below_y
-    if hero_dimen and hero_dimen.y and hero_dimen.h then
-        below_y = hero_dimen.y + hero_dimen.h
-    elseif self._hero_dims and self._hero_dims.hero_h then
-        below_y = (self._hero_dims.PAD or 0) + self._hero_dims.hero_h
+    local prev_dims  = self._hero_dims
+    -- Where the hero ENDS, which is where this band may start. Painted dimen
+    -- first, since that is the pixel truth; the stashed geometry otherwise.
+    local function heroBottom(dimen, dims)
+        if dimen and dimen.y and dimen.h then return dimen.y + dimen.h end
+        if dims and dims.hero_h then return (dims.PAD or 0) + dims.hero_h end
+        return nil
     end
+    local before = heroBottom(hero_dimen, prev_dims)
+    self:_rebuild()
+    local after  = heroBottom(nil, self._hero_dims)
+    -- The SHALLOWER of the two. The band used to start below the hero as it
+    -- was BEFORE the rebuild, on the reasoning that a chip switch leaves the
+    -- hero alone -- and it does, until the two chips disagree about the label
+    -- strip. A chip whose folders are divider cards prints no name under a
+    -- tile, so its rows are shorter, so the hero gets the slack; switch to
+    -- one whose folders are book stacks and the hero shrinks again. The band
+    -- then began below where the hero USED to end and the rows in between
+    -- kept the old picture, which is the glitch reported over the hero on a
+    -- chip switch (issue 423, and only with "Show text below covers" set to
+    -- anything but None, which is why it would not reproduce here).
+    --
+    -- Taking the smaller covers it whichever way the hero moved, and when it
+    -- did not move at all -- every other chip switch -- the two are equal and
+    -- the band is exactly what it always was.
+    local below_y = before
+    if after and (not below_y or after < below_y) then below_y = after end
     -- The hero cover's drop shadow fills the bottom SHADOW_OFFSET strip of the
     -- card, so its lower edge lands exactly on below_y. A scoped "ui" refresh
     -- whose hard top boundary sits flush against that soft-grey gradient leaves

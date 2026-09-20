@@ -1614,9 +1614,20 @@ function SpineBookSlot:paintTo(bb, x, y)
                 -- Blitbuffer.new callocs, so a fresh one is already fully
                 -- transparent; the book then draws itself opaquely on top and
                 -- everything it does not cover stays see-through.
-                if btype ~= Blitbuffer.TYPE_BBRGB32 then
-                    btype = Blitbuffer.TYPE_BB8A
-                end
+                --
+                -- Only TWO of the six types carry alpha: BB8A, which is grey,
+                -- and RGB32. So a colour screen has to be promoted to RGB32
+                -- rather than dropped to BB8A -- "not RGB32" is not the same
+                -- as "not colour". RGB16 and RGB24 are colour buffers too,
+                -- and on a device with one of those every spine came out a
+                -- flat grey while the wallpaper behind it kept its colour,
+                -- because this is the one surface that renders through a
+                -- cache of its own (issue 430).
+                local colour = (btype == Blitbuffer.TYPE_BBRGB16)
+                            or (btype == Blitbuffer.TYPE_BBRGB24)
+                            or (btype == Blitbuffer.TYPE_BBRGB32)
+                btype = colour and Blitbuffer.TYPE_BBRGB32
+                        or Blitbuffer.TYPE_BB8A
             end
             local c = Blitbuffer.new(self.width, self.height, btype)
             if not SpineShelf.has_wallpaper then

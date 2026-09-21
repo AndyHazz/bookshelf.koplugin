@@ -15477,13 +15477,13 @@ function BookshelfWidget:_opdsLookaheadItem()
     -- A user-initiated fetch is deliberately NOT gated: someone pulling to
     -- refresh has asked for one request, and it is how we find out the window
     -- has reopened.
-    local ok_rl, cooling = pcall(function()
-        return require("lib/bookshelf_opds_feed").rateLimitedFor(fetch_url)
+    local ok_rl, paced = pcall(function()
+        return require("lib/bookshelf_opds_feed").paceFor(fetch_url)
     end)
-    if ok_rl and type(cooling) == "number" and cooling > 0 then
+    if ok_rl and type(paced) == "number" and paced > 0 then
         logger.dbg(string.format(
-            "[bookshelf perf] opds lookahead: declined, rate limited for %ds",
-            cooling))
+            "[bookshelf perf] opds lookahead: declined, origin paced at %.1fs",
+            paced))
         return nil
     end
     local have = win.count or 0
@@ -15584,6 +15584,23 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
     state.t_paint = state.t_paint or 0
     state.n_fetch = state.n_fetch or 0
 
+    -- How long to leave between launches, and when the next one may go. Zero
+    -- for every healthy catalog. Seeded from what this origin has already
+    -- taught us, so page two does not re-burst and learn it again -- which
+    -- was the other half of why a capped server never recovered (issue 434).
+    local pace, next_launch_at = 0, 0
+    do
+        local probe = queue[1]
+        local u = probe and (probe.fetch_url or probe.feed_url or probe.cover_url)
+        if u then pcall(function() pace = OpdsFeed.paceFor(u) or 0 end) end
+        if pace > 0 then
+            cap = 1
+            logger.dbg(string.format(
+                "[bookshelf perf] opds pool: origin known slow, opening at cap=1 pace=%.1fs",
+                pace))
+        end
+    end
+
     local function stillCurrent()
         return BookshelfWidget.live == self and token == self._opds_cover_token
     end
@@ -15667,12 +15684,11 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
         return true
     end
     local function fill()
-        -- Once the server has refused, launching the rest of the queue is
-        -- just more refusals inside the window it is waiting to clear
-        -- (issue 434). Whatever is already in flight is left to land.
+        -- `pace` is the gap a refused origin has earned. At pace 0 (every
+        -- healthy catalog) this loop is exactly what it always was.
+        if pace > 0 and _gettime() < next_launch_at then return end
         while #in_flight < cap
-                and next_i < #queue and not fork_broken
-                and not state.ratelimited do
+                and next_i < #queue and not fork_broken do
             next_i = next_i + 1
             local item = queue[next_i]
             -- Tested POSITIVELY on "cover", not as "anything that is not a
@@ -15686,6 +15702,10 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
                 -- Already on disk: costs nothing, and must not occupy a worker.
             else
                 launch(item)
+                if pace > 0 then
+                    next_launch_at = _gettime() + pace
+                    return          -- one per interval while an origin is slow
+                end
             end
         end
     end
@@ -15727,13 +15747,20 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
                 -- it keeps going, just more slowly, and every request still
                 -- lands inside the window the server is waiting to clear.
                 if out == OpdsFeed.RATE_LIMIT_MARKER then
+                    -- Refused. SLOW DOWN, do not stop: the queue keeps
+                    -- draining, so the covers on the page in front of the
+                    -- reader still arrive, just further apart. Abandoning the
+                    -- run instead left them stalled until something re-armed
+                    -- the chain, and the machinery to un-stall it was more
+                    -- code than the problem (issue 434).
                     local refused = e.item.fetch_url or e.item.feed_url
                                     or e.item.cover_url
-                    pcall(function() OpdsFeed.noteRateLimited(refused) end)
-                    logger.dbg("[bookshelf perf] opds pool: rate limited, pausing the run")
+                    pcall(function() OpdsFeed.notePaced(refused) end)
+                    cap = 1
+                    pcall(function() pace = OpdsFeed.paceFor(refused) or 0 end)
+                    logger.dbg(string.format(
+                        "[bookshelf perf] opds pool: refused, cap=1 pace=%.1fs", pace))
                     out = ""
-                    state.ratelimited = true
-                    state.ratelimited_url = state.ratelimited_url or refused
                 end
                 -- A worker that came back with nothing is the server saying
                 -- no: a timeout, a refused connection, an error page. Halve
@@ -15839,32 +15866,6 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
             tf, (nf > 0) and (tf / nf) or 0, tp, tp, total,
             (total > 0) and (tp / total * 100) or 0))
         if state.resolved > 0 then self:_opdsEnsureCovers() end
-        -- A back-off is a PAUSE, not a stop. The queue was abandoned with
-        -- items still in it, and nothing else will ask for them: the chain is
-        -- armed by a page event, so without this the covers on the page you
-        -- are ALREADY looking at never arrive, and paging away and back is
-        -- the only way to get them -- which is exactly what the maintainer
-        -- hit on device ("covers seem to stop loading until I go back and
-        -- forth in pagination to jog them in").
-        --
-        -- Re-arm through _opdsEnsureCovers rather than resuming this queue:
-        -- it recomputes what is still missing against what is on screen NOW,
-        -- so nothing is fetched for a page that has since been left, and
-        -- anything that landed meanwhile is skipped.
-        if state.ratelimited and stillCurrent() then
-            local wait = 2
-            pcall(function()
-                local left = OpdsFeed.rateLimitedFor(state.ratelimited_url)
-                if type(left) == "number" and left > 0 then wait = left + 1 end
-            end)
-            logger.dbg(string.format(
-                "[bookshelf perf] opds pool: paused, retrying covers in %ds", wait))
-            UIManager:scheduleIn(wait, function()
-                -- The token moves on every new chain, so a page turn during
-                -- the wait cancels this rather than fetching for a dead page.
-                if stillCurrent() then self:_opdsEnsureCovers() end
-            end)
-        end
     end
 
     fill()

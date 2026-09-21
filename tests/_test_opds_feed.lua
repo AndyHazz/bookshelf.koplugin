@@ -1060,86 +1060,70 @@ do
        "and say what to do about it, since waiting is the whole remedy")
 end
 
--- ── Backing off once a catalog says it is rate limited ────────────────────
--- Recognising a 429 is only half of it. The other half is not spending the
--- next window on background work: the lookahead is worth up to six more
--- requests and the cover pool more again, so a shelf that keeps prefetching
--- into a refusal never lets the window recover -- which is why the reporter
--- of issue 434 saw an EMPTY shelf rather than a partial one, and why deleting
--- and re-adding the catalog made it worse.
+-- ── Pacing a catalog that cannot take our traffic ─────────────────────────
+-- KOReader's own OPDS browser makes ONE request per user action and cannot
+-- trip a rate limit. We render a cover grid, so one page is twenty image
+-- requests fired eight at a time, and a server capped at three refuses most
+-- of them (issue 434).
+--
+-- The first attempt ABANDONED the run on a refusal and scheduled a retry.
+-- Measured on device, that stalled the covers on the page already on screen
+-- ("covers seem to stop loading until I go back and forth in pagination to
+-- jog them in") and the machinery to un-stall it was more code than the
+-- problem. Slowing down keeps the queue draining, so this is one number per
+-- origin: how long to leave between requests.
 do
     local NOW = 1000000
     Feed._now = function() return NOW end        -- test seam, same idiom as _render
-    Feed.clearRateLimits()
+    Feed.clearPacing()
 
-    eq(Feed.rateLimitedFor("http://h:8083/opds"), 0, "nothing is limited to begin with")
+    eq(Feed.paceFor("http://h:8083/opds"), 0, "a healthy catalog is not paced at all")
 
-    -- A sane Retry-After is taken at its word.
-    Feed.noteRateLimited("http://h:8083/opds", 90)
-    eq(Feed.rateLimitedFor("http://h:8083/opds"), 90, "a sane Retry-After is honoured")
-
-    -- Per ORIGIN, not per url: the root, its subcatalogs and its covers are
-    -- all the same budget, so one refusal has to quiet all of them.
-    eq(Feed.rateLimitedFor("http://h:8083/opds/books"), 90,
-       "a sibling path on the same server is limited too")
-    eq(Feed.rateLimitedFor("http://other:8083/opds"), 0,
-       "a different server is unaffected")
-
-    -- It expires.
-    NOW = NOW + 89
-    eq(Feed.rateLimitedFor("http://h:8083/opds"), 1, "counts down")
-    NOW = NOW + 2
-    eq(Feed.rateLimitedFor("http://h:8083/opds"), 0, "and lapses")
-
-    -- ── The window length is UNKNOWABLE, so the pause self-tunes ──────────
-    -- The reporter's server sends "Retry-After: 0" while refusing, and
-    -- "X-RateLimit-Remaining: 3" on a SUCCESS -- i.e. it tells us nothing
-    -- usable about how long to wait, and the two hints point at a short
-    -- window. Guessing high makes a catalog feel dead (the maintainer, on
-    -- device: "I can't open any of the opds categories due to this");
-    -- guessing low keeps hammering a server with a long one.
-    --
-    -- So the first refusal costs very little and each further refusal that
-    -- lands while the origin is still known-bad doubles it. A server with a
-    -- one-second window is barely noticed; one with a per-minute window is
-    -- backed off properly within a few attempts, without either being
-    -- assumed up front.
-    Feed.clearRateLimits()
-    Feed.noteRateLimited("http://h:8083/opds")          -- no Retry-After at all
-    local first = Feed.rateLimitedFor("http://h:8083/opds")
-    ok(first <= 5, "the FIRST refusal is a short pause, not a minute (got " .. first .. ")")
-
+    -- Escalates, because the window length is unknowable: the reporter's
+    -- server sends "Retry-After: 0" while refusing and "Remaining: 3" on a
+    -- success, so neither header says how long to wait.
+    Feed.notePaced("http://h:8083/opds")
+    local first = Feed.paceFor("http://h:8083/opds")
+    ok(first > 0 and first <= 1,
+       "the first refusal buys a small gap, not a stall (got " .. first .. ")")
     local prev = first
-    for i = 1, 4 do
-        Feed.noteRateLimited("http://h:8083/opds")
-        local now_left = Feed.rateLimitedFor("http://h:8083/opds")
-        ok(now_left > prev, "refusal " .. (i + 1) .. " backs off further than the last")
-        prev = now_left
+    for i = 1, 3 do
+        Feed.notePaced("http://h:8083/opds")
+        local now = Feed.paceFor("http://h:8083/opds")
+        ok(now > prev, "refusal " .. (i + 1) .. " leaves a longer gap than the last")
+        prev = now
     end
+    for _ = 1, 20 do Feed.notePaced("http://h:8083/opds") end
+    ok(Feed.paceFor("http://h:8083/opds") <= 8, "and it is capped")
 
-    -- ...but never past the cap.
-    for _ = 1, 20 do Feed.noteRateLimited("http://h:8083/opds") end
-    ok(Feed.rateLimitedFor("http://h:8083/opds") <= 300, "escalation is capped")
+    -- Per ORIGIN: the root, its subcatalogs and its covers share one budget.
+    eq(Feed.paceFor("http://h:8083/opds/books"), Feed.paceFor("http://h:8083/opds"),
+       "a sibling path on the same server is paced too")
+    eq(Feed.paceFor("http://other:8083/opds"), 0, "a different server is unaffected")
 
-    -- An explicit, sane Retry-After always beats the guess.
-    Feed.clearRateLimits()
-    for _ = 1, 6 do Feed.noteRateLimited("http://h:8083/opds") end
-    Feed.noteRateLimited("http://h:8083/opds", 7)
-    eq(Feed.rateLimitedFor("http://h:8083/opds"), 7,
-       "a server that says how long to wait is believed over the escalation")
-
-    -- A success resets the escalation, not just the current pause: the next
-    -- refusal starts cheap again rather than inheriting an old bad patch.
-    Feed.clearRateLimits()
-    for _ = 1, 5 do Feed.noteRateLimited("http://h:8083/opds") end
+    -- Recovery is GRADUAL. A single cover getting through does not mean the
+    -- cap has gone; clearing outright would re-widen into the same server and
+    -- start the burst over.
+    Feed.clearPacing()
+    Feed.notePaced("http://h:8083/opds")
+    Feed.notePaced("http://h:8083/opds")
+    local two = Feed.paceFor("http://h:8083/opds")
     Feed.noteReachable("http://h:8083/opds")
-    eq(Feed.rateLimitedFor("http://h:8083/opds"), 0, "a success clears it")
-    Feed.noteRateLimited("http://h:8083/opds")
-    ok(Feed.rateLimitedFor("http://h:8083/opds") <= 5,
-       "and the next refusal is cheap again, not escalated")
+    local one = Feed.paceFor("http://h:8083/opds")
+    ok(one > 0 and one < two, "one success eases off a step, it does not clear")
+    Feed.noteReachable("http://h:8083/opds")
+    eq(Feed.paceFor("http://h:8083/opds"), 0, "enough successes and it is gone")
+
+    -- A quiet origin is forgotten, so a catalog that was briefly busy is not
+    -- slow for the rest of the session.
+    Feed.clearPacing()
+    Feed.notePaced("http://h:8083/opds")
+    ok(Feed.paceFor("http://h:8083/opds") > 0, "paced now")
+    NOW = NOW + 301
+    eq(Feed.paceFor("http://h:8083/opds"), 0, "and lapses once it has been quiet")
 
     Feed._now = nil
-    Feed.clearRateLimits()
+    Feed.clearPacing()
 end
 
 -- ── Basic auth has to survive a redirect (issue 434) ───────────────────────

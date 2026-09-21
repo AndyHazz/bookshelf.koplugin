@@ -886,43 +886,44 @@ function M.errorForCode(code, status)
     return tostring(status or code or "network unreachable")
 end
 
--- ── Rate-limit back-off ────────────────────────────────────────────────────
+-- ── Pacing a catalog that cannot take our traffic ─────────────────────────
 --
--- Recognising a 429 is half the job. The other half is not spending the next
--- window on background work. Calibre-Web Automated caps requests and says so
--- (X-RateLimit-Limit: 3), while opening a catalog costs us the root fetch,
--- then a lookahead worth up to six more, then covers. A shelf that keeps
--- prefetching into a refusal never lets the window recover, which is why the
--- reporter of issue 434 saw a permanently EMPTY shelf rather than a partial
--- one, and why deleting and re-adding the catalog made it worse.
+-- The problem is entirely of our own making. KOReader's own OPDS browser
+-- makes ONE request per user action -- its list is text, thumbnail urls are
+-- parsed but never downloaded for it, and a cover is fetched only if you tap
+-- "Book cover" on a single book. It cannot trip a rate limit. We render a
+-- cover grid, so one page is twenty image requests plus a page prefetch,
+-- fired eight at a time, and a server capped at three (Calibre-Web
+-- Automated, issue 434) refuses most of them.
 --
--- Keyed by ORIGIN, not by url: the root, its subcatalogs and its covers all
--- draw on the same budget, so one refusal has to quiet all of them.
+-- The first attempt at this ABANDONED the run on a refusal and scheduled a
+-- retry. That was the wrong shape twice over: it stalled the covers on the
+-- page already on screen until something re-armed the chain, and the
+-- machinery to un-stall it was more code than the problem. Slowing down is
+-- both simpler and better -- the queue keeps draining, covers keep arriving,
+-- and a capped server sees roughly the serial traffic stock would have sent.
 --
--- HOW LONG to wait is the hard part, because the server does not say. The
--- reporter's sends "Retry-After: 0" while refusing -- taken at its word,
--- "hammer me again immediately" -- and "X-RateLimit-Remaining: 3" on a
--- SUCCESS, so neither header tells us the window, and both hint it is short.
+-- So there is ONE number per origin: how long to leave between requests.
+-- Zero for a healthy catalog, which is every catalog until one refuses us.
 --
--- A fixed guess is wrong in one direction or the other. Guess high and a
--- catalog behind a per-second limiter feels dead: measured on device against
--- a mock with a flat 60s pause, "I can't open any of the opds categories due
--- to this" (maintainer). Guess low and a per-minute limiter gets hammered
--- exactly as before.
+-- It escalates because the window length is unknowable. The reporter's
+-- server sends "Retry-After: 0" while refusing and "X-RateLimit-Remaining: 3"
+-- on a success, so neither header says how long to wait, and a fixed guess is
+-- wrong in one direction: too slow and a per-second limiter feels dead (a
+-- flat 60s pause, measured on device: "I can't open any of the opds
+-- categories due to this"), too fast and a per-minute one is hammered as
+-- before.
 --
--- So it self-tunes. The first refusal costs almost nothing, and each further
--- refusal that lands while the origin is STILL known-bad doubles the pause,
--- up to the cap. A one-second window is barely noticed; a per-minute one is
--- backed off properly within a few attempts. Neither is assumed up front, and
--- a server that does state a usable Retry-After is simply believed.
---
--- A success resets the escalation as well as the pause, so a bad patch is not
--- inherited by the next one.
-local RATE_LIMIT_FIRST = 2      -- seconds, the opening bid
-local RATE_LIMIT_MAX   = 300    -- and the ceiling, so a broken header cannot
-                                -- mute a catalog for an hour
-local _rate_limited = {}
-local _rate_streak  = {}
+-- Recovery is gradual, not instant. A success steps the level DOWN by one
+-- rather than clearing it, because a single cover getting through does not
+-- mean the cap has gone -- clearing outright would re-widen into the same
+-- server and start the burst over. The level also lapses on its own if the
+-- origin has not refused us in a while, so a catalog that was briefly busy
+-- is not slow forever.
+local PACE_BASE  = 0.5      -- seconds between requests at the first level
+local PACE_LEVELS = 5       -- 0.5, 1, 2, 4, 8
+local PACE_TTL   = 300      -- forget a quiet origin after this long
+local _pace = {}
 
 -- Test seam. Same idiom as M._render in the wallpaper module.
 function M._clock()
@@ -930,11 +931,11 @@ function M._clock()
     return os.time()
 end
 
-function M.clearRateLimits() _rate_limited, _rate_streak = {}, {} end
+function M.clearPacing() _pace = {} end
 
--- originOf returns scheme, host, port as THREE values -- assigning it to one
--- local keeps the SCHEME, so every http catalog on the device would have
--- shared a single "http" bucket and one server's refusal would have quieted
+-- originOf returns scheme, host and port as THREE values -- assigning it to
+-- one local keeps the SCHEME, so every http catalog on the device would have
+-- shared a single "http" bucket and one server's refusal would have slowed
 -- them all. Composite key, built the same way sameOrigin compares.
 local function originKey(url)
     local scheme, host, port = originOf(url)
@@ -942,57 +943,42 @@ local function originKey(url)
     return scheme .. "://" .. host .. ":" .. tostring(port)
 end
 
--- noteRateLimited(url, retry_after) -- this origin has refused us.
-function M.noteRateLimited(url, retry_after)
+-- notePaced(url) -- this origin refused us; go slower.
+function M.notePaced(url)
     local origin = originKey(url)
     if not origin then return end
-    local secs = tonumber(retry_after)
-    if secs and secs > 0 then
-        -- The server told us. Believe it, up to the cap, and do not let the
-        -- escalation talk over it.
-        if secs > RATE_LIMIT_MAX then secs = RATE_LIMIT_MAX end
-        _rate_streak[origin] = nil
-    else
-        -- It did not, so double what the last refusal cost.
-        local n = (_rate_streak[origin] or 0) + 1
-        _rate_streak[origin] = n
-        secs = RATE_LIMIT_FIRST * (2 ^ (n - 1))
-        if secs > RATE_LIMIT_MAX then secs = RATE_LIMIT_MAX end
-    end
-    _rate_limited[origin] = M._clock() + secs
+    local e = _pace[origin]
+    local level = (e and e.level or 0) + 1
+    if level > PACE_LEVELS then level = PACE_LEVELS end
+    _pace[origin] = { level = level, at = M._clock() }
 end
 
--- noteReachable(url) -- this origin answered, so whatever it refused is over.
+-- noteReachable(url) -- this origin answered; ease off one step.
 function M.noteReachable(url)
     local origin = originKey(url)
-    if origin then
-        _rate_limited[origin] = nil
-        -- The escalation goes too, not just the pause: the next bad patch
-        -- should start cheap rather than inherit this one.
-        _rate_streak[origin] = nil
-    end
+    if not origin then return end
+    local e = _pace[origin]
+    if not e then return end
+    local level = e.level - 1
+    if level <= 0 then _pace[origin] = nil
+    else _pace[origin] = { level = level, at = M._clock() } end
 end
 
--- rateLimitedFor(url) -> seconds still to wait, or 0.
---
--- Background work checks this and declines. A USER-INITIATED fetch does not:
--- someone who pulls to refresh has asked for one request and should get it,
--- and if the window has quietly reopened that request is how we find out.
-function M.rateLimitedFor(url)
+-- paceFor(url) -> seconds to leave between requests to this origin, or 0.
+function M.paceFor(url)
     local origin = originKey(url)
     if not origin then return 0 end
-    local until_t = _rate_limited[origin]
-    if not until_t then return 0 end
-    local left = until_t - M._clock()
-    if left <= 0 then
-        _rate_limited[origin] = nil
+    local e = _pace[origin]
+    if not e then return 0 end
+    if M._clock() - e.at > PACE_TTL then
+        _pace[origin] = nil
         return 0
     end
-    return left
+    return PACE_BASE * (2 ^ (e.level - 1))
 end
 
 -- The marker a forked pool worker writes instead of a body when it is
--- refused, so the parent can record the back-off. The child's own memory is
+-- refused, so the parent can slow the origin down. The child's own memory is
 -- discarded, so it cannot record anything itself. Two NULs: a feed body is
 -- XML or JSON and cannot begin with one.
 M.RATE_LIMIT_MARKER = "\0\0bookshelf:ratelimited"
@@ -1039,7 +1025,7 @@ function M.fetch(url, username, password, opts)
             and opts.block_timeout <= opts.total_timeout then
         block, total = opts.block_timeout, opts.total_timeout
     end
-    local ok_req, code, status, resp_headers = pcall(function()
+    local ok_req, code, status = pcall(function()
         socketutil:set_timeout(block, total)
         local headers = { ["Accept-Encoding"] = "identity", ["Accept"] = M.ACCEPT_FEED }
         -- Set explicitly so it survives a redirect; see basicAuthHeader.
@@ -1047,15 +1033,14 @@ function M.fetch(url, username, password, opts)
         -- self-describing, and adjustheaders lets ours override anyway.
         local auth = M.basicAuthHeader(username, password)
         if auth then headers["Authorization"] = auth end
-        local c, h, st = socket.skip(1, http.request{
+        local c, _h, st = socket.skip(1, http.request{
             url = url,
             headers = headers,
             sink = ltn12.sink.table(sink),
             user = username,
             password = password,
         })
-        -- Response headers are kept now, for Retry-After.
-        return c, st, h
+        return c, st
     end)
     pcall(function() socketutil:reset_timeout() end)
     if not ok_req then return nil, "network unreachable" end
@@ -1069,11 +1054,7 @@ function M.fetch(url, username, password, opts)
         return nil, "empty response"
     end
     local err = M.errorForCode(code, status)
-    if err == "ratelimited" then
-        -- luasocket lowercases the response header names.
-        local ra = type(resp_headers) == "table" and resp_headers["retry-after"]
-        M.noteRateLimited(url, ra)
-    end
+    if err == "ratelimited" then M.notePaced(url) end
     return nil, err
 end
 

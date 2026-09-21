@@ -89,4 +89,26 @@ t.test("every shipped shelf is still a plain, editable pin", function()
     end
 end)
 
+t.test("a fresh install opens on Home, not on an empty Recent", function()
+    -- Recent IS KOReader's history.lua, so a profile with no reading history
+    -- renders NOTHING. The shelf used to fall back to it on first run while
+    -- the reset-chips action wrote "all" with the comment "starts cleanly on
+    -- Home (the default)" -- the two paths disagreed for a year and reset was
+    -- the one telling the truth. Noted 2026-09-01, fixed here.
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    assert(w:find('read("active_chip") or "all"', 1, true),
+        "the first-run chip must be Home")
+    assert(not w:find('read("active_chip") or "recent"', 1, true),
+        "the empty-on-first-run fallback is back")
+
+    -- and the shelf it names has to be one that actually ships
+    local first = DEFAULTS[1]
+    eq(first.id, "all", "Home must also be the first shipped shelf")
+
+    -- the reset path must keep agreeing with it
+    local st = io.open("lib/bookshelf_settings.lua"):read("*a")
+    assert(st:find('BookshelfSettings.save("active_chip",   "all")', 1, true),
+        "reset-chips no longer lands on Home")
+end)
+
 t.done()

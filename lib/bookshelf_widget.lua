@@ -256,7 +256,17 @@ function BookshelfWidget:init()
         end
     end
     self:_refreshDitherFlag()   -- colour-panel cover saturation, #289
-    self.chip   = BookshelfSettings.read("active_chip") or "recent"
+    -- "all" (labelled Home), not "recent". A genuinely fresh install has no
+    -- reading history -- Recent IS KOReader's history.lua -- so falling back
+    -- to it opened the shelf on NOTHING, which is the first thing a new
+    -- reader saw. Home is first in the shipped shelves and is what the
+    -- reset-chips action has always written, with the comment "starts
+    -- cleanly on Home (the default)": the two paths disagreed and reset was
+    -- the one telling the truth.
+    --
+    -- Upgraders are unaffected; they have active_chip persisted already, so
+    -- this fallback is only ever reached on a profile that has never chosen.
+    self.chip   = BookshelfSettings.read("active_chip") or "all"
     -- Cursor-based pagination: _cursor is the 1-based index of the first
     -- visible book on the current view. Primary persisted state. self.page
     -- is a derived view-aligned index used for footer display only --

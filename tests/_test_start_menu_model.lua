@@ -23,7 +23,7 @@ local t = helpers.runner()
 t.test("first load seeds defaults and sets seeded flag", function()
     kv = {}
     local items = Model.load()
-    assert(#items == 8, "expected starter set, got " .. #items)
+    assert(#items == 9, "expected starter set, got " .. #items)
     assert(kv.start_menu_seeded == true, "seeded flag not set")
     assert(type(kv.start_menu_items) == "table", "items not persisted")
 end)
@@ -263,20 +263,47 @@ t.test("imageIconName extracts NAME from [icon=NAME] whole-value tokens", functi
     assert(Model.imageIconName(nil) == nil, "nil -> nil")
 end)
 
-t.test("filterByScope hides sm_close in reader and shows sm_reader_home only in reader", function()
-    local d = Model.DEFAULTS()
-    local lib = Model.filterByScope(d, "library")
-    local rdr = Model.filterByScope(d, "reader")
+t.test("filterByScope keeps each entry to its own scope", function()
+    -- Built here rather than read from DEFAULTS. This used to lean on the
+    -- shipped "Exit bookshelf" entry as its library-scoped example, and when
+    -- the defaults were recaptured from the maintainer's own menu -- which
+    -- does not include it -- the test failed for a reason that had nothing
+    -- to do with scope filtering. A behaviour test should not depend on what
+    -- we happen to ship.
+    local items = {
+        { id = "lib_only", type = "action", label = "L", scope = "library",
+          action = { suspend = true } },
+        { id = "rdr_only", type = "action", label = "R", scope = "reader",
+          action = { suspend = true } },
+        { id = "both",     type = "action", label = "B",
+          action = { suspend = true } },
+    }
+    local lib = Model.filterByScope(items, "library")
+    local rdr = Model.filterByScope(items, "reader")
 
     local function hasId(list, id)
         for _, e in ipairs(list) do if e.id == id then return true end end
         return false
     end
 
-    assert(hasId(lib, "sm_close"),      "sm_close should appear in library")
-    assert(not hasId(rdr, "sm_close"),  "sm_close should not appear in reader")
-    assert(hasId(rdr, "sm_reader_home"), "sm_reader_home should appear in reader")
-    assert(not hasId(lib, "sm_reader_home"), "sm_reader_home should not appear in library")
+    assert(hasId(lib, "lib_only"),      "a library entry belongs in library")
+    assert(not hasId(rdr, "lib_only"),  "a library entry must not reach the reader")
+    assert(hasId(rdr, "rdr_only"),      "a reader entry belongs in the reader")
+    assert(not hasId(lib, "rdr_only"),  "a reader entry must not reach the library")
+    assert(hasId(lib, "both") and hasId(rdr, "both"),
+        "an unscoped entry belongs in both")
+end)
+
+t.test("the shipped default that IS scoped still is", function()
+    -- Close book is reader-only; if that were lost, the reader menu would
+    -- gain nothing and the library menu would gain a dead row.
+    local d = Model.DEFAULTS()
+    local function find(id)
+        for _, e in ipairs(d) do if e.id == id then return e end end
+    end
+    local home = find("sm_reader_home")
+    assert(home, "sm_reader_home is no longer shipped")
+    assert(home.scope == "reader", "sm_reader_home must stay reader-scoped")
 end)
 
 t.test("filterByScope never drops a folder for being empty, only for its own scope (#221)", function()

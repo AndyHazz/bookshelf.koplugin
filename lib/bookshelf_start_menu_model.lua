@@ -26,27 +26,51 @@ function M.nextId()
 end
 
 -- Default icons are user-editable. Glyphs are symbols.ttf-covered (cfont
--- falls back to it); emoji codepoints are not and render as tofu.
--- The set mirrors the maintainer's own day-to-day menu (2026-06-12),
--- minus anything that depends on other plugins being installed.
+-- falls back to it); emoji codepoints are not and render as tofu, and a
+-- NON-PUA codepoint can segfault the start menu outright -- every icon here
+-- is Private Use Area for that reason.
+--
+-- The set mirrors the maintainer's own day-to-day menu, captured 2026-09-21
+-- after they rebuilt it from scratch, minus anything that depends on other
+-- plugins being installed. Ids are stable and descriptive rather than the
+-- sm<n> ones the editor generates, so a default entry stays identifiable
+-- after a reader reorders around it.
 function M.DEFAULTS()
     return {
-        { id = "sm_quote",    type = "module", module = "quote_of_day" },
-        { id = "sm_cal",      type = "action", label = _("Reading calendar"),
+        { id = "sm_streak",    type = "module", module = "reading_streak" },
+        { id = "sm_cal",       type = "action", label = _("Reading calendar"),
           icon = "\xEF\x81\xB3", action = { stats_calendar_view = true } }, -- U+F073 fa-calendar
-        { id = "sm_wifi",     type = "action", label = _("Toggle Wi-Fi"),
-          icon = "\xEE\xB2\xA8", action = { toggle_wifi = true } },      -- U+ECA8 wifi
-        { id = "sm_night",    type = "action", label = _("Toggle night mode"),
-          icon = "\xEE\xB2\x93", action = { night_mode = true } },       -- U+EC93 weather-night
-        { id = "sm_settings", type = "action", label = _("Bookshelf menu"),
-          icon = "\xE2\x9A\x99", internal = "settings" },                -- U+2699 ⚙
-        { id = "sm_close",    type = "action", label = _("Exit bookshelf"),
-          icon = "\xEE\xA4\x85", internal = "close", scope = "library" }, -- U+E905 exit-to-app
+        { id = "sm_bookmarks", type = "action", label = _("Bookmark browser"),
+          icon = "\xEF\x80\xAE", action = { bookmark_browser = true } },    -- U+F02E fa-bookmark
+        { id = "sm_tools",     type = "folder", label = _("Tools"),
+          children = {
+            { id = "sm_screenshot", type = "action", label = _("Screenshot"),
+              icon = "\xEE\x9F\xBF", action = { screenshot = true } },      -- U+E7FF
+            { id = "sm_frontlight", type = "action", label = _("Frontlight"),
+              icon = "\xEE\xB2\xA7",                                       -- U+ECA7
+              menu_path = { { id = "setting" }, { id = "frontlight" } } },
+            { id = "sm_refresh",    type = "action", label = _("Full screen refresh"),
+              icon = "\xEF\x83\xA7", action = { full_refresh = true } },    -- U+F0E7 fa-bolt
+            { id = "sm_battery",    type = "action", label = _("Battery statistics"),
+              icon = "\xEE\x9E\x90", action = { battery_statistics = true } }, -- U+E790
+          } },
+        -- Wi-Fi and night mode go through menu_path with menu_toggle, not a
+        -- dispatcher action: the row then reflects the CURRENT state and
+        -- toggles it, which a fire-and-forget action cannot do.
+        { id = "sm_wifi",      type = "action", label = _("Wi-Fi connection"),
+          icon = "\xEE\xA9\x9E",                                           -- U+EA5E
+          menu_path = { { id = "setting" }, { id = "network" }, { id = "network_wifi" } },
+          menu_toggle = true },
+        { id = "sm_night",     type = "action", label = _("Night mode"),
+          icon = "\xEE\xA9\x9E",                                           -- U+EA5E
+          menu_path = { { id = "setting" }, { id = "night_mode" } },
+          menu_toggle = true },
+        { id = "sm_div1",      type = "divider" },
         { id = "sm_reader_home", type = "action", label = _("Close book"),
-          icon = "\xEE\xA4\x85", menu_path = { { id = "filemanager" } },  -- U+E905 exit-to-app
+          icon = "\xEE\xA4\x85", menu_path = { { id = "filemanager" } },    -- U+E905 exit-to-app
           scope = "reader" },
-        { id = "sm_sleep",    type = "action", label = _("Sleep"),
-          icon = "\xEE\xAC\xA4", action = { suspend = true } },          -- U+EB24 power-sleep
+        { id = "sm_sleep",     type = "action", label = _("Sleep"),
+          icon = "\xEE\xAC\xA4", action = { suspend = true } },             -- U+EB24 power-sleep
     }
 end
 

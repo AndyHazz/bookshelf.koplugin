@@ -15536,6 +15536,14 @@ end
 -- download lands promptly, long enough that polling is not itself the cost.
 local OPDS_POOL_POLL = 0.15
 
+-- How many times a REFUSED item goes back on the queue before it is given up
+-- on. A refusal is not a failure of the request -- the same url will work
+-- shortly -- so it is worth re-queueing, at the paced rate. Bounded so a
+-- server that refuses everything ends the run rather than cycling forever;
+-- three is enough to ride out a burst against a small window without the
+-- run outliving the page it belongs to.
+local OPDS_REFUSED_RETRIES = 3
+
 -- _opdsCoverPool(queue, token, state) - run the queue through forked workers
 -- instead of one blocking fetch per tick.
 --
@@ -15758,9 +15766,46 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
                     pcall(function() OpdsFeed.notePaced(refused) end)
                     cap = 1
                     pcall(function() pace = OpdsFeed.paceFor(refused) or 0 end)
+                    -- PUT IT BACK. Narrowing and pacing only slow down what
+                    -- is still queued, and on a full-width pool there is
+                    -- nothing left: the queue is one screen of covers, the
+                    -- width is ten, so the whole page goes out at once and a
+                    -- refused cover is simply lost. Measured on device, three
+                    -- landed and seven vanished with the queue already empty
+                    -- -- which is the "3 covers then stalls" that survived
+                    -- two earlier attempts at this (issue 434).
+                    --
+                    -- Appending re-opens the loop, because next_i now trails
+                    -- #queue again, and the item comes round at the paced
+                    -- rate rather than immediately. Bounded, so a server that
+                    -- refuses everything ends the run instead of cycling.
+                    local tries = (e.item.tries or 0) + 1
+                    if tries <= OPDS_REFUSED_RETRIES then
+                        e.item.tries = tries
+                        queue[#queue + 1] = e.item
+                    else
+                        logger.dbg("[bookshelf perf] opds pool: giving up on an item after "
+                                   .. tries .. " refusals")
+                    end
                     logger.dbg(string.format(
-                        "[bookshelf perf] opds pool: refused, cap=1 pace=%.1fs", pace))
+                        "[bookshelf perf] opds pool: refused, cap=1 pace=%.1fs requeued=%s",
+                        pace, tostring(tries <= OPDS_REFUSED_RETRIES)))
                     out = ""
+                end
+                -- A worker that SUCCEEDED has to be recorded by the parent.
+                -- OpdsFeed.fetch notes it, but that runs in the forked child
+                -- whose memory is discarded, so the pacing registry never
+                -- heard about any of the pool's successes and an origin that
+                -- had been slowed down could never recover -- measured on the
+                -- rig, the gap stayed at its 8s ceiling across two successful
+                -- requeued fetches (issue 434).
+                if out ~= "" and pace > 0 then
+                    local ok_u = e.item.fetch_url or e.item.feed_url
+                                 or e.item.cover_url
+                    if ok_u then
+                        pcall(function() OpdsFeed.noteReachable(ok_u) end)
+                        pcall(function() pace = OpdsFeed.paceFor(ok_u) or 0 end)
+                    end
                 end
                 -- A worker that came back with nothing is the server saying
                 -- no: a timeout, a refused connection, an error page. Halve

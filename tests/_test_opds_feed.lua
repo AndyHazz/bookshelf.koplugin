@@ -1079,21 +1079,31 @@ do
 
     eq(Feed.paceFor("http://h:8083/opds"), 0, "a healthy catalog is not paced at all")
 
-    -- Escalates, because the window length is unknowable: the reporter's
-    -- server sends "Retry-After: 0" while refusing and "Remaining: 3" on a
-    -- success, so neither header says how long to wait.
+    -- A CLUMP of refusals is one signal, not many. A full-width pool has
+    -- eight or ten requests in flight when the first is refused; the rest are
+    -- already gone and will be refused too, within the same second. Counting
+    -- each of them took the level to its ceiling instantly and turned a
+    -- catalog that needed a half-second gap into one answering every eight
+    -- (measured on the rig before this was debounced).
     Feed.notePaced("http://h:8083/opds")
     local first = Feed.paceFor("http://h:8083/opds")
     ok(first > 0 and first <= 1,
        "the first refusal buys a small gap, not a stall (got " .. first .. ")")
+    for _ = 1, 9 do Feed.notePaced("http://h:8083/opds") end
+    eq(Feed.paceFor("http://h:8083/opds"), first,
+       "nine more refusals in the same instant are the SAME burst")
+
+    -- Refusals genuinely spread out in time do escalate, because they are
+    -- evidence the gap we chose is still too small.
     local prev = first
     for i = 1, 3 do
+        NOW = NOW + 30
         Feed.notePaced("http://h:8083/opds")
-        local now = Feed.paceFor("http://h:8083/opds")
-        ok(now > prev, "refusal " .. (i + 1) .. " leaves a longer gap than the last")
-        prev = now
+        local now_gap = Feed.paceFor("http://h:8083/opds")
+        ok(now_gap > prev, "a later, separate refusal widens the gap (round " .. i .. ")")
+        prev = now_gap
     end
-    for _ = 1, 20 do Feed.notePaced("http://h:8083/opds") end
+    for _ = 1, 20 do NOW = NOW + 30; Feed.notePaced("http://h:8083/opds") end
     ok(Feed.paceFor("http://h:8083/opds") <= 8, "and it is capped")
 
     -- Per ORIGIN: the root, its subcatalogs and its covers share one budget.
@@ -1106,6 +1116,7 @@ do
     -- start the burst over.
     Feed.clearPacing()
     Feed.notePaced("http://h:8083/opds")
+    NOW = NOW + 30
     Feed.notePaced("http://h:8083/opds")
     local two = Feed.paceFor("http://h:8083/opds")
     Feed.noteReachable("http://h:8083/opds")

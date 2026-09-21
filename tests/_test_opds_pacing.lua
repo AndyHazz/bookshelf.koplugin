@@ -78,4 +78,27 @@ t.test("the lookahead declines while an origin is paced", function()
         "the lookahead must stand down for a paced origin")
 end)
 
+t.test("a refused item goes BACK on the queue", function()
+    -- Narrowing and pacing only slow down what is still queued, and at full
+    -- width there is nothing: the queue is one screen of covers, the pool is
+    -- ten wide, so the page goes out at once and a refusal is simply lost.
+    -- Measured on device three times -- 3 landed, 7 vanished, queue empty --
+    -- which is the "3 covers then stalls" that survived two earlier attempts.
+    local marker = src:match("(if out == OpdsFeed%.RATE_LIMIT_MARKER then.-\n                end)")
+    assert(marker, "the refusal branch moved")
+    assert(marker:find("queue[#queue + 1] = e.item", 1, true),
+        "a refused item must be requeued, or pacing has nothing to pace")
+    assert(marker:find("OPDS_REFUSED_RETRIES", 1, true),
+        "and the requeue must be bounded, or a dead server cycles forever")
+end)
+
+t.test("the parent records the pool's successes", function()
+    -- OpdsFeed.fetch notes a success, but that runs in the FORKED CHILD whose
+    -- memory is discarded, so the registry never heard about any of the
+    -- pool's successes and a slowed origin could never recover. Measured on
+    -- the rig: the gap sat at its ceiling across two successful fetches.
+    assert(src:find("pcall(function() OpdsFeed.noteReachable(ok_u) end)", 1, true),
+        "the parent must record a successful worker, not rely on the child")
+end)
+
 t.done()

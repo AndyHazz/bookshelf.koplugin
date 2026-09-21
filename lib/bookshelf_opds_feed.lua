@@ -944,13 +944,37 @@ local function originKey(url)
 end
 
 -- notePaced(url) -- this origin refused us; go slower.
+--
+-- Debounced, because refusals arrive in CLUMPS. A full-width pool has eight
+-- or ten requests in flight when the first one is refused, and the rest are
+-- already gone -- they will all be refused too, within the same second. That
+-- is ONE signal that we are going too fast, not eight. Counting each of them
+-- took the level to its ceiling instantly and turned a catalog that needed a
+-- half-second gap into one answering every eight seconds (measured on the
+-- rig: 8.2s between requeued items after a single burst).
+--
+-- So escalate at most once per interval we are already observing, and never
+-- more than once a second.
 function M.notePaced(url)
     local origin = originKey(url)
     if not origin then return end
+    local now = M._clock()
     local e = _pace[origin]
-    local level = (e and e.level or 0) + 1
+    if not e then
+        _pace[origin] = { level = 1, at = now, esc_at = now }
+        return
+    end
+    local debounce = M.paceFor(url)
+    if debounce < 1 then debounce = 1 end
+    if now - (e.esc_at or 0) < debounce then
+        -- Same clump. Keep the origin warm so it does not lapse, but do not
+        -- read it as fresh evidence.
+        e.at = now
+        return
+    end
+    local level = e.level + 1
     if level > PACE_LEVELS then level = PACE_LEVELS end
-    _pace[origin] = { level = level, at = M._clock() }
+    _pace[origin] = { level = level, at = now, esc_at = now }
 end
 
 -- noteReachable(url) -- this origin answered; ease off one step.
@@ -961,7 +985,7 @@ function M.noteReachable(url)
     if not e then return end
     local level = e.level - 1
     if level <= 0 then _pace[origin] = nil
-    else _pace[origin] = { level = level, at = M._clock() } end
+    else _pace[origin] = { level = level, at = M._clock(), esc_at = e.esc_at } end
 end
 
 -- paceFor(url) -> seconds to leave between requests to this origin, or 0.

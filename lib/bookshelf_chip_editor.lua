@@ -1999,7 +1999,16 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                       return (authorOn() and TICK or BLANK) .. _("Author on spine")
                   end,
                   callback = pick(function()
-                      draft.spine_show_author = authorOn() and false or nil
+                      -- NOT `authorOn() and false or nil`: in Lua that can
+                      -- never produce false, because `false or nil` is nil.
+                      -- So every tap wrote nil, the tick came back from the
+                      -- default, and the row could not be turned off at all
+                      -- once it was on (#439).
+                      if authorOn() then
+                          draft.spine_show_author = false   -- pinned off
+                      else
+                          draft.spine_show_author = nil     -- follow the default
+                      end
                   end) },
                 { text_func = function()
                       return _("Ornaments") .. ": " .. ORN_STOPS[ornAt()].label()

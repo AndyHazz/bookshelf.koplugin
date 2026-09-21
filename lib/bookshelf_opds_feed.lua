@@ -999,40 +999,14 @@ M.RATE_LIMIT_MARKER = "\0\0bookshelf:ratelimited"
 
 -- basicAuthHeader(user, password) -> the Authorization value, or nil.
 --
--- We build this ourselves rather than leaving it to luasocket's reqt.user /
--- reqt.password, because luasocket LOSES IT ON A REDIRECT (issue 434).
---
--- adjustheaders() computes the header into a table it creates, and assigns
--- that to nreqt.headers. On a 3xx, trequest calls tredirect(reqt, location)
--- with the ORIGINAL request and rebuilds the follow-up from
--- `headers = reqt.headers` -- our table, which never had the Authorization in
--- it -- while passing no user and no password at all. So the second request
--- goes out unauthenticated and the server answers 401.
---
--- Measured against a mock doing Flask's classic /opds -> /opds/ redirect:
---
---     curl -L :  /opds auth=YES   /opds/ auth=YES    -> 200
---     ours    :  /opds auth=YES   /opds/ auth=NONE   -> 401, err "auth"
---
--- Putting it in the caller's own headers table fixes both hops: adjustheaders
--- lowercases and overlays reqt.headers over its own defaults, so ours wins on
--- the first request, and tredirect forwards that same table on to the second.
---
--- url.unescape on the password is luasocket's own behaviour
--- (`mime.b64(reqt.user .. ":" .. url.unescape(reqt.password))`), mirrored
--- deliberately. It mangles a password containing a literal %, but this change
--- is about redirects; altering how a password is encoded would silently break
--- every catalog that authenticates today, and belongs in its own change.
---
--- Both halves or nothing, matching luasocket's `if reqt.user and reqt.password`,
--- so a catalog with no credentials sends no header rather than "Basic Og==".
+-- Lives in bookshelf_http now, because the cover download needs exactly the
+-- same thing for exactly the same reason and two copies of an auth header is
+-- how they drift. Kept here as a delegate: it is part of this module's
+-- surface and a test pins it.
 function M.basicAuthHeader(user, password)
-    if type(user) ~= "string" or type(password) ~= "string" then return nil end
-    if user == "" or password == "" then return nil end
-    local ok, mime = pcall(require, "mime")
-    local ok_url, url = pcall(require, "socket.url")
-    if not (ok and mime and ok_url and url) then return nil end
-    return "Basic " .. mime.b64(user .. ":" .. url.unescape(password))
+    local ok, Http = pcall(require, "lib/bookshelf_http")
+    if not (ok and Http and Http.basicAuthHeader) then return nil end
+    return Http.basicAuthHeader(user, password)
 end
 
 -- Blocking GET with the stock plugin's header discipline (identity encoding;

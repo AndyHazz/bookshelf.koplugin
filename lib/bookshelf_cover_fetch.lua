@@ -228,9 +228,24 @@ function CoverFetch.download(url, dest_path, user, password, opts)
     local total_t = (opts and opts.total_timeout) or socketutil.LARGE_TOTAL_TIMEOUT
     local ok_req2, code = pcall(function()
         socketutil:set_timeout(block_t, total_t)
+        local headers = { ["User-Agent"] = "KOReader-Bookshelf" }
+        -- Set explicitly, because luasocket LOSES IT ON A REDIRECT: it builds
+        -- the header into a table adjustheaders creates, then rebuilds a 3xx
+        -- follow-up from the ORIGINAL request's headers, passing neither user
+        -- nor password. The second hop goes out unauthenticated and the
+        -- server answers 401. Same defect the feed fetch had, fixed there in
+        -- 12ba447; a cover url that redirects (a CDN, a signed-url handoff,
+        -- a trailing-slash tidy-up) hits it here. Confusing to debug from the
+        -- outside, because the shelf populates and only the pictures go
+        -- missing. The caller's headers are the one thing tredirect carries.
+        local ok_h, Http = pcall(require, "lib/bookshelf_http")
+        if ok_h and Http and Http.basicAuthHeader then
+            local a = Http.basicAuthHeader(auth_user, auth_pass)
+            if a then headers["Authorization"] = a end
+        end
         local c = socket.skip(1, http.request({
             url = url, method = "GET",
-            headers = { ["User-Agent"] = "KOReader-Bookshelf" },
+            headers = headers,
             sink = ltn12.sink.file(file),
             redirect = true,
             user = auth_user,

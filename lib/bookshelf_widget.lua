@@ -15710,12 +15710,12 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
                 -- it keeps going, just more slowly, and every request still
                 -- lands inside the window the server is waiting to clear.
                 if out == OpdsFeed.RATE_LIMIT_MARKER then
-                    pcall(function()
-                        OpdsFeed.noteRateLimited(e.item.fetch_url or e.item.feed_url)
-                    end)
-                    logger.dbg("[bookshelf perf] opds pool: rate limited, abandoning the run")
+                    local refused = e.item.fetch_url or e.item.feed_url
+                    pcall(function() OpdsFeed.noteRateLimited(refused) end)
+                    logger.dbg("[bookshelf perf] opds pool: rate limited, pausing the run")
                     out = ""
                     state.ratelimited = true
+                    state.ratelimited_url = state.ratelimited_url or refused
                 end
                 -- A worker that came back with nothing is the server saying
                 -- no: a timeout, a refused connection, an error page. Halve
@@ -15821,6 +15821,32 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
             tf, (nf > 0) and (tf / nf) or 0, tp, tp, total,
             (total > 0) and (tp / total * 100) or 0))
         if state.resolved > 0 then self:_opdsEnsureCovers() end
+        -- A back-off is a PAUSE, not a stop. The queue was abandoned with
+        -- items still in it, and nothing else will ask for them: the chain is
+        -- armed by a page event, so without this the covers on the page you
+        -- are ALREADY looking at never arrive, and paging away and back is
+        -- the only way to get them -- which is exactly what the maintainer
+        -- hit on device ("covers seem to stop loading until I go back and
+        -- forth in pagination to jog them in").
+        --
+        -- Re-arm through _opdsEnsureCovers rather than resuming this queue:
+        -- it recomputes what is still missing against what is on screen NOW,
+        -- so nothing is fetched for a page that has since been left, and
+        -- anything that landed meanwhile is skipped.
+        if state.ratelimited and stillCurrent() then
+            local wait = 2
+            pcall(function()
+                local left = OpdsFeed.rateLimitedFor(state.ratelimited_url)
+                if type(left) == "number" and left > 0 then wait = left + 1 end
+            end)
+            logger.dbg(string.format(
+                "[bookshelf perf] opds pool: paused, retrying covers in %ds", wait))
+            UIManager:scheduleIn(wait, function()
+                -- The token moves on every new chain, so a page turn during
+                -- the wait cancels this rather than fetching for a dead page.
+                if stillCurrent() then self:_opdsEnsureCovers() end
+            end)
+        end
     end
 
     fill()

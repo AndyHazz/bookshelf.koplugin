@@ -1363,7 +1363,7 @@ function BookshelfWidget:_rebuild()
     local grid_labels_assumed = self:_gridDrawsLabels()
     local n_shelves     = self:_nShelves()
     local chip_contrib  = hide_chip_bar and 0 or chip_h
-    local hero_chip_pad = self._expanded and Size.padding.large or PAD
+    local hero_chip_pad = self:_heroChipPad(PAD)
     -- Gap after each row: PAD between cover shelves, a hairline between list
     -- rows (see _rowGap). Bound once here and used by every term below that
     -- counts it, so the budget and the layout spend the same number.
@@ -2381,7 +2381,7 @@ function BookshelfWidget:_rebuild()
     -- visual separation, so just a tight standard pad keeps proportions
     -- without eating shelf height.
     local inner_vgroup = VerticalGroup:new{ align = "left", hero }
-    local hero_chip_pad = self._expanded and Size.padding.large or PAD
+    local hero_chip_pad = self:_heroChipPad(PAD)
     -- The list's top margin (see _listBandPlan). The plan wants the STANDARD
     -- pad above row 1 -- which is the span this layout already carries there --
     -- so top_extra is 0 in every case a device can reach, and this line exists
@@ -11556,6 +11556,44 @@ end
 -- _nShelves asks along the way. Between rebuilds the memo is deliberately KEPT:
 -- it is then the height of the strip currently on screen, which is exactly what
 -- a pagination handler reasoning about the live layout should see.
+-- _expandedStripEmpty() -> is the expanded-mode strip going to draw nothing?
+--
+-- The expanded shelf replaces the hero with a thin status strip. With the
+-- status region switched off there is no strip: buildStatusRow returns nil,
+-- _statusStripHeight returns 0, and the hero slot collapses. The gap BETWEEN
+-- the hero and the chip strip then separates the chip strip from nothing, and
+-- shows up as dead space above it -- the top panel bleeds equally above and
+-- below, so that gap is the whole of the asymmetry the maintainer saw:
+-- 36px above the chip bar against 19 below.
+--
+-- It is also where the selected chip's pointer triangle lives when the hero
+-- IS there, which is why the gap exists at all and why it must stay whenever
+-- the strip does.
+-- _heroChipPad(PAD, expanded) -> the gap between the hero slot and the chips.
+--
+-- Spelled out rather than as an and/or chain. It works as one only because 0
+-- is truthy in Lua, which is exactly the sort of thing that made "Author on
+-- spine" unturnoffable (issue 439), and this has three call sites that must
+-- agree -- the row-count budget, the layout, and the list-mode band. They
+-- used to agree by being the same copied expression.
+function BookshelfWidget:_heroChipPad(PAD, expanded)
+    if expanded == nil then expanded = self._expanded end
+    if not expanded then return PAD end
+    -- Nothing to separate the chips FROM: see _expandedStripEmpty.
+    if self:_expandedStripEmpty() then return 0 end
+    return Size.padding.large
+end
+
+function BookshelfWidget:_expandedStripEmpty()
+    local ok, off = pcall(function()
+        local regions = require("lib/bookshelf_hero_regions").read()
+        if not regions.status then return true end
+        if regions.status.disabled then return true end
+        return false
+    end)
+    return (ok and off) and true or false
+end
+
 function BookshelfWidget:_statusStripHeight(content_w)
     local memo = self._strip_h_memo
     if memo and memo.content_w == content_w then return memo.h, memo.book end
@@ -11576,13 +11614,7 @@ function BookshelfWidget:_statusStripHeight(content_w)
     -- Spelled out rather than as an and/or chain: that idiom is what made
     -- "Author on spine" unturnoffable (issue 439), and this is the same
     -- shape of question.
-    local ok_r, off = pcall(function()
-        local regions = require("lib/bookshelf_hero_regions").read()
-        if not regions.status then return true end
-        if regions.status.disabled then return true end
-        return false
-    end)
-    if ok_r and off then
+    if self:_expandedStripEmpty() then
         self._strip_h_memo = { content_w = content_w, h = 0, book = nil }
         return 0, nil
     end
@@ -11849,7 +11881,7 @@ end
 function BookshelfWidget:_listBandUncached(expanded, hide_chip_bar)
     local PAD, content_w, chip_h = self:_layoutPrimitives()
     hide_chip_bar = hide_chip_bar and true or false
-    local hero_chip_pad = expanded and Size.padding.large or PAD
+    local hero_chip_pad = self:_heroChipPad(PAD, expanded)
     local hero_h
     if expanded then
         hero_h = self:_statusStripHeight(content_w)

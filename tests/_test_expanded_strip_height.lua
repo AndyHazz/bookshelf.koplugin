@@ -53,15 +53,6 @@ local function probe(opts)
             return { getSize = function() return { h = opts.row_h or 42 } end }
         end,
     }
-    env.require = function(name)
-        if name == "lib/bookshelf_hero_regions" then
-            return { read = function()
-                if opts.disabled then return { status = { disabled = true } } end
-                return { status = {} }
-            end }
-        end
-        error("unexpected require: " .. tostring(name))
-    end
     local BookshelfWidget = {}
     env.BookshelfWidget = BookshelfWidget
     assert(load(body, "probe", "t", env))()
@@ -69,6 +60,9 @@ local function probe(opts)
         _preview_book = opts.no_book and nil or { filepath = "/b.epub" },
         _currentHeroBook = function() return nil end,
         _buildDeviceState = function() return {} end,
+        -- The region question now lives in one place, shared with
+        -- _heroChipPad so the height and the gap can never disagree.
+        _expandedStripEmpty = function() return opts.disabled and true or false end,
     }
     local h, book = BookshelfWidget._statusStripHeight(self_, 600)
     return h, book, built, self_

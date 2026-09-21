@@ -613,7 +613,13 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
             frame.margin = 0
             UIManager:setDirty(bw, function() return "fast", self.dimen end)
             UIManager:forceRePaint()
-            frame.bordersize = 0
+            -- card_border, NOT zero. Zero was right when this was written,
+            -- because the card was borderless then; the hairline above was
+            -- added afterwards and this reset was not updated with it, so the
+            -- first tap ate the outline and only a panel rebuild put it back
+            -- (issue 429). Nothing errors -- it is a valid number, just the
+            -- wrong one.
+            frame.bordersize = card_border
             frame.margin = press_b
         end
         -- Resolve the tap against the module's declared regions (if any):

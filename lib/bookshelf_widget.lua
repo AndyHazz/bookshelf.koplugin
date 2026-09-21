@@ -10262,6 +10262,51 @@ end
 -- the case that used to invert the backdrop for nothing -- see
 -- Wallpaper.flipNight. The rebuild stays unconditional either way: it is
 -- self-correcting, and a wasted one is slow where a missed one is wrong.
+-- "Menu search" did nothing as a start-menu item (issue 438).
+--
+-- KOReader's row is one line -- `UIManager:sendEvent(Event:new("ShowMenuSearch"))`
+-- (frontend/ui/elements/common_info_menu_table.lua) -- and the only handler in
+-- the tree is TouchMenu:onShowMenuSearch, a method on a LIVE menu. It searches
+-- that menu's own item_table and, when a result is chosen, calls
+-- self:openMenu() to walk THAT menu to the entry. So the feature has no
+-- standalone form: its entire output is moving the real menu somewhere.
+--
+-- With the shelf up there is no TouchMenu, so the event walks the window stack,
+-- finds nobody and is dropped. That is exactly the report, and exactly why a
+-- neighbour on the same KOReader menu page ("System statistics") works as a
+-- shortcut: its callback shows a widget of its own and needs no menu.
+--
+-- So open KOReader's menu and let it have the event. This cannot shadow the
+-- normal path: UIManager:sendEvent delivers to the topmost non-toast widget and
+-- only walks further down when nobody consumed it, so whenever a TouchMenu IS
+-- open it handles this first and we are never reached.
+--
+-- runInFileManager, not FileManager.instance directly: a parked reader has no
+-- FileManager to hang a menu on, and that helper finishes the park first --
+-- the same move the File-browser tab makes (lib/bookshelf_reader_park.lua).
+--
+-- The guard is for the case where the menu did NOT open: our own re-sent event
+-- would walk back down to this handler and ask again, forever. Returning nil
+-- while it is set lets the event carry on down the stack and be dropped, which
+-- is the old behaviour rather than a hang.
+local _in_menu_search = false
+function BookshelfWidget:onShowMenuSearch()
+    if _in_menu_search then return end
+    _in_menu_search = true
+    pcall(function()
+        local Event = require("ui/event")
+        require("lib/bookshelf_reader_park").runInFileManager(function(fm)
+            if not (fm and fm.menu and type(fm.menu.onShowMenu) == "function") then
+                return
+            end
+            fm.menu:onShowMenu()
+            UIManager:sendEvent(Event:new("ShowMenuSearch"))
+        end)
+    end)
+    _in_menu_search = false
+    return true
+end
+
 function BookshelfWidget:onToggleNightMode()
     _scheduleNightModeRebuild(self, not (Screen.night_mode and true or false))
 end

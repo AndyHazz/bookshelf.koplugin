@@ -39,7 +39,7 @@ local LEGACY_KEY  = "chips_disabled"
 -- visible in the Bookshelf chips menu so the user can opt them on when
 -- they're ready. Upgrading users keep whatever they had via migrate()
 -- below -- the enabled flags here only affect first-launch installs.
-function TabModel.DEFAULTS()
+function TabModel.BUILTINS()
     return {
         -- HOME ships as a spine shelf, newest first, with ornaments on.
         -- These are the maintainer's own settings, adopted as defaults for the
@@ -57,8 +57,15 @@ function TabModel.DEFAULTS()
           view_mode = "spines", ornament_frequency = 2,
           spine_face_out = { favorites = true, reading = true, recent = 5 },
           enabled = true  },
+        -- RECENT ships as a LIST. Same reasoning as Home's spines: a shelf of
+        -- books you are part-way through is about titles and progress, not
+        -- cover art you have already looked at, and the list is the view that
+        -- shows both. Row density is deliberately NOT pinned -- nil means the
+        -- natural, screen-adaptive height (see _listRows), and a fixed count
+        -- would read sparse on a larger panel.
         { id = "recent",    label = tr("Recent"),     source = { kind = "recent"    },
-          filter = {}, sort_priority = { { key = "last_opened", reverse = true  } }, enabled = true  },
+          filter = {}, sort_priority = { { key = "last_opened", reverse = true  } },
+          view_mode = "list", enabled = true  },
         { id = "latest",    label = tr("Latest"),     source = { kind = "latest"    },
           filter = {}, sort_priority = { { key = "date_added",  reverse = true  } }, enabled = false },
         -- SERIES ships as collage cards, most recently read first and then in
@@ -79,7 +86,8 @@ function TabModel.DEFAULTS()
         -- is empty until the reader has starred something, so it opens on
         -- nothing. Favourites is one long-press away for anyone who wants it.
         { id = "genres",    label = tr("Genres"),     source = { kind = "genres"    },
-          filter = {}, sort_priority = { { key = "book_count",  reverse = true  } }, enabled = true  },
+          filter = {}, sort_priority = { { key = "book_count",  reverse = true  } },
+          group_display = "ribbon", enabled = true  },
         { id = "tags",      label = tr("Tags"),       source = { kind = "tags"      },
           filter = {}, sort_priority = { { key = "book_count",  reverse = true  } }, enabled = false },
         { id = "languages", label = tr("Languages"),  source = { kind = "languages" },
@@ -87,6 +95,31 @@ function TabModel.DEFAULTS()
         { id = "favorites", label = tr("Favorites"), source = { kind = "favorites" },
           filter = {}, sort_priority = { { key = "date_added",  reverse = true  } }, enabled = false },
     }
+end
+
+-- DEFAULTS(): what a FRESH INSTALL actually ships -- the built-ins that are
+-- ON, and nothing else.
+--
+-- It used to ship all nine, five of them switched off, on the reasoning that
+-- a reader could just tick the one they wanted. In practice that fills the
+-- shelf editor with rows nobody asked for and pushes the help line and
+-- "+ Add new shelf" off the bottom, so the two things a new reader needs to
+-- see are the two they cannot (maintainer, on a PW5, after deleting the
+-- disabled ones by hand).
+--
+-- Nothing is lost by leaving them out: every one of these sources is offered
+-- by the source picker when adding a shelf, so Authors or Favorites is the
+-- same two taps it always was.
+--
+-- migrate() deliberately still reads BUILTINS, not this: a v1 reader had ALL
+-- of them enabled, and rebuilding their list from the shipped subset would
+-- delete five shelves they were using.
+function TabModel.DEFAULTS()
+    local out = {}
+    for _i, t in ipairs(TabModel.BUILTINS()) do
+        if t.enabled ~= false then out[#out + 1] = t end
+    end
+    return out
 end
 
 -- migrate(): if the legacy disabled-set exists, apply it to a fresh defaults
@@ -102,7 +135,10 @@ end
 local function migrate()
     local legacy = BookshelfSettings.read(LEGACY_KEY)
     if type(legacy) ~= "table" then return nil end
-    local tabs = TabModel.DEFAULTS()
+    -- BUILTINS, not DEFAULTS: v1 shipped every chip enabled, so an upgrader
+    -- must get the full set back with their disabled-flags applied. Rebuilding
+    -- from the fresh-install subset would quietly delete five shelves.
+    local tabs = TabModel.BUILTINS()
     for _i, t in ipairs(tabs) do
         if legacy[t.id] then
             t.enabled = false

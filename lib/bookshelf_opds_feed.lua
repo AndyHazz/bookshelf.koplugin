@@ -874,6 +874,15 @@ M.ACCEPT_FEED = "application/opds+json;q=1.0, application/atom+xml;q=0.9, */*;q=
 function M.errorForCode(code, status)
     if code == 401 or code == 403 then return "auth" end
     if code == 406 then return "format" end
+    -- 429 is a server that is working fine and asking us to slow down, which
+    -- is a different instruction to the reader than "couldn't reach it".
+    -- Calibre-Web Automated caps requests and says so in its headers
+    -- (X-RateLimit-Limit: 3, Retry-After), and we spend the root fetch plus a
+    -- lookahead worth several more, so the budget goes and then EVERY request
+    -- 429s -- the root included. That reads as a permanently empty shelf, and
+    -- re-adding the catalog makes it worse rather than better, because each
+    -- attempt spends more of the window it is waiting on (issue 434).
+    if code == 429 then return "ratelimited" end
     return tostring(status or code or "network unreachable")
 end
 

@@ -14799,6 +14799,8 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
                             and T(_("Authentication failed for %1"), server.title)
                             or err == "format"
                             and T(_("%1 refused every format Bookshelf asked for"), server.title)
+                            or err == "ratelimited"
+                            and T(_("%1 is limiting requests. Wait a minute and try again."), server.title)
                             or T(_("Couldn't reach %1"), server.title),
                     })
                     break
@@ -16332,6 +16334,8 @@ function BookshelfWidget:_opdsSearch(tab, server, src, query)
                             and T(_("Authentication failed for %1"), server.title)
                             or err == "format"
                             and T(_("%1 refused every format Bookshelf asked for"), server.title)
+                            or err == "ratelimited"
+                            and T(_("%1 is limiting requests. Wait a minute and try again."), server.title)
                             or  T(_("Couldn't reach %1"), server.title),
                     })
                     return

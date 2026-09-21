@@ -1017,6 +1017,46 @@ do
        "a feed that declares nothing says nothing")
 end
 
+-- ── A rate-limited catalog says so, rather than "couldn't reach" ──────────
+-- Calibre-Web Automated ships a request cap and advertises it in the headers
+-- the reporter of issue 434 sent back:
+--
+--     X-RateLimit-Limit: 3
+--     X-RateLimit-Remaining: 3
+--     Retry-After: 0
+--
+-- Three requests. We fetch the root, then a lookahead worth up to
+-- OPDS_LOOKAHEAD_MAX_REQUESTS = 6 more, plus covers -- so the budget goes,
+-- and from then on EVERY request 429s including the root, which is why the
+-- shelf reads as permanently empty and why deleting and re-adding it does not
+-- help: each attempt spends more of the window it is waiting on. Measured
+-- against a mock with the same cap: three 200s, then 429 for everything.
+--
+-- 429 fell through errorForCode's default and came out as the raw status
+-- line, which the widget renders as "Couldn't reach X" -- pointing the reader
+-- at their network when the server is answering perfectly well.
+do
+    eq(Feed.errorForCode(429, "429 TOO MANY REQUESTS"), "ratelimited",
+       "a 429 is its own error, not a generic unreachable")
+    -- the neighbours must not have moved
+    eq(Feed.errorForCode(401, "x"), "auth", "401 unchanged")
+    eq(Feed.errorForCode(403, "x"), "auth", "403 unchanged")
+    eq(Feed.errorForCode(406, "x"), "format", "406 unchanged")
+    eq(Feed.errorForCode(500, "500 Internal Server Error"), "500 Internal Server Error",
+       "anything else still reports what the server said")
+
+    -- and the widget has to speak it, at both sites that translate an err
+    local wsrc = io.open("lib/bookshelf_widget.lua"):read("a")
+    local n = select(2, wsrc:gsub('err == "ratelimited"', ""))
+    eq(n, 2, "both feed-error notifications must handle it, found " .. n)
+    -- Wording matters here: "too many requests" blames the reader for a cap
+    -- their server set. The message names what is happening and what to do.
+    ok(wsrc:find("is limiting requests", 1, true) ~= nil,
+       "the message should name rate limiting rather than reachability")
+    ok(wsrc:find("Wait a minute and try again", 1, true) ~= nil,
+       "and say what to do about it, since waiting is the whole remedy")
+end
+
 -- ── Basic auth has to survive a redirect (issue 434) ───────────────────────
 -- luasocket builds the Authorization header itself from reqt.user/password,
 -- in a table it creates inside adjustheaders. On a 3xx it calls

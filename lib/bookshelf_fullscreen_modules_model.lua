@@ -30,11 +30,22 @@ function M.nextId()
     return "fsm" .. n
 end
 
--- Fallback default if the hero list is itself empty at seed time: the analogue
--- clock (works everywhere, no network / statistics dependency).
+-- What the full-screen surface ships with on a FRESH INSTALL. The
+-- maintainer's own arrangement, adopted as the default for the same reason
+-- Home ships as spines: a first launch should show what the surface is for,
+-- and a lone clock does not. Clock and quote carry over from the hero pair,
+-- with the three that only make sense given room -- reading stats, the
+-- library count, and goal progress.
+--
+-- The quote keeps size = 1 so it spans the row rather than sitting in a
+-- narrow cell; it is the one module here that is mostly text.
 function M.DEFAULTS()
     return {
         { id = "fsm_clock", type = "module", module = "analogue_clock" },
+        { id = "fsm_stats", type = "module", module = "stats"          },
+        { id = "fsm_quote", type = "module", module = "quote_of_day", size = 1 },
+        { id = "fsm_shelf", type = "module", module = "shelf_size"     },
+        { id = "fsm_goal",  type = "module", module = "reading_goal"   },
     }
 end
 
@@ -75,6 +86,30 @@ end
 -- per-instance fields preserved). Empty hero -> the clock default. Each entry
 -- is DEEP-copied (one level): the two lists must not share entry tables, or an
 -- in-session edit to one would leak into the other before the next reload.
+-- Has the reader actually arranged their hero modules, or are they still on
+-- the pair we shipped? Compared by module key in order, which is what a
+-- reader changes; ids and per-entry config are ours to vary.
+local function heroIsUntouched(hero)
+    local ok, HeroModel = pcall(require, "lib/bookshelf_hero_modules_model")
+    if not (ok and HeroModel and HeroModel.DEFAULTS) then return false end
+    local defaults = HeroModel.DEFAULTS() or {}
+    if #hero ~= #defaults then return false end
+    for i = 1, #defaults do
+        if hero[i].module ~= defaults[i].module then return false end
+    end
+    return true
+end
+
+-- Seeding has to serve two different readers.
+--
+-- Someone who already had hero modules when this surface arrived should find
+-- their own set behind the full-screen button, not ours -- that is what this
+-- has always done and it is still right. But on a FRESH INSTALL the hero list
+-- is just the pair we ship, so copying it made the full-screen view a bigger
+-- copy of the hero grid, which is not what the surface is for.
+--
+-- So: copy the hero list when the reader has made it theirs, and use our own
+-- arrangement when they have not touched it.
 local function seedFromHero()
     local ok, HeroModel = pcall(require, "lib/bookshelf_hero_modules_model")
     local out = {}
@@ -87,7 +122,7 @@ local function seedFromHero()
             end
         end
     end
-    if #out == 0 then out = M.DEFAULTS() end
+    if #out == 0 or heroIsUntouched(out) then out = M.DEFAULTS() end
     return out
 end
 

@@ -22,15 +22,18 @@ local HeroModel = dofile("lib/bookshelf_hero_modules_model.lua")
 local helpers   = dofile("tests/_helpers.lua")
 local t = helpers.runner()
 
-t.test("seeds from an EMPTY hero list -> the hero's own defaults", function()
+t.test("an UNTOUCHED hero list -> the full-screen surface's own defaults", function()
     kv = {}
     -- The hero list seeds itself on its own first load, so an "empty" hero is
-    -- really the hero's defaults: the clock and the quote. The full-screen
-    -- view mirrors the dashboard, which is the point of seeding from it.
+    -- really the hero's defaults: the clock and the quote. Copying THAT made
+    -- the full-screen view a bigger copy of the hero grid, which is not what
+    -- the surface is for -- so an unarranged hero list now yields the
+    -- full-screen arrangement instead. See _test_fullscreen_defaults.lua.
     local items = FSModel.load()
-    assert(#items == 2, "expected 2 seeded modules, got " .. #items)
+    assert(#items == 5, "expected the 5 full-screen defaults, got " .. #items)
     assert(items[1].module == "analogue_clock", "the clock should lead")
-    assert(items[2].module == "quote_of_day", "the quote should follow it")
+    assert(items[2].module == "stats", "reading stats should follow it")
+    assert(items[3].module == "quote_of_day", "then the quote")
     assert(kv.fullscreen_modules_seeded == true, "seeded flag not set")
     assert(type(kv.fullscreen_module_items) == "table", "items not persisted")
 end)

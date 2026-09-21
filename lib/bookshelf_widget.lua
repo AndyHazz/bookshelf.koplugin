@@ -14799,6 +14799,8 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
                             and T(_("Authentication failed for %1"), server.title)
                             or err == "format"
                             and T(_("%1 refused every format Bookshelf asked for"), server.title)
+                            or err == "ratelimited"
+                            and T(_("%1 is limiting requests. Wait a minute and try again."), server.title)
                             or T(_("Couldn't reach %1"), server.title),
                     })
                     break
@@ -15467,6 +15469,23 @@ function BookshelfWidget:_opdsLookaheadItem()
     -- showed "no books yet" forever.
     local fetch_url = OpdsWindow.fetchUrl(win, feed_url)
     if not fetch_url then return nil end
+    -- A catalog that has just refused us gets no BACKGROUND traffic until its
+    -- window reopens. The lookahead is worth up to OPDS_LOOKAHEAD_MAX_REQUESTS
+    -- on its own, and a server capped at three (Calibre-Web Automated, issue
+    -- 434) never recovers while we keep spending the window we are waiting on
+    -- -- which is what turned one refusal into a permanently empty shelf.
+    -- A user-initiated fetch is deliberately NOT gated: someone pulling to
+    -- refresh has asked for one request, and it is how we find out the window
+    -- has reopened.
+    local ok_rl, paced = pcall(function()
+        return require("lib/bookshelf_opds_feed").paceFor(fetch_url)
+    end)
+    if ok_rl and type(paced) == "number" and paced > 0 then
+        logger.dbg(string.format(
+            "[bookshelf perf] opds lookahead: declined, origin paced at %.1fs",
+            paced))
+        return nil
+    end
     local have = win.count or 0
     local view = self:_viewSize() or 24
     local want = math.max(0, (self._cursor or 1) - 1)
@@ -15517,6 +15536,14 @@ end
 -- download lands promptly, long enough that polling is not itself the cost.
 local OPDS_POOL_POLL = 0.15
 
+-- How many times a REFUSED item goes back on the queue before it is given up
+-- on. A refusal is not a failure of the request -- the same url will work
+-- shortly -- so it is worth re-queueing, at the paced rate. Bounded so a
+-- server that refuses everything ends the run rather than cycling forever;
+-- three is enough to ride out a burst against a small window without the
+-- run outliving the page it belongs to.
+local OPDS_REFUSED_RETRIES = 3
+
 -- _opdsCoverPool(queue, token, state) - run the queue through forked workers
 -- instead of one blocking fetch per tick.
 --
@@ -15565,6 +15592,23 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
     state.t_paint = state.t_paint or 0
     state.n_fetch = state.n_fetch or 0
 
+    -- How long to leave between launches, and when the next one may go. Zero
+    -- for every healthy catalog. Seeded from what this origin has already
+    -- taught us, so page two does not re-burst and learn it again -- which
+    -- was the other half of why a capped server never recovered (issue 434).
+    local pace, next_launch_at = 0, 0
+    do
+        local probe = queue[1]
+        local u = probe and (probe.fetch_url or probe.feed_url or probe.cover_url)
+        if u then pcall(function() pace = OpdsFeed.paceFor(u) or 0 end) end
+        if pace > 0 then
+            cap = 1
+            logger.dbg(string.format(
+                "[bookshelf perf] opds pool: origin known slow, opening at cap=1 pace=%.1fs",
+                pace))
+        end
+    end
+
     local function stillCurrent()
         return BookshelfWidget.live == self and token == self._opds_cover_token
     end
@@ -15596,9 +15640,19 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
             -- parse". The child's memory is discarded, so it cannot store
             -- anything itself.
             payload = function(_pid, fd)
-                local body = OpdsFeed.fetch(item.fetch_url or item.feed_url,
-                                            item.user, item.password,
-                                            item.timeouts)
+                local body, err = OpdsFeed.fetch(item.fetch_url or item.feed_url,
+                                                 item.user, item.password,
+                                                 item.timeouts)
+                -- A refused worker has to SAY it was refused. The child's
+                -- memory is discarded, so the back-off it recorded dies with
+                -- it, and an empty pipe is indistinguishable from a timeout
+                -- or an error page -- which the parent answers by narrowing
+                -- and carrying on, i.e. by spending more of the window the
+                -- server just asked us to stop spending (issue 434).
+                if not body and err == "ratelimited" then
+                    ffiutil.writeToFD(fd, OpdsFeed.RATE_LIMIT_MARKER, true)
+                    return
+                end
                 ffiutil.writeToFD(fd, body or "", true)
             end
         else
@@ -15607,10 +15661,27 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
             -- may travel to it (see OpdsCovers.fetchPlan).
             local plan = OpdsCovers.fetchPlan(item.rec, state.creds)
             if not plan then return false end
+            -- Where this cover comes from, kept on the ITEM so the collector
+            -- can attribute a refusal to an origin. A cover item carries no
+            -- fetch_url or feed_url -- only the plan knows the url, and the
+            -- plan does not survive into the parent's collect loop, so
+            -- without this a refused cover recorded a back-off against nil
+            -- and the pause was never taken.
+            item.cover_url = plan.url
             payload = function(_pid, fd)
                 local CoverFetch = require("lib/bookshelf_cover_fetch")
-                local got = CoverFetch.download(plan.url, plan.path, plan.user,
-                                                plan.password, plan.net_opts)
+                local got, err = CoverFetch.download(plan.url, plan.path, plan.user,
+                                                     plan.password, plan.net_opts)
+                -- Covers are where a capped server actually says no: a page
+                -- of twenty books is twenty requests, against a root feed
+                -- that is one. Reporting a refusal as a plain failure here
+                -- left the back-off never triggered at all, so the run was
+                -- narrowed rather than paused and the covers that had been
+                -- refused were simply dropped (issue 434).
+                if not got and err == "ratelimited" then
+                    ffiutil.writeToFD(fd, OpdsFeed.RATE_LIMIT_MARKER, true)
+                    return
+                end
                 ffiutil.writeToFD(fd, got and "1" or "", true)
             end
         end
@@ -15621,6 +15692,9 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
         return true
     end
     local function fill()
+        -- `pace` is the gap a refused origin has earned. At pace 0 (every
+        -- healthy catalog) this loop is exactly what it always was.
+        if pace > 0 and _gettime() < next_launch_at then return end
         while #in_flight < cap
                 and next_i < #queue and not fork_broken do
             next_i = next_i + 1
@@ -15636,6 +15710,10 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
                 -- Already on disk: costs nothing, and must not occupy a worker.
             else
                 launch(item)
+                if pace > 0 then
+                    next_launch_at = _gettime() + pace
+                    return          -- one per interval while an origin is slow
+                end
             end
         end
     end
@@ -15672,6 +15750,63 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
                 local ms = (_gettime() - e.t0) * 1000
                 state.t_fetch = state.t_fetch + ms
                 state.n_fetch = state.n_fetch + 1
+                -- Refused outright: record the back-off the child could not,
+                -- and stop the run. Narrowing is the wrong answer to a 429 --
+                -- it keeps going, just more slowly, and every request still
+                -- lands inside the window the server is waiting to clear.
+                if out == OpdsFeed.RATE_LIMIT_MARKER then
+                    -- Refused. SLOW DOWN, do not stop: the queue keeps
+                    -- draining, so the covers on the page in front of the
+                    -- reader still arrive, just further apart. Abandoning the
+                    -- run instead left them stalled until something re-armed
+                    -- the chain, and the machinery to un-stall it was more
+                    -- code than the problem (issue 434).
+                    local refused = e.item.fetch_url or e.item.feed_url
+                                    or e.item.cover_url
+                    pcall(function() OpdsFeed.notePaced(refused) end)
+                    cap = 1
+                    pcall(function() pace = OpdsFeed.paceFor(refused) or 0 end)
+                    -- PUT IT BACK. Narrowing and pacing only slow down what
+                    -- is still queued, and on a full-width pool there is
+                    -- nothing left: the queue is one screen of covers, the
+                    -- width is ten, so the whole page goes out at once and a
+                    -- refused cover is simply lost. Measured on device, three
+                    -- landed and seven vanished with the queue already empty
+                    -- -- which is the "3 covers then stalls" that survived
+                    -- two earlier attempts at this (issue 434).
+                    --
+                    -- Appending re-opens the loop, because next_i now trails
+                    -- #queue again, and the item comes round at the paced
+                    -- rate rather than immediately. Bounded, so a server that
+                    -- refuses everything ends the run instead of cycling.
+                    local tries = (e.item.tries or 0) + 1
+                    if tries <= OPDS_REFUSED_RETRIES then
+                        e.item.tries = tries
+                        queue[#queue + 1] = e.item
+                    else
+                        logger.dbg("[bookshelf perf] opds pool: giving up on an item after "
+                                   .. tries .. " refusals")
+                    end
+                    logger.dbg(string.format(
+                        "[bookshelf perf] opds pool: refused, cap=1 pace=%.1fs requeued=%s",
+                        pace, tostring(tries <= OPDS_REFUSED_RETRIES)))
+                    out = ""
+                end
+                -- A worker that SUCCEEDED has to be recorded by the parent.
+                -- OpdsFeed.fetch notes it, but that runs in the forked child
+                -- whose memory is discarded, so the pacing registry never
+                -- heard about any of the pool's successes and an origin that
+                -- had been slowed down could never recover -- measured on the
+                -- rig, the gap stayed at its 8s ceiling across two successful
+                -- requeued fetches (issue 434).
+                if out ~= "" and pace > 0 then
+                    local ok_u = e.item.fetch_url or e.item.feed_url
+                                 or e.item.cover_url
+                    if ok_u then
+                        pcall(function() OpdsFeed.noteReachable(ok_u) end)
+                        pcall(function() pace = OpdsFeed.paceFor(ok_u) or 0 end)
+                    end
+                end
                 -- A worker that came back with nothing is the server saying
                 -- no: a timeout, a refused connection, an error page. Halve
                 -- and keep going rather than finishing the queue at a width
@@ -16332,6 +16467,8 @@ function BookshelfWidget:_opdsSearch(tab, server, src, query)
                             and T(_("Authentication failed for %1"), server.title)
                             or err == "format"
                             and T(_("%1 refused every format Bookshelf asked for"), server.title)
+                            or err == "ratelimited"
+                            and T(_("%1 is limiting requests. Wait a minute and try again."), server.title)
                             or  T(_("Couldn't reach %1"), server.title),
                     })
                     return

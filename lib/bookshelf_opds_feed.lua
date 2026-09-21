@@ -874,7 +874,149 @@ M.ACCEPT_FEED = "application/opds+json;q=1.0, application/atom+xml;q=0.9, */*;q=
 function M.errorForCode(code, status)
     if code == 401 or code == 403 then return "auth" end
     if code == 406 then return "format" end
+    -- 429 is a server that is working fine and asking us to slow down, which
+    -- is a different instruction to the reader than "couldn't reach it".
+    -- Calibre-Web Automated caps requests and says so in its headers
+    -- (X-RateLimit-Limit: 3, Retry-After), and we spend the root fetch plus a
+    -- lookahead worth several more, so the budget goes and then EVERY request
+    -- 429s -- the root included. That reads as a permanently empty shelf, and
+    -- re-adding the catalog makes it worse rather than better, because each
+    -- attempt spends more of the window it is waiting on (issue 434).
+    if code == 429 then return "ratelimited" end
     return tostring(status or code or "network unreachable")
+end
+
+-- ── Pacing a catalog that cannot take our traffic ─────────────────────────
+--
+-- The problem is entirely of our own making. KOReader's own OPDS browser
+-- makes ONE request per user action -- its list is text, thumbnail urls are
+-- parsed but never downloaded for it, and a cover is fetched only if you tap
+-- "Book cover" on a single book. It cannot trip a rate limit. We render a
+-- cover grid, so one page is twenty image requests plus a page prefetch,
+-- fired eight at a time, and a server capped at three (Calibre-Web
+-- Automated, issue 434) refuses most of them.
+--
+-- The first attempt at this ABANDONED the run on a refusal and scheduled a
+-- retry. That was the wrong shape twice over: it stalled the covers on the
+-- page already on screen until something re-armed the chain, and the
+-- machinery to un-stall it was more code than the problem. Slowing down is
+-- both simpler and better -- the queue keeps draining, covers keep arriving,
+-- and a capped server sees roughly the serial traffic stock would have sent.
+--
+-- So there is ONE number per origin: how long to leave between requests.
+-- Zero for a healthy catalog, which is every catalog until one refuses us.
+--
+-- It escalates because the window length is unknowable. The reporter's
+-- server sends "Retry-After: 0" while refusing and "X-RateLimit-Remaining: 3"
+-- on a success, so neither header says how long to wait, and a fixed guess is
+-- wrong in one direction: too slow and a per-second limiter feels dead (a
+-- flat 60s pause, measured on device: "I can't open any of the opds
+-- categories due to this"), too fast and a per-minute one is hammered as
+-- before.
+--
+-- Recovery is gradual, not instant. A success steps the level DOWN by one
+-- rather than clearing it, because a single cover getting through does not
+-- mean the cap has gone -- clearing outright would re-widen into the same
+-- server and start the burst over. The level also lapses on its own if the
+-- origin has not refused us in a while, so a catalog that was briefly busy
+-- is not slow forever.
+local PACE_BASE  = 0.5      -- seconds between requests at the first level
+local PACE_LEVELS = 5       -- 0.5, 1, 2, 4, 8
+local PACE_TTL   = 300      -- forget a quiet origin after this long
+local _pace = {}
+
+-- Test seam. Same idiom as M._render in the wallpaper module.
+function M._clock()
+    if M._now then return M._now() end
+    return os.time()
+end
+
+function M.clearPacing() _pace = {} end
+
+-- originOf returns scheme, host and port as THREE values -- assigning it to
+-- one local keeps the SCHEME, so every http catalog on the device would have
+-- shared a single "http" bucket and one server's refusal would have slowed
+-- them all. Composite key, built the same way sameOrigin compares.
+local function originKey(url)
+    local scheme, host, port = originOf(url)
+    if not scheme then return nil end
+    return scheme .. "://" .. host .. ":" .. tostring(port)
+end
+
+-- notePaced(url) -- this origin refused us; go slower.
+--
+-- Debounced, because refusals arrive in CLUMPS. A full-width pool has eight
+-- or ten requests in flight when the first one is refused, and the rest are
+-- already gone -- they will all be refused too, within the same second. That
+-- is ONE signal that we are going too fast, not eight. Counting each of them
+-- took the level to its ceiling instantly and turned a catalog that needed a
+-- half-second gap into one answering every eight seconds (measured on the
+-- rig: 8.2s between requeued items after a single burst).
+--
+-- So escalate at most once per interval we are already observing, and never
+-- more than once a second.
+function M.notePaced(url)
+    local origin = originKey(url)
+    if not origin then return end
+    local now = M._clock()
+    local e = _pace[origin]
+    if not e then
+        _pace[origin] = { level = 1, at = now, esc_at = now }
+        return
+    end
+    local debounce = M.paceFor(url)
+    if debounce < 1 then debounce = 1 end
+    if now - (e.esc_at or 0) < debounce then
+        -- Same clump. Keep the origin warm so it does not lapse, but do not
+        -- read it as fresh evidence.
+        e.at = now
+        return
+    end
+    local level = e.level + 1
+    if level > PACE_LEVELS then level = PACE_LEVELS end
+    _pace[origin] = { level = level, at = now, esc_at = now }
+end
+
+-- noteReachable(url) -- this origin answered; ease off one step.
+function M.noteReachable(url)
+    local origin = originKey(url)
+    if not origin then return end
+    local e = _pace[origin]
+    if not e then return end
+    local level = e.level - 1
+    if level <= 0 then _pace[origin] = nil
+    else _pace[origin] = { level = level, at = M._clock(), esc_at = e.esc_at } end
+end
+
+-- paceFor(url) -> seconds to leave between requests to this origin, or 0.
+function M.paceFor(url)
+    local origin = originKey(url)
+    if not origin then return 0 end
+    local e = _pace[origin]
+    if not e then return 0 end
+    if M._clock() - e.at > PACE_TTL then
+        _pace[origin] = nil
+        return 0
+    end
+    return PACE_BASE * (2 ^ (e.level - 1))
+end
+
+-- The marker a forked pool worker writes instead of a body when it is
+-- refused, so the parent can slow the origin down. The child's own memory is
+-- discarded, so it cannot record anything itself. Two NULs: a feed body is
+-- XML or JSON and cannot begin with one.
+M.RATE_LIMIT_MARKER = "\0\0bookshelf:ratelimited"
+
+-- basicAuthHeader(user, password) -> the Authorization value, or nil.
+--
+-- Lives in bookshelf_http now, because the cover download needs exactly the
+-- same thing for exactly the same reason and two copies of an auth header is
+-- how they drift. Kept here as a delegate: it is part of this module's
+-- surface and a test pins it.
+function M.basicAuthHeader(user, password)
+    local ok, Http = pcall(require, "lib/bookshelf_http")
+    if not (ok and Http and Http.basicAuthHeader) then return nil end
+    return Http.basicAuthHeader(user, password)
 end
 
 -- Blocking GET with the stock plugin's header discipline (identity encoding;
@@ -909,9 +1051,15 @@ function M.fetch(url, username, password, opts)
     end
     local ok_req, code, status = pcall(function()
         socketutil:set_timeout(block, total)
-        local c, _headers, st = socket.skip(1, http.request{
+        local headers = { ["Accept-Encoding"] = "identity", ["Accept"] = M.ACCEPT_FEED }
+        -- Set explicitly so it survives a redirect; see basicAuthHeader.
+        -- user/password stay too: they cost nothing, they keep the request
+        -- self-describing, and adjustheaders lets ours override anyway.
+        local auth = M.basicAuthHeader(username, password)
+        if auth then headers["Authorization"] = auth end
+        local c, _h, st = socket.skip(1, http.request{
             url = url,
-            headers = { ["Accept-Encoding"] = "identity", ["Accept"] = M.ACCEPT_FEED },
+            headers = headers,
             sink = ltn12.sink.table(sink),
             user = username,
             password = password,
@@ -922,10 +1070,16 @@ function M.fetch(url, username, password, opts)
     if not ok_req then return nil, "network unreachable" end
     if code == 200 then
         local body = table.concat(sink)
-        if body ~= "" then return body end
+        if body ~= "" then
+            -- The window has reopened, whatever it last refused.
+            M.noteReachable(url)
+            return body
+        end
         return nil, "empty response"
     end
-    return nil, M.errorForCode(code, status)
+    local err = M.errorForCode(code, status)
+    if err == "ratelimited" then M.notePaced(url) end
+    return nil, err
 end
 
 return M

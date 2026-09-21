@@ -1017,5 +1017,184 @@ do
        "a feed that declares nothing says nothing")
 end
 
+-- ── A rate-limited catalog says so, rather than "couldn't reach" ──────────
+-- Calibre-Web Automated ships a request cap and advertises it in the headers
+-- the reporter of issue 434 sent back:
+--
+--     X-RateLimit-Limit: 3
+--     X-RateLimit-Remaining: 3
+--     Retry-After: 0
+--
+-- Three requests. We fetch the root, then a lookahead worth up to
+-- OPDS_LOOKAHEAD_MAX_REQUESTS = 6 more, plus covers -- so the budget goes,
+-- and from then on EVERY request 429s including the root, which is why the
+-- shelf reads as permanently empty and why deleting and re-adding it does not
+-- help: each attempt spends more of the window it is waiting on. Measured
+-- against a mock with the same cap: three 200s, then 429 for everything.
+--
+-- 429 fell through errorForCode's default and came out as the raw status
+-- line, which the widget renders as "Couldn't reach X" -- pointing the reader
+-- at their network when the server is answering perfectly well.
+do
+    eq(Feed.errorForCode(429, "429 TOO MANY REQUESTS"), "ratelimited",
+       "a 429 is its own error, not a generic unreachable")
+    -- the neighbours must not have moved
+    eq(Feed.errorForCode(401, "x"), "auth", "401 unchanged")
+    eq(Feed.errorForCode(403, "x"), "auth", "403 unchanged")
+    eq(Feed.errorForCode(406, "x"), "format", "406 unchanged")
+    eq(Feed.errorForCode(500, "500 Internal Server Error"), "500 Internal Server Error",
+       "anything else still reports what the server said")
+
+    -- and the widget has to speak it, at both sites that translate an err
+    local wsrc = io.open("lib/bookshelf_widget.lua"):read("a")
+    -- Count the MESSAGE, not the comparison: the pool worker tests the same
+    -- err string for a different purpose (deciding to back off), so counting
+    -- `err == "ratelimited"` catches that too and means nothing.
+    local n = select(2, wsrc:gsub("is limiting requests", ""))
+    eq(n, 2, "both feed-error notifications must say it, found " .. n)
+    -- Wording matters here: "too many requests" blames the reader for a cap
+    -- their server set. The message names what is happening and what to do.
+    ok(wsrc:find("is limiting requests", 1, true) ~= nil,
+       "the message should name rate limiting rather than reachability")
+    ok(wsrc:find("Wait a minute and try again", 1, true) ~= nil,
+       "and say what to do about it, since waiting is the whole remedy")
+end
+
+-- ── Pacing a catalog that cannot take our traffic ─────────────────────────
+-- KOReader's own OPDS browser makes ONE request per user action and cannot
+-- trip a rate limit. We render a cover grid, so one page is twenty image
+-- requests fired eight at a time, and a server capped at three refuses most
+-- of them (issue 434).
+--
+-- The first attempt ABANDONED the run on a refusal and scheduled a retry.
+-- Measured on device, that stalled the covers on the page already on screen
+-- ("covers seem to stop loading until I go back and forth in pagination to
+-- jog them in") and the machinery to un-stall it was more code than the
+-- problem. Slowing down keeps the queue draining, so this is one number per
+-- origin: how long to leave between requests.
+do
+    local NOW = 1000000
+    Feed._now = function() return NOW end        -- test seam, same idiom as _render
+    Feed.clearPacing()
+
+    eq(Feed.paceFor("http://h:8083/opds"), 0, "a healthy catalog is not paced at all")
+
+    -- A CLUMP of refusals is one signal, not many. A full-width pool has
+    -- eight or ten requests in flight when the first is refused; the rest are
+    -- already gone and will be refused too, within the same second. Counting
+    -- each of them took the level to its ceiling instantly and turned a
+    -- catalog that needed a half-second gap into one answering every eight
+    -- (measured on the rig before this was debounced).
+    Feed.notePaced("http://h:8083/opds")
+    local first = Feed.paceFor("http://h:8083/opds")
+    ok(first > 0 and first <= 1,
+       "the first refusal buys a small gap, not a stall (got " .. first .. ")")
+    for _ = 1, 9 do Feed.notePaced("http://h:8083/opds") end
+    eq(Feed.paceFor("http://h:8083/opds"), first,
+       "nine more refusals in the same instant are the SAME burst")
+
+    -- Refusals genuinely spread out in time do escalate, because they are
+    -- evidence the gap we chose is still too small.
+    local prev = first
+    for i = 1, 3 do
+        NOW = NOW + 30
+        Feed.notePaced("http://h:8083/opds")
+        local now_gap = Feed.paceFor("http://h:8083/opds")
+        ok(now_gap > prev, "a later, separate refusal widens the gap (round " .. i .. ")")
+        prev = now_gap
+    end
+    for _ = 1, 20 do NOW = NOW + 30; Feed.notePaced("http://h:8083/opds") end
+    ok(Feed.paceFor("http://h:8083/opds") <= 8, "and it is capped")
+
+    -- Per ORIGIN: the root, its subcatalogs and its covers share one budget.
+    eq(Feed.paceFor("http://h:8083/opds/books"), Feed.paceFor("http://h:8083/opds"),
+       "a sibling path on the same server is paced too")
+    eq(Feed.paceFor("http://other:8083/opds"), 0, "a different server is unaffected")
+
+    -- Recovery is GRADUAL. A single cover getting through does not mean the
+    -- cap has gone; clearing outright would re-widen into the same server and
+    -- start the burst over.
+    Feed.clearPacing()
+    Feed.notePaced("http://h:8083/opds")
+    NOW = NOW + 30
+    Feed.notePaced("http://h:8083/opds")
+    local two = Feed.paceFor("http://h:8083/opds")
+    Feed.noteReachable("http://h:8083/opds")
+    local one = Feed.paceFor("http://h:8083/opds")
+    ok(one > 0 and one < two, "one success eases off a step, it does not clear")
+    Feed.noteReachable("http://h:8083/opds")
+    eq(Feed.paceFor("http://h:8083/opds"), 0, "enough successes and it is gone")
+
+    -- A quiet origin is forgotten, so a catalog that was briefly busy is not
+    -- slow for the rest of the session.
+    Feed.clearPacing()
+    Feed.notePaced("http://h:8083/opds")
+    ok(Feed.paceFor("http://h:8083/opds") > 0, "paced now")
+    NOW = NOW + 301
+    eq(Feed.paceFor("http://h:8083/opds"), 0, "and lapses once it has been quiet")
+
+    Feed._now = nil
+    Feed.clearPacing()
+end
+
+-- ── Basic auth has to survive a redirect (issue 434) ───────────────────────
+-- luasocket builds the Authorization header itself from reqt.user/password,
+-- in a table it creates inside adjustheaders. On a 3xx it calls
+-- tredirect(reqt, ...) with the ORIGINAL request and forwards only
+-- reqt.headers -- not user, not password -- so the follow-up request goes out
+-- unauthenticated and the server answers 401.
+--
+-- Measured against a mock that does Flask's /opds -> /opds/ redirect:
+--   curl -L : /opds auth=YES, /opds/ auth=YES  -> 200
+--   ours    : /opds auth=YES, /opds/ auth=NONE -> 401 -> err "auth"
+--
+-- Caller headers win (adjustheaders lowercases and overlays reqt.headers over
+-- its own defaults) AND are the one thing tredirect carries, so putting the
+-- header in ourselves fixes both requests at once.
+do
+    ok(type(Feed.basicAuthHeader) == "function", "basicAuthHeader is exposed")
+    -- These four hold with or without luasocket present: they are the
+    -- "don't send a header at all" cases, and they must not depend on it.
+    eq(Feed.basicAuthHeader(nil, "pass"), nil, "no user, no header")
+    eq(Feed.basicAuthHeader("user", nil), nil, "no password, no header")
+    eq(Feed.basicAuthHeader("", ""), nil, "empty credentials are not credentials")
+    eq(Feed.basicAuthHeader("user", ""), nil, "an empty password is not a credential")
+    -- The encoding itself needs luasocket's mime/socket.url, which a plain
+    -- lua run does not have. Same convention as the parse() fixture below.
+    if pcall(require, "mime") and pcall(require, "socket.url") then
+        eq(Feed.basicAuthHeader("user", "pass"), "Basic dXNlcjpwYXNz",
+           "user:pass encodes to the value curl sends")
+        -- luasocket unescapes the password before encoding it
+        -- (url.unescape(reqt.password) in adjustheaders). Mirrored
+        -- deliberately: this change is about redirects, and altering how a
+        -- password is encoded would silently break every catalog that
+        -- authenticates today.
+        eq(Feed.basicAuthHeader("user", "p%40ss"), Feed.basicAuthHeader("user", "p@ss"),
+           "the password is unescaped exactly as luasocket would have done")
+    else
+        print("note: basicAuthHeader encoding skipped (no luasocket mime)")
+    end
+
+    -- and fetch must actually send it as a header, not rely on user/password
+    local src = io.open("lib/bookshelf_opds_feed.lua"):read("a")
+    local body = src:match("\nfunction M%.fetch%(url, username, password, opts%)\n(.-)\nend\n")
+    ok(body ~= nil, "fetch could be located")
+    if body then
+        local code = body:gsub("%-%-[^\n]*", "")
+        ok(code:find("Authorization", 1, true) ~= nil,
+           "fetch sets the Authorization header itself")
+        -- It must land in the headers table BEFORE that table is handed to
+        -- http.request, and that table must be the one the request uses.
+        -- NB: anchor on http.request, not on "sink =" -- `local sink = {}`
+        -- appears near the top of fetch and would match first.
+        local at_hdr = code:find("%[\"Authorization\"%]")
+        local at_req = code:find("http.request", 1, true)
+        ok(at_hdr and at_req and at_hdr < at_req,
+           "and sets it before the request is built")
+        ok(code:find("headers = headers", 1, true) ~= nil,
+           "and that same table is the one the request sends")
+    end
+end
+
 print(string.format("%d pass, %d fail", pass, fail))
 if fail > 0 then os.exit(1) end

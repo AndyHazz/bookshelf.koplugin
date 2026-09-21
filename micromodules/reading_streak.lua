@@ -9,10 +9,23 @@ local T = require("ffi/util").template
 local STREAK_TTL_S = 30
 local TAP_KEY = "micromodule_reading_streak_tap"
 
+-- The tap dispatches a KOReader action BY NAME, so the name has to be one
+-- KOReader actually registers. "reading_insights_popup" never was: the
+-- statistics plugin registers reading_progress, stats_time_range,
+-- stats_calendar_view, stats_calendar_day_view, stats_sync,
+-- book_statistics and toggle_statistics, and nothing else. Dispatcher looks
+-- the key up in settingsList, finds nil, and isActionEnabled(nil) reports it
+-- disabled -- so the tap did nothing at all, silently, since the module
+-- arrived. reading_progress is the popup the label meant, and is what the
+-- reading_stats module already uses for the same job.
+--
+-- The coercion below doubles as the migration: a stored
+-- "reading_insights_popup" is not a value we recognise, so it lands on
+-- reading_progress, which is what it was trying to be.
 local function readTap()
     local Store = require("lib/bookshelf_settings_store")
     local v = Store.read(TAP_KEY, "stats_calendar_view")
-    if v ~= "stats_calendar_view" then v = "reading_insights_popup" end
+    if v ~= "stats_calendar_view" then v = "reading_progress" end
     return v
 end
 local _streak_cache
@@ -68,7 +81,7 @@ local function showSettings(ctx)
         width_factor = 0.65,
         buttons      = {
             { header(_("Tap action")) },
-            { radio(_("Reading insight"), "reading_insights_popup") },
+            { radio(_("Reading insight"), "reading_progress") },
             { radio(_("Reading calendar"), "stats_calendar_view") },
         },
     }

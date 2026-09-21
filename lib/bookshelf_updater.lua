@@ -93,25 +93,57 @@ end
 -- half-renamed "bookshelf.koplugin-master" runs alongside the real one. The
 -- About screen reports what this finds, because that is where a reader looks
 -- when the version reads wrong.
+-- Compared by IDENTITY, never by path string. KOReader's two lookup paths are
+-- "plugins", relative to its own working directory, and <datadir>/plugins --
+-- and on a Kobo, an Android install and the emulator those are THE SAME
+-- DIRECTORY reached two ways. Keyed on the strings, the scan walked it twice
+-- and the second pass reported the one true install as a second copy:
+--
+--     Another copy of Bookshelf is installed and is also being loaded
+--     ./plugins/bookshelf.koplugin
+--
+-- on a device with exactly one (Reddit, 2026-09-20; the reader had installed
+-- once and updated through the plugin for a year). pluginDir() derives our
+-- own path from debug.getinfo, which hands back whichever form the loader
+-- used, so the string compare against it was unreliable in both directions.
+--
+-- dev+ino is the same question the filesystem would answer, and it costs one
+-- stat we were already making. It also settles the symlinked install a
+-- developer runs from a working tree. Where lfs cannot supply them -- a
+-- platform without inodes -- the path stands in, which is exactly the old
+-- behaviour for that case and no worse.
+local function _identity(lfs, path)
+    local a = lfs.attributes(path)
+    if type(a) ~= "table" or a.mode ~= "directory" then return nil end
+    if a.ino and a.dev then return tostring(a.dev) .. ":" .. tostring(a.ino) end
+    return "path:" .. path
+end
+
 function Updater.otherCopies()
     local out = {}
     local ok = pcall(function()
         local lfs = require("libs/libkoreader-lfs")
         local DataStorage = require("datastorage")
         local mine = Updater.pluginDir()
+        local mine_id = _identity(lfs, mine)
         local seen = {}
         local roots = { "plugins", DataStorage:getDataDir() .. "/plugins" }
         for _i = 1, #roots do
             local root = roots[_i]
-            if not seen[root] and lfs.attributes(root, "mode") == "directory" then
-                seen[root] = true
+            local root_id = _identity(lfs, root)
+            if root_id and not seen[root_id] then
+                seen[root_id] = true
                 for entry in lfs.dir(root) do
                     local path = root .. "/" .. entry
                     if entry:sub(-9) == ".koplugin"
-                            and entry:lower():find("bookshelf", 1, true)
-                            and path ~= mine
-                            and lfs.attributes(path, "mode") == "directory" then
-                        out[#out + 1] = path
+                            and entry:lower():find("bookshelf", 1, true) then
+                        local id = _identity(lfs, path)
+                        -- A nil id is not a directory, so not a copy. An id
+                        -- equal to ours is us, however the path is spelled.
+                        if id and id ~= mine_id and not seen[id] then
+                            seen[id] = true
+                            out[#out + 1] = path
+                        end
                     end
                 end
             end

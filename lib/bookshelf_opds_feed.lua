@@ -899,13 +899,30 @@ end
 -- Keyed by ORIGIN, not by url: the root, its subcatalogs and its covers all
 -- draw on the same budget, so one refusal has to quiet all of them.
 --
--- The floor matters. That server sent "Retry-After: 0" WHILE refusing, which
--- taken at its word means "hammer me again immediately". The cap matters for
--- the opposite reason: a broken or hostile header should not be able to mute
--- a catalog for an hour.
-local RATE_LIMIT_MIN = 60
-local RATE_LIMIT_MAX = 300
+-- HOW LONG to wait is the hard part, because the server does not say. The
+-- reporter's sends "Retry-After: 0" while refusing -- taken at its word,
+-- "hammer me again immediately" -- and "X-RateLimit-Remaining: 3" on a
+-- SUCCESS, so neither header tells us the window, and both hint it is short.
+--
+-- A fixed guess is wrong in one direction or the other. Guess high and a
+-- catalog behind a per-second limiter feels dead: measured on device against
+-- a mock with a flat 60s pause, "I can't open any of the opds categories due
+-- to this" (maintainer). Guess low and a per-minute limiter gets hammered
+-- exactly as before.
+--
+-- So it self-tunes. The first refusal costs almost nothing, and each further
+-- refusal that lands while the origin is STILL known-bad doubles the pause,
+-- up to the cap. A one-second window is barely noticed; a per-minute one is
+-- backed off properly within a few attempts. Neither is assumed up front, and
+-- a server that does state a usable Retry-After is simply believed.
+--
+-- A success resets the escalation as well as the pause, so a bad patch is not
+-- inherited by the next one.
+local RATE_LIMIT_FIRST = 2      -- seconds, the opening bid
+local RATE_LIMIT_MAX   = 300    -- and the ceiling, so a broken header cannot
+                                -- mute a catalog for an hour
 local _rate_limited = {}
+local _rate_streak  = {}
 
 -- Test seam. Same idiom as M._render in the wallpaper module.
 function M._clock()
@@ -913,7 +930,7 @@ function M._clock()
     return os.time()
 end
 
-function M.clearRateLimits() _rate_limited = {} end
+function M.clearRateLimits() _rate_limited, _rate_streak = {}, {} end
 
 -- originOf returns scheme, host, port as THREE values -- assigning it to one
 -- local keeps the SCHEME, so every http catalog on the device would have
@@ -929,16 +946,31 @@ end
 function M.noteRateLimited(url, retry_after)
     local origin = originKey(url)
     if not origin then return end
-    local secs = tonumber(retry_after) or 0
-    if secs < RATE_LIMIT_MIN then secs = RATE_LIMIT_MIN end
-    if secs > RATE_LIMIT_MAX then secs = RATE_LIMIT_MAX end
+    local secs = tonumber(retry_after)
+    if secs and secs > 0 then
+        -- The server told us. Believe it, up to the cap, and do not let the
+        -- escalation talk over it.
+        if secs > RATE_LIMIT_MAX then secs = RATE_LIMIT_MAX end
+        _rate_streak[origin] = nil
+    else
+        -- It did not, so double what the last refusal cost.
+        local n = (_rate_streak[origin] or 0) + 1
+        _rate_streak[origin] = n
+        secs = RATE_LIMIT_FIRST * (2 ^ (n - 1))
+        if secs > RATE_LIMIT_MAX then secs = RATE_LIMIT_MAX end
+    end
     _rate_limited[origin] = M._clock() + secs
 end
 
 -- noteReachable(url) -- this origin answered, so whatever it refused is over.
 function M.noteReachable(url)
     local origin = originKey(url)
-    if origin then _rate_limited[origin] = nil end
+    if origin then
+        _rate_limited[origin] = nil
+        -- The escalation goes too, not just the pause: the next bad patch
+        -- should start cheap rather than inherit this one.
+        _rate_streak[origin] = nil
+    end
 end
 
 -- rateLimitedFor(url) -> seconds still to wait, or 0.

@@ -1074,16 +1074,9 @@ do
 
     eq(Feed.rateLimitedFor("http://h:8083/opds"), 0, "nothing is limited to begin with")
 
-    -- Retry-After is honoured, but not below a floor: the reporter's server
-    -- sent "Retry-After: 0" WHILE refusing, which taken literally means
-    -- "hammer me again immediately".
-    Feed.noteRateLimited("http://h:8083/opds", 0)
-    ok(Feed.rateLimitedFor("http://h:8083/opds") >= 60,
-       "a nonsense Retry-After still buys a real pause")
-    Feed.clearRateLimits()
-
+    -- A sane Retry-After is taken at its word.
     Feed.noteRateLimited("http://h:8083/opds", 90)
-    eq(Feed.rateLimitedFor("http://h:8083/opds"), 90, "a sane Retry-After is taken at its word")
+    eq(Feed.rateLimitedFor("http://h:8083/opds"), 90, "a sane Retry-After is honoured")
 
     -- Per ORIGIN, not per url: the root, its subcatalogs and its covers are
     -- all the same budget, so one refusal has to quiet all of them.
@@ -1098,18 +1091,52 @@ do
     NOW = NOW + 2
     eq(Feed.rateLimitedFor("http://h:8083/opds"), 0, "and lapses")
 
-    -- A hostile or broken header cannot mute a catalog indefinitely.
+    -- ── The window length is UNKNOWABLE, so the pause self-tunes ──────────
+    -- The reporter's server sends "Retry-After: 0" while refusing, and
+    -- "X-RateLimit-Remaining: 3" on a SUCCESS -- i.e. it tells us nothing
+    -- usable about how long to wait, and the two hints point at a short
+    -- window. Guessing high makes a catalog feel dead (the maintainer, on
+    -- device: "I can't open any of the opds categories due to this");
+    -- guessing low keeps hammering a server with a long one.
+    --
+    -- So the first refusal costs very little and each further refusal that
+    -- lands while the origin is still known-bad doubles it. A server with a
+    -- one-second window is barely noticed; one with a per-minute window is
+    -- backed off properly within a few attempts, without either being
+    -- assumed up front.
     Feed.clearRateLimits()
-    Feed.noteRateLimited("http://h:8083/opds", 99999)
-    ok(Feed.rateLimitedFor("http://h:8083/opds") <= 300,
-       "an absurd Retry-After is capped")
+    Feed.noteRateLimited("http://h:8083/opds")          -- no Retry-After at all
+    local first = Feed.rateLimitedFor("http://h:8083/opds")
+    ok(first <= 5, "the FIRST refusal is a short pause, not a minute (got " .. first .. ")")
 
-    -- A request that succeeds says the window has reopened.
+    local prev = first
+    for i = 1, 4 do
+        Feed.noteRateLimited("http://h:8083/opds")
+        local now_left = Feed.rateLimitedFor("http://h:8083/opds")
+        ok(now_left > prev, "refusal " .. (i + 1) .. " backs off further than the last")
+        prev = now_left
+    end
+
+    -- ...but never past the cap.
+    for _ = 1, 20 do Feed.noteRateLimited("http://h:8083/opds") end
+    ok(Feed.rateLimitedFor("http://h:8083/opds") <= 300, "escalation is capped")
+
+    -- An explicit, sane Retry-After always beats the guess.
     Feed.clearRateLimits()
-    Feed.noteRateLimited("http://h:8083/opds", 120)
-    Feed.noteReachable("http://h:8083/opds/authors")
-    eq(Feed.rateLimitedFor("http://h:8083/opds"), 0,
-       "a success anywhere on the origin clears it")
+    for _ = 1, 6 do Feed.noteRateLimited("http://h:8083/opds") end
+    Feed.noteRateLimited("http://h:8083/opds", 7)
+    eq(Feed.rateLimitedFor("http://h:8083/opds"), 7,
+       "a server that says how long to wait is believed over the escalation")
+
+    -- A success resets the escalation, not just the current pause: the next
+    -- refusal starts cheap again rather than inheriting an old bad patch.
+    Feed.clearRateLimits()
+    for _ = 1, 5 do Feed.noteRateLimited("http://h:8083/opds") end
+    Feed.noteReachable("http://h:8083/opds")
+    eq(Feed.rateLimitedFor("http://h:8083/opds"), 0, "a success clears it")
+    Feed.noteRateLimited("http://h:8083/opds")
+    ok(Feed.rateLimitedFor("http://h:8083/opds") <= 5,
+       "and the next refusal is cheap again, not escalated")
 
     Feed._now = nil
     Feed.clearRateLimits()

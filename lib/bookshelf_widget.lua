@@ -15636,10 +15636,27 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
             -- may travel to it (see OpdsCovers.fetchPlan).
             local plan = OpdsCovers.fetchPlan(item.rec, state.creds)
             if not plan then return false end
+            -- Where this cover comes from, kept on the ITEM so the collector
+            -- can attribute a refusal to an origin. A cover item carries no
+            -- fetch_url or feed_url -- only the plan knows the url, and the
+            -- plan does not survive into the parent's collect loop, so
+            -- without this a refused cover recorded a back-off against nil
+            -- and the pause was never taken.
+            item.cover_url = plan.url
             payload = function(_pid, fd)
                 local CoverFetch = require("lib/bookshelf_cover_fetch")
-                local got = CoverFetch.download(plan.url, plan.path, plan.user,
-                                                plan.password, plan.net_opts)
+                local got, err = CoverFetch.download(plan.url, plan.path, plan.user,
+                                                     plan.password, plan.net_opts)
+                -- Covers are where a capped server actually says no: a page
+                -- of twenty books is twenty requests, against a root feed
+                -- that is one. Reporting a refusal as a plain failure here
+                -- left the back-off never triggered at all, so the run was
+                -- narrowed rather than paused and the covers that had been
+                -- refused were simply dropped (issue 434).
+                if not got and err == "ratelimited" then
+                    ffiutil.writeToFD(fd, OpdsFeed.RATE_LIMIT_MARKER, true)
+                    return
+                end
                 ffiutil.writeToFD(fd, got and "1" or "", true)
             end
         end
@@ -15711,6 +15728,7 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
                 -- lands inside the window the server is waiting to clear.
                 if out == OpdsFeed.RATE_LIMIT_MARKER then
                     local refused = e.item.fetch_url or e.item.feed_url
+                                    or e.item.cover_url
                     pcall(function() OpdsFeed.noteRateLimited(refused) end)
                     logger.dbg("[bookshelf perf] opds pool: rate limited, pausing the run")
                     out = ""

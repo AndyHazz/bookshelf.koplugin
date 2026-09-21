@@ -242,6 +242,16 @@ function CoverFetch.download(url, dest_path, user, password, opts)
     pcall(function() socketutil:reset_timeout() end)
     if not ok_req2 or code ~= 200 then
         pcall(os.remove, tmp)
+        -- 429 gets the same word the feed layer uses, because the caller has
+        -- to be able to ACT on it rather than just log it. A rate-limited
+        -- cover is the commonest refusal of all -- a page of twenty books is
+        -- twenty requests -- and when it came back as an opaque "download
+        -- failed" string the pool could only narrow and carry on, spending
+        -- the window the server had just asked us to stop spending
+        -- (issue 434: measured, a capped server saw 7 refused cover requests
+        -- in a row and no back-off was recorded at all, because none of them
+        -- went through the feed fetch that knows about 429s).
+        if code == 429 then return nil, "ratelimited" end
         return nil, "download failed (" .. tostring(code) .. ")"
     end
     pcall(os.remove, dest_path)

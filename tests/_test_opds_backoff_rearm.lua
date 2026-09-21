@@ -82,4 +82,30 @@ t.test("the marker the child writes is distinguishable from a body", function()
         "and cannot be mistaken for the start of a feed")
 end)
 
+t.test("a refused COVER is what actually triggers the back-off", function()
+    -- Measured on device against a capped mock: a page of twenty books made
+    -- twenty requests and the log showed 3 x 200 then 7 x 429, ALL of them
+    -- covers -- and no back-off at all, because covers do not go through
+    -- OpdsFeed.fetch. They go through CoverFetch.download, which reported a
+    -- refusal as the opaque string "download failed (429)". The pool could
+    -- only narrow and carry on, and the refused covers were dropped.
+    local cf = io.open("lib/bookshelf_cover_fetch.lua"):read("*a")
+    assert(cf:find('return nil, "ratelimited"', 1, true),
+        "the cover download must report a 429 in the same vocabulary as the feed")
+
+    local wsrc = io.open("lib/bookshelf_widget.lua"):read("*a")
+    -- Both workers, feed and cover, have to write the marker.
+    local n = select(2, wsrc:gsub("RATE_LIMIT_MARKER", ""))
+    assert(n >= 3,
+        "expected the marker written by both workers and read by the parent, found " .. n)
+
+    -- And the refusal must be attributable: a cover item carries no
+    -- fetch_url, so without its own url the back-off is recorded against
+    -- nil and no pause is ever taken.
+    assert(wsrc:find("item.cover_url = plan.url", 1, true),
+        "a cover item must carry the url it fetched from")
+    assert(wsrc:find("or e.item.cover_url", 1, true),
+        "and the collector must fall back to it when attributing a refusal")
+end)
+
 t.done()

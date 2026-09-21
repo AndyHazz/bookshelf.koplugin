@@ -1017,5 +1017,64 @@ do
        "a feed that declares nothing says nothing")
 end
 
+-- ── Basic auth has to survive a redirect (issue 434) ───────────────────────
+-- luasocket builds the Authorization header itself from reqt.user/password,
+-- in a table it creates inside adjustheaders. On a 3xx it calls
+-- tredirect(reqt, ...) with the ORIGINAL request and forwards only
+-- reqt.headers -- not user, not password -- so the follow-up request goes out
+-- unauthenticated and the server answers 401.
+--
+-- Measured against a mock that does Flask's /opds -> /opds/ redirect:
+--   curl -L : /opds auth=YES, /opds/ auth=YES  -> 200
+--   ours    : /opds auth=YES, /opds/ auth=NONE -> 401 -> err "auth"
+--
+-- Caller headers win (adjustheaders lowercases and overlays reqt.headers over
+-- its own defaults) AND are the one thing tredirect carries, so putting the
+-- header in ourselves fixes both requests at once.
+do
+    ok(type(Feed.basicAuthHeader) == "function", "basicAuthHeader is exposed")
+    -- These four hold with or without luasocket present: they are the
+    -- "don't send a header at all" cases, and they must not depend on it.
+    eq(Feed.basicAuthHeader(nil, "pass"), nil, "no user, no header")
+    eq(Feed.basicAuthHeader("user", nil), nil, "no password, no header")
+    eq(Feed.basicAuthHeader("", ""), nil, "empty credentials are not credentials")
+    eq(Feed.basicAuthHeader("user", ""), nil, "an empty password is not a credential")
+    -- The encoding itself needs luasocket's mime/socket.url, which a plain
+    -- lua run does not have. Same convention as the parse() fixture below.
+    if pcall(require, "mime") and pcall(require, "socket.url") then
+        eq(Feed.basicAuthHeader("user", "pass"), "Basic dXNlcjpwYXNz",
+           "user:pass encodes to the value curl sends")
+        -- luasocket unescapes the password before encoding it
+        -- (url.unescape(reqt.password) in adjustheaders). Mirrored
+        -- deliberately: this change is about redirects, and altering how a
+        -- password is encoded would silently break every catalog that
+        -- authenticates today.
+        eq(Feed.basicAuthHeader("user", "p%40ss"), Feed.basicAuthHeader("user", "p@ss"),
+           "the password is unescaped exactly as luasocket would have done")
+    else
+        print("note: basicAuthHeader encoding skipped (no luasocket mime)")
+    end
+
+    -- and fetch must actually send it as a header, not rely on user/password
+    local src = io.open("lib/bookshelf_opds_feed.lua"):read("a")
+    local body = src:match("\nfunction M%.fetch%(url, username, password, opts%)\n(.-)\nend\n")
+    ok(body ~= nil, "fetch could be located")
+    if body then
+        local code = body:gsub("%-%-[^\n]*", "")
+        ok(code:find("Authorization", 1, true) ~= nil,
+           "fetch sets the Authorization header itself")
+        -- It must land in the headers table BEFORE that table is handed to
+        -- http.request, and that table must be the one the request uses.
+        -- NB: anchor on http.request, not on "sink =" -- `local sink = {}`
+        -- appears near the top of fetch and would match first.
+        local at_hdr = code:find("%[\"Authorization\"%]")
+        local at_req = code:find("http.request", 1, true)
+        ok(at_hdr and at_req and at_hdr < at_req,
+           "and sets it before the request is built")
+        ok(code:find("headers = headers", 1, true) ~= nil,
+           "and that same table is the one the request sends")
+    end
+end
+
 print(string.format("%d pass, %d fail", pass, fail))
 if fail > 0 then os.exit(1) end

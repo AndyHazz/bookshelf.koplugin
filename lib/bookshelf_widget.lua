@@ -15469,6 +15469,23 @@ function BookshelfWidget:_opdsLookaheadItem()
     -- showed "no books yet" forever.
     local fetch_url = OpdsWindow.fetchUrl(win, feed_url)
     if not fetch_url then return nil end
+    -- A catalog that has just refused us gets no BACKGROUND traffic until its
+    -- window reopens. The lookahead is worth up to OPDS_LOOKAHEAD_MAX_REQUESTS
+    -- on its own, and a server capped at three (Calibre-Web Automated, issue
+    -- 434) never recovers while we keep spending the window we are waiting on
+    -- -- which is what turned one refusal into a permanently empty shelf.
+    -- A user-initiated fetch is deliberately NOT gated: someone pulling to
+    -- refresh has asked for one request, and it is how we find out the window
+    -- has reopened.
+    local ok_rl, cooling = pcall(function()
+        return require("lib/bookshelf_opds_feed").rateLimitedFor(fetch_url)
+    end)
+    if ok_rl and type(cooling) == "number" and cooling > 0 then
+        logger.dbg(string.format(
+            "[bookshelf perf] opds lookahead: declined, rate limited for %ds",
+            cooling))
+        return nil
+    end
     local have = win.count or 0
     local view = self:_viewSize() or 24
     local want = math.max(0, (self._cursor or 1) - 1)
@@ -15598,9 +15615,19 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
             -- parse". The child's memory is discarded, so it cannot store
             -- anything itself.
             payload = function(_pid, fd)
-                local body = OpdsFeed.fetch(item.fetch_url or item.feed_url,
-                                            item.user, item.password,
-                                            item.timeouts)
+                local body, err = OpdsFeed.fetch(item.fetch_url or item.feed_url,
+                                                 item.user, item.password,
+                                                 item.timeouts)
+                -- A refused worker has to SAY it was refused. The child's
+                -- memory is discarded, so the back-off it recorded dies with
+                -- it, and an empty pipe is indistinguishable from a timeout
+                -- or an error page -- which the parent answers by narrowing
+                -- and carrying on, i.e. by spending more of the window the
+                -- server just asked us to stop spending (issue 434).
+                if not body and err == "ratelimited" then
+                    ffiutil.writeToFD(fd, OpdsFeed.RATE_LIMIT_MARKER, true)
+                    return
+                end
                 ffiutil.writeToFD(fd, body or "", true)
             end
         else
@@ -15623,8 +15650,12 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
         return true
     end
     local function fill()
+        -- Once the server has refused, launching the rest of the queue is
+        -- just more refusals inside the window it is waiting to clear
+        -- (issue 434). Whatever is already in flight is left to land.
         while #in_flight < cap
-                and next_i < #queue and not fork_broken do
+                and next_i < #queue and not fork_broken
+                and not state.ratelimited do
             next_i = next_i + 1
             local item = queue[next_i]
             -- Tested POSITIVELY on "cover", not as "anything that is not a
@@ -15674,6 +15705,18 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
                 local ms = (_gettime() - e.t0) * 1000
                 state.t_fetch = state.t_fetch + ms
                 state.n_fetch = state.n_fetch + 1
+                -- Refused outright: record the back-off the child could not,
+                -- and stop the run. Narrowing is the wrong answer to a 429 --
+                -- it keeps going, just more slowly, and every request still
+                -- lands inside the window the server is waiting to clear.
+                if out == OpdsFeed.RATE_LIMIT_MARKER then
+                    pcall(function()
+                        OpdsFeed.noteRateLimited(e.item.fetch_url or e.item.feed_url)
+                    end)
+                    logger.dbg("[bookshelf perf] opds pool: rate limited, abandoning the run")
+                    out = ""
+                    state.ratelimited = true
+                end
                 -- A worker that came back with nothing is the server saying
                 -- no: a timeout, a refused connection, an error page. Halve
                 -- and keep going rather than finishing the queue at a width

@@ -1047,14 +1047,72 @@ do
 
     -- and the widget has to speak it, at both sites that translate an err
     local wsrc = io.open("lib/bookshelf_widget.lua"):read("a")
-    local n = select(2, wsrc:gsub('err == "ratelimited"', ""))
-    eq(n, 2, "both feed-error notifications must handle it, found " .. n)
+    -- Count the MESSAGE, not the comparison: the pool worker tests the same
+    -- err string for a different purpose (deciding to back off), so counting
+    -- `err == "ratelimited"` catches that too and means nothing.
+    local n = select(2, wsrc:gsub("is limiting requests", ""))
+    eq(n, 2, "both feed-error notifications must say it, found " .. n)
     -- Wording matters here: "too many requests" blames the reader for a cap
     -- their server set. The message names what is happening and what to do.
     ok(wsrc:find("is limiting requests", 1, true) ~= nil,
        "the message should name rate limiting rather than reachability")
     ok(wsrc:find("Wait a minute and try again", 1, true) ~= nil,
        "and say what to do about it, since waiting is the whole remedy")
+end
+
+-- ── Backing off once a catalog says it is rate limited ────────────────────
+-- Recognising a 429 is only half of it. The other half is not spending the
+-- next window on background work: the lookahead is worth up to six more
+-- requests and the cover pool more again, so a shelf that keeps prefetching
+-- into a refusal never lets the window recover -- which is why the reporter
+-- of issue 434 saw an EMPTY shelf rather than a partial one, and why deleting
+-- and re-adding the catalog made it worse.
+do
+    local NOW = 1000000
+    Feed._now = function() return NOW end        -- test seam, same idiom as _render
+    Feed.clearRateLimits()
+
+    eq(Feed.rateLimitedFor("http://h:8083/opds"), 0, "nothing is limited to begin with")
+
+    -- Retry-After is honoured, but not below a floor: the reporter's server
+    -- sent "Retry-After: 0" WHILE refusing, which taken literally means
+    -- "hammer me again immediately".
+    Feed.noteRateLimited("http://h:8083/opds", 0)
+    ok(Feed.rateLimitedFor("http://h:8083/opds") >= 60,
+       "a nonsense Retry-After still buys a real pause")
+    Feed.clearRateLimits()
+
+    Feed.noteRateLimited("http://h:8083/opds", 90)
+    eq(Feed.rateLimitedFor("http://h:8083/opds"), 90, "a sane Retry-After is taken at its word")
+
+    -- Per ORIGIN, not per url: the root, its subcatalogs and its covers are
+    -- all the same budget, so one refusal has to quiet all of them.
+    eq(Feed.rateLimitedFor("http://h:8083/opds/books"), 90,
+       "a sibling path on the same server is limited too")
+    eq(Feed.rateLimitedFor("http://other:8083/opds"), 0,
+       "a different server is unaffected")
+
+    -- It expires.
+    NOW = NOW + 89
+    eq(Feed.rateLimitedFor("http://h:8083/opds"), 1, "counts down")
+    NOW = NOW + 2
+    eq(Feed.rateLimitedFor("http://h:8083/opds"), 0, "and lapses")
+
+    -- A hostile or broken header cannot mute a catalog indefinitely.
+    Feed.clearRateLimits()
+    Feed.noteRateLimited("http://h:8083/opds", 99999)
+    ok(Feed.rateLimitedFor("http://h:8083/opds") <= 300,
+       "an absurd Retry-After is capped")
+
+    -- A request that succeeds says the window has reopened.
+    Feed.clearRateLimits()
+    Feed.noteRateLimited("http://h:8083/opds", 120)
+    Feed.noteReachable("http://h:8083/opds/authors")
+    eq(Feed.rateLimitedFor("http://h:8083/opds"), 0,
+       "a success anywhere on the origin clears it")
+
+    Feed._now = nil
+    Feed.clearRateLimits()
 end
 
 -- ── Basic auth has to survive a redirect (issue 434) ───────────────────────

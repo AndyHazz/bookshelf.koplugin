@@ -886,6 +886,85 @@ function M.errorForCode(code, status)
     return tostring(status or code or "network unreachable")
 end
 
+-- ── Rate-limit back-off ────────────────────────────────────────────────────
+--
+-- Recognising a 429 is half the job. The other half is not spending the next
+-- window on background work. Calibre-Web Automated caps requests and says so
+-- (X-RateLimit-Limit: 3), while opening a catalog costs us the root fetch,
+-- then a lookahead worth up to six more, then covers. A shelf that keeps
+-- prefetching into a refusal never lets the window recover, which is why the
+-- reporter of issue 434 saw a permanently EMPTY shelf rather than a partial
+-- one, and why deleting and re-adding the catalog made it worse.
+--
+-- Keyed by ORIGIN, not by url: the root, its subcatalogs and its covers all
+-- draw on the same budget, so one refusal has to quiet all of them.
+--
+-- The floor matters. That server sent "Retry-After: 0" WHILE refusing, which
+-- taken at its word means "hammer me again immediately". The cap matters for
+-- the opposite reason: a broken or hostile header should not be able to mute
+-- a catalog for an hour.
+local RATE_LIMIT_MIN = 60
+local RATE_LIMIT_MAX = 300
+local _rate_limited = {}
+
+-- Test seam. Same idiom as M._render in the wallpaper module.
+function M._clock()
+    if M._now then return M._now() end
+    return os.time()
+end
+
+function M.clearRateLimits() _rate_limited = {} end
+
+-- originOf returns scheme, host, port as THREE values -- assigning it to one
+-- local keeps the SCHEME, so every http catalog on the device would have
+-- shared a single "http" bucket and one server's refusal would have quieted
+-- them all. Composite key, built the same way sameOrigin compares.
+local function originKey(url)
+    local scheme, host, port = originOf(url)
+    if not scheme then return nil end
+    return scheme .. "://" .. host .. ":" .. tostring(port)
+end
+
+-- noteRateLimited(url, retry_after) -- this origin has refused us.
+function M.noteRateLimited(url, retry_after)
+    local origin = originKey(url)
+    if not origin then return end
+    local secs = tonumber(retry_after) or 0
+    if secs < RATE_LIMIT_MIN then secs = RATE_LIMIT_MIN end
+    if secs > RATE_LIMIT_MAX then secs = RATE_LIMIT_MAX end
+    _rate_limited[origin] = M._clock() + secs
+end
+
+-- noteReachable(url) -- this origin answered, so whatever it refused is over.
+function M.noteReachable(url)
+    local origin = originKey(url)
+    if origin then _rate_limited[origin] = nil end
+end
+
+-- rateLimitedFor(url) -> seconds still to wait, or 0.
+--
+-- Background work checks this and declines. A USER-INITIATED fetch does not:
+-- someone who pulls to refresh has asked for one request and should get it,
+-- and if the window has quietly reopened that request is how we find out.
+function M.rateLimitedFor(url)
+    local origin = originKey(url)
+    if not origin then return 0 end
+    local until_t = _rate_limited[origin]
+    if not until_t then return 0 end
+    local left = until_t - M._clock()
+    if left <= 0 then
+        _rate_limited[origin] = nil
+        return 0
+    end
+    return left
+end
+
+-- The marker a forked pool worker writes instead of a body when it is
+-- refused, so the parent can record the back-off. The child's own memory is
+-- discarded, so it cannot record anything itself. Two NULs: a feed body is
+-- XML or JSON and cannot begin with one.
+M.RATE_LIMIT_MARKER = "\0\0bookshelf:ratelimited"
+
 -- basicAuthHeader(user, password) -> the Authorization value, or nil.
 --
 -- We build this ourselves rather than leaving it to luasocket's reqt.user /
@@ -954,7 +1033,7 @@ function M.fetch(url, username, password, opts)
             and opts.block_timeout <= opts.total_timeout then
         block, total = opts.block_timeout, opts.total_timeout
     end
-    local ok_req, code, status = pcall(function()
+    local ok_req, code, status, resp_headers = pcall(function()
         socketutil:set_timeout(block, total)
         local headers = { ["Accept-Encoding"] = "identity", ["Accept"] = M.ACCEPT_FEED }
         -- Set explicitly so it survives a redirect; see basicAuthHeader.
@@ -962,23 +1041,34 @@ function M.fetch(url, username, password, opts)
         -- self-describing, and adjustheaders lets ours override anyway.
         local auth = M.basicAuthHeader(username, password)
         if auth then headers["Authorization"] = auth end
-        local c, _headers, st = socket.skip(1, http.request{
+        local c, h, st = socket.skip(1, http.request{
             url = url,
             headers = headers,
             sink = ltn12.sink.table(sink),
             user = username,
             password = password,
         })
-        return c, st
+        -- Response headers are kept now, for Retry-After.
+        return c, st, h
     end)
     pcall(function() socketutil:reset_timeout() end)
     if not ok_req then return nil, "network unreachable" end
     if code == 200 then
         local body = table.concat(sink)
-        if body ~= "" then return body end
+        if body ~= "" then
+            -- The window has reopened, whatever it last refused.
+            M.noteReachable(url)
+            return body
+        end
         return nil, "empty response"
     end
-    return nil, M.errorForCode(code, status)
+    local err = M.errorForCode(code, status)
+    if err == "ratelimited" then
+        -- luasocket lowercases the response header names.
+        local ra = type(resp_headers) == "table" and resp_headers["retry-after"]
+        M.noteRateLimited(url, ra)
+    end
+    return nil, err
 end
 
 return M

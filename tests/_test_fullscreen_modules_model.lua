@@ -38,9 +38,14 @@ t.test("an UNTOUCHED hero list -> the full-screen surface's own defaults", funct
     assert(type(kv.fullscreen_module_items) == "table", "items not persisted")
 end)
 
-t.test("seeds from a COPY of the hero list, dropping page, keeping config", function()
+t.test("a CUSTOMISED hero list is ignored too -- no carry-over at all", function()
     kv = {}
-    -- A hero list incl. an action card with per-instance config + a paged entry.
+    -- This used to be the point of the seed: turning the surface on brought
+    -- the reader's hero modules with it. That was a migration aid when the
+    -- surface was new and has been dropped -- the two lists are independent
+    -- stores, and the copy made a fresh install's full-screen view a bigger
+    -- duplicate of the hero grid. Anyone who had already opened the
+    -- full-screen view is unaffected: the seed runs once, behind the flag.
     kv.hero_module_items = {
         { id = "hm_a", type = "module", module = "action",
           action = "toggle_night_mode", label = "Night", icon = "[icon=moon]" },
@@ -48,16 +53,14 @@ t.test("seeds from a COPY of the hero list, dropping page, keeping config", func
     }
     kv.hero_modules_seeded = true
     local items = FSModel.load()
-    assert(#items == 2, "expected 2 seeded modules, got " .. #items)
-    assert(items[2].page == nil, "page field should be stripped on the full-screen list")
-    -- Per-instance config (action/label/icon) MUST survive the seed -- else the
-    -- action card renders blank and tapping does nothing.
-    assert(items[1].action == "toggle_night_mode", "action field lost on seed")
-    assert(items[1].label == "Night", "label lost on seed")
-    assert(items[1].icon == "[icon=moon]", "icon lost on seed")
-    -- Independent: neither the list nor the entry tables are shared with hero.
-    assert(kv.fullscreen_module_items ~= kv.hero_module_items, "lists share a table")
-    assert(items[1] ~= kv.hero_module_items[1], "entry tables shared with hero")
+    assert(#items == 5, "expected the 5 full-screen defaults, got " .. #items)
+    for _, it in ipairs(items) do
+        assert(it.module ~= "action" and it.module ~= "weather",
+            "a hero module leaked into the full-screen seed")
+        assert(it.page == nil, "no entry may carry a page field")
+    end
+    -- And the hero list is left exactly as it was.
+    assert(#kv.hero_module_items == 2, "the hero list was mutated by seeding")
 end)
 
 t.test("sanitize keeps per-instance config (only page is dropped)", function()
@@ -86,7 +89,7 @@ t.test("editing the full-screen list does NOT touch the hero list", function()
     assert(#hero == 1 and hero[1].module == "clock", "hero list was mutated")
     -- Full-screen list has the addition.
     local out = FSModel.load()
-    assert(#out == 2 and out[2].module == "trivia", "full-screen add not persisted")
+    assert(#out == 6 and out[6].module == "trivia", "full-screen add not persisted")
 end)
 
 t.test("sanitize drops a stray page field + reports changed", function()

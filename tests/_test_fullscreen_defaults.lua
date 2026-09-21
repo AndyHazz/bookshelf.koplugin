@@ -7,17 +7,12 @@
 -- spines -- a first launch should show what the surface is for, and the old
 -- fallback was a single clock.
 --
--- THE SUBTLETY is who gets it. Seeding served one reader and now serves two:
---
---   * someone who already had hero modules when this surface arrived should
---     find THEIR set behind the full-screen button. That is what seeding
---     from the hero list has always done and it is still right.
---   * on a fresh install the hero list is just the pair we ship, so copying
---     it made the full-screen view a bigger copy of the hero grid.
---
--- So the copy happens only when the reader has actually arranged their hero
--- modules. "Untouched" is compared by module key in order: that is what a
--- reader changes, while ids and per-entry config are ours to vary.
+-- SEEDING IS FROM OUR OWN DEFAULTS, full stop. It used to copy the hero list
+-- so that turning the surface on carried an existing reader's modules over.
+-- That was a migration aid when the surface was new and stopped earning its
+-- weight: the two lists are independent stores that diverge the moment either
+-- is edited, and the copy made a fresh install's full-screen view a bigger
+-- duplicate of the hero grid.
 --
 -- Usage (from plugin root): lua tests/_test_fullscreen_defaults.lua
 package.path = "./?.lua;./?/init.lua;" .. package.path
@@ -78,22 +73,18 @@ t.test("it is NOT simply the hero pair, which is the bug being fixed", function(
         "seeding used to copy the hero list, making this a bigger copy of the hero grid")
 end)
 
-t.test("a customised hero list is still copied, an untouched one is not", function()
-    -- Both halves matter. Losing the first silently overrides modules an
-    -- upgrader had already arranged; losing the second is the original bug.
-    local body = fs_src:match("local function heroIsUntouched.-\nend")
-    assert(body, "heroIsUntouched moved or was renamed")
-    assert(body:find("HeroModel.DEFAULTS()", 1, true),
-        "untouched must be judged against the hero defaults")
-    assert(body:find("hero[i].module ~= defaults[i].module", 1, true),
-        "compare by module key in order -- ids and config are ours to vary")
-
-    local seed = fs_src:match("local function seedFromHero.-\nend")
-    assert(seed, "seedFromHero moved or was renamed")
-    assert(seed:find("heroIsUntouched(out)", 1, true),
-        "the seed must consult it")
-    assert(seed:find("#out == 0 or heroIsUntouched(out)", 1, true),
-        "an empty hero list must still fall back to our defaults")
+t.test("seeding does not consult the hero list at all", function()
+    -- The carry-over is gone by choice, not by accident. The two surfaces are
+    -- independent stores that diverge the moment either is edited, and the
+    -- rule for deciding which readers got a copy was more machinery than the
+    -- behaviour deserved. Anyone who had already opened the full-screen view
+    -- is unaffected either way: the seed runs once, behind the seeded flag.
+    assert(not fs_src:find("seedFromHero", 1, true),
+        "the hero carry-over is back")
+    assert(not fs_src:find("HeroModel", 1, true),
+        "the full-screen model should not depend on the hero model at all")
+    assert(fs_src:find("local seed = M.DEFAULTS()", 1, true),
+        "the seed must come from this module's own defaults")
 end)
 
 t.done()

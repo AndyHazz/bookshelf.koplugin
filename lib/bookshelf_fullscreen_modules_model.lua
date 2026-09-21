@@ -10,9 +10,9 @@ a different set behind the full-screen button. Mirrors bookshelf_hero_modules_mo
 difference: the full-screen view reflows ALL its modules (no per-page paging),
 so there is no `page` field and no Pg. assignment.
 
-First load seeds from a COPY of the hero list (minus any page field) so turning
-the full-screen surface on starts with the user's existing modules; the two
-lists then diverge independently.
+First load seeds from this module's own DEFAULTS. The two surfaces are
+independent from the outset -- this one no longer starts as a copy of the
+hero list.
 ]]
 local BookshelfSettings = require("lib/bookshelf_settings_store")
 local SMModel           = require("lib/bookshelf_start_menu_model")
@@ -86,45 +86,20 @@ end
 -- per-instance fields preserved). Empty hero -> the clock default. Each entry
 -- is DEEP-copied (one level): the two lists must not share entry tables, or an
 -- in-session edit to one would leak into the other before the next reload.
--- Has the reader actually arranged their hero modules, or are they still on
--- the pair we shipped? Compared by module key in order, which is what a
--- reader changes; ids and per-entry config are ours to vary.
-local function heroIsUntouched(hero)
-    local ok, HeroModel = pcall(require, "lib/bookshelf_hero_modules_model")
-    if not (ok and HeroModel and HeroModel.DEFAULTS) then return false end
-    local defaults = HeroModel.DEFAULTS() or {}
-    if #hero ~= #defaults then return false end
-    for i = 1, #defaults do
-        if hero[i].module ~= defaults[i].module then return false end
-    end
-    return true
-end
-
--- Seeding has to serve two different readers.
+-- Seeded from our own DEFAULTS, full stop.
 --
--- Someone who already had hero modules when this surface arrived should find
--- their own set behind the full-screen button, not ours -- that is what this
--- has always done and it is still right. But on a FRESH INSTALL the hero list
--- is just the pair we ship, so copying it made the full-screen view a bigger
--- copy of the hero grid, which is not what the surface is for.
+-- This used to copy the hero list, so that someone who already had hero
+-- modules when this surface arrived found their own set behind the
+-- full-screen button. That was a reasonable migration aid when the surface
+-- was new, and it stopped being worth its weight: the two lists are
+-- independent stores that diverge the moment either is edited, the copy made
+-- a fresh install's full-screen view a bigger duplicate of the hero grid, and
+-- the rule for deciding WHICH readers got the copy was more machinery than
+-- the behaviour deserved (maintainer: "keep it simple, no need to support
+-- carry over ... both starting with our defaults").
 --
--- So: copy the hero list when the reader has made it theirs, and use our own
--- arrangement when they have not touched it.
-local function seedFromHero()
-    local ok, HeroModel = pcall(require, "lib/bookshelf_hero_modules_model")
-    local out = {}
-    if ok and HeroModel then
-        for _i, it in ipairs(HeroModel.load() or {}) do
-            if type(it) == "table" and it.type == "module" and type(it.module) == "string" then
-                local e = {}
-                for k, v in pairs(it) do if k ~= "page" then e[k] = v end end
-                out[#out + 1] = e
-            end
-        end
-    end
-    if #out == 0 or heroIsUntouched(out) then out = M.DEFAULTS() end
-    return out
-end
+-- Anyone who had already opened the full-screen view is untouched either way:
+-- the seed only ever runs once, behind the seeded flag.
 
 function M.load()
     local saved = BookshelfSettings.read(STORAGE_KEY)
@@ -134,7 +109,7 @@ function M.load()
         return out
     end
     if BookshelfSettings.isTrue(SEEDED_KEY) then return {} end
-    local seed = seedFromHero()
+    local seed = M.DEFAULTS()
     BookshelfSettings.save(STORAGE_KEY, seed)
     BookshelfSettings.save(SEEDED_KEY, true)
     return seed

@@ -1247,7 +1247,7 @@ function M.free()
     end
 end
 
--- flipNight() -> true if the cached backdrop was flipped to the other mode.
+-- flipNight(target_night) -> true if the cached backdrop was moved to that mode.
 --
 -- A night toggle inverts the panel, so the wallpaper already on screen shows
 -- as a NEGATIVE until something repaints it pre-inverted the other way. The
@@ -1260,14 +1260,33 @@ end
 --
 -- The key has to follow, or the next M.bg call reads it as the wrong mode and
 -- throws this buffer away for an identical one.
-function M.flipNight()
+--
+-- TARGET MODE, NOT A BLIND TOGGLE (issue 426). This used to invert whatever it
+-- held, on the word of the caller, which is only safe if every caller stands
+-- for a real change of state. SetNightMode does not: KOReader's own
+-- DeviceListener compares the requested state to the stored one and returns
+-- without touching the panel when they already agree, and dispatcher.lua
+-- offers the event as `set_night_mode` with args={true,false} -- which is how
+-- a gesture, a profile or a home-screen UI turns night mode *on* rather than
+-- toggling it, and how autowarmth fires it on a schedule. Each redundant one
+-- inverted a backdrop that nothing was going to invert back, leaving a
+-- negative on screen until the deferred rebuild noticed the key no longer
+-- matched and paid for a full decode of the very same picture.
+--
+-- The buffer's own key records which mode it holds, so comparing against that
+-- is right whether this runs before or after DeviceListener -- which matters,
+-- because the answer depends on where the shelf sits in the window stack.
+function M.flipNight(target_night)
     local bg = M._bg
     if not (bg and bg.bb and bg.bb.invertRect and M._bg_key) then return false end
+    local holds_night = M._bg_key:sub(-2) == "|n"
+    local want_night  = target_night and true or false
+    if want_night == holds_night then return false end
     local ok = pcall(function()
         bg.bb:invertRect(0, 0, bg.bb:getWidth(), bg.bb:getHeight())
     end)
     if not ok then return false end
-    if M._bg_key:sub(-2) == "|n" then
+    if holds_night then
         M._bg_key = M._bg_key:sub(1, -3)
     else
         M._bg_key = M._bg_key .. "|n"

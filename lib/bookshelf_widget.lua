@@ -10238,10 +10238,10 @@ end
 -- full decode for the same pixels. It also removes a use-after-free: with the
 -- key flipped to match, the rebuild's M.bg call is a cache HIT, so the old
 -- buffer is never freed while its widget is still in the live tree.
-local function _scheduleNightModeRebuild(self)
+local function _scheduleNightModeRebuild(self, target_night)
     pcall(function()
         local Wallpaper = require("lib/bookshelf_wallpaper")
-        if Wallpaper.flipNight then Wallpaper.flipNight() end
+        if Wallpaper.flipNight then Wallpaper.flipNight(target_night) end
     end)
     -- Next tick: DeviceListener has flipped the screen and saved night_mode
     -- by then (it runs later in the same broadcast), so the rebuild reads the
@@ -10253,11 +10253,20 @@ local function _scheduleNightModeRebuild(self)
         end
     end)
 end
+-- The two events differ in what they promise, so they work the target out
+-- differently. ToggleNightMode always changes state, and this runs BEFORE
+-- DeviceListener flips the screen (measured: the shelf is a window above the
+-- file manager and a broadcast walks the stack top down), so the target is
+-- the opposite of what the screen holds now. SetNightMode carries the wanted
+-- state as its argument and may ask for the state we are already in, which is
+-- the case that used to invert the backdrop for nothing -- see
+-- Wallpaper.flipNight. The rebuild stays unconditional either way: it is
+-- self-correcting, and a wasted one is slow where a missed one is wrong.
 function BookshelfWidget:onToggleNightMode()
-    _scheduleNightModeRebuild(self)
+    _scheduleNightModeRebuild(self, not (Screen.night_mode and true or false))
 end
-function BookshelfWidget:onSetNightMode()
-    _scheduleNightModeRebuild(self)
+function BookshelfWidget:onSetNightMode(night_mode_on)
+    _scheduleNightModeRebuild(self, night_mode_on and true or false)
 end
 
 -- Sleep / wake hooks: stop the timer entirely on suspend so the device

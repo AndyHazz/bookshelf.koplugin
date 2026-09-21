@@ -18,7 +18,9 @@ local helpers = dofile("tests/_helpers.lua")
 local t  = helpers.runner()
 local eq = helpers.eq
 local src = io.open("lib/bookshelf_widget.lua"):read("*a")
-local body = src:match("\nlocal function _scheduleNightModeRebuild%(self%)\n(.-)\nend\n")
+-- Signature-agnostic: it gained a target_night parameter for issue 426, and
+-- pinning the exact argument list here only breaks the capture silently.
+local body = src:match("\nlocal function _scheduleNightModeRebuild%([^)]*%)\n(.-)\nend\n")
 assert(body, "_scheduleNightModeRebuild not found")
 local code = body:gsub("%-%-[^\n]*", "")   -- comments out of the way
 
@@ -44,8 +46,14 @@ t.test("the wallpaper cache still flips on the handler's own tick, before anythi
 end)
 
 t.test("both KOReader events still reach the same scheduler", function()
-    assert(src:find("function BookshelfWidget:onToggleNightMode()\n    _scheduleNightModeRebuild(self)", 1, true))
-    assert(src:find("function BookshelfWidget:onSetNightMode()\n    _scheduleNightModeRebuild(self)", 1, true))
+    -- Both still funnel into the one scheduler; they differ only in how they
+    -- work out the target mode to hand it (issue 426).
+    assert(src:find("function BookshelfWidget:onToggleNightMode()", 1, true))
+    assert(src:find("function BookshelfWidget:onSetNightMode(night_mode_on)", 1, true))
+    -- CALLS only: the definition line carries the same text, so anchor on the
+    -- indent that only a call site has.
+    local n = select(2, src:gsub("\n    _scheduleNightModeRebuild%(self,", ""))
+    eq(n, 2, "expected both handlers to call the scheduler with a target, found " .. n)
 end)
 
 t.done()

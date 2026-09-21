@@ -1566,11 +1566,61 @@ t.test("a night flip inverts in place and moves the key with it", function()
                      getWidth = function() return 10 end,
                      getHeight = function() return 10 end } }
     W._bg_key = "/p/x.jpg|10x10"
-    eq(W.flipNight(), true)
+    eq(W.flipNight(true), true)
     eq(inverted, 1)
     eq(W._bg_key, "/p/x.jpg|10x10|n", "the key must gain the night suffix")
-    eq(W.flipNight(), true)
+    eq(W.flipNight(false), true)
     eq(W._bg_key, "/p/x.jpg|10x10", "and lose it again on the way back")
+end)
+
+t.test("a redundant SetNightMode must not invert the backdrop", function()
+    -- KOReader's DeviceListener:onSetNightMode is IDEMPOTENT -- it compares
+    -- the requested state to the stored one and returns without touching the
+    -- panel when they already agree. Ours ignored the argument entirely, so a
+    -- SetNightMode that changed nothing still inverted the cached wallpaper.
+    --
+    -- That event is not exotic. dispatcher.lua exposes it as `set_night_mode`
+    -- with args={true,false}, which is how a gesture, a profile or a home-UI
+    -- replacement turns night mode "on" rather than toggling it, and
+    -- autowarmth fires it on a schedule. Every redundant one left the backdrop
+    -- a negative until the deferred rebuild threw the buffer away and paid for
+    -- a full decode of the same picture (issue 426).
+    --
+    -- The guard belongs on the TARGET MODE, not on the event: the buffer's own
+    -- key says which mode it holds, so comparing against that is right whether
+    -- our handler runs before or after DeviceListener.
+    local W = fresh()
+    local inverted = 0
+    local function bg(key)
+        W._bg = { bb = { invertRect = function() inverted = inverted + 1 end,
+                         getWidth = function() return 10 end,
+                         getHeight = function() return 10 end } }
+        W._bg_key = key
+    end
+
+    bg("/p/x.jpg|10x10")                      -- a DAY buffer
+    eq(W.flipNight(false), false, "asked for day, already day: nothing to do")
+    eq(inverted, 0)
+    eq(W._bg_key, "/p/x.jpg|10x10", "the key must not move")
+
+    eq(W.flipNight(true), true, "asked for night: flip it")
+    eq(inverted, 1)
+    eq(W._bg_key, "/p/x.jpg|10x10|n")
+
+    eq(W.flipNight(true), false, "asked for night again: already there")
+    eq(inverted, 1)
+    eq(W._bg_key, "/p/x.jpg|10x10|n", "a second request must not undo the first")
+end)
+
+t.test("the handler passes the target mode, and skips a no-op SetNightMode", function()
+    local src = io.open("lib/bookshelf_widget.lua"):read("a")
+    local fn = src:match("local function _scheduleNightModeRebuild.-\nend\n")
+    assert(fn, "the night rebuild scheduler could not be located")
+    assert(fn:find("flipNight(", 1, true) and not fn:find("flipNight()", 1, true),
+        "flipNight must be given the target mode, not called as a blind toggle")
+    -- and the two entry points have to compute that target
+    assert(src:find("function BookshelfWidget:onSetNightMode(night_mode_on)", 1, true),
+        "onSetNightMode must take the argument KOReader sends it")
 end)
 
 t.test("freeing detaches before it frees", function()

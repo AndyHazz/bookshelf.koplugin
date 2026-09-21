@@ -1,8 +1,9 @@
 # Bookshelf — KOReader Plugin
-# Slovak translation
+# Slovak translation — by misko903
 msgid ""
 msgstr ""
 "Report-Msgid-Bugs-To: \n"
+"Last-Translator: misko903\n"
 "POT-Creation-Date: 2026-09-19 19:45+0100\n"
 "Language: sk\n"
 "MIME-Version: 1.0\n"
@@ -62,7 +63,7 @@ msgstr "Vybrať akciu"
 #: lib/bookshelf_book_repository.lua:5717
 #: lib/bookshelf_book_repository.lua:7920 micromodules/weather.lua:62
 msgid "Unknown"
-msgstr "Neznáma"
+msgstr "Neznáme"
 
 #: lib/bookshelf_book_repository.lua:6644 lib/bookshelf_chip_editor.lua:2354
 #: lib/bookshelf_filter.lua:280
@@ -182,7 +183,7 @@ msgstr "Vynulovať %d kníh?"
 #: lib/bookshelf_bulk_actions.lua:285 lib/bookshelf_settings.lua:4134
 #: lib/bookshelf_settings.lua:4177 main.lua:2690
 msgid "Reset"
-msgstr "Vymazať"
+msgstr "Vynulovať"
 
 #: lib/bookshelf_bulk_actions.lua:315 lib/bookshelf_bulk_actions.lua:367
 #: lib/bookshelf_bulk_actions.lua:411
@@ -248,7 +249,7 @@ msgstr "(bez poznámok k tomuto vydaniu)"
 
 #: lib/bookshelf_changelog.lua:93
 msgid "Fetching changelog..."
-msgstr "Načítavam zoznam zmien..."
+msgstr "Načítava sa zoznam zmien..."
 
 #: lib/bookshelf_changelog.lua:127
 msgid "Older"
@@ -445,7 +446,7 @@ msgstr "Vložiť ikonu…"
 
 #: lib/bookshelf_chip_editor.lua:707 lib/bookshelf_chip_editor.lua:2055
 msgid "OK"
-msgstr "Akceptovať"
+msgstr "OK"
 
 #: lib/bookshelf_chip_editor.lua:717
 msgid "Shelf label"
@@ -481,7 +482,7 @@ msgstr "Štýl police: "
 
 #: lib/bookshelf_chip_editor.lua:937
 msgid "Edit label"
-msgstr "Upraviť popis"
+msgstr "Upraviť popisok"
 
 #: lib/bookshelf_chip_editor.lua:975
 msgid "Delete this shelf? This cannot be undone."
@@ -517,7 +518,7 @@ msgstr "podkatalóg"
 
 #: lib/bookshelf_chip_editor.lua:1375
 msgid "Starts at: the top of the catalog"
-msgstr "Začína na: vrchol katalógu"
+msgstr "Začína na: vrchole katalógu"
 
 #: lib/bookshelf_chip_editor.lua:1387
 msgid "Saves to"
@@ -1013,23 +1014,23 @@ msgstr "Wikidata"
 
 #: lib/bookshelf_cover_sources.lua:438
 msgid "Searching Apple Books…"
-msgstr "Vyhľadávam v Apple Books…"
+msgstr "Prehľadáva sa Apple Books…"
 
 #: lib/bookshelf_cover_sources.lua:439
 msgid "Searching Google Books…"
-msgstr "Vyhľadávam v Google Books…"
+msgstr "Prehľadáva sa Google Books…"
 
 #: lib/bookshelf_cover_sources.lua:440
 msgid "Searching Open Library…"
-msgstr "Vyhľadávam v Open Library…"
+msgstr "Prehľadáva sa Open Library…"
 
 #: lib/bookshelf_cover_sources.lua:441
 msgid "Searching Wikidata…"
-msgstr "Vyhľadávam vo Wikidata…"
+msgstr "Prehľadáva sa Wikidata…"
 
 #: lib/bookshelf_cover_sources.lua:442
 msgid "Searching Hardcover…"
-msgstr "Vyhľadávam v Hardcover…"
+msgstr "Prehľadáva sa Hardcover…"
 
 #: lib/bookshelf_filter.lua:38
 msgid "Folders"
@@ -1179,7 +1180,7 @@ msgstr "Wi-Fi"
 
 #: lib/bookshelf_icons_catalogue.lua:42
 msgid "Frontlight"
-msgstr "Nasvietenie/podsvietenie displeja"
+msgstr "Predné podsvietenie"
 
 #: lib/bookshelf_icons_catalogue.lua:43
 msgid "Night mode"
@@ -1203,7 +1204,7 @@ msgstr "Kríže"
 
 #: lib/bookshelf_icons_catalogue.lua:178 lib/bookshelf_settings.lua:1048
 msgid "Heart"
-msgstr "Srdcia"
+msgstr "Srdce"
 
 #: lib/bookshelf_icons_catalogue.lua:179
 msgid "Diamond suit"
@@ -1531,11 +1532,11 @@ msgstr "Kruh (horná polovica)"
 
 #: lib/bookshelf_icons_catalogue.lua:385
 msgid "Diamond (filled)"
-msgstr "Diamant (plný)"
+msgstr "Kosoštvorec (plný)"
 
 #: lib/bookshelf_icons_catalogue.lua:386
 msgid "Diamond (empty)"
-msgstr "Diamant (prázdny)"
+msgstr "Kosoštvorec (prázdny)"
 
 #: lib/bookshelf_icons_catalogue.lua:389
 msgid "Vertical bar"
@@ -1637,7 +1638,7 @@ msgstr "Kurzíva"
 
 #: lib/bookshelf_line_editor.lua:432
 msgid "Regular"
-msgstr "Bežný režim"
+msgstr "Obyčajné"
 
 #: lib/bookshelf_line_editor.lua:452
 msgid "Size"
@@ -1730,7 +1731,7 @@ msgstr "Táto položka ponuky nie je dostupná"
 
 #: lib/bookshelf_menu_shortcut.lua:315
 msgid "Menu"
-msgstr "Menu"
+msgstr "Ponuka"
 
 #: lib/bookshelf_module_kit.lua:58
 msgid "%1h %2m"
@@ -1779,11 +1780,11 @@ msgstr "%d preskočených: už v tomto priečinku."
 #: lib/bookshelf_move_flow.lua:125
 #, lua-format
 msgid "Moving %d of %d…"
-msgstr "Presúvam %d z %d…"
+msgstr "Presúva sa %d z %d…"
 
 #: lib/bookshelf_move_flow.lua:142
 msgid "Updating library…"
-msgstr "Aktualizujem knižnicu…"
+msgstr "Aktualizuje sa knižnica…"
 
 #: lib/bookshelf_move_flow.lua:166
 #, lua-format
@@ -1903,11 +1904,11 @@ msgstr "Tento katalóg už neexistuje."
 
 #: lib/bookshelf_opds_catalog_editor.lua:33
 msgid "Catalog name"
-msgstr "Meno katalógu"
+msgstr "Názov katalógu"
 
 #: lib/bookshelf_opds_catalog_editor.lua:34
 msgid "Catalog URL"
-msgstr "Katalóg adresa URL"
+msgstr "Adresa URL katalógu"
 
 #: lib/bookshelf_opds_catalog_editor.lua:35
 msgid "Username (optional)"
@@ -1923,7 +1924,7 @@ msgstr "Pridať katalóg OPDS"
 
 #: lib/bookshelf_opds_catalog_editor.lua:41
 msgid "Edit OPDS catalog"
-msgstr "Upraviť OPDS katalóg"
+msgstr "Upraviť katalóg OPDS"
 
 #: lib/bookshelf_opds_catalog_editor.lua:67
 msgid "Could not save catalog."
@@ -1939,7 +1940,7 @@ msgstr "Synchronizovať katalóg"
 
 #: lib/bookshelf_opds_catalog_editor.lua:99
 msgid "Delete \"%1\"? %2 shelves use this catalog and will stop working."
-msgstr "Vymazať „%1“? Tento katalóg používa %2 políc, ktoré prestanú fungovať."
+msgstr "Vymazať „%1“? Police, ktoré používajú tento katalóg (%2), prestanú fungovať."
 
 #: lib/bookshelf_opds_catalog_editor.lua:101
 msgid "Delete \"%1\"?"
@@ -1991,7 +1992,7 @@ msgstr "kníh"
 #: lib/bookshelf_reader_park.lua:437 lib/bookshelf_widget.lua:22661
 #: main.lua:1237
 msgid "Closing book…"
-msgstr "Zatváram knihu…"
+msgstr "Zatvára sa kniha…"
 
 #: lib/bookshelf_reviews_modal.lua:472 lib/bookshelf_updater.lua:180
 #: lib/bookshelf_widget.lua:16591
@@ -2051,7 +2052,7 @@ msgstr "Hľadať tokeny…"
 
 #: lib/bookshelf_settings.lua:294
 msgid "Help"
-msgstr "Pomocník"
+msgstr "Pomoc"
 
 #: lib/bookshelf_settings.lua:412
 msgid "Status line"
@@ -2246,7 +2247,7 @@ msgstr "Ikona obľúbených"
 #: lib/bookshelf_settings.lua:3514 lib/bookshelf_settings.lua:3541
 #: lib/bookshelf_settings.lua:5040
 msgid "Off"
-msgstr "Vypnutý"
+msgstr "Vypnuté"
 
 #: lib/bookshelf_settings.lua:1099
 msgid "Folders only"
@@ -2455,7 +2456,7 @@ msgstr "Farba textu (% čiernej)"
 
 #: lib/bookshelf_settings.lua:2164
 msgid "Progress bar"
-msgstr "Lišta s indikáciou priebehu"
+msgstr "Ukazovateľ priebehu"
 
 #: lib/bookshelf_settings.lua:2169
 msgid "Progress bar (% black)"
@@ -2747,7 +2748,7 @@ msgid ""
 "\n"
 "Contacts Hardcover (rate-limited), up to ~%2 min. Cancellable, with a report at the end."
 msgstr ""
-"Automaticky prepojiť %1 neprepojených kníh?\n"
+"Automaticky prepojiť neprepojené knihy (%1)?\n"
 "\n"
 "Kontaktuje Hardcover (s obmedzenou rýchlosťou), trvá až ~%2 min. Dá sa zrušiť, na konci je správa."
 
@@ -2834,7 +2835,7 @@ msgstr "Integráciu Hardcover sa nepodarilo načítať"
 
 #: lib/bookshelf_settings.lua:3175
 msgid "Fetching Hardcover ratings..."
-msgstr "Sťahujem hodnotenia Hardcover..."
+msgstr "Sťahujú sa hodnotenia Hardcover..."
 
 #: lib/bookshelf_settings.lua:3178
 msgid "Hardcover ratings refresh failed"
@@ -2888,7 +2889,7 @@ msgstr "Odstrániť obálky"
 
 #: lib/bookshelf_settings.lua:3251
 msgid "Removed downloaded covers (%1 book(s))."
-msgstr "Odstránené stiahnuté obálky (%1 kníh)."
+msgstr "Odstránené stiahnuté obálky (počet kníh: %1)."
 
 #: lib/bookshelf_settings.lua:3261
 msgid "Remove all Hardcover data"
@@ -2918,7 +2919,7 @@ msgstr "Odstrániť všetky"
 
 #: lib/bookshelf_settings.lua:3280
 msgid "All Hardcover data removed (%1 book(s) unlinked)."
-msgstr "Všetky údaje Hardcover odstránené (%1 kníh odpojených)."
+msgstr "Všetky údaje Hardcover odstránené (odpojených kníh: %1)."
 
 #: lib/bookshelf_settings.lua:3330
 msgid "Full screen shelves font scale"
@@ -3050,7 +3051,7 @@ msgstr "Upozornenie na zatváranie knihy"
 
 #: lib/bookshelf_settings.lua:3699
 msgid "Show a 'Closing book…' message in the center of the screen while a book is being closed back to Bookshelf. The book-close work takes a moment, so the message confirms your gesture landed during the wait. Some users on color e-ink panels see a brief flash from the message appearing. Turn it off here if you prefer no message and no flash."
-msgstr "Zobrazí v strede obrazovky správu „Zatváram knihu…“, kým sa kniha zatvára späť do Bookshelf. Zatváranie knihy chvíľu trvá, takže správa potvrdzuje, že vaše gesto bolo zaznamenané počas čakania. Niektorí používatelia farebných e-ink panelov vidia pri zobrazení správy krátke bliknutie. Ak nechcete žiadnu správu ani bliknutie, tu to vypnite."
+msgstr "Zobrazí v strede obrazovky správu „Zatvára sa kniha…“, kým sa kniha zatvára späť do Bookshelf. Zatváranie knihy chvíľu trvá, takže správa potvrdzuje, že vaše gesto bolo zaznamenané počas čakania. Niektorí používatelia farebných e-ink panelov vidia pri zobrazení správy krátke bliknutie. Ak nechcete žiadnu správu ani bliknutie, tu to vypnite."
 
 #: lib/bookshelf_settings.lua:3781
 msgid "Scan all library metadata"
@@ -3190,7 +3191,7 @@ msgstr "Obnoviť predvolenú ponuku políc"
 
 #: lib/bookshelf_settings.lua:4119
 msgid "Clears your custom shelf menu (which shelves are shown, their order, their labels and icons, their sources and filters and sorts) and restores the fresh-install set: Home / Recent / Series / Favorites enabled, the rest available to toggle on. Also returns the active shelf to Home and the page indicator to 1. Other settings (top-panel text, fonts, colors) are unaffected."
-msgstr "Vymaže vašu vlastnú ponuku políc (ktoré police sa zobrazujú, ich poradie, popisky a ikony, zdroje, filtre a zoradenie) a obnoví pôvodnú sadu ako pri novej inštalácii: zapnuté Domovský priečinok / Nedávne / Séria / Obľúbené, zvyšok dostupný na zapnutie. Zároveň vráti aktívnu policu na Domovský priečinok a ukazovateľ strany na 1. Ostatné nastavenia (text horného panela, písma, farby) nie sú ovplyvnené."
+msgstr "Vymaže vašu vlastnú ponuku políc (ktoré police sa zobrazujú, ich poradie, popisky a ikony, zdroje, filtre a zoradenie) a obnoví pôvodnú sadu ako pri novej inštalácii: zapnuté Domov / Nedávne / Séria / Obľúbené, zvyšok dostupný na zapnutie. Zároveň vráti aktívnu policu na Domov a ukazovateľ strany na 1. Ostatné nastavenia (text horného panela, písma, farby) nie sú ovplyvnené."
 
 #: lib/bookshelf_settings.lua:4130
 msgid ""
@@ -3519,7 +3520,7 @@ msgstr "Percento prečítaného"
 
 #: lib/bookshelf_sort_engine.lua:539
 msgid "Unread/Reading/Finished"
-msgstr "Neprečítané/Čítam/Dokončené"
+msgstr "Neprečítané/Čítanie/Dokončené"
 
 #: lib/bookshelf_sort_engine.lua:540
 msgid "Unread 1st"
@@ -3527,11 +3528,11 @@ msgstr "Najprv neprečítané"
 
 #: lib/bookshelf_sort_engine.lua:549
 msgid "Reading/Unread/Finished"
-msgstr "Čítam/Neprečítané/Dokončené"
+msgstr "Čítanie/Neprečítané/Dokončené"
 
 #: lib/bookshelf_sort_engine.lua:550
 msgid "Reading 1st"
-msgstr "Najprv čítané"
+msgstr "Najprv rozčítané"
 
 #: lib/bookshelf_sort_engine.lua:561 lib/bookshelf_widget.lua:17596
 #: lib/bookshelf_widget.lua:17611
@@ -3561,7 +3562,7 @@ msgstr "Strany"
 
 #: lib/bookshelf_spine_widget.lua:1582
 msgid "%1 p"
-msgstr "%1 s"
+msgstr "%1 s"
 
 #: lib/bookshelf_stack_display.lua:100
 msgid "Divider card"
@@ -3693,7 +3694,7 @@ msgstr "Spánok"
 
 #: lib/bookshelf_tab_model.lua:55
 msgid "Home"
-msgstr "Domovský priečinok"
+msgstr "Domov"
 
 #: lib/bookshelf_tab_model.lua:60
 msgid "Recent"
@@ -3770,7 +3771,7 @@ msgstr "Stav čítania, surová hodnota pre podmienky (unread / reading / on_hol
 
 #: lib/bookshelf_tokens.lua:84
 msgid "Reading status as a readable label (Unread / Reading / On hold / Finished)"
-msgstr "Stav čítania ako čitateľný popisok (Neprečítané / Čítam / Pozastavené / Dokončené)"
+msgstr "Stav čítania ako čitateľný popisok (Neprečítané / Čítanie / Pozastavené / Dokončené)"
 
 #: lib/bookshelf_tokens.lua:85
 msgid "Favorite icon, empty when not a favorite"
@@ -4093,7 +4094,7 @@ msgstr "Otvoriť stránku vydaní v prehliadači?"
 
 #: lib/bookshelf_updater.lua:294
 msgid "Checking for updates..."
-msgstr "Kontrolujem aktualizácie..."
+msgstr "Kontrolujú sa aktualizácie..."
 
 #: lib/bookshelf_updater.lua:306
 msgid "Could not check for updates."
@@ -4129,7 +4130,7 @@ msgstr "Najnovšie: "
 
 #: lib/bookshelf_updater.lua:416
 msgid "Downloading update..."
-msgstr "Sťahujem aktualizáciu..."
+msgstr "Sťahuje sa aktualizácia..."
 
 #: lib/bookshelf_updater.lua:498
 msgid "the connection failed"
@@ -4177,7 +4178,7 @@ msgstr "Vetvu sa nepodarilo nainštalovať:"
 
 #: lib/bookshelf_updater.lua:642
 msgid "Downloading latest release..."
-msgstr "Sťahujem najnovšie vydanie..."
+msgstr "Sťahuje sa najnovšie vydanie..."
 
 #: lib/bookshelf_updater.lua:653
 msgid "Could not fetch latest release."
@@ -4330,7 +4331,7 @@ msgstr "Súbor už neexistuje. Položka na poličke je neaktuálna."
 
 #: lib/bookshelf_widget.lua:4500
 msgid "Preparing this book…"
-msgstr "Pripravujem túto knihu…"
+msgstr "Pripravuje sa kniha…"
 
 #: lib/bookshelf_widget.lua:4514
 msgid "This book is still being prepared. Please try again in a moment."
@@ -4363,7 +4364,7 @@ msgstr "Žiadne položky nezačínajú na %q"
 
 #: lib/bookshelf_widget.lua:7366
 msgid "Go to letter"
-msgstr "Isť na písmeno"
+msgstr "Prejsť na písmeno"
 
 #: lib/bookshelf_widget.lua:7377
 msgid "Enter text, letter or book number"
@@ -4384,7 +4385,7 @@ msgstr "Prejsť na knihu"
 
 #: lib/bookshelf_widget.lua:7395
 msgid "Go to page"
-msgstr "Isť na stranu"
+msgstr "Prejsť na stranu"
 
 #: lib/bookshelf_widget.lua:7402
 #, lua-format
@@ -4398,7 +4399,7 @@ msgstr "Strana musí byť medzi 1 a %d"
 
 #: lib/bookshelf_widget.lua:9579
 msgid "Retrieving book cover…"
-msgstr "Načítavam obálku knihy…"
+msgstr "Načítava sa obálka knihy…"
 
 #: lib/bookshelf_widget.lua:13484
 msgid "Reset modules to default"
@@ -4414,14 +4415,14 @@ msgstr "Hromadný výber nie je dostupný v zobrazeniach vzdialených katalógov
 
 #: lib/bookshelf_widget.lua:14109
 msgid "Refreshing library…"
-msgstr "Obnovujem knižnicu…"
+msgstr "Obnovuje sa knižnica…"
 
 #: lib/bookshelf_widget.lua:14556
 msgid ""
 "Fetching %1… (%2 books)\n"
 "(Tap to cancel)"
 msgstr ""
-"Načítavam %1… (%2 kníh)\n"
+"Načítava sa %1… (%2 kníh)\n"
 "(zrušíte ťuknutím)"
 
 #: lib/bookshelf_widget.lua:14560
@@ -4429,7 +4430,7 @@ msgid ""
 "Fetching %1…\n"
 "(Tap to cancel)"
 msgstr ""
-"Načítavam %1…\n"
+"Načítava sa %1…\n"
 "(zrušíte ťuknutím)"
 
 #: lib/bookshelf_widget.lua:14630
@@ -4498,7 +4499,7 @@ msgstr "Hľadať v %1"
 
 #: lib/bookshelf_widget.lua:16191
 msgid "Searching %1…"
-msgstr "Hľadám v %1…"
+msgstr "Hľadá sa v %1…"
 
 #: lib/bookshelf_widget.lua:16251
 msgid "Search: \"%1\""
@@ -4542,7 +4543,7 @@ msgstr "Prepísať"
 
 #: lib/bookshelf_widget.lua:16986
 msgid "Downloading %1… (tap to cancel)"
-msgstr "Sťahujem %1… (zrušíte ťuknutím)"
+msgstr "Sťahuje sa %1… (zrušíte ťuknutím)"
 
 #: lib/bookshelf_widget.lua:16998
 msgid "Download cancelled"
@@ -5033,7 +5034,7 @@ msgstr "názov, autor, séria, žáner…"
 
 #: main.lua:250
 msgid "Importing calibre metadata…"
-msgstr "Importujem metadáta z Calibre…"
+msgstr "Importujú sa metadáta z Calibre…"
 
 #: main.lua:327
 msgid ""
@@ -5099,7 +5100,7 @@ msgstr "Aktualizácie"
 
 #: main.lua:811
 msgid "About"
-msgstr "Informácia"
+msgstr "O pluginu"
 
 #: main.lua:917
 msgid "Bookshelf couldn't open. Some of its files may be missing or corrupted after an update. Try reinstalling the plugin."
@@ -5195,7 +5196,7 @@ msgstr "Správa o počte strán"
 
 #: main.lua:2449
 msgid "Checking publisher page numbers… %1 of %2"
-msgstr "Kontrolujem vydavateľské čísla strán… %1 z %2"
+msgstr "Kontrolujú sa vydavateľské čísla strán… %1 z %2"
 
 #: main.lua:2515
 msgid ""
@@ -5233,7 +5234,7 @@ msgstr "Žiadne prepojené knihy na obnovenie"
 
 #: main.lua:2634
 msgid "Refreshing Hardcover details… %1 of %2"
-msgstr "Obnovujem údaje Hardcover… %1 z %2"
+msgstr "Obnovujú sa údaje Hardcover… %1 z %2"
 
 #: main.lua:2667
 msgid "Hardcover details refreshed for %1 of %2 linked books."
@@ -5269,11 +5270,11 @@ msgstr "Zmeniť akciu"
 
 #: micromodules/action.lua:221
 msgid "Label…"
-msgstr "Popis…"
+msgstr "Popisok…"
 
 #: micromodules/action.lua:224
 msgid "Card label (empty = icon only)"
-msgstr "Popis karty (prázdne = iba ikona)"
+msgstr "Popisok karty (prázdne = iba ikona)"
 
 #: micromodules/action.lua:251
 msgid "Action settings"
@@ -5321,7 +5322,7 @@ msgstr "Dátum odpočítavania"
 
 #: micromodules/countdown.lua:56
 msgid "Countdown label"
-msgstr "Popis odpočítavania"
+msgstr "Popisok odpočítavania"
 
 #: micromodules/countdown.lua:58
 msgid "e.g. Holiday"
@@ -5381,7 +5382,7 @@ msgstr "Nastaviť dátum"
 
 #: micromodules/countdown.lua:143
 msgid "Change label…"
-msgstr "Zmeniť popis…"
+msgstr "Zmeniť popisok…"
 
 #: micromodules/daily_fun.lua:128
 msgid "Failed. Retry →"
@@ -5445,7 +5446,7 @@ msgstr "Hádanka"
 
 #: micromodules/daily_fun.lua:368
 msgid "Fetching fun..."
-msgstr "Načítavam zábavu..."
+msgstr "Načítava sa zábava..."
 
 #: micromodules/daily_fun.lua:454 micromodules/trivia.lua:592
 msgid "Tap to reveal answer →"
@@ -5474,11 +5475,11 @@ msgstr "z Wikipédie"
 
 #: micromodules/on_this_day.lua:183 micromodules/weather.lua:391
 msgid "Fetching..."
-msgstr "Načítavam..."
+msgstr "Načítava sa..."
 
 #: micromodules/on_this_day.lua:206
 msgid "Updating format..."
-msgstr "Aktualizujem formát..."
+msgstr "Aktualizuje sa formát..."
 
 #: micromodules/on_this_day.lua:302
 msgid "%1 / %2"
@@ -5554,7 +5555,7 @@ msgstr "Z vašej knižnice. Funguje offline."
 
 #: micromodules/random_unread.lua:288
 msgid "Picking a book…"
-msgstr "Vyberám knihu…"
+msgstr "Vyberá sa kniha…"
 
 #: micromodules/random_unread.lua:314
 msgid "Nothing unread here"
@@ -5902,7 +5903,7 @@ msgstr "Kategória"
 
 #: micromodules/trivia.lua:454
 msgid "Difficulty"
-msgstr "Obtiažnosť"
+msgstr "Náročnosť"
 
 #: micromodules/trivia.lua:455
 msgid "Type"
@@ -5914,7 +5915,7 @@ msgstr "Náhodné kvízové otázky"
 
 #: micromodules/trivia.lua:547
 msgid "Fetching question..."
-msgstr "Načítavam otázku..."
+msgstr "Načítava sa otázka..."
 
 #: micromodules/trivia.lua:572
 msgid "Failed. Retry ▶"
@@ -6015,7 +6016,7 @@ msgstr "Búrka"
 
 #: micromodules/weather.lua:116
 msgid "Fetching weather..."
-msgstr "Načítavam počasie..."
+msgstr "Načítava sa počasie..."
 
 #: micromodules/weather.lua:140
 msgid "City not found: %1"
@@ -6043,11 +6044,11 @@ msgstr "Zadajte názov mesta"
 
 #: micromodules/weather.lua:288
 msgid "Units: °F (tap for °C)"
-msgstr "Jednotky: °F (ťuknutím na °C)"
+msgstr "Jednotky: °F (ťuknutím prepnete na °C)"
 
 #: micromodules/weather.lua:289
 msgid "Units: °C (tap for °F)"
-msgstr "Jednotky: °C (ťuknutím na °F)"
+msgstr "Jednotky: °C (ťuknutím prepnete na °F)"
 
 #: micromodules/weather.lua:311
 msgid "Force refresh"

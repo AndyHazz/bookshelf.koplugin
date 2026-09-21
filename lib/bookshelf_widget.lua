@@ -11559,6 +11559,33 @@ end
 function BookshelfWidget:_statusStripHeight(content_w)
     local memo = self._strip_h_memo
     if memo and memo.content_w == content_w then return memo.h, memo.book end
+    -- A DISABLED status line reserves nothing.
+    --
+    -- buildStatusRow returns nil for two different reasons -- the reader
+    -- turned the region off, or there is no book to describe -- and the
+    -- fallback below cannot tell them apart. It is right for the second: the
+    -- strip still renders, and the layout needs a number before the book is
+    -- known. For the first it booked Screen:scaleBySize(20) for a strip that
+    -- draws nothing, so swiping up to the full shelf lost a band of height to
+    -- an empty strip (maintainer, on a PW5). _buildMicroHero already handled
+    -- its own nil row by giving the grid the full height; only this path went
+    -- through the probe.
+    --
+    -- Asking the region directly, so a disabled line does not even build a
+    -- row to measure.
+    -- Spelled out rather than as an and/or chain: that idiom is what made
+    -- "Author on spine" unturnoffable (issue 439), and this is the same
+    -- shape of question.
+    local ok_r, off = pcall(function()
+        local regions = require("lib/bookshelf_hero_regions").read()
+        if not regions.status then return true end
+        if regions.status.disabled then return true end
+        return false
+    end)
+    if ok_r and off then
+        self._strip_h_memo = { content_w = content_w, h = 0, book = nil }
+        return 0, nil
+    end
     local probe_book = (self._preview_book and self._preview_book.filepath
                         and Repo.buildBook(self._preview_book.filepath))
                         or self._preview_book

@@ -363,8 +363,29 @@ local GROUP_KINDS = {
 -- Override here for clarity. Used by both the picker buttons and the
 -- editor's Sort-row button text_func so the displayed label matches
 -- what the user picked.
+--
+-- `series_name` is not only the series key: the sort engine uses that field
+-- as the GROUP CARD's name for every group shape (see its comment at
+-- "5. b.series_name -- group shape (Authors / Genres tab)"). So one label
+-- covered both a thing's name and a PERSON's, and English is unusually
+-- relaxed about that. Slovak is not -- meno for a person, nazov for a thing --
+-- and nor are Czech, Polish, Russian, Ukrainian or German, so a translator
+-- had to pick one and be wrong elsewhere (issue 432, from the Slovak
+-- translator reviewing the catalogue).
+--
+-- Split by what is being named rather than per tab: the Authors shelf is the
+-- only group whose cards are people, and "Full name" pairs with the Surname
+-- option sitting next to it. Everything else is a thing and keeps "Name",
+-- which is now unambiguous because the collection dialog no longer shares it.
+local GROUP_LEVEL1_NAME_BY_KIND = {
+    authors = function() return _("Full name") end,
+}
 local GROUP_LEVEL1_LABEL = {
-    series_name    = function() return _("Name") end,
+    series_name    = function(kind)
+        local person = GROUP_LEVEL1_NAME_BY_KIND[kind or ""]
+        if person then return person() end
+        return _("Name")
+    end,
     author_surname = function() return _("Surname") end,
     last_opened    = function() return _("Most recently read") end,
     date_added     = function() return _("Most recently added") end,
@@ -443,7 +464,9 @@ end
 local function _resolveSortLabel(level_index, key, source_kind)
     local is_group = GROUP_KINDS[source_kind or ""] or false
     if is_group and level_index == 1 and GROUP_LEVEL1_LABEL[key] then
-        return GROUP_LEVEL1_LABEL[key]()
+        -- kind is passed through: the name label depends on whether the
+        -- cards are people or things (issue 432).
+        return GROUP_LEVEL1_LABEL[key](source_kind)
     end
     local SortEngine = require("lib/bookshelf_sort_engine")
     local k = SortEngine.KEYS[key]

@@ -437,7 +437,15 @@ function CollectionManager.show(opts)
         local input
         input = InputDialog:new{
             title       = _("New collection"),
-            input_hint  = _("Name"),
+            -- "Collection name", not a bare "Name". That msgid was shared
+            -- with the group-order sort label, where it means a PERSON's name
+            -- on the Authors shelf -- and a language that distinguishes the
+            -- two can only render one of them (Slovak: meno for a person,
+            -- nazov for a thing; Czech, Polish, Russian, Ukrainian and German
+            -- split the same way). Reported by the Slovak translator, who
+            -- could see it from the catalogue but not fix it there (issue
+            -- 432). Naming what is being named also reads better here.
+            input_hint  = _("Collection name"),
             buttons = {{
                 { text = _("Cancel"), id = "close",
                   callback = function() UIManager:close(input) end },

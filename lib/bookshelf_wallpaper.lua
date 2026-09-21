@@ -862,7 +862,38 @@ function M.unfill(active, ...)
         local w = select(i, ...)
         if type(w) == "table" then
             if type(w.frame) == "table" then
+                -- Button's own idiom for this, so anything that looks for the
+                -- stash finds it (Button:hide does exactly these two lines).
+                w.frame.orig_background = w.frame.background
                 w.frame.background = nil
+                -- ...and then the part Button never has to think about,
+                -- because it only ever unfills an ICON button.
+                --
+                -- With flash_ui on, a TEXT button's tap feedback inverts the
+                -- frame's fill in place rather than setting the invert flag:
+                --
+                --     if self[1].radius == nil or self.background then
+                --         self[1].background = self[1].background:invert()
+                --
+                -- There is no fill any more, and nil has no :invert(), so the
+                -- tap took KOReader down -- "attempt to index field
+                -- 'background' (a nil value)" in Button:_doFeedbackHighlight,
+                -- reported from a PW5 (#436). The page counter is a text
+                -- button and it is unfilled here, so every wallpapered shelf
+                -- had a crash sitting in its footer.
+                --
+                -- Both halves of that guard have to read false for the flag
+                -- branch to run instead, which is the right feedback anyway:
+                -- inverting the rect shows the tap without needing a fill.
+                -- A radius of 0 is what nil already meant to paintBorder, so
+                -- nothing moves on screen, and it is deliberately NOT
+                -- Size.radius.button, which is what _undoFeedbackHighlight
+                -- keys on to decide it must invert back.
+                if w.frame.radius == nil then w.frame.radius = 0 end
+                if w.background then
+                    w.orig_background = w.background
+                    w.background = nil
+                end
             end
             -- AND the icon, which is the other half and the less obvious one.
             -- ImageWidget defaults to alpha = false, and Button builds its

@@ -879,17 +879,46 @@ function Bookshelf:show()
         -- still laid out for its own rotation, and yanking the panel under
         -- it would corrupt the eventual unpark. The restore happens on the
         -- real-close return instead; _pre_read_rotation stays stashed.
+        -- ...unless the reader has asked for the rotation to follow them.
+        -- "Keep current rotation across views" is KOReader's own setting and
+        -- its help says what it promises: "nothing will ever sneak a rotation
+        -- behind your back". Putting ours back is exactly that. It only
+        -- started to show in 5.1.2, when the ordinary close stopped
+        -- cold-creating the shelf and began taking this warm branch, which is
+        -- the only one that ever restored (#435: the file manager turned with
+        -- the book and the shelf did not).
+        local Screen = require("device").screen
         if self._widget._pre_read_rotation ~= nil
                 and not require("lib/bookshelf_reader_park").isParked() then
-            local Screen = require("device").screen
-            Screen:setRotationMode(self._widget._pre_read_rotation)
-            self._widget._pre_read_rotation = nil
-            self._widget.width  = Screen:getWidth()
-            self._widget.height = Screen:getHeight()
-            if self._widget.dimen then
-                self._widget.dimen.w = self._widget.width
-                self._widget.dimen.h = self._widget.height
+            if G_reader_settings and G_reader_settings:isTrue("lock_rotation") then
+                self._widget._pre_read_rotation = nil
+            else
+                Screen:setRotationMode(self._widget._pre_read_rotation)
+                self._widget._pre_read_rotation = nil
+                self._widget.width  = Screen:getWidth()
+                self._widget.height = Screen:getHeight()
+                if self._widget.dimen then
+                    self._widget.dimen.w = self._widget.width
+                    self._widget.dimen.h = self._widget.height
+                end
             end
+        end
+        -- Whatever happened above, the screen may no longer be the shape this
+        -- tree was measured for -- every row width, the hero and the footer
+        -- were worked out for the old one. softRefresh swaps content inside
+        -- the existing layout and cannot answer that, so the turn earns the
+        -- full rebuild the cold path used to give it. Two integers to ask,
+        -- and only paid when the screen really did turn.
+        if self._widget.width ~= Screen:getWidth()
+                or self._widget.height ~= Screen:getHeight() then
+            _diag_branch = "warm-reshape"
+            self._widget:_rebuild()
+            UIManager:setDirty(self._widget, "ui")
+            logger.dbg(string.format(
+                "[bookshelf perf] Bookshelf:show: branch=%s elapsed=%.0fms",
+                _diag_branch, (_gettime() - _diag_t0) * 1000))
+            self:_evictHomescreenOverlay()
+            return
         end
         -- softRefresh splits the warm-path update so the existing tree
         -- paints immediately and the heavier shelf re-sort runs ~150ms

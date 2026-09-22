@@ -85,13 +85,26 @@ t.test("plan prefers the set it is handed", function()
 end)
 
 t.test("both plan callers hand it one, from the WHOLE list", function()
+    -- This used to count TWO computations of the set, one at each plan call.
+    -- The seven options the two passes must agree on now come from one
+    -- helper, _spinePlanBase, so the set is computed once there, from the
+    -- list each caller names -- and what has to stay true is which list that
+    -- is: the render reaches past the PAGE it draws to the chip's whole list.
     local w = io.open("lib/bookshelf_widget.lua"):read("*a")
     local n = select(2, w:gsub("face_recent_set = self:_spineFaceRecent", ""))
-    eq(n, 2, "expected the render pass and the pagination pass, found " .. n)
+    eq(n, 1, "the face-out set is computed somewhere other than _spinePlanBase: " .. n)
+    local base = w:match("\nfunction BookshelfWidget:_spinePlanBase%(content_w, shelf_h, all_items%)\n(.-)\nend\n")
+    assert(base and base:find("face_recent_set = self:_spineFaceRecent(all_items)", 1, true),
+        "_spinePlanBase no longer builds the set from the list it is handed")
     -- the render pass is handed a PAGE; it must reach past it for this
-    local render = w:match("(face_recent_set = self:_spineFaceRecent%(\n.-\n[^\n]+%),)")
-    assert(render and render:find("_draft_items_cache", 1, true),
+    local render = w:match("\nfunction BookshelfWidget:_buildSpineRows%(.-%)\n(.-)\nend\n")
+    local call = render and render:match("self:_spinePlanBase%(.-%)\n")
+    assert(call and call:find("_draft_items_cache", 1, true),
         "the render pass is computing the set from the page it renders")
+    -- and pagination plans the whole list, so it hands that over
+    local pages = w:match("\nfunction BookshelfWidget:_spinePageFirsts%(build%)\n(.-)\nend\n")
+    assert(pages and pages:find("self:_spinePlanBase(d.content_w, d.shelf_h, items)", 1, true),
+        "pagination no longer hands the whole list it plans")
 end)
 
 t.test("the memo cannot outlive the list it describes", function()

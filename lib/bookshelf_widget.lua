@@ -5976,32 +5976,50 @@ function BookshelfWidget:_noteSpineRows(plan)
                          c = self._cursor, s = page_skip, chip = self.chip }
 end
 
+-- _spinePlanBase(content_w, shelf_h, all_items) -> the SpineShelf.plan
+-- options that BOTH of plan()'s callers must agree on.
+--
+-- plan() runs two ways: the render plans one page (_buildSpineRows), and
+-- pagination plans the whole chip and cuts it into pages (_spinePageFirsts).
+-- Anything that changes how many books fit a row has to be identical in the
+-- two, or the page boundaries pagination produces are not the ones the render
+-- follows -- which the comments at both call sites record going wrong. These
+-- seven are that set, and each caller used to build all seven itself; now each
+-- adds only what is its own. `all_items` is the list face-outs are chosen from:
+-- the chip's WHOLE list for both, never the page being drawn.
+function BookshelfWidget:_spinePlanBase(content_w, shelf_h, all_items)
+    local SpineShelf = require("lib/bookshelf_spine_shelf")
+    return {
+        -- The row keeps exposed plank at both ends; the fill budget shrinks
+        -- by the two margins so books never reach the shelf's edges.
+        content_w       = content_w - 2 * SpineShelf.endMargin(shelf_h),
+        row_h           = shelf_h,
+        gap             = Screen:scaleBySize(SpineShelf.BOOK_GAP_DP),
+        group_gap       = Screen:scaleBySize(SpineShelf.GROUP_GAP_DP),
+        face_out        = self:_spineFaceOut(),
+        face_recent_set = self:_spineFaceRecent(all_items),
+        thickness_pct   = self:_chipListValue("spine_thickness_pct"),
+    }
+end
+
 function BookshelfWidget:_buildSpineRows(items, content_w, shelf_h, PAD, n_rows)
     local SpineShelf = require("lib/bookshelf_spine_shelf")
     local shared = self:_shelfCallbacks()
-    local gap = Screen:scaleBySize(SpineShelf.BOOK_GAP_DP)
-    -- The row keeps exposed plank at both ends; the fill budget shrinks by
-    -- the two margins so books never reach the shelf's edges.
-    local plan = SpineShelf.plan(items, {
-        content_w  = content_w - 2 * SpineShelf.endMargin(shelf_h),
-        row_h      = shelf_h,
-        gap        = gap,
-        group_gap  = Screen:scaleBySize(SpineShelf.GROUP_GAP_DP),
-        n_rows     = n_rows,
-        face_out   = self:_spineFaceOut(),
-        -- From the chip's WHOLE list, not the page this call renders.
-        face_recent_set = self:_spineFaceRecent(
-            (self._draft_items_cache and self._draft_items_cache.all_items)
-            or items),
-        thickness_pct = self:_chipListValue("spine_thickness_pct"),
-        -- Resume inside an item. A group bigger than a page is ONE item, so
-        -- the cursor alone cannot say "start at its 53rd book".
-        skip       = self:_spineSkip(),
-        -- Which page this is, for the side its first row-end ornament takes
-        -- (SpineShelf.rowEndBase): synced from the cursor before the rows are
-        -- planned, so a page turn plans with the page it is turning to.
-        page_index = self.page,
-    })
+    -- The options both of plan()'s passes must agree on (see _spinePlanBase),
+    -- face-outs chosen from the chip's WHOLE list, not the page drawn here.
+    local opts = self:_spinePlanBase(content_w, shelf_h,
+        (self._draft_items_cache and self._draft_items_cache.all_items) or items)
+    -- The row widget below spaces books by the same gap the plan packed with.
+    local gap = opts.gap
+    opts.n_rows     = n_rows
+    -- Resume inside an item. A group bigger than a page is ONE item, so the
+    -- cursor alone cannot say "start at its 53rd book".
+    opts.skip       = self:_spineSkip()
+    -- Which page this is, for the side its first row-end ornament takes
+    -- (SpineShelf.rowEndBase): synced from the cursor before the rows are
+    -- planned, so a page turn plans with the page it is turning to.
+    opts.page_index = self.page
+    local plan = SpineShelf.plan(items, opts)
     self._spine_shown = plan.shown
     -- Where the next page begins: an item index (into the slice handed to
     -- plan) and how many of that item's spines are already behind us.
@@ -6280,32 +6298,22 @@ function BookshelfWidget:_spinePageFirsts(build)
     local ok, firsts = pcall(function()
         local SpineShelf  = require("lib/bookshelf_spine_shelf")
         local SpineLayout = require("lib/bookshelf_spine_layout")
-        local gap = Screen:scaleBySize(SpineShelf.BOOK_GAP_DP)
-        local plan = SpineShelf.plan(items, {
-            content_w  = d.content_w - 2 * SpineShelf.endMargin(d.shelf_h),
-            row_h      = d.shelf_h,
-            gap        = gap,
-            group_gap  = Screen:scaleBySize(SpineShelf.GROUP_GAP_DP),
-            n_rows     = math.huge,
-            -- How this plan will be CUT into pages (SpineLayout.paginate,
-            -- just below). plan() needs it so its row-end ornament decisions
-            -- land on the same rows the render will decide for: without it
-            -- the two pack differently and the page boundaries this function
-            -- produces are not the ones the render follows.
-            rows_per_page = self:_nShelves(),
-            face_out   = self:_spineFaceOut(),
-            -- Already the whole list here, but passed for the same reason:
-            -- the two passes must agree on which books stand face out or
-            -- they pack differently.
-            face_recent_set = self:_spineFaceRecent(items),
-            thickness_pct = self:_chipListValue("spine_thickness_pct"),
-            -- Pagination only. Balancing every row of the chip jointly was
-            -- 585ms on a PW5 at 1234 books (balanceRows is a DP over rows x
-            -- books), and each page balances its OWN two rows from the greedy
-            -- fill when it renders, so the greedy boundaries are the ones the
-            -- real pages follow.
-            balance    = false,
-        })
+        -- The options the render plans with (see _spinePlanBase): the whole
+        -- list is already what face-outs are chosen from here.
+        local opts = self:_spinePlanBase(d.content_w, d.shelf_h, items)
+        opts.n_rows        = math.huge
+        -- How this plan will be CUT into pages (SpineLayout.paginate, just
+        -- below). plan() needs it so its row-end ornament decisions land on
+        -- the same rows the render will decide for: without it the two pack
+        -- differently and the page boundaries this function produces are not
+        -- the ones the render follows.
+        opts.rows_per_page = self:_nShelves()
+        -- Pagination only. Balancing every row of the chip jointly was 585ms
+        -- on a PW5 at 1234 books (balanceRows is a DP over rows x books), and
+        -- each page balances its OWN two rows from the greedy fill when it
+        -- renders, so the greedy boundaries are the ones the real pages follow.
+        opts.balance       = false
+        local plan = SpineShelf.plan(items, opts)
         local pages = SpineLayout.paginate(plan.rows, self:_nShelves())
         local out = {}
         for i = 1, #pages do

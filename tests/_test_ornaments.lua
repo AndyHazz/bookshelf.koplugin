@@ -1172,7 +1172,9 @@ end)
 
 t.test("the page plan tells plan() which page it is", function()
     local src = io.open("lib/bookshelf_widget.lua"):read("a")
-    assert(src:find("page_index = self.page,", 1, true), "the page plan does not pass page_index")
+    -- Set on the options the render builds from _spinePlanBase, since the
+    -- options both passes share moved there.
+    assert(src:find("opts.page_index = self.page", 1, true), "the page plan does not pass page_index")
 end)
 
 t.done()

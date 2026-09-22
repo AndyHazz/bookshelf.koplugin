@@ -437,19 +437,26 @@ t.test("a wide ornament is given room instead of being dropped", function()
         "the fixed one-third guard is back; it fires on every shelf now")
 
     -- Both planning passes have to arrive at the same slot, and they do only
-    -- because both build content_w by the same subtraction.
-    local calls = {}
-    for body in widget:gmatch("SpineShelf.plan%(items, {\n(.-)\n%s*}%)") do
-        -- One pass reads the stashed dims (d.content_w), the other the locals
-        -- they were stashed FROM; drop the prefix and the subtraction must be
-        -- the same one.
-        calls[#calls + 1] = (body:match("content_w%s*=%s*([^\n]-),?\n") or "")
-                            :gsub("d%.", "")
+    -- because both build content_w by the same subtraction. That used to be
+    -- checked by comparing the two copies of it; there is one copy now, in
+    -- _spinePlanBase, which both passes take their options from -- so the
+    -- property holds by construction, and what is pinned is that it stays so.
+    local base = widget:match("\nfunction BookshelfWidget:_spinePlanBase%(content_w, shelf_h, all_items%)\n(.-)\nend\n")
+    assert(base and base:find("content_w       = content_w - 2 * SpineShelf.endMargin(shelf_h)", 1, true),
+        "_spinePlanBase no longer computes the one content width")
+    local n = select(2, widget:gsub("SpineShelf%.endMargin%(", ""))
+    assert(n >= 1, "nothing subtracts the end margins")
+    for _i, fname in ipairs({ "_buildSpineRows", "_spinePageFirsts" }) do
+        local b = widget:match("\nfunction BookshelfWidget:" .. fname .. "%(.-%)\n(.-)\nend\n")
+        assert(b and b:find("self:_spinePlanBase(", 1, true),
+            fname .. " builds its content width outside _spinePlanBase again, "
+            .. "so the two passes can disagree about the row-end slot")
     end
-    eq(#calls, 2, "expected the render plan and the pagination plan, no more")
-    eq(calls[1], calls[2],
-        "the two planning passes no longer compute the same content width, "
-        .. "so they will disagree about the row-end slot and page boundaries")
+    -- The pagination pass reads the stashed dims, the render the locals they
+    -- were stashed FROM: the same subtraction, as long as the stash is them.
+    local pg = widget:match("\nfunction BookshelfWidget:_spinePageFirsts%(build%)\n(.-)\nend\n")
+    assert(pg and pg:find("self:_spinePlanBase(d.content_w, d.shelf_h, items)", 1, true),
+        "pagination no longer plans from the stashed dims")
     -- ...and the stash really is those locals, not a second measurement.
     local stash = widget:match("self._shelf_dims = {\n(.-)\n%s*}")
     assert(stash and stash:find("content_w%s*=%s*content_w")

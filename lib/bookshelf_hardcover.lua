@@ -676,13 +676,6 @@ function Hardcover.hasData()
         or stats.fetched_at ~= nil
 end
 
--- Gate for the "Hardcover enrichment" settings menu: shown when the plugin is
--- available OR the user already has data, hidden only for someone who has
--- never used Hardcover and doesn't have the plugin installed.
-function Hardcover.shouldShowEnrichmentUI()
-    return Hardcover.isAvailable() or Hardcover.hasData()
-end
-
 function Hardcover.getCachedRating(book_id)
     if not book_id then return nil end
     return _ratingFromCacheEntry(_cacheGet("rating", tostring(book_id)))
@@ -1602,29 +1595,8 @@ local function _normaliseUserName(user)
     return user.name or user.username
 end
 
-local function _imageUrl(row)
-    if type(row) ~= "table" then return nil end
-    -- Hardcover's `cached_image` is a JSON object { url, width, height, ... },
-    -- NOT a plain string (the vendored plugin reads cached_image.url too).
-    -- The string branch is kept only as a defensive fallback for any caller
-    -- that pre-flattened it. Missing this object form was why linked books
-    -- never got a fallback cover: _imageUrl returned nil, so nothing was
-    -- downloaded.
-    local ci = row.cached_image
-    if type(ci) == "string" and ci ~= "" then
-        return ci
-    end
-    if type(ci) == "table" and type(ci.url) == "string" and ci.url ~= "" then
-        return ci.url
-    end
-    if type(row.image) == "table" and type(row.image.url) == "string" then
-        return row.image.url
-    end
-    return nil
-end
-
--- Like _imageUrl but also returns the cached_image's pixel dimensions when
--- present (the JSON object carries { url, width, height }). Used to compare
+-- The cover URL off a Hardcover row, with the cached_image's pixel dimensions
+-- when present (the JSON object carries { url, width, height }). Used to compare
 -- against the embedded cover's resolution when auto-deciding "Use Hardcover
 -- image" at link time. Dimensions are nil when Hardcover only gives a URL.
 local function _imageInfo(row)

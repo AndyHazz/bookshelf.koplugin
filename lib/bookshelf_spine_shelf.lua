@@ -689,30 +689,6 @@ function SpineShelf.invalidateBook(fp)
     SpineShelf.invalidateRender(fp)
 end
 
--- clearScannedPageCounts() -> number of books cleared
--- Drops the counts the "Extract page counts" scan produced, and only those:
--- the sampled colours and cached status stay, so the shelf does not go cold.
--- Counts already written into a book's own sidecar are KOReader's to keep
--- (maintainer's ruling) and are untouched.
-function SpineShelf.clearScannedPageCounts()
-    local F = _facts()
-    if not F then return 0 end
-    local n = 0
-    pcall(function() n = F.clearPageCounts() or 0 end)
-    _look_cache, _look_count = {}, 0
-    _progress_validated = {}
-    return n
-end
-
--- scannedPageCountTotal() -> how many books carry a scanned count.
-function SpineShelf.scannedPageCountTotal()
-    local F = _facts()
-    if not F then return 0 end
-    local n = 0
-    pcall(function() n = F.countPageCounts() or 0 end)
-    return n
-end
-
 function SpineShelf.dropLook(fp)
     if fp and _look_cache[fp] then
         _look_cache[fp] = nil
@@ -734,12 +710,6 @@ local function _isFavourite(fp)
 end
 
 -- ── Paint helpers ───────────────────────────────────────────────────────────
-
-local function _fillColor(look, night)
-    local r, g, b = look.r, look.g, look.b
-    if night then r, g, b = 255 - r, 255 - g, 255 - b end
-    return Blitbuffer.ColorRGB32(r, g, b, 0xFF)
-end
 
 local function _textColor(night)
     -- Painted pre-inverted in night mode so it always DISPLAYS white.

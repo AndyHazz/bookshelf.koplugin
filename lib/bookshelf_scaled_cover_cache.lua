@@ -177,20 +177,6 @@ local function _disk()
     return DiskCache or nil
 end
 
--- setCapacity(n) — adjust the entry-COUNT backstop. Not user-facing: the RAM
--- bound is _byte_budget (driven by the MB setting). Retained for completeness
--- and any internal tuning; raising it lets more covers stay resident (until
--- the byte budget binds), lowering it evicts down immediately.
-function ScaledCoverCache:setCapacity(n)
-    n = tonumber(n)
-    if not n then return end
-    n = math.floor(n)
-    if n < 1 then n = 1 end
-    if n == self._capacity then return end
-    self._capacity = n
-    self:_evictIfNeeded()
-end
-
 -- setByteBudget(bytes) — hard cap on total resident cover bytes. Optional
 -- override of the 24 MiB default; the caller (settings) may expose this so a
 -- user with a large-RAM colour device can raise it, or a tight device lower

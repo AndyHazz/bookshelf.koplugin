@@ -183,8 +183,8 @@ local function currentItemList(state)
         -- LibraryModal calls into this list multiple times per refresh. We
         -- tokenise the query once and match against each cell's pre-lowered
         -- search_lc -- avoids ~2,800 query:lower() + gmatch reparses and
-        -- ~2,800 haystack:lower() calls per refresh that the generic
-        -- LibraryModal._matchesQuery would do.
+        -- ~2,800 haystack:lower() calls per refresh that matching each cell
+        -- from scratch would cost.
         local terms = {}
         for term in state.search_query:lower():gmatch("%S+") do
             terms[#terms + 1] = term

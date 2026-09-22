@@ -165,12 +165,4 @@ function List:_rebuild()
     end
 end
 
-function List:getWidget()
-    return self._vg
-end
-
-function List:getItems()
-    return self.items
-end
-
 return List

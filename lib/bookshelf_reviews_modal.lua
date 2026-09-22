@@ -1122,26 +1122,6 @@ function ReviewsModal:_buildTabRow()
     }
 end
 
--- setTabHtml(i, html): replace a tab's content after construction (used for an
--- async tab, e.g. Hardcover reviews that load after the popup is shown). Updates
--- the stored html and, if that tab is the active one, re-renders in place. Safe
--- to call after dismiss -- it no-ops once the widget is gone.
-function ReviewsModal:setTabHtml(i, html)
-    if self._dismissed then return end
-    if self._tabs and self._tabs[i] then
-        self._tabs[i].html = html
-        if i == self._active_tab then
-            self:_renderHtml(self:_activeHtml())
-            UIManager:setDirty(self, function() return "ui", self.frame.dimen end)
-        end
-    elseif i == 1 and not self._tabs then
-        -- Single-source modal (no tab bar): the body is html_body.
-        self.html_body = html
-        self:_renderHtml(html)
-        UIManager:setDirty(self, function() return "ui", self.frame.dimen end)
-    end
-end
-
 -- rebuildTab(): reassemble in place (rebuilds the active body fresh). Used by
 -- the Edit tab after an immediate action so its buttons re-read live state
 -- (status tick, rating stars, favourite +/-). No-ops safely after dismiss.
@@ -1383,7 +1363,7 @@ function ReviewsModal:_paintOpenFeedback()
 end
 
 function ReviewsModal:onClose()
-    self._dismissed = true  -- so a late async tab fill (setTabHtml) no-ops
+    self._dismissed = true  -- a live preview (the modal-tab font scale) checks it
     UIManager:close(self)
     -- Report the tab being viewed at dismiss time (once), so the caller can
     -- adopt that source. Independent of the Refresh-suppress flag.

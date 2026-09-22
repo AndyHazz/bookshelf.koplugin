@@ -3092,10 +3092,6 @@ function Editor:_pickFolderFilter(draft, on_close)
     UIManager:show(d)
 end
 
--- _pickStatusFilter -- back-compat shim; routes through the generic picker.
-function Editor:_pickStatusFilter(draft, on_close)
-    Editor:_pickMultiFilter(draft, "statuses", on_close)
-end
 -- _pickSortLevel -- single-level sort key picker.
 -- Opens a ButtonDialog listing all sort keys. Tapping an already-selected key
 -- toggles its reverse flag. Tapping "(none)" clears the slot.

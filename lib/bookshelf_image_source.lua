@@ -213,18 +213,6 @@ function ImageSource.setImageLibraryPath(path)
     end
 end
 
--- Returns the expected library filename (without extension) for a
--- (kind, name) pair, so the menu's "Show expected filename" helper can
--- show users exactly what to name a file for auto-discovery to pick
--- it up. Returns nil for unsupported kinds.
-function ImageSource.expectedLibraryStub(kind, name)
-    local subdir = STACK_SUBDIRS[kind]
-    if not subdir or type(name) ~= "string" or name == "" then return nil end
-    local lib = ImageSource.getImageLibraryPath()
-    if not lib then return nil end
-    return lib:gsub("/+$", "") .. "/" .. subdir .. "/" .. name
-end
-
 local function _stackOverridesTable()
     return Store.read("stack_images") or {}
 end

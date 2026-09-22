@@ -46,18 +46,6 @@ local LibraryModal = InputContainer:extend{
     search_query = nil,     -- current submitted query, or nil
 }
 
---- Multi-term substring AND match. Public for unit testing.
---- Empty or 1-char query returns false (avoids surfacing thousands of matches
---- on a single keystroke).
-function LibraryModal._matchesQuery(text, query)
-    if not query or #query < 2 then return false end
-    local lc = (text or ""):lower()
-    for term in query:lower():gmatch("%S+") do
-        if not lc:find(term, 1, true) then return false end
-    end
-    return true
-end
-
 function LibraryModal:init()
     assert(self.config, "LibraryModal requires a config table")
     -- Pre-populate runtime state from config defaults

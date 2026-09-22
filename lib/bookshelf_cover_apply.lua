@@ -281,11 +281,6 @@ function CoverApply.revertToEmbedded(filepath)
     return true
 end
 
--- For the repository's render-cost gate: is this book customised by us?
-function CoverApply.isCustomized(filepath)
-    return _choices()[filepath] ~= nil
-end
-
 -- Recursively empty the cover working dir (settings/bookshelf_covers), with
 -- one exemption (KEEP_SUBDIRS below).
 --

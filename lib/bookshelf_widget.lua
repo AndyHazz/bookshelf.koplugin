@@ -17736,57 +17736,6 @@ end
 
 -- ─── Gear menu (Task 6.2) ─────────────────────────────────────────────────────
 
-function BookshelfWidget:_openGearMenu()
-    local ButtonDialog = require("ui/widget/buttondialog")
-    local bw = self
-    local dialog
-    local function closing(fn)
-        return function()
-            if fn then fn() end
-            UIManager:close(dialog)
-        end
-    end
-    dialog = ButtonDialog:new{
-        title = "Bookshelf",
-        buttons = {
-            {
-                { text = G_reader_settings:readSetting("start_with") == "bookshelf"
-                      and _("\xe2\x9c\x93 Bookshelf is my home screen")
-                      or  _("Set as home screen"),
-                  callback = closing(function()
-                    G_reader_settings:saveSetting("start_with", "bookshelf")
-                    G_reader_settings:flush()
-                    local ok_notif, Notification = pcall(require, "ui/widget/notification")
-                    if ok_notif and Notification then
-                        UIManager:show(Notification:new{
-                            text = _("Bookshelf will load on next launch"),
-                        })
-                    else
-                        UIManager:show(require("ui/widget/infomessage"):new{
-                            text    = _("Bookshelf will load on next launch"),
-                            timeout = 2,
-                        })
-                    end
-                  end) },
-            },
-            {
-                { text = "Browse files\xe2\x80\xa6",
-                  callback = closing(function() bw:_browseFiles() end) },
-            },
-            {
-                { text = "Settings\xe2\x80\xa6",
-                  callback = closing(function() require("lib/bookshelf_settings"):show(bw) end) },
-                { text = "About",
-                  callback = closing(function() require("lib/bookshelf_settings"):_about() end) },
-            },
-            {
-                { text = "Cancel", callback = closing() },
-            },
-        },
-    }
-    UIManager:show(dialog)
-end
-
 -- ─── Long-press book menu (Task 6.3) ─────────────────────────────────────────
 
 -- _buildBookMenuHeader(book) -- header widget for the long-press menu,
@@ -22022,8 +21971,6 @@ end
 --   "add"    -> ensure every book in this stack is selected (top-up).
 --   "remove" -> remove every book in this stack from the selection.
 --   nil      -> toggle-by-state: "all" removes, "none"/"some" tops up.
---              Kept for callers that only want a single tap entry point
---              (dispatcher action, back-compat _showStackSelectionConfirm).
 -- Selection mode is entered automatically when adding.
 function BookshelfWidget:_applyStackSelection(group, action)
     local paths = self:_resolveStackPaths(group)
@@ -22132,12 +22079,6 @@ function BookshelfWidget:_selectAllInView()
             text = T(_("Selected %1 books."), #paths),
         })
     end
-end
-
--- Back-compat alias: callers that used to invoke the confirm-then-apply
--- helper get the no-confirm apply path now.
-function BookshelfWidget:_showStackSelectionConfirm(group)
-    self:_applyStackSelection(group)
 end
 
 -- _opdsStartFeed(tab) / _setOpdsStartFeed(...) — a catalogue chip's START

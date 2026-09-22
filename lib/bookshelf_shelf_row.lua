@@ -53,26 +53,6 @@ local function _natAspect()
         and SpineWidget.coverAspectCap() or 1.5
 end
 
--- _renderDottedRule(width, thickness)
--- Returns a Widget subclass instance that paints a dotted horizontal rule via
--- bb:fillRect. Dot spacing is 3dp (1dp dot, 2dp gap). Uses COLOR_BLACK.
-function ShelfRow._renderDottedRule(width, thickness)
-    local DottedRule = Widget:extend{}
-
-    function DottedRule:init()
-        self.dimen = Geom:new{ w = width, h = thickness }
-    end
-
-    function DottedRule:paintTo(bb, x, y)
-        -- Walk across the width placing 1×thickness filled rects every 3px.
-        for px = 0, width - 1, 3 do
-            bb:paintRect(x + px, y, 1, thickness, Blitbuffer.COLOR_BLACK)
-        end
-    end
-
-    return DottedRule:new{}
-end
-
 -- ShelfRow.new(opts)
 -- opts: {
 --   width         number   total row width in pixels

@@ -3618,12 +3618,6 @@ function Repo.folderHasBooks(path)
     return false
 end
 
--- clearFolderHasBooksCache(): call after a tab switch so the next getAll
--- scan picks up any files added during the session.
-function Repo.clearFolderHasBooksCache()
-    _folderHasBooks_cache = {}
-end
-
 -- folderCoverPaths(path, sort_priority, limit, opts) -> filepaths
 --
 -- The books a folder TILE should show, in the order the folder itself would
@@ -3802,14 +3796,6 @@ function Repo.getFolderBookPaths(path)
     local out = {}
     for i = 1, #paths do out[i] = paths[i] end
     return out
-end
-
--- _makeAllSort(sort_key): factory for the All-tab comparator. After v1.2
--- this is a thin wrapper over SortEngine using Repo.getSortPriority("all")
--- -- the sort_key argument is ignored. Kept for call-site compatibility;
--- can be deleted when callers migrate to passing tab_id.
-local function _makeAllSort(_sort_key)
-    return SortEngine.chainedComparator(Repo.getSortPriority("all"))
 end
 
 -- getAll(path, limit, offset, sort_priority) → (items, total)

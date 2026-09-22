@@ -155,12 +155,4 @@ function HeroTier:clear()
     end
 end
 
--- drainStats() -> hits, misses, notes since the last drain (evictions ride
--- the session counter; they're rare enough to read cumulatively).
-function HeroTier:drainStats()
-    local h, m, n = self._hits, self._misses, self._notes
-    self._hits, self._misses, self._notes = 0, 0, 0
-    return h, m, n
-end
-
 return HeroTier

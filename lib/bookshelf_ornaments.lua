@@ -1044,13 +1044,6 @@ function M.render(entry, w, h, inverting)
     return bb
 end
 
-function M.clearCache()
-    for _k, bb in pairs(M._cache) do
-        if bb and bb.free then pcall(function() bb:free() end) end
-    end
-    M._cache, M._cache_order = {}, {}
-end
-
 -- The widget: blits the cached render at paint time. Inert to gestures.
 M.Ornament = Widget:extend{
     placement = nil,

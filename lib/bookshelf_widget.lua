@@ -5281,7 +5281,7 @@ function BookshelfWidget:_flipViewMode()
         .. " -> " .. tostring(target))
     if anchor_fp then
         local gidx = self:_globalIndexOfFilepath(anchor_fp)
-        if gidx then self:_setCursorToShow(gidx) end
+        if gidx then self:_setCursorToShow(gidx, anchor_fp) end
     end
     self:_rebuild()
     UIManager:setDirty(self, "ui")
@@ -5679,7 +5679,7 @@ function BookshelfWidget:_shelfCallbacks()
                     bw:_opdsEnsurePreviewCover(bw._preview_book)
                     pcall(function() require("lib/bookshelf_quotes").rerollBook() end)
                     bw:_setExpanded(false)
-                    bw:_setCursorToShow(gidx)
+                    bw:_setCursorToShow(gidx, b.filepath)
                     bw:_rebuild()
                     UIManager:setDirty(bw, "ui")
                     return
@@ -5935,6 +5935,47 @@ function BookshelfWidget:_spineFaceRecent(all_items)
     return set
 end
 
+-- _noteSpineRows(plan) — what this page's rows start with, for a later
+-- change of page size to anchor on (see _setCursorToShow's spine branch).
+--
+-- A spine page is named by its first book, so ANY row start is a legal page
+-- start. The render has already laid every row out, which means it knows each
+-- row's first book for nothing -- the maintainer's idea, after the page map
+-- (which plans every book on the shelf) made the first collapse on the PW5
+-- noticeably slow and would have been worse on a large library.
+--
+-- Recorded per row: the anchor in the cursor's own terms (an item index, and
+-- how many of that item's spines are already behind -- a flattened group can
+-- span rows, so an item index alone cannot name a row that starts inside it),
+-- and which row each book on the page is on. The same derivation plan() uses
+-- for next_item / next_skip, applied to every row start instead of only the
+-- one after the page. Tagged with the page and shelf it describes, since a
+-- change of page size is the only thing that may trust it.
+function BookshelfWidget:_noteSpineRows(plan)
+    local page_skip = self:_spineSkip()
+    local entries   = (plan and plan.entries) or {}
+    local anchors, row_of = {}, {}
+    for r, row in ipairs((plan and plan.rows) or {}) do
+        local e = row.first and entries[row.first]
+        if e then
+            local k, j = 0, row.first - 1
+            while j >= 1 and entries[j].item_idx == e.item_idx do
+                k = k + 1
+                j = j - 1
+            end
+            -- Walked off the start: the page itself resumed inside this item.
+            if j == 0 then k = k + page_skip end
+            anchors[r] = { c = self._cursor + e.item_idx - 1, s = k }
+            for i = row.first, row.last or row.first do
+                local b = entries[i] and entries[i].book
+                if b and b.filepath then row_of[b.filepath] = r end
+            end
+        end
+    end
+    self._spine_rows = { anchors = anchors, row_of = row_of,
+                         c = self._cursor, s = page_skip, chip = self.chip }
+end
+
 function BookshelfWidget:_buildSpineRows(items, content_w, shelf_h, PAD, n_rows)
     local SpineShelf = require("lib/bookshelf_spine_shelf")
     local shared = self:_shelfCallbacks()
@@ -5966,6 +6007,7 @@ function BookshelfWidget:_buildSpineRows(items, content_w, shelf_h, PAD, n_rows)
     -- plan) and how many of that item's spines are already behind us.
     self._spine_next_item = plan.next_item
     self._spine_next_skip = plan.next_skip or 0
+    self:_noteSpineRows(plan)
     -- Book-unit count for the footer range: plan entries ARE books.
     self._spine_books_shown = plan.rows[#plan.rows]
                               and plan.rows[#plan.rows].last or 0
@@ -12739,7 +12781,7 @@ end
 -- index lands on the visible page, page-aligned at the CURRENT view size. Call
 -- AFTER toggling expand/collapse so it aligns to the new row count. No-op for a
 -- nil index (book not located).
-function BookshelfWidget:_setCursorToShow(global_idx)
+function BookshelfWidget:_setCursorToShow(global_idx, filepath)
     if not global_idx then return end
     -- Spine pages hold however many spines fit, so the page arithmetic below
     -- -- which assumes `view` books a page -- is not a page start on a spine
@@ -12748,28 +12790,52 @@ function BookshelfWidget:_setCursorToShow(global_idx)
     -- the top row chosen, swipe up and back down, and the shelf came back at
     -- 1-34 with the chosen book on neither.
     --
-    -- The page map is the only thing that knows where spine pages start. It
-    -- is asked to BUILD: it is opt-in because building it plans every book on
-    -- the shelf, but a collapse with a book chosen is exactly the deliberate
-    -- press it is kept for, and it is cached per row count afterwards. The
-    -- expanded render's shelf dims are safe to plan the collapsed map from:
-    -- _spineFillFor stacks extra rows at the COLLAPSED row height, so the
-    -- height does not change between the two.
+    -- The page that was on screen already laid out every row, and noted the
+    -- book each one starts with (_noteSpineRows). A page is named by its first
+    -- book, so any row start is a page start: group those rows into pages of
+    -- the new size from the top, and land on the group holding the chosen
+    -- book. Nothing is planned. (The first fix asked the page map instead,
+    -- which plans every book on the shelf; the maintainer felt it on the PW5's
+    -- first collapse and asked what it would do to a 7,000-book library. This
+    -- is their idea.)
     --
-    -- The back-steps recorded so far walked pages of the other size, so they
-    -- go, as they do after a jump; the next back-step takes the map, which
-    -- now exists. No map (no dims yet, or a plan that failed) leaves the
-    -- cursor where it is: that beats the fixed-size guess, which is the very
-    -- thing that sent the reader to page 1.
+    -- The book's own row, by filepath, when the caller knows it: a flattened
+    -- group is ONE item spanning rows, so its item index names where it
+    -- starts, not where the chosen spine is. The item index is the fallback.
+    --
+    -- The group the reader was already looking at is the page they came from,
+    -- so it moves nothing. A later group puts every group above it on the
+    -- back-step history, so back retraces exactly. The rows are trusted only
+    -- for the page and shelf they were noted on -- the view-mode cycle calls
+    -- this on its way INTO spines, holding rows from some earlier render --
+    -- and without them the cursor stays where it is, which beats the
+    -- fixed-size guess that sent the reader to page 1.
+    --
+    -- One approximation, stated rather than hidden: row-end ornaments are
+    -- decided per PAGE, so a page of the new size can pack its rows slightly
+    -- differently from the same rows on the old one. It starts exactly on the
+    -- anchor; its last book can move.
     if self:_isSpineMode() then
-        local firsts = self:_spinePageFirsts(true)
-        if firsts and #firsts > 0 then
-            local start = firsts[1]
-            for i = 1, #firsts do
-                if firsts[i] <= global_idx then start = firsts[i] else break end
+        local rows = self._spine_rows
+        if rows and rows.chip == self.chip and rows.c == self._cursor
+                and rows.s == self:_spineSkip() and #rows.anchors > 0 then
+            local r = filepath and rows.row_of[filepath]
+            if not r then
+                for i = 1, #rows.anchors do
+                    if rows.anchors[i].c <= global_idx then r = i else break end
+                end
             end
-            self:_setSpineCursor(start, 0)
-            self._spine_hist = {}
+            local n = math.max(1, self:_nShelves())
+            local group = r and math.floor((r - 1) / n) or 0
+            if group > 0 and rows.anchors[group * n + 1] then
+                self._spine_hist = self._spine_hist or {}
+                for g = 0, group - 1 do
+                    local a = rows.anchors[g * n + 1]
+                    table.insert(self._spine_hist, { c = a.c, s = a.s })
+                end
+                local land = rows.anchors[group * n + 1]
+                self:_setSpineCursor(land.c, land.s)
+            end
         end
         self:_syncPageFromCursor()
         return
@@ -14350,7 +14416,7 @@ function BookshelfWidget:onSwipeShelvesDown(_, ges)
                 self._preview_book = Repo.buildBook(sel_fp) or self._preview_book
             end
             self._tap_selected_fp = nil
-            self:_setCursorToShow(gidx)
+            self:_setCursorToShow(gidx, sel_fp)
         end
         self:_rebuild()
         UIManager:setDirty(self, "ui")

@@ -2122,9 +2122,9 @@ end
 -- ── Face-out foot nicks ─────────────────────────────────────────────────────
 -- The standing cover's bottom corners come off in plank shade, the same
 -- softening the spine feet get where they meet the plank. Overlaid on the
--- cover tile (it owns its own paint); rowWidget skips it for a LIFTED
--- book, whose feet float in front of the page -- the same rule the spines
--- follow.
+-- cover tile (it owns its own paint). It IS painted for a lifted book too --
+-- this header once said rowWidget skipped it -- and a lifted book's corners
+-- come off into the shelf its lift gap is filled from (see the end).
 local FaceOutFeet = Widget:extend{}
 
 function FaceOutFeet:paintTo(bb, x, y)
@@ -2176,8 +2176,20 @@ function FaceOutFeet:paintTo(bb, x, y)
             end
         end
     end
-    _cutFootCorners(bb, x, y + h, w, hl,
-                    _behindAt(self.plank, y + h, self.lifted))
+    if self.lifted then
+        -- A LIFTED face-out's corners come off into the shelf the gap below it
+        -- is filled from (the column just left of it, which face_gap makes
+        -- shelf) -- not into _behindAt's lifted answer, which is page white on
+        -- a plain page. That was the report: a 2x2 of 255 at each bottom
+        -- corner of a lifted cover, hl being scaleBySize(1), on a shelf of 50
+        -- all round. Painted here, after the cover, because the card itself
+        -- is square and never cuts its corners.
+        SpineShelf.fillLiftGap(bb, x, y + h - hl, hl, hl, x - 1)
+        SpineShelf.fillLiftGap(bb, x + w - hl, y + h - hl, hl, hl, x - 1)
+    else
+        _cutFootCorners(bb, x, y + h, w, hl,
+                        _behindAt(self.plank, y + h, false))
+    end
 end
 
 -- ── Shelf-edge section badges ───────────────────────────────────────────────
@@ -3875,10 +3887,6 @@ function SpineShelf.rowWidget(opts)
                         -- opening effect and gets the flat squash; a shelf
                         -- face-out opens with the tilt instead (below).
                         spine_face_out = true,
-                        -- Lifted, its cut foot corners would show the page
-                        -- white that was there when the card painted; take
-                        -- the shelf into them first (RoundedCornerCard).
-                        fill_feet_from_shelf = is_sel,
                     }
                     -- Geometry the opening tilt needs (paintFaceOutTilt):
                     -- the page block sits directly above the cover card and

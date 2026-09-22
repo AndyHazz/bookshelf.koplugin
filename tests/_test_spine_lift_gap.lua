@@ -272,35 +272,52 @@ end)
 
 -- ── A lifted FACE-OUT's cut corners ────────────────────────────────────────
 --
--- The report was on a face-out (the device grab: a 2x2 of 255 at each bottom
--- corner of a lifted cover, with 41 -- the shelf -- all round it). The cover
--- card cuts its rounded corners by putting back what CornerKeep snapshotted
--- behind them when the card began to paint, and at that moment the pixels
--- under a lifted cover's bottom corners were still white. So the card takes
--- the shelf column into those squares FIRST, and the snapshot keeps shelf.
+-- The report was on a face-out: device grabs showed a 2x2 of 255 at each
+-- bottom corner of a lifted cover, with 50 -- the shelf -- all round it.
+--
+-- The first fix went after the cover card's rounded-corner snapshot, and was
+-- wrong: a trace on the PW5 showed the face-out card is SQUARE (r=0), so it
+-- has no corner mask, and its corner pixel is still the black border (0) when
+-- the card finishes. The white is painted AFTER it, by FaceOutFeet, whose foot
+-- nick takes _behindAt(..., lifted) -- page white on a plain page, and 2px
+-- because hl is scaleBySize(1). The same rule the spine feet had, in a second
+-- place. Lifted, the corners now come off into the shelf the lift gap is
+-- filled from.
 
-local widget_src = io.open("lib/bookshelf_spine_widget.lua"):read("*a")
+local function feetBody()
+    local b = fn("FaceOutFeet:paintTo")
+    assert(b, "FaceOutFeet:paintTo moved")
+    return b:gsub("%-%-[^\n]*", "")
+end
 
-t.test("a lifted face-out's card fills its foot corners before the snapshot", function()
-    local paint = widget_src:match("\nfunction RoundedCornerCard:paintTo%(bb, x, y%)\n(.-)\nend\n")
-    assert(paint, "RoundedCornerCard:paintTo moved")
-    local fill = paint:find("fillLiftGap(", 1, true)
-    local take = paint:find("CornerKeep.take(", 1, true)
-    assert(fill, "the card never fills its foot corners from the shelf")
-    assert(take and fill < take,
-        "the corners are filled AFTER CornerKeep has already kept the white")
-    assert(paint:find("self.fill_feet_from_shelf", 1, true),
-        "the fill is not gated on the card being a lifted face-out")
+t.test("a lifted face-out's foot nicks take the shelf, not page white", function()
+    local b = feetBody()
+    assert(b:find("SpineShelf.fillLiftGap(bb, x, y + h - hl, hl, hl, x - 1)", 1, true),
+        "the left foot corner of a lifted face-out is not filled from the shelf")
+    assert(b:find("SpineShelf.fillLiftGap(bb, x + w - hl, y + h - hl, hl, hl, x - 1)", 1, true),
+        "the right foot corner of a lifted face-out is not filled from the shelf")
 end)
 
-t.test("the cover tile hands the flag to its card", function()
-    assert(widget_src:find("cover_args.fill_feet_from_shelf = self.fill_feet_from_shelf", 1, true),
-        "the flag stops at the tile and never reaches the card")
+t.test("a lifted face-out no longer asks _behindAt for its corners", function()
+    -- _behindAt(..., lifted) is the page-white answer that made the specks.
+    local b = feetBody()
+    assert(not b:find("_behindAt(self.plank, y + h, self.lifted)", 1, true),
+        "the lifted case still takes _behindAt's page white")
 end)
 
-t.test("the spine shelf sets it for a SELECTED face-out only", function()
-    assert(src:find("fill_feet_from_shelf = is_sel", 1, true),
-        "the shelf does not tell a lifted face-out to fill its corners")
+t.test("a standing face-out keeps its plank-shade nick", function()
+    local b = feetBody()
+    assert(b:find("_behindAt(self.plank, y + h, false)", 1, true),
+        "the standing face-out lost the nick it always had")
+end)
+
+t.test("the card-level pre-fill built on the wrong theory is gone", function()
+    -- It could never run: the face-out card has square corners.
+    local widget_src = io.open("lib/bookshelf_spine_widget.lua"):read("*a")
+    assert(not widget_src:find("fill_feet_from_shelf", 1, true),
+        "dead corner-snapshot pre-fill still in the cover card")
+    assert(not src:find("fill_feet_from_shelf", 1, true),
+        "the spine shelf still sets the dead flag")
 end)
 
 t.done()

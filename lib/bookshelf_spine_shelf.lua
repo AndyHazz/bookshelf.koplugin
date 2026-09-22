@@ -147,6 +147,30 @@ function SpineShelf.fillLiftGap(bb, x, y, w, h, from_x)
     end
 end
 
+-- SpineShelf.fillLifted(bb, ox, oy, g, from_x) -- everything a lift uncovers,
+-- for the gap record g a render made (see _renderIntoAt), at slot origin
+-- ox, oy: the gap under the book, and the two squares cut off its foot.
+--
+-- The foot corners are part of it. A standing spine has a pixel square cut
+-- off each bottom corner, showing what is behind; lifted, those squares took
+-- page-ground white (or, over a wallpaper, whatever was behind at that
+-- height), which was right while the space under a lifted book was light air
+-- and sat on the shelf fill as bright specks once it was not (maintainer).
+-- They take the same column the gap does, at their own rows, so the corner
+-- comes off the book into the shelf rather than into a highlight. Between the
+-- corners the book's own bottom edge stays; a spine too narrow for two keeps
+-- its foot whole, as the cut itself does.
+function SpineShelf.fillLifted(bb, ox, oy, g, from_x)
+    if not g then return end
+    local x, y = ox + g.dx, oy + g.dy
+    SpineShelf.fillLiftGap(bb, x, y, g.w, g.h, from_x)
+    local n = g.corner or 0
+    if n > 0 and g.w > 2 * n then
+        SpineShelf.fillLiftGap(bb, x, y - n, n, n, from_x)
+        SpineShelf.fillLiftGap(bb, x + g.w - n, y - n, n, n, from_x)
+    end
+end
+
 -- The shelf recess: the shadow the books cast on the backboard behind them.
 --
 -- Runs from the plank's BACK EDGE -- where it starts at roughly the tone the
@@ -1682,11 +1706,8 @@ function SpineBookSlot:paintTo(bb, x, y)
         if not ok or not cached then
             -- Render straight to the target rather than showing nothing.
             self:_renderIntoAt(bb, x, y, night)
-            local g = self._lift_gap
-            if g then
-                SpineShelf.fillLiftGap(bb, x + g.dx, y + g.dy, g.w, g.h,
-                                       x - (self.flush_dx or 0) - 1)
-            end
+            SpineShelf.fillLifted(bb, x, y, self._lift_gap,
+                                  x - (self.flush_dx or 0) - 1)
             return
         end
         SpineShelf._renders = (SpineShelf._renders or 0) + 1
@@ -1701,11 +1722,8 @@ function SpineBookSlot:paintTo(bb, x, y)
     else
         bb:blitFrom(cached, x, y, 0, 0, self.width, self.height)
     end
-    local g = _render_gap[key]
-    if g then
-        SpineShelf.fillLiftGap(bb, x + g.dx, y + g.dy, g.w, g.h,
-                               x - (self.flush_dx or 0) - 1)
-    end
+    SpineShelf.fillLifted(bb, x, y, _render_gap[key],
+                          x - (self.flush_dx or 0) - 1)
 end
 
 function SpineBookSlot:invalidate()
@@ -1835,7 +1853,10 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
         local foot = body_top + body_h
         local span = (y + self.height) - foot
         if span > 0 then
-            self._lift_gap = { dx = 0, dy = foot - y, w = spine_w, h = span }
+            -- corner: the n _cutFootCorners takes off each foot corner,
+            -- which the paint-time fill covers too (SpineShelf.fillLifted).
+            self._lift_gap = { dx = 0, dy = foot - y, w = spine_w, h = span,
+                               corner = hairline }
         end
     end
     if edge_h > 0 then
@@ -3854,6 +3875,10 @@ function SpineShelf.rowWidget(opts)
                         -- opening effect and gets the flat squash; a shelf
                         -- face-out opens with the tilt instead (below).
                         spine_face_out = true,
+                        -- Lifted, its cut foot corners would show the page
+                        -- white that was there when the card painted; take
+                        -- the shelf into them first (RoundedCornerCard).
+                        fill_feet_from_shelf = is_sel,
                     }
                     -- Geometry the opening tilt needs (paintFaceOutTilt):
                     -- the page block sits directly above the cover card and
@@ -4568,11 +4593,8 @@ function SpineShelf.paintOpeningTilt(slot)
         end
         bb:blitFrom(c, d.x, d.y, 0, 0, slot.width, slot.height)
         -- The tilt lifts the book too, and renders into a buffer of its own.
-        local g = slot._lift_gap
-        if g then
-            SpineShelf.fillLiftGap(bb, d.x + g.dx, d.y + g.dy, g.w, g.h,
-                                   d.x - (slot.flush_dx or 0) - 1)
-        end
+        SpineShelf.fillLifted(bb, d.x, d.y, slot._lift_gap,
+                              d.x - (slot.flush_dx or 0) - 1)
         c:free()
     end)
     slot._tilt = nil

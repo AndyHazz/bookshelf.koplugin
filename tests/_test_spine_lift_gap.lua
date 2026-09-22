@@ -42,6 +42,12 @@ local fillLiftGap = assert(load(
     "return function(bb, x, y, w, h, from_x)\n" .. body .. "\nend",
     "fillLiftGap", "t", { math = math }))()
 
+local lifted_body = src:match("\nfunction SpineShelf%.fillLifted%(bb, ox, oy, g, from_x%)\n(.-)\nend\n")
+assert(lifted_body, "SpineShelf.fillLifted is missing or its signature changed")
+local fillLifted = assert(load(
+    "return function(bb, ox, oy, g, from_x)\n" .. lifted_body .. "\nend",
+    "fillLifted", "t", { SpineShelf = { fillLiftGap = fillLiftGap } }))()
+
 -- A buffer whose every pixel names where it came from, so a copy can be
 -- traced back to its source column.
 local function fakeBB(w, h)
@@ -145,6 +151,8 @@ t.test("a lifted spine fills from the shelf left of its run", function()
     local tilt = fn("SpineShelf.paintOpeningTilt")
     assert(tilt:find("d.x - (slot.flush_dx or 0) - 1", 1, true),
         "the tilting spine still copies the neighbouring book")
+    assert(tilt:find("SpineShelf.fillLifted(", 1, true),
+        "the tilting spine fills its gap but not its cut corners")
 end)
 
 t.test("a lifted face-out still takes the column right beside it", function()
@@ -152,6 +160,49 @@ t.test("a lifted face-out still takes the column right beside it", function()
     local lift = fn("LiftShadow:paintTo")
     assert(lift:find("SpineShelf.fillLiftGap(bb, x, y, w, lift_h)", 1, true),
         "the face-out no longer fills from right beside itself")
+end)
+
+-- ── The cut foot corners (maintainer: "bright pixels in the bottom corners") ─
+--
+-- A standing spine has a pixel square cut off each bottom corner. Lifted,
+-- those squares showed page-ground white (or, over a wallpaper, whatever was
+-- behind at that height) -- right when the space under a lifted book was light
+-- air. Once the gap filled with the shelf, they sat on it as bright specks.
+-- They are part of what the lift uncovers, so they take the same fill.
+
+t.test("the cut corners take the shelf, like the gap below them", function()
+    local bb = fakeBB(30, 12)
+    -- Gap at x=10..15, rows 5..7, the book's foot at row 5; corners 1px.
+    fillLifted(bb, 10, 0, { dx = 0, dy = 5, w = 6, h = 3, corner = 1 }, 8)
+    eq(bb.px[4][10], "8,4", "the left foot corner still shows its old pixel")
+    eq(bb.px[4][15], "8,4", "the right foot corner still shows its old pixel")
+    eq(bb.px[6][12], "8,6", "the gap itself was not filled")
+end)
+
+t.test("between the corners, the book's own bottom edge stays", function()
+    local bb = fakeBB(30, 12)
+    fillLifted(bb, 10, 0, { dx = 0, dy = 5, w = 6, h = 3, corner = 1 }, 8)
+    for xx = 11, 14 do
+        eq(bb.px[4][xx], xx .. ",4", "the foot between the corners was painted over")
+    end
+end)
+
+t.test("a spine too narrow for two corners keeps its foot whole", function()
+    local bb = fakeBB(30, 12)
+    fillLifted(bb, 10, 0, { dx = 0, dy = 5, w = 2, h = 3, corner = 1 }, 8)
+    eq(bb.px[4][10], "10,4")
+end)
+
+t.test("no gap recorded, nothing painted", function()
+    local bb = fakeBB(30, 12)
+    fillLifted(bb, 10, 0, nil, 8)
+    eq(bb.px[6][12], "12,6")
+end)
+
+t.test("the render says how big the cut corners are", function()
+    local render = fn("SpineBookSlot:_renderIntoAt")
+    assert(render:find("corner = hairline", 1, true),
+        "the gap record does not carry the corner cut, so nothing can fill it")
 end)
 
 t.test("a gap as wide as the buffer is left alone", function()
@@ -201,15 +252,15 @@ end)
 t.test("the cached path and the fallback both fill after drawing", function()
     local paint = fn("SpineBookSlot:paintTo")
     assert(paint, "paintTo moved")
-    local n = select(2, paint:gsub("SpineShelf%.fillLiftGap%(", ""))
-    assert(n >= 2, "a drawing path leaves the gap unfilled (found " .. n .. ")")
+    local n = select(2, paint:gsub("SpineShelf%.fillLifted%(", ""))
+    assert(n >= 2, "a drawing path leaves the gap or its corners unfilled (found " .. n .. ")")
     assert(paint:find("_render_gap[key]", 1, true),
         "a cache hit cannot know where the gap is")
 end)
 
 t.test("the opening tilt fills its gap too", function()
     local tilt = fn("SpineShelf.paintOpeningTilt")
-    assert(tilt and tilt:find("SpineShelf.fillLiftGap(", 1, true),
+    assert(tilt and tilt:find("SpineShelf.fillLifted(", 1, true),
         "a tilting book leaves a bare patch on a plain page")
 end)
 
@@ -217,6 +268,39 @@ t.test("a lifted face-out gets the same fill, one gesture one shadow", function(
     local lift = fn("LiftShadow:paintTo")
     assert(lift and lift:find("SpineShelf.fillLiftGap(", 1, true),
         "a lifted face-out still paints its own kind of shadow")
+end)
+
+-- ── A lifted FACE-OUT's cut corners ────────────────────────────────────────
+--
+-- The report was on a face-out (the device grab: a 2x2 of 255 at each bottom
+-- corner of a lifted cover, with 41 -- the shelf -- all round it). The cover
+-- card cuts its rounded corners by putting back what CornerKeep snapshotted
+-- behind them when the card began to paint, and at that moment the pixels
+-- under a lifted cover's bottom corners were still white. So the card takes
+-- the shelf column into those squares FIRST, and the snapshot keeps shelf.
+
+local widget_src = io.open("lib/bookshelf_spine_widget.lua"):read("*a")
+
+t.test("a lifted face-out's card fills its foot corners before the snapshot", function()
+    local paint = widget_src:match("\nfunction RoundedCornerCard:paintTo%(bb, x, y%)\n(.-)\nend\n")
+    assert(paint, "RoundedCornerCard:paintTo moved")
+    local fill = paint:find("fillLiftGap(", 1, true)
+    local take = paint:find("CornerKeep.take(", 1, true)
+    assert(fill, "the card never fills its foot corners from the shelf")
+    assert(take and fill < take,
+        "the corners are filled AFTER CornerKeep has already kept the white")
+    assert(paint:find("self.fill_feet_from_shelf", 1, true),
+        "the fill is not gated on the card being a lifted face-out")
+end)
+
+t.test("the cover tile hands the flag to its card", function()
+    assert(widget_src:find("cover_args.fill_feet_from_shelf = self.fill_feet_from_shelf", 1, true),
+        "the flag stops at the tile and never reaches the card")
+end)
+
+t.test("the spine shelf sets it for a SELECTED face-out only", function()
+    assert(src:find("fill_feet_from_shelf = is_sel", 1, true),
+        "the shelf does not tell a lifted face-out to fill its corners")
 end)
 
 t.done()

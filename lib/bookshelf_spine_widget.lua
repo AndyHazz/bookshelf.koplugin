@@ -621,6 +621,10 @@ local RoundedCornerCard = Widget:extend{
     shadow_offset_x = 0,
     shadow_offset_y = 0,
     shadow_radius   = 0,
+    -- A lifted face-out on a spine shelf: fill the two bottom corner squares
+    -- from the shelf beside the card before CornerKeep keeps them (see
+    -- paintTo). Off for every other card.
+    fill_feet_from_shelf = false,
 }
 
 function RoundedCornerCard:init()
@@ -671,6 +675,25 @@ function RoundedCornerCard:paintTo(bb, x, y)
     -- What is behind the corners, before the cover paints over it (see
     -- CornerKeep). An explicit bg_color -- the selection ring behind a
     -- selected cover -- is meant to show at the corner, so it still wins.
+    --
+    -- A LIFTED face-out first takes the shelf into its two bottom corner
+    -- squares, so that is what gets kept. On the PW5 the cut corners of a
+    -- lifted cover came out as a 2x2 of white each, with the shelf (41) all
+    -- round them: when the card began to paint, the pixels under its bottom
+    -- corners were still page white, and the shelf fill under the lift is
+    -- only the space BELOW the card. The column just left of the card is the
+    -- shelf at those rows -- a face-out has face_gap either side -- and it is
+    -- the column the lift gap below it is filled from, so the corner comes
+    -- off into the same shelf rather than into a highlight. The cover paints
+    -- over the rest of each square as usual; only the cut shows it.
+    if self.fill_feet_from_shelf and self.radius and self.radius > 0 then
+        local ok, SpineShelf = pcall(require, "lib/bookshelf_spine_shelf")
+        if ok and type(SpineShelf) == "table" and SpineShelf.fillLiftGap then
+            local r, w, h = self.radius, self.width, self.height
+            SpineShelf.fillLiftGap(bb, x, y + h - r, r, r, x - 1)
+            SpineShelf.fillLiftGap(bb, x + w - r, y + h - r, r, r, x - 1)
+        end
+    end
     local keep = nil
     if type(self.bg_color) == "nil" and self.radius and self.radius > 0 then
         keep = CornerKeep.take(bb, x, y, self.width, self.height, self.radius)
@@ -2510,6 +2533,7 @@ function SpineWidget:_wrapCoverInCard(cover_inner, card_w, card_h, border)
         cover_args.shadow_offset_y = SHADOW_OFFSET
         cover_args.shadow_radius   = CARD_RADIUS
     end
+    cover_args.fill_feet_from_shelf = self.fill_feet_from_shelf
     local cover = RoundedCornerCard:new(cover_args)
     -- Stash for the opening-book effect: the card's painted dimen is the
     -- precise cover rect (border included, shadow and title excluded).

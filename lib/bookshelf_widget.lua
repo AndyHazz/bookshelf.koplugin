@@ -12741,6 +12741,39 @@ end
 -- nil index (book not located).
 function BookshelfWidget:_setCursorToShow(global_idx)
     if not global_idx then return end
+    -- Spine pages hold however many spines fit, so the page arithmetic below
+    -- -- which assumes `view` books a page -- is not a page start on a spine
+    -- shelf at all. At a capacity estimate of 80 it sent book 45 to page 1:
+    -- on the maintainer's PW5, page 2 of a 243-book shelf (35-79), a book in
+    -- the top row chosen, swipe up and back down, and the shelf came back at
+    -- 1-34 with the chosen book on neither.
+    --
+    -- The page map is the only thing that knows where spine pages start. It
+    -- is asked to BUILD: it is opt-in because building it plans every book on
+    -- the shelf, but a collapse with a book chosen is exactly the deliberate
+    -- press it is kept for, and it is cached per row count afterwards. The
+    -- expanded render's shelf dims are safe to plan the collapsed map from:
+    -- _spineFillFor stacks extra rows at the COLLAPSED row height, so the
+    -- height does not change between the two.
+    --
+    -- The back-steps recorded so far walked pages of the other size, so they
+    -- go, as they do after a jump; the next back-step takes the map, which
+    -- now exists. No map (no dims yet, or a plan that failed) leaves the
+    -- cursor where it is: that beats the fixed-size guess, which is the very
+    -- thing that sent the reader to page 1.
+    if self:_isSpineMode() then
+        local firsts = self:_spinePageFirsts(true)
+        if firsts and #firsts > 0 then
+            local start = firsts[1]
+            for i = 1, #firsts do
+                if firsts[i] <= global_idx then start = firsts[i] else break end
+            end
+            self:_setSpineCursor(start, 0)
+            self._spine_hist = {}
+        end
+        self:_syncPageFromCursor()
+        return
+    end
     local view = self:_viewSize()
     self._cursor = math.max(1, math.floor((global_idx - 1) / view) * view + 1)
     -- Clamp against the ITEM TOTAL, not the page count (#369).

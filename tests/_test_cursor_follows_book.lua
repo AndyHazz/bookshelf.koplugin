@@ -31,7 +31,8 @@ do
     local src = io.open("lib/bookshelf_widget.lua"):read("a")
     for _i, name in ipairs({ "_setCursorToShow", "_maxCursor", "_clampCursor",
                              "_syncPageFromCursor", "_setExpanded",
-                             "onSwipeShelvesUp", "onBookshelfToggleHero" }) do
+                             "onSwipeShelvesUp", "onBookshelfToggleHero",
+                             "_setSpineCursor" }) do
         local body = src:match("\nfunction BookshelfWidget:" .. name
                                .. "%((.-)%)\n(.-)\nend\n")
         local args, code = src:match("\nfunction BookshelfWidget:" .. name
@@ -195,6 +196,98 @@ t.test("the toggle-hero action expands the same way a swipe does", function()
     eq(s._cursor, 1, "the action stranded the books above the cursor")
     eq(_G.BookshelfSettings.saved.home_expanded, true,
         "the action did not persist the state it changed")
+end)
+
+-- ── Spine shelves: pages of no fixed size ──────────────────────────────────
+--
+-- Found on the maintainer's PW5 while testing the fix above: page 2 of a
+-- 243-book spine shelf shows books 35-79. Select one in the middle of the top
+-- row, swipe up (35-114, the row kept, as designed), swipe down -- and the
+-- shelf goes back to 1-34, with the book they chose on neither.
+--
+-- _setCursorToShow worked the page out as floor((idx-1)/view)*view+1, which
+-- assumes every page holds `view` books. A spine page holds however many
+-- spines fit, so on a spine shelf that formula is not a page start at all: at
+-- a capacity estimate of 80 it sends book 45 to page 1. The only thing that
+-- knows where spine pages start is the page map.
+
+local function spineShelf(firsts, cursor)
+    local s = {
+        _cursor      = cursor,
+        _total_items = 243,
+        _total_pages = firsts and #firsts or nil,
+        _spine_hist  = { { c = 1, s = 0 } },
+        _viewSize    = function() return 80 end,   -- a capacity ESTIMATE
+        _isSpineMode = function() return true end,
+        _spinePageFirsts = function(self_, build)
+            self_._asked_to_build = build
+            return firsts
+        end,
+        _spinePageIndexForCursor = function(self_, cur)
+            if not firsts then return nil end
+            local page = 1
+            for i = 1, #firsts do if firsts[i] <= cur then page = i end end
+            return page
+        end,
+    }
+    for k, fn in pairs(Shelf) do s[k] = fn end
+    return s
+end
+
+-- The collapsed page starts on the maintainer's shelf: 1-34, 35-79, 80-114...
+local FIRSTS = { 1, 35, 80, 115, 150, 186, 221 }
+
+t.test("collapsing a spine shelf returns to the page holding the chosen book", function()
+    local s = spineShelf(FIRSTS, 35)
+    s:_setCursorToShow(45)
+    eq(s._cursor, 35, "the shelf left the page the chosen book is on")
+end)
+
+t.test("a book chosen further down the expanded shelf lands on its own page", function()
+    -- Expanded, 35-114 is on screen; book 100 is past what one collapsed page
+    -- holds, so it belongs to the page that starts at 80.
+    local s = spineShelf(FIRSTS, 35)
+    s:_setCursorToShow(100)
+    eq(s._cursor, 80)
+end)
+
+t.test("a book on the first page still lands on the first page", function()
+    local s = spineShelf(FIRSTS, 35)
+    s:_setCursorToShow(10)
+    eq(s._cursor, 1)
+end)
+
+t.test("a page boundary is the start of its own page, not the end of the last", function()
+    local s = spineShelf(FIRSTS, 1)
+    s:_setCursorToShow(80)
+    eq(s._cursor, 80)
+end)
+
+t.test("the page map is asked to BUILD: this is a deliberate press", function()
+    -- The map is opt-in because building it plans every book on the shelf.
+    -- A collapse with a book chosen is exactly the kind of press it is for,
+    -- and it is cached per row count afterwards.
+    local s = spineShelf(FIRSTS, 35)
+    s:_setCursorToShow(45)
+    eq(s._asked_to_build, true, "the lookup settled for whatever map happened to exist")
+end)
+
+t.test("the back-steps recorded at the other page size are dropped", function()
+    -- Back-steps retrace pages exactly, and pages walked at the EXPANDED size
+    -- are not collapsed pages. With the history empty the next back-step
+    -- takes the page map, which now exists -- the same as after a jump.
+    local s = spineShelf(FIRSTS, 35)
+    s:_setCursorToShow(100)
+    eq(#s._spine_hist, 0, "a back-step would retrace pages of another size")
+end)
+
+t.test("with no page map the cursor stays put rather than jumping to page 1", function()
+    -- No shelf dims yet, or a plan that failed: there is no honest page start
+    -- to go to. Where the reader already is beats the fixed-size guess, which
+    -- is the very thing that sent them to 1-34.
+    local s = spineShelf(nil, 35)
+    s:_setCursorToShow(45)
+    eq(s._cursor, 35, "no map, and the shelf still jumped")
 end)
 
 t.done()

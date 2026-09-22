@@ -157,8 +157,14 @@ t.test("the band painters read the STASHED surface, never the row", function()
     -- They reproduce the plank's own quantised bands over the height the
     -- plank actually painted. Recomputing from a row they do not have, or
     -- from the edge unit, is how the patch stops matching the shelf.
+    --
+    -- Two painters left this count by design: the space under a lifted spine
+    -- and under a lifted face-out no longer REPRODUCE the plank's bands, they
+    -- copy the shelf painted beside them (SpineShelf.fillLiftGap), so there is
+    -- nothing of theirs left to recompute or drift. The floor counts the
+    -- definition plus the painters that still reproduce bands.
     local n = select(2, src:gsub("SpineShelf%.plankSurfaceOf%(", ""))
-    assert(n >= 4, "a band painter has stopped using the stashed surface: " .. n)
+    assert(n >= 3, "a band painter has stopped using the stashed surface: " .. n)
     assert(src:match("surf = SpineShelf%.plankSurface%(opts%.height%)"),
         "rowWidget no longer stashes the band on its plank descriptors")
     local stashes = select(2, src:gsub("surf = surf", ""))
@@ -271,21 +277,21 @@ t.test("PLANK_BANDS is declared before the function that closes over it", functi
     assert(decl < use, "PLANK_BANDS is declared after its first consumer again")
 end)
 
-t.test("the solid lift box under a face-out is the wallpaper look only", function()
-    -- A lifted SPINE without a wallpaper still gets the banded plank shadow
-    -- (SpineBookSlot:_renderIntoAt branches on has_wallpaper). The face-out's
-    -- LiftShadow took the solid box unconditionally, so a plain-page shelf
-    -- showed two different shadows for the same gesture.
+t.test("a lifted face-out and a lifted spine leave the same shadow, on any ground", function()
+    -- History: the face-out's LiftShadow once took the solid box whatever the
+    -- ground, while a lifted SPINE on a plain page got a banded plank shadow,
+    -- so one gesture showed two shadows. Both looks have since gone for one
+    -- fill, the shelf beside the book stretched across the gap -- so the
+    -- question is no longer which ground asks for which, only that the
+    -- face-out asks for the same thing the spine does.
     local src = io.open("lib/bookshelf_spine_shelf.lua"):read("a")
     local body = src:match("function LiftShadow:paintTo%(.-\nend\n")
     assert(body, "LiftShadow:paintTo could not be located")
     local code = body:gsub("%-%-[^\n]*", "")
-    local gate = code:find("SpineShelf%.has_wallpaper")
-    local box  = code:find("_liftBoxColor")
-    assert(gate and box and gate < box,
-        "LiftShadow paints the solid box before asking whether there is a wallpaper")
-    assert(code:find("_plankRowAt", 1, true),
-        "LiftShadow has no banded fallback for the plain shelf")
+    assert(code:find("SpineShelf.fillLiftGap(", 1, true),
+        "LiftShadow no longer fills the way a lifted spine does")
+    assert(not code:find("SpineShelf%.has_wallpaper"),
+        "LiftShadow branches on the ground again, so the two can differ")
     assert(not code:find('require%("lib/bookshelf_wallpaper"%)'),
         "LiftShadow requires the wallpaper module and never uses it")
 end)

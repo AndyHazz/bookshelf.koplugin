@@ -97,21 +97,54 @@ SpineShelf.FACE_GAP_DP = 12
 -- darkening reaches, how many bands it is built from, and how dark it gets at
 -- the feet. Subtle on purpose -- this is meant to read as depth, not as a grey
 -- stripe behind the books.
--- _liftBoxColor(night) -> the fill for the space a lifted book vacates.
+-- SpineShelf.fillLiftGap(bb, x, y, w, h) -- fill the space a lifted book
+-- leaves on the shelf, by stretching the one-pixel column just LEFT of it
+-- across the whole gap (the maintainer's design).
 --
--- SOLID, not a gradient (maintainer ruling, arrived at by accident: a
--- translucent black meant for a soft ramp had its alpha dropped by the
--- device's BB8A slot buffer and came out as a flat black box -- which reads
--- better than the ramp did. It says "this book is out" at a glance, and it is
--- a rectangle rather than five bands and a blend).
+-- It replaced two looks. Over a wallpaper a solid black box: a translucent
+-- ramp whose alpha the device's BB8A slot buffer dropped, kept because it
+-- read clearly, and reported as "a thick black bar" (#446). On a plain page a
+-- banded reproduction of the plank with full-strength strips down each side,
+-- which never matched the plank around it. Whatever the shelf paints beside
+-- the book -- recess, plank bands, front face -- now carries straight through
+-- the gap row by row, so it is continuous with its surroundings by
+-- construction. Night mode needs nothing of its own: the pixels copied are
+-- already the right way round.
 --
--- Hard-coded per mode so it always paints DARK ON SCREEN, the same rule the
--- card drop shadow follows: black by day, white at night, which the frame
--- inversion turns back into black. Painting one value in both modes would
--- give a black hole by day and a white one at night.
-local function _liftBoxColor(night)
-    return night and Blitbuffer.ColorRGB32(0xFF, 0xFF, 0xFF, 0xFF)
-                  or  Blitbuffer.ColorRGB32(0x00, 0x00, 0x00, 0xFF)
+-- The column has to be read off the DESTINATION, after the row and every
+-- book to the left have painted. A slot's cached render is a buffer of its
+-- own (empty over a wallpaper, page ground otherwise) with nothing to the
+-- left in it to copy -- so the render leaves the gap alone and says where it
+-- is, and each path that draws a lifted book calls this after its blit.
+--
+-- WHERE the column comes from is the caller's to say (from_x), because "just
+-- left of the gap" is only shelf for a FACE-OUT, which has face_gap either
+-- side. Spines in a run stand flush -- the plan leaves them no gap -- so the
+-- pixel left of a lifted spine is the next book, and stretching it paints a
+-- band of that book (maintainer, on seeing it). A spine passes the column just
+-- left of its whole flush block instead (flush_dx, from rowWidget). Omitted,
+-- it is x-1.
+--
+-- A column that is off the buffer, or would be inside the gap itself, falls
+-- back to the one just right of the gap. Clipped to the buffer; a gap with no
+-- shelf on either side is left as it is.
+function SpineShelf.fillLiftGap(bb, x, y, w, h, from_x)
+    if not bb or not w or not h or w <= 0 or h <= 0 then return end
+    local bw, bh = bb:getWidth(), bb:getHeight()
+    if y < 0 then h = h + y; y = 0 end
+    if y + h > bh then h = bh - y end
+    if h <= 0 then return end
+    local want = from_x or (x - 1)
+    local from
+    if want >= 0 and want < bw and (want < x or want >= x + w) then
+        from = want
+    elseif x + w >= 0 and x + w < bw then
+        from = x + w
+    end
+    if not from then return end
+    for xx = math.max(0, x), math.min(bw, x + w) - 1 do
+        bb:blitFrom(bb, xx, y, from, y, 1, h)
+    end
 end
 
 -- The shelf recess: the shadow the books cast on the backboard behind them.
@@ -279,6 +312,10 @@ local _hydrate_cache = {}
 -- geometry + state; FIFO-evicted at ~3 pages' worth. The cache owns the
 -- buffers; slots look up per paint and never free them.
 local _render_cache, _render_order = {}, {}
+-- Where each cached render left a lifted book's gap (slot-relative), for the
+-- paint-time fill: a cache hit does not run the render, so it cannot say.
+-- Dropped in _renderCacheDrop, the one place every eviction goes through.
+local _render_gap = {}
 local _render_bytes = 0
 -- Byte budget, not a count: a count cap that fits a greyscale device
 -- would balloon 4x on an RGB32 screen. ~5MB holds roughly three pages of
@@ -299,6 +336,7 @@ local function _bbBytes(bbuf)
 end
 
 local function _renderCacheDrop(key)
+    _render_gap[key] = nil
     local old_bb = _render_cache[key]
     if not old_bb then return end
     _render_cache[key] = nil
@@ -1638,11 +1676,17 @@ function SpineBookSlot:paintTo(bb, x, y)
             end
             self:_renderInto(c, night)
             _renderCachePut(key, c)
+            _render_gap[key] = self._lift_gap
             cached = c
         end)
         if not ok or not cached then
             -- Render straight to the target rather than showing nothing.
             self:_renderIntoAt(bb, x, y, night)
+            local g = self._lift_gap
+            if g then
+                SpineShelf.fillLiftGap(bb, x + g.dx, y + g.dy, g.w, g.h,
+                                       x - (self.flush_dx or 0) - 1)
+            end
             return
         end
         SpineShelf._renders = (SpineShelf._renders or 0) + 1
@@ -1656,6 +1700,11 @@ function SpineBookSlot:paintTo(bb, x, y)
         bb:alphablitFrom(cached, x, y, 0, 0, self.width, self.height)
     else
         bb:blitFrom(cached, x, y, 0, 0, self.width, self.height)
+    end
+    local g = _render_gap[key]
+    if g then
+        SpineShelf.fillLiftGap(bb, x + g.dx, y + g.dy, g.w, g.h,
+                               x - (self.flush_dx or 0) - 1)
     end
 end
 
@@ -1777,53 +1826,16 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
     -- earlier painted version look wrong off the shelf.
     _cutFootCorners(bb, x, body_top + body_h, spine_w, hairline,
                     _behindAt(self.plank, y + self.height, lifted))
-    -- A lifted book leaves its shadow on the plank where it stood. The
-    -- under-strip REPRODUCES the plank's banded surface (same quantisation,
-    -- via plankBandT) and darkens those same bands for the shadow, so the
-    -- patch is indistinguishable from the shelf around it; above the
-    -- surface's far edge the page ground stays. Row-by-row, but the render
-    -- is cached per slot.
-    -- OVER A GROUND, SHADE RATHER THAN REPAINT.
-    --
-    -- Reproducing the plank here never matched: the band came out flat (86,
-    -- then 71, measured) against a plank running 51 to 103, and the wedges
-    -- either side stayed at full strength and read as dark lines down the
-    -- sides of the gap. Leaving it transparent instead was seamless but left
-    -- a lifted spine casting no shadow at all (maintainer).
-    --
-    -- The answer is the one the face-out's LiftShadow reached: don't paint a
-    -- colour, paint a DARKENING, so whatever the row put behind this slot --
-    -- plank, recess, wedges -- shows through it at the same strength the
-    -- recess uses. A translucent black into an alpha buffer does exactly
-    -- that once the slot alphablits: dst * (1 - a). Same result as
-    -- Wallpaper.shade, which cannot be used here because it blends against
-    -- the buffer's own pixels and this buffer is empty.
-    if lifted and self.plank and SpineShelf.has_wallpaper then
+    -- The space a lifted book leaves on the plank is NOT painted here: it is
+    -- filled from the destination at paint time (SpineShelf.fillLiftGap),
+    -- which is the only place the shelf beside the book exists. The render
+    -- just records where it is, relative to its own origin.
+    self._lift_gap = nil
+    if lifted and self.plank then
         local foot = body_top + body_h
-        local slot_bottom = y + self.height
-        local span = slot_bottom - foot
+        local span = (y + self.height) - foot
         if span > 0 then
-            bb:paintRectRGB32(x, foot, spine_w, span, _liftBoxColor(night))
-        end
-    elseif lifted and self.plank then
-        local foot = body_top + body_h
-        local slot_bottom = y + self.height
-        local surf_h = SpineShelf.plankSurfaceOf(self.plank)
-        local surf_top = slot_bottom + self.plank.inset - surf_h
-        local start = math.max(foot, surf_top)
-        local air_end = math.min(foot + math.max(2, hairline), slot_bottom)
-        local ins = hairline * 2
-        for yy = start, slot_bottom - 1 do
-            if yy < air_end or spine_w <= 2 * ins then
-                bb:paintRectRGB32(x, yy, spine_w, 1,
-                                  _plankRowAt(yy - surf_top, surf_h))
-            else
-                local band = _plankRowAt(yy - surf_top, surf_h)
-                bb:paintRectRGB32(x, yy, ins, 1, band)
-                bb:paintRectRGB32(x + ins, yy, spine_w - 2 * ins, 1,
-                                  _plankRowAt(yy - surf_top, surf_h, 0.72))
-                bb:paintRectRGB32(x + spine_w - ins, yy, ins, 1, band)
-            end
+            self._lift_gap = { dx = 0, dy = foot - y, w = spine_w, h = span }
         end
     end
     if edge_h > 0 then
@@ -2021,30 +2033,14 @@ function LiftShadow:paintTo(bb, x, y)
     self.dimen.x, self.dimen.y = x, y
     local w, h = self.dimen.w, self.dimen.h
     local ins = Screen:scaleBySize(2)
-    local night = _nightMode()
-    local pk = self.plank
-    if pk and SpineShelf.has_wallpaper then
-        -- The wallpaper look: one solid box filling exactly the space the
-        -- lift opened, as SpineBookSlot paints under a lifted spine over a
-        -- ground. Maintainer's call, from what began as an accident: it reads
-        -- more clearly than a gradient, and it meets the wedge shadows either
-        -- side without a seam.
+    if self.plank then
+        -- The same fill a lifted spine gets (SpineShelf.fillLiftGap), over
+        -- exactly the space the lift opened: one gesture, one shadow. It
+        -- replaced a solid box over a wallpaper and a banded plank shadow on
+        -- a plain page, the same two looks the spine had.
         local lift_h = math.floor(tonumber(self.shadow_h) or 0)
         if lift_h <= 0 or lift_h > h then lift_h = h end
-        if lift_h > 0 then
-            bb:paintRectRGB32(x, y, w, lift_h, _liftBoxColor(night))
-        end
-        return
-    elseif pk then
-        -- The plain shelf keeps the banded plank shadow it always had, which
-        -- is also what a lifted SPINE paints there: one gesture, one shadow.
-        local surf_h   = SpineShelf.plankSurfaceOf(pk)
-        local surf_top = y + h + pk.inset - surf_h
-        local y0 = math.max(y, surf_top)
-        for yy = y0, y + h - 1 do
-            bb:paintRectRGB32(x + ins, yy, math.max(1, w - 2 * ins), 1,
-                              _plankRowAt(yy - surf_top, surf_h, 0.72))
-        end
+        SpineShelf.fillLiftGap(bb, x, y, w, lift_h)
         return
     end
     local air = math.max(2, Screen:scaleBySize(1))
@@ -3690,6 +3686,12 @@ function SpineShelf.rowWidget(opts)
     -- extent in row coordinates) so ShelfBadges can hang its name off the
     -- plank beneath it.
     local cursor, badge_spans = lead, {}
+    -- Where the current FLUSH block begins: spines in a run stand with no gap
+    -- between them, so the shelf beside a lifted one is only visible left of
+    -- the block's first book. A new block starts at the row's first book and
+    -- after any real gap -- a group gap, the gap beside a face-out, an
+    -- ornament's. Handed to each spine as flush_dx for SpineShelf.fillLiftGap.
+    local block_x0 = lead
     local recess_cols = {}
     local slots_by_fp = {}
     local gap_ornaments = {}
@@ -3719,6 +3721,7 @@ function SpineShelf.rowWidget(opts)
                 end
                 group[#group + 1] = HorizontalSpan:new{ width = gap_w }
                 cursor = cursor + gap_w
+                if gap_w > 0 then block_x0 = cursor end
             end
             if (e.item and e.item.books) or e.section_label then
                 -- Every GROUP gets a badge, single-member ones included --
@@ -3949,6 +3952,9 @@ function SpineShelf.rowWidget(opts)
                     is_selected = is_sel,
                     is_bulk_selected = is_bulk,
                     plank       = { b = b, inset = inset, face = fh, surf = surf },
+                    -- How far left this spine's flush block begins: the shelf
+                    -- a lifted spine copies into its gap is just left of that.
+                    flush_dx    = cursor - block_x0,
                 }
             end
             if e.book and e.book.filepath and tile then
@@ -4561,6 +4567,12 @@ function SpineShelf.paintOpeningTilt(slot)
             _shadeTiltFace(c, r.x, r.y + edge, r.w, r.h - edge, night)
         end
         bb:blitFrom(c, d.x, d.y, 0, 0, slot.width, slot.height)
+        -- The tilt lifts the book too, and renders into a buffer of its own.
+        local g = slot._lift_gap
+        if g then
+            SpineShelf.fillLiftGap(bb, d.x + g.dx, d.y + g.dy, g.w, g.h,
+                                   d.x - (slot.flush_dx or 0) - 1)
+        end
         c:free()
     end)
     slot._tilt = nil

@@ -42,11 +42,18 @@ local fillLiftGap = assert(load(
     "return function(bb, x, y, w, h, from_x)\n" .. body .. "\nend",
     "fillLiftGap", "t", { math = math }))()
 
-local lifted_body = src:match("\nfunction SpineShelf%.fillLifted%(bb, ox, oy, g, from_x%)\n(.-)\nend\n")
-assert(lifted_body, "SpineShelf.fillLifted is missing or its signature changed")
-local fillLifted = assert(load(
-    "return function(bb, ox, oy, g, from_x)\n" .. lifted_body .. "\nend",
-    "fillLifted", "t", { SpineShelf = { fillLiftGap = fillLiftGap } }))()
+local nick_body = src:match("\nfunction SpineShelf%.nickFromBelow%(bb, x, foot, w, n%)\n(.-)\nend\n")
+assert(nick_body, "SpineShelf.nickFromBelow is missing or its signature changed")
+local nickFromBelow = assert(load(
+    "return function(bb, x, foot, w, n)\n" .. nick_body .. "\nend",
+    "nickFromBelow", "t", {}))()
+
+local finish_body = src:match("\nfunction SpineShelf%.finishSlot%(bb, ox, oy, rec, from_x%)\n(.-)\nend\n")
+assert(finish_body, "SpineShelf.finishSlot is missing or its signature changed")
+local finishSlot = assert(load(
+    "return function(bb, ox, oy, rec, from_x)\n" .. finish_body .. "\nend",
+    "finishSlot", "t",
+    { SpineShelf = { fillLiftGap = fillLiftGap, nickFromBelow = nickFromBelow } }))()
 
 -- A buffer whose every pixel names where it came from, so a copy can be
 -- traced back to its source column.
@@ -151,8 +158,8 @@ t.test("a lifted spine fills from the shelf left of its run", function()
     local tilt = fn("SpineShelf.paintOpeningTilt")
     assert(tilt:find("d.x - (slot.flush_dx or 0) - 1", 1, true),
         "the tilting spine still copies the neighbouring book")
-    assert(tilt:find("SpineShelf.fillLifted(", 1, true),
-        "the tilting spine fills its gap but not its cut corners")
+    assert(tilt:find("SpineShelf.finishSlot(", 1, true),
+        "the tilting spine fills its gap but not its feet")
 end)
 
 t.test("a lifted face-out still takes the column right beside it", function()
@@ -162,47 +169,101 @@ t.test("a lifted face-out still takes the column right beside it", function()
         "the face-out no longer fills from right beside itself")
 end)
 
--- ── The cut foot corners (maintainer: "bright pixels in the bottom corners") ─
+-- ── The foot nick: the colour of the shelf below (maintainer's rule) ──────
 --
--- A standing spine has a pixel square cut off each bottom corner. Lifted,
--- those squares showed page-ground white (or, over a wallpaper, whatever was
--- behind at that height) -- right when the space under a lifted book was light
--- air. Once the gap filled with the shelf, they sat on it as bright specks.
--- They are part of what the lift uncovers, so they take the same fill.
+-- "Spines should have a nick the same colour as the shelf below, with or
+-- without the shadow on the shelf. This gives the foot a softer very slightly
+-- rounded look that feels more like a real book." Before: a standing nick
+-- was painted in the plank's CONTACT shade (48 on the PW5, against a border
+-- of 50 -- invisible, so the foot read as square), and a lifted one in page
+-- white, then briefly in the shelf column beside the run.
+--
+-- The rule is a copy, not a colour: each n x n corner takes the shelf row
+-- DIRECTLY BELOW the foot, as it stands on screen -- shadowed or not, over a
+-- wallpaper or not, day or night. Which is also why it has to happen at paint
+-- time: the cached render cannot see the shelf. For a lifted spine the row
+-- below is its gap, so the gap is filled first and the nick follows it.
 
-t.test("the cut corners take the shelf, like the gap below them", function()
+t.test("each foot corner becomes the shelf row directly below it", function()
     local bb = fakeBB(30, 12)
-    -- Gap at x=10..15, rows 5..7, the book's foot at row 5; corners 1px.
-    fillLifted(bb, 10, 0, { dx = 0, dy = 5, w = 6, h = 3, corner = 1 }, 8)
-    eq(bb.px[4][10], "8,4", "the left foot corner still shows its old pixel")
-    eq(bb.px[4][15], "8,4", "the right foot corner still shows its old pixel")
-    eq(bb.px[6][12], "8,6", "the gap itself was not filled")
+    nickFromBelow(bb, 10, 6, 6, 2)          -- foot at row 6; corners 2x2
+    for _k, xx in ipairs({ 10, 11, 14, 15 }) do
+        eq(bb.px[5][xx], xx .. ",6", "corner row 5 at " .. xx .. " is not the shelf below")
+        eq(bb.px[4][xx], xx .. ",6", "corner row 4 at " .. xx .. " is not the shelf below")
+    end
 end)
 
-t.test("between the corners, the book's own bottom edge stays", function()
+t.test("between the corners the book's own foot stays", function()
     local bb = fakeBB(30, 12)
-    fillLifted(bb, 10, 0, { dx = 0, dy = 5, w = 6, h = 3, corner = 1 }, 8)
-    for xx = 11, 14 do
-        eq(bb.px[4][xx], xx .. ",4", "the foot between the corners was painted over")
-    end
+    nickFromBelow(bb, 10, 6, 6, 2)
+    eq(bb.px[5][12], "12,5"); eq(bb.px[5][13], "13,5")
+end)
+
+t.test("the shelf row itself and the rows above the nick are left alone", function()
+    local bb = fakeBB(30, 12)
+    nickFromBelow(bb, 10, 6, 6, 2)
+    eq(bb.px[6][10], "10,6", "the shelf the nick copies from was changed")
+    eq(bb.px[3][10], "10,3", "the nick reached higher than n rows")
 end)
 
 t.test("a spine too narrow for two corners keeps its foot whole", function()
     local bb = fakeBB(30, 12)
-    fillLifted(bb, 10, 0, { dx = 0, dy = 5, w = 2, h = 3, corner = 1 }, 8)
-    eq(bb.px[4][10], "10,4")
+    nickFromBelow(bb, 10, 6, 4, 2)
+    eq(bb.px[5][10], "10,5")
 end)
 
-t.test("no gap recorded, nothing painted", function()
+t.test("a foot on the buffer's last row has no shelf below, and is left", function()
+    local bb = fakeBB(30, 8)
+    nickFromBelow(bb, 10, 8, 6, 2)
+    eq(bb.px[7][10], "10,7")
+end)
+
+t.test("finishSlot: a lifted spine's gap is filled first, and the nick follows it", function()
     local bb = fakeBB(30, 12)
-    fillLifted(bb, 10, 0, nil, 8)
-    eq(bb.px[6][12], "12,6")
+    -- Gap under the foot at rows 6..8, filled from column 8; feet at row 6.
+    finishSlot(bb, 10, 0, {
+        gap  = { dx = 0, dy = 6, w = 6, h = 3 },
+        feet = { dx = 0, dy = 6, w = 6, n = 1 },
+    }, 8)
+    eq(bb.px[6][12], "8,6", "the gap was not filled")
+    eq(bb.px[5][10], "8,6", "the nick took the shelf, not the filled gap below it")
+    eq(bb.px[5][12], "12,5", "the foot between the corners was painted over")
 end)
 
-t.test("the render says how big the cut corners are", function()
+t.test("finishSlot: a standing spine is nicked with no gap to fill", function()
+    local bb = fakeBB(30, 12)
+    finishSlot(bb, 10, 0, { feet = { dx = 0, dy = 6, w = 6, n = 1 } }, 8)
+    eq(bb.px[5][10], "10,6")
+    eq(bb.px[7][12], "12,7", "a standing spine had a gap filled under it")
+end)
+
+t.test("finishSlot with nothing recorded paints nothing", function()
+    local bb = fakeBB(30, 12)
+    finishSlot(bb, 10, 0, nil, 8)
+    eq(bb.px[5][10], "10,5")
+end)
+
+t.test("one path, shadows on or off", function()
+    -- The shadows-off tweak skips the recess painter, which is the expensive
+    -- part (a band per column per slot). This pass is not: measured on the
+    -- PW5 at 0.33ms for forty spines' nicks and 0.044ms for a lifted gap, a
+    -- fifth of one full-page blit. And with shadows off the shelf it copies
+    -- is simply plain plank -- still right. So it is not gated on them.
+    for _k, name in ipairs({ "SpineShelf.finishSlot", "SpineShelf.nickFromBelow",
+                             "SpineShelf.fillLiftGap" }) do
+        local b = fn(name)
+        assert(b and not b:find("shadowsEnabled", 1, true),
+            name .. " branches on the shadows setting")
+    end
+end)
+
+t.test("the render records the feet of every spine, and cuts none itself", function()
     local render = fn("SpineBookSlot:_renderIntoAt")
-    assert(render:find("corner = hairline", 1, true),
-        "the gap record does not carry the corner cut, so nothing can fill it")
+    assert(render:find("self._paint_after", 1, true),
+        "the render does not say where the feet are")
+    assert(render:find("feet = {", 1, true), "the feet are not recorded")
+    assert(not render:find("_cutFootCorners(bb, x, body_top + body_h", 1, true),
+        "the cached render still cuts a nick it cannot know the colour of")
 end)
 
 t.test("a gap as wide as the buffer is left alone", function()
@@ -237,7 +298,7 @@ t.test("the render no longer paints the gap itself, in either mode", function()
     assert(render, "_renderIntoAt moved")
     assert(not render:find("_plankRowAt(yy - surf_top, surf_h, 0.72)", 1, true),
         "the plain-page plank reproduction is still painted into the gap")
-    assert(render:find("self._lift_gap", 1, true),
+    assert(render:find("self._paint_after", 1, true),
         "the render does not say where the gap is")
 end)
 
@@ -245,22 +306,22 @@ t.test("a cached render's gap is dropped with the render", function()
     -- One choke point for eviction and invalidation, so the gap table cannot
     -- outlive, or disagree with, the render it describes.
     local drop = src:match("\nlocal function _renderCacheDrop%(key%)\n(.-)\nend\n")
-    assert(drop and drop:find("_render_gap[key] = nil", 1, true),
+    assert(drop and drop:find("_render_after[key] = nil", 1, true),
         "a dropped render leaves its gap behind")
 end)
 
 t.test("the cached path and the fallback both fill after drawing", function()
     local paint = fn("SpineBookSlot:paintTo")
     assert(paint, "paintTo moved")
-    local n = select(2, paint:gsub("SpineShelf%.fillLifted%(", ""))
-    assert(n >= 2, "a drawing path leaves the gap or its corners unfilled (found " .. n .. ")")
-    assert(paint:find("_render_gap[key]", 1, true),
+    local n = select(2, paint:gsub("SpineShelf%.finishSlot%(", ""))
+    assert(n >= 2, "a drawing path leaves the gap or the feet unfinished (found " .. n .. ")")
+    assert(paint:find("_render_after[key]", 1, true),
         "a cache hit cannot know where the gap is")
 end)
 
 t.test("the opening tilt fills its gap too", function()
     local tilt = fn("SpineShelf.paintOpeningTilt")
-    assert(tilt and tilt:find("SpineShelf.fillLifted(", 1, true),
+    assert(tilt and tilt:find("SpineShelf.finishSlot(", 1, true),
         "a tilting book leaves a bare patch on a plain page")
 end)
 

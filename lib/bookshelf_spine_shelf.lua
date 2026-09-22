@@ -147,27 +147,57 @@ function SpineShelf.fillLiftGap(bb, x, y, w, h, from_x)
     end
 end
 
--- SpineShelf.fillLifted(bb, ox, oy, g, from_x) -- everything a lift uncovers,
--- for the gap record g a render made (see _renderIntoAt), at slot origin
--- ox, oy: the gap under the book, and the two squares cut off its foot.
+-- SpineShelf.nickFromBelow(bb, x, foot, w, n) -- the foot nick: each n x n
+-- bottom corner of a book takes the shelf row directly BELOW its foot.
 --
--- The foot corners are part of it. A standing spine has a pixel square cut
--- off each bottom corner, showing what is behind; lifted, those squares took
--- page-ground white (or, over a wallpaper, whatever was behind at that
--- height), which was right while the space under a lifted book was light air
--- and sat on the shelf fill as bright specks once it was not (maintainer).
--- They take the same column the gap does, at their own rows, so the corner
--- comes off the book into the shelf rather than into a highlight. Between the
--- corners the book's own bottom edge stays; a spine too narrow for two keeps
--- its foot whole, as the cut itself does.
-function SpineShelf.fillLifted(bb, ox, oy, g, from_x)
-    if not g then return end
-    local x, y = ox + g.dx, oy + g.dy
-    SpineShelf.fillLiftGap(bb, x, y, g.w, g.h, from_x)
-    local n = g.corner or 0
-    if n > 0 and g.w > 2 * n then
-        SpineShelf.fillLiftGap(bb, x, y - n, n, n, from_x)
-        SpineShelf.fillLiftGap(bb, x + g.w - n, y - n, n, n, from_x)
+-- The maintainer's rule: "Spines should have a nick the same colour as the
+-- shelf below, with or without the shadow on the shelf. This gives the foot a
+-- softer very slightly rounded look that feels more like a real book." A copy
+-- rather than a colour, so it is right whatever the shelf is there --
+-- shadowed or lit, over a picture or not, day or night -- with nothing to
+-- compute and nothing to keep in step. It replaced a painted CONTACT shade
+-- (48 on the PW5, beside a border of 50: invisible, and the foot read as
+-- square) for a standing book, and page white for a lifted one.
+--
+-- `foot` is one past the book's last row, so row `foot` is the shelf.
+-- Between the corners the book's own foot stays; a spine too narrow for two
+-- corners keeps its foot whole; a foot on the buffer's last row has no shelf
+-- below it and is left. Uses nothing but the buffer, so it runs anywhere.
+function SpineShelf.nickFromBelow(bb, x, foot, w, n)
+    if not bb or not n or n <= 0 or not w or w <= 2 * n then return end
+    local bw, bh = bb:getWidth(), bb:getHeight()
+    if foot < 0 or foot >= bh then return end
+    local function corner(cx)
+        if cx < 0 or cx + n > bw then return end
+        for dy = 1, n do
+            local yy = foot - dy
+            if yy >= 0 then bb:blitFrom(bb, cx, yy, cx, foot, n, 1) end
+        end
+    end
+    corner(x)
+    corner(x + w - n)
+end
+
+-- SpineShelf.finishSlot(bb, ox, oy, rec, from_x) -- what a spine slot paints
+-- after its render lands, from the record the render made (_paint_after, at
+-- slot origin ox, oy): a lifted book's gap, filled from from_x, and then the
+-- foot nick. In that order, because a lifted book's foot is nicked from its
+-- gap -- the shelf below it is the fill.
+--
+-- Not gated on the shadows setting. The shadows-off performance tweak skips
+-- the recess painter, a band per column per slot; this pass measured 0.33ms
+-- for forty spines' nicks and 0.044ms for a lifted gap on the PW5, about a
+-- fifth of one full-page blit, and with shadows off the shelf it copies is
+-- simply plain plank, which is still right.
+function SpineShelf.finishSlot(bb, ox, oy, rec, from_x)
+    if not rec then return end
+    local g = rec.gap
+    if g then
+        SpineShelf.fillLiftGap(bb, ox + g.dx, oy + g.dy, g.w, g.h, from_x)
+    end
+    local f = rec.feet
+    if f then
+        SpineShelf.nickFromBelow(bb, ox + f.dx, oy + f.dy, f.w, f.n)
     end
 end
 
@@ -336,10 +366,11 @@ local _hydrate_cache = {}
 -- geometry + state; FIFO-evicted at ~3 pages' worth. The cache owns the
 -- buffers; slots look up per paint and never free them.
 local _render_cache, _render_order = {}, {}
--- Where each cached render left a lifted book's gap (slot-relative), for the
--- paint-time fill: a cache hit does not run the render, so it cannot say.
--- Dropped in _renderCacheDrop, the one place every eviction goes through.
-local _render_gap = {}
+-- What each cached render leaves for paint time (slot-relative): its feet,
+-- and a lifted book's gap (see SpineShelf.finishSlot). A cache hit does not
+-- run the render, so it cannot say. Dropped in _renderCacheDrop, the one
+-- place every eviction goes through.
+local _render_after = {}
 local _render_bytes = 0
 -- Byte budget, not a count: a count cap that fits a greyscale device
 -- would balloon 4x on an RGB32 screen. ~5MB holds roughly three pages of
@@ -360,7 +391,7 @@ local function _bbBytes(bbuf)
 end
 
 local function _renderCacheDrop(key)
-    _render_gap[key] = nil
+    _render_after[key] = nil
     local old_bb = _render_cache[key]
     if not old_bb then return end
     _render_cache[key] = nil
@@ -1700,13 +1731,13 @@ function SpineBookSlot:paintTo(bb, x, y)
             end
             self:_renderInto(c, night)
             _renderCachePut(key, c)
-            _render_gap[key] = self._lift_gap
+            _render_after[key] = self._paint_after
             cached = c
         end)
         if not ok or not cached then
             -- Render straight to the target rather than showing nothing.
             self:_renderIntoAt(bb, x, y, night)
-            SpineShelf.fillLifted(bb, x, y, self._lift_gap,
+            SpineShelf.finishSlot(bb, x, y, self._paint_after,
                                   x - (self.flush_dx or 0) - 1)
             return
         end
@@ -1722,7 +1753,7 @@ function SpineBookSlot:paintTo(bb, x, y)
     else
         bb:blitFrom(cached, x, y, 0, 0, self.width, self.height)
     end
-    SpineShelf.fillLifted(bb, x, y, _render_gap[key],
+    SpineShelf.finishSlot(bb, x, y, _render_after[key],
                           x - (self.flush_dx or 0) - 1)
 end
 
@@ -1834,31 +1865,28 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
     end
     _paintBorderRGB32(bb, x, body_top, spine_w, spine_h - edge_h, hairline,
                       _boardColor(e.look, night))
-    -- Soften the meeting with the plank: the bottom corner pixels come off,
-    -- the hint of a chamfer where the book stands. Only while it STANDS --
-    -- a lifted book floats in front of the page, and the plank-toned nicks
-    -- read as white specks cut into its corners there.
-    -- Kept when LIFTED too (maintainer request): the pixel is replaced by
-    -- whatever is actually beneath the book, so a lifted book's corners show
-    -- the page rather than a plank-toned speck -- which is what made the
-    -- earlier painted version look wrong off the shelf.
-    _cutFootCorners(bb, x, body_top + body_h, spine_w, hairline,
-                    _behindAt(self.plank, y + self.height, lifted))
-    -- The space a lifted book leaves on the plank is NOT painted here: it is
-    -- filled from the destination at paint time (SpineShelf.fillLiftGap),
-    -- which is the only place the shelf beside the book exists. The render
-    -- just records where it is, relative to its own origin.
-    self._lift_gap = nil
+    -- The FOOT NICK -- a pixel square off each bottom corner, the softening
+    -- where a book meets the shelf -- is not cut here. It takes the colour of
+    -- the shelf directly BELOW the foot (maintainer's rule: "with or without
+    -- the shadow on the shelf ... a softer very slightly rounded look that
+    -- feels more like a real book"), and this cached render has no shelf in
+    -- it to copy. Nor is the space a lifted book leaves on the plank painted
+    -- here. Both are finished from the destination at paint time
+    -- (SpineShelf.finishSlot); the render only records where they are,
+    -- relative to its own origin. The feet are recorded for EVERY spine,
+    -- standing or lifted; the gap only for a lifted one.
+    local foot = body_top + body_h
+    local gap = nil
     if lifted and self.plank then
-        local foot = body_top + body_h
         local span = (y + self.height) - foot
         if span > 0 then
-            -- corner: the n _cutFootCorners takes off each foot corner,
-            -- which the paint-time fill covers too (SpineShelf.fillLifted).
-            self._lift_gap = { dx = 0, dy = foot - y, w = spine_w, h = span,
-                               corner = hairline }
+            gap = { dx = 0, dy = foot - y, w = spine_w, h = span }
         end
     end
+    self._paint_after = {
+        gap  = gap,
+        feet = { dx = 0, dy = foot - y, w = spine_w, n = hairline },
+    }
     if edge_h > 0 then
         -- ONE pixel above the paper. Given to the pixel by the maintainer,
         -- for a book eight thick:
@@ -4601,7 +4629,7 @@ function SpineShelf.paintOpeningTilt(slot)
         end
         bb:blitFrom(c, d.x, d.y, 0, 0, slot.width, slot.height)
         -- The tilt lifts the book too, and renders into a buffer of its own.
-        SpineShelf.fillLifted(bb, d.x, d.y, slot._lift_gap,
+        SpineShelf.finishSlot(bb, d.x, d.y, slot._paint_after,
                               d.x - (slot.flush_dx or 0) - 1)
         c:free()
     end)

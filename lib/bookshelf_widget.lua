@@ -1933,7 +1933,27 @@ function BookshelfWidget:_rebuild()
     -- Cache for the swipe handlers (which run outside _rebuild's scope).
     self._total_pages = total_pages
     self._total_items = total
-    self:_clampCursor(total)
+    -- A windowed source fetched its page at the cursor as it stood; if the
+    -- clamp now moves the cursor, that page is from somewhere else and would
+    -- be rendered under the wrong page number (issue 369, see
+    -- _clampFetchedWindow). Fetch once more at the clamped cursor.
+    --
+    -- Same one-shot shape as the label-strip retry above. The draft cache
+    -- goes first because a pinch is a draft regrid and the cache holds the
+    -- page cut at the OLD offset, so the second pass would be served the very
+    -- window it exists to replace. The guard is cleared here, after the pass,
+    -- rather than left for the nested call to clear: a nested pass that
+    -- returns early would otherwise leave it set and silently skip the next
+    -- rebuild's retry.
+    if self:_clampFetchedWindow(total, _total_hint ~= nil)
+            and not self._cursor_clamp_retry then
+        self._cursor_clamp_retry = true
+        self._draft_items_cache = nil
+        self:_rebuild()
+        self._cursor_clamp_retry = nil
+        return
+    end
+    self._cursor_clamp_retry = nil
     self:_syncPageFromCursor()
     self:_spineUpdateBookCounts(all_items, _total_hint)
     -- all/folder chips return a pre-sliced page; others return the full list.
@@ -7575,7 +7595,16 @@ function BookshelfWidget:_swapShelvesInPlace()
     total_pages = self:_spineTotalPages() or total_pages
     self._total_pages = total_pages
     self._total_items = total
-    self:_clampCursor(total)
+    -- Same order as _rebuild, so the same hazard: the window was fetched at
+    -- the cursor as it stood, and a clamp that moves it leaves this page from
+    -- somewhere else (issue 369). A moved window is a change of shape this
+    -- path cannot swap in place, like the empty state below -- and _rebuild
+    -- fetches at the cursor this clamp has just corrected.
+    if self:_clampFetchedWindow(total, _total_hint ~= nil) then
+        self:_rebuild()
+        UIManager:setDirty(self, "ui")
+        return
+    end
     self:_syncPageFromCursor()
     self:_spineUpdateBookCounts(all_items, _total_hint)
     if total == 0 then
@@ -12553,6 +12582,29 @@ function BookshelfWidget:_maxCursor(total)
     return (n_pages - 1) * view + 1
 end
 
+-- _clampFetchedWindow(total, windowed) -> true when the page just fetched no
+-- longer starts at the cursor, so it must be fetched again.
+--
+-- A windowed source fetches only the visible page, at offset = cursor - 1, and
+-- the cursor is clamped only AFTER that fetch reports the total. Whenever the
+-- page has GROWN past the end of a short list -- expanding the shelf, zooming
+-- out, anything that fits more on a page -- the clamp moves the cursor back
+-- while the page on screen is still the one fetched at the old offset. The
+-- footer then reads "page 1 of 1" over books 4-7 of a seven-book series, with
+-- no page left from which to reach 1-3 (issue 369; the maintainer found the
+-- zoom route after the expand route was patched on its own).
+--
+-- A whole-list source is never affected: it slices its page out of the full
+-- list after the clamp, so the clamped cursor is already the one it uses.
+-- Nor is an empty result -- a total of zero is the size of the whole list,
+-- and a second fetch at book 1 would come back just as empty.
+function BookshelfWidget:_clampFetchedWindow(total, windowed)
+    local fetched_at = self._cursor
+    self:_clampCursor(total)
+    if not windowed or (total or 0) <= 0 then return false end
+    return self._cursor ~= fetched_at
+end
+
 -- _clampCursor(total) — keep cursor inside [1, _maxCursor(total)].
 function BookshelfWidget:_clampCursor(total)
     if total ~= nil and total <= 0 then
@@ -14212,6 +14264,11 @@ function BookshelfWidget:_setExpanded(expanded)
         -- a legal start this does nothing at all. Collapsing shrinks the view,
         -- which only moves the last legal start UP, so it is a no-op there --
         -- and the collapse path follows with _setCursorToShow anyway.
+        --
+        -- Not the guarantee: _clampFetchedWindow in the fetch paths is, and it
+        -- covers every way the page can grow, zoom included. This one runs
+        -- BEFORE the fetch, so an expand gets its page right first time
+        -- instead of fetching it twice.
         self:_clampCursor(self._total_items)
         self:_syncPageFromCursor()
     end

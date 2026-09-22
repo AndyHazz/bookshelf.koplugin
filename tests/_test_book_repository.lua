@@ -2101,6 +2101,27 @@ test("getBySource: collection kind returns books in the named collection", funct
     assert(total == 1, "expected total=1, got " .. tostring(total))
 end)
 
+test("getBySource: a collection keeps its native KOReader order (#441)", function()
+    _setupResolverLibrary()
+    -- A native collection stores a per-item `order`, and KOReader's own
+    -- getOrderedCollection sorts on exactly that. Set here as the REVERSE of
+    -- alphabetical, so a path that discards the order and falls back to the
+    -- engine's title/filename tie-break cannot pass by accident.
+    package.loaded["readcollection"].coll.reading = {
+        ["/lib/novels/charlie.epub"] = { file = "/lib/novels/charlie.epub", order = 1 },
+        ["/lib/comics/bravo.epub"]   = { file = "/lib/comics/bravo.epub",   order = 2 },
+        ["/lib/comics/alpha.epub"]   = { file = "/lib/comics/alpha.epub",   order = 3 },
+    }
+    local list = Repo.getBySource({ kind = "collection", id = "reading" }, nil,
+                                  { { key = "collection_order", reverse = false } }, 0, 10)
+    _teardownResolverLibrary()
+    local got = {}
+    for i, b in ipairs(list) do got[i] = b.title end
+    got = table.concat(got, ",")
+    assert(got == "Charlie,Bravo,Alpha",
+        "expected the collection's own order, got " .. got)
+end)
+
 test("getBySource: genre kind filters books via BIM keywords->genres mapping", function()
     _setupResolverLibrary()
     -- buildBookMeta maps BIM `keywords` string -> genres array; the genre

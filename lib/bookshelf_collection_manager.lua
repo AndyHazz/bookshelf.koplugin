@@ -154,7 +154,11 @@ local function _pinAsChip(coll_name, bw)
         icon          = nil,
         source        = { kind = "collection", id = coll_name },
         filter        = {},
-        sort_priority = { { key = "last_opened", reverse = true } },
+        -- The editor owns the per-source defaults; a second copy here is how
+        -- a collection pinned from the manager ended up sorted differently
+        -- from the same collection picked in the editor (issue 441).
+        sort_priority = require("lib/bookshelf_chip_editor")
+                            .sourceSortDefaults("collection"),
         enabled       = true,
     }
     TabModel.save(tabs)

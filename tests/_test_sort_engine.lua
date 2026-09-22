@@ -645,6 +645,42 @@ end)
 -- guess, but it is only ever a guess in the gap, and it is what makes the
 -- order coherent.
 
+-- ── The collection's own order (issue #441) ───────────────────────────────
+--
+-- A native KOReader collection stores a per-item `order` and sorts on it
+-- (ReadCollection:getOrderedCollection). Bookshelf read the membership and
+-- threw the order away, so a curated collection arrived in whatever order
+-- the engine's own keys produced.
+
+test("sort: collection_order files a collection the way KOReader does", function()
+    local items = {
+        { id = "c", collection_order = 3 },
+        { id = "a", collection_order = 1 },
+        { id = "b", collection_order = 2 },
+    }
+    table.sort(items, SortEngine.chainedComparator{
+        { key = "collection_order", reverse = false } })
+    assert(eq(ids(items), { "a", "b", "c" }),
+        "collection order ignored: " .. table.concat(ids(items), ","))
+end)
+
+test("sort: a collection with no manual order falls through to the next level", function()
+    -- KOReader only persists `order` for a MANUALLY collated collection: one
+    -- with a collate of its own writes order = nil for every item. Those must
+    -- tie so the next level decides, rather than every book counting as
+    -- "missing" and sinking to the end, which would strand the level below.
+    local items = {
+        { id = "old", last_opened = 100 },
+        { id = "new", last_opened = 300 },
+    }
+    table.sort(items, SortEngine.chainedComparator{
+        { key = "collection_order", reverse = false },
+        { key = "last_opened",      reverse = true  } })
+    assert(eq(ids(items), { "new", "old" }),
+        "an unordered collection did not reach its second level: "
+        .. table.concat(ids(items), ","))
+end)
+
 test("sort: title_sort is used when calibre supplied it", function()
     local items = {
         { title = "The Locked Tomb", title_sort = "Locked Tomb, The" },

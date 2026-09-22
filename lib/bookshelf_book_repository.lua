@@ -7844,14 +7844,30 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
         elseif kind == "collection" then
             local rc  = require("readcollection")
             local set = {}
+            -- The collection's OWN order, which is what KOReader files it by
+            -- (ReadCollection:getOrderedCollection sorts on this field). Kept
+            -- separate from `set` rather than stored in it: KOReader writes
+            -- `order` only for a manually collated collection, so for any
+            -- other one it is nil for every item, and a nil in the membership
+            -- table would read as "not a member" and empty the shelf.
+            local order = {}
             local coll = rc.coll and rc.coll[source.id]
             if type(coll) == "table" then
                 for _i, item in pairs(coll) do
-                    if type(item) == "table" and item.file then set[item.file] = true end
+                    if type(item) == "table" and item.file then
+                        set[item.file]   = true
+                        order[item.file] = item.order
+                    end
                 end
             end
             candidates = loadCandidatesByPredicate(function(b) return set[b.filepath] end,
                 nil, true)
+            -- Stamped onto the record so the collection_order sort key can see
+            -- it; the records come out of the library store, which knows
+            -- nothing about collections (issue 441).
+            for _i, b in ipairs(candidates) do
+                b.collection_order = order[b.filepath]
+            end
         elseif kind == "tag" then
             -- Book records carry BIM/Calibre tag data under b.genres (the
             -- field name is unified across the cb.tags + cb.keywords +

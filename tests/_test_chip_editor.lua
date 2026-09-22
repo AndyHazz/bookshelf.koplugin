@@ -68,6 +68,7 @@ local VALID_SORT_KEYS = {
     last_opened = true, date_added = true, percent_read = true,
     read_status = true, read_status_active = true, rating = true,
     page_count = true, book_count = true, size = true,
+    collection_order = true,
 }
 
 t.test("every SOURCE_SORT_DEFAULTS entry is a non-empty list of {key,reverse}, except fixed-order sources", function()
@@ -180,6 +181,81 @@ end)
 t.test("resolveSourceLabel handles an OPDS source with no id yet without erroring", function()
     local D2 = Editor._test.resolveSourceLabel
     eq(D2({ kind = "opds" }), "OPDS catalog")
+end)
+
+-- ── A collection keeps the order KOReader files it in (issue #441) ────────
+
+t.test("a new collection chip defaults to the collection's own order", function()
+    eq(D.SOURCE_SORT_DEFAULTS.collection, {
+        { key = "collection_order", reverse = false },
+        { key = "last_opened",      reverse = true  },
+    })
+end)
+
+t.test("the second level carries a collection KOReader stores no order for", function()
+    -- Only a manually collated collection persists an item order, so the
+    -- pairing is the whole design: with no manual order every book ties on
+    -- level one and the shelf still comes out most-recently-opened first,
+    -- which is what a collection chip did before this key existed.
+    local levels = D.SOURCE_SORT_DEFAULTS.collection
+    assert(#levels == 2, "expected a fallback level, got " .. #levels)
+    assert(levels[2].key == "last_opened" and levels[2].reverse == true,
+        "the fallback is no longer the old default")
+end)
+
+t.test("sourceSortDefaults hands out a copy, never the table itself", function()
+    local a = Editor.sourceSortDefaults("collection")
+    a[1].key = "clobbered"
+    assert(D.SOURCE_SORT_DEFAULTS.collection[1].key == "collection_order",
+        "the defaults table was handed out by reference and got mutated")
+    assert(Editor.sourceSortDefaults("collection")[1].key == "collection_order",
+        "a later caller saw the first caller's edit")
+end)
+
+t.test("sourceSortDefaults is nil for a kind with no defaults", function()
+    assert(Editor.sourceSortDefaults("not_a_real_kind") == nil)
+end)
+
+t.test("pinning a collection from the manager uses the same defaults", function()
+    -- The manager builds its own tab row rather than going through the
+    -- editor's draft, so it carried a SECOND copy of the collection default
+    -- and the two could drift. It asks for them now. Checked in the source
+    -- because the manager is a UI module with no standalone harness.
+    local src = assert(io.open("lib/bookshelf_collection_manager.lua")):read("*a")
+    local pin = src:match("local function _pinAsChip.-\nend")
+    assert(pin, "_pinAsChip moved or was renamed")
+    assert(pin:match('sourceSortDefaults%("collection"%)'),
+        "the pinned chip does not take its sort from the editor's defaults")
+    assert(not pin:match('sort_priority%s*=%s*{%s*{'),
+        "the pinned chip still carries a literal sort_priority")
+end)
+
+t.test("the sort picker offers Collection order on a collection chip only", function()
+    -- The default only reaches chips made from now on, so a chip that already
+    -- exists needs the key in the picker or the reader cannot ask for it.
+    -- Offered nowhere else: off a collection source every book's
+    -- collection_order is nil, so the row would be a no-op that still costs a
+    -- slot in a grid the file's own comment keeps compact.
+    local BD = package.loaded["ui/widget/buttondialog"]
+    local UI = package.loaded["ui/uimanager"]
+    local captured
+    BD.new   = function(_self, t) captured = t; return t end
+    UI.show  = function() end
+    UI.close = function() end
+    local function offered(kind)
+        captured = nil
+        Editor:_pickSortLevel({ source = { kind = kind }, sort_priority = {} },
+                              1, function() end)
+        local texts = {}
+        for _i, row in ipairs(captured and captured.buttons or {}) do
+            for _j, btn in ipairs(row) do texts[#texts + 1] = btn.text end
+        end
+        return table.concat(texts, " | ")
+    end
+    assert(offered("collection"):find("Collection order", 1, true),
+        "a collection chip cannot pick its own order: " .. offered("collection"))
+    assert(not offered("all"):find("Collection order", 1, true),
+        "Collection order offered on a source that has none")
 end)
 
 t.test("SOURCE_SORT_DEFAULTS.opds is the empty list (fixed feed order, no sort levels)", function()

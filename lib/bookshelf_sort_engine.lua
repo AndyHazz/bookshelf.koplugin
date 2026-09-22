@@ -597,6 +597,24 @@ SortEngine.KEYS = {
                             return cmp(a.page_count or a.total_pages,
                                        b.page_count or b.total_pages)
                         end },
+    -- Book record: a.collection_order (the `order` KOReader stores per item in
+    -- a collection; the repository's collection source copies it onto the
+    -- record). Meaningful only on a collection source -- everywhere else every
+    -- book is missing it, which cmp ties, so the level costs nothing and the
+    -- next one decides.
+    --
+    -- KOReader writes `order` only for a MANUALLY collated collection (see
+    -- ReadCollection:writeCollection); one carrying a collate of its own saves
+    -- nil for every item, and then this key ties across the board by the same
+    -- route. That is the intended behaviour, not a gap: it is what lets the
+    -- default pair this key with a real second level.
+    -- short repeats the label rather than a bare "Order": on its own in a
+    -- catalogue that msgid could be an instruction, a sequence or a purchase,
+    -- and "Name" already meant three different things here once.
+    collection_order = { label = tr("Collection order"), short = tr("Collection order"),
+                        comparator = function(a, b)
+                            return cmp(a.collection_order, b.collection_order)
+                        end },
 }
 
 -- ORDER used to surface keys in the picker UI later. Sorted by perceived

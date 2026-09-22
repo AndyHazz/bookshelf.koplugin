@@ -178,7 +178,16 @@ local SOURCE_SORT_DEFAULTS = {
     folder_flat   = { { key = "author_surname",  reverse = false },
                       { key = "series_name",     reverse = false },
                       { key = "series_index",    reverse = false } },
-    collection    = { { key = "last_opened",     reverse = true  } },
+    -- A collection is the one book source with an order of its own: KOReader
+    -- stores a per-item `order` and files the collection by it. Level two
+    -- carries the collections it stores no order for -- only a manually
+    -- collated one persists it -- where every book ties on level one and the
+    -- shelf comes out as it always did (issue 441).
+    collection    = { { key = "collection_order", reverse = false },
+                      { key = "last_opened",      reverse = true  } },
+    -- NOT collection_order, although a pinned tag chip is also kind
+    -- "collection": the id is a tag name, there is rarely a KOReader
+    -- collection behind it, and a tag has no curated order to preserve.
     tag           = { { key = "last_opened",     reverse = true  } },
     genre         = { { key = "author_surname",  reverse = false },
                       { key = "series_name",     reverse = false },
@@ -286,16 +295,28 @@ local function _kindleOpenableFormats()
     return allowed
 end
 
+-- Editor.sourceSortDefaults(kind) -> a fresh { {key, reverse}, ... }, or nil.
+--
+-- Public because chips are created in more than one place: the collection
+-- manager pins one straight into the tab list without building a draft, and
+-- carrying its own copy of the collection default is how the two drifted.
+-- Always a copy -- the caller stores it on a tab the reader then edits, and a
+-- reference would let a toggled `reverse` rewrite the default for every chip
+-- made afterwards.
+function Editor.sourceSortDefaults(kind)
+    local defaults = kind and SOURCE_SORT_DEFAULTS[kind]
+    if not defaults then return nil end
+    local copy = {}
+    for i, level in ipairs(defaults) do
+        copy[i] = { key = level.key, reverse = level.reverse }
+    end
+    return copy
+end
+
 local function _applySourceDefaults(draft)
     local kind = draft.source and draft.source.kind
-    local defaults = kind and SOURCE_SORT_DEFAULTS[kind]
-    if defaults then
-        -- Deep copy so the SOURCE_SORT_DEFAULTS table isn't mutated when
-        -- the user later toggles a level's reverse via the picker.
-        local copy = {}
-        for i, level in ipairs(defaults) do
-            copy[i] = { key = level.key, reverse = level.reverse }
-        end
+    local copy = Editor.sourceSortDefaults(kind)
+    if copy then
         draft.sort_priority = copy
     end
     -- A new Kindle chip starts with the formats KOReader cannot open filtered
@@ -3146,6 +3167,14 @@ function Editor:_pickSortLevel(draft, level_index, on_close)
               key_btn("book_count") },
             { clear_btn, close_btn },
         }
+        -- A collection is the only book source carrying an order of its own,
+        -- and on one that has it, it is the order the reader arranged by hand
+        -- in KOReader -- so it leads. Added here rather than in the grid
+        -- above so no other source pays a row for a key that would be nil for
+        -- every book on its shelf (issue 441).
+        if kind == "collection" then
+            table.insert(rows, 1, { key_btn("collection_order") })
+        end
     end
 
     local title

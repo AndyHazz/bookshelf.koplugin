@@ -123,6 +123,10 @@ end
 -- in play we fall back to the exact per-book probe (rare: only if a hash
 -- sidecar tree exists or it's the preferred location).
 local _dir_entry_cache = {}
+-- See _sidecarIsOnlyLocation. Declared up here so the invalidation below
+-- reaches it: declared where it is used, it was invisible to this function,
+-- which cleared a global of the same name instead.
+local _only_location
 local function _invalidateCustomMetaGate()
     _dir_entry_cache = {}
     _only_location   = nil
@@ -177,8 +181,8 @@ end
 -- True when the sibling ".sdr" is the ONLY place a custom_metadata.lua could
 -- live, so finding nothing there is a definitive no rather than a reason to go
 -- looking elsewhere. None of it varies per book, so it is resolved once and
--- dropped with the rest of the gate state.
-local _only_location
+-- dropped with the rest of the gate state (_only_location is declared above
+-- _invalidateCustomMetaGate).
 local function _sidecarIsOnlyLocation()
     if _only_location ~= nil then return _only_location end
     local only = true
@@ -1145,6 +1149,11 @@ function Repo.buildBookMeta(filepath, opts)
     -- hardcover); with none set, auto priority Calibre > embedded. The Hardcover
     -- override (when chosen, or auto + sync) is applied later by enrichBook.
     local genres, genre_sources = genreData(filepath, cb, info, cp)
+    -- Calibre's series name, for rebuilding the raw "Name #n" string below.
+    -- It was read there without ever being defined in this function (the
+    -- light-meta builder has its own), so a Calibre-only series never got one.
+    local cb_series = cb and type(cb.series) == "string" and cb.series ~= ""
+                      and cb.series or nil
 
     local book = {
         filepath    = filepath,

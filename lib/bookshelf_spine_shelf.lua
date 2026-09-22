@@ -669,6 +669,14 @@ function SpineShelf.bookLook(book)
     return look
 end
 
+-- The whole-chip plan entries, kept between calls (see plan, where the cache
+-- is described). Declared here, above its first user: invalidateBook below is
+-- compiled before plan, and a local declared later is invisible to it -- its
+-- "_plan_cache = nil" cleared a GLOBAL of that name and left the real cache
+-- standing, so a book's changed status could keep its old spine until the next
+-- shelf rebuild.
+local _plan_cache = nil
+
 -- invalidateBook(fp) — one entry point for 'this book's metadata changed':
 -- drops the persisted look/progress, the hydration answers, and every
 -- cached render, so the next plan and paint rebuild it all fresh.
@@ -2886,8 +2894,8 @@ end
 -- rebuild: chip switch, return from a book, theme change) and by
 -- invalidateBook (a book's status or progress moved). It is stored ONLY
 -- from a plan that hydrated nothing: a pass that was still filling in
--- stubs would freeze those stubs for every later page.
-local _plan_cache = nil
+-- stubs would freeze those stubs for every later page. (_plan_cache is
+-- declared above invalidateBook, which has to see it.)
 
 function SpineShelf.dropPlanCache()
     _plan_cache = nil

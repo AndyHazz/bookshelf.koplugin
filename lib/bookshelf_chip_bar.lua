@@ -917,14 +917,6 @@ function ChipBar:_initChips()
     self._chip_dimens = {}
 
     local paper       = Blitbuffer.COLOR_WHITE
-    -- With a wallpaper behind the strip, an inactive chip's white fill reads
-    -- as a card floating over the image; its border already separates it from
-    -- whatever is behind. The ACTIVE chip keeps a real fill: its selected look
-    -- is an INVERSION of the frame, so it needs an opaque ground to invert --
-    -- inverting the wallpaper instead would give a negative-photo chip. A chip
-    -- with a custom colour keeps that colour for the same reason.
-    local chip_paper = paper
-    if self.has_wallpaper then chip_paper = nil end
     local LineWidget  = require("ui/widget/linewidget")
     local separator_w = Size.border.thin
 
@@ -1332,7 +1324,7 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
                 w       = w,
                 h       = self.height,
                 fill    = has_custom and fill_c
-                          or ((is_active and not is_cursor) and paper or chip_paper),
+                          or ((is_active and not is_cursor) and paper or nil),
                 invert  = is_active and not is_cursor and not has_custom,
                 border  = has_custom and Blitbuffer.COLOR_BLACK or _stripInk(),
                 -- Top and bottom always touch the strip's edge; left only for
@@ -1371,10 +1363,19 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
                 bordersize = 0,
                 margin     = 0,
                 padding    = 0,
-                -- paper (opaque) for the active chip, which inverts; chip_paper
-                -- (nothing, under a wallpaper) for the rest.
+                -- An inactive chip has no fill: the strip's ground shows
+                -- through, a wallpaper included. The ACTIVE chip keeps a real
+                -- one: its selected look is an INVERSION of the frame, so it
+                -- needs an opaque ground to invert -- inverting the wallpaper
+                -- would give a negative-photo chip. A custom colour is kept
+                -- for the same reason.
+                --
+                -- (a99989f meant inactive chips to stay white off a wallpaper,
+                -- through a local of _initChips; the split into _buildChipRow
+                -- in 95e7496 left it out of scope, so since v5.1.2 they have
+                -- had no fill everywhere, and later work was tuned to that.)
                 background = has_custom and fill_c
-                             or ((is_active and not is_cursor) and paper or chip_paper),
+                             or ((is_active and not is_cursor) and paper or nil),
                 CenterContainer:new{
                     dimen = Geom:new{ w = w, h = self.height },
                     cell_content,

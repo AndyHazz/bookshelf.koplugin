@@ -17936,7 +17936,9 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
         -- ImageViewer. The external cover comes from ImageSource's cache,
         -- so the viewer must NOT free it (image_disposable=false).
         local fp = book.filepath
-        local ext_for_viewer = ext_cover
+        -- The external cover _headerThumbBB loads first. (This read a local
+        -- of that helper, out of scope here, so the tap never found it.)
+        local ext_for_viewer = fresh and fresh.cover_image_path
         local title_for_viewer = book.title or book.filename or ""
         thumb_widget = InputContainer:new{
             dimen = Geom:new{

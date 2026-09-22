@@ -1338,6 +1338,9 @@ end
 -- A wallpaper covers the whole screen. The ground colour is painted first so
 -- an image whose aspect ratio leaves a margin shows the page colour there
 -- rather than whatever the last frame left behind.
+-- The widget class, built on first use (ui/widget/widget is not needed until a
+-- wallpaper is shown). A module local: it used to be a global.
+local Background
 local function backgroundWidget(bb, w, h)
     if not Background then
         local Widget = require("ui/widget/widget")

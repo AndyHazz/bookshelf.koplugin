@@ -943,6 +943,10 @@ function BookshelfWidget:_afterChipEdit()
 end
 
 function BookshelfWidget:_rebuild()
+    -- The night state this tree is baked for, and so no night rebuild is
+    -- pending any more (see _followScreenNight).
+    self._built_night = Screen.night_mode and true or false
+    self._night_rebuild_pending = nil
     self._ground_memo = nil
     pcall(function() require("lib/bookshelf_spine_shelf").dropPlanCache() end)
     -- FIRST, before anything is built. Both the spine renderer and the list
@@ -10328,6 +10332,9 @@ end
 -- key flipped to match, the rebuild's M.bg call is a cache HIT, so the old
 -- buffer is never freed while its widget is still in the live tree.
 local function _scheduleNightModeRebuild(self, target_night)
+    -- A night rebuild is coming: the paint-time check (_followScreenNight)
+    -- must not schedule a second one for the same change.
+    self._night_rebuild_pending = true
     pcall(function()
         local Wallpaper = require("lib/bookshelf_wallpaper")
         if Wallpaper.flipNight then Wallpaper.flipNight(target_night) end
@@ -10342,6 +10349,32 @@ local function _scheduleNightModeRebuild(self, target_night)
         end
     end)
 end
+-- _followScreenNight() -- run the night rebuild when the SCREEN's night state
+-- has moved since this tree was built, however it moved.
+--
+-- The events are not the only way night mode changes. ZenOS's quick-settings
+-- Night button (modules/menu/patches/quick_settings.lua) does what
+-- DeviceListener's handler does -- flip the screen, UIManager:ToggleNightMode,
+-- save the setting, a full refresh -- and broadcasts nothing, so neither
+-- handler above ran and the wallpaper cache was never flipped: replayed
+-- verbatim on the desktop rig, the panel came out right (its colours already
+-- follow the screen) and the wallpaper as a NEGATIVE of itself -- the "half
+-- half" of issue 426.
+--
+-- Called from paintTo, which is the collate_mixed idiom there: a change that
+-- arrives with no event still ends in a paint, and the check is two boolean
+-- reads. It schedules the SAME rebuild the events do, which flips the
+-- wallpaper at once, so the frame being painted already has the right one.
+-- Once per change: the event path marks its own rebuild pending, and so does
+-- this, and every _rebuild settles the flag. Before the first rebuild there is
+-- nothing to compare with.
+function BookshelfWidget:_followScreenNight()
+    local now = Screen.night_mode and true or false
+    if self._built_night == nil or self._built_night == now then return end
+    if self._night_rebuild_pending then return end
+    _scheduleNightModeRebuild(self, now)
+end
+
 -- The two events differ in what they promise, so they work the target out
 -- differently. ToggleNightMode always changes state, and this runs BEFORE
 -- DeviceListener flips the screen (measured: the shelf is a window above the
@@ -11572,6 +11605,10 @@ function BookshelfWidget:paintTo(bb, x, y)
             end)
         end
     end
+    -- Night mode can change with no event too (ZenOS's Night button): see
+    -- _followScreenNight. Before the paint, so this frame gets the flipped
+    -- wallpaper.
+    self:_followScreenNight()
     -- Diag: one-shot first-paint marker for cold-start traces. The init
     -- log fires at end of :init() (well before the paint actually
     -- happens), and the Bookshelf:show TOTAL fires before UIManager has

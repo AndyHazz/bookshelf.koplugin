@@ -11299,6 +11299,23 @@ function BookshelfWidget:_rebuildRefreshBelowHero()
     local before = heroBottom(hero_dimen, prev_dims)
     self:_rebuild()
     local after  = heroBottom(nil, self._hero_dims)
+    -- THE HERO MOVED: refresh the whole shelf. This band exists so that an
+    -- UNCHANGED hero is not repainted -- it flashes on panels with hardware
+    -- dithering (#124) -- and a hero whose height changed is not unchanged.
+    -- It has been laid out again at the new height: a smaller or larger
+    -- cover, its text reflowed. Refreshing only below it left the panel
+    -- showing the OLD hero, cut off by the shelf menu drawn across it: issue
+    -- 423, still open after the shallower-bottom fix below, and reproduced
+    -- exactly with a panel mirror on the desktop rig -- the reporter's
+    -- config, Home (folders)2 -> Home, the hero 584 -> 530, 165,172 pixels
+    -- never refreshed, on every switch. Either direction: the rig's round
+    -- trip hid the growing case only because the panel still held the tall
+    -- hero from the switch before. When the height holds, which is nearly
+    -- every switch, nothing here changes.
+    if before and after and before ~= after then
+        UIManager:setDirty(self, "ui")
+        return
+    end
     -- The SHALLOWER of the two. The band used to start below the hero as it
     -- was BEFORE the rebuild, on the reasoning that a chip switch leaves the
     -- hero alone -- and it does, until the two chips disagree about the label
@@ -11312,7 +11329,9 @@ function BookshelfWidget:_rebuildRefreshBelowHero()
     --
     -- Taking the smaller covers it whichever way the hero moved, and when it
     -- did not move at all -- every other chip switch -- the two are equal and
-    -- the band is exactly what it always was.
+    -- the band is exactly what it always was. (A hero that moved no longer
+    -- reaches here: see THE HERO MOVED above. This pick still decides the band
+    -- when only one of the two could be measured.)
     local below_y = before
     if after and (not below_y or after < below_y) then below_y = after end
     -- The hero cover's drop shadow fills the bottom SHADOW_OFFSET strip of the

@@ -92,4 +92,62 @@ t.test("the shadow nudge still applies, and only to a real band", function()
         "with no band to compute, it must still refresh everything")
 end)
 
+-- ── The hero MOVED: it is not the unchanged picture the band leaves alone ─
+--
+-- Still open after the shallower-bottom fix above shipped in v5.1.2: the
+-- reporter re-tested and it "gets cut". Reproduced with an exact panel mirror
+-- on the desktop rig (every refresh copies its rectangle into a second buffer,
+-- so the buffer is what the screen shows): the reporter's own config, a
+-- folders-only library, Home (folders)2 -> Home left 165,172 stale pixels in
+-- (44,44)-(1182,530), on every switch, with the refresh sent as
+-- 0,530+1236x1118. The hero had shrunk 584 -> 530 and been LAID OUT AGAIN at
+-- the new height -- smaller cover, text reflowed -- and nothing refreshed it:
+-- the panel kept the old, taller hero, cut off by the shelf menu drawn over it.
+--
+-- The band exists so an UNCHANGED hero is not repainted (it flashes on panels
+-- with hardware dithering, #124). A hero whose height changed is not
+-- unchanged, whichever way it moved, so it gets a full refresh. When the
+-- height holds -- nearly every switch -- the band is exactly what it was.
+
+local function run(before_bottom, after_hero_h)
+    local calls = {}
+    local env = {
+        UIManager = { setDirty = function(_self, _w, how) calls[#calls + 1] = how end },
+        Screen    = { scaleBySize = function(_s, n) return n end },
+        Geom      = { new = function(_g, o) return o end },
+    }
+    local fn = assert(load("return function(self)\n" .. body .. "\nend",
+        "_rebuildRefreshBelowHero", "t", env))()
+    local w = {
+        width = 1236, height = 1648,
+        _hero_parent = { { dimen = { y = 44, h = before_bottom - 44 } } },
+        _hero_dims   = { PAD = 44, hero_h = before_bottom - 44 },
+    }
+    function w:_rebuild() self._hero_dims = { PAD = 44, hero_h = after_hero_h } end
+    fn(w)
+    return calls
+end
+
+t.test("a hero that SHRANK is refreshed whole, not left above the band", function()
+    local calls = run(584, 530 - 44)          -- the rig's numbers
+    eq(#calls, 1)
+    eq(calls[1], "ui", "only a band below the new hero was refreshed; the re-laid hero kept its old picture")
+end)
+
+t.test("a hero that GREW is refreshed whole too", function()
+    -- Just as re-laid; the rig's round trip hid it only because the panel
+    -- was still showing the tall hero from the switch before.
+    local calls = run(530, 584 - 44)
+    eq(calls[1], "ui", "the grown hero was left to the band")
+end)
+
+t.test("a hero that did not move still gets only the band (#124)", function()
+    local calls = run(584, 584 - 44)
+    eq(#calls, 1)
+    eq(type(calls[1]), "function", "an unchanged hero was repainted, which flashes on HW-dithered panels")
+    local how, region = calls[1]()
+    eq(how, "ui")
+    eq(region.y, 584 + 4, "the band no longer starts just below the unchanged hero")
+end)
+
 t.done()

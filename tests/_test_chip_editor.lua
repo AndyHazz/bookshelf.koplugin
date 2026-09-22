@@ -275,9 +275,13 @@ local function pickerFor(source, order_stub)
     UI.close = function() calls.closed = calls.closed + 1 end
     package.loaded["lib/bookshelf_collection_order"] = order_stub or {
         exists  = function(name) return name == "discworld" end,
-        arrange = function(name) calls.arranged = name; return true end,
+        arrange = function(name, on_saved)
+            calls.arranged = name; calls.on_saved = on_saved; return true
+        end,
     }
-    Editor:_pickSortLevel({ source = source, sort_priority = {} }, 1, function() end)
+    calls.on_arranged = function() calls.arranged_fired = true end
+    Editor:_pickSortLevel({ source = source, sort_priority = {} }, 1,
+                          function() end, calls.on_arranged)
     return captured, calls
 end
 
@@ -292,6 +296,48 @@ t.test("a collection chip can arrange its collection from beside the key", funct
     eq(calls.arranged, "discworld", "the button did not open that collection")
     eq(calls.closed, 0,
         "opening the arrange window closed the picker the reader comes back to")
+end)
+
+t.test("a confirmed arrangement is reported back to the editor", function()
+    -- The arrangement is written to KOReader at once, not held in the draft,
+    -- so the editor has to hear about it to repaint the shelf -- Cancel
+    -- included, because backing out of the editor does not undo it.
+    local d, calls = pickerFor({ kind = "collection", id = "discworld" })
+    d.buttons[1][2].callback()
+    assert(calls.on_saved, "the picker gave the arrange window nothing to call")
+    calls.on_saved()
+    eq(calls.arranged_fired, true, "the editor was never told the order changed")
+end)
+
+-- The editor's close paths. editTab is a large UI function with no standalone
+-- harness, so these are pinned in its source: the three that mean Cancel (the
+-- Cancel button, the title bar X, a tap outside) and Save.
+local editor_src = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
+
+t.test("no close path repaints only on a visual change any more", function()
+    -- The condition every cancel-like path used. It left an arrangement --
+    -- already written to KOReader -- off the screen until something else
+    -- rebuilt the shelf.
+    assert(not editor_src:find("if visual_dirty and opts.on_change then", 1, true),
+        "a close path still ignores a confirmed arrangement")
+end)
+
+t.test("every cancel-like path repaints after an arrangement", function()
+    local n = select(2, editor_src:gsub("if repaintOnCancel%(%) and opts%.on_change then", ""))
+    eq(n, 3, "expected Cancel, the X and tap-outside to share the rule")
+    assert(editor_src:find("return visual_dirty or arranged", 1, true),
+        "the shared rule does not include an arrangement")
+end)
+
+t.test("Save repaints after an arrangement too", function()
+    assert(editor_src:find("if (is_dirty() or arranged) and opts.on_change then", 1, true),
+        "Save can skip the repaint when the only change was the arrangement")
+end)
+
+t.test("all three sort levels hand the picker the arrangement hook", function()
+    local n = select(2, editor_src:gsub(
+        "Editor:_pickSortLevel%(draft, %d, function%(%) applyLivePreview%(true%); rebuild%(%) end, onArranged%)", ""))
+    eq(n, 3, "a sort level opens the picker without the arrangement hook")
 end)
 
 t.test("no edit button when there is no collection behind the chip", function()

@@ -538,12 +538,25 @@ function Editor:editTab(tab_id, opts)
     --   visual_dirty - label / icon changes (chip strip repaints but the
     --                  underlying book lists are unaffected; cache stays
     --                  valid).
-    -- Cancel / Save invalidate the book cache only when data_dirty;
-    -- on_change fires when either flag is set. "Open, close untouched"
-    -- is near-instant (both false).
+    -- Neither Save nor Cancel invalidates the book cache: the per-source
+    -- result cache is keyed on (source, filter, sort_priority), so an edit to
+    -- any of those is a NEW key and misses on its own (see Save's comment).
+    -- This header used to say both invalidated when data_dirty; they never
+    -- did, and trusting it is how an arrangement shipped that only a swipe
+    -- down would show. on_change fires when either flag is set. "Open, close
+    -- untouched" is near-instant (both false).
     local data_dirty   = false
     local visual_dirty = false
     local function is_dirty() return data_dirty or visual_dirty end
+    -- A confirmed arrangement of the collection, from the sort picker's "Edit
+    -- collection order". Not draft state: it is written to KOReader the moment
+    -- it is confirmed (and drops the book cache itself), so backing out of
+    -- this editor does not undo it -- which means every way out, Cancel
+    -- included, has to repaint the shelf to show it. Not part of is_dirty()
+    -- either, because that also gates writing the TAB, which did not change.
+    local arranged = false
+    local function onArranged() arranged = true end
+    local function repaintOnCancel() return visual_dirty or arranged end
 
     -- applyLivePreview(affects_data):
     --   affects_data = false (label / icon): live-preview the change by
@@ -831,19 +844,19 @@ function Editor:editTab(tab_id, opts)
                 {
                     text_func = function() return _sortButtonText(draft, 1) end,
                     callback = function()
-                        Editor:_pickSortLevel(draft, 1, function() applyLivePreview(true); rebuild() end)
+                        Editor:_pickSortLevel(draft, 1, function() applyLivePreview(true); rebuild() end, onArranged)
                     end,
                 },
                 {
                     text_func = function() return _sortButtonText(draft, 2) end,
                     callback = function()
-                        Editor:_pickSortLevel(draft, 2, function() applyLivePreview(true); rebuild() end)
+                        Editor:_pickSortLevel(draft, 2, function() applyLivePreview(true); rebuild() end, onArranged)
                     end,
                 },
                 {
                     text_func = function() return _sortButtonText(draft, 3) end,
                     callback = function()
-                        Editor:_pickSortLevel(draft, 3, function() applyLivePreview(true); rebuild() end)
+                        Editor:_pickSortLevel(draft, 3, function() applyLivePreview(true); rebuild() end, onArranged)
                     end,
                 },
             }
@@ -1056,7 +1069,7 @@ function Editor:editTab(tab_id, opts)
                         local _t1 = _gettime()
                         UIManager:close(dialog)
                         local _t2 = _gettime()
-                        if visual_dirty and opts.on_change then opts.on_change() end
+                        if repaintOnCancel() and opts.on_change then opts.on_change() end
                         local _t3 = _gettime()
                         logger.dbg(string.format(
                             "[bookshelf perf] editor-cancel: data_dirty=%s visual_dirty=%s clearOverride=%.0fms close=%.0fms on_change=%.0fms TOTAL=%.0fms",
@@ -1105,7 +1118,7 @@ function Editor:editTab(tab_id, opts)
                         local _t3 = _gettime()
                         UIManager:close(dialog)
                         local _t4 = _gettime()
-                        if is_dirty() and opts.on_change then opts.on_change() end
+                        if (is_dirty() or arranged) and opts.on_change then opts.on_change() end
                         local _t5 = _gettime()
                         logger.dbg(string.format(
                             "[bookshelf perf] editor-save: data_dirty=%s visual_dirty=%s clearOverride=%.0fms TabModel.save=%.0fms invalidate=%.0fms close=%.0fms on_change=%.0fms TOTAL=%.0fms",
@@ -1222,7 +1235,7 @@ function Editor:editTab(tab_id, opts)
                 cancelPreview()
                 TabModel.clearOverride()
                 UIManager:close(dialog)
-                if visual_dirty and opts.on_change then opts.on_change() end
+                if repaintOnCancel() and opts.on_change then opts.on_change() end
             end,
         }
 
@@ -1284,7 +1297,7 @@ function Editor:editTab(tab_id, opts)
             -- Tap-outside-close == Cancel.
             TabModel.clearOverride()
             UIManager:close(self_d)
-            if visual_dirty and opts.on_change then opts.on_change() end
+            if repaintOnCancel() and opts.on_change then opts.on_change() end
         end
         return true
     end
@@ -3073,7 +3086,7 @@ end
 -- toggles its reverse flag. Tapping "(none)" clears the slot.
 -- level_index is 1 or 2 (Sort 1 / Sort 2); L3+ is preserved in the data
 -- array but not exposed in the main editor dialog.
-function Editor:_pickSortLevel(draft, level_index, on_close)
+function Editor:_pickSortLevel(draft, level_index, on_close, on_arranged)
     local current = draft.sort_priority and draft.sort_priority[level_index]
     local d
     local kind = draft.source and draft.source.kind
@@ -3181,16 +3194,18 @@ function Editor:_pickSortLevel(draft, level_index, on_close)
             --
             -- Opened over this picker rather than instead of it, so confirming
             -- or backing out of the arrange window lands the reader here, by
-            -- the key. No shelf refresh is wired up for it: whatever closes
-            -- this picker runs applyLivePreview(true), which marks the draft
-            -- data-dirty, and Save and Cancel both invalidate the book cache
-            -- when it is -- so the new order is what the shelf fetches next.
+            -- the key. A confirm drops the book cache (CollectionOrder.save)
+            -- and calls on_arranged, which tells editTab to repaint the shelf
+            -- on the way out -- Cancel included, since the arrangement is
+            -- already written. An earlier version of this comment claimed the
+            -- editor invalidated the cache on close; it does not, and the
+            -- shelf kept the old order until a swipe down.
             local CollectionOrder = require("lib/bookshelf_collection_order")
             local coll_id = draft.source and draft.source.id
             if CollectionOrder.exists(coll_id) then
                 row[2] = {
                     text     = _("Edit collection order"),
-                    callback = function() CollectionOrder.arrange(coll_id) end,
+                    callback = function() CollectionOrder.arrange(coll_id, on_arranged) end,
                 }
             end
             table.insert(rows, 1, row)

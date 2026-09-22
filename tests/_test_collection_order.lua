@@ -66,6 +66,15 @@ package.loaded["ui/widget/sortwidget"] = {
     new = function(_self, o) o.is_sort_widget = true; return o end,
 }
 
+-- The repository's per-shelf result cache is keyed on (source, filter, sort),
+-- and arranging a collection changes none of the three -- so without a drop,
+-- the shelf's next render was served the old order from that cache. The
+-- maintainer had to swipe down to see the arrangement.
+local invalidated
+package.loaded["lib/bookshelf_book_repository"] = {
+    invalidateBookCache = function(reason) invalidated = reason or true end,
+}
+
 local Order = dofile("lib/bookshelf_collection_order.lua")
 
 local function texts(items)
@@ -174,6 +183,20 @@ t.test("a book added while the window was open goes after the arranged ones", fu
     eq(rc.coll.discworld["/b/04 Mort.epub"].order, 4,
         "a latecomer collided with an arranged book's position")
     eq(rc.coll.discworld["/b/03 Equal Rites.epub"].order, 1)
+end)
+
+t.test("saving drops the shelf's cached pages, so the new order is fetched", function()
+    freshCollections()
+    invalidated = nil
+    Order.save("discworld", Order.items("discworld"))
+    assert(invalidated, "the shelf would be served the old order from its cache")
+end)
+
+t.test("closing the window without confirming leaves the cache alone", function()
+    freshCollections()
+    invalidated = nil
+    Order.arrange("discworld")
+    eq(invalidated, nil, "a warm cache was thrown away for an arrangement never made")
 end)
 
 -- ── arrange ───────────────────────────────────────────────────────────────

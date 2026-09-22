@@ -26,8 +26,9 @@
 -- that method, and coll_settings is guarded, since both arrived with the same
 -- collections rework.
 --
--- ReadCollection and the widgets are required inside the functions, so the
--- module loads with nothing but its own file and is testable as it stands.
+-- ReadCollection, the repository and the widgets are required inside the
+-- functions, so the module loads with nothing but its own file and is
+-- testable as it stands.
 
 local _ = require("lib/bookshelf_i18n").gettext
 
@@ -125,6 +126,15 @@ function CollectionOrder.save(name, items)
         settings.collate_reverse = nil
     end
     rc:write({ [name] = true })
+    -- The shelf's per-source result cache is keyed on (source, filter, sort),
+    -- and an arrangement changes none of the three -- so without this the next
+    -- render of the shelf was served the OLD order from that cache, and the
+    -- maintainer had to swipe down to see it. Only the per-shelf results go:
+    -- the walk and the light metadata do not depend on a collection's order.
+    local Repo = require("lib/bookshelf_book_repository")
+    if Repo.invalidateBookCache then
+        Repo.invalidateBookCache("collection arranged: " .. name)
+    end
     return true
 end
 

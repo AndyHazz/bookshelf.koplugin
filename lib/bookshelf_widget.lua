@@ -13785,7 +13785,11 @@ function BookshelfWidget:onBookshelfToggleHero()
     -- Collapse/restore the hero in both modes (in micro mode this hides /
     -- shows the module grid).
     self:_clearDpadFocus()
-    self._expanded = not self._expanded
+    -- Through _setExpanded, not by hand: this is one of the "deliberate
+    -- show/hide-hero actions" the flag's own comment says write the setting,
+    -- and setting the field directly skipped that, the OPDS nav arming, and
+    -- the cursor clamp that keeps a short shelf reachable (issue 369).
+    self:_setExpanded(not self._expanded)
     self:_rebuild()
     UIManager:setDirty(self, "ui")
     return true
@@ -14193,7 +14197,24 @@ function BookshelfWidget:_setExpanded(expanded)
     expanded = expanded and true or false
     local changed = (self._expanded ~= expanded)
     self._expanded = expanded
-    if changed then self:_markOpdsNav() end
+    if changed then
+        self:_markOpdsNav()
+        -- The view size moves with this flag, so the cursor left behind by the
+        -- other state may no longer be a legal page start. Expanding is where
+        -- it bites: the page grows, the last legal start moves DOWN, and a
+        -- cursor past it leaves a short page with the books above it
+        -- unreachable -- six books, a collapsed page of four, an expanded page
+        -- that holds all six, and the reader is stuck looking at books 5 and 6
+        -- with no page to swipe back to (issue 369).
+        --
+        -- A clamp rather than a re-align on purpose: swiping up is meant to
+        -- keep the reader's row where it is, and wherever the cursor is still
+        -- a legal start this does nothing at all. Collapsing shrinks the view,
+        -- which only moves the last legal start UP, so it is a no-op there --
+        -- and the collapse path follows with _setCursorToShow anyway.
+        self:_clampCursor(self._total_items)
+        self:_syncPageFromCursor()
+    end
     BookshelfSettings.save("home_expanded", expanded)
     BookshelfSettings.flush()
 end

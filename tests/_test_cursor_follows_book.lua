@@ -30,7 +30,8 @@ local Shelf = {}
 do
     local src = io.open("lib/bookshelf_widget.lua"):read("a")
     for _i, name in ipairs({ "_setCursorToShow", "_maxCursor", "_clampCursor",
-                             "_syncPageFromCursor" }) do
+                             "_syncPageFromCursor", "_setExpanded",
+                             "onSwipeShelvesUp", "onBookshelfToggleHero" }) do
         local body = src:match("\nfunction BookshelfWidget:" .. name
                                .. "%((.-)%)\n(.-)\nend\n")
         local args, code = src:match("\nfunction BookshelfWidget:" .. name
@@ -114,6 +115,86 @@ t.test("a nil index is a no-op", function()
     s._cursor = 7
     s:_setCursorToShow(nil)
     eq(s._cursor, 7, "a book we could not locate moved the shelf anyway")
+end)
+
+-- ── The other half of #369: EXPANDING ────────────────────────────────────
+--
+-- The reporter's second case, and the one still open after the collapse fix
+-- above shipped. Swiping up deliberately leaves the cursor where it was, so
+-- the row the reader was looking at stays put and the books above it are a
+-- swipe back away. Nothing re-checked that the cursor was still a legal page
+-- start at the BIGGER view size, though. On a short folder it is not: six
+-- books, a collapsed page of four, and the expanded page holds the lot -- so
+-- there is no page to swipe back to, and the two books the collapsed page
+-- ended on were all the reader could reach.
+--
+-- The globals below are what the extracted bodies reference as upvalues in
+-- the real module.
+_G.UIManager          = { setDirty = function() end }
+_G.logger             = { dbg = function() end }
+_G._gettime           = function() return 0 end
+_G.BookshelfSettings  = { saved = {},
+                          save  = function(k, v) _G.BookshelfSettings.saved[k] = v end,
+                          flush = function() end }
+
+-- A shelf about to expand: _viewSize answers the size for the CURRENT state,
+-- the way the real one does, so the swipe sees the new size the moment the
+-- flag flips.
+local function expanding(collapsed_view, expanded_view, total_items, cursor)
+    local s = {
+        _expanded    = false,
+        _cursor      = cursor,
+        _total_items = total_items,
+        _total_pages = math.max(1, math.ceil(total_items / collapsed_view)),
+        _isSpineMode = function() return false end,
+        _viewSize    = function(self_)
+            return self_._expanded and expanded_view or collapsed_view
+        end,
+        _markOpdsNav    = function() end,
+        _clearDpadFocus = function() end,
+        _rebuild        = function(self_) self_._rebuilt = true end,
+    }
+    for k, fn in pairs(Shelf) do s[k] = fn end
+    return s
+end
+
+t.test("expanding a short folder does not strand the books above the cursor", function()
+    -- Six books, collapsed pages of four, so page 2 starts at book 5. The
+    -- expanded page holds eight: book 5 is no longer a legal page start.
+    local s = expanding(4, 8, 6, 5)
+    s:onSwipeShelvesUp()
+    eq(s._cursor, 1, "books 1-4 are unreachable on the expanded shelf")
+end)
+
+t.test("expanding a long shelf still leaves the top row on the top row", function()
+    -- Why this is a clamp and not a re-alignment: the maintainer's ruling is
+    -- that swiping up keeps the reader's row. 100 books, collapsed page of
+    -- four at book 9, expanded page of twelve. Book 9 is a legal start -- 91
+    -- books sit below it -- so nothing moves.
+    local s = expanding(4, 12, 100, 9)
+    s:onSwipeShelvesUp()
+    eq(s._cursor, 9, "the expanded shelf jumped away from the reader's row")
+end)
+
+t.test("expanding when already expanded is still a no-op", function()
+    local s = expanding(4, 8, 6, 5)
+    s._expanded = true
+    eq(s:onSwipeShelvesUp(), false, "a second swipe up rebuilt the shelf")
+    assert(not s._rebuilt, "a second swipe up rebuilt the shelf")
+end)
+
+t.test("the toggle-hero action expands the same way a swipe does", function()
+    -- onBookshelfToggleHero is the Dispatcher-bound "show/hide hero". It set
+    -- the flag by hand, so it skipped everything _setExpanded does: the
+    -- stranding clamp, the OPDS nav arming, and saving the state the file's
+    -- own comment says only deliberate show/hide-hero actions write.
+    _G.BookshelfSettings.saved = {}
+    local s = expanding(4, 8, 6, 5)
+    s:onBookshelfToggleHero()
+    assert(s._expanded == true, "the action did not expand")
+    eq(s._cursor, 1, "the action stranded the books above the cursor")
+    eq(_G.BookshelfSettings.saved.home_expanded, true,
+        "the action did not persist the state it changed")
 end)
 
 t.done()

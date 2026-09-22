@@ -5754,6 +5754,10 @@ local function _buildGroups(group_kind, key_fn, multi, records)
                                 title        = book.title,
                                 series_name  = book.series_name,
                                 series_index = tonumber(book.series_num),
+                                -- The number as written, for the spine's
+                                -- foot (issue 444: members of an author
+                                -- group showed no number).
+                                series_num   = book.series_num,
                                 author       = book.author,
                                 authors      = book.authors,
                                 genres       = book.genres,
@@ -5827,6 +5831,7 @@ local function _cacheGroupShapes(list, kind)
                 title        = b.title,
                 series_name  = b.series_name,
                 series_index = b.series_index,
+                series_num   = b.series_num,
                 author       = b.author,
                 authors      = b.authors,
                 genres       = b.genres,
@@ -6641,6 +6646,7 @@ local function _buildRatingGroups()
                 title        = book.title,
                 series_name  = book.series_name,
                 series_index = tonumber(book.series_num),
+                series_num   = book.series_num,
                 author       = book.author,
                 authors      = book.authors,
                 genres       = book.genres,

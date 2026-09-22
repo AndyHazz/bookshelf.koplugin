@@ -61,29 +61,40 @@ t.test("a series with no index answers no rather than erroring", function()
     eq(isFirst(nil), false)
 end)
 
-t.test("the plan asks it only where the book stands alone", function()
-    local line = src:match("(or %(face_spec%.first and.-\n[^\n]-isFirstInSeries[^\n]+)")
-    assert(line, "the plan never consults it")
-    assert(line:find("f.first_of_group == true", 1, true),
-        "the run-head rule must still come first, or grouped shelves change")
-    assert(line:find("not f.in_group", 1, true),
-        "inside a run the head answers; asking both would face out two books "
-        .. "in the same run")
+-- ── the marking, driven for real ──────────────────────────────────────────
+local function marker(unread)
+    local mbody = src:match("\nfunction SpineShelf%.markSeriesHeads%(f, src, st%)\n(.-)\nend\n")
+    assert(mbody, "markSeriesHeads moved or was renamed")
+    local SS = { isFirstInSeries = isFirst,
+                 isUnread = function(s) return unread[s.id] == true end }
+    local mark = assert(load("return function(f, src, st)\n" .. mbody .. "\nend", "mark", "t",
+        { SpineShelf = SS, type = type, tostring = tostring }))()
+    local st = { run_has_series = {}, run_next = {}, series_first = {}, series_next = {} }
+    return function(f, s) mark(f, s, st) end, st
+end
+
+local function run(mark, rows, field)
+    for _i = 1, #rows do mark(rows[_i][1], rows[_i][2]) end
+    local out = {}
+    for _i = 1, #rows do
+        if rows[_i][1][field] then out[#out + 1] = rows[_i][2].id end
+    end
+    return table.concat(out, ",")
+end
+
+t.test("on a plain shelf, first in series is book one of it", function()
+    local mark = marker({})
+    eq(run(mark, {
+        { {}, { id = "a2", series_name = "A", series_num = "2" } },
+        { {}, { id = "a1", series_name = "A", series_num = "1" } },
+        { {}, { id = "c1" } },
+    }, "series_first"), "a1")
 end)
 
 -- ── first unread in series ────────────────────────────────────────────────
 t.test("the first unread of a series faces out when nothing is grouped", function()
-    local block = src:match("(local sname = src%.series_name.-\n        end)")
-    assert(block, "the series first-unread marking moved or was renamed")
-    local unread = { a2 = true, a3 = true, b1 = true, b2 = true, c1 = true }
-    local env = {
-        first_unread_series = {},
-        type = type,
-        SpineShelf = { isUnread = function(s) return unread[s.id] == true end },
-    }
-    local mark = assert(load("return function(f, src)\n" .. block .. "\nend",
-                             "mark", "t", env))()
-    local rows = {
+    local mark = marker({ a2 = true, a3 = true, b1 = true, b2 = true, c1 = true })
+    eq(run(mark, {
         -- Series A, loose on a plain shelf: 1 is read, so 2 is next.
         { {}, { id = "a1", series_name = "A" } },
         { {}, { id = "a2", series_name = "A" } },
@@ -93,52 +104,98 @@ t.test("the first unread of a series faces out when nothing is grouped", functio
         { {}, { id = "b2", series_name = "B" } },
         -- No series: the plain "Unread" reason covers these, not this one.
         { {}, { id = "c1" } },
-    }
-    for _i = 1, #rows do mark(rows[_i][1], rows[_i][2]) end
-    local out = {}
-    for _i = 1, #rows do
-        if rows[_i][1].first_unread_in_series then out[#out + 1] = rows[_i][2].id end
-    end
-    eq(table.concat(out, ","), "a2,b1",
-       "expected the next unread of each series and nothing else")
-end)
-
-t.test("a book inside a run is left to the run rule", function()
-    local block = src:match("(local sname = src%.series_name.-\n        end)")
-    local env = {
-        first_unread_series = {},
-        type = type,
-        SpineShelf = { isUnread = function() return true end },
-    }
-    local mark = assert(load("return function(f, src)\n" .. block .. "\nend",
-                             "mark", "t", env))()
-    local f = { in_group = true, run_idx = 1 }
-    mark(f, { id = "x", series_name = "A" })
-    eq(f.first_unread_in_series, nil,
-       "a grouped shelf would face out the run head AND this one")
+    }, "series_next"), "a2,b1", "expected the next unread of each series and nothing else")
 end)
 
 t.test("a finished series faces nothing out", function()
-    local block = src:match("(local sname = src%.series_name.-\n        end)")
-    local env = {
-        first_unread_series = {},
-        type = type,
-        SpineShelf = { isUnread = function() return false end },
-    }
-    local mark = assert(load("return function(f, src)\n" .. block .. "\nend",
-                             "mark", "t", env))()
+    local mark = marker({})
     local f = {}
     mark(f, { id = "x", series_name = "A" })
-    eq(f.first_unread_in_series, nil, "nothing left to read, nothing to show")
+    eq(f.series_next, nil, "nothing left to read, nothing to show")
 end)
 
-t.test("the plan reads the series mark alongside the run one", function()
-    local line = src:match("(or %(face_spec%.first_unread and.-\n[^\n]+)")
-    assert(line, "the plan never consults it")
-    assert(line:find("f.first_unread_of_group == true", 1, true),
-        "the run rule went missing")
-    assert(line:find("f.first_unread_in_series == true", 1, true),
-        "the series rule is set but never read")
+-- ── issue 444: an author shelf ────────────────────────────────────────────
+-- An author group is ONE run. Both reasons used to be answered by the run, so
+-- each author got a single cover whatever series their books were in.
+local function authorShelf()
+    -- Sorted author > series > title, as the reporter had it. Run 1 is one
+    -- author with two series and a standalone.
+    return {
+        { { in_group = true, run_idx = 1, first_of_group = true }, { id = "x0", series_name = "X", series_num = "0.5" } },
+        { { in_group = true, run_idx = 1 }, { id = "x1", series_name = "X", series_num = "1" } },
+        { { in_group = true, run_idx = 1 }, { id = "x2", series_name = "X", series_num = "2" } },
+        { { in_group = true, run_idx = 1 }, { id = "y1", series_name = "Y", series_num = "1" } },
+        { { in_group = true, run_idx = 1 }, { id = "y2", series_name = "Y", series_num = "2" } },
+        { { in_group = true, run_idx = 1 }, { id = "s" } },
+    }
+end
+
+local function hasSeries(st, rows)
+    for _i = 1, #rows do
+        if rows[_i][2].series_name then st.run_has_series[rows[_i][1].run_idx] = true end
+    end
+end
+
+t.test("every series under an author gets its first book faced out", function()
+    local mark, st = marker({})
+    local rows = authorShelf(); hasSeries(st, rows)
+    eq(run(mark, rows, "series_first"), "x0,y1",
+       "the first of each series shown, a 0.5 prequel included; not just the author's first")
+end)
+
+t.test("...and its next unread one", function()
+    local mark, st = marker({ x1 = true, x2 = true, y1 = true, y2 = true, s = true })
+    local rows = authorShelf(); hasSeries(st, rows)
+    eq(run(mark, rows, "series_next"), "x1,y1",
+       "one cover per series, and the standalone is not a series")
+end)
+
+t.test("a series two authors share is answered under each", function()
+    local mark, st = marker({ a = true, b = true })
+    local rows = {
+        { { in_group = true, run_idx = 1 }, { id = "a", series_name = "Shared" } },
+        { { in_group = true, run_idx = 2 }, { id = "b", series_name = "Shared" } },
+    }
+    hasSeries(st, rows)
+    eq(run(mark, rows, "series_next"), "a,b")
+end)
+
+t.test("a series shelf is unchanged: each run is its series", function()
+    local mark, st = marker({ a2 = true, b1 = true })
+    local rows = {
+        { { in_group = true, run_idx = 1, first_of_group = true }, { id = "a1", series_name = "A" } },
+        { { in_group = true, run_idx = 1 }, { id = "a2", series_name = "A" } },
+        { { in_group = true, run_idx = 2, first_of_group = true }, { id = "b1", series_name = "B" } },
+    }
+    hasSeries(st, rows)
+    eq(run(mark, rows, "series_first"), "a1,b1")
+end)
+
+t.test("the plan fills run_has_series before the walk", function()
+    assert(src:find("has_series[f.run_idx] = true", 1, true),
+        "without it every author run is read as a folder section")
+    local walk = src:find("SpineShelf.markSeriesHeads(f, src, series_state)", 1, true)
+    local fill = src:find("has_series[f.run_idx] = true", 1, true)
+    assert(walk and fill < walk, "filled after the books it describes were marked")
+end)
+
+t.test("group members carry the series number as written (issue 444)", function()
+    -- Author, genre and rating groups built their member records with only
+    -- series_index. The spine's foot and isFirstInSeries read series_num, so
+    -- every book on an author shelf lost its number.
+    local repo = io.open("lib/bookshelf_book_repository.lua"):read("*a")
+    local n = 0
+    for rec in repo:gmatch("series_index = tonumber%(book%.series_num%),(.-)\n") do
+        n = n + 1
+    end
+    local built = 0
+    for _ in repo:gmatch("series_index = tonumber%(book%.series_num%),\n[^\n]*\n?[^\n]*\n?[^\n]*\n?%s*series_num   = book%.series_num,") do
+        built = built + 1
+    end
+    assert(n >= 2, "the group member builders moved")
+    eq(built, n, "a group member builder drops the series number")
+    assert(repo:find("series_index = b.series_index,\n                series_num   = b.series_num,", 1, true),
+        "the cached group shape drops it on the way through")
 end)
 
 -- ── the record has to carry the name ──────────────────────────────────────

@@ -52,21 +52,27 @@ t.test("the spec round-trips it, alone and in company", function()
     eq(spec("all").first_unread, nil, "All is its own answer")
 end)
 
+-- The marking, driven for real. markSeriesHeads answers both series reasons;
+-- these cases are the ones it inherited from the run rule it replaced.
+local function marker(unread)
+    local body = src:match("\nfunction SpineShelf%.markSeriesHeads%(f, src, st%)\n(.-)\nend\n")
+    assert(body, "markSeriesHeads moved or was renamed")
+    local ifs = src:match("\nfunction SpineShelf%.isFirstInSeries%(src%)\n(.-)\nend\n")
+    local SS = { isUnread = function(s) return unread[s.id] == true end }
+    SS.isFirstInSeries = assert(load("return function(src)\n" .. ifs .. "\nend", "ifs", "t",
+        { type = type, tonumber = tonumber }))()
+    local mark = assert(load("return function(f, src, st)\n" .. body .. "\nend", "mark", "t",
+        { SpineShelf = SS, type = type, tostring = tostring }))()
+    local st = { run_has_series = {}, run_next = {}, series_first = {}, series_next = {} }
+    return function(f, s) mark(f, s, st) end, st
+end
+
 t.test("only the first unread of a run faces out, and only inside a run", function()
-    -- The marking, lifted out of the plan loop and driven directly. `f` is a
-    -- flattened entry; the loop is what supplies run_idx and in_group.
-    local block = src:match("(if f%.in_group and not first_unread_seen.-\n        end)")
-    assert(block, "the first-unread marking moved or was renamed")
-    local seen = {}
-    local unread = { ["a2"] = true, ["a3"] = true, ["b1"] = true, ["c1"] = true }
-    local env = {
-        first_unread_seen = seen,
-        SpineShelf = { isUnread = function(s) return unread[s.id] == true end },
-    }
-    local mark = assert(load(
-        "return function(f, src)\n" .. block .. "\nend", "mark", "t", env))()
-    -- Series A: book 1 finished, 2 and 3 unread -> only 2 faces out.
+    -- Runs with no series names (folder sections of loose files): the run
+    -- stands for the series.
+    local mark = marker({ a2 = true, a3 = true, b1 = true, c1 = true })
     local rows = {
+        -- Series A: book 1 finished, 2 and 3 unread -> only 2 faces out.
         { { in_group = true,  run_idx = 1 }, { id = "a1" } },
         { { in_group = true,  run_idx = 1 }, { id = "a2" } },
         { { in_group = true,  run_idx = 1 }, { id = "a3" } },
@@ -79,34 +85,40 @@ t.test("only the first unread of a run faces out, and only inside a run", functi
     for _i = 1, #rows do mark(rows[_i][1], rows[_i][2]) end
     local out = {}
     for _i = 1, #rows do
-        if rows[_i][1].first_unread_of_group then out[#out + 1] = rows[_i][2].id end
+        if rows[_i][1].series_next then out[#out + 1] = rows[_i][2].id end
     end
     eq(table.concat(out, ","), "a2,b1",
        "expected the next unread of each series and nothing else")
 end)
 
 t.test("a fully-read series faces nothing out", function()
-    local block = src:match("(if f%.in_group and not first_unread_seen.-\n        end)")
-    local env = {
-        first_unread_seen = {},
-        SpineShelf = { isUnread = function() return false end },
-    }
-    local mark = assert(load(
-        "return function(f, src)\n" .. block .. "\nend", "mark", "t", env))()
+    local mark = marker({})
     local f = { in_group = true, run_idx = 1 }
     mark(f, { id = "x" })
-    eq(f.first_unread_of_group, nil,
+    eq(f.series_next, nil,
        "a series the reader has finished should show no cover at all")
 end)
 
-t.test("the plan reads the mark, and does not confuse it with first-in-series", function()
+t.test("a mark earned last time does not outlive the book being finished", function()
+    -- The flattened entries can be planned again; the old marks were only
+    -- ever SET, so a finished book kept its cover until something rebuilt
+    -- the entry.
+    local mark = marker({})
+    local f = { in_group = true, run_idx = 1, series_next = true }
+    mark(f, { id = "x" })
+    eq(f.series_next, nil)
+end)
+
+t.test("the plan reads the marks, and does not confuse the two reasons", function()
     local line = src:match("(or %(face_spec%.first_unread[^\n]+)")
     assert(line, "the plan never consults the new reason")
-    assert(line:find("f.first_unread_of_group == true", 1, true),
+    assert(line:find("f.series_next == true", 1, true),
         "it reads something other than the mark the loop sets")
     local plain = src:match("(or %(face_spec%.first and[^\n]+)")
-    assert(plain and plain:find("f.first_of_group == true", 1, true),
-        "the original first-in-series reason changed meaning")
+    assert(plain and plain:find("f.series_first == true", 1, true),
+        "the first-in-series reason reads something else")
+    assert(src:find("SpineShelf.markSeriesHeads(f, src, series_state)", 1, true),
+        "the plan loop no longer marks the series heads")
 end)
 
 t.test("the picker groups the reasons the way a reader thinks", function()

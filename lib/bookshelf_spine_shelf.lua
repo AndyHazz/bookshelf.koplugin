@@ -1045,6 +1045,63 @@ function SpineShelf.isFirstInSeries(src)
     return tonumber(src.series_num) == 1
 end
 
+-- markSeriesHeads(f, src, st) -- answers both series reasons for one book.
+--
+-- Sets f.series_first ("First in series") and f.series_next ("First unread in
+-- series") on the flattened entry, true or nil. Called in shelf order, so
+-- "first" means first to come up; st carries what earlier books claimed.
+--
+-- Three shelves, three answers:
+--
+--  * A book on its own (a plain shelf, where every book is its own run): its
+--    own series answers. First is book ONE of it (isFirstInSeries); next is
+--    the first unread of that series to come up (issue 425).
+--  * A book in a run whose members carry a series: again its SERIES answers,
+--    within that run. An author shelf is one run per author, and each of the
+--    author's series gets its own first and next (issue 444: it used to be
+--    one of each per author, whatever series they were in). A series shelf is
+--    unchanged by this, since there each run IS a series. Books in such a run
+--    with no series of their own are not a series, and stay spines.
+--  * A run with no series names at all (a folder section of loose files):
+--    the run stands for the series, as before. Its head is first; its first
+--    unread is next.
+--
+-- Every mark is written, true or nil, so an entry planned again after a book
+-- is finished does not keep the mark it earned last time.
+--
+-- st = { run_has_series = {}, run_next = {}, series_first = {}, series_next = {} }
+function SpineShelf.markSeriesHeads(f, src, st)
+    local sname = src and src.series_name
+    if type(sname) ~= "string" or sname == "" then sname = nil end
+    local unread = SpineShelf.isUnread(src)
+    local first, nxt = false, false
+    if f.in_group and not st.run_has_series[f.run_idx] then
+        first = f.first_of_group == true
+        if unread and not st.run_next[f.run_idx] then
+            st.run_next[f.run_idx] = true
+            nxt = true
+        end
+    elseif sname then
+        -- Keyed by run as well inside one, so a series two authors share is
+        -- answered under each of them.
+        local key = f.in_group and (tostring(f.run_idx) .. "\0" .. sname) or sname
+        if f.in_group then
+            if not st.series_first[key] then
+                st.series_first[key] = true
+                first = true
+            end
+        else
+            first = SpineShelf.isFirstInSeries(src)
+        end
+        if unread and not st.series_next[key] then
+            st.series_next[key] = true
+            nxt = true
+        end
+    end
+    f.series_first = first or nil
+    f.series_next  = nxt or nil
+end
+
 -- recentSet(flat, n) -> { [filepath] = true } for the n most recently ADDED.
 --
 -- Over the shelf's whole item list, not the visible page: a new book should
@@ -2951,12 +3008,11 @@ function SpineShelf.plan(items, opts)
     if face_recent == nil then
         face_recent = SpineShelf.recentSet(flat, face_spec.recent)
     end
-    -- One entry per run: the first member that turns out to be unread.
-    local first_unread_seen = {}
-    -- ...and one per SERIES, for the books a plain shelf leaves standing on
-    -- their own. See the run rule below: same question, asked of the series
-    -- rather than of the run, because a plain shelf has no runs to ask.
-    local first_unread_series = {}
+    -- What the series reasons have claimed so far; see markSeriesHeads.
+    -- run_has_series is filled before the walk, since a run's first member
+    -- need not be the one with a series name.
+    local series_state = { run_has_series = {}, run_next = {},
+                           series_first = {}, series_next = {} }
 
     -- Resume INSIDE an item. A group bigger than a page cannot be paged
     -- through in item units, so a page that starts partway through one is
@@ -2998,10 +3054,16 @@ function SpineShelf.plan(items, opts)
     else
     do
         local fps = {}
+        local has_series = series_state.run_has_series
         for j = 1, #flat do
-            local bk = flat[j] and flat[j].book
+            local f = flat[j]
+            local bk = f and f.book
             local fp = bk and bk.filepath
             if fp then fps[#fps + 1] = fp end
+            local sn = bk and bk.series_name
+            if f and f.in_group and type(sn) == "string" and sn ~= "" then
+                has_series[f.run_idx] = true
+            end
         end
         SpineShelf.prefetchFacts(fps)
     end
@@ -3178,40 +3240,11 @@ function SpineShelf.plan(items, opts)
             -- has genuinely never been opened.
             src._spine_status_checked = true
         end
-        -- THE NEXT ONE TO READ in this run. Marked here rather than in
-        -- _flattenItems because that runs before any status is known, and
-        -- "unread" is a status question. This loop walks the flattened list in
-        -- order, so the first member of a run that comes up unread IS the
-        -- earliest unread one; first_unread_seen closes the run so the rest
-        -- stay spine-on.
-        --
-        -- Only inside a run of more than one: a lone book is not a series, and
-        -- facing every unread standalone out is what the separate "Unread"
-        -- reason already does.
-        if f.in_group and not first_unread_seen[f.run_idx]
-                and SpineShelf.isUnread(src) then
-            first_unread_seen[f.run_idx] = true
-            f.first_unread_of_group = true
-        end
-        -- The same question for a book standing on its own, which on a plain
-        -- shelf is every book: the first unread of ITS SERIES rather than of
-        -- its run. Issue 425 asked for "first in series" to mean something on
-        -- an ungrouped shelf, and this reason needs the same answer or the
-        -- pair of them disagree about what a series is.
-        --
-        -- First in SHELF order, exactly as the run rule is - this loop walks
-        -- the list in order and the series' first unread to come up closes
-        -- it. On a shelf sorted by series that is the lowest-numbered unread,
-        -- which is what the reason means; on one sorted by date added it is
-        -- whichever of them the reader's own ordering puts first, and the run
-        -- rule has always behaved that way too.
-        local sname = src.series_name
-        if not f.in_group and type(sname) == "string" and sname ~= ""
-                and not first_unread_series[sname]
-                and SpineShelf.isUnread(src) then
-            first_unread_series[sname] = true
-            f.first_unread_in_series = true
-        end
+        -- The two series reasons. Marked here rather than in _flattenItems
+        -- because that runs before any status is known, and "unread" is a
+        -- status question; this loop walks the list in shelf order, so the
+        -- first to come up is the first on the shelf.
+        SpineShelf.markSeriesHeads(f, src, series_state)
         -- Decided AFTER the status block: the "reading" mode needs
         -- src.status. Books only -- a plain folder keeps its spine.
         -- ANY reason is enough. They are not ranked: a book that is both a
@@ -3223,19 +3256,9 @@ function SpineShelf.plan(items, opts)
                 face_out = true
             else
                 face_out = (face_spec.favorites and fav)
-                    -- The shelf's run heads answer this wherever the shelf
-                    -- has runs. Where a book stands on its own -- a plain
-                    -- Home shelf, where every book is its own item -- its
-                    -- place in its series answers instead, which is what
-                    -- the reason reads as when there is no grouping to be
-                    -- first of (issue 425). A book already inside a run is
-                    -- left to the head rule, so a grouped shelf is
-                    -- unchanged.
-                    or (face_spec.first and (f.first_of_group == true
-                        or (not f.in_group
-                            and SpineShelf.isFirstInSeries(src))))
-                    or (face_spec.first_unread and (f.first_unread_of_group == true
-                        or f.first_unread_in_series == true))
+                    -- Series, run or book alone: see markSeriesHeads.
+                    or (face_spec.first and f.series_first == true)
+                    or (face_spec.first_unread and f.series_next == true)
                     or (face_spec.reading and src.status == "reading")
                     or (face_spec.unread and SpineShelf.isUnread(src))
                     or (face_recent ~= nil and face_recent[src.filepath] == true)

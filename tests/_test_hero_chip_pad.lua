@@ -69,11 +69,17 @@ t.test("an explicit expanded argument overrides the widget's own state", functio
     eq(pad{ expanded = true,  empty = true, arg = false }, 37)
 end)
 
-t.test("all three call sites go through the helper", function()
-    -- The bug this prevents: three copies of one expression, where changing
-    -- one changes nothing visible and looks like the theory was wrong.
+t.test("all four call sites go through the helper", function()
+    -- The bug this prevents: copies of one expression, where changing one
+    -- changes nothing visible and looks like the theory was wrong. _rebuild
+    -- asks twice (sizing the rows, then laying the gap down), the list band
+    -- once, and the expanded row budget once (_expandedBand, which used to
+    -- carry a frozen Size.padding.large of its own).
     local n = select(2, src:gsub("self:_heroChipPad%(", ""))
-    eq(n, 3, "expected three callers, found " .. n)
+    eq(n, 4, "expected four callers, found " .. n)
+    local band = src:match("\nfunction BookshelfWidget:_expandedBand%(.-%)\n(.-)\nend\n")
+    assert(band and band:find("self:_heroChipPad(PAD, true)", 1, true),
+        "the expanded row budget prices the gap on its own again")
     assert(not src:find("expanded and Size.padding.large or PAD", 1, true),
         "a copy of the old expression is back")
 end)

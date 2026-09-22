@@ -12189,26 +12189,42 @@ function BookshelfWidget:_maxRows()
     if slot_w < 1 then return 1 end
     local slot_h = math.floor(slot_w * self:_coverAspect())
     local row_h  = slot_h + PAD  -- shelf body + after-row PAD
-    -- Chrome above + below the shelves. Mirrors the expanded-mode layout
-    -- sum in _rebuild (outer top PAD + status strip + hero→chips gap +
-    -- chip strip + chips→row1 PAD + footer).
-    local strip_minimum   = Screen:scaleBySize(20)
-    local hero_chip_pad   = Size.padding.large
-    local outer_top_pad   = PAD
-    local chip_to_row_pad = PAD
-    local available = self.height - outer_top_pad - strip_minimum - hero_chip_pad
-                    - chip_h - chip_to_row_pad - footer_h
+    local available, strip, hero_chip_pad, chips =
+        self:_expandedBand(PAD, content_w, chip_h, footer_h)
     local out = math.max(1, math.floor(available / row_h))
     -- Every input to the row-count decision, because the arithmetic cannot be
     -- reproduced off-device (PAD, chip_h and footer_h are all screen-derived)
     -- and "why 3 rows and not 4" is otherwise pure guesswork. Issue #329.
     logger.dbg(string.format(
         "[bookshelf perf] _maxRows=%d cols=%d slot=%dx%d aspect=%.2f row_h=%d "
-        .. "avail=%d (h=%d top=%d strip=%d herogap=%d chip=%d chippad=%d footer=%d)",
+        .. "avail=%d (h=%d top=%d strip=%d herogap=%d chips=%d footer=%d)",
         out, n_cols, slot_w, slot_h, self:_coverAspect(), row_h, available,
-        self.height, outer_top_pad, strip_minimum, hero_chip_pad, chip_h,
-        chip_to_row_pad, footer_h))
+        self.height, PAD, strip, hero_chip_pad, chips, footer_h))
     return out
+end
+
+-- _expandedBand(PAD, content_w, chip_h, footer_h) -> available, strip,
+-- hero_chip_pad, chips
+--
+-- The height the EXPANDED shelf's rows share: the screen less the chrome
+-- _rebuild's expanded layout lays down above and below them -- outer top PAD,
+-- the status strip, the gap under it, the chip bar with the PAD after it, and
+-- the footer. The row counts (_maxRows for covers, _spineFillFor for spines)
+-- divide this by a row height, so it has to be the layout's own sum.
+--
+-- It used to be a copy of that sum with three terms frozen: a 20dp strip, the
+-- full gap under it, and a chip bar that was always there. The layout had
+-- since learned that a disabled status line draws no strip and needs no gap
+-- (_statusStripHeight, _heroChipPad), and that a lone chip hides the bar; the
+-- count went on paying for all three, so it could come out a row short of
+-- what the layout then had room for, and the spare height went into gaps.
+function BookshelfWidget:_expandedBand(PAD, content_w, chip_h, footer_h)
+    local strip         = self:_statusStripHeight(content_w)
+    local hero_chip_pad = self:_heroChipPad(PAD, true)
+    -- The bar, and the PAD between it and the first row, go together.
+    local chips = self._chip_bar_hidden and 0 or (chip_h + PAD)
+    local available = self.height - PAD - strip - hero_chip_pad - chips - footer_h
+    return available, strip, hero_chip_pad, chips
 end
 
 -- _maxShelfRows() — the most shelf rows that fit at natural cover height
@@ -12360,10 +12376,8 @@ end
 -- that belongs with a chosen expanded count can be found by asking it.
 function BookshelfWidget:_spineFillFor(base)
     local shelf_h_c = self:_collapsedSpineSplit(self._chip_bar_hidden, base)
-    local PAD, _cw, chip_h, footer_h = self:_layoutPrimitives()
-    local strip_minimum = Screen:scaleBySize(20)
-    local available = self.height - PAD - strip_minimum
-                    - Size.padding.large - chip_h - PAD - footer_h
+    local PAD, content_w, chip_h, footer_h = self:_layoutPrimitives()
+    local available = self:_expandedBand(PAD, content_w, chip_h, footer_h)
     local n = math.floor(available / (shelf_h_c + PAD))
     -- Expanding reveals at least one more row than collapsing: it is what the
     -- swipe-up promises, and on a rotated screen the collapsed-height fill

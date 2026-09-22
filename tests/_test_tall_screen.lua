@@ -132,7 +132,12 @@ local function bw(width, height, expanded)
           -- LIST -- the mode a real chip would be in here is not the mode
           -- these numbers describe. The pin is the same one a chip uses.
           _chipViewMode = function() return "covers" end,
-          _isDrilledIn  = function() return false end },
+          _isDrilledIn  = function() return false end,
+          -- The expanded strip, as a shown status line with no book to probe
+          -- measures it: the fixed fallback height. The probe itself needs a
+          -- live hero book, which nothing here provides.
+          _statusStripHeight  = function() return 20 end,
+          _expandedStripEmpty = function() return false end },
         { __index = BW }
     )
 end
@@ -188,6 +193,37 @@ end)
 
 test("_nShelves: phone-tall expanded (Boox Palma 824x1648) = 5", function()
     eq(bw(824, 1648, true):_nShelves(), 5)
+end)
+
+-- ── the expanded band pays only for chrome the layout lays down ─────────────
+-- _maxRows and _spineFillFor used a frozen copy of the layout's chrome sum: a
+-- 20dp strip, the gap under it, and a chip bar, always. The layout pays none
+-- of the first two when the status line is off, nor for the bar (and the PAD
+-- after it) when a lone chip hides it; the count paid for all three.
+test("_expandedBand: a switched-off status line frees its strip and the gap under it", function()
+    local on = bw(824, 1648, true)
+    local off = bw(824, 1648, true)
+    off._statusStripHeight  = function() return 0 end
+    off._expandedStripEmpty = function() return true end
+    local a_on  = on:_expandedBand(on:_layoutPrimitives())
+    local a_off = off:_expandedBand(off:_layoutPrimitives())
+    eq(a_off - a_on, 20 + 8, "strip + Size.padding.large")
+end)
+
+test("_expandedBand: a hidden chip bar frees the bar and the PAD after it", function()
+    local shown  = bw(824, 1648, true)
+    local hidden = bw(824, 1648, true)
+    hidden._chip_bar_hidden = true
+    local PAD, _cw, chip_h = shown:_layoutPrimitives()
+    eq(hidden:_expandedBand(hidden:_layoutPrimitives())
+       - shown:_expandedBand(shown:_layoutPrimitives()), chip_h + PAD)
+end)
+
+test("_maxRows: the freed height can buy the row it was worth (tall, lone chip)", function()
+    eq(bw(1080, 2400, true):_maxRows(), 5)
+    local w = bw(1080, 2400, true)
+    w._chip_bar_hidden = true
+    eq(w:_maxRows(), 6, "the old frozen chrome sum still paid for the hidden bar")
 end)
 
 -- ── _nCols tests ───────────────────────────────────────────────────────────

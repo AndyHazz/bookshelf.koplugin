@@ -133,7 +133,7 @@ local function showSizeNudge(current, default, on_change, on_close, opts)
     d = ButtonDialog:new{
         -- dismissable=false + movable.ges_events wipe below: matches
         -- the lockdown applied to every nudge dialog in
-        -- bookshelf_settings.lua (see _pickCoverBadgeFontScale for
+        -- bookshelf_settings.lua (see _showScaleNudge for
         -- the rationale). Same reasoning: rapid taps near +/- shouldn't
         -- fall through to the modal background and dismiss mid-edit,
         -- and a long-press on a button shouldn't toggle the dialog to

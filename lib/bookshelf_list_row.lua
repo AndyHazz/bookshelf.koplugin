@@ -363,11 +363,12 @@ function ListRow.lineStyles(lines, scale_pct)
         local face, bold = ListRow.lineFace(line, scale_pct)
         local height = ListRow.lineHeight(face, bold)
         local faces
+        local base, styles
         -- Runs exist on a single line only: a {xN} line is one TextBoxWidget
         -- and one face by construction, and its tags are stripped instead.
         if type(line) == "table" then
-            local styles = InlineStyle.styles(line.template,
-                                              ListRow.baseStyle(line))
+            base   = ListRow.baseStyle(line)
+            styles = InlineStyle.styles(line.template, base)
             if #styles > 1 then
                 faces = {}
                 for _j, style in ipairs(styles) do
@@ -378,20 +379,44 @@ function ListRow.lineStyles(lines, scale_pct)
                 end
             end
         end
-        -- The face a WRAPPED line renders in. A TextBoxWidget lays a
-        -- paragraph out in exactly one face, so inline runs cannot survive the
-        -- trip and a [font=] tag anywhere in the template takes the whole box
-        -- -- which is what templateFont has always meant. Resolved here so the
-        -- renderer does not have to work it out per row.
+        -- The face a WRAPPED line renders in. A TextBoxWidget lays a paragraph
+        -- out in exactly one face, so inline runs cannot survive the trip: the
+        -- box gets ONE style resolved from the tags, and a [font=] anywhere in
+        -- the template takes the whole of it -- which is what templateFont has
+        -- always meant. Resolved here so the renderer does not have to work it
+        -- out per row.
+        --
+        -- [b] and [i] go the same way now. They used to be dropped instead, so
+        -- a title that was bold at one width stopped being bold at the width
+        -- where it wrapped, while a [font=] in the same position survived
+        -- (issue 379). Taken off the PARSED runs rather than by a second
+        -- pattern over the template, so there is one dialect of the tag
+        -- language and an unclosed or nested tag means here what it means to
+        -- the single-line path.
+        --
+        -- Only a tag that adds something the line's own controls did not
+        -- counts: with no tags at all the box must keep the face lineFace
+        -- resolved, not a re-resolution of the same request through a
+        -- different door.
+        --
+        -- [size=] is deliberately NOT taken. The line's height is budgeted
+        -- from the tallest run on every row of the page, so letting one book's
+        -- tag resize the paragraph would move text out of the space reserved
+        -- for it.
         local box_face, box_bold = face, bold
         local tpl_font = ListRow.templateFont(type(line) == "table"
                                               and line.template)
-        if tpl_font then
+        local tag_bold, tag_italic = false, false
+        for _j, style in ipairs(styles or {}) do
+            if style.bold   and not (base and base.bold)   then tag_bold   = true end
+            if style.italic and not (base and base.italic) then tag_italic = true end
+        end
+        if tpl_font or tag_bold or tag_italic then
             box_face, box_bold = ListRow.runFace(line, {
                 font   = tpl_font,
                 size   = (type(line) == "table" and line.font_size) or nil,
-                bold   = (type(line) == "table" and line.bold) == true,
-                italic = (type(line) == "table" and line.italic) == true,
+                bold   = tag_bold or ((type(line) == "table" and line.bold) == true),
+                italic = tag_italic or ((type(line) == "table" and line.italic) == true),
             }, scale_pct)
         end
         out[i] = { face = face, bold = bold, faces = faces, height = height,

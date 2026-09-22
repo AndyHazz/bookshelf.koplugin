@@ -376,6 +376,22 @@ local BASELINES = { PW5, PW3, KBASIC, STOCK }
 local COMBOS = { { false, false }, { true, false },
                  { false, true },  { true, true } }
 
+-- methodOf re-matches the whole of bookshelf_widget.lua on every call, which
+-- is the cost bodyOf is memoised against. bandOf runs from the nested loops
+-- below, so extracting a SECOND method per case put two minutes on the sweep
+-- when it was measured. The compiled helper only varies with the baseline's
+-- Size.padding.large, so it is cached on that.
+local _hero_chip_pad = {}
+local function heroChipPadOf(pad_large)
+    local hit = _hero_chip_pad[pad_large]
+    if not hit then
+        hit = methodOf("_heroChipPad",
+                       { Size = { padding = { large = pad_large } } })
+        _hero_chip_pad[pad_large] = hit
+    end
+    return hit
+end
+
 -- The plan now leans on _listBand for the band and its three pads, and on
 -- _listRows for the reader's row count. Both are supplied here so the
 -- extracted body runs -- and _listBand is driven from ITS OWN source rather
@@ -395,6 +411,17 @@ local function bandOf(o, expanded, hide_chips)
         _layoutPrimitives = function() return o.PAD, o.content_w, o.chip_h end,
         _statusStripHeight = function() return o.strip end,
         _listCollapsedHeroHeight = function() return o.cover_hero end,
+        -- Driven from ITS OWN source, for the reason _listBand is: the
+        -- hero-to-chips gap was the same expression copied at seven sites
+        -- until it became one helper, and a hand-written copy here would let
+        -- the band drift from the layout again with the suite still green.
+        _heroChipPad = heroChipPadOf(o.pad_large or 24),
+        -- Whether there IS a strip to separate the chips from is an
+        -- environment fact -- the helper reads the hero regions out of
+        -- settings.reader.lua -- so it is stubbed, not extracted. Every
+        -- baseline above was measured WITH the status strip, which is what
+        -- their row counts pin; the empty-strip gap is _test_hero_chip_pad's.
+        _expandedStripEmpty = function() return false end,
     }
     return methodOf("_listBandUncached", env)(self, expanded, hide_chips)
 end

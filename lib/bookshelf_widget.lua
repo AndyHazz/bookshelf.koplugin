@@ -1910,33 +1910,10 @@ function BookshelfWidget:_rebuild()
         end
     end
     self._grid_labels_retry = nil
-    -- Open-ended OPDS window: the repo's total is a lower bound (what the
-    -- cached window holds), not the size of the feed. Captured HERE, before
-    -- the cursor clamp and the footer build -- both read it. nil on every
-    -- other chip, since only the OPDS page table carries the field.
-    self._opds_open_ended = (type(all_items) == "table")
-                            and all_items.opds_open_ended or nil
     local _perf_t2 = _gettime()
     logger.dbg(string.format("[bookshelf perf] _rebuild: fetch=%.0fms items=%d chip=%s",
         (_perf_t2 - _perf_t1) * 1000, _total_hint or #all_items, _perf_chip))
-    local total      = _total_hint or #all_items
-    -- Total pages = ceil(total / VIEW_SIZE) under the cursor model (no
-    -- overlap on pagination). Clamp the cursor to the valid range
-    -- BEFORE deriving self.page for display: total may have changed
-    -- since the cursor was last persisted, so the previously-valid
-    -- cursor might be off the end.
-    local total_pages
-    if total <= VIEW_SIZE then
-        total_pages = 1
-    else
-        total_pages = math.ceil(total / VIEW_SIZE)
-    end
-    -- Spine mode: the page map knows the real page count (see
-    -- _spineTotalPages); the estimate above only bounds it.
-    total_pages = self:_spineTotalPages() or total_pages
-    -- Cache for the swipe handlers (which run outside _rebuild's scope).
-    self._total_pages = total_pages
-    self._total_items = total
+    local total = self:_noteFetchTotals(all_items, _total_hint, VIEW_SIZE)
     -- A windowed source fetched its page at the cursor as it stood; if the
     -- clamp now moves the cursor, that page is from somewhere else and would
     -- be rendered under the wrong page number (issue 369, see
@@ -1958,27 +1935,10 @@ function BookshelfWidget:_rebuild()
         return
     end
     self._cursor_clamp_retry = nil
-    self:_syncPageFromCursor()
-    self:_spineUpdateBookCounts(all_items, _total_hint)
-    -- all/folder chips return a pre-sliced page; others return the full list.
-    local items
-    if _total_hint then
-        items = all_items
-    else
-        local start_idx = self._cursor
-        items = {}
-        for i = 0, VIEW_SIZE - 1 do items[i + 1] = all_items[start_idx + i] end
-    end
+    local items = self:_takeFetchedPage(all_items, _total_hint, VIEW_SIZE)
     -- Only count non-nil entries (the last page may be partial).
     local shown_count = 0
     for i = 1, VIEW_SIZE do if items[i] then shown_count = shown_count + 1 end end
-    self._page_items = items
-    if self._cursor_idx then
-        local last_real = 0
-        for i = #items, 1, -1 do if items[i] then last_real = i; break end end
-        local clamp_to = last_real > 0 and last_real or 1
-        if self._cursor_idx > clamp_to then self._cursor_idx = clamp_to end
-    end
 
     -- ── Empty-state placeholder (spec §8: "Selected chip yields zero books") ────
     -- When the active chip returns no items, replace both shelf rows with a
@@ -2634,7 +2594,7 @@ function BookshelfWidget:_rebuild()
     if wallpaper then overlap_group[#overlap_group + 1] = wallpaper end
     overlap_group[#overlap_group + 1] = main_frame
     -- Build the footer row and anchor it.
-    local footer_row = self:_buildFooterRow(content_w, total_pages, FOOTER_H)
+    local footer_row = self:_buildFooterRow(content_w, self._total_pages, FOOTER_H)
     overlap_group[#overlap_group + 1] = BottomContainer:new{
         dimen = Geom:new{ w = self.width, h = self.height - FOOTER_BOTTOM_MARGIN },
         footer_row,
@@ -2744,7 +2704,7 @@ function BookshelfWidget:_rebuild()
         "[bookshelf perf] _rebuild: TOTAL=%.0fms chip=%s page=%d/%d items=%d"
         .. " (hero=%.0f fetch=%.0f shelves=%.0f assemble=%.0f)"
         .. " covers(ram=%d disk=%d scaled=%d written=%d)",
-        (_perf_t4 - _perf_t0) * 1000, _perf_chip, _perf_page, total_pages, total,
+        (_perf_t4 - _perf_t0) * 1000, _perf_chip, _perf_page, self._total_pages or 0, total,
         (_perf_t1 - _perf_t0) * 1000,
         (_perf_t2 - _perf_t1) * 1000,
         (_perf_t3 - _perf_t2) * 1000,
@@ -7632,23 +7592,10 @@ function BookshelfWidget:_swapShelvesInPlace()
         all_items, _total_hint = self:_fetchChipItems(MAX_FETCH)
     end
     all_items = all_items or {}
-    -- Same open-ended capture as _rebuild: set before the clamp + footer.
-    self._opds_open_ended = (type(all_items) == "table")
-                            and all_items.opds_open_ended or nil
     local _perf_t1 = _gettime()
     logger.dbg(string.format("[bookshelf perf] _swapShelves: fetch=%.0fms items=%d chip=%s",
         (_perf_t1 - _perf_t0) * 1000, _total_hint or #all_items, self.chip))
-    local total = _total_hint or #all_items
-    local total_pages
-    if total <= VIEW_SIZE then
-        total_pages = 1
-    else
-        total_pages = math.ceil(total / VIEW_SIZE)
-    end
-    -- Spine mode: real page count from the page map (see _spineTotalPages).
-    total_pages = self:_spineTotalPages() or total_pages
-    self._total_pages = total_pages
-    self._total_items = total
+    local total = self:_noteFetchTotals(all_items, _total_hint, VIEW_SIZE)
     -- Same order as _rebuild, so the same hazard: the window was fetched at
     -- the cursor as it stood, and a clamp that moves it leaves this page from
     -- somewhere else (issue 369). A moved window is a change of shape this
@@ -7659,8 +7606,6 @@ function BookshelfWidget:_swapShelvesInPlace()
         UIManager:setDirty(self, "ui")
         return
     end
-    self:_syncPageFromCursor()
-    self:_spineUpdateBookCounts(all_items, _total_hint)
     if total == 0 then
         -- Going to empty state needs a structural change (hero + chips +
         -- placeholder, no shelves) — fall back to full rebuild.
@@ -7668,22 +7613,7 @@ function BookshelfWidget:_swapShelvesInPlace()
         UIManager:setDirty(self, "ui")
         return
     end
-    local items
-    if _total_hint then
-        items = all_items
-    else
-        local start_idx = self._cursor
-        items = {}
-        for i = 0, VIEW_SIZE - 1 do items[i + 1] = all_items[start_idx + i] end
-    end
-
-    self._page_items = items
-    if self._cursor_idx then
-        local last_real = 0
-        for i = #items, 1, -1 do if items[i] then last_real = i; break end end
-        local clamp_to = last_real > 0 and last_real or 1
-        if self._cursor_idx > clamp_to then self._cursor_idx = clamp_to end
-    end
+    local items = self:_takeFetchedPage(all_items, _total_hint, VIEW_SIZE)
     -- Same dispatch as _rebuild; the stash is guaranteed to belong to this mode
     -- by the guard above, so d.shelf_h is already the right kind of height.
     local rows
@@ -7718,7 +7648,7 @@ function BookshelfWidget:_swapShelvesInPlace()
     local label_rect   = self._page_text_button and self._page_text_button.dimen
                          and self._page_text_button.dimen:copy() or nil
     local prev_nav     = self._footer_nav_state
-    local new_footer_row = self:_buildFooterRow(d.content_w, total_pages, d.FOOTER_H)
+    local new_footer_row = self:_buildFooterRow(d.content_w, self._total_pages, d.FOOTER_H)
     local new_nav = self._footer_nav_state
     local nav_changed = not (prev_nav and new_nav)
                         or prev_nav.back ~= new_nav.back
@@ -12686,6 +12616,62 @@ function BookshelfWidget:_maxCursor(total)
         n_pages = n_pages + 1
     end
     return (n_pages - 1) * view + 1
+end
+
+-- The fetch sequence _rebuild and _swapShelvesInPlace share. Both fetch, note
+-- the totals, clamp the cursor (_clampFetchedWindow, whose answer each handles
+-- its own way), then take the page -- and that order is the contract: issue
+-- 369 was the clamp running after a fetch it had to correct. The two halves
+-- live here so the paths cannot drift apart again; the clamp between them
+-- stays with each caller.
+--
+-- _noteFetchTotals(all_items, total_hint, view) -> total. Records what the
+-- fetch says about the whole chip: the item count, the page count and the
+-- open-ended OPDS flag. All before the clamp, which reads them -- total may
+-- have changed since the cursor was last persisted.
+function BookshelfWidget:_noteFetchTotals(all_items, total_hint, view)
+    -- Open-ended OPDS window: the repo's total is a lower bound (what the
+    -- cached window holds), not the size of the feed. The clamp and the footer
+    -- both read it. nil on every other chip, since only the OPDS page table
+    -- carries the field.
+    self._opds_open_ended = (type(all_items) == "table")
+                            and all_items.opds_open_ended or nil
+    local total = total_hint or #all_items
+    -- ceil(total / view) under the cursor model (no overlap on pagination).
+    -- Spine mode: the page map knows the real page count (see
+    -- _spineTotalPages); the estimate only bounds it.
+    local total_pages = total <= view and 1 or math.ceil(total / view)
+    -- Cached for the swipe handlers, which run outside the rebuild.
+    self._total_pages = self:_spineTotalPages() or total_pages
+    self._total_items = total
+    return total
+end
+
+-- _takeFetchedPage(all_items, total_hint, view) -> items. After the clamp:
+-- derive the page number, take the page at the (now final) cursor, and keep the
+-- selection on a real book of it.
+function BookshelfWidget:_takeFetchedPage(all_items, total_hint, view)
+    self:_syncPageFromCursor()
+    self:_spineUpdateBookCounts(all_items, total_hint)
+    -- A windowed source (total_hint set) returned the page itself; the others
+    -- return the whole list, and the page is cut from it here.
+    local items
+    if total_hint then
+        items = all_items
+    else
+        local start_idx = self._cursor
+        items = {}
+        for i = 0, view - 1 do items[i + 1] = all_items[start_idx + i] end
+    end
+    self._page_items = items
+    if self._cursor_idx then
+        -- The last page may be partial.
+        local last_real = 0
+        for i = #items, 1, -1 do if items[i] then last_real = i; break end end
+        local clamp_to = last_real > 0 and last_real or 1
+        if self._cursor_idx > clamp_to then self._cursor_idx = clamp_to end
+    end
+    return items
 end
 
 -- _clampFetchedWindow(total, windowed) -> true when the page just fetched no

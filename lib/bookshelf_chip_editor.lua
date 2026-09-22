@@ -555,7 +555,6 @@ function Editor:editTab(tab_id, opts)
     -- included, has to repaint the shelf to show it. Not part of is_dirty()
     -- either, because that also gates writing the TAB, which did not change.
     local arranged = false
-    local function onArranged() arranged = true end
     local function repaintOnCancel() return visual_dirty or arranged end
 
     -- applyLivePreview(affects_data):
@@ -593,6 +592,22 @@ function Editor:editTab(tab_id, opts)
     end
     local function cancelPreview()
         UIManager:unschedule(firePreview)
+    end
+    -- A confirmed arrangement (see `arranged` above). The order is written the
+    -- moment the arrange window closes, so the shelf behind shows it then --
+    -- through the debounced preview, so the confirm tap is not held up by a
+    -- shelf rebuild -- rather than only once the whole editor is closed
+    -- (maintainer, on the PW5). `arranged` stays set as well: a close inside
+    -- the debounce window cancels the preview, and the close paths repaint
+    -- in its place.
+    --
+    -- Declared HERE, below schedulePreview, and not beside `arranged`: a
+    -- local function resolves the names in its body where it is written, so
+    -- above this point schedulePreview would be a nil global at the moment of
+    -- the confirm.
+    local function onArranged()
+        arranged = true
+        schedulePreview()
     end
     local function applyLivePreview(affects_data)
         if affects_data then

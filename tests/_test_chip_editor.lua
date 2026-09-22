@@ -329,6 +329,28 @@ t.test("every cancel-like path repaints after an arrangement", function()
         "the shared rule does not include an arrangement")
 end)
 
+t.test("a confirmed arrangement repaints the shelf straight away", function()
+    -- The maintainer, on the PW5: the order is saved the moment the arrange
+    -- window closes, so the shelf behind should show it then, not only once
+    -- the whole editor is closed. Through the editor's own debounced preview,
+    -- so the confirm tap is not held up by a shelf rebuild.
+    local body = editor_src:match("local function onArranged%(%)(.-)\n    end\n")
+    assert(body, "onArranged is gone, or became a one-liner again")
+    assert(body:find("arranged = true", 1, true), "the close paths no longer hear of it")
+    assert(body:find("schedulePreview()", 1, true),
+        "the shelf still waits for the editor to close")
+end)
+
+t.test("onArranged is declared below the preview it schedules", function()
+    -- A local function body resolves names at load: declared ABOVE
+    -- `local function schedulePreview`, it would read a nil GLOBAL at the
+    -- moment of the confirm and raise, with nothing at load time to warn.
+    local sched = editor_src:find("local function schedulePreview", 1, true)
+    local arr   = editor_src:find("local function onArranged", 1, true)
+    assert(sched and arr, "one of the two moved")
+    assert(arr > sched, "onArranged would call a nil schedulePreview")
+end)
+
 t.test("Save repaints after an arrangement too", function()
     assert(editor_src:find("if (is_dirty() or arranged) and opts.on_change then", 1, true),
         "Save can skip the repaint when the only change was the arrangement")

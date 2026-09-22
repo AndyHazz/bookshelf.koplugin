@@ -1429,6 +1429,34 @@ local function _paintVerticalCJK(bb, x, y, run_len, band_w, text, face_size, loo
     return total
 end
 
+-- _splitTitle(text, run_len, measure) -> line1, line2 | nil
+--
+-- Where a title too long for one line of spine breaks into two: at a word
+-- boundary, choosing the break that makes the LONGER of the two lines as short
+-- as it can be, so the pair reads as a balanced block rather than a full line
+-- and a stray word. The first line must fit whole; the second may still be
+-- cut, but it holds what is left of a title that already had to break.
+-- nil when there is no word boundary or no first line fits -- one word, or a
+-- first word longer than the run -- and the caller keeps its single line.
+-- measure(str) -> width in pixels, so the choice is testable without a font.
+function SpineShelf._splitTitle(text, run_len, measure)
+    local words = {}
+    for w in tostring(text or ""):gmatch("%S+") do words[#words + 1] = w end
+    if #words < 2 then return nil end
+    local best_k, best_w
+    for k = 1, #words - 1 do
+        local a = table.concat(words, " ", 1, k)
+        local wa = measure(a)
+        if wa > run_len then break end
+        local wb = measure(table.concat(words, " ", k + 1))
+        local worst = math.max(wa, wb)
+        if not best_w or worst < best_w then best_k, best_w = k, worst end
+    end
+    if not best_k then return nil end
+    return table.concat(words, " ", 1, best_k),
+           table.concat(words, " ", best_k + 1)
+end
+
 -- Rotated title: render horizontally into a scratch RGB32 buffer prefilled
 -- with the spine colour (so glyph anti-aliasing blends into the right
 -- ground), rotate the buffer, blit. Rotation cost is one copy of a
@@ -1480,16 +1508,48 @@ local function _paintRotatedTitle(bb, x, y, run_len, band_w, text, face_size, lo
             size = size - 2
         end
         if not tw then return end
-        local title_w = math.min(sz.w, run_len)
-        local sh = sz.h
-        if title_w < 1 or sh < 1 then tw:free() return end
+        local line_h = sz.h
+        if sz.w < 1 or line_h < 1 then tw:free() return end
+        -- A title too long for the run takes a second line where the spine
+        -- is thick enough to hold two (issue 440: omnibuses, whose spines are
+        -- the widest on the shelf and whose titles are the longest). Only
+        -- then: a title that fits keeps its one line, whatever the width.
+        local line_gap = math.max(1, math.floor(line_h / 8))
+        local lines = { tw }
+        if tw.isTruncated and tw:isTruncated() and 2 * line_h + line_gap <= band_w then
+            local l1, l2 = SpineShelf._splitTitle(text, run_len, function(str)
+                local m = TextWidget:new{ text = str,
+                    face = BFont:getFace(face_name, size), padding = 0 }
+                local w = m:getSize().w
+                m:free()
+                return w
+            end)
+            if l1 then
+                tw:free()
+                lines = {}
+                for i, str in ipairs({ l1, l2 }) do
+                    lines[i] = TextWidget:new{
+                        text      = str,
+                        face      = BFont:getFace(face_name, size),
+                        fgcolor   = _textColor(night),
+                        max_width = run_len,
+                        padding   = 0,
+                    }
+                end
+            end
+        end
+        local widths = {}
+        for i = 1, #lines do widths[i] = math.min(lines[i]:getSize().w, run_len) end
+        local last_w = widths[#lines]
+        local sh = #lines * line_h + (#lines - 1) * line_gap
         -- The author rides the same band in a smaller face, above the title
         -- the way a printed spine sets it -- only when the title left it a
-        -- worthwhile stretch of spine to sit on.
+        -- worthwhile stretch of spine to sit on. On a wrapped title, after
+        -- its last line.
         local atw, asz, author_w = nil, nil, 0
         local seg_gap = Screen:scaleBySize(10)
         if author and author ~= "" then
-            local avail = run_len - title_w - seg_gap
+            local avail = run_len - last_w - seg_gap
             if avail >= Screen:scaleBySize(28) then
                 local asize = math.max(6, size - 3)
                 atw = TextWidget:new{
@@ -1500,7 +1560,7 @@ local function _paintRotatedTitle(bb, x, y, run_len, band_w, text, face_size, lo
                     padding   = 0,
                 }
                 asz = atw:getSize()
-                if asz.w < 1 or asz.h > band_w then
+                if asz.w < 1 or asz.h > line_h then
                     atw:free()
                     atw = nil
                 else
@@ -1508,7 +1568,12 @@ local function _paintRotatedTitle(bb, x, y, run_len, band_w, text, face_size, lo
                 end
             end
         end
-        local sw = title_w + (atw and (seg_gap + author_w) or 0)
+        -- Each line's full extent along the run; the last carries the author.
+        local extent = {}
+        for i = 1, #lines do extent[i] = widths[i] end
+        if atw then extent[#lines] = last_w + seg_gap + author_w end
+        local sw = 1
+        for i = 1, #lines do sw = math.max(sw, extent[i]) end
         local scratch = Blitbuffer.new(sw, sh, Blitbuffer.TYPE_BBRGB32)
         -- NOT scratch:fill() -- fill flattens its colour argument to
         -- luminance via getColor8. Each scratch ROW becomes a screen COLUMN
@@ -1523,12 +1588,20 @@ local function _paintRotatedTitle(bb, x, y, run_len, band_w, text, face_size, lo
             scratch:paintRectRGB32(0, ry, sw, 1,
                 _tintColor(look, _rampF(band_off + jx, band_w), night))
         end
-        tw:paintTo(scratch, 0, 0)
-        tw:free()
-        if atw then
-            atw:paintTo(scratch, title_w + seg_gap,
-                        math.floor((sh - asz.h) / 2))
-            atw:free()
+        -- Line one on scratch row 0: the rotation then puts it on the side the
+        -- letters' tops face, which is where a reader tilting their head
+        -- starts, in either text direction. Each line centred along the run,
+        -- as a printed spine sets them; one line fills sw, so it sits at 0.
+        for i = 1, #lines do
+            local ly = (i - 1) * (line_h + line_gap)
+            local lx = math.floor((sw - extent[i]) / 2)
+            lines[i]:paintTo(scratch, lx, ly)
+            lines[i]:free()
+            if atw and i == #lines then
+                atw:paintTo(scratch, lx + last_w + seg_gap,
+                            ly + math.floor((line_h - asz.h) / 2))
+                atw:free()
+            end
         end
         local rot = scratch:rotatedCopy(rot_deg)
         scratch:free()

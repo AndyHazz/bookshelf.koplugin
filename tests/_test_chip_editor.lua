@@ -258,6 +258,59 @@ t.test("the sort picker offers Collection order on a collection chip only", func
         "Collection order offered on a source that has none")
 end)
 
+-- ── Arranging the collection from beside its key ───────────────────────────
+--
+-- The maintainer's request, straight after trying the key on a device:
+-- changing a collection's order meant leaving for KOReader's collections view.
+-- The button opens the arrange window over the picker, so confirming or
+-- backing out lands the reader back on the picker, where the key is.
+
+local function pickerFor(source, order_stub)
+    local BD = package.loaded["ui/widget/buttondialog"]
+    local UI = package.loaded["ui/uimanager"]
+    local captured
+    local calls = { closed = 0 }
+    BD.new   = function(_self, o) captured = o; return o end
+    UI.show  = function() end
+    UI.close = function() calls.closed = calls.closed + 1 end
+    package.loaded["lib/bookshelf_collection_order"] = order_stub or {
+        exists  = function(name) return name == "discworld" end,
+        arrange = function(name) calls.arranged = name; return true end,
+    }
+    Editor:_pickSortLevel({ source = source, sort_priority = {} }, 1, function() end)
+    return captured, calls
+end
+
+t.test("a collection chip can arrange its collection from beside the key", function()
+    local d, calls = pickerFor({ kind = "collection", id = "discworld" })
+    local row = d.buttons[1]
+    eq(#row, 2, "the edit button is not beside the Collection order key")
+    assert(row[1].text:find("Collection order", 1, true), "row 1 is not the key")
+    assert(row[2].text:find("Edit collection order", 1, true),
+        "no Edit collection order button: " .. tostring(row[2] and row[2].text))
+    row[2].callback()
+    eq(calls.arranged, "discworld", "the button did not open that collection")
+    eq(calls.closed, 0,
+        "opening the arrange window closed the picker the reader comes back to")
+end)
+
+t.test("no edit button when there is no collection behind the chip", function()
+    -- A pinned TAG is kind "collection" with the tag as its id. The key still
+    -- shows -- it ties harmlessly -- but there is nothing to arrange.
+    local d = pickerFor({ kind = "collection", id = "sci-fi" })
+    eq(#d.buttons[1], 1, "an arrange button was offered for a tag")
+end)
+
+t.test("no edit button off a collection source", function()
+    local d = pickerFor({ kind = "all" })
+    for _i, row in ipairs(d.buttons) do
+        for _j, btn in ipairs(row) do
+            assert(not btn.text:find("Edit collection order", 1, true),
+                "the arrange button leaked onto a non-collection shelf")
+        end
+    end
+end)
+
 t.test("SOURCE_SORT_DEFAULTS.opds is the empty list (fixed feed order, no sort levels)", function()
     eq(D.SOURCE_SORT_DEFAULTS.opds, {})
 end)

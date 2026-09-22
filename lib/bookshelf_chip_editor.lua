@@ -3173,7 +3173,27 @@ function Editor:_pickSortLevel(draft, level_index, on_close)
         -- above so no other source pays a row for a key that would be nil for
         -- every book on its shelf (issue 441).
         if kind == "collection" then
-            table.insert(rows, 1, { key_btn("collection_order") })
+            local row = { key_btn("collection_order") }
+            -- Beside it, the way to CHANGE that order, which otherwise meant
+            -- leaving for KOReader's collections view. Only when a collection
+            -- is really behind the chip: a pinned tag is kind "collection" too,
+            -- with nothing to arrange.
+            --
+            -- Opened over this picker rather than instead of it, so confirming
+            -- or backing out of the arrange window lands the reader here, by
+            -- the key. No shelf refresh is wired up for it: whatever closes
+            -- this picker runs applyLivePreview(true), which marks the draft
+            -- data-dirty, and Save and Cancel both invalidate the book cache
+            -- when it is -- so the new order is what the shelf fetches next.
+            local CollectionOrder = require("lib/bookshelf_collection_order")
+            local coll_id = draft.source and draft.source.id
+            if CollectionOrder.exists(coll_id) then
+                row[2] = {
+                    text     = _("Edit collection order"),
+                    callback = function() CollectionOrder.arrange(coll_id) end,
+                }
+            end
+            table.insert(rows, 1, row)
         end
     end
 

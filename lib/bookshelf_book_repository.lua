@@ -1432,13 +1432,14 @@ local _progress_cache, PROGRESS_CACHE_TTL
 -- it had just been working on. The comment above buildBook's seed already
 -- demanded the two mirror each other; this makes it structural rather than a
 -- promise.
-local function _writeProgressCache(filepath, pct, status, rating, page_count, page_num)
+local function _writeProgressCache(filepath, pct, status, rating, page_count, page_num, page_src)
     _progress_cache[filepath] = {
         pct        = pct,
         status     = status,
         rating     = rating,
         page_count = page_count,
         page_num   = page_num,
+        page_src   = page_src,
         expires_at = os.time() + PROGRESS_CACHE_TTL,
     }
 end
@@ -1576,14 +1577,18 @@ function Repo.buildBook(filepath, opts)
     -- page_count nil) because it doubles as the progress-cache seed
     -- below, which must match what readProgress would compute for this
     -- file - readProgress never sees BIM's count.
-    local ds_page_count
+    local ds_page_count, ds_page_src
     do
         local stable_pages = ds:readSetting("pagemap_doc_pages")
-        if stable_pages then ds_page_count = tonumber(stable_pages) end
+        if stable_pages then
+            ds_page_count = tonumber(stable_pages)
+            if ds_page_count then ds_page_src = "stable" end
+        end
         if not ds_page_count then
             local stats = ds:readSetting("stats")
             if type(stats) == "table" and stats.pages then
                 ds_page_count = tonumber(stats.pages)
+                if ds_page_count then ds_page_src = "render" end
             end
         end
     end
@@ -1645,8 +1650,13 @@ function Repo.buildBook(filepath, opts)
     -- by book.page_count rather than fallback_page_count, and those differ
     -- only for a book BIM counted, which is fixed-layout and reaches an exact
     -- rung long before the division.
+    -- And the same page_src readProgress would report for it.
+    if not ds_page_src and fallback_page_count then
+        ds_page_src = (pageCountFromFilename(filepath) == fallback_page_count)
+                      and "filename" or "store"
+    end
     _writeProgressCache(filepath, tonumber(book.book_pct), book.status,
-                        book.rating, fallback_page_count, book.page_num)
+                        book.rating, fallback_page_count, book.page_num, ds_page_src)
     return book
 end
 
@@ -2448,9 +2458,12 @@ function Repo.readProgress(filepath)
     local cached = _progress_cache[filepath]
     if cached then
         return cached.pct, cached.status, cached.rating, cached.page_count,
-               cached.page_num
+               cached.page_num, cached.page_src
     end
-    local pct, status, rating, page_count, page_num
+    -- page_src: which rung answered the page count -- "stable", "render",
+    -- "store" or "filename". The sixth return; the spine's thickness needs
+    -- to know (issue 387, SpineShelf.thicknessPages).
+    local pct, status, rating, page_count, page_num, page_src
     local ok_ds, ds = pcall(function() return getDocSettings():open(filepath) end)
     if ok_ds and ds then
         local ok_pct, p = pcall(ds.readSetting, ds, "percent_finished")
@@ -2461,11 +2474,15 @@ function Repo.readProgress(filepath)
             rating = tonumber(summary.rating)
         end
         local ok_pm, stable_pages = pcall(ds.readSetting, ds, "pagemap_doc_pages")
-        if ok_pm and stable_pages then page_count = tonumber(stable_pages) end
+        if ok_pm and stable_pages then
+            page_count = tonumber(stable_pages)
+            if page_count then page_src = "stable" end
+        end
         if not page_count then
             local ok_st, stats = pcall(ds.readSetting, ds, "stats")
             if ok_st and type(stats) == "table" and stats.pages then
                 page_count = tonumber(stats.pages)
+                if page_count then page_src = "render" end
             end
         end
         -- CURRENT page, in buildBook's own precedence, so a shelf row and the
@@ -2493,13 +2510,17 @@ function Repo.readProgress(filepath)
         local ok_ss, SS = pcall(require, "lib/bookshelf_spine_shelf")
         if ok_ss and SS and SS.cachedProgress then
             local pp = select(1, SS.cachedProgress(filepath))
-            if pp then page_count = tonumber(pp) end
+            if pp then
+                page_count = tonumber(pp)
+                if page_count then page_src = "store" end
+            end
         end
     end
     -- #159: last-resort filename fallback (see pageCountFromFilename), matching
     -- buildBook's progress-cache seed so the sort key / badge agree.
     if not page_count then
         page_count = pageCountFromFilename(filepath)
+        if page_count then page_src = "filename" end
     end
     -- Normalise to bookshelf canonical status values. KOReader's End-of-book
     -- dialog and Book Status widget store 'complete' / 'abandoned' in
@@ -2521,8 +2542,8 @@ function Repo.readProgress(filepath)
         if n < 1 then n = 1 end
         page_num = n
     end
-    _writeProgressCache(filepath, pct, status, rating, page_count, page_num)
-    return pct, status, rating, page_count, page_num
+    _writeProgressCache(filepath, pct, status, rating, page_count, page_num, page_src)
+    return pct, status, rating, page_count, page_num, page_src
 end
 
 -- Repo.progressFor(filepath) -> pct, status, rating, page_count, opened, page_num

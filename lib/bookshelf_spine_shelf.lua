@@ -529,20 +529,61 @@ function SpineShelf.cachedProgress(fp)
             return nil, nil, false
         end
     end
-    return e.p, e.s, e.sk == true
+    -- psrc: where the count came from (see persistProgress). opened: a
+    -- sidecar existed when it was stored -- the one fact that tells an
+    -- untagged count from before the tags (a scan's, or a rendered echo)
+    -- apart.
+    return e.p, e.s, e.sk == true, e.psrc, (tonumber(e.m) or 0) > 0
 end
 
-function SpineShelf.persistProgress(fp, pages, status)
+-- persistProgress(fp, pages, status, src)
+--
+-- src says where `pages` came from, and the spine's THICKNESS reads it
+-- (issue 387, see thicknessPages):
+--   "scan"    the page-count scan: a publisher page list, Hardcover, or a
+--             headless render at the default layout -- font-independent
+--   "stable"  the sidecar's stable page numbers, or a p(N) filename marker
+--   "render"  the sidecar's stats.pages: KOReader's count at the reader's
+--             OWN font and margins, which is why the same book changed width
+--             once it had been opened
+-- A rendered count never overwrites a scanned one: the plan persists what
+-- readProgress answers for every book it shows, and that used to replace the
+-- scan's layout-free count with the font-dependent one on first sight.
+function SpineShelf.persistProgress(fp, pages, status, src)
     if not fp then return end
     local F = _facts()
     if not F then return end
+    local e = F.get(fp)
+    local keep_scan = e and e.psrc == "scan" and e.p and src ~= "scan"
     F.put(fp, {
-        p  = pages or nil,
-        s  = status or false,
-        sk = true,
-        m  = _sidecarMtime(fp),
+        p    = (not keep_scan) and pages or nil,
+        psrc = (not keep_scan) and pages and src or nil,
+        s    = status or false,
+        sk   = true,
+        m    = _sidecarMtime(fp),
     })
     _progress_validated[fp] = true
+end
+
+-- thicknessPages(c) -> the page count a spine's WIDTH is drawn from.
+--
+-- Issue 387: "same length books look thicker when it's already read". The
+-- width took whatever count the shelf had, and once a book is opened that is
+-- KOReader's own rendered count -- at the reader's font size and margins, so
+-- a book read in a large font grew and one read small shrank. Thickness is a
+-- property of the book, so it prefers counts that do not depend on how it is
+-- read, and uses the rendered one only when there is nothing else:
+--
+--   c.filename  a p(N) marker the reader put there on purpose
+--   c.stable    stable page numbers (publisher page list / pagemap)
+--   c.scan      the page-count scan's default-layout count
+--   c.bim       a fixed-layout document's own page count (PDF, CBZ)
+--   c.rendered  the rendered count, last
+--
+-- The %pages token and the hero keep the reading count: that is the number
+-- of pages the reader actually turns. This is only the spine's width.
+function SpineShelf.thicknessPages(c)
+    return c.filename or c.stable or c.scan or c.bim or c.rendered
 end
 
 local function _sampleAverage(bb)
@@ -3297,15 +3338,27 @@ function SpineShelf.plan(items, opts)
         -- paint time anyway for the glyphs, through the same TTL cache,
         -- so this backfill costs the page ONE sidecar read per book.
         local pages = src.page_count
+        -- BIM's own count, before this block writes others onto the record: a
+        -- fixed-layout book's page count, which is layout-free (thickness).
+        local bim_pages = (src._page_src == nil) and src.page_count or nil
+        local thick = {}
         do
-            local pp, ps, known = SpineShelf.cachedProgress(src.filepath)
+            local pp, ps, known, psrc, opened = SpineShelf.cachedProgress(src.filepath)
+            if pp then
+                if psrc == "stable" then thick.stable = pp
+                elseif psrc == "scan" then thick.scan = pp
+                -- Untagged, from before the tags: a book with no sidecar can
+                -- only have had it from the scan or its filename.
+                elseif psrc == nil and not opened then thick.scan = pp
+                end
+            end
             pages = pages or pp
             if src.status == nil and ps then src.status = ps end
             if (not pages or not known) and src.filepath
                     and ok_repo and Repo and Repo.readProgress then
                 local _tp = _gettime()
                 pcall(function()
-                    local _pct, st, _rating, pc = Repo.readProgress(src.filepath)
+                    local _pct, st, _rating, pc, _pn, pc_src = Repo.readProgress(src.filepath)
                     -- Only when nothing better is in hand. BIM's count (the
                     -- record's own, set for fixed-layout formats) is what the
                     -- hero and the rows show, and a spine whose width came
@@ -3314,9 +3367,18 @@ function SpineShelf.plan(items, opts)
                     if pc and not src.page_count then
                         pages = pc
                         src.page_count = pc
+                        src._page_src = pc_src or "render"
                     end
                     if src.status == nil then src.status = st end
-                    SpineShelf.persistProgress(src.filepath, pc, st)
+                    if pc and (pc_src == "stable" or pc_src == "filename") then
+                        thick.stable = thick.stable or pc
+                    end
+                    -- A count the store itself supplied goes back unchanged
+                    -- (nil leaves it alone), keeping its tag.
+                    local tag = (pc_src == "stable" or pc_src == "filename") and "stable"
+                                or (pc_src == "render" and "render") or nil
+                    SpineShelf.persistProgress(src.filepath,
+                        pc_src ~= "store" and pc or nil, st, tag)
                 end)
                 _t_pages = _t_pages + (_gettime() - _tp)
             end
@@ -3328,6 +3390,10 @@ function SpineShelf.plan(items, opts)
                 pages = Repo.pageCountFor(src.filepath, pages)
             end
             if pages and not src.page_count then src.page_count = pages end
+            thick.filename = ok_repo and Repo and Repo.pageCountFromFilename
+                             and Repo.pageCountFromFilename(src.filepath) or nil
+            thick.bim      = bim_pages
+            thick.rendered = pages
             -- The glyph resolver's lazy fallback opens the sidecar whenever
             -- status is nil; a checked record with no status is a book that
             -- has genuinely never been opened.
@@ -3380,7 +3446,8 @@ function SpineShelf.plan(items, opts)
             -- the same page-count width its spine would have had (auto scale
             -- and the chip's thickness % included), capped so the cover
             -- stays the point.
-            local depth_dp = SpineLayout.spineWidthDp(pages) * auto_thick
+            local depth_dp = SpineLayout.spineWidthDp(
+                                 SpineShelf.thicknessPages(thick)) * auto_thick
             local t = tonumber(opts.thickness_pct)
             if t and t >= 40 and t <= 300 and t ~= 100 then
                 depth_dp = depth_dp * t / 100
@@ -3413,7 +3480,8 @@ function SpineShelf.plan(items, opts)
             if folder_n then
                 w_dp = SpineShelf.folderWidthDp(folder_n) * auto_thick
             else
-                w_dp = SpineLayout.spineWidthDp(pages) * auto_thick
+                w_dp = SpineLayout.spineWidthDp(
+                           SpineShelf.thicknessPages(thick)) * auto_thick
             end
             -- Per-chip thickness: a straight multiplier on top of the
             -- height-scaled width. Face-out covers are aspect-true and

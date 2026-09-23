@@ -3793,10 +3793,11 @@ function Settings:_librarySubItems()
         },
         {
             text      = _("Extract page counts"),
-            help_text = _("Paginate books that have never been opened, so"
-                .. " spine thickness and page-count badges reflect their real"
-                .. " length. Each book is rendered in the background; this"
-                .. " can take a while on a large library."),
+            help_text = _("Paginate books at the default layout, so spine"
+                .. " thickness reflects their real length whatever font you"
+                .. " read them in, and books you have never opened get a page"
+                .. " count. Each book is rendered in the background; this can"
+                .. " take a while on a large library."),
             callback  = function(touchmenu_instance)
                 if touchmenu_instance then
                     UIManager:close(touchmenu_instance)

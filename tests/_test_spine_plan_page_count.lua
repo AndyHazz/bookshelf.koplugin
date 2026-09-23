@@ -23,7 +23,9 @@ local t  = helpers.runner()
 local eq = helpers.eq
 
 local whole = assert(io.open("lib/bookshelf_spine_shelf.lua")):read("*a")
-local block = whole:match("\n(%s*local pages = src%.page_count\n%s*do\n.-\n%s*src%._spine_status_checked = true\n%s*end)\n")
+-- The thickness locals (issue 387, SpineShelf.thicknessPages) sit between the
+-- declaration and the block, so the match spans them.
+local block = whole:match("\n(%s*local pages = src%.page_count\n.-\n%s*do\n.-\n%s*src%._spine_status_checked = true\n%s*end)\n")
 assert(block, "the plan's page-count block moved or was renamed")
 
 local function compile(code, env)

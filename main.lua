@@ -2364,17 +2364,26 @@ function Bookshelf:scanPageCounts()
     local InfoMessage = require("ui/widget/infomessage")
 
     -- Classify the library up front (user spec, in priority order):
-    --   skip   books that already have a count (opened, or a prior scan),
+    --   skip   books that already have a LAYOUT-FREE count: a prior scan,
+    --          stable page numbers, or (from before counts were tagged) one
+    --          stored for a book that had never been opened,
     --   count  p(N) filename markers (free -- readProgress serves them live),
     --   probe  the rest: publisher page list, then Hardcover, then render.
+    -- An opened book is probed too when all it has is KOReader's rendered
+    -- count, which follows the reader's font: the spine's thickness wants the
+    -- default layout's (issue 387, SpineShelf.thicknessPages). Its sidecar,
+    -- and so its %pages, are left alone.
     local fps = Repo.getAllFilepaths and Repo.getAllFilepaths() or {}
     local skipped = 0
     local fn_list, todo = {}, {}
     for _i, fp in ipairs(fps) do
         local fn = Repo.pageCountFromFilename
                    and Repo.pageCountFromFilename(fp)
-        local pp = select(1, SpineShelf.cachedProgress(fp))
-        local _p, _s, _r, pc = Repo.readProgress(fp)
+        local pp, _ps, _known, psrc, opened = SpineShelf.cachedProgress(fp)
+        local _p, _s, _r, pc, _pn, pc_src = Repo.readProgress(fp)
+        local layout_free = psrc == "scan" or psrc == "stable"
+                            or pc_src == "stable"
+                            or (pp ~= nil and psrc == nil and not opened)
         -- The filename marker outranks a persisted echo of itself: the
         -- spine plan persists whatever readProgress answers when a page
         -- is shown, so a never-opened p(N) book usually arrives here
@@ -2383,7 +2392,7 @@ function Bookshelf:scanPageCounts()
         -- a sidecar or a real scan and wins.
         if fn and (pc == nil or pc == fn) and (pp == nil or pp == fn) then
             fn_list[#fn_list + 1] = fp
-        elseif pp or pc then
+        elseif layout_free then
             skipped = skipped + 1
         else
             todo[#todo + 1] = fp
@@ -2417,7 +2426,7 @@ function Bookshelf:scanPageCounts()
     -- that already answers is never second-guessed.
     local function persist(fp, pages, is_publisher)
         local _p2, st = Repo.readProgress(fp)
-        SpineShelf.persistProgress(fp, pages, st)
+        SpineShelf.persistProgress(fp, pages, st, "scan")
         if is_publisher then
             pcall(function()
                 local DocSettings = require("docsettings")

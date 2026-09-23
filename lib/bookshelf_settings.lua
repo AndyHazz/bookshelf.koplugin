@@ -2315,6 +2315,23 @@ function Settings:_colorsSubItems()
                 markDirty()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
+        },
+        {
+            text_func = function()
+                return _("Micro-module border") .. ": " .. valueLabel("module_border")
+            end,
+            help_text = _("The thin line around each micro-module card. Left "
+                .. "unset it follows the text color. Long-press to clear."),
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                pickColor("module_border", "module_border", 100,
+                    _("Micro-module border (% black)"), touchmenu_instance)
+            end,
+            hold_callback = function(touchmenu_instance)
+                deleteModeKey("module_border")
+                markDirty()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end,
             separator = true,   -- end of the panels band
         },
         {
@@ -2478,7 +2495,7 @@ function Settings:_colorsSubItems()
                     "bookmark_color", "complete_bookmark_color",
                     "favorite_star_color", "favorite_heart_color",
                     "badge_fg", "badge_bg", "border_color",
-                    "chrome_bg", "module_bg", "panel_bg",
+                    "chrome_bg", "module_bg", "module_border", "panel_bg",
                     "selection_color", "card_shadow_color",
                     "spine_plank_color",
                     "folder_overlay_bg", "folder_overlay_fg",

@@ -898,6 +898,9 @@ function M.resolvedColors()
     local ribbon_bg_raw    = _readModeColor("folder_overlay_bg", nil,
                                              NIGHT_DEFAULT_FOLDER_BG)
     local folder_fg_raw    = _readModeColor("folder_overlay_fg", nil)
+    -- The micro-module card's hairline (issue 424). No default: unset, the
+    -- card keeps the theme's own ink (see _cardBorderInk in hero_modules).
+    local module_border_raw = _readModeColor("module_border", nil)
     -- Shadow color is hard-coded so it always paints DARK ON SCREEN
     -- regardless of mode. KOReader's night mode inverts the framebuffer
     -- at refresh time, so the shadow color in code is BLACK in day mode
@@ -948,6 +951,7 @@ function M.resolvedColors()
         folder_bg         = folder_bg_raw and _paint(folder_bg_raw) or nil,
         ribbon_bg         = ribbon_bg_raw and _paint(ribbon_bg_raw) or nil,
         folder_fg         = folder_fg_raw and _paint(folder_fg_raw) or nil,
+        module_border     = module_border_raw and _paint(module_border_raw) or nil,
     }
     _resolved_gen   = gen
     _resolved_mode  = is_color
@@ -993,6 +997,7 @@ function M.rawColors()
         -- than as a percentage they never chose.
         folder_bg         = _readModeColor("folder_overlay_bg", nil),
         folder_fg         = _readModeColor("folder_overlay_fg", nil),
+        module_border     = _readModeColor("module_border", nil),
         -- Selected chip (#294). Unset = the chip bar inverts as before, so no
         -- default here: nil is meaningful ("use the fast invert path").
         -- bookshelf_chip_bar reads the same keys directly when it paints; these

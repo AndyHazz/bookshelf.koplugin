@@ -68,6 +68,9 @@ local DEFAULT_HEX = {
     -- what the user is already looking at.
     chip_selected_bg = "#000000",
     chip_selected_fg = "#FFFFFF",
+    -- Micro-module card hairline (issue 424): black, what the light theme
+    -- draws when it is unset.
+    module_border    = "#000000",
 }
 
 function Color.defaultHexFor(field) return DEFAULT_HEX[field] end

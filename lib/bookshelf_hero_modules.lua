@@ -90,7 +90,18 @@ end
 -- ("color = Blitbuffer.COLOR_BLACK, -- border color"), and the obvious guess,
 -- bordercolor, is simply an unread field on the table -- no error, no warning,
 -- the border just stays black.
+--
+-- A reader's own pick (Micro-module border, issue 424) wins over both: the
+-- hairline arrived with the wallpaper work, and on a plain page some prefer it
+-- lighter than the ink.
 local function _cardBorderInk()
+    local ok, CoverProgress = pcall(require, "lib/bookshelf_cover_progress")
+    if ok and CoverProgress and CoverProgress.resolvedColors then
+        local ok_c, colors = pcall(CoverProgress.resolvedColors)
+        if ok_c and colors and type(colors.module_border) ~= "nil" then
+            return colors.module_border
+        end
+    end
     if type(Modules.COLOR_PRIMARY) ~= "nil" then return Modules.COLOR_PRIMARY end
     return Blitbuffer.COLOR_BLACK
 end

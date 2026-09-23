@@ -6564,6 +6564,7 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
         -- aligned start in the current view size.
         return function()
             bw:_markOpdsNav()
+            local from_page = bw.page
             if bw:_isSpineMode() then
                 -- Real page boundaries from the page map, not view-size
                 -- arithmetic (spine pages hold a variable count).
@@ -6572,7 +6573,9 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
                     bw._cursor = cur
                     bw._spine_hist = {}
                     bw:_syncPageFromCursor()
+                    bw._wipe_dir = (p >= from_page) and 1 or -1
                     bw:_swapShelvesInPlace()
+                    bw:_schedulePreload((p >= from_page) and 1 or -1)
                     return
                 end
             end
@@ -6580,7 +6583,9 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
             bw._cursor = math.max(1, (p - 1) * view + 1)
             bw:_clampCursor()
             bw:_syncPageFromCursor()
+            bw._wipe_dir = (p >= from_page) and 1 or -1
             bw:_swapShelvesInPlace()
+            bw:_schedulePreload((p >= from_page) and 1 or -1)
         end
     end
     local function step(direction)
@@ -6588,10 +6593,7 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
         -- direction (+1 next, -1 prev). After a misaligned-cursor swipe-up,
         -- this still steps cleanly by the current view's full size.
         return function()
-            bw:_markOpdsNav()
-            bw:_advanceCursor(direction)
-            bw:_syncPageFromCursor()
-            bw:_swapShelvesInPlace()
+            bw:_footerStep(direction)
         end
     end
     -- Long-press ±10: skip 10 pages instead of 1. Clamped via go_page()
@@ -10589,18 +10591,28 @@ function BookshelfWidget:_swapFooterInPlace()
     local d      = self._shelf_dims
     local total  = self._total_pages or 1
     local BottomContainer = require("ui/widget/container/bottomcontainer")
+    -- Geometry from the OUTGOING footer, captured before the swap: the
+    -- refresh must cover the footer band only. A whole-widget "ui" here
+    -- repainted the hero above on every d-pad focus move / page turn --
+    -- the same flash class as issue #124.
+    local old = self._overlap_group[d.footer_overlap_idx]
+    local old_row = old and old[1]
+    local footer_band = old_row and old_row.dimen and old_row.dimen:copy() or nil
     local new_row    = self:_buildFooterRow(d.content_w, total, d.FOOTER_H)
     local new_anchor = BottomContainer:new{
         dimen = Geom:new{ w = self.width, h = self.height - d.FOOTER_BOTTOM_MARGIN },
         new_row,
     }
-    local old = self._overlap_group[d.footer_overlap_idx]
     self._overlap_group[d.footer_overlap_idx] = new_anchor
     if self._overlap_group.resetLayout then self._overlap_group:resetLayout() end
     UIManager:nextTick(function()
         if old and old.free then pcall(function() old:free() end) end
     end)
-    UIManager:setDirty(self, "ui")
+    if footer_band then
+        UIManager:setDirty(self, "ui", footer_band)
+    else
+        UIManager:setDirty(self, "ui")
+    end
 end
 
 function BookshelfWidget:onBSFocusUp()
@@ -10700,7 +10712,6 @@ function BookshelfWidget:onBSFocusUp()
         else
             self._focus_zone = "grid"
             self._cursor_idx = last_idx > 0 and last_idx or 1
-            self:_swapFooterInPlace()
             self:_swapShelvesInPlace()
         end
         return true
@@ -11163,20 +11174,23 @@ function BookshelfWidget:onBSKbPress()
             self._cursor = 1
             self:_syncPageFromCursor()
             self._footer_cursor_btn = "next"
+            self._wipe_dir = -1
             self:_swapShelvesInPlace()
-            self:_swapFooterInPlace()
+            self:_schedulePreload(-1)
         elseif btn == "prev" and self:_pageBackPossible() then
             self:_advanceCursor(-1)
             self:_syncPageFromCursor()
             if self.page <= 1 then self._footer_cursor_btn = "next" end
+            self._wipe_dir = -1
             self:_swapShelvesInPlace()
-            self:_swapFooterInPlace()
+            self:_schedulePreload(-1)
         elseif btn == "next" and self:_pageForwardPossible() then
             self:_advanceCursor(1)
             self:_syncPageFromCursor()
             if self.page >= total then self._footer_cursor_btn = "prev" end
+            self._wipe_dir = 1
             self:_swapShelvesInPlace()
-            self:_swapFooterInPlace()
+            self:_schedulePreload(1)
         elseif btn == "last" and self:_pageForwardPossible() then
             if self:_isSpineMode() then
                 local cur, n = self:_spineCursorForPage(math.huge)
@@ -11187,8 +11201,9 @@ function BookshelfWidget:onBSKbPress()
             end
             self:_syncPageFromCursor()
             self._footer_cursor_btn = "prev"
+            self._wipe_dir = 1
             self:_swapShelvesInPlace()
-            self:_swapFooterInPlace()
+            self:_schedulePreload(1)
         elseif btn == "page" then
             self:_clearDpadFocus()
             -- D-pad enter on focused page button opens page-jump dialog.
@@ -13718,6 +13733,21 @@ function BookshelfWidget:_schedulePreload(direction)
         return
     end
     UIManager:scheduleIn(PRELOAD_START_DELAY_S, self._preload_fn)
+end
+
+-- Shared pagination for footer chevrons (tap) and the Page X of Y jump.
+-- Arms the same wipe direction + cover preload the swipe path already
+-- arms in _paginateNext/_paginatePrev: without _wipe_dir the tap fell
+-- through to the non-wipe branch, and without _schedulePreload the next
+-- page's covers stayed cold on every chevron turn.
+function BookshelfWidget:_footerStep(direction)
+    self:_markOpdsNav()
+    self:_advanceCursor(direction)
+    self:_syncPageFromCursor()
+    local dir = direction > 0 and 1 or -1
+    self._wipe_dir = dir
+    self:_swapShelvesInPlace()
+    self:_schedulePreload(dir)
 end
 
 -- Shared pagination logic for swipe and hardware-key page-turn handlers.

@@ -2299,6 +2299,28 @@ function Settings:_colorsSubItems()
             end,
         },
         {
+            -- The bar's colour is a colour, and "none" is not one the pickers
+            -- can offer, so this is its own row. It does what Panel shading's
+            -- Transparent already did to this strip, without changing the
+            -- panels: the chips go without a ground, so a wallpaper shows
+            -- through behind them. The selected shelf keeps its own fill, and
+            -- the start menu, which is painted in the same colour, stays solid.
+            text = _("Transparent shelf menu"),
+            help_text = _("Leave out the bar behind the shelf menu, so the "
+                .. "wallpaper shows through. The selected shelf keeps its "
+                .. "fill."),
+            checked_func = function()
+                return BookshelfSettings.isTrue("chip_bar_transparent")
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                BookshelfSettings.save("chip_bar_transparent",
+                    not BookshelfSettings.isTrue("chip_bar_transparent"))
+                markDirty()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end,
+        },
+        {
             text_func = function()
                 return _("Micro-module background") .. ": " .. valueLabel("module_bg")
             end,
@@ -2495,7 +2517,8 @@ function Settings:_colorsSubItems()
                     "bookmark_color", "complete_bookmark_color",
                     "favorite_star_color", "favorite_heart_color",
                     "badge_fg", "badge_bg", "border_color",
-                    "chrome_bg", "module_bg", "module_border", "panel_bg",
+                    "chrome_bg", "chip_bar_transparent",
+                    "module_bg", "module_border", "panel_bg",
                     "selection_color", "card_shadow_color",
                     "spine_plank_color",
                     "folder_overlay_bg", "folder_overlay_fg",

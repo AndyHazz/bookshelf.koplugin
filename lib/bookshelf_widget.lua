@@ -1657,8 +1657,10 @@ function BookshelfWidget:_rebuild()
         -- and only gives it up if the reader asked.
         has_wallpaper     = self:wallpaperButtonsTransparent(),
         -- The strip goes opaque whenever the reader has not asked for
-        -- transparency, whatever the panel's own shading is set to.
-        solid_ground      = self:wallpaperScrimStrength() > 0,
+        -- transparency, whatever the panel's own shading is set to: at
+        -- Transparent shading, or with Transparent shelf menu on.
+        solid_ground      = self:wallpaperScrimStrength() > 0
+                            and not BookshelfSettings.isTrue("chip_bar_transparent"),
         active            = self.chip,
         selected_key      = self.chip,   -- seeds the chip page (infinite-chips)
         focused_key       = self._chip_cursor_key,

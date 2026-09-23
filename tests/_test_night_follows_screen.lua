@@ -3,12 +3,11 @@
 --
 -- Usage (from plugin root): lua tests/_test_night_follows_screen.lua
 --
--- Issue 426. ZenOS's quick-settings Night button (modules/menu/patches/
--- quick_settings.lua, now open source) does what DeviceListener's handler
--- does -- Screen:toggleNightMode(), UIManager:ToggleNightMode(), save the
--- setting, a full refresh -- but broadcasts NO event. The shelf's
+-- Issue 426. Another plugin's night toggle can do what DeviceListener's
+-- handler does -- Screen:toggleNightMode(), UIManager:ToggleNightMode(), save
+-- the setting, a full refresh -- but broadcast NO event. The shelf's
 -- ToggleNightMode / SetNightMode handlers never ran, so the wallpaper cache
--- was never flipped: on the desktop rig, replaying that button verbatim, the
+-- was never flipped: on the desktop rig, replaying that toggle verbatim, the
 -- panel came out right (its colours already follow the screen) and the
 -- wallpaper came out as a NEGATIVE of itself. Half and half.
 --

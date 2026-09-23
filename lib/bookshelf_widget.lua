@@ -10314,10 +10314,10 @@ end
 -- _followScreenNight() -- run the night rebuild when the SCREEN's night state
 -- has moved since this tree was built, however it moved.
 --
--- The events are not the only way night mode changes. ZenOS's quick-settings
--- Night button (modules/menu/patches/quick_settings.lua) does what
--- DeviceListener's handler does -- flip the screen, UIManager:ToggleNightMode,
--- save the setting, a full refresh -- and broadcasts nothing, so neither
+-- The events are not the only way night mode changes. Another plugin can do
+-- what DeviceListener's handler does -- flip the screen,
+-- UIManager:ToggleNightMode, save the setting, a full refresh -- without
+-- broadcasting the change, so neither
 -- handler above ran and the wallpaper cache was never flipped: replayed
 -- verbatim on the desktop rig, the panel came out right (its colours already
 -- follow the screen) and the wallpaper as a NEGATIVE of itself -- the "half
@@ -10332,8 +10332,8 @@ end
 -- nothing to compare with.
 --
 -- AND it rebuilds right here, inside the paint, rather than on the next tick.
--- A night switch arrives with a full refresh (DeviceListener's, or ZenOS's
--- copy of it), and that refresh used to paint the tree built for the OLD
+-- A night switch arrives with a full refresh (DeviceListener's, or another
+-- plugin's copy of it), and that refresh used to paint the tree built for the OLD
 -- theme -- every baked colour wrong for a frame, the face-out covers' side
 -- shadows and the bookmark glyph most visibly -- before the deferred rebuild
 -- painted it right: the shadows flashed (maintainer, on a PW5 with the shelf
@@ -10346,7 +10346,7 @@ function BookshelfWidget:_followScreenNight()
     local now = Screen.night_mode and true or false
     if self._built_night == nil or self._built_night == now then return end
     if not self._night_rebuild_pending then
-        -- No event said so (ZenOS): the wallpaper has not been flipped yet.
+        -- No event said so: the wallpaper has not been flipped yet.
         pcall(function()
             local Wallpaper = require("lib/bookshelf_wallpaper")
             if Wallpaper.flipNight then Wallpaper.flipNight(now) end
@@ -11598,7 +11598,7 @@ function BookshelfWidget:paintTo(bb, x, y)
             end)
         end
     end
-    -- Night mode can change with no event too (ZenOS's Night button): see
+    -- Night mode can change with no event too (another plugin's toggle): see
     -- _followScreenNight. Before the paint, so this frame gets the flipped
     -- wallpaper.
     self:_followScreenNight()

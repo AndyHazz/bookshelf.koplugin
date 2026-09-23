@@ -3973,6 +3973,8 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
     local cache_key = table.concat({
         path, table.concat(prio_parts, ","),
         reverse and "R" or "", mixed and "M" or "",
+        -- How the keys themselves are derived (pinyin, leading articles).
+        SortEngine.keySignature(),
     }, "\0")
     local now   = os.time()
     local entry = _all_cache[cache_key]
@@ -7027,6 +7029,9 @@ local function _bySourceCacheKey(source, filter, sort_priority)
             parts[#parts + 1] = "s:" .. level.key .. ":" .. (level.reverse and "r" or "f")
         end
     end
+    -- How the keys themselves are derived (pinyin, leading articles): not a
+    -- sort level, but it changes the order all the same.
+    parts[#parts + 1] = "k:" .. SortEngine.keySignature()
     return table.concat(parts, "|")
 end
 

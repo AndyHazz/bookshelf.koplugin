@@ -3991,6 +3991,30 @@ function Settings:_librarySubItems()
             end,
         },
         {
+            -- Issue 428. On by default: calibre's title_sort, or a leading
+            -- The / A / An dropped, for titles and series names alike. Off
+            -- sorts both exactly as written.
+            text = _("Ignore The, A, An when sorting"),
+            help_text = _("Sorts titles and series names by the word after a "
+                .. "leading The, A or An, and uses Calibre's title sort where "
+                .. "a book has one. Turn off to sort them exactly as written."),
+            checked_func = function()
+                return BookshelfSettings.read("sort_ignore_articles") ~= false
+            end,
+            keep_menu_open = true,
+            callback = function()
+                local on = BookshelfSettings.read("sort_ignore_articles") ~= false
+                BookshelfSettings.save("sort_ignore_articles", not on)
+                -- Same as the pinyin row below: the save bumps the settings
+                -- generation, the sort engine re-reads the flag and drops its
+                -- per-record keys on the next sort, and this rebuild sorts.
+                if self._bw and self._bw._rebuild then
+                    self._bw:_rebuild()
+                    UIManager:setDirty(self._bw, "ui")
+                end
+            end,
+        },
+        {
             text = _("Sort Chinese text by pinyin"),
             help_text = _("Sorts Chinese characters by their Mandarin "
                 .. "pinyin reading, so Chinese titles and authors file "

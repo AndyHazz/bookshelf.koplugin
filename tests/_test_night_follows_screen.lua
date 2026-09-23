@@ -14,9 +14,11 @@
 --
 -- The fix is the collate_mixed idiom already in paintTo: a change that
 -- arrives with no event still ends in a paint, so compare the night state
--- the tree was BUILT for with the screen's, and when they differ, run the
--- very same night rebuild the event path runs. Once: the event path marks
--- its own rebuild pending, so a normal toggle is not rebuilt twice.
+-- the tree was BUILT for with the screen's, and when they differ, rebuild
+-- right there, inside the paint. Not on the next tick: the switch's own full
+-- refresh would paint the old tree first, every baked colour wrong for a
+-- frame, and the shadows flashed (maintainer, 2026-09-23). The event path's
+-- deferred rebuild then finds nothing pending and stands down.
 
 package.path = "./?.lua;./?/init.lua;" .. package.path
 local helpers = dofile("tests/_helpers.lua")
@@ -28,55 +30,59 @@ local src = io.open("lib/bookshelf_widget.lua"):read("*a")
 local body = src:match("\nfunction BookshelfWidget:_followScreenNight%(%)\n(.-)\nend\n")
 assert(body, "BookshelfWidget:_followScreenNight is missing")
 
-local scheduled
+local flips, rebuilds
 local function follow(built, screen_night, pending)
-    scheduled = {}
+    flips, rebuilds = {}, 0
     local env = {
         Screen = { night_mode = screen_night },
-        _scheduleNightModeRebuild = function(w, target)
-            scheduled[#scheduled + 1] = target
-            w._night_rebuild_pending = true
+        pcall = pcall,
+        require = function(name)
+            assert(name == "lib/bookshelf_wallpaper")
+            return { flipNight = function(t) flips[#flips + 1] = t end }
         end,
     }
     local fn = assert(load("return function(self)\n" .. body .. "\nend",
         "_followScreenNight", "t", env))()
     local w = { _built_night = built, _night_rebuild_pending = pending }
+    function w:_rebuild()
+        rebuilds = rebuilds + 1
+        self._built_night = env.Screen.night_mode and true or false
+        self._night_rebuild_pending = nil
+    end
     fn(w)
     return w
 end
 
-t.test("a night toggle that sent no event gets the night rebuild", function()
-    follow(false, true, nil)
-    eq(#scheduled, 1, "the shelf ignored a screen that went to night")
-    eq(scheduled[1], true, "it rebuilt for the wrong state")
+t.test("a night switch that sent no event is rebuilt in this very paint", function()
+    local w = follow(false, true, nil)
+    eq(rebuilds, 1, "the shelf ignored a screen that went to night")
+    eq(w._built_night, true)
+    eq(flips[1], true, "no event flipped the wallpaper, so this must")
 end)
 
 t.test("...and back to day the same way", function()
     follow(true, false, nil)
-    eq(scheduled[1], false)
+    eq(rebuilds, 1); eq(flips[1], false)
 end)
 
-t.test("no change, nothing scheduled", function()
-    follow(true, true, nil); eq(#scheduled, 0)
-    follow(false, false, nil); eq(#scheduled, 0)
+t.test("no change, no rebuild", function()
+    follow(true, true, nil); eq(rebuilds, 0)
+    follow(false, false, nil); eq(rebuilds, 0)
 end)
 
-t.test("a rebuild already pending is not doubled", function()
-    -- The event path's own: its handler marks it pending and rebuilds on the
-    -- next tick, and DeviceListener's full refresh paints in between.
-    follow(false, true, true)
-    eq(#scheduled, 0, "a normal toggle would rebuild twice")
-end)
-
-t.test("paints of the same change schedule it once", function()
-    local w = follow(false, true, nil)
-    eq(#scheduled, 1)
-    assert(w._night_rebuild_pending, "the first schedule did not mark itself pending")
+t.test("an event already on its way: rebuild now, and leave the wallpaper to it", function()
+    -- The event handler flipped the wallpaper and deferred a rebuild; the
+    -- toggle's full refresh paints before that tick. Rebuilding here makes the
+    -- frame right, and settles the flag so the tick stands down.
+    local w = follow(false, true, true)
+    eq(rebuilds, 1, "the refresh painted the old theme first: the flash")
+    eq(#flips, 0, "the wallpaper was flipped twice, back to the wrong way")
+    eq(w._night_rebuild_pending, nil)
 end)
 
 t.test("before the first rebuild there is nothing to compare", function()
     follow(nil, true, nil)
-    eq(#scheduled, 0)
+    eq(rebuilds, 0)
 end)
 
 -- ── the wiring ─────────────────────────────────────────────────────────────

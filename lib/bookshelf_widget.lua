@@ -10274,8 +10274,14 @@ local function _scheduleNightModeRebuild(self, target_night)
     -- Next tick: DeviceListener has flipped the screen and saved night_mode
     -- by then (it runs later in the same broadcast), so the rebuild reads the
     -- right theme. One paint.
+    --
+    -- Unless the paint got there first. The toggle's own full refresh paints
+    -- the shelf before this tick, and _followScreenNight rebuilds inside that
+    -- paint when it sees the screen has moved, so the frame shows the new
+    -- theme; a second rebuild and repaint here would be the very flash that
+    -- fixed (see _followScreenNight). _rebuild clears the flag.
     UIManager:nextTick(function()
-        if self._rebuild then
+        if self._rebuild and self._night_rebuild_pending then
             self:_rebuild()
             UIManager:setDirty(self, "ui")
         end
@@ -10300,11 +10306,29 @@ end
 -- Once per change: the event path marks its own rebuild pending, and so does
 -- this, and every _rebuild settles the flag. Before the first rebuild there is
 -- nothing to compare with.
+--
+-- AND it rebuilds right here, inside the paint, rather than on the next tick.
+-- A night switch arrives with a full refresh (DeviceListener's, or ZenOS's
+-- copy of it), and that refresh used to paint the tree built for the OLD
+-- theme -- every baked colour wrong for a frame, the face-out covers' side
+-- shadows and the bookmark glyph most visibly -- before the deferred rebuild
+-- painted it right: the shadows flashed (maintainer, on a PW5 with the shelf
+-- theme on Auto; the desktop rig showed the two frames). By the time that
+-- refresh paints, both the screen flag and the saved setting have moved, so
+-- the rebuild reads the right theme. paintTo already rebuilds in place for a
+-- change of screen size; this is the same move. The event path's own
+-- deferred rebuild then finds nothing pending and stands down.
 function BookshelfWidget:_followScreenNight()
     local now = Screen.night_mode and true or false
     if self._built_night == nil or self._built_night == now then return end
-    if self._night_rebuild_pending then return end
-    _scheduleNightModeRebuild(self, now)
+    if not self._night_rebuild_pending then
+        -- No event said so (ZenOS): the wallpaper has not been flipped yet.
+        pcall(function()
+            local Wallpaper = require("lib/bookshelf_wallpaper")
+            if Wallpaper.flipNight then Wallpaper.flipNight(now) end
+        end)
+    end
+    self:_rebuild()
 end
 
 -- The two events differ in what they promise, so they work the target out

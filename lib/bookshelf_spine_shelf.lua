@@ -1565,9 +1565,16 @@ local function _paintRotatedTitle(bb, x, y, run_len, band_w, text, face_size, lo
         -- is thick enough to hold two (issue 440: omnibuses, whose spines are
         -- the widest on the shelf and whose titles are the longest). Only
         -- then: a title that fits keeps its one line, whatever the width.
-        local line_gap = math.max(1, math.floor(line_h / 8))
+        -- Lines 1.05 em apart, the top panel title's own leading
+        -- (hero_regions title.line_height = 0.05). A TextWidget's box is its
+        -- full ascent + descent, so stacking boxes -- plus a gap -- set the
+        -- two lines about half an em further apart than the title above the
+        -- shelf does (maintainer). Glyph pixels may cross into the next
+        -- line's box; the scratch buffer is one prefill under both.
+        local face_px = tonumber(BFont:getFace(face_name, size).size) or line_h
+        local pitch = math.min(line_h, math.floor(face_px * 1.05 + 0.5))
         local lines = { tw }
-        if tw.isTruncated and tw:isTruncated() and 2 * line_h + line_gap <= band_w then
+        if tw.isTruncated and tw:isTruncated() and pitch + line_h <= band_w then
             local l1, l2 = SpineShelf._splitTitle(text, run_len, function(str)
                 local m = TextWidget:new{ text = str,
                     face = BFont:getFace(face_name, size), padding = 0 }
@@ -1592,7 +1599,7 @@ local function _paintRotatedTitle(bb, x, y, run_len, band_w, text, face_size, lo
         local widths = {}
         for i = 1, #lines do widths[i] = math.min(lines[i]:getSize().w, run_len) end
         local last_w = widths[#lines]
-        local sh = #lines * line_h + (#lines - 1) * line_gap
+        local sh = (#lines - 1) * pitch + line_h
         -- The author rides the same band in a smaller face, above the title
         -- the way a printed spine sets it -- only when the title left it a
         -- worthwhile stretch of spine to sit on. On a wrapped title, after
@@ -1644,7 +1651,7 @@ local function _paintRotatedTitle(bb, x, y, run_len, band_w, text, face_size, lo
         -- starts, in either text direction. Each line centred along the run,
         -- as a printed spine sets them; one line fills sw, so it sits at 0.
         for i = 1, #lines do
-            local ly = (i - 1) * (line_h + line_gap)
+            local ly = (i - 1) * pitch
             local lx = math.floor((sw - extent[i]) / 2)
             lines[i]:paintTo(scratch, lx, ly)
             lines[i]:free()

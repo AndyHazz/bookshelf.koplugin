@@ -1064,38 +1064,6 @@ function SpineShelf.isFirstInSeries(src)
     return tonumber(src.series_num) == 1
 end
 
--- folderCount(bk, src) -> books under a folder, or nil for anything else.
---
--- Issue 420: a folder stood on the spine shelf at the width of an average
--- book whatever it held -- it has no page count, so the width ladder fell
--- through to its default -- and with nothing to mark it as a folder. A
--- wrapper folder (one book, no subfolders) is not counted: it already stands
--- as its book (src is then the book, not the folder). Counted once per
--- record, at any depth, off the repository's memoised walk.
-function SpineShelf.folderCount(bk, src)
-    if not bk or bk.kind ~= "folder" or src ~= bk or not bk.path then return nil end
-    if bk._spine_count == nil then
-        local n = 0
-        pcall(function()
-            local Repo = require("lib/bookshelf_book_repository")
-            n = #(Repo.getFolderBookPaths(bk.path) or {})
-        end)
-        bk._spine_count = n
-    end
-    return bk._spine_count > 0 and bk._spine_count or nil
-end
-
--- folderWidthDp(n) -> dp for a folder of n books.
---
--- Priced as n average books on the page ladder, so it grows with its
--- contents up to the thickest spine, and never thinner than two: a folder is
--- something to tap into, and the narrowest spines are the hardest targets on
--- an e-ink screen. Two books and up read as 2, 3, 4+ steps.
-function SpineShelf.folderWidthDp(n)
-    n = math.max(2, tonumber(n) or 2)
-    return SpineLayout.spineWidthDp(SpineLayout.DEFAULT_PAGES * n)
-end
-
 -- markSeriesHeads(f, src, st) -- answers both series reasons for one book.
 --
 -- Sets f.series_first ("First in series") and f.series_next ("First unread in
@@ -1696,10 +1664,6 @@ local function _paintLevelText(bb, x, y, box_w, text, face, night)
     return used
 end
 
--- A folder's mark at the head of its spine, where a book shows its status
--- (nf-fa-folder, symbols face -- the start menu's folder rows use the same).
-local GLYPH_FOLDER = "\u{f07b}"
-
 local function _statusGlyph(book)
     if book and book._spine_status_checked and book.status == nil then
         -- Checked at plan time and genuinely never opened: nothing for
@@ -1878,8 +1842,6 @@ function SpineBookSlot:_renderKey(night)
         -- The title run's direction is baked in too: without this the shelf
         -- keeps painting the old rotation until something else evicts it.
         SpineShelf.titleRotation(),
-        -- A folder's count is painted at its foot.
-        e.folder_n or "-",
     }, "|")
 end
 
@@ -2169,9 +2131,8 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
     local cur_top = body_top + pad
     local bottom = top + spine_h - pad
 
-    -- Status glyph (reading / finished / on hold), level, at the head. A
-    -- folder has no status; it shows that it IS one instead (issue 420).
-    local glyph = e.folder_n and GLYPH_FOLDER or _statusGlyph(self.book)
+    -- Status glyph (reading / finished / on hold), level, at the head.
+    local glyph = _statusGlyph(self.book)
     local w_dp = e.w_dp or 20
     if glyph then
         local gsize = _glyphSizeDp(w_dp, e.ref_w_dp, GLYPH_STATUS)
@@ -2192,15 +2153,12 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
     -- anchored so the text BOTTOM sits one pad above the spine's foot --
     -- the reserve arithmetic this replaces drifted with font size and let
     -- the number float above the base.
-    -- A folder shows how many books it holds there instead.
-    local foot = e.folder_n and tostring(e.folder_n)
-                 or (self.show_series and e.series_num) or nil
-    if foot then
+    if self.show_series and e.series_num then
         local ssize = math.max(7, math.min(13, math.floor(w_dp * 0.45)))
         local face = BFont:getFace(BFont.getUIFontFace() or "cfont", ssize)
         pcall(function()
             local tw = TextWidget:new{
-                text = foot, face = face,
+                text = e.series_num, face = face,
                 fgcolor = _textColor(night),
                 max_width = spine_w, padding = 0,
             }
@@ -3480,16 +3438,8 @@ function SpineShelf.plan(items, opts)
             w = SpineLayout.faceOutWidth(face_h, aspect)
             w_dp = math.floor(w / (Screen:scaleBySize(100) / 100) + 0.5)
         else
-            -- A folder (one that is not just a wrapper round a single book,
-            -- which stands as that book) is as thick as what it holds: see
-            -- SpineShelf.folderWidthDp.
-            local folder_n = SpineShelf.folderCount(bk, src)
-            if folder_n then
-                w_dp = SpineShelf.folderWidthDp(folder_n) * auto_thick
-            else
-                w_dp = SpineLayout.spineWidthDp(
-                           SpineShelf.thicknessPages(thick)) * auto_thick
-            end
+            w_dp = SpineLayout.spineWidthDp(
+                       SpineShelf.thicknessPages(thick)) * auto_thick
             -- Per-chip thickness: a straight multiplier on top of the
             -- height-scaled width. Face-out covers are aspect-true and
             -- stay out of both.
@@ -3591,7 +3541,6 @@ function SpineShelf.plan(items, opts)
             author = src.author or (src.authors and src.authors[1]) or nil,
             series_num = series_num, gap_before = gap_before,
             in_group = f.in_group or nil,
-            folder_n = SpineShelf.folderCount(bk, src),
             -- An ornament standing in the gap this spine carries (see the
             -- reservation above); rowWidget paints it.
             ornament = ornament_here,

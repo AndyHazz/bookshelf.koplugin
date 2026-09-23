@@ -3516,6 +3516,18 @@ function BookshelfWidget:_fetchChipItems(n, want_all)
         -- them (#323). getAll applies it to books and to folder cards alike
         -- (_filterAllShapes), so a subfolder holding nothing that matches
         -- disappears here for the same reason it does at the top level.
+        -- On a spine shelf the folder's contents spill out as labelled runs
+        -- of books, exactly as Home's do -- never its subfolders standing on
+        -- the shelf edge-on like books (issue 420; maintainer: "we can't show
+        -- folders as books"). The chip's whole sort orders the books within
+        -- each run, as it does on Home.
+        if Repo.spine_light then
+            local sopts = {}
+            for k, v in pairs(fetch_opts or {}) do sopts[k] = v end
+            sopts.root = tip.payload.path
+            return Repo.getFolderSections(LIMIT, offset, sp,
+                                          tab and tab.filter or nil, sopts)
+        end
         return Repo.getAll(tip.payload.path, LIMIT, offset, within,
                            tab and tab.filter or nil, fetch_opts)
     end

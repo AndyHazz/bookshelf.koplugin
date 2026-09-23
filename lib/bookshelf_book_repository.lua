@@ -5959,15 +5959,41 @@ end
 -- Costs nothing the Home chip was not already paying: the walk is the cached
 -- one every fetcher shares, and records come from the batched blob-free light
 -- map, so a whole shelf costs no cover decode at all.
+-- opts.root: the folder whose contents to section, when it is not the whole
+-- library -- a folder drilled into, or a shelf sourced to one. Its books
+-- spill out as labelled runs exactly as Home's do, never as a folder standing
+-- on the shelf edge-on like a book (maintainer: "we can't show folders as
+-- books"). Under the library root it reuses the library's own walk and
+-- light-meta cache, so opening a folder costs no second pass over the disk;
+-- a folder outside it is walked on its own.
 function Repo.getFolderSections(limit, offset, sort_priority_override, filter, opts)
     local _t0 = _gettime()
-    local root = _resolveLibraryRoot()
+    local lib_root = _resolveLibraryRoot()
+    local root = (opts and opts.root) or lib_root
     if not root then
         logger.warn("[bookshelf] getFolderSections: home_dir not configured; refusing to walk")
         return {}, 0
     end
+    while #root > 1 and root:sub(-1) == "/" do root = root:sub(1, -2) end
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
-    local walk  = cachedWalk(root, depth)
+    local walk_root = root
+    if lib_root and root ~= lib_root then
+        local lr = lib_root
+        while #lr > 1 and lr:sub(-1) == "/" do lr = lr:sub(1, -2) end
+        if root:sub(1, #lr + 1) == lr .. "/" then walk_root = lr end
+    end
+    local walk = cachedWalk(walk_root, depth)
+    if walk_root ~= root then
+        local prefix, inside = root .. "/", {}
+        for i = 1, #walk do
+            local c = walk[i]
+            local fp = c and (c.fp or c)
+            if type(fp) == "string" and fp:sub(1, #prefix) == prefix then
+                inside[#inside + 1] = c
+            end
+        end
+        walk = inside
+    end
     local FolderSections = require("lib/bookshelf_folder_sections")
     local sections = FolderSections.group(walk, root)
     -- KOReader's "folders and files mixed", which getAll honours for the
@@ -6012,7 +6038,7 @@ function Repo.getFolderSections(limit, offset, sort_priority_override, filter, o
     -- the point of showing the structure at all.
     local sp = sort_priority_override
     if not sp or #sp == 0 then sp = Repo.getSortPriority("all") end
-    local light_cache = _getLightMetaCache(root, depth)
+    local light_cache = _getLightMetaCache(walk_root, depth)
     local ordered = {}
     for si = 1, #sections do
         local s = sections[si]
@@ -7649,8 +7675,19 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
     -- shelf -- so a folder becomes a badged run of its own books rather than
     -- a single drillable spine. Cover and list keep getAll's tree view, where
     -- folder styles and drill-in live. See Repo.getFolderSections.
-    if kind == "all" and Repo.spine_light then
-        return Repo.getFolderSections(limit, offset, sort_priority, filter, opts)
+    --
+    -- A FOLDER source too (a folder drilled into from the cover view, or a
+    -- shelf pinned to one): it went to getAll, so its subfolders stood on the
+    -- spine shelf as book-like spines, which is what issue 420 reported.
+    -- Sectioned from that folder down instead.
+    if (kind == "all" or kind == "folder") and Repo.spine_light then
+        local sopts = opts
+        if kind == "folder" and source.id then
+            sopts = {}
+            for k, v in pairs(opts or {}) do sopts[k] = v end
+            sopts.root = source.id
+        end
+        return Repo.getFolderSections(limit, offset, sort_priority, filter, sopts)
     end
     if not has_status_filter then
         if kind == "all"       then return Repo.getAll(nil, limit, offset, sort_priority, nil, opts)       end

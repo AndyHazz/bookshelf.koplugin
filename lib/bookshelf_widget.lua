@@ -6822,6 +6822,16 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
         if b.dimen then
             b.dimen.h = b.dimen.h + hit_extension
         end
+        -- No flash_ui tap highlight on the pagination row. KOReader
+        -- highlights an icon button by inverting whatever is behind it, and
+        -- these have no fill of their own over a wallpaper, so the flash was
+        -- a negative patch of the picture rather than the button -- and on a
+        -- Kindle its separate refresh is often cut short by the page turn
+        -- landing straight after it. The page turn is the feedback. Only the
+        -- two paint hooks go: the tap itself, the callback and KOReader's
+        -- repaint after it are untouched.
+        b._doFeedbackHighlight = function() end
+        b._undoFeedbackHighlight = function() end
     end
     -- Pad the row to its ORIGINAL top offset (default_pad) so the icons
     -- stay at the same y they had before the hit-extension was added.

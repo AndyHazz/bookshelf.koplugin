@@ -61,6 +61,7 @@ local F = {
     end,
 }
 local persist = fn(ss, "persistProgress", "fp, pages, status, src", {
+    SCAN_TAGS = { print = true, layout = true, scan = true },
     _facts = function() return F end,
     _sidecarMtime = function() return 7 end,
     _progress_validated = {},
@@ -82,8 +83,16 @@ end)
 
 t.test("a new scan does replace an old one", function()
     rows = { ["/b.epub"] = { p = 320, psrc = "scan" } }
-    persist("/b.epub", 330, nil, "scan")
-    eq(rows["/b.epub"].p, 330)
+    persist("/b.epub", 330, nil, "print")
+    eq(rows["/b.epub"].p, 330); eq(rows["/b.epub"].psrc, "print")
+    persist("/b.epub", 900, nil, "layout")
+    eq(rows["/b.epub"].psrc, "layout")
+end)
+
+t.test("a rendered count does not overwrite a layout one either", function()
+    rows = { ["/b.epub"] = { p = 900, psrc = "layout" } }
+    persist("/b.epub", 500, "reading", "render")
+    eq(rows["/b.epub"].p, 900); eq(rows["/b.epub"].psrc, "layout")
 end)
 
 t.test("no count leaves the stored one alone", function()
@@ -110,7 +119,13 @@ t.test("both spine widths come from the thickness ladder", function()
 end)
 
 t.test("the scan tags its counts and probes opened books with only a rendered one", function()
-    assert(mn:find('SpineShelf.persistProgress(fp, pages, st, "scan")', 1, true))
+    assert(mn:find('SpineShelf.persistProgress(fp, pages, st, tag)', 1, true))
+    for _i, s in ipairs({ 'persist(fp, n, "print", true)',
+                          'persist(fp, linked[fp], "print", false)',
+                          'persist(fp, pages, "layout", false)',
+                          'persist(fp, legacy[fp], "layout", false)' }) do
+        assert(mn:find(s, 1, true), "the scan no longer tags: " .. s)
+    end
     assert(mn:find("elseif layout_free then", 1, true),
         "an opened book is still skipped for having any count")
 end)

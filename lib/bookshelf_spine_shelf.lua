@@ -540,8 +540,13 @@ end
 --
 -- src says where `pages` came from, and the spine's THICKNESS reads it
 -- (issue 387, see thicknessPages):
---   "scan"    the page-count scan: a publisher page list, Hardcover, or a
---             headless render at the default layout -- font-independent
+--   "print"   the page-count scan's publisher page list or Hardcover edition:
+--             the printed book's pages
+--   "layout"  the page-count scan's headless render, at crengine's built-in
+--             font, margins and full screen -- not the reader's layout, and
+--             not print scale either. A private scale for spine widths, so
+--             it is never SHOWN as the book's page count (shownPages)
+--   "scan"    either of the two, stored before they were told apart
 --   "stable"  the sidecar's stable page numbers, or a p(N) filename marker
 --   "render"  the sidecar's stats.pages: KOReader's count at the reader's
 --             OWN font and margins, which is why the same book changed width
@@ -549,12 +554,16 @@ end
 -- A rendered count never overwrites a scanned one: the plan persists what
 -- readProgress answers for every book it shows, and that used to replace the
 -- scan's layout-free count with the font-dependent one on first sight.
+local SCAN_TAGS  = { print = true, layout = true, scan = true }
+local SHOWN_TAGS = { print = true, stable = true, render = true }
+SpineShelf.SCAN_TAGS = SCAN_TAGS
+
 function SpineShelf.persistProgress(fp, pages, status, src)
     if not fp then return end
     local F = _facts()
     if not F then return end
     local e = F.get(fp)
-    local keep_scan = e and e.psrc == "scan" and e.p and src ~= "scan"
+    local keep_scan = e and SCAN_TAGS[e.psrc] and e.p and not SCAN_TAGS[src]
     F.put(fp, {
         p    = (not keep_scan) and pages or nil,
         psrc = (not keep_scan) and pages and src or nil,
@@ -563,6 +572,19 @@ function SpineShelf.persistProgress(fp, pages, status, src)
         m    = _sidecarMtime(fp),
     })
     _progress_validated[fp] = true
+end
+
+-- shownPages(fp) -> the stored count, when it is one to show as the book's
+-- page count; nil otherwise.
+-- Reddit report: "page counts extracted by Bookshelf are way off, like a
+-- factor of 4". They were the scan's layout renders, served everywhere a page
+-- count is read (%page_count, badges, sort) as though they were the book's.
+-- A legacy "scan" could be a render, and an untagged count from before the
+-- tags could be anything, so neither is shown; the next scan re-tags them.
+function SpineShelf.shownPages(fp)
+    local pp, _s, _k, psrc = SpineShelf.cachedProgress(fp)
+    if pp and SHOWN_TAGS[psrc] then return pp end
+    return nil
 end
 
 -- thicknessPages(c) -> the page count a spine's WIDTH is drawn from.
@@ -3311,15 +3333,20 @@ function SpineShelf.plan(items, opts)
             local pp, ps, known, psrc, opened = SpineShelf.cachedProgress(src.filepath)
             if pp then
                 if psrc == "stable" then thick.stable = pp
-                elseif psrc == "scan" then thick.scan = pp
+                elseif SCAN_TAGS[psrc] then thick.scan = pp
                 -- Untagged, from before the tags: a book with no sidecar can
                 -- only have had it from the scan or its filename.
                 elseif psrc == nil and not opened then thick.scan = pp
                 end
+                -- Only a count fit to show goes on the record; a layout
+                -- render sets the width and nothing else (shownPages).
+                if SHOWN_TAGS[psrc] then pages = pages or pp end
             end
-            pages = pages or pp
             if src.status == nil and ps then src.status = ps end
-            if (not pages or not known) and src.filepath
+            -- A width-only count still answers "is anything known": without
+            -- it every layout-scanned book would open its sidecar on every
+            -- plan, for a count the sidecar does not have.
+            if (not (pages or thick.scan) or not known) and src.filepath
                     and ok_repo and Repo and Repo.readProgress then
                 local _tp = _gettime()
                 pcall(function()

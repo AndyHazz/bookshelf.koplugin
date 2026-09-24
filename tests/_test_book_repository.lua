@@ -5485,13 +5485,25 @@ end)
 -- there too, or the scan shows up in the spine widths -- which read the store
 -- directly -- and nowhere else.
 
+-- counts: fp -> pages (a "print" count) or {pages, tag}. shownPages is the
+-- real one's rule, restated: only print / stable / render counts are shown.
 local function with_scan_store(counts, fn)
     local previous = package.loaded["lib/bookshelf_spine_shelf"]
+    local function entry(fp)
+        local c = counts[fp]
+        if type(c) == "table" then return c[1], c[2] end
+        return c, c and "print" or nil
+    end
     package.loaded["lib/bookshelf_spine_shelf"] = {
         cachedProgress = function(fp)
-            local n = counts[fp]
+            local n, tag = entry(fp)
             if not n then return nil, nil, false end
-            return n, nil, false
+            return n, nil, false, tag, false
+        end,
+        shownPages = function(fp)
+            local n, tag = entry(fp)
+            if tag == "print" or tag == "stable" or tag == "render" then return n end
+            return nil
         end,
     }
     local ok, err = pcall(fn)
@@ -5520,6 +5532,26 @@ test("the HERO's record gets the scanned count too", function()
         assert(b.page_count == 377,
             "expected the scan's count on the hero record, got "
             .. tostring(b.page_count))
+    end)
+end)
+
+test("a layout render is never shown as the book's page count", function()
+    -- Reddit report: extracted counts "way off, like a factor of 4". A render
+    -- at crengine's default layout is a spine-width scale, not the book's
+    -- length; nor is a legacy "scan" count, which could be one.
+    _G._test_docsettings_data = nil
+    _G._test_bim_data = { ["/lib/layout.epub"] = { title = "L" } }
+    with_scan_store({ ["/lib/layout.epub"] = { 1600, "layout" },
+                      ["/lib/legacy.epub"] = { 1600, "scan" } }, function()
+        local _pct, _st, _r, pages = Repo.progressFor("/lib/layout.epub")
+        assert(pages == nil, "progressFor showed a layout count: " .. tostring(pages))
+        local b = Repo.buildBook("/lib/layout.epub")
+        assert(b and b.page_count == nil,
+            "the hero showed a layout count: " .. tostring(b and b.page_count))
+        assert(Repo.pageCountFor("/lib/legacy.epub", nil) == nil,
+            "a legacy scan count was shown")
+        assert(Repo.pageCountFor("/lib/legacy p(90).epub", nil) == 90,
+            "the filename marker still answers")
     end)
 end)
 

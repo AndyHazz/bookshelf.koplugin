@@ -1474,7 +1474,8 @@ Repo.pageCountFromFilename = pageCountFromFilename
 -- pages" has to look there. Without this the scan showed up in the spine
 -- widths, which read the store directly, and nowhere else -- device report:
 -- "our page count scan worked for book spine width but doesn't populate the
--- page_count token".
+-- page_count token". Only the counts fit to show, though: a layout render is
+-- a spine-width scale, not the book's length (SpineShelf.shownPages).
 --
 -- Required lazily: the shelf module requires this one back, and a load-time
 -- pair would be a cycle. By the time anything asks for a page count both are
@@ -1484,10 +1485,10 @@ local function _scannedPageCount(filepath)
     if not filepath then return nil end
     local ok, SpineShelf = pcall(require, "lib/bookshelf_spine_shelf")
     if not ok or type(SpineShelf) ~= "table"
-            or type(SpineShelf.cachedProgress) ~= "function" then
+            or type(SpineShelf.shownPages) ~= "function" then
         return nil
     end
-    local ok2, pages = pcall(SpineShelf.cachedProgress, filepath)
+    local ok2, pages = pcall(SpineShelf.shownPages, filepath)
     return ok2 and tonumber(pages) or nil
 end
 
@@ -2500,16 +2501,17 @@ function Repo.readProgress(filepath)
         end
     end
     -- Bookshelf's own persisted page-count store: the bulk scanner's
-    -- answers for never-opened books (publisher page lists, Hardcover
-    -- links, headless renders), kept OUT of sidecars because creating one
+    -- answers for never-opened books (publisher page lists and Hardcover
+    -- links; never its headless renders, which only set spine widths --
+    -- see SpineShelf.shownPages), kept OUT of sidecars because creating one
     -- marks a book as opened in stock KOReader. Served here so EVERY
     -- consumer of readProgress -- %pages, %bar{rel}, list lines, sort
     -- keys -- sees them, not just spine widths. Above the filename guess:
     -- a scanned count is real, the filename one is folklore.
     if not page_count then
         local ok_ss, SS = pcall(require, "lib/bookshelf_spine_shelf")
-        if ok_ss and SS and SS.cachedProgress then
-            local pp = select(1, SS.cachedProgress(filepath))
+        if ok_ss and SS and SS.shownPages then
+            local pp = SS.shownPages(filepath)
             if pp then
                 page_count = tonumber(pp)
                 if page_count then page_src = "store" end

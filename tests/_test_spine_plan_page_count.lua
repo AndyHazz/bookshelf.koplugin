@@ -37,7 +37,7 @@ local function compile(code, env)
     return assert(load(code, "page-count block", "t", env))
 end
 
--- opts: store = {p=, s=, known=}, sidecar = {pc=, status=}, record = {...}
+-- opts: store = {p=, s=, known=, tag=} (tag defaults to "print"), sidecar = {pc=, status=}, record = {...}
 local function run(opts)
     local record = opts.record or {}
     record.filepath = record.filepath or "/books/a.epub"
@@ -48,11 +48,13 @@ local function run(opts)
         ok_repo = true,
         _gettime = function() return 0 end,
         _t_pages = 0,
+        SCAN_TAGS  = { print = true, layout = true, scan = true },
+        SHOWN_TAGS = { print = true, stable = true, render = true },
         SpineShelf = {
             cachedProgress = function()
                 local s = opts.store
                 if not s then return nil, nil, false end
-                return s.p, s.s, s.known == true
+                return s.p, s.s, s.known == true, s.tag or "print", false
             end,
             persistProgress = function() calls.persist = calls.persist + 1 end,
         },
@@ -71,8 +73,8 @@ local function run(opts)
             end,
         },
     }
-    local pages = compile(block .. "\nreturn pages", env)()
-    return pages, record, calls
+    local pages, thick = compile(block .. "\nreturn pages, thick", env)()
+    return pages, record, calls, thick
 end
 
 t.test("a count from the store reaches the record, not just the width", function()
@@ -82,6 +84,19 @@ t.test("a count from the store reaches the record, not just the width", function
     eq(pages, 412, "the width still gets its count")
     eq(rec.page_count, 412, "and so does anything reading the record")
     eq(calls.readProgress, 0, "a known store entry is not re-read from disk")
+end)
+
+t.test("a layout count sets the width and nothing else", function()
+    -- Reddit report: extracted counts "way off, like a factor of 4". The
+    -- scan's render is a spine-width scale; on the record it became the
+    -- book's %page_count, badge and sort key.
+    local pages, rec, calls, thick = run{
+        store = { p = 1600, s = nil, known = true, tag = "layout" } }
+    eq(thick.scan, 1600, "the width lost its count")
+    eq(pages, nil)
+    eq(rec.page_count, nil, "a layout count reached the record")
+    eq(calls.readProgress, 0,
+        "a width-only count must still spare the sidecar read on every plan")
 end)
 
 t.test("the filename marker reaches the record too", function()

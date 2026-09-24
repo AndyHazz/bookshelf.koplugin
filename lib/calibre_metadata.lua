@@ -64,8 +64,14 @@ local CALIBRE_TTL = 60
 --
 -- KOReader's calibre plugin rewrites metadata.calibre after a wireless sync
 -- from load_calibre's whitelisted fields, permanently deleting everything
--- else -- measured against the real binding, the fields WE read that do not
--- survive are author_sort, languages, comments and user_metadata. So when a
+-- else. What survives, measured by running KOReader's own
+-- CalibreMetadata:init + cleanUnused over a genuine Calibre file: its
+-- used_metadata list only (uuid, lpath, last_modified, size, title, authors,
+-- author_sort, tags, series, series_index), every one written as
+-- `book[k] or rapidjson.null` - and author_sort arrives as null anyway, its
+-- value already dropped by load_calibre. So title_sort, pubdate, publisher,
+-- rating, keywords, languages, comments and user_metadata are all gone after
+-- a sync, and the keys that remain can be null. So when a
 -- calibre-written file passes through here, the two fields with NO other
 -- source anywhere -- author_sort (the old wipe, NiLuJe/lua-rapidjson#1 still
 -- dormant) and the custom series columns (issue 299) -- are HARVESTED into a
@@ -445,20 +451,15 @@ local function _calibreMetadataFor(filepath, enabled)
                             -- A null saved by the bug this fixes; nothing to
                             -- restore. Skip rather than write it back as a value.
                         elseif k == "calibre" then
-                            -- Per-KEY merge, not all-or-nothing. entry.calibre
-                            -- is rarely nil after a rewrite: the three standard
-                            -- fields (pubdate, publisher, rating) are built from
-                            -- TOP-LEVEL keys that SURVIVE the strip, so a
-                            -- whole-table nil check saw a non-empty table and
-                            -- skipped the restore, silently dropping every
-                            -- harvested CUSTOM column on any book with a
-                            -- publisher, pubdate or rating - which is most
-                            -- books. Only the sparse ones ever recovered. Found
-                            -- by testing against a genuine calibre-written file
-                            -- on device; the pure-Lua suite pins it now.
-                            -- Keys present in the file still win, so a column
-                            -- the user genuinely cleared in Calibre stays
-                            -- cleared.
+                            -- Per-KEY merge, not all-or-nothing, so any key
+                            -- still present in the file wins over the harvest.
+                            -- (An earlier all-or-nothing check was fixed for
+                            -- books whose pubdate/publisher/rating survived a
+                            -- strip. KOReader's REAL rewrite keeps none of
+                            -- those - see the header - so on a genuinely synced
+                            -- file entry.calibre starts empty and per-key and
+                            -- whole-table agree. Per-key stays: it is the
+                            -- correct rule for any file that keeps some.)
                             if type(v) == "table" then
                                 entry.calibre = entry.calibre or {}
                                 for ck, cv in pairs(v) do

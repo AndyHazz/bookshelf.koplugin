@@ -223,7 +223,11 @@ function FontPicker.show(current_face, on_select, default_face)
                     CenterContainer:new{
                         dimen = Geom:new{ w = check_width, h = row_height },
                         TextWidget:new{
-                            text = is_selected and "\xE2\x9C\x93 " or "",
+                            -- A radio mark, as KOReader's own RadioMark draws
+                            -- it: only one font is ever the chosen one, so a
+                            -- tick (which reads as "any number of these") was
+                            -- the wrong control.
+                            text = is_selected and "\xE2\x97\x89 " or "\xE2\x97\xAF ",
                             face = Font:getFace("cfont", font_size),
                             forced_height = row_height,
                             forced_baseline = baseline,

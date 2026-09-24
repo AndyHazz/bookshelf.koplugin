@@ -3216,6 +3216,17 @@ local function _bimDbFingerprint()
     local size = lfs.attributes(db_path, "size")
     if not size then return nil end
     local mtime = lfs.attributes(db_path, "modification") or 0
+    -- In WAL mode (every device but Kobo) a write lands in the -wal file and
+    -- leaves the main file's size and mtime alone until a checkpoint, so the
+    -- main file by itself called a snapshot fresh after BIM had moved on.
+    -- Seen on the desktop rig: a cover extraction, and the snapshot from
+    -- before it still matched.
+    local wal = db_path .. "-wal"
+    local wal_size = lfs.attributes(wal, "size")
+    if wal_size then
+        return string.format("v%d:%d:%d:%d:%d", LIGHTMETA_SNAPSHOT_VERSION, size, mtime,
+                             wal_size, lfs.attributes(wal, "modification") or 0)
+    end
     return string.format("v%d:%d:%d", LIGHTMETA_SNAPSHOT_VERSION, size, mtime)
 end
 

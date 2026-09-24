@@ -59,6 +59,31 @@ t.test("garbage on disk is nil", function()
     assert(loader({ rows = {} }, "v2:1:1")() == nil, "no fingerprint: nil")
 end)
 
+t.test("a write that only reached the -wal file moves the fingerprint", function()
+    -- WAL mode leaves the main file untouched until a checkpoint; a
+    -- fingerprint of the main file alone called the old snapshot fresh.
+    local fp_body = bodyOf("\nlocal function _bimDbFingerprint%(%)\n(.-)\nend\n", "_bimDbFingerprint")
+    local files = { ["/s/bookinfo_cache.sqlite3"] = { size = 100, modification = 5 } }
+    local lfs = { attributes = function(path, key)
+        local a = files[path]; return a and a[key] end }
+    local env = {
+        pcall = pcall, string = string, LIGHTMETA_SNAPSHOT_VERSION = 2,
+        require = function(name)
+            if name == "datastorage" then return { getSettingsDir = function() return "/s" end } end
+            return lfs
+        end,
+    }
+    local fingerprint = compile(fp_body, env)
+    local no_wal = fingerprint()
+    assert(no_wal == "v2:100:5", "no -wal file: the old form, got " .. tostring(no_wal))
+    files["/s/bookinfo_cache.sqlite3-wal"] = { size = 4096, modification = 6 }
+    local a = fingerprint()
+    files["/s/bookinfo_cache.sqlite3-wal"].modification = 9
+    local b = fingerprint()
+    assert(a ~= no_wal and a ~= b, "a -wal write must change the fingerprint")
+    assert(a:match("^v2:"), "same format version, so the old snapshot is served stale, not dropped")
+end)
+
 t.test("the cache serves stale rows now and schedules the refresh", function()
     local body = bodyOf("\nlocal function _getLightMetaCache%(home, depth%)\n(.-)\nend\n", "_getLightMetaCache")
     assert(body:match("snapshot, fresh = _loadRowSnapshot%(%)"),

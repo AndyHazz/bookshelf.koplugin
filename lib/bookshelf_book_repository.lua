@@ -7941,8 +7941,23 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
         -- chip showed it (issue 305). The list is also far shorter than the
         -- library, so no walk at all. Sorted by path, as the walk was, so
         -- ties in the sort below keep a stable order.
+        --
+        -- Only BOOKS, by the walk's own test, and nothing inside KOReader's
+        -- own folder. The default Recent chip carries a sort, so every reader
+        -- comes through here, and KOReader's history holds more than books: an
+        -- image opened from the file browser, and the quickstart guide
+        -- (<koreader>/help/quickstart-*.html) that nearly everyone was shown
+        -- on first launch. The walk never saw those, and neither should this.
         local function loadCandidatesFromPaths(set)
             local lfs = require("libs/libkoreader-lfs")
+            local ko_dir
+            local ok_ds, DataStorage = pcall(require, "datastorage")
+            if ok_ds and type(DataStorage) == "table" and DataStorage.getDataDir then
+                local ok_d, d = pcall(function() return DataStorage:getDataDir() end)
+                if ok_d and type(d) == "string" and d ~= "" and d ~= "/" then
+                    ko_dir = d:gsub("/+$", "") .. "/"
+                end
+            end
             local home  = G_reader_settings:readSetting("home_dir") or "/"
             local depth = BookshelfSettings.read("latest_walk_depth") or 3
             local light_cache = _getLightMetaCache(home, depth)
@@ -7952,8 +7967,16 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
                 if t > (read_time[entry.file] or 0) then read_time[entry.file] = t end
             end
             local paths = {}
+            -- ...unless the home folder is in there too: some readers keep
+            -- their books inside KOReader's folder (Android especially).
+            local home_prefix = (G_reader_settings:readSetting("home_dir") or "/"):gsub("/+$", "") .. "/"
+            local function kosOwn(fp)
+                return ko_dir and fp:sub(1, #ko_dir) == ko_dir
+                       and fp:sub(1, #home_prefix) ~= home_prefix
+            end
             for fp in pairs(set) do
-                if type(fp) == "string" and not fp:find("^OPDS://") then
+                if type(fp) == "string" and not fp:find("^OPDS://")
+                        and _supportedExt(fp:match("([^/]+)$")) and not kosOwn(fp) then
                     paths[#paths + 1] = fp
                 end
             end

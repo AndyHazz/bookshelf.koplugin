@@ -2768,6 +2768,32 @@ test("getBySource: a filtered Recent or collection chip keeps books outside home
     assert(#clist == 2, "collection lost the book outside home: " .. #clist)
 end)
 
+test("getBySource: a sorted Recent chip still shows only books, not KOReader's own files", function()
+    -- The default Recent chip carries a sort, so every reader takes the list
+    -- path; KOReader's history also holds opened images and its quickstart
+    -- guide, which the library walk never showed.
+    _setupResolverLibrary()
+    local prev_ds = package.loaded["datastorage"]
+    package.loaded["datastorage"] = { getDataDir = function() return "/ko" end,
+                                      getSettingsDir = function() return "/ko/settings" end }
+    _G._test_bim_data["/elsewhere/delta.epub"] = { title = "Delta" }
+    _G._test_bim_data["/ko/help/quickstart-en.html"] = { title = "Quickstart" }
+    _G._test_bim_data["/elsewhere/photo.png"] = { title = "Photo" }
+    package.loaded["readhistory"].hist = {
+        { file = "/elsewhere/delta.epub", time = 3 },
+        { file = "/ko/help/quickstart-en.html", time = 2 },
+        { file = "/elsewhere/photo.png", time = 1 },
+    }
+    local list = Repo.getBySource({ kind = "recent" }, nil,
+        { { key = "last_opened", reverse = true } }, 0, 10)
+    package.loaded["readhistory"].hist = {}
+    package.loaded["datastorage"] = prev_ds
+    _teardownResolverLibrary()
+    local titles = {}
+    for _i, b in ipairs(list) do titles[#titles + 1] = b.title end
+    assert(table.concat(titles, ",") == "Delta", "got " .. table.concat(titles, ","))
+end)
+
 test("getBySource: rating filter finds rated book when metadata is not in a sibling .sdr", function()
     _setupResolverLibrary()
     _G._test_docsettings_data = {

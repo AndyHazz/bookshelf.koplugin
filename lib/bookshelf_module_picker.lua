@@ -138,7 +138,7 @@ function ModulePicker._renderCell(item, dimen)
     end
     local grey_card = FrameContainer:new{
         background = Modules.CARD_BG,
-        radius     = Screen:scaleBySize(4),
+        radius     = Space.px(4),
         bordersize = 0,
         padding    = 0,
         -- Preview centred in the capped grey area; ClipContainer bounds it to
@@ -159,7 +159,7 @@ function ModulePicker._renderCell(item, dimen)
     }
     local card = FrameContainer:new{
         bordersize = border,
-        radius = Size.radius.default,
+        radius = Space.radius.default,
         padding = card_pad,
         margin = 0,
         background = Blitbuffer.COLOR_WHITE,

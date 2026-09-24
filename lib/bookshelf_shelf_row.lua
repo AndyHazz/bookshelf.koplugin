@@ -274,7 +274,7 @@ function ShelfRow.new(opts)
             plate_fill = nil
         end
     end
-    local PLATE_RADIUS = Screen:scaleBySize(2)
+    local PLATE_RADIUS = Space.px(2)
     local function plated(widget)
         if not plate_fill then return widget end
         local frame = FrameContainer:new{

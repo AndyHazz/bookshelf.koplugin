@@ -43,7 +43,7 @@ function FocusCell:paintTo(bb, x, y)
     InputContainer.paintTo(self, bb, x, y)
     if self._focused and self.dimen then
         bb:paintBorder(x, y, self.dimen.w, self.dimen.h,
-                       Size.border.thick, Blitbuffer.COLOR_BLACK, Size.radius.default)
+                       Size.border.thick, Blitbuffer.COLOR_BLACK, Space.radius.default)
     end
 end
 function FocusCell:onFocus() self._focused = true; return true end

@@ -42,6 +42,7 @@ end
 local function newEnv()
     local e = { painted = {} }
     e.Size = { radius = { window = 9 }, line = { medium = 2 } }
+    e.Space = { radius = { window = 9 } }   -- the scrim's corner (lib/bookshelf_space)
     e.Blitbuffer = { gray = function(v) return { grey = v } end }
     e.Wallpaper = {
         scrim = function(_bb, x, y, w, h, ground, strength, radius)

@@ -849,7 +849,7 @@ function StartMenu:_buildModuleRow(entry, w, focused, in_flyout)
     -- reading as a distinct surface against the panel's white.
     local card = FrameContainer:new{
         background = Modules.CARD_BG,
-        radius     = Screen:scaleBySize(4),
+        radius     = Space.px(4),
         bordersize = 0,
         padding    = card_pad,
         content,
@@ -990,7 +990,7 @@ function StartMenu:_buildPanel(entries, w, folder_id)
     local frame = PanelFrame:new{
         bordersize = self._panel_border,
         padding    = self._panel_pad,
-        radius     = Screen:scaleBySize(4), -- bookshelf's card radius (CARD_RADIUS)
+        radius     = Space.px(4), -- bookshelf's card radius (CARD_RADIUS)
         shadow     = PANEL_SHADOW_DIST,
         vg,
     }

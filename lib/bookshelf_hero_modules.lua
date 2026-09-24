@@ -452,7 +452,7 @@ end
 -- focusable: reserve a d-pad focus ring (border-swap, dimen-constant — matches
 -- the start-menu rows and chip cursor). focused: draw it on this cell now.
 function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, focused)
-    local radius   = Screen:scaleBySize(4)
+    local radius   = Space.px(4)
     -- Reserve the focus ring up front so a cell's content area is the same
     -- whether or not it's focused (no reflow as the cursor moves). Touch builds
     -- pass focusable=false, so they're byte-for-byte unchanged.
@@ -655,7 +655,7 @@ end
 -- Empty list: a single full-hero bordered prompt. Tap or hold opens "Add".
 function HeroModules._emptyState(bw, content_w, hero_h)
     local border   = Screen:scaleBySize(1)
-    local radius   = Screen:scaleBySize(4)
+    local radius   = Space.px(4)
     local card_pad = Space.px(8)
     local inner_w  = math.max(1, content_w - 2 * (border + card_pad))
     local inner_h  = math.max(1, hero_h   - 2 * (border + card_pad))

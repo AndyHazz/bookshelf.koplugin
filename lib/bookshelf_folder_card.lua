@@ -65,7 +65,7 @@ local CARDBOARD_EDGE = Blitbuffer.COLOR_BLACK
 -- bookshelf_spine_widget's SHADOW_OFFSET.
 local SHADOW_OFFSET = Space.px(4)
 local CARD_BORDER   = Screen:scaleBySize(1)
-local CARD_RADIUS   = Screen:scaleBySize(4)
+local CARD_RADIUS   = Space.px(4)   -- a corner: does not grow with a DPI override
 
 -- Memoized rendered line height of a single ascii line ("Mg") at a given
 -- infofont-bold size and available width. Tab height and the two-line

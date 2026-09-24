@@ -334,7 +334,7 @@ function IconsLibrary._renderCell(item, dimen)
     }
     return FrameContainer:new{
         bordersize = Size.border.thin,
-        radius = Size.radius.default,
+        radius = Space.radius.default,
         padding = 0,
         margin = 0,
         background = Blitbuffer.COLOR_WHITE,

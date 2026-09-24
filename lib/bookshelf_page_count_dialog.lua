@@ -286,7 +286,7 @@ function Dialog:init()
     end
 
     local frame = FrameContainer:new{
-        radius = Size.radius.window,
+        radius = Space.radius.window,
         bordersize = Size.border.window,
         padding = 0, margin = 0,
         background = Blitbuffer.COLOR_WHITE,

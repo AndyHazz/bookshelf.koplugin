@@ -25,9 +25,10 @@
 -- lines and radii. And keep KOReader's Size.padding.* where a number has to
 -- match what a KOReader widget uses inside itself.
 --
--- Space.padding / Space.margin / Space.span mirror Size.padding / .margin /
--- .span (same names, KOReader's base values), computed on access so a
--- rotation or DPI change is followed.
+-- Space.padding / Space.margin / Space.span / Space.radius mirror KOReader's
+-- Size groups of the same names (its base values), computed on access so a
+-- rotation or DPI change is followed. Drop shadows and rounded corners use
+-- Space too: they are shape, and should not grow with a DPI override.
 
 local Device = require("device")
 
@@ -65,6 +66,9 @@ local BASE = {
                 fullscreen_popout = 3 },
     span    = { horizontal_default = 10, horizontal_small = 5,
                 vertical_default = 2, vertical_large = 5 },
+    -- Rounded corners are shape, not text: they keep their size whatever
+    -- the DPI override (maintainer).
+    radius  = { default = 2, window = 7, button = 7 },
 }
 Space.BASE = BASE
 

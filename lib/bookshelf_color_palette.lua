@@ -51,7 +51,7 @@ local PALETTE = {
 
 local SWATCH_SIDE  = Screen:scaleBySize(60)
 local SWATCH_GAP   = Space.px(8)
-local SWATCH_RADIUS = Size.radius.default
+local SWATCH_RADIUS = Space.radius.default
 
 -- Swatch: a rounded colored square that renders via paintRoundedRectRGB32.
 -- A WidgetContainer subclass — owns its own dimen, not a CenterContainer.
@@ -417,7 +417,7 @@ function ColorPaletteWidget:update()
     -- so the picker reads as part of the same dialog family — Size.border.thin
     -- (0.5px) was visibly lighter than every other dialog the user sees.
     local frame = FrameContainer:new{
-        radius     = Size.radius.window,
+        radius     = Space.radius.window,
         bordersize = Size.border.window,
         padding    = 0,
         margin     = 0,

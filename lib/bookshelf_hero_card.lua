@@ -417,7 +417,7 @@ function HeroCard.buildJobRow(region, width)
     }
     local stop_frame = FrameContainer:new{
         bordersize = 0,
-        radius     = Size.radius.button,
+        radius     = Space.radius.button,
         padding    = 0,
         padding_top    = Space.padding.tiny,
         padding_bottom = Space.padding.tiny,

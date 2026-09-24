@@ -259,7 +259,7 @@ Wrap content in [if:foo]…[/if] to show it only when the token has a value. Add
                 -- matches when bookends is installed.
                 local card_frame = FrameContainer:new{
                     bordersize     = Size.border.thin,
-                    radius         = Size.radius.default,
+                    radius         = Space.radius.default,
                     padding        = 0,
                     padding_left   = inner_pad,
                     padding_right  = inner_pad,
@@ -5440,7 +5440,7 @@ function Settings:_about()
     -- top-heavy in the screenshot. Bottom keeps the full FRAME_PAD so
     -- the URL has the same air the description gets.
     local frame = FrameContainer:new{
-        radius        = Size.radius.window,
+        radius        = Space.radius.window,
         padding       = FRAME_PAD,
         padding_top   = math.floor(FRAME_PAD * 0.5),
         margin        = 0,

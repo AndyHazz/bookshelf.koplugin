@@ -152,7 +152,7 @@ local function _closeGlyph(bw, button_dimen, reserve_ring, focused, exact)
         background = _glyphBacking(bw),
         bordersize = focused and fb or 0,
         margin     = focused and 0 or fb,
-        radius     = fb > 0 and Screen:scaleBySize(4) or 0,
+        radius     = fb > 0 and Space.px(4) or 0,
         padding    = 0,
         CenterContainer:new{
             dimen = Geom:new{ w = math.max(1, box.w - 2 * fb), h = math.max(1, box.h - 2 * fb) },

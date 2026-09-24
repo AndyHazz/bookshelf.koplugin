@@ -1276,7 +1276,7 @@ function Editor:editTab(tab_id, opts)
 
     -- Build frame shell once; rebuild() will fill frame[1].
     frame = FrameContainer:new{
-        radius     = Size.radius.window,
+        radius     = Space.radius.window,
         padding    = 0,
         margin     = 0,
         background = Blitbuffer.COLOR_WHITE,

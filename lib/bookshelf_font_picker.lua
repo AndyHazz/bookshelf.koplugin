@@ -287,7 +287,7 @@ function FontPicker.show(current_face, on_select, default_face)
         }
 
         return FrameContainer:new{
-            radius = Size.radius.window,
+            radius = Space.radius.window,
             bordersize = Size.border.window,
             padding = 0,
             margin = 0,

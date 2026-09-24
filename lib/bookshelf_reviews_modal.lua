@@ -1003,7 +1003,7 @@ function ReviewsModal:_assemble()
     self._vgroup = vg
     self.frame = FrameContainer:new{
         background  = Blitbuffer.COLOR_WHITE,
-        radius      = Size.radius.window,
+        radius      = Space.radius.window,
         bordersize  = Size.border.window,
         padding     = 0,
         vg,

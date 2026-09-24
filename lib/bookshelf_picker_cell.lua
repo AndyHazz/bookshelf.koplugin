@@ -116,7 +116,7 @@ function PickerCell.render(item, dimen, opts)
     local invert = opts.selected and not opts.tint
     return FrameContainer:new{
         bordersize = Size.border.thin,
-        radius     = Size.radius.default,
+        radius     = Space.radius.default,
         padding    = 0,
         margin     = 0,
         background = bg,

@@ -104,7 +104,7 @@ function ChipButton.build(opts)
         padding_top    = 0,
         padding_bottom = 0,
         margin         = 0,
-        radius         = opts.radius or Size.radius.default,
+        radius         = opts.radius or Space.radius.default,
         background     = Blitbuffer.COLOR_WHITE,
         inverted       = opts.inverted or false,
         CenterContainer:new{

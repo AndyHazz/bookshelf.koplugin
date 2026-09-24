@@ -341,7 +341,7 @@ function LibraryModal:_buildFrame()
         padding_left = 0,
         padding_right = 0,
         margin = 0,
-        radius = Screen:scaleBySize(8),
+        radius = Space.px(8),
         background = Blitbuffer.COLOR_WHITE,
         VerticalGroup:new{ align = "left" },
     }
@@ -589,7 +589,7 @@ function LibraryModal:_renderSearchInput(content_width)
         -- search row from the segmented (square) chip strip below. The
         -- inner FrameContainer is what InputText renders the border
         -- through (inputtext.lua:569), so set radius there before paint.
-        input._frame_textwidget.radius = Size.radius.default
+        input._frame_textwidget.radius = Space.radius.default
     else
         local desired = self.search_query or ""
         if self._search_input:getText() ~= desired then
@@ -613,7 +613,7 @@ function LibraryModal:_renderSearchInput(content_width)
             -- Slightly rounded corners — same radius as the InputText so
             -- the search row reads as a unit, distinct from the square
             -- (segmented) chip strip below.
-            radius = Size.radius.default,
+            radius = Space.radius.default,
             background = Blitbuffer.COLOR_WHITE,
             CenterContainer:new{
                 dimen = Geom:new{ w = btn_w - 2 * btn_pad_h - 2 * input_border, h = inner_h },

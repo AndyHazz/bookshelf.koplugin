@@ -154,7 +154,7 @@ end
 -- grow with a DPI override (maintainer).
 -- SELECTED_BORDER equals it (below), so the selection ring follows.
 local SHADOW_OFFSET   = Space.px(4)                 -- shadow offset in dp
-local CARD_RADIUS     = Screen:scaleBySize(4)       -- rounded corner radius
+local CARD_RADIUS     = Space.px(4)                 -- rounded corner radius (shape: no DPI growth)
 local CARD_BORDER     = Screen:scaleBySize(1)       -- 1dp border on the card
 
 -- How far an on-hold book's cover is faded toward the page background, as a
@@ -1511,7 +1511,7 @@ function SpineWidget:_renderShadowedCard(inner)
             bordersize     = Size.border.thin,
             background     = colors.badge_bg,
             color          = colors.border,
-            radius         = Screen:scaleBySize(3),
+            radius         = Space.px(3),
             padding_left   = 0,
             padding_right  = 0,
             padding_top    = 0,
@@ -1570,7 +1570,7 @@ function SpineWidget:_renderShadowedCard(inner)
                 bordersize     = Size.border.thin,
                 background     = colors.badge_bg,
                 color          = colors.border,
-                radius         = Screen:scaleBySize(3),
+                radius         = Space.px(3),
                 padding_left   = Space.padding.small,
                 padding_right  = Space.padding.small,
                 padding_top    = 0,
@@ -1727,7 +1727,7 @@ function SpineWidget:_renderShadowedCard(inner)
             bordersize     = Size.border.thin,
             background     = colors.badge_bg,
             color          = colors.border,
-            radius         = Screen:scaleBySize(3),
+            radius         = Space.px(3),
             padding_left   = Space.padding.default,
             padding_right  = Space.padding.default,
             padding_top    = Space.padding.small,

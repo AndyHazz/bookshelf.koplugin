@@ -64,7 +64,7 @@ function CountBadge.render(total, selected_count, finished_count, finished_total
         bordersize     = Size.border.thin,
         background     = colors.badge_bg,
         color          = colors.badge_fg,
-        radius         = Screen:scaleBySize(3),
+        radius         = Space.px(3),
         padding_left   = Space.padding.default,
         padding_right  = Space.padding.default,
         padding_top    = Space.padding.small,

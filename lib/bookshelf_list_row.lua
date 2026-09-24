@@ -794,7 +794,7 @@ ListRow.RING  = RING
 -- invented: "the same style/thickness we use for cover images". A row and a
 -- thumbnail rounded to different radii on the same screen read as two
 -- different design languages.
-local RADIUS  = SpineWidget.CARD_RADIUS or Screen:scaleBySize(4)
+local RADIUS  = SpineWidget.CARD_RADIUS or Space.px(4)
 
 -- The leading between the two lines of ONE item, from the same declaration the
 -- height budget reads (ListGeom.INTRA_LEAD_DP). Exported for the same reason

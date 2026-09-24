@@ -3850,7 +3850,7 @@ function BookshelfWidget:_footerPanelRectRaw(strength)
     local h        = footer_h - Screen:scaleBySize(12)
     if h <= 0 then return nil end
     return bleed, self.height - footer_h, self.width - bleed * 2, h,
-           Size.radius.window, strength, colors.panel_bg
+           Space.radius.window, strength, colors.panel_bg
 end
 
 -- wallpaperScrimStrength() -> 0..1, how hard to tint the chrome strips.
@@ -6553,7 +6553,7 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
     -- everywhere.
     local chev_size    = Screen:scaleBySize(32)
     local focus_border = Screen:scaleBySize(4)
-    local focus_radius = Screen:scaleBySize(4)
+    local focus_radius = Space.px(4)
     -- Nav strip: 75% of content_w, centred. The outer 12.5% on each
     -- side is left clear for gestures.koplugin's bottom-corner gesture
     -- zones (night mode, brightness, etc.).
@@ -6898,7 +6898,7 @@ function BookshelfWidget:_wrapAsFooterButton(content_widget, frame_width, focuse
     local FrameContainer  = require("ui/widget/container/framecontainer")
     local HorizontalSpan  = require("ui/widget/horizontalspan")
     local focus_border    = Screen:scaleBySize(4)
-    local focus_radius    = Screen:scaleBySize(4)
+    local focus_radius    = Space.px(4)
     local hit_extension   = BookshelfWidget.FOOTER_HIT_EXTENSION
     -- Focus swap: when focused, paint a focus_border-thick ring at the
     -- frame edge; when not focused, reserve the same space as
@@ -8830,7 +8830,7 @@ function BookshelfWidget:_paintOpeningEffect(fp)
         -- the spine rather than the setting so flat_thumb still wins for a
         -- list-view thumbnail, which is flat whatever the grid prefers.
         local r = (not spine:_squareCorners())
-            and Screen:scaleBySize(4) or 0 -- mirrors CARD_RADIUS
+            and (SpineWidget.CARD_RADIUS or Space.px(4)) or 0 -- mirrors CARD_RADIUS
         local r_sq = r * r
         for dy = 0, r - 1 do
             local dx = 0
@@ -8869,7 +8869,7 @@ function BookshelfWidget:_paintOpeningEffect(fp)
         local sbb  = Screen.bb
         local SO   = SpineWidget.SHADOW_OFFSET or Space.px(4)
         local rad  = spine:_squareCorners() and 0
-            or (SpineWidget.CARD_RADIUS or Screen:scaleBySize(4))
+            or (SpineWidget.CARD_RADIUS or Space.px(4))
         local gray = SpineWidget.shadowGray and SpineWidget.shadowGray()
         if gray then
             pcall(function()
@@ -9460,7 +9460,7 @@ function BookshelfWidget:_attachTopPanel(vgroup, opts)
     local ground    = colors.panel_bg
     local pw        = content_w + bleed * 2
     local ph        = opts.band_h + bleed * 2
-    local radius    = Size.radius.window
+    local radius    = Space.radius.window
     local list_full = opts.list_full and true or false
     -- The footer's own scrim is suppressed in list mode (see _buildFooterRow):
     -- the area is already tinted here, and tinting it twice would leave the
@@ -18310,7 +18310,7 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
             local frame = FrameContainer:new{
                 bordersize     = Size.border.thin,
                 background     = Blitbuffer.COLOR_WHITE,
-                radius         = Size.radius.button,
+                radius         = Space.radius.button,
                 padding_left   = pill_pad_h + (extra_pad or 0),
                 padding_right  = pill_pad_h + (extra_pad or 0),
                 padding_top    = pill_pad_v,
@@ -18882,7 +18882,7 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
             bordersize     = link_style and 0 or Size.border.thin,
             background     = (not ink) and Blitbuffer.COLOR_WHITE or nil,
             color          = ink,  -- nil: FrameContainer's own black
-            radius         = Size.radius.button,
+            radius         = Space.radius.button,
             padding_left   = pill_pad_h + (extra_pad or 0),
             padding_right  = pill_pad_h + (extra_pad or 0),
             padding_top    = pill_pad_v,

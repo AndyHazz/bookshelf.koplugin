@@ -168,7 +168,7 @@ function Dialog:init()
         checked = hc and o.hardcover, enabled = hc, callback = source("hardcover"),
     }
     local fnm, _fnm = option{
-        label = _("Page counts in file names (fast)"),
+        label = _("Page counts in file names (fastest)"),
         hint  = _("A count in the file name, like p(320), as some Calibre setups add. Often an estimate."),
         checked = o.filename, callback = source("filename"),
     }

@@ -174,7 +174,7 @@ function Dialog:init()
     }
     local ren, _ren = option{
         label = _("Your reading settings (slow)"),
-        hint  = _("Lays out each remaining book in your font and margins, so the count matches what you see when reading. Runs in the background."),
+        hint  = _("Lays out each remaining book in your font and margins, so the count matches what you see when reading."),
         checked = o.render, callback = source("render"),
     }
     local radios = {}

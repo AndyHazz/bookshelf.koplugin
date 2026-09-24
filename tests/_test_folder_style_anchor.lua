@@ -157,6 +157,11 @@ local env = {
     end,
 }
 env._G = env
+-- lib/bookshelf_space's rule, against the stub screen above.
+env.Space = { px = function(n)
+    return math.min(env.Screen:scaleBySize(n),
+                    math.ceil(n * math.min(SCREEN_W, SCREEN_H) / 600))
+end }
 
 -- Compiled in the same environment, so its Screen and math are the test's.
 env._highAnchor = (function()

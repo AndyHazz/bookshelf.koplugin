@@ -9,7 +9,7 @@ barMetrics. Everything is a pure function of screen size + settings.
 ]]
 local Device = require("device")
 local Geom   = require("ui/geometry")
-local Size   = require("ui/size")
+local Space  = require("lib/bookshelf_space")
 local Screen = Device.screen
 
 local M = {}
@@ -21,7 +21,7 @@ local M = {}
 -- real painted rect hasn't been remembered yet.
 function M.primitives(width)
     width = width or Screen:getWidth()
-    local pad_natural = math.floor(Size.padding.fullscreen * 2 * 0.8)
+    local pad_natural = math.floor(Space.padding.fullscreen * 2 * 0.8)
     local pad_capped  = math.floor(width * 0.03)
     local PAD         = math.min(pad_natural, pad_capped)
     local content_w   = width - PAD * 2

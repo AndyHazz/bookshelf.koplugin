@@ -29,6 +29,7 @@ local SeriesStack     = require("lib/bookshelf_series_stack")
 local FolderStack     = require("lib/bookshelf_folder_stack")
 local Repo            = require("lib/bookshelf_book_repository")
 local BookshelfSettings = require("lib/bookshelf_settings_store")
+local Space           = require("lib/bookshelf_space")
 local StackDisplay      = require("lib/bookshelf_stack_display")
 local _               = require("lib/bookshelf_i18n").gettext
 local logger          = require("logger")
@@ -72,7 +73,7 @@ function ShelfRow.new(opts)
     local n_slots = opts.n_slots or 4
     -- Generous gap between covers so the shelf doesn't read as cramped.
     -- Size.padding.fullscreen × 2 ≈ 30dp at native scaling.
-    local gap     = opts.gap or Size.padding.fullscreen * 2
+    local gap     = opts.gap or Space.padding.fullscreen * 2
     local slot_w  = math.floor((opts.width - gap * (n_slots - 1)) / n_slots)
     -- Standard 2:3 book-cover aspect (slot_w * 1.5) so covers look like books.
     -- With true-aspect covers on, NAT_ASPECT is the 1.65 cap: the row box is
@@ -206,8 +207,8 @@ function ShelfRow.new(opts)
     --
     -- nil on a plain page, deliberately: there the text already sits on its
     -- ground, and a plate would put a box around every title in the grid.
-    local PLATE_PAD_X = Screen:scaleBySize(5)
-    local PLATE_PAD_Y = Screen:scaleBySize(2)
+    local PLATE_PAD_X = Space.px(5)
+    local PLATE_PAD_Y = Space.px(2)
     local plate_fill, plate_wp, plate_strength
     do
         local ok_wp, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
@@ -301,6 +302,10 @@ function ShelfRow.new(opts)
         end
         return frame
     end
+    -- Size, not Space: the gap has to clear the reading ribbon that hangs
+    -- below a cover, and the ribbon grows with the DPI setting, so a capped
+    -- gap let it sit on the label at 480dpi. Copied in bookshelf_widget.lua
+    -- (title_block_h, grid_title_block_h): all three must agree.
     local label_gap = Size.padding.default
     -- Expanded-shelf font scale: applied to the label face below
     -- covers (Title / Author / Series). 100% preserves prior

@@ -37,6 +37,7 @@ local UIManager       = require("ui/uimanager")
 local VerticalGroup   = require("ui/widget/verticalgroup")
 local VerticalSpan    = require("ui/widget/verticalspan")
 local logger          = require("logger")
+local Space           = require("lib/bookshelf_space")
 local Screen          = Device.screen
 local _               = require("lib/bookshelf_i18n").gettext
 
@@ -167,7 +168,7 @@ function FontPicker.show(current_face, on_select, default_face)
     local width = math.floor(math.min(screen_w, screen_h) * 0.9)
     local font_size = 22
     local row_height = Screen:scaleBySize(42)
-    local left_pad = Size.padding.large
+    local left_pad = Space.padding.large
     local check_width = Screen:scaleBySize(30)
 
     local picker
@@ -260,7 +261,7 @@ function FontPicker.show(current_face, on_select, default_face)
             show_parent = picker,
         }
         local actions = ButtonTable:new{
-            width = width - 2 * Size.padding.default,
+            width = width - 2 * Space.padding.default,
             buttons = {{
                 {
                     text = _("Close"),
@@ -306,15 +307,15 @@ function FontPicker.show(current_face, on_select, default_face)
                     dimen = Geom:new{ w = width, h = Size.line.thin },
                     LineWidget:new{
                         background = Blitbuffer.COLOR_DARK_GRAY,
-                        dimen = Geom:new{ w = width - 2 * Size.padding.default, h = Size.line.thin },
+                        dimen = Geom:new{ w = width - 2 * Space.padding.default, h = Size.line.thin },
                     },
                 },
-                VerticalSpan:new{ width = Size.span.vertical_default },
+                VerticalSpan:new{ width = Space.span.vertical_default },
                 CenterContainer:new{
                     dimen = Geom:new{ w = width, h = page_nav:getSize().h },
                     page_nav,
                 },
-                VerticalSpan:new{ width = Size.span.vertical_default },
+                VerticalSpan:new{ width = Space.span.vertical_default },
                 CenterContainer:new{
                     dimen = Geom:new{ w = width, h = actions:getSize().h },
                     actions,

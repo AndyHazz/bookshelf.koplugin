@@ -28,6 +28,7 @@ local TextWidget      = require("ui/widget/textwidget")
 local VerticalGroup   = require("ui/widget/verticalgroup")
 local VerticalSpan    = require("ui/widget/verticalspan")
 local Device          = require("device")
+local Space           = require("lib/bookshelf_space")
 local Screen          = Device.screen
 
 local _ = require("lib/bookshelf_i18n").gettext
@@ -53,7 +54,7 @@ local PickerCell = {}
 -- }
 function PickerCell.render(item, dimen, opts)
     opts = opts or {}
-    local content_inset = Size.padding.large
+    local content_inset = Space.padding.large
     local content_w     = dimen.w - 2 * content_inset
     -- Text stays black in BOTH normal and selected states. The selected
     -- state uses FrameContainer.invert (full-region pixel flip), which
@@ -93,7 +94,7 @@ function PickerCell.render(item, dimen, opts)
         -- Tight 1px vertical span between label and subtitle -- with both
         -- lines bold the visual relationship reads as one stacked unit;
         -- a larger gap broke that into two separate lines.
-        children[#children + 1] = VerticalSpan:new{ width = Screen:scaleBySize(1) }
+        children[#children + 1] = VerticalSpan:new{ width = Space.px(1) }
         local sub_face, sub_bold = BFont:getFace("cfont", 12, { bold = true })
         children[#children + 1] = TextWidget:new{
             text      = sub_text,

@@ -37,6 +37,7 @@ local BFont           = require("lib/bookshelf_fonts")
 local TextSegments    = require("lib/bookshelf_text_segments")
 local GestureZones    = require("lib/bookshelf_gesture_zones")
 local logger          = require("logger")
+local Space           = require("lib/bookshelf_space")
 local Screen          = Device.screen
 local _               = require("lib/bookshelf_i18n").gettext
 
@@ -168,10 +169,10 @@ local TabBar = InputContainer:extend{
 }
 
 function TabBar:init()
-    self.left_inset = self.left_inset or Screen:scaleBySize(10)
-    self.top_pad    = Screen:scaleBySize(12)   -- gap above the tabs (below title bar)
-    self.pad_h      = Screen:scaleBySize(14)
-    self.pad_v      = Screen:scaleBySize(6)
+    self.left_inset = self.left_inset or Space.px(10)
+    self.top_pad    = Space.px(12)   -- gap above the tabs (below title bar)
+    self.pad_h      = Space.px(14)
+    self.pad_v      = Space.px(6)
     self.border     = Size.border.thin         -- segmented-control frame + separators
     self.sep_w      = Size.border.thin
     -- UNSCALED. Font:getFace runs Screen:scaleBySize over its size argument
@@ -190,7 +191,7 @@ function TabBar:init()
     do
         local avail   = self.width - 2 * self.left_inset
         local n       = #self.tabs
-        local min_pad = Screen:scaleBySize(6)
+        local min_pad = Space.px(6)
         local function textWidth(sz)
             local face, total = Font:getFace("cfont", sz), 0
             for _i, label in ipairs(self.tabs) do
@@ -408,8 +409,8 @@ function ReviewsModal:init()
     local _perf_init_t0 = _gettime()
     local screen_w, screen_h = Screen:getWidth(), Screen:getHeight()
     -- Near-fullscreen with the standard screen-edge inset (matches TextViewer).
-    self.width  = self.width  or (screen_w - Screen:scaleBySize(30))
-    self.height = self.height or (screen_h - Screen:scaleBySize(30))
+    self.width  = self.width  or (screen_w - Space.px(30))
+    self.height = self.height or (screen_h - Space.px(30))
 
     -- Source tabs (e.g. File vs Hardcover description). Only meaningful with 2+.
     self._tabs = (type(self.tabs) == "table" and #self.tabs > 0) and self.tabs or nil
@@ -439,7 +440,7 @@ function ReviewsModal:init()
     -- Horizontal content inset, shared by the HTML body's CSS padding, the tab
     -- strip's left inset, the tag tab's pill inset, and the header's L/R + top
     -- padding -- so tabs, bodies and header all line up.
-    self._side_pad = Screen:scaleBySize(28)
+    self._side_pad = Space.px(28)
 
     -- ADD to key_events, don't replace it: FocusManager:_init already populated
     -- it with the focus-move (arrow) + Press bindings we rely on for dpad nav.
@@ -596,7 +597,7 @@ function ReviewsModal:init()
     -- floating inward. Top/bottom padding too, so text doesn't hug the title
     -- bar / footer line.
     local h_pad = self._side_pad
-    local v_pad = Screen:scaleBySize(28)
+    local v_pad = Space.px(28)
     css = css .. string.format("\nbody { padding: %dpx %dpx; }", v_pad, h_pad)
     -- Kept so _changeFontSize can re-render via htmlbox_widget:setContent
     -- without rebuilding the @font-face rule.
@@ -720,7 +721,7 @@ function ReviewsModal:_buildHeader()
         padding_left   = pad,
         padding_right  = pad,
         padding_top    = pad,
-        padding_bottom = Screen:scaleBySize(8),  -- tight to the tab bar below
+        padding_bottom = Space.px(8),  -- tight to the tab bar below
         inner,
     }
     -- Top-right close icon. The old title bar that carried one was removed in
@@ -735,8 +736,8 @@ function ReviewsModal:_buildHeader()
     -- every other stock TitleBar-based dialog use for their close button).
     local DGENERIC_ICON_SIZE = G_defaults:readSetting("DGENERIC_ICON_SIZE")
     local icon_size = Screen:scaleBySize(DGENERIC_ICON_SIZE * 0.6)
-    local side_m = Screen:scaleBySize(8)
-    local top_m  = Screen:scaleBySize(6)
+    local side_m = Space.px(8)
+    local top_m  = Space.px(6)
     local x_box = FrameContainer:new{
         background = Blitbuffer.COLOR_WHITE, bordersize = 0, margin = 0,
         padding = Screen:scaleBySize(4),  -- small tap target around the icon
@@ -813,8 +814,8 @@ end
 -- switches the source and reassembles. Left-inset to align with the body text.
 function ReviewsModal:_buildSourceChips(tab)
     local sep_w   = Size.border.thin
-    local h_pad   = Size.padding.large
-    local v_pad   = Size.padding.small
+    local h_pad   = Space.padding.large
+    local v_pad   = Space.padding.small
     -- Match the main bookshelf nav chip bar exactly: a logical 16pt label scaled
     -- by the user's chip-font setting. NOT Screen:scaleBySize (the font layer
     -- scales that again) -- keeps these source chips smaller than the tab bar.
@@ -880,7 +881,7 @@ function ReviewsModal:_buildSourceChips(tab)
         -- (lib/bookshelf_widget.lua's _buildReviewsHeader) -- the two tabs'
         -- hairlines must land at the identical Y or switching tabs visibly
         -- shifts the scroll boundary. -2/-2 brings this to the same 100px.
-        padding_top = Screen:scaleBySize(16) - 2, padding_bottom = Screen:scaleBySize(16) - 2,
+        padding_top = Space.px(16) - 2, padding_bottom = Space.px(16) - 2,
         framed,
     }
 end
@@ -942,7 +943,7 @@ function ReviewsModal:_buildSourcedBody(tab, w, h)
     -- rather than hugging it -- same value and reasoning as the Reviews tab's
     -- own header+hairline gap (lib/bookshelf_widget.lua's _buildReviewsTab).
     -- (A later rule overrides just padding-top from the shared `body { padding }`.)
-    local css = self._css .. string.format("\nbody { padding-top: %dpx; }", Screen:scaleBySize(8))
+    local css = self._css .. string.format("\nbody { padding-top: %dpx; }", Space.px(8))
     local scroller = self:_scroller{
         html_body         = (src and src.html) or "<p></p>",
         css               = css,

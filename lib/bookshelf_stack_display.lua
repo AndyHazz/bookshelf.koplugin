@@ -72,6 +72,7 @@ local Geom       = require("ui/geometry")
 local Widget     = require("ui/widget/widget")
 local Screen     = require("device").screen
 local BookshelfSettings = require("lib/bookshelf_settings_store")
+local Space      = require("lib/bookshelf_space")
 local logger     = (function()
     local ok, l = pcall(require, "logger")
     if ok and l then return l end
@@ -387,13 +388,12 @@ function M.ribbonWidget(cover_w, cover_h, label)
     -- cache key, so handing it { bold = true } is a crash, not a bad font.
     -- Same call the cardboard label makes (bookshelf_folder_card).
     local BFont           = require("lib/bookshelf_fonts")
-    local Size            = require("ui/size")
     if not RibbonTextBox then RibbonTextBox = TextBoxWidget:extend{ alpha = true } end
 
     local text = label:gsub("/$", "")
     local over    = M.ribbonOverhang()
     local band_w  = cover_w + over * 2
-    local pad     = Size.padding.small
+    local pad     = Space.padding.small
     local avail_w = band_w - pad * 2
     if avail_w <= 0 then return nil end
 
@@ -464,7 +464,7 @@ function M.ribbonWidget(cover_w, cover_h, label)
     if ok_sw and SpineWidget and SpineWidget.SHADOW_OFFSET then
         shadow = SpineWidget.SHADOW_OFFSET
     end
-    local gap = math.max(Screen:scaleBySize(3),
+    local gap = math.max(Space.px(3),
                          math.floor(cover_h * RIBBON_BOTTOM_GAP))
     local y = cover_h - shadow - gap - band_h
     if y < 0 then y = 0 end

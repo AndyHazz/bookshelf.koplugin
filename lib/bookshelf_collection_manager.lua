@@ -55,6 +55,7 @@ local TextBoxWidget   = require("ui/widget/textboxwidget")
 local VerticalGroup   = require("ui/widget/verticalgroup")
 local VerticalSpan    = require("ui/widget/verticalspan")
 local Device          = require("device")
+local Space           = require("lib/bookshelf_space")
 local Screen          = Device.screen
 
 local _ = require("lib/bookshelf_i18n").gettext
@@ -230,7 +231,7 @@ function CollectionManager.show(opts)
     -- Visible gap between the two columns -- "large" (the standard
     -- inter-element gap in KOReader) rather than ButtonTable's
     -- shared-edge zero-gap, so the cells read as distinct items.
-    local cell_gap     = Size.padding.large
+    local cell_gap     = Space.padding.large
     local cell_w       = math.floor((inner_w - cell_gap) / 2)
 
     -- Draft membership set: name -> true/false. Pre-populated from
@@ -613,9 +614,9 @@ function CollectionManager.show(opts)
             },
         }
         content[#content + 1] = title_row
-        content[#content + 1] = VerticalSpan:new{ width = Size.padding.default }
+        content[#content + 1] = VerticalSpan:new{ width = Space.padding.default }
         content[#content + 1] = _divider()
-        content[#content + 1] = VerticalSpan:new{ width = Size.padding.large }
+        content[#content + 1] = VerticalSpan:new{ width = Space.padding.large }
         local intro_face, intro_bold = BFont:getFace("infofont", 16)
         content[#content + 1] = TextBoxWidget:new{
             text  = _("Tap a collection to cycle through: no change, "
@@ -625,9 +626,9 @@ function CollectionManager.show(opts)
             bold  = intro_bold,
             width = inner_w,
         }
-        content[#content + 1] = VerticalSpan:new{ width = Size.padding.large }
+        content[#content + 1] = VerticalSpan:new{ width = Space.padding.large }
         content[#content + 1] = _divider()
-        content[#content + 1] = VerticalSpan:new{ width = Size.padding.large }
+        content[#content + 1] = VerticalSpan:new{ width = Space.padding.large }
     elseif opts.no_header and (book_mode or stage_only) then
         -- Header suppressed (the caller's own book menu stays visible behind, so
         -- a second book header would be redundant), but a title bar keeps the
@@ -639,7 +640,7 @@ function CollectionManager.show(opts)
             text = _("Edit collections"), face = tb_face, bold = tb_bold,
             fgcolor = Blitbuffer.COLOR_BLACK,
         }
-        local bar_pad = Screen:scaleBySize(8)
+        local bar_pad = Space.px(8)
         content[#content + 1] = LeftContainer:new{
             dimen = Geom:new{ w = inner_w, h = title_w:getSize().h + 2 * bar_pad },
             title_w,
@@ -648,7 +649,7 @@ function CollectionManager.show(opts)
             background = Blitbuffer.COLOR_BLACK,
             dimen = Geom:new{ w = inner_w, h = Screen:scaleBySize(3) },
         }
-        content[#content + 1] = VerticalSpan:new{ width = Size.padding.large }
+        content[#content + 1] = VerticalSpan:new{ width = Space.padding.large }
     elseif (book_mode or stage_only) and opts.bw and opts.bw._buildBookMenuHeader then
         -- Book mode (persist OR stage_only): render the SAME book menu
         -- header here, including the nav pill strip. In persist mode
@@ -668,9 +669,9 @@ function CollectionManager.show(opts)
         local header = opts.bw:_buildBookMenuHeader(book, inner_w, pill_specs)
         if header then
             content[#content + 1] = header
-            content[#content + 1] = VerticalSpan:new{ width = Size.padding.small }
+            content[#content + 1] = VerticalSpan:new{ width = Space.padding.small }
             content[#content + 1] = _divider()
-            content[#content + 1] = VerticalSpan:new{ width = Size.padding.large }
+            content[#content + 1] = VerticalSpan:new{ width = Space.padding.large }
         end
     else
         -- Manage mode: left-aligned title, divider below, intro
@@ -692,9 +693,9 @@ function CollectionManager.show(opts)
             },
         }
         content[#content + 1] = title_row
-        content[#content + 1] = VerticalSpan:new{ width = Size.padding.default }
+        content[#content + 1] = VerticalSpan:new{ width = Space.padding.default }
         content[#content + 1] = _divider()
-        content[#content + 1] = VerticalSpan:new{ width = Size.padding.large }
+        content[#content + 1] = VerticalSpan:new{ width = Space.padding.large }
         local mintro_face, mintro_bold = BFont:getFace("infofont", 16)
         content[#content + 1] = TextBoxWidget:new{
             text  = _("Tap a custom collection to rename, delete, or pin "
@@ -705,9 +706,9 @@ function CollectionManager.show(opts)
             bold  = mintro_bold,
             width = inner_w,
         }
-        content[#content + 1] = VerticalSpan:new{ width = Size.padding.large }
+        content[#content + 1] = VerticalSpan:new{ width = Space.padding.large }
         content[#content + 1] = _divider()
-        content[#content + 1] = VerticalSpan:new{ width = Size.padding.large }
+        content[#content + 1] = VerticalSpan:new{ width = Space.padding.large }
     end
 
     -- Two-column grid of collections. Cell rendering delegates to the

@@ -17,6 +17,7 @@ local InputContainer  = require("ui/widget/container/inputcontainer")
 local LineWidget      = require("ui/widget/linewidget")
 local OverlapGroup    = require("ui/widget/overlapgroup")
 local Size            = require("ui/size")
+local Space           = require("lib/bookshelf_space")
 local TextWidget      = require("ui/widget/textwidget")
 local UIManager       = require("ui/uimanager")
 local VerticalGroup   = require("ui/widget/verticalgroup")
@@ -196,7 +197,7 @@ function StartMenu.open(bw, bottom_inset, burger_dimen, context, burger_art, anc
     local no_button = (burger_dimen == nil)
     local menu = StartMenu:new{
         bw            = bw,
-        bottom_inset  = no_button and 0 or (bottom_inset + Screen:scaleBySize(6)),
+        bottom_inset  = no_button and 0 or (bottom_inset + Space.px(6)),
         _balance_bottom_margin = no_button,
         burger_dimen  = burger_dimen,
         burger_art    = burger_art,   -- actual launcher art size (#279 scaling)
@@ -360,7 +361,7 @@ function StartMenu:init()
     -- so the popup sits off the screen edge like the shelf content does.
     local Size = require("ui/size")
     self._margin = math.min(
-        math.floor(Size.padding.fullscreen * 2 * 0.8),
+        math.floor(Space.padding.fullscreen * 2 * 0.8),
         math.floor(Screen:getWidth() * 0.03))
     -- Gesture-opened with no footer button: mirror the side margin onto the
     -- bottom so the panel is evenly inset (the horizontal anchor already
@@ -371,7 +372,7 @@ function StartMenu:init()
     -- Chrome constants shared by row building and the pagination budget.
     self._focus_border = Screen:scaleBySize(2) -- row margin/border swap
     self._panel_border = Screen:scaleBySize(2) -- panel FrameContainer border
-    self._panel_pad    = Screen:scaleBySize(3) -- panel FrameContainer padding
+    self._panel_pad    = Space.px(3) -- panel FrameContainer padding
     self:_applyFontScale()
     local _t1 = _gettime()
     self._items    = self:_loadItems()
@@ -457,7 +458,7 @@ end
 function StartMenu:_applyFontScale()
     local pct = Store.read("start_menu_font_scale") or 100
     local function sc(n) return math.max(1, math.floor(n * pct / 100 + 0.5)) end
-    self._pad      = Screen:scaleBySize(sc(10))
+    self._pad      = Space.px(sc(10))
     self._row_face  = Fonts:getFace("cfont", sc(18))
     self._icon_face = Fonts:getFace("cfont", sc(22))
     self._icon_col_w = Screen:scaleBySize(sc(30))
@@ -926,7 +927,7 @@ end
 -- so it never appears in d-pad/chevron focus navigation -- nothing to land
 -- on, nothing to activate.
 function StartMenu:_buildDividerRow(entry, w)
-    local inset = Size.span.horizontal_default
+    local inset = Space.span.horizontal_default
     local line = HorizontalGroup:new{
         align = "center",
         HorizontalSpan:new{ width = inset },
@@ -1309,21 +1310,21 @@ function StartMenu:_build()
             -- With the menu on the right the flyout opens LEFTWARD, the
             -- mirror image of the default layout (same overlap, mirrored
             -- narrow-screen clamp).
-            local overlap = Screen:scaleBySize(14)
+            local overlap = Space.px(14)
             local fly_x
             if on_right then
                 fly_x = root_x - fly_sz.w + overlap
                 if fly_x < self._margin then
                     -- Narrow screen: overlap the parent, keep a sliver visible.
                     fly_x = math.min(
-                        root_x + root_sz.w - Screen:scaleBySize(24) - fly_sz.w,
+                        root_x + root_sz.w - Space.px(24) - fly_sz.w,
                         self._margin)
                 end
             else
                 fly_x = root_x + root_sz.w - overlap
                 if fly_x + fly_sz.w + self._margin > sw then
                     -- Narrow screen: overlap the parent, keep a sliver visible.
-                    fly_x = math.max(root_x + Screen:scaleBySize(24),
+                    fly_x = math.max(root_x + Space.px(24),
                         sw - self._margin - fly_sz.w)
                 end
             end

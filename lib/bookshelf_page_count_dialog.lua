@@ -98,6 +98,7 @@ local TitleBar        = require("ui/widget/titlebar")
 local VerticalGroup   = require("ui/widget/verticalgroup")
 local VerticalSpan    = require("ui/widget/verticalspan")
 local Device          = require("device")
+local Space           = require("lib/bookshelf_space")
 local Screen          = Device.screen
 
 local Dialog = InputContainer:extend{}
@@ -106,8 +107,8 @@ function Dialog:init()
     local o, hc = self.o, self.hc
     local sw, sh = Screen:getWidth(), Screen:getHeight()
     self.width = math.floor(math.min(sw, sh) * 0.9)
-    local pad = Size.padding.large
-    local gap = Size.padding.default
+    local pad = Space.padding.large
+    local gap = Space.padding.default
     local dialog = self
     local iw   -- the body's inner width; set per build below
 
@@ -267,7 +268,7 @@ function Dialog:init()
     }
     local fixed_h = title_bar:getSize().h + self.buttons:getSize().h
                     + 2 * Size.border.window
-    local avail_h = sh - 2 * Size.margin.default - fixed_h
+    local avail_h = sh - 2 * Space.margin.default - fixed_h
     local body = build(self.width - 2 * pad)
     local body_block = FrameContainer:new{ bordersize = 0, padding = pad, body }
     if body_block:getSize().h > avail_h then

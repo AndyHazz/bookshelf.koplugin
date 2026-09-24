@@ -15,6 +15,7 @@ local Size = require("ui/size")
 local UIManager = require("ui/uimanager")
 local VerticalGroup = require("ui/widget/verticalgroup")
 local VerticalSpan = require("ui/widget/verticalspan")
+local Space = require("lib/bookshelf_space")
 local Catalogue = require("lib/bookshelf_icons_catalogue")
 local DataStorage = require("datastorage")
 local lfs = require("libs/libkoreader-lfs")
@@ -323,12 +324,12 @@ function IconsLibrary._renderCell(item, dimen)
         text = item.label or "",
         face = label_face,
         fgcolor = Blitbuffer.COLOR_BLACK,
-        max_width = dimen.w - Screen:scaleBySize(8),
+        max_width = dimen.w - Space.px(8),
     }
     local stack = VerticalGroup:new{
         align = "center",
         glyph_w,
-        VerticalSpan:new{ width = Size.span.vertical_default or 4 },
+        VerticalSpan:new{ width = Space.span.vertical_default or 4 },
         label_w,
     }
     return FrameContainer:new{
@@ -478,7 +479,7 @@ function IconsLibrary:show(on_select, opts)
                 text = _("Drop .svg or .png files in koreader/icons/"),
                 face = Font:getFace("cfont", 16),
                 fgcolor = Blitbuffer.COLOR_BLACK,
-                max_width = content_width - Screen:scaleBySize(24),
+                max_width = content_width - Space.px(24),
             }
             return CenterContainer:new{
                 dimen = Geom:new{ w = content_width, h = area_height },

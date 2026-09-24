@@ -49,6 +49,7 @@ local TextSegments   = require("lib/bookshelf_text_segments")
 local Pages          = require("lib/bookshelf_chip_pages")
 local PageWipe       = require("lib/bookshelf_page_wipe")
 local BandMetrics    = require("lib/bookshelf_band_metrics")
+local Space          = require("lib/bookshelf_space")
 
 -- Tab-bar font size scale (percent). 100 = built-in baseline; nudge dialog
 -- accepts 50-300.
@@ -686,7 +687,7 @@ local function arrowPillFrame(label, h, chained, glyph)
             bold    = lbl_bold,
             fgcolor = Blitbuffer.COLOR_BLACK,
         }
-        local gap = Size.padding.default
+        local gap = Space.padding.default
         content_widget = HorizontalGroup:new{
             align = "center",
             icon_tw,
@@ -715,7 +716,7 @@ local function arrowPillFrame(label, h, chained, glyph)
     end
     local text_w = content_w  -- keep historical names so the layout maths below stay readable
     local text_h = content_h
-    local h_pad  = Size.padding.large
+    local h_pad  = Space.padding.large
     local tip_w  = math.floor(h * 0.4)
     -- For chained pills the body has a TRIANGULAR NOTCH carved into
     -- its LEFT side (matching the previous pill's tip shape) AND extra
@@ -895,7 +896,7 @@ local CHEVRON_NEXT = "\xEF\x81\x94"
 -- Measure the natural pixel width of a flex chip (no max_width constraint).
 -- Used both for pagination planning and proportional flex allocation.
 local function measureNatural(chip, height, scaled_fn)
-    local pad = Size.padding.large
+    local pad = Space.padding.large
     if chip.nerd_glyph then
         local ng_face, ng_bold = _iconFace(scaled_fn(18))
         local tw = TextWidget:new{
@@ -1284,7 +1285,7 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
             cell_content = _buildLabelContent(
                 chip.label or "",
                 _scaled(16),
-                w - 2 * Size.padding.small,
+                w - 2 * Space.padding.small,
                 ink)
         end
         local is_cursor = is_cursor_pre
@@ -1760,7 +1761,7 @@ function ChipBar:_initBreadcrumb()
             -- inset so the text sits well clear of the last pill's
             -- tip apex, mirroring the breathing room a chained pill
             -- gives its own text via the extra-tip_w left padding.
-            local gap_w = pill_tip_w + Size.padding.large
+            local gap_w = pill_tip_w + Space.padding.large
             outer[#outer + 1] = HorizontalSpan:new{ width = gap_w }
             cursor = cursor + gap_w
             outer[#outer + 1] = deepest_widget

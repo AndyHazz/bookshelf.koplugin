@@ -17,6 +17,7 @@ local TextBoxWidget   = require("ui/widget/textboxwidget")
 local Geom            = require("ui/geometry")
 local GestureRange    = require("ui/gesturerange")
 local Size            = require("ui/size")
+local Space           = require("lib/bookshelf_space")
 local Font            = require("ui/font")
 local BFont           = require("lib/bookshelf_fonts")
 local UIManager       = require("ui/uimanager")
@@ -1149,7 +1150,7 @@ function BookshelfWidget:_rebuild()
     -- visibly shrinks every cover thumbnail. The cap means at any DPI
     -- the layout reserves the same proportional whitespace, so covers
     -- keep their relative size.
-    local pad_natural = math.floor(Size.padding.fullscreen * 2 * 0.8)
+    local pad_natural = math.floor(Space.padding.fullscreen * 2 * 0.8)
     local pad_capped  = math.floor(self.width * 0.03)
     local PAD         = math.min(pad_natural, pad_capped)
     local side_pad  = PAD
@@ -1423,6 +1424,7 @@ function BookshelfWidget:_rebuild()
         if label_mode then
             local label_scale     = BookshelfSettings.read("expanded_shelf_font_scale") or 100
             local title_face_size = math.floor(14 * label_scale / 100 + 0.5)
+            -- Size, as shelf_row's label_gap: it clears the reading ribbon.
             title_block_h = Size.padding.default + math.floor(title_face_size * 1.3)
         end
         -- The 1.05 lets uniform covers stretch 5% past 2:3 to soak up slack.
@@ -2116,7 +2118,7 @@ function BookshelfWidget:_rebuild()
         local min_card_h = Screen:scaleBySize(140)
         if card_h < min_card_h then card_h = min_card_h end
 
-        local card_inner_w = content_w - Size.padding.large * 2
+        local card_inner_w = content_w - Space.padding.large * 2
 
         local card_children = { align = "center" }
         -- bgcolor must match the card -- TextBoxWidget defaults to
@@ -2133,7 +2135,7 @@ function BookshelfWidget:_rebuild()
         }
         if sub_text and sub_text ~= "" then
             card_children[#card_children + 1] = VerticalSpan:new{
-                width = Size.padding.large,
+                width = Space.padding.large,
             }
             local sub_face, sub_bold = BFont:getFace("infofont", 15)
             card_children[#card_children + 1] = TextBoxWidget:new{
@@ -2148,7 +2150,7 @@ function BookshelfWidget:_rebuild()
         if _is_home_source then
             local Button = require("ui/widget/button")
             card_children[#card_children + 1] = VerticalSpan:new{
-                width = Size.padding.fullscreen,
+                width = Space.padding.fullscreen,
             }
             local bw = self
             card_children[#card_children + 1] = Button:new{
@@ -2179,13 +2181,13 @@ function BookshelfWidget:_rebuild()
         local placeholder = FrameContainer:new{
             bordersize = Size.border.thin,
             background = card_bg,
-            padding    = Size.padding.large,
+            padding    = Space.padding.large,
             width      = content_w,
             height     = card_h,
             CenterContainer:new{
                 dimen = Geom:new{
                     w = card_inner_w,
-                    h = card_h - Size.padding.large * 2,
+                    h = card_h - Space.padding.large * 2,
                 },
                 VerticalGroup:new(card_children),
             },
@@ -2442,7 +2444,7 @@ function BookshelfWidget:_rebuild()
             local ok_ss, SpineShelf = pcall(require, "lib/bookshelf_spine_shelf")
             if ok_ss and SpineShelf.badgeDrop then
                 local ok_d, drop = pcall(SpineShelf.badgeDrop, shelf_h)
-                last_min = (ok_d and drop or 0) + Size.padding.small
+                last_min = (ok_d and drop or 0) + Space.padding.small
             end
         end
         local s = GridMargins.split{
@@ -5982,8 +5984,8 @@ function BookshelfWidget:_spinePlanBase(content_w, shelf_h, all_items)
         -- by the two margins so books never reach the shelf's edges.
         content_w       = content_w - 2 * SpineShelf.endMargin(shelf_h),
         row_h           = shelf_h,
-        gap             = Screen:scaleBySize(SpineShelf.BOOK_GAP_DP),
-        group_gap       = Screen:scaleBySize(SpineShelf.GROUP_GAP_DP),
+        gap             = Space.px(SpineShelf.BOOK_GAP_DP),
+        group_gap       = Space.px(SpineShelf.GROUP_GAP_DP),
         face_out        = self:_spineFaceOut(),
         face_recent_set = self:_spineFaceRecent(all_items),
         thickness_pct   = self:_chipListValue("spine_thickness_pct"),
@@ -11684,7 +11686,7 @@ end
 -- computes the same number for the strip it actually builds, and the two used
 -- to be separate copies of the arithmetic.
 function BookshelfWidget:_layoutPrimitives()
-    local pad_natural = math.floor(Size.padding.fullscreen * 2 * 0.8)
+    local pad_natural = math.floor(Space.padding.fullscreen * 2 * 0.8)
     local pad_capped  = math.floor(self.width * 0.03)
     local PAD         = math.min(pad_natural, pad_capped)
     local content_w   = self.width - PAD * 2
@@ -11883,6 +11885,7 @@ function BookshelfWidget:_collapsedGridSplit(hide_chip_bar, n_shelves, slot_h_na
     if self:_shelfLabelMode() then
         local lscale = BookshelfSettings.read("expanded_shelf_font_scale") or 100
         local lsize  = math.floor(14 * lscale / 100 + 0.5)
+        -- Size, as shelf_row's label_gap: it clears the reading ribbon.
         grid_title_block_h = Size.padding.default + math.floor(lsize * 1.3)
     end
     local lo  = math.floor(slot_h_natural * SHELF_PACK_FLOOR) + grid_title_block_h
@@ -17080,7 +17083,7 @@ function BookshelfWidget:_buildRemoteBookHeader(book, header_w, opts)
     local thumb_w = math.min(Screen:scaleBySize(110), math.floor(header_w * 0.35))
     local thumb_h = math.floor(thumb_w * 1.5)
     local gap_w   = self:_bookGap(math.min(
-        math.floor(Size.padding.fullscreen * 2 * 0.8),
+        math.floor(Space.padding.fullscreen * 2 * 0.8),
         math.floor(Screen:getWidth() * 0.03)))
 
     -- Whatever is on disk right now: the repo attaches cover_image_path to the
@@ -17148,7 +17151,7 @@ function BookshelfWidget:_buildRemoteBookHeader(book, header_w, opts)
     }
     if type(book.author) == "string" and book.author ~= "" then
         local a_face, a_bold = BFont:getFace("cfont", 18)
-        stack[#stack + 1] = VerticalSpan:new{ width = Size.padding.small }
+        stack[#stack + 1] = VerticalSpan:new{ width = Space.padding.small }
         stack[#stack + 1] = TextBoxWidget:new{
             text = book.author, face = a_face, bold = a_bold, width = text_w,
         }
@@ -17179,7 +17182,7 @@ function BookshelfWidget:_buildRemoteBookHeader(book, header_w, opts)
             local probe = TextBoxWidget:new{ text = "Ag", face = s_face, width = header_w }
             local line_h = probe.line_height_px or Screen:scaleBySize(20)
             probe:free()
-            group[#group + 1] = VerticalSpan:new{ width = Screen:scaleBySize(10) }
+            group[#group + 1] = VerticalSpan:new{ width = Space.px(10) }
             group[#group + 1] = TextBoxWidget:new{
                 text   = text,
                 face   = s_face,
@@ -17928,7 +17931,7 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
     -- add NO frame inset here -- stacking a frame inset on the dialog's own
     -- padding was the doubling.
     local gap_w    = self:_bookGap(math.min(
-        math.floor(Size.padding.fullscreen * 2 * 0.8),
+        math.floor(Space.padding.fullscreen * 2 * 0.8),
         math.floor(Screen:getWidth() * 0.03)))
 
     -- Rebuild the book record so we get an independent cover_bb that
@@ -18067,7 +18070,7 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
         local bm_row = HorizontalGroup_:new{
             align = "center",
             TextWidget_:new{ text = bm_text, face = bm_face, bold = bm_bold },
-            HorizontalSpan_:new{ width = Size.padding.small },
+            HorizontalSpan_:new{ width = Space.padding.small },
             TextWidget_:new{ text = "\xEE\xA1\x81", face = BFont:getFace("symbols", 20) },
         }
         local bm_frame = FrameContainer:new{
@@ -18085,7 +18088,7 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
             Tap = { GestureRange:new{ ges = "tap", range = bm_link.dimen } },
         }
         bm_link.onTap = function() bookmark_action.on_tap(); return true end
-        bm_reserve = bm_sz.w + Size.padding.default
+        bm_reserve = bm_sz.w + Space.padding.default
     end
     -- No frame inset: header_w (the dialog's added-widget width) is already
     -- inset from the button rows by the dialog's title_padding. The content
@@ -18177,7 +18180,7 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
         function icon:paintTo(bb, x, y)
             orig_icon_paintTo(self, bb, x, y - icon_nudge_up)
         end
-        local gap    = Screen:scaleBySize(6)
+        local gap    = Space.px(6)
         local line_h = TextWidget_:new{ text = "Ag", face = meta_face }:getSize().h
         local icon_box = CenterContainer_:new{
             dimen = Geom:new{ w = icon:getSize().w, h = line_h },
@@ -18275,9 +18278,9 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
     local pill_group = VerticalGroup_:new{ align = "left" }
     if pill_specs and #pill_specs > 0 then
         local pill_face, pill_bold = BFont:getFace("cfont", 13, { bold = true })
-        local pill_pad_h  = Size.padding.default  -- L/R inner padding
-        local pill_pad_v  = Size.padding.small    -- T/B inner padding
-        local pill_gap    = Size.padding.default  -- between pills
+        local pill_pad_h  = Space.padding.default  -- L/R inner padding
+        local pill_pad_v  = Space.padding.small    -- T/B inner padding
+        local pill_gap    = Space.padding.default  -- between pills
         local MAX_PILL_ROWS = 2  -- bounds the header height when the
                                  -- caller pours dozens of pills at us;
                                  -- the overflow collapses into a single
@@ -18439,7 +18442,7 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
     -- pills exist; pill-less headers (collection manager's manage
     -- mode etc.) don't pay the gap.
     local has_pills = pill_specs and #pill_specs > 0
-    local min_gap   = has_pills and Size.padding.large or 0
+    local min_gap   = has_pills and Space.padding.large or 0
     local target_h  = thumb_widget and thumb_h or (top_h + min_gap + fp_h)
     local flex_h    = math.max(min_gap, target_h - top_h - fp_h)
     local text_stack = VerticalGroup_:new{
@@ -18721,7 +18724,7 @@ function BookshelfWidget:_sectionHeadingBar(text, content_w, font_size, inset)
         background  = Blitbuffer.COLOR_BLACK,
         bordersize  = 0, margin = 0, width = content_w + Size.border.window,
         padding_left = inset, padding_right = inset,
-        padding_top = Screen:scaleBySize(7), padding_bottom = Screen:scaleBySize(4),
+        padding_top = Space.px(7), padding_bottom = Space.px(4),
         TextWidget:new{ text = TextSegments.upper(text), face = face, bold = bold,
             fgcolor = Blitbuffer.COLOR_WHITE },
     }
@@ -18741,8 +18744,8 @@ function BookshelfWidget:_segmentedChips(items, active_key, on_pick, font_size, 
     local LineWidget      = require("ui/widget/linewidget")
     local GestureRange    = require("ui/gesturerange")
     local sep_w = Size.border.thin
-    local h_pad = Size.padding.large
-    local v_pad = Size.padding.small
+    local h_pad = Space.padding.large
+    local v_pad = Space.padding.small
     -- Match the main bookshelf nav chip bar exactly: a logical 16pt label scaled
     -- by the user's chip-font setting (chip_font_scale). NOT Screen:scaleBySize,
     -- which the font layer scales a second time (font_size, passed in, is the
@@ -18794,7 +18797,7 @@ function BookshelfWidget:_segmentedChips(items, active_key, on_pick, font_size, 
     local outer = FrameContainer:new{
         bordersize = 0, margin = 0,
         padding_left = inset, padding_right = inset,
-        padding_top = Screen:scaleBySize(12), padding_bottom = Screen:scaleBySize(12),
+        padding_top = Space.px(12), padding_bottom = Space.px(12),
         framed,
     }
     -- Second return value: the chips as one dpad row, left-to-right, for
@@ -18842,12 +18845,12 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
     local pill_face, pill_bold = BFont:getFace("cfont", base_size or 14, { bold = true })
     -- A bit more than Size.padding.default: at default gave the label so
     -- little breathing room against the border it read as cramped.
-    local pill_pad_h = Screen:scaleBySize(8)
-    local pill_pad_v = Size.padding.small
+    local pill_pad_h = Space.px(8)
+    local pill_pad_v = Space.padding.small
     -- gap (optional) overrides the inter-pill / inter-row spacing; the tags
     -- sheet passes a larger value since it has room, while the space-tight
     -- hero/menu strips keep the default.
-    local pill_gap   = gap or Size.padding.default
+    local pill_gap   = gap or Space.padding.default
     -- #177: a single tag longer than the row would otherwise render at full
     -- natural width and spill off the screen edge (the packer only rejects a
     -- pill that isn't first in its row). Cap the label so one pill never exceeds
@@ -19171,7 +19174,7 @@ function BookshelfWidget:_showFetchProgress(text)
     }
     local d    = self._shelf_dims or {}
     local lift = (d.FOOTER_H or 0) + (d.FOOTER_BOTTOM_MARGIN or 0)
-                 + (d.book_gap or Size.padding.large)
+                 + (d.book_gap or Space.padding.large)
     msg[1] = BottomContainer:new{
         dimen = Geom:new{ w = Screen:getWidth(),
                           h = math.max(1, Screen:getHeight() - lift) },
@@ -19640,10 +19643,10 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     local bar_w     = SnugScroll.widen(Screen:scaleBySize(3))
     local sb        = bar_w   -- SnugScroll reserves exactly the bar width (no gaps)
     local pad_top    = 0   -- first heading strip butts against the tab strip
-    local pad_bottom = Screen:scaleBySize(10)
+    local pad_bottom = Space.px(10)
     -- Left inset = the modal's shared side pad, so heading text + info-row text
     -- line up with the tab strip and the description body.
-    local inset      = (modal and modal._side_pad) or Screen:scaleBySize(28)
+    local inset      = (modal and modal._side_pad) or Space.px(28)
 
     -- Stamp the font size onto every button spec so the +/- zoom scales them.
     -- Also stamp an explicit `height`, floored to what the footer's Zoom-/
@@ -19788,7 +19791,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                 local glyph = inFav() and FAV_CHECK_ON or FAV_CHECK_OFF
                 return HorizontalGroup:new{ align = "center",
                     TextWidget:new{ text = glyph, face = check_face, fgcolor = Blitbuffer.COLOR_BLACK },
-                    HorizontalSpan:new{ width = Screen:scaleBySize(10) },
+                    HorizontalSpan:new{ width = Space.px(10) },
                     TextWidget:new{ text = _("Favorite"), face = row_face, bold = true },
                 }
             end
@@ -19842,7 +19845,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             local tw = TextWidget:new{ text = glyph,
                 face = BFont:getFace("symbols", star_size), fgcolor = Blitbuffer.COLOR_BLACK }
             local frame = FrameContainer:new{
-                bordersize = 0, margin = 0, padding = Screen:scaleBySize(3), tw }
+                bordersize = 0, margin = 0, padding = Space.px(3), tw }
             if not on_tap then return frame end
             local fsz = frame:getSize()
             local star = InputContainer:new{ dimen = Geom:new{ w = fsz.w, h = fsz.h }, frame }
@@ -19864,7 +19867,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         -- "Your rating": label + tappable stars.
         local your_group = HorizontalGroup:new{ align = "center" }
         your_group[#your_group + 1] = lbl(_("Your rating"))
-        your_group[#your_group + 1] = HorizontalSpan:new{ width = Screen:scaleBySize(10) }
+        your_group[#your_group + 1] = HorizontalSpan:new{ width = Space.px(10) }
         local your_stars = {}
         for i = 1, 5 do
             local glyph = (i <= cur) and STAR_FULL or STAR_EMPTY
@@ -19921,22 +19924,22 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             end
             local hc_group = HorizontalGroup:new{ align = "center",
                 lbl(_("Hardcover")),
-                HorizontalSpan:new{ width = Screen:scaleBySize(10) },
+                HorizontalSpan:new{ width = Space.px(10) },
                 hc_stars_widget,
-                HorizontalSpan:new{ width = Screen:scaleBySize(8) },
+                HorizontalSpan:new{ width = Space.px(8) },
                 TextWidget:new{ text = string.format("%.1f", hc_rating),
                     face = BFont:getFace("cfont", font_size), fgcolor = Blitbuffer.COLOR_BLACK },
             }
             -- Side by side when they fit; otherwise wrap onto two lines (needed
             -- at large zoom / high DPI where one row would overflow).
             local avail = content_w - 2 * inset
-            local sep   = Screen:scaleBySize(28)
+            local sep   = Space.px(28)
             if your_group:getSize().w + sep + hc_group:getSize().w <= avail then
                 ratings_widget = HorizontalGroup:new{ align = "center",
                     your_group, HorizontalSpan:new{ width = sep }, hc_group }
             else
                 ratings_widget = VerticalGroup:new{ align = "left",
-                    your_group, VerticalSpan:new{ width = Screen:scaleBySize(8) }, hc_group }
+                    your_group, VerticalSpan:new{ width = Space.px(8) }, hc_group }
             end
         end
         -- Centre the rating row(s) within the section instead of hugging the
@@ -19947,7 +19950,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             ratings_widget,
         }
         vg[#vg + 1] = heading(_("Ratings"))
-        vg[#vg + 1] = padded(ratings_widget, Screen:scaleBySize(8), Screen:scaleBySize(10))
+        vg[#vg + 1] = padded(ratings_widget, Space.px(8), Space.px(10))
 
         -- An info row styled like a File-&-metadata button row: the value on the
         -- left (inset to align with the headings), then a bordered ChipButton
@@ -19962,7 +19965,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             -- top and bottom) so the two Edit buttons look identical.
             local pf = BFont:getFace("cfont", font_size, { bold = true })
             local btn_h = TextWidget:new{ text = "Hg", face = pf }:getSize().h
-                + 2 * Size.padding.small + 2 * Size.border.thin
+                + 2 * Space.padding.small + 2 * Size.border.thin
             local btn = ChipButton.build{
                 text       = btn_label,
                 face       = edit_face,
@@ -19977,18 +19980,18 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             local left_w = math.max(Screen:scaleBySize(60), content_w - btn_w)
             local txt = TextBoxWidget:new{ text = text,
                 face  = BFont:getFace("cfont", font_size),
-                width = math.max(Screen:scaleBySize(40), left_w - inset - Screen:scaleBySize(8)) }
+                width = math.max(Screen:scaleBySize(40), left_w - inset - Space.px(8)) }
             -- Extra room OUTSIDE the button/text (not inside the button itself):
             -- same total top+bottom budget as Plugin actions' chip row
             -- (padded(rows_vg, 10, 20) below), so the two sections carry the
             -- same visual weight even though this row centres its content
             -- instead of stacking it top-down.
             local row_h = math.max(btn_h, txt:getSize().h)
-                + Screen:scaleBySize(10) + Screen:scaleBySize(20)
+                + Space.px(10) + Space.px(20)
             local top_pad = math.floor((row_h - txt:getSize().h) / 2)
             local left_cell = FrameContainer:new{
                 bordersize = 0, margin = 0,
-                padding_left = inset, padding_right = Screen:scaleBySize(8),
+                padding_left = inset, padding_right = Space.px(8),
                 padding_top = top_pad, padding_bottom = row_h - txt:getSize().h - top_pad,
                 txt,
             }
@@ -20029,9 +20032,9 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             vg[#vg + 1] = heading(_("Plugin actions"))
             local edit_face = BFont:getFace("cfont", font_size)
             local probe = TextWidget:new{ text = "Hg", face = edit_face }
-            local chip_h = probe:getSize().h + 2 * Screen:scaleBySize(5)
-            local chip_gap = Screen:scaleBySize(12)
-            local row_gap  = Screen:scaleBySize(10)
+            local chip_h = probe:getSize().h + 2 * Space.px(5)
+            local chip_gap = Space.px(12)
+            local row_gap  = Space.px(10)
             -- Flatten every registration's row into one list, then lay the
             -- chips out as a wrapping horizontal flow. Plugins each register a
             -- single-button "row", so the old row-per-line layout stacked them
@@ -20076,7 +20079,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                 line_focus[#line_focus + 1] = chip
             end
             commitLine()
-            vg[#vg + 1] = padded(rows_vg, Screen:scaleBySize(10), Screen:scaleBySize(20))
+            vg[#vg + 1] = padded(rows_vg, Space.px(10), Space.px(20))
         end
 
         -- Close the last section so its final button has a bottom edge --
@@ -20133,7 +20136,7 @@ function BookshelfWidget:_buildReviewsHeader(tab, modal, avail_w, refreshReviews
     local VerticalSpan   = require("ui/widget/verticalspan")
     local ChipButton     = require("lib/bookshelf_chip_button")
     local font_size = (modal and modal.font_size) or 20
-    local inset = (modal and modal._side_pad) or Screen:scaleBySize(28)
+    local inset = (modal and modal._side_pad) or Space.px(28)
     local content_w = avail_w - 2 * inset
 
     -- Same read-only star glyphs as the Edit tab's Hardcover rating row, but
@@ -20161,7 +20164,7 @@ function BookshelfWidget:_buildReviewsHeader(tab, modal, avail_w, refreshReviews
             left[#left + 1] = TextWidget:new{
                 text = glyph, face = star_face, fgcolor = Blitbuffer.COLOR_BLACK }
         end
-        left[#left + 1] = HorizontalSpan:new{ width = Screen:scaleBySize(6) }
+        left[#left + 1] = HorizontalSpan:new{ width = Space.px(6) }
         left[#left + 1] = TextWidget:new{
             text = string.format("%.1f", rating), face = text_face, fgcolor = Blitbuffer.COLOR_BLACK }
     end
@@ -20192,13 +20195,13 @@ function BookshelfWidget:_buildReviewsHeader(tab, modal, avail_w, refreshReviews
         icon_glyph = "\xEE\xAD\x92",
         icon_face  = BFont:getFace("symbols", font_size),
         icon_after = true,
-        height     = text_h + 2 * Screen:scaleBySize(5),
+        height     = text_h + 2 * Space.px(5),
         inverted   = tab.busy or false,
         on_tap     = function() if not tab.busy then refreshReviews() end end,
     }
 
     local left_w, right_w = left:getSize().w, refresh_btn:getSize().w
-    local gap = Screen:scaleBySize(10)
+    local gap = Space.px(10)
     local row
     if left_w > 0 and left_w + gap + right_w <= content_w then
         row = HorizontalGroup:new{ align = "center",
@@ -20206,7 +20209,7 @@ function BookshelfWidget:_buildReviewsHeader(tab, modal, avail_w, refreshReviews
     elseif left_w > 0 then
         -- Doesn't fit side by side (narrow screen / large zoom) -- stack.
         row = VerticalGroup:new{ align = "left",
-            left, VerticalSpan:new{ width = Screen:scaleBySize(6) }, refresh_btn }
+            left, VerticalSpan:new{ width = Space.px(6) }, refresh_btn }
     else
         -- No rating data yet (still loading) -- just the button, flush right
         -- where it'll end up once the summary text appears.
@@ -20217,7 +20220,7 @@ function BookshelfWidget:_buildReviewsHeader(tab, modal, avail_w, refreshReviews
     return FrameContainer:new{
         bordersize = 0, margin = 0,
         padding_left = inset, padding_right = inset,
-        padding_top = Screen:scaleBySize(10), padding_bottom = Screen:scaleBySize(10),
+        padding_top = Space.px(10), padding_bottom = Space.px(10),
         row,
     }
 end
@@ -20244,7 +20247,7 @@ function BookshelfWidget:_buildReviewsTab(tab, modal, avail_w, avail_h, refreshR
     -- hairline already supply a gap above the first review -- so shrink it to
     -- a small residual rather than dropping it to 0 (_buildSourcedBody's
     -- padding-top override, same technique).
-    local css = modal._css .. string.format("\nbody { padding-top: %dpx; }", Screen:scaleBySize(8))
+    local css = modal._css .. string.format("\nbody { padding-top: %dpx; }", Space.px(8))
     -- Through the modal's _scroller, NOT a raw ScrollHtmlWidget: the stock
     -- widget claims every south swipe even with nothing above the fold, so
     -- swipe-down-to-close (issue 338) worked on every tab except this one.
@@ -20294,7 +20297,7 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
     -- keeps the modal frame the same size across tabs -- otherwise a shorter/
     -- wider Cover body shrinks + recentres the whole modal and leaves the prior
     -- tab's pixels around it (the reported painting glitch).
-    local side_pad  = (show_parent and show_parent._side_pad) or Screen:scaleBySize(28)
+    local side_pad  = (show_parent and show_parent._side_pad) or Space.px(28)
     local content_w = avail_w - 2 * side_pad
 
     if not state.local_candidates then
@@ -20334,7 +20337,7 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
     do
         local pf = BFont:getFace("cfont", base, { bold = true })
         btn_h = TextWidget:new{ text = "Hg", face = pf }:getSize().h
-            + 2 * Size.padding.small + 2 * Size.border.thin
+            + 2 * Space.padding.small + 2 * Size.border.thin
     end
     local device_btn = ChipButton.build{
         text = _("Choose from device"), face = btn_face, height = btn_h,
@@ -20346,7 +20349,7 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
     }
     local toolbar = HorizontalGroup:new{
         align = "center",
-        device_btn, HorizontalSpan:new{ width = Screen:scaleBySize(10) }, online_btn,
+        device_btn, HorizontalSpan:new{ width = Space.px(10) }, online_btn,
     }
     local toolbar_row = LeftContainer:new{
         dimen = Geom:new{ w = content_w, h = toolbar:getSize().h }, toolbar,
@@ -20354,7 +20357,7 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
     local toolbar_h = toolbar_row:getSize().h
 
     -- Grid geometry: 2-4 columns by width; rows to fill the height.
-    local gap      = Screen:scaleBySize(10)
+    local gap      = Space.px(10)
     local min_cell = Screen:scaleBySize(120)
     local n_cols   = math.max(2, math.min(4, math.floor((content_w + gap) / (min_cell + gap))))
     local cell_w   = math.floor((content_w - gap * (n_cols - 1)) / n_cols)
@@ -20363,14 +20366,14 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
     local cap_h  = CoverGridCell.captionHeight(caption_font)
     local ring   = SpineWidget.SELECTED_BORDER
     -- Non-cover part of a cell (caption + gap + ring headroom top/bottom).
-    local chrome = Screen:scaleBySize(4) + cap_h + 2 * ring
+    local chrome = Space.px(4) + cap_h + 2 * ring
 
-    local top_pad     = Screen:scaleBySize(12)   -- gap below the tab bar / above toolbar
-    local tb_gap      = Screen:scaleBySize(12)    -- gap below the toolbar
+    local top_pad     = Space.px(12)   -- gap below the tab bar / above toolbar
+    local tb_gap      = Space.px(12)    -- gap below the toolbar
     -- Space reserved below the grid for the pagination row plus a standard gap
     -- beneath it (matching the pagination spacing used elsewhere) so the page
     -- nav sits just off the modal's Close/Open footer, not jammed against it.
-    local nav_bottom_pad = Size.padding.fullscreen
+    local nav_bottom_pad = Space.padding.fullscreen
     local nav_reserve = Screen:scaleBySize(44) + nav_bottom_pad
     local grid_avail_h = math.max(1, avail_h - top_pad - toolbar_h - tb_gap - nav_reserve)
     -- Pack as many rows as fit while each cover stays at least ~1.05x its width
@@ -20407,7 +20410,7 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
             TextWidget:new{
                 text = _("No covers stored yet. Use Search online or Choose from device."),
                 face = BFont:getFace("cfont", 15),
-                max_width = content_w - Screen:scaleBySize(20),
+                max_width = content_w - Space.px(20),
             },
         }
     else
@@ -20786,7 +20789,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
                     }
                 end
                 local lpad  = (show_parent and show_parent._side_pad)
-                    or Screen:scaleBySize(20)
+                    or Space.px(20)
                 local bar_w = SnugScroll.widen(Screen:scaleBySize(3))   -- flush snug scrollbar
                 local base  = (show_parent and show_parent.font_size) or 18
                 local pills_w   = avail_w - 2 * lpad - bar_w
@@ -20798,19 +20801,19 @@ function BookshelfWidget:_showBookDetail(book, opts)
                 local focus_tables = {}
                 local function pillsFrame(specs, top_pad)
                     local pills, focus_rows = self:_buildPillGroup(specs, pills_w, 9999, base, "left",
-                        Screen:scaleBySize(8))
+                        Space.px(8))
                     if focus_rows and #focus_rows > 0 then
                         focus_tables[#focus_tables + 1] = focusRow(focus_rows)
                     end
                     return FrameContainer:new{
                         bordersize = 0, margin = 0,
                         padding_left = lpad, padding_right = lpad,
-                        padding_top = top_pad or Screen:scaleBySize(10),
+                        padding_top = top_pad or Space.px(10),
                         -- Section heading bars have no top margin of their own
                         -- (self:_sectionHeadingBar) -- this is the only gap
                         -- between one section's pills and the next heading, so
                         -- it's a bit larger than the pill row's own top pad.
-                        padding_bottom = Screen:scaleBySize(20),
+                        padding_bottom = Space.px(20),
                         pills,
                     }
                 end
@@ -20833,7 +20836,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
                 do
                     local pf = BFont:getFace("cfont", base, { bold = true })
                     pill_h = TextWidget:new{ text = "Hg", face = pf }:getSize().h
-                        + 2 * Size.padding.small + 2 * Size.border.thin
+                        + 2 * Space.padding.small + 2 * Size.border.thin
                 end
                 local function makeEditButton(on_edit_tap)
                     return ChipButton.build{
@@ -20850,7 +20853,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
                 end
                 local function pillsWithEdit(specs, on_edit_tap, top_pad, empty_msg)
                     local btn = makeEditButton(on_edit_tap)
-                    local gap   = Screen:scaleBySize(12)
+                    local gap   = Space.px(12)
                     local col_w = math.max(Screen:scaleBySize(40),
                         pills_w - btn:getSize().w - gap)
                     local left
@@ -20861,7 +20864,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
                     if specs and #specs > 0 then
                         valign = "top"
                         local pills, focus_rows = self:_buildPillGroup(specs, col_w, 9999,
-                            base, "left", Screen:scaleBySize(8))
+                            base, "left", Space.px(8))
                         if focus_rows and #focus_rows > 0 then
                             focus_tables[#focus_tables + 1] = focusRow(focus_rows)
                         end
@@ -20889,8 +20892,8 @@ function BookshelfWidget:_showBookDetail(book, opts)
                     return FrameContainer:new{
                         bordersize = 0, margin = 0,
                         padding_left = lpad, padding_right = lpad,
-                        padding_top = top_pad or Screen:scaleBySize(10),
-                        padding_bottom = Screen:scaleBySize(16),
+                        padding_top = top_pad or Space.px(10),
+                        padding_bottom = Space.px(16),
                         HorizontalGroup:new{ align = valign,
                             left,
                             HorizontalSpan:new{ width = gap },
@@ -21286,7 +21289,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
                             -- (Calibre/Hardcover): pills only, full width.
                             if editable then
                                 vg[#vg + 1] = pillsWithEdit(gpills, editGenres,
-                                    (#items > 1) and Screen:scaleBySize(6) or nil)
+                                    (#items > 1) and Space.px(6) or nil)
                             elseif #gpills > 0 then
                                 vg[#vg + 1] = pillsFrame(gpills)
                             end
@@ -21324,13 +21327,13 @@ function BookshelfWidget:_showBookDetail(book, opts)
                         -- left-aligned "Not in any collection." note fills the
                         -- pill column (Edit stays top-right), rather than its own
                         -- extra line as before.
-                        vg[#vg + 1] = pillsWithEdit(specs, editCollections, Screen:scaleBySize(16),
+                        vg[#vg + 1] = pillsWithEdit(specs, editCollections, Space.px(16),
                             (not specs or #specs == 0) and _("Not in any collection.") or nil)
                     else
                         local specs = by_cat[sec.cat]
                         if specs and #specs > 0 then
                             vg[#vg + 1] = self:_sectionHeadingBar(sec.title, avail_w, base, lpad)
-                            vg[#vg + 1] = pillsFrame(specs, Screen:scaleBySize(16))
+                            vg[#vg + 1] = pillsFrame(specs, Space.px(16))
                         end
                     end
                 end

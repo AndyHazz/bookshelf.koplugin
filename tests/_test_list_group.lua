@@ -48,6 +48,8 @@ package.loaded["lib/bookshelf_spine_widget"] = {
 -- proportion as a 264dpi Paperwhite, so the floor the tests assert against is
 -- the one the device computes.
 package.loaded["ui/size"] = { padding = { large = 21, small = 4, default = 14 } }
+package.loaded["lib/bookshelf_space"] = { padding = { large = 21, small = 4, default = 14 },
+    px = function(v) return math.ceil(v * 2) end }
 package.loaded["lib/bookshelf_folder_card"] = { SHADOW_OFFSET = 8 }
 package.loaded["lib/bookshelf_folder_stack"] = {
     new = function(_self, t) return t end,

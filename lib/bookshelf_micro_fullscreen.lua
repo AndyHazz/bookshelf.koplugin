@@ -22,6 +22,7 @@ local Geom            = require("ui/geometry")
 local InputContainer  = require("ui/widget/container/inputcontainer")
 local OverlapGroup    = require("ui/widget/overlapgroup")
 local Size            = require("ui/size")
+local Space           = require("lib/bookshelf_space")
 local UIManager       = require("ui/uimanager")
 local VerticalGroup   = require("ui/widget/verticalgroup")
 local VerticalSpan    = require("ui/widget/verticalspan")
@@ -260,7 +261,7 @@ function MicroFullscreen:_build()
     -- range would swallow the top-edge menu tap, edge brightness swipes and
     -- corner gestures before they could reach FileManager.
     local margin = math.min(
-        math.floor(Size.padding.fullscreen * 2 * 0.8),
+        math.floor(Space.padding.fullscreen * 2 * 0.8),
         math.floor(sw * 0.03))
     local PAD       = margin
     local content_w = sw - 2 * margin

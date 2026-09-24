@@ -27,6 +27,7 @@ local BFont          = require("lib/bookshelf_fonts")
 local Blitbuffer     = require("ffi/blitbuffer")
 local Screen         = require("device").screen
 local Device         = require("device")
+local Space          = require("lib/bookshelf_space")
 
 -- CardboardTextBox: TextBoxWidget subclass that pins alpha=true so its
 -- explicit bgcolor=CARDBOARD and fgcolor=COLOR_BLACK survive third-party
@@ -310,7 +311,7 @@ function FolderCard.build(opts)
     local label_scale = BookshelfSettings.read("stack_label_font_scale", 100) or 100
     local face_size   = math.max(8, math.floor(16 * label_scale / 100))
     local face, bold  = BFont:getFace("infofont", face_size, { bold = true })
-    local label_pad     = Size.padding.large
+    local label_pad     = Space.padding.large
     local label_w_avail = card_w - label_pad * 2
 
     -- Single-ascii-line probe to derive actual rendered line height

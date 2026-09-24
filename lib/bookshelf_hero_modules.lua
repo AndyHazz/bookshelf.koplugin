@@ -39,6 +39,7 @@ local HeroModel       = require("lib/bookshelf_hero_modules_model")
 local BFont           = require("lib/bookshelf_fonts")
 local Breaker         = require("lib/bookshelf_module_breaker")
 local BookshelfSettings = require("lib/bookshelf_settings_store")
+local Space           = require("lib/bookshelf_space")
 local _               = require("lib/bookshelf_i18n").gettext
 local T               = require("ffi/util").template
 
@@ -460,7 +461,7 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
     cell_h = math.max(1, cell_h - 2 * focus_b)
     -- Padding scales with the (cell-derived) font scale: bigger / squarer
     -- cells get more breathing room, small cells stay tight. Floored at 6px.
-    local card_pad = Screen:scaleBySize(math.max(6, math.floor(8 * (scale_pct or 100) / 100 + 0.5)))
+    local card_pad = Space.px(math.max(6, math.floor(8 * (scale_pct or 100) / 100 + 0.5)))
     local def      = Modules.get(entry.module)
     -- Only an action card (def.tap_feedback) gets the on-tap pressed border, so
     -- only it reserves the thin ring: at rest the ring is an empty margin (no
@@ -485,7 +486,7 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
     -- the full cell. The ClipContainer below stays at inner_w, so the narrower
     -- render is centred horizontally — giving the L/R margin. Tunable.
     local is_sq      = def and def.aspect == "square"
-    local base_inset = Screen:scaleBySize(10)
+    local base_inset = Space.px(10)
     local text_w     = is_sq and inner_w or math.max(50, inner_w - 2 * base_inset)
 
     local content, errored
@@ -655,7 +656,7 @@ end
 function HeroModules._emptyState(bw, content_w, hero_h)
     local border   = Screen:scaleBySize(1)
     local radius   = Screen:scaleBySize(4)
-    local card_pad = Screen:scaleBySize(8)
+    local card_pad = Space.px(8)
     local inner_w  = math.max(1, content_w - 2 * (border + card_pad))
     local inner_h  = math.max(1, hero_h   - 2 * (border + card_pad))
     local frame = FrameContainer:new{

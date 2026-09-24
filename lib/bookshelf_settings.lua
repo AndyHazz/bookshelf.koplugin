@@ -15,6 +15,7 @@ local Focus        = require("lib/bookshelf_focus")
 
 local BookshelfSettings = require("lib/bookshelf_settings_store")
 local BFont        = require("lib/bookshelf_fonts")
+local Space        = require("lib/bookshelf_space")
 
 -- ─── Settings singleton ───────────────────────────────────────────────────────
 
@@ -222,7 +223,7 @@ Wrap content in [if:foo]…[/if] to show it only when the token has a value. Add
             item_count = function() return #items() end,
             item_at    = function(idx) return items()[idx] end,
             row_renderer = function(item, dimen)
-                local inner_pad = Screen:scaleBySize(12)
+                local inner_pad = Space.px(12)
                 local content_w = dimen.w - 2 * inner_pad - 2 * Size.border.thin
                 local preview = ""
                 if preview_book and item.token and not item.token:match("^%[") then
@@ -250,7 +251,7 @@ Wrap content in [if:foo]…[/if] to show it only when the token has a value. Add
                 local stack = VerticalGroup:new{
                     align = "left",
                     desc_w,
-                    VerticalSpan:new{ width = Screen:scaleBySize(4) },
+                    VerticalSpan:new{ width = Space.px(4) },
                     tok_w,
                 }
                 -- Card-style frame: thin border, rounded corners, white bg.
@@ -5322,7 +5323,7 @@ function Settings:_about()
     -- Inner padding: Size.padding.large (10dp) reads as cramped at this
     -- frame size; the text edges sit ~1mm from the rounded border on
     -- PW5. Scale up to ~24dp -- still snug but visibly breathable.
-    local FRAME_PAD = Screen:scaleBySize(24)
+    local FRAME_PAD = Space.px(24)
     local content_w = frame_w - FRAME_PAD * 2
 
     local column = VerticalGroup:new{ align = "center" }
@@ -5349,7 +5350,7 @@ function Settings:_about()
                 scale_factor = 0,
                 alpha        = true,
             }
-            column[#column + 1] = VerticalSpan:new{ width = Size.padding.default }
+            column[#column + 1] = VerticalSpan:new{ width = Space.padding.default }
         end
     end
 
@@ -5376,7 +5377,7 @@ function Settings:_about()
         local ok_u, Updater = pcall(require, "lib/bookshelf_updater")
         local others = (ok_u and Updater.otherCopies) and Updater.otherCopies() or {}
         if #others > 0 then
-            column[#column + 1] = VerticalSpan:new{ width = Size.padding.large }
+            column[#column + 1] = VerticalSpan:new{ width = Space.padding.large }
             local warn_face = BFont:getFace("cfont", 14)
             column[#column + 1] = TextBoxWidget:new{
                 text = T(_("Another copy of Bookshelf is installed and is also "
@@ -5388,7 +5389,7 @@ function Settings:_about()
             }
         end
     end
-    column[#column + 1] = VerticalSpan:new{ width = Size.padding.large }
+    column[#column + 1] = VerticalSpan:new{ width = Space.padding.large }
     local desc_face, desc_bold = BFont:getFace("cfont", 16)
     column[#column + 1] = TextBoxWidget:new{
         text      = description,
@@ -5397,7 +5398,7 @@ function Settings:_about()
         width     = content_w,
         alignment = "center",
     }
-    column[#column + 1] = VerticalSpan:new{ width = Size.padding.large }
+    column[#column + 1] = VerticalSpan:new{ width = Space.padding.large }
     -- Tappable URL: tries Device:openLink (works on SDL / Android), then
     -- falls back to copying to KOReader's internal clipboard + a brief
     -- Notification. On Kindle there's no native browser so the

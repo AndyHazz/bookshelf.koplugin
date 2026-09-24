@@ -16,6 +16,7 @@ local UIManager      = require("ui/uimanager")
 local Geom           = require("ui/geometry")
 local Size           = require("ui/size")
 local Screen         = require("device").screen
+local Space          = require("lib/bookshelf_space")
 
 local TabModel = require("lib/bookshelf_tab_model")
 local ViewMode = require("lib/bookshelf_view_mode")
@@ -66,7 +67,7 @@ local function _highAnchor(get_dialog)
             -- `left + content_w > screen_w` branch, hanging a too-wide dialog
             -- off the LEFT edge (title first) rather than the right.
             x = math.floor((Screen:getWidth() - dw) / 2),
-            y = Screen:scaleBySize(96),
+            y = Space.px(96),
             -- w matches the dialog so a mirrored (RTL) layout, which takes the
             -- other branch (left = x + w - content_w), lands on that same
             -- centred x instead of a dialog's width to the left of it. h stays
@@ -1226,7 +1227,7 @@ function Editor:editTab(tab_id, opts)
             if #row > 0 then non_empty_buttons[#non_empty_buttons + 1] = row end
         end
         local button_table = ButtonTable:new{
-            width   = dialog_w - 2 * Size.padding.default,
+            width   = dialog_w - 2 * Space.padding.default,
             buttons = non_empty_buttons,
             zero_sep = true,
         }

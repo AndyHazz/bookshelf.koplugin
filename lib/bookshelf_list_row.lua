@@ -47,6 +47,7 @@ local TextFit         = require("lib/bookshelf_text_fit")
 local TextSegments    = require("lib/bookshelf_text_segments")
 local InlineStyle     = require("lib/bookshelf_inline_style")
 local ListGeom        = require("lib/bookshelf_list_geom")
+local Space           = require("lib/bookshelf_space")
 local BookshelfSettings = require("lib/bookshelf_settings_store")
 local BandMetrics     = require("lib/bookshelf_band_metrics")
 local Repo            = require("lib/bookshelf_book_repository")
@@ -759,7 +760,7 @@ local ROW_GAP = Screen:scaleBySize(ListGeom.ROW_GAP_DP)
 local BORDER  = Screen:scaleBySize(ListGeom.ROW_RING_DP)
 -- The declared padding PLUS whatever OUTER gave up, so moving the box outward
 -- costs the row no height and re-baselines nothing.
-local INNER   = Screen:scaleBySize(ListGeom.ROW_INNER_PAD_DP)
+local INNER   = Space.px(ListGeom.ROW_INNER_PAD_DP)
               + Screen:scaleBySize(ListGeom.ROW_RING_DP)
 -- ZERO. The selection box reaches the row's own edge, which is as far out as
 -- it can go and lands it where the hairline rule between rows sits.
@@ -998,8 +999,8 @@ end
 -- about. ListRow.new falls back to computing it itself when no layout is
 -- passed, so a one-off row (a test, a future single-row surface) still works.
 function ListRow.pageLayout(opts)
-    local gap   = opts.gap or Size.padding.default
-    local pad   = Size.padding.small
+    local gap   = opts.gap or Space.padding.default
+    local pad   = Space.padding.small
     local model = opts.lines or Lines.layout()
 
     -- Reserve the selection ring's footprint on every side, always -- not
@@ -1591,7 +1592,7 @@ function ListRow.packRow(record, L, group_templates, text_w)
                 end
                 -- The gap is the truncating path's, so a wrapped line and a
                 -- truncated one hold their tail at the same distance.
-                local gap    = (after ~= "") and Size.padding.large or 0
+                local gap    = (after ~= "") and Space.padding.large or 0
                 local tail_w = ListRow.textWidth(line,
                                    ListRow.flatten(after), inner_w)
                 local plan = ListGeom.elasticWrapPlan{
@@ -1916,7 +1917,7 @@ function ListRow.textLine(record, line, width, pad, template, opts)
         --    floor too.
         local MIN_KEEP = 0.3
         if (b_w + a_w) > inner_w then
-            local trunc_gap = Size.padding.large
+            local trunc_gap = Space.padding.large
             local avail_a   = inner_w - b_w - trunc_gap
             local min_abs = 0
             do
@@ -1954,8 +1955,8 @@ function ListRow.textLine(record, line, width, pad, template, opts)
         -- %spacer needs none: the span IS the gap.
         local pre_gap, post_gap = 0, 0
         if kind == "bar" then
-            if b_widget and not before:match("%s$") then pre_gap  = Size.padding.small end
-            if a_widget and not after:match("^%s")  then post_gap = Size.padding.small end
+            if b_widget and not before:match("%s$") then pre_gap  = Space.padding.small end
+            if a_widget and not after:match("^%s")  then post_gap = Space.padding.small end
         end
         local elastic_w = math.max(0, inner_w - b_w - a_w - pre_gap - post_gap)
 

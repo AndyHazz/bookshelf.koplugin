@@ -504,9 +504,9 @@ end
 -- two the card spends: two is the floor where the label has exactly no room,
 -- and a card with no room for a single glyph is not worth the slot.
 local function minTileWidth()
-    local Size = require("ui/size")
+    local Space = require("lib/bookshelf_space")
     local FolderCard = require("lib/bookshelf_folder_card")
-    return (FolderCard.SHADOW_OFFSET or 0) + 4 * Size.padding.large
+    return (FolderCard.SHADOW_OFFSET or 0) + 4 * Space.padding.large
 end
 
 -- Build a tile, or nil if it will not build.

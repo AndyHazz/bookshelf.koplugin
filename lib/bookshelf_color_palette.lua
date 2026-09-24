@@ -36,6 +36,7 @@ local VerticalSpan      = require("ui/widget/verticalspan")
 local WidgetContainer   = require("ui/widget/container/widgetcontainer")
 local Font              = require("ui/font")
 local BFont             = require("lib/bookshelf_fonts")
+local Space             = require("lib/bookshelf_space")
 local Screen            = Device.screen
 
 -- 5 rows × 5 cols: neutrals / warm dark / warm light / cool dark / cool light.
@@ -49,7 +50,7 @@ local PALETTE = {
 }
 
 local SWATCH_SIDE  = Screen:scaleBySize(60)
-local SWATCH_GAP   = Screen:scaleBySize(8)
+local SWATCH_GAP   = Space.px(8)
 local SWATCH_RADIUS = Size.radius.default
 
 -- Swatch: a rounded colored square that renders via paintRoundedRectRGB32.
@@ -89,7 +90,7 @@ local function nullTile(label, selected, side, on_tap)
         text      = label,
         face      = nt_face,
         bold      = nt_bold,
-        max_width = side - 2 * Size.padding.small,
+        max_width = side - 2 * Space.padding.small,
     }
     local frame = FrameContainer:new{
         bordersize = selected and Size.border.thick or Size.border.thin,
@@ -189,7 +190,7 @@ function ColorPaletteWidget:init()
     -- on all four sides.
     local ncols = self.null_tile and 6 or 5
     self.palette_width = SWATCH_SIDE * ncols + SWATCH_GAP * (ncols - 1)
-    self.inner_width   = self.palette_width + Size.padding.fullscreen * 2
+    self.inner_width   = self.palette_width + Space.padding.fullscreen * 2
     self.dialog_width  = self.inner_width + 2 * Size.border.thin
 
     if Device:isTouchDevice() then
@@ -334,11 +335,11 @@ function ColorPaletteWidget:update()
         align = "center",
         -- Left margin matches the palette's horizontal gutter (padding.fullscreen)
         -- so the "#" prefix aligns with the leftmost column of swatches.
-        HorizontalSpan:new{ width = Size.padding.fullscreen },
+        HorizontalSpan:new{ width = Space.padding.fullscreen },
         hash_label,
-        HorizontalSpan:new{ width = Size.padding.small },
+        HorizontalSpan:new{ width = Space.padding.small },
         self.hex_input,
-        HorizontalSpan:new{ width = Size.padding.large },
+        HorizontalSpan:new{ width = Space.padding.large },
         self.preview_swatch,
     }
 
@@ -358,7 +359,7 @@ function ColorPaletteWidget:update()
     local white_btn   = self.white_callback and makeFooterBtn(_("White"), btn_w, footer_h,
         function() self.white_callback() end) or nil
 
-    local vdiv_inset = Screen:scaleBySize(10)
+    local vdiv_inset = Space.px(10)
     local vdiv = function() return CenterContainer:new{
         dimen = Geom:new{ w = Size.line.thin, h = footer_h },
         LineWidget:new{
@@ -397,17 +398,17 @@ function ColorPaletteWidget:update()
     local vgroup = VerticalGroup:new{
         align = "center",
         title_bar,
-        VerticalSpan:new{ width = Size.padding.large },
+        VerticalSpan:new{ width = Space.padding.large },
         LeftContainer:new{
             dimen = Geom:new{ w = iw, h = Screen:scaleBySize(60) },
             hex_row,
         },
-        VerticalSpan:new{ width = Size.padding.fullscreen },
+        VerticalSpan:new{ width = Space.padding.fullscreen },
         CenterContainer:new{
             dimen = Geom:new{ w = iw, h = side * 5 + gap * 4 },
             palette_vgroup,
         },
-        VerticalSpan:new{ width = Size.padding.fullscreen },
+        VerticalSpan:new{ width = Space.padding.fullscreen },
         footer_separator,
         footer_row,
     }

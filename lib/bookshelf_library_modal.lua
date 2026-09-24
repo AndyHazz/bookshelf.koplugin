@@ -20,11 +20,12 @@ local Size = require("ui/size")
 local UIManager = require("ui/uimanager")
 local VerticalGroup = require("ui/widget/verticalgroup")
 local VerticalSpan = require("ui/widget/verticalspan")
+local Space = require("lib/bookshelf_space")
 local BFont = require("lib/bookshelf_fonts")
 local _ = require("lib/bookshelf_i18n").gettext
 
 -- Uniform gap applied everywhere below the title bar separator.
-local MARGIN = Device.screen:scaleBySize(10)
+local MARGIN = Space.px(10)
 
 -- Extend InputContainer (rather than WidgetContainer) so we can register a
 -- modal-level tap handler that dismisses the on-screen keyboard. Child
@@ -359,7 +360,7 @@ function LibraryModal:_renderTitleBar(content_width, modal_w)
     local TextWidget = require("ui/widget/textwidget")
     local Screen = Device.screen
     -- Equal top/bottom padding so the title text reads as vertically centred.
-    local bar_pad = Screen:scaleBySize(8)
+    local bar_pad = Space.px(8)
 
     local title_face, title_bold = BFont:getFace("cfont", 22, { bold = true })
     local title_w = TextWidget:new{
@@ -423,7 +424,7 @@ function LibraryModal:_renderTabSegments(title_bar_h)
     local HorizontalGroup = require("ui/widget/horizontalgroup")
     local TextWidget = require("ui/widget/textwidget")
     local Screen = Device.screen
-    local seg_pad_h = Screen:scaleBySize(12)
+    local seg_pad_h = Space.px(12)
 
     local function seg(label, is_active, on_tap)
         local fg = is_active and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
@@ -508,8 +509,8 @@ function LibraryModal:_renderSearchInput(content_width)
     -- one family. The input itself stays at cfont/16 for typing legibility.
     local btn_face = (BFont:getFace("cfont", 14))
     local input_face = (BFont:getFace("cfont", 16))
-    local btn_pad_h = Screen:scaleBySize(12)
-    local gap = Screen:scaleBySize(6)
+    local btn_pad_h = Space.px(12)
+    local gap = Space.px(6)
     -- InputText wraps its TextWidget in a FrameContainer with bordersize +
     -- padding, so its rendered outer width is `width + 2 * (border + padding)`.
     -- Subtract that overhead from input_w so the search row totals exactly
@@ -520,7 +521,7 @@ function LibraryModal:_renderSearchInput(content_width)
     -- so the focused-black border reads as a strong outline rather than a
     -- hairline that could pass for unfocused-gray on glance.
     local input_border = Size.border.default
-    local input_padding = Size.padding.default
+    local input_padding = Space.padding.default
     local input_overhead = 2 * (input_border + input_padding)
 
     -- Pre-measure button labels so we can size the input first and then
@@ -668,8 +669,8 @@ function LibraryModal:_renderChipStrip(content_width)
     local chips = self.config.chip_strip(self.active_tab)
     if not chips or #chips == 0 then return nil end
 
-    local pad_h = Screen:scaleBySize(10)
-    local pad_v = Screen:scaleBySize(4)
+    local pad_h = Space.px(10)
+    local pad_v = Space.px(4)
     -- Zero gap so chips butt together into a segmented-control strip.
     local chip_gap = 0
     local row_gap = MARGIN
@@ -769,7 +770,7 @@ function LibraryModal:_renderChipStrip(content_width)
             local sz = child.getSize and child:getSize() or { w = 0 }
             row1_w = row1_w + (sz.w or 0)
         end
-        local status_gap = Screen:scaleBySize(12)
+        local status_gap = Space.px(12)
         local status_max = content_width - row1_w - status_gap
         if status_max > 0 then
             table.insert(row1, HorizontalSpan:new{ width = status_gap })

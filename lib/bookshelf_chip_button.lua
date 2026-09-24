@@ -20,6 +20,7 @@ local Size            = require("ui/size")
 local TextWidget      = require("ui/widget/textwidget")
 local Device          = require("device")
 local Screen          = Device.screen
+local Space           = require("lib/bookshelf_space")
 
 -- FrameContainer that pixel-inverts its own rect after painting -- the same
 -- device-independent "selected/active" idiom used by the Tags-tab pills and
@@ -59,8 +60,8 @@ local ChipButton = {}
 --   opts.on_tap     function() fired on tap
 function ChipButton.build(opts)
     local border = opts.border or Size.border.default
-    local pad_h  = opts.pad_h or Screen:scaleBySize(12)
-    local gap    = opts.gap or Screen:scaleBySize(6)
+    local pad_h  = opts.pad_h or Space.px(12)
+    local gap    = opts.gap or Space.px(6)
     local height = opts.height
 
     local icon_widget

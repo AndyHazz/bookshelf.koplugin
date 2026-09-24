@@ -25,6 +25,7 @@ local VerticalGroup   = require("ui/widget/verticalgroup")
 local VerticalSpan    = require("ui/widget/verticalspan")
 local Device          = require("device")
 local Screen          = Device.screen
+local Space           = require("lib/bookshelf_space")
 local BFont           = require("lib/bookshelf_fonts")
 local ImageSource     = require("lib/bookshelf_image_source")
 local SpineWidget     = require("lib/bookshelf_spine_widget")
@@ -114,7 +115,7 @@ function CoverGridCell.new(opts)
         },
     }
     local cap_h = caption:getSize().h
-    local gap   = Screen:scaleBySize(4)
+    local gap   = Space.px(4)
 
     -- Cover box fills what's left, inset by RING on every side so the selection
     -- ring (which paints RING pixels beyond the box) stays within the tile.

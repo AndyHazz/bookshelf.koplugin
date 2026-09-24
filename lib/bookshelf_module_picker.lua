@@ -25,6 +25,7 @@ local VerticalSpan    = require("ui/widget/verticalspan")
 local Modules         = require("lib/bookshelf_start_menu_modules")
 local BFont           = require("lib/bookshelf_fonts")
 local logger          = require("logger")
+local Space           = require("lib/bookshelf_space")
 local _               = require("lib/bookshelf_i18n").gettext
 
 local Screen = Device.screen
@@ -58,7 +59,7 @@ function ModulePicker._networkInfo(def, w)
     local g = VerticalGroup:new{ align = "left" }
     g[#g + 1] = TextWidget:new{ text = _("Network required"),
         face = hf, bold = hb, fgcolor = Blitbuffer.COLOR_BLACK, max_width = w }
-    g[#g + 1] = VerticalSpan:new{ width = Screen:scaleBySize(4) }
+    g[#g + 1] = VerticalSpan:new{ width = Space.px(4) }
     -- Secondary text bumped from 11 to 13: the muted source line was hard to
     -- read at the smaller size on e-ink.
     g[#g + 1] = TextWidget:new{ text = _("Data provided by:"),
@@ -72,7 +73,7 @@ end
 
 function ModulePicker._renderCell(item, dimen)
     local TextWidget = require("ui/widget/textwidget")
-    local card_pad = Screen:scaleBySize(10)
+    local card_pad = Space.px(10)
     local border   = Size.border.thin
     local card_w = item.solo
         and math.min(dimen.w, Screen:scaleBySize(300)) or dimen.w
@@ -92,7 +93,7 @@ function ModulePicker._renderCell(item, dimen)
         fgcolor = Blitbuffer.COLOR_BLACK,
         max_width = inner_w,
     }
-    local title_gap = Screen:scaleBySize(6)
+    local title_gap = Space.px(6)
     -- Grey preview area: all remaining inner height once the title row is
     -- reserved — uniform across the grid, independent of preview height.
     local reserved = title_w:getSize().h + title_gap

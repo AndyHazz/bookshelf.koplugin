@@ -8,6 +8,7 @@ local Button          = require("ui/widget/button")
 local HorizontalGroup = require("ui/widget/horizontalgroup")
 local HorizontalSpan  = require("ui/widget/horizontalspan")
 local Device          = require("device")
+local Space           = require("lib/bookshelf_space")
 local Screen          = Device.screen
 local T               = require("ffi/util").template
 local _               = require("lib/bookshelf_i18n").gettext
@@ -71,7 +72,7 @@ function Pagination.buildNav(opts)
     end
     -- Fresh span per slot -- sharing one widget across HGroup positions
     -- corrupts paint geometry.
-    local pn_span = Screen:scaleBySize(32)
+    local pn_span = Space.px(32)
     local function gap() return HorizontalSpan:new{ width = pn_span } end
 
     return HorizontalGroup:new{

@@ -33,7 +33,8 @@ package.loaded["ui/widget/horizontalspan"] = {
     new = function(_, o) return o end,
 }
 package.loaded["device"] = {
-    screen = { scaleBySize = function(_, x) return x end },
+    screen = { scaleBySize = function(_, x) return x end,
+               getWidth = function() return 600 end, getHeight = function() return 800 end },
 }
 package.loaded["ffi/util"] = {
     -- Real ffi/util.template does %1/%2/... positional substitution; this

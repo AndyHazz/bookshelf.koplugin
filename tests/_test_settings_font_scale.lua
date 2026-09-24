@@ -105,6 +105,13 @@ package.loaded["lib/bookshelf_start_menu"] = StartMenuStub
 local ReviewsModalStub = { _live = nil }
 package.loaded["lib/bookshelf_reviews_modal"] = ReviewsModalStub
 
+-- lib/bookshelf_space (required at load) needs a device to require; it reads
+-- screen only at call time.
+package.loaded["device"] = package.loaded["device"] or { screen = {
+    getWidth = function() return 600 end, getHeight = function() return 800 end,
+    scaleBySize = function(_, n) return n end,
+} }
+
 package.loaded["lib/bookshelf_settings"] = nil
 local Settings = dofile("lib/bookshelf_settings.lua")
 

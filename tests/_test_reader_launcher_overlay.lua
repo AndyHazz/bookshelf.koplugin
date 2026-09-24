@@ -226,7 +226,7 @@ local function reset(over)
     build_args = nil
 end
 
-local MARGIN = math.min(math.floor(10 * 2 * 0.8), math.floor(SW * 0.03))
+local MARGIN = math.min(math.floor(15 * 2 * 0.8), math.floor(SW * 0.03))
 
 -- ── the launcher's own paint matches its published paint spec ─────────────────
 t.test("paintSpec describes exactly what the launcher paints (defaults)", function()

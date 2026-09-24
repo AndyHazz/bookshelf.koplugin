@@ -35,6 +35,7 @@ local Size           = require("ui/size")
 local Font           = require("ui/font")
 local BFont          = require("lib/bookshelf_fonts")
 local Screen         = require("device").screen
+local Space          = require("lib/bookshelf_space")
 
 local List = {}
 List.__index = List
@@ -124,7 +125,7 @@ function List:_rebuild()
                 text = label,
                 face = label_face,
                 bold = label_bold,
-                max_width = label_w - Size.padding.default * 2,
+                max_width = label_w - Space.padding.default * 2,
             },
         }
         local label_widget

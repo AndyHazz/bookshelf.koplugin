@@ -46,6 +46,7 @@ local base = assert(load("return function(self, " .. args .. ")\n" .. body .. "\
             return SpineShelf
         end,
         Screen = { scaleBySize = function(_s, v) return v * 2 end },
+        Space  = { px = function(v) return v * 2 end },
     }))()
 
 local seen_recent_list

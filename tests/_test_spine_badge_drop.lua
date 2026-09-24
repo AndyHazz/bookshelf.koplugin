@@ -24,6 +24,7 @@ local env = {
         error("unexpected require " .. name)
     end,
     Screen = { scaleBySize = function(_s, px) return px * 2 end },
+    Space  = { px = function(px) return px * 2 end },
     BFont  = { getFace = function() return {} end, getUIFontFace = function() return "cfont" end },
     TextWidget = { new = function(_s, o) return { getSize = function() return { w = 10, h = text_h } end, free = function() end } end },
     SpineShelf = { plankFace = function(h) return 12 end },

@@ -20,6 +20,7 @@ local BookshelfSettings = require("lib/bookshelf_settings_store")
 local Blitbuffer     = require("ffi/blitbuffer")
 local Device         = require("device")
 local Screen         = Device.screen
+local Space          = require("lib/bookshelf_space")
 local Geom           = require("ui/geometry")
 local GestureRange   = require("ui/gesturerange")
 local InputContainer = require("ui/widget/container/inputcontainer")
@@ -1419,7 +1420,7 @@ local function _paintVerticalCJK(bb, x, y, run_len, band_w, text, face_size, loo
     -- Inset: leave a 1pt-scaled gap on each side, both to clear the hairline
     -- border (drawn on x and x+spine_w-1) and because a large glyph kissing
     -- the edge looks bad. All horizontal math below uses this net width.
-    local inset = math.max(1, Screen:scaleBySize(1))
+    local inset = math.max(1, Space.px(1))
     local bw = band_w - 2 * inset
     if bw < 6 then inset, bw = 0, band_w end
 
@@ -1529,7 +1530,7 @@ local function _paintRotatedTitle(bb, x, y, run_len, band_w, text, face_size, lo
             local used = _paintVerticalCJK(bb, x, y, run_len, band_w,
                                            text, face_size, look, night)
             if author and author ~= "" and used > 0 then
-                local gap = Screen:scaleBySize(10)
+                local gap = Space.px(10)
                 local rem = run_len - used - gap
                 if rem >= Screen:scaleBySize(20) and _isCJKText(author) then
                     local asize = math.max(6, face_size - 3)
@@ -1612,7 +1613,7 @@ local function _paintRotatedTitle(bb, x, y, run_len, band_w, text, face_size, lo
         -- worthwhile stretch of spine to sit on. On a wrapped title, after
         -- its last line.
         local atw, asz, author_w = nil, nil, 0
-        local seg_gap = Screen:scaleBySize(10)
+        local seg_gap = Space.px(10)
         if author and author ~= "" then
             local avail = run_len - last_w - seg_gap
             if avail >= Screen:scaleBySize(28) then
@@ -2166,7 +2167,7 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
             bb:paintRectRGB32(sx0 + sw_edge - hairline, jy, hairline, hairline, bc)
         end
     end
-    local pad = Screen:scaleBySize(3)
+    local pad = Space.px(3)
     local cur_top = body_top + pad
     local bottom = top + spine_h - pad
 
@@ -2449,8 +2450,8 @@ function ShelfBadges:drawAt(bb, x, y)
     local ok_sd, StackDisplay = pcall(require, "lib/bookshelf_stack_display")
     if not (ok_sd and StackDisplay and StackDisplay.ribbonColors) then return end
     local fill, fg = StackDisplay.ribbonColors()
-    local pad_x = Screen:scaleBySize(5)
-    local pad_y = Screen:scaleBySize(2)
+    local pad_x = Space.px(5)
+    local pad_y = Space.px(2)
     -- Sized from the TEXT, not the plank: the plank zone alone is too
     -- shallow for a legible label on dense shelves, and a real acrylic
     -- badge covers the books' feet anyway -- it hangs in FRONT of them.
@@ -2475,7 +2476,7 @@ function ShelfBadges:drawAt(bb, x, y)
                 local nxt = spans[_i + 1]
                 local wall = (nxt and nxt.x or (self.dimen.w
                               - SpineShelf.endMargin(h))) - s.x
-                              - Screen:scaleBySize(2)
+                              - Space.px(2)
                 local allow = math.max(s.w,
                     math.min(wall, s.w + Screen:scaleBySize(30)))
                 -- Below ~9 characters of room the badge is pure noise
@@ -2600,7 +2601,7 @@ function SpineShelf.badgeDrop(row_h)
         if not ok or not text_h then text_h = math.floor(size * 1.9) end
         SpineShelf._badge_text_h[size] = text_h
     end
-    local pad_y = Screen:scaleBySize(2)
+    local pad_y = Space.px(2)
     local drop  = text_h + 2 * pad_y - SpineShelf.plankFace(row_h) - 2
     return math.max(0, drop)
 end
@@ -3532,7 +3533,7 @@ function SpineShelf.plan(items, opts)
             local prev   = flat[j - 1]
             local prev_e = entries[#entries]
             local prev_face = prev_e and prev_e.face_out
-            local face_gap  = Screen:scaleBySize(SpineShelf.FACE_GAP_DP)
+            local face_gap  = Space.px(SpineShelf.FACE_GAP_DP)
             if prev.run_idx == f.run_idx then
                 -- Same run: tight, unless BOTH neighbours are covers
                 -- (the "All books" wall) -- covers need air.
@@ -4103,7 +4104,7 @@ function SpineShelf.rowWidget(opts)
                         is_bulk_selected = is_bulk,
                         -- No frame around a face-out on this shelf, so the
                         -- bulk flag keeps its circle off the card's edges.
-                        bulk_flag_inset  = Screen:scaleBySize(4),
+                        bulk_flag_inset  = Space.px(4),
                         -- The status glyphs' below-card dangle vanished
                         -- behind the lift shadow / plank here; they move to
                         -- the corner the heart vacated (user ruling).

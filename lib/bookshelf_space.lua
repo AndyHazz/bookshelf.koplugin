@@ -35,9 +35,15 @@ local Space = {}
 
 local function screen() return Device.screen end
 
+-- panelScale() -> the screen's short edge / 600, or nil where the screen
+-- cannot say (a test stub, a screen not yet set up): Space.px is then plain
+-- scaleBySize, which is what it equals at ordinary settings anyway.
 local function panelScale()
     local s = screen()
-    return math.min(s:getWidth(), s:getHeight()) / 600
+    if not (s and s.getWidth and s.getHeight) then return nil end
+    local ok, w, h = pcall(function() return s:getWidth(), s:getHeight() end)
+    if not ok or type(w) ~= "number" or type(h) ~= "number" then return nil end
+    return math.min(w, h) / 600
 end
 
 function Space.px(v)
@@ -45,7 +51,9 @@ function Space.px(v)
     local s = screen()
     local by_size = s:scaleBySize(v)
     if v <= 0 then return by_size end
-    local by_panel = math.ceil(v * panelScale())
+    local panel = panelScale()
+    if not panel then return by_size end
+    local by_panel = math.ceil(v * panel)
     return by_size < by_panel and by_size or by_panel
 end
 

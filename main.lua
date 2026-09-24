@@ -2498,7 +2498,10 @@ function Bookshelf:scanPageCounts()
     -- show its progress until KOReader restarts.
     Trapper:wrap(function() local ok_run, err_run = xpcall(function()
         local job = Progress.begin{
-            title = T(_("Checking publisher page numbers\xe2\x80\xa6 %1 of %2"), 0, #todo),
+            -- Short: the status line is one line, and the count and the book
+            -- are what matter in it.
+            title  = string.format("%d/%d", 0, #todo),
+            detail = _("Publisher page numbers"),
             shelf = function() return _live_widget end,
         }
         -- Phase A: publisher page numbers straight from each EPUB's zip
@@ -2515,8 +2518,7 @@ function Bookshelf:scanPageCounts()
                     else
                         if i % 20 == 1 then
                             Progress.update{
-                                title = T(_("Checking publisher page numbers\xe2\x80\xa6 %1 of %2"),
-                                          i, #todo),
+                                title = string.format("%d/%d", i, #todo),
                                 fraction = (i - 1) / #todo,
                             }
                             breathe()
@@ -2608,7 +2610,7 @@ function Bookshelf:scanPageCounts()
                 break
             end
             Progress.update{
-                title  = T(_("Paginating\xe2\x80\xa6 %1 of %2"), i, #todo),
+                title  = string.format("%d/%d", i, #todo),
                 detail = nameFor(fp),
                 fraction = (i - 1) / #todo,
                 force  = true,

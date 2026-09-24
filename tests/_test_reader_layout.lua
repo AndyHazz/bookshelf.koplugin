@@ -23,6 +23,11 @@ package.loaded["ui/data/css_tweaks"] = {
 }
 package.loaded["libs/libkoreader-lfs"] = { attributes = function() return nil end }
 package.loaded["datastorage"] = { getDataDir = function() return "/nowhere" end }
+store, saves = {}, 0
+package.loaded["lib/bookshelf_settings_store"] = {
+    read = function(k) return store[k] end,
+    save = function(k, v) store[k] = v; saves = saves + 1 end,
+}
 
 local L = dofile("lib/bookshelf_reader_layout.lua")
 
@@ -35,13 +40,31 @@ t.test("style tweaks: the global ones, lower priority first, then by id", functi
     eq(L.tweakCss(), "", "a tweak switched off is left out")
 end)
 
-t.test("the status bar takes its height from the page unless it is off", function()
+t.test("the status bar's reserve: what the reader used, else from its settings", function()
+    store = {}
     settings = { footer = { container_height = 7, container_bottom_padding = 1 } }
     eq(L.footerHeight(package.loaded["device"].screen), 16)
-    settings = { reader_footer_mode = 0, footer = { container_height = 7 } }
-    eq(L.footerHeight(package.loaded["device"].screen), 0)
+    -- PW5: the bar hidden, and the reader still reserved it (192 vs 166).
+    settings = { reader_footer_mode = 0, footer = { container_height = 7, container_bottom_padding = 1 } }
+    eq(L.footerHeight(package.loaded["device"].screen), 16, "a hidden bar still takes its height")
     settings = { footer = { container_height = 7, reclaim_height = true } }
     eq(L.footerHeight(package.loaded["device"].screen), 0, "an overlapping bar takes nothing")
+    store[L.FOOTER_KEY] = 26
+    eq(L.footerHeight(package.loaded["device"].screen), 26, "the reader's own figure wins")
+    store = {}
+end)
+
+t.test("recordFooter keeps the reader's figure, and only writes a change", function()
+    store, saves = {}, 0
+    local ui = { view = { footer = { settings = {}, getHeight = function() return 26 end } } }
+    L.recordFooter(ui)
+    eq(store[L.FOOTER_KEY], 26)
+    L.recordFooter(ui)
+    eq(saves, 1, "rewrote an unchanged value on every book open")
+    ui.view.footer.settings.reclaim_height = true
+    L.recordFooter(ui)
+    eq(store[L.FOOTER_KEY], 0)
+    store, saves = {}, 0
 end)
 
 local function fakeDoc(missing)
@@ -63,13 +86,16 @@ t.test("apply() sets the reader's font, size and margins", function()
         copt_h_page_margins = { 50, 40 }, copt_t_page_margin = 70, copt_b_page_margin = 100,
         reader_footer_mode = 0,
     }
+    store[L.FOOTER_KEY] = 26   -- what the reader reserved, bar hidden (PW5)
     local doc, calls = fakeDoc()
     L.apply(doc)
+    store = {}
     eq(calls.setFontFace[1], "Neacademia Text")
     eq(calls.setFontSize[1], 50, "the size is scaled like ReaderFont scales it")
     eq(calls.setInterlineSpacePercent[1], 110)
     eq(calls.setPageMargins[1], 100); eq(calls.setPageMargins[2], 140)
-    eq(calls.setPageMargins[3], 80);  eq(calls.setPageMargins[4], 200)
+    eq(calls.setPageMargins[3], 80)
+    eq(calls.setPageMargins[4], 226, "the bottom margin lost the status bar's reserve")
     eq(calls.setStyleSheet[1], "./data/epub.css")
     eq(calls.setBlockRenderingFlags[1], 0x7FFFFFFF, "a new book renders in web mode")
 end)

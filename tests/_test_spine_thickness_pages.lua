@@ -118,12 +118,16 @@ t.test("both spine widths come from the thickness ladder", function()
     assert(not ss:find("SpineLayout.spineWidthDp(pages)", 1, true))
 end)
 
-t.test("the scan renders at the reader's layout", function()
-    assert(mn:find('require("lib/bookshelf_reader_layout").apply(doc)', 1, true),
-        "the render is back at crengine's defaults")
-    local a = mn:find('reader_layout").apply(doc)', 1, true)
-    local r = mn:find("if doc.render then doc:render() end", a, true)
-    assert(r and r > a, "the layout has to be applied before the render")
+t.test("the scan renders at the reader's layout, in the reader's order", function()
+    -- Settings before the load, the book's language after it, then render:
+    -- the reader's order, and settings applied after the load cost a PW5 2s
+    -- a book in restyling.
+    local before = mn:find("pcall(Layout.beforeLoad, doc)", 1, true)
+    local load   = before and mn:find("doc:loadDocument()", before, true)
+    local after  = load and mn:find("pcall(Layout.afterLoad, doc)", load, true)
+    local render = after and mn:find("if doc.render then doc:render() end", after, true)
+    assert(before, "the render is back at crengine's defaults")
+    assert(load and after and render, "beforeLoad, loadDocument, afterLoad, render: out of order")
 end)
 
 t.test("the scan tags its counts and probes opened books with only a rendered one", function()

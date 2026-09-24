@@ -81,12 +81,41 @@ function M.tweakCss()
     return table.concat(out, "\n")
 end
 
--- footerHeight(Screen) -> the pixels the reader's status bar takes from the
--- bottom of the page: none when it is off or overlaps the text.
+-- The status bar's reserve: what the reader adds to the bottom margin for it.
+--
+-- ReaderTypeset adds footer:getHeight() unless "Overlap status bar"
+-- (reclaim_height) is on -- whether the bar is SHOWN or not. Found on a PW5
+-- with the bar hidden: the reader's bottom margin was 192, the scan's 166,
+-- and the 26 between them was the whole of the last 2-3% page gap. The bar's
+-- height depends on more than its settings say (progress bar position,
+-- fonts), so the number the reader actually used is recorded whenever
+-- bookshelf runs inside one (recordFooter), and the formula below is only
+-- for a device that has not opened a book since.
+M.FOOTER_KEY = "reader_footer_reserve"
+
+-- recordFooter(ui): from the reader, at ReaderReady.
+function M.recordFooter(ui)
+    local ok, h = pcall(function()
+        local footer = ui.view and ui.view.footer
+        if not footer then return nil end
+        if footer.reclaim_height or (footer.settings and footer.settings.reclaim_height) then
+            return 0
+        end
+        return footer:getHeight()
+    end)
+    if not ok or type(h) ~= "number" then return end
+    local ok_s, Store = pcall(require, "lib/bookshelf_settings_store")
+    if ok_s and Store and Store.read(M.FOOTER_KEY) ~= h then Store.save(M.FOOTER_KEY, h) end
+end
+
+-- footerHeight(Screen) -> the pixels the reader reserves at the bottom of the
+-- page for its status bar.
 function M.footerHeight(Screen)
-    local mode = g("reader_footer_mode", nil, 1)
+    local ok_s, Store = pcall(require, "lib/bookshelf_settings_store")
+    local seen = ok_s and Store and Store.read(M.FOOTER_KEY)
+    if type(seen) == "number" then return seen end
     local fs = g("footer", nil, {}) or {}
-    if mode == 0 or fs.reclaim_height then return 0 end
+    if fs.reclaim_height then return 0 end
     local h = Screen:scaleBySize(fs.container_height
         or (G_defaults and G_defaults:readSetting("DMINIBAR_CONTAINER_HEIGHT")) or 7)
     h = h + Screen:scaleBySize(fs.container_bottom_padding or 1)
@@ -101,6 +130,28 @@ local BLOCK_FLAGS = { [0] = 0x00000000, 0x03030031, 0x03375131, 0x7FFFFFFF }
 -- reader chose (Hold in the language menu) wins; otherwise the book's own
 -- language; otherwise the reader's fallback, then en-US. ReaderTypography
 -- onReadSettings + onPreRenderDocument.
+--
+-- Before the document loads there is no book language to read, so the
+-- reader sets default / fallback / en-US then, and switches to the book's own
+-- at pre-render (bookLang) only when no default was chosen.
+function M.presetLang()
+    return g("text_lang_default", nil, nil) or g("text_lang_fallback", nil, nil) or "en-US"
+end
+
+function M.bookLang(doc)
+    if g("text_lang_default", nil, nil) then return nil end
+    local book_lang
+    pcall(function()
+        local props = doc.getProps and doc:getProps()
+        local lang = props and props.language
+        if type(lang) == "string" and lang ~= "" then
+            local ok_t, RT = pcall(require, "apps/reader/modules/readertypography")
+            book_lang = (ok_t and RT and RT.fixLangTag) and RT.fixLangTag(RT, lang) or lang
+        end
+    end)
+    return book_lang
+end
+
 function M.textLang(doc)
     local default = g("text_lang_default", nil, nil)
     if default then return default end
@@ -132,13 +183,35 @@ local function nilOrTrue(key)
     return v == nil or v == true
 end
 
--- apply(doc): call between loadDocument() and render(). The order is the
--- reader's own: its modules' onReadSettings in the order ReaderUI registers
--- them, then the book language at pre-render.
+-- The reader's order, which is also the fast one: ReaderUI applies every
+-- module's settings BEFORE loadDocument (in a post-init callback) and only the
+-- book's language after it (PreRenderDocument). Settings changed after the
+-- load make crengine redo its style work -- on a PW5 that cost 2s a book.
 --
--- Verified call for call against a real open in the desktop rig (every
--- CreDocument setter logged on both sides); the page counts then match.
+--   doc = DocumentRegistry:openDocument(fp)
+--   Layout.beforeLoad(doc); doc:loadDocument(); Layout.afterLoad(doc)
+--   doc:render()
+--
+-- Verified call for call against a real open, on the desktop rig and on a
+-- PW5 (every CreDocument setter logged on both sides); the counts then match.
+function M.beforeLoad(doc)
+    M._apply(doc, M.presetLang())
+end
+
+function M.afterLoad(doc)
+    local lang = M.bookLang(doc)
+    if lang and lang ~= M.presetLang() and type(doc.setTextMainLang) == "function" then
+        pcall(doc.setTextMainLang, doc, lang)
+    end
+end
+
+-- apply(doc): everything at once, on a document already loaded. Slower than
+-- beforeLoad + afterLoad; kept for callers that only have a loaded document.
 function M.apply(doc)
+    M._apply(doc, M.textLang(doc))
+end
+
+function M._apply(doc, text_lang)
     local Screen = require("device").screen
     local function try(name, ...)
         local fn = doc[name]
@@ -175,7 +248,7 @@ function M.apply(doc)
     try("setHyphLeftHyphenMin", g("hyph_left_hyphen_min", nil, 0))
     try("setHyphRightHyphenMin", g("hyph_right_hyphen_min", nil, 0))
     try("setFloatingPunctuation", isTrue("floating_punctuation") and 1 or 0)
-    try("setTextMainLang", M.textLang(doc))
+    try("setTextMainLang", text_lang)
     -- ReaderRolling: one page at a time, and non-linear flows as the reader
     -- shows them.
     try("setVisiblePageCount", 1)

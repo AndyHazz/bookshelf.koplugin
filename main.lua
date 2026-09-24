@@ -2163,6 +2163,11 @@ end
 -- widget is the shared singleton, so clearing it here unblocks the eventual
 -- return-to-shelf paint when this book is closed.
 function Bookshelf:onReaderReady()
+    -- The page-count scan lays books out as the reader does; the status bar's
+    -- reserve at the bottom of the page is only knowable from a real reader.
+    if self.ui and self.ui.view then
+        pcall(function() require("lib/bookshelf_reader_layout").recordFooter(self.ui) end)
+    end
     if _live_widget then
         _live_widget._suppress_transition_paint = false
         -- Seamless open (opening-badge path): the reader arrived with a
@@ -2633,12 +2638,13 @@ function Bookshelf:scanPageCounts(opts)
                         local DocumentRegistry = require("document/documentregistry")
                         local doc = DocumentRegistry:openDocument(fp)
                         if not doc then return nil end
-                        if doc.loadDocument then doc:loadDocument() end
                         -- The reader's own layout, not crengine's defaults:
-                        -- the count is shown as the book's page count.
-                        pcall(function()
-                            require("lib/bookshelf_reader_layout").apply(doc)
-                        end)
+                        -- the count is shown as the book's page count. Its
+                        -- settings go in before the load, as the reader's do.
+                        local ok_l, Layout = pcall(require, "lib/bookshelf_reader_layout")
+                        if ok_l then pcall(Layout.beforeLoad, doc) end
+                        if doc.loadDocument then doc:loadDocument() end
+                        if ok_l then pcall(Layout.afterLoad, doc) end
                         if doc.render then doc:render() end
                         local n = doc:getPageCount()
                         pcall(function() doc:close() end)

@@ -181,7 +181,40 @@ function TabBar:init()
     -- about 2, which put these labels at 56px beside a UI using 31
     -- (maintainer: "our tabs are huge apparently by default", from several
     -- screenshots -- it was every larger screen, not one device).
-    self.face       = Font:getFace("cfont", self.font_size or 13)
+    -- One row, whatever the screen: when the labels do not fit at the chosen
+    -- size, narrow the tabs' side padding first, then step the font down (to
+    -- no less than 60% of it) until they do (maintainer: "scale the tabs down
+    -- as well, when there's not enough space, so they never wrap"). The
+    -- wrapping below stays as a last resort, so a tab can never be clipped.
+    local size = self.font_size or 13
+    do
+        local avail   = self.width - 2 * self.left_inset
+        local n       = #self.tabs
+        local min_pad = Screen:scaleBySize(6)
+        local function textWidth(sz)
+            local face, total = Font:getFace("cfont", sz), 0
+            for _i, label in ipairs(self.tabs) do
+                local tw = TextWidget:new{ text = label, face = face }
+                total = total + tw:getSize().w
+                tw:free()
+            end
+            return total
+        end
+        local text_w = textWidth(size)
+        if text_w + 2 * self.pad_h * n > avail and n > 0 then
+            local pad = math.floor((avail - text_w) / (2 * n))
+            if pad >= min_pad then
+                self.pad_h = pad
+            else
+                self.pad_h = min_pad
+                local floor_size = size * 0.6
+                while size - 1 >= floor_size and textWidth(size) + 2 * min_pad * n > avail do
+                    size = size - 1
+                end
+            end
+        end
+    end
+    self.face       = Font:getFace("cfont", size)
 
     -- Pack tabs into rows that fit self.width, wrapping when the next tab would
     -- overflow (so a narrow screen / high DPI keeps every tab reachable instead
@@ -585,15 +618,12 @@ function ReviewsModal:init()
         html_body         = self:_activeHtml(),
         css               = css,
         default_font_size = Screen:scaleBySize(self.font_size),
-        -- +1px width paired with +1px scroll_bar_width extends ONLY the
-        -- scrollbar's right edge into the popup frame's own border (leaving
-        -- the text area's width, and the scrollbar's left edge, unchanged) --
-        -- so the scrollbar's own thin border and the frame's border occupy
-        -- the same pixels on the right/top/bottom instead of sitting as two
-        -- adjacent but visually distinct lines, and only the scrollbar's
-        -- left edge (facing the text, nothing to merge with) stays visible.
-        width             = self.width + 1,
-        scroll_bar_width  = Screen:scaleBySize(6) + 1,
+        -- Full width, the bar at its right edge against the frame's border.
+        -- The bar is a rail (see _scroller) with no right edge of its own, so
+        -- the old +1px trick that overlapped a boxed bar's border with the
+        -- frame's is gone.
+        width             = self.width,
+        scroll_bar_width  = require("lib/bookshelf_snug_scroll").scroll_bar_width,
         height            = html_h,
         dialog            = self,
     }
@@ -917,10 +947,9 @@ function ReviewsModal:_buildSourcedBody(tab, w, h)
         html_body         = (src and src.html) or "<p></p>",
         css               = css,
         default_font_size = Screen:scaleBySize(self.font_size),
-        -- See the identical +1px pairing on self.scroll_html above -- extends
-        -- only the scrollbar's right edge into the frame's own border.
-        width             = w + 1,
-        scroll_bar_width  = Screen:scaleBySize(6) + 1,
+        -- As self.scroll_html above: full width, a rail against the border.
+        width             = w,
+        scroll_bar_width  = require("lib/bookshelf_snug_scroll").scroll_bar_width,
         height            = math.max(Screen:scaleBySize(80), h - chip_h - hairline_h),
         dialog            = self,
     }
@@ -1264,6 +1293,13 @@ end
 -- the last page, which is the wrong surprise.
 function ReviewsModal:_scroller(opts)
     local w = ScrollHtmlWidget:new(opts)
+    -- The same rail as every other scrollbar here (lib/bookshelf_snug_scroll):
+    -- a left rule the text area's full height and a grey thumb to the frame's
+    -- border, instead of the stock black box with a top and bottom of its own.
+    local ok_s, Snug = pcall(require, "lib/bookshelf_snug_scroll")
+    if ok_s and Snug and Snug._railPaint and w.v_scroll_bar then
+        w.v_scroll_bar.paintTo = Snug._railPaint
+    end
     local orig = w.onScrollText
     w.onScrollText = function(w_self, arg, ges)
         if ges and ges.direction == "south"

@@ -3792,7 +3792,7 @@ function Settings:_librarySubItems()
             end,
         },
         {
-            text      = _("Extract page counts"),
+            text      = _("Extract page counts\xE2\x80\xA6"),
             help_text = _("Find page counts for your books, so spines, page"
                 .. " count badges and tokens reflect their length. Publisher page numbers and Hardcover editions"
                 .. " are used where a book has them; the rest are rendered in"
@@ -3802,7 +3802,19 @@ function Settings:_librarySubItems()
                 if touchmenu_instance then
                     UIManager:close(touchmenu_instance)
                 end
-                UIManager:nextTick(function() plugin:scanPageCounts() end)
+                -- Choices first (sources, fill or recount, delete); the
+                -- dialog starts the scan.
+                UIManager:nextTick(function()
+                    require("lib/bookshelf_page_count_dialog").show(
+                        function(opts) plugin:scanPageCounts(opts) end,
+                        function()
+                            local bw = self._bw
+                            if bw and bw._rebuild then
+                                bw:_rebuild()
+                                UIManager:setDirty(bw, "ui")
+                            end
+                        end)
+                end)
             end,
         },
     {

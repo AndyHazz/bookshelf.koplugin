@@ -2357,7 +2357,11 @@ end
 -- reader's own global settings (lib/bookshelf_reader_layout), so it is close
 -- to the count the reader will show, and is shown ("user"). Publisher and
 -- Hardcover counts are print pages and are shown too ("print").
-function Bookshelf:scanPageCounts()
+-- opts (from lib/bookshelf_page_count_dialog): which sources to use --
+-- publisher / hardcover / render, each on unless false -- and recount, which
+-- counts every book again instead of only those without a trusted count.
+function Bookshelf:scanPageCounts(opts)
+    opts = opts or {}
     local Repo       = require("lib/bookshelf_book_repository")
     local SpineShelf = require("lib/bookshelf_spine_shelf")
     local Trapper    = require("ui/trapper")
@@ -2385,8 +2389,9 @@ function Bookshelf:scanPageCounts()
                    and Repo.pageCountFromFilename(fp)
         local pp, _ps, _known, psrc, opened = SpineShelf.cachedProgress(fp)
         local _p, _s, _r, pc, _pn, pc_src = Repo.readProgress(fp)
-        local trusted = psrc == "print" or psrc == "user"
-                        or psrc == "stable" or pc_src == "stable"
+        local trusted = not opts.recount
+                        and (psrc == "print" or psrc == "user"
+                             or psrc == "stable" or pc_src == "stable")
         -- The filename marker outranks a persisted echo of itself: the
         -- spine plan persists whatever readProgress answers when a page
         -- is shown, so a never-opened p(N) book usually arrives here
@@ -2515,7 +2520,7 @@ function Bookshelf:scanPageCounts()
         -- (bookshelf_pagemap_probe) -- the truest count there is, and
         -- milliseconds per book. Stop in the status line cancels.
         report.cancelled = false
-        do
+        if opts.publisher ~= false then
             local ok_probe, Probe = pcall(require, "lib/bookshelf_pagemap_probe")
             if ok_probe and Probe then
                 local rest = {}
@@ -2563,7 +2568,7 @@ function Bookshelf:scanPageCounts()
         -- Phase B: Hardcover-linked books carry their matched edition's
         -- page count in the plugin's own settings -- one local read for
         -- the whole library (user insight).
-        if not report.cancelled then
+        if not report.cancelled and opts.hardcover ~= false then
             pcall(function()
                 local HC = require("lib/bookshelf_hardcover")
                 if not (HC and HC.linkedPages) then return end
@@ -2583,7 +2588,8 @@ function Bookshelf:scanPageCounts()
             end)
         end
         SpineShelf.flushPersist()
-        if report.cancelled or #todo == 0 then
+        -- The slow pass was chosen (or not) in the dialog, before any of this.
+        if report.cancelled or #todo == 0 or opts.render == false then
             report.remaining = #todo
             finish()
             return
@@ -2591,15 +2597,7 @@ function Bookshelf:scanPageCounts()
 
         -- Phase C: everything still unknown gets opened and paginated by
         -- the reading engine, one subprocess per book (a crashing book
-        -- kills its fork, not KOReader; dismiss cancels between books).
-        local go_on = Trapper:confirm(T(_(
-            "%1 books have no page source.\n\nPaginate them the slow way?\n\nEach one is laid out in the background at your reading settings; this can take a while. You can keep using the shelf meanwhile; progress shows in its status line, with a Stop button."),
-            #todo), _("Skip"), _("Paginate"))
-        if not go_on then
-            report.remaining = #todo
-            finish()
-            return
-        end
+        -- kills its fork, not KOReader; Stop cancels between books).
         local processed = 0
         local _gettime = require("lib/bookshelf_gettime")
         -- Every subprocess below is a fork of this one, so it needs room.

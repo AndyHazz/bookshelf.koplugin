@@ -94,6 +94,7 @@ local MovableContainer = require("ui/widget/container/movablecontainer")
 local Size            = require("ui/size")
 local TextBoxWidget   = require("ui/widget/textboxwidget")
 local TextWidget      = require("ui/widget/textwidget")
+local ScrollableContainer = require("ui/widget/container/scrollablecontainer")
 local TitleBar        = require("ui/widget/titlebar")
 local VerticalGroup   = require("ui/widget/verticalgroup")
 local VerticalSpan    = require("ui/widget/verticalspan")
@@ -107,9 +108,9 @@ function Dialog:init()
     local sw, sh = Screen:getWidth(), Screen:getHeight()
     self.width = math.floor(math.min(sw, sh) * 0.9)
     local pad = Size.padding.large
-    local iw = self.width - 2 * pad
     local gap = Size.padding.default
     local dialog = self
+    local iw   -- the body's inner width; set per build below
 
     local function text(t, face, color, width)
         return TextBoxWidget:new{
@@ -156,48 +157,6 @@ function Dialog:init()
         end
     end
 
-    local pub, _pub = option{
-        label = _("Publisher page numbers (fast)"),
-        hint  = _("Printed page numbers that some books carry."),
-        checked = o.publisher, callback = source("publisher"),
-    }
-    local hcv, _hcv = option{
-        label = _("Hardcover editions (fast)"),
-        hint  = hc and _("The page count of the edition each linked book is matched to.")
-                   or _("No books are linked to Hardcover."),
-        checked = hc and o.hardcover, enabled = hc, callback = source("hardcover"),
-    }
-    local fnm, _fnm = option{
-        label = _("Page counts in file names (fastest)"),
-        hint  = _("A count in the file name, like p(320), as some Calibre setups add. Often an estimate."),
-        checked = o.filename, callback = source("filename"),
-    }
-    local ren, _ren = option{
-        label = _("Your reading settings (slow)"),
-        hint  = _("Lays out each remaining book in your font and margins, so the count matches what you see when reading."),
-        checked = o.render, callback = source("render"),
-    }
-    local radios = {}
-    local function pick(recount)
-        return function()
-            o.recount = recount
-            save()
-            for want, rb in pairs(radios) do
-                rb:initCheckButton(want == recount)
-                UIManager:setDirty(self, function() return "ui", rb.dimen end)
-            end
-        end
-    end
-    local missing, rb_missing = option{
-        label = _("Only books without a page count"), radio = true,
-        checked = not o.recount, callback = pick(false),
-    }
-    local every, rb_every = option{
-        label = _("Every book, replacing earlier counts"), radio = true,
-        checked = o.recount, callback = pick(true),
-    }
-    radios[false], radios[true] = rb_missing, rb_every
-
     self.buttons = ButtonTable:new{
         width = self.width - 2 * Size.padding.default,
         zero_sep = true,
@@ -226,19 +185,96 @@ function Dialog:init()
         },
     }
 
-    local body = VerticalGroup:new{
-        align = "left",
-        text(_("Finds how long each book is, for spine thickness, page count badges, sorting and the page count token."),
-             Font:getFace("smallinfofont")),
-        VerticalSpan:new{ width = pad },
-        heading(_("Use page counts from, in this order")),
-        VerticalSpan:new{ width = gap },
-        pub, hcv, ren, fnm,
-        VerticalSpan:new{ width = gap },
-        heading(_("Which books")),
-        VerticalSpan:new{ width = gap },
-        missing, every,
+    -- build(inner_w) -> the body. Built twice when it does not fit the
+    -- screen: the second time a scrollbar's width narrower, to go in a
+    -- ScrollableContainer.
+    local function build(inner_w)
+        iw = inner_w
+        local pub, _pub = option{
+            label = _("Publisher page numbers (fast)"),
+            hint  = _("Printed page numbers that some books carry."),
+            checked = o.publisher, callback = source("publisher"),
+        }
+        local hcv, _hcv = option{
+            label = _("Hardcover editions (fast)"),
+            hint  = hc and _("The page count of the edition each linked book is matched to.")
+                       or _("No books are linked to Hardcover."),
+            checked = hc and o.hardcover, enabled = hc, callback = source("hardcover"),
+        }
+        local fnm, _fnm = option{
+            label = _("Page counts in file names (fastest)"),
+            hint  = _("A count in the file name, like p(320), as some Calibre setups add. Often an estimate."),
+            checked = o.filename, callback = source("filename"),
+        }
+        local ren, _ren = option{
+            label = _("Your reading settings (slow)"),
+            hint  = _("Lays out each remaining book in your font and margins, so the count matches what you see when reading."),
+            checked = o.render, callback = source("render"),
+        }
+        local radios = {}
+        local function pick(recount)
+            return function()
+                o.recount = recount
+                save()
+                for want, rb in pairs(radios) do
+                    rb:initCheckButton(want == recount)
+                    UIManager:setDirty(self, function() return "ui", rb.dimen end)
+                end
+            end
+        end
+        local missing, rb_missing = option{
+            label = _("Only books without a page count"), radio = true,
+            checked = not o.recount, callback = pick(false),
+        }
+        local every, rb_every = option{
+            label = _("Every book, replacing earlier counts"), radio = true,
+            checked = o.recount, callback = pick(true),
+        }
+        radios[false], radios[true] = rb_missing, rb_every
+
+        local body = VerticalGroup:new{
+            align = "left",
+            text(_("Finds how long each book is, for spine thickness, page count badges, sorting and the page count token."),
+                 Font:getFace("smallinfofont")),
+            VerticalSpan:new{ width = pad },
+            heading(_("Use page counts from, in this order")),
+            VerticalSpan:new{ width = gap },
+            pub, hcv, ren, fnm,
+            VerticalSpan:new{ width = gap },
+            heading(_("Which books")),
+            VerticalSpan:new{ width = gap },
+            missing, every,
+        }
+        return body
+    end
+
+    -- The fixed parts are the title bar and the buttons; the body gets what
+    -- is left of the screen, and scrolls when that is not enough. At a high
+    -- screen DPI setting (480 on a PW5) the body alone outgrew the screen and
+    -- the title bar went off the top (maintainer, on device).
+    local title_bar = TitleBar:new{
+        width = self.width,
+        title = _("Extract page counts"),
+        with_bottom_line = true,
+        close_callback = function() UIManager:close(self) end,
+        show_parent = self,
     }
+    local fixed_h = title_bar:getSize().h + Size.line.thin + self.buttons:getSize().h
+                    + 2 * Size.border.window
+    local avail_h = sh - 2 * Size.margin.default - fixed_h
+    local body = build(self.width - 2 * pad)
+    local body_block = FrameContainer:new{ bordersize = 0, padding = pad, body }
+    if body_block:getSize().h > avail_h then
+        local sbw = ScrollableContainer:getScrollbarWidth()
+        body = build(self.width - 2 * pad - sbw)
+        self.cropping_widget = ScrollableContainer:new{
+            dimen = Geom:new{ w = self.width, h = avail_h },
+            show_parent = self,
+            FrameContainer:new{ bordersize = 0, padding = pad, body },
+        }
+        body_block = self.cropping_widget
+    end
+
     local frame = FrameContainer:new{
         radius = Size.radius.window,
         bordersize = Size.border.window,
@@ -246,14 +282,8 @@ function Dialog:init()
         background = Blitbuffer.COLOR_WHITE,
         VerticalGroup:new{
             align = "center",
-            TitleBar:new{
-                width = self.width,
-                title = _("Extract page counts"),
-                with_bottom_line = true,
-                close_callback = function() UIManager:close(self) end,
-                show_parent = self,
-            },
-            FrameContainer:new{ bordersize = 0, padding = pad, body },
+            title_bar,
+            body_block,
             LineWidget:new{
                 background = Blitbuffer.COLOR_DARK_GRAY,
                 dimen = Geom:new{ w = self.width, h = Size.line.thin },

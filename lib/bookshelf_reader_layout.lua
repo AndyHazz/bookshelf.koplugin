@@ -97,13 +97,57 @@ end
 -- book never opened gets 'web' (3).
 local BLOCK_FLAGS = { [0] = 0x00000000, 0x03030031, 0x03375131, 0x7FFFFFFF }
 
--- apply(doc): call between loadDocument() and render().
+-- The reader's language for hyphenation and line breaking: a default the
+-- reader chose (Hold in the language menu) wins; otherwise the book's own
+-- language; otherwise the reader's fallback, then en-US. ReaderTypography
+-- onReadSettings + onPreRenderDocument.
+function M.textLang(doc)
+    local default = g("text_lang_default", nil, nil)
+    if default then return default end
+    local book_lang
+    pcall(function()
+        local props = doc.getProps and doc:getProps()
+        local lang = props and props.language
+        if type(lang) == "string" and lang ~= "" then
+            local ok_t, RT = pcall(require, "apps/reader/modules/readertypography")
+            book_lang = (ok_t and RT and RT.fixLangTag) and RT.fixLangTag(RT, lang) or lang
+        end
+    end)
+    return book_lang or g("text_lang_fallback", nil, nil) or "en-US"
+end
+
+-- The font-family faces (serif, sans-serif, monospace...): the reader's own
+-- mapping, and FreeSerif for maths when none is set, as ReaderFont does.
+function M.familyFonts()
+    local map = {}
+    for k, v in pairs(g("cre_font_family_fonts", nil, {}) or {}) do map[k] = v end
+    if map.math == nil then map.math = "FreeSerif" end
+    return map
+end
+
+-- LuaSettings' isTrue / nilOrTrue, through readSetting alone.
+local function isTrue(key) return g(key, nil, nil) == true end
+local function nilOrTrue(key)
+    local v = g(key, nil, nil)
+    return v == nil or v == true
+end
+
+-- apply(doc): call between loadDocument() and render(). The order is the
+-- reader's own: its modules' onReadSettings in the order ReaderUI registers
+-- them, then the book language at pre-render.
+--
+-- Verified call for call against a real open in the desktop rig (every
+-- CreDocument setter logged on both sides); the page counts then match.
 function M.apply(doc)
     local Screen = require("device").screen
     local function try(name, ...)
         local fn = doc[name]
         if type(fn) == "function" then pcall(fn, doc, ...) end
     end
+    -- crengine's defaults as the reader starts from them: DPI-adjusted font
+    -- sizes, fallback fonts, monospace scaling (ReaderUI, before the modules).
+    try("setupDefaultView")
+    try("setViewMode", "page")
     local css = g("copt_css", nil, nil)
     if doc.is_fb2 then css = g("copt_fb2_css", nil, nil) end
     try("setStyleSheet", css or doc.default_css, M.tweakCss())
@@ -111,8 +155,7 @@ function M.apply(doc)
     try("setEmbeddedStyleSheet", g("copt_embedded_css", nil, 1))
     try("setBlockRenderingFlags", BLOCK_FLAGS[g("copt_block_rendering_mode", nil, 3)] or BLOCK_FLAGS[3])
     try("setRenderDPI", g("copt_render_dpi", nil, 96))
-    local face = g("cre_font", nil, nil)
-    if face then try("setFontFace", face) end
+    try("setFontFace", g("cre_font", nil, nil) or doc.default_font)
     try("setFontSize", Screen:scaleBySize(g("copt_font_size", "DCREREADER_CONFIG_DEFAULT_FONT_SIZE", 22)))
     try("setFontBaseWeight", g("copt_font_base_weight", nil, 0))
     try("setFontHinting", g("copt_font_hinting", nil, 2))
@@ -121,6 +164,22 @@ function M.apply(doc)
     try("setWordExpansion", g("copt_word_expansion", nil, 0))
     try("setCJKWidthScaling", g("copt_cjk_width_scaling", nil, 100))
     try("setInterlineSpacePercent", g("copt_line_spacing", "DCREREADER_CONFIG_LINE_SPACE_PERCENT_MEDIUM", 100))
+    try("setFontFamilyFontFaces", M.familyFonts(), isTrue("cre_font_family_ignore_font_names"))
+    -- Typography: hyphenation above all, which decides how much of a line a
+    -- word may fill (ReaderTypography).
+    try("setTextEmbeddedLangs", nilOrTrue("text_lang_embedded_langs"))
+    try("setTextHyphenation", nilOrTrue("hyphenation"))
+    try("setTrustSoftHyphens", isTrue("hyph_trust_soft_hyphens"))
+    try("setTextHyphenationSoftHyphensOnly", isTrue("hyph_soft_hyphens_only"))
+    try("setTextHyphenationForceAlgorithmic", isTrue("hyph_force_algorithmic"))
+    try("setHyphLeftHyphenMin", g("hyph_left_hyphen_min", nil, 0))
+    try("setHyphRightHyphenMin", g("hyph_right_hyphen_min", nil, 0))
+    try("setFloatingPunctuation", isTrue("floating_punctuation") and 1 or 0)
+    try("setTextMainLang", M.textLang(doc))
+    -- ReaderRolling: one page at a time, and non-linear flows as the reader
+    -- shows them.
+    try("setVisiblePageCount", 1)
+    try("setHideNonlinearFlows", isTrue("hide_nonlinear_flows"))
     try("setStatusLineProp", g("copt_status_line", nil, 1))
     local h = g("copt_h_page_margins", "DCREREADER_CONFIG_H_MARGIN_SIZES_MEDIUM", { 10, 10 })
     local t = g("copt_t_page_margin", "DCREREADER_CONFIG_T_MARGIN_SIZES_LARGE", 15)

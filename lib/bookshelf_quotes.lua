@@ -23,6 +23,16 @@ local SafeText = require("lib/bookshelf_text_safe")
 local Quotes = {}
 
 Quotes.REFRESH_KEY = "micromodule_quote_of_day_refresh" -- "daily" | "open"
+-- Issue 368: books and highlight colours the reader has left out.
+--   skip_books   filepath -> true: never the quote of the day (the book's own
+--                %quote token still draws from it: that is asked for by name)
+--   skip_colors  KOReader highlight colour name -> true: left out of both (a
+--                colour kept for names makes a poor quote anywhere)
+-- filter_gen counts changes to either, and is part of the daily cache key, so
+-- a pick persisted before a change is never adopted after it.
+Quotes.SKIP_BOOKS_KEY  = "micromodule_quote_of_day_skip_books"
+Quotes.SKIP_COLORS_KEY = "micromodule_quote_of_day_skip_colors"
+local FILTER_GEN_KEY   = "micromodule_quote_of_day_filter_gen"
 
 local MAX_BOOKS  = 25  -- most-recent ReadHistory entries walked
 local MAX_QUOTES = 200 -- total highlights collected across those books
@@ -49,12 +59,26 @@ function Quotes.readRefresh()
     return v
 end
 
+local function readSet(key)
+    local Store = require("lib/bookshelf_settings_store")
+    local v = Store.read(key)
+    return type(v) == "table" and v or {}
+end
+
+local function filterGen()
+    local Store = require("lib/bookshelf_settings_store")
+    return tonumber(Store.read(FILTER_GEN_KEY)) or 0
+end
+
 local function cacheKey()
     if Quotes.readRefresh() == "open" then
         local Modules = require("lib/bookshelf_start_menu_modules")
         return "g" .. tostring(Modules.menu_generation) .. ":" .. _nonce
     end
-    return "d" .. os.date("%Y-%m-%d") .. ":" .. _nonce
+    local key = "d" .. os.date("%Y-%m-%d") .. ":" .. _nonce
+    local gen = filterGen()
+    if gen > 0 then key = key .. ":f" .. gen end
+    return key
 end
 
 local function truncateQuote(s)
@@ -67,7 +91,10 @@ end
 -- Collect every highlight from ONE book's sidecar into `quotes`. Used by both
 -- the all-books daily walk and the per-book token (issue #174). Caller wraps in
 -- pcall; this also guards each file access.
-local function _collectFromSidecar(fp, quotes)
+-- skip_colors: colour name -> true, highlights to leave out (nil: none).
+-- colours_seen: when a table, every highlight colour met is recorded in it,
+-- left out or not (the settings dialog lists them).
+local function _collectFromSidecar(fp, quotes, skip_colors, colours_seen)
     local DocSettings = require("docsettings")
     -- hasSidecarFile gates the heavier open and is correct for all three
     -- metadata locations (doc/dir/hash) -- never stat a sibling .sdr path.
@@ -126,8 +153,12 @@ local function _collectFromSidecar(fp, quotes)
                         -- `drawer` set = real highlight; bookmarks (no drawer)
                         -- carry auto-filler text we must not quote.
                         if type(a) == "table" and a.drawer then
-                            add(a.text, a.page, a.pos0, false, a.chapter,
-                                a.pageref or a.pageno)
+                            local colour = type(a.color) == "string" and a.color or nil
+                            if colour and colours_seen then colours_seen[colour] = true end
+                            if not (colour and skip_colors and skip_colors[colour]) then
+                                add(a.text, a.page, a.pos0, false, a.chapter,
+                                    a.pageref or a.pageno)
+                            end
                         end
                     end
                 else
@@ -160,17 +191,21 @@ end
 
 -- Walk ReadHistory newest-first, collecting from each book's sidecar. Caps keep
 -- the walk bounded; every file access is guarded inside _collectFromSidecar.
-local function collectQuotes()
+-- Skipped books are passed over before they count against MAX_BOOKS, so
+-- leaving one out does not shrink the pool.
+local function collectQuotes(colours_seen)
     local quotes = {}
     local DocSettings = require("docsettings")
     local rh = require("readhistory")
+    local skip_books  = readSet(Quotes.SKIP_BOOKS_KEY)
+    local skip_colors = readSet(Quotes.SKIP_COLORS_KEY)
     local n_books = 0
     for _i, entry in ipairs(rh.hist or {}) do
         if n_books >= MAX_BOOKS or #quotes >= MAX_QUOTES then break end
         local fp = entry.file
-        if fp and DocSettings:hasSidecarFile(fp) then
+        if fp and not skip_books[fp] and DocSettings:hasSidecarFile(fp) then
             n_books = n_books + 1
-            _collectFromSidecar(fp, quotes)
+            _collectFromSidecar(fp, quotes, skip_colors, colours_seen)
         end
     end
     return quotes
@@ -179,8 +214,65 @@ end
 -- Every highlight from a SINGLE book -- backs the per-book %quote token (#174).
 local function collectBookQuotes(fp)
     local quotes = {}
-    _collectFromSidecar(fp, quotes)
+    _collectFromSidecar(fp, quotes, readSet(Quotes.SKIP_COLORS_KEY))
     return quotes
+end
+
+-- A filter changed: bump the generation (the daily cache key carries it) and
+-- drop both in-memory picks so the next render draws from the new pool.
+local function filtersChanged()
+    local Store = require("lib/bookshelf_settings_store")
+    Store.save(FILTER_GEN_KEY, filterGen() + 1)
+    Store.flush()
+    _cache = nil
+    _book_cache = nil
+end
+
+function Quotes.skipBook(fp)
+    if type(fp) ~= "string" then return end
+    local Store = require("lib/bookshelf_settings_store")
+    local set = readSet(Quotes.SKIP_BOOKS_KEY)
+    set[fp] = true
+    Store.save(Quotes.SKIP_BOOKS_KEY, set)
+    filtersChanged()
+end
+
+function Quotes.skippedBookCount()
+    local n = 0
+    for _fp in pairs(readSet(Quotes.SKIP_BOOKS_KEY)) do n = n + 1 end
+    return n
+end
+
+function Quotes.unskipAllBooks()
+    local Store = require("lib/bookshelf_settings_store")
+    Store.delete(Quotes.SKIP_BOOKS_KEY)
+    filtersChanged()
+end
+
+function Quotes.isColorSkipped(colour)
+    return readSet(Quotes.SKIP_COLORS_KEY)[colour] == true
+end
+
+function Quotes.setColorSkipped(colour, skipped)
+    if type(colour) ~= "string" then return end
+    local Store = require("lib/bookshelf_settings_store")
+    local set = readSet(Quotes.SKIP_COLORS_KEY)
+    set[colour] = skipped and true or nil
+    if next(set) then Store.save(Quotes.SKIP_COLORS_KEY, set)
+    else Store.delete(Quotes.SKIP_COLORS_KEY) end
+    filtersChanged()
+end
+
+-- coloursInUse() -> sorted list of the highlight colours in the books the
+-- quote of the day draws from, left out or not. A sidecar walk, so for the
+-- settings dialog only.
+function Quotes.coloursInUse()
+    local seen = {}
+    pcall(collectQuotes, seen)
+    local out = {}
+    for c in pairs(seen) do out[#out + 1] = c end
+    table.sort(out)
+    return out
 end
 
 -- Pick one quote from the collection.

@@ -24,6 +24,7 @@ reads only the modern "annotations" array, so a legacy-only sidecar surfaces a
 brief notification instead of an empty browser.
 ]]
 local _ = require("lib/bookshelf_i18n").gettext
+local T = require("ffi/util").template
 local Quotes = require("lib/bookshelf_quotes")
 
 local TAP_KEY = "micromodule_quote_of_day_tap" -- "new" | "bookmarks" | "open_book"
@@ -48,8 +49,9 @@ local function posEqual(a, b)
 end
 
 -- Module settings dialog (long-press > "Module settings…"): two radio groups
--- under greyed header rows. Each pick saves, reloads the menu beneath and
--- re-opens the dialog so the checkmark refreshes. Switching refresh mode needs
+-- under greyed header rows, then what to leave out -- the current quote's
+-- book, and each highlight colour in use (issue 368). Each pick saves, reloads
+-- the menu beneath and re-opens the dialog so the checkmark refreshes. Switching refresh mode needs
 -- no explicit invalidation -- the shared cache key changes shape.
 local function showSettings(ctx)
     local ButtonDialog = require("ui/widget/buttondialog")
@@ -69,19 +71,58 @@ local function showSettings(ctx)
     local function header(label)
         return { text = label, enabled = false }
     end
+    local rows = {
+        { header(_("Refresh")) },
+        { radio(_("Once per day"), Quotes.REFRESH_KEY, Quotes.readRefresh, "daily") },
+        { radio(_("Every menu open"), Quotes.REFRESH_KEY, Quotes.readRefresh, "open") },
+        { header(_("Tap action")) },
+        { radio(_("New quote"), TAP_KEY, readTap, "new") },
+        { radio(_("Open bookmark list"), TAP_KEY, readTap, "bookmarks") },
+        { radio(_("Open book at quote"), TAP_KEY, readTap, "open_book") },
+    }
+    -- Issue 368: leave a book, or a highlight colour, out of the pool.
+    local function row(text, fn)
+        rows[#rows + 1] = { {
+            text = text,
+            callback = function() fn(); Kit.settingsReopen(ctx, dialog, showSettings) end,
+        } }
+    end
+    local cur = Quotes.current()
+    local skipped = Quotes.skippedBookCount()
+    local colours = Quotes.coloursInUse()
+    if (cur and cur.filepath) or skipped > 0 then
+        rows[#rows + 1] = { header(_("Leave out")) }
+        if cur and cur.filepath then
+            row(T(_("Quotes from %1"), cur.title or "?"),
+                function() Quotes.skipBook(cur.filepath) end)
+        end
+        if skipped > 0 then
+            row(T(_("Bring back skipped books (%1)"), skipped), Quotes.unskipAllBooks)
+        end
+    end
+    if #colours > 0 then
+        -- KOReader's own names for its colours, already translated there.
+        local ko_ = require("gettext")
+        local NAMES = { red = "Red", orange = "Orange", yellow = "Yellow",
+            green = "Green", olive = "Olive", cyan = "Cyan", blue = "Blue",
+            purple = "Purple", gray = "Gray" }
+        rows[#rows + 1] = { header(_("Highlight colors")) }
+        for _i, c in ipairs(colours) do
+            local name = NAMES[c] and ko_(NAMES[c]) or (c:gsub("^%l", string.upper))
+            rows[#rows + 1] = { Kit.radioRow{
+                label = name, active = not Quotes.isColorSkipped(c), toggle = true,
+                on_pick = function()
+                    Quotes.setColorSkipped(c, not Quotes.isColorSkipped(c))
+                    Kit.settingsReopen(ctx, dialog, showSettings)
+                end,
+            } }
+        end
+    end
     dialog = ButtonDialog:new{
         title        = _("Quote of the day"),
         title_align  = "center",
         width_factor = 0.65,
-        buttons      = {
-            { header(_("Refresh")) },
-            { radio(_("Once per day"), Quotes.REFRESH_KEY, Quotes.readRefresh, "daily") },
-            { radio(_("Every menu open"), Quotes.REFRESH_KEY, Quotes.readRefresh, "open") },
-            { header(_("Tap action")) },
-            { radio(_("New quote"), TAP_KEY, readTap, "new") },
-            { radio(_("Open bookmark list"), TAP_KEY, readTap, "bookmarks") },
-            { radio(_("Open book at quote"), TAP_KEY, readTap, "open_book") },
-        },
+        buttons      = rows,
     }
     UIManager:show(dialog)
 end

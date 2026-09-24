@@ -41,6 +41,17 @@ package.loaded["ui/size"]        = {
 package.loaded["ui/font"]        = { getFace = function() return {} end }
 package.loaded["ui/uimanager"]   = { setDirty = function() end, close = function() end,
                                      show = function() end, nextTick = function(_, fn) end }
+-- Under luajit the REAL ffi answers require("ffi") (the catch-all mock below
+-- only reaches plain Lua), and with blitbuffer stubbed nothing declares its
+-- colour types, so the widget's modules died at load on
+-- ffi.typeof("ColorRGB32"). Declare it the way blitbuffer does.
+do
+    local ok_ffi, ffi = pcall(require, "ffi")
+    if ok_ffi and type(ffi) == "table" and ffi.cdef
+            and not pcall(ffi.typeof, "ColorRGB32") then
+        ffi.cdef("typedef struct ColorRGB32 { uint8_t r, g, b, alpha; } ColorRGB32;")
+    end
+end
 package.loaded["ffi/blitbuffer"] = { COLOR_BLACK = 0, COLOR_WHITE = 0xFF,
                                      gray = function(v) return v end }
 package.loaded["device"]         = {

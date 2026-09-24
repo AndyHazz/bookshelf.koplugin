@@ -163,5 +163,32 @@ test("getUIFontFace: probe passes a size to getFace (issue 175)", function()
         "probe must pass a positive size; got " .. tostring(last and last.size))
 end)
 
+-- Issue 284: the modal's HTML is rendered by MuPDF, which is handed the UI
+-- font as files through @font-face, by ABSOLUTE path.
+test("uiFontCss: a chosen font becomes @font-face rules with its bold and italic", function()
+    settings.bookshelf_ui_font = "/f/Foo-Regular.ttf"
+    local css = BFont.uiFontCss("bsui")
+    assert(css:find('font-family: "bsui"; src: url("/f/Foo-Regular.ttf")', 1, true), css)
+    assert(css:find('font-weight: bold; src: url("/f/Foo-Bold.ttf")', 1, true), css)
+    assert(css:find('font-style: italic; src: url("/f/Foo-Italic.ttf")', 1, true), css)
+end)
+
+test("uiFontCss: a bare font name resolves to an absolute path", function()
+    package.loaded["fontlist"] = { fontdir = "./fonts", getFontList = function() return {} end }
+    package.loaded["ffi/util"] = { realpath = function(p) return "/opt/ko/" .. p:gsub("^%./", "") end }
+    settings.bookshelf_ui_font = "Bar-Regular.ttf"
+    local f = BFont.uiFontFiles()
+    eq(f and f.regular, "/opt/ko/fonts/Bar-Regular.ttf", "relative KOReader path made absolute")
+    package.loaded["fontlist"] = nil
+    package.loaded["ffi/util"] = nil
+end)
+
+test("uiFontCss: no font on disk gives no rules, so MuPDF keeps its own", function()
+    package.loaded["libs/libkoreader-lfs"].attributes = function() return nil end
+    settings.bookshelf_ui_font = "/f/Gone-Regular.ttf"
+    eq(BFont.uiFontCss("bsui"), "")
+    package.loaded["libs/libkoreader-lfs"].attributes = function() return "file" end
+end)
+
 io.write(("bookshelf_fonts: %d passed, %d failed\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

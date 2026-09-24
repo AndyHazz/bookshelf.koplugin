@@ -599,6 +599,14 @@ function ReviewsModal:init()
     local h_pad = self._side_pad
     local v_pad = Space.px(28)
     css = css .. string.format("\nbody { padding: %dpx %dpx; }", v_pad, h_pad)
+    -- The UI font, so the description reads in the same typeface as the
+    -- rest of the modal and the shelf (issue 284). Skipped, leaving MuPDF's
+    -- sans-serif, when the font cannot be found on disk.
+    local ok_f, Fonts = pcall(require, "lib/bookshelf_fonts")
+    local ui_css = ok_f and Fonts.uiFontCss and Fonts.uiFontCss("bsui") or ""
+    if ui_css ~= "" then
+        css = ui_css .. css .. '\nbody { font-family: "bsui", sans-serif; }'
+    end
     -- Kept so _changeFontSize can re-render via htmlbox_widget:setContent
     -- without rebuilding the @font-face rule.
     self._css = css

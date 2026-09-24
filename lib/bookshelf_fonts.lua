@@ -289,6 +289,82 @@ function M:getFace(face_name, size, opts)
     return Font:getFace(face_name, size), opts.bold           -- unresolvable -> native (no crash)
 end
 
+-- ── The UI font as FILES, for MuPDF's HTML engine ────────────────────────
+--
+-- Issue 284: the book modal's description and reviews are HTML, rendered by
+-- MuPDF, which has its own font stack and never sees KOReader's named faces.
+-- Its "sans-serif" was a font of MuPDF's choosing, so the one long passage of
+-- text in the modal was in a different typeface from everything around it.
+-- MuPDF does load an @font-face that points at a file by absolute path (the
+-- modal's star glyphs already come in that way), so the UI font is handed
+-- over as files.
+--
+-- uiFontFiles() -> { regular = path, bold = path|nil, italic = path|nil }, or
+-- nil when the font cannot be found on disk. The Bookshelf UI font when one is
+-- chosen, else KOReader's own UI font (cfont), so the modal matches the rest
+-- of the screen in follow mode too. Memoised per face name.
+local _files_face, _files
+-- absolute(path) -> the path made absolute, or nil if it is not a file. MuPDF
+-- resolves a relative url against the document, not KOReader's working
+-- directory, and KOReader's own font paths are relative ("./fonts/noto/...").
+local function absolute(path)
+    if type(path) ~= "string" or lfs.attributes(path, "mode") ~= "file" then return nil end
+    if path:sub(1, 1) == "/" then return path end
+    local ok_u, ffiutil = pcall(require, "ffi/util")
+    local real = ok_u and ffiutil.realpath and ffiutil.realpath(path)
+    return (type(real) == "string" and real:sub(1, 1) == "/") and real or nil
+end
+local function facePath(name)
+    if type(name) ~= "string" or name == "" then return nil end
+    if name:find("/", 1, true) then return absolute(name) end
+    local ok, FontList = pcall(require, "fontlist")
+    if not (ok and FontList) then return nil end
+    local bundled = FontList.fontdir and absolute(FontList.fontdir .. "/" .. name)
+    if bundled then return bundled end
+    -- The same search Font:getFace falls back to: any scanned font folder.
+    for _i, f in ipairs(FontList:getFontList() or {}) do
+        if f:sub(-#name - 1) == "/" .. name then return absolute(f) end
+    end
+    return nil
+end
+
+function M.uiFontFiles()
+    local face = M.getUIFontFace() or (Font.fontmap and Font.fontmap.cfont)
+    if face == _files_face then return _files end
+    _files_face, _files = face, nil
+    local regular = facePath(face)
+    if not regular then return nil end
+    -- variantOf matches by file name against FontList's own paths, which are
+    -- relative, hence absolute() on what it finds.
+    local bold = absolute(M.variantOf(face, true, false) or "")
+    local sib = not bold and bold_sibling(face)
+    if sib then bold = facePath(sib) end
+    local italic = absolute(M.variantOf(face, false, true) or "")
+    sib = not italic and italic_sibling(face)
+    if sib then italic = facePath(sib) end
+    _files = { regular = regular, bold = bold, italic = italic }
+    return _files
+end
+
+-- uiFontCss(family) -> @font-face rules naming the UI font `family`, or "".
+-- Descriptors for weight and style, so <b> and <i> pick the real files rather
+-- than MuPDF synthesising them.
+function M.uiFontCss(family)
+    local f = M.uiFontFiles()
+    if not f then return "" end
+    local function q(path) return (path:gsub('"', '\\"')) end
+    local out = { string.format('@font-face { font-family: "%s"; src: url("%s"); }', family, q(f.regular)) }
+    if f.bold then
+        out[#out + 1] = string.format(
+            '@font-face { font-family: "%s"; font-weight: bold; src: url("%s"); }', family, q(f.bold))
+    end
+    if f.italic then
+        out[#out + 1] = string.format(
+            '@font-face { font-family: "%s"; font-style: italic; src: url("%s"); }', family, q(f.italic))
+    end
+    return table.concat(out, "\n") .. "\n"
+end
+
 -- Writable, KOReader-scanned user font dir per platform.
 local function user_font_dir()
     local ok_dev, Device = pcall(require, "device")

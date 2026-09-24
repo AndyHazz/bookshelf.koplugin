@@ -126,7 +126,7 @@ local CHECK_OFF_ICON   = "\xEF\x82\x96" -- U+F096 fa-square-o
 -- is mode-aware because KOReader inverts the framebuffer in night mode, so a
 -- fixed mid-grey would read as a bright halo there (see the spine widget for
 -- the full rationale). Covers offset by scaleBySize(4); half = scaleBySize(2).
-local PANEL_SHADOW_DIST  = Screen:scaleBySize(2)
+local PANEL_SHADOW_DIST  = Space.px(2)   -- a shadow: does not grow with a DPI override
 local PANEL_SHADOW_DAY   = Blitbuffer.gray(0.5)
 local PANEL_SHADOW_NIGHT = Blitbuffer.gray(0.15)
 local function _panelShadowGray()

@@ -8804,7 +8804,10 @@ function BookshelfWidget:_paintOpeningEffect(fp)
     -- (and inverts to the night background correctly). Band thickness
     -- mirrors SELECTED_BORDER (= SHADOW_OFFSET, 4dp) plus rounding slack.
     local ringed = spine.is_selected or spine.is_bulk_selected
-    local ring_t = Screen:scaleBySize(4) + 2
+    -- The ring's own width (it follows the shadow, which no longer grows
+    -- with a DPI override): a fixed 4dp erased past a thinner ring, whiting
+    -- out the wallpaper around the cover.
+    local ring_t = (SpineWidget.SELECTED_BORDER or Space.px(4)) + 2
     if ringed and Screen.bb then
         local bb = Screen.bb
         local W = Blitbuffer.COLOR_WHITE
@@ -8864,7 +8867,7 @@ function BookshelfWidget:_paintOpeningEffect(fp)
     -- flashing its old look at the moment of the tap.
     if ringed and Screen.bb and not spine:_noShadow() then
         local sbb  = Screen.bb
-        local SO   = SpineWidget.SHADOW_OFFSET or Screen:scaleBySize(4)
+        local SO   = SpineWidget.SHADOW_OFFSET or Space.px(4)
         local rad  = spine:_squareCorners() and 0
             or (SpineWidget.CARD_RADIUS or Screen:scaleBySize(4))
         local gray = SpineWidget.shadowGray and SpineWidget.shadowGray()

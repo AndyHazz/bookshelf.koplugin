@@ -1293,7 +1293,9 @@ function HeroCard:_renderFull()
     -- ran round the top, left and part of the sides, and stopped at the bottom
     -- edge. Costs the cover another SHADOW_OFFSET in each dimension, which is
     -- the price of a ring that closes.
-    local SHADOW_OFFSET = Screen:scaleBySize(4)
+    -- Space: a drop shadow should not grow with a DPI override. Mirrors
+    -- bookshelf_spine_widget's SHADOW_OFFSET.
+    local SHADOW_OFFSET = Space.px(4)
 
     -- True-aspect: render the hero cover at the book's OWN aspect, TOP-anchored
     -- within the fixed-height region, WITHOUT shrinking ordinary covers.

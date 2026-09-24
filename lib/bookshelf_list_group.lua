@@ -52,6 +52,7 @@ local CenterContainer = require("ui/widget/container/centercontainer")
 local Geom           = require("ui/geometry")
 local OverlapGroup   = require("ui/widget/overlapgroup")
 local Screen         = require("device").screen
+local Space          = require("lib/bookshelf_space")
 local CoverProgress  = require("lib/bookshelf_cover_progress")
 local BookshelfSettings = require("lib/bookshelf_settings_store")
 local Repo           = require("lib/bookshelf_book_repository")
@@ -380,7 +381,7 @@ function Group.deck(books, height, opts)
     local SpineWidget = require("lib/bookshelf_spine_widget")
     -- The SLOT, sized so the CARD inside it comes out at the book aspect:
     -- SpineWidget takes its shadow reservation off whatever it is handed.
-    local shadow = SpineWidget.SHADOW_OFFSET or Screen:scaleBySize(4)
+    local shadow = SpineWidget.SHADOW_OFFSET or Space.px(4)
     local card_w, card_h = Group.slotWidth(height)
     local n = math.min(#books, Group.DECK_MAX)
 
@@ -637,7 +638,7 @@ end
 function Group.slotWidth(height, max_w)
     local ListGeom = require("lib/bookshelf_list_geom")
     local SpineWidget = require("lib/bookshelf_spine_widget")
-    local shadow = SpineWidget.SHADOW_OFFSET or Screen:scaleBySize(4)
+    local shadow = SpineWidget.SHADOW_OFFSET or Space.px(4)
     local w, h = ListGeom.thumbSize(height - shadow, 0,
                                     max_w and (max_w - shadow) or nil)
     return w + shadow, h + shadow

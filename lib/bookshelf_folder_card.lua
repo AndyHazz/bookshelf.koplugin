@@ -61,7 +61,9 @@ local CARDBOARD_EDGE = Blitbuffer.COLOR_BLACK
 -- book card behind the folder casts its drop shadow into the same L-strip
 -- where the folder's would be. Callers rely on this to skip a separate
 -- folder shadow layer.
-local SHADOW_OFFSET = Screen:scaleBySize(4)
+-- Space: a drop shadow should not grow with a DPI override. Mirrors
+-- bookshelf_spine_widget's SHADOW_OFFSET.
+local SHADOW_OFFSET = Space.px(4)
 local CARD_BORDER   = Screen:scaleBySize(1)
 local CARD_RADIUS   = Screen:scaleBySize(4)
 

@@ -150,7 +150,10 @@ local function _getRepo()
 end
 
 -- Shadow geometry shared by both render paths.
-local SHADOW_OFFSET   = Screen:scaleBySize(4)       -- shadow offset in dp
+-- Space, not scaleBySize: a drop shadow is depth, not text, and should not
+-- grow with a DPI override (maintainer).
+-- SELECTED_BORDER equals it (below), so the selection ring follows.
+local SHADOW_OFFSET   = Space.px(4)                 -- shadow offset in dp
 local CARD_RADIUS     = Screen:scaleBySize(4)       -- rounded corner radius
 local CARD_BORDER     = Screen:scaleBySize(1)       -- 1dp border on the card
 

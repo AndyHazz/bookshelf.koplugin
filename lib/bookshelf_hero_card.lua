@@ -382,9 +382,83 @@ local buildLine
 -- the status text. Normal-mode hero passes default; collapsed-mode strip
 -- passes false because the chip strip below it serves the same separator
 -- role and doubling up reads as visual noise.
-function HeroCard.buildStatusRow(book, state, width, with_hairline)
+-- buildJobRow(region, width) -> the status line's stand-in while a
+-- background job runs (lib/bookshelf_scan_progress), or nil when none is:
+-- what it is doing, a bar, and Stop. One height whatever the text, so each
+-- progress tick swaps the strip in place. Drawn in the status region's face
+-- and the shelf's ink, and the bar is the %bar token's own, so it follows the
+-- reader's bar style and colours on every theme.
+function HeroCard.buildJobRow(region, width)
+    local ok_p, Progress = pcall(require, "lib/bookshelf_scan_progress")
+    local job = ok_p and Progress.active() and Progress.job()
+    if not job then return nil end
+    region = region or {}
+    local face = regionFace(region)
+    local ink  = _ink() or Blitbuffer.COLOR_BLACK
+    local gap  = Size.padding.large
+    local _    = require("lib/bookshelf_i18n").gettext
+    local label = TextWidget:new{ text = _("Stop"), face = face, fgcolor = ink, bold = true }
+    local stop_frame = FrameContainer:new{
+        bordersize = Size.border.thin,
+        color      = ink,
+        radius     = Size.radius.button,
+        padding    = 0,
+        padding_left  = Size.padding.large,
+        padding_right = Size.padding.large,
+        margin     = 0,
+        background = nil,
+        label,
+    }
+    local stop = InputContainer:new{
+        dimen = Geom:new{ w = stop_frame:getSize().w, h = stop_frame:getSize().h },
+        stop_frame,
+    }
+    stop.ges_events = { Tap = { GestureRange:new{ ges = "tap", range = stop.dimen } } }
+    function stop:onTap()
+        Progress.stop()
+        return true
+    end
+    local stop_w = stop.dimen.w
+    local bar_w  = math.floor(width * 0.28)
+    local text_w = math.max(0, width - bar_w - stop_w - 2 * gap)
+    local text = job.title or ""
+    if job.detail and job.detail ~= "" then text = text .. "  \xC2\xB7  " .. job.detail end
+    local text_widget = _buildSegmentedInline(text, face, region.bold or false, text_w, false)
+    local bar = buildLine("%bar", region, bar_w, { book_pct = job.fraction or 0 }, nil, true)
+    local h = math.max(text_widget:getSize().h, bar:getSize().h, stop.dimen.h)
+    local function cell(w, widget)
+        return LeftContainer:new{ dimen = Geom:new{ w = w, h = h }, widget }
+    end
+    -- A little air under the row: the Stop outline would otherwise sit on the
+    -- hairline that follows it.
+    return VerticalGroup:new{ align = "left", HorizontalGroup:new{
+        align = "center",
+        cell(text_w, text_widget),
+        HorizontalSpan:new{ width = gap },
+        CenterContainer:new{ dimen = Geom:new{ w = bar_w, h = h }, bar },
+        HorizontalSpan:new{ width = gap },
+        CenterContainer:new{ dimen = Geom:new{ w = stop_w, h = h }, stop },
+    }, VerticalSpan:new{ width = Size.padding.small } }
+end
+
+-- allow_job (5th): shelf surfaces pass true, so a running background job's
+-- progress takes the line's place (shown even when the line is switched
+-- off). The reader's copy of the line (bookshelf_reader_status) does not.
+function HeroCard.buildStatusRow(book, state, width, with_hairline, allow_job)
     if with_hairline == nil then with_hairline = true end
     local regions = Regions.read()
+    local job_row = allow_job and HeroCard.buildJobRow(regions.status, width)
+    if job_row then
+        local vg = VerticalGroup:new{ align = "left", job_row }
+        if with_hairline then
+            vg[#vg + 1] = LineWidget:new{
+                dimen      = Geom:new{ w = width, h = Size.line.medium },
+                background = Blitbuffer.gray(0.4),
+            }
+            vg[#vg + 1] = VerticalSpan:new{ width = Size.padding.default }
+        end
+        return vg
+    end
     if not regions.status or regions.status.disabled then return nil end
     if not book then return nil end
     -- This is the FULL-WIDTH status line (micro-module hero + full-screen
@@ -661,7 +735,18 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
     -- scope the e-ink refresh footprint on minute-tick / frontlight /
     -- charging / wifi events to just this strip.
     self._status_strip_widgets = nil
-    if not regions.status.disabled then
+    local job_row = HeroCard.buildJobRow(regions.status, right_w)
+    if job_row then
+        local hairline_widget = LineWidget:new{
+            dimen      = Geom:new{ w = right_w, h = Size.line.medium },
+            background = Blitbuffer.gray(0.4),
+        }
+        local gap_widget = VerticalSpan:new{ width = Size.padding.default }
+        right_top[#right_top + 1] = job_row
+        right_top[#right_top + 1] = hairline_widget
+        right_top[#right_top + 1] = gap_widget
+        self._status_strip_widgets = { job_row, hairline_widget, gap_widget }
+    elseif not regions.status.disabled then
         local status_text = Tokens.expand(regions.status.template, book, state)
         status_text = stripStyleTags(status_text)
         if not Tokens.isEmpty(status_text) then

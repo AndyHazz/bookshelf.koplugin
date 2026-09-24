@@ -2473,10 +2473,37 @@ function Bookshelf:scanPageCounts()
         })
     end
 
-    Trapper:wrap(function()
+    -- Progress shows in the shelf's own status line, which leaves the shelf
+    -- usable: only its Stop stops the scan (Trapper's own message took a tap
+    -- ANYWHERE as cancel, so the scan never really ran in the background).
+    local Progress = require("lib/bookshelf_scan_progress")
+    if Progress.active() then
+        UIManager:show(InfoMessage:new{
+            text = _("Page counts are already being extracted."), timeout = 3 })
+        return
+    end
+    -- Hand control back to UIManager for a moment, so the shelf keeps
+    -- answering taps and the status line can repaint.
+    local function breathe(sec)
+        local co = coroutine.running()
+        UIManager:scheduleIn(sec or 0, function() coroutine.resume(co) end)
+        coroutine.yield()
+    end
+    local function finish()
+        Progress.finish()
+        showReport()
+    end
+
+    -- A Lua error mid-scan must still end the job, or the status line would
+    -- show its progress until KOReader restarts.
+    Trapper:wrap(function() local ok_run, err_run = xpcall(function()
+        local job = Progress.begin{
+            title = T(_("Checking publisher page numbers\xe2\x80\xa6 %1 of %2"), 0, #todo),
+            shelf = function() return _live_widget end,
+        }
         -- Phase A: publisher page numbers straight from each EPUB's zip
         -- (bookshelf_pagemap_probe) -- the truest count there is, and
-        -- milliseconds per book. Dismissing the progress message cancels.
+        -- milliseconds per book. Stop in the status line cancels.
         report.cancelled = false
         do
             local ok_probe, Probe = pcall(require, "lib/bookshelf_pagemap_probe")
@@ -2487,9 +2514,13 @@ function Bookshelf:scanPageCounts()
                         rest[#rest + 1] = fp
                     else
                         if i % 20 == 1 then
-                            if not Trapper:info(T(_(
-                                    "Checking publisher page numbers\xe2\x80\xa6 %1 of %2"),
-                                    i, #todo)) then
+                            Progress.update{
+                                title = T(_("Checking publisher page numbers\xe2\x80\xa6 %1 of %2"),
+                                          i, #todo),
+                                fraction = (i - 1) / #todo,
+                            }
+                            breathe()
+                            if job.stopped then
                                 report.cancelled = true
                                 rest[#rest + 1] = fp
                             end
@@ -2545,8 +2576,7 @@ function Bookshelf:scanPageCounts()
         SpineShelf.flushPersist()
         if report.cancelled or #todo == 0 then
             report.remaining = #todo
-            Trapper:clear()
-            showReport()
+            finish()
             return
         end
 
@@ -2554,12 +2584,11 @@ function Bookshelf:scanPageCounts()
         -- the reading engine, one subprocess per book (a crashing book
         -- kills its fork, not KOReader; dismiss cancels between books).
         local go_on = Trapper:confirm(T(_(
-            "%1 books have no page source.\n\nPaginate them the slow way?\n\nEach one is opened in the background; this can take a while. You can cancel between books by tapping the progress message."),
+            "%1 books have no page source.\n\nPaginate them the slow way?\n\nEach one is laid out in the background at your reading settings; this can take a while. You can keep using the shelf meanwhile; progress shows in its status line, with a Stop button."),
             #todo), _("Skip"), _("Paginate"))
         if not go_on then
             report.remaining = #todo
-            Trapper:clear()
-            showReport()
+            finish()
             return
         end
         local processed = 0
@@ -2571,18 +2600,27 @@ function Bookshelf:scanPageCounts()
         -- dismissing the book (issue 388).
         collectgarbage("collect")
         for i, fp in ipairs(todo) do
-            local name = fp:match("([^/]+)$") or fp
-            -- Up to one retry per book: a dismissal within a second of the
-            -- trap widget appearing is the LAUNCH tap bleeding onto it (the
-            -- same ghost runPacedScan arms against -- Trapper overwrites
-            -- the widget's dismiss_callback, so arming isn't possible
-            -- here), not the user cancelling a scan they just started.
-            -- Device report: tapping Paginate produced an instant
-            -- "report (cancelled)" with no book attempted.
+            -- Not while a book is open: each render is seconds of CPU the
+            -- reader would feel. A parked reader (under the shelf) is fine.
+            while Progress.reading() and not job.stopped do breathe(2) end
+            if job.stopped then
+                report.cancelled = true
+                break
+            end
+            Progress.update{
+                title  = T(_("Paginating\xe2\x80\xa6 %1 of %2"), i, #todo),
+                detail = nameFor(fp),
+                fraction = (i - 1) / #todo,
+                force  = true,
+            }
+            -- Up to one retry per book: Trapper answers a fork that never
+            -- started exactly as it answers a dismissal, and a fork can fail
+            -- once on a device short of memory and then start.
             local completed, pages_s
             local elapsed = 0
             for attempt = 1, 2 do
                 local t0 = _gettime()
+                job.in_run = true
                 completed, pages_s = Trapper:dismissableRunInSubprocess(
                 function()
                     local ok_pc, pc = pcall(function()
@@ -2602,21 +2640,16 @@ function Bookshelf:scanPageCounts()
                     end)
                     return tostring(ok_pc and pc or "")
                 end,
-                T(_("Paginating\xe2\x80\xa6 %1 of %2\n%3"), i, #todo, name),
-                true)
+                job, true)
+                job.in_run = false
                 elapsed = _gettime() - t0
-                if completed or elapsed > 1.0 then break end
+                if completed or job.stopped or elapsed > 1.0 then break end
             end
             if not completed then
                 report.cancelled = true
-                -- Trapper answers a fork that never started exactly as it
-                -- answers a dismissed book. Nothing attempted, twice, both
-                -- inside a second, is not someone tapping: it is the fork
-                -- failing, and saying "cancelled" sends the reader looking
-                -- for a stray tap they never made.
-                if processed == 0 and elapsed <= 1.0 then
-                    report.could_not_start = true
-                end
+                -- Only Stop dismisses the job, so an incomplete run without
+                -- it is the fork failing (issue 388), not the reader.
+                if not job.stopped then report.could_not_start = true end
                 break
             end
             processed = i
@@ -2636,8 +2669,12 @@ function Bookshelf:scanPageCounts()
             if #report.rendered % 10 == 0 then SpineShelf.flushPersist() end
         end
         report.remaining = #todo - processed
-        Trapper:clear()
-        showReport()
+        finish()
+    end, debug.traceback)
+    if not ok_run then
+        require("logger").warn("bookshelf: page count scan failed:", err_run)
+        Progress.finish()
+    end
     end)
 end
 

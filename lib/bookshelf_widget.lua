@@ -4825,7 +4825,7 @@ function BookshelfWidget:_buildMicroHero(content_w, hero_h, PAD)
     -- follow-up): same separator + Y as the book hero's right-column status,
     -- just spanning the full width like the status text already does.
     local status_row = HeroCard.buildStatusRow(current, self:_buildDeviceState(),
-                                               content_w, true)
+                                               content_w, true, true)
     if not status_row then
         self._hero_status_strip = nil
         return HeroModules.build(self, content_w, hero_h, PAD, mopts)
@@ -4870,6 +4870,16 @@ function BookshelfWidget:_buildMicroHero(content_w, hero_h, PAD)
     return vg
 end
 
+-- refreshStatusLine() -- repaint just the status line, on whichever surface
+-- is showing it: the book hero's right column, or the micro-module / expanded
+-- strip. For callers outside the widget (lib/bookshelf_scan_progress) that
+-- should not need to know which. Returns true when something was swapped.
+function BookshelfWidget:refreshStatusLine()
+    if self._hero_status_strip and self:_swapHeroStatusStrip() then return true end
+    local Regions = require("lib/bookshelf_hero_regions")
+    return self:_swapHeroRightColumnInPlace(Regions.read(), "status") and true or false
+end
+
 -- Rebuild the hero status strip (micro-module page header OR expanded strip) in
 -- place -- same swap-and-scope pattern as HeroModules._swapCell -- so its
 -- clock / battery / wifi line stays current without re-rolling the grid or
@@ -4887,7 +4897,7 @@ function BookshelfWidget:_swapHeroStatusStrip()
     -- Fresh device read (see the same invalidation in _gatedRepaint).
     _device_state_expires_at = 0
     local new_row = HeroCard.buildStatusRow(current, self:_buildDeviceState(),
-                                            rec.content_w, rec.with_hairline)
+                                            rec.content_w, rec.with_hairline, true)
     if not new_row then return false end
     vg[rec.idx] = new_row
     if vg.resetLayout then vg:resetLayout() end
@@ -4929,7 +4939,7 @@ function BookshelfWidget:_buildExpandedStrip(content_w, strip_h, PAD)
 
     -- No hairline: the chip strip below acts as the visual separator already.
     local status_row = HeroCard.buildStatusRow(current, self:_buildDeviceState(),
-                                                content_w, false)
+                                                content_w, false, true)
 
     -- Outer VerticalGroup pads the strip to strip_h (= the height the layout
     -- math reserved). Without this the strip's natural getSize would be just
@@ -11723,6 +11733,9 @@ function BookshelfWidget:_heroChipPad(PAD, expanded)
 end
 
 function BookshelfWidget:_expandedStripEmpty()
+    -- A background job's progress shows in the strip even when the line is off.
+    local ok_p, Progress = pcall(require, "lib/bookshelf_scan_progress")
+    if ok_p and Progress.active() then return false end
     local ok, off = pcall(function()
         local regions = require("lib/bookshelf_hero_regions").read()
         if not regions.status then return true end
@@ -11760,8 +11773,9 @@ function BookshelfWidget:_statusStripHeight(content_w)
                         and Repo.buildBook(self._preview_book.filepath))
                         or self._preview_book
                         or self:_currentHeroBook()
-    local probe_row = probe_book and HeroCard.buildStatusRow(
-                          probe_book, self:_buildDeviceState(), content_w, false)
+    -- A running background job's line needs no book to describe.
+    local probe_row = HeroCard.buildStatusRow(
+                          probe_book, self:_buildDeviceState(), content_w, false, true)
     local h = probe_row and probe_row:getSize().h or Screen:scaleBySize(20)
     self._strip_h_memo = { content_w = content_w, h = h, book = probe_book }
     return h, probe_book

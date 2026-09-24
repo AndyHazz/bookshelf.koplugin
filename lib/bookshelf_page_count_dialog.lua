@@ -256,6 +256,9 @@ function Dialog:init()
         width = self.width,
         title = _("Extract page counts"),
         with_bottom_line = true,
+        -- Nothing under the rule: the body brings its own padding, and a
+        -- scrolled body's bar should start AT the rule, not a strip below it.
+        bottom_v_padding = 0,
         close_callback = function() UIManager:close(self) end,
         show_parent = self,
     }
@@ -273,6 +276,23 @@ function Dialog:init()
             FrameContainer:new{ bordersize = 0, padding = pad, body },
         }
         body_block = self.cropping_widget
+        -- ScrollableContainer paints its bar one bar-width in from its right
+        -- edge, which left a strip of white between the bar and the dialog's
+        -- border (maintainer: "isn't flush with the edges"). Its state is
+        -- normally set up on first paint; do it now, so the bar exists, and
+        -- paint that bar one width further right -- against the border. It
+        -- runs the full height already, from the title's rule to the
+        -- buttons' separator. The bar records where it is painted, so
+        -- dragging it still lines up.
+        local sc = self.cropping_widget
+        pcall(function()
+            sc:initState()
+            local bar = sc._v_scroll_bar
+            if not bar then return end
+            local shift = sc.scroll_bar_width
+            local bar_paint = bar.paintTo
+            function bar:paintTo(bb, x, y) return bar_paint(self, bb, x + shift, y) end
+        end)
     end
 
     local frame = FrameContainer:new{

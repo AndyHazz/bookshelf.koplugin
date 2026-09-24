@@ -1281,6 +1281,34 @@ test("searchAll: matches author groups by name", function()
     assert(#r.authors[1].books == 1)
 end)
 
+test("searchAll: genres match by default and can be switched off (issue 371)", function()
+    Repo.invalidateWalkCache()
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/lib") and {".", "..", "dune.epub", "foundation.epub"} or {".", ".."}
+        local i = 0; return function() i = i+1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(fp, key)
+        if key == "mode" then return "file" end
+        return 0
+    end
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    _G._test_bim_data = {
+        ["/lib/dune.epub"]       = { title = "Dune", authors = "Frank Herbert", keywords = "Space opera" },
+        ["/lib/foundation.epub"] = { title = "Foundation", authors = "Isaac Asimov" },
+    }
+    Repo.invalidateSeriesCache()
+    local r = Repo.searchAll("opera")
+    assert(#r.books == 1 and r.books[1].title == "Dune", "genre match expected by default, got " .. #r.books)
+    assert(#r.genres == 1, "genre group expected by default, got " .. #r.genres)
+
+    _G._test_settings.bookshelf_search_include_genres = false
+    local r2 = Repo.searchAll("opera")
+    assert(#r2.books == 0, "no genre matches with the setting off, got " .. #r2.books)
+    assert(#r2.genres == 0, "no genre groups with the setting off, got " .. #r2.genres)
+    -- Titles and authors still match.
+    assert(#Repo.searchAll("dune").books == 1)
+end)
+
 test("searchAll: folder names off by default, matched with opt-in (#190)", function()
     Repo.invalidateWalkCache()
     package.loaded["libs/libkoreader-lfs"].dir = function(path)

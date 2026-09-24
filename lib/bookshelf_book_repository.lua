@@ -4621,7 +4621,14 @@ end
 -- Shared by the filesystem walk and the Kindle library below: two copies of the
 -- match rule is how one source quietly starts answering a different question
 -- from the other.
-local function _searchMatches(b, words)
+-- Genres and tags take part in search unless the reader has switched them
+-- off (issue 371: someone who searches by title or author finds the tag
+-- matches clutter). Folder names are the other way round -- see searchAll.
+local function _searchIncludesGenres()
+    return BookshelfSettings.read("search_include_genres") ~= false
+end
+
+local function _searchMatches(b, words, skip_genres)
     local parts = {
         (b.title       or ""):lower(),
         (b.author      or ""):lower(),
@@ -4631,7 +4638,7 @@ local function _searchMatches(b, words)
     if b.authors then
         for _i, a in ipairs(b.authors) do parts[#parts + 1] = a:lower() end
     end
-    if b.genres then
+    if b.genres and not skip_genres then
         for _i, g in ipairs(b.genres) do parts[#parts + 1] = g:lower() end
     end
     local hay = table.concat(parts, " ")
@@ -4678,6 +4685,7 @@ function Repo.searchBooks(query, limit)
     end
     if #words == 0 then return {} end
     local light_cache = _getLightMetaCache(home, depth)
+    local skip_genres = not _searchIncludesGenres()
     local out = {}
     for _i, c in ipairs(cands) do
         -- _buildBookMetaLight rather than buildBookMeta: search compares
@@ -4685,7 +4693,7 @@ function Repo.searchBooks(query, limit)
         -- search reuses the same BIM batch read warmed by a previous
         -- Series / Authors / Genres tab visit.
         local b = _lightMetaForFp(light_cache, c.fp)
-        if b and _searchMatches(b, words) then
+        if b and _searchMatches(b, words, skip_genres) then
             out[#out + 1] = b
             if limit and #out >= limit then break end
         end
@@ -4704,7 +4712,7 @@ function Repo.searchBooks(query, limit)
         end
         if ok_list and type(kindle_books) == "table" then
             for _i, b in ipairs(kindle_books) do
-                if _searchMatches(b, words) then
+                if _searchMatches(b, words, skip_genres) then
                     out[#out + 1] = b
                     if limit and #out >= limit then break end
                 end
@@ -6867,11 +6875,11 @@ function Repo.searchAll(query)
     end
     Repo.getAuthors(0, 0)
     Repo.getSeriesGroups(0, 0)
-    Repo.getGenres(0, 0)
+    if _searchIncludesGenres() then Repo.getGenres(0, 0) end
 
     local authors = matchGroups(_authors_cache)
     local series  = matchGroups(_series_cache)
-    local genres  = matchGroups(_genres_cache)
+    local genres  = _searchIncludesGenres() and matchGroups(_genres_cache) or {}
 
     -- ── books ──
     local books = Repo.searchBooks(query, 200) or {}

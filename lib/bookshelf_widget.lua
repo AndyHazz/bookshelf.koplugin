@@ -22949,7 +22949,8 @@ function BookshelfWidget:_openSearchDialog(prefill)
     dlg = InputDialog:new{
         title      = _("Search library"),
         input      = prefill or "",
-        input_hint = _("title, author, series, genre…"),
+        input_hint = BookshelfSettings.read("search_include_genres") == false
+            and _("title, author, series…") or _("title, author, series, genre…"),
         buttons = {
             {
                 {

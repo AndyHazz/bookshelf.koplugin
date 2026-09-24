@@ -4003,6 +4003,23 @@ function Settings:_librarySubItems()
             end,
         },
         {
+            -- Issue 371. On by default, as it always was.
+            text = _("Include genres and tags in search results"),
+            help_text = _("When searching, also match books by their genres"
+                .. " and tags, and list matching genres as results. Turn off"
+                .. " if you search by title, author or series and the genre"
+                .. " matches get in the way."),
+            checked_func   = function()
+                return BookshelfSettings.read("search_include_genres") ~= false
+            end,
+            keep_menu_open = true,
+            callback = function()
+                local enabled = BookshelfSettings.read("search_include_genres") ~= false
+                BookshelfSettings.save("search_include_genres", not enabled)
+                BookshelfSettings.flush()
+            end,
+        },
+        {
             -- Issue 428. On by default: calibre's title_sort, or a leading
             -- The / A / An dropped, for titles and series names alike. Off
             -- sorts both exactly as written.

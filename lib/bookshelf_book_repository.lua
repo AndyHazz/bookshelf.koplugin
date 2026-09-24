@@ -7970,9 +7970,11 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
             -- ...unless the home folder is in there too: some readers keep
             -- their books inside KOReader's folder (Android especially).
             local home_prefix = (G_reader_settings:readSetting("home_dir") or "/"):gsub("/+$", "") .. "/"
+            -- A home of "/" (unset, or the filesystem root) contains
+            -- everything, so it is no reason to keep KOReader's own files.
             local function kosOwn(fp)
                 return ko_dir and fp:sub(1, #ko_dir) == ko_dir
-                       and fp:sub(1, #home_prefix) ~= home_prefix
+                       and (home_prefix == "/" or fp:sub(1, #home_prefix) ~= home_prefix)
             end
             for fp in pairs(set) do
                 if type(fp) == "string" and not fp:find("^OPDS://")

@@ -567,7 +567,12 @@ end
 local _size_tag_memo = {}
 function ImageSource.imageSizeTag(path)
     if type(path) ~= "string" or path == "" then return nil end
-    local memo = _size_tag_memo[path]
+    -- Keyed on the file's mtime too: a folder's cover.jpg can be replaced in
+    -- place by a differently shaped picture, and the true-aspect tile has to
+    -- follow it the way loadImage's cache does.
+    local mtime = lfs.attributes(path, "modification") or 0
+    local mkey = path .. "\0" .. tostring(mtime)
+    local memo = _size_tag_memo[mkey]
     if memo ~= nil then return memo or nil end
     local w, h
     local ok = pcall(function()
@@ -607,10 +612,10 @@ function ImageSource.imageSizeTag(path)
     end)
     if ok and w and h and w > 0 and h > 0 then
         local tag = w .. "x" .. h
-        _size_tag_memo[path] = tag
+        _size_tag_memo[mkey] = tag
         return tag
     end
-    _size_tag_memo[path] = false
+    _size_tag_memo[mkey] = false
     return nil
 end
 

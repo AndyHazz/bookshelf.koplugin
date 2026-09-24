@@ -2786,6 +2786,14 @@ test("getBySource: a sorted Recent chip still shows only books, not KOReader's o
     }
     local list = Repo.getBySource({ kind = "recent" }, nil,
         { { key = "last_opened", reverse = true } }, 0, 10)
+    -- A home of "/" contains everything: still no reason to keep KOReader's files.
+    _G._test_settings.home_dir = "/"
+    Repo.invalidateWalkCache()
+    local root_list = Repo.getBySource({ kind = "recent" }, nil,
+        { { key = "last_opened", reverse = true } }, 0, 10)
+    for _i, b in ipairs(root_list) do
+        assert(b.title ~= "Quickstart", "home_dir = / let KOReader's quickstart through")
+    end
     package.loaded["readhistory"].hist = {}
     package.loaded["datastorage"] = prev_ds
     _teardownResolverLibrary()

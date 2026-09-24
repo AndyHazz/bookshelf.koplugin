@@ -576,6 +576,18 @@ function SpineShelf.persistProgress(fp, pages, status, src)
     _progress_validated[fp] = true
 end
 
+-- persistPages(fp, pages, src) -- a page-count scan's answer, and nothing else.
+-- persistProgress also records the book's read status, which the scan had to
+-- open every book's sidecar to learn: seconds of main-process work over a
+-- library, while the shelf waited. The status is the plan's to record when it
+-- shows the book; the scan only knows a count.
+function SpineShelf.persistPages(fp, pages, src)
+    if not fp or not pages then return end
+    local F = _facts()
+    if not F then return end
+    F.put(fp, { p = pages, psrc = src })
+end
+
 -- shownPages(fp) -> the stored count, when it is one to show as the book's
 -- page count; nil otherwise.
 -- Reddit report: "page counts extracted by Bookshelf are way off, like a

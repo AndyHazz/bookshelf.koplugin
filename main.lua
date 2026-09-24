@@ -2386,38 +2386,12 @@ function Bookshelf:scanPageCounts(opts)
     -- A count from an older scan ("scan", untagged on a never-opened book,
     -- or "layout": a render at crengine's own defaults, 3-4x short of what
     -- the reader shows) is not shown, so those books are counted again.
+    -- Classified inside the job (classify, below), a sidecar read per opened
+    -- book, so the shelf answers taps from the first moment instead of
+    -- freezing before the status line even appears.
     local fps = Repo.getAllFilepaths and Repo.getAllFilepaths() or {}
     local skipped = 0
     local fn_list, todo = {}, {}
-    for _i, fp in ipairs(fps) do
-        local fn = Repo.pageCountFromFilename
-                   and Repo.pageCountFromFilename(fp)
-        local pp, _ps, _known, psrc, opened = SpineShelf.cachedProgress(fp)
-        local _p, _s, _r, pc, _pn, pc_src = Repo.readProgress(fp)
-        local trusted = not opts.recount
-                        and (psrc == "print" or psrc == "user"
-                             or psrc == "stable" or pc_src == "stable")
-        -- The filename marker outranks a persisted echo of itself: the
-        -- spine plan persists whatever readProgress answers when a page
-        -- is shown, so a never-opened p(N) book usually arrives here
-        -- already holding N -- that is still a filename count, not an
-        -- "opened" one. A count that DISAGREES with the marker came from
-        -- a sidecar or a real scan and wins.
-        if fn and (pc == nil or pc == fn) and (pp == nil or pp == fn) then
-            fn_list[#fn_list + 1] = fp
-        elseif trusted then
-            skipped = skipped + 1
-        else
-            todo[#todo + 1] = fp
-        end
-    end
-    if #todo == 0 and #fn_list == 0 then
-        UIManager:show(InfoMessage:new{
-            text    = _("Every book already has a page count."),
-            timeout = 3,
-        })
-        return
-    end
 
     -- Report names: the light record's title when the batch knows the
     -- book (one map hit), else the de-extensioned filename.
@@ -2429,32 +2403,15 @@ function Bookshelf:scanPageCounts(opts)
         return (fp:match("([^/]+)$") or fp):gsub("%.[^%.]+$", "")
     end
 
-    -- persist(fp, pages, tag, is_publisher): the count lands in the spine
-    -- shelf's store, tagged "print" or "user" (both served library-wide
-    -- through readProgress's fallback),
-    -- and a PUBLISHER count is additionally written into the book's
-    -- sidecar as pagemap_doc_pages -- the key ReaderPageMap owns and every
-    -- token consumer already reads -- but only when a sidecar EXISTS and
-    -- knows no count of its own: sidecars are never created (stock
-    -- KOReader treats their existence as "book opened"), and a sidecar
-    -- that already answers is never second-guessed.
-    local function persist(fp, pages, tag, is_publisher)
-        local _p2, st = Repo.readProgress(fp)
-        SpineShelf.persistProgress(fp, pages, st, tag)
-        if is_publisher then
-            pcall(function()
-                local DocSettings = require("docsettings")
-                if not DocSettings:hasSidecarFile(fp) then return end
-                local ds = DocSettings:open(fp)
-                local stats = ds:readSetting("stats")
-                if ds:readSetting("pagemap_doc_pages")
-                        or (type(stats) == "table" and stats.pages) then
-                    return
-                end
-                ds:saveSetting("pagemap_doc_pages", pages)
-                ds:flush()
-            end)
-        end
+    -- persist(fp, pages, tag): the count lands in bookshelf's own facts
+    -- store, tagged "print" or "user" (both served library-wide through
+    -- readProgress's fallback) -- and nowhere else. It used to be written into
+    -- a sidecar as KOReader's own pagemap_doc_pages too, and to read each
+    -- book's sidecar for its status first: main-process work per book that
+    -- kept the shelf from answering taps, for a count the store already
+    -- serves everywhere it is shown.
+    local function persist(fp, pages, tag)
+        SpineShelf.persistPages(fp, pages, tag)
     end
 
     local report = {
@@ -2465,9 +2422,6 @@ function Bookshelf:scanPageCounts(opts)
         rendered  = {},
         failed    = {},
     }
-    for _i, fp in ipairs(fn_list) do
-        report.filename[#report.filename + 1] = nameFor(fp)
-    end
 
     local function showReport()
         SpineShelf.flushPersist()
@@ -2499,11 +2453,9 @@ function Bookshelf:scanPageCounts(opts)
         UIManager:scheduleIn(sec or 0, function() coroutine.resume(co) end)
         coroutine.yield()
     end
-    -- The fast passes run in THIS process, a zip read per book plus a
-    -- sidecar read for each count they store: on a PW5 that is seconds
-    -- between breaths when they came every 20 books, and the shelf could not
-    -- be used meanwhile (device report). Breathe by time instead: whenever
-    -- SLICE_S of work has gone by, however many books that was.
+    -- The Hardcover pass runs in this process (a table lookup and a store
+    -- write per book, no file reads): breathe whenever SLICE_S of it has gone
+    -- by, so a large linked library cannot hold the shelf up either.
     local SLICE_S = 0.05
     local _gettime_slice = require("lib/bookshelf_gettime")
     local slice_start = _gettime_slice()
@@ -2521,66 +2473,131 @@ function Bookshelf:scanPageCounts(opts)
     local function scanTitle(i, n)
         return T(_("Counting pages in book %1 of %2"), i, n)
     end
+    -- One bar for the whole scan. The fast passes (publisher pages,
+    -- Hardcover) take its first tenth when books are rendered after them --
+    -- they are seconds against minutes -- and all of it when not. They show
+    -- no book count: it would run to the total and then start again for the
+    -- render, which read as two progress bars (device report).
+    local FAST_SHARE = (opts.render == false) and 1 or 0.1
+    local function fastFraction(f) return FAST_SHARE * f end
+    local function renderFraction(f) return FAST_SHARE + (1 - FAST_SHARE) * f end
+    local function lookupTitle() return _("Looking up page numbers\xe2\x80\xa6") end
     -- Before it, a book whose pages turn: book-open-page-variant,
     -- book-open-variant and book-open-o, one per update. Private Use Area
     -- code points, which is what the status line's icon path renders safely.
     local SCAN_ICONS = { "\xee\xb3\x99", "\xee\x9e\xbd", "\xee\x8a\x8b" }
 
+    local function classify()
+        for _i, fp in ipairs(fps) do
+            maybeBreathe()
+            local fn = Repo.pageCountFromFilename
+                       and Repo.pageCountFromFilename(fp)
+            local pp, _ps, _known, psrc, opened = SpineShelf.cachedProgress(fp)
+            local _p, _s, _r, pc, _pn, pc_src = Repo.readProgress(fp)
+            local trusted = not opts.recount
+                            and (psrc == "print" or psrc == "user"
+                                 or psrc == "stable" or pc_src == "stable")
+            -- The filename marker outranks a persisted echo of itself: the
+            -- spine plan persists whatever readProgress answers when a page
+            -- is shown, so a never-opened p(N) book usually arrives here
+            -- already holding N -- that is still a filename count, not an
+            -- "opened" one. A count that DISAGREES with the marker came from
+            -- a sidecar or a real scan and wins.
+            if fn and (pc == nil or pc == fn) and (pp == nil or pp == fn) then
+                fn_list[#fn_list + 1] = fp
+            elseif trusted then
+                skipped = skipped + 1
+            else
+                todo[#todo + 1] = fp
+            end
+        end
+    end
+
     -- A Lua error mid-scan must still end the job, or the status line would
     -- show its progress until KOReader restarts.
     Trapper:wrap(function() local ok_run, err_run = xpcall(function()
         local job = Progress.begin{
-            title  = scanTitle(0, #todo),
+            title  = lookupTitle(),
             icons  = SCAN_ICONS,
             shelf = function() return _live_widget end,
         }
+        classify()
+        report.skipped = skipped
+        if #todo == 0 and #fn_list == 0 then
+            Progress.finish()
+            UIManager:show(InfoMessage:new{
+                text    = _("Every book already has a page count."),
+                timeout = 3,
+            })
+            return
+        end
+        for _i, fp in ipairs(fn_list) do
+            report.filename[#report.filename + 1] = nameFor(fp)
+        end
         -- Phase A: publisher page numbers straight from each EPUB's zip
         -- (bookshelf_pagemap_probe) -- the truest count there is, and
         -- milliseconds per book. Stop in the status line cancels.
         report.cancelled = false
         if opts.publisher ~= false then
-            local ok_probe, Probe = pcall(require, "lib/bookshelf_pagemap_probe")
-            if ok_probe and Probe then
-                local rest = {}
-                for i, fp in ipairs(todo) do
-                    if report.cancelled then
-                        rest[#rest + 1] = fp
-                    else
-                        -- Throttled inside: this repaints at most once a second.
-                        Progress.update{
-                            title = scanTitle(i, #todo),
-                            fraction = (i - 1) / #todo,
-                        }
-                        maybeBreathe()
-                        if job.stopped then
-                            report.cancelled = true
-                            rest[#rest + 1] = fp
+            -- In forked batches, like the render pass: the zip reads leave
+            -- the main process, so the shelf keeps answering taps (device
+            -- report: swipes queued until this pass finished), and the
+            -- libarchive memory that used to need a full collect every 25
+            -- books (issue 388: +69MB over 249 EPUBs without) goes back to
+            -- the system when each child exits. A batch is one line of
+            -- output per book, the count or nothing.
+            local BATCH = 40
+            local rest = {}
+            local i = 1
+            while i <= #todo do
+                local batch = {}
+                for k = i, math.min(i + BATCH - 1, #todo) do batch[#batch + 1] = todo[k] end
+                if job.stopped then report.cancelled = true end
+                if report.cancelled then
+                    for _k, fp in ipairs(batch) do rest[#rest + 1] = fp end
+                else
+                    Progress.update{
+                        title = lookupTitle(),
+                        fraction = fastFraction((i - 1) / #todo),
+                    }
+                    job.in_run = true
+                    local completed, out = Trapper:dismissableRunInSubprocess(function()
+                        local ok_p, Probe = pcall(require, "lib/bookshelf_pagemap_probe")
+                        local lines = {}
+                        for k, fp in ipairs(batch) do
+                            local ok_n, n = false, nil
+                            if ok_p and Probe then ok_n, n = pcall(Probe.publisherPages, fp) end
+                            lines[k] = (ok_n and tonumber(n) and n > 0) and tostring(n) or ""
                         end
-                        if not report.cancelled then
-                            local n = Probe.publisherPages(fp)
-                            -- libarchive's allocations are ffi.gc-wrapped, so
-                            -- they come back only when LuaJIT collects the
-                            -- small cdata that owns them -- and LuaJIT paces
-                            -- its collector off the Lua heap, which this loop
-                            -- barely moves. Measured over 249 real EPUBs:
-                            -- +69MB across the scan without this, +11MB with,
-                            -- same books found, same wall time. A 1200-book
-                            -- library on a 512MB device does not survive the
-                            -- difference -- it dies at a different book every
-                            -- run, which is what issue 388 reported.
-                            if i % 25 == 0 then collectgarbage("collect") end
-                            if n and n > 0 then
-                                persist(fp, n, "print", true)
+                        return table.concat(lines, "\n") .. "\n"
+                    end, job, true)
+                    job.in_run = false
+                    if not completed then
+                        -- Stopped, or the fork failed: these books are not
+                        -- counted, and a failed fork ends the pass.
+                        report.cancelled = true
+                        if not job.stopped then report.could_not_start = true end
+                        for _k, fp in ipairs(batch) do rest[#rest + 1] = fp end
+                    else
+                        local k = 0
+                        for line in (out or ""):gmatch("([^\n]*)\n") do
+                            k = k + 1
+                            local fp, n = batch[k], tonumber(line)
+                            if fp and n and n > 0 then
+                                persist(fp, n, "print")
                                 report.publisher[#report.publisher + 1] =
                                     { name = nameFor(fp), pages = n }
-                            else
+                            elseif fp then
                                 rest[#rest + 1] = fp
                             end
                         end
+                        -- A short answer leaves the rest uncounted, not lost.
+                        for j = k + 1, #batch do rest[#rest + 1] = batch[j] end
                     end
                 end
-                todo = rest
+                i = i + BATCH
             end
+            todo = rest
         end
         -- Phase B: Hardcover-linked books carry their matched edition's
         -- page count in the plugin's own settings -- one local read for
@@ -2596,7 +2613,7 @@ function Bookshelf:scanPageCounts(opts)
                     maybeBreathe()
                     if job.stopped then report.cancelled = true end
                     if linked[fp] and not report.cancelled then
-                        persist(fp, linked[fp], "print", false)
+                        persist(fp, linked[fp], "print")
                         report.hardcover[#report.hardcover + 1] =
                             { name = nameFor(fp), pages = linked[fp] }
                     else
@@ -2635,7 +2652,7 @@ function Bookshelf:scanPageCounts(opts)
             end
             Progress.update{
                 title  = scanTitle(i, #todo),
-                fraction = (i - 1) / #todo,
+                fraction = renderFraction((i - 1) / #todo),
                 force  = true,
             }
             -- Up to one retry per book: Trapper answers a fork that never
@@ -2684,7 +2701,7 @@ function Bookshelf:scanPageCounts(opts)
                 -- A render count is layout-derived, not publisher truth:
                 -- it stays out of sidecars (persist() only writes those
                 -- for publisher counts).
-                persist(fp, pages, "user", false)
+                persist(fp, pages, "user")
                 report.rendered[#report.rendered + 1] =
                     { name = nameFor(fp), pages = pages }
             else

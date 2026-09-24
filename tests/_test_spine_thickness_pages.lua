@@ -60,12 +60,23 @@ local F = {
         rows[fp] = e
     end,
 }
+local persistPages = fn(ss, "persistPages", "fp, pages, src", {
+    _facts = function() return F end,
+})
 local persist = fn(ss, "persistProgress", "fp, pages, status, src", {
     SCAN_TAGS = { print = true, user = true, layout = true, scan = true },
     _facts = function() return F end,
     _sidecarMtime = function() return 7 end,
     _progress_validated = {},
 })
+
+t.test("the scan's store write touches the count alone", function()
+    rows = { ["/b.epub"] = { p = 300, psrc = "render", s = "reading", sk = true, m = 5 } }
+    persistPages("/b.epub", 412, "print")
+    eq(rows["/b.epub"].p, 412); eq(rows["/b.epub"].psrc, "print")
+    eq(rows["/b.epub"].s, "reading", "the scan wiped a status it never read")
+    eq(rows["/b.epub"].sk, true); eq(rows["/b.epub"].m, 5)
+end)
 
 t.test("a count is stored with where it came from", function()
     rows = {}
@@ -131,12 +142,19 @@ t.test("the scan renders at the reader's layout, in the reader's order", functio
 end)
 
 t.test("the scan tags its counts and probes opened books with only a rendered one", function()
-    assert(mn:find('SpineShelf.persistProgress(fp, pages, st, tag)', 1, true))
-    for _i, s in ipairs({ 'persist(fp, n, "print", true)',
-                          'persist(fp, linked[fp], "print", false)',
-                          'persist(fp, pages, "user", false)' }) do
+    assert(mn:find('SpineShelf.persistPages(fp, pages, tag)', 1, true))
+    for _i, s in ipairs({ 'persist(fp, n, "print")',
+                          'persist(fp, linked[fp], "print")',
+                          'persist(fp, pages, "user")' }) do
         assert(mn:find(s, 1, true), "the scan no longer tags: " .. s)
     end
+    -- Counts live in bookshelf's own store only: no sidecar reads or writes
+    -- in the scan's main-process work (device report: the shelf froze).
+    local body = mn:match("\nfunction Bookshelf:scanPageCounts%(opts%)\n(.-)\nend\n")
+    assert(body, "scanPageCounts moved")
+    assert(not body:find("saveSetting(\"pagemap_doc_pages\"", 1, true), "the scan writes sidecars again")
+    assert(not body:find("Repo.readProgress(fp)", 1, true) or body:find("local _p, _s, _r, pc", 1, true),
+        "the scan reads a sidecar per stored count again")
     assert(mn:find("elseif trusted then", 1, true),
         "an opened book is still skipped for having any count")
 end)

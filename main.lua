@@ -2499,6 +2499,19 @@ function Bookshelf:scanPageCounts(opts)
         UIManager:scheduleIn(sec or 0, function() coroutine.resume(co) end)
         coroutine.yield()
     end
+    -- The fast passes run in THIS process, a zip read per book plus a
+    -- sidecar read for each count they store: on a PW5 that is seconds
+    -- between breaths when they came every 20 books, and the shelf could not
+    -- be used meanwhile (device report). Breathe by time instead: whenever
+    -- SLICE_S of work has gone by, however many books that was.
+    local SLICE_S = 0.05
+    local _gettime_slice = require("lib/bookshelf_gettime")
+    local slice_start = _gettime_slice()
+    local function maybeBreathe()
+        if _gettime_slice() - slice_start < SLICE_S then return end
+        breathe()
+        slice_start = _gettime_slice()
+    end
     local function finish()
         Progress.finish()
         showReport()
@@ -2533,16 +2546,15 @@ function Bookshelf:scanPageCounts(opts)
                     if report.cancelled then
                         rest[#rest + 1] = fp
                     else
-                        if i % 20 == 1 then
-                            Progress.update{
-                                title = scanTitle(i, #todo),
-                                fraction = (i - 1) / #todo,
-                            }
-                            breathe()
-                            if job.stopped then
-                                report.cancelled = true
-                                rest[#rest + 1] = fp
-                            end
+                        -- Throttled inside: this repaints at most once a second.
+                        Progress.update{
+                            title = scanTitle(i, #todo),
+                            fraction = (i - 1) / #todo,
+                        }
+                        maybeBreathe()
+                        if job.stopped then
+                            report.cancelled = true
+                            rest[#rest + 1] = fp
                         end
                         if not report.cancelled then
                             local n = Probe.publisherPages(fp)
@@ -2581,7 +2593,9 @@ function Bookshelf:scanPageCounts(opts)
                 if not next(linked) then return end
                 local rest = {}
                 for _i, fp in ipairs(todo) do
-                    if linked[fp] then
+                    maybeBreathe()
+                    if job.stopped then report.cancelled = true end
+                    if linked[fp] and not report.cancelled then
                         persist(fp, linked[fp], "print", false)
                         report.hardcover[#report.hardcover + 1] =
                             { name = nameFor(fp), pages = linked[fp] }

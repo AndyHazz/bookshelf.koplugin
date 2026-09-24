@@ -6190,9 +6190,17 @@ end
 -- windows pass straight through: their windowed fetch IS the feed trigger.
 function BookshelfWidget:_spineCachedFetch(n)
     local tip = self._drilldown_path and self._drilldown_path[#self._drilldown_path]
+    -- WHICH group, not just which kind. A genre, tag, series or author payload
+    -- carries its name in series_name, which this used to leave out: every
+    -- genre drill keyed "genre:", so tapping a second genre within the TTL
+    -- showed the first one's books under the new breadcrumb (maintainer:
+    -- relationships, then time travel, from the hero's pills). The label and
+    -- depth go in too, so no drill kind can collide this way again.
+    local pay = tip and tip.payload
     local tip_sig = tip and (tostring(tip.kind) .. ":"
-        .. tostring(tip.payload and (tip.payload.path or tip.payload.name
-                    or tip.payload.query or "") or "")) or ""
+        .. tostring(pay and (pay.path or pay.name or pay.series_name or pay.query) or "")
+        .. ":" .. tostring(tip.label or "")
+        .. ":" .. tostring(#self._drilldown_path)) or ""
     -- No settings generation in the key: the shelf's OWN cursor saves bump
     -- it every turn, which refetched every turn (device log: 10s builds).
     -- Chip edits invalidate explicitly; the TTL bounds everything else.

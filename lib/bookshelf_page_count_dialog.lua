@@ -233,7 +233,7 @@ function Dialog:init()
         VerticalSpan:new{ width = pad },
         heading(_("Use page counts from, in this order")),
         VerticalSpan:new{ width = gap },
-        pub, hcv, fnm, ren,
+        pub, hcv, ren, fnm,
         VerticalSpan:new{ width = gap },
         heading(_("Which books")),
         VerticalSpan:new{ width = gap },

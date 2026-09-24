@@ -2377,8 +2377,8 @@ function Bookshelf:scanPageCounts(opts)
     --   skip   books that already have a count this scan trusts: a prior
     --          scan ("print", "filename" or "user") or stable page numbers,
     --   probe  the rest, through the sources the dialog left ticked, in its
-    --          order: publisher page list, Hardcover, a p(N) file name,
-    --          then render. The first that answers wins.
+    --          order: publisher page list, Hardcover, render, then a p(N)
+    --          file name. The first that answers wins.
     -- An opened book is probed too when all it has is KOReader's rendered
     -- count, which follows that book's own font if it was changed: the spine's
     -- thickness wants the one layout every scanned book shares (issue 387,
@@ -2620,13 +2620,16 @@ function Bookshelf:scanPageCounts(opts)
                 todo = rest
             end)
         end
-        -- Phase F: a p(N) marker in the file name, when the reader keeps it
-        -- among the sources. After the book's own publisher numbers and
-        -- Hardcover (both of which count the printed book), before the
-        -- render; a string match per book, in this process.
-        if not report.cancelled and opts.filename ~= false then
+        -- Last of the sources: a p(N) marker in the file name, when the
+        -- reader keeps it. The lowest priority (maintainer): often Calibre's
+        -- estimate, so it answers only for books nothing else counted -- all
+        -- that is left when the render is off, and the renders that failed
+        -- when it is on. A string match per book, in this process.
+        -- filenamePass(list) -> the books it could not count.
+        local function filenamePass(list)
+            if report.cancelled or opts.filename == false then return list end
             local rest = {}
-            for _i, fp in ipairs(todo) do
+            for _i, fp in ipairs(list) do
                 maybeBreathe()
                 if job.stopped then report.cancelled = true end
                 local n = not report.cancelled and Repo.pageCountFromFilename
@@ -2638,11 +2641,13 @@ function Bookshelf:scanPageCounts(opts)
                     rest[#rest + 1] = fp
                 end
             end
-            todo = rest
+            return rest
         end
         SpineShelf.flushPersist()
         -- The slow pass was chosen (or not) in the dialog, before any of this.
         if report.cancelled or #todo == 0 or opts.render == false then
+            todo = filenamePass(todo)
+            SpineShelf.flushPersist()
             report.remaining = #todo
             finish()
             return
@@ -2652,6 +2657,7 @@ function Bookshelf:scanPageCounts(opts)
         -- the reading engine, one subprocess per book (a crashing book
         -- kills its fork, not KOReader; Stop cancels between books).
         local processed = 0
+        local failed = {}
         local _gettime = require("lib/bookshelf_gettime")
         -- Every subprocess below is a fork of this one, so it needs room.
         -- The passes above hand their C allocations back only on a full
@@ -2722,13 +2728,19 @@ function Bookshelf:scanPageCounts(opts)
                 report.rendered[#report.rendered + 1] =
                     { name = nameFor(fp), pages = pages }
             else
-                report.failed[#report.failed + 1] = nameFor(fp)
+                failed[#failed + 1] = fp
             end
             -- Flush every few books: a mid-scan crash or battery death
             -- should not cost the finished work.
             if #report.rendered % 10 == 0 then SpineShelf.flushPersist() end
         end
         report.remaining = #todo - processed
+        -- A book the render could not lay out may still have a file name
+        -- to go by; only what that leaves is reported as failed.
+        for _i, fp in ipairs(filenamePass(failed)) do
+            report.failed[#report.failed + 1] = nameFor(fp)
+        end
+        SpineShelf.flushPersist()
         finish()
     end, debug.traceback)
     if not ok_run then

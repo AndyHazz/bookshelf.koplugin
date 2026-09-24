@@ -542,6 +542,8 @@ end
 -- (issue 387, see thicknessPages):
 --   "print"   the page-count scan's publisher page list or Hardcover edition:
 --             the printed book's pages
+--   "filename" the page-count scan's copy of a p(N) marker in the file name,
+--             when the reader kept file names among its sources
 --   "user"    the page-count scan's headless render at the reader's own
 --             global layout (lib/bookshelf_reader_layout): close to the count
 --             the reader will show, so it is shown
@@ -556,8 +558,8 @@ end
 -- A rendered count never overwrites a scanned one: the plan persists what
 -- readProgress answers for every book it shows, and that used to replace the
 -- scan's layout-free count with the font-dependent one on first sight.
-local SCAN_TAGS  = { print = true, user = true, layout = true, scan = true }
-local SHOWN_TAGS = { print = true, user = true, stable = true, render = true }
+local SCAN_TAGS  = { print = true, user = true, filename = true, layout = true, scan = true }
+local SHOWN_TAGS = { print = true, user = true, filename = true, stable = true, render = true }
 SpineShelf.SCAN_TAGS = SCAN_TAGS
 
 function SpineShelf.persistProgress(fp, pages, status, src)
@@ -620,7 +622,7 @@ end
 -- The %pages token and the hero keep the reading count: that is the number
 -- of pages the reader actually turns. This is only the spine's width.
 function SpineShelf.thicknessPages(c)
-    return c.filename or c.stable or c.scan or c.bim or c.rendered
+    return c.stable or c.scan or c.filename or c.bim or c.rendered
 end
 
 local function _sampleAverage(bb)
@@ -3377,15 +3379,19 @@ function SpineShelf.plan(items, opts)
                         src._page_src = pc_src or "render"
                     end
                     if src.status == nil then src.status = st end
-                    if pc and (pc_src == "stable" or pc_src == "filename") then
+                    if pc and pc_src == "stable" then
                         thick.stable = thick.stable or pc
                     end
                     -- A count the store itself supplied goes back unchanged
-                    -- (nil leaves it alone), keeping its tag.
-                    local tag = (pc_src == "stable" or pc_src == "filename") and "stable"
+                    -- (nil leaves it alone), keeping its tag. So does a
+                    -- filename marker's, which is free to read again: stored
+                    -- as "stable" it passed for the book's own page numbers,
+                    -- and a scan skipped the book as already counted.
+                    local tag = (pc_src == "stable" and "stable")
                                 or (pc_src == "render" and "render") or nil
+                    local keep = pc_src ~= "store" and pc_src ~= "filename"
                     SpineShelf.persistProgress(src.filepath,
-                        pc_src ~= "store" and pc or nil, st, tag)
+                        keep and pc or nil, st, tag)
                 end)
                 _t_pages = _t_pages + (_gettime() - _tp)
             end

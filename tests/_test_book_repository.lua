@@ -5585,7 +5585,7 @@ test("one function owns the end of the page-count ladder", function()
             "what the caller already knows wins")
         assert(Repo.pageCountFor("/lib/x.epub", nil) == 300, "then the store")
         assert(Repo.pageCountFor("/lib/y p(88).epub", nil) == 88,
-            "and the filename marker comes before the store")
+            "and the filename marker answers when the store does not")
         assert(Repo.pageCountFor("/lib/z.epub", 0) == nil,
             "a zero is not a count")
         assert(Repo.pageCountFor(nil, nil) == nil, "no path, no answer")
@@ -5605,12 +5605,18 @@ test("an opened book with no committed total still gets the marker", function()
     _G._test_docsettings_data = nil
 end)
 
-test("a filename marker still outranks the scan store", function()
-    -- p(N) in the name is free and authoritative; the store often holds a
-    -- persisted echo of that same number.
+test("a scanned count outranks a filename marker; the marker is the fallback", function()
+    -- The maintainer: a p(N) set by Calibre "won't be as accurate as ours",
+    -- and a reader with those in their file names may want to override them.
+    -- A scan that keeps file names as a source stores the marker's own
+    -- number, so for that reader nothing changes.
     with_scan_store({ ["/lib/marked p(250).epub"] = 999 }, function()
         local _p, _s, _r, pages = Repo.progressFor("/lib/marked p(250).epub")
-        assert(pages == 250, "expected the filename marker, got " .. tostring(pages))
+        assert(pages == 999, "expected the scan's count, got " .. tostring(pages))
+    end)
+    with_scan_store({}, function()
+        local _p, _s, _r, pages = Repo.progressFor("/lib/unscanned p(250).epub")
+        assert(pages == 250, "an unscanned book lost its marker: " .. tostring(pages))
     end)
 end)
 

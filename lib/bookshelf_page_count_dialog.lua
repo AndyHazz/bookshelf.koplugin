@@ -19,12 +19,12 @@ local _            = require("lib/bookshelf_i18n").gettext
 
 local M = {}
 
-M.SETTING = "page_count_scan"   -- { publisher=, hardcover=, render=, recount= }
+M.SETTING = "page_count_scan"   -- { publisher=, hardcover=, filename=, render=, recount= }
 
 -- options() -> the remembered choices, every source on by default.
 function M.options()
     local saved = Settings.read(M.SETTING)
-    local o = { publisher = true, hardcover = true, render = true, recount = false }
+    local o = { publisher = true, hardcover = true, filename = true, render = true, recount = false }
     if type(saved) == "table" then
         for k in pairs(o) do
             if saved[k] ~= nil then o[k] = saved[k] and true or false end
@@ -42,12 +42,13 @@ end
 
 -- anySource(o, hc) -> whether the scan would have anything to use.
 function M.anySource(o, hc)
-    return o.publisher or (hc and o.hardcover) or o.render
+    return o.publisher or (hc and o.hardcover) or o.filename or o.render
 end
 
 -- deleteScanned(on_done): ask, then clear every count earlier scans stored.
 -- Counts KOReader keeps for books that have been opened are not touched, and
--- neither is a p(N) in a file name.
+-- neither is a p(N) in a file name (which is read again whenever no scanned
+-- count stands in front of it).
 function M.deleteScanned(on_done)
     local ok_f, Facts = pcall(require, "lib/bookshelf_book_facts_db")
     local n = ok_f and Facts.countPageCounts and Facts.countPageCounts() or 0
@@ -166,6 +167,11 @@ function Dialog:init()
                    or _("No books are linked to Hardcover."),
         checked = hc and o.hardcover, enabled = hc, callback = source("hardcover"),
     }
+    local fnm, _fnm = option{
+        label = _("Page counts in file names"),
+        hint  = _("A count in the file name, like p(320), as some Calibre setups add. Often an estimate. Fast."),
+        checked = o.filename, callback = source("filename"),
+    }
     local ren, _ren = option{
         label = _("Your reading settings"),
         hint  = _("Lays out each remaining book in your font and margins, so the count matches what you see when reading. Slow; runs in the background."),
@@ -225,16 +231,13 @@ function Dialog:init()
         text(_("Finds how long each book is, for spine thickness, page count badges, sorting and the page count token."),
              Font:getFace("smallinfofont")),
         VerticalSpan:new{ width = pad },
-        heading(_("Use page counts from")),
+        heading(_("Use page counts from, in this order")),
         VerticalSpan:new{ width = gap },
-        pub, hcv, ren,
+        pub, hcv, fnm, ren,
         VerticalSpan:new{ width = gap },
         heading(_("Which books")),
         VerticalSpan:new{ width = gap },
         missing, every,
-        VerticalSpan:new{ width = gap },
-        text(_("A page count in a file name, like p(320), is always used as it is."),
-             hint_face, Blitbuffer.COLOR_DARK_GRAY),
     }
     local frame = FrameContainer:new{
         radius = Size.radius.window,

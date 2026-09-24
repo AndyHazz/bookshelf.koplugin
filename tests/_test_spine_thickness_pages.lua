@@ -38,9 +38,12 @@ t.test("the rendered count is the last resort", function()
     eq(thick{ bim = 210, rendered = 500 }, 210)
 end)
 
-t.test("a filename marker, then stable page numbers, win", function()
-    eq(thick{ filename = 400, stable = 350, scan = 320, bim = 300, rendered = 500 }, 400)
-    eq(thick{ stable = 350, scan = 320, rendered = 500 }, 350)
+t.test("stable page numbers, then a scan, then a filename marker", function()
+    -- A scan's count beats a p(N) marker: the reader chose its sources, and a
+    -- marker is often Calibre's estimate (maintainer).
+    eq(thick{ filename = 400, stable = 350, scan = 320, bim = 300, rendered = 500 }, 350)
+    eq(thick{ filename = 400, scan = 320, rendered = 500 }, 320)
+    eq(thick{ filename = 400, bim = 300, rendered = 500 }, 400)
 end)
 
 t.test("nothing known is nothing, and the width takes its default", function()
@@ -155,7 +158,7 @@ t.test("the scan tags its counts and probes opened books with only a rendered on
     assert(not body:find("saveSetting(\"pagemap_doc_pages\"", 1, true), "the scan writes sidecars again")
     assert(not body:find("Repo.readProgress(fp)", 1, true) or body:find("local _p, _s, _r, pc", 1, true),
         "the scan reads a sidecar per stored count again")
-    assert(mn:find("elseif trusted then", 1, true),
+    assert(mn:find("if trusted then", 1, true),
         "an opened book is still skipped for having any count")
 end)
 

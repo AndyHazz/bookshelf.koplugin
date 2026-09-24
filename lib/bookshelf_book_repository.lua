@@ -1499,9 +1499,15 @@ end
 -- when it is a real number. After it come the two sources that need no file
 -- open and no database read:
 --
---   1. a p(<n>) marker in the filename (#159), free and explicit
---   2. the "Extract page counts" scan's store, which holds an ESTIMATE for
---      most books (see _scannedPageCount)
+--   1. the "Extract page counts" scan's store (see _scannedPageCount)
+--   2. a p(<n>) marker in the filename (#159), free
+--
+-- The store comes first: a scan's count is one the reader chose to have,
+-- from sources they picked -- and a marker is often Calibre's estimate, which
+-- a reader who ran the scan with "file names" unticked meant to replace
+-- (maintainer: "for someone who has that in their filenames, they might want
+-- to override it"). A scan that does use file names stores the marker's own
+-- number, so nothing changes for those who keep it.
 --
 -- Every consumer asks the same question and each had grown its own ending:
 -- the hero's had both rungs, the lazy resolver's sidecar branch had only the
@@ -1510,7 +1516,7 @@ end
 function Repo.pageCountFor(filepath, known)
     known = tonumber(known)
     if known and known > 0 then return known end
-    return pageCountFromFilename(filepath) or _scannedPageCount(filepath)
+    return _scannedPageCount(filepath) or pageCountFromFilename(filepath)
 end
 
 
@@ -1653,8 +1659,7 @@ function Repo.buildBook(filepath, opts)
     -- rung long before the division.
     -- And the same page_src readProgress would report for it.
     if not ds_page_src and fallback_page_count then
-        ds_page_src = (pageCountFromFilename(filepath) == fallback_page_count)
-                      and "filename" or "store"
+        ds_page_src = _scannedPageCount(filepath) and "store" or "filename"
     end
     _writeProgressCache(filepath, tonumber(book.book_pct), book.status,
                         book.rating, fallback_page_count, book.page_num, ds_page_src)

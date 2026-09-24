@@ -2375,9 +2375,10 @@ function Bookshelf:scanPageCounts(opts)
 
     -- Classify the library up front (user spec, in priority order):
     --   skip   books that already have a count this scan trusts: a prior
-    --          scan ("print" or "user") or stable page numbers,
-    --   count  p(N) filename markers (free -- readProgress serves them live),
-    --   probe  the rest: publisher page list, then Hardcover, then render.
+    --          scan ("print", "filename" or "user") or stable page numbers,
+    --   probe  the rest, through the sources the dialog left ticked, in its
+    --          order: publisher page list, Hardcover, a p(N) file name,
+    --          then render. The first that answers wins.
     -- An opened book is probed too when all it has is KOReader's rendered
     -- count, which follows that book's own font if it was changed: the spine's
     -- thickness wants the one layout every scanned book shares (issue 387,
@@ -2391,7 +2392,7 @@ function Bookshelf:scanPageCounts(opts)
     -- freezing before the status line even appears.
     local fps = Repo.getAllFilepaths and Repo.getAllFilepaths() or {}
     local skipped = 0
-    local fn_list, todo = {}, {}
+    local todo = {}
 
     -- Report names: the light record's title when the batch knows the
     -- book (one map hit), else the de-extensioned filename.
@@ -2494,18 +2495,17 @@ function Bookshelf:scanPageCounts(opts)
                        and Repo.pageCountFromFilename(fp)
             local pp, _ps, _known, psrc, opened = SpineShelf.cachedProgress(fp)
             local _p, _s, _r, pc, _pn, pc_src = Repo.readProgress(fp)
-            local trusted = not opts.recount
-                            and (psrc == "print" or psrc == "user"
+            -- The spine plan used to store a p(N) book's marker as "stable",
+            -- as though it were the book's own page numbers; such a row is
+            -- the file name's count, and one the reader may be replacing.
+            local echo = fn and psrc == "stable" and pp == fn and pc_src ~= "stable"
+            -- A p(N) marker is no longer a reason to skip a book: it is one
+            -- source among the others, tried in the dialog's order, and a
+            -- reader who unticked it wants the other sources to replace it.
+            local trusted = not opts.recount and not echo
+                            and (psrc == "print" or psrc == "user" or psrc == "filename"
                                  or psrc == "stable" or pc_src == "stable")
-            -- The filename marker outranks a persisted echo of itself: the
-            -- spine plan persists whatever readProgress answers when a page
-            -- is shown, so a never-opened p(N) book usually arrives here
-            -- already holding N -- that is still a filename count, not an
-            -- "opened" one. A count that DISAGREES with the marker came from
-            -- a sidecar or a real scan and wins.
-            if fn and (pc == nil or pc == fn) and (pp == nil or pp == fn) then
-                fn_list[#fn_list + 1] = fp
-            elseif trusted then
+            if trusted then
                 skipped = skipped + 1
             else
                 todo[#todo + 1] = fp
@@ -2523,16 +2523,13 @@ function Bookshelf:scanPageCounts(opts)
         }
         classify()
         report.skipped = skipped
-        if #todo == 0 and #fn_list == 0 then
+        if #todo == 0 then
             Progress.finish()
             UIManager:show(InfoMessage:new{
                 text    = _("Every book already has a page count."),
                 timeout = 3,
             })
             return
-        end
-        for _i, fp in ipairs(fn_list) do
-            report.filename[#report.filename + 1] = nameFor(fp)
         end
         -- Phase A: publisher page numbers straight from each EPUB's zip
         -- (bookshelf_pagemap_probe) -- the truest count there is, and
@@ -2622,6 +2619,26 @@ function Bookshelf:scanPageCounts(opts)
                 end
                 todo = rest
             end)
+        end
+        -- Phase F: a p(N) marker in the file name, when the reader keeps it
+        -- among the sources. After the book's own publisher numbers and
+        -- Hardcover (both of which count the printed book), before the
+        -- render; a string match per book, in this process.
+        if not report.cancelled and opts.filename ~= false then
+            local rest = {}
+            for _i, fp in ipairs(todo) do
+                maybeBreathe()
+                if job.stopped then report.cancelled = true end
+                local n = not report.cancelled and Repo.pageCountFromFilename
+                          and Repo.pageCountFromFilename(fp)
+                if n and n > 0 then
+                    persist(fp, n, "filename")
+                    report.filename[#report.filename + 1] = nameFor(fp)
+                else
+                    rest[#rest + 1] = fp
+                end
+            end
+            todo = rest
         end
         SpineShelf.flushPersist()
         -- The slow pass was chosen (or not) in the dialog, before any of this.

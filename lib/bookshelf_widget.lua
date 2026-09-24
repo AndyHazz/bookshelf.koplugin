@@ -18091,7 +18091,12 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
     -- inset from the button rows by the dialog's title_padding. The content
     -- fills it edge to edge; only the TITLE row reserves space for the
     -- bookmark link (below), overlaying the title's right-hand whitespace.
-    local text_w = thumb_widget and (header_w - thumb_w - gap_w) or header_w
+    -- The thumbnail's REAL width: its 1dp frame adds 2 * Size.border.thin to
+    -- thumb_w, and leaving that out made the header that much wider than
+    -- asked -- widening the whole book popup, so every tab stopped short of
+    -- its right border and a tab's scrollbar floated off it (4px at 480dpi).
+    local thumb_real_w = thumb_widget and thumb_widget:getSize().w or 0
+    local text_w = thumb_widget and (header_w - thumb_real_w - gap_w) or header_w
 
     -- Top of text column: title (bold) + author + one-line metadata
     -- strip (format · size · added · last opened) + filename. Series
@@ -19330,45 +19335,9 @@ function BookshelfWidget:_commitBookStatus(book, status)
     end
 end
 
--- A ScrollableContainer whose vertical scrollbar sits flush against the right
--- edge with no side padding. The stock container reserves 3x the bar width
--- (gap | bar | gap); this reclaims both gaps so the content butts the bar and
--- the bar butts the frame. LTR only -- RTL falls back to the stock layout.
-local SnugScroll = require("ui/widget/container/scrollablecontainer"):extend{}
-function SnugScroll:initState()
-    require("ui/widget/container/scrollablecontainer").initState(self)
-    if not self._is_scrollable or require("ui/bidi").mirroredUILayout() then return end
-    if self._v_scroll_bar then
-        self._crop_w = self.dimen.w - self.scroll_bar_width  -- content up to the bar
-    end
-    -- The parent decided horizontal overflow against its 3x reserve, so content
-    -- sized to the snug crop still triggered a spurious horizontal bar (and ate
-    -- height). Re-decide it against dimen.w itself, not the narrower _crop_w:
-    -- callers (section heading bars, pill-row frames) build their backgrounds
-    -- to fill dimen.w exactly, with the scrollbar meant to overlay their
-    -- trailing edge rather than reserve extra width beyond it -- so content
-    -- flush with dimen.w is "fits", not overflow. Comparing to _crop_w here
-    -- flagged that flush fill as a permanent scroll_bar_width of bogus
-    -- horizontal overflow on any tab tall enough to need vertical scrolling
-    -- (invisible on short tabs, since _is_scrollable is false there).
-    local content_w = self[1]:getSize().w
-    self._max_scroll_offset_x = math.max(0, content_w - self.dimen.w)
-    if self._max_scroll_offset_x == 0 and self._h_scroll_bar then
-        self._h_scroll_bar = nil
-        self._crop_h = self.dimen.h
-    end
-end
-function SnugScroll:paintTo(bb, x, y)
-    if self._is_scrollable == nil then self:initState() end
-    local real_w = self.dimen.w
-    -- The parent paints the v-bar at dimen.w - 2*bar_width; inflating dimen.w by
-    -- one bar width during paint shifts it to dimen.w - bar_width (flush right).
-    if self._v_scroll_bar and not require("ui/bidi").mirroredUILayout() then
-        self.dimen.w = real_w + self.scroll_bar_width
-    end
-    require("ui/widget/container/scrollablecontainer").paintTo(self, bb, x, y)
-    self.dimen.w = real_w
-end
+-- The book detail modal's scrolling tabs: flush-right bar, drawn as a rail
+-- (lib/bookshelf_snug_scroll, shared with the Extract page counts dialog).
+local SnugScroll = require("lib/bookshelf_snug_scroll")
 
 -- Used by the Edit tab's infoRow (Hardcover row): a pre-built button,
 -- centred in a cell row_h tall.

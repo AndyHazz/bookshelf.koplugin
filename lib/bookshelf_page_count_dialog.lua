@@ -93,7 +93,7 @@ local MovableContainer = require("ui/widget/container/movablecontainer")
 local Size            = require("ui/size")
 local TextBoxWidget   = require("ui/widget/textboxwidget")
 local TextWidget      = require("ui/widget/textwidget")
-local ScrollableContainer = require("ui/widget/container/scrollablecontainer")
+local SnugScroll      = require("lib/bookshelf_snug_scroll")
 local TitleBar        = require("ui/widget/titlebar")
 local VerticalGroup   = require("ui/widget/verticalgroup")
 local VerticalSpan    = require("ui/widget/verticalspan")
@@ -271,31 +271,17 @@ function Dialog:init()
     local body = build(self.width - 2 * pad)
     local body_block = FrameContainer:new{ bordersize = 0, padding = pad, body }
     if body_block:getSize().h > avail_h then
-        local sbw = ScrollableContainer:getScrollbarWidth()
-        body = build(self.width - 2 * pad - sbw)
-        self.cropping_widget = ScrollableContainer:new{
+        -- A flush-right rail (lib/bookshelf_snug_scroll): its left rule runs
+        -- the scroll area's height, and the title's rule, the border and the
+        -- buttons' rule are its other edges.
+        local sb = SnugScroll.scroll_bar_width
+        body = build(self.width - 2 * pad - sb)
+        self.cropping_widget = SnugScroll:new{
             dimen = Geom:new{ w = self.width, h = avail_h },
             show_parent = self,
             FrameContainer:new{ bordersize = 0, padding = pad, body },
         }
         body_block = self.cropping_widget
-        -- ScrollableContainer paints its bar one bar-width in from its right
-        -- edge, which left a strip of white between the bar and the dialog's
-        -- border (maintainer: "isn't flush with the edges"). Its state is
-        -- normally set up on first paint; do it now, so the bar exists, and
-        -- paint that bar one width further right -- against the border. It
-        -- runs the full height already, from the title's rule to the
-        -- buttons' separator. The bar records where it is painted, so
-        -- dragging it still lines up.
-        local sc = self.cropping_widget
-        pcall(function()
-            sc:initState()
-            local bar = sc._v_scroll_bar
-            if not bar then return end
-            local shift = sc.scroll_bar_width
-            local bar_paint = bar.paintTo
-            function bar:paintTo(bb, x, y) return bar_paint(self, bb, x + shift, y) end
-        end)
     end
 
     local frame = FrameContainer:new{

@@ -397,16 +397,33 @@ function HeroCard.buildJobRow(region, width)
     local ink  = _ink() or Blitbuffer.COLOR_BLACK
     local gap  = Size.padding.large
     local _    = require("lib/bookshelf_i18n").gettext
-    local label = TextWidget:new{ text = _("Stop"), face = face, fgcolor = ink, bold = true }
+    -- Filled with the ink and lettered in the panel's own ground (black on
+    -- white by day, flipped on a dark shelf), so it stands out in the line.
+    -- A size down from the line's text, so the filled box sits inside the
+    -- row's height rather than pressing on the hairline below.
+    local paper = Blitbuffer.COLOR_WHITE
+    local ok_cp, CP = pcall(require, "lib/bookshelf_cover_progress")
+    if ok_cp and CP and CP.resolvedColors then
+        local ok_c, colors = pcall(CP.resolvedColors)
+        if ok_c and colors and colors.panel_bg then paper = colors.panel_bg end
+    end
+    local label_size = math.max(8, math.floor((region.font_size or 14) * 0.85 + 0.5))
+    local label = TextWidget:new{
+        text = _("Stop"),
+        face = fontFace(region.font_face, label_size, false),
+        fgcolor = paper,
+        bold = true,
+    }
     local stop_frame = FrameContainer:new{
-        bordersize = Size.border.thin,
-        color      = ink,
+        bordersize = 0,
         radius     = Size.radius.button,
         padding    = 0,
-        padding_left  = Size.padding.large,
-        padding_right = Size.padding.large,
+        padding_top    = Size.padding.tiny,
+        padding_bottom = Size.padding.tiny,
+        padding_left   = Size.padding.large,
+        padding_right  = Size.padding.large,
         margin     = 0,
-        background = nil,
+        background = ink,
         label,
     }
     local stop = InputContainer:new{
@@ -429,8 +446,7 @@ function HeroCard.buildJobRow(region, width)
     local function cell(w, widget)
         return LeftContainer:new{ dimen = Geom:new{ w = w, h = h }, widget }
     end
-    -- A little air under the row: the Stop outline would otherwise sit on the
-    -- hairline that follows it.
+    -- Air under the row, so the Stop box does not sit on the hairline below.
     return VerticalGroup:new{ align = "left", HorizontalGroup:new{
         align = "center",
         cell(text_w, text_widget),
@@ -438,7 +454,7 @@ function HeroCard.buildJobRow(region, width)
         CenterContainer:new{ dimen = Geom:new{ w = bar_w, h = h }, bar },
         HorizontalSpan:new{ width = gap },
         CenterContainer:new{ dimen = Geom:new{ w = stop_w, h = h }, stop },
-    }, VerticalSpan:new{ width = Size.padding.small } }
+    }, VerticalSpan:new{ width = Size.padding.default } }
 end
 
 -- allow_job (5th): shelf surfaces pass true, so a running background job's

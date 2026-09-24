@@ -1099,6 +1099,21 @@ function Repo.buildBookMeta(filepath, opts)
     local info
     if not want_cover and _batchInfoFor then
         info = _batchInfoFor(filepath)
+        -- The batched rows are a snapshot, and once the session's background
+        -- refresh has run they stay as they were for the rest of it. A row
+        -- captured before the book's cover was extracted says "no cover"
+        -- (a text-only "Scan library metadata" leaves exactly that row), and
+        -- a record built from it gets has_cover = nil, which SpineWidget
+        -- draws as the placeholder. It surfaced as covers that come back on
+        -- Refresh metadata and vanish on the next page (issue 451): the first
+        -- draw is a live read, which fills the cover cache, and a cached
+        -- cover is what sends every later draw here. A cached cover is proof
+        -- the row is out of date, so ask BIM itself. Books that really have
+        -- no cover have nothing cached and stay on the fast path.
+        if info and info.has_cover ~= "Y" then
+            local ok_scc, SCC = pcall(require, "lib/bookshelf_scaled_cover_cache")
+            if ok_scc and SCC and SCC.has and SCC:has(filepath) then info = nil end
+        end
     end
     if not info then
         info = _bimGetBookInfo(bim, filepath, want_cover) or {}

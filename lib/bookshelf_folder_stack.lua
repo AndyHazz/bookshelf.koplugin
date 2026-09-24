@@ -114,8 +114,20 @@ function FolderStack:init()
     -- as shelf_row does for a book. Without this the card kept the capped
     -- height and the cover stretched to fill it -- tall and narrow on device.
     local card_y = 0
+    -- Custom folder image (#70), resolved here rather than where it is drawn
+    -- (below) because it decides the card's shape as well as its picture.
+    local custom_image_path
+    if want_art and self.folder and self.folder.path then
+        custom_image_path = ImageSource.resolveFolderImage(self.folder.path)
+    end
     if BookshelfSettings.isTrue("true_cover_aspect") and not show_cardboard then
-        local _front = self.folder and self.folder.first_book
+        -- A folder with its own image takes that image's shape, not its first
+        -- book's: the image is what is drawn, and a reader who gives every
+        -- folder a picture of one shape wants tiles of one size (issue 402).
+        local tag = custom_image_path and ImageSource.imageSizeTag
+                    and ImageSource.imageSizeTag(custom_image_path)
+        local _front = tag and { cover_sizetag = tag }
+                       or (self.folder and self.folder.first_book)
         if _front then
             art_h = SpineWidget.trueAspectBoxHeight(art_w, _front, art_h)
         end
@@ -140,10 +152,6 @@ function FolderStack:init()
     -- present sections as first-class artwork. Auto-detect short
     -- circuits to nil for empty / missing folders so the empty-
     -- folder branch below still triggers when appropriate.
-    local custom_image_path
-    if want_art and self.folder and self.folder.path then
-        custom_image_path = ImageSource.resolveFolderImage(self.folder.path)
-    end
 
     -- Built up front (not just when composing children below) so cover_floor
     -- -- the slot-local y where the cardboard body begins -- is known

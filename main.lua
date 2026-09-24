@@ -2375,10 +2375,11 @@ function Bookshelf:scanPageCounts(opts)
 
     -- Classify the library up front (user spec, in priority order):
     --   skip   books that already have a count this scan trusts: a prior
-    --          scan ("print", "filename" or "user") or stable page numbers,
+    --          scan ("print", "user", "calibre" or "filename") or stable page
+    --          numbers,
     --   probe  the rest, through the sources the dialog left ticked, in its
-    --          order: publisher page list, Hardcover, render, then a p(N)
-    --          file name. The first that answers wins.
+    --          order: publisher page list, Hardcover, render, a Calibre
+    --          column, then a p(N) file name. The first that answers wins.
     -- An opened book is probed too when all it has is KOReader's rendered
     -- count, which follows that book's own font if it was changed: the spine's
     -- thickness wants the one layout every scanned book shares (issue 387,
@@ -2418,6 +2419,7 @@ function Bookshelf:scanPageCounts(opts)
     local report = {
         skipped   = skipped,
         filename  = {},
+        calibre   = {},
         publisher = {},
         hardcover = {},
         rendered  = {},
@@ -2503,8 +2505,9 @@ function Bookshelf:scanPageCounts(opts)
             -- source among the others, tried in the dialog's order, and a
             -- reader who unticked it wants the other sources to replace it.
             local trusted = not opts.recount and not echo
-                            and (psrc == "print" or psrc == "user" or psrc == "filename"
-                                 or psrc == "stable" or pc_src == "stable")
+                            and (psrc == "print" or psrc == "user" or psrc == "calibre"
+                                 or psrc == "filename" or psrc == "stable"
+                                 or pc_src == "stable")
             if trusted then
                 skipped = skipped + 1
             else
@@ -2626,6 +2629,28 @@ function Bookshelf:scanPageCounts(opts)
         -- that is left when the render is off, and the renders that failed
         -- when it is on. A string match per book, in this process.
         -- filenamePass(list) -> the books it could not count.
+        -- Next to last: a Calibre custom column (issue 405), when the dialog
+        -- found one and the reader kept it. Often an estimate too (the Count
+        -- Pages plugin's), so it sits with the file name below the render. A
+        -- table lookup per book, in this process.
+        -- calibrePass(list) -> the books it could not count.
+        local function calibrePass(list)
+            if report.cancelled or not opts.calibre then return list end
+            local rest = {}
+            for _i, fp in ipairs(list) do
+                maybeBreathe()
+                if job.stopped then report.cancelled = true end
+                local n = not report.cancelled and Repo.calibrePagesFor
+                          and Repo.calibrePagesFor(fp, opts.calibre)
+                if n then
+                    persist(fp, n, "calibre")
+                    report.calibre[#report.calibre + 1] = { name = nameFor(fp), pages = n }
+                else
+                    rest[#rest + 1] = fp
+                end
+            end
+            return rest
+        end
         local function filenamePass(list)
             if report.cancelled or opts.filename == false then return list end
             local rest = {}
@@ -2646,7 +2671,7 @@ function Bookshelf:scanPageCounts(opts)
         SpineShelf.flushPersist()
         -- The slow pass was chosen (or not) in the dialog, before any of this.
         if report.cancelled or #todo == 0 or opts.render == false then
-            todo = filenamePass(todo)
+            todo = filenamePass(calibrePass(todo))
             SpineShelf.flushPersist()
             report.remaining = #todo
             finish()
@@ -2737,7 +2762,7 @@ function Bookshelf:scanPageCounts(opts)
         report.remaining = #todo - processed
         -- A book the render could not lay out may still have a file name
         -- to go by; only what that leaves is reported as failed.
-        for _i, fp in ipairs(filenamePass(failed)) do
+        for _i, fp in ipairs(filenamePass(calibrePass(failed))) do
             report.failed[#report.failed + 1] = nameFor(fp)
         end
         SpineShelf.flushPersist()

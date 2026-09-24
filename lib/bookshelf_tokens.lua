@@ -756,6 +756,7 @@ end
 -- report, same modal as the auto-link report. data:
 --   skipped   number       -- already had a count (opened / prior scan)
 --   filename  {name,...}   -- counted from a p(N) filename marker
+--   calibre   {{name=,pages=},...} -- from a Calibre custom column
 --   publisher {{name=,pages=},...}
 --   hardcover {{name=,pages=},...}
 --   rendered  {{name=,pages=},...}
@@ -769,6 +770,7 @@ function Tokens.pageCountReportHtml(data)
     local DOT = " \xC2\xB7 "  -- " · "
     local function list(t) return type(t) == "table" and t or {} end
     local filename  = list(data.filename)
+    local calibre   = list(data.calibre)
     local publisher = list(data.publisher)
     local hardcover = list(data.hardcover)
     local rendered  = list(data.rendered)
@@ -796,6 +798,9 @@ function Tokens.pageCountReportHtml(data)
     summary[#summary + 1] = string.format("Publisher %d", #publisher)
     summary[#summary + 1] = string.format("Hardcover %d", #hardcover)
     summary[#summary + 1] = string.format("Paginated %d", #rendered)
+    if #calibre > 0 then
+        summary[#summary + 1] = string.format("Calibre %d", #calibre)
+    end
     if #failed > 0 then
         summary[#summary + 1] = string.format("Failed %d", #failed)
     end
@@ -829,6 +834,7 @@ function Tokens.pageCountReportHtml(data)
     section("Publisher page numbers", publisher, true)
     section("Hardcover editions", hardcover, true)
     section("Paginated at your reading settings", rendered, true)
+    section("From your Calibre column", calibre, true)
     section("Counted from the filename", filename, false)
     section("Could not be paginated", failed, false)
 

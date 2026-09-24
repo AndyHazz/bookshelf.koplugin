@@ -71,4 +71,15 @@ t.test("report: could_not_start without cancelled is still handled", function()
         "got " .. heading(html))
 end)
 
+t.test("report: Calibre column counts get their own section (issue 405)", function()
+    local html = Tokens.pageCountReportHtml{
+        calibre = { { name = "Dune", pages = 612 } },
+    }
+    assert(html:find("From your Calibre column (1)", 1, true), html)
+    assert(html:find("Dune", 1, true) and html:find("612 pages", 1, true), html)
+    assert(html:find("Calibre 1", 1, true), "summary line counts it")
+    local none = Tokens.pageCountReportHtml{ publisher = { { name = "A", pages = 1 } } }
+    assert(not none:find("Calibre", 1, true), "no Calibre line when nothing came from it")
+end)
+
 t.done()

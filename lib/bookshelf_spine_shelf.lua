@@ -543,6 +543,8 @@ end
 -- (issue 387, see thicknessPages):
 --   "print"   the page-count scan's publisher page list or Hardcover edition:
 --             the printed book's pages
+--   "calibre" the page-count scan's copy of a Calibre custom column (issue
+--             405), such as the Count Pages plugin's #pages
 --   "filename" the page-count scan's copy of a p(N) marker in the file name,
 --             when the reader kept file names among its sources
 --   "user"    the page-count scan's headless render at the reader's own
@@ -559,8 +561,10 @@ end
 -- A rendered count never overwrites a scanned one: the plan persists what
 -- readProgress answers for every book it shows, and that used to replace the
 -- scan's layout-free count with the font-dependent one on first sight.
-local SCAN_TAGS  = { print = true, user = true, filename = true, layout = true, scan = true }
-local SHOWN_TAGS = { print = true, user = true, filename = true, stable = true, render = true }
+local SCAN_TAGS  = { print = true, user = true, calibre = true, filename = true,
+                     layout = true, scan = true }
+local SHOWN_TAGS = { print = true, user = true, calibre = true, filename = true,
+                     stable = true, render = true }
 SpineShelf.SCAN_TAGS = SCAN_TAGS
 
 function SpineShelf.persistProgress(fp, pages, status, src)

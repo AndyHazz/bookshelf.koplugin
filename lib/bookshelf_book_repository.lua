@@ -1477,6 +1477,46 @@ end
 -- as their own (free) category before probing anything heavier.
 Repo.pageCountFromFilename = pageCountFromFilename
 
+-- Issue 405: a page count from a Calibre custom column, for the page-count
+-- scan. The Count Pages plugin for Calibre fills one in (usually #pages), and
+-- a reader who already keeps it may prefer it to the scan's own render.
+--
+-- calibrePageColumn() -> the column's lookup name (lowercased, no '#') and how
+-- many books carry a number in it, or nil when there is none -- including when
+-- the Calibre metadata setting is off, since nothing is read then. "pages" wins
+-- when present; otherwise the column whose name has "page" in it that the most
+-- books fill. Map lookups only: the Calibre file is already parsed and cached.
+function Repo.calibrePageColumn()
+    if BookshelfSettings.read("calibre_metadata") ~= true then return nil end
+    local counts = {}
+    for _i, fp in ipairs(Repo.getAllFilepaths()) do
+        local fields = CalibreMeta.fieldsFor(fp, true)
+        if fields then
+            for key, v in pairs(fields) do
+                if key:find("page", 1, true) and tonumber(v) and tonumber(v) > 0 then
+                    counts[key] = (counts[key] or 0) + 1
+                end
+            end
+        end
+    end
+    if counts.pages then return "pages", counts.pages end
+    local best, n = nil, 0
+    for key, c in pairs(counts) do
+        if c > n or (c == n and best and key < best) then best, n = key, c end
+    end
+    if best then return best, n end
+    return nil
+end
+
+-- calibrePagesFor(filepath, column) -> that book's count in the column, or nil.
+function Repo.calibrePagesFor(filepath, column)
+    if type(column) ~= "string" then return nil end
+    local fields = CalibreMeta.fieldsFor(filepath, BookshelfSettings.read("calibre_metadata"))
+    local n = fields and tonumber(fields[column])
+    if n and n > 0 then return math.floor(n + 0.5) end
+    return nil
+end
+
 -- _scannedPageCount(filepath) -> the count the "Extract page counts" scan
 -- found for this book, or nil.
 --

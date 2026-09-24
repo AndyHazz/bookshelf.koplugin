@@ -19,12 +19,13 @@ local _            = require("lib/bookshelf_i18n").gettext
 
 local M = {}
 
-M.SETTING = "page_count_scan"   -- { publisher=, hardcover=, filename=, render=, recount= }
+M.SETTING = "page_count_scan"   -- { publisher=, hardcover=, calibre=, filename=, render=, recount= }
 
 -- options() -> the remembered choices, every source on by default.
 function M.options()
     local saved = Settings.read(M.SETTING)
-    local o = { publisher = true, hardcover = true, filename = true, render = true, recount = false }
+    local o = { publisher = true, hardcover = true, calibre = true, filename = true,
+                render = true, recount = false }
     if type(saved) == "table" then
         for k in pairs(o) do
             if saved[k] ~= nil then o[k] = saved[k] and true or false end
@@ -40,9 +41,19 @@ local function hardcoverLinked()
     return ok_l and type(linked) == "table" and next(linked) ~= nil
 end
 
--- anySource(o, hc) -> whether the scan would have anything to use.
-function M.anySource(o, hc)
-    return o.publisher or (hc and o.hardcover) or o.filename or o.render
+-- calibreColumn() -> the Calibre page column's name and how many books fill
+-- it, or nil (see Repo.calibrePageColumn).
+local function calibreColumn()
+    local ok, Repo = pcall(require, "lib/bookshelf_book_repository")
+    if not (ok and Repo and Repo.calibrePageColumn) then return nil end
+    local ok_c, key, n = pcall(Repo.calibrePageColumn)
+    if ok_c and key then return key, n end
+    return nil
+end
+
+-- anySource(o, hc, cal) -> whether the scan would have anything to use.
+function M.anySource(o, hc, cal)
+    return o.publisher or (hc and o.hardcover) or (cal and o.calibre) or o.filename or o.render
 end
 
 -- deleteScanned(on_done): ask, then clear every count earlier scans stored.
@@ -104,7 +115,7 @@ local Screen          = Device.screen
 local Dialog = InputContainer:extend{}
 
 function Dialog:init()
-    local o, hc = self.o, self.hc
+    local o, hc, cal = self.o, self.hc, self.cal
     local sw, sh = Screen:getWidth(), Screen:getHeight()
     self.width = math.floor(math.min(sw, sh) * 0.9)
     local pad = Space.padding.large
@@ -146,7 +157,7 @@ function Dialog:init()
     local function updateStart()
         local btn = self.buttons and self.buttons:getButtonById("start")
         if not btn then return end
-        if M.anySource(o, hc) then btn:enable() else btn:disable() end
+        if M.anySource(o, hc, cal) then btn:enable() else btn:disable() end
         UIManager:setDirty(self, function() return "ui", btn.dimen end)
     end
     local function source(key)
@@ -176,12 +187,13 @@ function Dialog:init()
             {
                 { text = _("Cancel"), callback = function() UIManager:close(self) end },
                 {
-                    id = "start", text = _("Start"), enabled = M.anySource(o, hc),
+                    id = "start", text = _("Start"), enabled = M.anySource(o, hc, cal),
                     callback = function()
                         UIManager:close(self)
                         local opts = {}
                         for k, v in pairs(o) do opts[k] = v end
                         opts.hardcover = opts.hardcover and hc
+                        opts.calibre = (opts.calibre and cal) or false
                         self.start(opts)
                     end,
                 },
@@ -204,6 +216,19 @@ function Dialog:init()
             hint  = hc and _("The page count of the edition each linked book is matched to.")
                        or _("No books are linked to Hardcover."),
             checked = hc and o.hardcover, enabled = hc, callback = source("hardcover"),
+        }
+        local cal_hint
+        if cal then
+            cal_hint = T(_("The #%1 column in your Calibre metadata, as the Count Pages plugin fills in. Often an estimate."), cal)
+        elseif require("lib/bookshelf_settings_store").read("calibre_metadata") ~= true then
+            cal_hint = _("Needs Calibre metadata, which is off.")
+        else
+            cal_hint = _("No page count column in your Calibre metadata.")
+        end
+        local clb, _clb = option{
+            label = _("Calibre page column (fast)"),
+            hint  = cal_hint,
+            checked = cal and o.calibre, enabled = cal ~= nil, callback = source("calibre"),
         }
         local fnm, _fnm = option{
             label = _("Page counts in file names (fastest)"),
@@ -243,7 +268,7 @@ function Dialog:init()
             VerticalSpan:new{ width = pad },
             heading(_("Use page counts from, in this order")),
             VerticalSpan:new{ width = gap },
-            pub, hcv, ren, fnm,
+            pub, hcv, ren, clb, fnm,
             VerticalSpan:new{ width = gap },
             heading(_("Which books")),
             VerticalSpan:new{ width = gap },
@@ -336,7 +361,7 @@ end
 
 function M.show(start, on_deleted)
     local d = Dialog:new{
-        o = M.options(), hc = hardcoverLinked(),
+        o = M.options(), hc = hardcoverLinked(), cal = calibreColumn(),
         start = start, on_deleted = on_deleted,
     }
     UIManager:show(d)

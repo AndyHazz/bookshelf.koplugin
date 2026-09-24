@@ -19635,7 +19635,9 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     -- section gets a closing rule). ButtonTable draws gray separators BETWEEN
     -- rows but no outer border, so a section's first button meets the strip
     -- above it and its last meets the next strip.
-    local bar_w     = Screen:scaleBySize(3)   -- thin scrollbar; minimal right reserve
+    -- Thin scrollbar, minimal right reserve; SnugScroll.widen adds the couple
+    -- of pixels that make it read as a bar beside the frame's border.
+    local bar_w     = SnugScroll.widen(Screen:scaleBySize(3))
     local sb        = bar_w   -- SnugScroll reserves exactly the bar width (no gaps)
     local pad_top    = 0   -- first heading strip butts against the tab strip
     local pad_bottom = Screen:scaleBySize(10)
@@ -20785,7 +20787,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
                 end
                 local lpad  = (show_parent and show_parent._side_pad)
                     or Screen:scaleBySize(20)
-                local bar_w = Screen:scaleBySize(3)   -- flush snug scrollbar
+                local bar_w = SnugScroll.widen(Screen:scaleBySize(3))   -- flush snug scrollbar
                 local base  = (show_parent and show_parent.font_size) or 18
                 local pills_w   = avail_w - 2 * lpad - bar_w
                 -- Every section's focusable row(s), in visual top-to-bottom

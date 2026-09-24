@@ -18,7 +18,24 @@
 local Geom                = require("ui/geometry")
 local ScrollableContainer = require("ui/widget/container/scrollablecontainer")
 
-local SnugScroll = ScrollableContainer:extend{}
+-- A shade lighter than the rule and the frame it sits against, so the thumb
+-- reads as the thumb and not as more border (maintainer).
+local ok_bb, Blitbuffer = pcall(require, "ffi/blitbuffer")
+local THUMB = ok_bb and Blitbuffer and Blitbuffer.COLOR_DARK_GRAY or nil
+
+-- widen(w) -> a caller's bar width, a couple of pixels wider: the stock widths
+-- read as a line beside the frame's border rather than as a bar.
+local function widen(w)
+    local ok_d, Device = pcall(require, "device")
+    local extra = (ok_d and Device and Device.screen and Device.screen.scaleBySize)
+                  and Device.screen:scaleBySize(1.5) or 2
+    return (type(w) == "number" and w or 0) + extra
+end
+
+local SnugScroll = ScrollableContainer:extend{
+    scroll_bar_width = widen(ScrollableContainer.scroll_bar_width),
+}
+SnugScroll.widen = widen
 
 local function mirrored()
     local ok, BD = pcall(require, "ui/bidi")
@@ -41,7 +58,7 @@ local function railPaint(bar, bb, x, y)
     local th = math.max(math.floor((bar.high - bar.low) * bar.height + 0.5), bar.min_thumb_size)
     local ty = y + math.floor(bar.low * bar.height + 0.5)
     if ty + th > y + bar.height then ty = y + bar.height - th end
-    bb:paintRect(x + rule, ty, bar.width - rule, th, bar.rectcolor)
+    bb:paintRect(x + rule, ty, bar.width - rule, th, THUMB or bar.rectcolor)
 end
 SnugScroll._railPaint = railPaint   -- for tests
 

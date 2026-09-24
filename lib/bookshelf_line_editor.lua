@@ -46,7 +46,6 @@
 local InputDialog = require("ui/widget/inputdialog")
 local UIManager   = require("ui/uimanager")
 local Focus       = require("lib/bookshelf_focus")
-local FontList    = require("fontlist")
 local Screen      = require("device").screen
 local _           = require("lib/bookshelf_i18n").gettext
 
@@ -164,70 +163,13 @@ local function showSizeNudge(current, default, on_change, on_close, opts)
     UIManager:show(d)
 end
 
--- showFontPicker — uses the bookends picker (richer UI: previews each
--- family in its own typeface, dedupes weight variants) when bookends is
--- loaded. Falls back to a plain FontList Menu when it isn't.
---
--- The bookends class is the return value of bookends/main.lua, which the
--- KOReader plugin loader stashes on PluginLoader.enabled_plugins (it uses
--- dofile, NOT require, so package.loaded["main"] is empty). We grab the
--- class by name and invoke showFontPicker as a static call with an empty
--- self table — the function only uses self.frame for tap-outside dismissal,
--- a transient field that doesn't need a real Bookends instance.
+-- showFontPicker -- bookshelf's own picker (lib/bookshelf_font_picker, ported
+-- from bookends'): one row per family, each in its own typeface. It used to
+-- borrow bookends' copy when that was installed and fall back to a Menu of
+-- raw file paths otherwise, so the picker a reader got depended on which
+-- other plugin they had (issue 450).
 local function showFontPicker(current_face, default_face, on_select)
-    -- Bookends's picker injects "@family:serif" / "@family:fantasy" /
-    -- "@family:cursive" sentinel rows that resolve via KOReader's CRengine
-    -- font_family settings — that resolution only happens inside the
-    -- Reader context, where bookshelf doesn't run. Filter those out at
-    -- the callback boundary with a friendly message instead of letting
-    -- the literal string flow through to Font:getFace and crash render.
-    local function safe_select(file)
-        if type(file) == "string" and file:match("^@family:") then
-            local InfoMessage = require("ui/widget/infomessage")
-            UIManager:show(InfoMessage:new{
-                text = _("Font-family fonts (serif, sans-serif, etc.) only resolve inside the Reader view. Pick a specific font file instead."),
-                timeout = 3,
-            })
-            return
-        end
-        on_select(file)
-    end
-    local ok_pl, PluginLoader = pcall(require, "pluginloader")
-    if ok_pl and PluginLoader and PluginLoader.enabled_plugins then
-        for _i, plugin in ipairs(PluginLoader.enabled_plugins) do
-            if plugin.name == "bookends" and type(plugin.showFontPicker) == "function" then
-                -- include_family = false suppresses the "@family:" sentinel
-                -- rows that bookends would otherwise prepend. Newer bookends
-                -- (feature/font-picker-opts → master) honours the option;
-                -- older bookends ignores extra args, in which case safe_select
-                -- catches any "@family:" tap with the toast fallback.
-                local ok = pcall(plugin.showFontPicker, {}, current_face,
-                    safe_select, default_face, { include_family = false })
-                if ok then return end
-                break -- bookends present but the call failed; fall through to fallback
-            end
-        end
-    end
-    -- Fallback: native KOReader FontList as a full-screen Menu. Modelled on
-    -- KOReader's filemanagershortcuts menu: covers_fullscreen + is_borderless,
-    -- shown without manual positioning so MenuItem tap ranges line up, and a
-    -- close_callback so selecting (or tapping the title-bar close) dismisses it
-    -- -- the generic Menu only closes via close_callback (onMenuSelect).
-    local Menu   = require("ui/widget/menu")
-    local items  = { { text = _("(Default)"), callback = function() safe_select(nil) end } }
-    for _i, file in ipairs(FontList:getFontList() or {}) do
-        items[#items + 1] = { text = file, callback = function() safe_select(file) end }
-    end
-    local menu
-    menu = Menu:new{
-        title             = _("Pick font"),
-        item_table        = items,
-        covers_fullscreen = true,
-        is_borderless     = true,
-        is_popout         = false,
-    }
-    menu.close_callback = function() UIManager:close(menu) end
-    UIManager:show(menu)
+    require("lib/bookshelf_font_picker").show(current_face, on_select, default_face)
 end
 
 -- Shows the bundled icons library picker. Dynamic %tokens stay available

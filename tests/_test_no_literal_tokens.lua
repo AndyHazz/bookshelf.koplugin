@@ -149,6 +149,7 @@ end)
 local DELIBERATELY_ABSENT = {
     session_pages = "no reading session on a shelf",
     session_time  = "no reading session on a shelf",
+    session_pages_advanced = "no reading session on a shelf",
     invert = "no page turning on a shelf",
     plugin_content = "footer-extension API belongs to the reader",
     file_num = "wants a per-book folder listing bookshelf does not build yet",

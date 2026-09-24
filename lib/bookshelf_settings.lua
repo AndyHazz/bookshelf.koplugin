@@ -3793,13 +3793,11 @@ function Settings:_librarySubItems()
         },
         {
             text      = _("Extract page counts"),
-            help_text = _("Find a page count for every book, so spine"
-                .. " thickness reflects its real length whatever font you"
-                .. " read it in. Publisher page numbers and Hardcover editions"
-                .. " also give books you have never opened a page count. Books"
-                .. " with neither are rendered in the background at the default"
-                .. " layout, which only sets their spine thickness; this can"
-                .. " take a while on a large library."),
+            help_text = _("Find page counts for your books, so spines, page"
+                .. " count badges and tokens reflect their length. Publisher page numbers and Hardcover editions"
+                .. " are used where a book has them; the rest are rendered in"
+                .. " the background at your reading settings, which can take a"
+                .. " while on a large library."),
             callback  = function(touchmenu_instance)
                 if touchmenu_instance then
                     UIManager:close(touchmenu_instance)

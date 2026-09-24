@@ -828,7 +828,7 @@ function Tokens.pageCountReportHtml(data)
     end
     section("Publisher page numbers", publisher, true)
     section("Hardcover editions", hardcover, true)
-    section("Paginated with the reading engine (spine thickness only)", rendered, true)
+    section("Paginated at your reading settings", rendered, true)
     section("Counted from the filename", filename, false)
     section("Could not be paginated", failed, false)
 

@@ -48,8 +48,8 @@ local function run(opts)
         ok_repo = true,
         _gettime = function() return 0 end,
         _t_pages = 0,
-        SCAN_TAGS  = { print = true, layout = true, scan = true },
-        SHOWN_TAGS = { print = true, stable = true, render = true },
+        SCAN_TAGS  = { print = true, user = true, layout = true, scan = true },
+        SHOWN_TAGS = { print = true, user = true, stable = true, render = true },
         SpineShelf = {
             cachedProgress = function()
                 local s = opts.store

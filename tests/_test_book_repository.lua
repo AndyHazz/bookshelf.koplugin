@@ -5502,7 +5502,9 @@ local function with_scan_store(counts, fn)
         end,
         shownPages = function(fp)
             local n, tag = entry(fp)
-            if tag == "print" or tag == "stable" or tag == "render" then return n end
+            if tag == "print" or tag == "user" or tag == "stable" or tag == "render" then
+                return n
+            end
             return nil
         end,
     }
@@ -5552,6 +5554,13 @@ test("a layout render is never shown as the book's page count", function()
             "a legacy scan count was shown")
         assert(Repo.pageCountFor("/lib/legacy p(90).epub", nil) == 90,
             "the filename marker still answers")
+    end)
+end)
+
+test("a render at the reader's layout IS shown", function()
+    _G._test_docsettings_data = nil
+    with_scan_store({ ["/lib/user.epub"] = { 852, "user" } }, function()
+        assert(Repo.pageCountFor("/lib/user.epub", nil) == 852)
     end)
 end)
 

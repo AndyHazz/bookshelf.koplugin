@@ -2353,12 +2353,10 @@ end
 -- kills its own fork, not KOReader, and the progress dialog's dismiss
 -- cancels the pass between books. Counts land in the spine shelf's
 -- persisted progress table -- deliberately NOT in a sidecar, because
--- creating one marks the book as opened. A rendered count reflects crengine's
--- default layout rather than the user's exact font settings; for a spine's
--- thickness that is the right kind of true, and for the page count a reader
--- sees it is not, so it only ever sets the width ("layout", see
--- SpineShelf.shownPages). Publisher and Hardcover counts are print pages and
--- are shown ("print").
+-- creating one marks the book as opened. A rendered count is laid out at the
+-- reader's own global settings (lib/bookshelf_reader_layout), so it is close
+-- to the count the reader will show, and is shown ("user"). Publisher and
+-- Hardcover counts are print pages and are shown too ("print").
 function Bookshelf:scanPageCounts()
     local Repo       = require("lib/bookshelf_book_repository")
     local SpineShelf = require("lib/bookshelf_spine_shelf")
@@ -2367,32 +2365,28 @@ function Bookshelf:scanPageCounts()
     local InfoMessage = require("ui/widget/infomessage")
 
     -- Classify the library up front (user spec, in priority order):
-    --   skip   books that already have a LAYOUT-FREE count: a prior scan
-    --          ("print" or "layout") or stable page numbers,
+    --   skip   books that already have a count this scan trusts: a prior
+    --          scan ("print" or "user") or stable page numbers,
     --   count  p(N) filename markers (free -- readProgress serves them live),
     --   probe  the rest: publisher page list, then Hardcover, then render.
     -- An opened book is probed too when all it has is KOReader's rendered
-    -- count, which follows the reader's font: the spine's thickness wants the
-    -- default layout's (issue 387, SpineShelf.thicknessPages). Its sidecar,
-    -- and so its %pages, are left alone.
-    -- A LEGACY count is one from before the scan told print pages from its
-    -- layout renders ("scan", or untagged on a never-opened book): shown as
-    -- neither until re-sorted, so those books go through the cheap passes
-    -- again, and whatever they do not claim keeps its count as a "layout"
-    -- one without being rendered a second time.
+    -- count, which follows that book's own font if it was changed: the spine's
+    -- thickness wants the one layout every scanned book shares (issue 387,
+    -- SpineShelf.thicknessPages). Its sidecar, and so its %pages, are left
+    -- alone.
+    -- A count from an older scan ("scan", untagged on a never-opened book,
+    -- or "layout": a render at crengine's own defaults, 3-4x short of what
+    -- the reader shows) is not shown, so those books are counted again.
     local fps = Repo.getAllFilepaths and Repo.getAllFilepaths() or {}
     local skipped = 0
     local fn_list, todo = {}, {}
-    local legacy = {}
     for _i, fp in ipairs(fps) do
         local fn = Repo.pageCountFromFilename
                    and Repo.pageCountFromFilename(fp)
         local pp, _ps, _known, psrc, opened = SpineShelf.cachedProgress(fp)
         local _p, _s, _r, pc, _pn, pc_src = Repo.readProgress(fp)
-        local is_legacy = pp ~= nil and (psrc == "scan"
-                                         or (psrc == nil and not opened))
-        local layout_free = psrc == "print" or psrc == "layout"
-                            or psrc == "stable" or pc_src == "stable"
+        local trusted = psrc == "print" or psrc == "user"
+                        or psrc == "stable" or pc_src == "stable"
         -- The filename marker outranks a persisted echo of itself: the
         -- spine plan persists whatever readProgress answers when a page
         -- is shown, so a never-opened p(N) book usually arrives here
@@ -2401,10 +2395,9 @@ function Bookshelf:scanPageCounts()
         -- a sidecar or a real scan and wins.
         if fn and (pc == nil or pc == fn) and (pp == nil or pp == fn) then
             fn_list[#fn_list + 1] = fp
-        elseif layout_free then
+        elseif trusted then
             skipped = skipped + 1
         else
-            if is_legacy then legacy[fp] = pp end
             todo[#todo + 1] = fp
         end
     end
@@ -2427,8 +2420,8 @@ function Bookshelf:scanPageCounts()
     end
 
     -- persist(fp, pages, tag, is_publisher): the count lands in the spine
-    -- shelf's store, tagged "print" (served library-wide through
-    -- readProgress's fallback) or "layout" (spine widths only),
+    -- shelf's store, tagged "print" or "user" (both served library-wide
+    -- through readProgress's fallback),
     -- and a PUBLISHER count is additionally written into the book's
     -- sidecar as pagemap_doc_pages -- the key ReaderPageMap owns and every
     -- token consumer already reads -- but only when a sidecar EXISTS and
@@ -2549,21 +2542,6 @@ function Bookshelf:scanPageCounts()
                 todo = rest
             end)
         end
-        -- Legacy counts the passes above did not claim were renders: keep
-        -- them, as what they are, and do not render those books again.
-        if not report.cancelled then
-            local rest = {}
-            for _i, fp in ipairs(todo) do
-                if legacy[fp] then
-                    persist(fp, legacy[fp], "layout", false)
-                    skipped = skipped + 1
-                else
-                    rest[#rest + 1] = fp
-                end
-            end
-            todo = rest
-            report.skipped = skipped
-        end
         SpineShelf.flushPersist()
         if report.cancelled or #todo == 0 then
             report.remaining = #todo
@@ -2612,6 +2590,11 @@ function Bookshelf:scanPageCounts()
                         local doc = DocumentRegistry:openDocument(fp)
                         if not doc then return nil end
                         if doc.loadDocument then doc:loadDocument() end
+                        -- The reader's own layout, not crengine's defaults:
+                        -- the count is shown as the book's page count.
+                        pcall(function()
+                            require("lib/bookshelf_reader_layout").apply(doc)
+                        end)
                         if doc.render then doc:render() end
                         local n = doc:getPageCount()
                         pcall(function() doc:close() end)
@@ -2641,9 +2624,8 @@ function Bookshelf:scanPageCounts()
             if pages and pages > 0 then
                 -- A render count is layout-derived, not publisher truth:
                 -- it stays out of sidecars (persist() only writes those
-                -- for publisher counts), and is never shown as the book's
-                -- page count (SpineShelf.shownPages).
-                persist(fp, pages, "layout", false)
+                -- for publisher counts).
+                persist(fp, pages, "user", false)
                 report.rendered[#report.rendered + 1] =
                     { name = nameFor(fp), pages = pages }
             else

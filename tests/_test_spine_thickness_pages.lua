@@ -61,7 +61,7 @@ local F = {
     end,
 }
 local persist = fn(ss, "persistProgress", "fp, pages, status, src", {
-    SCAN_TAGS = { print = true, layout = true, scan = true },
+    SCAN_TAGS = { print = true, user = true, layout = true, scan = true },
     _facts = function() return F end,
     _sidecarMtime = function() return 7 end,
     _progress_validated = {},
@@ -118,15 +118,22 @@ t.test("both spine widths come from the thickness ladder", function()
     assert(not ss:find("SpineLayout.spineWidthDp(pages)", 1, true))
 end)
 
+t.test("the scan renders at the reader's layout", function()
+    assert(mn:find('require("lib/bookshelf_reader_layout").apply(doc)', 1, true),
+        "the render is back at crengine's defaults")
+    local a = mn:find('reader_layout").apply(doc)', 1, true)
+    local r = mn:find("if doc.render then doc:render() end", a, true)
+    assert(r and r > a, "the layout has to be applied before the render")
+end)
+
 t.test("the scan tags its counts and probes opened books with only a rendered one", function()
     assert(mn:find('SpineShelf.persistProgress(fp, pages, st, tag)', 1, true))
     for _i, s in ipairs({ 'persist(fp, n, "print", true)',
                           'persist(fp, linked[fp], "print", false)',
-                          'persist(fp, pages, "layout", false)',
-                          'persist(fp, legacy[fp], "layout", false)' }) do
+                          'persist(fp, pages, "user", false)' }) do
         assert(mn:find(s, 1, true), "the scan no longer tags: " .. s)
     end
-    assert(mn:find("elseif layout_free then", 1, true),
+    assert(mn:find("elseif trusted then", 1, true),
         "an opened book is still skipped for having any count")
 end)
 

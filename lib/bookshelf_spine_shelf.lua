@@ -542,11 +542,13 @@ end
 -- (issue 387, see thicknessPages):
 --   "print"   the page-count scan's publisher page list or Hardcover edition:
 --             the printed book's pages
---   "layout"  the page-count scan's headless render, at crengine's built-in
---             font, margins and full screen -- not the reader's layout, and
---             not print scale either. A private scale for spine widths, so
---             it is never SHOWN as the book's page count (shownPages)
---   "scan"    either of the two, stored before they were told apart
+--   "user"    the page-count scan's headless render at the reader's own
+--             global layout (lib/bookshelf_reader_layout): close to the count
+--             the reader will show, so it is shown
+--   "layout"  an older scan's render at crengine's built-in font, margins
+--             and full screen: 3-4x short of the reader's count, and not
+--             print scale either. Spine widths only, never SHOWN
+--   "scan"    any of the scan's counts, stored before they were told apart
 --   "stable"  the sidecar's stable page numbers, or a p(N) filename marker
 --   "render"  the sidecar's stats.pages: KOReader's count at the reader's
 --             OWN font and margins, which is why the same book changed width
@@ -554,8 +556,8 @@ end
 -- A rendered count never overwrites a scanned one: the plan persists what
 -- readProgress answers for every book it shows, and that used to replace the
 -- scan's layout-free count with the font-dependent one on first sight.
-local SCAN_TAGS  = { print = true, layout = true, scan = true }
-local SHOWN_TAGS = { print = true, stable = true, render = true }
+local SCAN_TAGS  = { print = true, user = true, layout = true, scan = true }
+local SHOWN_TAGS = { print = true, user = true, stable = true, render = true }
 SpineShelf.SCAN_TAGS = SCAN_TAGS
 
 function SpineShelf.persistProgress(fp, pages, status, src)
@@ -577,10 +579,11 @@ end
 -- shownPages(fp) -> the stored count, when it is one to show as the book's
 -- page count; nil otherwise.
 -- Reddit report: "page counts extracted by Bookshelf are way off, like a
--- factor of 4". They were the scan's layout renders, served everywhere a page
--- count is read (%page_count, badges, sort) as though they were the book's.
--- A legacy "scan" could be a render, and an untagged count from before the
--- tags could be anything, so neither is shown; the next scan re-tags them.
+-- factor of 4". They were renders at crengine's defaults ("layout"), served
+-- everywhere a page count is read (%page_count, badges, sort) as though they
+-- were the book's. A legacy "scan" could be one, and an untagged count from
+-- before the tags could be anything, so none of those is shown; the next
+-- scan counts those books again.
 function SpineShelf.shownPages(fp)
     local pp, _s, _k, psrc = SpineShelf.cachedProgress(fp)
     if pp and SHOWN_TAGS[psrc] then return pp end

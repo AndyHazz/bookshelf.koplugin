@@ -2493,9 +2493,10 @@ function Bookshelf:scanPageCounts()
         Progress.finish()
         showReport()
     end
-    -- "Scan 30 of 41": short, since the status line is one line.
+    -- "Counting pages in book 30 of 41": the line has no room for the book's
+    -- title as well, so it says what is being done instead.
     local function scanTitle(i, n)
-        return T(_("Scan %1 of %2"), i, n)
+        return T(_("Counting pages in book %1 of %2"), i, n)
     end
     -- Before it, a book whose pages turn: book-open-page-variant,
     -- book-open-variant and book-open-o, one per update. Private Use Area

@@ -1658,6 +1658,8 @@ function BookshelfWidget:_rebuild()
         -- The CHOICE, not the fact: a chip has a perfectly good opaque look
         -- and only gives it up if the reader asked.
         has_wallpaper     = self:wallpaperButtonsTransparent(),
+        -- The FACT of a painted ground, for the tap flash's refresh mode.
+        painted_ground    = self:groundIsPainted(),
         -- The strip goes opaque whenever the reader has not asked for
         -- transparency, whatever the panel's own shading is set to: at
         -- Transparent shading, or with Transparent shelf menu on.

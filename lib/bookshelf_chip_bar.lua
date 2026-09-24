@@ -403,6 +403,10 @@ local ChipBar = InputContainer:extend{
     has_wallpaper = false,
     -- Paint an opaque ground behind the strip? See ChipBar:paintTo.
     solid_ground = false,
+    -- Is anything painted behind the shelf at all (a wallpaper, a page
+    -- colour, the top panel's tint)? The FACT, where has_wallpaper is the
+    -- reader's choice of transparent buttons. See flashPending.
+    painted_ground = false,
     chips             = nil,   -- list of { key, label } (chips mode)
     active            = nil,   -- key of the currently-selected chip
     selected_key      = nil,   -- the active chip key for pagination; defaults to self.active
@@ -1878,7 +1882,24 @@ function ChipBar:flashPending(key)
     -- The roof does not need it anyway: it appears when the chip's selected
     -- state changes, which is the rebuild's business, not this flash's.
     local b = Size.border.thin
-    UIManager:setDirty(self.show_parent, "fast", Geom:new{
+    -- "fast" is A2: two tones, nothing in between. Over plain paper that is
+    -- the point -- the ring is pure black -- but over a wallpaper, a page
+    -- colour or the panel's tint, the chip's own interior is in the refreshed
+    -- rect too, and A2 snaps its greys to black and white until the rebuild
+    -- repaints them (maintainer: "with wallpaper, taps on the shelf bar does
+    -- a flash glitch ... inside the border flashes"). The framebuffer is
+    -- right the whole time; it is the waveform. So A2 only where the strip
+    -- behind the chip is plain black or white, "ui" (greys kept) otherwise.
+    local mode = "fast"
+    if self.painted_ground then
+        local plain = false
+        if self.solid_ground then
+            local ok, lum = pcall(function() return _stripGround():getColor8().a end)
+            plain = ok and (lum == 0xFF or lum == 0x00)
+        end
+        if not plain then mode = "ui" end
+    end
+    UIManager:setDirty(self.show_parent, mode, Geom:new{
         x = self.dimen.x + d.x,          -- cell x, less the outline's border
         y = self.dimen.y,                -- the strip's own top edge
         w = d.w + 2 * b,

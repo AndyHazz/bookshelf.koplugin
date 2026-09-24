@@ -14573,7 +14573,11 @@ end
 --     own gesture surface stays clean (east/west already cycle
 --     preview; south is reserved).
 function BookshelfWidget:onSwipeShelvesDown(_, ges)
-    if self._expanded then
+    -- "Swipe down leaves full screen shelves" off (issue 366): full screen
+    -- stays put, and the swipe does what it does with the top panel showing.
+    -- The top panel still comes back from the book-icon chip, or a gesture
+    -- bound to bookshelf_toggle_hero.
+    if self._expanded and BookshelfSettings.nilOrTrue("expanded_swipe_back") then
         local _diag_t0 = _gettime()
         -- Carry the expanded selection back to the collapsed view: show it in
         -- the restored hero, and page the (now shorter) grid so its cover stays

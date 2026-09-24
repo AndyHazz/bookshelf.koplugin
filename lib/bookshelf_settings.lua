@@ -3660,6 +3660,26 @@ function Settings:_behaviourSubItems()
         end,
     }
     items[#items + 1] = {
+        -- Issue 366: for readers who live in full screen and kept landing
+        -- back in the top panel by accident.
+        text = _("Swipe down leaves full screen shelves"),
+        help_text = _("When enabled, swiping down in full screen shelves brings"
+            .. " the top panel back. Turn off to stay in full screen: the"
+            .. " swipe then refreshes the library, as it does with the top"
+            .. " panel showing, and the top panel comes back when you tap the"
+            .. " book icon at the start of the shelf bar, or with a gesture"
+            .. " set to Bookshelf: full screen shelves on or off."),
+        checked_func   = function()
+            return BookshelfSettings.nilOrTrue("expanded_swipe_back")
+        end,
+        keep_menu_open = true,
+        callback = function()
+            BookshelfSettings.save("expanded_swipe_back",
+                not BookshelfSettings.nilOrTrue("expanded_swipe_back"))
+            BookshelfSettings.flush()
+        end,
+    }
+    items[#items + 1] = {
         text = _("Double tap to open books"),
         help_text = _("When enabled, opening a book from the top panel "
             .. "card or from a shelf cover in full screen shelves requires "

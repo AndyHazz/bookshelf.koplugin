@@ -157,24 +157,24 @@ function Dialog:init()
     end
 
     local pub, _pub = option{
-        label = _("Publisher page numbers"),
-        hint  = _("Printed page numbers that some books carry. Fast."),
+        label = _("Publisher page numbers (fast)"),
+        hint  = _("Printed page numbers that some books carry."),
         checked = o.publisher, callback = source("publisher"),
     }
     local hcv, _hcv = option{
-        label = _("Hardcover editions"),
-        hint  = hc and _("The page count of the edition each linked book is matched to. Fast.")
+        label = _("Hardcover editions (fast)"),
+        hint  = hc and _("The page count of the edition each linked book is matched to.")
                    or _("No books are linked to Hardcover."),
         checked = hc and o.hardcover, enabled = hc, callback = source("hardcover"),
     }
     local fnm, _fnm = option{
-        label = _("Page counts in file names"),
-        hint  = _("A count in the file name, like p(320), as some Calibre setups add. Often an estimate. Fast."),
+        label = _("Page counts in file names (fast)"),
+        hint  = _("A count in the file name, like p(320), as some Calibre setups add. Often an estimate."),
         checked = o.filename, callback = source("filename"),
     }
     local ren, _ren = option{
-        label = _("Your reading settings"),
-        hint  = _("Lays out each remaining book in your font and margins, so the count matches what you see when reading. Slow; runs in the background."),
+        label = _("Your reading settings (slow)"),
+        hint  = _("Lays out each remaining book in your font and margins, so the count matches what you see when reading. Runs in the background."),
         checked = o.render, callback = source("render"),
     }
     local radios = {}

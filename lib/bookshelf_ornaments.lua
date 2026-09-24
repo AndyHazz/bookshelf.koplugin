@@ -587,85 +587,207 @@ M._list_key   = nil
 M.SCAN_TTL = 15
 M._clock   = os.time
 
+-- ── Packs, and switching ornaments off ──────────────────────────────────────
+--
+-- A PACK is a subfolder of the ornaments folder: a set someone made (autumn,
+-- a cat collection) that is switched on and off as one. Files at the top
+-- level are the reader's own loose ones and belong to no pack. One level
+-- deep only: a pack is a folder of pictures, not a tree.
+--
+-- An ornament or a pack can be switched off without deleting it (the
+-- ornaments browser, lib/bookshelf_ornament_browser). Both are remembered by
+-- their path relative to the folder -- "cactus.svg", "Autumn/leaf.svg" -- so
+-- a file of the same name in two packs is two ornaments.
+M.OFF_KEY       = "ornaments_off"        -- { [relpath] = true }
+M.PACKS_OFF_KEY = "ornament_packs_off"   -- { [pack]    = true }
+M._store = nil   -- seam: { read = fn(k), save = fn(k, v), generation = fn() }
+
+local function store()
+    if M._store then return M._store end
+    local ok, Store = pcall(require, "lib/bookshelf_settings_store")
+    return ok and Store or nil
+end
+
+local function readSet(key)
+    local st = store()
+    local ok, v = pcall(function() return st and st.read(key) end)
+    return (ok and type(v) == "table") and v or {}
+end
+
+local function saveSet(key, set)
+    local st = store()
+    if not st then return end
+    local empty = next(set) == nil
+    pcall(function() st.save(key, (not empty) and set or nil) end)
+    M._list_cache, M._list_key = nil, nil   -- the next list() re-filters
+end
+
+function M.isOff(relpath) return readSet(M.OFF_KEY)[relpath] == true end
+function M.isPackOff(pack) return pack ~= nil and readSet(M.PACKS_OFF_KEY)[pack] == true end
+
+function M.setOff(relpath, off)
+    local set = readSet(M.OFF_KEY)
+    set[relpath] = off and true or nil
+    saveSet(M.OFF_KEY, set)
+end
+
+function M.setPackOff(pack, off)
+    if not pack then return end
+    local set = readSet(M.PACKS_OFF_KEY)
+    set[pack] = off and true or nil
+    saveSet(M.PACKS_OFF_KEY, set)
+end
+
+-- entryFor(path, relpath, file, pack) -> an ornament entry, or nil when the
+-- file cannot be sized (logged, so "my ornament doesn't show" is answerable).
+local function entryFor(path, relpath, file, pack)
+    local lname = file:lower()
+    local is_png = lname:match("%.png$") ~= nil
+    if not (is_png or lname:match("%.svg$")) then return nil end
+    -- "rb": a PNG's header is binary, and a text-mode read is only the same
+    -- thing by POSIX's good grace.
+    local f = io.open(path, "rb")
+    if not f then return nil end
+    local head = f:read(8192)
+    f:close()
+    local aspect, over, night_invert
+    if is_png then
+        aspect, over, night_invert = M.parsePngHeader(head)
+        -- A PNG has nowhere to write "bookshelf:night=invert", so the name
+        -- carries it: cat.invert.png. The only channel that needs no tooling.
+        night_invert = lname:match("%.invert%.png$") ~= nil
+    else
+        -- sizeOf rather than parseHeader: it falls back to the renderer's own
+        -- natural size when the header carries no usable viewBox or size.
+        aspect, over, night_invert = M.sizeOf(path, head)
+    end
+    if not aspect then
+        -- warn, not dbg: a dropped file is invisible on the shelf and the
+        -- reader has nothing to go on. Fires at most once per folder change.
+        logger.warn(
+            "[bookshelf] ornament skipped, could not be "
+            .. "sized: no viewBox or width/height in the first "
+            .. "8KB, and the renderer could not open it "
+            .. "either -- likely corrupt or not really an "
+            .. "SVG: " .. tostring(relpath))
+        return nil
+    end
+    if not is_png and M.looksLikeWrappedBitmap(head) then
+        -- Kept in the pool deliberately: a hint off the first 8KB, not a
+        -- verdict. The line is what turns "it just doesn't appear" into
+        -- something answerable.
+        logger.warn(
+            "[bookshelf] ornament looks like a picture "
+            .. "wrapped in an SVG rather than a drawing; "
+            .. "the renderer draws no <image>, so it will "
+            .. "come out blank. Drop the picture in as a "
+            .. ".png instead: " .. tostring(relpath))
+    end
+    -- name is the relative path: unique across packs, and what the rotation
+    -- and the on/off state key on. file is the bare file name, for display.
+    return { path = path, name = relpath, file = file, pack = pack,
+             aspect = aspect, overhang = over, night_invert = night_invert }
+end
+
+-- listAll() -> every ornament in the folder and its packs, switched off or
+-- not, sorted by pack (loose ones first) then name; and the pack names.
+-- Cached on the folders' own scan keys.
+function M.listAll()
+    local d = M.dir()
+    local fs = lfs()
+    if not (d and fs) then return {}, {} end
+    -- ONE listing of the folder for its files and its packs together: a FUSE
+    -- directory listing was measured at 340ms on a tired Kindle, and this runs
+    -- once per scan TTL. Same key as AssetFolder.scan: the folder's mtime and
+    -- its sorted names.
+    local mtime = fs.attributes(d, "modification")
+    if not mtime then return {}, {} end
+    local names, packs = {}, {}
+    local ok_l = pcall(function()
+        for name in fs.dir(d) do
+            if name:sub(1, 1) ~= "." then
+                local ext = name:match("%.([^%.]+)$")
+                if ext and ORNAMENT_EXTS[ext:lower()] then
+                    names[#names + 1] = name
+                elseif fs.attributes(d .. "/" .. name, "mode") == "directory" then
+                    packs[#packs + 1] = name
+                end
+            end
+        end
+    end)
+    if not ok_l then return {}, {} end
+    table.sort(names)
+    table.sort(packs)
+    local key = tostring(mtime) .. "|" .. table.concat(names, "\0")
+    local pack_names = {}
+    for _i, pack in ipairs(packs) do
+        local pn, pk = AssetFolder.scan(fs, d .. "/" .. pack, ORNAMENT_EXTS)
+        pack_names[pack] = pn or {}
+        key = key .. "\1" .. pack .. "\2" .. tostring(pk)
+    end
+    if M._all_cache and M._all_key == key then return M._all_cache, M._all_packs end
+    local out = {}
+    local ok = pcall(function()
+        for _i = 1, #names do
+            local e = entryFor(d .. "/" .. names[_i], names[_i], names[_i], nil)
+            if e then out[#out + 1] = e end
+        end
+        for _i, pack in ipairs(packs) do
+            for _j, file in ipairs(pack_names[pack]) do
+                local rel = pack .. "/" .. file
+                local e = entryFor(d .. "/" .. rel, rel, file, pack)
+                if e then out[#out + 1] = e end
+            end
+        end
+    end)
+    if not ok then out = {} end
+    M._all_cache, M._all_key, M._all_packs = out, key, packs
+    return out, packs
+end
+
+-- list() -> the ornaments the shelf may place: every one in listAll() that is
+-- not switched off and whose pack is not. Sorted by name (relative path),
+-- which the rotation relies on.
 function M.list()
     local now = M._clock()
     if M._list_cache and M._list_at and M.SCAN_TTL > 0
             and (now - M._list_at) < M.SCAN_TTL then
         return M._list_cache
     end
-    local d = M.dir()
-    local fs = lfs()
-    if not (d and fs) then return {} end
-    local names, key = AssetFolder.scan(fs, d, ORNAMENT_EXTS)
-    if not names then return {} end
+    local all = M.listAll()
     M._list_at = now
+    local off, packs_off = readSet(M.OFF_KEY), readSet(M.PACKS_OFF_KEY)
+    -- The same table while nothing changed: the rotation and the plan key on
+    -- it, and re-filtering every render would hand out a new one each time.
+    local sig = {}
+    for k in pairs(off) do sig[#sig + 1] = k end
+    for k in pairs(packs_off) do sig[#sig + 1] = "\1" .. k end
+    table.sort(sig)
+    local key = tostring(all) .. "|" .. table.concat(sig, "\0")
     if M._list_cache and M._list_key == key then return M._list_cache end
     local out = {}
-    local ok = pcall(function()
-        for _i = 1, #names do
-            local name = names[_i]
-            local lname = name:lower()
-            local is_png = lname:match("%.png$") ~= nil
-            if is_png or lname:match("%.svg$") then
-                local path = d .. "/" .. name
-                -- "rb": a PNG's header is binary, and a text-mode read is only
-                -- the same thing by POSIX's good grace.
-                local f = io.open(path, "rb")
-                if f then
-                    local head = f:read(8192)
-                    f:close()
-                    local aspect, over, night_invert
-                    if is_png then
-                        aspect, over, night_invert = M.parsePngHeader(head)
-                        -- A PNG has nowhere to write "bookshelf:night=invert",
-                        -- so the name carries it: cat.invert.png. The only
-                        -- channel that needs no tooling to use.
-                        night_invert = lname:match("%.invert%.png$") ~= nil
-                    else
-                        -- sizeOf rather than parseHeader: it falls back to the
-                        -- renderer's own natural size when the header carries
-                        -- no usable viewBox or width/height.
-                        aspect, over, night_invert = M.sizeOf(path, head)
-                    end
-                    if aspect then
-                        if not is_png and M.looksLikeWrappedBitmap(head) then
-                            -- Kept in the pool deliberately: a hint off the
-                            -- first 8KB, not a verdict. The line is what turns
-                            -- "it just doesn't appear" into something
-                            -- answerable.
-                            logger.warn(
-                                "[bookshelf] ornament looks like a picture "
-                                .. "wrapped in an SVG rather than a drawing; "
-                                .. "the renderer draws no <image>, so it will "
-                                .. "come out blank. Drop the picture in as a "
-                                .. ".png instead: " .. tostring(name))
-                        end
-                        out[#out + 1] = { path = path, name = name,
-                                          aspect = aspect, overhang = over,
-                                          night_invert = night_invert }
-                    else
-                        -- warn, not dbg: a dropped file is invisible on the
-                        -- shelf and the reader has nothing to go on. This is
-                        -- the one line that turns "my ornaments don't show up"
-                        -- into an answerable question, and it fires at most
-                        -- once per folder change (the list is mtime-cached).
-                        logger.warn(
-                            "[bookshelf] ornament skipped, could not be "
-                            .. "sized: no viewBox or width/height in the first "
-                            .. "8KB, and the renderer could not open it "
-                            .. "either -- likely corrupt or not really an "
-                            .. "SVG: " .. tostring(name))
-                    end
-                end
-            end
-        end
-    end)
-    if not ok then out = {} end
-    -- AssetFolder.scan already sorted, so this is a no-op in practice; kept
-    -- because "sorted by name" is what callers and the rotation rely on.
+    for _i, e in ipairs(all) do
+        if not off[e.name] and not (e.pack and packs_off[e.pack]) then out[#out + 1] = e end
+    end
     table.sort(out, function(a, b) return a.name < b.name end)
     M._list_cache, M._list_key = out, key
     return out
+end
+
+-- delete(entry) -> true on success. Removes the file and forgets its state.
+function M.delete(entry)
+    if not (entry and entry.path) then return false end
+    local ok = os.remove(entry.path)
+    if not ok then return false end
+    local set = readSet(M.OFF_KEY)
+    if set[entry.name] then set[entry.name] = nil; saveSet(M.OFF_KEY, set) end
+    M._all_cache, M._all_key, M._list_cache, M._list_key = nil, nil, nil, nil
+    return true
+end
+
+-- invalidate(): forget the cached lists (the browser, after a change).
+function M.invalidate()
+    M._all_cache, M._all_key, M._list_cache, M._list_key, M._list_at = nil, nil, nil, nil, nil
 end
 
 -- looksLikeWrappedBitmap(head) -> bool

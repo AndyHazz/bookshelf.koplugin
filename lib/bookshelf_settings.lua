@@ -1955,27 +1955,25 @@ function Settings:_ornamentsRow()
             local O = orn()
             local dir = (O and O.dir and O.dir()) or "?"
             return T(_("Small pieces that stand in the gaps on a spine shelf. "
-                .. "Drop PNG or SVG files into %1 and they appear there.\n\n"
+                .. "Drop PNG or SVG files into %1 and they appear there; a "
+                .. "folder of them there is a pack, switched on and off as one.\n\n"
+                .. "Tap to browse them, switch them off and on, or delete them. "
                 .. "How often they appear is set per shelf: long-press a shelf "
                 .. "chip, then Shelf style."), dir)
         end,
         keep_menu_open = true,
-        callback = function()
-            -- Required here, as everywhere else in this file: InfoMessage is
-            -- not a module-level upvalue.
-            local InfoMessage = require("ui/widget/infomessage")
-            local O = orn()
-            local dir = (O and O.dir and O.dir()) or "?"
-            local n = 0
-            if O and O.list then
-                local ok, list = pcall(O.list)
-                n = (ok and list) and #list or 0
-            end
-            UIManager:show(InfoMessage:new{
-                text = T(_("%1 ornaments installed.\n\nFolder:\n%2\n\n"
-                    .. "How often they appear is set per shelf, in Shelf style."),
-                    n, dir),
-            })
+        -- Browse, switch off and on, delete; packs are its chips.
+        callback = function(touchmenu_instance)
+            require("lib/bookshelf_ornament_browser").show(function()
+                local bw = self._bw
+                if bw and bw._rebuild then
+                    bw:_rebuild()
+                    UIManager:setDirty(bw, "ui")
+                end
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+            end)
         end,
     }
 end

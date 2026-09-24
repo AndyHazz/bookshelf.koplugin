@@ -1,0 +1,247 @@
+-- bookshelf_ornament_browser.lua
+-- Browse the ornaments folder: see every ornament, switch any of them (or a
+-- whole pack) off and on, and delete them. On the shared LibraryModal chrome,
+-- like the micro-module picker.
+--
+-- A pack is a subfolder of the ornaments folder (lib/bookshelf_ornaments);
+-- the chips across the top are All, the loose ornaments, and one per pack.
+-- With a pack's chip selected the footer switches the whole pack off or on.
+--
+--   tap        switch that ornament off / on
+--   long-press switch it, or delete it
+--
+-- Switching off leaves the file where it is, so it can come back; deleting
+-- removes it. Seeds that are deleted stay deleted (the folder is only seeded
+-- when it does not exist).
+
+local Blitbuffer      = require("ffi/blitbuffer")
+local ButtonDialog    = require("ui/widget/buttondialog")
+local CenterContainer = require("ui/widget/container/centercontainer")
+local ConfirmBox      = require("ui/widget/confirmbox")
+local Device          = require("device")
+local Font            = require("ui/font")
+local FrameContainer  = require("ui/widget/container/framecontainer")
+local Geom            = require("ui/geometry")
+local InfoMessage     = require("ui/widget/infomessage")
+local LibraryModal    = require("lib/bookshelf_library_modal")
+local Size            = require("ui/size")
+local Space           = require("lib/bookshelf_space")
+local TextWidget      = require("ui/widget/textwidget")
+local TextBoxWidget   = require("ui/widget/textboxwidget")
+local UIManager       = require("ui/uimanager")
+local VerticalGroup   = require("ui/widget/verticalgroup")
+local VerticalSpan    = require("ui/widget/verticalspan")
+local Widget          = require("ui/widget/widget")
+local T               = require("ffi/util").template
+local _               = require("lib/bookshelf_i18n").gettext
+local Screen          = Device.screen
+
+local Browser = {}
+
+local ALL, LOOSE = "__all", "__loose"
+
+local function O() return require("lib/bookshelf_ornaments") end
+
+-- An ornament's card is faded while it will not be placed, whether switched
+-- off itself or through its pack: the grid reads as "what the shelf uses".
+local Faded = Widget:extend{ child = nil, fade = 0.6 }
+function Faded:getSize() return self.child:getSize() end
+function Faded:paintTo(bb, x, y)
+    self.child:paintTo(bb, x, y)
+    local s = self.child:getSize()
+    pcall(function() bb:lightenRect(x, y, s.w, s.h, self.fade) end)
+    self.dimen = Geom:new{ x = x, y = y, w = s.w, h = s.h }
+end
+
+function Browser._renderCell(item, dimen)
+    local e = item.entry
+    local border = Size.border.default
+    local pad = Space.padding.default
+    local label_face = Font:getFace("cfont", 16)
+    local state_face = Font:getFace("cfont", 13)
+    local inner_w = dimen.w - 2 * (border + pad)
+    local label = TextWidget:new{ text = e.file, face = label_face, max_width = inner_w }
+    local state = TextWidget:new{
+        text = item.off and _("Off") or (item.pack_off and _("Pack off") or " "),
+        face = state_face, fgcolor = Blitbuffer.COLOR_DARK_GRAY, max_width = inner_w,
+    }
+    local text_h = label:getSize().h + state:getSize().h + Space.padding.small
+    local box_h = math.max(1, dimen.h - 2 * (border + pad) - text_h - Space.padding.small)
+    -- Fit the ornament's own aspect into the box.
+    local aspect = (e.aspect and e.aspect > 0) and e.aspect or 1
+    local pw, ph = inner_w, math.floor(inner_w / aspect)
+    if ph > box_h then ph = box_h; pw = math.floor(box_h * aspect) end
+    pw, ph = math.max(1, pw), math.max(1, ph)
+    local preview = O().Ornament:new{
+        placement = { entry = e, w = pw, h = ph },
+        night = Screen.night_mode and true or false,
+    }
+    local inner_h = dimen.h - 2 * (border + pad)
+    local body = VerticalGroup:new{
+        align = "center",
+        CenterContainer:new{ dimen = Geom:new{ w = inner_w, h = box_h }, preview },
+        VerticalSpan:new{ width = Space.padding.small },
+        label,
+        state,
+    }
+    -- Sized by its content, not FrameContainer's width/height (its getSize
+    -- ignores them), so every card fills its grid slot exactly.
+    local card = FrameContainer:new{
+        bordersize = border,
+        radius = Space.radius.default,
+        padding = pad,
+        margin = 0,
+        background = Blitbuffer.COLOR_WHITE,
+        CenterContainer:new{ dimen = Geom:new{ w = inner_w, h = inner_h }, body },
+    }
+    if item.off or item.pack_off then return Faded:new{ child = card } end
+    return card
+end
+
+function Browser:_items()
+    local Orn = O()
+    local all = Orn.listAll()
+    local out = {}
+    for _i, e in ipairs(all) do
+        local keep = self.chip == ALL
+                     or (self.chip == LOOSE and e.pack == nil)
+                     or (e.pack ~= nil and e.pack == self.chip)
+        if keep then
+            out[#out + 1] = { entry = e, off = Orn.isOff(e.name),
+                              pack_off = Orn.isPackOff(e.pack) }
+        end
+    end
+    return out
+end
+
+function Browser:_changed()
+    O().invalidate()
+    self.items = self:_items()
+    if self.modal then self.modal:refresh() end
+    if self.on_change then pcall(self.on_change) end
+end
+
+function Browser:_chips()
+    local Orn = O()
+    local all, packs = Orn.listAll()
+    local has_loose = false
+    for _i, e in ipairs(all) do if e.pack == nil then has_loose = true; break end end
+    local chips = { { key = ALL, label = _("All"), is_active = self.chip == ALL } }
+    if has_loose and #packs > 0 then
+        chips[#chips + 1] = { key = LOOSE, label = _("Loose"), is_active = self.chip == LOOSE }
+    end
+    for _i, pack in ipairs(packs) do
+        chips[#chips + 1] = {
+            key = pack,
+            label = Orn.isPackOff(pack) and T(_("%1 (off)"), pack) or pack,
+            is_active = self.chip == pack,
+        }
+    end
+    return chips
+end
+
+function Browser:_isPack(key)
+    return key ~= nil and key ~= ALL and key ~= LOOSE
+end
+
+function Browser:_confirmDelete(item)
+    UIManager:show(ConfirmBox:new{
+        text = T(_("Delete %1?\n\nThe file is removed from the ornaments folder."), item.entry.name),
+        ok_text = _("Delete"),
+        ok_callback = function()
+            if not O().delete(item.entry) then
+                UIManager:show(InfoMessage:new{ text = _("Could not delete the file."), timeout = 3 })
+            end
+            self:_changed()
+        end,
+    })
+end
+
+function Browser:_longTap(item)
+    local d
+    d = ButtonDialog:new{
+        title = item.entry.name,
+        buttons = {
+            {{
+                text = item.off and _("Switch on") or _("Switch off"),
+                callback = function()
+                    UIManager:close(d)
+                    O().setOff(item.entry.name, not item.off)
+                    self:_changed()
+                end,
+            }},
+            {{
+                text = _("Delete\xe2\x80\xa6"),
+                callback = function()
+                    UIManager:close(d)
+                    self:_confirmDelete(item)
+                end,
+            }},
+        },
+    }
+    UIManager:show(d)
+end
+
+-- show(on_change): on_change() runs after anything changed, so the caller can
+-- redraw the shelf.
+function Browser.show(on_change)
+    local self = setmetatable({ chip = ALL, on_change = on_change }, { __index = Browser })
+    self.items = self:_items()
+    local function cols() return Screen:getWidth() > Screen:getHeight() and 4 or 3 end
+    local function close()
+        if self.modal then UIManager:close(self.modal); self.modal = nil end
+    end
+    local config = {
+        title = _("Ornaments"),
+        no_search = true,
+        grid_cols = cols,
+        cells_per_page = function() return cols() * 3 end,
+        rows_per_page = 6,
+        chip_strip = function() return self:_chips() end,
+        on_chip_tap = function(key)
+            self.chip = key
+            self.items = self:_items()
+        end,
+        cell_renderer = Browser._renderCell,
+        on_cell_tap = function(item)
+            O().setOff(item.entry.name, not item.off)
+            self:_changed()
+        end,
+        cell_long_tap = function(item) self:_longTap(item) end,
+        item_count = function() return #self.items end,
+        item_at = function(idx) return self.items[idx] end,
+        empty_state = function(w, _h)
+            local dir = O().dir() or "?"
+            return CenterContainer:new{
+                dimen = Geom:new{ w = w, h = _h },
+                TextBoxWidget:new{
+                    text = T(_("No ornaments here.\n\nDrop PNG or SVG files into\n%1\nor a folder of them, which becomes a pack."), dir),
+                    face = Font:getFace("cfont", 16),
+                    width = math.floor(w * 0.9),
+                    alignment = "center",
+                },
+            }
+        end,
+        footer_actions = {
+            {
+                key = "pack",
+                label_func = function()
+                    if not self:_isPack(self.chip) then return _("Pack") end
+                    return O().isPackOff(self.chip) and _("Switch pack on") or _("Switch pack off")
+                end,
+                enabled_when = function() return self:_isPack(self.chip) end,
+                on_tap = function()
+                    if not self:_isPack(self.chip) then return end
+                    O().setPackOff(self.chip, not O().isPackOff(self.chip))
+                    self:_changed()
+                end,
+            },
+            { key = "close", label = _("Close"), on_tap = close },
+        },
+    }
+    self.modal = LibraryModal:new{ config = config }
+    UIManager:show(self.modal)
+    return self
+end
+
+return Browser

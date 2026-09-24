@@ -65,6 +65,10 @@ end)
 -- merge, not the parse, and the parse is covered on device.
 -- Every harvest the module writes during a withStubbedJson run, newest last.
 local DUMPS = {}
+-- lua-rapidjson decodes JSON null to a sentinel, rapidjson.null, not to nil.
+-- A plain table stands in for it: what matters is that it is a truthy non-nil
+-- value the module can only recognise by comparing against rapidjson.null.
+local NULL = setmetatable({}, { __tostring = function() return "rapidjson.null" end })
 local function withStubbedJson(books, harvest, home)
     home = home or "/lib"
     local META = "/lib/metadata.calibre"
@@ -75,6 +79,7 @@ local function withStubbedJson(books, harvest, home)
             if path == HARV then return { version = 1, books = harvest } end
             error("unexpected path " .. tostring(path))
         end,
+        null = NULL,
         dump = function(obj, path)
             DUMPS[#DUMPS + 1] = { obj = obj, path = path }
             return true
@@ -380,6 +385,71 @@ t.test("a value present in the file still wins over a restored one", function()
     -- author_sort present => this is a calibre-written file, so no restore at
     -- all; either way the live value must be what comes back.
     assert(e and e.author_sort == "Live, A", "harvest overwrote a live value")
+end)
+
+
+-- ── A REAL KOReader rewrite writes nulls, not missing keys ─────────────────
+--
+-- KOReader's calibre plugin rewrites the file through slim(), which writes every
+-- field it keeps as `book[k] or rapidjson.null` - and load_calibre has already
+-- dropped author_sort's value, so the rewritten file carries
+-- "author_sort": null (confirmed by running CalibreMetadata:init +
+-- cleanUnused over a genuine Calibre file). The calibre-written test was
+-- author_sort ~= nil, and the decoded null is not nil, so EVERY synced file
+-- passed as fresh from Calibre: the restore never ran, and the write path
+-- rebuilt the harvest from the stripped file, destroying it. The suite never
+-- saw it because its stripped fixtures deleted the keys instead.
+
+local KO_REWRITTEN = {
+    { lpath = "a/Tomb.epub", title = "The Locked Tomb", authors = { "Tamsyn Muir" },
+      author_sort = NULL, series = NULL, series_index = NULL, size = NULL, tags = {} },
+}
+local TOMB_HARVEST = {
+    ["a/Tomb.epub"] = { author_sort = "Muir, Tamsyn", title_sort = "Locked Tomb, The",
+                        calibre = { mood = "cosy" } },
+}
+
+t.test("a real KOReader rewrite is recognised as stripped and restored", function()
+    local M = withStubbedJson(KO_REWRITTEN, TOMB_HARVEST)
+    local e = M.entryFor("/lib/a/Tomb.epub", true)
+    assert(e, "no entry")
+    assert(e.author_sort == "Muir, Tamsyn",
+           "author_sort not restored after a real sync: " .. tostring(e.author_sort))
+    assert(e.title_sort == "Locked Tomb, The",
+           "title_sort not restored after a real sync: " .. tostring(e.title_sort))
+    local f = M.fieldsFor("/lib/a/Tomb.epub", true)
+    assert(f and f.mood == "cosy", "custom column not restored after a real sync")
+end)
+
+t.test("a real KOReader rewrite does not overwrite the harvest", function()
+    DUMPS = {}
+    local M = withStubbedJson(KO_REWRITTEN, TOMB_HARVEST)
+    M.entryFor("/lib/a/Tomb.epub", true)
+    assert(#DUMPS == 0, "the harvest was rewritten from a stripped file - it destroys itself")
+end)
+
+t.test("a null in the file never reaches a reader as a value", function()
+    local M = withStubbedJson(KO_REWRITTEN, {})
+    local e = M.entryFor("/lib/a/Tomb.epub", true)
+    assert(e, "no entry")
+    assert(e.series == nil, "the null sentinel leaked out as series: " .. tostring(e.series))
+    assert(e.author_sort == nil, "the null sentinel leaked out as author_sort")
+end)
+
+t.test("a null already saved in a harvest is not restored as a value", function()
+    -- The sidecar that the bug left behind on real devices: {author_sort: null}.
+    local M = withStubbedJson(KO_REWRITTEN, { ["a/Tomb.epub"] = { author_sort = NULL } })
+    local e = M.entryFor("/lib/a/Tomb.epub", true)
+    assert(e and e.author_sort == nil, "a saved null was restored: " .. tostring(e and e.author_sort))
+end)
+
+t.test("a fresh Calibre file is still trusted wholly, so a cleared column clears", function()
+    -- The reason detection exists: a column the user emptied in Calibre must
+    -- not be brought back from the harvest.
+    local fresh = { { lpath = "a/Tomb.epub", title = "The Locked Tomb", author_sort = "Muir, Tamsyn" } }
+    local M = withStubbedJson(fresh, TOMB_HARVEST)
+    local f = M.fieldsFor("/lib/a/Tomb.epub", true)
+    assert(not (f and f.mood), "a column cleared in Calibre came back from the harvest")
 end)
 
 

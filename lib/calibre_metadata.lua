@@ -197,6 +197,20 @@ local function _calibreMetadataFor(filepath, enabled)
         _calibre_state.map = nil
         return nil
     end
+    -- JSON null decodes to rapidjson.null, a TRUTHY sentinel, not to nil. It
+    -- matters here more than anywhere: KOReader's calibre plugin rewrites this
+    -- file through a slim() that writes every field it keeps as
+    -- `book[k] or rapidjson.null`, so a synced file says "author_sort": null
+    -- rather than leaving the key out. Tested as `~= nil`, that null made
+    -- every synced file look freshly written by Calibre (see the detection
+    -- below). present() is the test to use for any value read from the file.
+    local NULL = rapidjson.null
+    local function present(v)
+        return v ~= nil and (NULL == nil or v ~= NULL)
+    end
+    local function val(v)
+        if present(v) then return v end
+    end
     -- WHICH PARSER, and why it matters (issue 299): rapidjson.load_calibre is
     -- KOReader's slimming parser -- fast and memory-light because it KEEPS
     -- ONLY the fields its calibre plugin needs, and user_metadata (where a
@@ -273,22 +287,22 @@ local function _calibreMetadataFor(filepath, enabled)
     local function slim(book)
         local out = {
             lpath        = book.lpath,
-            title        = book.title,
+            title        = val(book.title),
             -- calibre's own sort title ("Locked Tomb, The"), which it computes
             -- with its language-aware rules -- so a "sort by title" that
             -- ignores leading articles uses the user's metadata rather than us
             -- guessing at English grammar. In PUBLICATION_METADATA_FIELDS, so
             -- calibre serialises it to the device file. Sibling of author_sort
             -- below, harvested the same way.
-            title_sort   = book.title_sort,
-            authors      = book.authors,
-            author_sort  = book.author_sort,
-            series       = book.series,
-            series_index = book.series_index,
-            tags         = book.tags,
-            keywords     = book.keywords,
-            languages    = book.languages,
-            comments     = book.comments,
+            title_sort   = val(book.title_sort),
+            authors      = val(book.authors),
+            author_sort  = val(book.author_sort),
+            series       = val(book.series),
+            series_index = val(book.series_index),
+            tags         = val(book.tags),
+            keywords     = val(book.keywords),
+            languages    = val(book.languages),
+            comments     = val(book.comments),
         }
         if type(book.user_metadata) == "table" then
             local extras
@@ -379,7 +393,8 @@ local function _calibreMetadataFor(filepath, enabled)
     local calibre_written = false
     for _i, book in ipairs(data) do
         if type(book) == "table" and book.lpath then
-            if book.user_metadata ~= nil or book.author_sort ~= nil then
+            -- present(), not ~= nil: a synced file carries "author_sort": null.
+            if present(book.user_metadata) or present(book.author_sort) then
                 calibre_written = true
             end
             map[_normPath(lib_root .. "/" .. book.lpath)] = full and slim(book) or book
@@ -426,7 +441,10 @@ local function _calibreMetadataFor(filepath, enabled)
                     -- HARVEST_OWNED needs no change here. A value still present
                     -- in the file always wins.
                     for k, v in pairs(saved) do
-                        if k == "calibre" then
+                        if not present(v) then
+                            -- A null saved by the bug this fixes; nothing to
+                            -- restore. Skip rather than write it back as a value.
+                        elseif k == "calibre" then
                             -- Per-KEY merge, not all-or-nothing. entry.calibre
                             -- is rarely nil after a rewrite: the three standard
                             -- fields (pubdate, publisher, rating) are built from
@@ -444,12 +462,12 @@ local function _calibreMetadataFor(filepath, enabled)
                             if type(v) == "table" then
                                 entry.calibre = entry.calibre or {}
                                 for ck, cv in pairs(v) do
-                                    if entry.calibre[ck] == nil then
+                                    if present(cv) and not present(entry.calibre[ck]) then
                                         entry.calibre[ck] = cv
                                     end
                                 end
                             end
-                        elseif entry[k] == nil then
+                        elseif not present(entry[k]) then
                             entry[k] = v
                         end
                     end

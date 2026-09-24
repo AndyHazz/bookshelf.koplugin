@@ -2738,6 +2738,36 @@ test("getBySource: status filter finds on-hold book when metadata is not in a si
         "expected Alpha, got " .. tostring(list[1] and list[1].title))
 end)
 
+test("getBySource: a filtered Recent or collection chip keeps books outside home (issue 305)", function()
+    -- Read or collected from outside the home folder: the plain chip showed
+    -- them, but a filter sent the chip through the library walk, which never
+    -- sees them.
+    _setupResolverLibrary()
+    _G._test_bim_data["/elsewhere/delta.epub"] = { title = "Delta" }
+    package.loaded["readhistory"].hist = {
+        { file = "/lib/comics/alpha.epub", time = 300 },
+        { file = "/elsewhere/delta.epub",  time = 200 },
+    }
+    _G._test_docsettings_data = {
+        ["/lib/comics/alpha.epub"] = { summary = { status = "reading" } },
+        ["/elsewhere/delta.epub"]  = { summary = { status = "reading" } },
+    }
+    local list, total = Repo.getBySource(
+        { kind = "recent" }, { statuses = { reading = true } }, nil, 0, 10)
+    local titles = {}
+    for _i, b in ipairs(list) do titles[#titles + 1] = b.title end
+    table.sort(titles)
+    package.loaded["readcollection"].coll.wishlist[2] = { file = "/elsewhere/delta.epub" }
+    local clist = Repo.getBySource({ kind = "collection", id = "wishlist" },
+        { statuses = { reading = true } }, nil, 0, 10)
+    package.loaded["readhistory"].hist = {}
+    _teardownResolverLibrary()
+    _G._test_docsettings_data = nil
+    assert(total == 2, "expected both reading books, got " .. tostring(total))
+    assert(table.concat(titles, ",") == "Alpha,Delta", "got " .. table.concat(titles, ","))
+    assert(#clist == 2, "collection lost the book outside home: " .. #clist)
+end)
+
 test("getBySource: rating filter finds rated book when metadata is not in a sibling .sdr", function()
     _setupResolverLibrary()
     _G._test_docsettings_data = {

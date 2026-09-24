@@ -7931,6 +7931,46 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
             return matched
         end
 
+        -- loadCandidatesFromPaths(set): the same records, for a source that
+        -- is a LIST of books (history, favourites, a collection) rather than
+        -- a slice of the library. Those went through the library walk and
+        -- kept only its matches, so a book outside the home folder -- read,
+        -- or collected, from elsewhere on the device -- dropped out of its
+        -- chip the moment a filter or a sort was set on it, while the plain
+        -- chip showed it (issue 305). The list is also far shorter than the
+        -- library, so no walk at all. Sorted by path, as the walk was, so
+        -- ties in the sort below keep a stable order.
+        local function loadCandidatesFromPaths(set)
+            local lfs = require("libs/libkoreader-lfs")
+            local home  = G_reader_settings:readSetting("home_dir") or "/"
+            local depth = BookshelfSettings.read("latest_walk_depth") or 3
+            local light_cache = _getLightMetaCache(home, depth)
+            local read_time = {}
+            for _i, entry in ipairs(getReadHistory().hist) do
+                local t = entry.time or 0
+                if t > (read_time[entry.file] or 0) then read_time[entry.file] = t end
+            end
+            local paths = {}
+            for fp in pairs(set) do
+                if type(fp) == "string" and not fp:find("^OPDS://") then
+                    paths[#paths + 1] = fp
+                end
+            end
+            table.sort(paths)
+            local matched = {}
+            for _i, fp in ipairs(paths) do
+                local attr = lfs.attributes(fp)
+                local b = attr and attr.mode == "file" and _lightMetaForFp(light_cache, fp) or nil
+                if b then
+                    b._last_read = read_time[fp] or 0
+                    if not b.date_added then b.date_added = attr.modification or 0 end
+                    if not b.size then b.size = attr.size or 0 end
+                    matched[#matched + 1] = b
+                end
+            end
+            return matched
+        end
+
         if kind == "library" or kind == "all" or kind == "latest" then
             -- Library walk + tautological predicate. 'all' (Home folders)
             -- and 'latest' (Latest added) reach this branch only when a
@@ -7948,11 +7988,10 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
             local rh = getReadHistory()
             local in_history = {}
             for _i, entry in ipairs(rh.hist) do
-                if entry.file then in_history[entry.file] = true end
+                -- entry.dim: deleted through the file manager (see getRecent).
+                if entry.file and not entry.dim then in_history[entry.file] = true end
             end
-            candidates = loadCandidatesByPredicate(function(b)
-                return in_history[b.filepath]
-            end, nil, true)
+            candidates = loadCandidatesFromPaths(in_history)
         elseif kind == "favorites" then
             -- Favourites with filter: match against the favorites
             -- collection. Same flow as 'collection' but with a fixed
@@ -7966,9 +8005,7 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
                     if type(fp) == "string" then set[fp] = true end
                 end
             end
-            candidates = loadCandidatesByPredicate(function(b)
-                return set[b.filepath]
-            end, nil, true)
+            candidates = loadCandidatesFromPaths(set)
         elseif kind == "folder" then
             -- Reached only when a status filter is active (otherwise the
             -- early-return above sends folder chips to getAll for tree view).
@@ -8007,8 +8044,7 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
                     end
                 end
             end
-            candidates = loadCandidatesByPredicate(function(b) return set[b.filepath] end,
-                nil, true)
+            candidates = loadCandidatesFromPaths(set)
             -- Stamped onto the record so the collection_order sort key can see
             -- it; the records come out of the library store, which knows
             -- nothing about collections (issue 441).

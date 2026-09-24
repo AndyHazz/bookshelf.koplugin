@@ -7,12 +7,9 @@
 -- question halfway through ("Paginate them the slow way?"), after the fast
 -- passes had already run. The choices now come first and are remembered.
 --
--- The dialog redraws in place (every button has an id; a tap rewrites the
--- labels through getButtonById/setText and repaints only the dialog), the
--- same as the chip editor's face-out picker: a ButtonDialog that closes and
--- reopens per tap flashes the whole screen.
+-- A tap repaints only what it changed (a checkbox, the Start button): a
+-- dialog that closes and reopens per tap flashes the whole screen.
 
-local ButtonDialog = require("ui/widget/buttondialog")
 local ConfirmBox   = require("ui/widget/confirmbox")
 local InfoMessage  = require("ui/widget/infomessage")
 local UIManager    = require("ui/uimanager")
@@ -23,8 +20,6 @@ local _            = require("lib/bookshelf_i18n").gettext
 local M = {}
 
 M.SETTING = "page_count_scan"   -- { publisher=, hardcover=, render=, recount= }
-
-local TICK, BLANK = "\xE2\x9C\x93 ", "\xE2\x80\x83 "
 
 -- options() -> the remembered choices, every source on by default.
 function M.options()
@@ -76,95 +71,234 @@ end
 
 -- show(start, on_deleted): start(options) runs the scan; on_deleted() lets the
 -- caller redraw the shelf once counts are gone.
-function M.show(start, on_deleted)
-    local o  = M.options()
-    local hc = hardcoverLinked()
-    local d
+--
+-- A dialog of its own rather than a ButtonDialog: the choices are two kinds
+-- (sources, any mix; which books, one of two) and each source needs a word on
+-- what it is and what it costs, which a list of ticked buttons could not say.
+-- KOReader's own CheckButton gives the checkboxes and radio marks and repaints
+-- just itself on a tap.
+local Blitbuffer      = require("ffi/blitbuffer")
+local ButtonTable     = require("ui/widget/buttontable")
+local CenterContainer = require("ui/widget/container/centercontainer")
+local CheckButton     = require("ui/widget/checkbutton")
+local Font            = require("ui/font")
+local FrameContainer  = require("ui/widget/container/framecontainer")
+local Geom            = require("ui/geometry")
+local GestureRange    = require("ui/gesturerange")
+local HorizontalGroup = require("ui/widget/horizontalgroup")
+local HorizontalSpan  = require("ui/widget/horizontalspan")
+local InputContainer  = require("ui/widget/container/inputcontainer")
+local LineWidget      = require("ui/widget/linewidget")
+local MovableContainer = require("ui/widget/container/movablecontainer")
+local Size            = require("ui/size")
+local TextBoxWidget   = require("ui/widget/textboxwidget")
+local TextWidget      = require("ui/widget/textwidget")
+local TitleBar        = require("ui/widget/titlebar")
+local VerticalGroup   = require("ui/widget/verticalgroup")
+local VerticalSpan    = require("ui/widget/verticalspan")
+local Device          = require("device")
+local Screen          = Device.screen
 
-    local function sourceLabel(key)
-        local text
-        if key == "publisher" then
-            text = _("Publisher page numbers in the book (fast)")
-        elseif key == "hardcover" then
-            text = hc and _("Hardcover editions of linked books (fast)")
-                      or _("Hardcover editions (no linked books)")
-        else
-            text = _("Count at your reading settings (slow)")
-        end
-        local on = o[key] and (key ~= "hardcover" or hc)
-        return (on and TICK or BLANK) .. text
-    end
-    local function modeLabel(recount)
-        local text = recount and _("Recount every book") or _("Only books without a count")
-        return ((o.recount == recount) and TICK or BLANK) .. text
-    end
-    local function save() Settings.save(M.SETTING, o) end
+local Dialog = InputContainer:extend{}
 
-    local function refresh()
-        if not d then return end
-        local function set(id, text)
-            local btn = d:getButtonById(id)
-            if btn and text then btn:setText(text, btn.width) end
-            return btn
-        end
-        set("publisher", sourceLabel("publisher"))
-        set("hardcover", sourceLabel("hardcover"))
-        set("render", sourceLabel("render"))
-        set("missing", modeLabel(false))
-        set("recount", modeLabel(true))
-        local go = set("start")
-        if go then
-            if M.anySource(o, hc) then go:enable() else go:disable() end
-        end
-        UIManager:setDirty(d, function() return "ui", d.movable.dimen end)
-    end
-    local function toggle(key)
-        return {
-            id = key, text = sourceLabel(key), align = "left",
-            enabled = key ~= "hardcover" or hc,
-            callback = function() o[key] = not o[key]; save(); refresh() end,
+function Dialog:init()
+    local o, hc = self.o, self.hc
+    local sw, sh = Screen:getWidth(), Screen:getHeight()
+    self.width = math.floor(math.min(sw, sh) * 0.9)
+    local pad = Size.padding.large
+    local iw = self.width - 2 * pad
+    local gap = Size.padding.default
+    local dialog = self
+
+    local function text(t, face, color, width)
+        return TextBoxWidget:new{
+            text = t, face = face, width = width or iw,
+            fgcolor = color or Blitbuffer.COLOR_BLACK,
         }
     end
-    local function mode(recount)
-        return {
-            id = recount and "recount" or "missing", text = modeLabel(recount), align = "left",
-            callback = function() o.recount = recount; save(); refresh() end,
+    local function heading(t)
+        return TextWidget:new{ text = t, face = Font:getFace("smallinfofontbold") }
+    end
+    local hint_face = Font:getFace("x_smallinfofont")
+
+    -- A checkbox (or radio) and, under its label, a grey line on what it is.
+    local function option(spec)
+        local cb = CheckButton:new{
+            text = spec.label, checked = spec.checked, enabled = spec.enabled ~= false,
+            radio = spec.radio, width = iw, parent = dialog, show_parent = dialog,
+            callback = spec.callback,
         }
+        local g = VerticalGroup:new{ align = "left", cb }
+        if spec.hint then
+            local indent = cb._checkmark and cb._checkmark.dimen.w or Screen:scaleBySize(30)
+            g[#g + 1] = HorizontalGroup:new{
+                HorizontalSpan:new{ width = indent },
+                text(spec.hint, hint_face, Blitbuffer.COLOR_DARK_GRAY, iw - indent),
+            }
+        end
+        g[#g + 1] = VerticalSpan:new{ width = gap }
+        return g, cb
     end
 
-    d = ButtonDialog:new{
-        title = _("Extract page counts") .. "\n\n"
-            .. _("Finds page counts for spine thickness, page count badges, sorting and tokens. A page count in a file name, like p(320), is always used as it is.")
-            .. "\n\n" .. _("Where counts may come from:"),
-        title_align = "left",
+    local save = function() Settings.save(M.SETTING, o) end
+    local function updateStart()
+        local btn = self.buttons and self.buttons:getButtonById("start")
+        if not btn then return end
+        if M.anySource(o, hc) then btn:enable() else btn:disable() end
+        UIManager:setDirty(self, function() return "ui", btn.dimen end)
+    end
+    local function source(key)
+        return function()
+            o[key] = not o[key]
+            save()
+            updateStart()
+        end
+    end
+
+    local pub, _pub = option{
+        label = _("Publisher page numbers"),
+        hint  = _("Printed page numbers that some books carry. Fast."),
+        checked = o.publisher, callback = source("publisher"),
+    }
+    local hcv, _hcv = option{
+        label = _("Hardcover editions"),
+        hint  = hc and _("The page count of the edition each linked book is matched to. Fast.")
+                   or _("No books are linked to Hardcover."),
+        checked = hc and o.hardcover, enabled = hc, callback = source("hardcover"),
+    }
+    local ren, _ren = option{
+        label = _("Your reading settings"),
+        hint  = _("Lays out each remaining book in your font and margins, so the count matches what you see when reading. Slow; runs in the background."),
+        checked = o.render, callback = source("render"),
+    }
+    local radios = {}
+    local function pick(recount)
+        return function()
+            o.recount = recount
+            save()
+            for want, rb in pairs(radios) do
+                rb:initCheckButton(want == recount)
+                UIManager:setDirty(self, function() return "ui", rb.dimen end)
+            end
+        end
+    end
+    local missing, rb_missing = option{
+        label = _("Only books without a page count"), radio = true,
+        checked = not o.recount, callback = pick(false),
+    }
+    local every, rb_every = option{
+        label = _("Every book, replacing earlier counts"), radio = true,
+        checked = o.recount, callback = pick(true),
+    }
+    radios[false], radios[true] = rb_missing, rb_every
+
+    self.buttons = ButtonTable:new{
+        width = self.width - 2 * Size.padding.default,
+        zero_sep = true,
+        show_parent = self,
         buttons = {
-            { toggle("publisher") },
-            { toggle("hardcover") },
-            { toggle("render") },
-            { mode(false) },
-            { mode(true) },
             {{
                 text = _("Delete scanned page counts\xe2\x80\xa6"),
                 callback = function()
-                    UIManager:close(d)
-                    M.deleteScanned(on_deleted)
+                    UIManager:close(self)
+                    M.deleteScanned(self.on_deleted)
                 end,
             }},
             {
-                { text = _("Cancel"), callback = function() UIManager:close(d) end },
+                { text = _("Cancel"), callback = function() UIManager:close(self) end },
                 {
-                    id = "start", text = _("Start"),
-                    enabled = M.anySource(o, hc),
+                    id = "start", text = _("Start"), enabled = M.anySource(o, hc),
                     callback = function()
-                        UIManager:close(d)
+                        UIManager:close(self)
                         local opts = {}
                         for k, v in pairs(o) do opts[k] = v end
                         opts.hardcover = opts.hardcover and hc
-                        start(opts)
+                        self.start(opts)
                     end,
                 },
             },
         },
+    }
+
+    local body = VerticalGroup:new{
+        align = "left",
+        text(_("Finds how long each book is, for spine thickness, page count badges, sorting and the page count token."),
+             Font:getFace("smallinfofont")),
+        VerticalSpan:new{ width = pad },
+        heading(_("Use page counts from")),
+        VerticalSpan:new{ width = gap },
+        pub, hcv, ren,
+        VerticalSpan:new{ width = gap },
+        heading(_("Which books")),
+        VerticalSpan:new{ width = gap },
+        missing, every,
+        VerticalSpan:new{ width = gap },
+        text(_("A page count in a file name, like p(320), is always used as it is."),
+             hint_face, Blitbuffer.COLOR_DARK_GRAY),
+    }
+    local frame = FrameContainer:new{
+        radius = Size.radius.window,
+        bordersize = Size.border.window,
+        padding = 0, margin = 0,
+        background = Blitbuffer.COLOR_WHITE,
+        VerticalGroup:new{
+            align = "center",
+            TitleBar:new{
+                width = self.width,
+                title = _("Extract page counts"),
+                with_bottom_line = true,
+                close_callback = function() UIManager:close(self) end,
+                show_parent = self,
+            },
+            FrameContainer:new{ bordersize = 0, padding = pad, body },
+            LineWidget:new{
+                background = Blitbuffer.COLOR_DARK_GRAY,
+                dimen = Geom:new{ w = self.width, h = Size.line.thin },
+            },
+            CenterContainer:new{
+                dimen = Geom:new{ w = self.width, h = self.buttons:getSize().h },
+                self.buttons,
+            },
+        },
+    }
+    self.frame = frame
+    self.movable = MovableContainer:new{ frame }
+    self.dimen = Geom:new{ x = 0, y = 0, w = sw, h = sh }
+    self[1] = CenterContainer:new{ dimen = Geom:new{ x = 0, y = 0, w = sw, h = sh }, self.movable }
+    self.ges_events = {
+        TapOutside = { GestureRange:new{ ges = "tap", range = Geom:new{ x = 0, y = 0, w = sw, h = sh } } },
+    }
+    if Device:hasKeys() then
+        self.key_events = { Close = { { Device.input.group.Back } } }
+    end
+end
+
+function Dialog:onTapOutside(_arg, ges)
+    if self.frame.dimen and ges and ges.pos and not ges.pos:intersectWith(self.frame.dimen) then
+        UIManager:close(self)
+        return true
+    end
+    return false
+end
+
+function Dialog:onClose()
+    UIManager:close(self)
+    return true
+end
+
+function Dialog:onShow()
+    UIManager:setDirty(self, function() return "ui", self.frame.dimen end)
+    return true
+end
+
+function Dialog:onCloseWidget()
+    UIManager:setDirty(nil, function() return "ui", self.frame.dimen end)
+end
+
+function M.show(start, on_deleted)
+    local d = Dialog:new{
+        o = M.options(), hc = hardcoverLinked(),
+        start = start, on_deleted = on_deleted,
     }
     UIManager:show(d)
     return d

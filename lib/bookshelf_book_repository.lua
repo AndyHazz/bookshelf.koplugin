@@ -4199,6 +4199,7 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
         if k == "author_name" or k == "author_surname" then needs.authors = true end
         if k == "series_name" or k == "series_index"
                 or k == "series_combined"              then needs.series  = true end
+        if k == "series_or_title" then needs.series = true; needs.title = true end
         if k == "percent_read" then needs.percent  = true end
         if k == "read_status" or k == "read_status_active" then needs.status = true end
         if k == "last_opened"  then needs.last_opened = true end

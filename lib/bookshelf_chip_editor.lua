@@ -3179,7 +3179,8 @@ function Editor:_pickSortLevel(draft, level_index, on_close, on_arranged)
         -- numeric/size sorts (file size / page count / stack size) share
         -- the final 3-up row.
         rows = {
-            { key_btn("title"),          key_btn("filename")          },
+            { key_btn("title"),          key_btn("filename"),
+              key_btn("series_or_title") },
             { key_btn("author_surname"), key_btn("author_name")       },
             -- Series name / index / combined ("Series + #") share one row
             -- so the one-tap combined option sits beside the pair it merges.

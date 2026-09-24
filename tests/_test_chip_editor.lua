@@ -64,7 +64,7 @@ local eq = helpers.eq
 -- outside this set is almost certainly a typo.
 local VALID_SORT_KEYS = {
     filename = true, title = true, author_surname = true, author_name = true,
-    series_name = true, series_index = true, series_combined = true,
+    series_name = true, series_index = true, series_combined = true, series_or_title = true,
     last_opened = true, date_added = true, percent_read = true,
     read_status = true, read_status_active = true, rating = true,
     page_count = true, book_count = true, size = true,

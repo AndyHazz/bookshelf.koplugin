@@ -754,5 +754,24 @@ test("registry: sorting by title prefers calibre's title_sort", function()
         "the title key no longer consults calibre's title_sort")
 end)
 
+test("series_or_title: series and standalones share one alphabet (issue 437)", function()
+    local books = {
+        { id = "court2", title = "Wings",     series_name = "Court", series_index = 2 },
+        { id = "adv",    title = "Adventure" },
+        { id = "court1", title = "Thorns",    series_name = "The Court", series_index = 1 },
+        { id = "zed",    title = "Zebra" },
+        { id = "b10",    title = "Book 10" },
+        { id = "b2",     title = "Book 2" },
+    }
+    SortEngine.sort(books, { { key = "series_or_title", reverse = false } })
+    -- "The Court" files under C (leading article), and its two books keep
+    -- index order despite different series spellings only when the names
+    -- match: here "Court" and "The Court" both key to "court".
+    local got = table.concat(ids(books), ",")
+    assert(got == "adv,b2,b10,court1,court2,zed", "got " .. got)
+    assert(SortEngine.sortKeyValue({ title = "Adventure" }, "series_or_title") == "adventure")
+    assert(SortEngine.sortKeyValue({ title = "X", series_name = "Court" }, "series_or_title") == "court")
+end)
+
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

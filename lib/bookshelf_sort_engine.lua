@@ -525,6 +525,8 @@ function SortEngine.sortKeyValue(item, key)
         v = cachedFilenameKey(item)
     elseif key == "series_name" or key == "series_combined" then
         v = cachedSeriesKey(item)
+    elseif key == "series_or_title" then
+        v = cachedSeriesKey(item) or cachedTitleKey(item)
     end
     -- Every branch above hands back a key its memo has already lowercased and
     -- pinyinised, so it is returned untouched.
@@ -573,6 +575,24 @@ SortEngine.KEYS = {
                             if s ~= 0 then return s end
                             return cmp(tonumber(a.series_index or a.series_num),
                                        tonumber(b.series_index or b.series_num))
+                        end },
+    -- Issue 437: one alphabet for series and standalones. A book in a series
+    -- files under its SERIES name, one without under its title, so "Adventure"
+    -- (a standalone) comes before the "Court" series instead of after every
+    -- series on the shelf, which is where series_name's missing-key rule sends
+    -- it. Within a series, index order, then title. The keys are the same
+    -- memoised, article-stripped forms series_name and title sort by.
+    series_or_title = { label = tr("Series, else title"), short = tr("Series or title"),
+                        comparator = function(a, b)
+                            local ka = cachedSeriesKey(a) or cachedTitleKey(a)
+                            local kb = cachedSeriesKey(b) or cachedTitleKey(b)
+                            -- Natural order, as titles sort: "Book 2" before "Book 10".
+                            local s = natCmp(ka, kb)
+                            if s ~= 0 then return s end
+                            s = cmp(tonumber(a.series_index or a.series_num),
+                                    tonumber(b.series_index or b.series_num))
+                            if s ~= 0 then return s end
+                            return natCmp(cachedTitleKey(a), cachedTitleKey(b))
                         end },
     -- Book record: a.last_opened
     -- lfs entry:   a._last_read (when last_read prefetch ran)
@@ -674,7 +694,7 @@ SortEngine.KEYS = {
 -- usefulness on a typical library view, not alphabetically.
 SortEngine.ORDER = {
     "title", "filename", "author_surname", "author_name",
-    "series_name", "series_index", "series_combined",
+    "series_name", "series_index", "series_combined", "series_or_title",
     "last_opened", "date_added",
     "percent_read", "rating",
     "read_status", "read_status_active",

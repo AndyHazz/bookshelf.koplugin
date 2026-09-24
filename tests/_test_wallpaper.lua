@@ -249,6 +249,35 @@ t.test("other folders: a file added there appears without a restart", function()
     os.execute("rm -rf '" .. d .. "'")
 end)
 
+t.test("a wallpaper folder of the reader's own is listed and resolves (issue 419)", function()
+    local W = fresh()
+    local d = scratch()
+    W._data_dir = d; W._lfs = lfs_shim
+    local kv = {}
+    package.loaded["lib/bookshelf_settings_store"] = {
+        read = function(k) return kv[k] end,
+        save = function(k, v) kv[k] = v end,
+        delete = function(k) kv[k] = nil end,
+        flush = function() end,
+    }
+    W.ensureDir()
+    os.execute("mkdir -p '" .. d .. "/mine'")
+    touch(d .. "/mine", "fern.jpg")
+    eq(#W.list(), 0, "not read before it is chosen")
+    W.setUserDir(d .. "/mine/")
+    eq(W.userDir(), d .. "/mine", "stored without the trailing slash")
+    local list = W.list()
+    eq(#list, 1)
+    eq(list[1].name, "mine:fern.jpg")
+    eq(W.pathFor("mine:fern.jpg"), d .. "/mine/fern.jpg")
+    W.setUserDir(nil)
+    eq(kv[W.USER_DIR_SETTING], nil)
+    eq(#W.list(), 0, "gone again once cleared")
+    eq(W.pathFor("mine:fern.jpg"), nil, "and a selection from it reads as none")
+    package.loaded["lib/bookshelf_settings_store"] = nil
+    os.execute("rm -rf '" .. d .. "'")
+end)
+
 t.test("list: an empty folder is empty, not an error", function()
     local W = fresh()
     local d = scratch()

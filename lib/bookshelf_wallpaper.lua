@@ -557,9 +557,30 @@ M._list_key   = nil
 -- The mechanism stays: SimpleUI's folder is a genuine wallpaper folder, and so
 -- is /mnt/us/Wallpapers.
 M.EXTRA_DIRS = nil     -- override for the tests; nil = the defaults below
+-- Issue 419: a folder of the reader's own, chosen in the menu, for pictures
+-- kept for something else (another tool's folder, a synced one) that should
+-- not have to be copied here. Read only, like the others, and listed first,
+-- so its token wins if two folders end in the same name.
+M.USER_DIR_SETTING = "wallpaper_folder"
+function M.userDir()
+    local ok, Set = pcall(require, "lib/bookshelf_settings_store")
+    local d = ok and Set and Set.read(M.USER_DIR_SETTING)
+    if type(d) ~= "string" or d == "" then return nil end
+    return (d:gsub("/+$", ""))
+end
+function M.setUserDir(d)
+    local ok, Set = pcall(require, "lib/bookshelf_settings_store")
+    if not (ok and Set) then return end
+    if type(d) == "string" and d ~= "" then Set.save(M.USER_DIR_SETTING, (d:gsub("/+$", "")))
+    else Set.delete(M.USER_DIR_SETTING) end
+    Set.flush()
+    M._list_cache, M._list_key = nil, nil
+end
 function M.extraDirs()
     if M.EXTRA_DIRS then return M.EXTRA_DIRS end
     local out = {}
+    local user = M.userDir()
+    if user then out[#out + 1] = user end
     local settings = M.dataDir()
     if settings then out[#out + 1] = settings .. "/simpleui/sui_wallpapers" end
     out[#out + 1] = "/mnt/us/Wallpapers"

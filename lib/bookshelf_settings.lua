@@ -1524,6 +1524,39 @@ function Settings:_wallpaperMenu()
             end,
         },
         {
+            -- Issue 419: pictures kept in a folder of the reader's own.
+            text_func = function()
+                local d = Wallpaper.userDir()
+                local short = d and (d:match("([^/]+/[^/]+)$") or d)
+                return T(_("Wallpaper folder: %1"), short or _("None"))
+            end,
+            help_text = T(_("A folder of your own to take wallpapers from, "
+                .. "listed along with the ones in %1. Useful when you already "
+                .. "keep pictures somewhere else. Nothing in it is changed. "
+                .. "Long-press to stop using it."), Wallpaper.dir() or "?"),
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                local PathChooser = require("ui/widget/pathchooser")
+                UIManager:show(PathChooser:new{
+                    title            = _("Choose wallpaper folder"),
+                    path             = Wallpaper.userDir()
+                                       or G_reader_settings:readSetting("home_dir") or "/",
+                    select_directory = true,
+                    select_file      = false,
+                    show_files       = false,
+                    onConfirm        = function(folder)
+                        Wallpaper.setUserDir(folder)
+                        if touchmenu_instance then touchmenu_instance:updateItems() end
+                    end,
+                })
+            end,
+            hold_callback = function(touchmenu_instance)
+                Wallpaper.setUserDir(nil)
+                self:_markDirty()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end,
+        },
+        {
             text_func = function()
                 return T(_("Background color: %1"),
                          self:_colorValueLabel(Wallpaper.BG_SETTING, 0))
@@ -1737,8 +1770,10 @@ function Settings:_wallpaperSubItems(key)
     -- list, and the reader is here to pick a picture first.
     local function folderHint()
         local dir = Wallpaper.dir() or "?"
+        local user = Wallpaper.userDir()
         return {
-            text    = T(_("Images are loaded from %1"), dir),
+            text    = user and T(_("Images are loaded from %1 and %2"), dir, user)
+                           or T(_("Images are loaded from %1"), dir),
             enabled = false,
         }
     end

@@ -71,7 +71,24 @@ local function showSettings(ctx)
     local function header(label)
         return { text = label, enabled = false }
     end
+    local function source(label, value)
+        return Kit.radioRow{
+            label = label, active = Quotes.readSource() == value,
+            on_pick = function()
+                Quotes.setSource(value)
+                Kit.settingsReopen(ctx, dialog, showSettings)
+            end,
+        }
+    end
+    local dirs = Quotes.quotesDirs()
     local rows = {
+        -- Issue 258: SimpleUI's quote file format, read from bookshelf's own
+        -- folder and from SimpleUI's.
+        { header(_("Quotes from")) },
+        { source(_("Your highlights"), "highlights") },
+        { source(_("Quotes files"), "files") },
+        { source(_("Both"), "both") },
+        { { text = T(_("Quotes files go in %1"), dirs[1] or "?"), enabled = false } },
         { header(_("Refresh")) },
         { radio(_("Once per day"), Quotes.REFRESH_KEY, Quotes.readRefresh, "daily") },
         { radio(_("Every menu open"), Quotes.REFRESH_KEY, Quotes.readRefresh, "open") },
@@ -89,7 +106,9 @@ local function showSettings(ctx)
     end
     local cur = Quotes.current()
     local skipped = Quotes.skippedBookCount()
-    local colours = Quotes.coloursInUse()
+    -- Colours only mean anything for highlights, and finding them walks the
+    -- sidecars, so neither when the quotes come from files alone.
+    local colours = Quotes.readSource() ~= "files" and Quotes.coloursInUse() or {}
     if (cur and cur.filepath) or skipped > 0 then
         rows[#rows + 1] = { header(_("Leave out")) }
         if cur and cur.filepath then
@@ -155,7 +174,8 @@ return {
             -- Muted fallback rather than nil so the card shows a friendly
             -- message instead of the raw module key.
             return TextWidget:new{
-                text = _("No highlights yet"),
+                text = Quotes.readSource() == "highlights" and _("No highlights yet")
+                       or _("No quotes yet"),
                 face = Fonts:getFace("cfont", sc(15)),
                 fgcolor = SM.COLOR_MUTED,
                 max_width = mw,
@@ -164,14 +184,17 @@ return {
         local Kit = require("lib/bookshelf_module_kit")
         local quote_text = "\xE2\x80\x9C" .. q.text .. "\xE2\x80\x9D" -- "…"
 
-        local attribution = "\xE2\x80\x94 " .. q.title -- "— <book title>"
-        if q.author and q.author ~= "" then
-            attribution = attribution .. ", " .. q.author
-        end
+        -- "— <book title>, <author>". A quote from a quotes file may have only
+        -- an author, or neither (issue 258).
+        local parts = {}
+        if q.title and q.title ~= "" then parts[#parts + 1] = q.title end
+        if q.author and q.author ~= "" then parts[#parts + 1] = q.author end
+        local attribution = #parts > 0 and ("\xE2\x80\x94 " .. table.concat(parts, ", ")) or ""
         -- Attribution at the same font size as the quote (size 15), muted,
         -- wraps in a narrow cell so the author still shows.
-        local attr = Kit.fitText{ text = attribution, size = 15, scale_pct = scale_pct,
-            width = mw, fgcolor = Kit.COLOR_MUTED, opts = { italic = true } }
+        local attr = attribution ~= "" and Kit.fitText{ text = attribution, size = 15,
+            scale_pct = scale_pct, width = mw, fgcolor = Kit.COLOR_MUTED,
+            opts = { italic = true } } or nil
         -- In the picker preview, truncate the quote to the room left after the
         -- attribution so it fits the cell on a few lines at a readable size
         -- (issue #183). Everywhere else the quote body reports its NATURAL height
@@ -182,9 +205,10 @@ return {
         -- to the remaining room -- the attribution is the part that must
         -- never be lost to the cell's bottom clip.
         local max_h = ((preview or ctx.clamp) and avail_h and avail_h > 0)
-            and math.max(1, avail_h - attr:getSize().h) or nil
+            and math.max(1, avail_h - (attr and attr:getSize().h or 0)) or nil
         local quote_box = Kit.fitText{ text = quote_text, size = 15, scale_pct = scale_pct,
             width = mw, max_h = max_h }
+        if not attr then return quote_box end
         return VerticalGroup:new{ align = "left", quote_box, attr }
     end,
     show_settings = showSettings,

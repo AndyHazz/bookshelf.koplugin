@@ -89,7 +89,6 @@ local GestureRange    = require("ui/gesturerange")
 local HorizontalGroup = require("ui/widget/horizontalgroup")
 local HorizontalSpan  = require("ui/widget/horizontalspan")
 local InputContainer  = require("ui/widget/container/inputcontainer")
-local LineWidget      = require("ui/widget/linewidget")
 local MovableContainer = require("ui/widget/container/movablecontainer")
 local Size            = require("ui/size")
 local TextBoxWidget   = require("ui/widget/textboxwidget")
@@ -157,8 +156,12 @@ function Dialog:init()
         end
     end
 
+    -- Full width, so its own top rule (zero_sep) runs border to border and is
+    -- the one line between the body and the buttons: a separate full-width
+    -- rule above it plus the table's inset one read as two misaligned lines,
+    -- worst where a scrolled body's bar meets them.
     self.buttons = ButtonTable:new{
-        width = self.width - 2 * Size.padding.default,
+        width = self.width,
         zero_sep = true,
         show_parent = self,
         buttons = {
@@ -262,7 +265,7 @@ function Dialog:init()
         close_callback = function() UIManager:close(self) end,
         show_parent = self,
     }
-    local fixed_h = title_bar:getSize().h + Size.line.thin + self.buttons:getSize().h
+    local fixed_h = title_bar:getSize().h + self.buttons:getSize().h
                     + 2 * Size.border.window
     local avail_h = sh - 2 * Size.margin.default - fixed_h
     local body = build(self.width - 2 * pad)
@@ -304,10 +307,6 @@ function Dialog:init()
             align = "center",
             title_bar,
             body_block,
-            LineWidget:new{
-                background = Blitbuffer.COLOR_DARK_GRAY,
-                dimen = Geom:new{ w = self.width, h = Size.line.thin },
-            },
             CenterContainer:new{
                 dimen = Geom:new{ w = self.width, h = self.buttons:getSize().h },
                 self.buttons,

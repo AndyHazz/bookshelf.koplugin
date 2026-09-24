@@ -19058,6 +19058,32 @@ end
 -- pick up the new value, and rebuild the hero so the star row updates.
 -- new_rating is 1-5 or nil (to clear). Matches KOReader's BookStatusWidget
 -- storage: summary.rating in the .sdr/metadata.X.lua sidecar.
+-- _bookReview(book) / _setBookReview(book, text): the reader's own review,
+-- KOReader's summary.note -- the field its book status page edits, so the
+-- two stay one review (issues 238, 315). nil when there is none.
+function BookshelfWidget:_bookReview(book)
+    if not (book and book.filepath) or self:_isRemoteRecord(book) then return nil end
+    local DocSettings = require("docsettings")
+    if DocSettings.hasSidecarFile and not DocSettings:hasSidecarFile(book.filepath) then
+        return nil
+    end
+    local ok_ds, ds = pcall(function() return DocSettings:open(book.filepath) end)
+    local summary = ok_ds and ds and ds:readSetting("summary")
+    local note = type(summary) == "table" and summary.note
+    return (type(note) == "string" and note ~= "") and note or nil
+end
+
+function BookshelfWidget:_setBookReview(book, text)
+    if not (book and book.filepath) or self:_isRemoteRecord(book) then return end
+    local DocSettings = require("docsettings")
+    local ok_ds, ds = pcall(function() return DocSettings:open(book.filepath) end)
+    if not ok_ds or not ds then return end
+    local summary = ds:readSetting("summary") or {}
+    summary.note = (type(text) == "string" and text:match("%S")) and text or nil
+    ds:saveSetting("summary", summary)
+    ds:flush()
+end
+
 function BookshelfWidget:_setBookRating(book, new_rating, opts)
     if not book or not book.filepath then return end
     -- The hero's star row is reachable while a remote record is previewed.
@@ -19960,6 +19986,8 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         }
         vg[#vg + 1] = heading(_("Ratings"))
         vg[#vg + 1] = padded(ratings_widget, Space.px(8), Space.px(10))
+        -- The review row is built below, once infoRow exists.
+        local review_at = #vg + 1
 
         -- An info row styled like a File-&-metadata button row: the value on the
         -- left (inset to align with the headings), then a bordered ChipButton
@@ -20009,6 +20037,57 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             focus_tables[#focus_tables + 1] = focusRow({ { btn } })
             return HorizontalGroup:new{ align = "top", left_cell,
                 bw:_actionButtonColumn(btn, btn_w, row_h, want_bottom_border) }
+        end
+
+        -- 2b. Your review (issues 238, 315): KOReader's own summary.note,
+        -- shown and edited here rather than a book status page away. Slotted
+        -- in under Ratings; built here because it is an infoRow.
+        if not bw:_isRemoteRecord(book) then
+            local review = bw:_bookReview(book)
+            -- A long review is shortened here; Edit shows all of it. Cut on a
+            -- UTF-8 character boundary, then back to a word break when there
+            -- is one close by (there may be none: CJK has no spaces).
+            local shown = review and review:gsub("%s+", " ")
+            if shown and #shown > 160 then
+                local cut = 160
+                while cut > 1 do
+                    local b = shown:byte(cut + 1)
+                    if not b or b < 128 or b >= 192 then break end
+                    cut = cut - 1
+                end
+                local head = shown:sub(1, cut)
+                local word = head:match("^(.*%S)%s+%S*$")
+                if word and #word > cut - 40 then head = word end
+                shown = head .. "\xE2\x80\xA6"
+            end
+            local function editReview()
+                local InputDialog = require("ui/widget/inputdialog")
+                local dlg
+                dlg = InputDialog:new{
+                    title         = _("Your review"),
+                    input         = review or "",
+                    scroll        = true,
+                    allow_newline = true,
+                    text_height   = Screen:scaleBySize(150),
+                    buttons = { {
+                        { text = _("Cancel"), id = "close",
+                          callback = function() UIManager:close(dlg) end },
+                        { text = _("Save"), is_enter_default = true,
+                          callback = function()
+                              bw:_setBookReview(book, dlg:getInputText())
+                              UIManager:close(dlg)
+                              if modal and modal.rebuildTab then modal:rebuildTab() end
+                          end },
+                    } },
+                }
+                UIManager:show(dlg)
+                dlg:onShowKeyboard()
+            end
+            table.insert(vg, review_at, heading(_("Your review")))
+            table.insert(vg, review_at + 1, infoRow(
+                shown or _("No review yet"),
+                review and _("Edit") or _("Write\xE2\x80\xA6"),
+                editReview))
         end
 
         -- 3. File & metadata.

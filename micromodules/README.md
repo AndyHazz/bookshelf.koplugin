@@ -50,6 +50,8 @@ local Kit = require("lib/bookshelf_module_kit")
 - `Kit.valueCard{ width, scale_pct, heading, value, suffix, bar, sub, context }`
   → the standard "heading + big value + bar + sub + context" stat card (what
   reading_goal and reading_stats use — match it for visual consistency).
+- `Kit.progressBar{ width, height, fraction }` → the level bar reading_goal and
+  battery pass as `bar` (fill in the card's ink, track tinted to match the theme).
 - `Kit.shape(width, avail_h)` → `"wide"` / `"tall"` / `"square"` (see aspect).
 - `Kit.COLOR_PRIMARY` / `Kit.COLOR_MUTED` / `Kit.CARD_BG` — the shared colour
   roles (primary = the interesting content; muted = headings/hints/timestamps;
@@ -60,7 +62,7 @@ local Kit = require("lib/bookshelf_module_kit")
 Render your content at `scale_pct` (size every font via `Kit.sc`/`Kit.face`) at
 its natural height. The host grows/shrinks the card to fill the cell and clips
 anything that still overflows. That's it — no `avail_h`, no fit loop. `weather`,
-`shelf_size`, `random_unread`, `clock` work this way.
+`shelf_size`, `random_unread`, `clock`, `battery` work this way.
 
 ### Advanced path (height-aware / flexible text)
 

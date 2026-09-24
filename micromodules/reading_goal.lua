@@ -478,51 +478,18 @@ end
 -- suffix, a full-width progress bar, and a context line. `sc` is the caller's
 -- font-scale helper; `mw` the inner width. Returned widget owns a fresh tree.
 local function buildGoalBlock(goal, mw, scale_pct, data, t)
-    local Blitbuffer = require("ffi/blitbuffer")
-    local Widget     = require("ui/widget/widget")
-    local Geom       = require("ui/geometry")
-    local Kit        = require("lib/bookshelf_module_kit")
+    local Kit = require("lib/bookshelf_module_kit")
     local sc = Kit.sc(scale_pct)
-    -- The bar is DRAWING, not text, so nothing hands it a colour: it was a
-    -- hard-coded black fill on a fixed 0xCC track. Under the shelf's dark
-    -- theme that reads exactly backwards -- the black fill sinks into the card
-    -- and the pale track becomes the part that looks filled, so a goal at 20%
-    -- shows as a goal at 80%.
-    --
-    -- Fill is the card's ink. The track keeps the relationship it has always
-    -- had to it: 0xCC is a seventh of the way from the 0xEE card toward black,
-    -- so a seventh of the way from the card toward the ink reproduces the
-    -- light theme exactly (238 + (0-238)/7 = 204 = 0xCC) and gives the dark
-    -- one a 0x33 track on its near-black card.
-    local FILL  = Kit.COLOR_PRIMARY or Blitbuffer.COLOR_BLACK
-    local TRACK = Blitbuffer.Color8(0xCC)
-    local ok_lum, lum = pcall(function() return FILL:getColor8().a end)
-    if ok_lum and type(lum) == "number" then
-        local card = (lum > 128) and 0x11 or 0xEE
-        TRACK = Blitbuffer.Color8(math.floor(card + (lum - card) / 7 + 0.5))
-    end
-
     local header_text, big_text, suffix, pct, context_text = computeGoal(goal, data, t)
-
-    -- Full-width progress bar: a custom Widget (reading_goal's signature look),
-    -- passed to valueCard as its `bar`. bar_w = mw fills the card; the offscreen
-    -- ClipContainer keeps it inside the cell.
-    local bar_h  = sc(6)
-    local bar_w  = mw
-    local fill_w = math.max(0, math.min(bar_w, math.floor(bar_w * (pct or 0))))
-    local Bar = Widget:extend{}
-    function Bar:init()   self.dimen = Geom:new{ w = bar_w, h = bar_h } end
-    function Bar:getSize() return Geom:new{ w = bar_w, h = bar_h } end
-    function Bar:paintTo(bb, x, y)
-        self.dimen = Geom:new{ x = x, y = y, w = bar_w, h = bar_h }
-        bb:paintRect(x, y, bar_w, bar_h, TRACK)
-        if fill_w > 0 then bb:paintRect(x, y, fill_w, bar_h, FILL) end
-    end
+    -- Full-width progress bar (reading_goal's signature look, now in the Kit
+    -- so the battery card shares it). bar_w = mw fills the card; the
+    -- offscreen ClipContainer keeps it inside the cell.
+    local bar = Kit.progressBar{ width = mw, height = sc(6), fraction = pct }
 
     return Kit.valueCard{
         width = mw, scale_pct = scale_pct,
         heading = header_text, value = big_text, suffix = suffix,
-        bar = Bar:new{}, context = context_text,
+        bar = bar, context = context_text,
     }
 end
 

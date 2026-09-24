@@ -200,6 +200,44 @@ function Kit.valueCard(o)
     return g
 end
 
+-- progressBar{ width, height, fraction } -> a full-width track with the filled
+-- part in the card's ink, for valueCard's `bar`. Moved here from reading_goal
+-- so the battery card draws the same bar.
+--
+-- The bar is DRAWING, not text, so nothing hands it a colour: it was a
+-- hard-coded black fill on a fixed 0xCC track. Under the shelf's dark theme
+-- that reads exactly backwards -- the black fill sinks into the card and the
+-- pale track becomes the part that looks filled, so 20% shows as 80%.
+--
+-- Fill is the card's ink. The track keeps the relationship it has always had
+-- to it: 0xCC is a seventh of the way from the 0xEE card toward black, so a
+-- seventh of the way from the card toward the ink reproduces the light theme
+-- exactly (238 + (0-238)/7 = 204 = 0xCC) and gives the dark one a 0x33 track
+-- on its near-black card.
+function Kit.progressBar(o)
+    local Blitbuffer = require("ffi/blitbuffer")
+    local Widget     = require("ui/widget/widget")
+    local Geom       = require("ui/geometry")
+    local FILL  = Kit.COLOR_PRIMARY or Blitbuffer.COLOR_BLACK
+    local TRACK = Blitbuffer.Color8(0xCC)
+    local ok_lum, lum = pcall(function() return FILL:getColor8().a end)
+    if ok_lum and type(lum) == "number" then
+        local card = (lum > 128) and 0x11 or 0xEE
+        TRACK = Blitbuffer.Color8(math.floor(card + (lum - card) / 7 + 0.5))
+    end
+    local bar_w, bar_h = o.width, o.height
+    local fill_w = math.max(0, math.min(bar_w, math.floor(bar_w * (o.fraction or 0))))
+    local Bar = Widget:extend{}
+    function Bar:init()   self.dimen = Geom:new{ w = bar_w, h = bar_h } end
+    function Bar:getSize() return Geom:new{ w = bar_w, h = bar_h } end
+    function Bar:paintTo(bb, x, y)
+        self.dimen = Geom:new{ x = x, y = y, w = bar_w, h = bar_h }
+        bb:paintRect(x, y, bar_w, bar_h, TRACK)
+        if fill_w > 0 then bb:paintRect(x, y, fill_w, bar_h, FILL) end
+    end
+    return Bar:new{}
+end
+
 -- The width at which a flexible card can hold TWO comfortable text columns
 -- instead of one. Single source for every surface that decides between a
 -- one- and two-column layout: the hero/full-screen grid uses it as a flex

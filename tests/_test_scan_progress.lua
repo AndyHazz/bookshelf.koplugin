@@ -14,6 +14,13 @@ local t  = helpers.runner()
 local eq = helpers.eq
 
 local stack, top, dirty = {}, nil, 0
+local scheduled = {}
+-- Run what the UIManager stub has queued, once each.
+local function runScheduled()
+    local q = scheduled
+    scheduled = {}
+    for _i, fn in ipairs(q) do fn() end
+end
 local clock = 100
 package.loaded["lib/bookshelf_gettime"] = function() return clock end
 package.loaded["lib/bookshelf_i18n"] = { gettext = function(s) return s end }
@@ -25,6 +32,10 @@ package.loaded["ui/uimanager"] = {
     end,
     getTopmostVisibleWidget = function() return top end,
     setDirty = function() dirty = dirty + 1 end,
+    scheduleIn = function(_s, _t, fn) scheduled[#scheduled + 1] = fn end,
+    unschedule = function(_s, fn)
+        for i = #scheduled, 1, -1 do if scheduled[i] == fn then table.remove(scheduled, i) end end
+    end,
 }
 
 local P = dofile("lib/bookshelf_scan_progress.lua")
@@ -35,6 +46,7 @@ function shelf:refreshStatusLine() self.repaints = self.repaints + 1 end
 
 local function reset()
     P._reset()
+    scheduled = {}
     for i = #stack, 1, -1 do stack[i] = nil end
     stack[1] = { widget = shelf }
     top = shelf
@@ -98,17 +110,30 @@ t.test("a book the user opened pauses the job; a parked one does not", function(
     assert(P.reading())
 end)
 
-t.test("the icon moves one frame per painted update, not per call", function()
+t.test("the icon turns on its own timer, many times per book", function()
+    reset()
+    P.begin{ title = "x", icons = { "A", "B", "C" }, shelf = function() return shelf end }
+    local seen = { P.icon() }
+    for _i = 1, 3 do
+        runScheduled()
+        seen[#seen + 1] = P.icon()
+    end
+    eq(table.concat(seen), "ABCA", "the icon waited for a book to finish")
+    local r = shelf.repaints
+    clock = clock + 5; P.update{ fraction = 0.5 }
+    eq(P.icon(), "A", "a progress update turned the icon as well: frames would skip")
+    eq(shelf.repaints, r + 1)
+end)
+
+t.test("the timer stops with the job", function()
     reset()
     P.begin{ title = "x", icons = { "A", "B" }, shelf = function() return shelf end }
-    local first = P.icon()
-    clock = clock + 2; P.update{ fraction = 0.1 }
-    local second = P.icon()
-    assert(first ~= second, "a painted update did not turn the page")
-    clock = clock + 0.1; P.update{ fraction = 0.2 }
-    eq(P.icon(), second, "a throttled update moved the icon without painting it")
-    P.update{ force = true }
-    eq(P.icon(), first)
+    P.finish()
+    eq(#scheduled, 0, "a finished job still ticking")
+    P.begin{ title = "x", icons = { "A", "B" }, shelf = function() return shelf end }
+    P.job().stopped = true
+    runScheduled()
+    eq(#scheduled, 0, "a stopped job still ticking")
 end)
 
 t.test("the reader's copy of the status line never shows the job", function()

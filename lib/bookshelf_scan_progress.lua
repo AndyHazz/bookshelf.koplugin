@@ -61,10 +61,26 @@ local function repaint()
     if w.refreshStatusLine then w:refreshStatusLine() end
 end
 
+-- The icon's own clock. A book can take several seconds to render, and one
+-- frame per book read as stuck, so the icon turns on a timer while the job
+-- runs, independent of progress. Each turn repaints only the status strip.
+M.ANIMATE_S = 1
+
+local function tick(job)
+    if _job ~= job or job.stopped then return end
+    if job.icons and #job.icons > 1 then
+        job.frame = job.frame % #job.icons + 1
+        job._last_paint = now()
+        repaint()
+    end
+    UIManager:scheduleIn(M.ANIMATE_S, job._tick)
+end
+
 -- begin{title=, icons=, shelf=function() -> the live shelf widget} -> the job
--- icons (optional): glyphs shown before the title, one per painted update in
--- turn -- a two-frame animation that moves only when the line repaints.
+-- icons (optional): glyphs shown before the title in turn, on the ANIMATE_S
+-- timer.
 function M.begin(opts)
+    if _job and _job._tick then UIManager:unschedule(_job._tick) end
     _job = {
         title    = opts.title or "",
         icons    = opts.icons,
@@ -76,8 +92,11 @@ function M.begin(opts)
         shelf    = opts.shelf,
         _last_paint = 0,
     }
+    local job = _job
+    job._tick = function() tick(job) end
     relayout(shelf())
-    return _job
+    if job.icons and #job.icons > 1 then UIManager:scheduleIn(M.ANIMATE_S, job._tick) end
+    return job
 end
 
 -- update{title=, detail=, fraction=, force=}
@@ -89,9 +108,6 @@ function M.update(opts)
     local t = now()
     if not opts.force and t - _job._last_paint < M.MIN_UPDATE_S then return end
     _job._last_paint = t
-    if _job.icons and #_job.icons > 0 then
-        _job.frame = _job.frame % #_job.icons + 1
-    end
     repaint()
 end
 
@@ -115,6 +131,7 @@ end
 -- found through the getter, so the last one showing gets the relayout.
 function M.finish()
     local w = shelf()
+    if _job and _job._tick then UIManager:unschedule(_job._tick) end
     _job = nil
     relayout(w)
 end
@@ -141,6 +158,9 @@ function M.reading()
 end
 
 -- For tests.
-function M._reset() _job = nil end
+function M._reset()
+    if _job and _job._tick then UIManager:unschedule(_job._tick) end
+    _job = nil
+end
 
 return M

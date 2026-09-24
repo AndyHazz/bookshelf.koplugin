@@ -2354,6 +2354,8 @@ local function _resetLightMetaProgress(rec)
 end
 
 function Repo.invalidateProgressCache(filepath)
+    -- The Pages sort remembers the counts it looked up.
+    if SortEngine.clearPageCountMemo then SortEngine.clearPageCountMemo() end
     -- A status change is exactly what makes the stored finished count wrong.
     _finished_count.value = nil
     _dropFinishedCount()
@@ -8188,5 +8190,17 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
         (_gettime() - _diag_t0) * 1000))
     return page, total
 end
+
+-- The Pages sort's resolver for a record that carries no count of its own
+-- (SortEngine.pageCountOf). A book with a sidecar goes through readProgress,
+-- the same ladder the badge and %page_count use (cached, 120s); one without
+-- takes only the free rungs -- its filename marker and the page-count scan's
+-- store -- so an unopened library sorts without a single sidecar open.
+SortEngine.setPageCountResolver(function(fp)
+    if _hasSidecar(fp) then
+        return select(4, Repo.readProgress(fp))
+    end
+    return Repo.pageCountFor(fp)
+end)
 
 return Repo

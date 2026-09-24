@@ -134,6 +134,36 @@ local function isMissing(v)
     return v == nil or v == ""
 end
 
+-- pageCountOf(item) -> the count the Pages sort orders by.
+--
+-- Reddit report: "I'd like to have a chip that sorts books by length, but it
+-- doesn't appear that it works with the extracted numbers." Most sort paths
+-- hand the comparator light records, which carry no count for a reflowable
+-- book, and the one that backfills skips books with no sidecar -- exactly the
+-- never-opened books "Extract page counts" is for. So a record with no count
+-- of its own asks the repository's resolver (installed by
+-- bookshelf_book_repository, which this module must not require), once per
+-- record: the comparator runs n log n times. clearPageCountMemo() drops the
+-- answers when the counts change.
+local _page_memo = setmetatable({}, { __mode = "k" })
+local _page_resolver = nil
+
+function SortEngine.setPageCountResolver(fn) _page_resolver = fn end
+function SortEngine.clearPageCountMemo() _page_memo = setmetatable({}, { __mode = "k" }) end
+
+function SortEngine.pageCountOf(item)
+    if type(item) ~= "table" then return nil end
+    local v = item.page_count or item.total_pages
+    if v ~= nil or not _page_resolver or not item.filepath then return v end
+    local m = _page_memo[item]
+    if m == nil then
+        local ok, n = pcall(_page_resolver, item.filepath)
+        m = (ok and tonumber(n)) or false
+        _page_memo[item] = m
+    end
+    return m or nil
+end
+
 local function cmp(a, b)
     local am, bm = isMissing(a), isMissing(b)
     if am and bm then return 0              end
@@ -614,10 +644,11 @@ SortEngine.KEYS = {
                         end },
     -- Book record: a.page_count (from BIM / DocSettings stats.pages)
     -- group shape: a.total_pages (sum of member page counts)
+    -- A record with neither asks the repository (SortEngine.pageCountOf).
     page_count      = { label = tr("Page count"), short = tr("Pages"),
                         comparator = function(a, b)
-                            return cmp(a.page_count or a.total_pages,
-                                       b.page_count or b.total_pages)
+                            return cmp(SortEngine.pageCountOf(a),
+                                       SortEngine.pageCountOf(b))
                         end },
     -- Book record: a.collection_order (the `order` KOReader stores per item in
     -- a collection; the repository's collection source copies it onto the

@@ -98,6 +98,19 @@ t.test("a book the user opened pauses the job; a parked one does not", function(
     assert(P.reading())
 end)
 
+t.test("the icon moves one frame per painted update, not per call", function()
+    reset()
+    P.begin{ title = "x", icons = { "A", "B" }, shelf = function() return shelf end }
+    local first = P.icon()
+    clock = clock + 2; P.update{ fraction = 0.1 }
+    local second = P.icon()
+    assert(first ~= second, "a painted update did not turn the page")
+    clock = clock + 0.1; P.update{ fraction = 0.2 }
+    eq(P.icon(), second, "a throttled update moved the icon without painting it")
+    P.update{ force = true }
+    eq(P.icon(), first)
+end)
+
 t.test("the reader's copy of the status line never shows the job", function()
     local rs = io.open("lib/bookshelf_reader_status.lua"):read("*a")
     local call = rs:match("pcall%(HeroCard%.buildStatusRow,([^%)]*)%)")

@@ -2493,15 +2493,21 @@ function Bookshelf:scanPageCounts()
         Progress.finish()
         showReport()
     end
+    -- "Scan 30 of 41": short, since the status line is one line.
+    local function scanTitle(i, n)
+        return T(_("Scan %1 of %2"), i, n)
+    end
+    -- Before it, a book whose pages turn: book-open-page-variant,
+    -- book-open-variant and book-open-o, one per update. Private Use Area
+    -- code points, which is what the status line's icon path renders safely.
+    local SCAN_ICONS = { "\xee\xb3\x99", "\xee\x9e\xbd", "\xee\x8a\x8b" }
 
     -- A Lua error mid-scan must still end the job, or the status line would
     -- show its progress until KOReader restarts.
     Trapper:wrap(function() local ok_run, err_run = xpcall(function()
         local job = Progress.begin{
-            -- Short: the status line is one line, and the count and the book
-            -- are what matter in it.
-            title  = string.format("%d/%d", 0, #todo),
-            detail = _("Publisher page numbers"),
+            title  = scanTitle(0, #todo),
+            icons  = SCAN_ICONS,
             shelf = function() return _live_widget end,
         }
         -- Phase A: publisher page numbers straight from each EPUB's zip
@@ -2518,7 +2524,7 @@ function Bookshelf:scanPageCounts()
                     else
                         if i % 20 == 1 then
                             Progress.update{
-                                title = string.format("%d/%d", i, #todo),
+                                title = scanTitle(i, #todo),
                                 fraction = (i - 1) / #todo,
                             }
                             breathe()
@@ -2610,8 +2616,7 @@ function Bookshelf:scanPageCounts()
                 break
             end
             Progress.update{
-                title  = string.format("%d/%d", i, #todo),
-                detail = nameFor(fp),
+                title  = scanTitle(i, #todo),
                 fraction = (i - 1) / #todo,
                 force  = true,
             }

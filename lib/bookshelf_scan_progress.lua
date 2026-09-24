@@ -61,10 +61,14 @@ local function repaint()
     if w.refreshStatusLine then w:refreshStatusLine() end
 end
 
--- begin{title=, shelf=function() -> the live shelf widget} -> the job table
+-- begin{title=, icons=, shelf=function() -> the live shelf widget} -> the job
+-- icons (optional): glyphs shown before the title, one per painted update in
+-- turn -- a two-frame animation that moves only when the line repaints.
 function M.begin(opts)
     _job = {
         title    = opts.title or "",
+        icons    = opts.icons,
+        frame    = 1,
         detail   = opts.detail,
         fraction = 0,
         stopped  = false,
@@ -85,6 +89,9 @@ function M.update(opts)
     local t = now()
     if not opts.force and t - _job._last_paint < M.MIN_UPDATE_S then return end
     _job._last_paint = t
+    if _job.icons and #_job.icons > 0 then
+        _job.frame = _job.frame % #_job.icons + 1
+    end
     repaint()
 end
 
@@ -97,6 +104,12 @@ function M.stop()
 end
 
 function M.stopped() return _job ~= nil and _job.stopped end
+
+-- icon() -> the glyph for the current frame, or nil.
+function M.icon()
+    local icons = _job and _job.icons
+    return icons and icons[_job.frame] or nil
+end
 
 -- A shelf widget that was rebuilt or replaced while the job ran is still
 -- found through the getter, so the last one showing gets the relayout.

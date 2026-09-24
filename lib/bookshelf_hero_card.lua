@@ -439,6 +439,8 @@ function HeroCard.buildJobRow(region, width)
     local bar_w  = math.floor(width * 0.28)
     local text_w = math.max(0, width - bar_w - stop_w - 2 * gap)
     local text = job.title or ""
+    local icon = Progress.icon and Progress.icon()
+    if icon then text = icon .. " " .. text end
     if job.detail and job.detail ~= "" then text = text .. "  \xC2\xB7  " .. job.detail end
     local text_widget = _buildSegmentedInline(text, face, region.bold or false, text_w, false)
     local bar = buildLine("%bar", region, bar_w, { book_pct = job.fraction or 0 }, nil, true)

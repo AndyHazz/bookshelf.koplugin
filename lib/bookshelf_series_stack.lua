@@ -103,8 +103,18 @@ function SeriesStack:init()
     -- as shelf_row does for a book. Without this the card kept the capped
     -- height and the cover stretched to fill it -- tall and narrow on device.
     local card_y = 0
+    -- Custom stack image (#70 extension), resolved here rather than where it
+    -- is drawn (below) because it decides the card's shape as well.
+    local custom_image_path
+    if want_art and stack_kind and stack_name ~= "" then
+        custom_image_path = ImageSource.resolveStackImage(stack_kind, stack_name)
+    end
     if BookshelfSettings.isTrue("true_cover_aspect") and not show_cardboard then
-        local _front = front
+        -- A stack with its own image takes that image's shape rather than its
+        -- front book's, as a folder does (issue 402).
+        local tag = custom_image_path and ImageSource.imageSizeTag
+                    and ImageSource.imageSizeTag(custom_image_path)
+        local _front = tag and { cover_sizetag = tag } or front
         if _front then
             art_h = SpineWidget.trueAspectBoxHeight(art_w, _front, art_h)
         end
@@ -128,10 +138,6 @@ function SeriesStack:init()
     -- cardboard overlay. The cover_bb is owned by ImageSource's
     -- cache; pass cover_bb_disposable=false so SpineWidget doesn't
     -- free it on teardown.
-    local custom_image_path
-    if want_art and stack_kind and stack_name ~= "" then
-        custom_image_path = ImageSource.resolveStackImage(stack_kind, stack_name)
-    end
 
     -- Built up front so cover_floor -- the slot-local y where the cardboard
     -- body begins -- is known before the representative cover renders.

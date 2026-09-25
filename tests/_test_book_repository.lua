@@ -1238,6 +1238,36 @@ test("searchAll: returns empty result for blank query", function()
     assert(#(r.genres  or {}) == 0)
 end)
 
+test("an unpacked EPUB folder is not a folder of books (Reddit report)", function()
+    -- Chapter files (.xhtml/.html) pass the book test one by one, so an
+    -- unzipped EPUB filled the shelf with "books" called c01, c05... in a
+    -- section named OEBPS. A folder with "mimetype" beside META-INF is one.
+    Repo.invalidateWalkCache()
+    local listings = {
+        ["/lib"]              = { ".", "..", "dune.epub", "Unpacked" },
+        ["/lib/Unpacked"]     = { ".", "..", "mimetype", "META-INF", "OEBPS", "ch1.xhtml" },
+        ["/lib/Unpacked/OEBPS"] = { ".", "..", "c01.xhtml", "c05.html" },
+        ["/lib/Unpacked/META-INF"] = { ".", "..", "container.xml" },
+    }
+    local dirs = { ["/lib/Unpacked"] = true, ["/lib/Unpacked/OEBPS"] = true, ["/lib/Unpacked/META-INF"] = true }
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = listings[path] or {}
+        local i = 0; return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(fp, key)
+        local mode = dirs[fp] and "directory" or "file"
+        if key == nil then return { mode = mode, modification = 0 } end
+        if key == "mode" then return mode end
+        return 0
+    end
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 3 }
+    _G._test_bim_data = { ["/lib/dune.epub"] = { title = "Dune" } }
+    local fps = Repo.getAllFilepaths()
+    assert(#fps == 1 and fps[1] == "/lib/dune.epub", "got " .. table.concat(fps, ", "))
+    assert(Repo.findFirstBookIn("/lib/Unpacked", 3) == nil)
+    assert(Repo.folderHasBooks("/lib/Unpacked") == false)
+end)
+
 test("searchAll: matches books by title", function()
     Repo.invalidateWalkCache()
     package.loaded["libs/libkoreader-lfs"].dir = function(path)

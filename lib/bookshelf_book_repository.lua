@@ -2735,8 +2735,18 @@ local function walkBooks(root, depth, out, current_depth, dirs, listings)
     -- BEFORE the hidden/system filter, so the set is the directory's real
     -- contents and not this walk's view of it.
     local listing = listings and {} or nil
+    -- An UNPACKED EPUB (Reddit report: dozens of "books" titled c01, c05...
+    -- in a section called OEBPS) is a folder holding a "mimetype" file and a
+    -- META-INF folder, with its chapters as .xhtml/.html files that pass the
+    -- book test one by one. Nothing inside it is a book. That is only known
+    -- once the whole listing has been read, so this directory's files and
+    -- subfolders wait in `found` / `subdirs` until then -- no extra stat.
+    local seen_mimetype, seen_meta_inf = false, false
+    local found, subdirs = {}, {}
     for entry in iter, dir_obj do
         if listing then listing[entry] = true end
+        if entry == "mimetype" then seen_mimetype = true
+        elseif entry == "META-INF" then seen_meta_inf = true end
         -- Skip "." / ".." and any hidden file or directory (entries
         -- starting with "."). The hidden-file filter catches AppleDouble
         -- metadata companions macOS spits out when copying to FAT32
@@ -2769,15 +2779,14 @@ local function walkBooks(root, depth, out, current_depth, dirs, listings)
                 -- rewrite), which would falsely invalidate the walk cache
                 -- on every read session if we recorded them in `dirs`.
                 if entry:sub(-4) ~= ".sdr" then
-                    if dirs then dirs[fp] = attr.modification or 0 end
-                    walkBooks(fp, depth, out, current_depth + 1, dirs, listings)
+                    subdirs[#subdirs + 1] = { fp = fp, mtime = attr.modification or 0 }
                 end
             elseif mode == "file" then
                 if _supportedExt(entry) then
                     -- size kept alongside mtime so sort-by-File-size on
                     -- custom-source tabs has data without re-statting.
                     -- attr.size is already in hand from the same lfs call.
-                    out[#out + 1] = {
+                    found[#found + 1] = {
                         fp    = fp,
                         mtime = attr.modification or 0,
                         size  = attr.size or 0,
@@ -2787,6 +2796,13 @@ local function walkBooks(root, depth, out, current_depth, dirs, listings)
         end
     end
     if listings and listing then listings[root] = listing end
+    if seen_mimetype and seen_meta_inf then return end
+    for i = 1, #found do out[#out + 1] = found[i] end
+    for i = 1, #subdirs do
+        local d = subdirs[i]
+        if dirs then dirs[d.fp] = d.mtime end
+        walkBooks(d.fp, depth, out, current_depth + 1, dirs, listings)
+    end
 end
 
 -- _dirsChanged(dirs): true if any recorded directory's current mtime differs
@@ -3645,7 +3661,11 @@ function Repo.findFirstBookIn(path, max_depth)
     local ok, iter, dir_obj = pcall(lfs.dir, path)
     if not ok then return nil end
     local files, dirs = {}, {}
+    local has_mimetype, has_meta_inf = false, false
     for f in iter, dir_obj do
+        -- An unpacked EPUB holds chapter files, not books: see walkBooks.
+        if f == "mimetype" then has_mimetype = true
+        elseif f == "META-INF" then has_meta_inf = true end
         if f ~= "." and f ~= ".." and not f:match("^%.") then
             local fp = _joinPath(path, f)
             local attr = lfs.attributes(fp)
@@ -3660,6 +3680,7 @@ function Repo.findFirstBookIn(path, max_depth)
             end
         end
     end
+    if has_mimetype and has_meta_inf then return nil end
     -- Files at this level take precedence over deeper subdirectories.
     table.sort(files, function(a, b) return a.name < b.name end)
     if files[1] then return files[1].fp end
@@ -3691,8 +3712,21 @@ function Repo.folderHasBooks(path)
         local dir = table.remove(stack)
         local ok_dir, iter, dir_obj = pcall(lfs.dir, dir)
         if ok_dir and type(iter) == "function" then
+            -- The whole listing first: an unpacked EPUB (a "mimetype" file
+            -- beside a META-INF folder) holds chapter files that pass the book
+            -- test but are not books, and that is only known at the end of
+            -- the listing. Same rule as walkBooks.
+            local names = {}
+            local has_mimetype, has_meta_inf = false, false
             for entry in iter, dir_obj do
+                if entry == "mimetype" then has_mimetype = true
+                elseif entry == "META-INF" then has_meta_inf = true end
                 if entry ~= "." and entry ~= ".." and entry:sub(1, 1) ~= "." then
+                    names[#names + 1] = entry
+                end
+            end
+            if not (has_mimetype and has_meta_inf) then
+                for _i, entry in ipairs(names) do
                     local fp   = _joinPath(dir, entry)
                     local attr = lfs.attributes(fp)
                     if attr then

@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-23 07:20+0100\n"
+"POT-Creation-Date: 2026-09-25 21:03+0100\n"
 "PO-Revision-Date: 2026-06-20 04:29+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
@@ -65,12 +65,12 @@ msgstr "Bookshelf 菜单"
 msgid "Choose an action"
 msgstr "选择操作"
 
-#: lib/bookshelf_book_repository.lua:5735
-#: lib/bookshelf_book_repository.lua:7990 micromodules/weather.lua:62
+#: lib/bookshelf_book_repository.lua:5853
+#: lib/bookshelf_book_repository.lua:8206 micromodules/weather.lua:62
 msgid "Unknown"
 msgstr "未知"
 
-#: lib/bookshelf_book_repository.lua:6695 lib/bookshelf_chip_editor.lua:2435
+#: lib/bookshelf_book_repository.lua:6839 lib/bookshelf_chip_editor.lua:2439
 #: lib/bookshelf_filter.lua:280
 msgid "Unrated"
 msgstr "无评分"
@@ -80,34 +80,34 @@ msgstr "无评分"
 msgid "Edit selected (%d)"
 msgstr "编辑所选 (%d)"
 
-#: lib/bookshelf_bulk_actions.lua:111 lib/bookshelf_widget.lua:19547
+#: lib/bookshelf_bulk_actions.lua:111 lib/bookshelf_widget.lua:19705
 msgid "Unopened"
 msgstr "未读"
 
 #: lib/bookshelf_bulk_actions.lua:112 lib/bookshelf_filter.lua:249
 #: lib/bookshelf_filter.lua:267 lib/bookshelf_icons_catalogue.lua:23
-#: lib/bookshelf_tokens.lua:261 lib/bookshelf_widget.lua:19547
+#: lib/bookshelf_tokens.lua:261 lib/bookshelf_widget.lua:19705
 #: micromodules/shelf_size.lua:18
 msgid "Reading"
 msgstr "在读"
 
 #: lib/bookshelf_bulk_actions.lua:113 lib/bookshelf_filter.lua:250
 #: lib/bookshelf_filter.lua:268 lib/bookshelf_tokens.lua:262
-#: lib/bookshelf_widget.lua:19548 micromodules/random_unread.lua:235
+#: lib/bookshelf_widget.lua:19706 micromodules/random_unread.lua:235
 #: micromodules/shelf_size.lua:20
 msgid "On hold"
 msgstr "搁置"
 
 #: lib/bookshelf_bulk_actions.lua:114 lib/bookshelf_filter.lua:250
 #: lib/bookshelf_filter.lua:269 lib/bookshelf_tokens.lua:263
-#: lib/bookshelf_widget.lua:19548 micromodules/random_unread.lua:236
+#: lib/bookshelf_widget.lua:19706 micromodules/random_unread.lua:236
 #: micromodules/shelf_size.lua:21
 msgid "Finished"
 msgstr "读完"
 
 #: lib/bookshelf_bulk_actions.lua:125 lib/bookshelf_bulk_actions.lua:127
-#: lib/bookshelf_chip_editor.lua:443 lib/bookshelf_filter.lua:35
-#: lib/bookshelf_sort_engine.lua:610
+#: lib/bookshelf_chip_editor.lua:444 lib/bookshelf_filter.lua:35
+#: lib/bookshelf_sort_engine.lua:660
 msgid "Rating"
 msgstr "评分"
 
@@ -115,35 +115,36 @@ msgstr "评分"
 msgid "(clear)"
 msgstr "(清除)"
 
-#: lib/bookshelf_bulk_actions.lua:160 lib/bookshelf_chip_editor.lua:2954
+#: lib/bookshelf_bulk_actions.lua:160 lib/bookshelf_chip_editor.lua:2966
 msgid "Clear"
 msgstr "清除"
 
 #: lib/bookshelf_bulk_actions.lua:165 lib/bookshelf_bulk_actions.lua:424
-#: lib/bookshelf_chip_editor.lua:728 lib/bookshelf_chip_editor.lua:1071
-#: lib/bookshelf_chip_editor.lua:2189 lib/bookshelf_chip_editor.lua:2239
-#: lib/bookshelf_chip_editor.lua:2375 lib/bookshelf_chip_editor.lua:2701
-#: lib/bookshelf_collection_manager.lua:338
-#: lib/bookshelf_collection_manager.lua:414
-#: lib/bookshelf_collection_manager.lua:421
-#: lib/bookshelf_collection_manager.lua:454
-#: lib/bookshelf_collection_manager.lua:504
-#: lib/bookshelf_collection_manager.lua:529 lib/bookshelf_color_palette.lua:352
+#: lib/bookshelf_chip_editor.lua:729 lib/bookshelf_chip_editor.lua:1075
+#: lib/bookshelf_chip_editor.lua:2193 lib/bookshelf_chip_editor.lua:2243
+#: lib/bookshelf_chip_editor.lua:2379 lib/bookshelf_chip_editor.lua:2713
+#: lib/bookshelf_collection_manager.lua:339
+#: lib/bookshelf_collection_manager.lua:415
+#: lib/bookshelf_collection_manager.lua:422
+#: lib/bookshelf_collection_manager.lua:455
+#: lib/bookshelf_collection_manager.lua:505
+#: lib/bookshelf_collection_manager.lua:530 lib/bookshelf_color_palette.lua:353
 #: lib/bookshelf_folder_picker.lua:61 lib/bookshelf_folder_picker.lua:199
-#: lib/bookshelf_line_editor.lua:572 lib/bookshelf_move_flow.lua:34
+#: lib/bookshelf_line_editor.lua:514 lib/bookshelf_move_flow.lua:34
 #: lib/bookshelf_move_flow.lua:386 lib/bookshelf_opds_catalog_editor.lua:45
-#: lib/bookshelf_settings.lua:1414 lib/bookshelf_settings.lua:2608
-#: lib/bookshelf_settings.lua:3085 lib/bookshelf_settings.lua:4388
-#: lib/bookshelf_settings.lua:4613 lib/bookshelf_settings.lua:4768
-#: lib/bookshelf_settings.lua:4970 lib/bookshelf_settings.lua:5064
-#: lib/bookshelf_start_menu_edit.lua:57 lib/bookshelf_start_menu_edit.lua:181
-#: lib/bookshelf_start_menu_edit.lua:293 lib/bookshelf_start_menu_edit.lua:358
-#: lib/bookshelf_widget.lua:7475 lib/bookshelf_widget.lua:16667
-#: lib/bookshelf_widget.lua:20919 lib/bookshelf_widget.lua:20999
-#: lib/bookshelf_widget.lua:21044 lib/bookshelf_widget.lua:21112
-#: lib/bookshelf_widget.lua:21160 lib/bookshelf_widget.lua:21166
-#: lib/bookshelf_widget.lua:22189 lib/bookshelf_widget.lua:22345
-#: lib/bookshelf_widget.lua:22879 main.lua:2257 micromodules/action.lua:227
+#: lib/bookshelf_page_count_dialog.lua:188 lib/bookshelf_settings.lua:1415
+#: lib/bookshelf_settings.lua:2642 lib/bookshelf_settings.lua:3119
+#: lib/bookshelf_settings.lua:4471 lib/bookshelf_settings.lua:4696
+#: lib/bookshelf_settings.lua:4851 lib/bookshelf_settings.lua:5053
+#: lib/bookshelf_settings.lua:5147 lib/bookshelf_start_menu_edit.lua:57
+#: lib/bookshelf_start_menu_edit.lua:181 lib/bookshelf_start_menu_edit.lua:293
+#: lib/bookshelf_start_menu_edit.lua:358 lib/bookshelf_widget.lua:7521
+#: lib/bookshelf_widget.lua:16820 lib/bookshelf_widget.lua:19126
+#: lib/bookshelf_widget.lua:21153 lib/bookshelf_widget.lua:21233
+#: lib/bookshelf_widget.lua:21278 lib/bookshelf_widget.lua:21346
+#: lib/bookshelf_widget.lua:21394 lib/bookshelf_widget.lua:21400
+#: lib/bookshelf_widget.lua:22445 lib/bookshelf_widget.lua:22601
+#: lib/bookshelf_widget.lua:23136 main.lua:2262 micromodules/action.lua:227
 #: micromodules/countdown.lua:60 micromodules/reading_goal.lua:352
 #: micromodules/weather.lua:254
 msgid "Cancel"
@@ -154,26 +155,26 @@ msgid "Set rating"
 msgstr "设定评分"
 
 #: lib/bookshelf_bulk_actions.lua:184 lib/bookshelf_bulk_actions.lua:186
-#: lib/bookshelf_bulk_actions.lua:188 lib/bookshelf_widget.lua:19723
+#: lib/bookshelf_bulk_actions.lua:188 lib/bookshelf_widget.lua:19883
 msgid "Favorite"
 msgstr "收藏"
 
-#: lib/bookshelf_bulk_actions.lua:214 lib/bookshelf_chip_editor.lua:428
-#: lib/bookshelf_chip_editor.lua:2673 lib/bookshelf_settings.lua:535
-#: lib/bookshelf_widget.lua:20689
+#: lib/bookshelf_bulk_actions.lua:214 lib/bookshelf_chip_editor.lua:429
+#: lib/bookshelf_chip_editor.lua:2685 lib/bookshelf_settings.lua:536
+#: lib/bookshelf_widget.lua:20923
 msgid "Collections"
 msgstr "书单"
 
-#: lib/bookshelf_bulk_actions.lua:246 lib/bookshelf_widget.lua:19495
+#: lib/bookshelf_bulk_actions.lua:246 lib/bookshelf_widget.lua:19653
 msgid "Refresh metadata"
 msgstr "刷新元数据"
 
-#: lib/bookshelf_bulk_actions.lua:259 lib/bookshelf_widget.lua:19419
-#: lib/bookshelf_widget.lua:19726
+#: lib/bookshelf_bulk_actions.lua:259 lib/bookshelf_widget.lua:19577
+#: lib/bookshelf_widget.lua:19886
 msgid "Remove from history"
 msgstr "从历史记录删除"
 
-#: lib/bookshelf_bulk_actions.lua:278 lib/bookshelf_widget.lua:19456
+#: lib/bookshelf_bulk_actions.lua:278 lib/bookshelf_widget.lua:19614
 msgid "Reset book data…"
 msgstr "重置书籍数据…"
 
@@ -182,8 +183,9 @@ msgstr "重置书籍数据…"
 msgid "Reset %d books?"
 msgstr "重置 %d 本书籍？"
 
-#: lib/bookshelf_bulk_actions.lua:285 lib/bookshelf_settings.lua:4164
-#: lib/bookshelf_settings.lua:4207 main.lua:2728
+#: lib/bookshelf_bulk_actions.lua:285 lib/bookshelf_font_picker.lua:275
+#: lib/bookshelf_settings.lua:4247 lib/bookshelf_settings.lua:4290
+#: main.lua:2871
 msgid "Reset"
 msgstr "重置"
 
@@ -193,12 +195,14 @@ msgid "Pending changes discarded"
 msgstr "已撤销未保存更改"
 
 #: lib/bookshelf_bulk_actions.lua:329 lib/bookshelf_bulk_actions.lua:345
-#: lib/bookshelf_chip_editor.lua:1048 lib/bookshelf_chip_editor.lua:2538
-#: lib/bookshelf_collection_manager.lua:382
-#: lib/bookshelf_collection_manager.lua:412
-#: lib/bookshelf_opds_catalog_editor.lua:104 lib/bookshelf_settings.lua:1406
-#: lib/bookshelf_start_menu_edit.lua:382 lib/bookshelf_widget.lua:19460
-#: lib/bookshelf_widget.lua:19479 lib/bookshelf_widget.lua:21159
+#: lib/bookshelf_chip_editor.lua:1052 lib/bookshelf_chip_editor.lua:2542
+#: lib/bookshelf_collection_manager.lua:383
+#: lib/bookshelf_collection_manager.lua:413
+#: lib/bookshelf_opds_catalog_editor.lua:104
+#: lib/bookshelf_ornament_browser.lua:171
+#: lib/bookshelf_page_count_dialog.lua:72 lib/bookshelf_settings.lua:1407
+#: lib/bookshelf_start_menu_edit.lua:382 lib/bookshelf_widget.lua:19618
+#: lib/bookshelf_widget.lua:19637 lib/bookshelf_widget.lua:21393
 msgid "Delete"
 msgstr "删除"
 
@@ -216,10 +220,10 @@ msgstr "删除 %d 本书籍？"
 msgid "Move to folder…"
 msgstr "移动到文件夹…"
 
-#: lib/bookshelf_bulk_actions.lua:461 lib/bookshelf_color_palette.lua:356
-#: lib/bookshelf_settings.lua:2611 lib/bookshelf_settings.lua:4436
-#: lib/bookshelf_settings.lua:4771 lib/bookshelf_settings.lua:4984
-#: lib/bookshelf_settings.lua:5067
+#: lib/bookshelf_bulk_actions.lua:461 lib/bookshelf_color_palette.lua:357
+#: lib/bookshelf_settings.lua:2645 lib/bookshelf_settings.lua:4519
+#: lib/bookshelf_settings.lua:4854 lib/bookshelf_settings.lua:5067
+#: lib/bookshelf_settings.lua:5150
 msgid "Apply"
 msgstr "应用"
 
@@ -258,19 +262,20 @@ msgstr "较早"
 msgid "Newer"
 msgstr "较新"
 
-#: lib/bookshelf_changelog.lua:139 lib/bookshelf_chip_editor.lua:1467
-#: lib/bookshelf_reviews_modal.lua:494 lib/bookshelf_widget.lua:20121
-#: micromodules/quote_of_day.lua:77
+#: lib/bookshelf_changelog.lua:139 lib/bookshelf_chip_editor.lua:1471
+#: lib/bookshelf_reviews_modal.lua:528 lib/bookshelf_widget.lua:20286
+#: micromodules/quote_of_day.lua:175
 msgid "Refresh"
 msgstr "刷新"
 
-#: lib/bookshelf_changelog.lua:148 lib/bookshelf_chip_editor.lua:1470
-#: lib/bookshelf_chip_editor.lua:2339 lib/bookshelf_chip_editor.lua:3150
-#: lib/bookshelf_collection_manager.lua:561 lib/bookshelf_folder_picker.lua:168
-#: lib/bookshelf_icons_library.lua:496 lib/bookshelf_line_editor.lua:158
-#: lib/bookshelf_module_picker.lua:225 lib/bookshelf_reviews_modal.lua:526
-#: lib/bookshelf_settings.lua:291 lib/bookshelf_updater.lua:409
-#: lib/bookshelf_widget.lua:17223 micromodules/daily_fun.lua:288
+#: lib/bookshelf_changelog.lua:148 lib/bookshelf_chip_editor.lua:1474
+#: lib/bookshelf_chip_editor.lua:2343 lib/bookshelf_chip_editor.lua:3162
+#: lib/bookshelf_collection_manager.lua:562 lib/bookshelf_folder_picker.lua:168
+#: lib/bookshelf_font_picker.lua:271 lib/bookshelf_icons_library.lua:497
+#: lib/bookshelf_line_editor.lua:157 lib/bookshelf_module_picker.lua:226
+#: lib/bookshelf_ornament_browser.lua:278 lib/bookshelf_reviews_modal.lua:560
+#: lib/bookshelf_settings.lua:292 lib/bookshelf_updater.lua:409
+#: lib/bookshelf_widget.lua:17376 micromodules/daily_fun.lua:288
 msgid "Close"
 msgstr "关闭"
 
@@ -282,673 +287,684 @@ msgstr "更新日志 (%1 / %2)"
 msgid "Could not fetch the changelog."
 msgstr "无法获取更新日志。"
 
-#: lib/bookshelf_chip_editor.lua:117 lib/bookshelf_chip_editor.lua:1659
-#: lib/bookshelf_widget.lua:5162
+#: lib/bookshelf_chip_editor.lua:118 lib/bookshelf_chip_editor.lua:1663
+#: lib/bookshelf_widget.lua:5188
 msgid "List"
 msgstr "列表"
 
-#: lib/bookshelf_chip_editor.lua:118 lib/bookshelf_chip_editor.lua:1655
-#: lib/bookshelf_widget.lua:5161
+#: lib/bookshelf_chip_editor.lua:119 lib/bookshelf_chip_editor.lua:1659
+#: lib/bookshelf_widget.lua:5187
 msgid "Covers"
 msgstr "封面"
 
-#: lib/bookshelf_chip_editor.lua:119 lib/bookshelf_chip_editor.lua:1645
-#: lib/bookshelf_chip_editor.lua:1709 lib/bookshelf_chip_editor.lua:1770
-#: lib/bookshelf_settings.lua:3859 lib/bookshelf_settings.lua:3862
-#: lib/bookshelf_settings.lua:3894 lib/bookshelf_start_menu_edit.lua:320
-#: lib/bookshelf_widget.lua:5164
+#: lib/bookshelf_chip_editor.lua:120 lib/bookshelf_chip_editor.lua:1649
+#: lib/bookshelf_chip_editor.lua:1713 lib/bookshelf_chip_editor.lua:1774
+#: lib/bookshelf_settings.lua:3925 lib/bookshelf_settings.lua:3928
+#: lib/bookshelf_settings.lua:3960 lib/bookshelf_start_menu_edit.lua:320
+#: lib/bookshelf_widget.lua:5190
 msgid "Auto"
 msgstr "自动"
 
-#: lib/bookshelf_chip_editor.lua:120 lib/bookshelf_chip_editor.lua:1668
-#: lib/bookshelf_widget.lua:5163
+#: lib/bookshelf_chip_editor.lua:121 lib/bookshelf_chip_editor.lua:1672
+#: lib/bookshelf_widget.lua:5189
 msgid "Spines"
 msgstr "书脊"
 
-#: lib/bookshelf_chip_editor.lua:345 lib/bookshelf_chip_editor.lua:1191
-#: lib/bookshelf_settings.lua:5729
+#: lib/bookshelf_chip_editor.lua:346 lib/bookshelf_chip_editor.lua:1195
+#: lib/bookshelf_settings.lua:5812
 msgid "New shelf"
 msgstr "新书架"
 
-#: lib/bookshelf_chip_editor.lua:402
+#: lib/bookshelf_chip_editor.lua:403
 msgid "Full name"
 msgstr "全名"
 
-#: lib/bookshelf_chip_editor.lua:408
+#: lib/bookshelf_chip_editor.lua:409
 msgid "Name"
 msgstr "名字"
 
-#: lib/bookshelf_chip_editor.lua:410 lib/bookshelf_sort_engine.lua:526
+#: lib/bookshelf_chip_editor.lua:411 lib/bookshelf_sort_engine.lua:558
 msgid "Surname"
 msgstr "姓氏"
 
-#: lib/bookshelf_chip_editor.lua:411
+#: lib/bookshelf_chip_editor.lua:412
 msgid "Most recently read"
 msgstr "最近阅读"
 
-#: lib/bookshelf_chip_editor.lua:412
+#: lib/bookshelf_chip_editor.lua:413
 msgid "Most recently added"
 msgstr "最近添加"
 
-#: lib/bookshelf_chip_editor.lua:413 lib/bookshelf_sort_engine.lua:602
+#: lib/bookshelf_chip_editor.lua:414 lib/bookshelf_sort_engine.lua:652
 msgid "Book count"
 msgstr "书籍数量"
 
-#: lib/bookshelf_chip_editor.lua:421 lib/bookshelf_chip_editor.lua:2643
+#: lib/bookshelf_chip_editor.lua:422 lib/bookshelf_chip_editor.lua:2654
 msgid "Home (folders)"
 msgstr "首页 (文件夹)"
 
-#: lib/bookshelf_chip_editor.lua:422 lib/bookshelf_chip_editor.lua:2644
+#: lib/bookshelf_chip_editor.lua:423 lib/bookshelf_chip_editor.lua:2655
 msgid "Home (flattened)"
 msgstr "首页 (平铺)"
 
-#: lib/bookshelf_chip_editor.lua:423 lib/bookshelf_chip_editor.lua:2636
+#: lib/bookshelf_chip_editor.lua:424 lib/bookshelf_chip_editor.lua:2647
 msgid "Recently read"
 msgstr "在读"
 
-#: lib/bookshelf_chip_editor.lua:424 lib/bookshelf_chip_editor.lua:2637
+#: lib/bookshelf_chip_editor.lua:425 lib/bookshelf_chip_editor.lua:2648
 msgid "Latest added"
 msgstr "最后添加"
 
-#: lib/bookshelf_chip_editor.lua:425 lib/bookshelf_chip_editor.lua:440
-#: lib/bookshelf_chip_editor.lua:2658 lib/bookshelf_filter.lua:37
-#: lib/bookshelf_settings.lua:534 lib/bookshelf_settings.lua:677
-#: lib/bookshelf_sort_engine.lua:528 lib/bookshelf_tab_model.lua:76
-#: lib/bookshelf_widget.lua:1626 lib/bookshelf_widget.lua:20688
+#: lib/bookshelf_chip_editor.lua:426 lib/bookshelf_chip_editor.lua:441
+#: lib/bookshelf_chip_editor.lua:2670 lib/bookshelf_filter.lua:37
+#: lib/bookshelf_settings.lua:535 lib/bookshelf_settings.lua:678
+#: lib/bookshelf_sort_engine.lua:560 lib/bookshelf_tab_model.lua:76
+#: lib/bookshelf_widget.lua:1628 lib/bookshelf_widget.lua:20922
 msgid "Series"
 msgstr "系列"
 
-#: lib/bookshelf_chip_editor.lua:426 lib/bookshelf_chip_editor.lua:2663
-#: lib/bookshelf_settings.lua:135 lib/bookshelf_tab_model.lua:80
-#: lib/bookshelf_tokens.lua:30 lib/bookshelf_widget.lua:1625
+#: lib/bookshelf_chip_editor.lua:427 lib/bookshelf_chip_editor.lua:2675
+#: lib/bookshelf_settings.lua:136 lib/bookshelf_tab_model.lua:80
+#: lib/bookshelf_tokens.lua:30 lib/bookshelf_widget.lua:1627
 msgid "Authors"
 msgstr "作者"
 
-#: lib/bookshelf_chip_editor.lua:427 lib/bookshelf_chip_editor.lua:2668
-#: lib/bookshelf_settings.lua:536 lib/bookshelf_tab_model.lua:88
-#: lib/bookshelf_widget.lua:1627 lib/bookshelf_widget.lua:20690
+#: lib/bookshelf_chip_editor.lua:428 lib/bookshelf_chip_editor.lua:2680
+#: lib/bookshelf_settings.lua:537 lib/bookshelf_tab_model.lua:88
+#: lib/bookshelf_widget.lua:1629 lib/bookshelf_widget.lua:20924
 msgid "Genres"
 msgstr "类型"
 
-#: lib/bookshelf_chip_editor.lua:429 lib/bookshelf_chip_editor.lua:2677
+#: lib/bookshelf_chip_editor.lua:430 lib/bookshelf_chip_editor.lua:2689
 msgid "Formats"
 msgstr "格式"
 
-#: lib/bookshelf_chip_editor.lua:430 lib/bookshelf_chip_editor.lua:2682
-#: lib/bookshelf_widget.lua:1630 lib/bookshelf_widget.lua:19880
+#: lib/bookshelf_chip_editor.lua:431 lib/bookshelf_chip_editor.lua:2694
+#: lib/bookshelf_widget.lua:1632 lib/bookshelf_widget.lua:20045
 msgid "Ratings"
 msgstr "评分"
 
-#: lib/bookshelf_chip_editor.lua:431 lib/bookshelf_chip_editor.lua:2686
+#: lib/bookshelf_chip_editor.lua:432 lib/bookshelf_chip_editor.lua:2698
 #: lib/bookshelf_tab_model.lua:93
 msgid "Languages"
 msgstr "语言"
 
-#: lib/bookshelf_chip_editor.lua:432 lib/bookshelf_chip_editor.lua:1800
-#: lib/bookshelf_collection_manager.lua:118 lib/bookshelf_tab_model.lua:95
-#: lib/bookshelf_widget.lua:18520 lib/bookshelf_widget.lua:18557
+#: lib/bookshelf_chip_editor.lua:433 lib/bookshelf_chip_editor.lua:1804
+#: lib/bookshelf_collection_manager.lua:119 lib/bookshelf_tab_model.lua:95
+#: lib/bookshelf_widget.lua:18662 lib/bookshelf_widget.lua:18699
 msgid "Favorites"
 msgstr "收藏夹"
 
-#: lib/bookshelf_chip_editor.lua:434 lib/bookshelf_settings.lua:537
-#: lib/bookshelf_widget.lua:1629 lib/bookshelf_widget.lua:20691
+#: lib/bookshelf_chip_editor.lua:435 lib/bookshelf_settings.lua:538
+#: lib/bookshelf_widget.lua:1631 lib/bookshelf_widget.lua:20925
 msgid "Folder"
 msgstr "文件夹"
 
-#: lib/bookshelf_chip_editor.lua:435
+#: lib/bookshelf_chip_editor.lua:436
 msgid "Folder (flattened)"
 msgstr "文件夹 (平铺)"
 
-#: lib/bookshelf_chip_editor.lua:436 lib/bookshelf_chip_editor.lua:437
+#: lib/bookshelf_chip_editor.lua:437 lib/bookshelf_chip_editor.lua:438
 #: lib/bookshelf_filter.lua:36
 msgid "Collection"
 msgstr "书单"
 
-#: lib/bookshelf_chip_editor.lua:438 lib/bookshelf_filter.lua:32
+#: lib/bookshelf_chip_editor.lua:439 lib/bookshelf_filter.lua:32
 msgid "Genre"
 msgstr "类型"
 
-#: lib/bookshelf_chip_editor.lua:439 lib/bookshelf_settings.lua:414
-#: lib/bookshelf_settings.lua:533 lib/bookshelf_settings.lua:676
-#: lib/bookshelf_sort_engine.lua:524
+#: lib/bookshelf_chip_editor.lua:440 lib/bookshelf_settings.lua:415
+#: lib/bookshelf_settings.lua:534 lib/bookshelf_settings.lua:677
+#: lib/bookshelf_sort_engine.lua:556
 msgid "Author"
 msgstr "作者"
 
-#: lib/bookshelf_chip_editor.lua:441 lib/bookshelf_filter.lua:31
+#: lib/bookshelf_chip_editor.lua:442 lib/bookshelf_filter.lua:31
 msgid "Status"
 msgstr "状态"
 
-#: lib/bookshelf_chip_editor.lua:442 lib/bookshelf_filter.lua:34
+#: lib/bookshelf_chip_editor.lua:443 lib/bookshelf_filter.lua:34
 msgid "Format"
 msgstr "格式"
 
-#: lib/bookshelf_chip_editor.lua:444 lib/bookshelf_filter.lua:33
+#: lib/bookshelf_chip_editor.lua:445 lib/bookshelf_filter.lua:33
 #: lib/bookshelf_tokens.lua:96 micromodules/trivia.lua:447
 msgid "Language"
 msgstr "语言"
 
-#: lib/bookshelf_chip_editor.lua:448
+#: lib/bookshelf_chip_editor.lua:449
 msgid "OPDS catalog"
 msgstr "OPDS 目录"
 
-#: lib/bookshelf_chip_editor.lua:451 lib/bookshelf_chip_editor.lua:2712
+#: lib/bookshelf_chip_editor.lua:452 lib/bookshelf_chip_editor.lua:2724
 msgid "Kindle Virtual Library"
 msgstr "Kindle 虚拟书库"
 
-#: lib/bookshelf_chip_editor.lua:459 lib/bookshelf_settings.lua:3966
+#: lib/bookshelf_chip_editor.lua:460 lib/bookshelf_settings.lua:4032
 msgid "(none)"
 msgstr "(无)"
 
-#: lib/bookshelf_chip_editor.lua:466
+#: lib/bookshelf_chip_editor.lua:467
 msgid "OPDS: %1"
 msgstr "OPDS：%1"
 
-#: lib/bookshelf_chip_editor.lua:733
+#: lib/bookshelf_chip_editor.lua:734
 msgid "Insert icon…"
 msgstr "插入图标…"
 
-#: lib/bookshelf_chip_editor.lua:779 lib/bookshelf_chip_editor.lua:2136
+#: lib/bookshelf_chip_editor.lua:780 lib/bookshelf_chip_editor.lua:2140
 msgid "OK"
 msgstr "确定"
 
-#: lib/bookshelf_chip_editor.lua:789
+#: lib/bookshelf_chip_editor.lua:790
 msgid "Shelf label"
 msgstr "书架标签"
 
-#: lib/bookshelf_chip_editor.lua:810
+#: lib/bookshelf_chip_editor.lua:811
 msgid ": (none)"
 msgstr "： (无)"
 
-#: lib/bookshelf_chip_editor.lua:810
+#: lib/bookshelf_chip_editor.lua:811
 msgid "Sort "
 msgstr "排序"
 
-#: lib/bookshelf_chip_editor.lua:855
+#: lib/bookshelf_chip_editor.lua:856
 msgid "Server order"
 msgstr "服务器顺序"
 
-#: lib/bookshelf_chip_editor.lua:892
-msgid "Source: "
-msgstr "数据来源："
+#: lib/bookshelf_chip_editor.lua:896
+msgid "Source / grouping: "
+msgstr "来源 / 分组："
 
-#: lib/bookshelf_chip_editor.lua:906
+#: lib/bookshelf_chip_editor.lua:910
 msgid "Filters: "
 msgstr "筛选条件："
 
-#: lib/bookshelf_chip_editor.lua:920 lib/bookshelf_chip_editor.lua:1455
+#: lib/bookshelf_chip_editor.lua:924 lib/bookshelf_chip_editor.lua:1459
 msgid "Catalog settings"
 msgstr "目录设置"
 
-#: lib/bookshelf_chip_editor.lua:963
+#: lib/bookshelf_chip_editor.lua:967
 msgid "Shelf style: "
 msgstr "书架样式："
 
-#: lib/bookshelf_chip_editor.lua:1009
+#: lib/bookshelf_chip_editor.lua:1013
 msgid "Edit label"
 msgstr "编辑标签"
 
-#: lib/bookshelf_chip_editor.lua:1047
+#: lib/bookshelf_chip_editor.lua:1051
 msgid "Delete this shelf? This cannot be undone."
 msgstr "删除这个书架？无法撤销。"
 
-#: lib/bookshelf_chip_editor.lua:1097 lib/bookshelf_collection_manager.lua:509
-#: lib/bookshelf_collection_manager.lua:533 lib/bookshelf_line_editor.lua:601
-#: lib/bookshelf_opds_catalog_editor.lua:50 lib/bookshelf_widget.lua:21046
-#: main.lua:2262 micromodules/action.lua:230 micromodules/countdown.lua:144
-#: micromodules/reading_goal.lua:359 micromodules/weather.lua:261
+#: lib/bookshelf_chip_editor.lua:1101 lib/bookshelf_collection_manager.lua:510
+#: lib/bookshelf_collection_manager.lua:534 lib/bookshelf_line_editor.lua:543
+#: lib/bookshelf_opds_catalog_editor.lua:50 lib/bookshelf_widget.lua:19128
+#: lib/bookshelf_widget.lua:21280 main.lua:2267 micromodules/action.lua:230
+#: micromodules/countdown.lua:144 micromodules/reading_goal.lua:359
+#: micromodules/weather.lua:261
 msgid "Save"
 msgstr "保存"
 
-#: lib/bookshelf_chip_editor.lua:1239
+#: lib/bookshelf_chip_editor.lua:1243
 msgid "Edit shelf"
 msgstr "编辑书架"
 
-#: lib/bookshelf_chip_editor.lua:1241
+#: lib/bookshelf_chip_editor.lua:1245
 msgid "Editing: "
 msgstr "编辑："
 
-#: lib/bookshelf_chip_editor.lua:1423
+#: lib/bookshelf_chip_editor.lua:1427
 msgid "KOReader folder"
 msgstr "KOReader 文件夹"
 
-#: lib/bookshelf_chip_editor.lua:1438
+#: lib/bookshelf_chip_editor.lua:1442
 msgid "Starts at"
 msgstr "起始于"
 
-#: lib/bookshelf_chip_editor.lua:1438
+#: lib/bookshelf_chip_editor.lua:1442
 msgid "a subcatalog"
 msgstr "某个子目录"
 
-#: lib/bookshelf_chip_editor.lua:1447
+#: lib/bookshelf_chip_editor.lua:1451
 msgid "Starts at: the top of the catalog"
 msgstr "起始于：目录顶层"
 
-#: lib/bookshelf_chip_editor.lua:1459
+#: lib/bookshelf_chip_editor.lua:1463
 msgid "Saves to"
 msgstr "保存到"
 
-#: lib/bookshelf_chip_editor.lua:1467
+#: lib/bookshelf_chip_editor.lua:1471
 msgid "Refresh this catalog"
 msgstr "刷新此目录"
 
-#: lib/bookshelf_chip_editor.lua:1499
+#: lib/bookshelf_chip_editor.lua:1503
 msgid "How many count as recently added"
 msgstr "多少本算作最近添加"
 
-#: lib/bookshelf_chip_editor.lua:1520 lib/bookshelf_menu_host.lua:135
-#: lib/bookshelf_widget.lua:1648
+#: lib/bookshelf_chip_editor.lua:1524 lib/bookshelf_menu_host.lua:135
+#: lib/bookshelf_widget.lua:1650 micromodules/quote_of_day.lua:86
 msgid "Back"
 msgstr "返回"
 
-#: lib/bookshelf_chip_editor.lua:1527
+#: lib/bookshelf_chip_editor.lua:1531
 msgid "Recently added"
 msgstr "最近添加"
 
-#: lib/bookshelf_chip_editor.lua:1643
+#: lib/bookshelf_chip_editor.lua:1647
 msgid "Show as"
 msgstr "显示为"
 
-#: lib/bookshelf_chip_editor.lua:1738
+#: lib/bookshelf_chip_editor.lua:1742
 msgid "Auto shows covers by default,"
 msgstr "「自动」默认显示封面，"
 
-#: lib/bookshelf_chip_editor.lua:1739
+#: lib/bookshelf_chip_editor.lua:1743
 msgid "and a list in full screen or a folder."
 msgstr "全屏或进入文件夹时则显示列表。"
 
-#: lib/bookshelf_chip_editor.lua:1743
+#: lib/bookshelf_chip_editor.lua:1747
 msgid "List columns"
 msgstr "列表列数"
 
-#: lib/bookshelf_chip_editor.lua:1745
+#: lib/bookshelf_chip_editor.lua:1749
 msgid "List rows"
 msgstr "列表行数"
 
-#: lib/bookshelf_chip_editor.lua:1757
+#: lib/bookshelf_chip_editor.lua:1761
 msgid "Spine rows"
 msgstr "书脊行数"
 
-#: lib/bookshelf_chip_editor.lua:1791
+#: lib/bookshelf_chip_editor.lua:1795
 msgid "Spine thickness"
 msgstr "书脊厚度"
 
-#: lib/bookshelf_chip_editor.lua:1799 lib/bookshelf_chip_editor.lua:2051
-#: lib/bookshelf_settings.lua:678 lib/bookshelf_settings.lua:881
-#: lib/bookshelf_settings.lua:940 lib/bookshelf_settings.lua:1506
-#: lib/bookshelf_settings.lua:1711 lib/bookshelf_shelf_row.lua:357
-#: lib/bookshelf_stack_display.lua:105
+#: lib/bookshelf_chip_editor.lua:1803 lib/bookshelf_chip_editor.lua:2055
+#: lib/bookshelf_settings.lua:679 lib/bookshelf_settings.lua:882
+#: lib/bookshelf_settings.lua:941 lib/bookshelf_settings.lua:1507
+#: lib/bookshelf_settings.lua:1531 lib/bookshelf_settings.lua:1745
+#: lib/bookshelf_shelf_row.lua:362 lib/bookshelf_stack_display.lua:106
 msgid "None"
 msgstr "无"
 
-#: lib/bookshelf_chip_editor.lua:1801
+#: lib/bookshelf_chip_editor.lua:1805
 msgid "First in series"
 msgstr "系列首本"
 
-#: lib/bookshelf_chip_editor.lua:1802
+#: lib/bookshelf_chip_editor.lua:1806
 msgid "First unread in series"
 msgstr "系列首本未读"
 
-#: lib/bookshelf_chip_editor.lua:1803 lib/bookshelf_settings.lua:3568
+#: lib/bookshelf_chip_editor.lua:1807 lib/bookshelf_settings.lua:3602
 msgid "Currently reading"
 msgstr "正在阅读"
 
-#: lib/bookshelf_chip_editor.lua:1804 lib/bookshelf_filter.lua:249
+#: lib/bookshelf_chip_editor.lua:1808 lib/bookshelf_filter.lua:249
 #: lib/bookshelf_filter.lua:266 lib/bookshelf_tokens.lua:260
 #: micromodules/random_unread.lua:233 micromodules/shelf_size.lua:19
 msgid "Unread"
 msgstr "未读"
 
-#: lib/bookshelf_chip_editor.lua:1805 micromodules/random_unread.lua:232
+#: lib/bookshelf_chip_editor.lua:1809 micromodules/random_unread.lua:232
 msgid "All books"
 msgstr "所有书籍"
 
-#: lib/bookshelf_chip_editor.lua:1816 lib/bookshelf_chip_editor.lua:1818
-#: lib/bookshelf_chip_editor.lua:1833 lib/bookshelf_chip_editor.lua:1988
+#: lib/bookshelf_chip_editor.lua:1820 lib/bookshelf_chip_editor.lua:1822
+#: lib/bookshelf_chip_editor.lua:1837 lib/bookshelf_chip_editor.lua:1992
 msgid "Face out"
 msgstr "封面朝外"
 
-#: lib/bookshelf_chip_editor.lua:1824
+#: lib/bookshelf_chip_editor.lua:1828
 msgid "Newest %1"
 msgstr "最新 %1 本"
 
-#: lib/bookshelf_chip_editor.lua:1831
+#: lib/bookshelf_chip_editor.lua:1835
 msgid "Face out: %1 reasons"
 msgstr "封面朝外：%1 项条件"
 
-#: lib/bookshelf_chip_editor.lua:1875
+#: lib/bookshelf_chip_editor.lua:1879
 msgid "Recently added (%1)"
 msgstr "最近添加 (%1)"
 
-#: lib/bookshelf_chip_editor.lua:1878
+#: lib/bookshelf_chip_editor.lua:1882
 msgid "How many: %1"
 msgstr "数量：%1"
 
-#: lib/bookshelf_chip_editor.lua:1981 lib/bookshelf_chip_editor.lua:2787
-#: lib/bookshelf_chip_editor.lua:2964 lib/bookshelf_chip_editor.lua:3022
-#: lib/bookshelf_chip_editor.lua:3085 lib/bookshelf_widget.lua:21713
+#: lib/bookshelf_chip_editor.lua:1985 lib/bookshelf_chip_editor.lua:2799
+#: lib/bookshelf_chip_editor.lua:2976 lib/bookshelf_chip_editor.lua:3034
+#: lib/bookshelf_chip_editor.lua:3097 lib/bookshelf_font_picker.lua:284
+#: lib/bookshelf_widget.lua:21969
 msgid "Done"
 msgstr "完成"
 
-#: lib/bookshelf_chip_editor.lua:1992
+#: lib/bookshelf_chip_editor.lua:1996
 msgid "Ticked books stand face out. Tick as many reasons as you like."
 msgstr "勾选的书籍将封面朝外摆放。可同时勾选任意多项条件。"
 
-#: lib/bookshelf_chip_editor.lua:2052
+#: lib/bookshelf_chip_editor.lua:2056
 msgid "Rarely"
 msgstr "偶尔"
 
-#: lib/bookshelf_chip_editor.lua:2053
+#: lib/bookshelf_chip_editor.lua:2057
 msgid "Often"
 msgstr "经常"
 
-#: lib/bookshelf_chip_editor.lua:2054 lib/bookshelf_settings.lua:998
+#: lib/bookshelf_chip_editor.lua:2058 lib/bookshelf_settings.lua:999
 msgid "Always"
 msgstr "总是"
 
-#: lib/bookshelf_chip_editor.lua:2071
+#: lib/bookshelf_chip_editor.lua:2075
 msgid "Author on spine"
 msgstr "书脊显示作者"
 
-#: lib/bookshelf_chip_editor.lua:2086
+#: lib/bookshelf_chip_editor.lua:2090 lib/bookshelf_ornament_browser.lua:216
 msgid "Ornaments"
 msgstr "摆件"
 
-#: lib/bookshelf_chip_editor.lua:2111
+#: lib/bookshelf_chip_editor.lua:2115
 msgid "Folder tiles: "
 msgstr "文件夹卡片："
 
-#: lib/bookshelf_chip_editor.lua:2114
+#: lib/bookshelf_chip_editor.lua:2118
 msgid "Folder tiles"
 msgstr "文件夹卡片"
 
-#: lib/bookshelf_chip_editor.lua:2143
+#: lib/bookshelf_chip_editor.lua:2147
 msgid "Shelf style"
 msgstr "书架样式"
 
-#: lib/bookshelf_chip_editor.lua:2211
+#: lib/bookshelf_chip_editor.lua:2215
 msgid "Save downloads from this catalog to…"
 msgstr "将此目录的下载内容保存到…"
 
-#: lib/bookshelf_chip_editor.lua:2215
+#: lib/bookshelf_chip_editor.lua:2219
 msgid "Choose folder…"
 msgstr "选择文件夹…"
 
-#: lib/bookshelf_chip_editor.lua:2219
+#: lib/bookshelf_chip_editor.lua:2223
 msgid "Save downloads to…"
 msgstr "将下载内容保存到…"
 
-#: lib/bookshelf_chip_editor.lua:2230 lib/bookshelf_chip_editor.lua:2231
+#: lib/bookshelf_chip_editor.lua:2234 lib/bookshelf_chip_editor.lua:2235
 msgid "KOReader's download folder"
 msgstr "KOReader 的下载文件夹"
 
-#: lib/bookshelf_chip_editor.lua:2291 lib/bookshelf_chip_editor.lua:2379
+#: lib/bookshelf_chip_editor.lua:2295 lib/bookshelf_chip_editor.lua:2383
 msgid "Choose "
 msgstr "选择 "
 
-#: lib/bookshelf_chip_editor.lua:2292 lib/bookshelf_chip_editor.lua:2925
-#: lib/bookshelf_folder_picker.lua:137 lib/bookshelf_library_modal.lua:505
-#: lib/bookshelf_widget.lua:7440 lib/bookshelf_widget.lua:21019
+#: lib/bookshelf_chip_editor.lua:2296 lib/bookshelf_chip_editor.lua:2937
+#: lib/bookshelf_folder_picker.lua:137 lib/bookshelf_library_modal.lua:506
+#: lib/bookshelf_widget.lua:7486 lib/bookshelf_widget.lua:21253
 msgid "Search…"
 msgstr "搜索…"
 
-#: lib/bookshelf_chip_editor.lua:2517
+#: lib/bookshelf_chip_editor.lua:2521
 msgid "Choose OPDS catalog"
 msgstr "选择 OPDS 目录"
 
-#: lib/bookshelf_chip_editor.lua:2519
+#: lib/bookshelf_chip_editor.lua:2523
 msgid "Add catalog…"
 msgstr "添加目录…"
 
-#: lib/bookshelf_chip_editor.lua:2534 lib/bookshelf_line_editor.lua:615
-#: lib/bookshelf_widget.lua:19948 lib/bookshelf_widget.lua:20673
-#: lib/bookshelf_widget.lua:20771
+#: lib/bookshelf_chip_editor.lua:2538 lib/bookshelf_line_editor.lua:557
+#: lib/bookshelf_widget.lua:20113 lib/bookshelf_widget.lua:20403
+#: lib/bookshelf_widget.lua:20907 lib/bookshelf_widget.lua:21005
 msgid "Edit"
 msgstr "编辑"
 
-#: lib/bookshelf_chip_editor.lua:2610
+#: lib/bookshelf_chip_editor.lua:2614
 msgid "Choose folder within home folder"
 msgstr "在主页文件夹内选择文件夹"
 
-#: lib/bookshelf_chip_editor.lua:2612 lib/bookshelf_folder_picker.lua:111
+#: lib/bookshelf_chip_editor.lua:2616 lib/bookshelf_folder_picker.lua:111
 msgid "Browse device…"
 msgstr "浏览设备…"
 
-#: lib/bookshelf_chip_editor.lua:2638
+#: lib/bookshelf_chip_editor.lua:2641 lib/bookshelf_sort_engine.lua:652
+#: micromodules/shelf_size.lua:159 micromodules/trivia.lua:44
+msgid "Books"
+msgstr "本书籍"
+
+#: lib/bookshelf_chip_editor.lua:2649
 msgid "★ Favorites"
 msgstr "★ 收藏"
 
-#: lib/bookshelf_chip_editor.lua:2651
+#: lib/bookshelf_chip_editor.lua:2662
 msgid "Specific folder…"
 msgstr "指定文件夹…"
 
-#: lib/bookshelf_chip_editor.lua:2653
+#: lib/bookshelf_chip_editor.lua:2664
 msgid "Flattened folder…"
 msgstr "平铺文件夹…"
 
-#: lib/bookshelf_chip_editor.lua:2659
+#: lib/bookshelf_chip_editor.lua:2668
+msgid "Grouped"
+msgstr "分组"
+
+#: lib/bookshelf_chip_editor.lua:2671
 msgid "Specific series…"
 msgstr "指定系列…"
 
-#: lib/bookshelf_chip_editor.lua:2664
+#: lib/bookshelf_chip_editor.lua:2676
 msgid "Specific author…"
 msgstr "指定作者…"
 
-#: lib/bookshelf_chip_editor.lua:2669
+#: lib/bookshelf_chip_editor.lua:2681
 msgid "Specific genre…"
 msgstr "指定的类型…"
 
-#: lib/bookshelf_chip_editor.lua:2674
+#: lib/bookshelf_chip_editor.lua:2686
 msgid "Specific collection…"
 msgstr "指定书单…"
 
-#: lib/bookshelf_chip_editor.lua:2678
+#: lib/bookshelf_chip_editor.lua:2690
 msgid "Specific format…"
 msgstr "指定格式…"
 
-#: lib/bookshelf_chip_editor.lua:2683
+#: lib/bookshelf_chip_editor.lua:2695
 msgid "Specific rating…"
 msgstr "指定评分…"
 
-#: lib/bookshelf_chip_editor.lua:2687
+#: lib/bookshelf_chip_editor.lua:2699
 msgid "Specific language…"
 msgstr "指定语言…"
 
-#: lib/bookshelf_chip_editor.lua:2696
+#: lib/bookshelf_chip_editor.lua:2708
 msgid "OPDS catalog…"
 msgstr "OPDS 目录…"
 
-#: lib/bookshelf_chip_editor.lua:2715
-msgid "Shelf source"
-msgstr "书架来源"
+#: lib/bookshelf_chip_editor.lua:2727
+msgid "Shelf source or grouping"
+msgstr "书架来源或分组"
 
-#: lib/bookshelf_chip_editor.lua:2783
+#: lib/bookshelf_chip_editor.lua:2795
 msgid "Clear all filters"
 msgstr "清除全部筛选"
 
-#: lib/bookshelf_chip_editor.lua:2790
+#: lib/bookshelf_chip_editor.lua:2802
 msgid "Pick filters to narrow the shelf. Several picks in the same row match any of them, so picking two genres shows books in either. Picks in different rows must all match, so adding a 5-star rating then limits those to 5-star books only. Numbers below filter choices show how many books currently match based on other selected filters."
 msgstr "选择筛选条件以缩小书架范围。同一行内选中多项时，符合其中任意一项即可，例如选中两个类型会同时显示两者的书籍。不同行之间则需全部匹配，例如再加上 5 星评分，就只显示同时满足两者的 5 星书籍。筛选选项下方的数字显示的是结合其他已选条件后，当前匹配的书籍数量。"
 
-#: lib/bookshelf_chip_editor.lua:2792
+#: lib/bookshelf_chip_editor.lua:2804
 msgid "Filters"
 msgstr "筛选"
 
-#: lib/bookshelf_chip_editor.lua:2842
+#: lib/bookshelf_chip_editor.lua:2854
 msgid "Series filter"
 msgstr "系列筛选"
 
-#: lib/bookshelf_chip_editor.lua:2857
+#: lib/bookshelf_chip_editor.lua:2869
 msgid "Reading status filter"
 msgstr "阅读状态筛选"
 
-#: lib/bookshelf_chip_editor.lua:2858
+#: lib/bookshelf_chip_editor.lua:2870
 msgid "Genre filter"
 msgstr "类型筛选"
 
-#: lib/bookshelf_chip_editor.lua:2859
+#: lib/bookshelf_chip_editor.lua:2871
 msgid "Language filter"
 msgstr "语言筛选"
 
-#: lib/bookshelf_chip_editor.lua:2860
+#: lib/bookshelf_chip_editor.lua:2872
 msgid "Format filter"
 msgstr "格式筛选"
 
-#: lib/bookshelf_chip_editor.lua:2861
+#: lib/bookshelf_chip_editor.lua:2873
 msgid "Rating filter"
 msgstr "评分筛选"
 
-#: lib/bookshelf_chip_editor.lua:2862
+#: lib/bookshelf_chip_editor.lua:2874
 msgid "Collection filter"
 msgstr "书单筛选"
 
-#: lib/bookshelf_chip_editor.lua:2864
+#: lib/bookshelf_chip_editor.lua:2876
 msgid "Filter"
 msgstr "筛选"
 
-#: lib/bookshelf_chip_editor.lua:3000 micromodules/trivia.lua:42
+#: lib/bookshelf_chip_editor.lua:3012 micromodules/trivia.lua:42
 #: micromodules/trivia.lua:63 micromodules/trivia.lua:70
 #: micromodules/trivia.lua:402
 msgid "Any"
 msgstr "任意"
 
-#: lib/bookshelf_chip_editor.lua:3020
+#: lib/bookshelf_chip_editor.lua:3032
 msgid "(none in library)"
 msgstr "(书库中没有)"
 
-#: lib/bookshelf_chip_editor.lua:3078
+#: lib/bookshelf_chip_editor.lua:3090
 msgid "(no folder filters - tap to remove once added)"
 msgstr "(未设置文件夹筛选 - 添加后可点击移除)"
 
-#: lib/bookshelf_chip_editor.lua:3082
+#: lib/bookshelf_chip_editor.lua:3094
 msgid "Add folder to include"
 msgstr "添加要包含的文件夹"
 
-#: lib/bookshelf_chip_editor.lua:3083
+#: lib/bookshelf_chip_editor.lua:3095
 msgid "Add folder to exclude"
 msgstr "添加要排除的文件夹"
 
-#: lib/bookshelf_chip_editor.lua:3088
+#: lib/bookshelf_chip_editor.lua:3100
 msgid "Folder filter"
 msgstr "文件夹筛选"
 
-#: lib/bookshelf_chip_editor.lua:3142
+#: lib/bookshelf_chip_editor.lua:3154
 msgid "Clear sort"
 msgstr "清空规则"
 
-#: lib/bookshelf_chip_editor.lua:3218
+#: lib/bookshelf_chip_editor.lua:3231
 msgid "Edit collection order"
 msgstr "编辑书单顺序"
 
-#: lib/bookshelf_chip_editor.lua:3228
+#: lib/bookshelf_chip_editor.lua:3241
 msgid "Sort groups by"
 msgstr "先按…排序分组"
 
-#: lib/bookshelf_chip_editor.lua:3230
+#: lib/bookshelf_chip_editor.lua:3243
 msgid "Within each group, then by"
 msgstr "再按…排序分组"
 
-#: lib/bookshelf_chip_editor.lua:3232
+#: lib/bookshelf_chip_editor.lua:3245
 msgid "Sort by"
 msgstr "先按…排序"
 
-#: lib/bookshelf_chip_editor.lua:3234
+#: lib/bookshelf_chip_editor.lua:3247
 msgid "Then by"
 msgstr "再按…排序"
 
-#: lib/bookshelf_collection_manager.lua:334
+#: lib/bookshelf_collection_manager.lua:335
 msgid "Rename collection"
 msgstr "重命名书单"
 
-#: lib/bookshelf_collection_manager.lua:336 lib/bookshelf_widget.lua:21110
+#: lib/bookshelf_collection_manager.lua:337 lib/bookshelf_widget.lua:21344
 msgid "New name"
 msgstr "新名称"
 
-#: lib/bookshelf_collection_manager.lua:340
-#: lib/bookshelf_collection_manager.lua:408 lib/bookshelf_move_flow.lua:389
+#: lib/bookshelf_collection_manager.lua:341
+#: lib/bookshelf_collection_manager.lua:409 lib/bookshelf_move_flow.lua:389
 #: lib/bookshelf_start_menu_edit.lua:101 lib/bookshelf_start_menu_edit.lua:107
-#: lib/bookshelf_start_menu_edit.lua:108 lib/bookshelf_widget.lua:21114
-#: lib/bookshelf_widget.lua:21155
+#: lib/bookshelf_start_menu_edit.lua:108 lib/bookshelf_widget.lua:21348
+#: lib/bookshelf_widget.lua:21389
 msgid "Rename"
 msgstr "重命名"
 
-#: lib/bookshelf_collection_manager.lua:349
-#: lib/bookshelf_collection_manager.lua:463
+#: lib/bookshelf_collection_manager.lua:350
+#: lib/bookshelf_collection_manager.lua:464
 msgid "A collection with that name already exists."
 msgstr "已存在同名书单。"
 
-#: lib/bookshelf_collection_manager.lua:380
+#: lib/bookshelf_collection_manager.lua:381
 msgid "Delete collection \""
 msgstr "删除书单”"
 
-#: lib/bookshelf_collection_manager.lua:381
+#: lib/bookshelf_collection_manager.lua:382
 msgid "\"? Books are not deleted, only the tag."
 msgstr "\"?书籍不会被删除，仅删除标签。"
 
-#: lib/bookshelf_collection_manager.lua:409
-#: lib/bookshelf_collection_manager.lua:420 lib/bookshelf_widget.lua:21157
-#: lib/bookshelf_widget.lua:21164
+#: lib/bookshelf_collection_manager.lua:410
+#: lib/bookshelf_collection_manager.lua:421 lib/bookshelf_widget.lua:21391
+#: lib/bookshelf_widget.lua:21398
 msgid "Pin to shelf menu"
 msgstr "固定到书架菜单"
 
-#: lib/bookshelf_collection_manager.lua:427
+#: lib/bookshelf_collection_manager.lua:428
 msgid "Edit collection: "
 msgstr "编辑书单："
 
-#: lib/bookshelf_collection_manager.lua:443
-#: lib/bookshelf_collection_manager.lua:501
-#: lib/bookshelf_collection_manager.lua:526
-#: lib/bookshelf_collection_manager.lua:560
+#: lib/bookshelf_collection_manager.lua:444
+#: lib/bookshelf_collection_manager.lua:502
+#: lib/bookshelf_collection_manager.lua:527
+#: lib/bookshelf_collection_manager.lua:561
 msgid "New collection"
 msgstr "新建书单"
 
-#: lib/bookshelf_collection_manager.lua:452
+#: lib/bookshelf_collection_manager.lua:453
 msgid "Collection name"
 msgstr "书单名称"
 
-#: lib/bookshelf_collection_manager.lua:456 lib/bookshelf_folder_picker.lua:65
+#: lib/bookshelf_collection_manager.lua:457 lib/bookshelf_folder_picker.lua:65
 msgid "Create"
 msgstr "创建"
 
-#: lib/bookshelf_collection_manager.lua:609
+#: lib/bookshelf_collection_manager.lua:610
 #, lua-format
 msgid "Collections · %d books"
 msgstr "书单 ·%d 本书"
 
-#: lib/bookshelf_collection_manager.lua:621
+#: lib/bookshelf_collection_manager.lua:622
 msgid "Tap a collection to cycle through: no change, add to all, remove from all. Save returns the diff to the bulk menu."
 msgstr "点击书单可循环切换：无改动，添加全部，删除全部。保存后变更将同步到批量操作菜单。"
 
-#: lib/bookshelf_collection_manager.lua:639
+#: lib/bookshelf_collection_manager.lua:640
 msgid "Edit collections"
 msgstr "编辑书单"
 
-#: lib/bookshelf_collection_manager.lua:688
+#: lib/bookshelf_collection_manager.lua:689
 msgid "Manage collections"
 msgstr "管理书单"
 
-#: lib/bookshelf_collection_manager.lua:700
+#: lib/bookshelf_collection_manager.lua:701
 msgid "Tap a custom collection to rename, delete, or pin it to the shelf menu. Long-press a book on the shelf and tap Collections… to add or remove it from collections."
 msgstr "点击自定义书单可以重命名、删除或固定到书架菜单上。长按书架上的一本书，点击「书单…」来添加/移除书单。"
 
-#: lib/bookshelf_collection_manager.lua:812
+#: lib/bookshelf_collection_manager.lua:813
 msgid "Add to all"
 msgstr "添加全部"
 
-#: lib/bookshelf_collection_manager.lua:814
+#: lib/bookshelf_collection_manager.lua:815
 msgid "Remove from all"
 msgstr "删除全部"
 
-#: lib/bookshelf_collection_manager.lua:816
+#: lib/bookshelf_collection_manager.lua:817
 msgid "Mixed"
 msgstr "混合"
 
-#: lib/bookshelf_collection_manager.lua:829
-#: lib/bookshelf_start_menu_edit.lua:518 lib/bookshelf_widget.lua:20921
-#: lib/bookshelf_widget.lua:21001 micromodules/countdown.lua:121
+#: lib/bookshelf_collection_manager.lua:830
+#: lib/bookshelf_start_menu_edit.lua:518 lib/bookshelf_widget.lua:21155
+#: lib/bookshelf_widget.lua:21235 micromodules/countdown.lua:121
 msgid "Add"
 msgstr "添加"
 
-#: lib/bookshelf_collection_manager.lua:831 lib/bookshelf_widget.lua:21148
+#: lib/bookshelf_collection_manager.lua:832 lib/bookshelf_widget.lua:21382
 msgid "Remove"
 msgstr "删除"
 
@@ -956,28 +972,29 @@ msgstr "删除"
 msgid "Arrange books in collection"
 msgstr "排列书单中的书籍"
 
-#: lib/bookshelf_color_palette.lua:354 lib/bookshelf_line_editor.lua:153
-#: lib/bookshelf_line_editor.lua:597 lib/bookshelf_settings.lua:1926
-#: lib/bookshelf_settings.lua:2609 lib/bookshelf_settings.lua:4398
-#: lib/bookshelf_settings.lua:4769 lib/bookshelf_settings.lua:4978
-#: lib/bookshelf_settings.lua:5065 lib/bookshelf_stack_display.lua:193
+#: lib/bookshelf_color_palette.lua:355 lib/bookshelf_font_picker.lua:192
+#: lib/bookshelf_line_editor.lua:152 lib/bookshelf_line_editor.lua:539
+#: lib/bookshelf_settings.lua:1962 lib/bookshelf_settings.lua:2643
+#: lib/bookshelf_settings.lua:4481 lib/bookshelf_settings.lua:4852
+#: lib/bookshelf_settings.lua:5061 lib/bookshelf_settings.lua:5148
+#: lib/bookshelf_stack_display.lua:194
 msgid "Default"
 msgstr "默认"
 
-#: lib/bookshelf_color_palette.lua:358
+#: lib/bookshelf_color_palette.lua:359
 msgid "White"
 msgstr "白色"
 
-#: lib/bookshelf_color_palette.lua:387 lib/bookshelf_color_palette.lua:502
+#: lib/bookshelf_color_palette.lua:388 lib/bookshelf_color_palette.lua:503
 msgid "Pick a color"
 msgstr "选择一个颜色"
 
-#: lib/bookshelf_color_palette.lua:471
+#: lib/bookshelf_color_palette.lua:472
 msgid "Invalid hex color (use #RGB or #RRGGBB)"
 msgstr "无效的十六进制颜色 (使用 #RGB 或 #RRGGBB)"
 
-#: lib/bookshelf_cover_apply.lua:166 lib/bookshelf_widget.lua:19163
-#: lib/bookshelf_widget.lua:20865
+#: lib/bookshelf_cover_apply.lua:166 lib/bookshelf_widget.lua:19357
+#: lib/bookshelf_widget.lua:21099
 msgid "Embedded"
 msgstr "内嵌"
 
@@ -994,16 +1011,16 @@ msgid "Previous cover"
 msgstr "上一个封面"
 
 #: lib/bookshelf_cover_apply.lua:208 lib/bookshelf_cover_sources.lua:295
-#: lib/bookshelf_widget.lua:19164 lib/bookshelf_widget.lua:19854
-#: lib/bookshelf_widget.lua:20867 lib/bookshelf_widget.lua:21784
+#: lib/bookshelf_widget.lua:19358 lib/bookshelf_widget.lua:20019
+#: lib/bookshelf_widget.lua:21101 lib/bookshelf_widget.lua:22040
 msgid "Hardcover"
 msgstr "Hardcover"
 
-#: lib/bookshelf_cover_grid_cell.lua:68
+#: lib/bookshelf_cover_grid_cell.lua:69
 msgid "%1×%2px · %3"
 msgstr "%1×%2px · %3"
 
-#: lib/bookshelf_cover_grid_cell.lua:70
+#: lib/bookshelf_cover_grid_cell.lua:71
 msgid "%1×%2px"
 msgstr "%1×%2px"
 
@@ -1122,11 +1139,19 @@ msgstr "新建文件夹…"
 msgid "Move to…"
 msgstr "移动到…"
 
-#: lib/bookshelf_hero_modules.lua:545 lib/bookshelf_start_menu.lua:811
+#: lib/bookshelf_font_picker.lua:181
+msgid "Pick font"
+msgstr "选择字体"
+
+#: lib/bookshelf_hero_card.lua:413 lib/bookshelf_widget.lua:15212
+msgid "Stop"
+msgstr "停止"
+
+#: lib/bookshelf_hero_modules.lua:546 lib/bookshelf_start_menu.lua:812
 msgid "%1 (error)"
 msgstr "%1 (错误)"
 
-#: lib/bookshelf_hero_modules.lua:671
+#: lib/bookshelf_hero_modules.lua:672
 msgid "Hold to add micro-modules"
 msgstr "长按以添加微模块"
 
@@ -1143,7 +1168,8 @@ msgstr "模块设置…"
 msgid "No micro-modules available"
 msgstr "没有可用的微模块"
 
-#: lib/bookshelf_icons_catalogue.lua:20 lib/bookshelf_settings.lua:133
+#: lib/bookshelf_icons_catalogue.lua:20 lib/bookshelf_ornament_browser.lua:153
+#: lib/bookshelf_settings.lua:134
 msgid "All"
 msgstr "全部"
 
@@ -1151,12 +1177,12 @@ msgstr "全部"
 msgid "Dynamic"
 msgstr "动态"
 
-#: lib/bookshelf_icons_catalogue.lua:22 lib/bookshelf_settings.lua:138
-#: lib/bookshelf_tokens.lua:32 lib/bookshelf_widget.lua:20570
+#: lib/bookshelf_icons_catalogue.lua:22 lib/bookshelf_settings.lua:139
+#: lib/bookshelf_tokens.lua:32 lib/bookshelf_widget.lua:20804
 msgid "Device"
 msgstr "设备"
 
-#: lib/bookshelf_icons_catalogue.lua:24 lib/bookshelf_settings.lua:137
+#: lib/bookshelf_icons_catalogue.lua:24 lib/bookshelf_settings.lua:138
 #: lib/bookshelf_tokens.lua:36
 msgid "Time"
 msgstr "时间"
@@ -1181,7 +1207,8 @@ msgstr "分隔符"
 msgid "SVG icon folder"
 msgstr "SVG 图标文件夹"
 
-#: lib/bookshelf_icons_catalogue.lua:40
+#: lib/bookshelf_icons_catalogue.lua:40 micromodules/battery.lua:71
+#: micromodules/battery.lua:90
 msgid "Battery"
 msgstr "电量"
 
@@ -1213,7 +1240,7 @@ msgstr "黑桃"
 msgid "Club"
 msgstr "梅花"
 
-#: lib/bookshelf_icons_catalogue.lua:178 lib/bookshelf_settings.lua:1048
+#: lib/bookshelf_icons_catalogue.lua:178 lib/bookshelf_settings.lua:1049
 msgid "Heart"
 msgstr "爱心"
 
@@ -1601,116 +1628,104 @@ msgstr "波浪号"
 msgid "Triangular bullet"
 msgstr "三角圆点"
 
-#: lib/bookshelf_icons_library.lua:407
+#: lib/bookshelf_icons_library.lua:408
 msgid "Icons library"
 msgstr "图标库"
 
-#: lib/bookshelf_icons_library.lua:439
+#: lib/bookshelf_icons_library.lua:440
 msgid "Search %1 icons by name…"
 msgstr "按名称搜索 %1 个图标…"
 
-#: lib/bookshelf_icons_library.lua:478
+#: lib/bookshelf_icons_library.lua:479
 msgid "Drop .svg or .png files in koreader/icons/"
 msgstr "将 .svg 或 .png 文件放入 koreader/icons/"
 
-#: lib/bookshelf_library_modal.lua:541 lib/bookshelf_widget.lua:16662
-#: lib/bookshelf_widget.lua:22884
+#: lib/bookshelf_library_modal.lua:542 lib/bookshelf_widget.lua:16815
+#: lib/bookshelf_widget.lua:23141
 msgid "Search"
 msgstr "搜索"
 
-#: lib/bookshelf_line_editor.lua:115 lib/bookshelf_settings.lua:540
+#: lib/bookshelf_line_editor.lua:114 lib/bookshelf_settings.lua:541
 msgid "Font size"
 msgstr "字体大小"
 
-#: lib/bookshelf_line_editor.lua:188
-msgid "Font-family fonts (serif, sans-serif, etc.) only resolve inside the Reader view. Pick a specific font file instead."
-msgstr "Font-family字体 (衬线体、无衬线字体等) 只在阅读器视图内解析。选择一个指定的字体文件。"
-
-#: lib/bookshelf_line_editor.lua:217
-msgid "(Default)"
-msgstr "(默认)"
-
-#: lib/bookshelf_line_editor.lua:223
-msgid "Pick font"
-msgstr "选择字体"
-
-#: lib/bookshelf_line_editor.lua:426 lib/bookshelf_line_editor.lua:427
-#: lib/bookshelf_line_editor.lua:430
+#: lib/bookshelf_line_editor.lua:368 lib/bookshelf_line_editor.lua:369
+#: lib/bookshelf_line_editor.lua:372
 msgid "Bold"
 msgstr "粗体"
 
-#: lib/bookshelf_line_editor.lua:429
+#: lib/bookshelf_line_editor.lua:371
 msgid "Bold italic"
 msgstr "粗斜体"
 
-#: lib/bookshelf_line_editor.lua:431
+#: lib/bookshelf_line_editor.lua:373
 msgid "Italic"
 msgstr "斜体"
 
-#: lib/bookshelf_line_editor.lua:432
+#: lib/bookshelf_line_editor.lua:374
 msgid "Regular"
 msgstr "常规"
 
-#: lib/bookshelf_line_editor.lua:452
+#: lib/bookshelf_line_editor.lua:394
 msgid "Size"
 msgstr "大小"
 
-#: lib/bookshelf_line_editor.lua:463
+#: lib/bookshelf_line_editor.lua:405
 msgid "Font ✓"
 msgstr "字体 ✓"
 
-#: lib/bookshelf_line_editor.lua:463
+#: lib/bookshelf_line_editor.lua:405
 msgid "Font…"
 msgstr "字体…"
 
-#: lib/bookshelf_line_editor.lua:524
+#: lib/bookshelf_line_editor.lua:466
 msgid "Bar style"
 msgstr "栏样式"
 
-#: lib/bookshelf_line_editor.lua:525
+#: lib/bookshelf_line_editor.lua:467
 msgid "Bar: "
 msgstr "栏："
 
-#: lib/bookshelf_line_editor.lua:538
+#: lib/bookshelf_line_editor.lua:480
 msgid "+ Bar"
 msgstr "+ 栏"
 
-#: lib/bookshelf_line_editor.lua:538
+#: lib/bookshelf_line_editor.lua:480
 msgid "- Bar"
 msgstr "- 栏"
 
-#: lib/bookshelf_line_editor.lua:548 lib/bookshelf_line_editor.lua:563
+#: lib/bookshelf_line_editor.lua:490 lib/bookshelf_line_editor.lua:505
 msgid "Bar height"
 msgstr "栏高度"
 
-#: lib/bookshelf_line_editor.lua:549
+#: lib/bookshelf_line_editor.lua:491
 msgid "Height: "
 msgstr "高度："
 
-#: lib/bookshelf_line_editor.lua:581
+#: lib/bookshelf_line_editor.lua:523
 msgid "Tokens…"
 msgstr "占位符…"
 
-#: lib/bookshelf_line_editor.lua:590
+#: lib/bookshelf_line_editor.lua:532
 msgid "Icons…"
 msgstr "图标…"
 
-#: lib/bookshelf_list_group.lua:137 lib/bookshelf_list_group.lua:166
+#: lib/bookshelf_list_group.lua:138 lib/bookshelf_list_group.lua:167
 msgid "1 book"
 msgstr "1 本书"
 
-#: lib/bookshelf_list_group.lua:138 lib/bookshelf_list_group.lua:167
+#: lib/bookshelf_list_group.lua:139 lib/bookshelf_list_group.lua:168
 #: lib/bookshelf_move_flow.lua:347
 #, lua-format
 msgid "%d books"
 msgstr "%d 本书"
 
-#: lib/bookshelf_list_group.lua:151
+#: lib/bookshelf_list_group.lua:152
 #, lua-format
 msgid "%d of %d selected"
 msgstr "已选择 %d / %d"
 
-#: lib/bookshelf_list_group.lua:163
+#: lib/bookshelf_list_group.lua:164
 #, lua-format
 msgid "%d of %d finished"
 msgstr "已读完 %d / %d"
@@ -1756,15 +1771,15 @@ msgstr "%1 小时"
 msgid "%1m"
 msgstr "%1 分"
 
-#: lib/bookshelf_module_picker.lua:59
+#: lib/bookshelf_module_picker.lua:60
 msgid "Network required"
 msgstr "需要联网"
 
-#: lib/bookshelf_module_picker.lua:64
+#: lib/bookshelf_module_picker.lua:65
 msgid "Data provided by:"
 msgstr "数据来源："
 
-#: lib/bookshelf_module_picker.lua:206
+#: lib/bookshelf_module_picker.lua:207
 msgid "Bookshelf micro-modules"
 msgstr "Bookshelf 微模块"
 
@@ -1981,61 +1996,233 @@ msgstr "缓存超过 1 周后"
 msgid "Every time I open it"
 msgstr "每次打开时"
 
-#: lib/bookshelf_pagination.lua:84 lib/bookshelf_widget.lua:6499
+#: lib/bookshelf_ornament_browser.lua:81 lib/bookshelf_settings.lua:1099
+#: lib/bookshelf_settings.lua:2753 lib/bookshelf_settings.lua:3553
+#: lib/bookshelf_settings.lua:3580 lib/bookshelf_settings.lua:4880
+msgid "Off"
+msgstr "关闭"
+
+#: lib/bookshelf_ornament_browser.lua:81
+msgid "Pack off"
+msgstr "摆件包已关闭"
+
+#: lib/bookshelf_ornament_browser.lua:157
+msgid "%1 (off)"
+msgstr "%1 (已关闭)"
+
+#: lib/bookshelf_ornament_browser.lua:170
+msgid ""
+"Delete %1?\n"
+"\n"
+"The file is removed from the ornaments folder."
+msgstr "删除 %1？\n\n该文件将从摆件文件夹中移除。"
+
+#: lib/bookshelf_ornament_browser.lua:174
+msgid "Could not delete the file."
+msgstr "无法删除该文件。"
+
+#: lib/bookshelf_ornament_browser.lua:187
+msgid "Switch off"
+msgstr "关闭"
+
+#: lib/bookshelf_ornament_browser.lua:187
+msgid "Switch on"
+msgstr "开启"
+
+#: lib/bookshelf_ornament_browser.lua:195
+msgid "Delete…"
+msgstr "删除…"
+
+#: lib/bookshelf_ornament_browser.lua:239
+msgid ""
+"No ornaments here.\n"
+"\n"
+"Drop PNG or SVG files into\n"
+"%1\n"
+"or a folder of them, which becomes a pack."
+msgstr "这里还没有摆件。\n\n请将 PNG 或 SVG 文件放入\n%1\n也可以放入一个装有这些文件的文件夹，它会成为一个摆件包。"
+
+#: lib/bookshelf_ornament_browser.lua:254
+msgid "Add ornaments…"
+msgstr "添加摆件…"
+
+#: lib/bookshelf_ornament_browser.lua:255
+msgid "Switch pack off"
+msgstr "关闭摆件包"
+
+#: lib/bookshelf_ornament_browser.lua:255
+msgid "Switch pack on"
+msgstr "开启摆件包"
+
+#: lib/bookshelf_ornament_browser.lua:262
+msgid ""
+"Put PNG or SVG files in\n"
+"%1\n"
+"\n"
+"A folder of them inside it becomes a pack: it gets its own tab here, and can be switched on or off as a whole.\n"
+"\n"
+"Ready-made packs:\n"
+"%2"
+msgstr "请将 PNG 或 SVG 文件放入\n%1\n\n其中装有这些文件的文件夹会成为一个摆件包：它在这里有自己的标签页，并可整体开启或关闭。\n\n现成的摆件包：\n%2"
+
+#: lib/bookshelf_page_count_dialog.lua:67
+msgid "There are no scanned page counts to delete."
+msgstr "没有可删除的扫描页数。"
+
+#: lib/bookshelf_page_count_dialog.lua:71
+msgid ""
+"Delete %1 page counts found by earlier scans?\n"
+"\n"
+"Counts for books you have opened, and page counts in file names, are kept."
+msgstr "删除之前扫描得到的 %1 个页数？\n\n你打开过的书籍的页数，以及文件名中的页数，都会保留。"
+
+#: lib/bookshelf_page_count_dialog.lua:78
+msgid "Deleted %1 page counts."
+msgstr "已删除 %1 个页数。"
+
+#: lib/bookshelf_page_count_dialog.lua:181
+msgid "Delete scanned page counts…"
+msgstr "删除扫描得到的页数…"
+
+#: lib/bookshelf_page_count_dialog.lua:190
+msgid "Start"
+msgstr "开始"
+
+#: lib/bookshelf_page_count_dialog.lua:210
+msgid "Publisher page numbers (fast)"
+msgstr "出版社页码 (快)"
+
+#: lib/bookshelf_page_count_dialog.lua:211
+msgid "Printed page numbers that some books carry."
+msgstr "部分书籍自带的纸书页码。"
+
+#: lib/bookshelf_page_count_dialog.lua:215
+msgid "Hardcover editions (fast)"
+msgstr "Hardcover 版本 (快)"
+
+#: lib/bookshelf_page_count_dialog.lua:216
+msgid "The page count of the edition each linked book is matched to."
+msgstr "每本已关联书籍所匹配版本的页数。"
+
+#: lib/bookshelf_page_count_dialog.lua:217
+msgid "No books are linked to Hardcover."
+msgstr "没有书籍关联到 Hardcover。"
+
+#: lib/bookshelf_page_count_dialog.lua:222
+msgid "The #%1 column in your Calibre metadata, as the Count Pages plugin fills in. Often an estimate."
+msgstr "Calibre 元数据中的 #%1 列，由 Count Pages 插件填写。通常为估算值。"
+
+#: lib/bookshelf_page_count_dialog.lua:224
+msgid "Needs Calibre metadata, which is off."
+msgstr "需要 Calibre 元数据，但该功能已关闭。"
+
+#: lib/bookshelf_page_count_dialog.lua:226
+msgid "No page count column in your Calibre metadata."
+msgstr "Calibre 元数据中没有页数列。"
+
+#: lib/bookshelf_page_count_dialog.lua:229
+msgid "Calibre page column (fast)"
+msgstr "Calibre 页数列 (快)"
+
+#: lib/bookshelf_page_count_dialog.lua:234
+msgid "Page counts in file names (fastest)"
+msgstr "文件名中的页数 (最快)"
+
+#: lib/bookshelf_page_count_dialog.lua:235
+msgid "A count in the file name, like p(320), as some Calibre setups add. Often an estimate."
+msgstr "文件名中的页数，如 p(320)，部分 Calibre 配置会添加。通常为估算值。"
+
+#: lib/bookshelf_page_count_dialog.lua:239
+msgid "Your reading settings (slow)"
+msgstr "你的阅读设置 (慢)"
+
+#: lib/bookshelf_page_count_dialog.lua:240
+msgid "Lays out each remaining book in your font and margins, so the count matches what you see when reading."
+msgstr "按你的字体和页边距对其余每本书进行排版，使页数与阅读时所见一致。"
+
+#: lib/bookshelf_page_count_dialog.lua:255
+msgid "Only books without a page count"
+msgstr "仅限没有页数的书籍"
+
+#: lib/bookshelf_page_count_dialog.lua:259
+msgid "Every book, replacing earlier counts"
+msgstr "所有书籍，替换之前的页数"
+
+#: lib/bookshelf_page_count_dialog.lua:266
+msgid "Finds how long each book is, for spine thickness, page count badges, sorting and the page count token."
+msgstr "获取每本书的篇幅，用于书脊厚度、页数徽章、排序及页数占位符。"
+
+#: lib/bookshelf_page_count_dialog.lua:269
+msgid "Use page counts from, in this order"
+msgstr "按以下顺序使用页数来源"
+
+#: lib/bookshelf_page_count_dialog.lua:273
+msgid "Which books"
+msgstr "哪些书籍"
+
+#: lib/bookshelf_page_count_dialog.lua:286
+msgid "Extract page counts"
+msgstr "提取页数"
+
+#: lib/bookshelf_pagination.lua:85 lib/bookshelf_widget.lua:6533
 msgid "Page %1 of %2+"
 msgstr "第 %1 / %2+ 页"
 
-#: lib/bookshelf_pagination.lua:85 lib/bookshelf_widget.lua:6500
+#: lib/bookshelf_pagination.lua:86 lib/bookshelf_widget.lua:6534
 msgid "Page %1 of %2"
 msgstr "第 %1 / %2 页"
 
-#: lib/bookshelf_picker_cell.lua:90 micromodules/reading_goal.lua:454
+#: lib/bookshelf_picker_cell.lua:91 micromodules/reading_goal.lua:454
 #: micromodules/reading_goal.lua:467
 msgid "book"
 msgstr "书籍"
 
-#: lib/bookshelf_picker_cell.lua:90 micromodules/reading_goal.lua:406
+#: lib/bookshelf_picker_cell.lua:91 micromodules/reading_goal.lua:406
 #: micromodules/reading_goal.lua:411 micromodules/reading_goal.lua:454
 #: micromodules/reading_goal.lua:467
 msgid "books"
 msgstr "本书"
 
-#: lib/bookshelf_reader_park.lua:437 lib/bookshelf_widget.lua:23166
+#: lib/bookshelf_reader_park.lua:437 lib/bookshelf_widget.lua:23423
 #: main.lua:1266
 msgid "Closing book…"
 msgstr "关闭书籍…"
 
-#: lib/bookshelf_reviews_modal.lua:472 lib/bookshelf_updater.lua:212
-#: lib/bookshelf_widget.lua:17153
+#: lib/bookshelf_reviews_modal.lua:506 lib/bookshelf_updater.lua:212
+#: lib/bookshelf_widget.lua:17306
 msgid "Open"
 msgstr "打开"
 
-#: lib/bookshelf_settings.lua:134 lib/bookshelf_tokens.lua:31
+#: lib/bookshelf_scan_progress.lua:118
+msgid "Stopping…"
+msgstr "正在停止…"
+
+#: lib/bookshelf_settings.lua:135 lib/bookshelf_tokens.lua:31
 msgid "Book"
 msgstr "书籍"
 
-#: lib/bookshelf_settings.lua:136 lib/bookshelf_settings.lua:419
-#: lib/bookshelf_sort_engine.lua:556 lib/bookshelf_tokens.lua:34
+#: lib/bookshelf_settings.lua:137 lib/bookshelf_settings.lua:420
+#: lib/bookshelf_sort_engine.lua:606 lib/bookshelf_tokens.lua:34
 msgid "Progress"
 msgstr "进度"
 
-#: lib/bookshelf_settings.lua:139 lib/bookshelf_tokens.lua:33
+#: lib/bookshelf_settings.lua:140 lib/bookshelf_tokens.lua:33
 msgid "Logic"
 msgstr "逻辑"
 
-#: lib/bookshelf_settings.lua:140 lib/bookshelf_tokens.lua:35
+#: lib/bookshelf_settings.lua:141 lib/bookshelf_tokens.lua:35
 msgid "Style"
 msgstr "样式"
 
-#: lib/bookshelf_settings.lua:188 lib/bookshelf_settings.lua:341
+#: lib/bookshelf_settings.lua:189 lib/bookshelf_settings.lua:342
 msgid "Insert token"
 msgstr "插入占位符"
 
-#: lib/bookshelf_settings.lua:189
+#: lib/bookshelf_settings.lua:190
 msgid "Bookshelf tokens"
 msgstr "Bookshelf 占位符"
 
-#: lib/bookshelf_settings.lua:190
+#: lib/bookshelf_settings.lua:191
 msgid ""
 "Tokens are placeholders that get replaced with live data when the top panel or status line renders.\n"
 "\n"
@@ -2057,385 +2244,377 @@ msgstr ""
 "  [if:series]Book %series_num of %series_name[/if]\n"
 "  [if:batt<20]LOW %batt[/if]"
 
-#: lib/bookshelf_settings.lua:213
+#: lib/bookshelf_settings.lua:214
 msgid "Search tokens…"
 msgstr "搜索占位符…"
 
-#: lib/bookshelf_settings.lua:294
+#: lib/bookshelf_settings.lua:295
 msgid "Help"
 msgstr "帮助"
 
-#: lib/bookshelf_settings.lua:412
+#: lib/bookshelf_settings.lua:413
 msgid "Status line"
 msgstr "状态条"
 
-#: lib/bookshelf_settings.lua:413 lib/bookshelf_settings.lua:675
-#: lib/bookshelf_sort_engine.lua:513 lib/bookshelf_tokens.lua:68
+#: lib/bookshelf_settings.lua:414 lib/bookshelf_settings.lua:676
+#: lib/bookshelf_sort_engine.lua:545 lib/bookshelf_tokens.lua:68
 msgid "Title"
 msgstr "标题"
 
-#: lib/bookshelf_settings.lua:415
+#: lib/bookshelf_settings.lua:416
 msgid "Rating (interactive)"
 msgstr "评分 (可交互)"
 
-#: lib/bookshelf_settings.lua:416
+#: lib/bookshelf_settings.lua:417
 msgid "Metadata"
 msgstr "元数据"
 
-#: lib/bookshelf_settings.lua:417 lib/bookshelf_widget.lua:17211
-#: lib/bookshelf_widget.lua:19153 lib/bookshelf_widget.lua:21289
-#: lib/bookshelf_widget.lua:21299
+#: lib/bookshelf_settings.lua:418 lib/bookshelf_widget.lua:17364
+#: lib/bookshelf_widget.lua:19347 lib/bookshelf_widget.lua:21523
+#: lib/bookshelf_widget.lua:21533
 msgid "Description"
 msgstr "描述"
 
-#: lib/bookshelf_settings.lua:418
+#: lib/bookshelf_settings.lua:419
 msgid "Tags (interactive)"
 msgstr "标签 (可交互)"
 
-#: lib/bookshelf_settings.lua:524
+#: lib/bookshelf_settings.lua:525
 msgid "Show tags line"
 msgstr "显示标签行"
 
-#: lib/bookshelf_settings.lua:560
+#: lib/bookshelf_settings.lua:561
 msgid "Tags font size"
 msgstr "标签字体大小"
 
-#: lib/bookshelf_settings.lua:566 lib/bookshelf_settings.lua:572
+#: lib/bookshelf_settings.lua:567 lib/bookshelf_settings.lua:573
 msgid "Center"
 msgstr "中"
 
-#: lib/bookshelf_settings.lua:566 lib/bookshelf_settings.lua:571
-#: lib/bookshelf_settings.lua:4795
+#: lib/bookshelf_settings.lua:567 lib/bookshelf_settings.lua:572
+#: lib/bookshelf_settings.lua:4878
 msgid "Left"
 msgstr "左"
 
-#: lib/bookshelf_settings.lua:566 lib/bookshelf_settings.lua:573
-#: lib/bookshelf_settings.lua:4796
+#: lib/bookshelf_settings.lua:567 lib/bookshelf_settings.lua:574
+#: lib/bookshelf_settings.lua:4879
 msgid "Right"
 msgstr "右"
 
-#: lib/bookshelf_settings.lua:567
+#: lib/bookshelf_settings.lua:568
 msgid "Alignment"
 msgstr "对齐"
 
-#: lib/bookshelf_settings.lua:582 lib/bookshelf_settings.lua:591
+#: lib/bookshelf_settings.lua:583 lib/bookshelf_settings.lua:592
 msgid "Maximum tag rows"
 msgstr "标签最大行数"
 
-#: lib/bookshelf_settings.lua:592
+#: lib/bookshelf_settings.lua:593
 msgid "How many rows of tag pills the top panel shows before the rest collapse into a tappable +N button."
 msgstr "顶部面板最多显示多少行标签色块，其余的会收进一个可点击的 +N 按钮。"
 
-#: lib/bookshelf_settings.lua:597 lib/bookshelf_settings.lua:3197
+#: lib/bookshelf_settings.lua:598 lib/bookshelf_settings.lua:3231
 msgid "Set"
 msgstr "设置"
 
-#: lib/bookshelf_settings.lua:704
+#: lib/bookshelf_settings.lua:705
 msgid "Show text below covers"
 msgstr "封面下方显示文本"
 
-#: lib/bookshelf_settings.lua:706
+#: lib/bookshelf_settings.lua:707
 msgid "A line of text under each cover, on the regular shelf and full screen shelves alike. Choose what it shows, or None to let covers use the full row. Text size follows the Cover labels setting under Text size."
 msgstr "在每个封面下方显示一行文字，普通书架与全屏书架同样适用。可选择显示的内容，或选择「无」让封面占满整行。文字大小跟随「字体大小」中的「封面标签」设置。"
 
-#: lib/bookshelf_settings.lua:720
+#: lib/bookshelf_settings.lua:721
 msgid "True cover aspect ratio"
 msgstr "真实封面比例"
 
-#: lib/bookshelf_settings.lua:721
+#: lib/bookshelf_settings.lua:722
 msgid "Show each cover at its real shape instead of a uniform book rectangle. Covers keep the same width but vary in height: on the shelf they sit along the bottom shelf line, and in the top panel they align to the top. Wide or square covers stop being cropped or stretched. Off by default (uniform grid)."
 msgstr "按封面的真实形状显示，而不是统一的书籍矩形。封面宽度一致、高度各异：在书架上沿底部的搁板线对齐，在顶部面板中则靠上对齐。宽幅或方形封面不再被裁剪或拉伸。默认关闭 (统一网格)。"
 
-#: lib/bookshelf_settings.lua:751
+#: lib/bookshelf_settings.lua:752
 msgid "(default)"
 msgstr "(默认)"
 
-#: lib/bookshelf_settings.lua:772
+#: lib/bookshelf_settings.lua:773
 msgid "Tallest cover shape"
 msgstr "封面最大高度"
 
-#: lib/bookshelf_settings.lua:775
+#: lib/bookshelf_settings.lua:776
 msgid "How tall a cover may be, relative to its width, before the extra height is trimmed. Taller values show more of an unusually tall cover; they also make every row taller, so fewer rows fit on the shelf. Only applies with True cover aspect ratio on."
 msgstr "封面相对于宽度的最大高度，超出部分将被裁剪。数值越大，越能完整显示异常高的封面；但每一行也会变高，书架上能容纳的行数随之减少。仅在开启“真实封面比例”时生效。"
 
-#: lib/bookshelf_settings.lua:788
+#: lib/bookshelf_settings.lua:789
 msgid "Square cover corners"
 msgstr "方角封面"
 
-#: lib/bookshelf_settings.lua:789
+#: lib/bookshelf_settings.lua:790
 msgid "Draw covers with square corners instead of the rounded card shape. Independent of the drop shadow, so a flatter look can keep the shadow or drop it separately. Off by default (rounded)."
 msgstr "以直角而非圆角卡片形状绘制封面。与投影相互独立，因此更扁平的外观可以保留投影，也可以单独关闭。默认关闭（圆角）。"
 
-#: lib/bookshelf_settings.lua:805
+#: lib/bookshelf_settings.lua:806
 msgid "No cover drop shadow"
 msgstr "封面无投影"
 
-#: lib/bookshelf_settings.lua:806
+#: lib/bookshelf_settings.lua:807
 msgid "Draw covers flat against the page instead of raised off it. The pixels the shadow reserved go back to the cover, so covers get slightly larger. Off by default (shadow shown)."
 msgstr "将封面平铺在页面上，而不是浮起。原本为投影预留的像素归还给封面，因此封面会略微变大。默认关闭（显示投影）。"
 
-#: lib/bookshelf_settings.lua:836
+#: lib/bookshelf_settings.lua:837
 msgid "Default folder style: "
 msgstr "默认文件夹样式： "
 
-#: lib/bookshelf_settings.lua:838
+#: lib/bookshelf_settings.lua:839
 msgid "How folders and stacks are drawn on any shelf that has not chosen its own. Long-press a shelf to override it there."
 msgstr "尚未单独设置的书架，其文件夹与堆叠的绘制方式。长按某个书架即可为其单独指定样式。"
 
-#: lib/bookshelf_settings.lua:848
+#: lib/bookshelf_settings.lua:849
 msgid "Show progress bars"
 msgstr "显示进度条"
 
-#: lib/bookshelf_settings.lua:850
+#: lib/bookshelf_settings.lua:851
 msgid "Show reading bookmarks"
 msgstr "显示阅读书签"
 
-#: lib/bookshelf_settings.lua:854
+#: lib/bookshelf_settings.lua:855
 msgid "Show page count"
 msgstr "显示页数"
 
-#: lib/bookshelf_settings.lua:882
+#: lib/bookshelf_settings.lua:883
 msgid "Bookmark style"
 msgstr "书签样式"
 
-#: lib/bookshelf_settings.lua:883
+#: lib/bookshelf_settings.lua:884
 msgid "Small tick box"
 msgstr "小勾选框"
 
-#: lib/bookshelf_settings.lua:898
+#: lib/bookshelf_settings.lua:899
 msgid "Completed book badge"
 msgstr "已读完徽章"
 
-#: lib/bookshelf_settings.lua:912
+#: lib/bookshelf_settings.lua:913
 msgid "Fade finished books"
 msgstr "淡化已读完的书籍"
 
-#: lib/bookshelf_settings.lua:941
+#: lib/bookshelf_settings.lua:942
 msgid "Pause badge"
 msgstr "暂停徽章"
 
-#: lib/bookshelf_settings.lua:942
+#: lib/bookshelf_settings.lua:943
 msgid "Faded cover"
 msgstr "淡化封面"
 
-#: lib/bookshelf_settings.lua:943
+#: lib/bookshelf_settings.lua:944 micromodules/quote_of_day.lua:106
+#: micromodules/quote_of_day.lua:166
 msgid "Both"
 msgstr "两者皆有"
 
-#: lib/bookshelf_settings.lua:948
+#: lib/bookshelf_settings.lua:949
 msgid "Pause badge + faded cover"
 msgstr "暂停徽章 + 淡化封面"
 
-#: lib/bookshelf_settings.lua:963
+#: lib/bookshelf_settings.lua:964
 msgid "On-hold display"
 msgstr "搁置书籍显示"
 
-#: lib/bookshelf_settings.lua:999
+#: lib/bookshelf_settings.lua:1000
 msgid "Within series folder"
 msgstr "在系列文件夹内"
 
-#: lib/bookshelf_settings.lua:1000
+#: lib/bookshelf_settings.lua:1001
 msgid "Never"
 msgstr "从不"
 
-#: lib/bookshelf_settings.lua:1015
+#: lib/bookshelf_settings.lua:1016
 msgid "Show series #"
 msgstr "显示系列#"
 
-#: lib/bookshelf_settings.lua:1033
+#: lib/bookshelf_settings.lua:1034
 msgid "Show favorites icon"
 msgstr "显示收藏图标"
 
-#: lib/bookshelf_settings.lua:1048
+#: lib/bookshelf_settings.lua:1049
 msgid "Star"
 msgstr "星标"
 
-#: lib/bookshelf_settings.lua:1062
+#: lib/bookshelf_settings.lua:1063
 msgid "Favorite icon"
 msgstr "收藏图标"
 
-#: lib/bookshelf_settings.lua:1098 lib/bookshelf_settings.lua:2719
-#: lib/bookshelf_settings.lua:3519 lib/bookshelf_settings.lua:3546
-#: lib/bookshelf_settings.lua:4797
-msgid "Off"
-msgstr "关闭"
-
-#: lib/bookshelf_settings.lua:1099
+#: lib/bookshelf_settings.lua:1100
 msgid "Folders only"
 msgstr "仅限文件夹"
 
-#: lib/bookshelf_settings.lua:1100
+#: lib/bookshelf_settings.lua:1101
 msgid "Groups only"
 msgstr "仅限分组"
 
-#: lib/bookshelf_settings.lua:1101
+#: lib/bookshelf_settings.lua:1102
 msgid "All stacks"
 msgstr "堆叠所有"
 
-#: lib/bookshelf_settings.lua:1116
+#: lib/bookshelf_settings.lua:1117
 msgid "Stack count badge"
 msgstr "堆叠计数徽章"
 
-#: lib/bookshelf_settings.lua:1147
+#: lib/bookshelf_settings.lua:1148
 msgid "Total"
 msgstr "总计"
 
-#: lib/bookshelf_settings.lua:1148
+#: lib/bookshelf_settings.lua:1149
 msgid "Finished / Total"
 msgstr "完成 / 总计"
 
-#: lib/bookshelf_settings.lua:1163
+#: lib/bookshelf_settings.lua:1164
 msgid "Stack count format"
 msgstr "堆叠计数格式"
 
-#: lib/bookshelf_settings.lua:1178
+#: lib/bookshelf_settings.lua:1179
 msgid "Cover opening effect"
 msgstr "封面翻开效果"
 
-#: lib/bookshelf_settings.lua:1179
+#: lib/bookshelf_settings.lua:1180
 msgid "When you open a book, briefly flex its cover open before the page appears. Purely cosmetic; turn it off for an instant, plain open. On by default."
 msgstr "打开书籍时，在页面出现前先短暂展现封面翻开的动画。纯装饰效果；关闭后即为即时、朴素的打开方式。默认开启。"
 
-#: lib/bookshelf_settings.lua:1267
+#: lib/bookshelf_settings.lua:1268
 msgid "Rows, columns and view are set per shelf:"
 msgstr "行数、列数与显示方式均按各书架单独设置："
 
-#: lib/bookshelf_settings.lua:1271
+#: lib/bookshelf_settings.lua:1272
 msgid "long-press a shelf, then open Shelf style."
 msgstr "长按书架，然后打开「书架样式」。"
 
-#: lib/bookshelf_settings.lua:1298
+#: lib/bookshelf_settings.lua:1299
 msgid "Add a line (maximum reached)"
 msgstr "添加一行（已达上限）"
 
-#: lib/bookshelf_settings.lua:1300
+#: lib/bookshelf_settings.lua:1301
 msgid "Add a line"
 msgstr "添加一行"
 
-#: lib/bookshelf_settings.lua:1398
+#: lib/bookshelf_settings.lua:1399
 msgid "Move up"
 msgstr "上移"
 
-#: lib/bookshelf_settings.lua:1401
+#: lib/bookshelf_settings.lua:1402
 msgid "Move down"
 msgstr "下移"
 
-#: lib/bookshelf_settings.lua:1505
+#: lib/bookshelf_settings.lua:1506
 msgid "Default wallpaper image: %1"
 msgstr "默认壁纸图片：%1"
 
-#: lib/bookshelf_settings.lua:1514
+#: lib/bookshelf_settings.lua:1515
 msgid "Full screen shelves image: %1"
 msgstr "全屏书架图片：%1"
 
-#: lib/bookshelf_settings.lua:1515 lib/bookshelf_settings.lua:1696
+#: lib/bookshelf_settings.lua:1516 lib/bookshelf_settings.lua:1730
 msgid "Same as default"
 msgstr "与默认相同"
 
-#: lib/bookshelf_settings.lua:1517
+#: lib/bookshelf_settings.lua:1518
 msgid "A different picture for full screen shelves. That view is wall-to-wall covers and spines, where a backdrop that reads well behind the top panel is often too busy. A shelf with its own picture keeps it in both views."
 msgstr "为全屏书架单独指定一张图片。该视图中封面与书脊铺满整屏，在顶部面板后方好看的背景，放在这里往往显得杂乱。已单独指定图片的书架，在两种视图中都会沿用自己的图片。"
 
-#: lib/bookshelf_settings.lua:1527
+#: lib/bookshelf_settings.lua:1531
+msgid "Wallpaper folder: %1"
+msgstr "壁纸文件夹：%1"
+
+#: lib/bookshelf_settings.lua:1533
+msgid "A folder of your own to take wallpapers from, listed along with the ones in %1. Useful when you already keep pictures somewhere else. Nothing in it is changed. Long-press to stop using it."
+msgstr "自选一个文件夹作为壁纸来源，其中的图片会与 %1 中的一同列出。适用于图片已存放在其他位置的情况。文件夹中的内容不会被改动。长按可停止使用。"
+
+#: lib/bookshelf_settings.lua:1541
+msgid "Choose wallpaper folder"
+msgstr "选择壁纸文件夹"
+
+#: lib/bookshelf_settings.lua:1561
 msgid "Background color: %1"
 msgstr "背景颜色：%1"
 
-#: lib/bookshelf_settings.lua:1533
+#: lib/bookshelf_settings.lua:1567
 msgid "Background color (% black)"
 msgstr "背景颜色 (% 黑色)"
 
-#: lib/bookshelf_settings.lua:1546
+#: lib/bookshelf_settings.lua:1580
 msgid "Panel shading: %1"
 msgstr "面板遮罩：%1"
 
-#: lib/bookshelf_settings.lua:1548
+#: lib/bookshelf_settings.lua:1582
 msgid "How much to shade the top panel and the footer so the buttons stay legible over a picture. Transparent lets the wallpaper through untouched, which reads well over a plain texture and poorly over a busy photograph. Solid hides the picture behind those strips entirely."
 msgstr "为顶部面板和底栏添加多少遮罩，使按钮叠在图片上时仍然清晰可读。「透明」让壁纸原样透出，在素净的纹理上效果不错，在繁杂的照片上则很差。「不透明」会把这两条区域后方的图片完全遮住。"
 
-#: lib/bookshelf_settings.lua:1569
+#: lib/bookshelf_settings.lua:1603
 msgid "Transparent"
 msgstr "透明"
 
-#: lib/bookshelf_settings.lua:1570
+#: lib/bookshelf_settings.lua:1604
 msgid "Low"
 msgstr "轻微"
 
-#: lib/bookshelf_settings.lua:1571
+#: lib/bookshelf_settings.lua:1605
 msgid "Moderate"
 msgstr "适中"
 
-#: lib/bookshelf_settings.lua:1572
+#: lib/bookshelf_settings.lua:1606
 msgid "Heavy"
 msgstr "浓重"
 
-#: lib/bookshelf_settings.lua:1573
+#: lib/bookshelf_settings.lua:1607
 msgid "Solid"
 msgstr "不透明"
 
-#: lib/bookshelf_settings.lua:1577
+#: lib/bookshelf_settings.lua:1611
 msgid "Auto (follow device)"
 msgstr "自动 (跟随设备)"
 
-#: lib/bookshelf_settings.lua:1578
+#: lib/bookshelf_settings.lua:1612
 msgid "Light"
 msgstr "浅色"
 
-#: lib/bookshelf_settings.lua:1579
+#: lib/bookshelf_settings.lua:1613
 msgid "Dark"
 msgstr "深色"
 
-#: lib/bookshelf_settings.lua:1740
+#: lib/bookshelf_settings.lua:1775
+msgid "Images are loaded from %1 and %2"
+msgstr "图片从 %1 和 %2 加载"
+
+#: lib/bookshelf_settings.lua:1776
 msgid "Images are loaded from %1"
 msgstr "图片从 %1 加载"
 
-#: lib/bookshelf_settings.lua:1747
+#: lib/bookshelf_settings.lua:1783
 msgid "No images in %1"
 msgstr "%1 中没有图片"
 
-#: lib/bookshelf_settings.lua:1854 lib/bookshelf_settings.lua:1861
-#: lib/bookshelf_settings.lua:2057 lib/bookshelf_settings.lua:2062
+#: lib/bookshelf_settings.lua:1890 lib/bookshelf_settings.lua:1897
+#: lib/bookshelf_settings.lua:2091 lib/bookshelf_settings.lua:2096
 msgid "default"
 msgstr "默认"
 
-#: lib/bookshelf_settings.lua:1951
+#: lib/bookshelf_settings.lua:1987
 msgid "Ornaments: %1"
 msgstr "摆件：%1"
 
-#: lib/bookshelf_settings.lua:1956
+#: lib/bookshelf_settings.lua:1992
 msgid ""
-"Small pieces that stand in the gaps on a spine shelf. Drop PNG or SVG files into %1 and they appear there.\n"
+"Small pieces that stand in the gaps on a spine shelf. Drop PNG or SVG files into %1 and they appear there; a folder of them there is a pack, switched on and off as one.\n"
 "\n"
-"How often they appear is set per shelf: long-press a shelf chip, then Shelf style."
-msgstr ""
-"立在书脊书架空隙处的小装饰。把 PNG 或 SVG 文件放进 %1，它们就会出现在那里。\n"
-"\n"
-"出现频率按书架单独设置：长按书架按钮，然后打开「书架样式」。"
+"Tap to browse them, switch them off and on, or delete them. How often they appear is set per shelf: long-press a shelf chip, then Shelf style."
+msgstr "摆放在书脊书架空隙中的小物件。将 PNG 或 SVG 文件放入 %1 即可出现在书架上；其中装有这些文件的文件夹是一个摆件包，可整体开启或关闭。\n\n点击可浏览、开关或删除摆件。出现频率按书架单独设置：长按书架菜单中的书架，然后选择「书架样式」。"
 
-#: lib/bookshelf_settings.lua:1974
-msgid ""
-"%1 ornaments installed.\n"
-"\n"
-"Folder:\n"
-"%2\n"
-"\n"
-"How often they appear is set per shelf, in Shelf style."
-msgstr ""
-"已安装 %1 个摆件。\n"
-"\n"
-"文件夹：\n"
-"%2\n"
-"\n"
-"出现频率按书架单独设置，位于「书架样式」中。"
-
-#: lib/bookshelf_settings.lua:2004
+#: lib/bookshelf_settings.lua:2038
 msgid "Accent colors"
 msgstr "强调色"
 
-#: lib/bookshelf_settings.lua:2019
+#: lib/bookshelf_settings.lua:2053
 msgid "Shelf theme: %1"
 msgstr "书架主题：%1"
 
-#: lib/bookshelf_settings.lua:2021
+#: lib/bookshelf_settings.lua:2055
 msgid ""
 "Light or dark colors for the shelf, independently of KOReader's night mode -- so you can keep the rest of KOReader light and still have a dark shelf.\n"
 "\n"
@@ -2445,321 +2624,321 @@ msgstr ""
 "\n"
 "封面、壁纸和摆件都是图片，永远不会被反色；只有书架自身的颜色会变化。"
 
-#: lib/bookshelf_settings.lua:2111
+#: lib/bookshelf_settings.lua:2145
 msgid "◐ Editing night-mode colors (tap to switch)"
 msgstr "◐ 编辑夜间模式颜色 (点击切换)"
 
-#: lib/bookshelf_settings.lua:2113
+#: lib/bookshelf_settings.lua:2147
 msgid "☀ Editing day-mode colors (tap to switch)"
 msgstr "☀ 编辑白天模式颜色 (点击切换)"
 
-#: lib/bookshelf_settings.lua:2144
+#: lib/bookshelf_settings.lua:2178
 msgid "Text ink"
 msgstr "文字墨色"
 
-#: lib/bookshelf_settings.lua:2146
+#: lib/bookshelf_settings.lua:2180
 msgid "The color of the shelf's own text. Black by default in the light theme and white in the dark one. Covers, wallpaper and ornaments are pictures and are never recolored."
 msgstr "书架自身文字的颜色。浅色主题下默认为黑色，深色主题下默认为白色。封面、壁纸和摆件都是图片，永远不会被改色。"
 
-#: lib/bookshelf_settings.lua:2154
+#: lib/bookshelf_settings.lua:2188
 msgid "Text ink (% black)"
 msgstr "文字墨色 (% 黑色)"
 
-#: lib/bookshelf_settings.lua:2164
+#: lib/bookshelf_settings.lua:2198
 msgid "Progress bar"
 msgstr "进度条"
 
-#: lib/bookshelf_settings.lua:2169
+#: lib/bookshelf_settings.lua:2203
 msgid "Progress bar (% black)"
 msgstr "进度条  (% 黑色)"
 
-#: lib/bookshelf_settings.lua:2179
+#: lib/bookshelf_settings.lua:2213
 msgid "Progress bar track"
 msgstr "进度条轨道"
 
-#: lib/bookshelf_settings.lua:2184
+#: lib/bookshelf_settings.lua:2218
 msgid "Progress bar track (% black)"
 msgstr "进度条轨道  (% 黑色)"
 
-#: lib/bookshelf_settings.lua:2195
+#: lib/bookshelf_settings.lua:2229
 msgid "Bookmark color"
 msgstr "书签颜色"
 
-#: lib/bookshelf_settings.lua:2200
+#: lib/bookshelf_settings.lua:2234
 msgid "Bookmark color (% black)"
 msgstr "书签颜色 (% 黑色)"
 
-#: lib/bookshelf_settings.lua:2210
+#: lib/bookshelf_settings.lua:2244
 msgid "Finished bookmark color"
 msgstr "已读完书签颜色"
 
-#: lib/bookshelf_settings.lua:2216
+#: lib/bookshelf_settings.lua:2250
 msgid "Finished bookmark color (% black)"
 msgstr "已读书签颜色 (% 黑色)"
 
-#: lib/bookshelf_settings.lua:2230
+#: lib/bookshelf_settings.lua:2264
 msgid "Favorite heart color"
 msgstr "收藏爱心颜色"
 
-#: lib/bookshelf_settings.lua:2230
+#: lib/bookshelf_settings.lua:2264
 msgid "Favorite star color"
 msgstr "收藏星标颜色"
 
-#: lib/bookshelf_settings.lua:2238
+#: lib/bookshelf_settings.lua:2272
 msgid "Favorite heart color (% black)"
 msgstr "收藏爱心颜色 (% 黑色)"
 
-#: lib/bookshelf_settings.lua:2241
+#: lib/bookshelf_settings.lua:2275
 msgid "Favorite star color (% black)"
 msgstr "收藏星标颜色 (% 黑色)"
 
-#: lib/bookshelf_settings.lua:2254
+#: lib/bookshelf_settings.lua:2288
 msgid "Badge foreground"
 msgstr "徽章前景"
 
-#: lib/bookshelf_settings.lua:2259
+#: lib/bookshelf_settings.lua:2293
 msgid "Badge foreground (% black)"
 msgstr "徽章前景 (% 黑色)"
 
-#: lib/bookshelf_settings.lua:2269
+#: lib/bookshelf_settings.lua:2303
 msgid "Badge background"
 msgstr "徽章背景"
 
-#: lib/bookshelf_settings.lua:2274
+#: lib/bookshelf_settings.lua:2308
 msgid "Badge background (% black)"
 msgstr "徽章背景 (% 黑色)"
 
-#: lib/bookshelf_settings.lua:2285
+#: lib/bookshelf_settings.lua:2319
 msgid "Shelf menu background"
 msgstr "书架菜单背景"
 
-#: lib/bookshelf_settings.lua:2287
+#: lib/bookshelf_settings.lua:2321
 msgid "The solid bar behind the shelf menu. White by day and black at night unless you change it. The panels have their own colour."
 msgstr "书架菜单后方的实色横条。除非另行更改，白天为白色、夜间为黑色。各面板另有自己的颜色。"
 
-#: lib/bookshelf_settings.lua:2293
+#: lib/bookshelf_settings.lua:2327
 msgid "Shelf menu background (% black)"
 msgstr "书架菜单背景 (% 黑色)"
 
-#: lib/bookshelf_settings.lua:2308
+#: lib/bookshelf_settings.lua:2342
 msgid "Transparent shelf menu"
 msgstr "透明书架菜单"
 
-#: lib/bookshelf_settings.lua:2309
+#: lib/bookshelf_settings.lua:2343
 msgid "Leave out the bar behind the shelf menu, so the wallpaper shows through. The selected shelf keeps its fill."
 msgstr "去掉书架菜单后方的底栏，让壁纸透出。选中书架仍保留其填充色。"
 
-#: lib/bookshelf_settings.lua:2325
+#: lib/bookshelf_settings.lua:2359
 msgid "Micro-module background"
 msgstr "微模块背景"
 
-#: lib/bookshelf_settings.lua:2327
+#: lib/bookshelf_settings.lua:2361
 msgid "The card behind each micro-module. Kept solid: the text inside a module draws its own opaque background, so a see-through card shows a box behind every line."
 msgstr "每个微模块后方的卡片。保持不透明：模块内的文字会绘制自己的不透明底色，因此半透明的卡片会让每一行文字后面都露出一个方块。"
 
-#: lib/bookshelf_settings.lua:2333
+#: lib/bookshelf_settings.lua:2367
 msgid "Micro-module background (% black)"
 msgstr "微模块背景 (% 黑色)"
 
-#: lib/bookshelf_settings.lua:2343
+#: lib/bookshelf_settings.lua:2377
 msgid "Micro-module border"
 msgstr "微模块边框"
 
-#: lib/bookshelf_settings.lua:2345
+#: lib/bookshelf_settings.lua:2379
 msgid "The thin line around each micro-module card. Left unset it follows the text color. Long-press to clear."
 msgstr "每个微模块卡片周围的细线。留空时跟随文本颜色。长按可清除。"
 
-#: lib/bookshelf_settings.lua:2350
+#: lib/bookshelf_settings.lua:2384
 msgid "Micro-module border (% black)"
 msgstr "微模块边框 (% 黑色)"
 
-#: lib/bookshelf_settings.lua:2361
+#: lib/bookshelf_settings.lua:2395
 msgid "Border color"
 msgstr "边框颜色"
 
-#: lib/bookshelf_settings.lua:2363
+#: lib/bookshelf_settings.lua:2397
 msgid "Color of the book cover frame border + pill badge / page-count badge borders. Badge foreground is now just badge text. Default black."
 msgstr "封面边框 + 胶囊徽标 / 页数徽标边框颜色。徽标前景色仅控制徽标文字。默认值为黑色。"
 
-#: lib/bookshelf_settings.lua:2369
+#: lib/bookshelf_settings.lua:2403
 msgid "Border color (% black)"
 msgstr "边框颜色 (% 黑色)"
 
-#: lib/bookshelf_settings.lua:2379
+#: lib/bookshelf_settings.lua:2413
 msgid "Selection outline color"
 msgstr "选择边框颜色"
 
-#: lib/bookshelf_settings.lua:2381
+#: lib/bookshelf_settings.lua:2415
 msgid "Color of the ring drawn around the selected book or the one you are currently reading. Default black."
 msgstr "选中书籍或正在阅读的书籍周围边框的颜色。默认黑色。"
 
-#: lib/bookshelf_settings.lua:2386
+#: lib/bookshelf_settings.lua:2420
 msgid "Selection outline color (% black)"
 msgstr "选择边框颜色（黑色百分比）"
 
-#: lib/bookshelf_settings.lua:2396
+#: lib/bookshelf_settings.lua:2430
 msgid "Cover shadow color"
 msgstr "封面投影颜色"
 
-#: lib/bookshelf_settings.lua:2398
+#: lib/bookshelf_settings.lua:2432
 msgid "Color of the drop shadow behind book covers and folder cards. Has no effect where the shadow is switched off. Default mid gray, and darker in night mode."
 msgstr "书籍封面和文件夹卡片后方投影的颜色。关闭投影时不起作用。默认中灰色，夜间模式下更深。"
 
-#: lib/bookshelf_settings.lua:2404
+#: lib/bookshelf_settings.lua:2438
 msgid "Cover shadow color (% black)"
 msgstr "封面投影颜色（黑色百分比）"
 
-#: lib/bookshelf_settings.lua:2414
+#: lib/bookshelf_settings.lua:2448
 msgid "Shelf plank color"
 msgstr "书架搁板颜色"
 
-#: lib/bookshelf_settings.lua:2416
+#: lib/bookshelf_settings.lua:2450
 msgid "Color of the shelf plank the Spines style stands its books on. The lit top surface and shaded front edge are both tinted from this one color. Default light oak."
 msgstr "书脊样式中书籍所立的书架搁板颜色。受光的顶面与背光的前缘都由这一种颜色着色。默认浅橡木色。"
 
-#: lib/bookshelf_settings.lua:2422
+#: lib/bookshelf_settings.lua:2456
 msgid "Shelf plank color (% black)"
 msgstr "书架搁板颜色（黑色百分比）"
 
-#: lib/bookshelf_settings.lua:2433
+#: lib/bookshelf_settings.lua:2467
 msgid "Folder overlay background"
 msgstr "文件夹叠加背景"
 
-#: lib/bookshelf_settings.lua:2438
+#: lib/bookshelf_settings.lua:2472
 msgid "Folder overlay background (% black)"
 msgstr "文件夹叠加背景 (% 黑色)"
 
-#: lib/bookshelf_settings.lua:2448
+#: lib/bookshelf_settings.lua:2482
 msgid "Folder text color"
 msgstr "文件夹文本颜色"
 
-#: lib/bookshelf_settings.lua:2450
+#: lib/bookshelf_settings.lua:2484
 msgid "Color of the label text inside folder / series / author / genre / tag cards. The cardboard outline around the card itself follows the Border color setting above."
 msgstr "标签文字颜色在 文件夹/丛书/作者/分类/标签 卡片上。卡片外边框沿用边框颜色配置。"
 
-#: lib/bookshelf_settings.lua:2457
+#: lib/bookshelf_settings.lua:2491
 msgid "Folder text color (% black)"
 msgstr "文件夹文本颜色 (% 黑色)"
 
-#: lib/bookshelf_settings.lua:2468
+#: lib/bookshelf_settings.lua:2502
 msgid "Selected shelf fill"
 msgstr "选中书架填充色"
 
-#: lib/bookshelf_settings.lua:2470
+#: lib/bookshelf_settings.lua:2504
 msgid "Fill behind the selected shelf in the shelf menu. Left unset, the selected shelf is drawn by inverting it -- the fastest path and identical on every device. Setting a color paints it instead. Long-press to clear."
 msgstr "书架菜单中选中书架背后的填充色。留空时，选中书架通过反色绘制 -- 这是最快的方式，且在所有设备上效果一致。设置颜色后则改为填充该颜色。长按可清除。"
 
-#: lib/bookshelf_settings.lua:2477
+#: lib/bookshelf_settings.lua:2511
 msgid "Selected shelf fill (% black)"
 msgstr "选中书架填充色 (% 黑色)"
 
-#: lib/bookshelf_settings.lua:2488
+#: lib/bookshelf_settings.lua:2522
 msgid "Selected shelf text"
 msgstr "选中书架文字颜色"
 
-#: lib/bookshelf_settings.lua:2490
+#: lib/bookshelf_settings.lua:2524
 msgid "Label color on the selected shelf. Defaults to paper white over the fill. Long-press to clear."
 msgstr "选中书架上标签文字的颜色。默认在填充色之上使用纸白色。长按可清除。"
 
-#: lib/bookshelf_settings.lua:2495
+#: lib/bookshelf_settings.lua:2529
 msgid "Selected shelf text (% black)"
 msgstr "选中书架文字颜色 (% 黑色)"
 
-#: lib/bookshelf_settings.lua:2506
+#: lib/bookshelf_settings.lua:2540
 msgid "Reset to default colors"
 msgstr "重置为默认颜色"
 
-#: lib/bookshelf_settings.lua:2626
+#: lib/bookshelf_settings.lua:2660
 msgid "Cover badge size"
 msgstr "封面徽章大小"
 
-#: lib/bookshelf_settings.lua:2652
+#: lib/bookshelf_settings.lua:2686
 msgid "Edit top panel content"
 msgstr "编辑顶部面板内容"
 
-#: lib/bookshelf_settings.lua:2653
+#: lib/bookshelf_settings.lua:2687
 msgid "The lines of book information shown in the top panel: title, author, rating, metadata, description, tags and progress. Tap a line to edit its template; hold to toggle it. The status line at the top has its own entry."
 msgstr "顶部面板中显示的书籍信息行：标题、作者、评分、元数据、描述、标签和进度。点击某一行可编辑它的模板；长按可开关该行。顶部的状态条有单独的条目。"
 
-#: lib/bookshelf_settings.lua:2670
+#: lib/bookshelf_settings.lua:2704
 msgid "Cover display"
 msgstr "封面显示"
 
-#: lib/bookshelf_settings.lua:2676
+#: lib/bookshelf_settings.lua:2710
 msgid "List view"
 msgstr "列表视图"
 
-#: lib/bookshelf_settings.lua:2682 lib/bookshelf_settings.lua:4680
+#: lib/bookshelf_settings.lua:2716 lib/bookshelf_settings.lua:4763
 msgid "Text size"
 msgstr "字体大小"
 
-#: lib/bookshelf_settings.lua:2697 micromodules/clock.lua:51
+#: lib/bookshelf_settings.lua:2731 micromodules/clock.lua:51
 msgid "Follow KOReader"
 msgstr "跟随 KOReader 设置"
 
-#: lib/bookshelf_settings.lua:2699
+#: lib/bookshelf_settings.lua:2733
 msgid "Bookshelf UI font: %1"
 msgstr "界面字体：%1"
 
-#: lib/bookshelf_settings.lua:2701
+#: lib/bookshelf_settings.lua:2735
 msgid "The font Bookshelf uses for its own UI text (shelf names, labels, metadata). Pick any installed font (same picker as the top panel); '(Default)' follows your KOReader UI font. The title and author have their own fonts in the book detail editor."
 msgstr "Bookshelf 界面文字 (书架名称、标签、元数据) 所用的字体。可选择任何已安装的字体 (与顶部面板使用同一个选择器)；「(默认)」跟随你的 KOReader 界面字体。标题和作者在书籍详情编辑器中另有各自的字体。"
 
-#: lib/bookshelf_settings.lua:2719 lib/bookshelf_settings.lua:2721
-#: lib/bookshelf_settings.lua:3569
+#: lib/bookshelf_settings.lua:2753 lib/bookshelf_settings.lua:2755
+#: lib/bookshelf_settings.lua:3603
 msgid "Micro modules"
 msgstr "微模块"
 
-#: lib/bookshelf_settings.lua:2723
+#: lib/bookshelf_settings.lua:2757
 msgid "Where micro-modules appear. Each surface is independent: In start menu shows module cards in the start-menu launcher; In top panel adds a shelf-menu entry that swaps the book for the grid; Full-screen button adds a footer button opening a full-screen grid. The top panel and full screen shelves keep their own module lists. Turn all three off to disable micro-modules entirely."
 msgstr "微模块出现的位置。各处相互独立：「在快捷菜单中」会在快捷菜单里显示模块卡片；「在顶部面板中」会在书架菜单里添加一个条目，用模块网格替换当前书籍；「全屏按钮」会在底栏添加一个按钮，打开全屏网格。顶部面板与全屏书架各自保留自己的模块列表。三者全部关闭即可彻底停用微模块。"
 
-#: lib/bookshelf_settings.lua:2775
+#: lib/bookshelf_settings.lua:2809
 msgid "In start menu"
 msgstr "在快捷菜单中"
 
-#: lib/bookshelf_settings.lua:2776
+#: lib/bookshelf_settings.lua:2810
 msgid "In the top panel"
 msgstr "在顶部面板中"
 
-#: lib/bookshelf_settings.lua:2777
+#: lib/bookshelf_settings.lua:2811
 msgid "Full-screen button"
 msgstr "全屏按钮"
 
-#: lib/bookshelf_settings.lua:2782 lib/bookshelf_settings.lua:4820
-#: lib/bookshelf_settings.lua:5182
+#: lib/bookshelf_settings.lua:2816 lib/bookshelf_settings.lua:4903
+#: lib/bookshelf_settings.lua:5265
 msgid "Start menu"
 msgstr "快捷菜单"
 
-#: lib/bookshelf_settings.lua:2791
+#: lib/bookshelf_settings.lua:2825
 msgid "Behavior"
 msgstr "行为"
 
-#: lib/bookshelf_settings.lua:2797
+#: lib/bookshelf_settings.lua:2831
 msgid "Library & search"
 msgstr "书库与搜索"
 
-#: lib/bookshelf_settings.lua:2803
+#: lib/bookshelf_settings.lua:2837
 msgid "Advanced"
 msgstr "高级设置"
 
-#: lib/bookshelf_settings.lua:2813
+#: lib/bookshelf_settings.lua:2847
 msgid "never"
 msgstr "从不"
 
-#: lib/bookshelf_settings.lua:2920 main.lua:2649
+#: lib/bookshelf_settings.lua:2954 main.lua:2792
 msgid "Hardcover plugin is not available"
 msgstr "Hardcover 插件暂不可用"
 
-#: lib/bookshelf_settings.lua:2948
+#: lib/bookshelf_settings.lua:2982
 msgid "No unlinked books to auto-link."
 msgstr "没有待关联的书籍。"
 
-#: lib/bookshelf_settings.lua:2971
+#: lib/bookshelf_settings.lua:3005
 msgid "Auto-link report"
 msgstr "自动关联报告"
 
-#: lib/bookshelf_settings.lua:3057
+#: lib/bookshelf_settings.lua:3091
 msgid ""
 "Auto-linking from Hardcover…\n"
 "\n"
@@ -2771,7 +2950,7 @@ msgstr ""
 "已检查 %1 / %2 项・已关联 %3 项\n"
 "（点击取消）"
 
-#: lib/bookshelf_settings.lua:3072
+#: lib/bookshelf_settings.lua:3106
 msgid ""
 "Auto-link %1 unlinked book(s)?\n"
 "\n"
@@ -2781,133 +2960,133 @@ msgstr ""
 "\n"
 "将访问 Hardcover（存在访问频次限制）：预计耗时约 %2 分钟。可取消，完成后将生成报告。"
 
-#: lib/bookshelf_settings.lua:3077
+#: lib/bookshelf_settings.lua:3111
 msgid "Exact match (ISBN / Hardcover id)"
 msgstr "精确匹配 (ISBN / Hardcover id)"
 
-#: lib/bookshelf_settings.lua:3081
+#: lib/bookshelf_settings.lua:3115
 msgid "Best guess (title & author)"
 msgstr "智能匹配（书名 & 作者）"
 
-#: lib/bookshelf_settings.lua:3098
+#: lib/bookshelf_settings.lua:3132
 msgid "Cached Hardcover ratings: unavailable"
 msgstr "缓存 Hardcover 评分：不可用"
 
-#: lib/bookshelf_settings.lua:3101
+#: lib/bookshelf_settings.lua:3135
 #, lua-format
 msgid "Cached Hardcover ratings: %d/%d · %s"
 msgstr "缓存 Hardcover 评分：%d/%d · %s"
 
-#: lib/bookshelf_settings.lua:3111
+#: lib/bookshelf_settings.lua:3145
 msgid "Auto-link all books"
 msgstr "自动关联所有书籍"
 
-#: lib/bookshelf_settings.lua:3112
+#: lib/bookshelf_settings.lua:3146
 msgid "Scan the library and link books to Hardcover, fetching each match's details (description, cover, rating) in the same pass. Choose Exact match (uses an embedded ISBN / Hardcover id, fast) or Best guess (searches by title and author and picks the most confident match, slower but catches books with no embedded id). A report at the end lists exactly what was linked. Contacts Hardcover (rate-limited) with cancellable progress."
 msgstr ""
 "扫描书库并将书籍关联至 Hardcover，同步获取匹配项的详情（简介、封面、评分）。\n"
 "可选择精准匹配（依托内置 ISBN / Hardcover 编号，速度更快）或智能推测匹配（根据书名与作者检索，选取可信度最高的结果；速度较慢，但可识别无内置编号的书籍）。\n"
 "操作结束后会生成报告，详细列出所有已关联条目。该功能会访问 Hardcover（存在访问频次限制），运行过程可随时取消。"
 
-#: lib/bookshelf_settings.lua:3122
+#: lib/bookshelf_settings.lua:3156
 msgid "Show Hardcover ratings"
 msgstr "显示 Hardcover 评分"
 
-#: lib/bookshelf_settings.lua:3123
+#: lib/bookshelf_settings.lua:3157
 msgid "When enabled, the rating row shows the cached public Hardcover rating instead of KOReader's local rating. Enabling this also turns on the rating row. Normal Bookshelf rendering only reads the local cache."
 msgstr "开启后，评分行会显示缓存的 Hardcover 公开评分，而不是 KOReader 的本地评分。开启此项也会一并打开评分行。Bookshelf 平时渲染时只读取本地缓存。"
 
-#: lib/bookshelf_settings.lua:3146
+#: lib/bookshelf_settings.lua:3180
 msgid "Use Hardcover metadata"
 msgstr "使用 Hardcover 元数据"
 
-#: lib/bookshelf_settings.lua:3147
+#: lib/bookshelf_settings.lua:3181
 msgid "For books linked to Hardcover, show Hardcover's title, author, series and genres in place of the book's own -- a clean switch, no merging. Covers and descriptions stay under their per-book toggles. This affects sorting, search and series grouping for linked books; non-linked books are unaffected. Metadata is always cached, so this only decides whether it's used."
 msgstr ""
 "已关联 Hardcover 的书籍，将使用其对应的书名、作者、系列及分类信息替换书籍原有元数据（数据不合并）。封面与简介仍保留在书籍独立开关项中。\n"
 "该设置会影响已关联书籍的排序、搜索及系列分组，未关联书籍不受影响。相关元数据会持续缓存，本选项仅控制是否启用该套数据。"
 
-#: lib/bookshelf_settings.lua:3162
+#: lib/bookshelf_settings.lua:3196
 msgid "Download covers from Hardcover"
 msgstr "从 Hardcover 下载封面"
 
-#: lib/bookshelf_settings.lua:3163
+#: lib/bookshelf_settings.lua:3197
 msgid "When on, linking a book also downloads its Hardcover cover and stores it as the book's cover. Off by default: most books already have a cover, and downloaded covers use storage and get picked up by the library metadata scan. Descriptions, ratings and metadata are fetched either way; turn this on only if you want Hardcover covers too."
 msgstr "开启后，关联书籍时会同步下载 Hardcover 封面并设为书籍默认封面。默认关闭：多数书籍已自带封面，下载封面会占用存储空间，且会被书库元数据扫描识别。无论该选项开启与否，简介、评分及其他元数据均会正常获取；仅在需要使用 Hardcover 封面时开启即可。"
 
-#: lib/bookshelf_settings.lua:3179
+#: lib/bookshelf_settings.lua:3213
 msgid "Hardcover genres used: %1"
 msgstr "已启用 Hardcover 题材：%1"
 
-#: lib/bookshelf_settings.lua:3181
+#: lib/bookshelf_settings.lua:3215
 msgid "How many of a linked book's Hardcover genres to use -- for the tag pills and the genre shelves/stacks -- when Use Hardcover metadata is on. 0 uses none."
 msgstr "设置从已关联书籍中调取多少项 Hardcover 题材，用于标签色块与题材的书架/堆叠——在开启「使用 Hardcover 元数据」时生效。设为 0 则不使用任何题材。"
 
-#: lib/bookshelf_settings.lua:3190
+#: lib/bookshelf_settings.lua:3224
 msgid "Hardcover genres used"
 msgstr "已启用 Hardcover 题材"
 
-#: lib/bookshelf_settings.lua:3191
+#: lib/bookshelf_settings.lua:3225
 msgid "How many of a book's Hardcover genres to use for tag pills and the genre shelves/stacks."
 msgstr "选取书籍的 Hardcover 题材数量，用于展示标签色块与题材的书架/堆叠。"
 
-#: lib/bookshelf_settings.lua:3211
+#: lib/bookshelf_settings.lua:3245
 msgid "Manage Hardcover data"
 msgstr "管理 Hardcover 数据"
 
-#: lib/bookshelf_settings.lua:3218
+#: lib/bookshelf_settings.lua:3252
 msgid "Refresh ratings only"
 msgstr "仅刷新评分"
 
-#: lib/bookshelf_settings.lua:3219
+#: lib/bookshelf_settings.lua:3253
 msgid "Fetch up-to-date public ratings and review counts for every linked book in one quick batched request -- seconds, even for a large library. Ratings drift daily; for the rarely-changing details (author, genres, series, description, pages) use Refresh linked book details instead."
 msgstr "通过一次快速的批量请求，为所有已关联书籍获取最新的公开评分与评论数量；即使书库很大也只需数秒。评分每天都在变动；如需更新较少变化的详情（作者、题材、系列、简介、页数），请改用「刷新关联书籍详情」。"
 
-#: lib/bookshelf_settings.lua:3227 lib/bookshelf_widget.lua:21550
+#: lib/bookshelf_settings.lua:3261 lib/bookshelf_widget.lua:21806
 msgid "Hardcover integration could not be loaded"
 msgstr "无法加载 Hardcover 集成组件"
 
-#: lib/bookshelf_settings.lua:3230
+#: lib/bookshelf_settings.lua:3264
 msgid "Fetching Hardcover ratings..."
 msgstr "正在获取 Hardcover 评分…"
 
-#: lib/bookshelf_settings.lua:3233
+#: lib/bookshelf_settings.lua:3267
 msgid "Hardcover ratings refresh failed"
 msgstr "Hardcover 评分刷新失败"
 
-#: lib/bookshelf_settings.lua:3238
+#: lib/bookshelf_settings.lua:3272
 msgid "Hardcover ratings refreshed: %1 rated of %2 linked books"
 msgstr "Hardcover 评分已刷新：成功更新 %1 本，共 %2 本关联书籍"
 
-#: lib/bookshelf_settings.lua:3251
+#: lib/bookshelf_settings.lua:3285
 msgid "Refresh linked book details"
 msgstr "刷新关联书籍详情"
 
-#: lib/bookshelf_settings.lua:3252
+#: lib/bookshelf_settings.lua:3286
 msgid "Re-fetch the cached details (author, description, series, genres, page count, ratings) for every linked book, one rate-limited request per book -- minutes on a large library, cancellable. Use after an upgrade note asks for it, or when cached data looks stale; for just the ratings, Refresh ratings only is much faster."
 msgstr "为每一本已关联书籍重新获取缓存的详情（作者、简介、系列、题材、页数、评分），每本书发起一次受频次限制的请求；书库较大时需要数分钟，可随时取消。可在升级提示要求时使用，或在缓存数据看起来过时时使用；若只需评分，「仅刷新评分」要快得多。"
 
-#: lib/bookshelf_settings.lua:3265
+#: lib/bookshelf_settings.lua:3299
 msgid "Clear cache (keeps links)"
 msgstr "清除缓存（保留关联关系）"
 
-#: lib/bookshelf_settings.lua:3266
+#: lib/bookshelf_settings.lua:3300
 msgid "Remove Bookshelf's cached Hardcover descriptions, cover images, ratings, review counts and review text. Existing book links are kept, so you can refresh again later."
 msgstr "清除书架中缓存的 Hardcover 简介、封面图片、评分、评论数量及评论内容。已建立的书籍关联关系会保留，后续可重新刷新数据。"
 
-#: lib/bookshelf_settings.lua:3279
+#: lib/bookshelf_settings.lua:3313
 msgid "Hardcover cache cleared"
 msgstr "Hardcover 缓存已清除"
 
-#: lib/bookshelf_settings.lua:3287
+#: lib/bookshelf_settings.lua:3321
 msgid "Remove downloaded covers"
 msgstr "删除已下载的封面"
 
-#: lib/bookshelf_settings.lua:3288
+#: lib/bookshelf_settings.lua:3322
 msgid "Delete every downloaded Hardcover cover and restore each book's original cover, keeping links, descriptions and ratings. Frees the storage the covers use and clears them out of the library metadata scan."
 msgstr "删除所有已下载的 Hardcover 封面，并恢复书籍原始封面。关联关系、简介与评分均予以保留。此举可释放封面占用的存储空间，同时在书库元数据扫描中清除对应封面记录。"
 
-#: lib/bookshelf_settings.lua:3292
+#: lib/bookshelf_settings.lua:3326
 msgid ""
 "Remove all downloaded Hardcover covers?\n"
 "\n"
@@ -2917,23 +3096,23 @@ msgstr ""
 "\n"
 "操作后将恢复书籍原始封面，关联关系、简介及评分均保留。"
 
-#: lib/bookshelf_settings.lua:3293
+#: lib/bookshelf_settings.lua:3327
 msgid "Remove covers"
 msgstr "删除封面"
 
-#: lib/bookshelf_settings.lua:3306
+#: lib/bookshelf_settings.lua:3340
 msgid "Removed downloaded covers (%1 book(s))."
 msgstr "删除已下载的封面 (%1 本书)。"
 
-#: lib/bookshelf_settings.lua:3316
+#: lib/bookshelf_settings.lua:3350
 msgid "Remove all Hardcover data"
 msgstr "删除所有 Hardcover 数据"
 
-#: lib/bookshelf_settings.lua:3317
+#: lib/bookshelf_settings.lua:3351
 msgid "Unlink every book and delete all cached Hardcover descriptions, covers, ratings and reviews, resetting the library to how it was before any Hardcover linking. Only covers Hardcover added are removed; a cover you had before is restored. Cannot be undone."
 msgstr "解除所有书籍的关联，并删除全部缓存的 Hardcover 简介、封面、评分与评论，将书库恢复至关联功能启用前的状态。仅移除通过 Hardcover 添加的封面，恢复书籍原有封面。此操作无法撤销。"
 
-#: lib/bookshelf_settings.lua:3321
+#: lib/bookshelf_settings.lua:3355
 msgid ""
 "Remove ALL Hardcover data?\n"
 "\n"
@@ -2947,295 +3126,311 @@ msgstr ""
 "\n"
 "操作无法撤销。"
 
-#: lib/bookshelf_settings.lua:3322
+#: lib/bookshelf_settings.lua:3356
 msgid "Remove all"
 msgstr "删除全部"
 
-#: lib/bookshelf_settings.lua:3335
+#: lib/bookshelf_settings.lua:3369
 msgid "All Hardcover data removed (%1 book(s) unlinked)."
 msgstr "已清除全部 Hardcover 数据（共解除 %1 本书的关联）"
 
-#: lib/bookshelf_settings.lua:3354
+#: lib/bookshelf_settings.lua:3388
 msgid "Full screen shelves font scale"
 msgstr "全屏书架字体比例"
 
-#: lib/bookshelf_settings.lua:3371
+#: lib/bookshelf_settings.lua:3405
 msgid "Disable spine mode shadows"
 msgstr "关闭书脊模式阴影"
 
-#: lib/bookshelf_settings.lua:3372
+#: lib/bookshelf_settings.lua:3406
 msgid "Spine shelves paint a recess behind the books and a shadow either side of each spine, which is what makes the shelf look deep. Turn this off if drawing it is slow on your device; the books then sit flat on the shelf."
 msgstr "书脊书架会在书籍后方绘制凹槽，并在每个书脊两侧绘制阴影，书架的纵深感由此而来。如果你的设备绘制这些较慢，可以关闭；此后书籍将平贴在书架上。"
 
-#: lib/bookshelf_settings.lua:3394
+#: lib/bookshelf_settings.lua:3428
 msgid "Instant book close (beta)"
 msgstr "即时关闭书籍 (测试版)"
 
-#: lib/bookshelf_settings.lua:3395
+#: lib/bookshelf_settings.lua:3429
 msgid "Show Bookshelf immediately when leaving a book. The book finishes closing at the next quiet moment - opening another book, half a minute of inactivity, or leaving Bookshelf - so browsing never has to wait for it. Until then, going straight back into the same book is instant. Turn this off to close books fully before Bookshelf appears, as before."
 msgstr "离开书籍时立即显示书架。书籍会在下一个空闲时刻完成关闭 - 打开另一本书、半分钟无操作，或离开书架 - 因此浏览时无需等待。在那之前，直接返回同一本书是即时的。关闭此项则会像以前一样，在显示书架前先完全关闭书籍。"
 
-#: lib/bookshelf_settings.lua:3413
+#: lib/bookshelf_settings.lua:3447
 msgid "Pre-warm shelf cache"
 msgstr "预热书架缓存"
 
-#: lib/bookshelf_settings.lua:3414
+#: lib/bookshelf_settings.lua:3448
 msgid "Warms each shelf's data in the background shortly after launch so switching shelves is instant. On a large library with many shelves this adds a few seconds of work after startup; turn it off for a quicker, lighter launch (shelves then load on first use)."
 msgstr "启动后稍候片刻，便会在后台预热各书架的数据，使切换书架即时完成。在书架众多的大型书库中，这会在启动后增加几秒的处理时间；如需更快、更轻量的启动，可将其关闭 (此时各书架将在首次使用时再加载)。"
 
-#: lib/bookshelf_settings.lua:3429
+#: lib/bookshelf_settings.lua:3463
 msgid "\"Latest\" walk depth"
 msgstr "新书遍历深度"
 
-#: lib/bookshelf_settings.lua:3435
+#: lib/bookshelf_settings.lua:3469
 msgid "Cover cache"
 msgstr "封面缓存"
 
-#: lib/bookshelf_settings.lua:3441
+#: lib/bookshelf_settings.lua:3475
 msgid "How much memory to use for ready-scaled book covers. A bigger cache keeps more covers warm -- smoother paging and preloading -- at the cost of RAM. Default %1 MB on this device. Lower it if memory is tight; raise it on a device with plenty of RAM. (How many covers that holds depends on their size: roughly 200-400 small grayscale covers, fewer large or color ones.)"
 msgstr "用于存放已缩放好的书籍封面的内存大小。缓存越大，保持就绪的封面越多，翻页和预加载也更流畅，代价是占用更多内存。本设备默认为 %1 MB。内存紧张时可调低；内存充裕的设备可以调高。(能容纳多少封面取决于封面尺寸：大致为 200-400 张小尺寸灰度封面，大尺寸或彩色封面则更少。)"
 
-#: lib/bookshelf_settings.lua:3454
+#: lib/bookshelf_settings.lua:3488
 msgid "Clear cover cache"
 msgstr "清除封面缓存"
 
-#: lib/bookshelf_settings.lua:3455
+#: lib/bookshelf_settings.lua:3489
 msgid "Drop all cached scaled covers, in memory and on disk. Use this when a book's cover has been updated outside KOReader (e.g. a metadata-enrichment tool rewrote the EPUB) and the old cover is still showing on the shelf. The next render fetches fresh covers from the EPUBs."
 msgstr "清空内存和磁盘中所有已缩放封面缓存。若在程序外部修改了书籍封面 (例如用元数据工具重写 EPUB 文件)，书架仍显示旧封面时可使用本功能；下次加载会从 EPUB 重新读取最新封面。"
 
-#: lib/bookshelf_settings.lua:3465
+#: lib/bookshelf_settings.lua:3499
 msgid "Cover cache cleared"
 msgstr "封面缓存已清除"
 
-#: lib/bookshelf_settings.lua:3478
+#: lib/bookshelf_settings.lua:3512
 msgid "Color panel dithering"
 msgstr "彩色墨水屏抖动"
 
-#: lib/bookshelf_settings.lua:3479
+#: lib/bookshelf_settings.lua:3513
 msgid "Applies the color-dither waveform when redrawing book covers so they keep their full saturation on color e-ink panels. Turn it off to compare; with it off, covers can look washed out until a full-screen refresh. Color panels only."
 msgstr "重绘书籍封面时使用彩色抖动波形，让封面在彩色墨水屏上保持完整饱和度。关闭此选项可作对比；关闭后，封面可能显得发灰褪色，直到下一次全屏刷新才会恢复。仅适用于彩色墨水屏设备。"
 
-#: lib/bookshelf_settings.lua:3520 lib/bookshelf_settings.lua:3547
+#: lib/bookshelf_settings.lua:3554 lib/bookshelf_settings.lua:3581
 msgid "Fast"
 msgstr "快"
 
-#: lib/bookshelf_settings.lua:3521 lib/bookshelf_settings.lua:3548
+#: lib/bookshelf_settings.lua:3555 lib/bookshelf_settings.lua:3582
 msgid "Normal"
 msgstr "正常"
 
-#: lib/bookshelf_settings.lua:3522 lib/bookshelf_settings.lua:3549
+#: lib/bookshelf_settings.lua:3556 lib/bookshelf_settings.lua:3583
 msgid "Slow"
 msgstr "慢"
 
-#: lib/bookshelf_settings.lua:3603
+#: lib/bookshelf_settings.lua:3637
 msgid "Top panel starts with"
 msgstr "顶部面板启动时显示"
 
-#: lib/bookshelf_settings.lua:3605
+#: lib/bookshelf_settings.lua:3639
 msgid "What the top panel above the shelf shows when it opens: the book you're currently reading, or a grid of micro-modules (clock, quote, random book, reading goals…). You can also switch between them from the shelf menu."
 msgstr "书架上方的顶部面板打开时显示的内容：你当前正在读的书，或者一组微模块网格 (时钟、摘录、随机书籍、阅读目标…)。你也可以在书架菜单中切换。"
 
-#: lib/bookshelf_settings.lua:3624
+#: lib/bookshelf_settings.lua:3658
 msgid "Show the book's details"
 msgstr "显示书籍详情"
 
-#: lib/bookshelf_settings.lua:3625
+#: lib/bookshelf_settings.lua:3659
 msgid "Open with a single tap"
 msgstr "单击打开"
 
-#: lib/bookshelf_settings.lua:3626
+#: lib/bookshelf_settings.lua:3660
 msgid "Open with a double tap"
 msgstr "双击打开"
 
-#: lib/bookshelf_settings.lua:3648
+#: lib/bookshelf_settings.lua:3682
 msgid "Tap a book in full screen shelves"
 msgstr "在全屏书架中点击书籍"
 
-#: lib/bookshelf_settings.lua:3651
+#: lib/bookshelf_settings.lua:3685
 msgid "What tapping a book does in full screen shelves: show that book's detail in the top panel, open it with a single tap, or open it with a double tap (first tap selects). The top panel's own double-tap-to-open is the next row."
 msgstr "在全屏书架中点击书籍的行为：在顶部面板显示该书详情、单击打开，或双击打开 (第一次点击为选中)。顶部面板自身的双击打开在下一行设置。"
 
-#: lib/bookshelf_settings.lua:3664
+#: lib/bookshelf_settings.lua:3700
+msgid "Swipe down leaves full screen shelves"
+msgstr "下滑退出全屏书架"
+
+#: lib/bookshelf_settings.lua:3701
+msgid "When enabled, swiping down in full screen shelves brings the top panel back. Turn off to stay in full screen: the swipe then refreshes the library, as it does with the top panel showing, and the top panel comes back when you tap the book icon at the start of the shelf bar, or with a gesture set to Bookshelf: full screen shelves on or off."
+msgstr "开启后，在全屏书架中下滑会恢复顶部面板。关闭则保持全屏：下滑会像显示顶部面板时一样刷新书库；点击书架栏开头的书本图标，或使用设为「Bookshelf：开关全屏书架」的手势，即可恢复顶部面板。"
+
+#: lib/bookshelf_settings.lua:3718
 msgid "Double tap to open books"
 msgstr "通过双击打开书籍"
 
-#: lib/bookshelf_settings.lua:3665
+#: lib/bookshelf_settings.lua:3719
 msgid "When enabled, opening a book from the top panel card or from a shelf cover in full screen shelves requires two taps -- the first selects the cover (focus ring), the second commits. Useful if you tend to open books accidentally while browsing. Regular shelf covers (with the top panel visible) already work this way -- tap stages the book in the top panel, tapping that opens it -- and are unaffected by this setting."
 msgstr "开启后，从顶部面板卡片或全屏书架中的书架封面打开书籍需要点击两次：第一次选中封面 (显示选中框)，第二次才会打开。如果你在浏览时容易误开书籍，此项会很有用。普通书架封面 (顶部面板可见时) 本来就是这样工作的，点击会把书籍放进顶部面板，再点击它才会打开，因此不受此设置影响。"
 
-#: lib/bookshelf_settings.lua:3690
+#: lib/bookshelf_settings.lua:3744
 msgid "Page turn animation"
 msgstr "翻页动画"
 
-#: lib/bookshelf_settings.lua:3691
+#: lib/bookshelf_settings.lua:3745
 msgid "Animate shelf page turns and shelf-menu paging with a wipe effect. E-ink only (the effect relies on the panel's refresh, so it does nothing on LCD screens). Fast / Medium / Slow trade snappiness for smoothness. Slow looks smoothest but takes longer on older panels."
 msgstr "以擦除效果为书架翻页与书架菜单翻页添加动画。仅限墨水屏 (该效果依赖屏幕刷新，因此在液晶屏上无任何效果)。快 / 中 / 慢 在灵敏度与流畅度之间权衡。慢速观感最流畅，但在老旧屏幕上耗时更长。"
 
-#: lib/bookshelf_settings.lua:3696
+#: lib/bookshelf_settings.lua:3750
 msgid "Start menu animation"
 msgstr "快捷菜单动画"
 
-#: lib/bookshelf_settings.lua:3697
+#: lib/bookshelf_settings.lua:3751
 msgid "Animate the start menu opening and closing. Separate from the page-turn wipe, so you can keep one and turn off the other - the menu reveal repaints a taller area and can look choppy on some screens, particularly while reading. E-ink only."
 msgstr "为快捷菜单的打开与关闭添加动画。此选项与翻页擦除动画相互独立，可以只保留其中一项。菜单展开时需要重绘更大的区域，在部分屏幕上可能显得卡顿，尤其是在阅读时。仅限墨水屏。"
 
-#: lib/bookshelf_settings.lua:3703
+#: lib/bookshelf_settings.lua:3757
 msgid "Closing book notification"
 msgstr "退出书籍提醒"
 
-#: lib/bookshelf_settings.lua:3704
+#: lib/bookshelf_settings.lua:3758
 msgid "Show a 'Closing book…' message in the center of the screen while a book is being closed back to Bookshelf. The book-close work takes a moment, so the message confirms your gesture landed during the wait. Some users on color e-ink panels see a brief flash from the message appearing. Turn it off here if you prefer no message and no flash."
 msgstr "显示「正在关闭书本…」提示，在关闭书籍并退回 Bookshelf 时，会出现在屏幕中央。关闭进程需要短暂耗时，这个提示用于反馈操作已生效。部分彩色墨水屏设备会因弹窗闪现短暂屏闪，如需消除提示与闪屏可在此关闭。"
 
-#: lib/bookshelf_settings.lua:3786
+#: lib/bookshelf_settings.lua:3840
 msgid "Scan all library metadata"
 msgstr "扫描全库元数据"
 
-#: lib/bookshelf_settings.lua:3795
-msgid "Extract page counts"
-msgstr "提取页数"
+#: lib/bookshelf_settings.lua:3849
+msgid "Extract page counts…"
+msgstr "提取页数…"
 
-#: lib/bookshelf_settings.lua:3796
-msgid "Paginate books at the default layout, so spine thickness reflects their real length whatever font you read them in, and books you have never opened get a page count. Each book is rendered in the background; this can take a while on a large library."
-msgstr "以默认版式为书籍分页，使书脊厚度反映书籍的实际长度，无论你用哪种字体阅读；从未打开过的书籍也能获得页数。每本书都在后台渲染；书库较大时可能需要较长时间。"
+#: lib/bookshelf_settings.lua:3850
+msgid "Find page counts for your books, so spines, page count badges and tokens reflect their length. Publisher page numbers and Hardcover editions are used where a book has them; the rest are rendered in the background at your reading settings, which can take a while on a large library."
+msgstr "为你的书籍获取页数，使书脊、页数徽章和占位符反映书籍篇幅。书籍带有出版社页码或 Hardcover 版本信息时直接使用；其余书籍会在后台按你的阅读设置排版计算，书库较大时可能需要一些时间。"
 
-#: lib/bookshelf_settings.lua:3809
+#: lib/bookshelf_settings.lua:3875
 msgid "Manage collections…"
 msgstr "管理书单…"
 
-#: lib/bookshelf_settings.lua:3810
+#: lib/bookshelf_settings.lua:3876
 msgid "Create, rename, reorder and delete collections. Also reachable from collection shelves and stacks."
 msgstr "创建、重命名、排序和删除书单。也可从书单的书架和堆叠进入。"
 
-#: lib/bookshelf_settings.lua:3834 lib/bookshelf_settings.lua:3836
+#: lib/bookshelf_settings.lua:3900 lib/bookshelf_settings.lua:3902
 msgid "Bulk selection mode"
 msgstr "多选模式"
 
-#: lib/bookshelf_settings.lua:3838
+#: lib/bookshelf_settings.lua:3904
 msgid "Select several books at once to move or delete them or add them to a collection. Also available from a book's Edit tab (Select), the stack menus (Select N), or as a gesture. Not available in remote catalog views."
 msgstr "一次选择多本书籍，以便移动、删除或加入书单。也可从书籍的编辑标签页 (选择)、堆叠菜单 (选择 N 本) 或手势进入。在远程目录视图中不可用。"
 
-#: lib/bookshelf_settings.lua:3860 lib/bookshelf_settings.lua:3895
+#: lib/bookshelf_settings.lua:3926 lib/bookshelf_settings.lua:3961
 msgid "First Last"
 msgstr "名称 姓氏"
 
-#: lib/bookshelf_settings.lua:3861 lib/bookshelf_settings.lua:3896
+#: lib/bookshelf_settings.lua:3927 lib/bookshelf_settings.lua:3962
 msgid "Last, First"
 msgstr "姓氏, 名称"
 
-#: lib/bookshelf_settings.lua:3863
+#: lib/bookshelf_settings.lua:3929
 msgid "Author name formatting"
 msgstr "作者姓名格式"
 
-#: lib/bookshelf_settings.lua:3865
+#: lib/bookshelf_settings.lua:3931
 msgid "How author names are displayed on the Authors shelf. Auto keeps whichever form was first found (\"Richard Osman\" or \"Osman, Richard\"). First Last and Last, First force every author card into the same shape regardless of how each book stored the name."
 msgstr "设置作者卡片的姓名显示格式：自动模式沿用首次抓取的姓名格式 (如 Richard Osman 或 Osman, Richard)；「名称 姓氏」「姓氏， 名称」会强制统一所有作者排版，不受书籍原始存储格式影响。"
 
-#: lib/bookshelf_settings.lua:3904
+#: lib/bookshelf_settings.lua:3970
 msgid "Spine text direction"
 msgstr "书脊文字方向"
 
-#: lib/bookshelf_settings.lua:3905
+#: lib/bookshelf_settings.lua:3971
 msgid "Which way a title runs down a spine. British and American books are printed to read downwards; Continental European printing runs the other way. Spines only."
 msgstr "书名在书脊上的排列方向。英美书籍印刷时自上而下阅读；欧洲大陆的印刷方向相反。仅对书脊有效。"
 
-#: lib/bookshelf_settings.lua:3911
+#: lib/bookshelf_settings.lua:3977
 msgid "Top to bottom"
 msgstr "从上到下"
 
-#: lib/bookshelf_settings.lua:3912
+#: lib/bookshelf_settings.lua:3978
 msgid "Bottom to top"
 msgstr "从下到上"
 
-#: lib/bookshelf_settings.lua:3926
+#: lib/bookshelf_settings.lua:3992
 msgid "Hide single-book series and genres"
 msgstr "隐藏仅一本的系列和类型"
 
-#: lib/bookshelf_settings.lua:3927
+#: lib/bookshelf_settings.lua:3993
 msgid "When a series or genre contains only one book, hide it from the Series and Genres tabs. Useful when a book carries a one-off series name, or its own title as the series. Off by default."
 msgstr "当某个系列或类型只包含一本书时，将其从「系列」和「类型」标签中隐藏。适用于书籍带有一次性系列名，或以自身标题作为系列名的情况。默认关闭。"
 
-#: lib/bookshelf_settings.lua:3966
+#: lib/bookshelf_settings.lua:4032
 msgid "Image library"
 msgstr "图片库"
 
-#: lib/bookshelf_settings.lua:3969
+#: lib/bookshelf_settings.lua:4035
 msgid "Where Bookshelf looks for custom cover images. For stacks, place files like authors/author-name.jpg into the matching subfolder (authors, series, genres, collections). For folders, drop a cover.jpg into the folder itself. See the README for more matching options."
 msgstr "设置书架自定义封面图片的查找目录。合集封面需将图片 (如 authors / 作者名.jpg)放入对应子目录 (作者、丛书、分类、合集文件夹)；文件夹封面直接在目录内放入 cover.jpg 即可，更多匹配规则参阅说明文档。"
 
-#: lib/bookshelf_settings.lua:3977
+#: lib/bookshelf_settings.lua:4043
 msgid "Include folder names in search results"
 msgstr "搜索结果中包含文件夹名称"
 
-#: lib/bookshelf_settings.lua:3978
+#: lib/bookshelf_settings.lua:4044
 msgid "When searching, also match the names of folders in your library and list them as folder results. Off by default: most libraries file books into author, series or genre folders, so a matching folder just duplicates the author / series / genre result of the same name. Turn on if you navigate by folder and want folders in search."
 msgstr "开启后，搜索时会同时匹配书库中文件夹的名称，并将其作为文件夹结果列出。默认关闭：大多数书库按作者、丛书或类型分类到文件夹中，匹配到的文件夹往往只是与作者/丛书/类型同名结果的重复。如果你习惯按文件夹浏览，并希望搜索结果中包含文件夹，可开启此项。"
 
-#: lib/bookshelf_settings.lua:3998
+#: lib/bookshelf_settings.lua:4062
+msgid "Include genres and tags in search results"
+msgstr "搜索结果中包含类型和标签"
+
+#: lib/bookshelf_settings.lua:4063
+msgid "When searching, also match books by their genres and tags, and list matching genres as results. Turn off if you search by title, author or series and the genre matches get in the way."
+msgstr "搜索时同时按类型和标签匹配书籍，并将匹配的类型列为结果。如果你按书名、作者或系列搜索，而类型匹配结果造成干扰，可关闭此项。"
+
+#: lib/bookshelf_settings.lua:4081
 msgid "Ignore The, A, An when sorting"
 msgstr "排序时忽略 The、A、An"
 
-#: lib/bookshelf_settings.lua:3999
+#: lib/bookshelf_settings.lua:4082
 msgid "Sorts titles and series names by the word after a leading The, A or An, and uses Calibre's title sort where a book has one. Turn off to sort them exactly as written."
 msgstr "按开头的 The、A 或 An 之后的单词对书名和系列名排序，书籍带有 Calibre 的排序书名时则使用它。关闭后按原样排序。"
 
-#: lib/bookshelf_settings.lua:4019
+#: lib/bookshelf_settings.lua:4102
 msgid "Sort Chinese text by pinyin"
 msgstr "中文按拼音排序"
 
-#: lib/bookshelf_settings.lua:4020
+#: lib/bookshelf_settings.lua:4103
 msgid "Sorts Chinese characters by their Mandarin pinyin reading, so Chinese titles and authors file alphabetically alongside Latin names. When off, Chinese text sorts in Unicode order (roughly by radical and stroke count), after Latin names. Japanese kanji are also affected, so leave this off for Japanese-language libraries."
 msgstr "按汉字的普通话拼音读音排序，使中文书名与作者可与拉丁字母名称按字母顺序混合排列。关闭时，中文按 Unicode 顺序（大致依部首与笔画数）排序，排在拉丁字母名称之后。日文汉字同样会受影响，日文书库建议保持关闭。"
 
-#: lib/bookshelf_settings.lua:4070
+#: lib/bookshelf_settings.lua:4153
 msgid "Show status line"
 msgstr "显示状态条"
 
-#: lib/bookshelf_settings.lua:4071
+#: lib/bookshelf_settings.lua:4154
 msgid "Puts Bookshelf's status line across the top of the reader, drawn by the same code that draws it on the shelf, so it reads the same in both. Edit the line itself under Settings > Status line. If you also use Bookends, its top row and any top-anchored progress bar move down to make space."
 msgstr "在阅读界面顶部显示 Bookshelf 的状态条，与书架上使用同一段代码绘制，因此两处显示完全一致。状态条本身在 设置 > 状态条 中编辑。如果你同时使用 Bookends，它的顶行以及任何固定在顶部的进度条会下移以留出空间。"
 
-#: lib/bookshelf_settings.lua:4094
+#: lib/bookshelf_settings.lua:4177
 msgid "Show menu button"
 msgstr "显示菜单按钮"
 
-#: lib/bookshelf_settings.lua:4095
+#: lib/bookshelf_settings.lua:4178
 msgid "Adds the Bookshelf menu button to the reader. Takes effect the next time you open a book."
 msgstr "在阅读器中添加 Bookshelf 菜单按钮。该设置将在你下次打开书籍时生效。"
 
-#: lib/bookshelf_settings.lua:4104
+#: lib/bookshelf_settings.lua:4187
 msgid "Show micro-modules button"
 msgstr "显示微模块按钮"
 
-#: lib/bookshelf_settings.lua:4105
+#: lib/bookshelf_settings.lua:4188
 msgid "Adds the micro-modules button to the reader, in the corner opposite the menu button. Takes effect the next time you open a book."
 msgstr "在阅读器中添加微模块按钮，位于菜单按钮对面的角落。该设置将在你下次打开书籍时生效。"
 
-#: lib/bookshelf_settings.lua:4115
+#: lib/bookshelf_settings.lua:4198
 msgid "Launcher button position and size"
 msgstr "快捷按钮的位置与大小"
 
-#: lib/bookshelf_settings.lua:4116
+#: lib/bookshelf_settings.lua:4199
 msgid "Position, size, side and which edge the in-reader launcher buttons sit on. Opens a blank screen showing just the buttons, so you can see them move as you adjust."
 msgstr "设置阅读器内快捷按钮的位置、大小、所在侧边以及贴靠的边缘。打开一个只显示这些按钮的空白画面，方便你在调整时看到它们的移动。"
 
-#: lib/bookshelf_settings.lua:4134
+#: lib/bookshelf_settings.lua:4217
 msgid "Performance tweaks"
 msgstr "性能调整"
 
-#: lib/bookshelf_settings.lua:4140
+#: lib/bookshelf_settings.lua:4223
 msgid "While reading"
 msgstr "阅读时"
 
-#: lib/bookshelf_settings.lua:4148
+#: lib/bookshelf_settings.lua:4231
 msgid "Reset shelf menu to defaults"
 msgstr "将书架菜单重置为默认值"
 
-#: lib/bookshelf_settings.lua:4149
+#: lib/bookshelf_settings.lua:4232
 msgid "Clears your custom shelf menu (which shelves are shown, their order, their labels and icons, their sources and filters and sorts) and restores the fresh-install set: Home / Recent / Series / Favorites enabled, the rest available to toggle on. Also returns the active shelf to Home and the page indicator to 1. Other settings (top-panel text, fonts, colors) are unaffected."
 msgstr "清除你自定义的书架菜单 (显示哪些书架、它们的顺序、标签与图标、来源、筛选和排序)，恢复为全新安装时的组合：启用「首页 / 在读 / 系列 / 收藏夹」，其余可自行开启。同时把当前书架切回首页，页码指示重置为 1。其他设置 (顶部面板文字、字体、颜色) 不受影响。"
 
-#: lib/bookshelf_settings.lua:4160
+#: lib/bookshelf_settings.lua:4243
 msgid ""
 "Reset the shelf menu to default settings?\n"
 "\n"
@@ -3245,15 +3440,15 @@ msgstr ""
 "\n"
 "所有自行新增、修改的自定义书架将会被清除；Bookshelf 其余配置 (顶部面板文本、字体、配色)保持不变。"
 
-#: lib/bookshelf_settings.lua:4196
+#: lib/bookshelf_settings.lua:4279
 msgid "Reset top panel content to defaults"
 msgstr "将顶部面板内容重置为默认值"
 
-#: lib/bookshelf_settings.lua:4197
+#: lib/bookshelf_settings.lua:4280
 msgid "Clears your top-panel customizations and restores the fresh-install detail layout, including the bundled title (Inter ExtraBold) and author (Caveat) fonts. The Bookshelf UI font and shelf menu are unaffected."
 msgstr "清除你对顶部面板的自定义，恢复为全新安装时的详情布局，包括内置的标题字体 (Inter ExtraBold) 和作者字体 (Caveat)。Bookshelf 界面字体和书架菜单不受影响。"
 
-#: lib/bookshelf_settings.lua:4204
+#: lib/bookshelf_settings.lua:4287
 msgid ""
 "Reset the top panel's content to default settings?\n"
 "\n"
@@ -3263,175 +3458,175 @@ msgstr ""
 "\n"
 "顶部面板的所有文字与字体自定义都将丢失。Bookshelf 界面字体和书架菜单不受影响。"
 
-#: lib/bookshelf_settings.lua:4224
+#: lib/bookshelf_settings.lua:4307
 msgid "BETA: Read calibre metadata.calibre"
 msgstr "BETA：读取 caliber 的 metadata.calibre"
 
-#: lib/bookshelf_settings.lua:4229
+#: lib/bookshelf_settings.lua:4312
 msgid "For users with a Calibre-managed library. Reads the metadata.calibre file in your home folder to fill in title, authors, series, tags, language and description for every book at once, with no per-book extraction. Calibre's values take priority over the metadata KOReader extracted from the book file itself. Anything you have edited in Book information still wins over both. Covers and page counts always come from KOReader."
 msgstr "面向使用 Calibre 管理书库的用户：读取主目录下的 metadata.calibre 文件，一次性批量补全全库书籍的书名、作者、系列、标签、语种与简介，无需逐本解析电子书。Calibre 的数据优先于 KOReader 从电子书文件本身解析出的元数据；你在「书籍信息」中修改过的内容仍优先于两者。封面与页数始终来自 KOReader。"
 
-#: lib/bookshelf_settings.lua:4263
+#: lib/bookshelf_settings.lua:4346
 msgid "BETA: Kobo library shelf"
 msgstr "测试功能：Kobo 书库书架"
 
-#: lib/bookshelf_settings.lua:4264
+#: lib/bookshelf_settings.lua:4347
 msgid "Adds a \"Kobo\" shelf that surfaces your Kobo virtual library (the books managed by the Kobo store / OGKevin's kobo.koplugin). Read-only; covers and opening depend on that plugin. Kobo devices only."
 msgstr "添加一个「Kobo」书架，用于呈现你的 Kobo 虚拟书库 (由 Kobo 商店 / OGKevin 的 kobo.koplugin 管理的书籍)。只读；封面显示与打开功能依赖该插件。仅限 Kobo 设备。"
 
-#: lib/bookshelf_settings.lua:4577
+#: lib/bookshelf_settings.lua:4660
 msgid "Rows and columns set how much of the screen the shelf takes; the top panel above fills whatever is left. List and spine shelves use that same space with their own row counts, so covers are shown here while you adjust it."
 msgstr "行数和列数决定书架占据屏幕的多少；上方的顶部面板填满剩下的空间。列表书架和书脊书架使用同一块区域，但各有自己的行数设置，因此在调整时这里以封面显示。"
 
-#: lib/bookshelf_settings.lua:4585 main.lua:721
+#: lib/bookshelf_settings.lua:4668 main.lua:721
 msgid "Adjust shelf/top panel size"
 msgstr "调整书架/顶部面板尺寸"
 
-#: lib/bookshelf_settings.lua:4599
+#: lib/bookshelf_settings.lua:4682
 msgid "Columns: "
 msgstr "列数："
 
-#: lib/bookshelf_settings.lua:4607
+#: lib/bookshelf_settings.lua:4690
 msgid "Rows: "
 msgstr "行数："
 
-#: lib/bookshelf_settings.lua:4614
+#: lib/bookshelf_settings.lua:4697
 msgid "Accept"
 msgstr "接受"
 
-#: lib/bookshelf_settings.lua:4629
+#: lib/bookshelf_settings.lua:4712
 msgid "Top panel font scale"
 msgstr "顶部面板字体比例"
 
-#: lib/bookshelf_settings.lua:4640
+#: lib/bookshelf_settings.lua:4723
 msgid "Micro-modules font scale"
 msgstr "微模块字体比例"
 
-#: lib/bookshelf_settings.lua:4650
+#: lib/bookshelf_settings.lua:4733
 msgid "Shelf menu font scale"
 msgstr "书架菜单字体比例"
 
-#: lib/bookshelf_settings.lua:4691
+#: lib/bookshelf_settings.lua:4774
 msgid "Stack & folder label scale"
 msgstr "堆叠&文件夹标签比例"
 
-#: lib/bookshelf_settings.lua:4757
+#: lib/bookshelf_settings.lua:4840
 msgid "Start menu font scale"
 msgstr "快捷菜单字体比例"
 
-#: lib/bookshelf_settings.lua:4822
+#: lib/bookshelf_settings.lua:4905
 msgid "Where the start-menu button sits in the footer. Right moves the button and its menu to the bottom-right corner; Off hides the button entirely."
 msgstr "快捷菜单按钮在底栏的位置。「右」将按钮及其菜单移到右下角；「关」则完全隐藏按钮。"
 
-#: lib/bookshelf_settings.lua:4840
+#: lib/bookshelf_settings.lua:4923
 msgid "Minimum start menu width: default"
 msgstr "快捷菜单最小宽度：默认"
 
-#: lib/bookshelf_settings.lua:4841
+#: lib/bookshelf_settings.lua:4924
 msgid "Minimum start menu width: %1 dp"
 msgstr "快捷菜单最小宽度：%1 dp"
 
-#: lib/bookshelf_settings.lua:4843
+#: lib/bookshelf_settings.lua:4926
 msgid "The start menu is normally only as wide as its longest label, so short menu text also narrows the micro-module cards. Raise this to widen the panel without lengthening the text."
 msgstr "快捷菜单通常只与其最长的标签一样宽，因此菜单文字较短时，微模块卡片也会跟着变窄。提高此数值可以在不加长文字的情况下加宽面板。"
 
-#: lib/bookshelf_settings.lua:4930
+#: lib/bookshelf_settings.lua:5013
 msgid "Launcher buttons"
 msgstr "快捷按钮"
 
-#: lib/bookshelf_settings.lua:4936
+#: lib/bookshelf_settings.lua:5019
 msgid "edge %1 dp"
 msgstr "距边缘 %1 dp"
 
-#: lib/bookshelf_settings.lua:4945
+#: lib/bookshelf_settings.lua:5028
 msgid "side %1 dp"
 msgstr "距侧边 %1 dp"
 
-#: lib/bookshelf_settings.lua:4954
+#: lib/bookshelf_settings.lua:5037
 msgid "size %1%"
 msgstr "大小 %1%"
 
-#: lib/bookshelf_settings.lua:4962
+#: lib/bookshelf_settings.lua:5045
 msgid "Side: left"
 msgstr "侧边：左"
 
-#: lib/bookshelf_settings.lua:4962
+#: lib/bookshelf_settings.lua:5045
 msgid "Side: right"
 msgstr "侧边：右"
 
-#: lib/bookshelf_settings.lua:4967
+#: lib/bookshelf_settings.lua:5050
 msgid "Edge: bottom"
 msgstr "边缘：下"
 
-#: lib/bookshelf_settings.lua:4967
+#: lib/bookshelf_settings.lua:5050
 msgid "Edge: top"
 msgstr "边缘：上"
 
-#: lib/bookshelf_settings.lua:5053
+#: lib/bookshelf_settings.lua:5136
 msgid "Minimum start menu width"
 msgstr "快捷菜单最小宽度"
 
-#: lib/bookshelf_settings.lua:5084
+#: lib/bookshelf_settings.lua:5167
 msgid "Modal tab label font scale"
 msgstr "弹窗选项卡标签字体比例"
 
-#: lib/bookshelf_settings.lua:5156
+#: lib/bookshelf_settings.lua:5239
 msgid "Cover labels"
 msgstr "封面标签"
 
-#: lib/bookshelf_settings.lua:5157
+#: lib/bookshelf_settings.lua:5240
 msgid "Cover badges"
 msgstr "封面徽章"
 
-#: lib/bookshelf_settings.lua:5158
+#: lib/bookshelf_settings.lua:5241
 msgid "Stack & folder labels"
 msgstr "堆叠 &文件夹 标签"
 
-#: lib/bookshelf_settings.lua:5159
+#: lib/bookshelf_settings.lua:5242
 msgid "Shelf menu"
 msgstr "书架菜单"
 
-#: lib/bookshelf_settings.lua:5170
+#: lib/bookshelf_settings.lua:5253
 msgid "List text"
 msgstr "列表文字"
 
-#: lib/bookshelf_settings.lua:5175
+#: lib/bookshelf_settings.lua:5258
 msgid "Top panel"
 msgstr "顶部面板"
 
-#: lib/bookshelf_settings.lua:5177 lib/bookshelf_widget.lua:13879
+#: lib/bookshelf_settings.lua:5260 lib/bookshelf_widget.lua:14028
 msgid "Micro-modules"
 msgstr "微模块"
 
-#: lib/bookshelf_settings.lua:5183
+#: lib/bookshelf_settings.lua:5266
 msgid "Modal tabs"
 msgstr "弹窗选项卡"
 
-#: lib/bookshelf_settings.lua:5200
+#: lib/bookshelf_settings.lua:5283
 msgid "Choose image library folder"
 msgstr "选择图片库文件夹"
 
-#: lib/bookshelf_settings.lua:5226
+#: lib/bookshelf_settings.lua:5309
 msgid "\"Latest\" folder walk depth"
 msgstr "「最新」文件夹遍历深度"
 
-#: lib/bookshelf_settings.lua:5227
+#: lib/bookshelf_settings.lua:5310
 msgid "How deep to scan your library folder for newly-added books. Higher values take longer on a cold start."
 msgstr "设置检索新书时，书库目录的递归扫描层级。层级数值越大，首次启动全库检索耗时越长。"
 
-#: lib/bookshelf_settings.lua:5245
+#: lib/bookshelf_settings.lua:5328
 msgid "MB"
 msgstr "MB"
 
-#: lib/bookshelf_settings.lua:5246
+#: lib/bookshelf_settings.lua:5329
 msgid "Cover cache budget"
 msgstr "封面缓存配额"
 
-#: lib/bookshelf_settings.lua:5247
+#: lib/bookshelf_settings.lua:5330
 msgid "Memory budget for ready-scaled book covers (MB). Higher = smoother paging and preloading, more RAM. Default %1 MB on this device."
 msgstr "用于存放已缩放好的书籍封面的内存预算 (MB)。数值越高，翻页和预加载越流畅，占用的内存也越多。本设备默认为 %1 MB。"
 
-#: lib/bookshelf_settings.lua:5370
+#: lib/bookshelf_settings.lua:5453
 msgid ""
 "Another copy of Bookshelf is installed and is also being loaded:\n"
 "%1\n"
@@ -3443,202 +3638,205 @@ msgstr ""
 "\n"
 "请删除它并重启，否则更新可能看起来毫无效果。"
 
-#: lib/bookshelf_settings.lua:5405
+#: lib/bookshelf_settings.lua:5488
 msgid "Link copied to clipboard"
 msgstr "链接已复制到剪贴板"
 
-#: lib/bookshelf_settings.lua:5495 main.lua:802
+#: lib/bookshelf_settings.lua:5578 main.lua:802
 msgid "Update available"
 msgstr "更新可用"
 
-#: lib/bookshelf_settings.lua:5498 lib/bookshelf_settings.lua:5555
+#: lib/bookshelf_settings.lua:5581 lib/bookshelf_settings.lua:5638
 msgid "Check for updates"
 msgstr "检查更新"
 
-#: lib/bookshelf_settings.lua:5500
+#: lib/bookshelf_settings.lua:5583
 msgid "Checks GitHub for a newer Bookshelf release and offers to install it, with the release notes shown first. The version in brackets is what's installed."
 msgstr "检查 GitHub 上是否有更新的 Bookshelf 版本并提示安装，安装前会先显示版本说明。括号中为当前已安装的版本。"
 
-#: lib/bookshelf_settings.lua:5507
+#: lib/bookshelf_settings.lua:5590
 msgid "View changelog"
 msgstr "查看更新日志"
 
-#: lib/bookshelf_settings.lua:5508
+#: lib/bookshelf_settings.lua:5591
 msgid "Browse this and past releases' notes, newest first. Notes are cached, so anything fetched once stays readable offline; Refresh pulls the latest."
 msgstr "浏览当前及历史版本的说明，最新的在前。说明会缓存，获取过的内容离线也能阅读；点击「刷新」可拉取最新内容。"
 
-#: lib/bookshelf_settings.lua:5518
+#: lib/bookshelf_settings.lua:5601
 msgid "Notify on wake when update available"
 msgstr "通知可用更新"
 
-#: lib/bookshelf_settings.lua:5529 lib/bookshelf_settings.lua:5533
+#: lib/bookshelf_settings.lua:5612 lib/bookshelf_settings.lua:5616
 msgid "Developer updates"
 msgstr "开发版更新"
 
-#: lib/bookshelf_settings.lua:5539 lib/bookshelf_settings.lua:5540
-#: main.lua:2252
+#: lib/bookshelf_settings.lua:5622 lib/bookshelf_settings.lua:5623
+#: main.lua:2257
 msgid "Development branch"
 msgstr "开发分支"
 
-#: lib/bookshelf_settings.lua:5556
+#: lib/bookshelf_settings.lua:5639
 msgid "Install branch"
 msgstr "安装分支版本"
 
-#: lib/bookshelf_settings.lua:5562
+#: lib/bookshelf_settings.lua:5645
 msgid "Reset to latest stable release"
 msgstr "重置到最新的稳定版本"
 
-#: lib/bookshelf_settings.lua:5573 lib/bookshelf_settings.lua:5576
+#: lib/bookshelf_settings.lua:5656 lib/bookshelf_settings.lua:5659
 msgid "Installed: v"
 msgstr "已安装：v"
 
-#: lib/bookshelf_settings.lua:5616
+#: lib/bookshelf_settings.lua:5699
 msgid "Flexible shelf widths"
 msgstr "自适应书架宽度"
 
-#: lib/bookshelf_settings.lua:5617
+#: lib/bookshelf_settings.lua:5700
 msgid "Off: every shelf gets the same width. On: each shelf is sized to its label, so single-icon shelves stay narrow and longer text labels get more room. Falls back to equal widths when natural sizes don't fit."
 msgstr "关闭：所有书架按钮宽度统一固定。开启：各书架按文字内容自适应尺寸，仅图标无文字的书架保持窄幅，文字较长的书架自动拓宽。若自适应后整体超出栏宽，自动变回等宽布局。"
 
-#: lib/bookshelf_settings.lua:5632
+#: lib/bookshelf_settings.lua:5715
 msgid "Uppercase labels"
 msgstr "标签大写"
 
-#: lib/bookshelf_settings.lua:5633
+#: lib/bookshelf_settings.lua:5716
 msgid "On: shelf names and the drill breadcrumb are shown in capitals, the default look. Off: each label reads exactly as you typed it, so \"Sci-Fi\" stays \"Sci-Fi\"."
 msgstr "开启：书架名称和逐层浏览时的路径导航均以大写显示，这是默认外观。关闭：每个标签完全按你输入的样子显示，「Sci-Fi」就保持为「Sci-Fi」。"
 
-#: lib/bookshelf_settings.lua:5707
+#: lib/bookshelf_settings.lua:5790
 msgid "Tap a shelf to edit it. Long-press to show or hide it."
 msgstr "点击书架可编辑，长按可显示或隐藏。"
 
-#: lib/bookshelf_settings.lua:5712
+#: lib/bookshelf_settings.lua:5795
 msgid "+ Add new shelf"
 msgstr "+ 添加新书架"
 
-#: lib/bookshelf_sort_engine.lua:520
+#: lib/bookshelf_sort_engine.lua:552
 msgid "Filename"
 msgstr "文件名"
 
-#: lib/bookshelf_sort_engine.lua:524
+#: lib/bookshelf_sort_engine.lua:556
 msgid "Author (given name)"
 msgstr "作者 (名字)"
 
-#: lib/bookshelf_sort_engine.lua:526
+#: lib/bookshelf_sort_engine.lua:558
 msgid "Author surname"
 msgstr "作者姓氏"
 
-#: lib/bookshelf_sort_engine.lua:528 lib/bookshelf_tokens.lua:77
+#: lib/bookshelf_sort_engine.lua:560 lib/bookshelf_tokens.lua:77
 msgid "Series name"
 msgstr "系列名称"
 
-#: lib/bookshelf_sort_engine.lua:532
+#: lib/bookshelf_sort_engine.lua:564
 msgid "Series #"
 msgstr "系列 #"
 
-#: lib/bookshelf_sort_engine.lua:532
+#: lib/bookshelf_sort_engine.lua:564
 msgid "Series index"
 msgstr "系列编号"
 
-#: lib/bookshelf_sort_engine.lua:540
+#: lib/bookshelf_sort_engine.lua:572
 msgid "Series + #"
 msgstr "系列 + #"
 
-#: lib/bookshelf_sort_engine.lua:540
+#: lib/bookshelf_sort_engine.lua:572
 msgid "Series + index"
 msgstr "系列 + 编号"
 
-#: lib/bookshelf_sort_engine.lua:550
+#: lib/bookshelf_sort_engine.lua:585
+msgid "Series or title"
+msgstr "系列或书名"
+
+#: lib/bookshelf_sort_engine.lua:585
+msgid "Series, else title"
+msgstr "系列，无则按书名"
+
+#: lib/bookshelf_sort_engine.lua:600
 msgid "Last opened"
 msgstr "最近打开"
 
-#: lib/bookshelf_sort_engine.lua:550
+#: lib/bookshelf_sort_engine.lua:600
 msgid "Opened"
 msgstr "已打开"
 
-#: lib/bookshelf_sort_engine.lua:556 lib/bookshelf_tokens.lua:97
+#: lib/bookshelf_sort_engine.lua:606 lib/bookshelf_tokens.lua:97
 msgid "Percent read"
 msgstr "阅读进度"
 
-#: lib/bookshelf_sort_engine.lua:561
+#: lib/bookshelf_sort_engine.lua:611
 msgid "Unread/Reading/Finished"
 msgstr "未读/在读/读完"
 
-#: lib/bookshelf_sort_engine.lua:562
+#: lib/bookshelf_sort_engine.lua:612
 msgid "Unread 1st"
 msgstr "未读优先"
 
-#: lib/bookshelf_sort_engine.lua:571
+#: lib/bookshelf_sort_engine.lua:621
 msgid "Reading/Unread/Finished"
 msgstr "在读/未读/已读"
 
-#: lib/bookshelf_sort_engine.lua:572
+#: lib/bookshelf_sort_engine.lua:622
 msgid "Reading 1st"
 msgstr "在读优先"
 
-#: lib/bookshelf_sort_engine.lua:583 lib/bookshelf_widget.lua:18109
-#: lib/bookshelf_widget.lua:18124
+#: lib/bookshelf_sort_engine.lua:633 lib/bookshelf_widget.lua:18251
+#: lib/bookshelf_widget.lua:18266
 msgid "Added"
 msgstr "已添加"
 
-#: lib/bookshelf_sort_engine.lua:583
+#: lib/bookshelf_sort_engine.lua:633
 msgid "Date added"
 msgstr "添加日期"
 
-#: lib/bookshelf_sort_engine.lua:595
+#: lib/bookshelf_sort_engine.lua:645
 msgid "File size"
 msgstr "文件大小"
 
-#: lib/bookshelf_sort_engine.lua:602 micromodules/shelf_size.lua:159
-#: micromodules/trivia.lua:44
-msgid "Books"
-msgstr "本书籍"
-
-#: lib/bookshelf_sort_engine.lua:617
+#: lib/bookshelf_sort_engine.lua:668
 msgid "Page count"
 msgstr "总页数"
 
-#: lib/bookshelf_sort_engine.lua:617 lib/bookshelf_widget.lua:18106
+#: lib/bookshelf_sort_engine.lua:668 lib/bookshelf_widget.lua:18248
 msgid "Pages"
 msgstr "页数"
 
-#: lib/bookshelf_sort_engine.lua:636
+#: lib/bookshelf_sort_engine.lua:687
 msgid "Collection order"
 msgstr "书单顺序"
 
-#: lib/bookshelf_spine_widget.lua:1582
+#: lib/bookshelf_spine_widget.lua:1620
 msgid "%1 p"
 msgstr "%1 页"
 
-#: lib/bookshelf_stack_display.lua:100
+#: lib/bookshelf_stack_display.lua:101
 msgid "Divider card"
 msgstr "分隔卡片"
 
-#: lib/bookshelf_stack_display.lua:101
+#: lib/bookshelf_stack_display.lua:102
 msgid "Ribbon"
 msgstr "横幅"
 
-#: lib/bookshelf_stack_display.lua:102
+#: lib/bookshelf_stack_display.lua:103
 msgid "Book stack"
 msgstr "书籍堆叠"
 
-#: lib/bookshelf_stack_display.lua:103
+#: lib/bookshelf_stack_display.lua:104
 msgid "Collage"
 msgstr "封面拼贴"
 
-#: lib/bookshelf_stack_display.lua:104
+#: lib/bookshelf_stack_display.lua:105
 msgid "Text"
 msgstr "文字"
 
-#: lib/bookshelf_stack_display.lua:169
+#: lib/bookshelf_stack_display.lua:170
 msgid "Default setting"
 msgstr "默认设置"
 
-#: lib/bookshelf_start_menu.lua:807
+#: lib/bookshelf_start_menu.lua:808
 msgid "%1 (disabled - tap to retry)"
 msgstr "%1 (已禁用 - 点击重试)"
 
-#: lib/bookshelf_start_menu.lua:967
+#: lib/bookshelf_start_menu.lua:968
 msgid "Add…"
 msgstr "添加…"
 
@@ -3762,12 +3960,12 @@ msgstr "在读"
 msgid "Latest"
 msgstr "新书"
 
-#: lib/bookshelf_tab_model.lua:91 lib/bookshelf_widget.lua:1628
-#: lib/bookshelf_widget.lua:20697
+#: lib/bookshelf_tab_model.lua:91 lib/bookshelf_widget.lua:1630
+#: lib/bookshelf_widget.lua:20931
 msgid "Tags"
 msgstr "标签"
 
-#: lib/bookshelf_tab_model.lua:233 lib/bookshelf_widget.lua:1244
+#: lib/bookshelf_tab_model.lua:233 lib/bookshelf_widget.lua:1245
 msgid "Kobo"
 msgstr "Kobo"
 
@@ -4131,17 +4329,17 @@ msgstr " 和 "
 msgid ", et al."
 msgstr ", 等"
 
-#: lib/bookshelf_tokens.lua:913
+#: lib/bookshelf_tokens.lua:950
 #, lua-format
 msgid "%dh %02dm"
 msgstr "%d 小时 %02d 分"
 
-#: lib/bookshelf_tokens.lua:955
+#: lib/bookshelf_tokens.lua:992
 #, lua-format
 msgid "%ds"
 msgstr "%d 秒"
 
-#: lib/bookshelf_tokens.lua:956
+#: lib/bookshelf_tokens.lua:993
 #, lua-format
 msgid "%dm %02ds"
 msgstr "%d 分 %02d 秒"
@@ -4246,94 +4444,94 @@ msgstr "无法获取最新版本。"
 msgid "Latest release has no downloadable zip."
 msgstr "最新发布版本没有可下载的压缩包。"
 
-#: lib/bookshelf_wallpaper.lua:625
+#: lib/bookshelf_wallpaper.lua:646
 msgid "wallpapers"
 msgstr "壁纸"
 
-#: lib/bookshelf_widget.lua:1600
+#: lib/bookshelf_widget.lua:1602
 msgid "Search results"
 msgstr "搜索结果"
 
-#: lib/bookshelf_widget.lua:1979
+#: lib/bookshelf_widget.lua:1983
 #, lua-format
 msgid "No matches for \"%s\""
 msgstr "无法匹配 「%s」"
 
-#: lib/bookshelf_widget.lua:1981
+#: lib/bookshelf_widget.lua:1985
 msgid "Nothing in Series yet · Add series metadata to your books and they will appear here"
 msgstr "尚无「系列」书架 · 将系列元数据添加到你的书籍中，它们就会显示在这里"
 
-#: lib/bookshelf_widget.lua:1983
+#: lib/bookshelf_widget.lua:1987
 msgid "No authors yet · Add author metadata to your books and they will appear here"
 msgstr "尚无「作者」书架 · 将作者元数据添加到你的书籍中，它们就会显示在这里"
 
-#: lib/bookshelf_widget.lua:1985
+#: lib/bookshelf_widget.lua:1989
 msgid "No genres yet · Add keywords or subject metadata to your books and they will appear here"
 msgstr "尚无「题材」书架 · 将题材元数据添加到你的书籍中，它们就会显示在这里"
 
-#: lib/bookshelf_widget.lua:1987
+#: lib/bookshelf_widget.lua:1991
 msgid "No collections yet · Long-press a book and tap 'Collections…' to create one"
 msgstr "尚无「书单」书架 · 长按一本书，点击「书单…」创造一个"
 
-#: lib/bookshelf_widget.lua:1989
+#: lib/bookshelf_widget.lua:1993
 msgid "No favorites yet · Long-press a book and tap 'Add to favorites'"
 msgstr "尚无「收藏」书架 · 长按一本书，点击「收藏…」"
 
-#: lib/bookshelf_widget.lua:1991
+#: lib/bookshelf_widget.lua:1995
 msgid "No books found · Set your library folder in Settings then tap Latest"
 msgstr "未检索到书籍 · 前往设置配置书库文件夹后，点击「新近入库」"
 
-#: lib/bookshelf_widget.lua:1993
+#: lib/bookshelf_widget.lua:1997
 msgid "No recent reads yet · Open a book and it will appear here"
 msgstr "尚无在读 · 打开一本书，它会出现在这里"
 
-#: lib/bookshelf_widget.lua:1999
+#: lib/bookshelf_widget.lua:2003
 msgid "No books here yet · Pick a folder to use as your KOReader library and books in it will appear here."
 msgstr "这里还没有书 · 选择一个文件夹作为你的KOReader书库，里面的书籍会显示在这里。"
 
-#: lib/bookshelf_widget.lua:2025
+#: lib/bookshelf_widget.lua:2029
 #, lua-format
 msgid "Couldn't load %s · Pull down to try again"
 msgstr "无法加载 %s · 下拉重试"
 
-#: lib/bookshelf_widget.lua:2029
+#: lib/bookshelf_widget.lua:2033
 #, lua-format
 msgid "Nothing in \"%s\" · Pull down to refresh, or clear the start folder in Catalog settings"
 msgstr "「%s」内没有内容 · 下拉刷新，或在「目录设置」中清除起始文件夹"
 
-#: lib/bookshelf_widget.lua:2033
+#: lib/bookshelf_widget.lua:2037
 #, lua-format
 msgid "Nothing in %s · Pull down to refresh"
 msgstr "%s 内没有内容 · 下拉刷新"
 
-#: lib/bookshelf_widget.lua:2047
+#: lib/bookshelf_widget.lua:2051
 #, lua-format
 msgid "No books in %s yet · Long-press it in the shelf menu above to edit its source or filter"
 msgstr "尚无书籍在「%s」 · 在上方书架菜单中长按其名称，即可编辑来源或筛选"
 
-#: lib/bookshelf_widget.lua:2050
+#: lib/bookshelf_widget.lua:2054
 #, lua-format
 msgid "No books in %s yet"
 msgstr "尚无书籍在「%s」"
 
-#: lib/bookshelf_widget.lua:2061
+#: lib/bookshelf_widget.lua:2065
 #, lua-format
 msgid "Nothing in %s yet · Long-press it in the shelf menu above to edit its filter"
 msgstr "「%s」里什么也没有 · 在上方书架菜单中长按其名称，即可编辑筛选"
 
-#: lib/bookshelf_widget.lua:2155
+#: lib/bookshelf_widget.lua:2159
 msgid "Set home folder"
 msgstr "设置主页文件夹"
 
-#: lib/bookshelf_widget.lua:2164
+#: lib/bookshelf_widget.lua:2168
 msgid "Current home folder:"
 msgstr "当前主页文件夹："
 
-#: lib/bookshelf_widget.lua:4259
+#: lib/bookshelf_widget.lua:4275
 msgid "Couldn't open this Kobo book."
 msgstr "无法打开这本 Kobo 书籍。"
 
-#: lib/bookshelf_widget.lua:4301
+#: lib/bookshelf_widget.lua:4317
 msgid ""
 "This Kindle book has to be converted before KOReader can read it.\n"
 "\n"
@@ -4347,11 +4545,11 @@ msgstr ""
 "\n"
 "只有第一次打开该书时才会进行转换。"
 
-#: lib/bookshelf_widget.lua:4306
+#: lib/bookshelf_widget.lua:4322
 msgid "Convert"
 msgstr "转换"
 
-#: lib/bookshelf_widget.lua:4349
+#: lib/bookshelf_widget.lua:4365
 msgid ""
 "This is a protected %1 file, which can't be opened.\n"
 "\n"
@@ -4365,7 +4563,7 @@ msgstr ""
 "\n"
 "您的 KFX 图书应可正常打开。"
 
-#: lib/bookshelf_widget.lua:4359
+#: lib/bookshelf_widget.lua:4375
 msgid ""
 "KOReader can't read %1 files.\n"
 "\n"
@@ -4379,103 +4577,103 @@ msgstr ""
 "\n"
 "您的其他 Kindle 图书应可正常打开。"
 
-#: lib/bookshelf_widget.lua:4364
+#: lib/bookshelf_widget.lua:4380
 msgid "The Kindle library isn't available right now."
 msgstr "Kindle 书库当前不可用。"
 
-#: lib/bookshelf_widget.lua:4400 lib/bookshelf_widget.lua:19367
+#: lib/bookshelf_widget.lua:4416 lib/bookshelf_widget.lua:19525
 msgid "File no longer exists. The bookshelf entry is stale."
 msgstr "文件已不存在，书架条目失效。"
 
-#: lib/bookshelf_widget.lua:4503
+#: lib/bookshelf_widget.lua:4519
 msgid "Preparing this book…"
 msgstr "正在准备这本书……"
 
-#: lib/bookshelf_widget.lua:4517
+#: lib/bookshelf_widget.lua:4533
 msgid "This book is still being prepared. Please try again in a moment."
 msgstr "这本书仍在准备中，请稍后再试。"
 
-#: lib/bookshelf_widget.lua:5159
+#: lib/bookshelf_widget.lua:5185
 msgid "Show search results as"
 msgstr "搜索结果显示为"
 
-#: lib/bookshelf_widget.lua:5617
+#: lib/bookshelf_widget.lua:5643
 msgid "Catalog books can't be selected."
 msgstr "目录中的书籍无法选中。"
 
-#: lib/bookshelf_widget.lua:6502
+#: lib/bookshelf_widget.lua:6536
 msgid "%1 - %2 of %3+"
 msgstr "%1 - %2，共 %3+"
 
-#: lib/bookshelf_widget.lua:6503
+#: lib/bookshelf_widget.lua:6537
 msgid "%1 - %2 of %3"
 msgstr "%1 - %2，共 %3"
 
-#: lib/bookshelf_widget.lua:7098 lib/bookshelf_widget.lua:11098
+#: lib/bookshelf_widget.lua:7144 lib/bookshelf_widget.lua:11210
 msgid "Selection cleared"
 msgstr "已取消选中"
 
-#: lib/bookshelf_widget.lua:7406
+#: lib/bookshelf_widget.lua:7452
 #, lua-format
 msgid "No items start with %q"
 msgstr "没有以 %q 开头的项目"
 
-#: lib/bookshelf_widget.lua:7451
+#: lib/bookshelf_widget.lua:7497
 msgid "Go to letter"
 msgstr "跳转到首字母"
 
-#: lib/bookshelf_widget.lua:7462
+#: lib/bookshelf_widget.lua:7508
 msgid "Enter text, letter or book number"
 msgstr "输入文本、字母或书籍编号"
 
-#: lib/bookshelf_widget.lua:7463
+#: lib/bookshelf_widget.lua:7509
 msgid "Enter text, letter or page number"
 msgstr "输入文本、字母或页码"
 
-#: lib/bookshelf_widget.lua:7470
+#: lib/bookshelf_widget.lua:7516
 #, lua-format
 msgid "(a - z) or (1 - %d)"
 msgstr "(a - z) 或 (1 - %d)"
 
-#: lib/bookshelf_widget.lua:7480
+#: lib/bookshelf_widget.lua:7526
 msgid "Go to book"
 msgstr "跳转书籍"
 
-#: lib/bookshelf_widget.lua:7480
+#: lib/bookshelf_widget.lua:7526
 msgid "Go to page"
 msgstr "跳转页码"
 
-#: lib/bookshelf_widget.lua:7487
+#: lib/bookshelf_widget.lua:7533
 #, lua-format
 msgid "Book must be between 1 and %d"
 msgstr "书籍编号需在 1～%d 区间内"
 
-#: lib/bookshelf_widget.lua:7488
+#: lib/bookshelf_widget.lua:7534
 #, lua-format
 msgid "Page must be between 1 and %d"
 msgstr "页码需在 1～%d 区间内"
 
-#: lib/bookshelf_widget.lua:9643
+#: lib/bookshelf_widget.lua:9722
 msgid "Retrieving book cover…"
 msgstr "正在获取书籍封面…"
 
-#: lib/bookshelf_widget.lua:13883
+#: lib/bookshelf_widget.lua:14032
 msgid "Reset modules to default"
 msgstr "将模块重置为默认"
 
-#: lib/bookshelf_widget.lua:13892
+#: lib/bookshelf_widget.lua:14041
 msgid "Remove micro-modules (re-enable in settings)"
 msgstr "移除微模块 (可在设置中重新启用)"
 
-#: lib/bookshelf_widget.lua:14025 lib/bookshelf_widget.lua:22058
+#: lib/bookshelf_widget.lua:14174 lib/bookshelf_widget.lua:22314
 msgid "Bulk selection isn't available in remote catalog views."
 msgstr "远程目录视图中无法使用多选模式。"
 
-#: lib/bookshelf_widget.lua:14534
+#: lib/bookshelf_widget.lua:14687
 msgid "Refreshing library…"
 msgstr "正在刷新书库…"
 
-#: lib/bookshelf_widget.lua:14981
+#: lib/bookshelf_widget.lua:15134
 msgid ""
 "Fetching %1… (%2 books)\n"
 "(Tap to cancel)"
@@ -4483,7 +4681,7 @@ msgstr ""
 "正在获取 %1… (%2 本书)\n"
 "(点击取消)"
 
-#: lib/bookshelf_widget.lua:14985
+#: lib/bookshelf_widget.lua:15138
 msgid ""
 "Fetching %1…\n"
 "(Tap to cancel)"
@@ -4491,7 +4689,7 @@ msgstr ""
 "正在获取 %1…\n"
 "(点击取消)"
 
-#: lib/bookshelf_widget.lua:15055
+#: lib/bookshelf_widget.lua:15208
 msgid ""
 "Stop loading %1?\n"
 "%2 books so far."
@@ -4499,119 +4697,115 @@ msgstr ""
 "停止加载 %1？\n"
 "目前已加载 %2 本书。"
 
-#: lib/bookshelf_widget.lua:15057
+#: lib/bookshelf_widget.lua:15210
 msgid "Stop loading %1?"
 msgstr "停止加载 %1？"
 
-#: lib/bookshelf_widget.lua:15059
+#: lib/bookshelf_widget.lua:15212
 msgid "Keep loading"
 msgstr "继续加载"
 
-#: lib/bookshelf_widget.lua:15059
-msgid "Stop"
-msgstr "停止"
-
-#: lib/bookshelf_widget.lua:15111 lib/bookshelf_widget.lua:16779
-#: lib/bookshelf_widget.lua:17584
+#: lib/bookshelf_widget.lua:15264 lib/bookshelf_widget.lua:16932
+#: lib/bookshelf_widget.lua:17737
 msgid "Authentication failed for %1"
 msgstr "%1 身份验证失败"
 
-#: lib/bookshelf_widget.lua:15113 lib/bookshelf_widget.lua:16781
+#: lib/bookshelf_widget.lua:15266 lib/bookshelf_widget.lua:16934
 msgid "%1 refused every format Bookshelf asked for"
 msgstr "%1 拒绝了 Bookshelf 请求的所有格式"
 
-#: lib/bookshelf_widget.lua:15115 lib/bookshelf_widget.lua:16783
+#: lib/bookshelf_widget.lua:15268 lib/bookshelf_widget.lua:16936
 msgid "%1 is limiting requests. Wait a minute and try again."
 msgstr "%1 正在限制请求频率，请稍等一分钟后重试。"
 
-#: lib/bookshelf_widget.lua:15116 lib/bookshelf_widget.lua:16784
-#: lib/bookshelf_widget.lua:17588
+#: lib/bookshelf_widget.lua:15269 lib/bookshelf_widget.lua:16937
+#: lib/bookshelf_widget.lua:17741
 msgid "Couldn't reach %1"
 msgstr "无法连接 %1"
 
-#: lib/bookshelf_widget.lua:15149 lib/bookshelf_widget.lua:15179
+#: lib/bookshelf_widget.lua:15302 lib/bookshelf_widget.lua:15332
 msgid "No books found in %1"
 msgstr "在 %1 中未找到书籍"
 
-#: lib/bookshelf_widget.lua:15178
+#: lib/bookshelf_widget.lua:15331
 msgid "No downloadable titles in this category."
 msgstr "此类别中没有可下载的书籍。"
 
-#: lib/bookshelf_widget.lua:15374 lib/bookshelf_widget.lua:16728
-#: lib/bookshelf_widget.lua:17390 lib/bookshelf_widget.lua:17523
-#: lib/bookshelf_widget.lua:23090
+#: lib/bookshelf_widget.lua:15527 lib/bookshelf_widget.lua:16881
+#: lib/bookshelf_widget.lua:17543 lib/bookshelf_widget.lua:17676
+#: lib/bookshelf_widget.lua:23347
 msgid "The catalog is busy. Try again in a moment."
 msgstr "目录忙碌中，请稍后再试。"
 
-#: lib/bookshelf_widget.lua:16624
+#: lib/bookshelf_widget.lua:16777
 msgid "This catalog does not offer search."
 msgstr "此目录不支持搜索。"
 
-#: lib/bookshelf_widget.lua:16625
+#: lib/bookshelf_widget.lua:16778
 msgid "Load the catalog first, then search it."
 msgstr "请先加载目录，再进行搜索。"
 
-#: lib/bookshelf_widget.lua:16672
+#: lib/bookshelf_widget.lua:16825
 msgid "Search my library"
 msgstr "搜索我的书库"
 
-#: lib/bookshelf_widget.lua:16678
+#: lib/bookshelf_widget.lua:16831
 msgid "Search %1"
 msgstr "搜索 %1"
 
-#: lib/bookshelf_widget.lua:16751
+#: lib/bookshelf_widget.lua:16904
 msgid "Searching %1…"
 msgstr "正在搜索 %1…"
 
-#: lib/bookshelf_widget.lua:16813
+#: lib/bookshelf_widget.lua:16966
 msgid "Search: \"%1\""
 msgstr "搜索：「%1」"
 
-#: lib/bookshelf_widget.lua:17046 lib/bookshelf_widget.lua:18005
+#: lib/bookshelf_widget.lua:17199 lib/bookshelf_widget.lua:18147
 msgid "(no title)"
 msgstr "(无标题)"
 
-#: lib/bookshelf_widget.lua:17180
+#: lib/bookshelf_widget.lua:17333
 msgid "Download"
 msgstr "下载"
 
-#: lib/bookshelf_widget.lua:17180
+#: lib/bookshelf_widget.lua:17333
 msgid "Download %1"
 msgstr "下载 %1"
 
-#: lib/bookshelf_widget.lua:17186
+#: lib/bookshelf_widget.lua:17339
 msgid "Recommended"
 msgstr "推荐"
 
-#: lib/bookshelf_widget.lua:17188
+#: lib/bookshelf_widget.lua:17341
 msgid "Alternatives"
 msgstr "其他选择"
 
-#: lib/bookshelf_widget.lua:17203
+#: lib/bookshelf_widget.lua:17356
 msgid "No formats this device can open"
 msgstr "没有此设备可打开的格式"
 
-#: lib/bookshelf_widget.lua:17415
+#: lib/bookshelf_widget.lua:17568
 msgid "Set a home folder in KOReader before downloading books."
 msgstr "下载书籍前，请先在 KOReader 中设置主页文件夹。"
 
-#: lib/bookshelf_widget.lua:17472
+#: lib/bookshelf_widget.lua:17625
 msgid "%1 already exists. Download it again?"
 msgstr "%1 已存在。重新下载？"
 
-#: lib/bookshelf_widget.lua:17473
+#: lib/bookshelf_widget.lua:17626
 msgid "Overwrite"
 msgstr "覆盖"
 
-#: lib/bookshelf_widget.lua:17548
+#: lib/bookshelf_widget.lua:17701
 msgid "Downloading %1… (tap to cancel)"
 msgstr "正在下载 %1…（点击取消）"
 
-#: lib/bookshelf_widget.lua:17560
+#: lib/bookshelf_widget.lua:17713
 msgid "Download cancelled"
 msgstr "下载已取消"
 
-#: lib/bookshelf_widget.lua:17578
+#: lib/bookshelf_widget.lua:17731
 msgid ""
 "Insecure redirect refused.\n"
 "\n"
@@ -4629,350 +4823,363 @@ msgstr ""
 "\n"
 "许多应用都会拒绝此类请求，因为它可能是降级攻击。"
 
-#: lib/bookshelf_widget.lua:17687
+#: lib/bookshelf_widget.lua:17840
 msgid "%1 downloaded. Read it now?"
 msgstr "%1 已下载。现在阅读？"
 
-#: lib/bookshelf_widget.lua:17688 lib/bookshelf_widget.lua:18110
+#: lib/bookshelf_widget.lua:17841 lib/bookshelf_widget.lua:18252
 msgid "Read"
 msgstr "已读"
 
-#: lib/bookshelf_widget.lua:17696
+#: lib/bookshelf_widget.lua:17849
 msgid "Not now"
 msgstr "暂不"
 
-#: lib/bookshelf_widget.lua:17964
+#: lib/bookshelf_widget.lua:18101
 msgid "%1 bookmarks"
 msgstr "%1 个书签"
 
-#: lib/bookshelf_widget.lua:17964
+#: lib/bookshelf_widget.lua:18101
 msgid "1 bookmark"
 msgstr "1 个书签"
 
-#: lib/bookshelf_widget.lua:18125
+#: lib/bookshelf_widget.lua:18267
 msgid "Last read"
 msgstr "上次阅读"
 
-#: lib/bookshelf_widget.lua:19185
+#: lib/bookshelf_widget.lua:19120 lib/bookshelf_widget.lua:21614
+#: lib/bookshelf_widget.lua:21619
+msgid "My review"
+msgstr "我的评论"
+
+#: lib/bookshelf_widget.lua:19379
 msgid "(from Hardcover)"
 msgstr "(来自 Hardcover)"
 
-#: lib/bookshelf_widget.lua:19363
+#: lib/bookshelf_widget.lua:19521
 msgid "Show info"
 msgstr "显示信息"
 
-#: lib/bookshelf_widget.lua:19424
+#: lib/bookshelf_widget.lua:19582
 msgid "Removed from history"
 msgstr "已从历史记录中移除"
 
-#: lib/bookshelf_widget.lua:19478
+#: lib/bookshelf_widget.lua:19636
 msgid "Delete file permanently?"
 msgstr "永久删除文件？"
 
-#: lib/bookshelf_widget.lua:19487
+#: lib/bookshelf_widget.lua:19645
 msgid "Failed to delete file."
 msgstr "删除文件失败。"
 
-#: lib/bookshelf_widget.lua:19509
+#: lib/bookshelf_widget.lua:19667
 msgid "Metadata refresh queued"
 msgstr "元数据刷新队列"
 
-#: lib/bookshelf_widget.lua:19511
+#: lib/bookshelf_widget.lua:19669
 msgid "Select"
 msgstr "选择"
 
-#: lib/bookshelf_widget.lua:19524
+#: lib/bookshelf_widget.lua:19682
 msgid "Move…"
 msgstr "移动…"
 
-#: lib/bookshelf_widget.lua:19656
+#: lib/bookshelf_widget.lua:19816
 msgid "Reading status"
 msgstr "阅读状态"
 
-#: lib/bookshelf_widget.lua:19797
+#: lib/bookshelf_widget.lua:19957
 msgid "Your rating"
 msgstr "你的评分"
 
-#: lib/bookshelf_widget.lua:19934
+#: lib/bookshelf_widget.lua:20099
 msgid "File & metadata"
 msgstr "文件与元数据"
 
-#: lib/bookshelf_widget.lua:19947
+#: lib/bookshelf_widget.lua:20112
 msgid "Not linked"
 msgstr "未关联"
 
-#: lib/bookshelf_widget.lua:19948
+#: lib/bookshelf_widget.lua:20113
 msgid "Link…"
 msgstr "关联…"
 
-#: lib/bookshelf_widget.lua:19960
+#: lib/bookshelf_widget.lua:20125
 msgid "Plugin actions"
 msgstr "插件操作"
 
-#: lib/bookshelf_widget.lua:20107
+#: lib/bookshelf_widget.lua:20272
 #, lua-format
 msgid "%d ratings"
 msgstr "%d 个评分"
 
-#: lib/bookshelf_widget.lua:20110
+#: lib/bookshelf_widget.lua:20275
 #, lua-format
 msgid "%d reviews"
 msgstr "%d 条评论"
 
-#: lib/bookshelf_widget.lua:20271
+#: lib/bookshelf_widget.lua:20403
+msgid "Write…"
+msgstr "撰写…"
+
+#: lib/bookshelf_widget.lua:20425
+msgid "You haven't reviewed this book yet."
+msgstr "你还没有评论过这本书。"
+
+#: lib/bookshelf_widget.lua:20505
 msgid "Choose from device"
 msgstr "从设备选择"
 
-#: lib/bookshelf_widget.lua:20275
+#: lib/bookshelf_widget.lua:20509
 msgid "Search online…"
 msgstr "在线搜索…"
 
-#: lib/bookshelf_widget.lua:20339
+#: lib/bookshelf_widget.lua:20573
 msgid "No covers stored yet. Use Search online or Choose from device."
 msgstr "尚未存储封面。请使用在线搜索或从设备选择。"
 
-#: lib/bookshelf_widget.lua:20487
+#: lib/bookshelf_widget.lua:20721
 msgid "That cover is unavailable"
 msgstr "该封面不可用"
 
-#: lib/bookshelf_widget.lua:20494
+#: lib/bookshelf_widget.lua:20728
 msgid "Couldn't set the cover"
 msgstr "无法设置封面"
 
-#: lib/bookshelf_widget.lua:20549
+#: lib/bookshelf_widget.lua:20783
 msgid "Cover updated"
 msgstr "封面已更新"
 
-#: lib/bookshelf_widget.lua:20549
+#: lib/bookshelf_widget.lua:20783
 msgid "Reverted to embedded cover"
 msgstr "已还原为内嵌封面"
 
-#: lib/bookshelf_widget.lua:20562
+#: lib/bookshelf_widget.lua:20796
 msgid "Choose cover image"
 msgstr "选择封面图片"
 
-#: lib/bookshelf_widget.lua:20593
+#: lib/bookshelf_widget.lua:20827
 msgid "No cover matches found"
 msgstr "未找到匹配的封面"
 
-#: lib/bookshelf_widget.lua:20602
+#: lib/bookshelf_widget.lua:20836
 msgid "Cover search failed"
 msgstr "封面搜索失败"
 
-#: lib/bookshelf_widget.lua:20687
+#: lib/bookshelf_widget.lua:20921
 msgid "Author(s)"
 msgstr "作者"
 
-#: lib/bookshelf_widget.lua:20866
+#: lib/bookshelf_widget.lua:21100
 msgid "Calibre"
 msgstr "Calibre"
 
-#: lib/bookshelf_widget.lua:20917 lib/bookshelf_widget.lua:20997
-#: lib/bookshelf_widget.lua:21042
+#: lib/bookshelf_widget.lua:21151 lib/bookshelf_widget.lua:21231
+#: lib/bookshelf_widget.lua:21276
 msgid "New tag"
 msgstr "新建标签"
 
-#: lib/bookshelf_widget.lua:21018
+#: lib/bookshelf_widget.lua:21252
 msgid "Edit tags"
 msgstr "编辑标签"
 
-#: lib/bookshelf_widget.lua:21109
+#: lib/bookshelf_widget.lua:21343
 msgid "Rename tag"
 msgstr "重命名标签"
 
-#: lib/bookshelf_widget.lua:21147
+#: lib/bookshelf_widget.lua:21381
 msgid "Remove the tag \"%1\" from this book?"
 msgstr "要将标签“%1”从这本书中移除吗？"
 
-#: lib/bookshelf_widget.lua:21170
+#: lib/bookshelf_widget.lua:21404
 msgid "Edit tag: "
 msgstr "编辑标签："
 
-#: lib/bookshelf_widget.lua:21259
+#: lib/bookshelf_widget.lua:21493
 msgid "Not in any collection."
 msgstr "未加入任何书单。"
 
-#: lib/bookshelf_widget.lua:21349
+#: lib/bookshelf_widget.lua:21583
 msgid "Reviews couldn't be fetched."
 msgstr "无法获取评论。"
 
-#: lib/bookshelf_widget.lua:21366
+#: lib/bookshelf_widget.lua:21599
 msgid "Tap Refresh to load reviews."
 msgstr "点击「刷新」以加载评论。"
 
-#: lib/bookshelf_widget.lua:21369
+#: lib/bookshelf_widget.lua:21613 lib/bookshelf_widget.lua:21619
 msgid "Reviews"
 msgstr "评论"
 
-#: lib/bookshelf_widget.lua:21395
+#: lib/bookshelf_widget.lua:21651
 msgid "Cover"
 msgstr "封面"
 
-#: lib/bookshelf_widget.lua:21593
+#: lib/bookshelf_widget.lua:21849
 msgid "Hardcover metadata refreshed"
 msgstr "Hardcover 元数据已刷新"
 
-#: lib/bookshelf_widget.lua:21595
+#: lib/bookshelf_widget.lua:21851
 msgid "Hardcover refresh failed"
 msgstr "Hardcover 刷新失败"
 
-#: lib/bookshelf_widget.lua:21607
+#: lib/bookshelf_widget.lua:21863
 msgid "Auto link"
 msgstr "自动关联"
 
-#: lib/bookshelf_widget.lua:21607
+#: lib/bookshelf_widget.lua:21863
 msgid "Auto link (best guess)"
 msgstr "自动关联（智能匹配）"
 
-#: lib/bookshelf_widget.lua:21612
+#: lib/bookshelf_widget.lua:21868
 msgid "No embedded Hardcover identifier found"
 msgstr "未检测到内嵌的 Hardcover 标识"
 
-#: lib/bookshelf_widget.lua:21615 lib/bookshelf_widget.lua:21650
+#: lib/bookshelf_widget.lua:21871 lib/bookshelf_widget.lua:21906
 msgid "Hardcover book linked"
 msgstr "已关联 Hardcover 书籍"
 
-#: lib/bookshelf_widget.lua:21622
+#: lib/bookshelf_widget.lua:21878
 msgid "No confident Hardcover match -- try Manual link"
 msgstr "未找到高匹配度的 Hardcover 书籍，请尝试手动关联"
 
-#: lib/bookshelf_widget.lua:21623 lib/bookshelf_widget.lua:21657
+#: lib/bookshelf_widget.lua:21879 lib/bookshelf_widget.lua:21913
 msgid "Hardcover search failed"
 msgstr "Hardcover 搜索失败"
 
-#: lib/bookshelf_widget.lua:21627
+#: lib/bookshelf_widget.lua:21883
 msgid "Hardcover book linked (best guess)"
 msgstr "已关联 Hardcover 书籍（智能匹配）"
 
-#: lib/bookshelf_widget.lua:21634
+#: lib/bookshelf_widget.lua:21890
 msgid "Manual link"
 msgstr "手动关联"
 
-#: lib/bookshelf_widget.lua:21642 lib/bookshelf_widget.lua:21676
+#: lib/bookshelf_widget.lua:21898 lib/bookshelf_widget.lua:21932
 msgid "Hardcover link failed"
 msgstr "Hardcover 关联失败"
 
-#: lib/bookshelf_widget.lua:21647
+#: lib/bookshelf_widget.lua:21903
 msgid "Book linked, but metadata refresh failed: %1"
 msgstr "书籍已关联，但元数据刷新失败：%1"
 
-#: lib/bookshelf_widget.lua:21664
+#: lib/bookshelf_widget.lua:21920
 msgid "Select edition"
 msgstr "选择版本"
 
-#: lib/bookshelf_widget.lua:21669
+#: lib/bookshelf_widget.lua:21925
 msgid "Link a Hardcover book first"
 msgstr "请先关联 Hardcover 书籍"
 
-#: lib/bookshelf_widget.lua:21681
+#: lib/bookshelf_widget.lua:21937
 msgid "Edition linked, but metadata refresh failed: %1"
 msgstr "版本已关联，但元数据刷新失败：%1"
 
-#: lib/bookshelf_widget.lua:21684
+#: lib/bookshelf_widget.lua:21940
 msgid "Hardcover edition linked"
 msgstr "已关联 Hardcover 版本"
 
-#: lib/bookshelf_widget.lua:21689
+#: lib/bookshelf_widget.lua:21945
 msgid "Hardcover edition search failed"
 msgstr "Hardcover 版本搜索失败"
 
-#: lib/bookshelf_widget.lua:21696
+#: lib/bookshelf_widget.lua:21952
 msgid "Clear link"
 msgstr "清除关联"
 
-#: lib/bookshelf_widget.lua:21702
+#: lib/bookshelf_widget.lua:21958
 msgid "Hardcover link cleared"
 msgstr "Hardcover 关联已清除"
 
-#: lib/bookshelf_widget.lua:21704
+#: lib/bookshelf_widget.lua:21960
 msgid "Could not clear Hardcover link"
 msgstr "无法清除 Hardcover  关联"
 
-#: lib/bookshelf_widget.lua:21730
+#: lib/bookshelf_widget.lua:21986
 msgid "Use Hardcover image"
 msgstr "使用 Hardcover 图片"
 
-#: lib/bookshelf_widget.lua:21740
+#: lib/bookshelf_widget.lua:21996
 msgid "Could not update"
 msgstr "无法更新"
 
-#: lib/bookshelf_widget.lua:21757
+#: lib/bookshelf_widget.lua:22013
 msgid "Use Hardcover description"
 msgstr "使用 Hardcover 简介"
 
-#: lib/bookshelf_widget.lua:21775
+#: lib/bookshelf_widget.lua:22031
 msgid "Linked: %1"
 msgstr "已关联：%1"
 
-#: lib/bookshelf_widget.lua:21776
+#: lib/bookshelf_widget.lua:22032
 msgid "Not linked to Hardcover"
 msgstr "未关联 Hardcover"
 
-#: lib/bookshelf_widget.lua:22064
+#: lib/bookshelf_widget.lua:22320
 msgid "No books to select here."
 msgstr "此处没有可选中的书籍。"
 
-#: lib/bookshelf_widget.lua:22076
+#: lib/bookshelf_widget.lua:22332
 msgid "Selected the first %1 books (the most one selection holds)."
 msgstr "已选中前 %1 本书 (单次选择的上限)。"
 
-#: lib/bookshelf_widget.lua:22081
+#: lib/bookshelf_widget.lua:22337
 msgid "Selected %1 books."
 msgstr "已选中 %1 本书。"
 
-#: lib/bookshelf_widget.lua:22154 lib/bookshelf_widget.lua:22229
+#: lib/bookshelf_widget.lua:22410 lib/bookshelf_widget.lua:22485
 msgid "this folder"
 msgstr "此文件夹"
 
-#: lib/bookshelf_widget.lua:22162
+#: lib/bookshelf_widget.lua:22418
 msgid "Already the start folder"
 msgstr "已是起始文件夹"
 
-#: lib/bookshelf_widget.lua:22166
+#: lib/bookshelf_widget.lua:22422
 msgid "Start this shelf at \"%1\""
 msgstr "将起始位置设为「%1」"
 
-#: lib/bookshelf_widget.lua:22176
+#: lib/bookshelf_widget.lua:22432
 msgid "Back to the top (now starts at \"%1\")"
 msgstr "返回顶层 (目前起始于「%1」)"
 
-#: lib/bookshelf_widget.lua:22181
+#: lib/bookshelf_widget.lua:22437
 msgid "Back to the top of the catalog"
 msgstr "返回目录顶层"
 
-#: lib/bookshelf_widget.lua:22230
+#: lib/bookshelf_widget.lua:22486
 msgid "this series"
 msgstr "这个系列"
 
-#: lib/bookshelf_widget.lua:22231
+#: lib/bookshelf_widget.lua:22487
 msgid "this author"
 msgstr "这个作者"
 
-#: lib/bookshelf_widget.lua:22232
+#: lib/bookshelf_widget.lua:22488
 msgid "this genre"
 msgstr "这个题材"
 
-#: lib/bookshelf_widget.lua:22233
+#: lib/bookshelf_widget.lua:22489
 msgid "this collection"
 msgstr "这个书单"
 
-#: lib/bookshelf_widget.lua:22234
+#: lib/bookshelf_widget.lua:22490
 msgid "this format"
 msgstr "这个格式"
 
-#: lib/bookshelf_widget.lua:22235
+#: lib/bookshelf_widget.lua:22491
 msgid "this rating"
 msgstr "这个评分"
 
-#: lib/bookshelf_widget.lua:22236
+#: lib/bookshelf_widget.lua:22492
 msgid "this language"
 msgstr "这个语言"
 
-#: lib/bookshelf_widget.lua:22237
+#: lib/bookshelf_widget.lua:22493
 msgid "this group"
 msgstr "这个分组"
 
-#: lib/bookshelf_widget.lua:22259
+#: lib/bookshelf_widget.lua:22515
 #, lua-format
 msgid ""
 "Pin %s to the shelf menu for quick access,\n"
@@ -4981,7 +5188,7 @@ msgstr ""
 "将「%s」固定到书架菜单上以便快速访问，\n"
 "或者将 %d 本书从你的选择中移除。"
 
-#: lib/bookshelf_widget.lua:22265
+#: lib/bookshelf_widget.lua:22521
 #, lua-format
 msgid ""
 "Pin %s to the shelf menu for quick access,\n"
@@ -4990,7 +5197,7 @@ msgstr ""
 "将「%s」固定到书架菜单上以便快速访问，\n"
 "或者可再新增 %d 个 / 移除已选中的 %d 个。"
 
-#: lib/bookshelf_widget.lua:22269
+#: lib/bookshelf_widget.lua:22525
 #, lua-format
 msgid ""
 "Pin %s to the shelf menu for quick access,\n"
@@ -4999,88 +5206,92 @@ msgstr ""
 "将「%s」固定到书架菜单上以便快速访问，\n"
 "或将其下 %d 本图书加入选中列表以批量编辑。"
 
-#: lib/bookshelf_widget.lua:22346
+#: lib/bookshelf_widget.lua:22602
 msgid "Pin"
 msgstr "固定"
 
-#: lib/bookshelf_widget.lua:22364
+#: lib/bookshelf_widget.lua:22620
 #, lua-format
 msgid "Add %d more"
 msgstr "再添加 %d 本"
 
-#: lib/bookshelf_widget.lua:22365
+#: lib/bookshelf_widget.lua:22621
 #, lua-format
 msgid "Select %d"
 msgstr "选择 %d 本"
 
-#: lib/bookshelf_widget.lua:22374
+#: lib/bookshelf_widget.lua:22630
 #, lua-format
 msgid "Remove %d"
 msgstr "删除 %d 个"
 
-#: lib/bookshelf_widget.lua:22394
+#: lib/bookshelf_widget.lua:22650
 msgid "Set folder image…"
 msgstr "设置文件夹图片…"
 
-#: lib/bookshelf_widget.lua:22401
+#: lib/bookshelf_widget.lua:22657
 msgid "Clear folder image"
 msgstr "清除文件夹图片"
 
-#: lib/bookshelf_widget.lua:22416
+#: lib/bookshelf_widget.lua:22672
 msgid "Move folder…"
 msgstr "移动文件夹…"
 
-#: lib/bookshelf_widget.lua:22422
+#: lib/bookshelf_widget.lua:22678
 msgid "Rename folder…"
 msgstr "重命名文件夹…"
 
-#: lib/bookshelf_widget.lua:22438 lib/bookshelf_widget.lua:22449
+#: lib/bookshelf_widget.lua:22694 lib/bookshelf_widget.lua:22705
 msgid "Set author image…"
 msgstr "设置作者图片…"
 
-#: lib/bookshelf_widget.lua:22439 lib/bookshelf_widget.lua:22450
+#: lib/bookshelf_widget.lua:22695 lib/bookshelf_widget.lua:22706
 msgid "Set series image…"
 msgstr "设置系列图片…"
 
-#: lib/bookshelf_widget.lua:22440 lib/bookshelf_widget.lua:22451
+#: lib/bookshelf_widget.lua:22696 lib/bookshelf_widget.lua:22707
 msgid "Set genre image…"
 msgstr "设定题材图片…"
 
-#: lib/bookshelf_widget.lua:22441 lib/bookshelf_widget.lua:22452
+#: lib/bookshelf_widget.lua:22697 lib/bookshelf_widget.lua:22708
 msgid "Set collection image…"
 msgstr "设置书单图片…"
 
-#: lib/bookshelf_widget.lua:22442 lib/bookshelf_widget.lua:22455
+#: lib/bookshelf_widget.lua:22698 lib/bookshelf_widget.lua:22711
 msgid "Clear author image"
 msgstr "清除作者图片"
 
-#: lib/bookshelf_widget.lua:22443 lib/bookshelf_widget.lua:22456
+#: lib/bookshelf_widget.lua:22699 lib/bookshelf_widget.lua:22712
 msgid "Clear series image"
 msgstr "清除系列图片"
 
-#: lib/bookshelf_widget.lua:22444 lib/bookshelf_widget.lua:22457
+#: lib/bookshelf_widget.lua:22700 lib/bookshelf_widget.lua:22713
 msgid "Clear genre image"
 msgstr "清除题材图片"
 
-#: lib/bookshelf_widget.lua:22445 lib/bookshelf_widget.lua:22458
+#: lib/bookshelf_widget.lua:22701 lib/bookshelf_widget.lua:22714
 msgid "Clear collection image"
 msgstr "清除书单图片"
 
-#: lib/bookshelf_widget.lua:22518
+#: lib/bookshelf_widget.lua:22774
 msgid "Choose folder image"
 msgstr "选择文件夹图片"
 
-#: lib/bookshelf_widget.lua:22557
+#: lib/bookshelf_widget.lua:22813
 msgid "Choose image"
 msgstr "选择图像"
 
-#: lib/bookshelf_widget.lua:22873
+#: lib/bookshelf_widget.lua:23129
 msgid "Search library"
 msgstr "搜索库"
 
-#: lib/bookshelf_widget.lua:22875
+#: lib/bookshelf_widget.lua:23132
 msgid "title, author, series, genre…"
 msgstr "标题，作者，系列，题材…"
+
+#: lib/bookshelf_widget.lua:23132
+msgid "title, author, series…"
+msgstr "书名、作者、系列…"
 
 #: main.lua:250
 msgid "Importing calibre metadata…"
@@ -5224,11 +5435,11 @@ msgstr "Bookshelf：打开微模块"
 msgid "Bookshelf: go to home screen"
 msgstr "Bookshelf：回到主屏幕"
 
-#: main.lua:2254
+#: main.lua:2259
 msgid "Branch name (leave empty for stable)"
 msgstr "分支名称 (留空为稳定版本)"
 
-#: main.lua:2291
+#: main.lua:2296
 msgid ""
 "Book metadata scanner not available.\n"
 "Install the CoverBrowser plugin to enable it."
@@ -5236,65 +5447,43 @@ msgstr ""
 "图书元数据扫描器不可用。\n"
 "安装 CoverBrowser 插件以启用它。"
 
-#: main.lua:2403
-msgid "Every book already has a page count."
-msgstr "每本书都已有页数。"
-
-#: main.lua:2465
+#: main.lua:2436
 msgid "Page count report"
 msgstr "页数报告"
 
+#: main.lua:2449
+msgid "Page counts are already being extracted."
+msgstr "正在提取页数。"
+
+#: main.lua:2477
+msgid "Counting pages in book %1 of %2"
+msgstr "正在统计页数：第 %1 本，共 %2 本"
+
 #: main.lua:2487
-msgid "Checking publisher page numbers… %1 of %2"
-msgstr "正在检查出版商页数… %1 / %2"
+msgid "Looking up page numbers…"
+msgstr "正在查找页码…"
 
-#: main.lua:2553
-msgid ""
-"%1 books have no page source.\n"
-"\n"
-"Paginate them the slow way?\n"
-"\n"
-"Each one is opened in the background; this can take a while. You can cancel between books by tapping the progress message."
-msgstr ""
-"有 %1 本书没有页数来源。\n"
-"\n"
-"是否用较慢的方式统计它们的页数？\n"
-"\n"
-"每本书都会在后台打开，可能耗时较长。你可以在两本书之间点击进度提示取消。"
+#: main.lua:2532
+msgid "Every book already has a page count."
+msgstr "每本书都已有页数。"
 
-#: main.lua:2554
-msgid "Paginate"
-msgstr "统计页数"
-
-#: main.lua:2554
-msgid "Skip"
-msgstr "跳过"
-
-#: main.lua:2596
-msgid ""
-"Paginating… %1 of %2\n"
-"%3"
-msgstr ""
-"正在统计页数… %1 / %2\n"
-"%3"
-
-#: main.lua:2655
+#: main.lua:2798
 msgid "No linked books to refresh"
 msgstr "没有可刷新的已关联书籍"
 
-#: main.lua:2672
+#: main.lua:2815
 msgid "Refreshing Hardcover details… %1 of %2"
 msgstr "正在刷新 Hardcover 详情… %1 / %2"
 
-#: main.lua:2705
+#: main.lua:2848
 msgid "Hardcover details refreshed for %1 of %2 linked books."
 msgstr "Hardcover 详情已刷新：成功更新 %1 本，共 %2 本关联书籍。"
 
-#: main.lua:2727
+#: main.lua:2870
 msgid "This will clear the development branch setting and install the latest stable release of Bookshelf, then restart KOReader. Continue?"
 msgstr "这样可以清除开发分支设置，安装最新的 Bookshelf 稳定发布版本，之后会重启 KOReader。是否继续？"
 
-#: main.lua:2749
+#: main.lua:2892
 msgid "Bookshelf update available: v"
 msgstr "Bookshelf 可更新：v"
 
@@ -5353,6 +5542,34 @@ msgstr "显示日期"
 #: micromodules/analogue_clock.lua:208 micromodules/clock.lua:62
 msgid "Device clock. Works offline."
 msgstr "设备时钟。可离线使用。"
+
+#: micromodules/battery.lua:58
+msgid "charged"
+msgstr "已充满"
+
+#: micromodules/battery.lua:59
+msgid "charging"
+msgstr "充电中"
+
+#: micromodules/battery.lua:60
+msgid "remaining"
+msgstr "剩余"
+
+#: micromodules/battery.lua:63
+msgid "Cover: %1% (charging)"
+msgstr "保护套：%1% (充电中)"
+
+#: micromodules/battery.lua:64
+msgid "Cover: %1%"
+msgstr "保护套：%1%"
+
+#: micromodules/battery.lua:72
+msgid "From the device. Works offline."
+msgstr "来自设备，无需联网。"
+
+#: micromodules/battery.lua:82
+msgid "Battery level unavailable"
+msgstr "无法获取电量"
 
 #: micromodules/clock.lua:47 micromodules/clock.lua:61
 msgid "Clock"
@@ -5543,43 +5760,111 @@ msgstr "%1 / %2 • 点击查看更多…"
 msgid "%1 / %2 • Tap for next event →"
 msgstr "%1 / %2 • 点击查看下一事件 →"
 
-#: micromodules/quote_of_day.lua:73 micromodules/quote_of_day.lua:91
-msgid "Quote of the day"
-msgstr "每日一句"
+#: micromodules/quote_of_day.lua:98
+msgid "Quotes from"
+msgstr "摘录来源"
 
-#: micromodules/quote_of_day.lua:78
-msgid "Once per day"
-msgstr "每天一次"
+#: micromodules/quote_of_day.lua:104 micromodules/quote_of_day.lua:166
+msgid "Your highlights"
+msgstr "你的标注"
 
-#: micromodules/quote_of_day.lua:79
+#: micromodules/quote_of_day.lua:105 micromodules/quote_of_day.lua:166
+msgid "Quotes files"
+msgstr "摘录文件"
+
+#: micromodules/quote_of_day.lua:107
+msgid "Quotes files go in %1"
+msgstr "摘录文件放在 %1"
+
+#: micromodules/quote_of_day.lua:127
+msgid "Books left out"
+msgstr "排除的书籍"
+
+#: micromodules/quote_of_day.lua:128
+msgid "Their highlights are never the quote of the day. Untick one to bring it back."
+msgstr "这些书的标注不会成为每日一句。取消勾选即可恢复。"
+
+#: micromodules/quote_of_day.lua:132
+msgid "Leave out %1 (today's quote)"
+msgstr "排除 %1 (今日摘录)"
+
+#: micromodules/quote_of_day.lua:146
+msgid "Highlight colors"
+msgstr "标注颜色"
+
+#: micromodules/quote_of_day.lua:147
+msgid "Only ticked colors are used."
+msgstr "仅使用已勾选的颜色。"
+
+#: micromodules/quote_of_day.lua:167 micromodules/quote_of_day.lua:176
 msgid "Every menu open"
 msgstr "每次打开菜单"
 
-#: micromodules/quote_of_day.lua:80 micromodules/reading_streak.lua:83
-msgid "Tap action"
-msgstr "点击操作"
+#: micromodules/quote_of_day.lua:167 micromodules/quote_of_day.lua:176
+msgid "Once per day"
+msgstr "每天一次"
 
-#: micromodules/quote_of_day.lua:81
+#: micromodules/quote_of_day.lua:168 micromodules/quote_of_day.lua:181
 msgid "New quote"
 msgstr "换一句"
 
-#: micromodules/quote_of_day.lua:82
+#: micromodules/quote_of_day.lua:168 micromodules/quote_of_day.lua:181
 msgid "Open bookmark list"
 msgstr "打开书签列表"
 
-#: micromodules/quote_of_day.lua:83
+#: micromodules/quote_of_day.lua:169 micromodules/quote_of_day.lua:182
 msgid "Open book at quote"
 msgstr "在引文处打开书籍"
 
-#: micromodules/quote_of_day.lua:92
+#: micromodules/quote_of_day.lua:172
+msgid "Quotes from: %1"
+msgstr "摘录来源：%1"
+
+#: micromodules/quote_of_day.lua:173
+msgid "Refresh: %1"
+msgstr "刷新：%1"
+
+#: micromodules/quote_of_day.lua:178
+msgid "Tap: %1"
+msgstr "点击：%1"
+
+#: micromodules/quote_of_day.lua:180 micromodules/reading_streak.lua:83
+msgid "Tap action"
+msgstr "点击操作"
+
+#: micromodules/quote_of_day.lua:187
+msgid "Books left out: %1"
+msgstr "排除的书籍：%1"
+
+#: micromodules/quote_of_day.lua:193
+msgid "all"
+msgstr "全部"
+
+#: micromodules/quote_of_day.lua:194
+msgid "%1 of %2"
+msgstr "%1 / %2"
+
+#: micromodules/quote_of_day.lua:195
+msgid "Highlight colors: %1"
+msgstr "标注颜色：%1"
+
+#: micromodules/quote_of_day.lua:200 micromodules/quote_of_day.lua:210
+msgid "Quote of the day"
+msgstr "每日一句"
+
+#: micromodules/quote_of_day.lua:211
 msgid "From your highlights. Works offline."
 msgstr "来自你的标注。可离线使用。"
 
-#: micromodules/quote_of_day.lua:117
+#: micromodules/quote_of_day.lua:236
 msgid "No highlights yet"
 msgstr "暂无标注过的句子"
 
-#: micromodules/quote_of_day.lua:172
+#: micromodules/quote_of_day.lua:237
+msgid "No quotes yet"
+msgstr "还没有摘录"
+
+#: micromodules/quote_of_day.lua:296
 msgid "No bookmark list for this book"
 msgstr "此书没有书签列表"
 
@@ -5675,7 +5960,7 @@ msgstr "9 月"
 msgid "Custom..."
 msgstr "自定义…"
 
-#: micromodules/reading_goal.lua:380 micromodules/reading_goal.lua:531
+#: micromodules/reading_goal.lua:380 micromodules/reading_goal.lua:498
 msgid "Reading goals"
 msgstr "阅读目标"
 
@@ -5764,11 +6049,11 @@ msgstr "还差 %1"
 msgid "%1 months left"
 msgstr "还剩 %1 个月"
 
-#: micromodules/reading_goal.lua:532
+#: micromodules/reading_goal.lua:499
 msgid "From your reading stats. Works offline."
 msgstr "来自你的阅读统计。可离线使用。"
 
-#: micromodules/reading_goal.lua:550 micromodules/reading_stats.lua:89
+#: micromodules/reading_goal.lua:517 micromodules/reading_stats.lua:89
 #: micromodules/reading_streak.lua:368
 msgid "Stats unavailable"
 msgstr "统计数据不可用"
@@ -6127,6 +6412,74 @@ msgstr "%1 分钟前更新"
 #: micromodules/weather.lua:460 micromodules/weather.lua:546
 msgid "Updated %1h ago"
 msgstr "%1 小时前更新"
+
+#~ msgid "Source: "
+#~ msgstr "数据来源："
+
+#~ msgid "Shelf source"
+#~ msgstr "书架来源"
+
+#~ msgid "Font-family fonts (serif, sans-serif, etc.) only resolve inside the Reader view. Pick a specific font file instead."
+#~ msgstr "Font-family字体 (衬线体、无衬线字体等) 只在阅读器视图内解析。选择一个指定的字体文件。"
+
+#~ msgid "(Default)"
+#~ msgstr "(默认)"
+
+#~ msgid ""
+#~ "Small pieces that stand in the gaps on a spine shelf. Drop PNG or SVG files into %1 and they appear there.\n"
+#~ "\n"
+#~ "How often they appear is set per shelf: long-press a shelf chip, then Shelf style."
+#~ msgstr ""
+#~ "立在书脊书架空隙处的小装饰。把 PNG 或 SVG 文件放进 %1，它们就会出现在那里。\n"
+#~ "\n"
+#~ "出现频率按书架单独设置：长按书架按钮，然后打开「书架样式」。"
+
+#~ msgid ""
+#~ "%1 ornaments installed.\n"
+#~ "\n"
+#~ "Folder:\n"
+#~ "%2\n"
+#~ "\n"
+#~ "How often they appear is set per shelf, in Shelf style."
+#~ msgstr ""
+#~ "已安装 %1 个摆件。\n"
+#~ "\n"
+#~ "文件夹：\n"
+#~ "%2\n"
+#~ "\n"
+#~ "出现频率按书架单独设置，位于「书架样式」中。"
+
+#~ msgid "Paginate books at the default layout, so spine thickness reflects their real length whatever font you read them in, and books you have never opened get a page count. Each book is rendered in the background; this can take a while on a large library."
+#~ msgstr "以默认版式为书籍分页，使书脊厚度反映书籍的实际长度，无论你用哪种字体阅读；从未打开过的书籍也能获得页数。每本书都在后台渲染；书库较大时可能需要较长时间。"
+
+#~ msgid "Checking publisher page numbers… %1 of %2"
+#~ msgstr "正在检查出版商页数… %1 / %2"
+
+#~ msgid ""
+#~ "%1 books have no page source.\n"
+#~ "\n"
+#~ "Paginate them the slow way?\n"
+#~ "\n"
+#~ "Each one is opened in the background; this can take a while. You can cancel between books by tapping the progress message."
+#~ msgstr ""
+#~ "有 %1 本书没有页数来源。\n"
+#~ "\n"
+#~ "是否用较慢的方式统计它们的页数？\n"
+#~ "\n"
+#~ "每本书都会在后台打开，可能耗时较长。你可以在两本书之间点击进度提示取消。"
+
+#~ msgid "Paginate"
+#~ msgstr "统计页数"
+
+#~ msgid "Skip"
+#~ msgstr "跳过"
+
+#~ msgid ""
+#~ "Paginating… %1 of %2\n"
+#~ "%3"
+#~ msgstr ""
+#~ "正在统计页数… %1 / %2\n"
+#~ "%3"
 
 #~ msgid "Paginate books that have never been opened, so spine thickness and page-count badges reflect their real length. Each book is rendered in the background; this can take a while on a large library."
 #~ msgstr "对从未打开过的书籍进行分页统计，让书脊厚度与页数徽标反映真实篇幅。每本书都会在后台渲染，书库较大时可能耗时较长。"

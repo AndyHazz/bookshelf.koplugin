@@ -8183,6 +8183,27 @@ end
 -- fast path exists to avoid. Deepening the walk wouldn't help either: it would
 -- find the thumbnail and hang a cover's ring on it, which is not where a list
 -- row's selection cue lives.
+-- _paintedRect(w) -> where w was last painted, or nil. A single-column list
+-- row is a ListRow with a painted .dimen; a multi-column one is a bare
+-- HorizontalGroup of them, which records no position of its own, so its rect
+-- is the union of its cells'. Without this every selection move on a
+-- two-column list found no rect and refreshed the whole screen (measured on
+-- a PW5: a book tap was a 100% refresh).
+local function _paintedRect(w)
+    if type(w) ~= "table" then return nil end
+    local dm = rawget(w, "dimen")
+    if dm and dm.x and dm.y and dm.w and dm.h and dm.h > 0 then return dm:copy() end
+    local out
+    for i = 1, #w do
+        local c = w[i]
+        local cd = type(c) == "table" and rawget(c, "dimen")
+        if cd and cd.x and cd.y and cd.w and cd.h and cd.h > 0 then
+            out = out and out:combine(cd) or cd:copy()
+        end
+    end
+    return out
+end
+
 function BookshelfWidget:_repaintListSelection(old_fp, new_fp)
     local _perf_t0 = _gettime()
     local d = self._shelf_dims
@@ -8212,11 +8233,12 @@ function BookshelfWidget:_repaintListSelection(old_fp, new_fp)
             local old = self:_swapListRowInPlace(r, row_items)
             if old then
                 old_rows[#old_rows + 1] = old
-                if old.dimen then
+                local rect = _paintedRect(old)
+                if rect then
                     if union_dimen then
-                        union_dimen = union_dimen:combine(old.dimen)
+                        union_dimen = union_dimen:combine(rect)
                     else
-                        union_dimen = old.dimen:copy()
+                        union_dimen = rect
                     end
                 end
             end
@@ -8257,7 +8279,10 @@ function BookshelfWidget:_repaintListSelection(old_fp, new_fp)
     -- in the gap below it, so a region computed from the rows alone would leave
     -- the changed rules unrefreshed.
     if union_dimen then
-        local g = self:_listRowGap()
+        -- Plus a couple of pixels: the rule's own thickness can sit a pixel
+        -- outside the gap (a stale pixel row above a two-column list's row in
+        -- the panel mirror, once this region replaced a full-screen refresh).
+        local g = self:_listRowGap() + Screen:scaleBySize(2)
         union_dimen.y = math.max(0, union_dimen.y - g)
         union_dimen.h = union_dimen.h + 2 * g
     end

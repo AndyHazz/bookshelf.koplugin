@@ -55,6 +55,18 @@ function Faded:paintTo(bb, x, y)
     self.dimen = Geom:new{ x = x, y = y, w = s.w, h = s.h }
 end
 
+-- A preview: renders the ornament at the size that makes its picture fill
+-- w x h, and blits just that part (src_x, src_y) of the render.
+local Cropped = Widget:extend{ placement = nil, night = false, src_x = 0, src_y = 0, w = 1, h = 1 }
+function Cropped:getSize() return Geom:new{ w = self.w, h = self.h } end
+function Cropped:paintTo(bb, x, y)
+    self.dimen = Geom:new{ x = x, y = y, w = self.w, h = self.h }
+    local p = self.placement
+    local img = O().render(p.entry, p.w, p.h, self.night)
+    if not img then return end
+    pcall(function() bb:alphablitFrom(img, x, y, self.src_x, self.src_y, self.w, self.h) end)
+end
+
 function Browser._renderCell(item, dimen)
     local e = item.entry
     local border = Size.border.default
@@ -62,22 +74,32 @@ function Browser._renderCell(item, dimen)
     local label_face = Font:getFace("cfont", 16)
     local state_face = Font:getFace("cfont", 13)
     local inner_w = dimen.w - 2 * (border + pad)
-    local label = TextWidget:new{ text = e.file, face = label_face, max_width = inner_w }
-    local state = TextWidget:new{
-        text = item.off and _("Off") or (item.pack_off and _("Pack off") or " "),
+    local label = TextWidget:new{ text = O().displayName(e), face = label_face, max_width = inner_w }
+    -- The state line is there only on a card that is off (its picture is
+    -- faded too); a card that is on gives its picture that room.
+    local state = (item.off or item.pack_off) and TextWidget:new{
+        text = item.off and _("Off") or _("Pack off"),
         face = state_face, fgcolor = Blitbuffer.COLOR_BLACK, max_width = inner_w,
-    }
-    local text_h = label:getSize().h + state:getSize().h + Space.padding.small
+    } or nil
+    local text_h = label:getSize().h + (state and state:getSize().h or 0)
     local box_h = math.max(1, dimen.h - 2 * (border + pad) - text_h - Space.padding.small)
-    -- Fit the ornament's own aspect into the box.
+    -- Preview the picture, not the file: the transparent room an ornament
+    -- carries for the shelf is cropped off, and what is left fits the box.
     local aspect = (e.aspect and e.aspect > 0) and e.aspect or 1
-    local pw, ph = inner_w, math.floor(inner_w / aspect)
-    if ph > box_h then ph = box_h; pw = math.floor(box_h * aspect) end
-    pw, ph = math.max(1, pw), math.max(1, ph)
-    local preview = O().Ornament:new{
-        placement = { entry = e, w = pw, h = ph },
+    local l, t, r, b = O().contentBox(e)
+    if not l then l, t, r, b = 0, 0, 1, 1 end
+    local cut_aspect = aspect * (r - l) / (b - t)
+    local cw, ch = inner_w, math.floor(inner_w / cut_aspect)
+    if ch > box_h then ch = box_h; cw = math.floor(box_h * cut_aspect) end
+    cw, ch = math.max(1, cw), math.max(1, ch)
+    local preview = Cropped:new{
+        placement = { entry = e, w = math.max(1, math.floor(cw / (r - l) + 0.5)),
+                      h = math.max(1, math.floor(ch / (b - t) + 0.5)) },
         night = Screen.night_mode and true or false,
+        src_x = 0, src_y = 0, w = cw, h = ch,
     }
+    preview.src_x = math.floor(l * preview.placement.w + 0.5)
+    preview.src_y = math.floor(t * preview.placement.h + 0.5)
     if item.off or item.pack_off then preview = Faded:new{ child = preview } end
     local inner_h = dimen.h - 2 * (border + pad)
     local body = VerticalGroup:new{

@@ -689,6 +689,14 @@ local function entryFor(path, relpath, file, pack)
              aspect = aspect, overhang = over, night_invert = night_invert }
 end
 
+-- displayName(entry) -> the file name without its extension (or the
+-- .invert flag before it), which is what a person called the ornament.
+function M.displayName(entry)
+    local f = entry.file or entry.name or ""
+    local base = f:gsub("%.[Ii][Nn][Vv][Ee][Rr][Tt]%.[Pp][Nn][Gg]$", ""):gsub("%.[Pp][Nn][Gg]$", ""):gsub("%.[Ss][Vv][Gg]$", "")
+    return base ~= "" and base or f
+end
+
 -- listAll() -> every ornament in the folder and its packs, switched off or
 -- not, sorted by pack (loose ones first) then name; and the pack names.
 -- Cached on the folders' own scan keys.
@@ -1164,6 +1172,52 @@ function M.render(entry, w, h, inverting)
         if ob and ob.free then pcall(function() ob:free() end) end
     end
     return bb
+end
+
+-- contentBox(entry) -> l, t, r, b as fractions (0..1) of the image, the part
+-- that is not transparent; nil when it cannot tell (no alpha, render failed).
+-- An ornament's file carries transparent room on purpose (top padding sets
+-- its height against the books, side padding keeps it off them), which is
+-- right on the shelf and wasted space in the browser's preview. Found from a
+-- small render, so it is cheap, and remembered per file for the session.
+M.CONTENT_PROBE = 96
+M._content = {}
+function M.contentBox(entry)
+    local key = entry.path .. "|" .. tostring(entry.aspect)
+    local hit = M._content[key]
+    if hit ~= nil then
+        if hit == false then return nil end
+        return hit[1], hit[2], hit[3], hit[4]
+    end
+    local box = false
+    local aspect = (entry.aspect and entry.aspect > 0) and entry.aspect or 1
+    local h = M.CONTENT_PROBE
+    local w = math.max(1, math.floor(h * aspect + 0.5))
+    local ok, bb = pcall(M._render or defaultRender, entry.path, w, h)
+    if ok and bb then
+        pcall(function()
+            local bw, bh = bb:getWidth(), bb:getHeight()
+            if bb:getPixel(0, 0).alpha == nil then return end
+            local l, t, r, b = bw, bh, -1, -1
+            for y = 0, bh - 1 do
+                for x = 0, bw - 1 do
+                    if bb:getPixel(x, y).alpha > 24 then
+                        if x < l then l = x end
+                        if x > r then r = x end
+                        if y < t then t = y end
+                        if y > b then b = y end
+                    end
+                end
+            end
+            if r >= l and b >= t then
+                box = { l / bw, t / bh, (r + 1) / bw, (b + 1) / bh }
+            end
+        end)
+        if bb.free then pcall(function() bb:free() end) end
+    end
+    M._content[key] = box
+    if not box then return nil end
+    return box[1], box[2], box[3], box[4]
 end
 
 -- The widget: blits the cached render at paint time. Inert to gestures.

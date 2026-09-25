@@ -130,4 +130,44 @@ t.test("the filtered list is the same table while nothing changes", function()
     os.execute("rm -rf '" .. d .. "'")
 end)
 
+t.test("the browser names an ornament without its extension", function()
+    local O, d = setup()
+    eq(O.displayName({ file = "Sleeping Cat.png" }), "Sleeping Cat")
+    eq(O.displayName({ file = "Owl.invert.png" }), "Owl")
+    eq(O.displayName({ file = "cactus.SVG" }), "cactus")
+    eq(O.displayName({ file = "notes.txt" }), "notes.txt")
+    os.execute("rm -rf '" .. d .. "'")
+end)
+
+-- The browser previews the picture, not the file: an ornament's transparent
+-- room is there for the shelf, and wasted in a grid card (maintainer: "the
+-- PNGs look like they could fill the grid a little better").
+t.test("contentBox finds the opaque part of an ornament", function()
+    local O, d = setup()
+    local freed = 0
+    O._render = function(_path, w, h)
+        return {
+            getWidth = function() return w end, getHeight = function() return h end,
+            -- opaque only in the bottom half, middle half across
+            getPixel = function(_, x, y)
+                return { alpha = (y >= h / 2 and x >= w / 4 and x < 3 * w / 4) and 255 or 0 }
+            end,
+            free = function() freed = freed + 1 end,
+        }
+    end
+    O.CONTENT_PROBE = 8
+    local l, tp, r, b = O.contentBox({ path = d .. "/x.png", aspect = 1 })
+    eq(l, 0.25); eq(tp, 0.5); eq(r, 0.75); eq(b, 1)
+    eq(freed, 1)
+    -- remembered: no second render
+    O._render = function() error("rendered again") end
+    eq(O.contentBox({ path = d .. "/x.png", aspect = 1 }), 0.25)
+    -- nothing opaque, or no alpha: no crop
+    O._render = function(_p, w, h) return { getWidth = function() return w end, getHeight = function() return h end,
+        getPixel = function() return { alpha = 0 } end } end
+    eq(O.contentBox({ path = d .. "/blank.png", aspect = 1 }), nil)
+    O._render = nil
+    os.execute("rm -rf '" .. d .. "'")
+end)
+
 t.done()

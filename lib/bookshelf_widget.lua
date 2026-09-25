@@ -11386,6 +11386,15 @@ function BookshelfWidget:_rebuildRefreshBelowHero()
         return nil
     end
     local before = heroBottom(hero_dimen, prev_dims)
+    -- Where the OLD shelf bar was painted, captured before the rebuild
+    -- replaces it: the band must reach it, or the previous shelf's selected
+    -- fill stays on the panel along the bar's top edge (device photo: full
+    -- screen shelves, status line off). The bar paints a border's worth above
+    -- and below the height it declares (see ChipBar:paintTo), hence the
+    -- allowance.
+    local bar = self._chip_bar
+    local bar_top = bar and bar.dimen and bar.dimen.y
+    if bar_top then bar_top = math.max(0, bar_top - 2 * Size.border.thick) end
     self:_rebuild()
     local after  = heroBottom(nil, self._hero_dims)
     -- THE HERO MOVED: refresh the whole shelf. This band exists so that an
@@ -11433,6 +11442,10 @@ function BookshelfWidget:_rebuildRefreshBelowHero()
     -- bookshelf_hero_card.
     if below_y then
         below_y = below_y + Screen:scaleBySize(4)
+        -- ...but never below the shelf bar's top. With full screen shelves and
+        -- the status line off, the hero slot is empty and there is no gap
+        -- above the bar at all, so the nudge above landed inside it.
+        if bar_top and bar_top < below_y then below_y = bar_top end
         UIManager:setDirty(self, function()
             return "ui", Geom:new{ x = 0, y = below_y, w = self.width, h = self.height - below_y }, self.dithered
         end)

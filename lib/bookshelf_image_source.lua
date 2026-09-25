@@ -265,6 +265,23 @@ local function _autoDiscoverStackImage(kind, name)
         memo[dkey] = dir_ok
     end
     if not dir_ok then return nil end
+    -- One listing of the folder, indexed by lower-cased file name, instead of
+    -- a stat per candidate: up to 16 per stack (two spellings x eight
+    -- extensions), paid for every new stack on a page -- 9% of a Genres page
+    -- turn on a PW5 with an image library (jit.p). Lower-cased because the
+    -- stats were effectively case-blind where most readers keep their images
+    -- (FAT/exFAT storage); the listed name is returned, so the path is real.
+    local ikey = "idx\1" .. base
+    local index = memo[ikey]
+    if index == nil then
+        index = {}
+        pcall(function()
+            for entry in lfs.dir(base) do
+                if entry ~= "." and entry ~= ".." then index[entry:lower()] = entry end
+            end
+        end)
+        memo[ikey] = index
+    end
     local candidates = { name }
     local slug = _slug(name)
     if slug ~= "" and slug ~= name then
@@ -272,9 +289,10 @@ local function _autoDiscoverStackImage(kind, name)
     end
     for _, stem in ipairs(candidates) do
         for _, ext in ipairs(LIBRARY_EXTS) do
-            local p = base .. stem .. "." .. ext
-            if lfs.attributes(p, "mode") == "file" then
-                return p
+            local real = index[(stem .. "." .. ext):lower()]
+            if real then
+                local p = base .. real
+                if lfs.attributes(p, "mode") == "file" then return p end
             end
         end
     end

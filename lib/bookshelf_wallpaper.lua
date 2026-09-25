@@ -1399,6 +1399,31 @@ local function backgroundWidget(bb, w, h)
 end
 
 
+-- toScreenType(bb) -> bb, converted once to the framebuffer's own type when
+-- that is greyscale.
+--
+-- The decoder hands back RGB24 even on a greyscale panel, and a blit between
+-- different types converts every pixel: on a PW5 that was 55ms for the one
+-- full-screen wallpaper paint in every page turn and shelf switch, 15% of a
+-- page turn (measured on device). Same-type is a row copy. Converting here
+-- costs that 55ms once, per decode, and the grey copy is a third of the
+-- size. Colour screens keep the decoder's buffer: their framebuffer is not
+-- BB8, so the picture keeps its colour.
+function M.toScreenType(bb)
+    local ok, out = pcall(function()
+        local Screen = require("device").screen
+        local fb = Screen and Screen.bb
+        local Blitbuffer = require("ffi/blitbuffer")
+        if not (fb and fb.getType and fb:getType() == Blitbuffer.TYPE_BB8) then return bb end
+        if bb:getType() == Blitbuffer.TYPE_BB8 then return bb end
+        local grey = Blitbuffer.new(bb:getWidth(), bb:getHeight(), Blitbuffer.TYPE_BB8)
+        grey:blitFrom(bb, 0, 0, 0, 0, bb:getWidth(), bb:getHeight())
+        bb:free()
+        return grey
+    end)
+    return (ok and out) or bb
+end
+
 -- bg(name, w, h, night) -> a paintable full-screen widget, or nil.
 --
 -- night is part of the key AND of the render: the panel inverts everything at
@@ -1416,6 +1441,7 @@ function M.bg(name, w, h, night)
         logger.info("[bookshelf] wallpaper could not be decoded:", path)
         return nil
     end
+    bb = M.toScreenType(bb)
     if night and bb.invertRect then
         pcall(function() bb:invertRect(0, 0, bb:getWidth(), bb:getHeight()) end)
     end

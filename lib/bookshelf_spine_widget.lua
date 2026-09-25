@@ -1092,6 +1092,40 @@ local function _showSeriesNum(in_series)
     return false
 end
 
+-- Downscaled copies of cached covers, for slots smaller than the cached
+-- bitmap: a list row's thumbnail, a small cover grid. ImageWidget redid that
+-- MuPDF scale every time a page was built -- 11-14% of a list or genre page
+-- turn on a PW5 (measured with jit.p) -- for the same book at the same size.
+-- The copy is exactly what ImageWidget would make (the same scaleBlitBuffer
+-- to the same width and height), so nothing changes on screen.
+--
+-- Each entry remembers the cached bitmap it was made from: a cover replaced
+-- in the cache (a larger copy, a refresh) is a different bitmap, so the copy
+-- is remade rather than served stale. A small LRU by count: the copies are
+-- thumbnail-sized, and a page holds a few dozen at most.
+local THUMB_CAP = 96
+local _thumbs, _thumb_order = {}, {}
+local function _thumbFor(fp, src, w, h)
+    local key = fp .. "|" .. w .. "x" .. h
+    local e = _thumbs[key]
+    if e and e.src == src then return e.bb end
+    local ok, scaled = pcall(function()
+        return require("ui/renderimage"):scaleBlitBuffer(src, w, h, false)
+    end)
+    if not (ok and scaled) then return nil end
+    if not e then
+        _thumb_order[#_thumb_order + 1] = key
+        if #_thumb_order > THUMB_CAP then
+            -- Dropped, not freed: a widget on screen may still paint it, and
+            -- the FFI finaliser frees it once nothing does.
+            _thumbs[table.remove(_thumb_order, 1)] = nil
+        end
+    end
+    _thumbs[key] = { src = src, bb = scaled }
+    return scaled
+end
+SpineWidget._thumbFor = _thumbFor
+
 function SpineWidget:init()
     self.dimen = Geom:new{ w = self.width, h = self.height }
     if self.draft == nil then self.draft = _draft_mode end
@@ -2097,6 +2131,10 @@ function SpineWidget:_renderCover(bb)
             }
             if not self.cover_fill then
                 img_args.scale_factor = 0   -- aspect-preserving downscale
+            elseif cached:getWidth() ~= img_w or cached:getHeight() ~= img_h then
+                -- The stretch ImageWidget would do, done once (_thumbFor).
+                local thumb = _thumbFor(fp, cached, img_w, img_h)
+                if thumb then img_args.image = thumb end
             end
             return self:_wrapCoverInCard(
                 ImageWidget:new(img_args), card_w, card_h, border)

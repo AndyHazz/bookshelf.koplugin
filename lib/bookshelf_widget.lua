@@ -7850,8 +7850,13 @@ function BookshelfWidget:_swapShelvesInPlace()
     -- (issue #124). Bare HorizontalGroup rows carry no painted .dimen, so
     -- anchor the region on the layout-derived row-top y stashed in _shelf_dims
     -- (falling back to a full refresh only if even that is missing).
-    local shelf_top = (old_rows[1] and old_rows[1].dimen and old_rows[1].dimen.y)
-                   or (d and d.wipe_rows_top)
+    -- The layout-derived top FIRST. A spine shelf's rows do carry a .dimen,
+    -- but with y = 0 at this point, and 0 is truthy: the region then started
+    -- at the top of the screen, so every spine page turn re-wiped and
+    -- refreshed the top panel and the shelf bar too -- a full-screen refresh
+    -- instead of the shelf's 55% (measured on a PW5).
+    local shelf_top = (d and d.wipe_rows_top)
+                   or (old_rows[1] and old_rows[1].dimen and old_rows[1].dimen.y)
     -- Page-turn wipe animation: only when a paginate handler set a direction
     -- AND the animation is enabled on an e-ink screen. Screen.bb still holds
     -- the old page here (nothing above painted to it), so copy it, render the

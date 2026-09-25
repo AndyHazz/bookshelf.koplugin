@@ -330,11 +330,13 @@ function Quotes.setSource(v)
     filtersChanged()
 end
 
-function Quotes.skipBook(fp)
+-- skipBook(fp, title): the title is kept with it so the settings can list
+-- what was left out by name (an older entry holds just true).
+function Quotes.skipBook(fp, title)
     if type(fp) ~= "string" then return end
     local Store = require("lib/bookshelf_settings_store")
     local set = readSet(Quotes.SKIP_BOOKS_KEY)
-    set[fp] = true
+    set[fp] = (type(title) == "string" and title ~= "") and title or true
     Store.save(Quotes.SKIP_BOOKS_KEY, set)
     filtersChanged()
 end
@@ -343,6 +345,33 @@ function Quotes.skippedBookCount()
     local n = 0
     for _fp in pairs(readSet(Quotes.SKIP_BOOKS_KEY)) do n = n + 1 end
     return n
+end
+
+-- skippedBooks() -> { { fp, title }, ... } sorted by title. A book stored
+-- without a title (an older entry) is named from its file.
+function Quotes.skippedBooks()
+    local out = {}
+    for fp, v in pairs(readSet(Quotes.SKIP_BOOKS_KEY)) do
+        local title = type(v) == "string" and v
+                      or ((fp:match("([^/]+)$") or fp):gsub("%.[^.]+$", ""))
+        out[#out + 1] = { fp = fp, title = title }
+    end
+    table.sort(out, function(a, b) return a.title:lower() < b.title:lower() end)
+    return out
+end
+
+function Quotes.isBookSkipped(fp)
+    return readSet(Quotes.SKIP_BOOKS_KEY)[fp] ~= nil
+end
+
+function Quotes.unskipBook(fp)
+    local Store = require("lib/bookshelf_settings_store")
+    local set = readSet(Quotes.SKIP_BOOKS_KEY)
+    if set[fp] == nil then return end
+    set[fp] = nil
+    if next(set) then Store.save(Quotes.SKIP_BOOKS_KEY, set)
+    else Store.delete(Quotes.SKIP_BOOKS_KEY) end
+    filtersChanged()
 end
 
 function Quotes.unskipAllBooks()

@@ -448,7 +448,21 @@ end
 -- to live here as a local, which is exactly how bookends ended up with
 -- %description but not its sanitiser (85aa7c8) and rendered raw "<p>" tags on
 -- screen. One copy now, checked byte-identical by tools/check_token_parity.sh.
-local cleanDescription = Semantics.cleanDescription
+-- Memoised on the raw text: a list row expands %description every time the
+-- page is built, and the clean-up is a dozen gsub passes over the whole blurb
+-- -- 5-7% of a list page turn on a PW5 (jit.p). Pure, so a cache by input is
+-- exact. Bounded by count; cleared wholesale when full.
+local _clean_memo, _clean_n, CLEAN_CAP = {}, 0, 256
+local function cleanDescription(raw)
+    if not raw or raw == "" then return "" end
+    local hit = _clean_memo[raw]
+    if hit then return hit end
+    local out = Semantics.cleanDescription(raw)
+    if _clean_n >= CLEAN_CAP then _clean_memo, _clean_n = {}, 0 end
+    _clean_memo[raw] = out
+    _clean_n = _clean_n + 1
+    return out
+end
 
 Tokens.cleanDescription = cleanDescription      -- exported for tests / ad-hoc use
 Tokens.expanders.description = function(book)

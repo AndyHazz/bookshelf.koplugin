@@ -19111,6 +19111,32 @@ function BookshelfWidget:_setBookReview(book, text)
     ds:flush()
 end
 
+-- _editBookReview(book, on_saved): the dialog that writes the reader's own
+-- review; on_saved runs after a save, to redraw whatever shows it.
+function BookshelfWidget:_editBookReview(book, on_saved)
+    local InputDialog = require("ui/widget/inputdialog")
+    local dlg
+    dlg = InputDialog:new{
+        title         = _("My review"),
+        input         = self:_bookReview(book) or "",
+        scroll        = true,
+        allow_newline = true,
+        text_height   = Screen:scaleBySize(150),
+        buttons = { {
+            { text = _("Cancel"), id = "close",
+              callback = function() UIManager:close(dlg) end },
+            { text = _("Save"), is_enter_default = true,
+              callback = function()
+                  self:_setBookReview(book, dlg:getInputText())
+                  UIManager:close(dlg)
+                  if on_saved then on_saved() end
+              end },
+        } },
+    }
+    UIManager:show(dlg)
+    dlg:onShowKeyboard()
+end
+
 function BookshelfWidget:_setBookRating(book, new_rating, opts)
     if not book or not book.filepath then return end
     -- The hero's star row is reachable while a remote record is previewed.
@@ -19950,7 +19976,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             local reviews_idx
             if modal and modal._tabs then
                 for ti, t in ipairs(modal._tabs) do
-                    if t.id == "reviews" then reviews_idx = ti; break end
+                    if t.id == "reviews" and t.has_hardcover then reviews_idx = ti; break end
                 end
             end
             -- Read-only stars built the same way as the user-rating stars (same
@@ -19969,7 +19995,12 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                 local fsz = hc_stars:getSize()
                 local ic  = InputContainer:new{ dimen = Geom:new{ w = fsz.w, h = fsz.h }, hc_stars }
                 ic.ges_events = { Tap = { GestureRange:new{ ges = "tap", range = ic.dimen } } }
-                ic.onTap = function() modal:_switchTab(reviews_idx); return true end
+                ic.onTap = function()
+                    -- Hardcover's stars open Hardcover's reviews, not yours.
+                    local rt = modal._tabs[reviews_idx]
+                    if rt and rt.sources then rt._active_source = 2 end
+                    modal:_switchTab(reviews_idx); return true
+                end
                 -- Dpad/keyboard focus highlight: ic is a plain InputContainer
                 -- (no stock `invert`, unlike FrameContainer), so paint then
                 -- pixel-invert on top -- the same idiom as InvertedFrame
@@ -20013,8 +20044,6 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         }
         vg[#vg + 1] = heading(_("Ratings"))
         vg[#vg + 1] = padded(ratings_widget, Space.px(8), Space.px(10))
-        -- The review row is built below, once infoRow exists.
-        local review_at = #vg + 1
 
         -- An info row styled like a File-&-metadata button row: the value on the
         -- left (inset to align with the headings), then a bordered ChipButton
@@ -20064,57 +20093,6 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             focus_tables[#focus_tables + 1] = focusRow({ { btn } })
             return HorizontalGroup:new{ align = "top", left_cell,
                 bw:_actionButtonColumn(btn, btn_w, row_h, want_bottom_border) }
-        end
-
-        -- 2b. Your review (issues 238, 315): KOReader's own summary.note,
-        -- shown and edited here rather than a book status page away. Slotted
-        -- in under Ratings; built here because it is an infoRow.
-        if not bw:_isRemoteRecord(book) then
-            local review = bw:_bookReview(book)
-            -- A long review is shortened here; Edit shows all of it. Cut on a
-            -- UTF-8 character boundary, then back to a word break when there
-            -- is one close by (there may be none: CJK has no spaces).
-            local shown = review and review:gsub("%s+", " ")
-            if shown and #shown > 160 then
-                local cut = 160
-                while cut > 1 do
-                    local b = shown:byte(cut + 1)
-                    if not b or b < 128 or b >= 192 then break end
-                    cut = cut - 1
-                end
-                local head = shown:sub(1, cut)
-                local word = head:match("^(.*%S)%s+%S*$")
-                if word and #word > cut - 40 then head = word end
-                shown = head .. "\xE2\x80\xA6"
-            end
-            local function editReview()
-                local InputDialog = require("ui/widget/inputdialog")
-                local dlg
-                dlg = InputDialog:new{
-                    title         = _("Your review"),
-                    input         = review or "",
-                    scroll        = true,
-                    allow_newline = true,
-                    text_height   = Screen:scaleBySize(150),
-                    buttons = { {
-                        { text = _("Cancel"), id = "close",
-                          callback = function() UIManager:close(dlg) end },
-                        { text = _("Save"), is_enter_default = true,
-                          callback = function()
-                              bw:_setBookReview(book, dlg:getInputText())
-                              UIManager:close(dlg)
-                              if modal and modal.rebuildTab then modal:rebuildTab() end
-                          end },
-                    } },
-                }
-                UIManager:show(dlg)
-                dlg:onShowKeyboard()
-            end
-            table.insert(vg, review_at, heading(_("Your review")))
-            table.insert(vg, review_at + 1, infoRow(
-                shown or _("No review yet"),
-                review and _("Edit") or _("Write\xE2\x80\xA6"),
-                editReview))
         end
 
         -- 3. File & metadata.
@@ -20246,7 +20224,7 @@ end
 -- (pixel-inverts while the fetch is in flight) and its label can match the
 -- summary text's own (zoom-adjustable) font size, using the same small-button
 -- style as the Icons Library's search/close buttons (bookshelf_chip_button).
-function BookshelfWidget:_buildReviewsHeader(tab, modal, avail_w, refreshReviews)
+function BookshelfWidget:_buildReviewsHeader(tab, modal, avail_w, refreshReviews, above)
     local HorizontalSpan = require("ui/widget/horizontalspan")
     local VerticalSpan   = require("ui/widget/verticalspan")
     local ChipButton     = require("lib/bookshelf_chip_button")
@@ -20316,6 +20294,12 @@ function BookshelfWidget:_buildReviewsHeader(tab, modal, avail_w, refreshReviews
     }
 
     local left_w, right_w = left:getSize().w, refresh_btn:getSize().w
+    -- Under the source chips with no summary to show: Refresh joins the chips'
+    -- own row. (The caller then skips its separate `above`.)
+    if above and left_w == 0 then
+        local merged = self:_chipsWithButton(above, refresh_btn, avail_w, inset)
+        if merged then return merged, true end
+    end
     local gap = Space.px(10)
     local row
     if left_w > 0 and left_w + gap + right_w <= content_w then
@@ -20345,11 +20329,33 @@ end
 -- header leaves. A dedicated ScrollHtmlWidget rather than the modal's shared
 -- one, so this tab's own native header can sit above it without disturbing
 -- the shared scroller's fixed height used by the other (headerless) HTML tabs.
-function BookshelfWidget:_buildReviewsTab(tab, modal, avail_w, avail_h, refreshReviews)
+function BookshelfWidget:_buildReviewsTab(tab, modal, avail_w, avail_h, refreshReviews, above)
+    local header, merged = self:_buildReviewsHeader(tab, modal, avail_w, refreshReviews, above)
+    return self:_headedHtmlBody(modal, avail_w, avail_h, header, tab.html,
+                                (not merged) and above or nil)
+end
+
+-- _chipsWithButton(above, btn, avail_w, inset): the Reviews tab's source
+-- chips with the header's button (Edit / Refresh) at the right end of the
+-- same row, so the pair costs one row rather than two. nil when they do not
+-- fit side by side.
+function BookshelfWidget:_chipsWithButton(above, btn, avail_w, inset)
+    local HorizontalSpan = require("ui/widget/horizontalspan")
+    local gap = avail_w - above:getSize().w - btn:getSize().w - inset
+    if gap < Space.px(10) then return nil end
+    return HorizontalGroup:new{ align = "center",
+        above, HorizontalSpan:new{ width = gap }, btn, HorizontalSpan:new{ width = inset } }
+end
+
+-- _headedHtmlBody(modal, avail_w, avail_h, header, html, above): a native
+-- header row, a hairline, then `html` in its own scroller sized to what is
+-- left. `above` (optional) sits over the header: the Reviews tab's source
+-- chips. Shared by Hardcover's reviews and the reader's own.
+function BookshelfWidget:_headedHtmlBody(modal, avail_w, avail_h, header, html, above)
     local ScrollHtmlWidget = require("ui/widget/scrollhtmlwidget")
     local LineWidget = require("ui/widget/linewidget")
-    local header = self:_buildReviewsHeader(tab, modal, avail_w, refreshReviews)
-    local header_h = header:getSize().h
+    local top = above and VerticalGroup:new{ align = "left", above, header } or header
+    local header_h = top:getSize().h
     -- Hairline marking the top of the scrollable area -- now that Refresh has
     -- moved out of the HTML, the gap between the native header and the review
     -- list read as ambiguous whitespace without a line to define the boundary.
@@ -20367,7 +20373,7 @@ function BookshelfWidget:_buildReviewsTab(tab, modal, avail_w, avail_h, refreshR
     -- widget claims every south swipe even with nothing above the fold, so
     -- swipe-down-to-close (issue 338) worked on every tab except this one.
     local opts = {
-        html_body         = tab.html or "<p></p>",
+        html_body         = html or "<p></p>",
         css               = css,
         default_font_size = Screen:scaleBySize((modal and modal.font_size) or 20),
         width             = avail_w,
@@ -20376,7 +20382,48 @@ function BookshelfWidget:_buildReviewsTab(tab, modal, avail_w, avail_h, refreshR
     }
     local scroller = (modal and modal._scroller) and modal:_scroller(opts)
                      or ScrollHtmlWidget:new(opts)
-    return VerticalGroup:new{ align = "left", header, hairline, scroller }
+    return VerticalGroup:new{ align = "left", top, hairline, scroller }
+end
+
+-- _buildMyReviewBody(book, modal, avail_w, avail_h, above): the reader's own
+-- review (issues 238, 315), KOReader's summary.note, with an Edit button in
+-- the header row where Hardcover's has Refresh. Read fresh on every build,
+-- so a save followed by rebuildTab shows the new text.
+function BookshelfWidget:_buildMyReviewBody(book, modal, avail_w, avail_h, above)
+    local HorizontalSpan = require("ui/widget/horizontalspan")
+    local ChipButton     = require("lib/bookshelf_chip_button")
+    local Tokens         = require("lib/bookshelf_tokens")
+    local font_size = (modal and modal.font_size) or 20
+    local inset = (modal and modal._side_pad) or Space.px(28)
+    local content_w = avail_w - 2 * inset
+    local text_face = BFont:getFace("cfont", font_size)
+    local review = self:_bookReview(book)
+    local probe = TextWidget:new{ text = "Hg", face = text_face }
+    local btn = ChipButton.build{
+        text   = review and _("Edit") or _("Write\xE2\x80\xA6"),
+        face   = text_face,
+        height = probe:getSize().h + 2 * Space.px(5),
+        on_tap = function()
+            self:_editBookReview(book, function()
+                if modal and modal.rebuildTab then modal:rebuildTab() end
+            end)
+        end,
+    }
+    local header = above and self:_chipsWithButton(above, btn, avail_w, inset)
+    if header then
+        above = nil
+    else
+        header = FrameContainer:new{
+            bordersize = 0, margin = 0,
+            padding_left = inset, padding_right = inset,
+            padding_top = Space.px(10), padding_bottom = Space.px(10),
+            HorizontalGroup:new{ align = "center",
+                HorizontalSpan:new{ width = math.max(0, content_w - btn:getSize().w) }, btn },
+        }
+    end
+    local html = Tokens.myReviewHtml(review)
+        or ("<p>" .. _("You haven't reviewed this book yet.") .. "</p>")
+    return self:_headedHtmlBody(modal, avail_w, avail_h, header, html, above)
 end
 
 -- _buildBookCoverTab — the Cover tab body: a toolbar (device picker + online
@@ -21541,7 +21588,6 @@ function BookshelfWidget:_showBookDetail(book, opts)
         end)
     end
     if has_reviews then
-        reviews_idx = #tabs + 1
         local data, html
         local ok_cached, cached = Hardcover.fetchReviews(book_id, { cache_only = true })
         if ok_cached and type(cached) == "table" then
@@ -21552,13 +21598,36 @@ function BookshelfWidget:_showBookDetail(book, opts)
             -- automatically (that would hit the network on open -- issue 253).
             html = "<p>" .. _("Tap Refresh to load reviews.") .. "</p>"
         end
-        reviews_tab = {
-            id = "reviews", label = _("Reviews"), data = data, html = html,
-            widget_builder = function(avail_w, avail_h, show_parent)
-                return self:_buildReviewsTab(reviews_tab, show_parent, avail_w, avail_h, refreshReviews)
-            end,
-        }
-        tabs[reviews_idx] = reviews_tab
+        -- Hardcover's state: its fetched data, list HTML and busy flag.
+        reviews_tab = { data = data, html = html }
+    end
+    -- The Reviews tab: the reader's own review, and Hardcover's when linked,
+    -- switched by the same chip bar the Description tab uses. With only one
+    -- of them there is no chip bar (maintainer: "My review" belongs with the
+    -- reviews, not in the Edit tab).
+    local mine = not self:_isRemoteRecord(book)
+    if mine or has_reviews then
+        reviews_idx = #tabs + 1
+        local tab = { id = "reviews", has_hardcover = has_reviews }
+        if mine and has_reviews then
+            tab.label = _("Reviews")
+            tab.sources = { { label = _("My review") }, { label = "Hardcover" } }
+            -- Open on your own review when there is one, else Hardcover's;
+            -- asked for the reviews (the hero's Hardcover link), Hardcover's.
+            tab.active_source = (opts.active ~= "reviews" and self:_bookReview(book)) and 1 or 2
+        else
+            tab.label = mine and _("My review") or _("Reviews")
+        end
+        tab.widget_builder = function(avail_w, avail_h, show_parent)
+            local chips = tab.sources and show_parent and show_parent._buildSourceChips
+                and show_parent:_buildSourceChips(tab) or nil
+            local src = tab.sources and (tab._active_source or tab.active_source) or (mine and 1 or 2)
+            if src == 1 and mine then
+                return self:_buildMyReviewBody(book, show_parent, avail_w, avail_h, chips)
+            end
+            return self:_buildReviewsTab(reviews_tab, show_parent, avail_w, avail_h, refreshReviews, chips)
+        end
+        tabs[reviews_idx] = tab
     end
 
     -- Tags next-to-last.

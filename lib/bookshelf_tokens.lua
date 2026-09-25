@@ -688,6 +688,23 @@ function Tokens.reviewsHtml(payload)
     return table.concat(out, "\n")
 end
 
+-- myReviewHtml(text): the reader's own review (KOReader's summary.note) as
+-- HTML for the Reviews tab. Plain text in, so it is escaped; a blank line
+-- starts a paragraph and a single newline is a line break, as typed.
+function Tokens.myReviewHtml(text)
+    if type(text) ~= "string" or not text:match("%S") then return nil end
+    local out = {}
+    local norm = text:gsub("\r\n?", "\n")
+    for para in (norm .. "\n\n"):gmatch("(.-)\n%s*\n") do
+        if para:match("%S") then
+            local lines = {}
+            for line in (para .. "\n"):gmatch("(.-)\n") do lines[#lines + 1] = _escHtml(line) end
+            out[#out + 1] = "<p>" .. table.concat(lines, "<br/>") .. "</p>"
+        end
+    end
+    return table.concat(out, "\n")
+end
+
 -- autoLinkReportHtml(data): the HTML body for the post-scan auto-link report,
 -- rendered in the shared reviews modal. Lists what got linked (so the user can
 -- verify each match) and what didn't; the "no identifier" bucket is a count,

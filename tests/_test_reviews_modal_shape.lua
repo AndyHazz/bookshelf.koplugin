@@ -31,12 +31,15 @@ t.test("the Reviews tab's scroller yields swipe-down at the top", function()
     assert(f, "cannot read bookshelf_widget.lua")
     local wsrc = f:read("*a")
     f:close()
-    local i = wsrc:find("function BookshelfWidget:_buildReviewsTab", 1, true)
-    assert(i, "_buildReviewsTab went missing")
+    -- Both review bodies (Hardcover's and the reader's own) build through
+    -- _headedHtmlBody, so that is where the scroller is made.
+    assert(wsrc:find("function BookshelfWidget:_buildReviewsTab", 1, true), "_buildReviewsTab went missing")
+    local i = wsrc:find("function BookshelfWidget:_headedHtmlBody", 1, true)
+    assert(i, "_headedHtmlBody went missing")
     local j = wsrc:find("\nend", i, true) or #wsrc
     local body = wsrc:sub(i, j)
     assert(body:find("modal:_scroller(", 1, true),
-        "_buildReviewsTab must build its scroller through modal:_scroller")
+        "_headedHtmlBody must build its scroller through modal:_scroller")
 end)
 
 t.test("Open leads the row and Close holds the far-right corner", function()

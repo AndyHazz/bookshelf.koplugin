@@ -1,5 +1,5 @@
 -- tests/_test_book_review.lua
--- Issues 238, 315: the book modal's "Your review" row reads and writes
+-- Issues 238, 315: "My review" in the book modal's Reviews tab reads and writes
 -- KOReader's own summary.note, the field its book status page edits, so there
 -- is one review, not two. Bodies are extracted from the widget by name.
 package.path = "./?.lua;./?/init.lua;" .. package.path
@@ -60,6 +60,26 @@ t.test("a remote record is never written", function()
     sidecars = {}
     set(bw, { filepath = "OPDS://x/y" }, "text")
     eq(next(sidecars), nil)
+end)
+
+t.test("my review renders as escaped paragraphs and line breaks", function()
+    package.loaded["lib/bookshelf_i18n"] = package.loaded["lib/bookshelf_i18n"]
+        or { gettext = function(x) return x end }
+    local ok, Tokens = pcall(require, "lib/bookshelf_tokens")
+    if not ok then print("skip: tokens need KOReader here: " .. tostring(Tokens)); return end
+    eq(Tokens.myReviewHtml(nil), nil)
+    eq(Tokens.myReviewHtml("  \n "), nil)
+    eq(Tokens.myReviewHtml("Good <b>bits</b> & bad"), "<p>Good &lt;b&gt;bits&lt;/b&gt; &amp; bad</p>")
+    eq(Tokens.myReviewHtml("one\ntwo\r\n\r\nthree"), "<p>one<br/>two</p>\n<p>three</p>")
+end)
+
+-- Where it lives: the Reviews tab, not the Edit tab (maintainer: "it seems
+-- odd to have a 'Reviews' tab and then have your review in the edit tab").
+t.test("the review is in the Reviews tab, with Hardcover's behind chips", function()
+    assert(src:find('_("My review")', 1, true), "no My review label")
+    assert(not src:find('_("Your review")', 1, true), "Your review is still in the Edit tab")
+    assert(src:find("tab.sources = { { label = _(\"My review\") }, { label = \"Hardcover\" } }", 1, true),
+        "the Reviews tab lost its My review / Hardcover chips")
 end)
 
 t.done()

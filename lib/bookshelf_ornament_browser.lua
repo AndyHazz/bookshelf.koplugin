@@ -4,7 +4,7 @@
 -- like the micro-module picker.
 --
 -- A pack is a subfolder of the ornaments folder (lib/bookshelf_ornaments);
--- the chips across the top are All, the loose ornaments, and one per pack.
+-- the chips across the top are All (every ornament) and one per pack.
 -- With a pack's chip selected the footer switches the whole pack off or on.
 --
 --   tap        switch that ornament off / on
@@ -38,7 +38,7 @@ local Screen          = Device.screen
 
 local Browser = {}
 
-local ALL, LOOSE = "__all", "__loose"
+local ALL = "__all"
 
 local function O() return require("lib/bookshelf_ornaments") end
 
@@ -128,7 +128,6 @@ function Browser:_items()
     local out = {}
     for _i, e in ipairs(all) do
         local keep = self.chip == ALL
-                     or (self.chip == LOOSE and e.pack == nil)
                      or (e.pack ~= nil and e.pack == self.chip)
         if keep then
             out[#out + 1] = { entry = e, off = Orn.isOff(e.name),
@@ -147,13 +146,11 @@ end
 
 function Browser:_chips()
     local Orn = O()
-    local all, packs = Orn.listAll()
-    local has_loose = false
-    for _i, e in ipairs(all) do if e.pack == nil then has_loose = true; break end end
+    local _all, packs = Orn.listAll()
+    -- All, then one per pack. No tab for the loose ornaments on their own:
+    -- All already shows them, and a tab is for something you switch as one
+    -- (maintainer).
     local chips = { { key = ALL, label = _("All"), is_active = self.chip == ALL } }
-    if has_loose and #packs > 0 then
-        chips[#chips + 1] = { key = LOOSE, label = _("Loose"), is_active = self.chip == LOOSE }
-    end
     for _i, pack in ipairs(packs) do
         chips[#chips + 1] = {
             key = pack,
@@ -165,7 +162,7 @@ function Browser:_chips()
 end
 
 function Browser:_isPack(key)
-    return key ~= nil and key ~= ALL and key ~= LOOSE
+    return key ~= nil and key ~= ALL
 end
 
 function Browser:_confirmDelete(item)

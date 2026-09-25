@@ -71,6 +71,8 @@ Tap the search icon at the right of the shelf menu. Search looks across authors,
 
 Folder names aren't searched by default: in most libraries the folders mirror the author/series/genre stacks, so matching a folder just duplicates the metadata result of the same name. If you navigate by folder, turn on **Settings -> Library & search -> Include folder names in search results**.
 
+Genres and tags are searched too, and matching genres are listed as results. If a common tag keeps crowding out the books you meant, turn off **Settings -> Library & search -> Include genres and tags in search results** and search matches only titles, authors and series.
+
 On an [OPDS catalogue](#opds-catalogues) shelf, the same search icon searches the catalogue itself (when the catalogue supports search), so you can look up a title or author across the whole catalogue rather than just the page on screen.
 
 ### The top panel (above the shelf)
@@ -165,11 +167,15 @@ Long-press a shelf and pick **Spines** under Show as, or hold the page range in 
 
 **Ornaments.** Drop PNG or SVG files into KOReader's `icons/bookshelf.ornaments` folder and they turn up in the gaps, standing on the plank like the books. A potted plant and a cactus are seeded there to start you off; delete them if you would rather not see them and they stay deleted.
 
+A folder of ornaments inside `bookshelf.ornaments` is a **pack**, which you can switch on and off as one. **menu -> Background and colours -> Ornaments** opens a browser of everything in the folder, with **All** and a tab per pack: tap an ornament to switch it off or on, long-press it to switch it or delete it, and use the footer button on a pack's tab to switch the whole pack. Switched-off ornaments are faded, and **Add ornaments…** on the All tab shows where the folder is on your device.
+
+Ready-made ornament packs, drawn to sit on the plank at the right size on colour and black and white screens, are in the [Ko-fi shop](https://ko-fi.com/andyhazz/shop). Unzip a pack's folder into `bookshelf.ornaments` and it gets its own tab. Packs need Bookshelf 5.2 or later.
+
 How often they appear is per shelf, next to **Author on spine** in the shelf's style dialog: **None**, **Rarely**, **Often** or **Always**. Above None, every so often a page is promised a piece whether or not a wide enough gap happens to fall there, so a densely packed shelf still gets some.
 
 Shape is up to you. A row end offers as much width as the row can spare once it has kept room for one book, so a broad ornament stands at full height rather than being shrunk away, and a row that cannot fit a book beside one simply carries the ornament alone. Pieces take turns, so everything in the folder gets its share rather than the same two recurring.
 
-`template.svg` carries the conventions in its comments: the bottom of the viewBox is the plank surface, `bookshelf:overhang=N` lets part of the shape hang over the front edge, and the renderer is small, so bold solid shapes work and text, filters and masks do not.
+For a PNG, the bottom edge of the image is the plank surface and the whole image is scaled to one fixed height against the books, so transparent space above the picture makes it stand smaller, and space at the sides keeps it off the books. `template.svg` carries the SVG conventions in its comments: the bottom of the viewBox is the plank surface, `bookshelf:overhang=N` lets part of the shape hang over the front edge, and the renderer is small, so bold solid shapes work and text, filters and masks do not.
 
 **Shelf plank colour** is under **Settings -> Background and colours -> Accent colours**. The lit top surface and the shaded front edge are both tinted from that one colour; the default is light oak.
 
@@ -227,7 +233,8 @@ Each item can be:
 Micro-modules are small live panels. Add them to the start menu through **Add new menu item -> Bookshelf micro-module…**, or to the [home-screen grid](#micro-modules-on-the-home-screen). The ones that ship with Bookshelf:
 
 - **Clock** -- digital (12- or 24-hour) or analogue.
-- **Quote of the day** -- a highlight drawn from your own books, refreshed daily or on every open. Tapping it can roll a new quote, open that book's bookmark list, or open the book at the highlight.
+- **Battery** -- the battery level with KOReader's own battery icon and a level bar, plus the cover battery on devices that have one. Tap it for KOReader's battery statistics.
+- **Quote of the day** -- a highlight drawn from your own books, refreshed daily or on every open. Tapping it can roll a new quote, open that book's bookmark list, or open the book at the highlight. Its settings choose where quotes come from (your highlights, quote files in SimpleUI's format from `settings/bookshelf/quotes` or SimpleUI's own folder, or both), and can leave out particular books or highlight colours.
 - **Reading goal** -- progress towards a daily reading target.
 - **Reading stats** -- time and pages read today and this week (needs the `statistics` plugin).
 - **Reading streak** -- your current and best reading streak, in days and weeks (needs the `statistics` plugin).
@@ -247,8 +254,8 @@ Long-press any cover on the shelf or in the top panel card -- or tap a book's **
 
 There are five tabs:
 
-- **Description** -- the book's blurb. When a Hardcover description is cached, a shelf menu switches between the embedded and Hardcover text.
-- **Reviews** -- spoiler-free Hardcover reviews for a linked book, cached so they reopen offline once fetched (see [Hardcover enrichment](#hardcover-enrichment)). Only shown for linked books.
+- **Description** -- the book's blurb, in your Bookshelf UI font. When a Hardcover description is cached, a switch at the top swaps between the embedded and Hardcover text.
+- **Reviews** -- **My review**, the personal review KOReader keeps for the book (the same one its book status page edits), with a button to write or edit it. For a book linked to Hardcover, a **My review / Hardcover** switch at the top swaps to spoiler-free Hardcover reviews, cached so they reopen offline once fetched (see [Hardcover enrichment](#hardcover-enrichment)).
 - **Tags** -- **navigation pills** grouped into Author, Series, Collections, Genres, and Folder. Tap any pill to drill into that shelf; each section has an **Edit…** button for changing membership (this is where you add or remove the book from collections, edit genres, and so on).
 - **Edit** -- the book's actions:
 
@@ -269,7 +276,7 @@ If another plugin adds its own entries to KOReader's file long-press menu (for e
 
 - **Cover** (last tab) -- pick the book's cover from a paginated grid of candidates: covers already stored for the book, an image from your device (**Choose from device**), or an **online search** (Google Books, Open Library, and Hardcover for a linked book). Each candidate shows its source and resolution. Tap one to set it as the cover -- the shelf updates and the chosen image is saved as KOReader's standard custom cover, so its file browser shows it too. The book's own embedded cover appears in the grid as well, so you can revert by tapping it; a cover you'd set yourself is preserved.
 
-**Text size.** The footer's **zoom** buttons resize the current tab's text, and each tab remembers its own size -- so you can enlarge a long Description or the Reviews without also inflating the Edit tab's buttons or the Tags pills. To resize the **tab labels** themselves (handy if Description/Reviews/Tags/Edit wrap onto a second row on a small screen), use **menu -> Settings -> Text size -> Modal tabs**. (With Reviews present that's up to five tabs -- Description, Reviews, Tags, Edit, Cover -- so this helps most on a small screen.)
+**Text size.** The footer's **zoom** buttons resize the current tab's text, and each tab remembers its own size -- so you can enlarge a long Description or the Reviews without also inflating the Edit tab's buttons or the Tags pills. To resize the **tab labels** themselves (handy if Description/Reviews/Tags/Edit wrap onto a second row on a small screen), use **menu -> Settings -> Text size -> Modal tabs**. (That's five tabs -- Description, Reviews, Tags, Edit, Cover -- so this helps most on a small screen.)
 
 Long-pressing a series, author, genre, collection, format, rating, or folder stack instead opens a small group menu: **Pin to shelf menu** (the fastest way to turn a stack you've drilled into into a permanent shelf), **Set … image…** / **Clear … image** (see [Custom images](#custom-images-for-folders-and-stacks)), **Select N** to start a bulk selection of the group's books, and -- for real folders -- **Move folder…** and **Rename folder…**, which relocate or rename the folder on disk with every book's progress, bookmarks, and covers following along.
 
@@ -364,7 +371,7 @@ If you also use `hardcoverapp.koplugin`, Bookshelf can link books to Hardcover a
 - **Use Hardcover image** / **Use Hardcover description** -- per-book toggles (shown once linked) that override the book's own cover or description with Hardcover's. See below for how these are set automatically.
 - **Clear link** -- remove the Hardcover link.
 
-When a book is linked, its popup gains a **Reviews** tab (and the rating row's "N reviews" opens the popup straight to it). Reviews are filtered to spoiler-free ones, and cached, so they reopen offline once fetched.
+When a book is linked, its popup's **Reviews** tab gains a **Hardcover** switch alongside your own review (and the rating row's "N reviews" opens the popup straight to Hardcover's). Reviews are filtered to spoiler-free ones, and cached, so they reopen offline once fetched.
 
 **Linking the whole library at once.** **Hardcover enrichment -> Auto-link all books** links every unlinked book in one pass, fetching each match's details (description, cover, rating) as it goes. You pick how to match:
 
@@ -433,7 +440,7 @@ Each cover can show small badges and bars at the corners. Configure them under *
 - **Show reading bookmarks** -- a bookmark mark on books you're partway through.
 - **Show completed book badge** -- a check-mark pill at the bottom-left of finished books.
 - **Show progress bars** -- a thin progress bar above the bottom edge for in-progress books.
-- **Show page count** -- a page-count pill in the bottom-right ("123 p"). (For EPUBs it works once you've opened the book at least once.)
+- **Show page count** -- a page-count pill in the bottom-right ("123 p"). An EPUB you have never opened has no count until you run [Extract page counts](#page-counts).
 - **Show series #** -- a "#3" badge on covers in a series. Tri-state: Always, Within series folder (so mixed shelves stay clean), or Never.
 
 The colours of these elements are set separately under **menu -> Background and colours -> Accent colours** (see below).
@@ -450,10 +457,15 @@ Everything that decides how the shelf looks now lives in one place: **menu -> Ba
 
 ### Wallpaper
 
-- **Default wallpaper image** -- a picture behind the whole shelf. Drop your own into `koreader/settings/wallpapers` (the menu tells you the path and offers to create it) and they appear in the list. One is bundled: **Leafy wallpaper**.
+- **Default wallpaper image** -- a picture behind the whole shelf. Drop your own into `koreader/settings/bookshelf/wallpapers` (the menu tells you the path and offers to create it) and they appear in the list. One is bundled: **Leafy wallpaper**.
+- **Wallpaper folder** -- a folder of your own to take pictures from as well, for wallpapers you already keep somewhere else. Its pictures are listed alongside the standard folder's, and nothing in it is changed. Long-press the row to stop using it.
 - **Full screen shelves image** -- a different picture for full screen shelves. That view is wall-to-wall covers and spines, where a backdrop that reads well behind the top panel is often too busy.
 - **Background colour** -- the page ground. Useful on its own with no wallpaper at all, and it is what shows through anywhere the picture is kept out.
 - **Panel shading** -- how much the top panel and the footer are shaded so their buttons stay legible over a picture: **Transparent**, **Light**, **Heavy** (the default) or **Solid**. Transparent reads well over a plain texture and poorly over a busy photograph; Solid hides the picture behind those strips entirely.
+
+### Ornaments
+
+**Ornaments** opens the ornament browser -- see [Spines](#spines).
 
 ### Shelf theme
 
@@ -507,6 +519,7 @@ What it adds:
 - Calibre's author sort ("Le Guin, Ursula K.") orders author shelves, including hand-edited sort values
 - A custom column of the **Series** type gives its books a second series shelf alongside the primary one
 - **Any custom column you create in Calibre** can be shown in a token line via `%calibre{name}`, using the column's lookup name: a column `#mood` renders with `%calibre{mood}` (the `#` is optional). Text, fixed-value lists, numbers, dates, yes/no and multi-value columns all work; the one exception is long-text ("Comments"-type) columns, which are too big for a one-line token. This works anywhere tokens do -- top panel card sections, list view lines, and conditionals like `[if:calibre{mood}="cosy"]`
+- A page count column such as `#pages` (what the Count Pages plugin fills in) can be one of the sources for [Extract page counts](#page-counts)
 - Three standard Calibre fields are exposed the same way: `%calibre{pubdate}` (publication year), `%calibre{publisher}` and `%calibre{rating}`. Date columns -- standard or custom -- show as the year
 
 **What can be shelved, and what can only be shown.** Calibre's **tags** become genres, so they drive genre shelves, the genre filter and `%genres` exactly like tags read from the book file. A custom column of the **Series** type gets its own series shelf, as above. Every other custom column is display-only: it can be printed in a token line and tested in a conditional, but you cannot yet build a shelf per column or filter by one.
@@ -544,7 +557,7 @@ The line editor lets you change the text and styling of one section. You'll see 
 |--------|--------------|
 | **Bold** | Toggle bold weight. |
 | **Size** | A nudge dialog (-5 / -1 / +1 / +5) over the font size, range 8 to 48 pixels. |
-| **Font** | Pick a font family. Shows previews when [Bookends](https://github.com/AndyHazz/bookends.koplugin) is installed. |
+| **Font** | Pick a font family, each shown in its own typeface. |
 | **Aa / AA** | Toggle uppercase (hidden on the Description section). |
 | **L / C / R** | Cycle alignment (left, centre, right). |
 | **Bar style** | (Progress only) Cycle the inline progress bar's visual style. |
@@ -576,10 +589,7 @@ Bookshelf ships three open-licensed fonts (see `fonts/CREDITS.md`):
 - **Inter ExtraBold** (OFL) -- default top panel title.
 - **Caveat** (OFL) -- default top panel author.
 
-Set the interface font under **Bookshelf settings -> Bookshelf UI font** (defaults to
-*Follow KOReader UI font* for existing users). The fonts are also copied into your font
-folder so they're selectable in the top panel card's font picker after a restart. Existing
-users can adopt the new detail look via **Reset book detail area to defaults**.
+Set the interface font under **Bookshelf settings -> Bookshelf UI font** (defaults to *Follow KOReader UI font* for existing users). It is used across the shelf, and for the description and reviews in the book popup too. The fonts are also copied into your font folder so they're selectable in the top panel card's font picker after a restart. Existing users can adopt the new detail look via **Reset book detail area to defaults**.
 
 ---
 
@@ -592,7 +602,7 @@ Open **menu -> Updates** to keep Bookshelf current. Once any check has found a n
 - **Notify on wake when update available** -- opt-in. Once an hour after a Wi-Fi-connected wake, Bookshelf checks the GitHub releases page and posts a quiet notification if a new version is out. Off by default; nothing is ever fetched without your permission.
 - **Developer updates** (advanced) -- type a development branch name (e.g. `feat/foo`) to install the tip of that branch. Use **Reset to latest stable release** to clear the dev branch and pull the latest published release.
 
-The whole download, unpack, and restart sequence runs over Wi-Fi only and needs no extra plugins. If Wi-Fi is off, Bookshelf offers to turn it on and carries on once it connects; if it's already connected, it just proceeds, including on networks where a connectivity check would fail (a Pi-hole blocking Microsoft's test domain, for instance).
+The whole download, unpack, and restart sequence runs over Wi-Fi only and needs no extra plugins. Unpacking uses KOReader's own archive support, which arrived in KOReader v2025.08; on an older KOReader the update stops with "archive extractor unavailable", so update KOReader or install the new zip by hand as in [Install](#install). If Wi-Fi is off, Bookshelf offers to turn it on and carries on once it connects; if it's already connected, it just proceeds, including on networks where a connectivity check would fail (a Pi-hole blocking Microsoft's test domain, for instance).
 
 ---
 
@@ -608,23 +618,27 @@ After adding new books over USB, Calibre, Syncthing, or KOReader's network downl
 
 ## Page counts
 
-Reflowable formats like EPUB have no fixed page count until something paginates them, so a book you have never opened usually has none. That is fine for most of Bookshelf, but it matters in two places: spine widths have nothing to vary by, and the page tokens have nothing to show.
+Reflowable formats like EPUB have no fixed page count until something lays them out, so a book you have never opened usually has none. That matters in a few places: spine widths, page count badges, the Pages sort, and the page tokens.
 
-**menu -> Settings -> Library & search -> Extract page counts** fills them in. It works down a ladder, cheapest first, and only falls back to the slow option for what is left:
+**menu -> Settings -> Library & search -> Extract page counts…** fills them in. It opens with a dialog:
 
-1. a `p(123)` marker in the filename, which costs nothing to read
-2. a linked book's page count from [Hardcover](#hardcover-enrichment)
-3. a publisher page count embedded in the book itself
-4. failing all of those, it offers to paginate the rest with KOReader's own engine, one book at a time in the background
+- **Use page counts from, in this order** -- tick the sources to try. The first one that has an answer for a book wins:
+  1. **Publisher page numbers** -- the printed page numbers some books carry.
+  2. **Hardcover editions** -- the page count of the edition each linked book is matched to (see [Hardcover enrichment](#hardcover-enrichment)).
+  3. **Your reading settings** -- lays each remaining book out in your own font and margins, so the count matches what you see when reading. The slow one.
+  4. **Calibre page column** -- a column such as `#pages`, as the Count Pages plugin fills in (needs the [Calibre metadata](#calibre-metadata-beta) beta).
+  5. **Page counts in file names** -- a `p(320)` style count in the file name, as some Calibre setups add.
+- **Which books** -- **Only books without a page count**, or **Every book, replacing earlier counts**.
+- **Delete scanned page counts…** -- clears counts from earlier scans. Counts for books you have opened, and page counts in file names, are kept.
 
-You get a report at the end saying where each count came from. The slow step is optional, cancellable, and the one worth thinking about on a large library.
+Progress shows in the top panel's status line ("Counting pages in book 30 of 41") with a **Stop** button, and the shelf stays usable while it runs. It pauses while the device sleeps and carries on after.
 
 Two things worth knowing about the numbers:
 
-- **The scan paginates at the engine's default font settings, not yours.** That keeps counts comparable between books, which is what spine widths want, rather than shifting every spine whenever you change font size. It is an approximation, and it is replaced by the real count as soon as you open the book, since KOReader works that out at your own settings and Bookshelf prefers it.
+- **A book you open uses KOReader's own count.** KOReader works that out at your reading settings as soon as you open a book, and a book with publisher page numbers uses those, so spine widths and page counts agree with what the reader shows.
 - **The counts live in Bookshelf's own store, not in the book's sidecar.** Writing them to a sidecar would make KOReader treat an untouched book as one you had opened, which would quietly change your Recent shelf and reading statistics.
 
-Once found, the counts feed spine widths, `%page_count`, `%pages_left`, and `%bar{rel}` (the progress bar whose length reflects how long the book is).
+Once found, the counts feed spine widths, the page count badge, the **Page count** sort, `%page_count`, `%pages_left`, and `%bar{rel}` (the progress bar whose length reflects how long the book is).
 
 ---
 
@@ -660,7 +674,7 @@ Everything beyond this point is the full feature reference. Expand any section y
 | **Swipe east** (->) | Top panel | Cycle preview to the previous book |
 | **Swipe east** (->) | Anywhere else | Previous page / drill back out / previous shelf |
 | **Swipe north** (up) | Anywhere | Collapse the top panel to a thin status strip; expand the grid |
-| **Swipe south** (down) | Top panel | Restore the full top panel from full screen |
+| **Swipe south** (down) | Top panel | Restore the full top panel from full screen (turn off **Settings -> Behavior -> Swipe down leaves full screen shelves** to stay in full screen; the currently reading button still brings the panel back) |
 | **Swipe south** (down) | Shelf area | Refresh the library walk |
 | **Back** (physical key) | Drilled into a stack | Pop one drill level back out to the parent shelf |
 
@@ -706,7 +720,7 @@ Within the top panel card the cover is a single focus target: the rating stars, 
 
 #### Sources
 
-Each shelf points at one of:
+Each shelf points at one of these, set under **Source / grouping** in the shelf editor. The picker lists the book shelves first and the grouped ones (series, authors, genres and so on) after.
 
 - **Home (folders)** -- your library as a folder tree.
 - **Home (flat)** -- every book in one list, no folders.
@@ -740,6 +754,7 @@ Up to three levels per shelf. Available sort keys:
 - **Title**, **Filename**
 - **Author surname**, **Author (given name)**
 - **Series name**, **Series index**, **Series + index** (series name then number, in one pick)
+- **Series, else title** -- a series sorts under its name and a standalone book under its title, so both share one alphabetical order, with series books kept in order
 - **Last opened** (most-recent-first by default)
 - **Date added** (most-recent-first by default)
 - **Percent read** (most progress first by default)
@@ -748,6 +763,7 @@ Up to three levels per shelf. Available sort keys:
 - **File size**
 - **Page count**
 - **Book count** (for stacks)
+- **Collection order** (the order a collection was put together in)
 
 Defaults adjust to the source (e.g. Recent defaults to *Last opened*; Latest added defaults to *Date added*). The first-level sort decides the order of stacks for grouped sources; subsequent levels order books within each stack.
 
@@ -768,7 +784,7 @@ Edits live-update the top panel behind the editor on every keystroke; only the r
 |--------|--------------|
 | **Bold** | Toggle bold weight |
 | **Size** | -5 / -1 / +1 / +5 nudge over the font size (range 8-48 px) |
-| **Font** | Font family picker |
+| **Font** | Font family picker, each family shown in its own typeface |
 | **Aa / AA** | Case toggle (hidden on Description) |
 | **L / C / R** | Alignment cycle (left / centre / right) |
 | **Bar style** | (Progress only) Cycle inline progress-bar styles |
@@ -787,10 +803,9 @@ Several editor surfaces use the [Bookends](https://github.com/AndyHazz/bookends.
 | Surface | With Bookends | Without |
 |---------|---------------|---------|
 | Token picker | Modal with shelves, search, live preview | Plain Menu over the token catalogue |
-| Font picker | Each family rendered in its own typeface, weight variants deduped | Plain Menu over the system font list |
 | Progress-bar styles | 7 styles (`bordered`, `solid`, `rounded`, `metro`, `wavy`, `radial`, `radial_hollow`) | 2 styles (`bordered`, `solid`) |
 
-The icon picker is built in and needs no extra plugins.
+The icon picker and the font picker are built in and need no extra plugins.
 
 </details>
 
@@ -970,6 +985,9 @@ Existing v1 settings migrate automatically on first launch -- legacy keys are re
 | `start_menu_position` | `"left"` / `"right"` / `"off"` -- where the start-menu button sits in the footer. |
 | `start_menu_seeded` / `start_menu_next_id` | One-shot seed flag for the default menu, and the counter behind generated entry ids. |
 | `micromodule_<key>_*` | Per-micro-module settings (e.g. `micromodule_clock_format`, `micromodule_random_unread_source`). Each module owns its own keys. |
+| `wallpaper_folder` | Extra folder the wallpaper list also reads from. |
+| `ornaments_off` / `ornament_packs_off` | Ornaments and packs switched off in the ornament browser, keyed by path within `bookshelf.ornaments` / by pack folder name. |
+| `search_include_genres` | Include genres and tags in search. Default on. |
 | `migrated` | One-shot flag; presence indicates v1 -> v2 migration has run. |
 
 </details>
@@ -980,7 +998,7 @@ Existing v1 settings migrate automatically on first launch -- legacy keys are re
 - **`%bar` styling lives in the Progress section.** Inserting `%bar` in another section still renders the widget, but uses the bordered default style and 100% height since the Bar style / Bar height buttons only appear in the Progress section's editor.
 - **Italic** is reachable only via the font picker (by selecting an italic family). The line editor has no italic toggle because `TextBoxWidget` doesn't synthesise italic from upright fonts.
 - **Inline format tags** render in **list view** lines only: `[b]`, `[i]`, `[font=NAME]` and `[size=N]` (also `[size=+N]` / `[size=-N]`, relative to the enclosing run). `[u]` is accepted but draws nothing. Top panel sections strip all of them, so use that section's own Bold button there.
-- **Page count for EPUBs** requires opening the book at least once. The count comes from KOReader's pagemap or reading statistics, both of which are populated only after the first paginate.
+- **Page count for EPUBs** needs the book opened once, or a run of [Extract page counts](#page-counts): a reflowable book has no count until something lays it out.
 
 </details>
 

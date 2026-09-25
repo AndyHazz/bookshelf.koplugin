@@ -224,14 +224,29 @@ function Browser.show(on_change)
         end,
         footer_actions = {
             {
+                -- On a pack's chip: switch the whole pack. Anywhere else it
+                -- says how to add ornaments and make packs. It was a greyed
+                -- "Pack" there, which said nothing about what it was for, and
+                -- with no packs yet could never be used (maintainer).
                 key = "pack",
                 label_func = function()
-                    if not self:_isPack(self.chip) then return _("Pack") end
+                    if not self:_isPack(self.chip) then return _("Add ornaments\xe2\x80\xa6") end
                     return O().isPackOff(self.chip) and _("Switch pack on") or _("Switch pack off")
                 end,
-                enabled_when = function() return self:_isPack(self.chip) end,
                 on_tap = function()
-                    if not self:_isPack(self.chip) then return end
+                    if not self:_isPack(self.chip) then
+                        UIManager:show(InfoMessage:new{
+                            text = T(_("Put PNG or SVG files in\n%1\n\nA folder of them inside it becomes a pack: it gets its own tab here, and can be switched on or off as a whole."),
+                                (function()
+                                    -- A findable path: the settings dir can be relative.
+                                    local d = O().dir() or "?"
+                                    local ok, util = pcall(require, "ffi/util")
+                                    local real = ok and util.realpath and util.realpath(d)
+                                    return real or d
+                                end)()),
+                        })
+                        return
+                    end
                     O().setPackOff(self.chip, not O().isPackOff(self.chip))
                     self:_changed()
                 end,

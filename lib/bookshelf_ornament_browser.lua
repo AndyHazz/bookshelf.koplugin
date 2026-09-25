@@ -260,14 +260,17 @@ function Browser.show(on_change)
                 on_tap = function()
                     if not self:_isPack(self.chip) then
                         UIManager:show(InfoMessage:new{
-                            text = T(_("Put PNG or SVG files in\n%1\n\nA folder of them inside it becomes a pack: it gets its own tab here, and can be switched on or off as a whole."),
+                            -- The shop URL is a parameter, not part of the
+                            -- msgid, so a translation cannot break it.
+                            text = T(_("Put PNG or SVG files in\n%1\n\nA folder of them inside it becomes a pack: it gets its own tab here, and can be switched on or off as a whole.\n\nReady-made packs:\n%2"),
                                 (function()
                                     -- A findable path: the settings dir can be relative.
                                     local d = O().dir() or "?"
                                     local ok, util = pcall(require, "ffi/util")
                                     local real = ok and util.realpath and util.realpath(d)
                                     return real or d
-                                end)()),
+                                end)(),
+                                "ko-fi.com/andyhazz/shop"),
                         })
                         return
                     end

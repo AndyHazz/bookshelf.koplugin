@@ -890,7 +890,10 @@ function Editor:editTab(tab_id, opts)
         local source_row = {
             {
                 text_func = function()
-                    return _("Source: ") .. _resolveSourceLabel(draft.source)
+                    -- "grouping" in the label: readers asking how to make a
+                    -- shelf of series or authors did not look for it under
+                    -- "Source" (maintainer).
+                    return _("Source / grouping: ") .. _resolveSourceLabel(draft.source)
                 end,
                 callback = function()
                     Editor:_pickSource(draft, function() applyLivePreview(true); rebuild() end)
@@ -2628,7 +2631,14 @@ function Editor:_pickSource(draft, on_close)
         return { text = prefix .. label, callback = on_tap }
     end
 
+    -- Two greyed headings split the list in two: shelves of BOOKS, and
+    -- shelves GROUPED into series / author / genre ... tiles, the second being
+    -- what readers looked for and did not find (maintainer).
+    local function heading(label)
+        return { { text = label, enabled = false } }
+    end
     local rows = {
+        heading(_("Books")),
         -- Row 1: the most-reached-for shortcuts — date-based plus the
         -- favourites curated shortcut. Favourites was previously on its
         -- own row but it's the same "curated shortcut" tier as Recent /
@@ -2655,6 +2665,7 @@ function Editor:_pickSource(draft, on_close)
                 function() open_folder_picker("folder_flat") end),
         },
         -- Rows 4+: browse-all on the left, specific-picker on the right
+        heading(_("Grouped")),
         {
             btn("series",    _("Series")),
             specific_btn("single_series", _("Specific series\xE2\x80\xA6"),
@@ -2713,7 +2724,7 @@ function Editor:_pickSource(draft, on_close)
         table.insert(rows, #rows, { btn("kindle", _("Kindle Virtual Library")) })
     end
     d = ButtonDialog:new{
-        title   = _("Shelf source"),
+        title   = _("Shelf source or grouping"),
         buttons = rows,
         anchor  = _highAnchor(function() return d end),
     }

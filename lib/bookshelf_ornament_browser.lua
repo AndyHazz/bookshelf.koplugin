@@ -42,8 +42,10 @@ local ALL, LOOSE = "__all", "__loose"
 
 local function O() return require("lib/bookshelf_ornaments") end
 
--- An ornament's card is faded while it will not be placed, whether switched
+-- An ornament's PICTURE is faded while it will not be placed, whether switched
 -- off itself or through its pack: the grid reads as "what the shelf uses".
+-- Only the picture: the "Off" / "Pack off" label under it is what says why,
+-- so it stays at full strength (maintainer).
 local Faded = Widget:extend{ child = nil, fade = 0.6 }
 function Faded:getSize() return self.child:getSize() end
 function Faded:paintTo(bb, x, y)
@@ -63,7 +65,7 @@ function Browser._renderCell(item, dimen)
     local label = TextWidget:new{ text = e.file, face = label_face, max_width = inner_w }
     local state = TextWidget:new{
         text = item.off and _("Off") or (item.pack_off and _("Pack off") or " "),
-        face = state_face, fgcolor = Blitbuffer.COLOR_DARK_GRAY, max_width = inner_w,
+        face = state_face, fgcolor = Blitbuffer.COLOR_BLACK, max_width = inner_w,
     }
     local text_h = label:getSize().h + state:getSize().h + Space.padding.small
     local box_h = math.max(1, dimen.h - 2 * (border + pad) - text_h - Space.padding.small)
@@ -76,6 +78,7 @@ function Browser._renderCell(item, dimen)
         placement = { entry = e, w = pw, h = ph },
         night = Screen.night_mode and true or false,
     }
+    if item.off or item.pack_off then preview = Faded:new{ child = preview } end
     local inner_h = dimen.h - 2 * (border + pad)
     local body = VerticalGroup:new{
         align = "center",
@@ -94,7 +97,6 @@ function Browser._renderCell(item, dimen)
         background = Blitbuffer.COLOR_WHITE,
         CenterContainer:new{ dimen = Geom:new{ w = inner_w, h = inner_h }, body },
     }
-    if item.off or item.pack_off then return Faded:new{ child = card } end
     return card
 end
 

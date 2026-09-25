@@ -17849,22 +17849,6 @@ function BookshelfWidget:_opdsRunDownload(book, acq, dest, dialog)
     end)
 end
 
--- _browseFiles()  — close home screen, open FileManager.
-function BookshelfWidget:_browseFiles()
-    -- Hot parking: with a reader parked underneath, spawning a
-    -- FileManager while ReaderUI is still alive would leave two hosts
-    -- running (the state KOReader's doShowReader explicitly prevents).
-    -- Real-close the parked book out to the file manager instead.
-    local Park = require("lib/bookshelf_reader_park")
-    if Park.closeShelfToFileManager(self) then return end
-    local FileManager = require("apps/filemanager/filemanager")
-    local home = G_reader_settings:readSetting("home_dir") or "/"
-    UIManager:close(self)
-    UIManager:nextTick(function()
-        FileManager:showFiles(home)
-    end)
-end
-
 -- ─── Bulk action menu (Task 10 stub) ─────────────────────────────────────────
 
 -- _openBulkMenu() — entry point for the bulk-action dialog. No-op when the

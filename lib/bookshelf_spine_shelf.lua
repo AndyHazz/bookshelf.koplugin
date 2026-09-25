@@ -504,6 +504,9 @@ end
 -- entry stores the sidecar's mtime and is validated against it once per
 -- session; a mismatch clears the entry so the next plan re-reads the truth.
 local _progress_validated = {}
+-- Opened books whose sidecar has been checked for its own page numbers this
+-- session (see the spine plan's thickness block).
+local _stable_checked = {}
 
 local function _sidecarMtime(fp)
     local ok, m = pcall(function()
@@ -572,7 +575,12 @@ function SpineShelf.persistProgress(fp, pages, status, src)
     local F = _facts()
     if not F then return end
     local e = F.get(fp)
+    -- ...except by the book's own page numbers ("stable"): layout-free, so
+    -- better than any scan, and the count the book shows everywhere. Kept
+    -- behind a scan's count, a book showing its 406 printed pages stood on
+    -- the shelf at the width of its 1272-page render.
     local keep_scan = e and SCAN_TAGS[e.psrc] and e.p and not SCAN_TAGS[src]
+                      and src ~= "stable"
     F.put(fp, {
         p    = (not keep_scan) and pages or nil,
         psrc = (not keep_scan) and pages and src or nil,
@@ -3368,7 +3376,14 @@ function SpineShelf.plan(items, opts)
             -- A width-only count still answers "is anything known": without
             -- it every layout-scanned book would open its sidecar on every
             -- plan, for a count the sidecar does not have.
-            if (not (pages or thick.scan) or not known) and src.filepath
+            -- An OPENED book with only a scan's count may have its own page
+            -- numbers in its sidecar since, which beat the scan for width
+            -- (see thicknessPages); look once a session, and a stable count
+            -- found replaces the scan's in the store.
+            local check_stable = thick.scan and opened and psrc ~= "stable"
+                                 and not _stable_checked[src.filepath]
+            if check_stable then _stable_checked[src.filepath] = true end
+            if (not (pages or thick.scan) or not known or check_stable) and src.filepath
                     and ok_repo and Repo and Repo.readProgress then
                 local _tp = _gettime()
                 pcall(function()

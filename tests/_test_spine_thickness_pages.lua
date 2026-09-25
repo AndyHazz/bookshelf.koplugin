@@ -103,6 +103,14 @@ t.test("a new scan does replace an old one", function()
     eq(rows["/b.epub"].psrc, "layout")
 end)
 
+t.test("the book's own page numbers replace a scan's count", function()
+    -- A book showing its 406 printed pages stood on the shelf at the width of
+    -- its 1272-page render: stable is layout-free and beats any scan.
+    rows = { ["/b.epub"] = { p = 1272, psrc = "user" } }
+    persist("/b.epub", 406, "reading", "stable")
+    eq(rows["/b.epub"].p, 406); eq(rows["/b.epub"].psrc, "stable")
+end)
+
 t.test("a rendered count does not overwrite a layout one either", function()
     rows = { ["/b.epub"] = { p = 900, psrc = "layout" } }
     persist("/b.epub", 500, "reading", "render")

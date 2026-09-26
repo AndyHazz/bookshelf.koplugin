@@ -48,7 +48,7 @@ local function _fitStatusRow(mw, scale_pct, counts, gen)
     if m then return m[1], m[2], m[3] end
 
     local Fonts      = require("lib/bookshelf_fonts")
-    local TextWidget = require("ui/widget/textwidget")
+    local TextWidget = require("lib/bookshelf_colour_text")
     local n = #STATUS_ROWS
     local function scv(v) return math.max(1, math.floor(v * (scale_pct or 100) / 100 + 0.5)) end
 
@@ -134,7 +134,7 @@ return {
         local width, scale_pct, _preview = ctx.width, ctx.scale, ctx.preview
         local Blitbuffer      = require("ffi/blitbuffer")
         local Fonts           = require("lib/bookshelf_fonts")
-        local TextWidget      = require("ui/widget/textwidget")
+        local TextWidget      = require("lib/bookshelf_colour_text")
         local VerticalGroup   = require("ui/widget/verticalgroup")
         local VerticalSpan    = require("ui/widget/verticalspan")
         local HorizontalGroup = require("ui/widget/horizontalgroup")

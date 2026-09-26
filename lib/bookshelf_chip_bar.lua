@@ -32,7 +32,7 @@ local BookshelfSettings = require("lib/bookshelf_settings_store")
 local InputContainer = require("ui/widget/container/inputcontainer")
 local HorizontalGroup= require("ui/widget/horizontalgroup")
 local HorizontalSpan = require("ui/widget/horizontalspan")
-local TextWidget     = require("ui/widget/textwidget")
+local TextWidget     = require("lib/bookshelf_colour_text")
 local CenterContainer= require("ui/widget/container/centercontainer")
 local OverlapGroup   = require("ui/widget/overlapgroup")
 local Widget         = require("ui/widget/widget")
@@ -364,8 +364,11 @@ local function _selectedChipColors()
     -- A fill with no ink set (or vice versa) still needs a readable pair, so
     -- fall back to the inverted-default equivalents: white text on the fill,
     -- black text on the default (white) background.
-    local fill = raw_bg and Color.parseColorValue(raw_bg, is_color) or nil
-    local ink  = raw_fg and Color.parseColorValue(raw_fg, is_color) or nil
+    -- resolvePicked, not a bare parse: a stored pick needs the palette's
+    -- frame correction, or a pinned shelf theme shows it as its opposite.
+    local CP = require("lib/bookshelf_cover_progress")
+    local fill = raw_bg and CP.resolvePicked(raw_bg) or nil
+    local ink  = raw_fg and CP.resolvePicked(raw_fg) or nil
     if fill and not ink then ink = Blitbuffer.COLOR_WHITE end
     if ink and not fill then fill = Blitbuffer.COLOR_BLACK end
     if not fill or not ink then return nil end
@@ -851,8 +854,10 @@ function ChipBar:_paintGround(bb, x, y, w, h)
     if not (ok and CoverProgress and CoverProgress.resolvedColors) then return false end
     local ok_c, colors = pcall(CoverProgress.resolvedColors)
     if not (ok_c and colors and colors.chrome_bg) then return false end
+    -- Color.paintRect, not bb:paintRect: a picked Shelf menu background is a
+    -- colour, and paintRect would flatten it to its grey.
     return pcall(function()
-        bb:paintRect(x, y, w or 0, h or 0, colors.chrome_bg)
+        require("lib/bookshelf_color").paintRect(bb, x, y, w or 0, h or 0, colors.chrome_bg)
     end)
 end
 

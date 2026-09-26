@@ -115,6 +115,45 @@ end
 
 function BookendsBar:free() end -- nothing to release; pure painter
 
+-- ColourBar: the fallback bar's look -- ProgressWidget's defaults, a 1px
+-- black border round a white track and a dark grey fill, 2px corners -- with
+-- the reader's picked fill and track, painted colour-safely.
+local ColourBar = Widget:extend{
+    width = 0, height = 0, fraction = 0, colors = nil,
+}
+function ColourBar:init()
+    self.dimen = Geom:new{ x = 0, y = 0, w = self.width, h = self.height }
+end
+function ColourBar:getSize() return self.dimen end
+function ColourBar:paintTo(bb, x, y)
+    self.dimen.x, self.dimen.y = x, y
+    local Blitbuffer = require("ffi/blitbuffer")
+    local Screen     = require("device").screen
+    local CP         = require("lib/bookshelf_cover_progress")
+    local Color      = require("lib/bookshelf_color")
+    local c = self.colors or {}
+    -- bg / border false = see-through (hero_card sets it over a wallpaper).
+    -- Not `x and x or default`: that turns a false (see-through) into the
+    -- default.
+    local function pick(v, default)
+        if type(v) == "nil" then return default end
+        return v
+    end
+    local track  = pick(c.bg, Blitbuffer.COLOR_WHITE)
+    local fill   = pick(c.fill, Blitbuffer.COLOR_DARK_GRAY)
+    local border = pick(c.border, Blitbuffer.COLOR_BLACK)
+    local w, h = self.width, self.height
+    local r  = math.min(Screen:scaleBySize(2), math.floor(h / 2))
+    local bw = math.min(Screen:scaleBySize(1), math.floor(h / 2))
+    if track then CP.paintRoundedRect(bb, x, y, w, h, track, r) end
+    if border and bw > 0 and CP.paintBorder then
+        CP.paintBorder(bb, x, y, w, h, bw, border, r)
+    end
+    local fw = math.ceil((w - 2 * bw) * math.max(0, math.min(1, self.fraction or 0)))
+    if fw > 0 then Color.paintRect(bb, x + bw, y + bw, fw, h - 2 * bw, fill) end
+end
+function ColourBar:free() end
+
 -- new{ width, height, percentage, style, colors } -> a paintable widget.
 -- `style` is the user's saved choice; we silently downgrade to whatever
 -- the active backend supports (paintProgressBar tolerates unknown
@@ -144,10 +183,17 @@ function HeroBar:new(o)
 
     -- Fallback: KOReader ProgressWidget. Only bordered / solid are
     -- meaningful; saved styles like wavy render as the default look.
-    -- ProgressWidget doesn't expose per-instance fill/bg overrides, so
-    -- user color picks have no effect along this path — acceptable as
-    -- the fallback only triggers when bookends isn't installed, and the
-    -- user can install bookends to unlock themed bars.
+    --
+    -- With a Progress bar / track colour picked, ColourBar instead: the same
+    -- shape, painted in those colours. ProgressWidget cannot be asked for
+    -- them, and it paints with paintRect, which flattens a colour to grey, so
+    -- a reader without bookends who picked red got a grey bar. Without a
+    -- pick, the stock widget exactly as before.
+    if colors and (type(colors.fill) ~= "nil" or type(colors.bg) ~= "nil") then
+        return ColourBar:new{
+            width = width, height = height, fraction = percentage, colors = colors,
+        }
+    end
     local ProgressWidget = require("ui/widget/progresswidget")
     return ProgressWidget:new{
         width      = width,

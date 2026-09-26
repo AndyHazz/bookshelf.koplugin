@@ -77,7 +77,7 @@ return {
         local mw  = math.max(50, ctx.width)
         local s = read()
         if not s then
-            local TextWidget = require("ui/widget/textwidget")
+            local TextWidget = require("lib/bookshelf_colour_text")
             return TextWidget:new{
                 text = _("Battery level unavailable"),
                 face = Kit.face(15, ctx.scale),

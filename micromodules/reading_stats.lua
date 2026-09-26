@@ -84,7 +84,7 @@ return {
         local mw  = math.max(50, width)
         local s = readStats()
         if not s then
-            local TextWidget = require("ui/widget/textwidget")
+            local TextWidget = require("lib/bookshelf_colour_text")
             return TextWidget:new{
                 text = _("Stats unavailable"),
                 face = Kit.face(15, scale_pct),

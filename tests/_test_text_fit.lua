@@ -150,7 +150,12 @@ do
         local prev = package.loaded["ui/widget/textboxwidget"]
         package.loaded["ui/widget/textboxwidget"] = {
             new = function(_self, o)
-                local n = lines_reported(o.text or "")
+                -- Unbroken text wraps as the widget would (the verify now
+                -- measures the natural wrap too, issue 457); a balanced text's
+                -- rendering is what each case below decides.
+                local txt = o.text or ""
+                local n = txt:find("\n", 1, true) and lines_reported(txt)
+                          or lineCount(txt, (o.face and o.face.size) or 10, o.width or 1)
                 local vsl = {}
                 for i = 1, n do vsl[i] = i end
                 return {
@@ -253,6 +258,52 @@ do
     local face = { size = 10 }
     check("empty text", TextFit.balanceForBox("", face, 130, true), "")
     check("nil text", TextFit.balanceForBox(nil, face, 130, true), nil)
+end
+
+-- 6. Issue 457: the per-word estimate OVERCOUNTS the real wrap. RenderText's
+-- summed widths said three lines where the shaped layout fitted two, so the
+-- balancer evened the title out at three, the balanced text really did render
+-- in three, and the check against its own estimate let it through -- one line
+-- more than the fit loop measured, and the height cap ellipsised it ("A Hymn
+-- Of..." at a size where the title fits). Here the estimate adds 4px a word;
+-- the widget wraps on true widths.
+do
+    local real_rt, real_tb = package.loaded["ui/rendertext"], package.loaded["ui/widget/textboxwidget"]
+    package.loaded["ui/rendertext"] = {
+        sizeUtf8Text = function(_self, _x, _w, face, str, _kern, _bold)
+            local sz = face.size or 1
+            if str == " " then return { x = sz } end
+            return { x = #str * sz + 4 }
+        end,
+    }
+    local TB = {}
+    TB.__index = TB
+    function TB:new(o)
+        o = setmetatable(o or {}, self)
+        local size = (o.face and o.face.size) or 1
+        local n = 0
+        for part in ((o.text or "") .. "\n"):gmatch("(.-)\n") do
+            n = n + math.max(1, lineCount(part, size, o.width or 1))
+        end
+        o.vertical_string_list = {}
+        for i = 1, n do o.vertical_string_list[i] = {} end
+        o._h = n * math.ceil(size * 1.3)
+        return o
+    end
+    function TB:getSize() return { w = self.width, h = self._h } end
+    function TB:free() end
+    package.loaded["ui/widget/textboxwidget"] = TB
+    local face = { size = 10 }
+    -- "A Hymn Of Empire" at size 10, width 96. True widths A=10 Hymn=40 Of=20
+    -- Empire=60, space 10: greedy "A Hymn Of" (90) / "Empire" = 2 lines. The
+    -- estimate (+4 a word) makes "A Hymn Of" 102 and "Of Empire" 98, both over
+    -- 96, so it counts 3 -- and balances to "A Hymn / Of / Empire".
+    local txt, width = "A Hymn Of Empire", 96
+    local real_lines = lineCount(txt, face.size, width)
+    local out = TextFit.balanceLines(txt, face, width, true)
+    local got = TB:new{ text = out, face = face, width = width }
+    check("balancing never renders more lines than the plain text", #got.vertical_string_list <= real_lines, true)
+    package.loaded["ui/rendertext"], package.loaded["ui/widget/textboxwidget"] = real_rt, real_tb
 end
 
 print(string.format("text_fit: %d passed, %d failed", pass, fail))

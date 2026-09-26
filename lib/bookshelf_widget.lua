@@ -12,7 +12,7 @@ local FrameContainer  = require("ui/widget/container/framecontainer")
 local VerticalGroup   = require("ui/widget/verticalgroup")
 local HorizontalGroup = require("ui/widget/horizontalgroup")
 local CenterContainer = require("ui/widget/container/centercontainer")
-local TextWidget      = require("ui/widget/textwidget")
+local TextWidget      = require("lib/bookshelf_colour_text")
 local TextBoxWidget   = require("ui/widget/textboxwidget")
 local Geom            = require("ui/geometry")
 local GestureRange    = require("ui/gesturerange")
@@ -3615,8 +3615,11 @@ function BookshelfWidget:_wallpaperWidget()
     if not name then return nil end
     local ok, w = pcall(function()
         local Wallpaper = require("lib/bookshelf_wallpaper")
+        -- preInvert: whether the cached picture holds the file's negative --
+        -- the frame's own inversion undone, and one more when the reader
+        -- asked for the picture inverted at night (Wallpaper.showsNegative).
         return Wallpaper.bg(name, self.width, self.height,
-                            Screen.night_mode and true or false)
+                            Wallpaper.preInvert(Screen.night_mode and true or false))
     end)
     return ok and w or nil
 end
@@ -3641,6 +3644,11 @@ function BookshelfWidget:_pageGroundColor()
             local g = tonumber(raw.hex:sub(4, 5), 16)
             local b = tonumber(raw.hex:sub(6, 7), 16)
             if r and g and b then
+                -- A colour is stored for its slot's frame like every other
+                -- colour pick (the night slot pre-inverted), so it takes the
+                -- palette's correction when the shelf theme is pinned against
+                -- the frame. The grey branch above keeps its own convention.
+                if self:_themeFlipsRaw() then r, g, b = 255 - r, 255 - g, 255 - b end
                 return Blitbuffer.ColorRGB32(r, g, b, 0xFF)
             end
         end
@@ -6051,6 +6059,21 @@ function BookshelfWidget:_buildSpineRows(items, content_w, shelf_h, PAD, n_rows)
     -- (SpineShelf.rowEndBase): synced from the cursor before the rows are
     -- planned, so a page turn plans with the page it is turning to.
     opts.page_index = self.page
+    -- "First unread in series" across the whole shelf, not per screen (issue
+    -- 458): series already claimed by a book before this page start taken.
+    -- Only when that reason is on; the pagination pass plans from the top and
+    -- needs none.
+    do
+        local spec = SpineShelf.faceOutSpec(opts.face_out)
+        local dc  = self._draft_items_cache
+        local all = dc and dc.total_hint == nil and dc.all_items or nil
+        -- Only when the page really is the list from the cursor on (a
+        -- windowed source's list starts somewhere else).
+        if spec.first_unread and not spec.all and all and all ~= items
+                and all[self._cursor] == items[1] then
+            opts.series_next_claimed = SpineShelf.seriesClaimedBefore(all, self._cursor, items)
+        end
+    end
     local plan = SpineShelf.plan(items, opts)
     self._spine_shown = plan.shown
     -- Where the next page begins: an item index (into the slice handed to
@@ -6730,7 +6753,7 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
         local probe = FooterSlots.probeNumber(counter_total)
         local page_need = slot(SLOT_PAGE)
         pcall(function()
-            local TextWidget = require("ui/widget/textwidget")
+            local TextWidget = require("lib/bookshelf_colour_text")
             local probe_tw = TextWidget:new{
                 -- Through the same builder as the counter itself, or the
                 -- slot gets sized for one format and painted with the other.
@@ -10397,7 +10420,7 @@ local function _scheduleNightModeRebuild(self, target_night)
     self._night_rebuild_pending = true
     pcall(function()
         local Wallpaper = require("lib/bookshelf_wallpaper")
-        if Wallpaper.flipNight then Wallpaper.flipNight(target_night) end
+        if Wallpaper.flipNight then Wallpaper.flipNight(Wallpaper.preInvert(target_night)) end
     end)
     -- Next tick: DeviceListener has flipped the screen and saved night_mode
     -- by then (it runs later in the same broadcast), so the rebuild reads the
@@ -10453,7 +10476,7 @@ function BookshelfWidget:_followScreenNight()
         -- No event said so: the wallpaper has not been flipped yet.
         pcall(function()
             local Wallpaper = require("lib/bookshelf_wallpaper")
-            if Wallpaper.flipNight then Wallpaper.flipNight(now) end
+            if Wallpaper.flipNight then Wallpaper.flipNight(Wallpaper.preInvert(now)) end
         end)
     end
     self:_rebuild()
@@ -18035,7 +18058,7 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
     local VerticalGroup_     = require("ui/widget/verticalgroup")
     local VerticalSpan_      = require("ui/widget/verticalspan")
     local TextBoxWidget_     = require("ui/widget/textboxwidget")
-    local TextWidget_        = require("ui/widget/textwidget")
+    local TextWidget_        = require("lib/bookshelf_colour_text")
 
     -- Caller can pass override_width (e.g. the collection manager, which
     -- nests inside the book menu and needs a narrower header).
@@ -18848,7 +18871,7 @@ end
 -- the layout). Left-inset so the heading text aligns with the body text.
 function BookshelfWidget:_sectionHeadingBar(text, content_w, font_size, inset)
     local FrameContainer = require("ui/widget/container/framecontainer")
-    local TextWidget     = require("ui/widget/textwidget")
+    local TextWidget     = require("lib/bookshelf_colour_text")
     local face, bold = BFont:getFace("cfont", math.max(10, (font_size or 18) - 3), { bold = true })
     return FrameContainer:new{
         background  = Blitbuffer.COLOR_BLACK,
@@ -18867,7 +18890,7 @@ end
 -- inactive chip fires on_pick(key). Left-inset to align with the body text.
 function BookshelfWidget:_segmentedChips(items, active_key, on_pick, font_size, inset)
     local FrameContainer  = require("ui/widget/container/framecontainer")
-    local TextWidget      = require("ui/widget/textwidget")
+    local TextWidget      = require("lib/bookshelf_colour_text")
     local InputContainer  = require("ui/widget/container/inputcontainer")
     local HorizontalGroup = require("ui/widget/horizontalgroup")
     local CenterContainer = require("ui/widget/container/centercontainer")
@@ -18955,7 +18978,7 @@ end
 -- ink; the pills now say so themselves.
 function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base_size, align, gap, on_overflow, ink)
     local Font            = require("ui/font")
-    local TextWidget_     = require("ui/widget/textwidget")
+    local TextWidget_     = require("lib/bookshelf_colour_text")
     local FrameContainer_ = require("ui/widget/container/framecontainer")
     local HorizontalGroup_ = require("ui/widget/horizontalgroup")
     local HorizontalSpan_  = require("ui/widget/horizontalspan")
@@ -19576,7 +19599,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     local FrameContainer      = require("ui/widget/container/framecontainer")
     local ReadCollection      = require("readcollection")
     local LineWidget          = require("ui/widget/linewidget")
-    local TextWidget          = require("ui/widget/textwidget")
+    local TextWidget          = require("lib/bookshelf_colour_text")
     local TextBoxWidget       = require("ui/widget/textboxwidget")
     local InputContainer      = require("ui/widget/container/inputcontainer")
     local HorizontalGroup     = require("ui/widget/horizontalgroup")
@@ -20534,7 +20557,7 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
     local CenterContainer = require("ui/widget/container/centercontainer")
     local LeftContainer   = require("ui/widget/container/leftcontainer")
     local FrameContainer  = require("ui/widget/container/framecontainer")
-    local TextWidget      = require("ui/widget/textwidget")
+    local TextWidget      = require("lib/bookshelf_colour_text")
     local CoverApply      = require("lib/bookshelf_cover_apply")
     local CoverGridCell   = require("lib/bookshelf_cover_grid_cell")
     local Pagination      = require("lib/bookshelf_pagination")

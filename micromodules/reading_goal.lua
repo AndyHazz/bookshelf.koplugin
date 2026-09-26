@@ -502,7 +502,7 @@ return {
     render = function(ctx)
         local width, scale_pct, preview, avail_h = ctx.width, ctx.scale, ctx.preview, ctx.height
         local Fonts         = require("lib/bookshelf_fonts")
-        local TextWidget    = require("ui/widget/textwidget")
+        local TextWidget    = require("lib/bookshelf_colour_text")
         local VerticalGroup = require("ui/widget/verticalgroup")
         local VerticalSpan  = require("ui/widget/verticalspan")
         local SM            = require("lib/bookshelf_start_menu_modules")

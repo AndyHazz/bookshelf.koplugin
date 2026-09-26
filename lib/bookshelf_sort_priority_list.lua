@@ -27,7 +27,7 @@
 local Button         = require("ui/widget/button")
 local FrameContainer = require("ui/widget/container/framecontainer")
 local HorizontalGroup= require("ui/widget/horizontalgroup")
-local TextWidget     = require("ui/widget/textwidget")
+local TextWidget     = require("lib/bookshelf_colour_text")
 local VerticalGroup  = require("ui/widget/verticalgroup")
 local CenterContainer= require("ui/widget/container/centercontainer")
 local Geom           = require("ui/geometry")

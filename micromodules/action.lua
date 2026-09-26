@@ -33,7 +33,7 @@ local function buildIcon(icon_value, box, fg)
     -- card edge). Fit it by measuring once at face=box and correcting the face
     -- so the visible ink lands inside the box square.
     local Font       = require("ui/font")
-    local TextWidget = require("ui/widget/textwidget")
+    local TextWidget = require("lib/bookshelf_colour_text")
     local text = (icon_value and icon_value ~= "") and icon_value or DEFAULT_ICON
     local function glyph(px)
         return TextWidget:new{

@@ -18,7 +18,7 @@ local VerticalSpan    = require("ui/widget/verticalspan")
 local OverlapGroup    = require("ui/widget/overlapgroup")
 local LineWidget      = require("ui/widget/linewidget")
 local TextBoxWidget   = require("ui/widget/textboxwidget")
-local TextWidget      = require("ui/widget/textwidget")
+local TextWidget      = require("lib/bookshelf_colour_text")
 local Geom            = require("ui/geometry")
 local GestureRange    = require("ui/gesturerange")
 local Size            = require("ui/size")
@@ -669,16 +669,7 @@ buildLine = function(expanded, region, width, book, max_height, single_line)
         --   users who never opened the colors menu.
         local colors
         if style ~= "pacman" then
-            local custom_fill  = BookshelfSettings.read("progress_fill")
-            local custom_track = BookshelfSettings.read("progress_track")
-            if custom_fill or custom_track then
-                local Color    = require("lib/bookshelf_color")
-                local is_color = Screen:isColorEnabled()
-                colors = {
-                    fill = custom_fill and Color.parseColorValue(custom_fill, is_color) or nil,
-                    bg   = custom_track and Color.parseColorValue(custom_track, is_color) or nil,
-                }
-            end
+            colors = require("lib/bookshelf_cover_progress").pickedBarColors()
         end
         -- {rel}: shorten the bar in proportion to the book's length, and hand
         -- the pixels it gives up to a plain gap AFTER it, so every bar starts
@@ -689,6 +680,15 @@ buildLine = function(expanded, region, width, book, max_height, single_line)
             bar_w = math.max(2, math.floor(
                 elastic_w * ListGeom.relativeBarFraction(book and book.page_count)))
             slack = elastic_w - bar_w
+        end
+        -- A bar in picked colours on a colour screen keeps them over a
+        -- wallpaper too (see the mask below): the track is left see-through
+        -- unless one was picked, and the border takes the ink, which is what
+        -- the mask used to make of both. false = transparent to both painters.
+        local keeps_colour = colors ~= nil and Screen:isColorEnabled()
+        if keeps_colour and _over_ground then
+            if type(colors.bg) == "nil" then colors.bg = false end
+            if type(colors.border) == "nil" then colors.border = _ink() end
         end
         elastic_widget = HeroBar:new{
             width      = bar_w,
@@ -704,7 +704,11 @@ buildLine = function(expanded, region, width, book, max_height, single_line)
         -- is the look the whole column had when it was masked. It is a strip
         -- a few thousand pixels big, so the second render costs nothing
         -- worth measuring, unlike the text blocks it used to be wrapped with.
-        if _over_ground then
+        --
+        -- Except a bar in picked colours on a colour screen: a mask has ONE
+        -- colour, so it turned a red bar the grey of red (reported). Its
+        -- see-through track and ink border are set up above instead.
+        if _over_ground and not keeps_colour then
             local ok, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
             if ok then elastic_widget = Wallpaper.mask(true, elastic_widget, _ink()) end
         end

@@ -118,7 +118,7 @@ end
 function Settings:_pickTokenViaLibraryModal(LibraryModal, dialog)
     local Tokens          = require("lib/bookshelf_tokens")
     local Font            = require("ui/font")
-    local TextWidget      = require("ui/widget/textwidget")
+    local TextWidget      = require("lib/bookshelf_colour_text")
     local VerticalGroup   = require("ui/widget/verticalgroup")
     local VerticalSpan    = require("ui/widget/verticalspan")
     local LeftContainer   = require("ui/widget/container/leftcontainer")
@@ -1524,6 +1524,28 @@ function Settings:_wallpaperMenu()
             end,
         },
         {
+            text = _("Invert wallpaper in night mode"),
+            help_text = _("Show the wallpaper as its negative when the shelf "
+                .. "is in night mode, so a light picture turns dark. Off, the "
+                .. "picture looks the same by night as by day."),
+            checked_func = function() return Wallpaper.invertsAtNight() end,
+            keep_menu_open = true,
+            callback = function()
+                if Wallpaper.invertsAtNight() then
+                    BookshelfSettings.delete(Wallpaper.INVERT_NIGHT_SETTING)
+                else
+                    BookshelfSettings.save(Wallpaper.INVERT_NIGHT_SETTING, true)
+                end
+                BookshelfSettings.flush()
+                -- The cache key carries the pre-invert, so the next paint
+                -- decodes the picture the new way round.
+                if self._bw and self._bw._rebuild then
+                    self._bw:_rebuild()
+                    UIManager:setDirty(self._bw, "ui")
+                end
+            end,
+        },
+        {
             -- Issue 419: pictures kept in a folder of the reader's own.
             text_func = function()
                 local d = Wallpaper.userDir()
@@ -1825,10 +1847,19 @@ end
 local MenuIcons  = require("lib/bookshelf_menu_icons")
 local ICON_RESET = MenuIcons.RESET .. "  "
 
+-- _isNight() -> true when the NIGHT slot is the one being edited: the slot
+-- the palette paints from, which follows the shelf theme (CoverProgress.
+-- modeSuffix), not whether KOReader is inverting. The night slot is stored
+-- pre-inverted for a frame that flips it, the day slot as it displays, and
+-- the palette corrects for the frame at paint time (resolvedColors' flip).
+-- So what the reader SEES converts to what is stored by the slot alone.
+-- Asking the frame instead got both pinned themes wrong: pinned Dark with
+-- KOReader in day mode, and pinned Light with KOReader in night mode, showed
+-- a picked pink as its opposite, green (issue 426 had matched the SLOT to the
+-- palette; this matches the conversion to it too).
 local function _isNight()
-    -- The same answer the palette uses, so the picker edits the slot the
-    -- shelf is actually painting from (issue 426).
-    return require("lib/bookshelf_night_mode_sync").active()
+    local CP = require("lib/bookshelf_cover_progress")
+    return CP.modeSuffix and CP.modeSuffix() ~= "" or false
 end
 local function _byteToScreenPct(byte)
     if _isNight() then
@@ -1912,16 +1943,28 @@ function Settings:_pickColor(raw_key, field, default_pct, title,
         local original = raw
 
         if Screen:isColorEnabled() then
+            -- The night slot is stored PRE-INVERTED, for a frame that flips it
+            -- (the "% black on screen" dialog below does the same through
+            -- _screenPctToByte). The picker speaks in what the reader SEES,
+            -- so it inverts on the way in and out; without that a colour
+            -- picked in night mode displayed as its opposite -- red as cyan.
+            -- The plank is the exception: stored as it DISPLAYS in both
+            -- slots, and pre-inverted by the spine shelf itself against the
+            -- screen (see resolvedColors' plank note).
+            local night = _isNight() and raw_key ~= "spine_plank_color"
+            local shown = (night and raw) and Color.invertValue(raw) or raw
             local current_hex
-            if raw and raw.hex then current_hex = raw.hex
-            elseif raw and raw.grey then
-                local g = string.format("%02X", raw.grey)
+            if shown and shown.hex then current_hex = shown.hex
+            elseif shown and shown.grey then
+                local g = string.format("%02X", shown.grey)
                 current_hex = "#" .. g .. g .. g
             end
             self._plugin:showColorPicker(
                 title, current_hex, Color.defaultHexFor(field),
                 function(new_hex)
-                    BookshelfSettings.save(key, Color.toStorageShape(new_hex))
+                    local stored = Color.toStorageShape(new_hex)
+                    if night then stored = Color.invertValue(stored) end
+                    BookshelfSettings.save(key, stored)
                     refresh()
                 end,
                 function()
@@ -2141,7 +2184,7 @@ function Settings:_colorsSubItems()
             text_func = function()
                 -- Matches _isNight / modeSuffix, so the label names the
                 -- slot the picker is really editing (issue 426).
-                if require("lib/bookshelf_night_mode_sync").active() then
+                if _isNight() then
                     return _("\xe2\x97\x90 Editing night-mode colors (tap to switch)")
                 end
                 return _("\xe2\x98\x80 Editing day-mode colors (tap to switch)")
@@ -5359,7 +5402,7 @@ function Settings:_about()
     local VerticalGroup    = require("ui/widget/verticalgroup")
     local VerticalSpan     = require("ui/widget/verticalspan")
     local TextBoxWidget    = require("ui/widget/textboxwidget")
-    local TextWidget       = require("ui/widget/textwidget")
+    local TextWidget       = require("lib/bookshelf_colour_text")
     local GestureRange     = require("ui/gesturerange")
 
     local sw, sh = Screen:getWidth(), Screen:getHeight()

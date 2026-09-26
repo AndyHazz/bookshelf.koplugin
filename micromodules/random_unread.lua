@@ -247,7 +247,7 @@ return {
         local width, scale_pct, refresh = ctx.width, ctx.scale, ctx.refresh
         local Blitbuffer    = require("ffi/blitbuffer")
         local Fonts         = require("lib/bookshelf_fonts")
-        local TextWidget    = require("ui/widget/textwidget")
+        local TextWidget    = require("lib/bookshelf_colour_text")
         local VerticalGroup = require("ui/widget/verticalgroup")
         local SM = require("lib/bookshelf_start_menu_modules")
         local CARD_BG = SM.CARD_BG

@@ -312,7 +312,7 @@ return {
         local PRIMARY, MUTED = SM.COLOR_PRIMARY, SM.COLOR_MUTED
         local Fonts = require("lib/bookshelf_fonts")
         local Geom = require("ui/geometry")
-        local TextWidget = require("ui/widget/textwidget")
+        local TextWidget = require("lib/bookshelf_colour_text")
         local TextBoxWidget = require("ui/widget/textboxwidget")
         local VerticalSpan = require("ui/widget/verticalspan")
         local FrameContainer = require("ui/widget/container/framecontainer")

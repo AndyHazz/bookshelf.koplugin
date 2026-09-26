@@ -24,7 +24,7 @@ local Space          = require("lib/bookshelf_space")
 local Geom           = require("ui/geometry")
 local GestureRange   = require("ui/gesturerange")
 local InputContainer = require("ui/widget/container/inputcontainer")
-local TextWidget     = require("ui/widget/textwidget")
+local TextWidget     = require("lib/bookshelf_colour_text")
 local Widget         = require("ui/widget/widget")
 local logger         = require("logger")
 local BFont          = require("lib/bookshelf_fonts")
@@ -1171,6 +1171,58 @@ function SpineShelf.markSeriesHeads(f, src, st)
     end
     f.series_first = first or nil
     f.series_next  = nxt or nil
+end
+
+-- statusUnread(src) -> true when a book has never been started, resolving its
+-- status the way plan() does when nothing has yet: the record, then the
+-- progress store, then the sidecar. For books OFF the screen being planned.
+function SpineShelf.statusUnread(src)
+    if type(src) ~= "table" or not src.filepath then return false end
+    if src._spine_status_checked then return SpineShelf.isUnread(src) end
+    local st = src.status
+    if st == nil then
+        local _p, ps, known = SpineShelf.cachedProgress(src.filepath)
+        st = ps
+        if st == nil and not known then
+            local ok_repo, Repo = pcall(require, "lib/bookshelf_book_repository")
+            if ok_repo and Repo and Repo.readProgress then
+                pcall(function() st = select(2, Repo.readProgress(src.filepath)) end)
+            end
+        end
+    end
+    return st == nil or st == "new" or st == "unread"
+end
+
+-- seriesClaimedBefore(all_items, first_idx, window_items) -> { [series] = true }
+--
+-- For issue 458: the series whose "first unread" has already come up BEFORE
+-- the screen being planned, for books standing on their own (a group's
+-- members are all planned together, whole, so a group needs none of this).
+-- Only series that appear in the window are looked for, and only the books
+-- before it carrying one of those names have their status resolved, so a
+-- screen deep into a big shelf pays for a handful of books, not the shelf.
+function SpineShelf.seriesClaimedBefore(all_items, first_idx, window_items)
+    if type(all_items) ~= "table" or not first_idx or first_idx <= 1 then return nil end
+    local function name(it)
+        if type(it) ~= "table" or it.books or not it.filepath then return nil end
+        local n = it.series_name
+        return (type(n) == "string" and n ~= "") and n or nil
+    end
+    local wanted, any = {}, false
+    for _i, it in ipairs(window_items or {}) do
+        local n = name(it)
+        if n then wanted[n] = true; any = true end
+    end
+    if not any then return nil end
+    local claimed = {}
+    for i = 1, math.min(first_idx - 1, #all_items) do
+        local it = all_items[i]
+        local n = name(it)
+        if n and wanted[n] and not claimed[n] and SpineShelf.statusUnread(it) then
+            claimed[n] = true
+        end
+    end
+    return next(claimed) and claimed or nil
 end
 
 -- recentSet(flat, n) -> { [filepath] = true } for the n most recently ADDED.
@@ -3164,6 +3216,15 @@ function SpineShelf.plan(items, opts)
     -- need not be the one with a series name.
     local series_state = { run_has_series = {}, run_next = {},
                            series_first = {}, series_next = {} }
+    -- Series that already had their "first unread" on an EARLIER screen
+    -- (issue 458). A book on its own is marked by its series name alone, and
+    -- this list is one screen of the shelf, so a series running across a page
+    -- boundary used to get a second first-unread on the next page. The caller
+    -- works out which series were claimed before this window
+    -- (seriesClaimedBefore) and they start this screen already taken.
+    for name in pairs(opts.series_next_claimed or {}) do
+        series_state.series_next[name] = true
+    end
 
     -- Resume INSIDE an item. A group bigger than a page cannot be paged
     -- through in item units, so a page that starts partway through one is

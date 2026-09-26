@@ -357,7 +357,7 @@ function LibraryModal:_renderTitleBar(content_width, modal_w)
     local HorizontalGroup = require("ui/widget/horizontalgroup")
     local LeftContainer = require("ui/widget/container/leftcontainer")
     local LineWidget = require("ui/widget/linewidget")
-    local TextWidget = require("ui/widget/textwidget")
+    local TextWidget = require("lib/bookshelf_colour_text")
     local Screen = Device.screen
     -- Equal top/bottom padding so the title text reads as vertically centred.
     local bar_pad = Space.px(8)
@@ -422,7 +422,7 @@ function LibraryModal:_renderTabSegments(title_bar_h)
     local Font = require("ui/font")
     local GestureRange = require("ui/gesturerange")
     local HorizontalGroup = require("ui/widget/horizontalgroup")
-    local TextWidget = require("ui/widget/textwidget")
+    local TextWidget = require("lib/bookshelf_colour_text")
     local Screen = Device.screen
     local seg_pad_h = Space.px(12)
 
@@ -498,7 +498,7 @@ function LibraryModal:_renderSearchInput(content_width)
     local Font = require("ui/font")
     local GestureRange = require("ui/gesturerange")
     local HorizontalGroup = require("ui/widget/horizontalgroup")
-    local TextWidget = require("ui/widget/textwidget")
+    local TextWidget = require("lib/bookshelf_colour_text")
     local Screen = Device.screen
 
     local placeholder = self.config.search_placeholder
@@ -662,7 +662,7 @@ function LibraryModal:_renderChipStrip(content_width)
     local Font = require("ui/font")
     local GestureRange = require("ui/gesturerange")
     local HorizontalGroup = require("ui/widget/horizontalgroup")
-    local TextWidget = require("ui/widget/textwidget")
+    local TextWidget = require("lib/bookshelf_colour_text")
     local Screen = Device.screen
 
     if not self.config.chip_strip then return nil end

@@ -223,7 +223,7 @@ return {
         local width, scale_pct, preview = ctx.width, ctx.scale, ctx.preview
         local avail_h = ctx.height or ctx.max_height
         local Fonts         = require("lib/bookshelf_fonts")
-        local TextWidget    = require("ui/widget/textwidget")
+        local TextWidget    = require("lib/bookshelf_colour_text")
         local VerticalGroup = require("ui/widget/verticalgroup")
         local SM            = require("lib/bookshelf_start_menu_modules")
         local mw = math.max(50, width)

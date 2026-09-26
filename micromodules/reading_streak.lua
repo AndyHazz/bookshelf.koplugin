@@ -363,7 +363,7 @@ return {
         end
         if s == false then
             -- queried: no statistics DB, or the query failed
-            local TextWidget = require("ui/widget/textwidget")
+            local TextWidget = require("lib/bookshelf_colour_text")
             return TextWidget:new{
                 text    = _("Stats unavailable"),
                 face    = Kit.face(15, scale_pct),

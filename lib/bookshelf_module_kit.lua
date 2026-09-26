@@ -157,7 +157,7 @@ end
 --   suffix  - baseline-aligned small primary       bar    - optional full-width widget
 --   sub     - optional muted small line            context- optional small primary line
 function Kit.valueCard(o)
-    local TextWidget      = require("ui/widget/textwidget")
+    local TextWidget      = require("lib/bookshelf_colour_text")
     local VerticalGroup   = require("ui/widget/verticalgroup")
     local VerticalSpan    = require("ui/widget/verticalspan")
     local HorizontalGroup = require("ui/widget/horizontalgroup")
@@ -232,8 +232,10 @@ function Kit.progressBar(o)
     function Bar:getSize() return Geom:new{ w = bar_w, h = bar_h } end
     function Bar:paintTo(bb, x, y)
         self.dimen = Geom:new{ x = x, y = y, w = bar_w, h = bar_h }
-        bb:paintRect(x, y, bar_w, bar_h, TRACK)
-        if fill_w > 0 then bb:paintRect(x, y, fill_w, bar_h, FILL) end
+        -- Color.paintRect: the fill is the card's ink, which may be a colour.
+        local Color = require("lib/bookshelf_color")
+        Color.paintRect(bb, x, y, bar_w, bar_h, TRACK)
+        if fill_w > 0 then Color.paintRect(bb, x, y, fill_w, bar_h, FILL) end
     end
     return Bar:new{}
 end

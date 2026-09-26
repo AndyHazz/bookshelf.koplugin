@@ -466,7 +466,7 @@ return {
         local Blitbuffer      = require("ffi/blitbuffer")
         local Geom            = require("ui/geometry")
         local Fonts           = require("lib/bookshelf_fonts")
-        local TextWidget      = require("ui/widget/textwidget")
+        local TextWidget      = require("lib/bookshelf_colour_text")
         local TextBoxWidget   = require("ui/widget/textboxwidget")
         local VerticalGroup   = require("ui/widget/verticalgroup")
         local VerticalSpan    = require("ui/widget/verticalspan")

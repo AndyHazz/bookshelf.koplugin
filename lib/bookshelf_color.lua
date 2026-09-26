@@ -210,6 +210,21 @@ function Color.invertValue(v)
     return v
 end
 
+-- paintRect(bb, x, y, w, h, c): bb:paintRect, except that a colour stays a
+-- colour. Blitbuffer's paintRect (and fill) flatten their colour to one grey
+-- before it reaches the buffer, so a picked colour painted that way lands on
+-- a colour screen as its grey (the shelf menu background, for one). KOReader's
+-- own FrameContainer makes the same choice between paintRect and
+-- paintRectRGB32. A grey colour, or a KOReader without paintRectRGB32, takes
+-- plain paintRect, so nothing changes for them.
+function Color.paintRect(bb, x, y, w, h, c)
+    if type(c) == "nil" then return end   -- not c == nil: see parseColorValue
+    if bb.paintRectRGB32 and Blitbuffer.isColor8 and not Blitbuffer.isColor8(c) then
+        return bb:paintRectRGB32(x, y, w, h, c)
+    end
+    return bb:paintRect(x, y, w, h, c)
+end
+
 function Color.flushCache()
     _hex_cache = {}
     _last_color_mode = nil  -- reset so next parseColorValue re-seeds the mode

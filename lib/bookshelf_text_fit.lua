@@ -151,19 +151,31 @@ function M.balanceLines(text, face, max_width, bold)
     -- (Reddit report, 2026-08-26). If the balanced text renders taller
     -- than its intended line count, the natural greedy wrap - whose height
     -- the caller's fit loop validated with this same widget - wins.
+    --
+    -- Against the ORIGINAL's rendered line count, not n_lines. n_lines is the
+    -- same per-word estimate, and it errs both ways: when it overcounts (says
+    -- three where xtext fits two), the search balances to three lines, the
+    -- balanced text really does render in three, and a check against n_lines
+    -- lets it through -- one line more than the fit loop measured, so the
+    -- height cap cut it off: "A Hymn Of..." at 14pt on a card where 14pt
+    -- fits (issue 457). Balancing may never add a line to what the widget
+    -- would have drawn anyway.
     do
         local ok_tb, TextBoxWidget = pcall(require, "ui/widget/textboxwidget")
         if ok_tb and TextBoxWidget then
-            local probe = TextBoxWidget:new{
-                text          = out,
-                face          = face,
-                bold          = bold,
-                width         = max_width,
-                height_adjust = true,
-            }
-            local rendered = #(probe.vertical_string_list or {})
-            if probe.free then probe:free() end
-            if rendered > n_lines then return text end
+            local function renderedLines(s)
+                local probe = TextBoxWidget:new{
+                    text          = s,
+                    face          = face,
+                    bold          = bold,
+                    width         = max_width,
+                    height_adjust = true,
+                }
+                local n = #(probe.vertical_string_list or {})
+                if probe.free then probe:free() end
+                return n
+            end
+            if renderedLines(out) > math.min(n_lines, renderedLines(text)) then return text end
         end
     end
     return out

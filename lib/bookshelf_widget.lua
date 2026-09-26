@@ -6019,6 +6019,21 @@ function BookshelfWidget:_buildSpineRows(items, content_w, shelf_h, PAD, n_rows)
     -- (SpineShelf.rowEndBase): synced from the cursor before the rows are
     -- planned, so a page turn plans with the page it is turning to.
     opts.page_index = self.page
+    -- "First unread in series" across the whole shelf, not per screen (issue
+    -- 458): series already claimed by a book before this page start taken.
+    -- Only when that reason is on; the pagination pass plans from the top and
+    -- needs none.
+    do
+        local spec = SpineShelf.faceOutSpec(opts.face_out)
+        local dc  = self._draft_items_cache
+        local all = dc and dc.total_hint == nil and dc.all_items or nil
+        -- Only when the page really is the list from the cursor on (a
+        -- windowed source's list starts somewhere else).
+        if spec.first_unread and not spec.all and all and all ~= items
+                and all[self._cursor] == items[1] then
+            opts.series_next_claimed = SpineShelf.seriesClaimedBefore(all, self._cursor, items)
+        end
+    end
     local plan = SpineShelf.plan(items, opts)
     self._spine_shown = plan.shown
     -- Where the next page begins: an item index (into the slice handed to

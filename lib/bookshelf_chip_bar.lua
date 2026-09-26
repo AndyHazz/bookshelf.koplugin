@@ -32,7 +32,7 @@ local BookshelfSettings = require("lib/bookshelf_settings_store")
 local InputContainer = require("ui/widget/container/inputcontainer")
 local HorizontalGroup= require("ui/widget/horizontalgroup")
 local HorizontalSpan = require("ui/widget/horizontalspan")
-local TextWidget     = require("ui/widget/textwidget")
+local TextWidget     = require("lib/bookshelf_colour_text")
 local CenterContainer= require("ui/widget/container/centercontainer")
 local OverlapGroup   = require("ui/widget/overlapgroup")
 local Widget         = require("ui/widget/widget")
@@ -851,8 +851,10 @@ function ChipBar:_paintGround(bb, x, y, w, h)
     if not (ok and CoverProgress and CoverProgress.resolvedColors) then return false end
     local ok_c, colors = pcall(CoverProgress.resolvedColors)
     if not (ok_c and colors and colors.chrome_bg) then return false end
+    -- Color.paintRect, not bb:paintRect: a picked Shelf menu background is a
+    -- colour, and paintRect would flatten it to its grey.
     return pcall(function()
-        bb:paintRect(x, y, w or 0, h or 0, colors.chrome_bg)
+        require("lib/bookshelf_color").paintRect(bb, x, y, w or 0, h or 0, colors.chrome_bg)
     end)
 end
 

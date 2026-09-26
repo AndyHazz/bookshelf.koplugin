@@ -300,7 +300,7 @@ end
 -- Symbols Nerd Font); labels follow the bookshelf UI font.
 function IconsLibrary._renderCell(item, dimen)
     local Font = require("ui/font")
-    local TextWidget = require("ui/widget/textwidget")
+    local TextWidget = require("lib/bookshelf_colour_text")
     local BFont = require("lib/bookshelf_fonts")
     local glyph_size = math.max(36, math.floor(dimen.w * 0.16))
     local glyph_w
@@ -474,7 +474,7 @@ function IconsLibrary:show(on_select, opts)
                 return nil
             end
             local Font = require("ui/font")
-            local TextWidget = require("ui/widget/textwidget")
+            local TextWidget = require("lib/bookshelf_colour_text")
             local msg = TextWidget:new{
                 text = _("Drop .svg or .png files in koreader/icons/"),
                 face = Font:getFace("cfont", 16),

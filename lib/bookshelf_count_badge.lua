@@ -13,7 +13,7 @@
 -- relative to their slot — this module is layout-agnostic.
 
 local FrameContainer = require("ui/widget/container/framecontainer")
-local TextWidget     = require("ui/widget/textwidget")
+local TextWidget     = require("lib/bookshelf_colour_text")
 local Size           = require("ui/size")
 local Font           = require("ui/font")
 local BFont          = require("lib/bookshelf_fonts")

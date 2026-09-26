@@ -16,7 +16,7 @@ local Font              = require("ui/font")
 local FrameContainer    = require("ui/widget/container/framecontainer")
 local Geom              = require("ui/geometry")
 local OverlapGroup      = require("ui/widget/overlapgroup")
-local TextWidget        = require("ui/widget/textwidget")
+local TextWidget        = require("lib/bookshelf_colour_text")
 local Widget            = require("ui/widget/widget")
 local ffi               = require("ffi")
 local BookshelfSettings = require("lib/bookshelf_settings_store")
@@ -241,6 +241,7 @@ local function _paintBorder(bb, x, y, w, h, bw, c, r)
         bb:paintBorder(x, y, w, h, bw, c, r)
     end
 end
+M.paintBorder = _paintBorder
 
 local ProgressBarWidget = Widget:extend{
     width  = 0,

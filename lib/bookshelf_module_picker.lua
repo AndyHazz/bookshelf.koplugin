@@ -53,7 +53,7 @@ local ModulePicker = {}
 -- whole block is left-aligned and centred in the grey area by the card. No
 -- render/fetch happens here — the live module appears once it's on the page.
 function ModulePicker._networkInfo(def, w)
-    local TextWidget = require("ui/widget/textwidget")
+    local TextWidget = require("lib/bookshelf_colour_text")
     local muted = Modules.COLOR_MUTED or Blitbuffer.COLOR_DARK_GRAY
     local hf, hb = BFont:getFace("cfont", 15, { bold = true })
     local g = VerticalGroup:new{ align = "left" }
@@ -72,7 +72,7 @@ function ModulePicker._networkInfo(def, w)
 end
 
 function ModulePicker._renderCell(item, dimen)
-    local TextWidget = require("ui/widget/textwidget")
+    local TextWidget = require("lib/bookshelf_colour_text")
     local card_pad = Space.px(10)
     local border   = Size.border.thin
     local card_w = item.solo

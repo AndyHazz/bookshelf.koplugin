@@ -2264,7 +2264,7 @@ function Editor:_pickSource(draft, on_close)
         local ok_lm, LibraryModal = pcall(require, "lib/bookshelf_library_modal")
         if ok_lm and LibraryModal and LibraryModal.new then
             local Font          = require("ui/font")
-            local TextWidget    = require("ui/widget/textwidget")
+            local TextWidget    = require("lib/bookshelf_colour_text")
             local VerticalGroup_ = require("ui/widget/verticalgroup")
             local VerticalSpan  = require("ui/widget/verticalspan")
             local FrameContainer_ = require("ui/widget/container/framecontainer")

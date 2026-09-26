@@ -12,7 +12,7 @@ local FrameContainer  = require("ui/widget/container/framecontainer")
 local VerticalGroup   = require("ui/widget/verticalgroup")
 local HorizontalGroup = require("ui/widget/horizontalgroup")
 local CenterContainer = require("ui/widget/container/centercontainer")
-local TextWidget      = require("ui/widget/textwidget")
+local TextWidget      = require("lib/bookshelf_colour_text")
 local TextBoxWidget   = require("ui/widget/textboxwidget")
 local Geom            = require("ui/geometry")
 local GestureRange    = require("ui/gesturerange")
@@ -6690,7 +6690,7 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
         local probe = FooterSlots.probeNumber(counter_total)
         local page_need = slot(SLOT_PAGE)
         pcall(function()
-            local TextWidget = require("ui/widget/textwidget")
+            local TextWidget = require("lib/bookshelf_colour_text")
             local probe_tw = TextWidget:new{
                 -- Through the same builder as the counter itself, or the
                 -- slot gets sized for one format and painted with the other.
@@ -17941,7 +17941,7 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
     local VerticalGroup_     = require("ui/widget/verticalgroup")
     local VerticalSpan_      = require("ui/widget/verticalspan")
     local TextBoxWidget_     = require("ui/widget/textboxwidget")
-    local TextWidget_        = require("ui/widget/textwidget")
+    local TextWidget_        = require("lib/bookshelf_colour_text")
 
     -- Caller can pass override_width (e.g. the collection manager, which
     -- nests inside the book menu and needs a narrower header).
@@ -18754,7 +18754,7 @@ end
 -- the layout). Left-inset so the heading text aligns with the body text.
 function BookshelfWidget:_sectionHeadingBar(text, content_w, font_size, inset)
     local FrameContainer = require("ui/widget/container/framecontainer")
-    local TextWidget     = require("ui/widget/textwidget")
+    local TextWidget     = require("lib/bookshelf_colour_text")
     local face, bold = BFont:getFace("cfont", math.max(10, (font_size or 18) - 3), { bold = true })
     return FrameContainer:new{
         background  = Blitbuffer.COLOR_BLACK,
@@ -18773,7 +18773,7 @@ end
 -- inactive chip fires on_pick(key). Left-inset to align with the body text.
 function BookshelfWidget:_segmentedChips(items, active_key, on_pick, font_size, inset)
     local FrameContainer  = require("ui/widget/container/framecontainer")
-    local TextWidget      = require("ui/widget/textwidget")
+    local TextWidget      = require("lib/bookshelf_colour_text")
     local InputContainer  = require("ui/widget/container/inputcontainer")
     local HorizontalGroup = require("ui/widget/horizontalgroup")
     local CenterContainer = require("ui/widget/container/centercontainer")
@@ -18861,7 +18861,7 @@ end
 -- ink; the pills now say so themselves.
 function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base_size, align, gap, on_overflow, ink)
     local Font            = require("ui/font")
-    local TextWidget_     = require("ui/widget/textwidget")
+    local TextWidget_     = require("lib/bookshelf_colour_text")
     local FrameContainer_ = require("ui/widget/container/framecontainer")
     local HorizontalGroup_ = require("ui/widget/horizontalgroup")
     local HorizontalSpan_  = require("ui/widget/horizontalspan")
@@ -19482,7 +19482,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     local FrameContainer      = require("ui/widget/container/framecontainer")
     local ReadCollection      = require("readcollection")
     local LineWidget          = require("ui/widget/linewidget")
-    local TextWidget          = require("ui/widget/textwidget")
+    local TextWidget          = require("lib/bookshelf_colour_text")
     local TextBoxWidget       = require("ui/widget/textboxwidget")
     local InputContainer      = require("ui/widget/container/inputcontainer")
     local HorizontalGroup     = require("ui/widget/horizontalgroup")
@@ -20440,7 +20440,7 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
     local CenterContainer = require("ui/widget/container/centercontainer")
     local LeftContainer   = require("ui/widget/container/leftcontainer")
     local FrameContainer  = require("ui/widget/container/framecontainer")
-    local TextWidget      = require("ui/widget/textwidget")
+    local TextWidget      = require("lib/bookshelf_colour_text")
     local CoverApply      = require("lib/bookshelf_cover_apply")
     local CoverGridCell   = require("lib/bookshelf_cover_grid_cell")
     local Pagination      = require("lib/bookshelf_pagination")

@@ -85,4 +85,26 @@ t.test("the shelf menu strip and the hero fallback bar paint colour-safely", fun
         "a coloured hero bar must stay out of the one-colour wallpaper mask")
 end)
 
+-- Night mode: the night slot is stored pre-inverted for a frame that flips it.
+-- The colour picker stored what the reader SAW, so a night pick displayed as
+-- its opposite (red as cyan) once colours stopped being flattened to grey.
+t.test("the colour picker inverts the night slot on the way in and out", function()
+    local src = io.open("lib/bookshelf_settings.lua"):read("*a")
+    local body = src:match("function Settings:_pickColor%(.-\nend\n")
+    assert(body, "could not find _pickColor")
+    assert(body:find("local night = _isNight()", 1, true), "the picker must ask which slot it edits")
+    assert(body:find("Color.invertValue(raw)", 1, true), "the shown colour must be the displayed one")
+    assert(body:find("if night then stored = Color.invertValue(stored) end", 1, true),
+        "a night pick must be stored pre-inverted")
+end)
+
+t.test("the hero and list bars take the current mode's picked colours", function()
+    for _i, f in ipairs({ "lib/bookshelf_hero_card.lua", "lib/bookshelf_list_row.lua" }) do
+        local src = io.open(f):read("*a")
+        assert(src:find("pickedBarColors()", 1, true), f .. " must use CoverProgress.pickedBarColors")
+        assert(not src:find('BookshelfSettings.read("progress_fill")', 1, true),
+            f .. " reads the day key directly again")
+    end
+end)
+
 t.done()

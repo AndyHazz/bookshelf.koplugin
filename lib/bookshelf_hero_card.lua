@@ -669,16 +669,7 @@ buildLine = function(expanded, region, width, book, max_height, single_line)
         --   users who never opened the colors menu.
         local colors
         if style ~= "pacman" then
-            local custom_fill  = BookshelfSettings.read("progress_fill")
-            local custom_track = BookshelfSettings.read("progress_track")
-            if custom_fill or custom_track then
-                local Color    = require("lib/bookshelf_color")
-                local is_color = Screen:isColorEnabled()
-                colors = {
-                    fill = custom_fill and Color.parseColorValue(custom_fill, is_color) or nil,
-                    bg   = custom_track and Color.parseColorValue(custom_track, is_color) or nil,
-                }
-            end
+            colors = require("lib/bookshelf_cover_progress").pickedBarColors()
         end
         -- {rel}: shorten the bar in proportion to the book's length, and hand
         -- the pixels it gives up to a plain gap AFTER it, so every bar starts

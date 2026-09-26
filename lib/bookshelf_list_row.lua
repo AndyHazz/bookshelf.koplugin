@@ -1203,18 +1203,11 @@ local function resolvedBarColors(style)
     -- peach pellets) and ignores overrides, so the plumbing is skipped rather
     -- than passed and discarded.
     if style == "pacman" then return nil end
-    local custom_fill  = BookshelfSettings.read("progress_fill")
-    local custom_track = BookshelfSettings.read("progress_track")
-    -- Only pass colours the user actually picked: each bookends style has its
-    -- own defaults, and handing over this plugin's dark-grey-on-white would
-    -- wash them out for everyone who never opened the colours menu.
-    if not (custom_fill or custom_track) then return nil end
-    local Color    = require("lib/bookshelf_color")
-    local is_color = Screen:isColorEnabled()
-    return {
-        fill = custom_fill  and Color.parseColorValue(custom_fill,  is_color) or nil,
-        bg   = custom_track and Color.parseColorValue(custom_track, is_color) or nil,
-    }
+    -- Only the colours the user actually picked, for the current mode (see
+    -- CoverProgress.pickedBarColors): each bookends style has its own
+    -- defaults, and handing over this plugin's dark-grey-on-white would wash
+    -- them out for everyone who never opened the colours menu.
+    return require("lib/bookshelf_cover_progress").pickedBarColors()
 end
 
 function ListRow.bar(line, width, pct, band_h)

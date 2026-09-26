@@ -961,6 +961,26 @@ function M.resolvedColors()
     return _resolved_cache
 end
 
+-- pickedBarColors() -> { fill = , bg = } or nil: the progress bar colours the
+-- reader actually PICKED for the current mode, resolved like every other
+-- colour here (night slot, theme flip, colour or grey screen). nil when
+-- neither is picked, so a bar painter keeps its own defaults -- each bookends
+-- style has its own look, and handing over this plugin's defaults would wash
+-- it out. The hero and list-row bars used to read the DAY keys directly, so
+-- in night mode they painted the day colour for an inverting frame and it
+-- displayed as its opposite.
+function M.pickedBarColors()
+    local suffix = _modeSuffix()
+    local picked_fill  = BookshelfSettings.read("progress_fill" .. suffix)
+    local picked_track = BookshelfSettings.read("progress_track" .. suffix)
+    if type(picked_fill) == "nil" and type(picked_track) == "nil" then return nil end
+    local colors = M.resolvedColors()
+    return {
+        fill = (type(picked_fill) ~= "nil") and colors.fill or nil,
+        bg   = (type(picked_track) ~= "nil") and colors.track or nil,
+    }
+end
+
 -- Returns the raw setting values (storage shape, not Blitbuffer). For
 -- the settings menu's "currently set to..." label rendering. Folder
 -- colors return the raw value or nil (no static default) so the menu's

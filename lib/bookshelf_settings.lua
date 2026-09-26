@@ -1912,16 +1912,25 @@ function Settings:_pickColor(raw_key, field, default_pct, title,
         local original = raw
 
         if Screen:isColorEnabled() then
+            -- The night slot is stored PRE-INVERTED, for a frame that flips it
+            -- (the "% black on screen" dialog below does the same through
+            -- _screenPctToByte). The picker speaks in what the reader SEES,
+            -- so it inverts on the way in and out; without that a colour
+            -- picked in night mode displayed as its opposite -- red as cyan.
+            local night = _isNight()
+            local shown = (night and raw) and Color.invertValue(raw) or raw
             local current_hex
-            if raw and raw.hex then current_hex = raw.hex
-            elseif raw and raw.grey then
-                local g = string.format("%02X", raw.grey)
+            if shown and shown.hex then current_hex = shown.hex
+            elseif shown and shown.grey then
+                local g = string.format("%02X", shown.grey)
                 current_hex = "#" .. g .. g .. g
             end
             self._plugin:showColorPicker(
                 title, current_hex, Color.defaultHexFor(field),
                 function(new_hex)
-                    BookshelfSettings.save(key, Color.toStorageShape(new_hex))
+                    local stored = Color.toStorageShape(new_hex)
+                    if night then stored = Color.invertValue(stored) end
+                    BookshelfSettings.save(key, stored)
                     refresh()
                 end,
                 function()

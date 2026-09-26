@@ -666,6 +666,18 @@ end
 -- type() rather than truthiness because a require that FAILED leaves a sentinel
 -- number in package.loaded under LuaJIT, not nil -- the same trap as
 -- bookshelf_sort_engine's i18n guard.
+-- _isRemotePath(fp): not a file on the device -- an OPDS entry, or a record of
+-- a registered source that declared a remote_prefix (lib/bookshelf_sources).
+-- The OPDS prefix is tested first and inline, so the common case never leaves
+-- this function; the registry is only consulted once it has been loaded, which
+-- is also the only way a remote source can exist.
+local function _isRemotePath(fp)
+    if type(fp) ~= "string" then return false end
+    if fp:find("^OPDS://") then return true end
+    local Sources = package.loaded["lib/bookshelf_sources"]
+    return type(Sources) == "table" and Sources.isRemotePath(fp) or false
+end
+
 local function getKindleSource()
     local mod = package.loaded["lib/bookshelf_kindle_source"]
     return type(mod) == "table" and mod or nil
@@ -1041,7 +1053,7 @@ function Repo.buildBookMeta(filepath, opts)
     -- to whatever record they already hold (see BookshelfWidget:_hydrateBook
     -- and the "or <original record>" idiom at every buildBook/buildBookMeta
     -- call site).
-    if type(filepath) == "string" and filepath:find("^OPDS://") then
+    if _isRemotePath(filepath) then
         return nil
     end
     local want_cover = not opts or opts.want_cover ~= false
@@ -1294,7 +1306,7 @@ function Repo.getCoverBB(filepath)
     -- rebuild for a row that cannot exist. Same guard buildBookMeta carries.
     -- nil is the answer every caller already handles (_renderFallback / a
     -- failed-count bump in the prewarm loop).
-    if type(filepath) == "string" and filepath:find("^OPDS://") then return nil end
+    if _isRemotePath(filepath) then return nil end
     local bim = getBookInfoMgr()
     if not bim then return nil end
     local info = _bimGetBookInfo(bim, filepath, true, "getBookInfo (cover only)")
@@ -7457,6 +7469,19 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
     -- holds. Empty and cheap when the source is unavailable.
     local Sources = require("lib/bookshelf_sources")
     local src_spec = Sources.get(kind)
+    if src_spec and src_spec.fetch then
+        -- Fetch mode: the source pages and orders itself (a server's catalogue),
+        -- so its order is kept and the shelf's filter and sort are not applied.
+        -- source.drill is the folder the reader has drilled into, if any.
+        local page, total = Sources.fetch(kind, source, source.drill, offset or 0, limit)
+        if not page then return {}, 0 end
+        -- A total the source does not know yet reads as "this page and one more
+        -- item", so the footer offers a next page until a page comes back short.
+        if not total then
+            total = (offset or 0) + #page + ((limit and #page >= limit) and 1 or 0)
+        end
+        return page, total
+    end
     if src_spec then
         local books = Sources.list(kind, source)
         if not books then return {}, 0 end
@@ -7928,7 +7953,7 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
                        and (home_prefix == "/" or fp:sub(1, #home_prefix) ~= home_prefix)
             end
             for fp in pairs(set) do
-                if type(fp) == "string" and not fp:find("^OPDS://")
+                if type(fp) == "string" and not _isRemotePath(fp)
                         and _supportedExt(fp:match("([^/]+)$")) and not kosOwn(fp) then
                     paths[#paths + 1] = fp
                 end

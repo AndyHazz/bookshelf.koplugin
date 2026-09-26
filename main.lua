@@ -279,6 +279,12 @@ end
 function Bookshelf:unregisterSource(id)
     require("lib/bookshelf_sources").unregister(id)
 end
+-- sourceChanged(id): a fetch-mode source has more to show (a page it was
+-- fetching in the background has landed); the shelf redraws if it is showing
+-- that source.
+function Bookshelf:sourceChanged(id)
+    require("lib/bookshelf_sources").changed(id)
+end
 
 function Bookshelf:init()
     _installBroadcastTag()

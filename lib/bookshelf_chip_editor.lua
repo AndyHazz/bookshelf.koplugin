@@ -812,7 +812,11 @@ function Editor:editTab(tab_id, opts)
         -- row collapses to a single disabled row naming the constraint
         -- rather than offering pickers that would silently do nothing.
         local sort_row
-        if draft.source and draft.source.kind == "opds" then
+        -- A fetch-mode registered source (lib/bookshelf_sources) orders itself
+        -- the same way.
+        local is_paged_src = draft.source
+            and require("lib/bookshelf_sources").isPaged(draft.source.kind) or false
+        if draft.source and (draft.source.kind == "opds" or is_paged_src) then
             sort_row = {
                 { text = _("Server order"), enabled = false },
             }
@@ -865,7 +869,9 @@ function Editor:editTab(tab_id, opts)
         -- SHOWS (filters, or a catalog's own settings) and how its group tiles
         -- LOOK.
         local shelf_row = {}
-        if not is_opds_src then
+        if is_paged_src then   -- luacheck: ignore 542
+            -- A fetch-mode source filters on its own side; no local Filters.
+        elseif not is_opds_src then
             shelf_row[#shelf_row + 1] = {
                 text_func = function()
                     return _("Filters: ") .. Filter.summary(draft.filter or {})
@@ -944,7 +950,7 @@ function Editor:editTab(tab_id, opts)
                     -- the screen: a tap in the middle opened the source menu.
                     show = function() UIManager:show(dialog, "ui") end,
                     -- A catalogue gets Default and List only; see above.
-                    is_opds = is_opds_src,
+                    is_opds = is_opds_src or is_paged_src,
                     -- The live shelf, so the density nudges can seed from the
                     -- numbers actually on screen instead of from a constant.
                     bw = opts.bw,
@@ -2682,7 +2688,26 @@ function Editor:_pickSource(draft, on_close)
     -- cannot use. Above Cancel, so they read as the last real sources.
     local Sources = require("lib/bookshelf_sources")
     for _i, id in ipairs(Sources.pickerIds()) do
-        table.insert(rows, #rows, { btn(id, Sources.label(id) or id) })
+        local spec = Sources.get(id)
+        local on_tap
+        if spec.pick then
+            -- The source asks its own question (which server, which library)
+            -- and fills draft.source; done() carries on as a plain pick would.
+            on_tap = function()
+                UIManager:close(d)
+                local prev = draft.source
+                draft.source = { kind = id }
+                local ok = Sources.call(spec, "pick", draft, function(accepted)
+                    if accepted == false then draft.source = prev; on_close() return end
+                    if type(draft.source) ~= "table" then draft.source = { kind = id } end
+                    draft.source.kind = id
+                    _applySourceDefaults(draft)
+                    on_close()
+                end)
+                if not ok then draft.source = prev; on_close() end
+            end
+        end
+        table.insert(rows, #rows, { btn(id, Sources.label(id) or id, on_tap) })
     end
     d = ButtonDialog:new{
         title   = _("Shelf source or grouping"),

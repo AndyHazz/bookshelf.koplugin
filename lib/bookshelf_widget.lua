@@ -226,6 +226,19 @@ function BookshelfWidget._coverNeedsResize(info, specs)
 end
 
 function BookshelfWidget:init()
+    -- A registered source that has fetched more (lib/bookshelf_sources,
+    -- ui.bookshelf:sourceChanged) redraws the shelf, but only while that
+    -- source is what is on screen. One named slot, so a later widget replaces
+    -- this one's listener rather than stacking beside it.
+    require("lib/bookshelf_sources").onChanged("widget", function(id)
+        if self._closed then return end
+        local src = self:_currentRegisteredSource()
+        if not (src and (id == nil or src.kind == id)) then return end
+        UIManager:nextTick(function()
+            if self._closed then return end
+            self:_rebuild(); UIManager:setDirty(self, "ui")
+        end)
+    end)
     -- Diag: cradle init so the cold-start trace shows init time
     -- distinct from the _rebuild it triggers at the end. Two markers
     -- (entry, post-settings-and-gesture-setup) plus the existing
@@ -3525,6 +3538,9 @@ function BookshelfWidget:_fetchChipItems(n, want_all)
         return Repo.getAll(tip.payload.path, LIMIT, offset, within,
                            tab and tab.filter or nil, fetch_opts)
     end
+    if tip and tip.kind == "source_nav" then
+        return Repo.getBySource(self:_sourceNavSource(tip, tab), nil, nil, offset, LIMIT, fetch_opts)
+    end
     if tip and tip.kind == "opds_nav" then
         -- Drilled into a navigation entry: the same cache-only OPDS branch the
         -- chip's root feed uses, pointed at the subcatalog's own feed_url.
@@ -4243,7 +4259,31 @@ function BookshelfWidget:_openBook(book, after_open_callback)
     -- Open when a previous download is still on disk). Guarded before every
     -- file probe below, and matched on the path prefix so a hero-hydrated
     -- record (flags stripped) is caught too.
-    if self:_isRemoteRecord(book) then
+    -- A book from a registered source (the Kindle's own library, the Kobo
+    -- store's, or another plugin's: lib/bookshelf_sources) opens the way its
+    -- source says, before the OPDS test below: a plugin's remote record is a
+    -- remote record too, but its source owns the download. `open` answers
+    -- true when it handled everything itself (it may call ctx.open(path)
+    -- later, once a download lands), or a real path for us to open; anything
+    -- else falls through to the file.
+    local open_path = book.filepath
+    local Sources = require("lib/bookshelf_sources")
+    local owner = Sources.ownerOf(book)
+    local spec = owner and Sources.get(owner)
+    if spec and spec.open then
+        local ok, res = Sources.call(spec, "open", book, {
+            widget = self, after_open = after_open_callback,
+            open = function(path)
+                if type(path) == "string" and path ~= "" then
+                    self:_launchReader(path, after_open_callback)
+                end
+            end,
+        })
+        if ok and res == true then return end
+        if ok and type(res) == "string" and res ~= "" then open_path = res end
+    end
+    if open_path == book.filepath and self:_isRemoteRecord(book) then
+        if self:_sourceRemote(book) then self:_showSourceInfo(book) return end
         self:_showRemoteBookInfo(book)
         return
     end
@@ -4251,20 +4291,6 @@ function BookshelfWidget:_openBook(book, after_open_callback)
     -- the path) crash KOReader's filemanagerbookinfo:show via lfs.attributes
     -- on nil. ReaderUI:showReader nil-checks itself, but presenting a "file
     -- missing" toast here is friendlier than its silent no-op.
-    local open_path = book.filepath
-    -- A book from a registered source (the Kindle's own library, the Kobo
-    -- store's, or another plugin's: lib/bookshelf_sources) opens the way its
-    -- source says. `open` answers true when it handled everything itself, or
-    -- a real path for us to open; anything else falls through to the file.
-    local Sources = require("lib/bookshelf_sources")
-    local owner = Sources.ownerOf(book)
-    local spec = owner and Sources.get(owner)
-    if spec and spec.open then
-        local ok, res = Sources.call(spec, "open", book,
-            { widget = self, after_open = after_open_callback })
-        if ok and res == true then return end
-        if ok and type(res) == "string" and res ~= "" then open_path = res end
-    end
     if open_path == book.filepath then
         -- Stale records (Send-to-Kindle moved/removed the file after BIM cached
         -- the path) crash filemanagerbookinfo:show via lfs.attributes on nil; a
@@ -5142,7 +5168,9 @@ function BookshelfWidget:_viewMode()
     -- catalogue after choosing Spines -- degrades to the covers default.
     if chip_mode == ViewMode.SPINES then
         local tab = require("lib/bookshelf_tab_model").getById(self.chip)
-        if tab and tab.source and tab.source.kind == "opds" then
+        -- A fetch-mode registered source (a server catalogue) is the same case.
+        if tab and tab.source and (tab.source.kind == "opds"
+                or require("lib/bookshelf_sources").isPaged(tab.source.kind)) then
             chip_mode = nil
         end
     end
@@ -5264,7 +5292,8 @@ function BookshelfWidget:_flipViewMode()
         target = ViewMode.COVERS
     elseif self:_isListMode() then
         local tab = TabModel.getById(self.chip)
-        local is_opds = tab and tab.source and tab.source.kind == "opds"
+        local is_opds = tab and tab.source and (tab.source.kind == "opds"
+            or require("lib/bookshelf_sources").isPaged(tab.source.kind))
         target = is_opds and ViewMode.COVERS or ViewMode.SPINES
     else
         target = ViewMode.LIST
@@ -5703,6 +5732,9 @@ function BookshelfWidget:_shelfCallbacks()
                 if bw:_isRemoteRecord(b) and bw._hero_mode ~= "micro"
                         and bw._preview_book
                         and bw._preview_book.filepath == b.filepath then
+                    -- A registered source's record: its commit is the
+                    -- source's own open (a download, say).
+                    if bw:_sourceRemote(b) then bw:_openBook(b) return end
                     bw:_showRemoteBookInfo(b)
                     return
                 end
@@ -7377,6 +7409,14 @@ function BookshelfWidget:_jumpScanList()
         return ok and fetched or nil,
                eff and eff[1] and eff[1].key,
                ok and "getAll-folder" or ("getAll-ERR:" .. tostring(fetched))
+    end
+
+    -- A registered source's folder: the source orders it, so no sort key.
+    if tip and tip.kind == "source_nav" then
+        local ok, fetched = pcall(Repo.getBySource, self:_sourceNavSource(tip, tab),
+            nil, nil, 0, BIG_LIMIT, fetch_opts)
+        return ok and fetched or nil, nil,
+               ok and "getBySource-source_nav" or ("getBySource-ERR:" .. tostring(fetched))
     end
 
     -- OPDS subcatalog drill: the subcatalog's own cached window. Feed order
@@ -10008,6 +10048,7 @@ end
 -- BookshelfWidget instance is closed for any reason. main.lua wires the
 -- callback in show().
 function BookshelfWidget:onCloseWidget()
+    self._closed = true   -- the registered-source listener (init) stands down
     self:_stopStatusTimer()
     -- Invalidate any pending Kobo prepare-poll (_openKoboWhenReady). The poll
     -- closure captures self and would otherwise call _launchReader on this
@@ -14689,6 +14730,21 @@ function BookshelfWidget:_refreshLibrary()
         self:_opdsRefresh(_opds_tab)
         return
     end
+    -- A registered source with its own refresh (a server catalogue): ask it,
+    -- for the level on screen, and redraw when it says there is news.
+    do
+        local src = self:_currentRegisteredSource()
+        local Sources = require("lib/bookshelf_sources")
+        local spec = src and Sources.get(src.kind)
+        if spec and spec.refresh then
+            Sources.call(spec, "refresh", src, src.drill, function()
+                UIManager:nextTick(function()
+                    self:_rebuild(); UIManager:setDirty(self, "ui")
+                end)
+            end)
+            return
+        end
+    end
     local InfoMessage = require("ui/widget/infomessage")
     local Repo        = require("lib/bookshelf_book_repository")
     local msg = InfoMessage:new{
@@ -14732,7 +14788,37 @@ function BookshelfWidget:_isRemoteRecord(book)
     local fp = is_path and book or book.filepath
     if type(fp) == "string" and fp:find("^OPDS://") then return true end
     if not is_path and book.is_remote and book.opds then return true end
+    -- A registered source's own remote records (lib/bookshelf_sources
+    -- remote_prefix), e.g. a server catalogue's books before download.
+    if require("lib/bookshelf_sources").isRemotePath(fp) then return true end
     return false
+end
+
+-- _sourceRemote(book) -> spec, id for a remote record that belongs to a
+-- registered source (not OPDS, which has its own modal), else nil.
+function BookshelfWidget:_sourceRemote(book)
+    if type(book) ~= "table" or type(book.filepath) ~= "string" then return nil end
+    if book.filepath:find("^OPDS://") then return nil end
+    local Sources = require("lib/bookshelf_sources")
+    if not Sources.isRemotePath(book.filepath) then return nil end
+    local id = Sources.ownerOf(book)
+    return id and Sources.get(id), id
+end
+
+-- _showSourceInfo(book): long-press on a registered source's remote record.
+-- The source's own `info` when it has one; otherwise what the record says.
+function BookshelfWidget:_showSourceInfo(book)
+    local spec = self:_sourceRemote(book)
+    local Sources = require("lib/bookshelf_sources")
+    if spec and spec.info then
+        local ok = Sources.call(spec, "info", book, { widget = self })
+        if ok then return end
+    end
+    local lines = { book.display_title or book.title or "" }
+    local author = book.authors or book.author
+    if type(author) == "table" then author = table.concat(author, ", ") end
+    if author and author ~= "" then lines[#lines + 1] = author end
+    UIManager:show(require("ui/widget/infomessage"):new{ text = table.concat(lines, "\n") })
 end
 
 -- _hydrateBook(book) -> book
@@ -20865,6 +20951,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
     -- same read-only viewer the tap path shows. Path-prefix match, so a
     -- hero-hydrated record with its flags stripped is caught too.
     if self:_isRemoteRecord(book) then
+        if self:_sourceRemote(book) then self:_showSourceInfo(book) return end
         self:_showRemoteBookInfo(book)
         return
     end
@@ -22410,6 +22497,7 @@ end
 -- to clear it. Offered from any row of the catalogue, which is where a reader
 -- who wants out of a too-deep start will be standing.
 function BookshelfWidget:_openOpdsNavMenu(rec)
+    if rec and rec.source_nav then return end
     if not (rec and rec.opds and rec.opds.feed_url) then return end
     local tab = require("lib/bookshelf_tab_model").getById(self.chip)
     if not (tab and tab.source and tab.source.kind == "opds") then return end
@@ -23223,6 +23311,49 @@ function BookshelfWidget:_searchAndDrill(query)
     }
 end
 
+-- _expandSourceNav(rec): tap on a registered source's folder tile. Asks the
+-- source for the drill entry and drills in; the shelf then fetches that level
+-- (see _sourceNavSource). Not persisted across a restart (_serializeDrillPath
+-- keeps only the kinds it knows), so a relaunch lands on the shelf's top level.
+function BookshelfWidget:_expandSourceNav(rec)
+    local Sources = require("lib/bookshelf_sources")
+    local drill = Sources.drillFor(rec)
+    if not drill then return end
+    self:_markTapped(rec.filepath)
+    self:_drillInto{
+        kind    = "source_nav",
+        label   = drill.label or rec.label or rec.title or "",
+        payload = { source_kind = rec.source_kind, drill = drill },
+    }
+end
+
+-- _sourceNavSource(tip, tab) -> the source table to fetch for a source_nav
+-- drill frame: the shelf's own source (so a source serving several shelves
+-- still knows which), with the drill entry riding along.
+function BookshelfWidget:_sourceNavSource(tip, tab)
+    local pay = tip and tip.payload or {}
+    local out = {}
+    if tab and tab.source and tab.source.kind == pay.source_kind then
+        for k, v in pairs(tab.source) do out[k] = v end
+    end
+    out.kind = pay.source_kind
+    out.drill = pay.drill
+    return out
+end
+
+-- _currentRegisteredSource() -> the source table (with .drill when inside a
+-- folder) of the registered source on screen, or nil.
+function BookshelfWidget:_currentRegisteredSource()
+    local Sources = require("lib/bookshelf_sources")
+    local tab = require("lib/bookshelf_tab_model").getById(self.chip)
+    local path = self._drilldown_path or {}
+    local tip = path[#path]
+    if tip and tip.kind == "source_nav" then return self:_sourceNavSource(tip, tab) end
+    if tip then return nil end
+    if tab and tab.source and Sources.get(tab.source.kind) then return tab.source end
+    return nil
+end
+
 function BookshelfWidget:_expandFolder(folder)
     if not folder or not folder.path then return end
     -- Keyed on the first book, which is what the row compares a folder tile
@@ -23295,6 +23426,9 @@ end
 -- a relaunch lands the user back on the chip's root feed. Restoring it would
 -- mean a network fetch at startup that nobody asked for.
 function BookshelfWidget:_expandOpdsNav(rec, no_fetch)
+    -- A registered source's folder (lib/bookshelf_sources fetch mode) draws as
+    -- the same tile; it drills through its source instead.
+    if rec and rec.source_nav then return self:_expandSourceNav(rec) end
     -- THE TWO SILENT RETURNS, now audible. A nav tile that does nothing when
     -- tapped is this function's known failure shape -- the cache-test comment
     -- below records an earlier one -- and both of these dropped the tap with

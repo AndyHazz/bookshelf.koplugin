@@ -5251,6 +5251,28 @@ test("getBySource: an unregistered or failing source is an empty shelf, not an e
     assert(#list == 0 and total == 0, "a throwing list must read as empty")
 end)
 
+test("getBySource: a fetch-mode source keeps its own order and pages itself", function()
+    local Sources = require("lib/bookshelf_sources")
+    local asked
+    Sources.register("pager", {
+        label = function() return "Pager" end,
+        available = function() return true end,
+        fetch = function(src, drill, off, lim)
+            asked = { drill = src.drill, off = off, lim = lim }
+            local out = {}
+            for i = 1, lim do out[i] = { title = "Z" .. (off + i), filepath = "pager://" .. (off + i) } end
+            return out, nil   -- the server does not know its total yet
+        end,
+        remote_prefix = "pager://",
+    })
+    local list, total = Repo.getBySource({ kind = "pager", drill = { series = 3 } },
+        { ratings = { ["5"] = true } }, { { key = "title", reverse = false } }, 10, 5)
+    Sources.unregister("pager")
+    assert(asked.drill.series == 3 and asked.off == 10 and asked.lim == 5, "drill/offset/limit reach fetch")
+    assert(#list == 5 and list[1].title == "Z11", "server order and paging, no local filter or sort")
+    assert(total == 16, "an unknown total offers one more page: got " .. tostring(total))
+end)
+
 test("librarySourceFilepaths: lists the catalogue, and is EMPTY without a Kindle library", function()
     package.loaded["lib/bookshelf_kindle_source"] = nil
     assert(#Repo.librarySourceFilepaths() == 0, "no Kindle source must yield no paths")

@@ -364,8 +364,11 @@ local function _selectedChipColors()
     -- A fill with no ink set (or vice versa) still needs a readable pair, so
     -- fall back to the inverted-default equivalents: white text on the fill,
     -- black text on the default (white) background.
-    local fill = raw_bg and Color.parseColorValue(raw_bg, is_color) or nil
-    local ink  = raw_fg and Color.parseColorValue(raw_fg, is_color) or nil
+    -- resolvePicked, not a bare parse: a stored pick needs the palette's
+    -- frame correction, or a pinned shelf theme shows it as its opposite.
+    local CP = require("lib/bookshelf_cover_progress")
+    local fill = raw_bg and CP.resolvePicked(raw_bg) or nil
+    local ink  = raw_fg and CP.resolvePicked(raw_fg) or nil
     if fill and not ink then ink = Blitbuffer.COLOR_WHITE end
     if ink and not fill then fill = Blitbuffer.COLOR_BLACK end
     if not fill or not ink then return nil end

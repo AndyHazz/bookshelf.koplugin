@@ -107,4 +107,19 @@ t.test("the hero and list bars take the current mode's picked colours", function
     end
 end)
 
+-- The conversion between what the reader sees and what is stored depends on
+-- the SLOT being edited, not on whether KOReader is inverting: pinned Dark
+-- with KOReader in day mode, and pinned Light with it in night mode, showed a
+-- picked pink as green when the picker asked the frame.
+t.test("the picker converts by slot, and the plank is left as it displays", function()
+    local src = io.open("lib/bookshelf_settings.lua"):read("*a")
+    local isnight = src:match("local function _isNight%(%)(.-)\nend\n")
+    assert(isnight and isnight:find("modeSuffix", 1, true) and not isnight:find("night_mode_sync", 1, true),
+        "_isNight must answer for the slot (modeSuffix), not the frame")
+    assert(src:find('raw_key ~= "spine_plank_color"', 1, true), "the plank is stored as it displays")
+    local chip = io.open("lib/bookshelf_chip_bar.lua"):read("*a")
+    assert(chip:find("CP.resolvePicked(raw_bg)", 1, true),
+        "the selected shelf button's colours need the palette's frame correction")
+end)
+
 t.done()

@@ -3635,6 +3635,11 @@ function BookshelfWidget:_pageGroundColor()
             local g = tonumber(raw.hex:sub(4, 5), 16)
             local b = tonumber(raw.hex:sub(6, 7), 16)
             if r and g and b then
+                -- A colour is stored for its slot's frame like every other
+                -- colour pick (the night slot pre-inverted), so it takes the
+                -- palette's correction when the shelf theme is pinned against
+                -- the frame. The grey branch above keeps its own convention.
+                if self:_themeFlipsRaw() then r, g, b = 255 - r, 255 - g, 255 - b end
                 return Blitbuffer.ColorRGB32(r, g, b, 0xFF)
             end
         end

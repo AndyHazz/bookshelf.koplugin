@@ -1825,10 +1825,19 @@ end
 local MenuIcons  = require("lib/bookshelf_menu_icons")
 local ICON_RESET = MenuIcons.RESET .. "  "
 
+-- _isNight() -> true when the NIGHT slot is the one being edited: the slot
+-- the palette paints from, which follows the shelf theme (CoverProgress.
+-- modeSuffix), not whether KOReader is inverting. The night slot is stored
+-- pre-inverted for a frame that flips it, the day slot as it displays, and
+-- the palette corrects for the frame at paint time (resolvedColors' flip).
+-- So what the reader SEES converts to what is stored by the slot alone.
+-- Asking the frame instead got both pinned themes wrong: pinned Dark with
+-- KOReader in day mode, and pinned Light with KOReader in night mode, showed
+-- a picked pink as its opposite, green (issue 426 had matched the SLOT to the
+-- palette; this matches the conversion to it too).
 local function _isNight()
-    -- The same answer the palette uses, so the picker edits the slot the
-    -- shelf is actually painting from (issue 426).
-    return require("lib/bookshelf_night_mode_sync").active()
+    local CP = require("lib/bookshelf_cover_progress")
+    return CP.modeSuffix and CP.modeSuffix() ~= "" or false
 end
 local function _byteToScreenPct(byte)
     if _isNight() then
@@ -1917,7 +1926,10 @@ function Settings:_pickColor(raw_key, field, default_pct, title,
             -- _screenPctToByte). The picker speaks in what the reader SEES,
             -- so it inverts on the way in and out; without that a colour
             -- picked in night mode displayed as its opposite -- red as cyan.
-            local night = _isNight()
+            -- The plank is the exception: stored as it DISPLAYS in both
+            -- slots, and pre-inverted by the spine shelf itself against the
+            -- screen (see resolvedColors' plank note).
+            local night = _isNight() and raw_key ~= "spine_plank_color"
             local shown = (night and raw) and Color.invertValue(raw) or raw
             local current_hex
             if shown and shown.hex then current_hex = shown.hex
@@ -2150,7 +2162,7 @@ function Settings:_colorsSubItems()
             text_func = function()
                 -- Matches _isNight / modeSuffix, so the label names the
                 -- slot the picker is really editing (issue 426).
-                if require("lib/bookshelf_night_mode_sync").active() then
+                if _isNight() then
                     return _("\xe2\x97\x90 Editing night-mode colors (tap to switch)")
                 end
                 return _("\xe2\x98\x80 Editing day-mode colors (tap to switch)")

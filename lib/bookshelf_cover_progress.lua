@@ -961,6 +961,19 @@ function M.resolvedColors()
     return _resolved_cache
 end
 
+-- resolvePicked(raw) -> a Blitbuffer colour for a stored colour value, with
+-- the same correction every palette entry gets: the value is stored for its
+-- slot's frame (the night slot pre-inverted for a frame that flips it), and
+-- when the shelf's theme and the frame disagree it is flipped before it is
+-- parsed. For the few readers of a picked colour that do not go through
+-- resolvedColors (the selected shelf button, the page's own colour).
+function M.resolvePicked(raw)
+    if type(raw) == "nil" then return nil end
+    local want_dark, inverting = M.theme()
+    if want_dark ~= inverting then raw = Color.invertValue(raw) end
+    return Color.parseColorValue(raw, Screen:isColorEnabled())
+end
+
 -- pickedBarColors() -> { fill = , bg = } or nil: the progress bar colours the
 -- reader actually PICKED for the current mode, resolved like every other
 -- colour here (night slot, theme flip, colour or grey screen). nil when

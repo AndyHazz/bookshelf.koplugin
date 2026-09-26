@@ -1004,6 +1004,12 @@ Existing v1 settings migrate automatically on first launch -- legacy keys are re
 
 ---
 
+## For plugin authors
+
+Another plugin can add its own shelf source (a server's catalogue, a store's library) through a small registration interface, the same one Bookshelf's Kindle and Kobo library shelves use. See [SOURCE_API.md](SOURCE_API.md).
+
+---
+
 ## License
 
 AGPL-3.0 -- see [LICENSE](LICENSE)

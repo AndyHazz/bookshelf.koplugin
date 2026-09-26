@@ -37,7 +37,10 @@ local function follow(built, screen_night, pending)
         pcall = pcall,
         require = function(name)
             assert(name == "lib/bookshelf_wallpaper")
-            return { flipNight = function(t) flips[#flips + 1] = t end }
+            -- preInvert with "invert wallpaper in night mode" off: the
+            -- cached picture follows the frame, as it always has.
+            return { flipNight = function(t) flips[#flips + 1] = t end,
+                     preInvert = function(n) return n and true or false end }
         end,
     }
     local fn = assert(load("return function(self)\n" .. body .. "\nend",

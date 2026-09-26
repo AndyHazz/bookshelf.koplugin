@@ -1147,6 +1147,13 @@ function M.render(entry, w, h, inverting)
     pcall(function()
         local W = require("lib/bookshelf_wallpaper")
         picture = W.isShowing and W.isShowing() or false
+        -- A picture shown as its negative at night is a dark ground like any
+        -- other, so a chalk ornament goes light on it as it would on the page.
+        if picture and W.showsNegative then
+            local ok_s, Screen = pcall(function() return require("device").screen end)
+            local frame = ok_s and Screen and Screen.night_mode and true or false
+            if W.showsNegative(frame) then picture = false end
+        end
     end)
     local chalk = entry.night_invert and not M.hasColorScreen()
                   and not picture and dark

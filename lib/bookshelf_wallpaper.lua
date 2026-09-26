@@ -64,6 +64,44 @@ M.SETTING   = "wallpaper_default"
 M.BG_SETTING = "wallpaper_bg"
 
 
+-- ── Invert in night mode ────────────────────────────────────────────────────
+--
+-- OFF by default. A wallpaper normally looks the same by night as by day: the
+-- panel inverts the whole frame and the picture is pre-inverted to match, so
+-- only the chrome changes. With this on, the picture shows as its negative
+-- whenever the shelf has its night look -- a pale texture becomes a dark one.
+--
+-- "Night look" is the shelf's theme (CoverProgress.theme), not KOReader's flag
+-- alone: pinned Dark inverts it with KOReader in day mode, pinned Light keeps
+-- it as drawn with KOReader in night mode.
+M.INVERT_NIGHT_SETTING = "wallpaper_invert_night"
+
+local function settingsRead(key)
+    local ok, Set = pcall(require, "lib/bookshelf_settings_store")
+    return ok and Set and Set.read(key) or nil
+end
+
+function M.invertsAtNight() return settingsRead(M.INVERT_NIGHT_SETTING) == true end
+
+-- showsNegative(frame_night) -> should the picture DISPLAY as its negative,
+-- for a frame that is (or is not) inverting? The theme's answer for that
+-- frame, when the setting is on.
+function M.showsNegative(frame_night)
+    if not M.invertsAtNight() then return false end
+    local want = settingsRead("shelf_theme")   -- CoverProgress.THEME_SETTING
+    if want == "dark" then return true end
+    if want == "light" then return false end
+    return frame_night and true or false         -- auto: follow the device
+end
+
+-- preInvert(frame_night) -> should the cached picture HOLD the negative of the
+-- file? What M.bg's `night` and flipNight's target mean. The frame's own
+-- inversion is undone by default (so the picture displays as drawn), and a
+-- wanted negative is one inversion more.
+function M.preInvert(frame_night)
+    return (frame_night and true or false) ~= M.showsNegative(frame_night)
+end
+
 -- ── Transparent buttons ────────────────────────────────────────────────────
 --
 -- OFF by default (maintainer's call). Chrome that goes see-through reads well

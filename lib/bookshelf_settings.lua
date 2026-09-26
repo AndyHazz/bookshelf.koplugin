@@ -1524,6 +1524,28 @@ function Settings:_wallpaperMenu()
             end,
         },
         {
+            text = _("Invert wallpaper in night mode"),
+            help_text = _("Show the wallpaper as its negative when the shelf "
+                .. "is in night mode, so a light picture turns dark. Off, the "
+                .. "picture looks the same by night as by day."),
+            checked_func = function() return Wallpaper.invertsAtNight() end,
+            keep_menu_open = true,
+            callback = function()
+                if Wallpaper.invertsAtNight() then
+                    BookshelfSettings.delete(Wallpaper.INVERT_NIGHT_SETTING)
+                else
+                    BookshelfSettings.save(Wallpaper.INVERT_NIGHT_SETTING, true)
+                end
+                BookshelfSettings.flush()
+                -- The cache key carries the pre-invert, so the next paint
+                -- decodes the picture the new way round.
+                if self._bw and self._bw._rebuild then
+                    self._bw:_rebuild()
+                    UIManager:setDirty(self._bw, "ui")
+                end
+            end,
+        },
+        {
             -- Issue 419: pictures kept in a folder of the reader's own.
             text_func = function()
                 local d = Wallpaper.userDir()

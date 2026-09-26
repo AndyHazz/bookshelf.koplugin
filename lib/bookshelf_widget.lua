@@ -3609,8 +3609,11 @@ function BookshelfWidget:_wallpaperWidget()
     if not name then return nil end
     local ok, w = pcall(function()
         local Wallpaper = require("lib/bookshelf_wallpaper")
+        -- preInvert: whether the cached picture holds the file's negative --
+        -- the frame's own inversion undone, and one more when the reader
+        -- asked for the picture inverted at night (Wallpaper.showsNegative).
         return Wallpaper.bg(name, self.width, self.height,
-                            Screen.night_mode and true or false)
+                            Wallpaper.preInvert(Screen.night_mode and true or false))
     end)
     return ok and w or nil
 end
@@ -10353,7 +10356,7 @@ local function _scheduleNightModeRebuild(self, target_night)
     self._night_rebuild_pending = true
     pcall(function()
         local Wallpaper = require("lib/bookshelf_wallpaper")
-        if Wallpaper.flipNight then Wallpaper.flipNight(target_night) end
+        if Wallpaper.flipNight then Wallpaper.flipNight(Wallpaper.preInvert(target_night)) end
     end)
     -- Next tick: DeviceListener has flipped the screen and saved night_mode
     -- by then (it runs later in the same broadcast), so the rebuild reads the
@@ -10409,7 +10412,7 @@ function BookshelfWidget:_followScreenNight()
         -- No event said so: the wallpaper has not been flipped yet.
         pcall(function()
             local Wallpaper = require("lib/bookshelf_wallpaper")
-            if Wallpaper.flipNight then Wallpaper.flipNight(now) end
+            if Wallpaper.flipNight then Wallpaper.flipNight(Wallpaper.preInvert(now)) end
         end)
     end
     self:_rebuild()

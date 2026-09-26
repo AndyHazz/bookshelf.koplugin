@@ -28,7 +28,7 @@ t.test("the built-in Kindle and Kobo sources are registered", function()
     Sources._reset()
     assert(Sources.get("kindle"), "kindle")
     assert(Sources.get("kobo"), "kobo")
-    assert(Sources.get("kobo").picker == false, "Kobo is a synthetic shelf, not a picker row")
+    assert(Sources.get("kobo").picker ~= false, "Kobo is an ordinary picker row, not a fixed shelf button")
     assert(Sources.get("kindle").library == true, "Kindle books count as library books")
 end)
 

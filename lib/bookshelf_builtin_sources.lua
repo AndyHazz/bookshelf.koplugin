@@ -74,15 +74,18 @@ return function(Sources)
         end,
     })
 
-    -- The Kobo store's library, through kobo.koplugin (beta). Not in the source
-    -- picker: it is one synthetic shelf switched on under Advanced.
+    -- The Kobo store's library, through kobo.koplugin. An ordinary source: a
+    -- reader who wants it adds a shelf of it, and can hide, move or delete it
+    -- like any other. (It used to be a fixed "Kobo" button switched on under
+    -- Advanced, which the shelf editor could not touch. Many install the Kobo
+    -- plugin for its other features and never wanted the shelf.)
     local function kobo() return require("lib/bookshelf_kobo_source") end
     Sources.register("kobo", {
         api       = 1,
-        label     = function() return _("Kobo") end,
+        label     = function() return _("Kobo library") end,
         available = function() return kobo().isAvailable() end,
         list      = function() return kobo().listBooks() end,
-        picker    = false,
+        sort_default = { { key = "title", reverse = false } },
         -- BIM cannot read a DRM'd kepub, so the plugin hands back a copied
         -- cover per record, attached for the visible page only.
         cover     = function(rec) return kobo().coverBB(rec.filepath) end,

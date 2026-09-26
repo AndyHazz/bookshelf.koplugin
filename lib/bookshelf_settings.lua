@@ -4337,30 +4337,6 @@ function Settings:_advancedSubItems()
         },
     }
 
-    -- Kobo virtual-library shelf (beta). Always listed (like the calibre beta
-    -- toggle) so Kobo users can reliably find and enable it -- on non-Kobo
-    -- devices the option simply does nothing, because the "Kobo" chip is
-    -- separately gated on this setting AND KoboSource.isAvailable() (false
-    -- off-Kobo). Toggling rebuilds so the chip appears/disappears immediately.
-    items[#items + 1] = {
-        text = _("BETA: Kobo library shelf"),
-        help_text = _("Adds a \"Kobo\" shelf that surfaces your Kobo "
-            .. "virtual library (the books managed by the Kobo store / "
-            .. "OGKevin's kobo.koplugin). Read-only; "
-            .. "covers and opening depend on that plugin. Kobo devices only."),
-        checked_func = function()
-            return BookshelfSettings.read("kobo_shelf") == true
-        end,
-        keep_menu_open = true,
-        callback = function()
-            local enabled = BookshelfSettings.read("kobo_shelf") == true
-            BookshelfSettings.save("kobo_shelf", not enabled)
-            if self._bw and self._bw._rebuild then
-                self._bw:_rebuild()
-                UIManager:setDirty(self._bw, "ui")
-            end
-        end,
-    }
     return items
 end
 

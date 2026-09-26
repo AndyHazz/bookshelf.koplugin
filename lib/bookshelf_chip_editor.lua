@@ -235,12 +235,15 @@ local SOURCE_SORT_DEFAULTS = {
     -- until books are actually fetched. Empty list means "no sort levels",
     -- not "fall through to an engine default" -- see _applySourceDefaults.
     opds          = {},
-    -- Kindle library: title, not filename. The catalogue's titles are what the
-    -- shelf shows, while the source files are named things like
-    -- "01. The Colour of Magic - Terry Pratchett_127FE891….kfx", so a filename
-    -- sort would look arbitrary next to the titles on screen.
-    kindle        = { { key = "title",            reverse = false } },
 }
+-- A registered source (lib/bookshelf_sources) brings its own default. The
+-- Kindle's is title rather than filename: its files are named things like
+-- "01. The Colour of Magic - Terry Pratchett_127FE891….kfx", so a filename sort
+-- would look arbitrary next to the titles on screen.
+setmetatable(SOURCE_SORT_DEFAULTS, { __index = function(_t, kind)
+    local spec = require("lib/bookshelf_sources").get(kind)
+    return spec and type(spec.sort_default) == "table" and spec.sort_default or nil
+end })
 
 -- _resolveOpdsTitle(id): the configured title for an OPDS server key, or nil
 -- if bookshelf_opds_source can't be loaded or the server has since been
@@ -254,46 +257,6 @@ local function _resolveOpdsTitle(id)
     local ok2, server = pcall(OpdsSource.getServer, id)
     if ok2 and server and server.title then return server.title end
     return nil
-end
-
--- The formats a new Kindle chip should start out showing: those holding at
--- least one book KOReader can actually open.
---
--- Derived from the catalogue rather than hardcoded, because openability is a
--- per-BOOK question and not a per-format one -- bookshelf_kindle_source weighs
--- DRM and the file's own magic bytes as well as the extension. A format earns
--- its place if any book in it is openable, which in practice keeps KFX (always
--- converted before KOReader sees it) and EPUB, and drops AZW3, which KOReader
--- registers no provider for.
---
--- Worth knowing where this stops: a format holding both openable and DRM-locked
--- books stays, and the locked ones stay with it. The Format dimension is an
--- include list of formats, so it cannot say "the unlocked ones" -- only a
--- per-book test could. The chip's Filters show exactly what was chosen and the
--- user can change it.
-local function _kindleOpenableFormats()
-    local ok, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
-    if not (ok and type(KindleSource) == "table" and KindleSource.listBooks) then
-        return nil
-    end
-    local ok_list, books = pcall(KindleSource.listBooks)
-    if not (ok_list and type(books) == "table") then return nil end
-    local allowed, openable, blocked = {}, false, false
-    for _i, b in ipairs(books) do
-        local fmt = b.format
-        if fmt and fmt ~= "" then
-            if b.kindle_blocked then
-                blocked = true
-            else
-                allowed[fmt] = true
-                openable = true
-            end
-        end
-    end
-    -- Nothing is blocked: leave the chip unfiltered rather than pinning it to
-    -- the formats owned today, which would hide one bought later.
-    if not (openable and blocked) then return nil end
-    return allowed
 end
 
 -- Editor.sourceSortDefaults(kind) -> a fresh { {key, reverse}, ... }, or nil.
@@ -320,17 +283,11 @@ local function _applySourceDefaults(draft)
     if copy then
         draft.sort_priority = copy
     end
-    -- A new Kindle chip starts with the formats KOReader cannot open filtered
-    -- out, so the shelf is not padded with books that can only refuse. Applied
-    -- only to a chip carrying no filter of its own, so re-picking the source
-    -- never discards one the user set.
-    if kind == "kindle" and not Filter.isActive(draft.filter) then
-        local formats = _kindleOpenableFormats()
-        if formats then
-            draft.filter = draft.filter or {}
-            draft.filter.formats = formats
-        end
-    end
+    -- A registered source can have the last word on a new shelf's defaults
+    -- (the Kindle's filters out formats KOReader cannot open).
+    local Sources = require("lib/bookshelf_sources")
+    local src_spec = kind and Sources.get(kind)
+    if src_spec and src_spec.new_shelf then Sources.call(src_spec, "new_shelf", draft) end
     -- QoL: if the chip's label is still the default "New shelf" (i.e.
     -- the user hasn't customised it), rename it to match the picked
     -- source — e.g. picking "Genres" sets the label to "Genres",
@@ -447,10 +404,14 @@ SOURCE_LABEL = {
     -- generic fallback. Once an id is present _resolveSourceLabel takes
     -- the "OPDS: <title>" branch instead of this one.
     opds          = function() return _("OPDS catalog")       end,
-    -- The Kindle's own library (issue #355). Only offered on a Kindle with
-    -- kindle.koplugin installed; see the picker row's availability gate.
-    kindle        = function() return _("Kindle Virtual Library") end,
 }
+-- A registered source (lib/bookshelf_sources: the Kindle's own library, a
+-- plugin's) names itself.
+setmetatable(SOURCE_LABEL, { __index = function(_t, kind)
+    local Sources = require("lib/bookshelf_sources")
+    if not Sources.get(kind) then return nil end
+    return function() return Sources.label(kind) or kind end
+end })
 
 -- _resolveSourceLabel(source): display string for "Source: <label>".
 -- For built-in kinds returns just the label ("Recently read"). For
@@ -2714,14 +2675,14 @@ function Editor:_pickSource(draft, on_close)
         },
     }
 
-    -- Kindle library row (issue #355). Unlike the OPDS row above this one is
-    -- gated: it needs a Kindle whose catalogue we can read AND
-    -- kindle.koplugin installed to open the books. Everyone else must never see
-    -- a source they cannot use, so the row is inserted only when both hold --
-    -- above Cancel, so it reads as the last real source.
-    local ok_kindle, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
-    if ok_kindle and KindleSource and KindleSource.isAvailable() then
-        table.insert(rows, #rows, { btn("kindle", _("Kindle Virtual Library")) })
+    -- Registered sources (lib/bookshelf_sources): the Kindle's own library, and
+    -- any plugin's (issue 452). Unlike the OPDS row above these are gated on
+    -- the source being available -- the Kindle one needs a readable catalogue
+    -- AND kindle.koplugin to open the books -- so nobody sees a source they
+    -- cannot use. Above Cancel, so they read as the last real sources.
+    local Sources = require("lib/bookshelf_sources")
+    for _i, id in ipairs(Sources.pickerIds()) do
+        table.insert(rows, #rows, { btn(id, Sources.label(id) or id) })
     end
     d = ButtonDialog:new{
         title   = _("Shelf source or grouping"),

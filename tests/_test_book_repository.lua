@@ -5217,22 +5217,56 @@ test("getBySource(kindle): a rating-only filter does NOT pay for enrichment", fu
     assert(calls == 0, "a rating filter must not enrich the whole list, got " .. calls .. " calls")
 end)
 
-test("kindleFilepaths: lists the catalogue, and is EMPTY without a Kindle library", function()
+test("getBySource: a plugin's registered source is filtered, sorted and paged (issue 452)", function()
+    local Sources = require("lib/bookshelf_sources")
+    Sources.register("demo", {
+        api = 1,
+        label = function() return "Demo" end,
+        available = function() return true end,
+        list = function()
+            return {
+                { title = "Cherry", filepath = "demo://c", rating = 5 },
+                { title = "Apple",  filepath = "demo://a", rating = 5 },
+                { title = "Banana", filepath = "demo://b", rating = 2 },
+            }
+        end,
+    })
+    local list, total = Repo.getBySource({ kind = "demo" }, { ratings = { ["5"] = true } },
+        { { key = "title", reverse = false } }, 0, 1)
+    Sources.unregister("demo")
+    assert(total == 2, "the rating filter keeps two, got " .. tostring(total))
+    assert(#list == 1 and list[1].title == "Apple", "sorted by title and paged to one")
+    assert(list[1].source_kind == "demo", "records are stamped with their source")
+end)
+
+test("getBySource: an unregistered or failing source is an empty shelf, not an error", function()
+    local Sources = require("lib/bookshelf_sources")
+    Sources.register("flaky", {
+        label = function() return "Flaky" end,
+        available = function() return true end,
+        list = function() error("server unreachable") end,
+    })
+    local list, total = Repo.getBySource({ kind = "flaky" }, nil, nil, 0, 10)
+    Sources.unregister("flaky")
+    assert(#list == 0 and total == 0, "a throwing list must read as empty")
+end)
+
+test("librarySourceFilepaths: lists the catalogue, and is EMPTY without a Kindle library", function()
     package.loaded["lib/bookshelf_kindle_source"] = nil
-    assert(#Repo.kindleFilepaths() == 0, "no Kindle source must yield no paths")
+    assert(#Repo.librarySourceFilepaths() == 0, "no Kindle source must yield no paths")
 
     package.loaded["lib/bookshelf_kindle_source"] = {
         isAvailable = function() return false end,
         listBooks = function() error("must not be called when unavailable") end,
     }
-    assert(#Repo.kindleFilepaths() == 0, "an unavailable source must yield no paths")
+    assert(#Repo.librarySourceFilepaths() == 0, "an unavailable source must yield no paths")
 
     stub_kindle_source({
         { title = "A", filepath = "/k/a.kfx" },
         { title = "B", filepath = "/k/b.kfx" },
         { title = "No path" },
     })
-    local paths = Repo.kindleFilepaths()
+    local paths = Repo.librarySourceFilepaths()
     table.sort(paths)
     assert(#paths == 2 and paths[1] == "/k/a.kfx" and paths[2] == "/k/b.kfx",
         "expected the two real paths, got " .. table.concat(paths, ","))

@@ -4261,152 +4261,21 @@ function BookshelfWidget:_openBook(book, after_open_callback)
     -- the path) crash KOReader's filemanagerbookinfo:show via lfs.attributes
     -- on nil. ReaderUI:showReader nil-checks itself, but presenting a "file
     -- missing" toast here is friendlier than its silent no-op.
-    -- The path to actually hand ReaderUI: a real file on disk. For Kobo virtual
-    -- records (kobo.koplugin) the path is a KOBO_VIRTUAL:// URI with no real file,
-    -- so resolve it through the plugin (decrypting on demand) first -- passing the
-    -- virtual path straight to showReader silently fails, as its showReader patch
-    -- matches a different scheme (#203).
     local open_path = book.filepath
-    if book.is_kobo then
-        local ok_kobo, KoboSource = pcall(require, "lib/bookshelf_kobo_source")
-        local real = ok_kobo and KoboSource and KoboSource.realPathForOpen(book.filepath) or nil
-        if not real then
-            UIManager:show(require("ui/widget/infomessage"):new{
-                text    = _("Couldn't open this Kobo book."),
-                timeout = 3,
-            })
-            return
-        end
-        -- Map the decrypted /tmp copy back to this virtual book so the hero can
-        -- show it as recently-opened (#203 pt3).
-        if Repo.noteKoboOpen then Repo.noteKoboOpen(real, book) end
-        -- Opening feedback at TAP time (the Kobo readiness poll below can
-        -- take seconds): flush pending paints so the capture sees current
-        -- pixels, then squeeze the tapped cover.
-        UIManager:forceRePaint()
-        pcall(function() self:_paintOpeningEffect(book.filepath) end)
-        -- The decrypted copy can still be mid-write when realPathForOpen returns
-        -- (#203); opening an empty file silently failed and needed the "open
-        -- another, come back" dance. Wait until it has a size -- polling ~1s up
-        -- to 5s behind a notice -- then open, or show a clear try-again message.
-        self:_openKoboWhenReady(real, after_open_callback)
-        return
-    elseif book.is_kindle then
-        -- Kindle library record (issue #355). The filepath is real -- either the
-        -- Kindle's own .kfx/.azw3 or kindle.koplugin's converted EPUB -- but a
-        -- KFX still has to be converted (and usually decrypted) before KOReader
-        -- can read it, and Bookshelf calls ReaderUI:showReader directly, so it
-        -- never passes through the plugin's own openFile patch. Resolve it here
-        -- instead.
-        --
-        -- A book that still needs converting blocks everything for minutes (4m40s
-        -- for a 1.5MB book on a PW5), and the plugin inhibits input while it
-        -- works, so the screen sits there dead. Unwarned, that reads as a crash
-        -- -- it did to the maintainer, on this exact book. Ask first, so the wait
-        -- is a decision rather than a mystery, and so a mis-tap can be undone.
-        -- Only ever asked once per book: after this the EPUB is cached and the
-        -- open is instant.
-        if book.kindle_needs_prepare and not book._kindle_prepare_ok then
-            -- Names the plugin doing the work, deliberately. A multi-minute
-            -- freeze on a book tap needs an obvious owner: without one it reads
-            -- as Bookshelf being broken, and a user who wants to understand or
-            -- report it has nothing to go on. "Kindle Virtual Library" is the
-            -- name that appears in KOReader's own plugin list, so it is the name
-            -- that leads somewhere.
-            UIManager:show(require("ui/widget/confirmbox"):new{
-                text = _("This Kindle book has to be converted before KOReader can read it.\n\n"
-                    .. "The Kindle Virtual Library plugin does the conversion. It can take "
-                    .. "a few minutes, it can't be stopped once started, and the screen "
-                    .. "won't respond while it works.\n\n"
-                    .. "It only happens the first time you open a book."),
-                ok_text = _("Convert"),
-                ok_callback = function()
-                    -- Re-enter with the question answered, but NOT from inside
-                    -- this callback: ConfirmBox runs ok_callback and only then
-                    -- closes itself (confirmbox.lua -- ok_callback(), then
-                    -- UIManager:close). The conversion blocks for minutes and
-                    -- paints its own "Preparing…" progress, so running it here
-                    -- draws that progress on top of a dialog still on screen.
-                    -- Next tick, once the close has actually happened.
-                    book._kindle_prepare_ok = true
-                    UIManager:nextTick(function()
-                        self:_openBook(book, after_open_callback)
-                    end)
-                end,
-            })
-            return
-        end
-        -- Tap feedback, but only when the open can actually be quick. A cover
-        -- squeeze says "your book is opening now": ahead of a multi-minute
-        -- conversion that is a lie, and it would be a second thing painting over
-        -- the plugin's own progress message. A blocked book is about to refuse,
-        -- so it gets no animation either.
-        if not (book.kindle_blocked or book.kindle_needs_prepare) then
-            UIManager:forceRePaint()
-            pcall(function() self:_paintOpeningEffect(book.filepath) end)
-        end
-        local ok_kindle, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
-        local real, reason
-        if ok_kindle and KindleSource then
-            real, reason = KindleSource.realPathForOpen(book)
-        end
-        if not real then
-            -- Two kinds of reason: a short key we phrase ourselves, or a
-            -- sentence the plugin already phrased for the reader (which knows
-            -- far more about why a particular book would not open).
-            -- Name the format and say what DOES work. Two reasons users need
-            -- this: it makes clear the limit is the Kindle plugin's converter
-            -- rather than Bookshelf, and it tells them the rest of their library
-            -- may well be fine -- worth knowing if the first book they try is
-            -- one of the handful that can't work.
-            local fmt = (book.format or ""):upper()
-            local text, brief
-            if reason == "drm" then
-                text = T(_("This is a protected %1 file, which can't be opened.\n\n"
-                    .. "The Kindle plugin can only unlock KFX books. Protected MOBI "
-                    .. "and AZW books can't be converted by any KOReader plugin, so "
-                    .. "those have to be read in the Kindle app.\n\n"
-                    .. "Your KFX books should open normally."), fmt ~= "" and fmt or "Kindle")
-            elseif reason == "unsupported" then
-                -- KOReader registers no provider for this extension (.azw3 has
-                -- none, so even an unprotected one is refused). Nothing here can
-                -- change that, but say so rather than letting ReaderUI bounce the
-                -- user out to the file browser.
-                text = T(_("KOReader can't read %1 files.\n\n"
-                    .. "It reads KFX books (prepared by the Kindle plugin) and "
-                    .. "unprotected MOBI and AZW books.\n\n"
-                    .. "Your other Kindle books should open normally."), fmt ~= "" and fmt or "these")
-            elseif reason == "unavailable" or reason == nil then
-                text = _("The Kindle library isn't available right now.")
-                brief = true
-            else
-                -- The plugin's own sentence. It knows far more about why this
-                -- particular book would not open, and some of its reasons run to
-                -- two sentences with an instruction in them.
-                text = tostring(reason)
-            end
-            -- Only a one-liner gets the short timeout. These explanations run to
-            -- three paragraphs -- what the format is, what the converter can do,
-            -- and the reassurance that the rest of the library is fine -- and
-            -- four seconds is not enough to read that, let alone take it in.
-            --
-            -- Untimed relies on the reader being able to dismiss it: InfoMessage
-            -- binds a whole-screen tap on a touch device and any key on a keyed
-            -- one. Generic device defaults both capabilities to "no" and each
-            -- device opts in, so a device declaring neither -- or one that has
-            -- been misdetected -- would be stuck with a message nothing clears.
-            -- Fall back to a long timeout there rather than a short one: still
-            -- readable, still self-clearing.
-            local can_dismiss = Device:isTouchDevice() or Device:hasKeys()
-            UIManager:show(require("ui/widget/infomessage"):new{
-                text    = text,
-                timeout = brief and 4 or (can_dismiss and nil or 20),
-            })
-            return
-        end
-        self:_launchReader(real, after_open_callback)
-        return
-    else
+    -- A book from a registered source (the Kindle's own library, the Kobo
+    -- store's, or another plugin's: lib/bookshelf_sources) opens the way its
+    -- source says. `open` answers true when it handled everything itself, or
+    -- a real path for us to open; anything else falls through to the file.
+    local Sources = require("lib/bookshelf_sources")
+    local owner = Sources.ownerOf(book)
+    local spec = owner and Sources.get(owner)
+    if spec and spec.open then
+        local ok, res = Sources.call(spec, "open", book,
+            { widget = self, after_open = after_open_callback })
+        if ok and res == true then return end
+        if ok and type(res) == "string" and res ~= "" then open_path = res end
+    end
+    if open_path == book.filepath then
         -- Stale records (Send-to-Kindle moved/removed the file after BIM cached
         -- the path) crash filemanagerbookinfo:show via lfs.attributes on nil; a
         -- "file missing" toast is friendlier than a silent no-op.
@@ -4427,6 +4296,155 @@ function BookshelfWidget:_openBook(book, after_open_callback)
     UIManager:forceRePaint()
     pcall(function() self:_paintOpeningEffect(book.filepath) end)
     self:_launchReader(open_path, after_open_callback)
+end
+
+-- _openKoboBook(book, after_open_callback) -> true. The Kobo source's open
+-- (lib/bookshelf_builtin_sources): a KOBO_VIRTUAL:// record has no real file, so
+-- it is resolved through kobo.koplugin first. Every path answers true, handled.
+function BookshelfWidget:_openKoboBook(book, after_open_callback)
+    local ok_kobo, KoboSource = pcall(require, "lib/bookshelf_kobo_source")
+    local real = ok_kobo and KoboSource and KoboSource.realPathForOpen(book.filepath) or nil
+    if not real then
+        UIManager:show(require("ui/widget/infomessage"):new{
+            text    = _("Couldn't open this Kobo book."),
+            timeout = 3,
+        })
+        return true
+    end
+    -- Map the decrypted /tmp copy back to this virtual book so the hero can
+    -- show it as recently-opened (#203 pt3).
+    if Repo.noteKoboOpen then Repo.noteKoboOpen(real, book) end
+    -- Opening feedback at TAP time (the Kobo readiness poll below can
+    -- take seconds): flush pending paints so the capture sees current
+    -- pixels, then squeeze the tapped cover.
+    UIManager:forceRePaint()
+    pcall(function() self:_paintOpeningEffect(book.filepath) end)
+    -- The decrypted copy can still be mid-write when realPathForOpen returns
+    -- (#203); opening an empty file silently failed and needed the "open
+    -- another, come back" dance. Wait until it has a size -- polling ~1s up
+    -- to 5s behind a notice -- then open, or show a clear try-again message.
+    self:_openKoboWhenReady(real, after_open_callback)
+    return true
+end
+
+-- _openKindleBook(book, after_open_callback) -> true. The Kindle source's open
+-- (lib/bookshelf_builtin_sources). Every path answers true: this owns the
+-- open, including its refusals.
+function BookshelfWidget:_openKindleBook(book, after_open_callback)
+    -- Kindle library record (issue #355). The filepath is real -- either the
+    -- Kindle's own .kfx/.azw3 or kindle.koplugin's converted EPUB -- but a
+    -- KFX still has to be converted (and usually decrypted) before KOReader
+    -- can read it, and Bookshelf calls ReaderUI:showReader directly, so it
+    -- never passes through the plugin's own openFile patch. Resolve it here
+    -- instead.
+    --
+    -- A book that still needs converting blocks everything for minutes (4m40s
+    -- for a 1.5MB book on a PW5), and the plugin inhibits input while it
+    -- works, so the screen sits there dead. Unwarned, that reads as a crash
+    -- -- it did to the maintainer, on this exact book. Ask first, so the wait
+    -- is a decision rather than a mystery, and so a mis-tap can be undone.
+    -- Only ever asked once per book: after this the EPUB is cached and the
+    -- open is instant.
+    if book.kindle_needs_prepare and not book._kindle_prepare_ok then
+        -- Names the plugin doing the work, deliberately. A multi-minute
+        -- freeze on a book tap needs an obvious owner: without one it reads
+        -- as Bookshelf being broken, and a user who wants to understand or
+        -- report it has nothing to go on. "Kindle Virtual Library" is the
+        -- name that appears in KOReader's own plugin list, so it is the name
+        -- that leads somewhere.
+        UIManager:show(require("ui/widget/confirmbox"):new{
+            text = _("This Kindle book has to be converted before KOReader can read it.\n\n"
+                .. "The Kindle Virtual Library plugin does the conversion. It can take "
+                .. "a few minutes, it can't be stopped once started, and the screen "
+                .. "won't respond while it works.\n\n"
+                .. "It only happens the first time you open a book."),
+            ok_text = _("Convert"),
+            ok_callback = function()
+                -- Re-enter with the question answered, but NOT from inside
+                -- this callback: ConfirmBox runs ok_callback and only then
+                -- closes itself (confirmbox.lua -- ok_callback(), then
+                -- UIManager:close). The conversion blocks for minutes and
+                -- paints its own "Preparing…" progress, so running it here
+                -- draws that progress on top of a dialog still on screen.
+                -- Next tick, once the close has actually happened.
+                book._kindle_prepare_ok = true
+                UIManager:nextTick(function()
+                    self:_openBook(book, after_open_callback)
+                end)
+            end,
+        })
+        return true
+    end
+    -- Tap feedback, but only when the open can actually be quick. A cover
+    -- squeeze says "your book is opening now": ahead of a multi-minute
+    -- conversion that is a lie, and it would be a second thing painting over
+    -- the plugin's own progress message. A blocked book is about to refuse,
+    -- so it gets no animation either.
+    if not (book.kindle_blocked or book.kindle_needs_prepare) then
+        UIManager:forceRePaint()
+        pcall(function() self:_paintOpeningEffect(book.filepath) end)
+    end
+    local ok_kindle, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
+    local real, reason
+    if ok_kindle and KindleSource then
+        real, reason = KindleSource.realPathForOpen(book)
+    end
+    if not real then
+        -- Two kinds of reason: a short key we phrase ourselves, or a
+        -- sentence the plugin already phrased for the reader (which knows
+        -- far more about why a particular book would not open).
+        -- Name the format and say what DOES work. Two reasons users need
+        -- this: it makes clear the limit is the Kindle plugin's converter
+        -- rather than Bookshelf, and it tells them the rest of their library
+        -- may well be fine -- worth knowing if the first book they try is
+        -- one of the handful that can't work.
+        local fmt = (book.format or ""):upper()
+        local text, brief
+        if reason == "drm" then
+            text = T(_("This is a protected %1 file, which can't be opened.\n\n"
+                .. "The Kindle plugin can only unlock KFX books. Protected MOBI "
+                .. "and AZW books can't be converted by any KOReader plugin, so "
+                .. "those have to be read in the Kindle app.\n\n"
+                .. "Your KFX books should open normally."), fmt ~= "" and fmt or "Kindle")
+        elseif reason == "unsupported" then
+            -- KOReader registers no provider for this extension (.azw3 has
+            -- none, so even an unprotected one is refused). Nothing here can
+            -- change that, but say so rather than letting ReaderUI bounce the
+            -- user out to the file browser.
+            text = T(_("KOReader can't read %1 files.\n\n"
+                .. "It reads KFX books (prepared by the Kindle plugin) and "
+                .. "unprotected MOBI and AZW books.\n\n"
+                .. "Your other Kindle books should open normally."), fmt ~= "" and fmt or "these")
+        elseif reason == "unavailable" or reason == nil then
+            text = _("The Kindle library isn't available right now.")
+            brief = true
+        else
+            -- The plugin's own sentence. It knows far more about why this
+            -- particular book would not open, and some of its reasons run to
+            -- two sentences with an instruction in them.
+            text = tostring(reason)
+        end
+        -- Only a one-liner gets the short timeout. These explanations run to
+        -- three paragraphs -- what the format is, what the converter can do,
+        -- and the reassurance that the rest of the library is fine -- and
+        -- four seconds is not enough to read that, let alone take it in.
+        --
+        -- Untimed relies on the reader being able to dismiss it: InfoMessage
+        -- binds a whole-screen tap on a touch device and any key on a keyed
+        -- one. Generic device defaults both capabilities to "no" and each
+        -- device opts in, so a device declaring neither -- or one that has
+        -- been misdetected -- would be stuck with a message nothing clears.
+        -- Fall back to a long timeout there rather than a short one: still
+        -- readable, still self-clearing.
+        local can_dismiss = Device:isTouchDevice() or Device:hasKeys()
+        UIManager:show(require("ui/widget/infomessage"):new{
+            text    = text,
+            timeout = brief and 4 or (can_dismiss and nil or 20),
+        })
+        return true
+    end
+    self:_launchReader(real, after_open_callback)
+    return true
 end
 
 -- Hand a real on-disk path to the reader after the pre-read bookkeeping. Shared

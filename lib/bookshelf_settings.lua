@@ -2963,7 +2963,7 @@ function Settings:_hardcoverSubItems()
         -- inside home_dir and be walked as well as listed.
         local seen = {}
         for _i, fp in ipairs(filepaths) do seen[fp] = true end
-        for _i, fp in ipairs(Repo.kindleFilepaths() or {}) do
+        for _i, fp in ipairs(Repo.librarySourceFilepaths() or {}) do
             if not seen[fp] then
                 seen[fp] = true
                 filepaths[#filepaths + 1] = fp

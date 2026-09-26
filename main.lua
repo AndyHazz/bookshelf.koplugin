@@ -259,6 +259,27 @@ local function _installCalibreNotice()
     end
 end
 
+-- The shelf source API for other plugins (issue 452). A plugin that wants a
+-- shelf of its own registers a source instead of replacing Bookshelf's
+-- functions:
+--
+--     local bs = self.ui.bookshelf
+--     if bs and bs.registerSource and (bs.SOURCE_API or 0) >= 1 then
+--         bs:registerSource("komga", { api = 1, label = ..., available = ..., list = ... })
+--     end
+--
+-- The spec is documented at the top of lib/bookshelf_sources.lua. The registry
+-- lives for the whole KOReader session, across the file browser and the reader,
+-- so registering once is enough; registering the same id again replaces it.
+-- Returns true, or false and the reason the spec was refused.
+Bookshelf.SOURCE_API = require("lib/bookshelf_sources").API
+function Bookshelf:registerSource(id, spec)
+    return require("lib/bookshelf_sources").register(id, spec)
+end
+function Bookshelf:unregisterSource(id)
+    require("lib/bookshelf_sources").unregister(id)
+end
+
 function Bookshelf:init()
     _installBroadcastTag()
     -- The panel's night-mode inversion flag is kernel-side and outlives the

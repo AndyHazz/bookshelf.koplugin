@@ -2426,19 +2426,15 @@ function Repo.invalidateProgressCache(filepath)
     -- Confirmed on a PW5: three books marked finished, identical sidecars, one
     -- tick on screen; all three appeared after a restart forced a fresh read.
     --
-    -- package.loaded rather than require: a source that was never used has no
-    -- cache to drop, and a non-Kindle device should not load the module to
-    -- find that out. isKindlePath answers from the existing cache only and
-    -- never builds one, so this cannot turn an invalidation into a catalogue
-    -- scan. Kobo needs none of this -- it holds no cache.
-    local KindleSource = package.loaded["lib/bookshelf_kindle_source"]
-    if type(KindleSource) == "table" and KindleSource.invalidate then
-        local mine = (filepath == nil)
-        if not mine and KindleSource.isKindlePath then
-            local ok, hit = pcall(KindleSource.isKindlePath, filepath)
-            mine = ok and hit or false
-        end
-        if mine then pcall(KindleSource.invalidate) end
+    -- Every registered source hears about it (lib/bookshelf_sources); the
+    -- Kindle one drops its catalogue cache when the file is one of its books.
+    -- package.loaded rather than require: with the registry never loaded, no
+    -- source has listed anything, so there is no cache to drop. The Kindle
+    -- spec answers from its existing cache only, so an invalidation never
+    -- turns into a catalogue scan.
+    local Sources = package.loaded["lib/bookshelf_sources"]
+    if type(Sources) == "table" and Sources.invalidate then
+        pcall(Sources.invalidate, filepath)
     end
     if filepath then
         _progress_cache[filepath] = nil
@@ -3074,9 +3070,9 @@ end
 -- only a backstop for a status changed behind our back (a sync from another
 -- device), which the old 60s in-memory TTL used to catch.
 -- Assigned further down, next to search, which shares this gate.
-local _kindleLibraryEnabled
+local _librarySourceBooks
 
--- _kindleStatusCounts(): status tally over the Kindle catalogue, plus the
+-- _librarySourceStatusCounts(): status tally over the Kindle catalogue, plus the
 -- number of books it holds. nil when there is no Kindle chip or the catalogue
 -- is unreadable, so a library without one is left exactly as it was.
 --
@@ -3084,12 +3080,9 @@ local _kindleLibraryEnabled
 -- disk walk nor a network call. Kindle books cannot collide with walked ones --
 -- a .kfx is not in SUPPORTED_EXT and they live outside home_dir -- so these
 -- tallies are additive, the same assumption searchBooks makes.
-local function _kindleStatusCounts()
-    if not _kindleLibraryEnabled() then return nil end
-    local ok, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
-    if not (ok and KindleSource and KindleSource.listBooks) then return nil end
-    local ok_list, books = pcall(KindleSource.listBooks)
-    if not (ok_list and type(books) == "table") then return nil end
+local function _librarySourceStatusCounts()
+    local books = _librarySourceBooks()
+    if not books then return nil end
     local counts = { unread = 0, reading = 0, on_hold = 0, finished = 0 }
     for _i, b in ipairs(books) do
         -- Both spellings, as countFinishedBooks does: normalisation lives
@@ -3176,7 +3169,7 @@ end
 -- per call is free: it is a tally over an in-memory catalogue.
 function Repo.countFinishedBooks()
     local n = _finishedCountWalked()
-    local k = _kindleStatusCounts()
+    local k = _librarySourceStatusCounts()
     if k then n = n + k.finished end
     return n
 end
@@ -3574,7 +3567,8 @@ function Repo.getAllFilepaths()
     return paths
 end
 
---- Filepaths of the Kindle catalogue, or {} where there is no Kindle library.
+--- Filepaths of every registered source whose books count as library books
+--- (the Kindle catalogue today), or {} where there is none.
 ---
 --- getAllFilepaths is the filesystem WALK, and a .kfx is neither in
 --- SUPPORTED_EXT nor under home_dir, so Kindle books are absent from it. A
@@ -3584,16 +3578,17 @@ end
 --- rather than folded into getAllFilepaths.
 ---
 --- Catalogue cache only: no disk walk, no network.
-function Repo.kindleFilepaths()
-    local ok, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
-    if not (ok and KindleSource and KindleSource.isAvailable
-            and KindleSource.isAvailable()) then return {} end
-    local ok_list, books = pcall(KindleSource.listBooks)
-    if not (ok_list and type(books) == "table") then return {} end
+function Repo.librarySourceFilepaths()
+    local Sources = require("lib/bookshelf_sources")
     local out = {}
-    for _i, b in ipairs(books) do
-        if type(b) == "table" and type(b.filepath) == "string" and b.filepath ~= "" then
-            out[#out + 1] = b.filepath
+    for _i, id in ipairs(Sources.ids()) do
+        local spec = Sources.get(id)
+        if spec.library then
+            for _j, b in ipairs(Sources.list(id) or {}) do
+                if type(b.filepath) == "string" and b.filepath ~= "" then
+                    out[#out + 1] = b.filepath
+                end
+            end
         end
     end
     return out
@@ -4723,30 +4718,27 @@ local function _searchMatches(b, words, skip_genres)
     return true
 end
 
--- _kindleLibraryEnabled(): whether the Kindle library counts as part of the
--- user's shelf for whole-library questions -- search (issue #355), and the
--- shelf-wide tallies.
+-- _librarySourceBooks() -> records or nil: the books of every registered source
+-- that counts as part of the user's shelf for whole-library questions -- search
+-- (issue #355), and the shelf-wide tallies. The Kindle library today.
 --
 -- These cover the sources the user has actually put on their shelf, so having
--- made a Kindle chip is the opt-in. Having the plugin installed is not enough on
--- its own: someone may use its own Kindle Library view and not want Bookshelf
--- reaching into their Kindle books at all.
+-- made a shelf of the source is the opt-in (lib/bookshelf_sources libraryIds).
+-- Having the plugin installed is not enough on its own: someone may use its own
+-- Kindle Library view and not want Bookshelf reaching into their Kindle books.
 --
 -- Forward-declared above, because the tallies are defined earlier in the file.
-_kindleLibraryEnabled = function()
-    local ok, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
-    if not (ok and KindleSource and KindleSource.isAvailable) then return false end
-    local ok_avail, avail = pcall(KindleSource.isAvailable)
-    if not (ok_avail and avail) then return false end
+_librarySourceBooks = function()
     local ok_tabs, tabs = pcall(TabModel.load)
-    if not (ok_tabs and type(tabs) == "table") then return false end
-    for _i, t in ipairs(tabs) do
-        if type(t) == "table" and type(t.source) == "table"
-                and t.source.kind == "kindle" then
-            return true
-        end
+    if not (ok_tabs and type(tabs) == "table") then return nil end
+    local Sources = require("lib/bookshelf_sources")
+    local ids = Sources.libraryIds(tabs)
+    if #ids == 0 then return nil end
+    local out = {}
+    for _i, id in ipairs(ids) do
+        for _j, b in ipairs(Sources.list(id) or {}) do out[#out + 1] = b end
     end
-    return false
+    return out
 end
 
 function Repo.searchBooks(query, limit)
@@ -4779,18 +4771,11 @@ function Repo.searchBooks(query, limit)
     -- Kindle chip. Listed from the catalogue cache, so no disk walk and no
     -- network. Local results come first: the user's own files before the
     -- Kindle's.
-    if not (limit and #out >= limit) and _kindleLibraryEnabled() then
-        local ok, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
-        local ok_list, kindle_books = false, nil
-        if ok and KindleSource then
-            ok_list, kindle_books = pcall(KindleSource.listBooks)
-        end
-        if ok_list and type(kindle_books) == "table" then
-            for _i, b in ipairs(kindle_books) do
-                if _searchMatches(b, words, skip_genres) then
-                    out[#out + 1] = b
-                    if limit and #out >= limit then break end
-                end
+    if not (limit and #out >= limit) then
+        for _i, b in ipairs(_librarySourceBooks() or {}) do
+            if _searchMatches(b, words, skip_genres) then
+                out[#out + 1] = b
+                if limit and #out >= limit then break end
             end
         end
     end
@@ -5759,7 +5744,7 @@ function Repo.countByStatus()
     -- getAllFilepaths is the WALKED library, which is not the whole shelf: the
     -- Kindle library is on it too, and a user with a Kindle chip was shown a
     -- "shelf size" that left out roughly a third of the books they can see.
-    local k_counts, k_total = _kindleStatusCounts()
+    local k_counts, k_total = _librarySourceStatusCounts()
     if k_counts then
         for status, n in pairs(k_counts) do
             counts[status] = (counts[status] or 0) + n
@@ -6519,25 +6504,17 @@ end
 -- _sourceRecordsFor(source): the records a picker should describe, or nil to
 -- leave the caller on its existing path.
 --
--- The gate is availability ALONE, deliberately not _kindleLibraryEnabled():
+-- The gate is availability ALONE, deliberately not _librarySourceBooks():
 -- the user is editing a chip of this kind, which is a stronger opt-in than
 -- having one saved -- and a chip being created for the first time is not in
 -- TabModel yet, so the saved-chip gate would fail exactly when the picker is
 -- first opened.
 local function _sourceRecordsFor(source)
     local kind = (type(source) == "table") and source.kind or nil
-    local mod = (kind == "kindle" and "lib/bookshelf_kindle_source")
-             or (kind == "kobo"   and "lib/bookshelf_kobo_source")
-             or nil
-    if not mod then return nil end
-    local ok, Source = pcall(require, mod)
-    if not (ok and type(Source) == "table"
-            and Source.isAvailable and Source.listBooks) then return nil end
-    local ok_avail, avail = pcall(Source.isAvailable)
-    if not (ok_avail and avail) then return nil end
-    local ok_list, books = pcall(Source.listBooks)
-    if not (ok_list and type(books) == "table") then return nil end
-    return books
+    if not kind then return nil end
+    local Sources = require("lib/bookshelf_sources")
+    if not Sources.get(kind) then return nil end
+    return Sources.list(kind, source)
 end
 
 -- The group kind and key function each filter dimension corresponds to, so a
@@ -7473,108 +7450,33 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
     -- and a SIGKILL Lua cannot catch. Nothing on the light_only path reads a
     -- cover, so skip the attachment entirely.
     local light_only = (opts and opts.light_only) or false
-    -- Kobo virtual library (OGKevin/kobo.koplugin): records come from the plugin
-    -- bridge, not the filesystem/BIM. Sort the full set with the SortEngine (the
-    -- Kobo chip's sort_priority) and paginate. Empty + cheap when the plugin is
-    -- unavailable, so this is inert on non-Kobo devices.
-    if kind == "kobo" then
-        local ok_kobo, KoboSource = pcall(require, "lib/bookshelf_kobo_source")
-        if not (ok_kobo and KoboSource and KoboSource.isAvailable()) then return {}, 0 end
-        local books = KoboSource.listBooks()
-        -- Same filter gap as the Kindle branch above, and fixed the same way:
-        -- a filter set on a Kobo chip did nothing at all.
-        if Filter.isActive(filter) then
-            local compiled = Filter.compile(filter, Repo.filterOpts())
-            -- Genres on these records come from Hardcover, and that enrichment
-            -- is normally applied to the VISIBLE SLICE only (below). A genre
-            -- filter has to see them BEFORE the slice exists, so enrich the
-            -- whole list first -- but only when the filter actually constrains
-            -- genres, so an unfiltered or rating-only chip still pays for one
-            -- page. Ratings and statuses need none of this: they are on the
-            -- record already, from the sidecar.
-            --
-            -- applyMetadata rather than enrichBook because it is what the light
-            -- record path uses for exactly this, so a device-library chip
-            -- filters on the same data a local one does. Cache-only, and
-            -- gated on the plugin being present and the setting being on.
-            if compiled.genres then
-                local Hardcover = getHardcover()
-                if Hardcover and Hardcover.applyMetadata then
-                    for i = 1, #books do pcall(Hardcover.applyMetadata, books[i]) end
-                end
-            end
-            local kept = {}
-            for i = 1, #(books or {}) do
-                if _recordMatches(books[i], compiled) then kept[#kept + 1] = books[i] end
-            end
-            books = kept
-        end
-        if sort_priority and #sort_priority > 0 then
-            local ok_sort = pcall(table.sort, books, SortEngine.chainedComparator(sort_priority))
-            if not ok_sort then table.sort(books, function(a, b)
-                return (a.title or "") < (b.title or "") end) end
-        end
-        local total = #books
-        local off, lim = offset or 0, limit or #books
-        local page = {}
-        for i = off + 1, math.min(off + lim, total) do
-            local rec = books[i]
-            -- Attach the cover eagerly for the VISIBLE slice only: BIM can't read
-            -- the DRM'd kepub, so there's no lazy ScaledCoverCache path -- the
-            -- plugin hands back a fresh (copied) blitbuffer the spine can free
-            -- after paint. nil (no extracted sidecar cover yet) -> placeholder.
-            -- Re-fetched each rebuild, so the freed bb is never reused.
-            if not light_only then
-                local bb, cw, ch = KoboSource.coverBB(rec.filepath)
-                if bb then
-                    rec.cover_bb, rec.cover_w, rec.cover_h = bb, cw, ch
-                    rec.has_cover = true
-                end
-            end
-            page[#page + 1] = rec
-        end
-        return page, total
-    end
-    -- Kindle library (issue #355): records come from Amazon's own catalogue via
-    -- lib/bookshelf_kindle_source, not from the filesystem/BIM. Sort the full set
-    -- with the SortEngine and paginate -- the point of the exercise, since the
-    -- Kindle plugin's own list has a single hardcoded title order.
-    --
-    -- Unlike the Kobo branch above there is no cover decoding here: a Kindle book
-    -- has a real cover jpg in Amazon's thumbnail cache, so the record carries
-    -- cover_image_path (a plain string every painter resolves independently) and
-    -- never a one-shot cover_bb. Inert on every non-Kindle device.
-    if kind == "kindle" then
-        local ok_k, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
-        if not (ok_k and KindleSource and KindleSource.isAvailable()) then return {}, 0 end
-        local ok_list, books = pcall(KindleSource.listBooks)
-        if not ok_list or type(books) ~= "table" then return {}, 0 end
-        -- Apply the chip's filter. These device-library branches used to skip
-        -- it entirely: they listed, sorted, sliced and returned, so a filter
-        -- set on a Kindle chip did nothing at all -- a rating filter excluding
-        -- 1-star books still showed them, and so did every other dimension.
-        --
+    -- A registered source (lib/bookshelf_sources): the Kindle's own library,
+    -- the Kobo store's, or another plugin's (issue 452). Its records come from
+    -- the source, not the walk or BIM. Filter, sort and page the full set here,
+    -- the same way for every source, so a source only has to say what books it
+    -- holds. Empty and cheap when the source is unavailable.
+    local Sources = require("lib/bookshelf_sources")
+    local src_spec = Sources.get(kind)
+    if src_spec then
+        local books = Sources.list(kind, source)
+        if not books then return {}, 0 end
         -- Filtered BEFORE the sort and slice so `total` is the filtered count
-        -- and pagination matches what is on screen.
+        -- and pagination matches what is on screen. (These branches used to
+        -- skip the filter entirely, so a filter set on a Kindle or Kobo shelf
+        -- did nothing.)
         --
         -- _recordMatches rather than Filter.matches directly: it resolves
         -- status and rating from the sidecar only when the filter constrains
-        -- them, and derives `format` from the filepath, which these records
-        -- do not carry.
+        -- them, and derives `format` from the filepath when a record lacks it.
         if Filter.isActive(filter) then
             local compiled = Filter.compile(filter, Repo.filterOpts())
             -- Genres on these records come from Hardcover, and that enrichment
             -- is normally applied to the VISIBLE SLICE only (below). A genre
             -- filter has to see them BEFORE the slice exists, so enrich the
             -- whole list first -- but only when the filter actually constrains
-            -- genres, so an unfiltered or rating-only chip still pays for one
-            -- page. Ratings and statuses need none of this: they are on the
-            -- record already, from the sidecar.
-            --
-            -- applyMetadata rather than enrichBook because it is what the light
-            -- record path uses for exactly this, so a device-library chip
-            -- filters on the same data a local one does. Cache-only, and
-            -- gated on the plugin being present and the setting being on.
+            -- genres, so an unfiltered or rating-only shelf still pays for one
+            -- page. applyMetadata because it is what the light record path uses
+            -- for exactly this; cache-only, and gated on the plugin and setting.
             if compiled.genres then
                 local Hardcover = getHardcover()
                 if Hardcover and Hardcover.applyMetadata then
@@ -7597,10 +7499,25 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
         local page = {}
         for i = off + 1, math.min(off + lim, total) do
             local rec = books[i]
-            -- Same cover overrides every other shelf record gets from
-            -- buildBookMeta. Paid for the visible slice only, which is the same
-            -- order of cost as the normal path.
-            if not light_only then pcall(_applyCoverOverrides, rec) end
+            if not light_only then
+                if src_spec.cover then
+                    -- The source hands back a fresh blitbuffer the grid frees
+                    -- after paint (Kobo: BIM cannot read a DRM'd kepub). Asked
+                    -- again every rebuild, so a freed bb is never reused. nil
+                    -- leaves the placeholder.
+                    local ok_c, bb, cw, ch = Sources.call(src_spec, "cover", rec)
+                    if ok_c and bb then
+                        rec.cover_bb, rec.cover_w, rec.cover_h = bb, cw, ch
+                        rec.has_cover = true
+                    end
+                else
+                    -- A record with a cover file (Kindle: Amazon's thumbnail)
+                    -- carries cover_image_path, a plain string every painter
+                    -- resolves itself, and gets the same cover overrides every
+                    -- other shelf record gets from buildBookMeta.
+                    pcall(_applyCoverOverrides, rec)
+                end
+            end
             page[#page + 1] = rec
         end
         return page, total

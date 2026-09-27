@@ -637,6 +637,14 @@ function ShelfRow.new(opts)
             item.first_book = item.cover_image_path and item or nil
             local nav_cur = opts.selected_filepath and item.filepath
                             and item.filepath == opts.selected_filepath or false
+            -- A REGISTERED SOURCE's folder (bookshelf_sources, a Komga series)
+            -- is a real folder with artwork of its own, unlike an OPDS
+            -- catalogue link: with a cover it takes the shelf's folder style
+            -- the way a local folder does, and its badge numbers come from the
+            -- record, since there are no files on disk to count (issue 452).
+            local src_folder = item.source_nav and true or false
+            local nav_mode = (src_folder and item.cover_image_path) and group_mode
+                             or StackDisplay.TEXT
             row[#row + 1] = wrap_for_title_alignment(FolderStack:new{
                 -- ALWAYS text for a remote subcatalog, whatever the chip's
                 -- folder style says. A catalog folder has no artwork of its
@@ -644,11 +652,17 @@ function ShelfRow.new(opts)
                 -- from whatever happened to be cached inside it - which is
                 -- usually the wrong picture for the category, and reads as a
                 -- bug rather than a choice. The label IS the tile.
-                display_mode = StackDisplay.TEXT,
+                display_mode = nav_mode,
                 folder      = item,
                 width       = slot_w,
                 height      = non_book_h,
                 on_tap      = opts.on_opds_nav_tap,
+                -- Under the reader's own badge settings, as a local folder's.
+                book_count     = (src_folder and show_folder_badge) and tonumber(item.book_count) or nil,
+                finished_count = (src_folder and show_folder_badge and show_finished)
+                                 and tonumber(item.finished_count) or nil,
+                finished_total = (src_folder and show_folder_badge and show_finished)
+                                 and tonumber(item.finished_total) or nil,
                 -- Was a bare `return true` -- the gesture was swallowed and
                 -- did nothing. It opens the start-folder menu now, and the
                 -- swallow stays as the fallback so a long-press still cannot
@@ -659,14 +673,14 @@ function ShelfRow.new(opts)
                 -- Coverless OPDS nav tiles resolve on a tap, so the folder tab
                 -- + repeated label are redundant over the label-placeholder;
                 -- render the bare card instead.
-                plain_if_placeholder = true,
+                plain_if_placeholder = not (src_folder and item.cover_image_path),
             -- NEVER an external label. The tile is always the text style now
             -- (above), and a text card IS the name - printing it underneath
             -- says everything twice. Asking group_mode here was the bug: the
             -- tile was forced to text while the LABEL still followed the
             -- chip's style, so a catalog whose chip was set to any other mode
             -- got a text card with its own name repeated below it.
-            }, StackDisplay.externalLabel(StackDisplay.TEXT, item.label))
+            }, StackDisplay.externalLabel(nav_mode, item.label))
         elseif item and item.kind == "author" then
             -- Author group (SeriesStack visual, author name on the band)
             local author_fp = item.books and item.books[1] and item.books[1].filepath

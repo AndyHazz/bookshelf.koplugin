@@ -78,7 +78,9 @@ Records are ordinary book tables: filepath, title, authors, series, cover_image_
 and so on, the same fields a walked book carries. Bookshelf stamps each listed
 record with `source_kind` so it can find its way back. In fetch mode a record
 with `is_folder = true` is a folder: it draws as a navigation tile, and tapping
-it drills in (see open_folder); it may carry `count` and `cover_image_path`.
+it drills in (see open_folder); it may carry `cover_image_path` (then it draws
+in the shelf's folder style) and `book_count` / `finished_count` /
+`finished_total` for its badge.
 
 A spec is checked when it is registered and every call into it is pcall'd, so a
 broken source degrades to an empty shelf rather than taking Bookshelf down.

@@ -103,7 +103,17 @@ For a record whose `filepath` is a real file, Bookshelf reads that book's KORead
 
 ## Folders (fetch mode)
 
-A record with `is_folder = true` is a folder. It draws as a navigation tile, the kind OPDS subcatalogues use, showing its `title` and, if you give one, `cover_image_path`.
+A record with `is_folder = true` is a folder. With a `cover_image_path` it draws in the shelf's folder style, the way a folder on the device does (ribbon, stack and so on, whatever the reader chose). Without one it draws as a text tile showing its `title`, the kind OPDS subcatalogues use.
+
+A folder can carry its own badge numbers, since there are no files for Bookshelf to count:
+
+| Field | |
+|---|---|
+| `book_count` | Books in the folder. Shown as the count badge. |
+| `finished_count` | How many of them are finished. |
+| `finished_total` | The total to show it against, if not `book_count`. |
+
+They follow the reader's own badge settings, exactly as a local folder's do: no badge unless folder badges are on, and the finished count only with the "finished of total" format. For a Komga series, `book_count = 12, finished_count = 12 - unread` gives "8/12".
 
 Tapping it drills in. Bookshelf asks `open_folder(record)` for a **drill entry**, or uses the record's own `drill` field if you don't give the hook:
 

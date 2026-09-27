@@ -180,4 +180,50 @@ t.test("changed reaches the named listener, and a newer one replaces it", functi
     Sources.onChanged("widget", nil)
 end)
 
+local function fetchSpec(over)
+    local s = spec({ list = false, fetch = function() return {} end })
+    s.list = nil
+    for k, v in pairs(over or {}) do s[k] = v end
+    return s
+end
+
+t.test("editor_rows: a fetch-mode source's buttons, capped at 3 rows of 3", function()
+    Sources._reset()
+    local btn = function(n) return { text = "b" .. n, callback = function() end } end
+    assert(Sources.register("demo", fetchSpec({ editor_rows = function(draft)
+        assert(draft.source.kind == "demo", "the draft is passed in")
+        return {
+            { btn(1), btn(2), btn(3), btn(4) },
+            { { text = "no callback" }, 42 },       -- nothing usable: row dropped
+            { btn(5) }, { btn(6) }, { btn(7) },
+        }
+    end })))
+    local rows = Sources.editorRows("demo", { source = { kind = "demo" } })
+    eq(#rows, 3)
+    eq(#rows[1], 3)
+    eq(rows[2][1].text, "b5")
+    eq(rows[3][1].text, "b6")
+end)
+
+t.test("editor_rows: none for list mode, a missing hook, or one that throws", function()
+    Sources._reset()
+    local rows_fn = function() return { { { text = "x", callback = function() end } } } end
+    assert(Sources.register("listed", spec({ editor_rows = rows_fn })))
+    eq(Sources.editorRows("listed", { source = { kind = "listed" } }), nil)
+    assert(Sources.register("plain", fetchSpec()))
+    eq(Sources.editorRows("plain", { source = { kind = "plain" } }), nil)
+    assert(Sources.register("broken", fetchSpec({ editor_rows = function() error("boom") end })))
+    eq(Sources.editorRows("broken", { source = { kind = "broken" } }), nil)
+    local ok = Sources.register("bad", fetchSpec({ editor_rows = "nope" }))
+    assert(not ok, "a non-function editor_rows is refused")
+end)
+
+t.test("editor_rows: a button's text may be a function of the draft, guarded", function()
+    local draft = { source = { kind = "demo", list = "On Deck" } }
+    eq(Sources.buttonText({ text = function(d) return "List: " .. d.source.list end }, draft), "List: On Deck")
+    eq(Sources.buttonText({ text = "Sort" }, draft), "Sort")
+    eq(Sources.buttonText({ text = function() error("boom") end }, draft), "")
+    eq(Sources.buttonText({ text = function() return 5 end }, draft), "")
+end)
+
 t.done()

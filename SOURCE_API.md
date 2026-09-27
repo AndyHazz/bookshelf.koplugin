@@ -153,7 +153,7 @@ end,
 
 `ctx.widget` is the shelf. Without an `open` hook, a record with a real `filepath` opens normally.
 
-On the shelf, the first tap on a remote book previews it in the top panel and the second tap opens it (through your `open`), the same as a catalogue book. Long-press calls `info(book, ctx)` if you give it, for your own details or download dialog; otherwise Bookshelf shows the title and author.
+On the shelf, the first tap on a remote book previews it in the top panel and the second tap opens it (through your `open`), the same as a catalogue book. Long-press calls `info(book, ctx)` if you give it, for your own details or download dialog; otherwise Bookshelf shows the title and author. `info` gets the same `ctx.open(path)` as `open`, so a download started from your dialog can offer to open the book when it lands.
 
 ## The source picker
 
@@ -174,6 +174,33 @@ end,
 
 Whatever you put in `draft.source` is saved with the shelf and handed back to `fetch` or `list` as `source`. Keep it to plain values (strings, numbers, booleans, and tables of them), because it is written to the settings file.
 
+## Editor rows (fetch mode)
+
+A fetch-mode shelf orders and filters itself, so the shelf editor shows a disabled "Server order" row where the sort would be. Give `editor_rows(draft)` and your own buttons take that row's place, for the choices your server offers (which list, a sort, filters):
+
+```lua
+editor_rows = function(draft)
+    return {
+        { { text = function(d) return "List: " .. MyUI:listName(d.source.list) end,
+            callback = function(d, done)
+                MyUI:chooseList(function(list)
+                    if list then d.source.list = list end
+                    done()                                  -- redraw the editor
+                end)
+            end } },
+        { { text = "Sort",    callback = function(d, done) MyUI:chooseSort(d, done) end },
+          { text = "Filters", callback = function(d, done) MyUI:chooseFilters(d, done) end } },
+    }
+end,
+```
+
+- It returns rows, each a list of buttons: `{ text = string or function(draft), callback = function(draft, done) }`.
+- Up to 3 rows of up to 3 buttons; any more are left out (and logged), so the editor still fits a small screen.
+- A callback changes `draft.source` and calls `done()`. The editor marks the shelf as changed and redraws, asking `text` again, so a label can show the current choice. Nothing is saved until the reader taps Save; Cancel throws the changes away.
+- On Save the shelf fetches again with the new `source`, from the top level: a folder the reader had open belongs to the old choice. Keep it to plain values, as for `pick`.
+- `editor_rows` is asked each time the editor redraws. Keep it cheap: build buttons from `draft.source`, don't fetch.
+- A list-mode shelf has Bookshelf's own Filters and sort rows, so `editor_rows` is only used in fetch mode.
+
 ## Refresh
 
 When the reader swipes down on your shelf, Bookshelf calls `refresh(source, drill, done)` for the level on screen. Fetch what is new, then call `done()` and the shelf redraws. Without a `refresh` hook, a swipe down does Bookshelf's usual library refresh and redraw.
@@ -185,6 +212,7 @@ When the reader swipes down on your shelf, Bookshelf calls `refresh(source, dril
 | `api` | both | The interface version you wrote against. `1` for now. |
 | `sort_default` | list | `{ { key = "title", reverse = false } }`, the sort a new shelf starts with. |
 | `new_shelf(draft)` | both | Adjust a new shelf's defaults (a starting filter, say). |
+| `editor_rows(draft)` | fetch | Your own shelf-editor buttons in place of "Server order". See [Editor rows](#editor-rows-fetch-mode). |
 | `library` | list | `true` to count your books as part of the library for search and the finished-books tallies, once the reader has a shelf of your source. Off unless you set it. |
 | `cover(record)` | both | Return `bb, w, h`, a fresh blitbuffer for a record with no cover file. Called for the visible page only. The grid frees it after painting, so return a new one each call. |
 | `owns(book)` | both | `true` if a book is yours even without the `source_kind` stamp, for example after Bookshelf rebuilt it from its path. |
@@ -195,7 +223,7 @@ When the reader swipes down on your shelf, Bookshelf calls `refresh(source, dril
 - **Every call into your spec is guarded.** If a hook throws, Bookshelf logs `[bookshelf] source: <hook> failed: ...` and carries on: a failing `fetch` or `list` is an empty shelf, a failing `open` falls back as if it returned nothing.
 - **`available()` is asked often.** Keep it cheap.
 - **Version 1 will not change under you.** New optional hooks may appear in a later version; a change that could break a version 1 spec would come as version 2, with `SOURCE_API` telling you which you have.
-- **Not in version 1:** shelf-editor rows of your own (your own sort and filter controls), custom badges on folder tiles, a saved drill position across restarts, and Spines for fetch-mode shelves. Tell us which of these you need.
+- **Not in version 1:** a saved drill position across restarts, and Spines for fetch-mode shelves. Tell us if you need either.
 
 ## A complete example
 

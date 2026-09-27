@@ -459,6 +459,22 @@ end
 -- editTab(tab_id, opts) -- modal editor for one tab.
 -- opts = { on_change = function() end, bw = <BookshelfWidget> }
 -- on_change fires after Save, and after each Move-left / Move-right tap.
+-- _deepCopy(v) / _sameValue(a, b): for the plain values a shelf record holds
+-- (strings, numbers, booleans and tables of them).
+function Editor._deepCopy(v)
+    if type(v) ~= "table" then return v end
+    local out = {}
+    for k, x in pairs(v) do out[k] = Editor._deepCopy(x) end
+    return out
+end
+
+function Editor._sameValue(a, b)
+    if type(a) ~= "table" or type(b) ~= "table" then return a == b end
+    for k, x in pairs(a) do if not Editor._sameValue(x, b[k]) then return false end end
+    for k in pairs(b) do if a[k] == nil then return false end end
+    return true
+end
+
 function Editor:editTab(tab_id, opts)
     opts = opts or {}
     local tabs = TabModel.load()
@@ -470,11 +486,12 @@ function Editor:editTab(tab_id, opts)
 
     -- In-memory draft. All sub-modals mutate this; settings only writes on Save.
     -- Cancel discards the draft without saving.
+    -- Deep: a registered source's editor buttons may edit a table inside
+    -- draft.source in place, and a shared one would reach the saved shelf.
     local draft = {}
     for k, v in pairs(target) do
         if type(v) == "table" then
-            local copy = {} for kk, vv in pairs(v) do copy[kk] = vv end
-            draft[k] = copy
+            draft[k] = Editor._deepCopy(v)
         else
             draft[k] = v
         end
@@ -816,6 +833,30 @@ function Editor:editTab(tab_id, opts)
         -- the same way.
         local is_paged_src = draft.source
             and require("lib/bookshelf_sources").isPaged(draft.source.kind) or false
+        -- ...unless it offers editor buttons of its own (its list, sort and
+        -- filters: SOURCE_API.md "Editor rows"), which take that row's place.
+        -- A button edits draft.source and calls done(); the shelf fetches
+        -- again on Save, draft.source being part of the shelf's cache key.
+        local src_rows
+        if is_paged_src then
+            local Sources = require("lib/bookshelf_sources")
+            local spec_rows = Sources.editorRows(draft.source.kind, draft)
+            for _r, row in ipairs(spec_rows or {}) do
+                local out = {}
+                for _b, b in ipairs(row) do
+                    out[#out + 1] = {
+                        text_func = function() return Sources.buttonText(b, draft) end,
+                        callback = function()
+                            local done = function() applyLivePreview(true); rebuild() end
+                            local ok, err = pcall(b.callback, draft, done)
+                            if not ok then logger.warn("[bookshelf] source: editor button failed:", tostring(err)) end
+                        end,
+                    }
+                end
+                src_rows = src_rows or {}
+                src_rows[#src_rows + 1] = out
+            end
+        end
         if draft.source and (draft.source.kind == "opds" or is_paged_src) then
             sort_row = {
                 { text = _("Server order"), enabled = false },
@@ -1080,10 +1121,14 @@ function Editor:editTab(tab_id, opts)
                         -- move buttons), find the tab by id, and update it in place.
                         -- Only persist if anything changed. Save-with-no-edits
                         -- skips the settings flush + cache invalidation.
+                        -- A new source (or a source's own list / sort /
+                        -- filter choice) makes any drilled-in folder stale.
+                        local source_changed = false
                         if is_dirty() then
                             local save_tabs = TabModel.load()
                             for si, t in ipairs(save_tabs) do
                                 if t.id == tab_id then
+                                    source_changed = not Editor._sameValue(t.source, draft.source)
                                     save_tabs[si] = draft
                                     break
                                 end
@@ -1104,7 +1149,7 @@ function Editor:editTab(tab_id, opts)
                         local _t3 = _gettime()
                         UIManager:close(dialog)
                         local _t4 = _gettime()
-                        if (is_dirty() or arranged) and opts.on_change then opts.on_change() end
+                        if (is_dirty() or arranged) and opts.on_change then opts.on_change({ source_changed = source_changed }) end
                         local _t5 = _gettime()
                         logger.dbg(string.format(
                             "[bookshelf perf] editor-save: data_dirty=%s visual_dirty=%s clearOverride=%.0fms TabModel.save=%.0fms invalidate=%.0fms close=%.0fms on_change=%.0fms TOTAL=%.0fms",
@@ -1194,7 +1239,9 @@ function Editor:editTab(tab_id, opts)
         -- row borders. Filtering keeps the dialog cleanly grid-shaped.
         local non_empty_buttons = {}
         for _i,row in ipairs(buttons) do
-            if #row > 0 then non_empty_buttons[#non_empty_buttons + 1] = row end
+            if row == sort_row and src_rows then
+                for _r, r in ipairs(src_rows) do non_empty_buttons[#non_empty_buttons + 1] = r end
+            elseif #row > 0 then non_empty_buttons[#non_empty_buttons + 1] = row end
         end
         local button_table = ButtonTable:new{
             width   = dialog_w - 2 * Space.padding.default,

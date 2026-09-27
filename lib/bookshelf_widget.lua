@@ -948,7 +948,14 @@ end
 -- not there is a feed to fetch. A chip edit that touched nothing about a
 -- catalog simply spends it on a render that had nothing to fetch, which is the
 -- same no-op every non-OPDS chip tap already performs.
-function BookshelfWidget:_afterChipEdit()
+function BookshelfWidget:_afterChipEdit(info)
+    -- A changed source: the folder the reader had drilled into belongs to the
+    -- old one (a Komga series under "All Series" is not in "On Deck").
+    if info and info.source_changed and next(self._drilldown_path or {}) then
+        self._drilldown_path = {}
+        self._cursor = 1
+        self:_syncPageFromCursor()
+    end
     self:_markOpdsNav()
     -- Chip settings (sort, filter, density) change what a fetch returns.
     self._spine_fetch_cache = nil
@@ -1859,7 +1866,7 @@ function BookshelfWidget:_rebuild()
             if key ~= self.chip then self:_selectChip(key) end
             local Editor = require("lib/bookshelf_chip_editor")
             Editor:editTab(key, {
-                on_change = function() self:_afterChipEdit() end,
+                on_change = function(info) self:_afterChipEdit(info) end,
                 bw        = self,
             })
         end,
@@ -4291,7 +4298,7 @@ function BookshelfWidget:_openBook(book, after_open_callback)
         if ok and type(res) == "string" and res ~= "" then open_path = res end
     end
     if open_path == book.filepath and self:_isRemoteRecord(book) then
-        if self:_sourceRemote(book) then self:_showSourceInfo(book) return end
+        if self:_sourceRemote(book) then self:_showSourceInfo(book, after_open_callback) return end
         self:_showRemoteBookInfo(book)
         return
     end
@@ -14847,13 +14854,22 @@ function BookshelfWidget:_sourceRemote(book)
     return id and Sources.get(id), id
 end
 
--- _showSourceInfo(book): long-press on a registered source's remote record.
--- The source's own `info` when it has one; otherwise what the record says.
-function BookshelfWidget:_showSourceInfo(book)
+-- _showSourceInfo(book, after_open): long-press on a registered source's
+-- remote record. The source's own `info` when it has one; otherwise what the
+-- record says. ctx.open is the same as `open` gets, so a download started from
+-- the source's dialog can open the book when it lands.
+function BookshelfWidget:_showSourceInfo(book, after_open)
     local spec = self:_sourceRemote(book)
     local Sources = require("lib/bookshelf_sources")
     if spec and spec.info then
-        local ok = Sources.call(spec, "info", book, { widget = self })
+        local ok = Sources.call(spec, "info", book, {
+            widget = self, after_open = after_open,
+            open = function(path)
+                if type(path) == "string" and path ~= "" then
+                    self:_launchReader(path, after_open)
+                end
+            end,
+        })
         if ok then return end
     end
     local lines = { book.display_title or book.title or "" }

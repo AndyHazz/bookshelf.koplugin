@@ -125,7 +125,7 @@ function M.register(id, spec)
     local has_list, has_fetch = type(spec.list) == "function", type(spec.fetch) == "function"
     if has_list == has_fetch then return false, "give exactly one of list or fetch" end
     for _i, f in ipairs({ "cover", "owns", "open", "invalidate", "new_shelf",
-                          "open_folder", "refresh", "info", "pick" }) do
+                          "open_folder", "refresh", "info", "pick", "editor_rows" }) do
         if spec[f] ~= nil and type(spec[f]) ~= "function" then
             return false, f .. " must be a function"
         end
@@ -214,6 +214,50 @@ end
 function M.isPaged(id)
     local spec = M.get(id)
     return spec ~= nil and type(spec.fetch) == "function"
+end
+
+-- editorRows(id, draft) -> rows or nil. A fetch-mode source's own buttons for
+-- the shelf editor (its list, sort and filter choices), in place of the
+-- "Server order" row. Checked and capped so a source cannot push the dialog
+-- off a small screen: MAX_EDITOR_ROWS rows of MAX_EDITOR_BUTTONS, a button
+-- being { text = string or function(draft), callback = function(draft, done) }.
+-- nil when there are none, the hook throws, or the source is list mode (that
+-- gets Bookshelf's own Filters and sort rows).
+M.MAX_EDITOR_ROWS, M.MAX_EDITOR_BUTTONS = 3, 3
+function M.editorRows(id, draft)
+    local spec = M.get(id)
+    if not (spec and spec.fetch and spec.editor_rows) then return nil end
+    local ok, rows = call(spec, "editor_rows", draft)
+    if not ok or type(rows) ~= "table" then return nil end
+    local out = {}
+    for _r, row in ipairs(rows) do
+        if #out >= M.MAX_EDITOR_ROWS then
+            logWarn("editor_rows: more than", M.MAX_EDITOR_ROWS, "rows, the rest left out")
+            break
+        end
+        local btns = {}
+        for _b, b in ipairs(type(row) == "table" and row or {}) do
+            if type(b) == "table" and type(b.callback) == "function"
+                    and (type(b.text) == "string" or type(b.text) == "function") then
+                if #btns >= M.MAX_EDITOR_BUTTONS then
+                    logWarn("editor_rows: more than", M.MAX_EDITOR_BUTTONS, "buttons in a row, the rest left out")
+                    break
+                end
+                btns[#btns + 1] = { text = b.text, callback = b.callback }
+            end
+        end
+        if #btns > 0 then out[#out + 1] = btns end
+    end
+    return #out > 0 and out or nil
+end
+
+-- buttonText(button, draft) -> string. An editor button's label; a function
+-- label is asked each time the editor redraws, and a throw reads as "".
+function M.buttonText(b, draft)
+    if type(b.text) ~= "function" then return tostring(b.text or "") end
+    local ok, s = pcall(b.text, draft)
+    if not ok then logWarn("editor button text failed:", tostring(s)) return "" end
+    return type(s) == "string" and s or ""
 end
 
 -- fetch(id, source, drill, offset, limit) -> records, total; or nil when the

@@ -1475,10 +1475,35 @@ local function _verticalSolve(n_cell, run_len, band_w, night)
     return { size = lo, cell = cell, n = n - 1, cut = true }
 end
 
+-- Brackets in a vertical title (issue 462). Every glyph is drawn upright, so
+-- "(" and "（" stood sideways to the text; Unicode's vertical presentation
+-- forms are the brackets turned for vertical setting (the CJK fonts carry
+-- them). Latin parentheses too: CJK metadata uses both, and left alone they
+-- would be grouped into a tate-chu-yoko cell with any Latin beside them.
+local VERTICAL_FORMS = {
+    ["("] = "\xEF\xB8\xB5", [")"] = "\xEF\xB8\xB6",                    -- ( ) -> ︵ ︶
+    ["\xEF\xBC\x88"] = "\xEF\xB8\xB5", ["\xEF\xBC\x89"] = "\xEF\xB8\xB6",  -- （ ）
+    ["\xE3\x80\x90"] = "\xEF\xB8\xBB", ["\xE3\x80\x91"] = "\xEF\xB8\xBC",  -- 【】 -> ︻︼
+    ["\xE3\x80\x8C"] = "\xEF\xB9\x81", ["\xE3\x80\x8D"] = "\xEF\xB9\x82",  -- 「」 -> ﹁﹂
+    ["\xE3\x80\x8E"] = "\xEF\xB9\x83", ["\xE3\x80\x8F"] = "\xEF\xB9\x84",  -- 『』 -> ﹃﹄
+    ["\xE3\x80\x8A"] = "\xEF\xB8\xBD", ["\xE3\x80\x8B"] = "\xEF\xB8\xBE",  -- 《》 -> ︽︾
+    ["\xE3\x80\x88"] = "\xEF\xB8\xBF", ["\xE3\x80\x89"] = "\xEF\xB9\x80",  -- 〈〉 -> ︿﹀
+    ["\xE3\x80\x94"] = "\xEF\xB8\xB9", ["\xE3\x80\x95"] = "\xEF\xB8\xBA",  -- 〔〕 -> ︹︺
+    ["\xEF\xBC\xBB"] = "\xEF\xB9\x87", ["\xEF\xBC\xBD"] = "\xEF\xB9\x88",  -- ［］ -> ﹇﹈
+    ["\xEF\xBD\x9B"] = "\xEF\xB8\xB7", ["\xEF\xBD\x9D"] = "\xEF\xB8\xB8",  -- ｛｝ -> ︷︸
+}
+function SpineShelf.verticalForms(chars)
+    for i = 1, #chars do
+        local v = VERTICAL_FORMS[chars[i]]
+        if v then chars[i] = v end
+    end
+    return chars
+end
+
 -- Paint a CJK title vertically: glyphs upright, top to bottom, the whole run
 -- centred in run_len (matching the Latin path). Returns the height used.
 local function _paintVerticalCJK(bb, x, y, run_len, band_w, text, face_size, look, night)
-    local chars = _splitChars(text)
+    local chars = SpineShelf.verticalForms(_splitChars(text))
     if #chars == 0 then return 0 end
 
     -- Inset: leave a 1pt-scaled gap on each side, both to clear the hairline
@@ -1496,7 +1521,7 @@ local function _paintVerticalCJK(bb, x, y, run_len, band_w, text, face_size, loo
     -- Still truncated at the minimum size: retry with just the main title,
     -- preferring to keep the actual book name whole.
     if sol.cut then
-        local short = _splitChars(_mainTitle(text))
+        local short = SpineShelf.verticalForms(_splitChars(_mainTitle(text)))
         if #short > 0 and #short < #chars then
             local sruns = _groupRuns(short)
             local s2 = _verticalSolve(#sruns, run_len, band_w, night)

@@ -21,15 +21,15 @@ msgstr "Pekná domovská obrazovka pre KOReader: vyberte si knihu z poličky a �
 
 #: lib/bookshelf_action_chooser.lua:22
 msgid "Plugin…"
-msgstr "Plugin…"
+msgstr "Doplnok…"
 
 #: lib/bookshelf_action_chooser.lua:27
 msgid "No launchable plugins found"
-msgstr "Nenašli sa žiadne spustiteľné pluginy"
+msgstr "Nenašli sa žiadne spustiteľné doplnky"
 
 #: lib/bookshelf_action_chooser.lua:44
 msgid "Choose a plugin"
-msgstr "Vybrať plugin"
+msgstr "Vybrať doplnok"
 
 #: lib/bookshelf_action_chooser.lua:47
 msgid "System action…"
@@ -2122,7 +2122,7 @@ msgstr "Žiadne knihy nie sú prepojené s Hardcover."
 
 #: lib/bookshelf_page_count_dialog.lua:222
 msgid "The #%1 column in your Calibre metadata, as the Count Pages plugin fills in. Often an estimate."
-msgstr "Stĺpec #%1 vo vašich metadátach Calibre, ktorý vypĺňa plugin Count Pages. Často ide o odhad."
+msgstr "Stĺpec #%1 vo vašich metadátach Calibre, ktorý vypĺňa doplnok Count Pages. Často ide o odhad."
 
 #: lib/bookshelf_page_count_dialog.lua:224
 msgid "Needs Calibre metadata, which is off."
@@ -2951,7 +2951,7 @@ msgstr "nikdy"
 
 #: lib/bookshelf_settings.lua:2997 main.lua:2792
 msgid "Hardcover plugin is not available"
-msgstr "Plugin Hardcover nie je dostupný"
+msgstr "Doplnok Hardcover nie je dostupný"
 
 #: lib/bookshelf_settings.lua:3025
 msgid "No unlinked books to auto-link."
@@ -3492,7 +3492,7 @@ msgstr "BETA: Polica knižnice Kobo"
 
 #: lib/bookshelf_settings.lua:4390
 msgid "Adds a \"Kobo\" shelf that surfaces your Kobo virtual library (the books managed by the Kobo store / OGKevin's kobo.koplugin). Read-only; covers and opening depend on that plugin. Kobo devices only."
-msgstr "Pridá policu „Kobo“, ktorá zobrazí vašu virtuálnu knižnicu Kobo (knihy spravované obchodom Kobo / pluginom kobo.koplugin od OGKevina). Iba na čítanie; obálky a otváranie závisia od tohto pluginu. Iba zariadenia Kobo."
+msgstr "Pridá policu „Kobo“, ktorá zobrazí vašu virtuálnu knižnicu Kobo (knihy spravované obchodom Kobo / doplnkom kobo.koplugin od OGKevina). Iba na čítanie; obálky a otváranie závisia od tohto doplnku. Iba zariadenia Kobo."
 
 #: lib/bookshelf_settings.lua:4703
 msgid "Rows and columns set how much of the screen the shelf takes; the top panel above fills whatever is left. List and spine shelves use that same space with their own row counts, so covers are shown here while you adjust it."
@@ -4561,7 +4561,7 @@ msgid ""
 msgstr ""
 "Táto kniha Kindle musí byť pred čítaním v KOReader konvertovaná.\n"
 "\n"
-"Konverziu vykoná plugin Kindle Virtual Library. Môže to trvať niekoľko minút, po spustení sa to nedá zastaviť a počas práce obrazovka nebude reagovať.\n"
+"Konverziu vykoná doplnok Kindle Virtual Library. Môže to trvať niekoľko minút, po spustení sa to nedá zastaviť a počas práce obrazovka nebude reagovať.\n"
 "\n"
 "Stane sa to iba pri prvom otvorení knihy."
 
@@ -4579,7 +4579,7 @@ msgid ""
 msgstr ""
 "Toto je chránený súbor %1, ktorý nemožno otvoriť.\n"
 "\n"
-"Plugin Kindle dokáže odomknúť iba knihy KFX. Chránené knihy MOBI a AZW nedokáže konvertovať žiadny plugin KOReader, takže tie treba čítať v aplikácii Kindle.\n"
+"Doplnok Kindle dokáže odomknúť iba knihy KFX. Chránené knihy MOBI a AZW nedokáže konvertovať žiadny doplnok KOReader, takže tie treba čítať v aplikácii Kindle.\n"
 "\n"
 "Vaše knihy KFX by sa mali otvárať normálne."
 
@@ -4593,7 +4593,7 @@ msgid ""
 msgstr ""
 "KOReader nedokáže čítať súbory %1.\n"
 "\n"
-"Číta knihy KFX (pripravené pluginom Kindle) a nechránené knihy MOBI a AZW.\n"
+"Číta knihy KFX (pripravené doplnkom Kindle) a nechránené knihy MOBI a AZW.\n"
 "\n"
 "Vaše ostatné knihy Kindle by sa mali otvárať normálne."
 
@@ -4926,7 +4926,7 @@ msgstr "Prepojiť…"
 
 #: lib/bookshelf_widget.lua:20148
 msgid "Plugin actions"
-msgstr "Akcie pluginu"
+msgstr "Akcie doplnku"
 
 #: lib/bookshelf_widget.lua:20295
 #, lua-format
@@ -5337,7 +5337,7 @@ msgstr "Neskôr"
 
 #: main.lua:432
 msgid "Bookshelf requires the CoverBrowser plugin. Enable it under Settings > More plugins."
-msgstr "Bookshelf vyžaduje plugin CoverBrowser. Zapnite ho v Nastavenia > Ďalšie pluginy."
+msgstr "Bookshelf vyžaduje doplnok CoverBrowser. Zapnite ho v Nastavenia > Ďalšie doplnky."
 
 #: main.lua:510 main.lua:514 main.lua:545
 msgid "bookshelf"
@@ -5381,11 +5381,11 @@ msgstr "Aktualizácie"
 
 #: main.lua:811
 msgid "About"
-msgstr "O pluginu"
+msgstr "O doplnku"
 
 #: main.lua:946
 msgid "Bookshelf couldn't open. Some of its files may be missing or corrupted after an update. Try reinstalling the plugin."
-msgstr "Bookshelf sa nepodarilo otvoriť. Niektoré jeho súbory môžu po aktualizácii chýbať alebo byť poškodené. Skúste plugin preinštalovať."
+msgstr "Bookshelf sa nepodarilo otvoriť. Niektoré jeho súbory môžu po aktualizácii chýbať alebo byť poškodené. Skúste doplnok preinštalovať."
 
 #: main.lua:1020
 msgid "Bookshelf: open or close"
@@ -5465,7 +5465,7 @@ msgid ""
 "Install the CoverBrowser plugin to enable it."
 msgstr ""
 "Skener metadát kníh nie je dostupný.\n"
-"Nainštalujte plugin CoverBrowser, aby ste ho zapli."
+"Nainštalujte doplnok CoverBrowser, aby ste ho zapli."
 
 #: main.lua:2436
 msgid "Page count report"
@@ -5513,7 +5513,7 @@ msgstr "Akcia"
 
 #: micromodules/action.lua:56
 msgid "Launches a plugin or system action. Works offline."
-msgstr "Spustí plugin alebo systémovú akciu. Funguje offline."
+msgstr "Spustí doplnok alebo systémovú akciu. Funguje offline."
 
 #: micromodules/action.lua:158
 msgid "Add action"
@@ -6742,7 +6742,7 @@ msgstr "Aktualizované pred %1h"
 #~ msgstr "Pre používateľov so knižnicou spravovanou v Calibre. Načíta JSON súbor metadata.calibre z home_dir a pokryje ním názov / autorov / sériu / štítky / jazyk pre každú knihu v knižnici -- bez nutnosti extrakcie po jednotlivých knihách. Metadáta uložené v BIM vyhrávajú pre jednotlivé polia; údaje z Calibre iba vyplnia medzery."
 
 #~ msgid "Adds a \"Kobo\" chip that surfaces your Kobo virtual library (the books managed by the Kobo store / OGKevin's kobo.koplugin) as a Bookshelf shelf. Read-only; covers and opening depend on that plugin. Kobo devices only."
-#~ msgstr "Pridá čip „Kobo“, ktorý zobrazí vašu virtuálnu knižnicu Kobo (knihy spravované obchodom Kobo / pluginom kobo.koplugin od OGKevina) ako policu Bookshelf. Iba na čítanie; obálky a otváranie závisia od tohto pluginu. Iba zariadenia Kobo."
+#~ msgstr "Pridá čip „Kobo“, ktorý zobrazí vašu virtuálnu knižnicu Kobo (knihy spravované obchodom Kobo / doplnkom kobo.koplugin od OGKevina) ako policu Bookshelf. Iba na čítanie; obálky a otváranie závisia od tohto doplnku. Iba zariadenia Kobo."
 
 #~ msgid "Edit shelf size"
 #~ msgstr "Upraviť veľkosť police"

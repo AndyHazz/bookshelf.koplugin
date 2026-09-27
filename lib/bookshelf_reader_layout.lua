@@ -194,11 +194,41 @@ end
 --
 -- Verified call for call against a real open, on the desktop rig and on a
 -- PW5 (every CreDocument setter logged on both sides); the counts then match.
+-- FB2 or not, the way the reader decides it (issue 461). ReaderUI sets
+-- is_fb2 on the document CLASS from the file type before it opens a book, and
+-- CreDocument picks fb2.css or epub.css from that; ReaderTypeset re-checks the
+-- real format once the book is loaded. A bare openDocument does neither, so a
+-- scanned FB2 inherited whatever the last book the reader opened left on the
+-- class -- after an EPUB, epub.css, which paginates FB2 ~8% short (worst 33%).
+local function setFb2(doc, is_fb2)
+    doc.is_fb2 = is_fb2 and true or false
+    doc.default_css = (doc.is_fb2 or doc.is_txt) and "./data/fb2.css" or "./data/epub.css"
+end
+
 function M.beforeLoad(doc)
+    local name = type(doc.file) == "string" and doc.file:lower() or ""
+    if name ~= "" then
+        setFb2(doc, name:match("%.fb2$") or name:match("%.fb2%.zip$"))
+    end
     M._apply(doc, M.presetLang())
 end
 
 function M.afterLoad(doc)
+    -- The loaded document knows its real format; re-style once if the guess
+    -- from the name was wrong (ReaderTypeset:onReaderReady does the same).
+    if type(doc.getDocumentFormat) == "function" then
+        local ok, fmt = pcall(doc.getDocumentFormat, doc)
+        if ok and type(fmt) == "string" then
+            local is_fb2 = fmt:sub(1, 11) == "FictionBook"
+            if is_fb2 ~= (doc.is_fb2 and true or false) then
+                setFb2(doc, is_fb2)
+                local css = g(is_fb2 and "copt_fb2_css" or "copt_css", nil, nil)
+                if type(doc.setStyleSheet) == "function" then
+                    pcall(doc.setStyleSheet, doc, css or doc.default_css, M.tweakCss())
+                end
+            end
+        end
+    end
     local lang = M.bookLang(doc)
     if lang and lang ~= M.presetLang() and type(doc.setTextMainLang) == "function" then
         pcall(doc.setTextMainLang, doc, lang)

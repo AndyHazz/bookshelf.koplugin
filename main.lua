@@ -1826,7 +1826,22 @@ function Bookshelf:onShow()
     -- announces just for Start with = Bookshelf, so an unannounced Show is
     -- still left alone whatever the setting says.
     if self.ui and self.ui.document then return end
-    if _live_widget and UIManager:isWidgetShown(_live_widget) then return end
+    if _live_widget and UIManager:isWidgetShown(_live_widget) then
+        -- Shown is not the same as on top. Since issue 422 the shelf survives
+        -- a book's close, and KOReader's own close route (the end-of-book
+        -- "Return to file browser", issue 460) then shows a fresh file browser
+        -- ABOVE it. Standing down here let that file browser paint -- the
+        -- flash -- until onCloseDocument's next-tick raise. An announced
+        -- takeover raises the buried shelf now, before the first paint;
+        -- onCloseDocument's scheduled show() then finds it on top and warm.
+        local stack = UIManager._window_stack
+        local top = stack and stack[#stack] and stack[#stack].widget
+        if top ~= _live_widget and _expect_onshow_takeover then
+            _expect_onshow_takeover = false
+            self:_raiseInPlace()
+        end
+        return
+    end
     if not _expect_onshow_takeover then
         -- Nobody announced bookshelf as this Show's destination (see the
         -- gate's declaration comment): stand down. Covers #110 (books

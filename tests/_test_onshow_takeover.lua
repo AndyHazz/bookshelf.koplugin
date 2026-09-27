@@ -41,12 +41,17 @@ local function compile(code, env)
 end
 
 -- start_with: the user's setting. announced: whether a route asked for this
--- Show. shown: whether the shelf widget is already up.
-local function runOnShow(start_with, announced, shelf_shown)
-    local shown = 0
+-- Show. shown: whether the shelf widget is already up. buried: shown, but
+-- with a file browser on top of it (KOReader's own close route, issue 460).
+local function runOnShow(start_with, announced, shelf_shown, buried)
+    local shown, raised = 0, 0
+    local shelf = shelf_shown and { name = "bookshelf" } or nil
+    local stack = {}
+    if shelf then stack[#stack + 1] = { widget = shelf } end
+    if buried then stack[#stack + 1] = { widget = { name = "filemanager" } } end
     local env = {
         _expect_onshow_takeover = announced,
-        _live_widget = shelf_shown and { name = "bookshelf" } or nil,
+        _live_widget = shelf,
         pairs = pairs, ipairs = ipairs, type = type, tostring = tostring,
         pcall = pcall, error = error, select = select,
         _flash = function() end,
@@ -55,7 +60,8 @@ local function runOnShow(start_with, announced, shelf_shown)
                 if k == "start_with" then return start_with end
             end,
         },
-        UIManager = { isWidgetShown = function() return shelf_shown == true end },
+        UIManager = { isWidgetShown = function() return shelf_shown == true end,
+                      _window_stack = stack },
         require = function(name)
             if name == "lib/bookshelf_book_repository" then
                 return { hasBookInfoManager = function() return true end }
@@ -63,9 +69,10 @@ local function runOnShow(start_with, announced, shelf_shown)
             error("unexpected require in onShow: " .. tostring(name))
         end,
     }
-    local self = { show = function() shown = shown + 1 end, ui = {} }
+    local self = { show = function() shown = shown + 1 end, ui = {},
+                   _raiseInPlace = function() raised = raised + 1 end }
     compile("local self = ... ; " .. body, env)(self)
-    return shown, env
+    return shown, env, raised
 end
 
 t.test("onShow: an announced takeover is taken", function()
@@ -98,6 +105,15 @@ end)
 t.test("onShow: a shelf already on screen is not shown again", function()
     local shown = runOnShow("bookshelf", true, true)
     assert(shown == 0, "the shelf was already up; showing it again would flash")
+end)
+
+t.test("onShow: a shelf buried under the file browser is raised before it paints (issue 460)", function()
+    local shown, env, raised = runOnShow("bookshelf", true, true, true)
+    assert(raised == 1, "the buried shelf was left under the file browser, which then flashed")
+    assert(shown == 0, "raise, not a second show: the close's own show() follows")
+    assert(env._expect_onshow_takeover == false, "the announcement is spent")
+    local _s, _e, raised2 = runOnShow("bookshelf", false, true, true)
+    assert(raised2 == 0, "an unannounced Show never takes over (#110)")
 end)
 
 t.test("onShow: the announcement is consumed, so it arms exactly one Show", function()

@@ -19,6 +19,8 @@ A friendly home screen for KOReader. Browse your library by series, author, genr
 
 ## Install
 
+> **Bookshelf needs KOReader v2026.03 or newer.** Older versions are missing drawing features Bookshelf relies on, and on colour screens it can crash. To check yours, open KOReader's menu and go to **Help > Version**. If it's older, update KOReader first.
+
 1. Download the latest **bookshelf.koplugin.zip** from [Releases](https://github.com/AndyHazz/bookshelf.koplugin/releases).
 2. Unzip it onto your device's KOReader plugins folder:
 
@@ -234,7 +236,7 @@ Micro-modules are small live panels. Add them to the start menu through **Add ne
 
 - **Clock** -- digital (12- or 24-hour) or analogue.
 - **Battery** -- the battery level with KOReader's own battery icon and a level bar, plus the cover battery on devices that have one. Tap it for KOReader's battery statistics.
-- **Quote of the day** -- a highlight drawn from your own books, refreshed daily or on every open. Tapping it can roll a new quote, open that book's bookmark list, or open the book at the highlight. Its settings choose where quotes come from (your highlights, quote files in SimpleUI's format from `settings/bookshelf/quotes` or SimpleUI's own folder, or both), and can leave out particular books or highlight colours.
+- **Quote of the day** -- a highlight drawn from your own books, refreshed daily or on every open. Tapping it can roll a new quote, open that book's bookmark list, or open the book at the highlight. Its settings choose where quotes come from (your highlights, quote files in SimpleUI's format from `settings/bookshelf/quotes` or SimpleUI's own folder, or both), and can leave out particular books or highlight colours. For an example quote file, see [civ6_quotes.lua](assets/quotes/civ6_quotes.lua): 113 quotes from Civilization VI, shared by [@Mattson42](https://github.com/Mattson42) in [#464](https://github.com/AndyHazz/bookshelf.koplugin/issues/464).
 - **Reading goal** -- progress towards a daily reading target.
 - **Reading stats** -- time and pages read today and this week (needs the `statistics` plugin).
 - **Reading streak** -- your current and best reading streak, in days and weeks (needs the `statistics` plugin).
@@ -602,7 +604,7 @@ Open **menu -> Updates** to keep Bookshelf current. Once any check has found a n
 - **Notify on wake when update available** -- opt-in. Once an hour after a Wi-Fi-connected wake, Bookshelf checks the GitHub releases page and posts a quiet notification if a new version is out. Off by default; nothing is ever fetched without your permission.
 - **Developer updates** (advanced) -- type a development branch name (e.g. `feat/foo`) to install the tip of that branch. Use **Reset to latest stable release** to clear the dev branch and pull the latest published release.
 
-The whole download, unpack, and restart sequence runs over Wi-Fi only and needs no extra plugins. Unpacking uses KOReader's own archive support, which arrived in KOReader v2025.08; on an older KOReader the update stops with "archive extractor unavailable", so update KOReader or install the new zip by hand as in [Install](#install). If Wi-Fi is off, Bookshelf offers to turn it on and carries on once it connects; if it's already connected, it just proceeds, including on networks where a connectivity check would fail (a Pi-hole blocking Microsoft's test domain, for instance).
+The whole download, unpack, and restart sequence runs over Wi-Fi only and needs no extra plugins. If Wi-Fi is off, Bookshelf offers to turn it on and carries on once it connects; if it's already connected, it just proceeds, including on networks where a connectivity check would fail (a Pi-hole blocking Microsoft's test domain, for instance).
 
 ---
 

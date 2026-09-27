@@ -354,7 +354,12 @@ function MicroFullscreen:_build()
     end
 
     local col = VerticalGroup:new{ align = "left" }
+    self._status_rec = nil
     if status_row then
+        -- Recorded so the shelf's minute tick can rebuild it in place
+        -- (refreshStatus): the clock and battery on it would otherwise stay as
+        -- they were when the view opened.
+        self._status_rec = { group = col, idx = #col + 1, content_w = content_w }
         col[#col + 1] = status_row
         col[#col + 1] = VerticalSpan:new{ width = gap }
     end
@@ -667,6 +672,31 @@ function MicroFullscreen:onMFHold()
     local rec = self:_focusedRec()
     if rec and rec.entry and HeroModules._hold then
         HeroModules._hold(self.bw, rec.entry)
+    end
+    return true
+end
+
+-- refreshStatus() -- rebuild the status line (time, battery, wifi) in place and
+-- repaint just its rect. Called by the shelf's minute tick while this view is
+-- open (BookshelfWidget._status_timer_func).
+function MicroFullscreen:refreshStatus()
+    local rec = self._status_rec
+    local old = rec and rec.group[rec.idx]
+    if not old then return false end
+    local HeroCard = require("lib/bookshelf_hero_card")
+    local bw = self.bw
+    local current = (bw and bw._currentHeroBook and bw:_currentHeroBook()) or nil
+    local state   = (bw and bw._buildDeviceState and bw:_buildDeviceState()) or nil
+    local ok, row = pcall(HeroCard.buildStatusRow, current, state, rec.content_w, true)
+    if not ok or not row then return false end
+    rec.group[rec.idx] = row
+    if rec.group.resetLayout then rec.group:resetLayout() end
+    if old.free then UIManager:nextTick(function() pcall(function() old:free() end) end) end
+    local scope = old.dimen and old.dimen:copy()
+    if scope then
+        UIManager:setDirty(self, function() return "ui", scope end)
+    else
+        UIManager:setDirty(self, "ui")
     end
     return true
 end

@@ -1082,10 +1082,13 @@ function HeroModules.tickClocks(bw)
             end
         end
     end
+    -- The full-screen view's grid takes over the clock-cell list while it is
+    -- open (its cells live in the overlay, on top of the shelf): repaint that.
+    local target = bw._micro_fullscreen or bw
     if scope then
-        UIManager:setDirty(bw, function() return "ui", scope end)
+        UIManager:setDirty(target, function() return "ui", scope end)
     else
-        UIManager:setDirty(bw, "ui")
+        UIManager:setDirty(target, "ui")
     end
     return true
 end

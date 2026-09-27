@@ -119,4 +119,44 @@ t.test("a setter this KOReader lacks costs that one setting, not the count", fun
     assert(calls.setFontSize, "a missing setter stopped the rest")
 end)
 
+
+-- Issue 461: FB2 undercounted (~8%, worst -33%) because the scan laid them out
+-- with epub.css. ReaderUI sets is_fb2 on the document CLASS from the file type
+-- before opening, and ReaderTypeset re-checks the real format after the load;
+-- a bare openDocument does neither, so an FB2 got whatever the last book the
+-- reader opened left behind.
+t.test("an FB2 is laid out with the FB2 stylesheet, whatever the last book was", function()
+    settings = {}
+    local doc, calls = fakeDoc()
+    doc.file = "/books/Novel.fb2"; doc.is_fb2 = false
+    L.beforeLoad(doc)
+    eq(doc.is_fb2, true); eq(doc.default_css, "./data/fb2.css")
+    eq(calls.setStyleSheet[1], "./data/fb2.css")
+    settings = { copt_fb2_css = "./data/my-fb2.css", copt_css = "./data/my.css" }
+    doc, calls = fakeDoc(); doc.file = "/books/Novel.FB2.ZIP"; doc.is_fb2 = false
+    L.beforeLoad(doc)
+    eq(calls.setStyleSheet[1], "./data/my-fb2.css", "the reader's own FB2 stylesheet")
+    doc, calls = fakeDoc(); doc.file = "/books/Book.epub"; doc.is_fb2 = true
+    L.beforeLoad(doc)
+    eq(doc.is_fb2, false, "an EPUB after an FB2 is not an FB2")
+    eq(calls.setStyleSheet[1], "./data/my.css")
+    settings = {}
+end)
+
+t.test("after the load the real format decides, as ReaderTypeset does", function()
+    settings = {}
+    local doc, calls = fakeDoc()
+    doc.file = "/books/odd-name.xml"; doc.is_fb2 = false
+    doc.getDocumentFormat = function() return "FictionBook2" end
+    L.beforeLoad(doc)
+    eq(calls.setStyleSheet[1], "./data/epub.css")
+    L.afterLoad(doc)
+    eq(doc.is_fb2, true); eq(calls.setStyleSheet[1], "./data/fb2.css", "re-styled once the format is known")
+    local doc2, calls2 = fakeDoc()
+    doc2.file = "/books/b.epub"; doc2.getDocumentFormat = function() return "EPUB" end
+    L.beforeLoad(doc2); calls2.setStyleSheet = nil
+    L.afterLoad(doc2)
+    eq(calls2.setStyleSheet, nil, "no second styling when the guess was right")
+end)
+
 t.done()

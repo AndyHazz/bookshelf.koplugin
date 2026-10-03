@@ -101,7 +101,7 @@ end)
 
 t.test("shuffle ornaments reshuffles the saved order and forgets every page", function()
     local b = src:match("\nfunction BookshelfWidget:onBookshelfShuffleOrnaments%(.-%)\n(.-)\nend\n")
-    assert(b and b:find('require("lib/bookshelf_ornament_deck").shuffle()', 1, true))
+    assert(b and b:find('require("lib/bookshelf_ornament_deck").shuffle(self.chip)', 1, true))
     assert(b:find("self:_dropOrnPages(false)", 1, true))
 end)
 

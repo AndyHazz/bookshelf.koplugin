@@ -6121,6 +6121,10 @@ function BookshelfWidget:_spinePlanBase(content_w, shelf_h, all_items)
         face_out        = self:_spineFaceOut(),
         face_recent_set = self:_spineFaceRecent(all_items),
         thickness_pct   = self:_chipListValue("spine_thickness_pct"),
+        -- Whose ornament deck the pieces are dealt from: every shelf has its
+        -- own (lib/bookshelf_ornament_deck). Here, so the render and the
+        -- page map deal from the same one.
+        orn_shelf       = self.chip,
     }
 end
 
@@ -14833,10 +14837,11 @@ function BookshelfWidget:onBookshelfToggleHero()
 end
 
 function BookshelfWidget:onBookshelfShuffleOrnaments()
-    -- A new saved order: every page's start in the deck, and the page map
-    -- (the pieces' widths decide where pages break), are re-learnt. The page
-    -- on screen keeps its first book; what follows it may move.
-    require("lib/bookshelf_ornament_deck").shuffle()
+    -- A new saved order for THIS shelf's deck: every page's start in the
+    -- deck, and the page map (the pieces' widths decide where pages break),
+    -- are re-learnt. The page on screen keeps its first book; what follows it
+    -- may move. Other shelves keep theirs.
+    require("lib/bookshelf_ornament_deck").shuffle(self.chip)
     self:_dropOrnPages(false)
     self:_rebuild()
     UIManager:setDirty(self, "ui")

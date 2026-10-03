@@ -321,7 +321,7 @@ t.test("menu: Swap, Shuffle all and a Switch off/on toggle share a row; the togg
     assert(toggle, "the toggle's label does not follow the piece's state")
     assert(not toggle:find("closeAnd", 1, true), "switching off closes the menu")
     assert(toggle:find("Orn.setOff(entry.name, not Orn.isOff(entry.name))", 1, true), "the toggle does not toggle")
-    assert(src:find("Deck.swap(entry.name, chosen.name)", 1, true), "Swap does not trade places")
+    assert(src:find("Deck.swap(entry.name, chosen.name, shelf)", 1, true), "Swap does not trade places on this shelf")
     assert(src:find("bw:onBookshelfShuffleOrnaments()", 1, true), "Shuffle all is not the shuffle action")
 end)
 
@@ -434,7 +434,7 @@ t.test("menu: the piece's place in the order, with Earlier and Later, and Shuffl
     assert(src:find('local CHEV_LEFT  = "\\xEE\\xA1\\x80"', 1, true) and src:find('local CHEV_RIGHT = "\\xEE\\xA1\\x81"', 1, true),
         "not the shelf editor's left / right chevrons")
     assert(src:find('_("Place: %1 of %2")', 1, true), "the place in the order is not shown")
-    assert(src:find("Deck.move(entry.name, delta, onNames())", 1, true)
+    assert(src:find("Deck.move(entry.name, delta, onNames(), shelf)", 1, true)
            and src:find("placeGlyph(CHEV_LEFT, -1)", 1, true)
            and src:find("placeGlyph(CHEV_RIGHT, 1)", 1, true)
            and src:find("enabled_func", 1, true)

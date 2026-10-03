@@ -3410,10 +3410,11 @@ local function _optsKey(opts)
         -- only shapes rows: none of them is an entry input, and the
         -- pagination plan (n_rows = math.huge, balance = false) must share the
         -- slot with the page plans. orn_state in the key missed on every
-        -- render (PW5: every tap rebuilt every entry).
+        -- render (PW5: every tap rebuilt every entry). orn_shelf only says
+        -- which deck the pieces come from, never an entry's look.
         if k ~= "skip" and k ~= "n_rows" and k ~= "balance"
                 and k ~= "rows_per_page" and k ~= "page_index"
-                and k ~= "orn_state" then
+                and k ~= "orn_state" and k ~= "orn_shelf" then
             local v = opts[k]
             if type(v) == "table" then
                 local sub = {}
@@ -4040,8 +4041,9 @@ function SpineShelf.plan(items, opts)
     -- lib/bookshelf_ornament_deck: which slots hold a piece is the level's
     -- pattern, which piece is the saved order). One implementation for both
     -- passes, so the render and the page map cannot decide differently.
-    if Deck and orn and orn_level ~= "off" then Deck.sync(orn.mod.listAll()) end
-    local cards = (Deck and orn and orn_level ~= "off") and Deck.order(orn.mod.list()) or {}
+    -- The shelf's own deck (opts.orn_shelf, its chip id).
+    if Deck and orn and orn_level ~= "off" then Deck.sync(orn.mod.listAll(), opts.orn_shelf) end
+    local cards = (Deck and orn and orn_level ~= "off") and Deck.order(orn.mod.list(), opts.orn_shelf) or {}
     -- cap: the most width the piece may take (the deck's squeeze, for a row
     -- that must also seat a book); caps a reader's scale nudge as well.
     local function size(kind, e, deal_no, cap)

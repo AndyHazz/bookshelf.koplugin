@@ -262,16 +262,18 @@ function M.show(entry, bw, piece)
         }
     end
 
-    -- The pieces that are on, in the saved order: what "place" counts and
-    -- what Earlier / Later step through.
+    -- The pieces that are on, in this shelf's saved order: what "place"
+    -- counts and what Earlier / Later step through. Every shelf has its own
+    -- deck, and the one held is the one on screen.
+    local shelf = bw and bw.chip
     local function onNames()
-        Deck.sync(Orn.listAll())
+        Deck.sync(Orn.listAll(), shelf)
         local names = {}
-        for i, e in ipairs(Deck.order(Orn.list())) do names[i] = e.name end
+        for i, e in ipairs(Deck.order(Orn.list(), shelf)) do names[i] = e.name end
         return names
     end
     local function step(delta)
-        if Deck.move(entry.name, delta, onNames()) then redraw() end
+        if Deck.move(entry.name, delta, onNames(), shelf) then redraw() end
     end
     -- placeGlyph(glyph, delta): a move chevron. Unlike the shelf editor's it
     -- wraps round past either end (the deck is a loop), so it is greyed out
@@ -351,18 +353,18 @@ function M.show(entry, bw, piece)
                     if bw and bw._rebuild then bw:_rebuild(); UIManager:setDirty(bw, "ui") end
                 end, { pick = function(chosen)
                     -- A piece never in the order yet (it was off) joins it first.
-                    Deck.sync(Orn.listAll())
-                    Deck.swap(entry.name, chosen.name)
+                    Deck.sync(Orn.listAll(), shelf)
+                    Deck.swap(entry.name, chosen.name, shelf)
                 end })
             end) },
-            -- A new order for every piece on every shelf (the "Bookshelf:
-            -- shuffle ornaments" action), which also clears every swap.
+            -- A new order for this shelf's deck (the "Bookshelf: shuffle
+            -- ornaments" action), which also clears its swaps.
             -- Asks first: an arrangement may have had a lot of care put into it
             -- (maintainer).
             { text = _("Shuffle all"), callback = function()
                 local ConfirmBox = require("ui/widget/confirmbox")
                 UIManager:show(ConfirmBox:new{
-                    text = _("Shuffle every ornament into a new order? Your swaps and moves are lost."),
+                    text = _("Shuffle this shelf's ornaments into a new order? Its swaps and moves are lost."),
                     ok_text = _("Shuffle"),
                     ok_callback = function()
                         UIManager:close(dialog)

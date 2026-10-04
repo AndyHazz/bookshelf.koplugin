@@ -330,4 +330,12 @@ t.test("No theme pack under no library theme looks the same as the library", fun
     eq(TP.setShelf("dark"), true, "a shelf of its own light/dark did not change the look")
 end)
 
+t.test("anyShelfTheme: an enabled shelf with a theme or light/dark of its own", function()
+    local TP = setup()
+    TP._tabs_list = function() return { { id = "a" }, { id = "b", enabled = false, theme = "X" } } end
+    eq(TP.anyShelfTheme(), false, "a disabled shelf counted")
+    TP._tabs_list = function() return { { id = "a" }, { id = "c", theme_look = "dark" } } end
+    eq(TP.anyShelfTheme(), true)
+end)
+
 t.done()

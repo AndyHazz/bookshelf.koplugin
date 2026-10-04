@@ -299,6 +299,23 @@ end
 
 function M.shelfPack() return current().pack end
 
+-- anyShelfTheme() -> true when an enabled shelf has a theme or light/dark of
+-- its own (what keeps a second wallpaper decoded, bookshelf_wallpaper.bg).
+M._tabs_list = nil   -- seam: fn() -> the enabled tabs
+function M.anyShelfTheme()
+    local list
+    if M._tabs_list then list = M._tabs_list()
+    else
+        local ok, TabModel = pcall(require, "lib/bookshelf_tab_model")
+        local ok2, l = pcall(function() return ok and TabModel.getActive() end)
+        list = ok2 and l or nil
+    end
+    for _i, t in ipairs(list or {}) do
+        if t.enabled ~= false and (t.theme ~= nil or t.theme_look ~= nil) then return true end
+    end
+    return false
+end
+
 -- shelfKey() -> what the shelf on screen looks like, as a cache key.
 function M.shelfKey()
     local sp = M.shelfPack()

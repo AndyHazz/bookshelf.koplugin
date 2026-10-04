@@ -1288,8 +1288,22 @@ end
 -- re-decodes, which is the trade to measure before widening.
 M._bg     = nil
 M._bg_key = nil
+-- The one exception, measured (PW5, 2026-10-04): with shelves wearing
+-- themes of their own, every switch between two shelves with different
+-- wallpapers re-decoded the other one, ~200ms each way. While any shelf has
+-- a theme of its own, the previous picture is kept as a second entry (~2MB
+-- on an 8-bit panel, ~8MB on colour); with none, one entry as before
+-- (maintainer).
+M._bg2     = nil
+M._bg2_key = nil
+M._keep_two = nil   -- seam: fn() -> keep a second picture
+local function keepTwo()
+    if M._keep_two then return M._keep_two() == true end
+    local ok, TP = pcall(require, "lib/bookshelf_theme_pack")
+    return ok and TP and TP.anyShelfTheme and TP.anyShelfTheme() == true or false
+end
 
--- free() -- drop the decoded backdrop.
+-- free() -- drop the decoded backdrop (both entries); freeWidget(w) one.
 --
 -- The buffer is freed on the NEXT TICK, not here. The widget holding it may
 -- still be in the live tree: the shelf swaps trees on rebuild, and a repaint
@@ -1299,9 +1313,7 @@ M._bg_key = nil
 -- later. Detaching first and freeing after the next paint closes the window:
 -- a stale paint finds bb = nil and draws nothing, which is a blank frame at
 -- worst.
-function M.free()
-    local old = M._bg
-    M._bg, M._bg_key = nil, nil
+local function freeWidget(old)
     if not (old and old.bb) then return end
     local bb = old.bb
     local ok_ui, UIManager = pcall(require, "ui/uimanager")
@@ -1314,6 +1326,13 @@ function M.free()
         old.bb = nil
         pcall(function() if bb.free then bb:free() end end)
     end
+end
+
+function M.free()
+    local old, old2 = M._bg, M._bg2
+    M._bg, M._bg_key, M._bg2, M._bg2_key = nil, nil, nil, nil
+    freeWidget(old)
+    freeWidget(old2)
 end
 
 -- flipNight(target_night) -> true if the cached backdrop was moved to that mode.
@@ -1483,7 +1502,21 @@ function M.bg(name, w, h, night)
     if not path or not w or not h or w <= 0 or h <= 0 then return nil end
     local key = path .. "|" .. w .. "x" .. h .. (night and "|n" or "")
     if M._bg and M._bg_key == key then return M._bg end
-    M.free()
+    local keep = keepTwo()
+    if keep and M._bg2 and M._bg2_key == key then
+        -- Back to the previous shelf's picture: swap, no decode.
+        M._bg, M._bg2 = M._bg2, M._bg
+        M._bg_key, M._bg2_key = M._bg2_key, M._bg_key
+        return M._bg
+    end
+    if keep and M._bg then
+        local older = M._bg2
+        M._bg2, M._bg2_key = M._bg, M._bg_key
+        M._bg, M._bg_key = nil, nil
+        freeWidget(older)
+    else
+        M.free()
+    end
     local ok, bb = pcall(decode, path, w, h)
     if not ok or not bb then
         logger.info("[bookshelf] wallpaper could not be decoded:", path)

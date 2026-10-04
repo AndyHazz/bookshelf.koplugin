@@ -1812,4 +1812,37 @@ t.test("a wallpaper name that no longer resolves reads as none", function()
         "a resolvable name should still show, extension trimmed")
 end)
 
+local function twoSetup(keep)
+    local W = fresh()
+    installBlitbufferStub({})
+    W._lfs = lfs_shim
+    local d = scratch()
+    W._data_dir = d; W.ensureDir(); touch(W.dir(), "a.png"); touch(W.dir(), "b.png")
+    local renders = 0
+    W._render = function(_p, w, h) renders = renders + 1; return fakeBB(w, h) end
+    W._keep_two = function() return keep end
+    return W, d, function() return renders end
+end
+
+t.test("with shelf themes in use, switching back to the last wallpaper does not decode it again", function()
+    local W, d, renders = twoSetup(true)
+    W.bg("a.png", 100, 100, false); W.bg("b.png", 100, 100, false)
+    local back = W.bg("a.png", 100, 100, false)
+    assert(back, "no background")
+    eq(renders(), 2, "the previous wallpaper was decoded again")
+    W.bg("b.png", 100, 100, false)
+    eq(renders(), 2, "switching forward again decoded")
+    W.free()
+    eq(W._bg, nil); eq(W._bg2, nil, "free kept the second picture")
+    os.execute("rm -rf '" .. d .. "'"); package.loaded["ffi/blitbuffer"] = nil
+end)
+
+t.test("without shelf themes the cache keeps one picture, as before", function()
+    local W, d, renders = twoSetup(false)
+    W.bg("a.png", 100, 100, false); W.bg("b.png", 100, 100, false); W.bg("a.png", 100, 100, false)
+    eq(renders(), 3)
+    eq(W._bg2, nil, "a second picture was kept with no shelf themes")
+    os.execute("rm -rf '" .. d .. "'"); package.loaded["ffi/blitbuffer"] = nil
+end)
+
 t.done()

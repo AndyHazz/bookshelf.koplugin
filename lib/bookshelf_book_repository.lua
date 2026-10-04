@@ -970,6 +970,12 @@ local function _opdsDownloadDescription(filepath)
     local map = BookshelfSettings.read(_opds_desc_key)
     if type(map) ~= "table" then return nil end
     local v = map[filepath]
+    -- Cleaned as it is read, so a book saved before the Calibre-Web header
+    -- was dropped at download (issue 490) loses it too.
+    if type(v) == "string" then
+        local ok_f, Feed = pcall(require, "lib/bookshelf_opds_feed")
+        if ok_f and Feed and Feed.summaryText then v = Feed.summaryText(v) end
+    end
     return (type(v) == "string" and v ~= "") and v or nil
 end
 

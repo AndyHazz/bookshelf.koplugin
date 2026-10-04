@@ -261,6 +261,20 @@ local function ratingLabel(v)
     return tostring(v)
 end
 
+-- keepMatching(books, recordFor, test) -> the books whose record passes,
+-- in order. recordFor(book) gives the record to test (a stack member is a
+-- { filepath } stub; its real record carries the genres and languages a
+-- filter reads), and the book itself is what is kept (GitHub issue 485).
+function Filter.keepMatching(books, recordFor, test)
+    local out = {}
+    for i = 1, #(books or {}) do
+        local b = books[i]
+        local r = recordFor(b) or b
+        if test(r) then out[#out + 1] = b end
+    end
+    return out
+end
+
 function Filter.statusValues()
     return {
         { value = "unread",   label = tr("Unread")   },

@@ -5574,6 +5574,25 @@ end
 -- payload from the group's full membership (GitHub issue 479).
 function Repo.applyFilter(books, filter) return _applyFilter(books, filter) end
 
+-- Repo.filterMembers(books, filter) -> a group's members that pass a chip's
+-- filter, tested on their real records. A stack's members are { filepath }
+-- stubs apart from its lead book, and the filter reads genres, languages and
+-- the rest off the record: on the stubs every member but the lead failed, so
+-- a series opened on a genre-filtered shelf showed one book (GitHub issue
+-- 485). Each stub is looked up the way the group hydrators do (the shared
+-- light cache, else a per-book light build); the members themselves are
+-- what is returned.
+function Repo.filterMembers(books, filter)
+    if not books then return {} end
+    if not Filter.isActive(filter) then return books end
+    local compiled = Filter.compile(filter, Repo.filterOpts())
+    local function recordFor(b)
+        if type(b) ~= "table" or b.title ~= nil or type(b.filepath) ~= "string" then return b end
+        return Repo.lightMetaFor(b.filepath) or _buildBookMetaLight(b.filepath) or b
+    end
+    return Filter.keepMatching(books, recordFor, function(r) return _recordMatches(r, compiled) end)
+end
+
 -- _withinPriority(sk): returns the level-2+ slice of a sort_priority,
 -- or nil when the chip only has a single level (no within-group rule).
 -- Used by every group hydrator to pick the cover that reflects the

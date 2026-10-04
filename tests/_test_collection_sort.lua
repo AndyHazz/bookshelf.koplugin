@@ -93,6 +93,10 @@ package.loaded["lib/bookshelf_book_repository"] = {
         return out
     end,
 }
+-- The drill filters members on their real records (issue 485); this stub's
+-- records are already whole, so the same filter stands in.
+package.loaded["lib/bookshelf_book_repository"].filterMembers =
+    package.loaded["lib/bookshelf_book_repository"].applyFilter
 
 -- TabModel stub: getById returns our controlled tab; any other call is a no-op.
 local TEST_TAB = { sort_priority = nil }

@@ -3569,8 +3569,9 @@ function BookshelfWidget:_fetchChipItems(n, want_all)
         -- Not for a group opened from book details (`whole`): that asks for
         -- the whole series, tag or collection, whichever shelf is underneath
         -- (GitHub issue 480).
-        if chip_tab and chip_tab.filter and Repo.applyFilter and not tip.whole then
-            books = Repo.applyFilter(books, chip_tab.filter)
+        -- On the members' real records: they are stubs (issue 485).
+        if chip_tab and chip_tab.filter and Repo.filterMembers and not tip.whole then
+            books = Repo.filterMembers(books, chip_tab.filter)
         end
         local total = #books
         -- Cursor-based: offset is 0-based, cursor is 1-based. Clamp upstream
@@ -7839,8 +7840,8 @@ function BookshelfWidget:_jumpScanList()
         -- Filtered as _fetchChipItems filters what shows (issue 479), so the
         -- jump list names only books that are on the shelf.
         local books = tip.payload.books
-        if tab and tab.filter and Repo.applyFilter and not tip.whole then
-            books = Repo.applyFilter(books, tab.filter)
+        if tab and tab.filter and Repo.filterMembers and not tip.whole then
+            books = Repo.filterMembers(books, tab.filter)
         end
         return books, within_key or chip_key, "drilldown-payload"
     end

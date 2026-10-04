@@ -308,12 +308,36 @@ function M.shelfKey()
     return k
 end
 
--- setShelf(id) -> true when the shelf on screen now looks different.
+-- lookKey() -> what the shelf on screen actually shows: its wallpaper (both
+-- views), colour theme, plank and light/dark. Two shelves with different
+-- choices can look the same (the library's own pack, an ornaments-only pack,
+-- No theme pack with no library theme); only a different look is worth a
+-- full-screen repaint, ~350ms on a PW5. Not shelfKey, which names the
+-- choice: the plank memo is keyed on that, and the pool follows it.
+function M.lookKey()
+    local plank = M.activePlank()
+    return table.concat({
+        tostring(M.shownWallpaper(false, false)), tostring(M.shownWallpaper(true, false)),
+        tostring(M.effectiveColoursPack()), tostring(plank and plank.id), M.shelfLook(),
+    }, "\2")
+end
+
+-- setShelf(id) -> true when the shelf on screen now LOOKS different: then
+-- the settings generation is bumped, so the caches keyed on it rebuild.
+M._look_key = nil
 function M.setShelf(id)
     M._shelf = id
-    local key = M.shelfKey()
-    if key == M._shelf_key then return false end
-    M._shelf_key = key
+    M._shelf_key = M.shelfKey()
+    local look = M.lookKey()
+    if M._look_key == nil then
+        -- The first shelf: anything read before it was read as the
+        -- library's, so compare with the library's look.
+        M._shelf = nil
+        M._look_key = M.lookKey()
+        M._shelf = id
+    end
+    if look == M._look_key then return false end
+    M._look_key = look
     local s = store()
     if s and s.bump then s.bump() end
     return true
@@ -809,6 +833,19 @@ end
 -- The shelf on screen: its pack's colours when it has them; none on No theme
 -- pack; else the library's.
 function M.colourOverride(key, dark)
+    local pack = M.effectiveColoursPack()
+    if not pack then return nil end
+    local c = M.theme(pack).colours
+    local set = c and (dark and c.night or c.day)
+    local hex = set and set[key]
+    if not hex then return nil end
+    if dark and key ~= "spine_plank_color" then hex = M.invertHex(hex) end
+    return { hex = hex }
+end
+
+-- effectiveColoursPack() -> the pack whose colours the shelf on screen
+-- shows, or nil for the reader's own.
+function M.effectiveColoursPack()
     local sp = M.shelfPack()
     local pack
     if sp == "none" then
@@ -819,13 +856,7 @@ function M.colourOverride(key, dark)
         if th and th.exists and th.colours and not orn().isPackOff(own) then pack = own end
     elseif sp ~= nil and M.theme(sp).colours then pack = sp
     else pack = M.activeColoursPack() end
-    if not pack then return nil end
-    local c = M.theme(pack).colours
-    local set = c and (dark and c.night or c.day)
-    local hex = set and set[key]
-    if not hex then return nil end
-    if dark and key ~= "spine_plank_color" then hex = M.invertHex(hex) end
-    return { hex = hex }
+    return pack
 end
 
 -- A borrowed wallpaper travels under a NAME, like every other wallpaper, so

@@ -303,4 +303,31 @@ t.test("the shelf on screen is resolved once per settings generation", function(
     eq(TP.shelfLook(), "light", "a new generation did not re-resolve")
 end)
 
+t.test("a shelf that looks the same as the last one asks for no repaint", function()
+    local TP, d, settings, _po, _o, tabs, bumps = setup()
+    TP._plugin_root = "."
+    halloween(d); touch(d .. "/Gallery/frame.png"); TP.invalidate()
+    eq(TP.chooseTheme("Halloween"), true)                     -- the library theme
+    tabs.home = { id = "home" }
+    tabs.same = { id = "same", theme = "Halloween" }          -- the library's own pack
+    tabs.art = { id = "art", theme = "Gallery" }              -- ornaments only
+    TP.setShelf("home")
+    local n = bumps.n
+    eq(TP.setShelf("same"), false, "the library's own pack counted as a new look")
+    eq(TP.setShelf("art"), false, "an ornaments-only pack counted as a new look")
+    eq(TP.setShelf("home"), false)
+    eq(bumps.n, n, "a look that did not change bumped the generation")
+    eq(TP.shelfKey() ~= nil, true)
+end)
+
+t.test("No theme pack under no library theme looks the same as the library", function()
+    local TP, d, _s, _po, _o, tabs = setup()
+    halloween(d); TP.invalidate()
+    tabs.home = { id = "home" }; tabs.none = { id = "none", theme = "none" }
+    tabs.dark = { id = "dark", theme_look = "dark" }
+    TP.setShelf("home")
+    eq(TP.setShelf("none"), false, "No theme pack with no library theme flashed")
+    eq(TP.setShelf("dark"), true, "a shelf of its own light/dark did not change the look")
+end)
+
 t.done()

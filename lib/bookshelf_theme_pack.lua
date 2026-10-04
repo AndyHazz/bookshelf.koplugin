@@ -330,15 +330,21 @@ end
 
 -- allThemes() -> every pack as a theme: theme packs (a theme.json) by name,
 -- then the others by folder, marked ornaments_only. Switched-off packs too.
+-- A pack with neither a theme.json nor an ornament (a pack of planks) is not
+-- a theme: its planks are in the plank picker (maintainer, 2026-10-04).
 function M.allThemes()
-    local _all, packs = orn().listAll()
+    local all, packs = orn().listAll()
+    local has_piece = {}
+    for _i, e in ipairs(all or {}) do
+        if e.pack then has_piece[e.pack] = true end
+    end
     local full, plain = {}, {}
     for _i, p in ipairs(packs or {}) do
         local m = M.theme(p).manifest
         if m then
             full[#full + 1] = { pack = p, name = m.name or p, description = m.description,
                                 ornaments_only = false }
-        else
+        elseif has_piece[p] then
             plain[#plain + 1] = { pack = p, name = p, ornaments_only = true }
         end
     end

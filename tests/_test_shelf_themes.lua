@@ -65,7 +65,16 @@ local function setup()
                 end
             end
             table.sort(packs)
-            return {}, packs
+            -- The pieces: png/svg one level inside a pack, as the real scan.
+            local entries = {}
+            for _i, p in ipairs(packs) do
+                for f in sh("ls '" .. d .. "/" .. p .. "'"):gmatch("[^\n]+") do
+                    if f:lower():match("%.png$") or f:lower():match("%.svg$") then
+                        entries[#entries + 1] = { name = p .. "/" .. f, pack = p }
+                    end
+                end
+            end
+            return entries, packs
         end,
         isPackOff = function(p) return packs_off[p] == true end,
         isOff = function(r) return off[r] == true end,
@@ -252,6 +261,17 @@ t.test("shelfLookOf answers for any shelf, not just the one on screen", function
     eq(TP.shelfLookOf("mine"), "dark")
     eq(TP.shelfLookOf("home"), "light")
     eq(TP.shelfLook(), "light")
+end)
+
+t.test("a pack with only planks is not a theme; with a theme.json it is", function()
+    local TP, d = setup()
+    halloween(d); touch(d .. "/Gallery/frame.png")
+    mkplank(d, "Planks", "Walnut")                      -- planks only, no theme.json
+    mkplank(d, "Woods", "Oak"); mkmanifest(d, "Woods")  -- planks only, but a theme
+    TP.invalidate()
+    local names = {}
+    for i, th in ipairs(TP.allThemes()) do names[i] = th.pack end
+    eq(table.concat(names, ","), "Halloween,Woods,Gallery")
 end)
 
 t.done()

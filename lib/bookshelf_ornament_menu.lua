@@ -351,7 +351,13 @@ function M.show(entry, bw, piece)
                 -- place in the order, and this one takes the chosen piece's.
                 require("lib/bookshelf_ornament_browser").show(function()
                     if bw and bw._rebuild then bw:_rebuild(); UIManager:setDirty(bw, "ui") end
-                end, { pick = function(chosen)
+                end, { pool = (function()
+                    -- Only the pieces this shelf deals from: a shelf that
+                    -- wears a pack deals that pack and loose pieces.
+                    local sp = require("lib/bookshelf_theme_pack").shelfPackFor(shelf)
+                    if sp == nil or sp == "none" then return nil end
+                    return function(e) return e.pack == nil or e.pack == sp end
+                end)(), pick = function(chosen)
                     -- A piece never in the order yet (it was off) joins it first.
                     Deck.sync(Orn.listAll(), shelf)
                     Deck.swap(entry.name, chosen.name, shelf)

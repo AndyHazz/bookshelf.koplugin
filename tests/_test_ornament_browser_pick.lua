@@ -77,4 +77,30 @@ t.test("switching packs keeps the browser one height", function()
     H.eq(#dirty, 0, "the first refresh repainted the stack")
 end)
 
+t.test("Swap lists only the pieces the shelf deals from", function()
+    local Orn = {
+        listAll = function()
+            return { { name = "H/bat.png", pack = "H" }, { name = "G/frame.png", pack = "G" },
+                     { name = "pot.svg" } }, { "G", "H" }
+        end,
+        isOff = function() return false end,
+        isPackOff = function() return false end,
+    }
+    local items = load("return function(self)\n" .. method(src, "Browser:_items()") .. "\nend", "i", "t",
+        { O = function() return Orn end, ALL = "\0all", ipairs = ipairs })()
+    local function names(opts)
+        local got = {}
+        for _i, it in ipairs(items({ chip = "\0all", opts = opts })) do got[#got + 1] = it.entry.name end
+        return table.concat(got, ",")
+    end
+    H.eq(names({}), "H/bat.png,G/frame.png,pot.svg", "no pool filtered something")
+    H.eq(names({ pool = function(e) return e.pack == nil or e.pack == "H" end }), "H/bat.png,pot.svg")
+end)
+
+t.test("the long-press menu's Swap hands the browser the shelf's pool", function()
+    local m = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
+    assert(m:find("shelfPackFor(shelf)", 1, true) and m:find("pool = ", 1, true),
+        "Swap offers pieces this shelf never deals")
+end)
+
 t.done()

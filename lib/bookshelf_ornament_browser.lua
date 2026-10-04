@@ -134,8 +134,10 @@ function Browser:_items()
     local all = Orn.listAll()
     local out = {}
     for _i, e in ipairs(all) do
-        local keep = self.chip == ALL
-                     or (e.pack ~= nil and e.pack == self.chip)
+        -- opts.pool: the pieces a shelf deals from (Swap on a shelf that
+        -- wears a pack offers only those).
+        local keep = (self.chip == ALL or (e.pack ~= nil and e.pack == self.chip))
+                     and (not self.opts.pool or self.opts.pool(e))
         if keep then
             out[#out + 1] = { entry = e, off = Orn.isOff(e.name),
                               pack_off = Orn.isPackOff(e.pack) }

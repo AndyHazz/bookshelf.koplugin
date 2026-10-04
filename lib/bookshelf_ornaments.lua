@@ -1109,6 +1109,33 @@ function M.list()
     return out
 end
 
+-- listFor(sp) -> the pieces a shelf deals from. sp is the shelf's theme as
+-- bookshelf_theme_pack.shelfPackFor resolves it: nil (the library's) or
+-- "none" deal what the collection has on (M.list); a pack deals its own
+-- pieces and the loose ones (in no pack), minus pieces switched off -- even
+-- when that pack is off in the collection, which governs only shelves
+-- without a pack of their own. The same table while nothing changed: the
+-- deck and the plan key on it.
+M._list_for = {}
+function M.listFor(sp)
+    if sp == nil or sp == "none" then return M.list() end
+    local all = M.listAll()
+    local off = readSet(M.OFF_KEY)
+    local sig = {}
+    for k in pairs(off) do sig[#sig + 1] = k end
+    table.sort(sig)
+    local key = tostring(all) .. "|" .. table.concat(sig, "\0")
+    local hit = M._list_for[sp]
+    if hit and hit.key == key then return hit.v end
+    local out = {}
+    for _i, e in ipairs(all) do
+        if (e.pack == nil or e.pack == sp) and not off[e.name] then out[#out + 1] = e end
+    end
+    table.sort(out, function(a, b) return a.name < b.name end)
+    M._list_for[sp] = { key = key, v = out }
+    return out
+end
+
 -- delete(entry) -> true on success. Removes the file and forgets its state.
 function M.delete(entry)
     if not (entry and entry.path) then return false end
@@ -1117,6 +1144,7 @@ function M.delete(entry)
     local set = readSet(M.OFF_KEY)
     if set[entry.name] then set[entry.name] = nil; saveSet(M.OFF_KEY, set) end
     M._all_cache, M._all_key, M._list_cache, M._list_key = nil, nil, nil, nil
+    M._list_for = {}
     return true
 end
 

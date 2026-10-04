@@ -998,7 +998,26 @@ function BookshelfWidget:_afterChipEdit()
     UIManager:setDirty(self, "ui")
 end
 
+-- _syncShelfTheme() -> true when the shelf about to be built looks different
+-- from the last one: it may wear its own theme (bookshelf_theme_pack). Named
+-- FIRST in _rebuild, so every colour, wallpaper and plank read of this build
+-- is the shelf's; a different look bumps the settings generation (the caches
+-- keyed on it rebuild) and asks for a full-screen refresh, the wallpaper and
+-- chrome having changed under the whole screen.
+function BookshelfWidget:_syncShelfTheme()
+    local ok, TP = pcall(require, "lib/bookshelf_theme_pack")
+    if not (ok and TP and TP.setShelf) then return false end
+    local changed = TP.setShelf(self.chip)
+    if changed and self._shelf_theme_seen then
+        self._ground_memo = nil
+        UIManager:setDirty("all", "full")
+    end
+    self._shelf_theme_seen = true
+    return changed
+end
+
 function BookshelfWidget:_rebuild()
+    self:_syncShelfTheme()
     -- The night state this tree is baked for, and so no night rebuild is
     -- pending any more (see _followScreenNight).
     self._built_night = Screen.night_mode and true or false

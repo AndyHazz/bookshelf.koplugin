@@ -2875,11 +2875,13 @@ local _design_memo, _design_gen = nil, nil
 -- save a setting).
 function SpineShelf.activePlankDesign()
     local gen = BookshelfSettings.generation and BookshelfSettings.generation() or 0
-    if _design_gen == gen then return _design_memo or nil end
-    _design_gen = gen
+    -- And the shelf's look: a shelf may wear its own theme's plank.
+    local ok_t, TP = pcall(require, "lib/bookshelf_theme_pack")
+    local key = tostring(gen) .. "|" .. ((ok_t and TP and TP.shelfKey) and TP.shelfKey() or "lib")
+    if _design_gen == key then return _design_memo or nil end
+    _design_gen = key
     _design_memo = false
     pcall(function()
-        local TP = require("lib/bookshelf_theme_pack")
         _design_memo = TP.activePlank() or false
     end)
     return _design_memo or nil
@@ -4041,9 +4043,12 @@ function SpineShelf.plan(items, opts)
     -- lib/bookshelf_ornament_deck: which slots hold a piece is the level's
     -- pattern, which piece is the saved order). One implementation for both
     -- passes, so the render and the page map cannot decide differently.
-    -- The shelf's own deck (opts.orn_shelf, its chip id).
+    -- The shelf's own deck (opts.orn_shelf, its chip id), dealt from the
+    -- shelf's own pool: its theme pack's pieces when it wears one.
+    local TP = require("lib/bookshelf_theme_pack")
     if Deck and orn and orn_level ~= "off" then Deck.sync(orn.mod.listAll(), opts.orn_shelf) end
-    local cards = (Deck and orn and orn_level ~= "off") and Deck.order(orn.mod.list(), opts.orn_shelf) or {}
+    local cards = (Deck and orn and orn_level ~= "off")
+        and Deck.order(orn.mod.listFor(TP.shelfPackFor(opts.orn_shelf)), opts.orn_shelf) or {}
     -- cap: the most width the piece may take (the deck's squeeze, for a row
     -- that must also seat a book); caps a reader's scale nudge as well.
     local function size(kind, e, deal_no, cap)

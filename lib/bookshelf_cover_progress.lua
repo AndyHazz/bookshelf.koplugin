@@ -782,7 +782,10 @@ function M.theme()
     -- night, which reads as day and night swapped over (issue 426). The
     -- setting stays as the fallback for anything with no screen to read.
     local inverting = require("lib/bookshelf_night_mode_sync").active(Screen)
-    local want = BookshelfSettings.read(M.THEME_SETTING)
+    -- The shelf on screen may wear its own theme (bookshelf_theme_pack).
+    local ok_t, TP = pcall(require, "lib/bookshelf_theme_pack")
+    local want = (ok_t and TP and TP.shelfLook) and TP.shelfLook()
+                 or BookshelfSettings.read(M.THEME_SETTING)
     local dark
     if want == "dark" then
         dark = true

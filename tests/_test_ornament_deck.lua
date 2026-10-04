@@ -198,7 +198,7 @@ t.test("the shelf id reaches the deck from every place that deals or edits", fun
         "the shuffle action does not shuffle the shelf on screen")
     local sp = io.open("lib/bookshelf_spine_shelf.lua"):read("*a")
     assert(sp:find("Deck.sync(orn.mod.listAll(), opts.orn_shelf)", 1, true)
-        and sp:find("Deck.order(orn.mod.list(), opts.orn_shelf)", 1, true), "plan deals from the shared deck")
+        and sp:find("orn.mod.listFor(TP.shelfPackFor(opts.orn_shelf))", 1, true), "plan deals from the shared deck")
     assert(sp:find('and k ~= "orn_shelf"', 1, true), "the shelf id splits the entry cache")
     local m = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
     assert(m:find("local shelf = bw and bw.chip", 1, true), "the long-press menu does not know its shelf")

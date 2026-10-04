@@ -1117,4 +1117,21 @@ t.test("the menu shows and nudges the reader's own adjustment, not the pack's va
            and src:find('readerValue(entry, "lift")', 1, true), "the labels show the pack's values")
 end)
 
+t.test("listFor: a pack's pieces and loose ones, minus switched-off pieces; the library pool otherwise", function()
+    local Orn = fresh()
+    local mem = {}
+    Orn._store = { read = function(k) return mem[k] end, save = function(k, v) mem[k] = v end,
+                   generation = function() return 0 end, flush = function() end }
+    local all = { { name = "H/bat.png", pack = "H" }, { name = "H/cat.png", pack = "H" },
+                  { name = "G/frame.png", pack = "G" }, { name = "pot.svg" } }
+    Orn.listAll = function() return all, { "G", "H" } end
+    Orn.setOff("H/cat.png", true)
+    Orn.setPackOff("H", true)                    -- off in the collection, chosen for the shelf
+    local names = {}
+    for i, e in ipairs(Orn.listFor("H")) do names[i] = e.name end
+    eq(table.concat(names, ","), "H/bat.png,pot.svg")
+    assert(Orn.listFor("H") == Orn.listFor("H"), "listFor handed out a new table")
+    assert(Orn.listFor(nil) == Orn.list() and Orn.listFor("none") == Orn.list(), "the library pool changed")
+end)
+
 t.done()

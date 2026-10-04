@@ -88,7 +88,10 @@ function M.invertsAtNight() return settingsRead(M.INVERT_NIGHT_SETTING) == true 
 -- frame, when the setting is on.
 function M.showsNegative(frame_night)
     if not M.invertsAtNight() then return false end
-    local want = settingsRead("shelf_theme")   -- CoverProgress.THEME_SETTING
+    -- The shelf on screen may wear its own theme (bookshelf_theme_pack).
+    local ok_t, TP = pcall(require, "lib/bookshelf_theme_pack")
+    local want = (ok_t and TP and TP.shelfLook) and TP.shelfLook()
+                 or settingsRead("shelf_theme")   -- CoverProgress.THEME_SETTING
     if want == "dark" then return true end
     if want == "light" then return false end
     return frame_night and true or false         -- auto: follow the device

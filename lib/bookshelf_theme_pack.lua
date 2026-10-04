@@ -897,13 +897,13 @@ function M.shownWallpaper(is_full, is_dark)
     return layer("wallpaper_default", is_full)
 end
 
--- shelfLook() -> "auto" | "light" | "dark" for the shelf on screen: its own
+-- shelfLookOf(id) -> "auto" | "light" | "dark" for that shelf: its own
 -- choice; else its pack's manifest when it says; on No theme pack the
 -- reader's own; else the setting (which a library theme may hold).
-function M.shelfLook()
-    local own = M.shelfLookFor(M._shelf)
+function M.shelfLookOf(id)
+    local own = M.shelfLookFor(id)
     if own then return own end
-    local sp = M.shelfPack()
+    local sp = M.shelfPackFor(id)
     local v
     if sp == "none" then
         v = M.ownRead(M.SHELF_SETTING)
@@ -916,6 +916,9 @@ function M.shelfLook()
     if v == "light" or v == "dark" then return v end
     return "auto"
 end
+
+-- shelfLook() -> the same for the shelf on screen.
+function M.shelfLook() return M.shelfLookOf(M._shelf) end
 
 -- migrate(): the 5.3 betas "lent" a pack's wallpaper over the reader's own
 -- (theme_wallpaper_pack); it is now an ordinary choice. Moved once.

@@ -240,4 +240,18 @@ t.test("choosing an ornament-only pack as the library theme: its pack on, others
     eq(packs_off["Gallery"], true, "No theme pack did not give the packs back")
 end)
 
+t.test("shelfLookOf answers for any shelf, not just the one on screen", function()
+    local TP, d, settings, _po, _o, tabs = setup()
+    halloween(d); TP.invalidate()
+    settings.shelf_theme = "light"
+    tabs.home = { id = "home" }
+    tabs.latest = { id = "latest", theme = "Halloween" }
+    tabs.mine = { id = "mine", theme = "none", theme_look = "dark" }
+    TP.setShelf("home")
+    eq(TP.shelfLookOf("latest"), "dark", "a shelf's pack light/dark was not seen from another shelf")
+    eq(TP.shelfLookOf("mine"), "dark")
+    eq(TP.shelfLookOf("home"), "light")
+    eq(TP.shelfLook(), "light")
+end)
+
 t.done()

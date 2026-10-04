@@ -1687,6 +1687,131 @@ function Settings:_themePackLabel()
     return pack
 end
 
+-- ── Themes for each shelf (5.4) ────────────────────────────────────────
+-- A shelf may wear its own theme: tab.theme_look (auto/light/dark) and
+-- tab.theme ("none" = No theme pack, or a pack), each unset = follow the
+-- library. Chosen under the library's own rows, in a submenu per shelf that
+-- is the same menu scoped to it (maintainer, 2026-10-04).
+function Settings:_setShelfThemeField(id, field, value)
+    local TabModel = require("lib/bookshelf_tab_model")
+    local tabs = TabModel.load()
+    for _i, t in ipairs(tabs or {}) do
+        if t.id == id then t[field] = value; break end
+    end
+    TabModel.save(tabs)
+end
+
+-- _shelvesDiffer() -> how many enabled shelves wear a theme of their own.
+function Settings:_shelvesDiffer()
+    local n = 0
+    for _i, t in ipairs(require("lib/bookshelf_tab_model").getActive() or {}) do
+        if t.theme ~= nil or t.theme_look ~= nil then n = n + 1 end
+    end
+    return n
+end
+
+local function _lookLabel(value)
+    for _i, t in ipairs(Settings.SHELF_THEMES) do
+        if t.value == value then return t.label() end
+    end
+    return value
+end
+
+-- _shelfThemeLabelFor(tab) -> "Home: same as library", or what it wears,
+-- named as the top-level row names the library's: "Manga: Dark, Ukiyo-e".
+function Settings:_shelfThemeLabelFor(tab)
+    local label = tab.label or tab.id
+    if tab.theme == nil and tab.theme_look == nil then
+        return T(_("%1: same as library"), label)
+    end
+    local TP = require("lib/bookshelf_theme_pack")
+    -- The light/dark it shows: its own, its pack's, or the library's.
+    local look = _lookLabel(TP.shelfLookOf(tab.id))
+    local theme
+    if tab.theme == nil then
+        local lib = TP.currentTheme()
+        theme = lib and TP.displayName(lib) or _("No theme pack")
+    elseif tab.theme == "none" then
+        theme = _("No theme pack")
+    elseif not TP.theme(tab.theme).exists then
+        theme = T(_("%1 (missing)"), tab.theme)
+    else
+        theme = TP.displayName(tab.theme)
+    end
+    return T(_("%1: %2, %3"), label, look, theme)
+end
+
+-- _oneShelfThemeItems(id): the theme menu for one shelf.
+function Settings:_oneShelfThemeItems(id)
+    local TP = require("lib/bookshelf_theme_pack")
+    -- A new look for the shelf: built again, the whole screen refreshed.
+    local function done(touchmenu_instance)
+        self:_markDirty()
+        UIManager:setDirty("all", "full")
+        if touchmenu_instance then touchmenu_instance:updateItems() end
+    end
+    local function radio(text, checked, apply, help)
+        return {
+            text = text, help_text = help, radio = true, keep_menu_open = true,
+            checked_func = checked,
+            callback = function(touchmenu_instance)
+                if checked() then return end
+                apply()
+                done(touchmenu_instance)
+            end,
+        }
+    end
+    local rows = {}
+    rows[#rows + 1] = radio(_("Same as library"),
+        function() return TP.shelfChoiceFor(id) == nil and TP.shelfLookFor(id) == nil end,
+        function()
+            self:_setShelfThemeField(id, "theme", nil)
+            self:_setShelfThemeField(id, "theme_look", nil)
+        end)
+    rows[#rows].separator = true
+    for _i, t in ipairs(Settings.SHELF_THEMES) do
+        local value = t.value
+        rows[#rows + 1] = radio(t.label(), function() return TP.shelfLookFor(id) == value end,
+            function() self:_setShelfThemeField(id, "theme_look", value) end)
+    end
+    rows[#rows].separator = true
+    rows[#rows + 1] = radio(_("No theme pack"), function() return TP.shelfChoiceFor(id) == "none" end,
+        function() self:_setShelfThemeField(id, "theme", "none") end)
+    local cur = TP.shelfChoiceFor(id)
+    if type(cur) == "string" and cur ~= "none" and not TP.theme(cur).exists then
+        rows[#rows + 1] = radio(T(_("%1 (missing)"), cur),
+            function() return TP.shelfChoiceFor(id) == cur end, function() end)
+    end
+    for _i, th in ipairs(TP.allThemes()) do
+        local pack = th.pack
+        local label = th.ornaments_only and T(_("%1 (ornaments only)"), th.name) or th.name
+        rows[#rows + 1] = radio(label, function() return TP.shelfChoiceFor(id) == pack end,
+            function() self:_setShelfThemeField(id, "theme", pack) end, th.description)
+    end
+    return rows
+end
+
+-- _perShelfThemesRow(): "Themes for each shelf", a row per enabled shelf.
+function Settings:_perShelfThemesRow()
+    return {
+        text = _("Themes for each shelf"),
+        sub_item_table_func = function()
+            local TabModel = require("lib/bookshelf_tab_model")
+            local items = {}
+            for _i, t in ipairs(TabModel.getActive() or {}) do
+                local id = t.id
+                items[#items + 1] = {
+                    text_func = function()
+                        return self:_shelfThemeLabelFor(TabModel.getById(id) or t)
+                    end,
+                    sub_item_table_func = function() return self:_oneShelfThemeItems(id) end,
+                }
+            end
+            return items
+        end,
+    }
+end
+
 -- The Shelf theme menu: Auto / Light / Dark, then (when any are installed) a
 -- second group, No theme pack and each theme pack (bookshelf_theme_pack).
 -- Built each time it opens, after a rescan, so a pack copied in since
@@ -1733,9 +1858,11 @@ function Settings:_shelfThemeSubItems()
         }
     end
     TP.rescan()
-    local packs = TP.themePacks()
+    -- Every pack is a theme (5.4): theme packs first, then ornament-only.
+    local packs = TP.allThemes()
     rows[#rows].separator = true
     if #packs == 0 then
+        rows[#rows + 1] = self:_perShelfThemesRow()
         rows[#rows + 1] = addThemeRow()
         return rows
     end
@@ -1764,7 +1891,7 @@ function Settings:_shelfThemeSubItems()
     for _i, th in ipairs(packs) do
         local pack, name = th.pack, th.name
         rows[#rows + 1] = {
-            text = name,
+            text = th.ornaments_only and T(_("%1 (ornaments only)"), name) or name,
             help_text = th.description,
             radio = true,
             checked_func = function() return TP.currentTheme() == pack end,
@@ -1776,6 +1903,7 @@ function Settings:_shelfThemeSubItems()
         }
     end
     rows[#rows].separator = true
+    rows[#rows + 1] = self:_perShelfThemesRow()
     rows[#rows + 1] = addThemeRow()
     return rows
 end
@@ -2242,8 +2370,12 @@ end
 -- bookshelf_theme): light or dark, and the theme pack in use.
 function Settings:_shelfThemeText()
     local pack = self:_themePackLabel()
-    if pack then return T(_("Shelf theme: %1, %2"), self:_shelfThemeLabel(), pack) end
-    return T(_("Shelf theme: %1"), self:_shelfThemeLabel())
+    local base = pack and T(_("Shelf theme: %1, %2"), self:_shelfThemeLabel(), pack)
+                 or T(_("Shelf theme: %1"), self:_shelfThemeLabel())
+    -- Shelves wearing a theme of their own (Themes for each shelf).
+    local n = self:_shelvesDiffer()
+    if n > 0 then base = base .. " " .. T(_("(shelves differ: %1)"), n) end
+    return base
 end
 
 function Settings:_shelfThemeHelp()

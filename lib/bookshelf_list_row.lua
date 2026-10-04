@@ -1969,7 +1969,10 @@ function ListRow.textLine(record, line, width, pad, template, opts)
                 bar_w = math.max(2, math.floor(elastic_w
                     * ListGeom.relativeBarFraction(record and record.page_count)))
             end
-            hg[#hg + 1] = ListRow.bar(line, bar_w, record and record.book_pct,
+            -- A book marked finished without being opened has no position;
+            -- it fills (issue 487). See ListGeom.barFraction.
+            hg[#hg + 1] = ListRow.bar(line, bar_w, ListGeom.barFraction(
+                                          record and record.book_pct, record and record.status),
                                       band_h)
             if bar_w < elastic_w then
                 hg[#hg + 1] = HorizontalSpan:new{ width = elastic_w - bar_w }

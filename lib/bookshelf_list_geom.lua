@@ -794,6 +794,17 @@ ListGeom.REL_BAR_MIN          = 0.20  -- a bar shorter than this reads as a dot
 -- An unknown page count answers the reference fraction, NOT 1: a book we know
 -- nothing about is a typical book, and drawing it full-width would make "no
 -- metadata" look like "the longest thing in the library".
+-- barFraction(pct, status) -> how full a list row's progress bar is. The
+-- book's own position when it has one; a book marked finished without ever
+-- being opened has none (KOReader writes only summary.status), and it reads
+-- as finished, so it fills (GitHub issue 487). A book finished at 97% keeps
+-- its 97%: its position is real.
+function ListGeom.barFraction(pct, status)
+    local p = tonumber(pct)
+    if p == nil and (status == "finished" or status == "complete") then return 1 end
+    return p or 0
+end
+
 function ListGeom.relativeBarFraction(pages, reference)
     reference = tonumber(reference) or ListGeom.REL_BAR_REFERENCE
     if reference <= 0 then reference = ListGeom.REL_BAR_REFERENCE end

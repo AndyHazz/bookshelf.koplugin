@@ -522,12 +522,18 @@ t.test("choosing a theme sets what it has, its pack on and every other pack off"
     eq(TP.currentTheme(), "Halloween")
 end)
 
-t.test("a pack without theme.json is not chosen, and nothing changes", function()
+t.test("a pack without theme.json is chosen as a theme of its ornaments (5.4)", function()
     local TP, d, settings, packs_off = setup()
     mkplank(d, "Planks", "Walnut"); touch(d .. "/Autumn/owl.png"); TP.invalidate()
-    eq(TP.chooseTheme("Planks"), false)
-    eq(next(settings), nil, "a setting was written"); eq(next(packs_off), nil, "a pack was switched")
-    eq(TP.currentTheme(), nil)
+    eq(TP.chooseTheme("Planks"), true)
+    eq(packs_off["Autumn"], true, "another pack stayed on")
+    eq(TP.plankChoice(), "Planks/theme/plank.Walnut", "its plank was not used")
+    eq(TP.currentTheme(), "Planks")
+end)
+
+t.test("a pack folder that is gone is not chosen", function()
+    local TP = setup()
+    eq(TP.chooseTheme("Nowhere"), false)
 end)
 
 t.test("a theme that does not say light or dark leaves the reader's", function()

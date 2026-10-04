@@ -321,6 +321,33 @@ function M.themePacks()
     return out
 end
 
+-- displayName(pack) -> what menus call a theme: its manifest's name, else
+-- its folder's. Every pack is a theme since 5.4 (maintainer, 2026-10-03).
+function M.displayName(pack)
+    local m = pack and M.theme(pack).manifest
+    return (m and m.name) or pack
+end
+
+-- allThemes() -> every pack as a theme: theme packs (a theme.json) by name,
+-- then the others by folder, marked ornaments_only. Switched-off packs too.
+function M.allThemes()
+    local _all, packs = orn().listAll()
+    local full, plain = {}, {}
+    for _i, p in ipairs(packs or {}) do
+        local m = M.theme(p).manifest
+        if m then
+            full[#full + 1] = { pack = p, name = m.name or p, description = m.description,
+                                ornaments_only = false }
+        else
+            plain[#plain + 1] = { pack = p, name = p, ornaments_only = true }
+        end
+    end
+    local function byName(a, b) return a.name:lower() < b.name:lower() end
+    table.sort(full, byName); table.sort(plain, byName)
+    for _i, e in ipairs(plain) do full[#full + 1] = e end
+    return full
+end
+
 -- rescan(): forget the theme folders' scan, so a pack copied in or deleted
 -- since the last look (or a theme.json added to one) is seen now, not after
 -- the scan TTL. The Shelf theme menu calls it each time it opens. Not the
@@ -682,11 +709,12 @@ function M.themePlank(pack)
     return planks[1]
 end
 
--- chooseTheme(pack) -> true, or false for a pack that is not a theme pack
--- (then nothing changes).
+-- chooseTheme(pack) -> true, or false when the pack's folder is gone (then
+-- nothing changes). Any pack: one without a theme.json lends what it has
+-- (its ornaments, perhaps a plank) and the rest stays the reader's.
 function M.chooseTheme(pack)
     local th = M.theme(pack)
-    if not th.manifest then return false end
+    if not th.exists then return false end
     return deferred(function()
     local s = record() or { before = {}, applied = {} }
     s.pack = pack
@@ -710,7 +738,7 @@ function M.chooseTheme(pack)
     -- lends nothing, so its plank would not be found.
     for _i, p in ipairs(packList()) do orn().setPackOff(p, p ~= pack) end
     local plank = M.themePlank(pack)
-    local shelf = th.manifest.shelf
+    local shelf = th.manifest and th.manifest.shelf
     local sets = { wallpaper = th.wallpaper ~= nil, colours = th.colours ~= nil,
                    plank = plank ~= nil, shelf = shelf ~= nil }
     -- What this theme does not set and an earlier one still holds: the

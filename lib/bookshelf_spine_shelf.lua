@@ -3880,7 +3880,7 @@ function SpineShelf.plan(items, opts)
                 end
             end)
         end
-        local w_dp, w, depth, face_h
+        local w_dp, w, depth, face_h, true_thick
         if face_out then
             -- The page block above a face-out cover is the book's THICKNESS:
             -- the same page-count width its spine would have had (auto scale
@@ -3892,6 +3892,9 @@ function SpineShelf.plan(items, opts)
             if t and t >= 40 and t <= 300 and t ~= 100 then
                 depth_dp = depth_dp * t / 100
             end
+            -- The true thickness, before the block's rounding and minimum:
+            -- the opening pose turns the book and shows it edge on.
+            true_thick = Screen:scaleBySize(depth_dp)
             -- The visible top is the thickness foreshortened by the camera's
             -- pitch (see VIEW_SIN): a fat book shows a broad page block above
             -- its cover, a novella a sliver. Only the cover's own height caps
@@ -3998,7 +4001,7 @@ function SpineShelf.plan(items, opts)
             book = bk, item = f.item, item_idx = f.item_idx,
             run_idx = f.run_idx, section_label = f.section_label,
             w = w, h = h, w_dp = w_dp, ref_w_dp = ref_w_dp,
-            look = look, depth = depth, face_h = face_h,
+            look = look, depth = depth, face_h = face_h, thick = true_thick,
             face_out = face_out, favourite = fav, label = label,
             author = src.author or (src.authors and src.authors[1]) or nil,
             series_num = series_num, gap_before = gap_before,
@@ -4452,6 +4455,9 @@ function SpineShelf.rowWidget(opts)
     -- ornament's. Handed to each spine as flush_dx for SpineShelf.fillLiftGap.
     local block_x0 = lead
     local recess_cols = {}
+    -- Each face-out's opening-pose record (faceout_fx), handed its row, its
+    -- widget and its recess column once the row exists.
+    local faceout_fxs = {}
     local slots_by_fp = {}
     local gap_ornaments = {}
     -- Pieces that hang from the shelf above: the widget hands them to the row
@@ -4548,6 +4554,7 @@ function SpineShelf.rowWidget(opts)
                     }
                 end
             end
+            local fx_here
             local is_sel = opts.selected_filepath ~= nil
                            and e.book.filepath == opts.selected_filepath
             -- Bulk selection: mark this book when selection mode is live
@@ -4669,7 +4676,10 @@ function SpineShelf.rowWidget(opts)
                                          -- which was the surface height back
                                          -- when that was what it meant.
                                          plank_surf = surf,
-                                         lift = tilt_lift }
+                                         lift = tilt_lift,
+                                         -- the true thickness (the pose)
+                                         thick = e.thick }
+                    fx_here = cover.faceout_fx
                     local stack = VerticalGroup:new{ align = "center" }
                     local head = fo_stand - cover_h - depth - lift
                     if head > 0 then
@@ -4799,6 +4809,13 @@ function SpineShelf.rowWidget(opts)
                 foot = (e.face_out and inset or 0),
                 fp = e.book and e.book.filepath or nil,
             }
+            -- The opening pose draws the shelf as if this book were gone:
+            -- it hides the widget and zeroes this column for one paint.
+            if fx_here then
+                fx_here.item = tile
+                fx_here.col = recess_cols[#recess_cols]
+                faceout_fxs[#faceout_fxs + 1] = fx_here
+            end
             cursor = cursor + e.w
         end
     end
@@ -5222,6 +5239,18 @@ function SpineShelf.rowWidget(opts)
     row_group._slots_by_fp = slots_by_fp
     row_group._shelf_badges = badges
     row_group._hanging, row_group._orn_list = hanging, orn_list
+    -- Where the row was last painted ON SCREEN (the group records no
+    -- position of its own): the face-out opening pose repaints it there.
+    -- Offscreen paints (a page-turn wipe's scratch) would record the wrong
+    -- place, so only the screen's own buffer counts.
+    if #faceout_fxs > 0 then
+        local paint = row_group.paintTo
+        function row_group:paintTo(bb, x, y)
+            if bb == Screen.bb then self._screen_x, self._screen_y = x, y end
+            return paint(self, bb, x, y)
+        end
+        for _i, fx in ipairs(faceout_fxs) do fx.row = row_group end
+    end
     return row_group
 end
 
@@ -5384,7 +5413,7 @@ end
 -- lines rather than stretched ones. tile is the face-out CoverTile
 -- (carries faceout_fx from rowWidget and _cover_card from its render).
 -- Returns the affected region for the caller's refresh, or nothing.
-function SpineShelf.paintFaceOutTilt(tile)
+function SpineShelf._paintFaceOutTip(tile)
     local fx = tile and tile.faceout_fx
     local card = tile and tile._cover_card
     local rect = card and card.dimen
@@ -5532,6 +5561,180 @@ function SpineShelf.paintFaceOutTilt(tile)
     local top_all = math.min(top0, block_y)
     return rect.x, top_all, rect.w,
            (rect.y + rect.h + band) - top_all
+end
+
+-- paintFaceOutTilt(tile) -- the face-out's opening frame: the book pulled
+-- off the shelf by an invisible hand on its right edge -- tipped forward,
+-- turned so its fore-edge shows, lifted, and drawn a little toward you
+-- (maintainer, 2026-10-04; the pose maths is lib/bookshelf_faceout_pose).
+-- One frame, painted straight to the screen like the tilt it replaces.
+--
+--   1. The cover alone, painted into its own buffer: the favourite and
+--      bookmark glyphs sit on the tile over the card, and are left behind.
+--   2. The shelf as if the book were gone: its widget hidden and its recess
+--      column zeroed for one paint of the row, over the page put back -- so
+--      the neighbours' wedges reach into the gap, the plank is the plank,
+--      and nothing of the standing book is left (the row repaint, not a
+--      patch-up: four rounds of patching left a bright hole).
+--   3. A soft contact shadow on the plank under the lifted book.
+--   4. The fore-edge and top as page blocks between the cover boards, per
+--      pixel through each face's inverse so the page lines follow the turn,
+--      then the cover, per pixel through its inverse (one source column per
+--      screen column smeared along the slanted edge), shaded as it turns
+--      away from the light.
+-- Falls back to the tip-forward tilt (_paintFaceOutTip) when the row did not
+-- wire it up. Returns the region to refresh.
+function SpineShelf.paintFaceOutTilt(tile)
+    local fx = tile and tile.faceout_fx
+    local card = tile and tile._cover_card
+    local rect = card and card.dimen
+    local row = fx and fx.row
+    if not (fx and rect and rect.x and rect.w and rect.w > 8 and rect.h > 16
+            and row and row._screen_x and row.dimen and fx.item and fx.col) then
+        return SpineShelf._paintFaceOutTip(tile)
+    end
+    local bb = Screen.bb
+    if not bb then return end
+    local Pose = require("lib/bookshelf_faceout_pose")
+    local night = _nightMode()
+    local W, H = rect.w, rect.h
+    local T = fx.thick or ((fx.depth or 0) / SpineShelf.VIEW_SIN)
+    if T < 2 then T = 2 end
+    local gap = math.floor(Screen:scaleBySize(SpineShelf.FACE_GAP_DP) * 0.8)
+    local P, info = Pose.pose(W, H, T, { x = rect.x, base_y = rect.y + rect.h, gap = gap })
+    local rx, ry, rw, rh = row._screen_x, row._screen_y, row.dimen.w, row.dimen.h
+    local function pt(x, y, z) local a, b = P(x, y, z); return { a, b } end
+    local function tone(v)
+        if night then v = 255 - v end
+        return Blitbuffer.ColorRGB32(v, v, v, 0xFF)
+    end
+    local ok, err = pcall(function()
+        -- 1. The cover alone.
+        local src = Blitbuffer.new(W, H, bb:getType())
+        src:blitFrom(bb, 0, 0, rect.x, rect.y, W, H)
+        local cx0, cy0 = card.dimen.x, card.dimen.y
+        pcall(function() card:paintTo(src, 0, 0) end)
+        card.dimen.x, card.dimen.y = cx0, cy0
+        -- 2. The shelf as if the book were gone.
+        local col, item = fx.col, fx.item
+        local saved_h, saved_paint = col.h, rawget(item, "paintTo")
+        col.h = 0
+        item.paintTo = function() end
+        local ok_r, err_r = pcall(function()
+            local ok_wp, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
+            if not (ok_wp and Wallpaper.restore(bb, rx, ry, rw, rh)) then
+                bb:paintRectRGB32(rx, ry, rw, rh, Blitbuffer.ColorRGB32(0xFF, 0xFF, 0xFF, 0xFF))
+            end
+            row:paintTo(bb, rx, ry)
+        end)
+        item.paintTo = saved_paint
+        col.h = saved_h
+        if not ok_r then error(err_r, 0) end
+        -- 3. The contact shadow on the plank surface, under the footprint.
+        do
+            local pb = fx.plank_b or Screen:scaleBySize(6)
+            local pf = fx.plank_face or pb
+            local ps = fx.plank_surf or (3 * pb)
+            local surf_top = rect.y + rect.h + (fx.below or 0) - (ps + pf)
+            local bl, br = P(0, 0, 0), P(W, 0, 0)
+            local bbl, bbr = P(0, 0, -T), P(W, 0, -T)
+            local xl = math.floor(math.min(bl, bbl)) - 2
+            local xr = math.ceil(math.max(br, bbr)) + 2
+            local mid, hw = (xl + xr) / 2, math.max(1, (xr - xl) / 2)
+            local y_top, y_bot = surf_top + 1, rect.y + rect.h + math.floor(pf * 0.6)
+            local rows = math.max(1, y_bot - y_top)
+            for yy = y_top, y_bot - 1, 2 do
+                local fy = 1 - ((yy - y_top) / rows) ^ 1.5
+                for x2 = xl, xr - 1, 2 do
+                    local d2 = (x2 + 1 - mid) / hw
+                    local f = 0.50 * (1 - d2 * d2) * fy
+                    if f > 0.01 then _shadeRect(bb, x2, yy, 2, 2, f, night) end
+                end
+            end
+        end
+        -- 4. The faces.
+        local board = fx.look and _boardColor(fx.look, night) or tone(0x55)
+        local bfrac = math.max(2 / T, 0.08)
+        local function shadeFace(q, inv, colourAt)
+            Pose.spansV(q, function(x, y0, y1)
+                local run_y, run_c = y0, nil
+                for y = y0, y1 do
+                    local c = (y < y1) and colourAt(inv(x + 0.5, y + 0.5)) or false
+                    -- rawequal: a Blitbuffer colour is cdata with an __eq
+                    -- that LuaJIT calls against false too, and it indexes
+                    -- the other side. The colours here are cached objects,
+                    -- so identity is the right test anyway.
+                    if not rawequal(c, run_c) then
+                        if run_c then bb:paintRectRGB32(x, run_y, 1, y - run_y, run_c) end
+                        run_y, run_c = y, c
+                    end
+                end
+            end)
+        end
+        local tones = {}
+        local function cached(v)
+            local c = tones[v]
+            if not c then c = tone(v); tones[v] = c end
+            return c
+        end
+        -- the fore-edge: u = 0 at the front board, 1 at the back
+        local f0, f1, f2, f3 = pt(W, 0, 0), pt(W, 0, -T), pt(W, H, -T), pt(W, H, 0)
+        local nf = Pose.stripes(pt(W, H / 2, 0), pt(W, H / 2, -T))
+        shadeFace({ f0, f1, f2, f3 }, Pose.inverse(f0, f1, f2, f3), function(u, _v)
+            local v = Pose.page(u, nf, bfrac)
+            if v == "board" then return board end
+            return cached(math.floor(v * (1 - 0.12 * math.max(0, math.min(1, u)))))
+        end)
+        -- the top: v = 0 at the front board, 1 at the back; the spine at u = 0
+        local t0, t1, t2, t3 = pt(0, H, 0), pt(W, H, 0), pt(W, H, -T), pt(0, H, -T)
+        local nt = Pose.stripes(pt(W / 2, H, 0), pt(W / 2, H, -T))
+        shadeFace({ t0, t1, t2, t3 }, Pose.inverse(t0, t1, t2, t3), function(u, v)
+            if u < 0.025 then return board end
+            local p = Pose.page(v, nt, bfrac)
+            if p == "board" then return board end
+            return cached(math.min(255, p + 8))      -- tipped into the light
+        end)
+        -- the cover: each pixel from its own source pixel
+        local q00, q10, q11, q01 = pt(0, 0, 0), pt(W, 0, 0), pt(W, H, 0), pt(0, H, 0)
+        local cin = Pose.inverse(q00, q10, q11, q01)
+        -- Raw memory copy when it is safe (an unrotated buffer of a byte-wide
+        -- or wider type, which src shares); the converting accessors else.
+        local raw = (not bb.getRotation or bb:getRotation() == 0)
+                    and bb:getType() ~= Blitbuffer.TYPE_BB4
+        Pose.spansV({ q00, q10, q11, q01 }, function(x, y0, y1)
+            for y = y0, y1 - 1 do
+                local u, v = cin(x + 0.5, y + 0.5)
+                local su, sv = math.floor(u * W), math.floor((1 - v) * H)
+                if su < 0 then su = 0 elseif su > W - 1 then su = W - 1 end
+                if sv < 0 then sv = 0 elseif sv > H - 1 then sv = H - 1 end
+                if raw then
+                    bb:getPixelP(x, y)[0] = src:getPixelP(su, sv)[0]
+                else
+                    bb:setPixel(x, y, src:getPixel(su, sv))
+                end
+            end
+            -- turned away from the light, darker toward the foot
+            local h = y1 - y0
+            for k = 0, 3 do
+                local by0 = y0 + math.floor(h * k / 4)
+                local by1 = y0 + math.floor(h * (k + 1) / 4)
+                if by1 > by0 then
+                    _shadeRect(bb, x, by0, 1, by1 - by0, 0.10 + 0.22 * ((k + 0.5) / 4), night)
+                end
+            end
+        end)
+        src:free()
+    end)
+    if not ok then
+        logger.dbg("[bookshelf] face-out opening pose failed, tipping instead:", err)
+        return SpineShelf._paintFaceOutTip(tile)
+    end
+    -- The row was repainted across its width, and the pose may rise above it.
+    local x0 = math.min(rx, math.floor(info.minx))
+    local y0 = math.min(ry, math.floor(info.miny))
+    local x1 = math.max(rx + rw, math.ceil(info.maxx))
+    local y1 = math.max(ry + rh, math.ceil(info.maxy))
+    return x0, y0, x1 - x0, y1 - y0
 end
 
 -- drainTileStats() -> ms, n since the last drain: face-out tile build cost

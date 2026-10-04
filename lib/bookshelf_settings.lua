@@ -1856,7 +1856,14 @@ function Settings:_perShelfThemesRow()
                     text_func = function()
                         return self:_shelfThemeLabelFor(TabModel.getById(id) or t)
                     end,
-                    sub_item_table_func = function() return self:_oneShelfThemeItems(id) end,
+                    sub_item_table_func = function()
+                        -- Show that shelf behind the menu, so a change is
+                        -- seen as it is made; it stays on screen after
+                        -- (maintainer, 2026-10-04).
+                        local bw = self._bw
+                        if bw and bw.chip ~= id and bw._setActiveChip then bw:_setActiveChip(id) end
+                        return self:_oneShelfThemeItems(id)
+                    end,
                 }
             end
             return items

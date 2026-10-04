@@ -283,4 +283,18 @@ t.test("the count of shelves with their own theme is on Themes for each shelf, n
     eq(S2._perShelfThemesRow(self2).text_func(), "Themes for each shelf")
 end)
 
+t.test("opening another shelf's theme menu shows that shelf behind it", function()
+    local self, S = build({ HW }, nil)
+    local switched = {}
+    self._bw = { chip = "home", _setActiveChip = function(w, id) switched[#switched + 1] = id; w.chip = id end }
+    local list = S._perShelfThemesRow(self).sub_item_table_func()
+    list[2].sub_item_table_func()                           -- Manga
+    eq(table.concat(switched, ","), "manga", "the shelf behind the menu did not change")
+    list[2].sub_item_table_func()                           -- Manga again: already there
+    list[1].sub_item_table_func()                           -- Home
+    eq(table.concat(switched, ","), "manga,home")
+    self._bw = nil
+    assert(list[1].sub_item_table_func(), "no shelf on screen broke the menu")
+end)
+
 t.done()

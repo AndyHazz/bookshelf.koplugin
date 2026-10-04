@@ -227,4 +227,33 @@ function M.shelf_record(fp, extra)
     return b
 end
 
+-- statCmd(what, quoted_path) -> a shell command printing one stat field, for the
+-- suites that fake lfs over `sh`. GNU stat (Linux, CI) and BSD stat (macOS)
+-- spell the same fields differently, so each command tries GNU first and falls
+-- back to BSD; the caller's `2>/dev/null` swallows the loser's usage error.
+--   "mtime"    seconds since the epoch
+--   "size"     bytes
+--   "mtime_ns" a string whose first ".<digits>" is the sub-second part
+local STAT_FORMS = {
+    mtime    = { gnu = "-c %Y",  bsd = "-f %m"  },
+    size     = { gnu = "-c %s",  bsd = "-f %z"  },
+    mtime_ns = { gnu = "-c %y",  bsd = "-f %Fm" },
+}
+function M.statCmd(what, quoted_path)
+    local f = assert(STAT_FORMS[what], "unknown stat field: " .. tostring(what))
+    return "(stat " .. f.gnu .. " " .. quoted_path
+        .. " || stat " .. f.bsd .. " " .. quoted_path .. ")"
+end
+
+-- touchAtCmd(epoch_secs, quoted_path) -> a shell command setting a file's mtime.
+-- GNU touch takes `-d @<epoch>`; BSD touch (macOS) has no @-form, so it falls
+-- back to `-t` with the same instant rendered by BSD `date -r` (both read local
+-- time, so they agree).
+function M.touchAtCmd(epoch, quoted_path)
+    epoch = math.floor(tonumber(epoch))
+    return string.format(
+        "(touch -d @%d %s || touch -t \"$(date -r %d +%%Y%%m%%d%%H%%M.%%S)\" %s)",
+        epoch, quoted_path, epoch, quoted_path)
+end
+
 return M

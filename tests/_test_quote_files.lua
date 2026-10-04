@@ -17,6 +17,7 @@ package.loaded["lib/bookshelf_settings_store"] = {
 }
 -- A shell-backed lfs, as in _test_wallpaper: attributes (whole table or one
 -- key) and a two-value dir() whose iterator needs its state, like the real one.
+local helpers_stat = dofile("tests/_helpers.lua").statCmd
 local function sh(cmd) local p = io.popen(cmd .. " 2>/dev/null"); local o = p:read("*a"); p:close(); return o end
 local lfs = {}
 function lfs.attributes(path, key)
@@ -24,11 +25,11 @@ function lfs.attributes(path, key)
     local mode = sh("test -d " .. q .. " && echo d || (test -f " .. q .. " && echo f)")
     mode = mode:match("d") and "directory" or (mode:match("f") and "file") or nil
     if not mode then return nil end
-    local a = { mode = mode, size = tonumber(sh("stat -c %s " .. q)) or 0,
-                modification = tonumber(sh("stat -c %Y " .. q)) or 0 }
+    local a = { mode = mode, size = tonumber(sh(helpers_stat("size", q))) or 0,
+                modification = tonumber(sh(helpers_stat("mtime", q))) or 0 }
     -- The size alone does not change on a same-length rewrite, so add the
     -- nanoseconds a test's quick successive writes would otherwise hide.
-    a.modification = a.modification + (tonumber(sh("stat -c %y " .. q):match("%.(%d+)")) or 0) / 1e9
+    a.modification = a.modification + (tonumber(sh(helpers_stat("mtime_ns", q)):match("%.(%d+)")) or 0) / 1e9
     if key then return a[key] end
     return a
 end

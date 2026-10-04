@@ -293,10 +293,20 @@ end)
 -- take arguments, so the body is wrapped back into a function with its real
 -- signature and `self` becomes an explicit first parameter rather than a
 -- global.
+-- The match is memoised like bodyOf's: it scans the whole widget source, and
+-- the sweeps call this per case (it was ~98% of the suite's three minutes
+-- again). Only the compile depends on env.
+local _method_cache = {}
 local function methodOf(name, env)
-    local params, body = src:match("\nfunction BookshelfWidget:" .. name
-        .. "%((.-)%)\n(.-)\nend\n")
-    assert(body, "could not find BookshelfWidget:" .. name .. "(...) - renamed?")
+    local hit = _method_cache[name]
+    if not hit then
+        local params, body = src:match("\nfunction BookshelfWidget:" .. name
+            .. "%((.-)%)\n(.-)\nend\n")
+        assert(body, "could not find BookshelfWidget:" .. name .. "(...) - renamed?")
+        hit = { params = params, body = body }
+        _method_cache[name] = hit
+    end
+    local params, body = hit.params, hit.body
     local wrapped = "return function(self, " .. params .. ")\n" .. body .. "\nend"
     return compile(wrapped, env, name)()
 end
@@ -376,8 +386,8 @@ local BASELINES = { PW5, PW3, KBASIC, STOCK }
 local COMBOS = { { false, false }, { true, false },
                  { false, true },  { true, true } }
 
--- methodOf re-matches the whole of bookshelf_widget.lua on every call, which
--- is the cost bodyOf is memoised against. bandOf runs from the nested loops
+-- methodOf used to re-match the whole of bookshelf_widget.lua on every call
+-- (its match is memoised now, like bodyOf's). bandOf runs from the nested loops
 -- below, so extracting a SECOND method per case put two minutes on the sweep
 -- when it was measured. The compiled helper only varies with the baseline's
 -- Size.padding.large, so it is cached on that.

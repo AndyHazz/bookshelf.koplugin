@@ -4102,6 +4102,14 @@ msgstr ""
 msgid "Reading 1st"
 msgstr ""
 
+#: lib/bookshelf_sort_engine.lua:644
+msgid "Favorites first"
+msgstr ""
+
+#: lib/bookshelf_sort_engine.lua:644
+msgid "Favs 1st"
+msgstr ""
+
 #: lib/bookshelf_sort_engine.lua:633 lib/bookshelf_widget.lua:18910
 #: lib/bookshelf_widget.lua:18925
 msgid "Added"

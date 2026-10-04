@@ -2323,10 +2323,13 @@ end
 --                                   default ReadCollection ("favorites")
 -- Strip both so a ★ toggle invalidates whichever shape the user has on
 -- their favourites chip(s).
+-- A chip sorted by "Favorites first" is reordered by the same edit,
+-- whatever its source, so its entries go too.
 function Repo.invalidateFavoritesCache()
     for k in pairs(_bySource_cache) do
         if k:sub(1, 10) == "favorites|"
-                or k:sub(1, 21) == "collection|favorites|" then
+                or k:sub(1, 21) == "collection|favorites|"
+                or k:find("s:favorites_first:", 1, true) then
             _bySource_cache[k] = nil
         end
     end

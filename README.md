@@ -786,6 +786,7 @@ Up to three levels per shelf. Available sort keys:
 - **Percent read** (most progress first by default)
 - **Rating** (highest first by default; unrated last)
 - **Unread/Reading/Finished** or **Reading/Unread/Finished** (status orderings)
+- **Favorites first** -- books in Favorites ahead of the rest; pair it with *Reading/Unread/Finished* or *Last opened* as the next level
 - **File size**
 - **Page count**
 - **Book count** (for stacks)

@@ -4086,6 +4086,9 @@ function SpineShelf.plan(items, opts)
     local hk = Deck and orn and Deck.fillHooks({
         dealer = Deck.dealer(Deck.copyState(opts.orn_state), cards),
         level = (#cards > 0) and orn_level or "off",
+        -- The shelf's own seed: where the pieces stand varies page to page,
+        -- the same way every visit (lib/bookshelf_ornament_deck).
+        seed = orn.mod.hash(tostring(opts.orn_shelf or "")),
         entries = entries, paginating = paginating, per_page = per_page,
         n_rows = opts.n_rows, content_w = content_w_books,
         size = size, space = space, pageKey = pageKey,

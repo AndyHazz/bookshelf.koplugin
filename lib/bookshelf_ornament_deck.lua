@@ -303,9 +303,33 @@ function M.levelOf(freq)
     return "always"
 end
 
-function M.shelfSlot(level, s)
+-- ── Seeded placement ────────────────────────────────────────────────────
+-- Most readers have two rows a page, and the fixed patterns put the pieces
+-- in the same places on every page: Always on row 1's right end and row 2's
+-- left, Often always on the lower row (maintainer, 2026-10-05). With a seed
+-- -- the shelf's own, from its id (SpineShelf.plan) -- the row a window's
+-- piece takes and the side each piece stands on are pseudo-random, but a
+-- fixed function of (seed, count), so both planning passes and every visit
+-- agree. No seed: the fixed patterns, as before.
+--
+-- mix(seed, n) -> 1 .. 2^31-2. Arithmetic only (Lua 5.1 on the device has
+-- no bit operators in the language), and every product under 2^53 so a
+-- double holds it exactly: MINSTD steps (x * 48271 mod 2^31-1).
+local function mix(seed, n)
+    local x = ((math.floor(tonumber(seed) or 0) % 2147483646) + n * 7919) % 2147483646 + 1
+    for _i = 1, 4 do x = (x * 48271) % 2147483647 end
+    return x
+end
+
+function M.shelfSlot(level, s, seed)
     local k = SHELF_EVERY[level]
-    return k ~= nil and s >= 1 and s % k == 0
+    if k == nil or s < 1 then return false end
+    if k == 1 then return true end
+    if seed == nil then return s % k == 0 end
+    -- one piece per window of k shelves, at a seeded place in the window
+    local w = math.floor((s - 1) / k)
+    local pick = math.floor(mix(seed, w) / 7) % k
+    return (s - 1) % k == pick
 end
 
 function M.gapSlot(level, b)
@@ -313,9 +337,29 @@ function M.gapSlot(level, b)
     return k ~= nil and b >= 1 and b % k == 0
 end
 
--- side(level, s): the shelf-end pieces alternate ends, counted by piece.
-function M.side(level, s)
+-- side(level, s[, seed]): which end the piece at shelf s stands on. No
+-- seed: they alternate, counted by piece. Seeded: pseudo-random per piece,
+-- never the same end three times running (a memoised run per seed, so it
+-- stays a fixed function of the count).
+local _sides = {}
+local function seededSide(seed, nth)
+    local seq = _sides[seed]
+    if not seq then seq = {}; _sides[seed] = seq end
+    for i = #seq + 1, nth do
+        local v = (math.floor(mix(seed, 100000 + i) / 13) % 2 == 1) and "right" or "left"
+        if i >= 3 and seq[i - 1] == v and seq[i - 2] == v then
+            v = (v == "right") and "left" or "right"
+        end
+        seq[i] = v
+    end
+    return seq[nth]
+end
+
+function M.side(level, s, seed)
     local k = SHELF_EVERY[level] or 1
+    if seed ~= nil and s >= 1 then
+        return seededSide(seed, math.floor((s - 1) / k) + 1)
+    end
     local nth = math.floor(s / k)
     return (nth % 2 == 1) and "right" or "left"
 end
@@ -366,6 +410,7 @@ end
 -- books' group gaps as they are placed.
 function M.fillHooks(env)
     local d, level, es = env.dealer, env.level, env.entries
+    local seed = env.seed
     local per_page = math.max(1, tonumber(env.per_page) or 1)
     local h = { row_orn = {}, row_deal = {}, page_orn = {}, dealer = d }
     local started, dealing = 0, true
@@ -388,12 +433,12 @@ function M.fillHooks(env)
         end
         if not allowed(r) then return end
         d.st.shelf = d.st.shelf + 1
-        if M.shelfSlot(level, d.st.shelf) then
+        if M.shelfSlot(level, d.st.shelf, seed) then
             local e, no = d:take()
             if e then
                 local pl = env.size("rowend", e, no)
                 if pl then
-                    pl.side = M.side(level, d.st.shelf); h.row_orn[r] = pl
+                    pl.side = M.side(level, d.st.shelf, seed); h.row_orn[r] = pl
                     h.row_deal[r] = { e, no }
                 end
             end
@@ -510,11 +555,11 @@ function M.fillHooks(env)
         local out = {}
         for r = from, to do
             d.st.shelf = d.st.shelf + 1
-            if M.shelfSlot(level, d.st.shelf) then
+            if M.shelfSlot(level, d.st.shelf, seed) then
                 local e, no = d:take()
                 if e then
                     local pl = env.size("bare", e, no)
-                    if pl then pl.side = M.side(level, d.st.shelf); out[r] = pl end
+                    if pl then pl.side = M.side(level, d.st.shelf, seed); out[r] = pl end
                 end
             end
         end

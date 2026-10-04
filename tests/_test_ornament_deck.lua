@@ -226,6 +226,87 @@ t.test("patterns: bottom rows first, per level", function()
     eq(slots(D, "gapSlot", "always", 4), "2,4")
 end)
 
+-- ── Seeded placement (2026-10-05) ───────────────────────────────────────
+-- Most readers have two rows a page, and the fixed patterns put the pieces
+-- in the same places on every page (Always: row 1's right end and row 2's
+-- left on every page; Often: always the lower row). Seeded per shelf, the
+-- side and the row in each window vary, the same way on every visit.
+local function pageSig(D, level, seed, page, rows)
+    local parts = {}
+    for r = 1, rows do
+        local s = (page - 1) * rows + r
+        if D.shelfSlot(level, s, seed) then parts[#parts + 1] = r .. D.side(level, s, seed)
+        else parts[#parts + 1] = r .. "-" end
+    end
+    return table.concat(parts, ",")
+end
+
+t.test("seeded: the same seed always gives the same pattern", function()
+    local D = fresh()
+    local a, b = {}, {}
+    for s = 1, 40 do a[s] = tostring(D.shelfSlot("often", s, 1234)) .. D.side("often", s, 1234) end
+    local D2 = fresh()
+    for s = 1, 40 do b[s] = tostring(D2.shelfSlot("often", s, 1234)) .. D2.side("often", s, 1234) end
+    eq(table.concat(a, " "), table.concat(b, " "))
+end)
+
+t.test("seeded: Often is one piece per two shelves, Rarely one per four", function()
+    local D = fresh()
+    for _i, c in ipairs({ { "often", 2 }, { "rarely", 4 } }) do
+        for w = 0, 19 do
+            local n = 0
+            for i = 1, c[2] do if D.shelfSlot(c[1], w * c[2] + i, 777) then n = n + 1 end end
+            eq(n, 1, c[1] .. " window " .. w .. " holds " .. n .. " pieces")
+        end
+    end
+    for s = 1, 20 do assert(D.shelfSlot("always", s, 777), "Always skipped shelf " .. s) end
+end)
+
+t.test("seeded: Often does not always pick the lower row", function()
+    local D = fresh()
+    local upper = 0
+    for w = 0, 19 do if D.shelfSlot("often", w * 2 + 1, 4242) then upper = upper + 1 end end
+    assert(upper > 0 and upper < 20, "Often picked the same row in every window: " .. upper)
+end)
+
+t.test("seeded: never the same side three times running", function()
+    local D = fresh()
+    for _i, seed in ipairs({ 1, 99, 31337, 2026 }) do
+        local run, last = 0, nil
+        for s = 1, 60 do
+            local side = D.side("always", s, seed)
+            if side == last then run = run + 1 else run, last = 1, side end
+            assert(run <= 2, "seed " .. seed .. " put three in a row at " .. s)
+        end
+    end
+end)
+
+t.test("seeded: a two-row shelf at Always does not repeat one arrangement on every page", function()
+    local D = fresh()
+    local sigs, distinct = {}, 0
+    for page = 1, 10 do
+        local sig = pageSig(D, "always", 5150, page, 2)
+        if not sigs[sig] then sigs[sig] = true; distinct = distinct + 1 end
+    end
+    assert(distinct >= 2, "every page had the same arrangement")
+end)
+
+t.test("seeded: different shelves get different patterns", function()
+    local D = fresh()
+    local a, b = {}, {}
+    for s = 1, 30 do a[s] = D.side("always", s, 11); b[s] = D.side("always", s, 12) end
+    assert(table.concat(a) ~= table.concat(b), "two seeds gave the same sides")
+end)
+
+t.test("the plan hands the deck the shelf's seed, and the hooks use it", function()
+    local sp = io.open("lib/bookshelf_spine_shelf.lua"):read("*a")
+    assert(sp:find("seed = orn.mod.hash(tostring(opts.orn_shelf or \"\")),", 1, true),
+        "plan does not seed the deck per shelf")
+    local dk = io.open("lib/bookshelf_ornament_deck.lua"):read("*a")
+    assert(dk:find("M.shelfSlot(level, d.st.shelf, seed)", 1, true)
+        and dk:find("M.side(level, d.st.shelf, seed)", 1, true), "the hooks ignore the seed")
+end)
+
 t.test("levels from the frequency number", function()
     local D = fresh()
     eq(D.levelOf(0), "off"); eq(D.levelOf(0.5), "rarely"); eq(D.levelOf(1), "often")

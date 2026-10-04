@@ -21,6 +21,7 @@ local CODE = table.concat({
     grab("\n(function Settings:_shelfThemeSubItems%(%).-\nend)\n", "_shelfThemeSubItems"),
     grab("\n(function Settings:_shelfThemeText%(%).-\nend)\n", "_shelfThemeText"),
     grab("\n(function Settings:_setShelfThemeField%(id, field, value%).-\nend)\n", "_setShelfThemeField"),
+    grab("\n(function Settings:_setShelfThemeFields%(id, fields%).-\nend)\n", "_setShelfThemeFields"),
     grab("\n(function Settings:_shelvesDiffer%(%).-\nend)\n", "_shelvesDiffer"),
     grab("\n(local function _lookLabel%(value%).-\nend)\n", "_lookLabel"),
     grab("\n(function Settings:_shelfThemeLabelFor%(tab%).-\nend)\n", "_shelfThemeLabelFor"),
@@ -215,30 +216,51 @@ t.test("a shelf's label names the light/dark it shows, its pack's when the pack 
     eq(S._perShelfThemesRow(self).sub_item_table_func()[1].text_func(), "Latest: Dark, Halloween")
 end)
 
-t.test("a shelf's menu: same as library, Auto/Light/Dark, No theme pack, the packs", function()
-    local self, S = build({ HW, UK }, "Halloween")
+t.test("a shelf's menu: a Same as library checkbox over the library's choices, greyed", function()
+    local self, S, seen = build({ HW, UK }, "Halloween")
+    seen.store.shelf_theme = "light"
     local rows = S._oneShelfThemeItems(self, "manga")
     local texts = {}
     for i, r in ipairs(rows) do texts[i] = r.text end
     eq(table.concat(texts, "|"), "Same as library|Auto (follow device)|Light|Dark|No theme pack|Halloween|Ukiyo-e")
     assert(rows[1].checked_func(), "an untouched shelf is not on Same as library")
-    for i = 2, #rows do assert(not rows[i].checked_func(), texts[i] .. " checked on an untouched shelf") end
+    eq(rows[1].radio, nil, "Same as library is a radio button, not a checkbox")
+    for i = 2, #rows do
+        eq(rows[i].radio, true, texts[i] .. " is not a radio button")
+        eq(rows[i].enabled_func(), false, texts[i] .. " can be chosen while following the library")
+    end
+    -- the greyed rows show what the library uses
+    eq(rows[3].checked_func(), true, "the library's Light is not shown")
+    eq(rows[6].checked_func(), true, "the library's Halloween is not shown")
+    eq(rows[2].checked_func() or rows[4].checked_func() or rows[5].checked_func() or rows[7].checked_func(), false)
 end)
 
-t.test("choosing writes only that shelf's field; Same as library clears both", function()
+t.test("unticking copies the library's choices; ticking drops the shelf's own", function()
     local self, S, seen = build({ HW, UK }, "Halloween")
+    seen.store.shelf_theme = "light"
     local rows = S._oneShelfThemeItems(self, "manga")
+    rows[1].callback(nil)                                   -- untick
+    eq(seen.saved[2].theme, "Halloween"); eq(seen.saved[2].theme_look, "light")
+    eq(rows[2].enabled_func(), true, "the choices did not come alive")
+    eq(rows[1].checked_func(), false)
     rows[7].callback(nil)                                   -- Ukiyo-e
-    eq(seen.saved[2].theme, "Ukiyo-e"); eq(seen.saved[2].theme_look, nil)
-    eq(#seen.chosen, 0, "the library theme changed")
+    eq(seen.saved[2].theme, "Ukiyo-e"); eq(seen.saved[2].theme_look, "light")
     rows[4].callback(nil)                                   -- Dark
-    eq(seen.saved[2].theme_look, "dark"); eq(seen.saved[2].theme, "Ukiyo-e")
+    eq(seen.saved[2].theme_look, "dark")
     rows[5].callback(nil)                                   -- No theme pack
     eq(seen.saved[2].theme, "none")
-    rows[1].callback(nil)                                   -- Same as library
+    eq(#seen.chosen, 0, "the library theme changed")
+    rows[1].callback(nil)                                   -- tick again
     eq(seen.saved[2].theme, nil); eq(seen.saved[2].theme_look, nil)
     assert(seen.full > 0, "a shelf's theme change did not refresh the whole screen")
     eq(seen.saved[1].theme, nil, "another shelf changed")
+end)
+
+t.test("unticking under no library theme copies No theme pack", function()
+    local self, S, seen = build({ HW }, nil)
+    local rows = S._oneShelfThemeItems(self, "manga")
+    rows[1].callback(nil)
+    eq(seen.saved[2].theme, "none"); eq(seen.saved[2].theme_look, "auto")
 end)
 
 t.test("a shelf's missing pack is listed, checked", function()

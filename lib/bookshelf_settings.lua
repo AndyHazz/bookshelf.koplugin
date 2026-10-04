@@ -1701,6 +1701,22 @@ function Settings:_setShelfThemeField(id, field, value)
     TabModel.save(tabs)
 end
 
+-- _setShelfThemeFields(id, fields): several fields in one save (false
+-- clears one).
+function Settings:_setShelfThemeFields(id, fields)
+    local TabModel = require("lib/bookshelf_tab_model")
+    local tabs = TabModel.load()
+    for _i, t in ipairs(tabs or {}) do
+        if t.id == id then
+            for k, v in pairs(fields) do
+                if v == false then t[k] = nil else t[k] = v end
+            end
+            break
+        end
+    end
+    TabModel.save(tabs)
+end
+
 -- _shelvesDiffer() -> how many enabled shelves wear a theme of their own.
 function Settings:_shelvesDiffer()
     local n = 0
@@ -1741,7 +1757,11 @@ function Settings:_shelfThemeLabelFor(tab)
     return T(_("%1: %2, %3"), label, look, theme)
 end
 
--- _oneShelfThemeItems(id): the theme menu for one shelf.
+-- _oneShelfThemeItems(id): the theme menu for one shelf. A Same as library
+-- CHECKBOX over the usual radio rows (maintainer, 2026-10-04): ticked, the
+-- shelf follows the library and the rows are greyed but show what the
+-- library uses; unticked, the shelf has its own theme, starting from a copy
+-- of the library's choices so nothing changes until one is picked.
 function Settings:_oneShelfThemeItems(id)
     local TP = require("lib/bookshelf_theme_pack")
     -- A new look for the shelf: built again, the whole screen refreshed.
@@ -1750,9 +1770,24 @@ function Settings:_oneShelfThemeItems(id)
         UIManager:setDirty("all", "full")
         if touchmenu_instance then touchmenu_instance:updateItems() end
     end
+    local function following()
+        return TP.shelfChoiceFor(id) == nil and TP.shelfLookFor(id) == nil
+    end
+    local function own() return not following() end
+    -- What a row shows: the library's choice while following, else the
+    -- shelf's own (or, for a field it never set, what it shows now).
+    local function lookShown()
+        if following() then return self:_shelfTheme() end
+        return TP.shelfLookFor(id) or TP.shelfLookOf(id)
+    end
+    local function packShown()
+        if following() then return TP.currentTheme() or "none" end
+        return TP.shelfChoiceFor(id) or TP.currentTheme() or "none"
+    end
     local function radio(text, checked, apply, help)
         return {
             text = text, help_text = help, radio = true, keep_menu_open = true,
+            enabled_func = own,
             checked_func = checked,
             callback = function(touchmenu_instance)
                 if checked() then return end
@@ -1762,20 +1797,29 @@ function Settings:_oneShelfThemeItems(id)
         }
     end
     local rows = {}
-    rows[#rows + 1] = radio(_("Same as library"),
-        function() return TP.shelfChoiceFor(id) == nil and TP.shelfLookFor(id) == nil end,
-        function()
-            self:_setShelfThemeField(id, "theme", nil)
-            self:_setShelfThemeField(id, "theme_look", nil)
-        end)
-    rows[#rows].separator = true
+    rows[#rows + 1] = {
+        text = _("Same as library"),
+        keep_menu_open = true,
+        checked_func = following,
+        callback = function(touchmenu_instance)
+            if following() then
+                -- Its own theme, from a copy of the library's: same look.
+                self:_setShelfThemeFields(id, { theme = TP.currentTheme() or "none",
+                                                theme_look = self:_shelfTheme() })
+            else
+                self:_setShelfThemeFields(id, { theme = false, theme_look = false })
+            end
+            done(touchmenu_instance)
+        end,
+        separator = true,
+    }
     for _i, t in ipairs(Settings.SHELF_THEMES) do
         local value = t.value
-        rows[#rows + 1] = radio(t.label(), function() return TP.shelfLookFor(id) == value end,
+        rows[#rows + 1] = radio(t.label(), function() return lookShown() == value end,
             function() self:_setShelfThemeField(id, "theme_look", value) end)
     end
     rows[#rows].separator = true
-    rows[#rows + 1] = radio(_("No theme pack"), function() return TP.shelfChoiceFor(id) == "none" end,
+    rows[#rows + 1] = radio(_("No theme pack"), function() return packShown() == "none" end,
         function() self:_setShelfThemeField(id, "theme", "none") end)
     local cur = TP.shelfChoiceFor(id)
     if type(cur) == "string" and cur ~= "none" and not TP.theme(cur).exists then
@@ -1785,7 +1829,7 @@ function Settings:_oneShelfThemeItems(id)
     for _i, th in ipairs(TP.allThemes()) do
         local pack = th.pack
         local label = th.ornaments_only and T(_("%1 (ornaments only)"), th.name) or th.name
-        rows[#rows + 1] = radio(label, function() return TP.shelfChoiceFor(id) == pack end,
+        rows[#rows + 1] = radio(label, function() return packShown() == pack end,
             function() self:_setShelfThemeField(id, "theme", pack) end, th.description)
     end
     return rows

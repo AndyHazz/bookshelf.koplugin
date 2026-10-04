@@ -16,7 +16,7 @@ local lfs_shim = {
             if sh("test -d " .. q .. " && echo d"):match("d") then return "directory" end
             if sh("test -e " .. q .. " && echo f"):match("f") then return "file" end
             return nil
-        elseif attr == "modification" then return tonumber(sh("stat -c %Y " .. q)) end
+        elseif attr == "modification" then return tonumber(sh(dofile("tests/_helpers.lua").statCmd("mtime", q))) end
         return nil
     end,
     dir = function(path)

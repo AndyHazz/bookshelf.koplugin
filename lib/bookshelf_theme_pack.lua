@@ -237,6 +237,73 @@ function M.invalidate() M._cache = {}; M._plank_memo = nil end
 -- re-listing every pack's theme folder the way invalidate() does.
 function M.forgetChoice() M._plank_memo = nil end
 
+-- ── THE SHELF ON SCREEN ─────────────────────────────────────────────────
+-- Any shelf may wear its own theme (tab.theme: unset = the library's,
+-- "none" = no theme pack, else a pack's folder; tab.theme_look: unset or
+-- auto/light/dark). The widget names the shelf before each build
+-- (setShelf); the lookups below answer from that shelf's pack where it has
+-- the part, else as before. Nothing is written: a change of look only bumps
+-- the settings generation, so the caches keyed on it are rebuilt.
+M._shelf = nil
+M._shelf_key = "lib"
+M._tab = nil      -- seam: fn(id) -> tab record
+
+local function tabFor(id)
+    if id == nil then return nil end
+    if M._tab then return M._tab(id) end
+    local ok, TabModel = pcall(require, "lib/bookshelf_tab_model")
+    if not ok or not TabModel then return nil end
+    local ok2, tab = pcall(TabModel.getById, id)
+    return ok2 and tab or nil
+end
+
+-- shelfChoiceFor(id) -> nil | "none" | a pack's folder: the tab's own choice.
+function M.shelfChoiceFor(id)
+    local tab = tabFor(id)
+    local v = tab and tab.theme
+    return (type(v) == "string" and v ~= "") and v or nil
+end
+
+-- shelfLookFor(id) -> nil (follow) | "auto" | "light" | "dark".
+function M.shelfLookFor(id)
+    local tab = tabFor(id)
+    local v = tab and tab.theme_look
+    if v == "auto" or v == "light" or v == "dark" then return v end
+    return nil
+end
+
+-- shelfPackFor(id) -> nil (the library's), "none", or a pack that exists. A
+-- pack that has gone reads as the library's; the tab keeps its name, so it
+-- comes back with the folder.
+function M.shelfPackFor(id)
+    local v = M.shelfChoiceFor(id)
+    if v == nil or v == "none" then return v end
+    if M.theme(v).exists then return v end
+    return nil
+end
+
+function M.shelfPack() return M.shelfPackFor(M._shelf) end
+
+-- shelfKey() -> what the shelf on screen looks like, as a cache key.
+function M.shelfKey()
+    local sp = M.shelfPack()
+    local look = M.shelfLookFor(M._shelf)
+    local k = (sp == nil and "lib") or (sp == "none" and "none") or ("pack:" .. sp)
+    if look then k = k .. "|" .. look end
+    return k
+end
+
+-- setShelf(id) -> true when the shelf on screen now looks different.
+function M.setShelf(id)
+    M._shelf = id
+    local key = M.shelfKey()
+    if key == M._shelf_key then return false end
+    M._shelf_key = key
+    local s = store()
+    if s and s.bump then s.bump() end
+    return true
+end
+
 -- themePacks() -> the installed theme packs (a theme/theme.json), for the
 -- Shelf theme menu: { pack, name, description, shelf, plank }, by name. A
 -- pack switched off is listed too: choosing it switches it on.
@@ -353,15 +420,27 @@ end
 -- chosenPlank() -> the plank design the reader has chosen (a pack's, or the
 -- built-in Oak), whether or not designs are switched on: what Performance
 -- tweaks names.
+--
+-- The shelf on screen: its pack's plank when it has one; on No theme pack the
+-- reader's own choice (from before any library theme); else the library's.
+-- The memo is per shelf look.
 function M.chosenPlank()
     local now = M._clock()
+    local key = M.shelfKey()
     local memo = M._plank_memo
-    if memo and M.SCAN_TTL > 0 and (now - memo.at) < M.SCAN_TTL then return memo.v end
-    local c = M.plankChoice()
+    if memo and memo.key == key and M.SCAN_TTL > 0 and (now - memo.at) < M.SCAN_TTL then
+        return memo.v
+    end
     local v
-    if c == "oak" then v = M.builtinPlank()
-    elseif c ~= "colour" then v = M._packPlank(c) end
-    M._plank_memo = { at = now, v = v }
+    local sp = M.shelfPack()
+    if sp ~= nil and sp ~= "none" and #(M.theme(sp).planks or {}) > 0 then
+        v = M.themePlank(sp)
+    else
+        local c = M.plankChoice(sp == "none" and M.ownRead or nil)
+        if c == "oak" then v = M.builtinPlank()
+        elseif c ~= "colour" then v = M._packPlank(c) end
+    end
+    M._plank_memo = { at = now, v = v, key = key }
     return v
 end
 
@@ -397,11 +476,12 @@ function M._packPlank(id)
     return nil
 end
 
-local function fallbackChoice()
-    local wood = read(M.WOOD_SETTING)
+local function fallbackChoice(rd)
+    rd = rd or read
+    local wood = rd(M.WOOD_SETTING)
     if wood == "oak" then return "oak" end
     if wood == false then return "colour" end
-    if read("spine_plank_color") ~= nil or read("spine_plank_color_night") ~= nil then
+    if rd("spine_plank_color") ~= nil or rd("spine_plank_color_night") ~= nil then
         return "colour"
     end
     return "oak"
@@ -410,12 +490,16 @@ end
 -- plankChoice() -> "colour" | "oak" | a pack plank's id: what shows (a pack
 -- plank whose pack is off or gone reads as the fallback, and comes back when
 -- the pack is on again).
-function M.plankChoice()
-    local v = read(M.PLANK_SETTING)
+--
+-- rd reads the settings (M.ownRead for a shelf on No theme pack); default
+-- the settings as they are.
+function M.plankChoice(rd)
+    rd = rd or read
+    local v = rd(M.PLANK_SETTING)
     if v == false then return "colour" end
     if v == "oak" then return "oak" end
     if type(v) == "string" and M._packPlank(v) then return v end
-    return fallbackChoice()
+    return fallbackChoice(rd)
 end
 
 -- choosePlank(choice): the reader's pick. Choosing a design shows it, even
@@ -540,6 +624,17 @@ local function record()
     return s
 end
 
+-- ownRead(k) -> the reader's own value of k: the value from before the
+-- library theme when the theme still holds k as it left it, else k itself.
+-- What a shelf on No theme pack shows.
+function M.ownRead(k)
+    local s = record()
+    if s and s.applied[k] ~= nil and read(k) == dec(s.applied[k]) then
+        return dec(s.before[k])
+    end
+    return read(k)
+end
+
 -- currentTheme() -> the theme pack in use (its folder name), or nil. It stays
 -- named while the reader changes its parts: only No theme pack, another
 -- theme, or the pack going ends it.
@@ -661,8 +756,15 @@ end
 -- STORED convention of its slot, or nil. Night slots hold colours pre-inverted
 -- for a frame that will flip (see bookshelf_color.invertValue); the plank is
 -- the one exception, kept in display space in both.
+--
+-- The shelf on screen: its pack's colours when it has them; none on No theme
+-- pack; else the library's.
 function M.colourOverride(key, dark)
-    local pack = M.activeColoursPack()
+    local sp = M.shelfPack()
+    if sp == "none" then return nil end
+    local pack
+    if sp ~= nil and M.theme(sp).colours then pack = sp
+    else pack = M.activeColoursPack() end
     if not pack then return nil end
     local c = M.theme(pack).colours
     local set = c and (dark and c.night or c.day)
@@ -731,14 +833,30 @@ end
 -- that pack's variant, else the reader's own from before it; with neither,
 -- whatever the default shows ("Same as default"). The default: its choice, a
 -- pack's as its variant for this view, else the reader's own from before it.
+--
+-- The shelf on screen: its pack's wallpaper when it has one (full screen None
+-- stays None); on No theme pack the reader's own, never a pack's; else as
+-- above.
 function M.shownWallpaper(is_full, is_dark)
+    local sp = M.shelfPack()
+    if sp ~= nil and sp ~= "none" then
+        local th = M.theme(sp)
+        if th.wallpaper then
+            if is_full and read("wallpaper_full") == false then return nil end
+            local file = M.wallpaperFile(th.wallpaper, is_full, is_dark)
+            if file then return M.NAME_PREFIX .. sp .. "\1" .. file end
+        end
+    end
+    local own_only = (sp == "none")
     local function layer(key, full_view)
         local v = read(key)
         if not M.isPackName(v) then
             return (type(v) == "string" and v ~= "") and v or nil
         end
-        local shown = M.variantName(v, full_view, is_dark)
-        if shown then return shown end
+        if not own_only then
+            local shown = M.variantName(v, full_view, is_dark)
+            if shown then return shown end
+        end
         local own = read(key .. "_own")
         return (type(own) == "string" and own ~= "" and not M.isPackName(own)) and own or nil
     end
@@ -749,6 +867,26 @@ function M.shownWallpaper(is_full, is_dark)
         if n then return n end
     end
     return layer("wallpaper_default", is_full)
+end
+
+-- shelfLook() -> "auto" | "light" | "dark" for the shelf on screen: its own
+-- choice; else its pack's manifest when it says; on No theme pack the
+-- reader's own; else the setting (which a library theme may hold).
+function M.shelfLook()
+    local own = M.shelfLookFor(M._shelf)
+    if own then return own end
+    local sp = M.shelfPack()
+    local v
+    if sp == "none" then
+        v = M.ownRead(M.SHELF_SETTING)
+    elseif sp ~= nil then
+        local m = M.theme(sp).manifest
+        v = (m and m.shelf) or read(M.SHELF_SETTING)
+    else
+        v = read(M.SHELF_SETTING)
+    end
+    if v == "light" or v == "dark" then return v end
+    return "auto"
 end
 
 -- migrate(): the 5.3 betas "lent" a pack's wallpaper over the reader's own

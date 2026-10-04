@@ -2578,7 +2578,8 @@ function BookshelfWidget:_rebuild()
             -- Panelling just the rows would then leave the gaps between them
             -- on bare picture, so the panel runs the whole way, exactly as the
             -- full-screen micro-module view does.
-            list_full = self:_isListMode() and true or false,
+            -- And Covers, when the reader asks (Panel shading, issue 483).
+            list_full = self:_fullPanel(),
         })
     end
 
@@ -5351,6 +5352,18 @@ end
 
 function BookshelfWidget:_isSpineMode()
     return ViewMode.isSpines(self:_viewMode())
+end
+
+-- _fullPanel() -> does the top panel run on behind the shelf and the footer?
+-- Always in list mode (its rows have no ground of their own); on Covers
+-- shelves when Panel shading > "Show panel behind 'Covers' shelf style" is
+-- ticked (issue 483); never on spines, which stand on their planks.
+function BookshelfWidget:_fullPanel()
+    if self:_isListMode() then return true end
+    if self:_viewMode() ~= ViewMode.COVERS then return false end
+    local ok, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
+    return (ok and Wallpaper and BookshelfSettings.read(Wallpaper.COVERS_PANEL_SETTING) == true)
+        and true or false
 end
 
 -- _flipViewMode() -- the footer-hold gesture: pin THIS CHIP to the other mode.

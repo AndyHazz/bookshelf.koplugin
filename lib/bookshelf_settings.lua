@@ -2008,6 +2008,23 @@ function Settings:_scrimSubItems()
             end,
         }
     end
+    rows[#rows].separator = true
+    -- Covers shelves can take list mode's one panel, behind the top panel,
+    -- the covers and the footer (issue 483), at the strength chosen above.
+    rows[#rows + 1] = {
+        text = _("Show panel behind 'Covers' shelf style"),
+        keep_menu_open = true,
+        checked_func = function()
+            return BookshelfSettings.read(Wallpaper.COVERS_PANEL_SETTING) == true
+        end,
+        callback = function(touchmenu_instance)
+            local on = BookshelfSettings.read(Wallpaper.COVERS_PANEL_SETTING) == true
+            BookshelfSettings.save(Wallpaper.COVERS_PANEL_SETTING, (not on) and true or nil)
+            BookshelfSettings.flush()
+            self:_markDirty()
+            if touchmenu_instance then touchmenu_instance:updateItems() end
+        end,
+    }
     return rows
 end
 

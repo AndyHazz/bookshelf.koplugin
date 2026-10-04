@@ -273,6 +273,11 @@ function ShelfRow.new(opts)
         if type(plate_strength) == "number" and plate_strength <= 0 then
             plate_fill = nil
         end
+        -- The shelf's own panel runs behind the covers (Panel shading > Show
+        -- panel behind 'Covers' shelf style, issue 483): no plate on top.
+        if BookshelfSettings.read(plate_wp.COVERS_PANEL_SETTING or "") == true then
+            plate_fill = nil
+        end
     end
     local PLATE_RADIUS = Space.px(2)
     local function plated(widget)

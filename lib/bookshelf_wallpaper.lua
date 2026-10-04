@@ -138,6 +138,9 @@ end
 -- toward the ground colour the chrome was drawn for. Same reasoning as the
 -- night card shadow's #D9D9D9.
 M.SCRIM_SETTING = "wallpaper_chrome_scrim"
+-- Covers shelves get list mode's one continuous panel (top panel, shelf and
+-- footer) when this is true, and their labels lose the plate (issue 483).
+M.COVERS_PANEL_SETTING = "covers_full_panel"
 
 -- Fraction of chrome_bg to blend over the strip. Heavy rather than Medium:
 -- 0.6 leaves the picture legible under the chrome, but "legible under" is not

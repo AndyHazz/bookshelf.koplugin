@@ -331,11 +331,26 @@ end
 -- No theme pack with no library theme); only a different look is worth a
 -- full-screen repaint, ~350ms on a PW5. Not shelfKey, which names the
 -- choice: the plank memo is keyed on that, and the pool follows it.
+--
+-- Light/dark as it RESOLVES: Auto is whatever the device is showing now, so
+-- a shelf on Auto in daylight looks the same as one on Light.
+M._autoDark = nil   -- seam: fn() -> true when Auto resolves to dark
+local function autoDark()
+    if M._autoDark then return M._autoDark() == true end
+    local ok, Sync = pcall(require, "lib/bookshelf_night_mode_sync")
+    local ok_d, Device = pcall(require, "device")
+    if not (ok and Sync and Sync.active and ok_d and Device and Device.screen) then return false end
+    local ok2, dark = pcall(Sync.active, Device.screen)
+    return ok2 and dark == true
+end
+
 function M.lookKey()
     local plank = M.activePlank()
+    local look = M.shelfLook()
+    if look == "auto" then look = autoDark() and "dark" or "light" end
     return table.concat({
         tostring(M.shownWallpaper(false, false)), tostring(M.shownWallpaper(true, false)),
-        tostring(M.effectiveColoursPack()), tostring(plank and plank.id), M.shelfLook(),
+        tostring(M.effectiveColoursPack()), tostring(plank and plank.id), look,
     }, "\2")
 end
 

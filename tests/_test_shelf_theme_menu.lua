@@ -80,7 +80,12 @@ local function build(packs, current, tabs)
             if m == "lib/bookshelf_theme_pack" then return TP end
             if m == "lib/bookshelf_tab_model" then
                 return { load = function() return tabs end, save = function(v) seen.saved = v end,
-                         getActive = function() return tabs end, getById = function(id) return tabs_by[id] end }
+                         getActive = function()
+                             local on = {}
+                             for _i, tb in ipairs(tabs) do if tb.enabled ~= false then on[#on + 1] = tb end end
+                             return on
+                         end,
+                         getById = function(id) return tabs_by[id] end }
             end
             if m == "lib/bookshelf_cover_progress" then return { THEME_SETTING = "shelf_theme" } end
             if m == "ui/widget/infomessage" then return { new = function(_s, o) return o end } end
@@ -105,7 +110,7 @@ t.test("with no theme packs: Auto, Light, Dark, then Add theme", function()
     local rows = S._shelfThemeSubItems(self)
     eq(#rows, 5)
     eq(rows[3].separator, true)
-    eq(rows[4].text, "Themes for each shelf", "a shelf cannot pick light/dark without packs")
+    eq(rows[4].text_func(), "Themes for each shelf", "a shelf cannot pick light/dark without packs")
     eq(rows[5].text, "Add theme\xE2\x80\xA6")
     eq(seen.rescans, 1, "opening the menu did not rescan the packs")
 end)
@@ -120,7 +125,7 @@ t.test("theme packs follow a separator: No theme pack, then each by name, then A
     for i = 4, 6 do eq(rows[i].radio, true); eq(rows[i].keep_menu_open, true) end
     eq(rows[4].checked_func(), false); eq(rows[5].checked_func(), true); eq(rows[6].checked_func(), false)
     eq(rows[6].separator, true, "the packs are not set apart")
-    eq(rows[7].text, "Themes for each shelf")
+    eq(rows[7].text_func(), "Themes for each shelf")
     eq(rows[8].text, "Add theme\xE2\x80\xA6")
 end)
 
@@ -176,7 +181,7 @@ end)
 t.test("Themes for each shelf sits between the packs and Add theme", function()
     local self, S = build({ HW, UK }, "Halloween")
     local rows = S._shelfThemeSubItems(self)
-    eq(rows[#rows - 1].text, "Themes for each shelf")
+    eq(rows[#rows - 1].text_func(), "Themes for each shelf")
     eq(rows[#rows].text, "Add theme\xE2\x80\xA6")
     assert(rows[#rows - 1].sub_item_table_func, "the row has no submenu")
 end)
@@ -244,12 +249,16 @@ t.test("a shelf's missing pack is listed, checked", function()
     assert(hit and hit.checked_func(), "the missing pack is not shown as the choice")
 end)
 
-t.test("the top-level row says when shelves differ", function()
+t.test("the count of shelves with their own theme is on Themes for each shelf, not the top row", function()
     local self, S = build({ HW }, "Halloween", { { id = "home", label = "Home" },
-                                                 { id = "manga", label = "Manga", theme = "none" } })
-    assert(S._shelfThemeText(self):find("(shelves differ: 1)", 1, true), "no hint that a shelf differs")
+                                                 { id = "manga", label = "Manga", theme = "none" },
+                                                 { id = "off", label = "Off", enabled = false, theme = "Halloween" } })
+    eq(S._shelfThemeText(self), "Shelf theme: Auto (follow device), Halloween", "the top row still carries the count")
+    eq(S._perShelfThemesRow(self).text_func(), "Themes for each shelf (1 of 2)",
+       "the count is not there, or counts a disabled shelf")
+    eq(#S._perShelfThemesRow(self).sub_item_table_func(), 2, "a disabled shelf is listed")
     local self2, S2 = build({ HW }, "Halloween")
-    assert(not S2._shelfThemeText(self2):find("differ", 1, true), "a hint with no shelf differing")
+    eq(S2._perShelfThemesRow(self2).text_func(), "Themes for each shelf")
 end)
 
 t.done()

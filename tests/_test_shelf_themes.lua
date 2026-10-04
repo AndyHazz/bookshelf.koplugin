@@ -338,4 +338,16 @@ t.test("anyShelfTheme: an enabled shelf with a theme or light/dark of its own", 
     eq(TP.anyShelfTheme(), true)
 end)
 
+t.test("Auto and Light that look the same do not count as a new look", function()
+    local TP, d, settings, _po, _o, tabs = setup()
+    tabs.home = { id = "home", theme_look = "auto" }
+    tabs.genres = { id = "genres", theme_look = "light" }
+    local night = false
+    TP._autoDark = function() return night end
+    TP.setShelf("home")
+    eq(TP.setShelf("genres"), false, "Auto in daylight flashed against Light")
+    night = true
+    eq(TP.setShelf("home"), true, "Auto at night is dark, a different look from Light")
+end)
+
 t.done()

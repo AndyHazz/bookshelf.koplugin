@@ -1794,7 +1794,15 @@ end
 -- _perShelfThemesRow(): "Themes for each shelf", a row per enabled shelf.
 function Settings:_perShelfThemesRow()
     return {
-        text = _("Themes for each shelf"),
+        -- How many enabled shelves wear a theme of their own, out of all the
+        -- enabled ones: here, not on the top row, which it cluttered
+        -- (maintainer, 2026-10-04).
+        text_func = function()
+            local n = self:_shelvesDiffer()
+            if n == 0 then return _("Themes for each shelf") end
+            local total = #(require("lib/bookshelf_tab_model").getActive() or {})
+            return T(_("Themes for each shelf (%1 of %2)"), n, total)
+        end,
         sub_item_table_func = function()
             local TabModel = require("lib/bookshelf_tab_model")
             local items = {}
@@ -2370,12 +2378,8 @@ end
 -- bookshelf_theme): light or dark, and the theme pack in use.
 function Settings:_shelfThemeText()
     local pack = self:_themePackLabel()
-    local base = pack and T(_("Shelf theme: %1, %2"), self:_shelfThemeLabel(), pack)
-                 or T(_("Shelf theme: %1"), self:_shelfThemeLabel())
-    -- Shelves wearing a theme of their own (Themes for each shelf).
-    local n = self:_shelvesDiffer()
-    if n > 0 then base = base .. " " .. T(_("(shelves differ: %1)"), n) end
-    return base
+    if pack then return T(_("Shelf theme: %1, %2"), self:_shelfThemeLabel(), pack) end
+    return T(_("Shelf theme: %1"), self:_shelfThemeLabel())
 end
 
 function Settings:_shelfThemeHelp()

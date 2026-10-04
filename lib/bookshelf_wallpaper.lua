@@ -821,7 +821,10 @@ function M.ground() return M._ground end
 -- asking "what is behind me", not "am I in a panel" -- they have no business
 -- knowing, and every one of them would have to be told.
 M._panel = nil
-function M.setPanel(x, y, w, h, colour, strength, radius)
+-- gap_y: a 1px row across the panel left untinted, where the full panel
+-- meets the footer (the shelf's own panel, list mode and Covers): a repaint
+-- over it puts the bare picture back there, as the panel left it.
+function M.setPanel(x, y, w, h, colour, strength, radius, gap_y)
     if not (x and y and w and h) or w <= 0 or h <= 0
             or type(colour) == "nil" or not strength or strength <= 0 then
         M._panel = nil
@@ -831,6 +834,7 @@ function M.setPanel(x, y, w, h, colour, strength, radius)
     local p = M._panel or {}
     p.x, p.y, p.w, p.h = x, y, w, h
     p.colour, p.strength, p.radius = colour, strength, radius or 0
+    p.gap_y = gap_y
     M._panel = p
 end
 
@@ -845,8 +849,15 @@ local function _reshade(target, x, y, w, h)
     local x1 = math.min(x + w, p.x + p.w)
     local y1 = math.min(y + h, p.y + p.h)
     if x1 <= x0 or y1 <= y0 then return end
+    local g = p.gap_y
     pcall(function()
-        M.scrim(target, x0, y0, x1 - x0, y1 - y0, p.colour, p.strength, 0)
+        if g and g >= y0 and g < y1 then
+            -- Either side of the gap row; the row itself stays bare.
+            if g > y0 then M.scrim(target, x0, y0, x1 - x0, g - y0, p.colour, p.strength, 0) end
+            if y1 > g + 1 then M.scrim(target, x0, g + 1, x1 - x0, y1 - g - 1, p.colour, p.strength, 0) end
+        else
+            M.scrim(target, x0, y0, x1 - x0, y1 - y0, p.colour, p.strength, 0)
+        end
     end)
 end
 

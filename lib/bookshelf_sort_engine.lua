@@ -639,20 +639,12 @@ SortEngine.KEYS = {
                                 return cmp(STATUS_RANK_ACTIVE[a.read_status or a._status or "unread"] or 99,
                                            STATUS_RANK_ACTIVE[b.read_status or b._status or "unread"] or 99)
                             end },
-    -- One group up front: every book being read AND every favourite, whatever
-    -- its status, then everything else. Two separate levels (favourites, then
-    -- Reading 1st) can't express that -- an unread favourite would still land
-    -- ahead of a non-favourite in progress. Ties inside each group fall to the
-    -- next level (e.g. Last opened).
-    reading_or_favorite = { label = tr("Reading or favourite first"),
-                            short = tr("Reading/fav 1st"),
-                            comparator = function(a, b)
-                                local function rank(x)
-                                    local st = x.read_status or x._status
-                                    return (st == "reading" or isFavourite(x)) and 1 or 2
-                                end
-                                return cmp(rank(a), rank(b))
-                            end },
+    -- Favourites (KOReader's default "favorites" collection) ahead of the
+    -- rest; ties fall to the next level, e.g. Reading 1st then Last opened.
+    favorites_first = { label = tr("Favorites first"), short = tr("Favs 1st"),
+                        comparator = function(a, b)
+                            return cmp(isFavourite(a) and 1 or 2, isFavourite(b) and 1 or 2)
+                        end },
     -- Book record: a.date_added
     -- lfs entry:   a.attr.modification
     -- group shape: a.latest_added (max member mtime; set in _buildGroups so
@@ -726,7 +718,7 @@ SortEngine.ORDER = {
     "series_name", "series_index", "series_combined", "series_or_title",
     "last_opened", "date_added",
     "percent_read", "rating",
-    "read_status", "read_status_active", "reading_or_favorite",
+    "read_status", "read_status_active", "favorites_first",
     "size", "page_count", "book_count",
 }
 

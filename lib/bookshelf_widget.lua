@@ -23797,8 +23797,7 @@ function BookshelfWidget:_applyWithinGroupSort(group)
     for _i, lv in ipairs(within) do
         local k = lv.key
         if k == "percent_read" or k == "read_status"
-                or k == "read_status_active"
-                or k == "reading_or_favorite" then w_progress = true end
+                or k == "read_status_active" then w_progress = true end
         if k == "rating"      then w_rating = true end
         if k == "page_count"  then w_pages  = true end
         if k == "last_opened" then w_opened = true end

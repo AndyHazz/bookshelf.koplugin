@@ -10018,11 +10018,11 @@ function BookshelfWidget:_attachTopPanel(vgroup, opts)
         -- A 1px gap across the panel where the footer begins: the picture
         -- (or the page colour) shows through, so the footer reads as its own
         -- bar without a second panel (maintainer, 2026-10-04: in place of
-        -- the hairline rule this used to draw). Put back raw, before the
-        -- panel is registered, so restore does not tint it again.
+        -- the hairline rule this used to draw). Put back bare
+        -- (restoreBare), and registered with the panel below, so a later
+        -- restore does not tint it again.
         if rule_y then
-            Wallpaper.setPanel(nil)
-            Wallpaper.restore(bb, px, rule_y, w2, 1)
+            Wallpaper.restoreBare(bb, px, rule_y, w2, 1)
         end
         -- Tell restore() where the tint is. Anything that puts the picture
         -- back inside this rect has to put the TINTED picture back, or it

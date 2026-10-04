@@ -862,6 +862,17 @@ local function _reshade(target, x, y, w, h)
 end
 
 
+-- restoreBare(target, x, y, w, h) -> restore without the panel's tint: the
+-- bare picture (or ground), for a gap that must show through a panel (the
+-- 1px row above the footer). The registered panel is left as it is.
+function M.restoreBare(target, x, y, w, h)
+    local p = M._panel
+    M._panel = nil
+    local ok = M.restore(target, x, y, w, h)
+    M._panel = p
+    return ok
+end
+
 function M.restore(target, x, y, w, h)
     if not (target and w and h) or w <= 0 or h <= 0 then return false end
     local bg = M._bg

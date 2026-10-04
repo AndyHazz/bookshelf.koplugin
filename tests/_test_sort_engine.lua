@@ -773,5 +773,70 @@ test("series_or_title: series and standalones share one alphabet (issue 437)", f
     assert(SortEngine.sortKeyValue({ title = "X", series_name = "Court" }, "series_or_title") == "court")
 end)
 
+-- reading_or_favorite reads KOReader's default collection through
+-- package.loaded["readcollection"]; stub it for these tests only.
+local function withFavourites(paths, fn)
+    local fav = {}
+    for _i, p in ipairs(paths) do fav[p] = { file = p } end
+    local saved = package.loaded["readcollection"]
+    package.loaded["readcollection"] = { coll = { favorites = fav } }
+    local ok, err = pcall(fn)
+    package.loaded["readcollection"] = saved
+    if not ok then error(err, 0) end
+end
+
+test("registry: reading_or_favorite is a key and offered in ORDER", function()
+    assert(SortEngine.KEYS.reading_or_favorite, "missing key")
+    local found = false
+    for _i, k in ipairs(SortEngine.ORDER) do
+        if k == "reading_or_favorite" then found = true end
+    end
+    assert(found, "reading_or_favorite not in ORDER")
+end)
+
+test("sort: reading_or_favorite puts reading and favourites in one group first", function()
+    withFavourites({ "/b/fav_unread.epub", "/b/fav_finished.epub" }, function()
+        local books = {
+            { id = 1, filepath = "/b/plain_unread.epub",   read_status = "unread",   last_opened = 50 },
+            { id = 2, filepath = "/b/fav_unread.epub",     read_status = "unread",   last_opened = 10 },
+            { id = 3, filepath = "/b/reading.epub",        read_status = "reading",  last_opened = 40 },
+            { id = 4, filepath = "/b/plain_finished.epub", read_status = "finished", last_opened = 60 },
+            { id = 5, filepath = "/b/fav_finished.epub",   read_status = "finished", last_opened = 30 },
+        }
+        SortEngine.sort(books, {
+            { key = "reading_or_favorite", reverse = false },
+            { key = "last_opened",         reverse = true  },
+        })
+        -- group 1 (reading or favourite) by last opened: 3, 5, 2;
+        -- then the rest by last opened: 4, 1. An unread favourite (2) still
+        -- comes before a non-favourite opened more recently (4, 1).
+        assert(eq(ids(books), { 3, 5, 2, 4, 1 }), table.concat(ids(books), ","))
+    end)
+end)
+
+test("sort: reading_or_favorite also reads the light record's _status", function()
+    withFavourites({}, function()
+        local books = {
+            { id = 1, filepath = "/b/a.epub", _status = "unread",  title = "A" },
+            { id = 2, filepath = "/b/b.epub", _status = "reading", title = "B" },
+        }
+        SortEngine.sort(books, { { key = "reading_or_favorite", reverse = false } })
+        assert(eq(ids(books), { 2, 1 }), table.concat(ids(books), ","))
+    end)
+end)
+
+test("sort: reading_or_favorite without ReadCollection falls back to reading only", function()
+    local saved = package.loaded["readcollection"]
+    package.loaded["readcollection"] = nil
+    local books = {
+        { id = 1, filepath = "/b/a.epub", read_status = "unread",  title = "A" },
+        { id = 2, filepath = "/b/b.epub", read_status = "reading", title = "B" },
+        { id = 3,                         read_status = "unread",  title = "C" },
+    }
+    SortEngine.sort(books, { { key = "reading_or_favorite", reverse = false } })
+    package.loaded["readcollection"] = saved
+    assert(eq(ids(books), { 2, 1, 3 }), table.concat(ids(books), ","))
+end)
+
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

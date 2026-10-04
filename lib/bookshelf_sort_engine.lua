@@ -120,6 +120,21 @@ local STATUS_RANK_ACTIVE   = {
     finished = 4, complete = 4,
 }
 
+-- isFavourite(item) -> the book is in KOReader's default "favorites"
+-- collection. A plain table lookup on ReadCollection.coll (the same check the
+-- spine shelf and the favourite token make), so it is cheap enough to run on
+-- every one of the comparator's ~n*log(n) calls. Without ReadCollection (the
+-- standalone test harness) nothing is a favourite.
+local function isFavourite(item)
+    local fp = type(item) == "table" and item.filepath
+    if not fp then return false end
+    local ok, rc = pcall(require, "readcollection")
+    return ok and type(rc) == "table" and type(rc.coll) == "table"
+        and type(rc.coll.favorites) == "table"
+        and rc.coll.favorites[fp] ~= nil or false
+end
+SortEngine.isFavourite = isFavourite
+
 -- nil-safe comparator helper. Returns -1, 0, +1 so it composes cleanly.
 -- nil always sorts to the end (higher sort order).
 -- Sentinel return values for nil-handling. The chainedComparator detects
@@ -624,6 +639,20 @@ SortEngine.KEYS = {
                                 return cmp(STATUS_RANK_ACTIVE[a.read_status or a._status or "unread"] or 99,
                                            STATUS_RANK_ACTIVE[b.read_status or b._status or "unread"] or 99)
                             end },
+    -- One group up front: every book being read AND every favourite, whatever
+    -- its status, then everything else. Two separate levels (favourites, then
+    -- Reading 1st) can't express that -- an unread favourite would still land
+    -- ahead of a non-favourite in progress. Ties inside each group fall to the
+    -- next level (e.g. Last opened).
+    reading_or_favorite = { label = tr("Reading or favourite first"),
+                            short = tr("Reading/fav 1st"),
+                            comparator = function(a, b)
+                                local function rank(x)
+                                    local st = x.read_status or x._status
+                                    return (st == "reading" or isFavourite(x)) and 1 or 2
+                                end
+                                return cmp(rank(a), rank(b))
+                            end },
     -- Book record: a.date_added
     -- lfs entry:   a.attr.modification
     -- group shape: a.latest_added (max member mtime; set in _buildGroups so
@@ -697,7 +726,7 @@ SortEngine.ORDER = {
     "series_name", "series_index", "series_combined", "series_or_title",
     "last_opened", "date_added",
     "percent_read", "rating",
-    "read_status", "read_status_active",
+    "read_status", "read_status_active", "reading_or_favorite",
     "size", "page_count", "book_count",
 }
 

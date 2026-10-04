@@ -4161,6 +4161,14 @@ msgstr "In lettura/Non letto/Terminato"
 msgid "Reading 1st"
 msgstr "In lettura prima"
 
+#: lib/bookshelf_sort_engine.lua:647
+msgid "Reading or favourite first"
+msgstr "In lettura o preferiti prima"
+
+#: lib/bookshelf_sort_engine.lua:648
+msgid "Reading/fav 1st"
+msgstr "In lettura/pref. prima"
+
 #: lib/bookshelf_sort_engine.lua:633 lib/bookshelf_widget.lua:18910
 #: lib/bookshelf_widget.lua:18925
 msgid "Added"

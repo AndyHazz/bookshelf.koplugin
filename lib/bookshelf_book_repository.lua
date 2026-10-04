@@ -2323,10 +2323,13 @@ end
 --                                   default ReadCollection ("favorites")
 -- Strip both so a ★ toggle invalidates whichever shape the user has on
 -- their favourites chip(s).
+-- A chip sorted by "Reading or favourite first" is reordered by the same
+-- edit, whatever its source, so its entries go too.
 function Repo.invalidateFavoritesCache()
     for k in pairs(_bySource_cache) do
         if k:sub(1, 10) == "favorites|"
-                or k:sub(1, 21) == "collection|favorites|" then
+                or k:sub(1, 21) == "collection|favorites|"
+                or k:find("s:reading_or_favorite:", 1, true) then
             _bySource_cache[k] = nil
         end
     end
@@ -2360,6 +2363,7 @@ end
 -- touched by reading, so chips sorted on them keep their cache.
 local READ_STATE_SORT_TOKENS = {
     "s:last_opened:", "s:percent_read:", "s:read_status", "s:rating:",
+    "s:reading_or_favorite:",
 }
 function Repo.invalidateReadStateCache()
     for k in pairs(_bySource_cache) do
@@ -4262,7 +4266,8 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
                 or k == "series_combined"              then needs.series  = true end
         if k == "series_or_title" then needs.series = true; needs.title = true end
         if k == "percent_read" then needs.percent  = true end
-        if k == "read_status" or k == "read_status_active" then needs.status = true end
+        if k == "read_status" or k == "read_status_active"
+                or k == "reading_or_favorite" then needs.status = true end
         if k == "last_opened"  then needs.last_opened = true end
         -- rating / page_count are NOT on the light shelf record (rating is
         -- never set by buildBookMeta; page_count is nil for EPUBs), so a sort
@@ -8314,6 +8319,7 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
                 if k == "percent_read"
                         or k == "read_status"
                         or k == "read_status_active"
+                        or k == "reading_or_favorite"
                         or k == "rating"
                         or k == "page_count" then
                     -- 'rating' and 'page_count' both come back from

@@ -1332,7 +1332,6 @@ function HeroCard:_renderFull()
     -- shrinks, so recompute the right column from it rather than the full
     -- reserved cover_w -- the text gains the freed width instead of a gap (and
     -- right_w only ever grows, so the #87 max_width<=0 guard is never at risk).
-    local cover_footprint_w = sw_w + 2 * SHADOW_OFFSET
 
     local _perf_cover_t0 = _gettime()
     local cover = SpineWidget:new{
@@ -1377,7 +1376,13 @@ function HeroCard:_renderFull()
     -- can never hand the right-column TextWidgets a max_width <= 0, which
     -- aborts makeLine natively. The real fix caps cover_w upstream in
     -- bookshelf_widget._rebuild; this just guarantees the abort is impossible.
-    local right_w = math.max(1, self.width - cover_footprint_w - text_padding)
+    --
+    -- The cover frame below is sw_w plus ONE shadow offset (it pads left and
+    -- top; the shadow on the right sits in text_padding). Sizing the column
+    -- as if it were two offsets wide left it one offset short of the
+    -- content edge, where the chip bar, the expanded strip and the
+    -- full-screen status line all end (maintainer, 2026-10-04).
+    local right_w = math.max(1, self.width - (sw_w + SHADOW_OFFSET) - text_padding)
 
     local regions = Regions.read()
     local _perf_right_t0 = _gettime()

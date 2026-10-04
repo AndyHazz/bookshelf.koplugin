@@ -282,7 +282,22 @@ function M.shelfPackFor(id)
     return nil
 end
 
-function M.shelfPack() return M.shelfPackFor(M._shelf) end
+-- current() -> the shelf on screen resolved ({ pack, look }), once per
+-- settings generation: colour reads ask for it per cover at paint time, and
+-- each answer is two tab lookups. A tab save, a theme or pack change all
+-- bump the generation; without a generation to key on, no memo.
+M._cur = nil
+local function current()
+    local s = store()
+    local g = s and s.generation and s.generation()
+    local c = M._cur
+    if g ~= nil and c and c.g == g and c.id == M._shelf then return c end
+    c = { g = g, id = M._shelf, pack = M.shelfPackFor(M._shelf), look = M.shelfLookOf(M._shelf) }
+    if g ~= nil then M._cur = c end
+    return c
+end
+
+function M.shelfPack() return current().pack end
 
 -- shelfKey() -> what the shelf on screen looks like, as a cache key.
 function M.shelfKey()
@@ -795,9 +810,14 @@ end
 -- pack; else the library's.
 function M.colourOverride(key, dark)
     local sp = M.shelfPack()
-    if sp == "none" then return nil end
     local pack
-    if sp ~= nil and M.theme(sp).colours then pack = sp
+    if sp == "none" then
+        -- No theme pack: the reader's own Color theme (from before any
+        -- library theme), which may itself be a pack's.
+        local own = M.ownRead(M.COLOURS_SETTING)
+        local th = type(own) == "string" and own ~= "" and M.theme(own)
+        if th and th.exists and th.colours and not orn().isPackOff(own) then pack = own end
+    elseif sp ~= nil and M.theme(sp).colours then pack = sp
     else pack = M.activeColoursPack() end
     if not pack then return nil end
     local c = M.theme(pack).colours
@@ -881,17 +901,17 @@ function M.shownWallpaper(is_full, is_dark)
             if file then return M.NAME_PREFIX .. sp .. "\1" .. file end
         end
     end
-    local own_only = (sp == "none")
+    -- No theme pack: the reader's own choices, from before any library
+    -- theme (a pack wallpaper they picked themselves included).
+    local rd = (sp == "none") and M.ownRead or read
     local function layer(key, full_view)
-        local v = read(key)
+        local v = rd(key)
         if not M.isPackName(v) then
             return (type(v) == "string" and v ~= "") and v or nil
         end
-        if not own_only then
-            local shown = M.variantName(v, full_view, is_dark)
-            if shown then return shown end
-        end
-        local own = read(key .. "_own")
+        local shown = M.variantName(v, full_view, is_dark)
+        if shown then return shown end
+        local own = rd(key .. "_own")
         return (type(own) == "string" and own ~= "" and not M.isPackName(own)) and own or nil
     end
     if is_full then
@@ -924,7 +944,7 @@ function M.shelfLookOf(id)
 end
 
 -- shelfLook() -> the same for the shelf on screen.
-function M.shelfLook() return M.shelfLookOf(M._shelf) end
+function M.shelfLook() return current().look end
 
 -- migrate(): the 5.3 betas "lent" a pack's wallpaper over the reader's own
 -- (theme_wallpaper_pack); it is now an ordinary choice. Moved once.

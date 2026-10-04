@@ -269,7 +269,10 @@ function M.show(entry, bw, piece)
     local function onNames()
         Deck.sync(Orn.listAll(), shelf)
         local names = {}
-        for i, e in ipairs(Deck.order(Orn.list(), shelf)) do names[i] = e.name end
+        -- The shelf's own pool: what it deals (its pack's pieces when it
+        -- wears one, even if that pack is off in the collection).
+        local TP = require("lib/bookshelf_theme_pack")
+        for i, e in ipairs(Deck.order(Orn.listFor(TP.shelfPackFor(shelf)), shelf)) do names[i] = e.name end
         return names
     end
     local function step(delta)

@@ -90,8 +90,11 @@ local function setup()
                   save = function(k, v) settings[k] = v end,
                   flush = function() end }
     TP.SCAN_TTL = 0
-    local tabs, bumps = {}, { n = 0 }
-    TP._tab = function(id) return tabs[id] end
+    local tabs, bumps = {}, { n = 0, gen = 0, lookups = 0 }
+    TP._tab = function(id) bumps.lookups = bumps.lookups + 1; return tabs[id] end
+    TP._store.generation = function() return bumps.gen end
+    -- Like the real store: every save is a new generation.
+    TP._store.save = function(k, v) settings[k] = v; bumps.gen = bumps.gen + 1 end
     TP._store.bump = function() bumps.n = bumps.n + 1 end
     return TP, d, settings, packs_off, off, tabs, bumps
 end
@@ -188,7 +191,7 @@ t.test("theme_look precedence: the shelf's own, then its pack's, then the librar
     TP.setShelf("a"); eq(TP.shelfLook(), "dark")
     TP.setShelf("b"); eq(TP.shelfLook(), "light", "the shelf's own choice lost to its pack")
     TP.setShelf("c"); eq(TP.shelfLook(), "light")
-    settings.shelf_theme = "dark"
+    TP._store.save("shelf_theme", "dark")                     -- as the menu writes it
     eq(TP.shelfLook(), "dark", "a shelf without a choice did not follow the library")
     tabs.c.theme_look = "auto"
     eq(TP.shelfKey(), "pack:Ukiyo-e|auto")
@@ -272,6 +275,32 @@ t.test("a pack with only planks is not a theme; with a theme.json it is", functi
     local names = {}
     for i, th in ipairs(TP.allThemes()) do names[i] = th.pack end
     eq(table.concat(names, ","), "Halloween,Woods,Gallery")
+end)
+
+t.test("No theme pack keeps a pack wallpaper and colour theme the reader chose themselves", function()
+    local TP, d, settings, _po, _o, tabs = setup()
+    mkmanifest(d, "Ukiyo-e"); mkwall(d, "Ukiyo-e"); mkcolours(d, "Ukiyo-e"); TP.invalidate()
+    settings.wallpaper_default = "theme-pack\1Ukiyo-e\1wallpaper.png"   -- picked in the wallpaper picker
+    settings.theme_colours_pack = "Ukiyo-e"                               -- picked as Color theme
+    tabs.mine = { id = "mine", theme = "none" }
+    TP.setShelf("mine")
+    eq(TP.shownWallpaper(false, false), "theme-pack\1Ukiyo-e\1wallpaper.png",
+       "No theme pack dropped the reader's own pack wallpaper")
+    assert(TP.colourOverride("ink_color", false), "No theme pack dropped the reader's own colour theme")
+end)
+
+t.test("the shelf on screen is resolved once per settings generation", function()
+    local TP, d, settings, _po, _o, tabs, bumps = setup()
+    halloween(d); TP.invalidate()
+    tabs.c = { id = "c", theme = "Halloween" }
+    TP.setShelf("c")
+    TP.shelfLook(); TP.shelfPack()
+    local n = bumps.lookups
+    for _k = 1, 20 do TP.shelfLook(); TP.shelfPack() end
+    eq(bumps.lookups, n, "every read looked the tab up again")
+    bumps.gen = bumps.gen + 1
+    tabs.c.theme_look = "light"
+    eq(TP.shelfLook(), "light", "a new generation did not re-resolve")
 end)
 
 t.done()

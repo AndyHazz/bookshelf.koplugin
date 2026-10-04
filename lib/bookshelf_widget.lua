@@ -6714,7 +6714,12 @@ function BookshelfWidget:_ornSig()
     -- one piece off and another on).
     local pool = (ok and Orn) and tostring(Orn.list()) or ""
     local f = (ok and Orn) and Orn.frequency() or 0
-    return table.concat({ Deck.levelOf(f), Deck.generation(), self:_nShelves(), pool }, "|")
+    -- And the shelf's own theme, which picks its pool (Orn.listFor) without
+    -- touching Orn.list() or the deck: choosing one for the shelf on screen
+    -- must not leave later pages dealing from the old pool's states.
+    local ok_t, TP = pcall(require, "lib/bookshelf_theme_pack")
+    local look = (ok_t and TP and TP.shelfKey) and TP.shelfKey() or ""
+    return table.concat({ Deck.levelOf(f), Deck.generation(), self:_nShelves(), pool, look }, "|")
 end
 
 function BookshelfWidget:_ornStartState(dims)

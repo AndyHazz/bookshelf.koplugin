@@ -38,4 +38,10 @@ t.test("the plan deals from the shelf's pool", function()
         "plan deals from the library pool")
 end)
 
+t.test("page deal states are forgotten when the shelf's look changes", function()
+    local w = read("lib/bookshelf_widget.lua")
+    local body = w:match("\nfunction BookshelfWidget:_ornSig%(%)\n(.-)\nend\n")
+    assert(body and body:find("TP.shelfKey()", 1, true), "_ornSig ignores the shelf's theme, so its pool")
+end)
+
 t.done()

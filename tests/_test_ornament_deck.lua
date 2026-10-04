@@ -202,7 +202,7 @@ t.test("the shelf id reaches the deck from every place that deals or edits", fun
     assert(sp:find('and k ~= "orn_shelf"', 1, true), "the shelf id splits the entry cache")
     local m = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
     assert(m:find("local shelf = bw and bw.chip", 1, true), "the long-press menu does not know its shelf")
-    for _i, call in ipairs({ "Deck.sync(Orn.listAll(), shelf)", "Deck.order(Orn.list(), shelf)",
+    for _i, call in ipairs({ "Deck.sync(Orn.listAll(), shelf)", "Deck.order(Orn.listFor(TP.shelfPackFor(shelf)), shelf)",
                              "Deck.move(entry.name, delta, onNames(), shelf)",
                              "Deck.swap(entry.name, chosen.name, shelf)" }) do
         assert(m:find(call, 1, true), "the menu edits the wrong deck: " .. call)

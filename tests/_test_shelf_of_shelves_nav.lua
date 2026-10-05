@@ -239,6 +239,10 @@ t.test("a sub-shelf's run badge opens it; the editor can hide the + tile", funct
     assert(sp:find("local id = sp.item and sp.item.shelf_subshelf", 1, true), "badge taps do not read the sub-shelf")
     assert(sp:find("if bk.add_subshelf then face_out = true end", 1, true), "the + tile is not face-out sized")
     assert(src:find("function(id) bw:_enterSubShelf(id) end", 1, true), "the badge overlay does not open sub-shelves")
+    assert(src:find("function(id) bw:_editSubShelf(id) end", 1, true), "a long-press on a badge does not edit the sub-shelf")
+    assert(sp:find("function BadgeOverlay:onHold(", 1, true), "the badge overlay takes no long-press")
+    -- the + tile hangs on the wall: its foot clears the plank's whole top surface
+    assert(sp:find("local tail = math.max(0, surf - inset)", 1, true), "the + tile stands on the plank")
     local ed = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
     assert(ed:find('_("Show + Add shelf")', 1, true) and ed:find("override.hide_add_tile", 1, true),
         "no live Show + Add shelf toggle")

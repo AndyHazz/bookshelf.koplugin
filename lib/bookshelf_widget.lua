@@ -2808,8 +2808,10 @@ function BookshelfWidget:_rebuild()
         overlap_group[#overlap_group + 1] =
             require("lib/bookshelf_spine_shelf").badgeOverlay(
                 function() return bw._spine_badges end, self.width, self.height,
-                -- A sub-shelf's run badge opens that shelf.
-                function(id) bw:_enterSubShelf(id) end)
+                -- A sub-shelf's run badge opens that shelf; a long-press
+                -- edits it.
+                function(id) bw:_enterSubShelf(id) end,
+                function(id) bw:_editSubShelf(id) end)
     end
     self[1] = overlap_group
     local _perf_t4 = _gettime()

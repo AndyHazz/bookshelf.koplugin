@@ -2631,33 +2631,50 @@ end
 --
 -- It also takes a tap on a badge whose run is a shelf of shelves' sub-shelf
 -- (the records carry shelf_subshelf): `on_tap(id)` opens that shelf, the way
--- its tile does in the other views. Any other tap is left alone.
+-- its tile does in the other views, and a long-press, `on_hold(id)`, edits it
+-- -- a spine shelf of shelves has no tiles to long-press. Any other gesture
+-- is left alone.
 local BadgeOverlay = InputContainer:extend{}
 
 function BadgeOverlay:init()
+    self.ges_events = {}
     if self.on_tap then
-        self.ges_events = {
-            Tap = { GestureRange:new{ ges = "tap", range = self.dimen } },
-        }
+        self.ges_events.Tap = { GestureRange:new{ ges = "tap", range = self.dimen } }
+    end
+    if self.on_hold then
+        self.ges_events.Hold = { GestureRange:new{ ges = "hold", range = self.dimen } }
     end
 end
 
-function BadgeOverlay:onTap(_args, ges)
-    local pos = ges and ges.pos
+-- subShelfAt(pos) -> the sub-shelf id of the badge under `pos`, or nil.
+function BadgeOverlay:subShelfAt(pos)
     local list = self.get_badges and self.get_badges() or nil
-    if not (pos and list and self.on_tap) then return false end
+    if not (pos and list) then return nil end
     for i = 1, #list do
         for _j, sp in ipairs((list[i] and list[i].spans) or {}) do
             local r = sp._rect
             local id = sp.item and sp.item.shelf_subshelf
             if r and id and pos.x >= r.x and pos.x < r.x + r.w
                     and pos.y >= r.y and pos.y < r.y + r.h then
-                self.on_tap(id)
-                return true
+                return id
             end
         end
     end
-    return false
+    return nil
+end
+
+function BadgeOverlay:onTap(_args, ges)
+    local id = self.on_tap and self:subShelfAt(ges and ges.pos)
+    if not id then return false end
+    self.on_tap(id)
+    return true
+end
+
+function BadgeOverlay:onHold(_args, ges)
+    local id = self.on_hold and self:subShelfAt(ges and ges.pos)
+    if not id then return false end
+    self.on_hold(id)
+    return true
 end
 
 function BadgeOverlay:paintTo(bb, _x, _y)
@@ -2669,11 +2686,12 @@ function BadgeOverlay:paintTo(bb, _x, _y)
     end
 end
 
-function SpineShelf.badgeOverlay(get_badges, w, h, on_tap)
+function SpineShelf.badgeOverlay(get_badges, w, h, on_tap, on_hold)
     return BadgeOverlay:new{
         dimen      = Geom:new{ x = 0, y = 0, w = w, h = h },
         get_badges = get_badges,
         on_tap     = on_tap,
+        on_hold    = on_hold,
     }
 end
 
@@ -4613,34 +4631,39 @@ function SpineShelf.rowWidget(opts)
             local tile
             local _tile_t0 = e.face_out and _gettime() or nil
             if e.face_out and e.book and e.book.add_subshelf then
-                -- A shelf of shelves' "+ Add shelf": a face-out cover's size,
-                -- standing where one would, drawn as a dashed outline over
-                -- the panel shading (bookshelf_add_tile). Nothing solid is
-                -- there, so it casts no shadow on the shelf.
+                -- A shelf of shelves' "+ Add shelf": a face-out cover's width,
+                -- drawn as a dashed outline over the panel shading
+                -- (bookshelf_add_tile). It is not a book, so it does not stand
+                -- on the plank: it hangs on the wall above it, clear of the
+                -- plank's top surface by the gap a lifted face-out leaves, and
+                -- shorter than a cover (maintainer). No shadow on the shelf.
                 local VerticalGroup = require("ui/widget/verticalgroup")
                 local VerticalSpan  = require("ui/widget/verticalspan")
-                local push = inset
-                local fo_stand = stand_h - push
-                local avail = math.min(e.h, fo_stand)
+                local avail = math.min(e.h, stand_h)
                 local cover_h = math.max(1, math.min(e.face_h or avail, avail))
+                -- The slot's foot is the books' feet, `inset` behind the
+                -- plank's front edge; the painted top surface reaches `surf`
+                -- back from that edge. Clear all of it, plus a little wall.
+                local tail = math.max(0, surf - inset) + Screen:scaleBySize(8)
+                local tile_h = math.floor(cover_h * 0.7)
+                tile_h = math.max(1, math.min(tile_h, stand_h - tail))
                 e._drawn_h = 0
                 local cbs = opts.callbacks or {}
                 local stack = VerticalGroup:new{ align = "center" }
-                if fo_stand - cover_h > 0 then
-                    stack[#stack + 1] = VerticalSpan:new{ width = fo_stand - cover_h }
+                local head = stand_h - tail - tile_h
+                if head > 0 then
+                    stack[#stack + 1] = VerticalSpan:new{ width = head }
                 end
                 stack[#stack + 1] = require("lib/bookshelf_add_tile"):new{
                     width          = e.w,
-                    height         = cover_h,
+                    height         = tile_h,
                     label          = e.book.label,
                     item           = e.book,
                     on_tap         = cbs.on_folder_tap,
                     on_hold        = cbs.on_folder_hold,
                     reserve_shadow = false,
                 }
-                if push > 0 then
-                    stack[#stack + 1] = VerticalSpan:new{ width = push }
-                end
+                stack[#stack + 1] = VerticalSpan:new{ width = tail }
                 tile = stack
             elseif e.face_out then
                 -- A face-out favourite IS a cover-grid book: reuse the cover

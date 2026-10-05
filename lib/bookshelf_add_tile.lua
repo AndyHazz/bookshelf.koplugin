@@ -2,8 +2,13 @@
 -- The "+ Add shelf" tile on a shelf of shelves (5.4): a button, not a book.
 -- Its label inside a dashed outline -- the usual "something can go here"
 -- drawing -- with none of the placeholder cover's chrome (no paper card,
--- no divider motif, no shadow; maintainer, 2026-10-05). A white fill keeps
--- the label legible over a wallpaper.
+-- no divider motif, no shadow; maintainer, 2026-10-05).
+--
+-- Transparent, with the panel shading behind it when the ground is painted
+-- (a wallpaper or a background colour): the same tint, colour and setting
+-- as the label plates under covers, so the label stays legible and the
+-- outline reads as part of the shelf's chrome. Ink is the theme's, so it
+-- holds up on the dark theme too.
 --
 -- It takes the same slot a card would, and in the cover grid keeps the
 -- shadow's reservation (as a flat card does) so its outline lines up with
@@ -14,7 +19,8 @@ local Font           = require("ui/font")
 local Geom           = require("ui/geometry")
 local GestureRange   = require("ui/gesturerange")
 local InputContainer = require("ui/widget/container/inputcontainer")
-local TextBoxWidget  = require("ui/widget/textboxwidget")
+-- Composites over the shading: a plain TextBoxWidget paints a white block.
+local TextBoxWidget  = require("lib/bookshelf_transparent_text")
 local Screen         = Device.screen
 
 local AddTile = InputContainer:extend{
@@ -50,8 +56,30 @@ function AddTile.dashes(len, dash, gap)
     return out
 end
 
+-- shading() -> fill colour or nil, strength, ink colour or nil: the label
+-- plates' rule (bookshelf_shelf_row): a tint only over a painted ground and
+-- only while Panel shading is above zero.
+function AddTile.shading()
+    local fill, strength, ink
+    pcall(function()
+        local CP = require("lib/bookshelf_cover_progress")
+        local colors = CP.resolvedColors and CP.resolvedColors()
+        ink = colors and colors.ink or nil
+        local Wallpaper = require("lib/bookshelf_wallpaper")
+        local painted = (Wallpaper.isShowing and Wallpaper.isShowing())
+            or (Wallpaper.ground and type(Wallpaper.ground()) ~= "nil")
+        if not painted then return end
+        local v = require("lib/bookshelf_settings_store").read(Wallpaper.SCRIM_SETTING)
+        if type(v) ~= "number" then v = Wallpaper.SCRIM_DEFAULT end
+        if v < 0 then v = 0 elseif v > 1 then v = 1 end
+        if v > 0 and colors then fill, strength = colors.panel_bg, v end
+    end)
+    return fill, strength, ink
+end
+
 function AddTile:init()
     self.dimen = Geom:new{ w = self.width, h = self.height }
+    self._fill, self._strength, self._ink = AddTile.shading()
     local reserve = self.reserve_shadow
         and require("lib/bookshelf_spine_widget").SHADOW_OFFSET or 0
     self._card_w = math.max(1, self.width - reserve)
@@ -68,6 +96,7 @@ function AddTile:init()
         text      = self.label or "",
         face      = Font:getFace("cfont", size),
         bold      = true,
+        fgcolor   = self._ink,
         width     = math.max(1, self._card_w - 2 * pad),
         alignment = "center",
     }
@@ -82,10 +111,15 @@ function AddTile:getSize() return self.dimen end
 function AddTile:paintTo(bb, x, y)
     self.dimen.x, self.dimen.y = x, y
     local w, h = self._card_w, self._card_h
-    bb:paintRect(x, y, w, h, Blitbuffer.COLOR_WHITE)
+    if self._fill then
+        pcall(function()
+            require("lib/bookshelf_wallpaper").scrim(bb, x, y, w, h,
+                self._fill, self._strength, 0)
+        end)
+    end
     local t = self.is_selected and Screen:scaleBySize(3) or math.max(1, Screen:scaleBySize(1.5))
     local dash, gap = Screen:scaleBySize(9), Screen:scaleBySize(6)
-    local ink = Blitbuffer.COLOR_DARK_GRAY
+    local ink = self._ink or Blitbuffer.COLOR_DARK_GRAY
     for _i, d in ipairs(AddTile.dashes(w, dash, gap)) do
         bb:paintRect(x + d[1], y, d[2], t, ink)
         bb:paintRect(x + d[1], y + h - t, d[2], t, ink)

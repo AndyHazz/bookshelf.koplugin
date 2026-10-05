@@ -693,6 +693,8 @@ function Editor:editTab(tab_id, opts)
         -- Same nil-means-default semantics. There is no library setting
         -- behind this one, so absent means Orn.FREQ_DEFAULT.
         override.ornament_frequency  = draft.ornament_frequency
+        -- A shelf of shelves' "+ Add shelf" tile, shown unless hidden.
+        override.hide_add_tile       = draft.hide_add_tile
         TabModel.setOverride(tab_id, override)
         schedulePreview()
     end
@@ -953,7 +955,20 @@ function Editor:editTab(tab_id, opts)
         -- LOOK.
         local shelf_row = {}
         if is_shelves_src then
-            -- no filters: see is_shelves_src
+            -- No filters (see is_shelves_src). In their place, whether the
+            -- "+ Add shelf" tile shows: wanted while the shelves are being
+            -- set up, clutter once they are (maintainer).
+            shelf_row[#shelf_row + 1] = {
+                text_func = function()
+                    return (draft.hide_add_tile and "  " or "\xE2\x9C\x93 ")
+                        .. _("Show + Add shelf")
+                end,
+                callback = function()
+                    draft.hide_add_tile = (not draft.hide_add_tile) or nil
+                    applyLivePreview(false)
+                    rebuild()
+                end,
+            }
         elseif not is_opds_src then
             shelf_row[#shelf_row + 1] = {
                 text_func = function()

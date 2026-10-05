@@ -14,7 +14,7 @@ package.loaded["ui/font"] = {}
 package.loaded["ui/geometry"] = {}
 package.loaded["ui/gesturerange"] = {}
 package.loaded["ui/widget/container/inputcontainer"] = { extend = function(_, o) return o end }
-package.loaded["ui/widget/textboxwidget"] = {}
+package.loaded["lib/bookshelf_transparent_text"] = {}
 local AddTile = dofile("lib/bookshelf_add_tile.lua")
 
 local function check(len, dash, gap)

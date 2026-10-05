@@ -2609,6 +2609,11 @@ function ShelfBadges:drawAt(bb, x, y)
                     local by = y + h - fh - 2
                     bb:paintRoundedRect(bx, by, bw, badge_h, fill,
                                         Screen:scaleBySize(2))
+                    -- Where it stands ON SCREEN, for a tap (BadgeOverlay):
+                    -- only the screen's own buffer, never a wipe's scratch.
+                    if rawequal(bb, Screen.bb) then
+                        s._rect = { x = bx, y = by, w = bw, h = badge_h }
+                    end
                     tw:paintTo(bb, bx + math.floor((bw - sz.w) / 2),
                                by + pad_y)
                 end
@@ -2623,7 +2628,37 @@ end
 -- time rather than a list being captured, so an in-place shelf swap (which
 -- replaces the row widgets without rebuilding the window) cannot leave the
 -- overlay painting badges that belong to rows that are gone.
-local BadgeOverlay = Widget:extend{}
+--
+-- It also takes a tap on a badge whose run is a shelf of shelves' sub-shelf
+-- (the records carry shelf_subshelf): `on_tap(id)` opens that shelf, the way
+-- its tile does in the other views. Any other tap is left alone.
+local BadgeOverlay = InputContainer:extend{}
+
+function BadgeOverlay:init()
+    if self.on_tap then
+        self.ges_events = {
+            Tap = { GestureRange:new{ ges = "tap", range = self.dimen } },
+        }
+    end
+end
+
+function BadgeOverlay:onTap(_args, ges)
+    local pos = ges and ges.pos
+    local list = self.get_badges and self.get_badges() or nil
+    if not (pos and list and self.on_tap) then return false end
+    for i = 1, #list do
+        for _j, sp in ipairs((list[i] and list[i].spans) or {}) do
+            local r = sp._rect
+            local id = sp.item and sp.item.shelf_subshelf
+            if r and id and pos.x >= r.x and pos.x < r.x + r.w
+                    and pos.y >= r.y and pos.y < r.y + r.h then
+                self.on_tap(id)
+                return true
+            end
+        end
+    end
+    return false
+end
 
 function BadgeOverlay:paintTo(bb, _x, _y)
     local list = self.get_badges and self.get_badges() or nil
@@ -2634,10 +2669,11 @@ function BadgeOverlay:paintTo(bb, _x, _y)
     end
 end
 
-function SpineShelf.badgeOverlay(get_badges, w, h)
+function SpineShelf.badgeOverlay(get_badges, w, h, on_tap)
     return BadgeOverlay:new{
-        dimen      = Geom:new{ w = w, h = h },
+        dimen      = Geom:new{ x = 0, y = 0, w = w, h = h },
         get_badges = get_badges,
+        on_tap     = on_tap,
     }
 end
 
@@ -3864,6 +3900,9 @@ function SpineShelf.plan(items, opts)
                     or false
             end
         end
+        -- A shelf of shelves' "+ Add shelf" takes a face-out cover's place
+        -- and size, as a dashed outline (see the tile branch below).
+        if bk.add_subshelf then face_out = true end
         if face_out and src.has_cover == nil and src.filepath
                 and ok_repo and Repo and Repo.buildBookMeta then
             -- Light page records carry no has_cover, and the cover tile
@@ -4573,7 +4612,37 @@ function SpineShelf.rowWidget(opts)
             end
             local tile
             local _tile_t0 = e.face_out and _gettime() or nil
-            if e.face_out then
+            if e.face_out and e.book and e.book.add_subshelf then
+                -- A shelf of shelves' "+ Add shelf": a face-out cover's size,
+                -- standing where one would, drawn as a dashed outline over
+                -- the panel shading (bookshelf_add_tile). Nothing solid is
+                -- there, so it casts no shadow on the shelf.
+                local VerticalGroup = require("ui/widget/verticalgroup")
+                local VerticalSpan  = require("ui/widget/verticalspan")
+                local push = inset
+                local fo_stand = stand_h - push
+                local avail = math.min(e.h, fo_stand)
+                local cover_h = math.max(1, math.min(e.face_h or avail, avail))
+                e._drawn_h = 0
+                local cbs = opts.callbacks or {}
+                local stack = VerticalGroup:new{ align = "center" }
+                if fo_stand - cover_h > 0 then
+                    stack[#stack + 1] = VerticalSpan:new{ width = fo_stand - cover_h }
+                end
+                stack[#stack + 1] = require("lib/bookshelf_add_tile"):new{
+                    width          = e.w,
+                    height         = cover_h,
+                    label          = e.book.label,
+                    item           = e.book,
+                    on_tap         = cbs.on_folder_tap,
+                    on_hold        = cbs.on_folder_hold,
+                    reserve_shadow = false,
+                }
+                if push > 0 then
+                    stack[#stack + 1] = VerticalSpan:new{ width = push }
+                end
+                tile = stack
+            elseif e.face_out then
                 -- A face-out favourite IS a cover-grid book: reuse the cover
                 -- tile wholesale (user ruling) so it carries every glyph,
                 -- badge and pill the grid gives it -- bottom-aligned so it

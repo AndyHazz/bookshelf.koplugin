@@ -2807,7 +2807,9 @@ function BookshelfWidget:_rebuild()
         local bw = self
         overlap_group[#overlap_group + 1] =
             require("lib/bookshelf_spine_shelf").badgeOverlay(
-                function() return bw._spine_badges end, self.width, self.height)
+                function() return bw._spine_badges end, self.width, self.height,
+                -- A sub-shelf's run badge opens that shelf.
+                function(id) bw:_enterSubShelf(id) end)
     end
     self[1] = overlap_group
     local _perf_t4 = _gettime()
@@ -3637,6 +3639,12 @@ function BookshelfWidget:_fetchChipItems(n, want_all)
     local TabModel  = require("lib/bookshelf_tab_model")
     local tab       = TabModel.getById(self.chip)
     if not tip and TabModel.isShelves(tab) then
+        -- On a spine shelf every sub-shelf's books stand out on the shelf,
+        -- a labelled run per sub-shelf; elsewhere, a tile per sub-shelf.
+        if Repo.spine_light then
+            local spilled = self:_subShelfSpill(tab)
+            return spilled, #spilled
+        end
         return self:_subShelfItems(tab, offset, LIMIT)
     end
     if tip and tip.kind == "folder" then
@@ -23972,6 +23980,63 @@ function BookshelfWidget:_subShelfCoverFps(tab, n, depth)
     return out
 end
 
+-- _subShelfSpill(tab) -> a shelf of shelves as a spine shelf shows it: the
+-- books of every shelf inside it, each shelf in its own order and with its
+-- own filters, as a run labelled with its name (the section tag every spine
+-- run reads), then the "+" tile. A shelf of shelves inside it spills its
+-- shelves the same way, in place. A grouped shelf's groups are flattened in
+-- their order: the run is the shelf, not its groups.
+--
+-- Every record is a COPY before it is tagged: several sources hand out
+-- shared, memoised records, and a section tag left on one would label that
+-- book on every other shelf that shows it.
+function BookshelfWidget:_subShelfSpill(tab)
+    local TabModel = require("lib/bookshelf_tab_model")
+    local out = {}
+    local function add(rec, label, id)
+        if type(rec) ~= "table" or type(rec.filepath) ~= "string" then return end
+        local src = rec
+        -- A group's members can be bare { filepath } stubs.
+        if rec.title == nil and Repo.lightMetaFor then
+            src = Repo.lightMetaFor(rec.filepath) or rec
+        end
+        local b = {}
+        for k, v in pairs(src) do b[k] = v end
+        b.cover_bb           = nil
+        b.shelf_section      = label
+        b.shelf_section_path = nil
+        b.shelf_subshelf     = id
+        out[#out + 1] = b
+    end
+    local function spill(t, depth)
+        if depth > 8 then return end
+        for _i, c in ipairs(TabModel.childrenOf(t.id)) do
+            if TabModel.isShelves(c) then
+                spill(c, depth + 1)
+            else
+                local label = c.label or ""
+                if c.icon and c.icon ~= "" then label = c.icon .. " " .. label end
+                local ok, items = pcall(Repo.getBySource, c.source, c.filter,
+                    c.sort_priority, 0, SELECT_ALL_LIMIT, { lazy_cover = true })
+                if ok and type(items) == "table" then
+                    for _j, it in ipairs(items) do
+                        if type(it) == "table" and type(it.books) == "table" and not it.filepath then
+                            for _m, b in ipairs(it.books) do add(b, label, c.id) end
+                        else
+                            add(it, label, c.id)
+                        end
+                    end
+                end
+            end
+        end
+    end
+    spill(tab, 0)
+    if not tab.hide_add_tile then
+        out[#out + 1] = { kind = "folder", label = "+ " .. _("Add shelf"), add_subshelf = true }
+    end
+    return out
+end
+
 -- _subShelfItems(tab, offset, limit) -> the page of a shelf of shelves: one
 -- folder-shaped tile per shelf inside it, then the "+" tile. Folder-shaped
 -- because every view (covers, list, spines) already draws a folder record,
@@ -23982,7 +24047,8 @@ end
 function BookshelfWidget:_subShelfItems(tab, offset, limit)
     local TabModel = require("lib/bookshelf_tab_model")
     local children = TabModel.childrenOf(tab.id)
-    local total = #children + 1
+    -- The "+" tile can be hidden once the shelves are set up (shelf editor).
+    local total = #children + (tab.hide_add_tile and 0 or 1)
     local ScaledCoverCache = require("lib/bookshelf_scaled_cover_cache")
     local out = {}
     for i = offset + 1, math.min(offset + limit, total) do

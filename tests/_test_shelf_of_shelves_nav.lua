@@ -78,12 +78,13 @@ local env = setmetatable({
     _ = function(s) return s end,
     BookshelfSettings = package.loaded["lib/bookshelf_settings_store"],
     UIManager = { setDirty = function() end },
+    SELECT_ALL_LIMIT = 5000,
 }, { __index = _G })
 
 local W = {}
 for _i, name in ipairs({ "_shelfChain", "_shelfCrumbCount", "_navDepth", "_navBackTo",
                          "_openShelf", "_enterSubShelf", "_subShelfItems",
-                         "_subShelfCoverFps", "_chipNeighbour" }) do
+                         "_subShelfCoverFps", "_chipNeighbour", "_subShelfSpill" }) do
     W[name] = methodOf(name, env)
 end
 
@@ -198,9 +199,57 @@ t.test("chip neighbours from inside a sub-shelf are its top-level shelf's", func
     eq(w:_chipNeighbour(-1), "home")
 end)
 
+t.test("a spine shelf of shelves spills every sub-shelf's books as a labelled run", function()
+    seed()
+    local spilled = widget("box"):_subShelfSpill(TabModel.getById("box"))
+    -- a (authors: one group, one member), then inner > b (books, remote skipped), then +
+    local got = {}
+    for _i, r in ipairs(spilled) do
+        got[#got + 1] = (r.add_subshelf and "+") or (r.filepath .. "@" .. r.shelf_section .. "/" .. r.shelf_subshelf)
+    end
+    eq(table.concat(got, " "), "/l/x1.epub@A/a /l/1.epub@B/b OPDS://k/2@B/b /l/3.epub@B/b +")
+end)
+
+t.test("spilled records are copies: a section tag never lands on a shared record", function()
+    seed()
+    local shared = { filepath = "/l/s.epub", title = "S" }
+    local real = Repo.getBySource
+    Repo.getBySource = function() return { shared } end
+    local spilled = widget("box"):_subShelfSpill(TabModel.getById("box"))
+    Repo.getBySource = real
+    assert(spilled[1] ~= shared, "the shared record itself was handed out")
+    assert(shared.shelf_section == nil and shared.shelf_subshelf == nil, "the shared record was tagged")
+end)
+
+t.test("the + tile can be hidden, in every view", function()
+    seed()
+    local tabs = TabModel.load()
+    for _i, x in ipairs(tabs) do if x.id == "box" then x.hide_add_tile = true end end
+    TabModel.save(tabs)
+    local w = widget("box")
+    local items, total = w:_subShelfItems(TabModel.getById("box"), 0, 10)
+    eq(total, 2); eq(#items, 2)
+    for _i, it in ipairs(items) do assert(not it.add_subshelf, "+ tile still shown") end
+    local spilled = w:_subShelfSpill(TabModel.getById("box"))
+    assert(not spilled[#spilled].add_subshelf, "+ tile still spilled")
+end)
+
+t.test("a sub-shelf's run badge opens it; the editor can hide the + tile", function()
+    local sp = io.open("lib/bookshelf_spine_shelf.lua"):read("*a")
+    assert(sp:find("local id = sp.item and sp.item.shelf_subshelf", 1, true), "badge taps do not read the sub-shelf")
+    assert(sp:find("if bk.add_subshelf then face_out = true end", 1, true), "the + tile is not face-out sized")
+    assert(src:find("function(id) bw:_enterSubShelf(id) end", 1, true), "the badge overlay does not open sub-shelves")
+    local ed = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
+    assert(ed:find('_("Show + Add shelf")', 1, true) and ed:find("override.hide_add_tile", 1, true),
+        "no live Show + Add shelf toggle")
+end)
+
 t.test("the fetch, the tap and the long-press know a sub-shelf tile", function()
-    assert(src:find("if not tip and TabModel.isShelves(tab) then\n        return self:_subShelfItems(", 1, true),
-        "_fetchChipItems does not route a shelf of shelves to its tiles")
+    local branch = src:match("if not tip and TabModel%.isShelves%(tab%) then\n(.-)\n    end\n")
+    assert(branch and branch:find("return self:_subShelfItems(", 1, true)
+        and branch:find("if Repo.spine_light then", 1, true)
+        and branch:find("self:_subShelfSpill(tab)", 1, true),
+        "_fetchChipItems does not route a shelf of shelves to its tiles / its spill")
     local exp = src:match("\nfunction BookshelfWidget:_expandFolder%(folder%)\n(.-)\nend\n")
     assert(exp and exp:find("folder.subshelf_id", 1, true) and exp:find("folder.add_subshelf", 1, true),
         "_expandFolder does not open sub-shelves / the + tile")

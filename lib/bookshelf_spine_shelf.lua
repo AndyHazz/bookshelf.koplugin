@@ -3218,7 +3218,28 @@ local function _designStrip(design, width, row_x, row_w, surf_h, face_h, inverti
         local sx, dx, cw = 0, ex, ew
         if dx < 0 then sx = -dx; cw = cw + dx; dx = 0 end
         if dx + cw > width then cw = width - dx end
-        if cw > 0 then strip:alphablitFrom(e, dx, 0, sx, 0, cw, total) end
+        if cw > 0 then
+            -- "Over", alpha included: alphablitFrom keeps the target's alpha,
+            -- so a part-transparent end pixel (a cast shadow, a soft edge)
+            -- over a cleared or blank part of the strip was lost.
+            for yy = 0, total - 1 do
+                for xx = 0, cw - 1 do
+                    local s = e:getPixelP(sx + xx, yy)
+                    local sa = s.alpha
+                    if sa == 255 then
+                        strip:getPixelP(dx + xx, yy)[0] = s[0]
+                    elseif sa > 0 then
+                        local d = strip:getPixelP(dx + xx, yy)
+                        local da = d.alpha * (255 - sa) / 255
+                        local oa = sa + da
+                        d.r = math.floor((s.r * sa + d.r * da) / oa + 0.5)
+                        d.g = math.floor((s.g * sa + d.g * da) / oa + 0.5)
+                        d.b = math.floor((s.b * sa + d.b * da) / oa + 0.5)
+                        d.alpha = math.floor(oa + 0.5)
+                    end
+                end
+            end
+        end
         e:free()
     end
     place(design.left, l.left_x, l.left_w)

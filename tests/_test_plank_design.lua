@@ -70,6 +70,14 @@ t.test("a solid end replaces the middle under it: no fade there, the middle cut 
         and strip:find("cut(l.right_x, l.clip_x1)", 1, true), "the middle is not cut under a solid end")
 end)
 
+t.test("an end image is composited OVER the strip, alpha included", function()
+    -- alphablitFrom keeps the target's alpha, so an end's part-transparent
+    -- shadow or soft edge over a cut or blank part of the strip vanished.
+    local strip = src:match("local function _designStrip%(.-\nend\n")
+    assert(strip and not strip:find("strip:alphablitFrom(e,", 1, true), "ends still alphablit (target alpha kept)")
+    assert(strip:find("d.alpha = math.floor(oa + 0.5)", 1, true), "the end's alpha is not combined into the strip")
+end)
+
 t.test("slots render see-through over a plank design, and repainters redraw it", function()
     assert(src:find("function SpineShelf.seeThrough()", 1, true), "no seeThrough")
     local slot = src:match("function SpineBookSlot:paintTo%(.-\nend")

@@ -2920,7 +2920,9 @@ function SpineShelf.plankDesignLayout(a)
     return { s = s, top_h = band, bot_h = band, surf_h = a.surf_h, face_h = a.face_h,
              surf0 = surf0, face0 = face0, mid_w = mid_w, tiles = tiles,
              clip_x0 = x0, clip_x1 = x1,
-             left_x = left_x, left_w = left_w, right_x = right_x, right_w = right_w }
+             left_x = left_x, left_w = left_w, right_x = right_x, right_w = right_w,
+             left_solid = (a.left and a.left.solid) and true or false,
+             right_solid = (a.right and a.right.solid) and true or false }
 end
 
 local _design_memo, _design_gen = nil, nil
@@ -2960,6 +2962,9 @@ local function _pngInfo(path)
     local text = ok and Orn.pngDirectives and Orn.pngDirectives(head) or ""
     info.edge = tonumber(text:match("bookshelf:plank_end%s*=%s*([%d%.]+)"))
     info.bottom = tonumber(text:match("bookshelf:plank_bottom%s*=%s*([%d%.]+)"))
+    -- A SOLID end (tEXt "plank_solid"): the end image stands in for the
+    -- middle across its whole width, see _designStrip.
+    info.solid = text:find("bookshelf:plank_solid", 1, true) ~= nil
     return info
 end
 
@@ -3011,7 +3016,9 @@ end
 -- bands to nothing over one band's width at each plank end. The plank band
 -- keeps its hard outline (the original plank's), but a cast shadow or a drift
 -- stopping square at the plank end read as cut off, and an end image can only
--- paint over the middle, not erase it.
+-- paint over the middle, not erase it. Not under a SOLID end: that end
+-- replaces the middle there outright (_designStrip), so a fade under it only
+-- left half-transparent arches, icicles or fringe where the two met.
 local function _taperBands(strip, l, surf_h, face_h)
     local T = math.max(1, l.bot_h)
     local total = l.top_h + surf_h + face_h + l.bot_h
@@ -3020,7 +3027,10 @@ local function _taperBands(strip, l, surf_h, face_h)
         for k = 0, T - 1 do
             local f = (k + 0.5) / T
             f = f * f * (3 - 2 * f)
-            for _i, xx in ipairs({ l.clip_x0 + k, l.clip_x1 - 1 - k }) do
+            local xs = {}
+            if not l.left_solid then xs[#xs + 1] = l.clip_x0 + k end
+            if not l.right_solid then xs[#xs + 1] = l.clip_x1 - 1 - k end
+            for _i, xx in ipairs(xs) do
                 if xx >= 0 and xx < strip:getWidth() then
                     for _j, r in ipairs(ranges) do
                         for yy = r[1], r[2] - 1 do
@@ -3187,6 +3197,20 @@ local function _designStrip(design, width, row_x, row_w, surf_h, face_h, inverti
         end
         blank:free()
         _taperBands(strip, l, surf_h, face_h)
+        -- A SOLID end replaces the middle across its whole width (maintainer,
+        -- 2026-10-05: the middle's fade under a fading end overlapped
+        -- awkwardly): the middle is cleared from the plank end to the end
+        -- image's inner edge, so only the end's own shape shows there, with
+        -- a hard inner edge, and nothing of the middle through its gaps.
+        local function cut(x0, x1)
+            x0, x1 = math.max(0, x0), math.min(width, x1)
+            if x1 <= x0 then return end
+            local b = Blitbuffer.new(x1 - x0, total, Blitbuffer.TYPE_BBRGB32)
+            strip:blitFrom(b, x0, 0, 0, 0, x1 - x0, total)
+            b:free()
+        end
+        if l.left_solid and l.left_w > 0 then cut(l.clip_x0, l.left_x + l.left_w) end
+        if l.right_solid and l.right_w > 0 then cut(l.right_x, l.clip_x1) end
     end
     local function place(path, ex, ew)
         if not path or ew <= 0 then return end

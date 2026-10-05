@@ -53,6 +53,23 @@ t.test("narrow screen: ends never exceed half the screen", function()
     eq(l.left_w <= 50, true); eq(l.right_w <= 50, true)
 end)
 
+t.test("a solid end (plank_solid) is carried by the layout; plain ends are not", function()
+    local l = L(args{ left = { w = 200, h = 360, edge = 60, solid = true }, right = { w = 200, h = 360, edge = 60 } })
+    eq(l.left_solid, true); eq(l.right_solid, false)
+    eq(L(args()).left_solid, false, "no end image, no solid end")
+end)
+
+t.test("a solid end replaces the middle under it: no fade there, the middle cut to its inner edge", function()
+    -- Maintainer: the middle's fade under a fading end overlapped awkwardly.
+    assert(src:find('text:find("bookshelf:plank_solid", 1, true)', 1, true), "plank_solid not read from the PNG")
+    local taper = src:match("local function _taperBands%(.-\nend")
+    assert(taper and taper:find("l.left_solid", 1, true) and taper:find("l.right_solid", 1, true),
+        "the fade still runs under a solid end")
+    local strip = src:match("local function _designStrip%(.-\nend")
+    assert(strip and strip:find("cut(l.clip_x0, l.left_x + l.left_w)", 1, true)
+        and strip:find("cut(l.right_x, l.clip_x1)", 1, true), "the middle is not cut under a solid end")
+end)
+
 t.test("slots render see-through over a plank design, and repainters redraw it", function()
     assert(src:find("function SpineShelf.seeThrough()", 1, true), "no seeThrough")
     local slot = src:match("function SpineBookSlot:paintTo%(.-\nend")

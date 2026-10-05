@@ -591,8 +591,11 @@ function ShelfRow.new(opts)
             if show_finished and show_folder_badge and folder_fpaths then
                 folder_finished = finished_count(folder_fpaths, true)
             end
+            -- A shelf of shelves' "+" tile is a button, not a folder: always
+            -- the text card, whose card IS its label (as an OPDS nav tile).
+            local folder_mode = item.add_subshelf and StackDisplay.TEXT or group_mode
             row[#row + 1] = wrap_for_title_alignment(FolderStack:new{
-                display_mode = group_mode,
+                display_mode = folder_mode,
                 folder           = item,
                 -- Member paths for the collage grid. cover_fps is the set
                 -- the fetch already ordered the way this folder would show
@@ -612,7 +615,7 @@ function ShelfRow.new(opts)
                                    and partial_count(folder_k, folder_book_count)
                                    or nil,
                 finished_count   = folder_finished,
-            }, StackDisplay.externalLabel(group_mode, item.label))
+            }, StackDisplay.externalLabel(folder_mode, item.label))
         elseif item and item.kind == "opds_nav" then
             -- OPDS navigation entry (a subcatalog link, e.g. "Next page" or
             -- a browsable category): rendered as a folder-style tile via

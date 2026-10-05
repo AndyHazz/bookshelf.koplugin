@@ -257,19 +257,40 @@ local function tabFor(id)
     return ok2 and tab or nil
 end
 
--- shelfChoiceFor(id) -> nil | "none" | a pack's folder: the tab's own choice.
+-- inherited(id, read) -> the first answer `read(tab)` gives walking up from
+-- `id` through its shelves of shelves: a sub-shelf with no theme of its own
+-- wears the one its shelf of shelves wears (and so on up), before the
+-- library's. A top-level shelf is the one step.
+local function inherited(id, read)
+    local seen = {}
+    for _i = 1, 32 do
+        if id == nil or seen[id] then return nil end
+        seen[id] = true
+        local tab = tabFor(id)
+        if not tab then return nil end
+        local v = read(tab)
+        if v ~= nil then return v end
+        id = tab.parent
+    end
+    return nil
+end
+
+-- shelfChoiceFor(id) -> nil | "none" | a pack's folder: the tab's own choice
+-- (or its shelf of shelves').
 function M.shelfChoiceFor(id)
-    local tab = tabFor(id)
-    local v = tab and tab.theme
-    return (type(v) == "string" and v ~= "") and v or nil
+    return inherited(id, function(tab)
+        local v = tab.theme
+        return (type(v) == "string" and v ~= "") and v or nil
+    end)
 end
 
 -- shelfLookFor(id) -> nil (follow) | "auto" | "light" | "dark".
 function M.shelfLookFor(id)
-    local tab = tabFor(id)
-    local v = tab and tab.theme_look
-    if v == "auto" or v == "light" or v == "dark" then return v end
-    return nil
+    return inherited(id, function(tab)
+        local v = tab.theme_look
+        if v == "auto" or v == "light" or v == "dark" then return v end
+        return nil
+    end)
 end
 
 -- shelfPackFor(id) -> nil (the library's), "none", or a pack that exists. A

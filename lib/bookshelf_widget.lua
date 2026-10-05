@@ -1322,7 +1322,11 @@ function BookshelfWidget:_rebuild()
     -- Hide the strip when 0 or 1 chips are enabled (a single full-width
     -- chip is just a non-interactive label) AND no drill-down is active
     -- (the breadcrumb still needs the strip's slot for back-navigation).
+    -- Inside a sub-shelf the strip is a breadcrumb back up the chain, so it
+    -- stays whatever the chip count (see _shelfChain).
+    local shelf_chain = self:_shelfChain()
     local hide_chip_bar = (#active_chips <= 1) and (#self._drilldown_path == 0)
+                          and #shelf_chain == 0
     -- Defensive: the user can disable every tab via the editor.
     -- Fall back to all defaults so the shelves still have a data source
     -- even when the strip is hidden.
@@ -1334,11 +1338,16 @@ function BookshelfWidget:_rebuild()
     -- If the currently-selected chip was just disabled, switch to the
     -- first surviving chip so render doesn't try to fetch from a
     -- disabled chip's data source.
+    -- A sub-shelf is never in the strip itself; it counts as present while
+    -- the top-level shelf it sits under is.
+    local root_chip = shelf_chain[1] and shelf_chain[1].id or self.chip
     local active_in_set = false
     for _i, c in ipairs(active_chips) do
-        if c.key == self.chip then active_in_set = true; break end
+        if c.key == root_chip then active_in_set = true; break end
     end
     if not active_in_set then
+        shelf_chain = {}
+        root_chip = nil
         -- Skip action chips (current, search) — they have no data source.
         -- Fall back to the first nav chip instead.
         self.chip = active_chips[1].key
@@ -1349,6 +1358,7 @@ function BookshelfWidget:_rebuild()
         -- _persistNavState owns the coalesced flush. A sync save here
         -- cost a full settings-file write (~140ms on Kindle flash).
         BookshelfSettings.saveDeferred("active_chip", self.chip)
+        root_chip = self.chip
     end
     -- Append a search "chip" (icon-only, action-on-tap rather than
     -- chip-switch). Always appended last so it sits at the right edge.
@@ -1657,11 +1667,26 @@ function BookshelfWidget:_rebuild()
     -- the chevron separators make the nesting obvious, and the names
     -- themselves are clear enough in context that prefixing every
     -- crumb with "Author: ", "Series: ", "Folder: " read as noise.
-    if #self._drilldown_path > 0 then
+    for _i, entry in ipairs(self._drilldown_path) do
+        if entry.kind == "search" then in_search_mode = true end
+    end
+    -- Inside a sub-shelf the crumbs start with the shelves on the way down:
+    -- the chip pill is the top-level shelf, then each shelf below it, then
+    -- whatever is drilled into on the shelf on screen. Search is its own
+    -- mode with its own pill, so it shows only its query.
+    local shelf_crumbs = in_search_mode and 0 or #shelf_chain
+    self._shelf_crumbs = shelf_crumbs
+    if shelf_crumbs > 0 or #self._drilldown_path > 0 then
         breadcrumb_path = {}
-        for i, entry in ipairs(self._drilldown_path) do
-            breadcrumb_path[i] = { label = entry.label }
-            if entry.kind == "search" then in_search_mode = true end
+        if shelf_crumbs > 0 then
+            for k = 2, #shelf_chain do
+                breadcrumb_path[#breadcrumb_path + 1] = { label = shelf_chain[k].label }
+            end
+            local here = TabModel.getById(self.chip)
+            breadcrumb_path[#breadcrumb_path + 1] = { label = here and here.label or self.chip }
+        end
+        for _i, entry in ipairs(self._drilldown_path) do
+            breadcrumb_path[#breadcrumb_path + 1] = { label = entry.label }
         end
     end
     -- Search-mode chip pill: shows the search nerd-font glyph (U+F002)
@@ -1677,6 +1702,9 @@ function BookshelfWidget:_rebuild()
     else
         local _t = TabModel.getById(self.chip)
         chip_pill_label = (_t and _t.label) or self.chip
+        if shelf_crumbs > 0 then
+            chip_pill_label = shelf_chain[1].label or shelf_chain[1].id
+        end
         -- When a drilldown is active AND the deepest entry's kind is a
         -- different "view" than the active chip's source.kind, override
         -- the chip pill label so the breadcrumb reads correctly. Example:
@@ -1714,7 +1742,8 @@ function BookshelfWidget:_rebuild()
             -- own kind (so the user can still tap "Authors" chip → drill
             -- into an author group, and the breadcrumb reads "Authors >
             -- X" via the chip's own label, no override needed).
-            if plural_for_chip[chip_kind] ~= tip.kind and DRILL_LABEL[tip.kind] then
+            if shelf_crumbs == 0
+                    and plural_for_chip[chip_kind] ~= tip.kind and DRILL_LABEL[tip.kind] then
                 chip_pill_label = DRILL_LABEL[tip.kind]
             end
         end
@@ -1739,8 +1768,8 @@ function BookshelfWidget:_rebuild()
         -- Transparent shading, or with Transparent shelf menu on.
         solid_ground      = self:wallpaperScrimStrength() > 0
                             and not BookshelfSettings.isTrue("chip_bar_transparent"),
-        active            = self.chip,
-        selected_key      = self.chip,   -- seeds the chip page (infinite-chips)
+        active            = root_chip or self.chip,
+        selected_key      = root_chip or self.chip,   -- seeds the chip page (infinite-chips)
         focused_key       = self._chip_cursor_key,
         width             = content_w,
         height            = chip_h,
@@ -1907,7 +1936,7 @@ function BookshelfWidget:_rebuild()
                 self:_openSearchDialog(query)
                 return
             end
-            self:_drillBackTo(depth)
+            self:_navBackTo(depth)
         end,
         on_hold = function(key)
             if not Gestures.on("edit_shelf") then return end
@@ -3605,6 +3634,9 @@ function BookshelfWidget:_fetchChipItems(n, want_all)
     local LIMIT     = want_all and SELECT_ALL_LIMIT or self:_viewSize()
     local TabModel  = require("lib/bookshelf_tab_model")
     local tab       = TabModel.getById(self.chip)
+    if not tip and TabModel.isShelves(tab) then
+        return self:_subShelfItems(tab, offset, LIMIT)
+    end
     if tip and tip.kind == "folder" then
         -- Drilldown inheritance: the chip's sort_priority levels 2+ drive
         -- the order of books inside the drilled-into folder, mirroring how
@@ -11065,9 +11097,12 @@ end
 function BookshelfWidget:_chipNeighbour(direction)
     local keys = self._active_chip_keys
     if not keys or #keys <= 1 then return nil end
+    -- From inside a sub-shelf, the neighbours are those of the top-level
+    -- shelf it sits under.
+    local here = require("lib/bookshelf_tab_model").rootOf(self.chip)
     local idx
     for i, k in ipairs(keys) do
-        if k == self.chip then idx = i; break end
+        if k == here then idx = i; break end
     end
     if not idx then return keys[1] end
     -- Lua's % on negatives follows the sign of the divisor, so
@@ -11273,7 +11308,7 @@ function BookshelfWidget:onBSFocusUp()
         if self._cursor_idx and on_top then
             if not self._chip_bar_hidden then
                 self._focus_zone = "chips"
-                if #self._drilldown_path > 0 then
+                if self:_navDepth() > 0 then
                     local zones = self._chip_bar and self._chip_bar._breadcrumb_zones
                     if zones and #zones > 0 then
                         self._crumb_cursor_depth = zones[#zones].depth
@@ -11384,7 +11419,7 @@ function BookshelfWidget:onBSFocusDown()
         self:_swapHeroInPlace()
         if not self._chip_bar_hidden then
             self._focus_zone = "chips"
-            if #self._drilldown_path > 0 then
+            if self:_navDepth() > 0 then
                 local zones = self._chip_bar and self._chip_bar._breadcrumb_zones
                 if zones and #zones > 0 then
                     self._crumb_cursor_depth = zones[#zones].depth
@@ -11559,7 +11594,7 @@ function BookshelfWidget:onBSFocusLeft()
     end
 
     if self._focus_zone == "chips" then
-        if #self._drilldown_path > 0 then
+        if self:_navDepth() > 0 then
             local zones = self._chip_bar and self._chip_bar._breadcrumb_zones
             if zones then
                 local cur_i
@@ -11628,7 +11663,7 @@ function BookshelfWidget:onBSFocusRight()
     end
 
     if self._focus_zone == "chips" then
-        if #self._drilldown_path > 0 then
+        if self:_navDepth() > 0 then
             local zones = self._chip_bar and self._chip_bar._breadcrumb_zones
             if zones then
                 local cur_i
@@ -11701,7 +11736,7 @@ function BookshelfWidget:onBSKbPress()
     end
 
     if self._focus_zone == "chips" then
-        if #self._drilldown_path > 0 then
+        if self:_navDepth() > 0 then
             -- Breadcrumb mode: fire on_breadcrumb for the focused zone depth.
             local depth = self._crumb_cursor_depth
             if depth ~= nil and self._chip_bar and self._chip_bar.on_breadcrumb then
@@ -11901,7 +11936,7 @@ function BookshelfWidget:onBSKbHold()
     end
     if self._focus_zone == "chips" then
         -- Breadcrumb mode: no edit affordance, mirror touch behaviour.
-        if #self._drilldown_path > 0 then return true end
+        if self:_navDepth() > 0 then return true end
         local key = self._chip_cursor_key
         if not key then return true end
         -- Action chips (current, search) don't expose an editor on
@@ -14611,8 +14646,9 @@ function BookshelfWidget:_paginatePrev()
     -- "go up a level" (mirrors tapping the previous breadcrumb crumb /
     -- the chip pill at depth 1). Discoverable escape from drill-down
     -- without aiming at the breadcrumb.
-    if #self._drilldown_path > 0 then
-        self:_drillBackTo(#self._drilldown_path - 1)
+    local nav_n = self:_navDepth()
+    if nav_n > 0 then
+        self:_navBackTo(nav_n - 1)
         return true
     end
     -- Top level + page 1 + chip strip visible: stay in the chip and wrap to
@@ -14802,9 +14838,9 @@ function BookshelfWidget:onPrevPage() return self:_paginatePrev() end
 -- Returning false at top level lets the event keep falling through to
 -- whatever KOReader would do without us (unchanged behaviour).
 function BookshelfWidget:onBSDrillBack()
-    local n = self._drilldown_path and #self._drilldown_path or 0
+    local n = self:_navDepth()
     if n > 0 then
-        self:_drillBackTo(n - 1)
+        self:_navBackTo(n - 1)
         return true
     end
     return false
@@ -23314,6 +23350,9 @@ function BookshelfWidget:_openGroupMenu(group, kind)
     -- Select/Deselect button is state-aware and applies its action
     -- directly (no second confirm).
     if not group then return end
+    -- A shelf of shelves' tiles: long-press edits the shelf, as on a chip.
+    if group.subshelf_id then return self:_editSubShelf(group.subshelf_id) end
+    if group.add_subshelf then return self:_addSubShelf() end
     -- kind isn't always carried on the group record itself. Folder
     -- shapes have group.kind = "folder", but the hydrated series /
     -- author / genre / tag / format groups returned by
@@ -23782,6 +23821,198 @@ function BookshelfWidget:_drillBackTo(depth)
     UIManager:setDirty(self, "ui")
 end
 
+-- ── Shelf of shelves: going in and out ───────────────────────────────────────
+-- A sub-shelf is a shelf in its own right (TabModel's "Shelf of shelves"), so
+-- opening one makes it the active chip: every per-shelf setting then reads
+-- its own record, exactly as for a top-level shelf. The way back up is the
+-- parent chain, which the breadcrumb shows ahead of any drill; nothing about
+-- it needs storing, since a relaunch on a sub-shelf rebuilds the chain from
+-- the records.
+
+-- _shelfChain() -> the shelves above the one on screen, outermost first;
+-- empty on a top-level shelf.
+function BookshelfWidget:_shelfChain()
+    return require("lib/bookshelf_tab_model").ancestorsOf(self.chip)
+end
+
+-- _shelfCrumbCount() -> how many crumbs the shelf chain contributes: one per
+-- level below the top-level shelf, the shelf on screen included. None in
+-- search mode, which shows only its query.
+function BookshelfWidget:_shelfCrumbCount()
+    for _i, e in ipairs(self._drilldown_path or {}) do
+        if e.kind == "search" then return 0 end
+    end
+    return #self:_shelfChain()
+end
+
+-- _navDepth() -> every level the breadcrumb can climb: shelves, then drills.
+function BookshelfWidget:_navDepth()
+    return self:_shelfCrumbCount() + #(self._drilldown_path or {})
+end
+
+-- _navBackTo(depth) -- the breadcrumb's own numbering: 0 is the chip pill
+-- (the top-level shelf), then one crumb per shelf below it, then the drills
+-- on the shelf on screen. A depth inside the drills pops drills; one inside
+-- the shelf chain opens that shelf.
+function BookshelfWidget:_navBackTo(depth)
+    depth = math.max(0, depth or 0)
+    local S = self:_shelfCrumbCount()
+    if depth >= S then return self:_drillBackTo(depth - S) end
+    local chain = self:_shelfChain()
+    local target = chain[depth + 1]
+    if not target then return self:_drillBackTo(0) end
+    self:_openShelf(target.id)
+end
+
+-- _openShelf(id, going_in) -- make `id` the shelf on screen. Going in starts
+-- the sub-shelf at its first page and remembers where its parent was;
+-- coming back up returns the parent to that page.
+function BookshelfWidget:_openShelf(id, going_in)
+    self._shelf_cursors = self._shelf_cursors or {}
+    local cursor = 1
+    if going_in then
+        self._shelf_cursors[self.chip] = self._cursor
+    else
+        cursor = self._shelf_cursors[id] or 1
+    end
+    self:_markOpdsNav()
+    self._opds_fail_url, self._opds_fail_err = nil, nil
+    self:_clearDpadFocus()
+    self._tap_selected_fp = nil
+    self._drilldown_path = {}
+    self.chip    = id
+    self._cursor = cursor
+    self:_syncPageFromCursor()
+    BookshelfSettings.saveDeferred("active_chip", id)
+    self:_rebuild()
+    UIManager:setDirty(self, "ui")
+end
+
+function BookshelfWidget:_enterSubShelf(id)
+    if not id or not require("lib/bookshelf_tab_model").getById(id) then return end
+    self:_openShelf(id, true)
+end
+
+-- _addSubShelf([parent_id]) -- the "+" tile: a new shelf inside the one on
+-- screen (or `parent_id`), opened straight into the editor at its source
+-- picker, as "+ Add new shelf" does for a top-level one. The new shelf is
+-- opened behind the editor so its choices preview on it.
+function BookshelfWidget:_addSubShelf(parent_id)
+    local TabModel = require("lib/bookshelf_tab_model")
+    parent_id = parent_id or self.chip
+    if not TabModel.getById(parent_id) then return end
+    local tabs = TabModel.load()
+    local new_id = TabModel.newId(tabs)
+    TabModel.insertChild(tabs, parent_id, {
+        id            = new_id,
+        label         = _("New shelf"),
+        source        = { kind = "all" },
+        filter        = {},
+        sort_priority = { { key = "title", reverse = false } },
+        enabled       = true,
+    })
+    TabModel.save(tabs)
+    if parent_id == self.chip then
+        self:_openShelf(new_id, true)
+    else
+        self:_selectChip(new_id)
+    end
+    local Editor = require("lib/bookshelf_chip_editor")
+    Editor:editTab(new_id, {
+        bw = self,
+        pick_source_first = true,
+        on_change = function() self:_afterChipEdit() end,
+    })
+end
+
+-- _editSubShelf(id) -- long-press on a sub-shelf's tile: its editor, over
+-- the shelf of shelves it sits on, so a rename or a style change shows on
+-- the tile behind.
+function BookshelfWidget:_editSubShelf(id)
+    local Editor = require("lib/bookshelf_chip_editor")
+    Editor:editTab(id, {
+        bw = self,
+        on_change = function() self:_afterChipEdit() end,
+    })
+end
+
+-- _subShelfCoverFps(tab, n) -> up to `n` filepaths of the books a shelf
+-- opens on, for its tile's cover / collage. A shelf of shelves borrows from
+-- its own shelves, depth first. Remote records (OPDS, a synthetic key) have
+-- no local cover and are skipped.
+function BookshelfWidget:_subShelfCoverFps(tab, n, depth)
+    local TabModel = require("lib/bookshelf_tab_model")
+    local out = {}
+    depth = depth or 0
+    if not tab or depth > 8 then return out end
+    local function add(fp)
+        if #out < n and type(fp) == "string" and not fp:match("^%a+://") then
+            out[#out + 1] = fp
+        end
+    end
+    if TabModel.isShelves(tab) then
+        for _i, c in ipairs(TabModel.childrenOf(tab.id)) do
+            for _j, fp in ipairs(self:_subShelfCoverFps(c, n - #out, depth + 1)) do add(fp) end
+            if #out >= n then break end
+        end
+        return out
+    end
+    local ok, items = pcall(Repo.getBySource, tab.source, tab.filter,
+                            tab.sort_priority, 0, n, { lazy_cover = true })
+    if not ok or type(items) ~= "table" then return out end
+    for _i, it in ipairs(items) do
+        if type(it) == "table" then
+            if it.filepath then add(it.filepath)
+            elseif type(it.books) == "table" and it.books[1] then add(it.books[1].filepath)
+            elseif type(it.first_book) == "table" then add(it.first_book.filepath) end
+        end
+        if #out >= n then break end
+    end
+    return out
+end
+
+-- _subShelfItems(tab, offset, limit) -> the page of a shelf of shelves: one
+-- folder-shaped tile per shelf inside it, then the "+" tile. Folder-shaped
+-- because every view (covers, list, spines) already draws a folder record,
+-- with its first book standing in for a cover and a collage from cover_fps;
+-- the tile carries no path, which keeps the folder walks (badge counts,
+-- selection) off it. The tap and long-press read subshelf_id / add_subshelf
+-- (_expandFolder, _openGroupMenu).
+function BookshelfWidget:_subShelfItems(tab, offset, limit)
+    local TabModel = require("lib/bookshelf_tab_model")
+    local children = TabModel.childrenOf(tab.id)
+    local total = #children + 1
+    local ScaledCoverCache = require("lib/bookshelf_scaled_cover_cache")
+    local out = {}
+    for i = offset + 1, math.min(offset + limit, total) do
+        local c = children[i]
+        if c then
+            local label = c.label or ""
+            if c.icon and c.icon ~= "" then label = c.icon .. " " .. label end
+            local fps = self:_subShelfCoverFps(c, 4)
+            local first
+            if fps[1] then
+                first = Repo.buildBookMeta(fps[1],
+                    ScaledCoverCache:has(fps[1]) and { want_cover = false } or nil)
+            end
+            out[#out + 1] = {
+                kind        = "folder",
+                label       = label,
+                subshelf_id = c.id,
+                first_book  = first,
+                cover_fps   = fps,
+            }
+        else
+            out[#out + 1] = {
+                kind         = "folder",
+                label        = "+ " .. _("Add shelf"),
+                add_subshelf = true,
+            }
+        end
+    end
+    return out, total
+end
+
 -- _applyWithinGroupSort(group): when the current chip's tab has sort_priority
 -- levels 2+, those levels apply to the books WITHIN this group at drill time.
 -- The group already has a default series-aware order from _buildGroups
@@ -24087,6 +24318,9 @@ function BookshelfWidget:_searchAndDrill(query)
 end
 
 function BookshelfWidget:_expandFolder(folder)
+    -- A shelf of shelves' tiles are folder-shaped (see _subShelfItems).
+    if folder and folder.subshelf_id then return self:_enterSubShelf(folder.subshelf_id) end
+    if folder and folder.add_subshelf then return self:_addSubShelf() end
     if not folder or not folder.path then return end
     -- Keyed on the first book, which is what the row compares a folder tile
     -- against (folder_fp in bookshelf_shelf_row).

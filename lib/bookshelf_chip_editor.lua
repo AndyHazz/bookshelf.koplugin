@@ -240,6 +240,9 @@ local SOURCE_SORT_DEFAULTS = {
     -- "01. The Colour of Magic - Terry Pratchett_127FE891….kfx", so a filename
     -- sort would look arbitrary next to the titles on screen.
     kindle        = { { key = "title",            reverse = false } },
+    -- Shelf of shelves: its shelves stand in the order they were added (and
+    -- moved), like chips in the strip. No sort levels, as for OPDS.
+    shelves       = {},
 }
 
 -- _resolveOpdsTitle(id): the configured title for an OPDS server key, or nil
@@ -450,6 +453,8 @@ SOURCE_LABEL = {
     -- The Kindle's own library (issue #355). Only offered on a Kindle with
     -- kindle.koplugin installed; see the picker row's availability gate.
     kindle        = function() return _("Kindle Virtual Library") end,
+    -- A shelf holding other shelves (5.4), each with its own source.
+    shelves       = function() return _("Shelf of shelves") end,
 }
 
 -- _resolveSourceLabel(source): display string for "Source: <label>".
@@ -706,13 +711,19 @@ function Editor:editTab(tab_id, opts)
         -- A chevron is "at the edge" only if there's no ENABLED neighbour
         -- in that direction. Hidden tabs don't count toward visible order
         -- so they shouldn't gate the move buttons.
+        -- A sub-shelf moves among the shelves of its own shelf of shelves,
+        -- and a top-level shelf among the top-level ones.
+        local me = current_tabs[current_idx]
+        local function neighbour(t)
+            return t.enabled ~= false and TabModel.isSibling(t, me)
+        end
         local at_left = true
         for i = current_idx - 1, 1, -1 do
-            if current_tabs[i].enabled ~= false then at_left = false; break end
+            if neighbour(current_tabs[i]) then at_left = false; break end
         end
         local at_right = true
         for i = current_idx + 1, #current_tabs do
-            if current_tabs[i].enabled ~= false then at_right = false; break end
+            if neighbour(current_tabs[i]) then at_right = false; break end
         end
 
         -- Bookends-style nudge chevrons (mdi-chevron-left / right from the
@@ -833,8 +844,10 @@ function Editor:editTab(tab_id, opts)
             -- tab past any hidden ones between it and the next visible
             -- chip in the strip. If no enabled neighbour exists, no-op.
             local target = mi + delta
+            local me = move_tabs[mi]
             while target >= 1 and target <= #move_tabs do
-                if move_tabs[target].enabled ~= false then break end
+                local t = move_tabs[target]
+                if t.enabled ~= false and TabModel.isSibling(t, me) then break end
                 target = target + delta
             end
             if target >= 1 and target <= #move_tabs then
@@ -857,6 +870,12 @@ function Editor:editTab(tab_id, opts)
         if draft.source and draft.source.kind == "opds" then
             sort_row = {
                 { text = _("Server order"), enabled = false },
+            }
+        elseif draft.source and draft.source.kind == "shelves" then
+            -- Its shelves stand in your order; the arrows in each one's
+            -- editor move it.
+            sort_row = {
+                { text = _("Shelves stand in the order you arrange them"), enabled = false },
             }
         else
             sort_row = {
@@ -887,6 +906,9 @@ function Editor:editTab(tab_id, opts)
         -- Filters cell for OPDS sources. OPDS filtering is the feed's own facets
         -- (Language / Category), shown as folder tiles at the top of the shelf.
         local is_opds_src = draft.source and draft.source.kind == "opds"
+        -- A shelf of shelves shows shelves, each with filters of its own, so
+        -- it has none to offer.
+        local is_shelves_src = draft.source and draft.source.kind == "shelves"
         -- Source gets a row to itself: it is the one choice that changes what
         -- every other control on this dialog means, and sharing a row made it
         -- read as a peer of the things it governs.
@@ -907,7 +929,9 @@ function Editor:editTab(tab_id, opts)
         -- SHOWS (filters, or a catalog's own settings) and how its group tiles
         -- LOOK.
         local shelf_row = {}
-        if not is_opds_src then
+        if is_shelves_src then
+            -- no filters: see is_shelves_src
+        elseif not is_opds_src then
             shelf_row[#shelf_row + 1] = {
                 text_func = function()
                     return _("Filters: ") .. Filter.summary(draft.filter or {})
@@ -1050,8 +1074,11 @@ function Editor:editTab(tab_id, opts)
                     font_bold      = false,
                     bordersize     = 0,
                     callback   = function()
+                        local has_shelves = #TabModel.childrenOf(tab_id) > 0
                         UIManager:show(ConfirmBox:new{
-                            text       = _("Delete this shelf? This cannot be undone."),
+                            text       = has_shelves
+                                and _("Delete this shelf and the shelves inside it? This cannot be undone.")
+                                or _("Delete this shelf? This cannot be undone."),
                             ok_text    = _("Delete"),
                             ok_callback = function()
                                 -- Deleting a tab changes the list of tabs,
@@ -1061,15 +1088,24 @@ function Editor:editTab(tab_id, opts)
                                 -- (never read again). No invalidateBookCache.
                                 TabModel.clearOverride()
                                 local del_tabs = TabModel.load()
-                                for di = #del_tabs, 1, -1 do
-                                    if del_tabs[di].id == tab_id then
-                                        table.remove(del_tabs, di)
-                                        break
-                                    end
+                                -- Where the shelf on screen goes if it was
+                                -- this one or inside it: up to this one's
+                                -- shelf of shelves, read before the delete.
+                                local parent_id
+                                for _i, t in ipairs(del_tabs) do
+                                    if t.id == tab_id then parent_id = t.parent; break end
                                 end
+                                local gone = TabModel.descendantIds(tab_id, del_tabs)
+                                gone[tab_id] = true
+                                TabModel.removeTree(del_tabs, tab_id)
                                 TabModel.save(del_tabs)
                                 UIManager:close(dialog)
-                                if opts.on_change then opts.on_change() end
+                                local bw = opts.bw
+                                if bw and gone[bw.chip] and parent_id and bw._openShelf then
+                                    bw:_openShelf(parent_id)
+                                elseif opts.on_change then
+                                    opts.on_change()
+                                end
                             end,
                         })
                     end,
@@ -1173,6 +1209,18 @@ function Editor:editTab(tab_id, opts)
                             -- sort_priority), so a render with new settings
                             -- naturally cache-misses; other tabs keep
                             -- their warm entries. No invalidate needed.
+                        end
+                        -- Inside a shelf of shelves, the new shelf joins this
+                        -- one's siblings: the widget makes it, opens it and
+                        -- puts its editor up.
+                        local me_parent
+                        for _i, t in ipairs(TabModel.load()) do
+                            if t.id == tab_id then me_parent = t.parent; break end
+                        end
+                        if me_parent and opts.bw and opts.bw._addSubShelf then
+                            UIManager:close(dialog)
+                            opts.bw:_addSubShelf(me_parent)
+                            return
                         end
                         -- Generate unique custom_N id and append the new tab.
                         local fresh = TabModel.load()
@@ -2765,6 +2813,10 @@ function Editor:_pickSource(draft, on_close)
             specific_btn("folder_flat", _("Flattened folder\xE2\x80\xA6"),
                 function() open_folder_picker("folder_flat") end),
         },
+        -- A shelf of shelves (5.4): its tiles are shelves of their own,
+        -- each with every option a top-level shelf has.
+        heading(_("Shelves")),
+        { btn("shelves", _("Shelf of shelves")) },
         -- Rows 4+: browse-all on the left, specific-picker on the right
         heading(_("Grouped")),
         {

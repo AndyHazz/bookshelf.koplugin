@@ -72,10 +72,11 @@ local VALID_SORT_KEYS = {
 }
 
 t.test("every SOURCE_SORT_DEFAULTS entry is a non-empty list of {key,reverse}, except fixed-order sources", function()
-    -- "opds" is the one deliberate exception: the feed order is fixed
+    -- "opds" is a deliberate exception: the feed order is fixed
     -- (server-defined), so its defaults are an empty list -- see the
-    -- "no sort levels" test below.
-    local FIXED_ORDER_KINDS = { opds = true }
+    -- "no sort levels" test below. "shelves" (a shelf of shelves) is the
+    -- other: its shelves stand in the order the reader arranges them.
+    local FIXED_ORDER_KINDS = { opds = true, shelves = true }
     for kind, levels in pairs(D.SOURCE_SORT_DEFAULTS) do
         if FIXED_ORDER_KINDS[kind] then
             eq(levels, {})

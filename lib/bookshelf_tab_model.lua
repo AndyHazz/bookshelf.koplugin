@@ -248,16 +248,134 @@ end
 -- getActive(): list of enabled tabs in their stored order. If an override
 -- is set, the matching tab is substituted in-place so position is preserved
 -- and live label/icon edits surface immediately.
+--
+-- Top-level shelves only: a sub-shelf (see "Shelf of shelves" below) lives
+-- inside its parent's shelf, never in the chip strip.
 function TabModel.getActive()
     local out = {}
     for _i, t in ipairs(TabModel.load()) do
         if _override and _override.id == t.id then
-            if _override.tab.enabled ~= false then out[#out + 1] = _override.tab end
-        elseif t.enabled ~= false then
+            local o = _override.tab
+            if o.enabled ~= false and not o.parent then out[#out + 1] = o end
+        elseif t.enabled ~= false and not t.parent then
             out[#out + 1] = t
         end
     end
     return out
+end
+
+-- ── Shelf of shelves (5.4) ─────────────────────────────────────────────────
+-- A shelf whose source is { kind = "shelves" } holds other shelves. Each one
+-- is an ordinary tab record in the same flat list, with `parent` naming the
+-- shelf it sits in -- so every per-shelf setting (style, filters, sort, rows,
+-- theme, ornaments) works on it unchanged, keyed by its id like any other.
+-- A sub-shelf can itself hold shelves, to any depth. Order among siblings is
+-- their order in the list.
+TabModel.SHELVES_KIND = "shelves"
+-- A cycle cannot be built from the UI, but a hand-edited settings file could
+-- hold one; every walk up the chain stops here rather than spinning.
+local MAX_DEPTH = 32
+
+function TabModel.isShelves(tab)
+    return type(tab) == "table" and type(tab.source) == "table"
+        and tab.source.kind == TabModel.SHELVES_KIND
+end
+
+-- childrenOf(id[, tabs]) -> the shelves inside `id`, in their stored order.
+function TabModel.childrenOf(id, tabs)
+    local out = {}
+    if id == nil then return out end
+    for _i, t in ipairs(tabs or TabModel.load()) do
+        if t.parent == id then
+            if _override and _override.id == t.id then
+                out[#out + 1] = _override.tab
+            else
+                out[#out + 1] = t
+            end
+        end
+    end
+    return out
+end
+
+-- ancestorsOf(id) -> the shelves above `id`, outermost first (empty for a
+-- top-level shelf). A parent that no longer exists ends the chain.
+function TabModel.ancestorsOf(id)
+    local chain, seen = {}, { [id or false] = true }
+    local t = TabModel.getById(id)
+    while t and t.parent and #chain < MAX_DEPTH and not seen[t.parent] do
+        local p = TabModel.getById(t.parent)
+        if not p then break end
+        seen[t.parent] = true
+        table.insert(chain, 1, p)
+        t = p
+    end
+    return chain
+end
+
+-- rootOf(id) -> the top-level shelf `id` sits under (itself when top level).
+function TabModel.rootOf(id)
+    local chain = TabModel.ancestorsOf(id)
+    return chain[1] and chain[1].id or id
+end
+
+-- descendantIds(id[, tabs]) -> set of every shelf below `id`, any depth.
+function TabModel.descendantIds(id, tabs)
+    tabs = tabs or TabModel.load()
+    local set, frontier = {}, { id }
+    while #frontier > 0 do
+        local next_f = {}
+        for _i, pid in ipairs(frontier) do
+            for _j, t in ipairs(tabs) do
+                if t.parent == pid and not set[t.id] and t.id ~= id then
+                    set[t.id] = true
+                    next_f[#next_f + 1] = t.id
+                end
+            end
+        end
+        frontier = next_f
+    end
+    return set
+end
+
+-- removeTree(tabs, id): remove `id` and every shelf inside it, in place.
+-- Deleting a shelf of shelves takes its shelves with it; leaving them would
+-- strand records nothing can reach or edit.
+function TabModel.removeTree(tabs, id)
+    local doomed = TabModel.descendantIds(id, tabs)
+    doomed[id] = true
+    for i = #tabs, 1, -1 do
+        if doomed[tabs[i].id] then table.remove(tabs, i) end
+    end
+end
+
+-- isSibling(a, b) -> true when two records sit at the same level (same
+-- parent, or both top level): the set the editor's move arrows walk.
+function TabModel.isSibling(a, b)
+    return type(a) == "table" and type(b) == "table" and a.parent == b.parent
+end
+
+-- newId(tabs) -> the first free custom_N id.
+function TabModel.newId(tabs)
+    tabs = tabs or TabModel.load()
+    local taken = {}
+    for _i, t in ipairs(tabs) do taken[t.id] = true end
+    local n = 1
+    while taken["custom_" .. n] do n = n + 1 end
+    return "custom_" .. n
+end
+
+-- insertChild(tabs, parent_id, new_tab): append `new_tab` as the last shelf
+-- inside `parent_id`, placed after the parent's last descendant in the flat
+-- list so the stored list still reads in tree order.
+function TabModel.insertChild(tabs, parent_id, new_tab)
+    new_tab.parent = parent_id
+    local inside = TabModel.descendantIds(parent_id, tabs)
+    local at
+    for i, t in ipairs(tabs) do
+        if t.id == parent_id or inside[t.id] then at = i end
+    end
+    if at then table.insert(tabs, at + 1, new_tab)
+    else tabs[#tabs + 1] = new_tab end
 end
 
 return TabModel

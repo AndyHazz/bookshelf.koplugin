@@ -550,7 +550,8 @@ function Group.tile(item, width, height, opts)
     if width < minTileWidth() then return nil end
     if not opts.fill_row and height < DECK_MIN_H then return nil end
     local StackDisplay = require("lib/bookshelf_stack_display")
-    local is_nav = item.kind == "opds_nav"
+    -- The "+ Add shelf" tile is a button the same way (see fillsRow).
+    local is_nav = item.kind == "opds_nav" or item.add_subshelf == true
     if is_nav or item.kind == "folder" then
         local FolderStack = require("lib/bookshelf_folder_stack")
         -- No first_book stand-in for a nav entry, unlike the cover grid's
@@ -623,8 +624,12 @@ end
 -- as a button, not a book" -- and drives its border off is_selected, which is
 -- what the cover grid thickens when a tap lands. Handing that widget the whole
 -- row is all "exactly the same behaviour as the cover view" takes.
+--
+-- A shelf of shelves' "+ Add shelf" tile is the same kind of thing: a button
+-- named by its label, with nothing to fan or count.
 function Group.fillsRow(item)
-    return type(item) == "table" and item.kind == "opds_nav"
+    return type(item) == "table"
+        and (item.kind == "opds_nav" or item.add_subshelf == true)
 end
 
 -- The slot a tile or a deck occupies, so the two agree and a row with either

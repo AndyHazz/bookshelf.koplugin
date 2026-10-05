@@ -6215,6 +6215,9 @@ function Settings:_tabsMenuItems()
     local tabs = TabModel.load()
     for _i, tab in ipairs(tabs) do
         local tab_id = tab.id
+        -- Sub-shelves live inside their shelf of shelves (long-press a tile
+        -- there to edit one), not in this list of the strip's shelves.
+        if not tab.parent then
         items[#items + 1] = {
             keep_menu_open = true,
             text_func = function()
@@ -6258,6 +6261,7 @@ function Settings:_tabsMenuItems()
                 end
             end,
         }
+        end
     end
 
     -- The hint goes at the FOOT of the list, not above it: a reader who has

@@ -748,7 +748,7 @@ Within the top panel card the cover is a single focus target: the rating stars, 
 
 #### Sources
 
-Each shelf points at one of these, set under **Source / grouping** in the shelf editor. The picker lists the book shelves first and the grouped ones (series, authors, genres and so on) after.
+Each shelf points at one of these, set under **Source / grouping** in the shelf editor. The picker lists the book shelves first, then Shelf of shelves, then the grouped ones (series, authors, genres and so on).
 
 - **Home (folders)** -- your library as a folder tree.
 - **Home (flat)** -- every book in one list, no folders.
@@ -760,6 +760,7 @@ Each shelf points at one of these, set under **Source / grouping** in the shelf 
 - **Folder (flattened)** -- a single folder shown as every book beneath it in one list, no sub-folder cards (vs. the plain folder source, which keeps the sub-folder tree).
 - **OPDS catalog** -- an online catalogue browsed as a shelf (see [OPDS catalogues](#opds-catalogues)). The feed's own order is authoritative, so these shelves have no sort priority, and the local filters don't apply -- some catalogues offer their own filters as tiles instead.
 - **Kindle Virtual Library** -- on a Kindle, the books in the Kindle's own library, shown as a sortable shelf with their own covers. Needs the Kindle Virtual Library plugin, and is offered only where it is installed. See [Kindle library](#kindle-library).
+- **Shelf of shelves** -- a shelf that holds other shelves. It starts empty apart from a **+ Add shelf** tile; each shelf you add there has every option a top-level shelf has (its own source, filters, sort, style and so on), and can itself be a shelf of shelves. Tap a tile to open that shelf, long-press it to edit it; the breadcrumb, Back and a swipe back on page 1 climb out again. A shelf inside one wears the theme of the shelf it sits in, and deleting a shelf of shelves deletes the shelves inside it.
 
 
 

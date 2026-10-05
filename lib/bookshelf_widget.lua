@@ -6054,12 +6054,11 @@ function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD, n_rows)
         -- _buildShelfRows runs in its own scope; the TabModel local
         -- inside _rebuild isn't visible here. Require lazily so the
         -- dependency stays explicit and idempotent.
-        local TabModel = require("lib/bookshelf_tab_model")
-        for _i, c in ipairs(TabModel.getActive()) do
-            if c.id == self.chip and c.source and c.source.kind == "single_series" then
-                in_series = true
-                break
-            end
+        -- getById, not a scan of getActive: a sub-shelf is not in the strip
+        -- but is the shelf on screen all the same.
+        local c = require("lib/bookshelf_tab_model").getById(self.chip)
+        if c and c.source and c.source.kind == "single_series" then
+            in_series = true
         end
     end
 

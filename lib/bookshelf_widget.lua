@@ -23666,6 +23666,29 @@ function BookshelfWidget:_openGroupMenu(group, kind)
         table.insert(buttons, row)
     end
 
+    -- Genre management (genre shelves only): block, rename / merge, or hide on
+    -- chosen books. All three edit the Hardcover cleanup rules.
+    if kind == "genre" and type(source_id) == "string" and source_id ~= "" then
+        local GenreManage = require("lib/bookshelf_genre_manage")
+        local stack_paths = self:_resolveStackPaths(group)
+        table.insert(buttons, {
+            { text = _("Never use this genre"), callback = function()
+                close_dialog()
+                GenreManage.neverUse(bw_ref, source_id, stack_paths)
+            end },
+            { text = _("Rename or merge") .. "\xE2\x80\xA6", callback = function()
+                close_dialog()
+                GenreManage.rename(bw_ref, source_id)
+            end },
+        })
+        table.insert(buttons, {
+            { text = _("Hide on some books") .. "\xE2\x80\xA6", callback = function()
+                close_dialog()
+                GenreManage.hideOnSome(bw_ref, source_id, stack_paths)
+            end },
+        })
+    end
+
     -- Page counts for just this stack's books (issue 459): the same dialog as
     -- the settings menu's, scoped. A folder counts every book under it.
     table.insert(buttons, {

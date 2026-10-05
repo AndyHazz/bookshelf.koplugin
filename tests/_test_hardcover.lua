@@ -21,6 +21,10 @@ package.loaded["lib/bookshelf_settings_store"] = {
         settings["bookshelf_" .. key] = nil
     end,
     flush = function() end,
+    genreSource = function(fp)
+        local m = settings.bookshelf_genre_source
+        return m and m[fp] or nil
+    end,
     isTrue = function(key)
         return settings["bookshelf_" .. key] == true
     end,
@@ -516,6 +520,63 @@ test("enrichBook applies Hardcover metadata only when the toggle is on", functio
     assert(on.series_num == "2", "series_num: " .. tostring(on.series_num))
     assert(#on.genres == 2, "genres not capped to 2: " .. #on.genres)
     assert(on.genres[1] == "Science Fiction", "first genre: " .. tostring(on.genres[1]))
+end)
+
+test("genre cleanup: blocklist, alias and per-book hide run before the cap", function()
+    reset()
+    seedCache("enrich", "123:456", {
+        genres = { "Fiction", "Sci-Fi", "Adult", "Space Opera", "Fantasy", "Adventure" },
+    })
+    Hardcover.invalidate()
+    settings.bookshelf_hardcover_use_metadata = true
+    settings.bookshelf_hardcover_max_genres = 3
+    settings.bookshelf_hardcover_genre_blocklist = { "fiction" }
+    settings.bookshelf_hardcover_genre_aliases = {
+        { from = "Sci-Fi", to = "Science Fiction" },
+        { from = "Space Opera", to = "Science Fiction" },
+        { from = "Adult", to = "" },
+    }
+    settings.bookshelf_hardcover_genre_excluded = { ["/books/a.epub"] = { "Fantasy" } }
+    local b = Hardcover.enrichBook{ filepath = "/books/a.epub", genres = { "Own" } }
+    -- Fiction blocked, Sci-Fi/Space Opera merge, Adult dropped, Fantasy hidden
+    -- on this book: only two are left, and the cap never ate a blocked slot.
+    assert(#b.genres == 2, "genres: " .. table.concat(b.genres, "|"))
+    assert(b.genres[1] == "Science Fiction" and b.genres[2] == "Adventure",
+        "genres: " .. table.concat(b.genres, "|"))
+    assert(b.genre_sources.hardcover[1] == "Science Fiction", "source list not cleaned")
+end)
+
+test("genre cleanup: Combined keeps the book's own genres plus Hardcover's", function()
+    reset()
+    seedCache("enrich", "123:456", { genres = { "Fantasy", "Own Tag", "Dragons" } })
+    Hardcover.invalidate()
+    settings.bookshelf_genre_source = { ["/books/a.epub"] = "combined" }
+    local b = Hardcover.enrichBook{
+        filepath = "/books/a.epub", genres = { "own tag", "Classic" },
+        genre_sources = { embedded = { "own tag", "Classic" } },
+    }
+    assert(table.concat(b.genres, "|") == "own tag|Classic|Fantasy|Dragons",
+        "combined: " .. table.concat(b.genres, "|"))
+    assert(b.genre_sources.combined, "combined source not exposed")
+    -- Without an own list there is nothing to combine: no Combined source.
+    local c = Hardcover.enrichBook{ filepath = "/books/a.epub" }
+    assert(c.genre_sources.combined == nil, "combined offered with no own genres")
+end)
+
+test("refreshGenres re-resolves after a rule change", function()
+    reset()
+    seedCache("enrich", "123:456", { genres = { "Fantasy", "Dragons" } })
+    Hardcover.invalidate()
+    settings.bookshelf_genre_source = { ["/books/a.epub"] = "hardcover" }
+    local b = Hardcover.enrichBook{
+        filepath = "/books/a.epub", genres = { "Own" },
+        genre_sources = { embedded = { "Own" } },
+    }
+    assert(#b.genres == 2)
+    settings.bookshelf_hardcover_genre_blocklist = { "Fantasy", "Dragons" }
+    Hardcover.refreshGenres(b)
+    assert(b.genre_sources.hardcover == nil, "emptied source must disappear")
+    assert(#b.genres == 1 and b.genres[1] == "Own", "falls back to the book's own genres")
 end)
 
 

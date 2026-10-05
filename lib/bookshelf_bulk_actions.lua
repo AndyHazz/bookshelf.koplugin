@@ -46,7 +46,7 @@ function BulkActions.show(opts)
         rating              = false,
         collections_add     = nil,
         collections_remove  = nil,
-        genres              = nil,  -- { add = {[lc]=name}, remove = {[lc]=name} }
+        genres              = nil,  -- { add, remove, hide, unhide: each {[lc]=name} }
         refresh_metadata    = false,
         remove_from_history = false,
     }
@@ -254,6 +254,8 @@ function BulkActions.show(opts)
                 paths          = selection:paths(),
                 initial_add    = draft.genres and draft.genres.add,
                 initial_remove = draft.genres and draft.genres.remove,
+                initial_hide   = draft.genres and draft.genres.hide,
+                initial_unhide = draft.genres and draft.genres.unhide,
                 on_save        = function(diff)
                     draft.genres = diff
                     genres_button.background = draft.genres and STAGED_BG or nil

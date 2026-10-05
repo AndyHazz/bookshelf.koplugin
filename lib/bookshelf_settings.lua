@@ -3075,6 +3075,140 @@ local function _formatCacheTime(ts)
     return os.date("%Y-%m-%d %H:%M", ts)
 end
 
+-- _promptText(title, value, hint, ok_text, on_ok) -- one-line text prompt.
+local function _promptText(title, value, hint, ok_text, on_ok)
+    local InputDialog = require("ui/widget/inputdialog")
+    local idlg
+    idlg = InputDialog:new{
+        title = title, input = value or "", input_hint = hint,
+        buttons = {{
+            { text = _("Cancel"), id = "close",
+              callback = function() UIManager:close(idlg) end },
+            { text = ok_text, is_enter_default = true,
+              callback = function()
+                local v = (idlg:getInputText() or ""):gsub("^%s+", ""):gsub("%s+$", "")
+                UIManager:close(idlg)
+                on_ok(v)
+              end },
+        }},
+    }
+    UIManager:show(idlg)
+    idlg:onShowKeyboard()
+end
+
+-- _hardcoverGenreCleanupItems(markDirty) -> the "Hardcover genre cleanup" rows:
+-- a blocklist and a tag-alias map applied to every linked book's Hardcover
+-- genres (see lib/bookshelf_genre_filter). Per-book hiding lives in the tag
+-- long-press menu in the book details.
+function Settings:_hardcoverGenreCleanupItems(markDirty)
+    local GenreFilter = require("lib/bookshelf_genre_filter")
+    local ConfirmBox  = require("ui/widget/confirmbox")
+
+    local buildBlocked, buildAliases
+
+    local function blockedRows(tmi)
+        local rows = {
+            {
+                text = "+ " .. _("Block a genre") .. "\xE2\x80\xA6",
+                keep_menu_open = true,
+                callback = function(tmi2)
+                    _promptText(_("Block a genre"), "", _("Genre name"), _("Block"), function(v)
+                        if v ~= "" and GenreFilter.addBlocked(v) then markDirty("hardcover-genre-rules") end
+                        self:_reopenSubMenu(tmi2 or tmi, buildBlocked)
+                    end)
+                end,
+            },
+        }
+        for _i, tag in ipairs(GenreFilter.blocklist()) do
+            rows[#rows + 1] = {
+                text = "\xE2\x9C\x95 " .. tag,
+                help_text = _("Tap to allow this genre again."),
+                keep_menu_open = true,
+                callback = function(tmi2)
+                    UIManager:show(ConfirmBox:new{
+                        text = T(_("Allow the genre \"%1\" again?"), tag),
+                        ok_text = _("Allow"),
+                        ok_callback = function()
+                            if GenreFilter.removeBlocked(tag) then markDirty("hardcover-genre-rules") end
+                            self:_reopenSubMenu(tmi2 or tmi, buildBlocked)
+                        end,
+                    })
+                end,
+            }
+        end
+        return rows
+    end
+    buildBlocked = function() return blockedRows() end
+
+    local function aliasRows(tmi)
+        local function addAlias(tmi2, from_prefill, to_prefill)
+            _promptText(_("Genre to replace"), from_prefill or "", _("Hardcover's name for it"),
+                _("Next"), function(from)
+                    if from == "" then return end
+                    _promptText(T(_("Replace \"%1\" with"), from), to_prefill or "",
+                        _("New name (empty hides it)"), _("Save"), function(to)
+                            if GenreFilter.setAlias(from, to) then markDirty("hardcover-genre-rules") end
+                            self:_reopenSubMenu(tmi2 or tmi, buildAliases)
+                        end)
+                end)
+        end
+        local rows = {
+            {
+                text = "+ " .. _("Add an alias") .. "\xE2\x80\xA6",
+                help_text = _("Rename a Hardcover genre, or merge several into one (give them the same new name). Leave the new name empty to hide the genre."),
+                keep_menu_open = true,
+                callback = function(tmi2) addAlias(tmi2) end,
+            },
+        }
+        for _i, a in ipairs(GenreFilter.aliases()) do
+            local target = (a.to ~= "") and a.to or _("(hidden)")
+            rows[#rows + 1] = {
+                text = a.from .. " \xE2\x86\x92 " .. target,
+                keep_menu_open = true,
+                callback = function(tmi2)
+                    local ButtonDialog = require("ui/widget/buttondialog")
+                    local dlg
+                    local function close() UIManager:close(dlg) end
+                    dlg = ButtonDialog:new{
+                        title = a.from .. " \xE2\x86\x92 " .. target,
+                        title_align = "center",
+                        buttons = {
+                            { { text = _("Edit"), callback = function()
+                                  close(); addAlias(tmi2, a.from, a.to) end },
+                              { text = _("Remove"), callback = function()
+                                  close()
+                                  if GenreFilter.removeAlias(a.from) then markDirty("hardcover-genre-rules") end
+                                  self:_reopenSubMenu(tmi2 or tmi, buildAliases)
+                              end } },
+                            { { text = _("Cancel"), callback = close } },
+                        },
+                    }
+                    UIManager:show(dlg)
+                end,
+            }
+        end
+        return rows
+    end
+    buildAliases = function() return aliasRows() end
+
+    return {
+        {
+            text_func = function()
+                return T(_("Blocked genres: %1"), tostring(#GenreFilter.blocklist()))
+            end,
+            help_text = _("Hardcover genres you never want used, on every linked book -- for the tag pills and the genre shelves/stacks. Matching ignores case. A book's own embedded and Calibre genres are never filtered."),
+            sub_item_table_func = buildBlocked,
+        },
+        {
+            text_func = function()
+                return T(_("Genre aliases: %1"), tostring(#GenreFilter.aliases()))
+            end,
+            help_text = _("Rename Hardcover genres, or merge several into one -- for example Sci-Fi and Science fiction both become Science Fiction. Applied before the blocklist and before the genre count limit."),
+            sub_item_table_func = buildAliases,
+        },
+    }
+end
+
 function Settings:_hardcoverSubItems()
     local function markDirty(reason)
         pcall(function()
@@ -3465,6 +3599,11 @@ function Settings:_hardcoverSubItems()
                     end,
                 })
             end,
+        },
+        {
+            text = _("Hardcover genre cleanup"),
+            help_text = _("Block genres Hardcover gets wrong, or rename and merge them. Applies to Hardcover's genres only. To hide a genre on just one book, long-press it in the book details."),
+            sub_item_table = self:_hardcoverGenreCleanupItems(markDirty),
         },
         {
             -- Maintenance lives one level down: refreshing cached data and

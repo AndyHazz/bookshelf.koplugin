@@ -8,6 +8,7 @@
 
 local BookshelfSettings = require("lib/bookshelf_settings_store")
 local logger = require("logger")
+local GenreFilter = require("lib/bookshelf_genre_filter")
 
 local Hardcover = {}
 
@@ -2163,6 +2164,20 @@ function Hardcover.preloadMetadata()
     _cache_bulk.enrich = true
 end
 
+-- A linked book's Hardcover genres after the user's blocklist, alias map and
+-- per-book exclusions, capped to "Hardcover genres used". Filtering runs
+-- before the cap so a blocked tag doesn't use up one of the slots. nil when
+-- nothing is left.
+local function _hcGenres(book, enrichment)
+    if type(enrichment.genres) ~= "table" or #enrichment.genres == 0 then return nil end
+    local max = tonumber(BookshelfSettings.read("hardcover_max_genres")) or 5
+    if max < 0 then max = 0 end
+    local kept = GenreFilter.forBook(enrichment.genres, book.filepath)
+    local g = {}
+    for i = 1, math.min(max, #kept) do g[i] = kept[i] end
+    return #g > 0 and g or nil
+end
+
 function Hardcover.applyMetadata(book)
     -- Reached directly on the light grouping-record path (not just via
     -- enrichBook), so it needs its own availability gate: with the plugin gone,
@@ -2202,24 +2217,83 @@ function Hardcover.applyMetadata(book)
             book.series = enrichment.series_name
         end
     end
-    if type(enrichment.genres) == "table" and #enrichment.genres > 0 then
-        local max = tonumber(BookshelfSettings.read("hardcover_max_genres")) or 5
-        if max < 0 then max = 0 end
-        local g = {}
-        for i = 1, math.min(max, #enrichment.genres) do
-            g[i] = enrichment.genres[i]
-        end
-        if #g > 0 then
-            -- Apply unless the user explicitly chose a non-Hardcover source for
-            -- this book (the Hardcover source itself is exposed to the chip bar
-            -- by enrichBook, independent of this sync gate).
-            local pref = BookshelfSettings.genreSource and
-                BookshelfSettings.genreSource(book.filepath)
-            if pref ~= "embedded" and pref ~= "calibre" then
-                book.genres = g
-            end
+    local g = _hcGenres(book, enrichment)
+    if g then
+        -- Apply unless the user explicitly chose a non-Hardcover source for
+        -- this book (the Hardcover source itself is exposed to the chip bar
+        -- by enrichBook, independent of this sync gate).
+        local pref = BookshelfSettings.genreSource and
+            BookshelfSettings.genreSource(book.filepath)
+        -- No per-book choice follows the global "Combine with the book's own
+        -- genres" setting; an explicit per-book source always wins.
+        if pref == "combined"
+                or (pref == nil and BookshelfSettings.isTrue("hardcover_combine_genres")) then
+            book.genres = GenreFilter.union(book.genres, g)
+        elseif pref ~= "embedded" and pref ~= "calibre" then
+            book.genres = g
         end
     end
+end
+
+-- Expose the cleaned-up Hardcover genre list to the book-detail source chip
+-- bar (even when the global "Use Hardcover metadata" toggle is off, so a
+-- per-book source choice can pick Hardcover for one book), and resolve
+-- book.genres for the Hardcover / Combined per-book choices.
+local function _exposeGenreSources(book, enrichment)
+    local g = _hcGenres(book, enrichment)
+    if g then
+        book.genre_sources = book.genre_sources or {}
+        book.genre_sources.hardcover = g
+        -- "Combined" = the book's own genres (Calibre, else embedded) plus
+        -- Hardcover's cleaned-up ones. Offered only when there is an own list
+        -- to combine with; otherwise it would just repeat Hardcover.
+        local srcs = book.genre_sources
+        local own = srcs.calibre or srcs.embedded
+        if type(own) == "table" and #own > 0 then
+            srcs.combined = GenreFilter.union(own, g)
+        end
+        local pref = BookshelfSettings.genreSource
+            and BookshelfSettings.genreSource(book.filepath)
+        if pref == "hardcover" then
+            book.genres = g
+        elseif pref == "combined" and srcs.combined then
+            book.genres = srcs.combined
+        end
+    end
+end
+
+-- A linked book's cached Hardcover genres exactly as Hardcover supplied them
+-- (no cleanup rules, no cap), or nil. For the bulk genre editor, which needs
+-- the tags a book could show in order to hide them.
+function Hardcover.rawGenres(filepath)
+    if not Hardcover.isAvailable() then return nil end
+    local link = Hardcover.getLink(filepath)
+    local enrichment = link and Hardcover.getCachedEnrichment(link.book_id, link.edition_id)
+    if type(enrichment) == "table" and type(enrichment.genres) == "table" then
+        return enrichment.genres
+    end
+    return nil
+end
+
+-- Re-resolve one book's Hardcover genres after the cleanup rules changed
+-- (blocklist, alias, per-book exclusion), without a full re-enrich: the
+-- caller's book table keeps everything else.
+function Hardcover.refreshGenres(book)
+    if type(book) ~= "table" or not book.filepath then return end
+    local srcs = book.genre_sources or {}
+    book.genre_sources = srcs
+    srcs.hardcover, srcs.combined = nil, nil
+    local pref = BookshelfSettings.genreSource
+        and BookshelfSettings.genreSource(book.filepath)
+    book.genres = (pref == "embedded" and srcs.embedded)
+        or (pref == "calibre" and srcs.calibre)
+        or srcs.calibre or srcs.embedded
+    if not Hardcover.isAvailable() then return end
+    local link = Hardcover.getLink(book.filepath)
+    local enrichment = link and Hardcover.getCachedEnrichment(link.book_id, link.edition_id)
+    if type(enrichment) ~= "table" then return end
+    _exposeGenreSources(book, enrichment)
+    Hardcover.applyMetadata(book)
 end
 
 function Hardcover.enrichBook(book)
@@ -2286,20 +2360,7 @@ function Hardcover.enrichBook(book)
     -- Expose the Hardcover genre list to the book-detail source chip bar even
     -- when the global "Use Hardcover metadata" toggle is off, so a per-book
     -- source choice can pick Hardcover for one book. Capped like applyMetadata.
-    if type(enrichment.genres) == "table" and #enrichment.genres > 0 then
-        local max = tonumber(BookshelfSettings.read("hardcover_max_genres")) or 5
-        if max < 0 then max = 0 end
-        local g = {}
-        for i = 1, math.min(max, #enrichment.genres) do g[i] = enrichment.genres[i] end
-        if #g > 0 then
-            book.genre_sources = book.genre_sources or {}
-            book.genre_sources.hardcover = g
-            if (BookshelfSettings.genreSource
-                    and BookshelfSettings.genreSource(book.filepath)) == "hardcover" then
-                book.genres = g
-            end
-        end
-    end
+    _exposeGenreSources(book, enrichment)
     if link.use_cover == true then
         -- Cover lives in the book's .sdr as KOReader's custom cover; point
         -- bookshelf at it (KOReader's own UI finds it natively). If somehow

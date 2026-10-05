@@ -43,5 +43,28 @@ eq(written["/b"], { "Fantasy" }, "b gets the genre")
 eq(written["/a"], nil, "a untouched")
 eq(log[3], "read /c", "all reads precede writes")
 
+-- hideUpdates: hide lands only on books that have the tag; unhide restores.
+local cands = { ["/a"] = { "Science Fiction", "Fantasy" }, ["/b"] = { "Fantasy" }, ["/c"] = { "Science Fiction" } }
+local hidden = { ["/c"] = { "Science Fiction" }, ["/b"] = { "Old" } }
+local function candidates(fp) return cands[fp] end
+local function excluded(fp) return hidden[fp] end
+local up = G.hideUpdates({ "/a", "/b", "/c" }, { hide = { ["science fiction"] = "Science Fiction" } }, candidates, excluded)
+eq(up["/a"], { "Science Fiction" }, "hide lands on a book that has the tag")
+eq(up["/b"], nil, "hide skips a book without the tag")
+eq(up["/c"], nil, "hide on an already-hidden tag changes nothing")
+up = G.hideUpdates({ "/a", "/b", "/c" }, { unhide = { ["science fiction"] = "Science Fiction", old = "Old" } }, candidates, excluded)
+eq(up["/c"], {}, "unhide empties the list")
+eq(up["/b"], {}, "unhide matches case-insensitively and per book")
+eq(up["/a"], nil, "unhide skips books with nothing hidden")
+up = G.hideUpdates({ "/a" }, { hide = { fantasy = "Fantasy", ["science fiction"] = "Science Fiction" } }, candidates, excluded)
+eq(up["/a"], { "Fantasy", "Science Fiction" }, "several hides, sorted")
+
+-- A hide typed by the tag's original name still lands when an alias renames it.
+up = G.hideUpdates({ "/a" }, { hide = { ["sci-fi"] = "Sci-Fi" } }, candidates, excluded,
+    function() return { "Sci-Fi" } end)
+eq(up["/a"], { "Sci-Fi" }, "hide by original name")
+up = G.hideUpdates({ "/a" }, { hide = { ["sci-fi"] = "Sci-Fi" } }, candidates, excluded)
+eq(up["/a"], nil, "without raw names it does not match")
+
 print(fails == 0 and "bulk genres: all passed" or (fails .. " fail"))
 os.exit(fails == 0 and 0 or 1)

@@ -21907,6 +21907,9 @@ function BookshelfWidget:_showBookDetail(book, opts)
                             local pref = BookshelfSettings.genreSource
                                 and BookshelfSettings.genreSource(book.filepath)
                             local active = (pref and (has(pref) or pref == "embedded") and pref)
+                                or (BookshelfSettings.isTrue("hardcover_use_metadata")
+                                    and BookshelfSettings.isTrue("hardcover_combine_genres")
+                                    and has("combined") and "combined")
                                 or (has("hardcover") and "hardcover")
                                 or (has("calibre")  and "calibre")
                                 or "embedded"
@@ -21925,6 +21928,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                 { key = "embedded",  label = _("Embedded") },
                                 { key = "calibre",   label = _("Calibre") },
                                 { key = "hardcover", label = _("Hardcover") },
+                                { key = "combined",  label = _("Combined") },
                             }
                             local items = {}
                             for _j = 1, #SRC do
@@ -22192,10 +22196,77 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                 UIManager:show(idlg)
                                 idlg:onShowKeyboard()
                             end
+                            -- Hardcover genre cleanup (blocklist / alias / per-book
+                            -- hide). Each rewrites the rules, re-resolves this book's
+                            -- Hardcover genres in place, and defers the shelf-wide
+                            -- refresh to modal close (like a source switch).
+                            local GenreFilter = require("lib/bookshelf_genre_filter")
+                            local function inHardcover(gname)
+                                local k = gname:lower()
+                                for _h = 1, #(srcs.hardcover or {}) do
+                                    if srcs.hardcover[_h]:lower() == k then return true end
+                                end
+                                return false
+                            end
+                            local function hcRulesChanged()
+                                require("lib/bookshelf_hardcover").refreshGenres(book)
+                                srcs = book.genre_sources or {}
+                                genre_source_changed = true
+                                Repo.invalidateBookCache("genre-rules")
+                                if modal and modal.rebuildTab then modal:rebuildTab() end
+                            end
+                            local function aliasTag(gname)
+                                local InputDialog = require("ui/widget/inputdialog")
+                                local idlg
+                                idlg = InputDialog:new{
+                                    title = T(_("Replace \"%1\" with"), gname), input = gname,
+                                    input_hint = _("New name (empty hides it)"),
+                                    description = _("Applies to this genre on every book Hardcover tags with it. Give several genres the same name to merge them."),
+                                    buttons = {{
+                                        { text = _("Cancel"), id = "close",
+                                          callback = function() UIManager:close(idlg) end },
+                                        { text = _("Save"), is_enter_default = true,
+                                          callback = function()
+                                            local to = (idlg:getInputText() or "")
+                                                :gsub("^%s+", ""):gsub("%s+$", "")
+                                            UIManager:close(idlg)
+                                            if to:lower() == gname:lower() then return end
+                                            if GenreFilter.renameShown(gname, to) then hcRulesChanged() end
+                                          end },
+                                    }},
+                                }
+                                UIManager:show(idlg)
+                                idlg:onShowKeyboard()
+                            end
+                            local function restoreHidden()
+                                local excluded = GenreFilter.excludedFor(book.filepath)
+                                local ButtonDialog = require("ui/widget/buttondialog")
+                                local dlg
+                                local function close() UIManager:close(dlg) end
+                                local rows = {}
+                                for _e = 1, #excluded do
+                                    local tag = excluded[_e]
+                                    rows[#rows + 1] = { { text = "\xE2\x86\xBA " .. tag,
+                                        callback = function()
+                                            close()
+                                            if GenreFilter.restoreForBook(book.filepath, tag) then
+                                                hcRulesChanged()
+                                            end
+                                        end } }
+                                end
+                                rows[#rows + 1] = { { text = _("Cancel"), callback = close } }
+                                dlg = ButtonDialog:new{
+                                    title = _("Hidden on this book"),
+                                    title_align = "center",
+                                    buttons = rows,
+                                }
+                                UIManager:show(dlg)
+                            end
                             -- Long-press menu, mirroring the collection editor's
                             -- hold menu. Editable (Embedded) source gets the full
                             -- 2x2 (Rename / Pin / Delete / Cancel); read-only
-                            -- sources get Pin / Cancel only.
+                            -- sources get Pin / Cancel, plus the Hardcover genre
+                            -- cleanup actions for a tag Hardcover supplied.
                             local function holdMenu(gname)
                                 local ButtonDialog = require("ui/widget/buttondialog")
                                 local hold_dialog
@@ -22218,6 +22289,26 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                             callback = function() hclose(); pinGenreChip(gname) end } },
                                         { { text = "\xE2\x9C\x95 " .. _("Delete"), callback = doDelete },
                                           { text = _("Cancel"), callback = hclose } },
+                                    }
+                                elseif inHardcover(gname) then
+                                    buttons = {
+                                        { { text = _("Hide on this book"),
+                                            callback = function()
+                                                hclose()
+                                                if GenreFilter.excludeForBook(book.filepath, gname) then
+                                                    hcRulesChanged()
+                                                end
+                                            end },
+                                          { text = _("Never use this genre"),
+                                            callback = function()
+                                                hclose()
+                                                if GenreFilter.addBlocked(gname) then hcRulesChanged() end
+                                            end } },
+                                        { { text = _("Rename everywhere") .. "\xE2\x80\xA6",
+                                            callback = function() hclose(); aliasTag(gname) end },
+                                          { text = _("Pin to shelf menu"),
+                                            callback = function() hclose(); pinGenreChip(gname) end } },
+                                        { { text = _("Cancel"), callback = hclose } },
                                     }
                                 else
                                     buttons = {
@@ -22250,6 +22341,19 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                     end,
                                     on_hold = function() holdMenu(gname) end,
                                 }
+                            end
+                            -- Tags hidden on this book stay recoverable: a trailing
+                            -- pill lists them (in any source: hiding every Hardcover
+                            -- tag removes the Hardcover chip, and the way back must
+                            -- not depend on it).
+                            do
+                                local hidden = GenreFilter.excludedFor(book.filepath)
+                                if #hidden > 0 then
+                                    gpills[#gpills + 1] = {
+                                        label  = "\xE2\x86\xBA " .. T(_("Hidden (%1)"), tostring(#hidden)),
+                                        on_tap = restoreHidden,
+                                    }
+                                end
                             end
                             -- Source-chip strip (Embedded/Calibre/Hardcover) as
                             -- its own full-width row when there's more than one

@@ -3601,6 +3601,25 @@ function Settings:_hardcoverSubItems()
             end,
         },
         {
+            text = _("Combine with the book's own genres"),
+            help_text = _("When on, a linked book shows its own genres (Calibre, otherwise embedded) plus Hardcover's, instead of Hardcover's alone. Needs Use Hardcover metadata. A book whose genre source you picked in its details keeps that choice."),
+            enabled_func = function()
+                return BookshelfSettings.isTrue("hardcover_use_metadata")
+            end,
+            checked_func = function()
+                return BookshelfSettings.isTrue("hardcover_combine_genres")
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                BookshelfSettings.save("hardcover_combine_genres",
+                    not BookshelfSettings.isTrue("hardcover_combine_genres"))
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+                markDirty("hardcover-combine-genres")
+            end,
+        },
+        {
             text = _("Hardcover genre cleanup"),
             help_text = _("Block genres Hardcover gets wrong, or rename and merge them. Applies to Hardcover's genres only. To hide a genre on just one book, long-press it in the book details."),
             sub_item_table = self:_hardcoverGenreCleanupItems(markDirty),

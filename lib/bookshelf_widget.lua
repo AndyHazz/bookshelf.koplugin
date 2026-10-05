@@ -21907,6 +21907,9 @@ function BookshelfWidget:_showBookDetail(book, opts)
                             local pref = BookshelfSettings.genreSource
                                 and BookshelfSettings.genreSource(book.filepath)
                             local active = (pref and (has(pref) or pref == "embedded") and pref)
+                                or (BookshelfSettings.isTrue("hardcover_use_metadata")
+                                    and BookshelfSettings.isTrue("hardcover_combine_genres")
+                                    and has("combined") and "combined")
                                 or (has("hardcover") and "hardcover")
                                 or (has("calibre")  and "calibre")
                                 or "embedded"

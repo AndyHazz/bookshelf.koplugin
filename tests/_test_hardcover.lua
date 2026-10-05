@@ -563,6 +563,24 @@ test("genre cleanup: Combined keeps the book's own genres plus Hardcover's", fun
     assert(c.genre_sources.combined == nil, "combined offered with no own genres")
 end)
 
+test("global combine setting: follows it unless the book picked a source", function()
+    reset()
+    seedCache("enrich", "123:456", { genres = { "Fantasy", "Dragons" } })
+    Hardcover.invalidate()
+    settings.bookshelf_hardcover_use_metadata = true
+    local function enrich()
+        return Hardcover.enrichBook{ filepath = "/books/a.epub", genres = { "Own" },
+            genre_sources = { embedded = { "Own" } } }
+    end
+    assert(table.concat(enrich().genres, "|") == "Fantasy|Dragons", "default replaces")
+    settings.bookshelf_hardcover_combine_genres = true
+    assert(table.concat(enrich().genres, "|") == "Own|Fantasy|Dragons", "setting combines")
+    settings.bookshelf_genre_source = { ["/books/a.epub"] = "hardcover" }
+    assert(table.concat(enrich().genres, "|") == "Fantasy|Dragons", "per-book hardcover wins")
+    settings.bookshelf_genre_source = { ["/books/a.epub"] = "embedded" }
+    assert(table.concat(enrich().genres, "|") == "Own", "per-book embedded wins")
+end)
+
 test("refreshGenres re-resolves after a rule change", function()
     reset()
     seedCache("enrich", "123:456", { genres = { "Fantasy", "Dragons" } })

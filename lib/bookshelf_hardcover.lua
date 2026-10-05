@@ -2224,7 +2224,10 @@ function Hardcover.applyMetadata(book)
         -- by enrichBook, independent of this sync gate).
         local pref = BookshelfSettings.genreSource and
             BookshelfSettings.genreSource(book.filepath)
-        if pref == "combined" then
+        -- No per-book choice follows the global "Combine with the book's own
+        -- genres" setting; an explicit per-book source always wins.
+        if pref == "combined"
+                or (pref == nil and BookshelfSettings.isTrue("hardcover_combine_genres")) then
             book.genres = GenreFilter.union(book.genres, g)
         elseif pref ~= "embedded" and pref ~= "calibre" then
             book.genres = g

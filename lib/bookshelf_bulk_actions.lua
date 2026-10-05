@@ -7,7 +7,7 @@
 -- Task 11: stage-and-apply. Non-destructive actions stage into a
 -- local `draft`; Apply commits across selection:paths() in spec order
 -- (refresh -> status -> rating -> collections remove/add -> remove
--- history). Cancel drops (draft is closure-local). Reset / Delete
+-- history; genres are written last, after the per-book loop). Cancel drops (draft is closure-local). Reset / Delete
 -- remain immediate-with-confirm but surface a "Pending changes
 -- discarded" toast when fired while the draft was dirty.
 --
@@ -46,6 +46,7 @@ function BulkActions.show(opts)
         rating              = false,
         collections_add     = nil,
         collections_remove  = nil,
+        genres              = nil,  -- { add = {[lc]=name}, remove = {[lc]=name} }
         refresh_metadata    = false,
         remove_from_history = false,
     }
@@ -54,6 +55,7 @@ function BulkActions.show(opts)
             or draft.rating ~= false
             or draft.collections_add ~= nil
             or draft.collections_remove ~= nil
+            or draft.genres ~= nil
             or draft.refresh_metadata
             or draft.remove_from_history
             or draft.favorite ~= nil
@@ -234,6 +236,31 @@ function BulkActions.show(opts)
                 end,
                 on_cancel      = function()
                     -- Draft preserved; nothing to do.
+                end,
+            }
+        end,
+    }
+
+    -- Genres: opens the bulk genre editor. Same stage-and-apply model as
+    -- Collections: the editor returns an {add, remove} diff (or nil when
+    -- everything was un-staged) that Apply writes to each book's embedded
+    -- genres.
+    local genres_button
+    genres_button = {
+        text = _("Genres") .. "\xE2\x80\xA6",
+        background = draft.genres and STAGED_BG or nil,
+        callback = function()
+            require("lib/bookshelf_bulk_genres").show{
+                paths          = selection:paths(),
+                initial_add    = draft.genres and draft.genres.add,
+                initial_remove = draft.genres and draft.genres.remove,
+                on_save        = function(diff)
+                    draft.genres = diff
+                    genres_button.background = draft.genres and STAGED_BG or nil
+                    if dialog and dialog.reinit then
+                        Focus.reinit(dialog)
+                        UIManager:setDirty(dialog, "ui")
+                    end
                 end,
             }
         end,
@@ -582,6 +609,13 @@ function BulkActions.show(opts)
                 -- bulk-added collections disappear on next session start.
                 -- Favourite add/remove writes to the default collection
                 -- ("favorites") and shares the same flush requirement.
+                if draft.genres then
+                    -- Per-book writes inside the helper; it reads every
+                    -- book's current genres before the first write.
+                    local ga, gf = require("lib/bookshelf_bulk_genres")
+                        .applyTo(paths, draft.genres)
+                    failed = failed + gf
+                end
                 if draft.collections_add or draft.collections_remove
                         or draft.favorite then
                     local ReadCollection = require("readcollection")
@@ -661,10 +695,11 @@ function BulkActions.show(opts)
 
     local buttons = {
         { select_all_button },
-        { collections_button, rating_button },
+        { collections_button, genres_button },
+        { rating_button, favorite_button },
         status_row,
-        { favorite_button, refresh_button },
-        { remove_history_button, move_button },
+        { refresh_button, remove_history_button },
+        { move_button },
         { reset_button, delete_button },
         { cancel_button, apply_button },
     }

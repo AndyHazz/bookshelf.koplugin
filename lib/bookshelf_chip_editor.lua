@@ -2838,10 +2838,6 @@ function Editor:_pickSource(draft, on_close)
             specific_btn("folder_flat", _("Flattened folder\xE2\x80\xA6"),
                 function() open_folder_picker("folder_flat") end),
         },
-        -- A shelf of shelves (5.4): its tiles are shelves of their own,
-        -- each with every option a top-level shelf has.
-        heading(_("Shelves")),
-        { btn("shelves", _("Shelf of shelves")) },
         -- Rows 4+: browse-all on the left, specific-picker on the right
         heading(_("Grouped")),
         {
@@ -2882,7 +2878,13 @@ function Editor:_pickSource(draft, on_close)
         -- route into the catalogue picker (which now hosts add/edit/delete),
         -- so it must stay discoverable rather than being gated on
         -- OpdsSource.isAvailable().
+        --
+        -- Shelf of shelves (5.4) shares it: its tiles are shelves of their
+        -- own, each with every option a top-level shelf has. A row of its
+        -- own (and a heading) made the picker two rows taller, and it already
+        -- scrolls on a small screen (maintainer).
         {
+            btn("shelves", _("Shelf of shelves")),
             specific_btn("opds", _("OPDS catalog\xE2\x80\xA6"),
                 function() open_opds_picker() end),
         },

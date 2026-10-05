@@ -748,7 +748,7 @@ Within the top panel card the cover is a single focus target: the rating stars, 
 
 #### Sources
 
-Each shelf points at one of these, set under **Source / grouping** in the shelf editor. The picker lists the book shelves first, then Shelf of shelves, then the grouped ones (series, authors, genres and so on).
+Each shelf points at one of these, set under **Source / grouping** in the shelf editor. The picker lists the book shelves first and the grouped ones (series, authors, genres and so on) after, with Shelf of shelves beside OPDS catalog.
 
 - **Home (folders)** -- your library as a folder tree.
 - **Home (flat)** -- every book in one list, no folders.

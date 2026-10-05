@@ -551,7 +551,19 @@ function ShelfRow.new(opts)
 
         local non_book_h = show_titles and cover_h or slot_h
 
-        if item and item.kind == "folder" then
+        if item and item.add_subshelf then
+            -- A shelf of shelves' "+ Add shelf": a dashed-outline button,
+            -- not a folder card (bookshelf_add_tile). No label underneath:
+            -- the button carries its own.
+            row[#row + 1] = wrap_for_title_alignment(require("lib/bookshelf_add_tile"):new{
+                width   = slot_w,
+                height  = non_book_h,
+                label   = item.label,
+                item    = item,
+                on_tap  = opts.on_folder_tap,
+                on_hold = opts.on_folder_hold,
+            }, nil)
+        elseif item and item.kind == "folder" then
             -- Folder record (carries path / label / first_book).
             -- Three pieces of derived data: total recursive book count
             -- (for the optional badge), how many of those are in the
@@ -591,11 +603,8 @@ function ShelfRow.new(opts)
             if show_finished and show_folder_badge and folder_fpaths then
                 folder_finished = finished_count(folder_fpaths, true)
             end
-            -- A shelf of shelves' "+" tile is a button, not a folder: always
-            -- the text card, whose card IS its label (as an OPDS nav tile).
-            local folder_mode = item.add_subshelf and StackDisplay.TEXT or group_mode
             row[#row + 1] = wrap_for_title_alignment(FolderStack:new{
-                display_mode = folder_mode,
+                display_mode = group_mode,
                 folder           = item,
                 -- Member paths for the collage grid. cover_fps is the set
                 -- the fetch already ordered the way this folder would show
@@ -615,7 +624,7 @@ function ShelfRow.new(opts)
                                    and partial_count(folder_k, folder_book_count)
                                    or nil,
                 finished_count   = folder_finished,
-            }, StackDisplay.externalLabel(folder_mode, item.label))
+            }, StackDisplay.externalLabel(group_mode, item.label))
         elseif item and item.kind == "opds_nav" then
             -- OPDS navigation entry (a subcatalog link, e.g. "Next page" or
             -- a browsable category): rendered as a folder-style tile via

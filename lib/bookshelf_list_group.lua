@@ -549,9 +549,22 @@ function Group.tile(item, width, height, opts)
     -- leave the row with nothing in it at all.
     if width < minTileWidth() then return nil end
     if not opts.fill_row and height < DECK_MIN_H then return nil end
+    -- A shelf of shelves' "+ Add shelf" fills its row as a dashed-outline
+    -- button (bookshelf_add_tile), not a card.
+    if item.add_subshelf then
+        return built(require("lib/bookshelf_add_tile"), {
+            width          = width,
+            height         = height,
+            label          = item.label,
+            item           = item,
+            on_tap         = opts.on_tap and function() return opts.on_tap() end,
+            on_hold        = opts.on_hold and function() return opts.on_hold() end,
+            is_selected    = opts.selected or nil,
+            reserve_shadow = false,
+        })
+    end
     local StackDisplay = require("lib/bookshelf_stack_display")
-    -- The "+ Add shelf" tile is a button the same way (see fillsRow).
-    local is_nav = item.kind == "opds_nav" or item.add_subshelf == true
+    local is_nav = item.kind == "opds_nav"
     if is_nav or item.kind == "folder" then
         local FolderStack = require("lib/bookshelf_folder_stack")
         -- No first_book stand-in for a nav entry, unlike the cover grid's

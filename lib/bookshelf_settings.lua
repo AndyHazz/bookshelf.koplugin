@@ -6278,28 +6278,11 @@ function Settings:_tabsMenuItems()
     items[#items + 1] = {
         text = _("+ Add new shelf"),
         callback = function(touchmenu_instance)
-            -- Generate a unique custom_N id.
+            -- A new shelf: no source yet, pending until the editor saves it
+            -- (TabModel.newTab); backing out of the editor removes it.
             local fresh = TabModel.load()
-            local n = 1
-            while true do
-                local candidate = "custom_" .. n
-                local taken = false
-                for _i, t in ipairs(fresh) do
-                    if t.id == candidate then taken = true; break end
-                end
-                if not taken then break end
-                n = n + 1
-            end
-            local new_id = "custom_" .. n
-            local new_tab = {
-                id            = new_id,
-                label         = _("New shelf"),
-                icon          = nil,
-                source        = { kind = "all" },
-                filter        = {},
-                sort_priority = { { key = "title", reverse = false } },
-                enabled       = true,
-            }
+            local new_tab = TabModel.newTab(fresh, _("New shelf"))
+            local new_id = new_tab.id
             fresh[#fresh + 1] = new_tab
             TabModel.save(fresh)
             hideParentMenu(touchmenu_instance)

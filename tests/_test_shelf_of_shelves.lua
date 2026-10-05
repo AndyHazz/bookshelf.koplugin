@@ -172,5 +172,23 @@ test("isSibling: same parent or both top level", function()
     assert(not TabModel.isSibling(books("a", "box"), books("home")))
 end)
 
+test("prunePending: a shelf still being created when KOReader stopped is removed", function()
+    local t = tree()
+    t[#t + 1] = books("half", nil); t[#t].pending = true
+    t[#t + 1] = shelves("halfbox", { pending = true })
+    t[#t + 1] = books("kid", "halfbox")
+    TabModel.save(t)
+    assert(TabModel.prunePending() == true, "nothing pruned")
+    assert(ids(TabModel.load()) == "home,box,a,inner,b,c,recent", ids(TabModel.load()))
+    assert(TabModel.prunePending() == false, "a second prune should find nothing")
+end)
+
+test("newTab: a new shelf has no source and is pending until saved", function()
+    local t = TabModel.newTab({}, "My shelf")
+    assert(t.id == "custom_1" and t.label == "My shelf")
+    assert(t.source.kind == "none", tostring(t.source.kind))
+    assert(t.pending == true and t.enabled == true)
+end)
+
 io.write(string.format("shelf_of_shelves: %d passed, %d failed\n", pass, fail))
 if fail > 0 then os.exit(1) end

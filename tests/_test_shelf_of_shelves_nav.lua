@@ -292,6 +292,25 @@ t.test("changing a shelf of shelves' source asks, then deletes its shelves", fun
     eq(d, 2, "an OK must delete the shelves on both paths")
 end)
 
+t.test("a new shelf starts with no source and is removed unless saved", function()
+    local ed = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
+    local _, n = ed:gsub("if is_new then cancelPreview%(%); return discardNew%(%) end", "")
+    eq(n, 2, "Cancel and the X must both discard a shelf being created")
+    assert(ed:find("if is_new then discardNew(); return true end", 1, true), "a tap outside keeps a half-made shelf")
+    assert(ed:find("draft.source.kind == TabModel.NO_SOURCE then\n                return discardNew()", 1, true),
+        "cancelling the first source pick keeps a half-made shelf")
+    local _, w = ed:gsub("if is_dirty%(%) or is_new then\n%s+draft%.pending = nil", "")
+    eq(w, 2, "Save and + must write a new shelf and clear pending")
+    -- every creator goes through newTab, so none starts on a Home placeholder
+    for _i, f in ipairs({ "lib/bookshelf_chip_editor.lua", "lib/bookshelf_settings.lua", "lib/bookshelf_widget.lua" }) do
+        local s2 = io.open(f):read("*a")
+        assert(s2:find("TabModel.newTab(", 1, true), f .. " does not create shelves with newTab")
+        assert(not s2:find('label         = _("New shelf"),\n                icon          = nil,\n                source        = { kind = "all" }', 1, true),
+            f .. " still creates a Home placeholder")
+    end
+    assert(src:find("require(\"lib/bookshelf_tab_model\").prunePending()", 1, true), "start-up does not prune half-made shelves")
+end)
+
 t.test("sub-shelves stay out of the strip's shelf list in settings", function()
     local s = io.open("lib/bookshelf_settings.lua"):read("*a")
     assert(s:find("        if not tab.parent then\n        items[#items + 1] = {", 1, true),

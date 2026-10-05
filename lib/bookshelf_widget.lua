@@ -347,6 +347,8 @@ function BookshelfWidget:init()
     -- via Repo.findGroup / Repo.buildBookMeta so cover_bbs are fresh
     -- (see memory feedback_image_disposable_shared_book).
     self._drilldown_path = {}
+    -- A shelf left half-created by a session that stopped inside its editor.
+    pcall(function() require("lib/bookshelf_tab_model").prunePending() end)
     local saved_drill = BookshelfSettings.read("drill_path")
     if type(saved_drill) == "table" then
         self._pending_restore_drill = saved_drill
@@ -23913,16 +23915,13 @@ function BookshelfWidget:_addSubShelf(parent_id)
     parent_id = parent_id or self.chip
     if not TabModel.getById(parent_id) then return end
     local tabs = TabModel.load()
-    local new_id = TabModel.newId(tabs)
-    TabModel.insertChild(tabs, parent_id, {
-        id            = new_id,
-        label         = _("New shelf"),
-        source        = { kind = "all" },
-        filter        = {},
-        sort_priority = { { key = "title", reverse = false } },
-        enabled       = true,
-    })
+    -- No source yet, pending until saved (TabModel.newTab): backing out of the
+    -- editor removes it and returns to the shelf the "+" was tapped on.
+    local new_tab = TabModel.newTab(tabs, _("New shelf"))
+    local new_id = new_tab.id
+    TabModel.insertChild(tabs, parent_id, new_tab)
     TabModel.save(tabs)
+    local back = self.chip
     if parent_id == self.chip then
         self:_openShelf(new_id, true)
     else
@@ -23933,6 +23932,9 @@ function BookshelfWidget:_addSubShelf(parent_id)
         bw = self,
         pick_source_first = true,
         on_change = function() self:_afterChipEdit() end,
+        on_discard = function()
+            if TabModel.getById(back) then self:_openShelf(back) else self:_afterChipEdit() end
+        end,
     })
 end
 

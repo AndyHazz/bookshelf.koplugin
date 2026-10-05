@@ -455,6 +455,8 @@ SOURCE_LABEL = {
     kindle        = function() return _("Kindle Virtual Library") end,
     -- A shelf holding other shelves (5.4), each with its own source.
     shelves       = function() return _("Shelf of shelves") end,
+    -- A shelf being created, before a source is picked (TabModel.newTab).
+    none          = function() return _("(none)") end,
 }
 
 -- _resolveSourceLabel(source): display string for "Source: <label>".
@@ -554,6 +556,20 @@ function Editor:editTab(tab_id, opts)
     local data_dirty   = false
     local visual_dirty = false
     local function is_dirty() return data_dirty or visual_dirty end
+    -- A shelf being created (TabModel.newTab): it exists only so its choices
+    -- can preview on it. Save keeps it; every other way out removes it and
+    -- hands back to opts.on_discard (the shelf the reader came from).
+    local is_new = target.pending == true
+    local dialog   -- the editor window, built below; discardNew closes it
+    local function discardNew()
+        TabModel.clearOverride()
+        local tabs = TabModel.load()
+        TabModel.removeTree(tabs, tab_id)
+        TabModel.save(tabs)
+        if dialog then UIManager:close(dialog) end
+        if opts.on_discard then opts.on_discard()
+        elseif opts.on_change then opts.on_change() end
+    end
     -- withShelvesResolved(proceed): a shelf of shelves given another source
     -- would keep its shelves but never show them again -- nothing else lists
     -- a sub-shelf, so they could be neither reached nor deleted. Ask first,
@@ -719,7 +735,7 @@ function Editor:editTab(tab_id, opts)
     local sh       = Screen:getHeight()
     local dialog_w = math.floor(math.min(sw, sh) * 0.85)
 
-    local dialog
+    -- `dialog` is declared above, with discardNew, which closes it.
     local frame
     local current_bt   -- the ButtonTable on screen; rebuilt on every edit
 
@@ -1160,6 +1176,7 @@ function Editor:editTab(tab_id, opts)
                         -- still valid -- no invalidation needed. Only rebuild
                         -- if visual_dirty (to undo the icon/label preview);
                         -- data-only cancel is instant.
+                        if is_new then cancelPreview(); return discardNew() end
                         cancelPreview()
                         TabModel.clearOverride()
                         local _t1 = _gettime()
@@ -1190,7 +1207,8 @@ function Editor:editTab(tab_id, opts)
                         -- move buttons), find the tab by id, and update it in place.
                         -- Only persist if anything changed. Save-with-no-edits
                         -- skips the settings flush + cache invalidation.
-                        if is_dirty() then
+                        if is_dirty() or is_new then
+                            draft.pending = nil
                             local save_tabs = TabModel.load()
                             for si, t in ipairs(save_tabs) do
                                 if t.id == tab_id then
@@ -1237,7 +1255,8 @@ function Editor:editTab(tab_id, opts)
                         -- Persist any pending edits before spawning the
                         -- new tab so the user's current work isn't lost.
                         TabModel.clearOverride()
-                        if is_dirty() then
+                        if is_dirty() or is_new then
+                            draft.pending = nil
                             local save_tabs = TabModel.load()
                             for si, t in ipairs(save_tabs) do
                                 if t.id == tab_id then save_tabs[si] = draft; break end
@@ -1262,34 +1281,15 @@ function Editor:editTab(tab_id, opts)
                             opts.bw:_addSubShelf(me_parent)
                             return
                         end
-                        -- Generate unique custom_N id and append the new tab.
+                        -- A new shelf (TabModel.newTab: no source yet, pending
+                        -- until saved), spliced right after the chip being
+                        -- edited rather than at the end of the strip. Matches
+                        -- the Pin-from-stack flow and keeps newly created
+                        -- chips visually adjacent to their origin.
                         local fresh = TabModel.load()
-                        local n = 1
-                        while true do
-                            local cand = "custom_" .. n
-                            local taken = false
-                            for _i,t in ipairs(fresh) do
-                                if t.id == cand then taken = true; break end
-                            end
-                            if not taken then break end
-                            n = n + 1
-                        end
-                        local new_id = "custom_" .. n
-                        -- Splice the new chip right after the chip
-                        -- the user is currently editing rather than
-                        -- appending to the end of the strip. Matches
-                        -- the Pin-from-stack flow and keeps newly
-                        -- created chips visually adjacent to their
-                        -- origin.
-                        TabModel.insertAfter(fresh, tab_id, {
-                            id            = new_id,
-                            label         = _("New shelf"),
-                            icon          = nil,
-                            source        = { kind = "all" },
-                            filter        = {},
-                            sort_priority = { { key = "title", reverse = false } },
-                            enabled       = true,
-                        })
+                        local new_tab = TabModel.newTab(fresh, _("New shelf"))
+                        local new_id = new_tab.id
+                        TabModel.insertAfter(fresh, tab_id, new_tab)
                         TabModel.save(fresh)
                         UIManager:close(dialog)
                         -- Auto-select the new tab so the user lands on it after
@@ -1306,6 +1306,14 @@ function Editor:editTab(tab_id, opts)
                         local new_opts = {}
                         for k, v in pairs(opts) do new_opts[k] = v end
                         new_opts.pick_source_first = true
+                        -- Backing out of it lands back on this shelf.
+                        new_opts.on_discard = function()
+                            if opts.bw and opts.bw._selectChip then
+                                opts.bw:_selectChip(tab_id)
+                            elseif opts.on_change then
+                                opts.on_change()
+                            end
+                        end
                         Editor:editTab(new_id, new_opts)
                     end) end,
                 },
@@ -1349,6 +1357,7 @@ function Editor:editTab(tab_id, opts)
             close_callback    = function()
                 -- X-button close == Cancel: drop visual preview, no cache
                 -- invalidation, repaint only if a visual preview was active.
+                if is_new then cancelPreview(); return discardNew() end
                 cancelPreview()
                 TabModel.clearOverride()
                 UIManager:close(dialog)
@@ -1413,6 +1422,7 @@ function Editor:editTab(tab_id, opts)
     dialog.onTapClose = function(self_d, arg, ges_ev)
         if not frame.dimen or ges_ev.pos:notIntersectWith(frame.dimen) then
             -- Tap-outside-close == Cancel.
+            if is_new then discardNew(); return true end
             TabModel.clearOverride()
             UIManager:close(self_d)
             if repaintOnCancel() and opts.on_change then opts.on_change() end
@@ -1469,7 +1479,14 @@ function Editor:editTab(tab_id, opts)
     -- returns to the editor rather than to nothing, and the placeholder source
     -- stands as the fallback exactly as it did before.
     if opts.pick_source_first then
-        Editor:_pickSource(draft, function() applyLivePreview(true); rebuild() end)
+        Editor:_pickSource(draft, function()
+            -- Backing out of the very first pick of a shelf being created,
+            -- with nothing picked, is backing out of creating it.
+            if is_new and draft.source and draft.source.kind == TabModel.NO_SOURCE then
+                return discardNew()
+            end
+            applyLivePreview(true); rebuild()
+        end)
     end
 end
 

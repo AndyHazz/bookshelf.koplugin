@@ -387,6 +387,38 @@ function TabModel.newId(tabs)
     return "custom_" .. n
 end
 
+-- newTab(tabs, label) -> a shelf being created: no source yet (nothing on it
+-- while the reader picks one, rather than a placeholder Home showing every
+-- book behind the editor), and `pending` until the editor saves it. Leaving
+-- the editor any other way removes it (bookshelf_chip_editor).
+TabModel.NO_SOURCE = "none"
+function TabModel.newTab(tabs, label)
+    return {
+        id            = TabModel.newId(tabs),
+        label         = label,
+        source        = { kind = TabModel.NO_SOURCE },
+        filter        = {},
+        sort_priority = { { key = "title", reverse = false } },
+        enabled       = true,
+        pending       = true,
+    }
+end
+
+-- prunePending() -> true when it removed anything: shelves still pending
+-- (and anything inside them) from a session that stopped mid-creation.
+-- Called once at start-up; never while an editor may hold one.
+function TabModel.prunePending()
+    local tabs = TabModel.load()
+    local doomed = {}
+    for _i, t in ipairs(tabs) do
+        if t.pending then doomed[#doomed + 1] = t.id end
+    end
+    if #doomed == 0 then return false end
+    for _i, id in ipairs(doomed) do TabModel.removeTree(tabs, id) end
+    TabModel.save(tabs)
+    return true
+end
+
 -- insertChild(tabs, parent_id, new_tab): append `new_tab` as the last shelf
 -- inside `parent_id`, placed after the parent's last descendant in the flat
 -- list so the stored list still reads in tree order.

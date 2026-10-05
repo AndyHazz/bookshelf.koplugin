@@ -152,6 +152,29 @@ t.test("height: an anchor (bottom on the plank, top under the shelf above) and a
     assert(not shelf:find("hang_lift", 1, true), "the old hang offset is still read")
 end)
 
+t.test("a hanging piece meets the shelf above as the plank design draws it, not the nominal plank", function()
+    -- Device: a scroll's top was hidden behind the Cinnabar plank's carved
+    -- apron, which hangs a band below the nominal plank. Below row 1 the top
+    -- drops by designDrop at the row's height; row 1 hangs from the top panel.
+    local body = shelf:match("\n(function SpineShelf%.ornamentY%(pl, stand_h, opts%)\n.-\nend)\n")
+    local asked
+    local env = setmetatable({ SpineShelf = { designDrop = function(h) asked = h; return 37 end },
+                               Screen = { scaleBySize = function(_s, v) return v end } },
+                             { __index = _G })
+    local f
+    if _G.setfenv then f = assert(loadstring(body)); setfenv(f, env) else f = assert(load(body, "y", "t", env)) end
+    f()
+    local Y = env.SpineShelf.ornamentY
+    local pl = { above = 200, h = 200, anchor = "top", offset = 0, content_top = 25 }
+    eq(Y(pl, 280, { lift_headroom = 35, row_index = 2, height = 423 }) + 25, -37 + 37, "not under the drawn shelf")
+    eq(asked, 423, "measured at another row height")
+    asked = nil
+    eq(Y(pl, 280, { lift_headroom = 35, row_index = 1, height = 423 }) + 25, -37, "row 1 moved off the top panel")
+    eq(asked, nil, "row 1 asked for the design's drop")
+    pl.anchor = "bottom"
+    eq(Y(pl, 280, { lift_headroom = 35, row_index = 2, height = 423 }), 80, "a standing piece moved")
+end)
+
 t.test("a height is corrected to the real gap between rows before anything is handed up", function()
     -- Rig: a piece at 100% stopped short of the shelf above by the screen
     -- slack GridMargins spreads between rows, which is only known after the

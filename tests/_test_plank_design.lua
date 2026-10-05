@@ -83,9 +83,15 @@ t.test("the plank design goes UNDER the recess, so the books' shadows fall on it
 end)
 
 
-t.test("the plank design runs edge to edge of the screen, not just the row", function()
+t.test("the plank design runs edge to edge of its target, not just the row", function()
+    -- Across the TARGET's width whenever it is wider than the row: the screen,
+    -- and the page wipe's screen-sized offscreen buffer, which a test of
+    -- bb == Screen.bb missed, so every wiped page turn cut off the end art
+    -- drawn beyond the plank ends (Night Sky's knobs, Cats' arms).
     local pd = src:match("function PlankDesign:paintTo%(.-\nend")
-    assert(pd and pd:find("Screen:getWidth()", 1, true), "design is clipped to the row's margins")
+    assert(pd and pd:find("bb:getWidth()", 1, true), "design is clipped to the row's margins")
+    assert(not pd:find("bb == Screen.bb", 1, true),
+        "only the framebuffer gets the full-width strip; the page wipe's buffer crops the ends")
 end)
 
 

@@ -6203,6 +6203,10 @@ function BookshelfWidget:_spinePlanBase(content_w, shelf_h, all_items)
         -- own (lib/bookshelf_ornament_deck). Here, so the render and the
         -- page map deal from the same one.
         orn_shelf       = self.chip,
+        -- The strip above a row, which a hanging piece's room includes
+        -- (plan's hang_room); the same gap _buildSpineRows' lift_headroom is
+        -- measured from.
+        hang_gap        = self:_rowGap((self:_layoutPrimitives())),
     }
 end
 

@@ -31,7 +31,7 @@ local function fnBody(name)
 end
 
 local SHARED = { "content_w", "row_h", "gap", "group_gap", "face_out",
-                 "face_recent_set", "thickness_pct" }
+                 "face_recent_set", "thickness_pct", "hang_gap" }
 
 -- ── the helper, run for real ───────────────────────────────────────────────
 
@@ -54,6 +54,8 @@ local shelf = {
     _spineFaceOut    = function() return "favorites" end,
     _spineFaceRecent = function(_s, list) seen_recent_list = list; return { list = list } end,
     _chipListValue   = function(_s, key) return key == "spine_thickness_pct" and 120 or nil end,
+    _layoutPrimitives = function() return 16, "second value" end,
+    _rowGap          = function(_s, pad) return pad * 3 end,
 }
 
 t.test("it produces exactly the options the two passes must agree on", function()
@@ -77,6 +79,9 @@ t.test("the rest are read, not invented", function()
     eq(o.group_gap, 24)
     eq(o.face_out, "favorites")
     eq(o.thickness_pct, 120)
+    -- A hanging piece's room includes the row gap above it: the layout's,
+    -- so both passes size hanging pieces alike.
+    eq(o.hang_gap, 48)
 end)
 
 t.test("face-outs are chosen from the list the caller names", function()

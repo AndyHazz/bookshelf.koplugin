@@ -1025,6 +1025,25 @@ t.test("menu fix: a height nudge moves a piece, it never changes its size", func
     eq(a.offset, -0.25); eq(c.offset, 0.6); eq(a.anchor, "bottom")
 end)
 
+t.test("a hanging piece keeps its pack size but never outgrows the gap it hangs in", function()
+    -- Maintainer: hanging art hangs on the wall and never overlaps the shelf
+    -- above or the plank below. The plan hands the clear gap in as
+    -- o.hang_room; a piece that fits keeps the size its pack gave it.
+    local O = fresh()
+    local top = { name = "s.svg", aspect = 0.5, overhang = 0, anchor = "top" }
+    local books = math.floor(300 * O.HEIGHT_FRAC)
+    eq(O.place(top, 1000, 300, { hang_room = 400 }, 1).h, books, "a piece that fits was resized")
+    eq(O.place(top, 1000, 300, { hang_room = 200 }, 1).h, 200, "a piece taller than the gap was not shrunk to it")
+    top.scale = 1.32
+    eq(O.place(top, 1000, 300, { hang_room = 200 }, 1).h, 200, "the pack's scale took it past the gap")
+    top.lift = -0.1
+    eq(O.place(top, 1000, 300, { hang_room = 200 }, 1).h, 170, "lowering it did not leave it room to the plank")
+    top.scale, top.lift = 0.5, 0
+    eq(O.place(top, 1000, 300, {}, 1).h, math.floor(300 * O.HEIGHT_FRAC * 0.5), "no gap given: the books' size")
+    local stand = { name = "b.svg", aspect = 0.5, overhang = 0 }
+    eq(O.place(stand, 1000, 300, { hang_room = 100 }, 1).h, books, "a standing piece was held to the gap")
+end)
+
 t.test("menu fix: a mirror change reaches a piece already dealt", function()
     -- Device report: "Mirror option does nothing".
     local O = fresh()

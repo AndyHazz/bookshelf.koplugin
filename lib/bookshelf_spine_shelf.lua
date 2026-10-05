@@ -2959,6 +2959,7 @@ local function _pngInfo(path)
     local ok, Orn = pcall(require, "lib/bookshelf_ornaments")
     local text = ok and Orn.pngDirectives and Orn.pngDirectives(head) or ""
     info.edge = tonumber(text:match("bookshelf:plank_end%s*=%s*([%d%.]+)"))
+    info.bottom = tonumber(text:match("bookshelf:plank_bottom%s*=%s*([%d%.]+)"))
     return info
 end
 
@@ -3098,6 +3099,61 @@ local function _alphaAt(bb)
     end
 end
 
+-- How far a design's plank really reaches below the nominal plank: rows of
+-- the middle's bottom band (its own pixels, from the band's top) that are
+-- the shelf rather than its shadow. A pack may say so (tEXt
+-- bookshelf:plank_bottom=N on the middle); otherwise measured once per file:
+-- the last row where at least half the columns are at least half opaque, so
+-- a soft cast shadow and a few icicles do not count, a carved apron does.
+SpineShelf.DROP_ALPHA, SpineShelf.DROP_COVER = 128, 0.5
+local _drop_memo = {}
+-- _dropRows(path) -> rows, B0: the drop in the file's own pixels and its
+-- band height; memoised, so a placement reads no file.
+local function _dropRows(path)
+    local hit = _drop_memo[path]
+    if hit ~= nil then return hit[1], hit[2] end
+    local rows = 0
+    local info = _pngInfo(path)
+    if info and info.bottom then
+        rows = info.bottom
+    elseif info then
+        pcall(function()
+            local RenderImage = require("ui/renderimage")
+            local src = RenderImage:renderImageFile(path, false)
+            if not src then return end
+            local w0, h0 = src:getWidth(), src:getHeight()
+            local B0 = math.floor(h0 / 3)
+            local alpha = _alphaAt(src)
+            local step = math.max(1, math.floor(w0 / 240))
+            local need = SpineShelf.DROP_COVER * math.ceil(w0 / step)
+            for y = 2 * B0, 3 * B0 - 1 do
+                local n = 0
+                for x = 0, w0 - 1, step do
+                    if alpha(x, y) >= SpineShelf.DROP_ALPHA then n = n + 1 end
+                end
+                if n >= need then rows = y - 2 * B0 + 1 end
+            end
+            src:free()
+        end)
+    end
+    local B0 = info and math.max(1, math.floor(info.h / 3)) or 1
+    _drop_memo[path] = { rows, B0 }
+    return rows, B0
+end
+
+-- designDrop(row_h) -> px the active plank design's shelf shows below the
+-- nominal plank (its bottom band's apron, a thicker front), at this row
+-- height; 0 with no design. Where hanging pieces meet the shelf above, and
+-- what they size their gap from (ornamentY, plan's hang_room).
+function SpineShelf.designDrop(row_h)
+    local design = SpineShelf.activePlankDesign()
+    if not design or not design.middle then return 0 end
+    local rows, B0 = _dropRows(design.middle)
+    if rows <= 0 then return 0 end
+    local plank = SpineShelf.plankSurface(row_h) + SpineShelf.plankFace(row_h)
+    return math.floor(rows * plank / B0 + 0.5)
+end
+
 local function _designStrip(design, width, row_x, row_w, surf_h, face_h, inverting)
     local key = table.concat({ design.middle, design.left or "-", design.right or "-",
                                width, row_x, row_w, surf_h, face_h,
@@ -3160,12 +3216,17 @@ function PlankDesign:paintTo(bb, x, y)
     self.dimen.x, self.dimen.y = x, y
     local w, h = self.dimen.w, self.dimen.h
     local surf_h, face_h = SpineShelf.plankSurface(h), SpineShelf.plankFace(h)
-    -- Across the SCREEN when painting to it, so the ends can reach its edges;
-    -- an offscreen target is the row's own width.
-    local sw = Screen:getWidth()
-    local on_screen = (bb == Screen.bb) and sw > w
+    -- Across the whole TARGET when it is wider than the row, so end art can
+    -- reach its edges: the screen, and the page wipe's screen-sized offscreen
+    -- buffer too (bookshelf_widget paints the incoming page there). Keyed on
+    -- the framebuffer alone, a wiped page turn got a row-wide strip and cut
+    -- off everything a design draws beyond the plank ends (Night Sky's
+    -- knobs, Cats' arms). A target only the row's width (plankPreview) still
+    -- gets the row-wide strip, ends at its own edges.
+    local tw = bb.getWidth and bb:getWidth() or w
+    local on_screen = tw > w and x >= 0 and x + w <= tw
     local width, row_x = w, 0
-    if on_screen then width, row_x = sw, x end
+    if on_screen then width, row_x = tw, x end
     local strip, top_h, regions = _designStrip(self.design, width, row_x, w, surf_h, face_h, _nightMode())
     if not strip then return end
     -- The middle band's surface lands on the plank's own surface top.
@@ -3537,6 +3598,12 @@ function SpineShelf.plan(items, opts)
                 stand_h   = math.max(1, opts.row_h - fh - inset),
                 pad       = math.max(book_gap, b),
                 max_below = SpineShelf.overhangReach(opts.row_h),
+                -- A hanging piece's room: from the shelf above as it is
+                -- drawn (the row gap less designDrop) down to this row's
+                -- plank top, a front face's height kept clear of it.
+                hang_room = math.max(1, (opts.row_h - fh - SpineShelf.plankSurface(opts.row_h))
+                                        + (opts.hang_gap or 0)
+                                        - SpineShelf.designDrop(opts.row_h) - fh),
                 -- The widest any piece stands by default, in a section gap,
                 -- at a row end or on a bare plank (Orn.maxWidth: one stand
                 -- height, so it grows with the books). A wider piece is
@@ -4112,7 +4179,7 @@ function SpineShelf.plan(items, opts)
     -- cap: the most width the piece may take (the deck's squeeze, for a row
     -- that must also seat a book); caps a reader's scale nudge as well.
     local function size(kind, e, deal_no, cap)
-        local o = { max_below = orn.max_below }
+        local o = { max_below = orn.max_below, hang_room = orn.hang_room }
         if kind == "rowend" or kind == "bare" then
             o.max_room = orn.row_end - 2 * orn.pad
         else
@@ -4294,7 +4361,15 @@ function SpineShelf.ornamentY(pl, stand_h, opts)
     local off = math.floor((pl.offset or 0) * stand_h + 0.5)
     if pl.anchor == "top" then
         local meet_top = -((opts and opts.lift_headroom or 0) + Screen:scaleBySize(2)) - (pl.content_top or 0)
-        return meet_top - off
+        -- Under the shelf above as it is DRAWN: a plank design may carry its
+        -- apron or a deeper front below the nominal plank (designDrop). Not
+        -- on a page's first row, which hangs from the top panel.
+        if opts and (opts.row_index or 1) > 1 and opts.height then
+            meet_top = meet_top + SpineShelf.designDrop(opts.height)
+        end
+        -- Never raised into the shelf it hangs from: a hanging piece only
+        -- lowers (sizeFor keeps it clear of the plank below).
+        return meet_top - math.min(off, 0)
     end
     return stand_h - pl.above - off
 end

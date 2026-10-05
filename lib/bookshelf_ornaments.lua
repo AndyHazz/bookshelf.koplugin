@@ -45,6 +45,7 @@ M.TEMPLATE_NAME = "template.svg"
 -- in a piece's long-press menu that opens it (maintainer).
 M.COLLECTION_ICON = "\xEF\x83\xB4"
 M.HEIGHT_FRAC   = 0.8    -- height as a fraction of the books' stand height
+M.HANG_CLAMP    = true   -- keep hanging (anchor top) pieces inside their gap (sizeFor)
 -- THE ROW END, where width is the scarce thing and height is not.
 --
 -- The slot used to be a stand-height SQUARE. Anything wider than that was
@@ -1309,6 +1310,22 @@ function M.sizeFor(entry, cap_px, stand_h, o)
     if o.max_room then cap = math.min(cap, o.max_room) end
     cap = math.max(1, cap)
     local height = math.floor((stand_h or 0) * M.HEIGHT_FRAC * scale)
+    -- A hanging piece (anchor top) keeps the size its pack gave it, but its
+    -- DRAWING (the file's top room skipped, as ornamentY does) must fit in
+    -- o.hang_room, the clear gap from the shelf above as drawn to the plank
+    -- below, less however far its lift lowers it: art hangs on the wall and
+    -- never overlaps either shelf (maintainer, 2026-10-05). Filling the gap
+    -- times the pack's scale instead made a 1.32 pack's pieces 132% of it.
+    if M.HANG_CLAMP and o.hang_room and entry.anchor == "top" then
+        local frac = 1
+        if entry.path then
+            local _l, t, _r, b = M.contentBox(entry)
+            if t and b and b > t then frac = b - t end
+        end
+        local down = math.max(0, -(entry.lift or 0)) * (stand_h or 0)
+        local room = math.max(1, o.hang_room - down)
+        if height * frac > room then height = math.floor(room / frac) end
+    end
     local width  = math.floor(height * aspect)
     if width > cap then
         width  = cap

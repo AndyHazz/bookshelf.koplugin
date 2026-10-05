@@ -223,6 +223,22 @@ t.test("the editor deletes a shelf's whole tree and moves among siblings", funct
     assert(ed:find('btn("shelves", _("Shelf of shelves"))', 1, true), "no Shelf of shelves source")
 end)
 
+t.test("go home climbs out of a shelf of shelves on both paths", function()
+    assert(src:find('self.chip = require("lib/bookshelf_tab_model").rootOf(self.chip)', 1, true),
+        "a fresh widget's go-home leaves the reader in the sub-shelf")
+    local m = io.open("main.lua"):read("*a")
+    assert(m:find("_live_widget.chip = TabModel.rootOf(_live_widget.chip)", 1, true),
+        "a live widget's go-home leaves the reader in the sub-shelf")
+end)
+
+t.test("changing a shelf of shelves' source asks, then deletes its shelves", function()
+    local ed = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
+    local _, n = ed:gsub("withShelvesResolved%(function%(drop%)", "")
+    eq(n, 2, "Save and + must both ask before hiding a shelf of shelves' shelves")
+    local _, d = ed:gsub("if drop then dropShelves%(save_tabs%) end", "")
+    eq(d, 2, "an OK must delete the shelves on both paths")
+end)
+
 t.test("sub-shelves stay out of the strip's shelf list in settings", function()
     local s = io.open("lib/bookshelf_settings.lua"):read("*a")
     assert(s:find("        if not tab.parent then\n        items[#items + 1] = {", 1, true),

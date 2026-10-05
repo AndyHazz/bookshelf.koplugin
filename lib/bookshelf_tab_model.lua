@@ -187,6 +187,29 @@ end
 -- or new chip created from a context with no active chip). Mutates
 -- `tabs` in place; caller still owns persistence via TabModel.save.
 function TabModel.insertAfter(tabs, anchor_id, new_tab)
+    -- A top-level shelf made from inside a shelf of shelves (a stack pinned
+    -- while in a sub-shelf) goes after that whole tree, beside the top-level
+    -- shelf it was made under, so the stored list keeps its tree order.
+    if anchor_id and not new_tab.parent then
+        local by_id = {}
+        for _i, t in ipairs(tabs) do by_id[t.id] = t end
+        local root, hops = by_id[anchor_id], 0
+        while root and root.parent and by_id[root.parent] and hops < 32 do
+            root = by_id[root.parent]
+            hops = hops + 1
+        end
+        if root then
+            local inside = TabModel.descendantIds(root.id, tabs)
+            local at
+            for i, t in ipairs(tabs) do
+                if t.id == root.id or inside[t.id] then at = i end
+            end
+            if at then
+                table.insert(tabs, at + 1, new_tab)
+                return
+            end
+        end
+    end
     if anchor_id then
         for i, t in ipairs(tabs) do
             if t.id == anchor_id then

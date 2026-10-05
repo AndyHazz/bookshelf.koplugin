@@ -1169,6 +1169,8 @@ function BookshelfWidget:_rebuild()
         self._pending_restore_drill = nil
         self._drilldown_path = {}
         self._cursor = 1
+        -- Out of any shelf of shelves too, to the top-level shelf.
+        self.chip = require("lib/bookshelf_tab_model").rootOf(self.chip)
     end
     if self._pending_restore_drill then
         local saved = self._pending_restore_drill

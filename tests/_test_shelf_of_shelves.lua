@@ -148,6 +148,19 @@ test("insertChild: an empty shelf of shelves gets its first child next to it", f
     assert(ids(t) == "home,box,first,recent", ids(t))
 end)
 
+test("insertAfter: a top-level shelf added from inside a sub-shelf lands after the whole tree", function()
+    local t = tree()
+    TabModel.insertAfter(t, "b", books("pinned"))
+    assert(ids(t) == "home,box,a,inner,b,c,pinned,recent", ids(t))
+    assert(t[7].parent == nil)
+end)
+
+test("insertAfter: a top-level anchor still inserts right after itself", function()
+    local t = tree()
+    TabModel.insertAfter(t, "home", books("x"))
+    assert(ids(t) == "home,x,box,a,inner,b,c,recent", ids(t))
+end)
+
 test("newId: the first free custom_N", function()
     assert(TabModel.newId({ books("custom_1"), books("custom_3") }) == "custom_2")
     assert(TabModel.newId({}) == "custom_1")

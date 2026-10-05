@@ -554,6 +554,29 @@ function Editor:editTab(tab_id, opts)
     local data_dirty   = false
     local visual_dirty = false
     local function is_dirty() return data_dirty or visual_dirty end
+    -- withShelvesResolved(proceed): a shelf of shelves given another source
+    -- would keep its shelves but never show them again -- nothing else lists
+    -- a sub-shelf, so they could be neither reached nor deleted. Ask first,
+    -- and on OK delete them with the change: proceed(true). Anything else
+    -- goes straight through: proceed(false).
+    local function withShelvesResolved(proceed)
+        local kind = draft.source and draft.source.kind
+        if not data_dirty or kind == TabModel.SHELVES_KIND
+                or #TabModel.childrenOf(tab_id) == 0 then
+            return proceed(false)
+        end
+        UIManager:show(ConfirmBox:new{
+            text        = _("Changing this shelf's source deletes the shelves inside it. This cannot be undone."),
+            ok_text     = _("Change"),
+            ok_callback = function() proceed(true) end,
+        })
+    end
+    -- dropShelves(tabs): delete this shelf's shelves from `tabs`, in place.
+    local function dropShelves(tabs)
+        for _i, kid in ipairs(TabModel.childrenOf(tab_id, tabs)) do
+            TabModel.removeTree(tabs, kid.id)
+        end
+    end
     -- A confirmed arrangement of the collection, from the sort picker's "Edit
     -- collection order". Not draft state: it is written to KOReader the moment
     -- it is confirmed (and drops the book cache itself), so backing out of
@@ -1140,7 +1163,7 @@ function Editor:editTab(tab_id, opts)
                     text             = _("Save"),
                     is_enter_default = true,
                     bordersize       = 0,
-                    callback         = function()
+                    callback         = function() withShelvesResolved(function(drop)
                         local _t0 = _gettime()
                         -- Clear the live-preview override BEFORE writing the
                         -- persisted record, so the subsequent on_change reads
@@ -1160,6 +1183,7 @@ function Editor:editTab(tab_id, opts)
                                     break
                                 end
                             end
+                            if drop then dropShelves(save_tabs) end
                             TabModel.save(save_tabs)
                         end
                         local _t2 = _gettime()
@@ -1184,7 +1208,7 @@ function Editor:editTab(tab_id, opts)
                             (_t1 - _t0) * 1000, (_t2 - _t1) * 1000,
                             (_t3 - _t2) * 1000, (_t4 - _t3) * 1000,
                             (_t5 - _t4) * 1000, (_t5 - _t0) * 1000))
-                    end,
+                    end) end,
                 },
                 {
                     -- Add button placed last in the row to balance the
@@ -1194,7 +1218,7 @@ function Editor:editTab(tab_id, opts)
                     font_bold      = false,
                     font_size  = CHEV_SIZE,
                     bordersize = 0,
-                    callback   = function()
+                    callback   = function() withShelvesResolved(function(drop)
                         -- Persist any pending edits before spawning the
                         -- new tab so the user's current work isn't lost.
                         TabModel.clearOverride()
@@ -1203,6 +1227,7 @@ function Editor:editTab(tab_id, opts)
                             for si, t in ipairs(save_tabs) do
                                 if t.id == tab_id then save_tabs[si] = draft; break end
                             end
+                            if drop then dropShelves(save_tabs) end
                             TabModel.save(save_tabs)
                             -- Same reasoning as the Save path: the
                             -- _bySource_cache is keyed on (source, filter,
@@ -1267,7 +1292,7 @@ function Editor:editTab(tab_id, opts)
                         for k, v in pairs(opts) do new_opts[k] = v end
                         new_opts.pick_source_first = true
                         Editor:editTab(new_id, new_opts)
-                    end,
+                    end) end,
                 },
             },
         }

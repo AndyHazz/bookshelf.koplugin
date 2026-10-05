@@ -1166,6 +1166,13 @@ function Bookshelf:onBookshelfGoHome()
         if _live_widget._drilldown_path and #_live_widget._drilldown_path > 0 then
             _live_widget:_drillBackTo(0)
         end
+        -- And out of any shelf of shelves, to the top-level shelf.
+        if _live_widget.chip then
+            local ok_tm, TabModel = pcall(require, "lib/bookshelf_tab_model")
+            if ok_tm and TabModel and TabModel.rootOf then
+                _live_widget.chip = TabModel.rootOf(_live_widget.chip)
+            end
+        end
         _live_widget._pending_restore_drill = nil
         _live_widget._cursor = 1
         if _live_widget._syncPageFromCursor then

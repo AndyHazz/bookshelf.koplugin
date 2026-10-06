@@ -1239,7 +1239,10 @@ t.test("the scrim blends, except at full strength", function()
     local body = scrim_src:match("function M%.scrim%(bb.-\nend")
     assert(body:match("blendRectRGB32"),
         "the scrim no longer blends -- it is a solid fill again")
-    assert(body:match("alpha >= 255"),
+    -- The opaque decision is shared with the blur's dithered panel
+    -- (_scrimOpaque), so the two agree on when a panel is solid.
+    local opaque = scrim_src:match("function M%._scrimOpaque%(bb.-\nend")
+    assert(body:match("_scrimOpaque%(bb, alpha%)") and opaque and opaque:match("alpha >= 255"),
         "full strength should take the cheaper opaque path")
 end)
 

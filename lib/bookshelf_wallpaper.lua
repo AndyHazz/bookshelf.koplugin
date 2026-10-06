@@ -334,17 +334,8 @@ function M.scrim(bb, x, y, w, h, colour, strength, radius)
     if not Blitbuffer or not Blitbuffer.ColorRGB32 then return false end
 
     local ok = pcall(function()
-        local c = colour.getColorRGB32 and colour:getColorRGB32() or colour
-        local alpha = math.floor(255 * strength + 0.5)
-        if alpha > 255 then alpha = 255 end
-        local tint = Blitbuffer.ColorRGB32(c:getR(), c:getG(), c:getB(), alpha)
-        -- blendRectRGB32 is C only while canUseCbb() holds. When the buffer
-        -- carries the flip flag the C blitter refuses it (a dark display on
-        -- a device that cannot flip in hardware, and the desktop emulator)
-        -- and the blend is a per-pixel Lua loop: the top panel is ~588k
-        -- pixels of it per paint. Opaque there, translucent everywhere else.
-        local no_cbb = type(bb.canUseCbb) == "function" and not bb:canUseCbb()
-        local opaque = alpha >= 255 or not bb.blendRectRGB32 or no_cbb
+        local tint, alpha = M._scrimTint(Blitbuffer, colour, strength)
+        local opaque = M._scrimOpaque(bb, alpha)
         local spans = _roundedSpans(x, y, w, h, radius)
         for _i, s in ipairs(spans) do
             if opaque then
@@ -355,6 +346,27 @@ function M.scrim(bb, x, y, w, h, colour, strength, radius)
         end
     end)
     return ok
+end
+
+-- _scrimTint(Blitbuffer, colour, strength) -> tint, alpha: the colour scrim
+-- blends over a panel, with the strength as its alpha. Shared with the blur's
+-- baked panel (frostBuild), so the two cannot drift apart.
+function M._scrimTint(Blitbuffer, colour, strength)
+    local c = colour.getColorRGB32 and colour:getColorRGB32() or colour
+    local alpha = math.floor(255 * strength + 0.5)
+    if alpha > 255 then alpha = 255 end
+    return Blitbuffer.ColorRGB32(c:getR(), c:getG(), c:getB(), alpha), alpha
+end
+
+-- _scrimOpaque(bb, alpha) -> true when scrim paints the colour SOLID on bb.
+-- blendRectRGB32 is C only while canUseCbb() holds. When the buffer
+-- carries the flip flag the C blitter refuses it (a dark display on
+-- a device that cannot flip in hardware, and the desktop emulator)
+-- and the blend is a per-pixel Lua loop: the top panel is ~588k
+-- pixels of it per paint. Opaque there, translucent everywhere else.
+function M._scrimOpaque(bb, alpha)
+    local no_cbb = type(bb.canUseCbb) == "function" and not bb:canUseCbb()
+    return alpha >= 255 or not bb.blendRectRGB32 or no_cbb
 end
 
 -- ── Blur behind the panels (frosted glass) ─────────────────────────────
@@ -372,11 +384,49 @@ end
 M.BLUR_SETTING = "wallpaper_panel_blur"
 function M.blurOn() return settingsRead(M.BLUR_SETTING) == true end
 
+-- ── Dithered onto the panel's greys (greyscale e-ink) ──
+--
+-- A greyscale e-ink panel shows 16 greys, and a PW5 shows framebuffer grey v
+-- as level v >> 4 (no hardware dithering is asked for on a greyscale screen;
+-- see the widget's self.dithered). The blur under a tint is a smooth field
+-- of in-between greys, so on the device it posterised into two or three flat
+-- greys with hard edges: "that doesn't really look like a blur, it just looks
+-- like a pattern" (maintainer, photo of the PW5). On those screens the panel's
+-- whole background -- the blurred picture WITH the tint over it -- is built
+-- once, dithered onto exact levels (Frost.dither, KOReader's own ordered 8x8),
+-- and cached; the panel is then that one blit and NO scrim, so the text, icons
+-- and covers paint over exact greys and stay crisp.
+--
+-- The tint has to be inside the dithered result: blended over dithered levels
+-- at paint time it would land between them again. It is the scrim's own blend
+-- (blendRectRGB32, _scrimTint), done in the cache instead of on the screen, so
+-- it is in painted space like everything else here and night mode needs no
+-- branch: painted 17n displays as 255 - 17n = 17(15 - n), a level too.
+--
+-- Not on a colour screen (the panel dithers its own colour there, and the
+-- shelf asks for it), not on the desktop, and not where scrim would paint the
+-- panel solid anyway (_scrimOpaque).
+local _dev_mod, _dev_seen = nil, nil
+function M.ditherPanels()
+    if M._dither_on ~= nil then return M._dither_on end
+    local cur = package.loaded["device"]
+    if _dev_mod == nil or _dev_seen ~= cur then
+        local ok, D = pcall(require, "device")
+        _dev_mod, _dev_seen = (ok and D) or false, package.loaded["device"]
+    end
+    local D = _dev_mod
+    if not D then return false end
+    local eink = type(D.hasEinkScreen) == "function" and D:hasEinkScreen()
+    local colour = type(D.hasColorScreen) == "function" and D:hasColorScreen()
+    return (eink and not colour) and true or false
+end
+M._dither_on = nil     -- seam: true/false overrides the device (tests)
+
 -- A handful of entries: the top panel, the footer, and one big panel (list
 -- mode's, Covers' with Show panel behind, or the micro-module screen's).
 -- Cleared whenever the picture changes (frostClear).
 M._frost = {}
-M._frost_build = nil   -- seam: fn(src_bb, x, y, w, h) -> bb (tests)
+M._frost_build = nil   -- seam: fn(src_bb, x, y, w, h, tint) -> bb (tests)
 local FROST_MAX = 4
 
 local function frostClear()
@@ -387,9 +437,12 @@ local function frostClear()
 end
 M._frostClear = frostClear
 
--- frostBuild(src_bb, x, y, w, h) -> a w x h Blitbuffer of the blurred
+-- frostBuild(src_bb, x, y, w, h, tint) -> a w x h Blitbuffer of the blurred
 -- picture under that rect, or nil. src_bb is the full-screen picture.
-local function frostBuild(src_bb, x, y, w, h)
+-- tint, a { colour, strength } (dithered panels only): the panel's tint is
+-- blended over the blur and the whole dithered onto exact greys, so the
+-- result is the panel's finished background, in an 8-bit grey buffer.
+local function frostBuild(src_bb, x, y, w, h, tint)
     local Blitbuffer = _blitbuffer()
     if not (Blitbuffer and Blitbuffer.new) then return nil end
     local ok_ffi, ffi = pcall(require, "ffi")
@@ -416,6 +469,22 @@ local function frostBuild(src_bb, x, y, w, h)
         ffi.cast("uint8_t *", out.data), tonumber(out.stride),
         (not grey) and 255 or nil, alloc)
     region:free()
+    local t_blur = _gettime()
+    if ok and tint then
+        ok, err = pcall(function()
+            -- The scrim's own blend, into the cache instead of the screen.
+            out:blendRectRGB32(0, 0, w, h, (M._scrimTint(Blitbuffer, tint.colour, tint.strength)))
+            if not grey then
+                -- An RGB32 picture on a greyscale screen (the rig's): to
+                -- grey first, as blitting it to the screen would.
+                local g = Blitbuffer.new(w, h, Blitbuffer.TYPE_BB8)
+                g:blitFrom(out, 0, 0, 0, 0, w, h)
+                out:free()
+                out = g
+            end
+            Frost.dither(ffi.cast("uint8_t *", out.data), tonumber(out.stride), w, h, x, y)
+        end)
+    end
     if not ok then
         logger.warn("[bookshelf] panel blur failed:", err)
         out:free()
@@ -423,25 +492,31 @@ local function frostBuild(src_bb, x, y, w, h)
     end
     -- Permanent, per the [bookshelf perf] convention: the one cost this
     -- option adds, paid once per picture and panel rect.
-    logger.dbg(string.format("[bookshelf perf] frost: build=%.1fms %dx%d at %d,%d %s",
-        (_gettime() - t0) * 1000, w, h, x, y, grey and "BB8" or "RGB32"))
+    local t1 = _gettime()
+    logger.dbg(string.format("[bookshelf perf] frost: build=%.1fms %dx%d at %d,%d %s%s",
+        (t1 - t0) * 1000, w, h, x, y, grey and "BB8" or "RGB32",
+        tint and string.format(" (tint+dither %.1fms)", (t1 - t_blur) * 1000) or ""))
     return out
 end
 
--- frostFor(x, y, w, h) -> the cached blur for exactly that panel rect over
--- the current picture, built on a miss; nil without a picture.
-local function frostFor(x, y, w, h)
+-- frostFor(x, y, w, h, tint) -> the cached blur for exactly that panel rect
+-- (and, dithered, that tint) over the current picture, built on a miss; nil
+-- without a picture.
+local function frostFor(x, y, w, h, tint)
     local bg = M._bg
     if not (bg and bg.bb and M._bg_key) then return nil end
+    local tc, ts = tint and tint.key, tint and tint.strength
     for i, e in ipairs(M._frost) do
-        if e.bg_key == M._bg_key and e.x == x and e.y == y and e.w == w and e.h == h then
+        if e.bg_key == M._bg_key and e.x == x and e.y == y and e.w == w and e.h == h
+                and e.tint_key == tc and e.tint_strength == ts then
             if i > 1 then table.remove(M._frost, i); table.insert(M._frost, 1, e) end
             return e.bb
         end
     end
-    local bb = (M._frost_build or frostBuild)(bg.bb, x, y, w, h)
+    local bb = (M._frost_build or frostBuild)(bg.bb, x, y, w, h, tint)
     if not bb then return nil end
-    table.insert(M._frost, 1, { bg_key = M._bg_key, x = x, y = y, w = w, h = h, bb = bb })
+    table.insert(M._frost, 1, { bg_key = M._bg_key, x = x, y = y, w = w, h = h, bb = bb,
+                                tint_key = tc, tint_strength = ts })
     while #M._frost > FROST_MAX do
         local old = table.remove(M._frost)
         pcall(function() old.bb:free() end)
@@ -449,20 +524,32 @@ local function frostFor(x, y, w, h)
     return bb
 end
 
--- frost(target, x, y, w, h, radius, outer) -> true when the blurred picture
--- was laid over that (rounded) rect.
+-- frost(target, x, y, w, h, radius, outer, colour, strength) -> painted,
+-- tinted: painted when the blurred picture was laid over that (rounded)
+-- rect; tinted when what was laid is the panel's FINISHED background (tint
+-- and dither included, ditherPanels), and the caller must not tint again.
+-- colour and strength are the panel's tint; without them it is never baked.
 --
 -- outer, a { x, y, w, h }, is the PANEL the rect belongs to: the blur is
 -- built for the whole panel and this rect cut from it, so a patch put back
--- inside a panel (restore's reshade) matches the panel around it exactly.
--- Without outer the rect is its own panel. Refuses an offscreen target, as
--- restore does: the picture is screen-indexed.
-function M.frost(target, x, y, w, h, radius, outer)
-    if not M.blurOn() then return false end
+-- inside a panel (restore's reshade) matches the panel around it exactly --
+-- dither pattern included. Without outer the rect is its own panel. Refuses
+-- an offscreen target, as restore does: the picture is screen-indexed.
+local _tint = {}
+-- _colourKey(colour) -> a number naming the colour's value: the panel's
+-- colour is resolved afresh on every rebuild, so the cache cannot compare the
+-- objects (and a cdata colour must not be compared with ==, see bg's notes).
+local function _colourKey(colour)
+    if type(colour) == "number" then return colour end
+    local c = colour.getColorRGB32 and colour:getColorRGB32() or colour
+    return (c:getR() * 256 + c:getG()) * 256 + c:getB()
+end
+function M.frost(target, x, y, w, h, radius, outer, colour, strength)
+    if not M.blurOn() then return false, false end
     local bg = M._bg
-    if not (bg and bg.bb and target and w and h) or w <= 0 or h <= 0 then return false end
+    if not (bg and bg.bb and target and w and h) or w <= 0 or h <= 0 then return false, false end
     if target.getWidth == nil or target:getWidth() ~= bg.w or target:getHeight() ~= bg.h then
-        return false
+        return false, false
     end
     local ox, oy, ow, oh = x, y, w, h
     if outer then ox, oy, ow, oh = outer.x, outer.y, outer.w, outer.h end
@@ -471,10 +558,17 @@ function M.frost(target, x, y, w, h, radius, outer)
     if oy < 0 then oh = oh + oy; oy = 0 end
     if ox + ow > bg.w then ow = bg.w - ox end
     if oy + oh > bg.h then oh = bg.h - oy end
-    if ow <= 0 or oh <= 0 then return false end
-    local fb = frostFor(ox, oy, ow, oh)
-    if not fb then return false end
-    return pcall(function()
+    if ow <= 0 or oh <= 0 then return false, false end
+    -- Baked only where scrim would have blended (not painted solid).
+    local tint = nil
+    if type(colour) ~= "nil" and strength and strength > 0 and M.ditherPanels()
+            and not M._scrimOpaque(target, math.floor(255 * strength + 0.5)) then
+        _tint.colour, _tint.strength, _tint.key = colour, strength, _colourKey(colour)
+        tint = _tint
+    end
+    local fb = frostFor(ox, oy, ow, oh, tint)
+    if not fb then return false, false end
+    local ok = pcall(function()
         for _i, s in ipairs(_roundedSpans(x, y, w, h, radius)) do
             local x0, y0 = math.max(s.x, ox), math.max(s.y, oy)
             local x1 = math.min(s.x + s.w, ox + ow)
@@ -483,16 +577,19 @@ function M.frost(target, x, y, w, h, radius, outer)
                 target:blitFrom(fb, x0, y0, x0 - ox, y0 - oy, x1 - x0, y1 - y0)
             end
         end
-    end) and true or false
+    end)
+    return ok and true or false, (ok and tint ~= nil) and true or false
 end
 
 -- panel(bb, x, y, w, h, colour, strength, radius, frost) -> true if painted.
 -- A panel: the blurred picture, when the caller says the picture is what is
--- behind it (frost) and the option is on, then the tint. A Solid panel hides
--- the picture anyway, so it is never blurred.
+-- behind it (frost) and the option is on, then the tint -- or, on a
+-- greyscale e-ink screen, the two together, dithered (ditherPanels). A Solid
+-- panel hides the picture anyway, so it is never blurred.
 function M.panel(bb, x, y, w, h, colour, strength, radius, frost)
     if frost and strength and strength > 0 and strength < 1 then
-        M.frost(bb, x, y, w, h, radius)
+        local _painted, tinted = M.frost(bb, x, y, w, h, radius, nil, colour, strength)
+        if tinted then return true end
     end
     return M.scrim(bb, x, y, w, h, colour, strength, radius)
 end
@@ -1010,7 +1107,12 @@ local function _reshade(target, x, y, w, h)
     if x1 <= x0 or y1 <= y0 then return end
     local g = p.gap_y
     local function shade(sy, sh)
-        if p.frost then M.frost(target, x0, sy, x1 - x0, sh, 0, p) end
+        if p.frost then
+            -- Dithered panels: the patch is the panel's finished background
+            -- (same cache, same pattern), so no tint over it.
+            local _painted, tinted = M.frost(target, x0, sy, x1 - x0, sh, 0, p, p.colour, p.strength)
+            if tinted then return end
+        end
         M.scrim(target, x0, sy, x1 - x0, sh, p.colour, p.strength, 0)
     end
     pcall(function()

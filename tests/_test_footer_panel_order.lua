@@ -201,4 +201,98 @@ t.test("a new picture or a night flip drops the blurs", function()
     eq(#W._frost, 0, "free kept the blurs")
 end)
 
+-- ── 4. dithered onto the e-ink panel's greys ──────────────────────────────
+-- On a greyscale e-ink screen the panel's background (blur AND tint) is built
+-- once, dithered onto exact device levels, and blitted with no scrim over it:
+-- a tint blended over dithered levels would land between them again.
+
+-- A screen scrim would BLEND on (C blitter usable), as a PW5's is.
+local function blendScreen(w, h, log)
+    local s = screen(w, h, log)
+    s.canUseCbb = function() return true end
+    s.blendRectRGB32 = function() end
+    return s
+end
+local function ditherW(builds, scrims)
+    local W = blurW(builds)
+    W._frost_build = function(_src, x, y, w, h, tint)
+        builds[#builds + 1] = { x = x, y = y, w = w, h = h,
+                                tint = tint and { colour = tint.colour, strength = tint.strength } }
+        return { tag = "FROST" .. #builds, free = function() end }
+    end
+    W.scrim = function() scrims[#scrims + 1] = true; return true end
+    W._dither_on = true
+    return W
+end
+
+t.test("dithered: the tint is baked into the cached blur and no scrim goes over it", function()
+    local builds, scrims, log = {}, {}, {}
+    local W = ditherW(builds, scrims)
+    local s = blendScreen(100, 100, log)
+    W.panel(s, 0, 0, 100, 20, 0xEE, 0.35, 0, true)
+    W.panel(s, 0, 0, 100, 20, 0xEE, 0.35, 0, true)
+    eq(#builds, 1, "a paint rebuilt the dithered panel")
+    assert(builds[1].tint, "the blur was built without the tint")
+    eq(builds[1].tint.colour, 0xEE); eq(builds[1].tint.strength, 0.35)
+    eq(#scrims, 0, "a tint went over the dithered levels")
+    W.panel(s, 0, 0, 100, 20, 0xEE, 0.6, 0, true)
+    eq(#builds, 2, "a new shading level reused the old level's baked tint")
+    W.panel(s, 0, 0, 100, 20, 0x22, 0.6, 0, true)
+    eq(#builds, 3, "a new panel colour reused the old colour's baked tint")
+end)
+
+t.test("dithered: a patch inside the panel is cut from the same baked background, untinted", function()
+    local builds, scrims, log = {}, {}, {}
+    local W = ditherW(builds, scrims)
+    local s = blendScreen(100, 100, log)
+    W.panel(s, 10, 80, 80, 15, 0xEE, 0.35, 4, true)
+    W.setPanel(10, 80, 80, 15, 0xEE, 0.35, 4, nil, true)
+    W.restore(s, 20, 85, 5, 5)
+    eq(#builds, 1, "the patch built its own background: a seam")
+    eq(#scrims, 0, "the patch was tinted twice")
+    local fb = log[#log]
+    eq(fb.src.tag, "FROST1"); eq(fb.sx, 10); eq(fb.sy, 5)
+end)
+
+t.test("not dithered: blur then scrim, as before", function()
+    local builds, scrims, log = {}, {}, {}
+    local W = ditherW(builds, scrims)
+    W._dither_on = false
+    W.panel(blendScreen(100, 100, log), 0, 0, 100, 20, 0xEE, 0.35, 0, true)
+    eq(#builds, 1); eq(builds[1].tint, nil, "a colour screen got the dither")
+    eq(#scrims, 1, "the tint was lost")
+end)
+
+t.test("dithered, but where scrim paints solid (no C blend): no bake", function()
+    local builds, scrims, log = {}, {}, {}
+    local W = ditherW(builds, scrims)
+    local s = blendScreen(100, 100, log)
+    s.canUseCbb = function() return false end
+    W.panel(s, 0, 0, 100, 20, 0xEE, 0.35, 0, true)
+    eq(builds[1].tint, nil); eq(#scrims, 1)
+end)
+
+t.test("blur off: the plain tint, never the dither", function()
+    local builds, scrims, log = {}, {}, {}
+    local W = ditherW(builds, scrims)
+    W.blurOn = function() return false end
+    W.panel(blendScreen(100, 100, log), 0, 0, 100, 20, 0xEE, 0.35, 0, true)
+    eq(#builds, 0); eq(#scrims, 1)
+end)
+
+t.test("the dither is for greyscale e-ink only: not colour e-ink, not the desktop", function()
+    local W = freshW()
+    local saved = package.loaded["device"]
+    local function dev(eink, colour)
+        package.loaded["device"] = { hasEinkScreen = function() return eink end,
+                                     hasColorScreen = function() return colour end }
+        return W.ditherPanels()
+    end
+    eq(dev(true, false), true, "a PW5")
+    eq(dev(true, true), false, "a colour e-ink screen")
+    eq(dev(false, false), false, "the desktop")
+    eq(dev(false, true), false, "the desktop")
+    package.loaded["device"] = saved
+end)
+
 t.done()

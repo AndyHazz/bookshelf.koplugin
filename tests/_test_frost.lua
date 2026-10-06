@@ -123,4 +123,64 @@ t.test("the cache key names the picture (with its night mode) and the rect", fun
     eq(Frost.key(nil, 0, 0, 1, 1), nil, "no picture, no key")
 end)
 
+-- ── the dither onto the e-ink panel's 16 greys ────────────────────────────
+-- A PW5 shows grey v as level v >> 4 (bands [16n, 16n + 15]); the only bytes
+-- that show as exactly what was meant are n * 17, the one byte of level n
+-- that every rounding (truncate, nearest) agrees on.
+
+t.test("every dithered byte is an exact device level: (b >> 4) == its level, b == level * 17", function()
+    for y = 0, 7 do for x = 0, 7 do for v = 0, 255 do
+        local n = Frost.ditherLevel(x, y, v)
+        assert(n >= 0 and n <= 15, "level out of range: " .. n)
+        local buf = { [0] = v }
+        Frost.dither(buf, 1, 1, 1, x, y)
+        local b = buf[0]
+        eq(b, n * 17, "byte for v=" .. v .. " at " .. x .. "," .. y)
+        eq(math.floor(b / 16), n, "the device would show v=" .. v .. " as another level")
+    end end end
+end)
+
+t.test("each pixel lands on one of the two levels either side of its tone", function()
+    for v = 0, 255 do
+        local lo = math.floor(v * 15 / 255)
+        for p = 0, 63 do
+            local n = Frost.ditherLevel(p % 8, math.floor(p / 8), v)
+            assert(n == lo or n == lo + 1, "v=" .. v .. " jumped to level " .. n)
+        end
+    end
+end)
+
+t.test("the stipple keeps the tone: an 8x8 tile of any grey averages back to it", function()
+    for v = 0, 255 do
+        local buf = {}
+        for i = 0, 63 do buf[i] = v end
+        Frost.dither(buf, 8, 8, 8, 0, 0)
+        local s = 0
+        for i = 0, 63 do s = s + buf[i] end
+        assert(math.abs(s / 64 - v) <= 1, "v=" .. v .. " averages " .. s / 64)
+    end
+end)
+
+t.test("the pattern is anchored to the screen: a patch matches the panel it is cut from", function()
+    -- a 40x24 panel at screen (13, 7), and a 9x5 patch of it at (21, 12)
+    local W, Hh, X0, Y0 = 40, 24, 13, 7
+    local panel = image(W, Hh, function(x, y) return (x * 5 + y * 9) % 256 end)
+    local patch = {}
+    for y = 0, 4 do for x = 0, 8 do patch[y * 9 + x] = panel[(y + 5) * W + (x + 8)] end end
+    Frost.dither(panel, W, W, Hh, X0, Y0)
+    Frost.dither(patch, 9, 9, 5, X0 + 8, Y0 + 5)
+    for y = 0, 4 do for x = 0, 8 do
+        eq(patch[y * 9 + x], panel[(y + 5) * W + (x + 8)], "seam at " .. x .. "," .. y)
+    end end
+end)
+
+t.test("KOReader's threshold map: 1..64, each once", function()
+    local seen = {}
+    for i = 0, 63 do
+        local m = Frost.O8X8[i]
+        assert(m >= 1 and m <= 64 and not seen[m], "map entry " .. i .. " is " .. tostring(m))
+        seen[m] = true
+    end
+end)
+
 t.done()

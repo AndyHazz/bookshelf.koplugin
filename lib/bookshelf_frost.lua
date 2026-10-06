@@ -187,6 +187,74 @@ function M.upscale(small, sw, sh, nch, f, ox, oy, dst, dstride, bpp, w, h, alpha
     end
 end
 
+-- ── Onto the panel's own greys (greyscale e-ink) ───────────────────────
+--
+-- A blur is a smooth field of in-between greys, and a 16-grey e-ink panel
+-- has none of them: a PW5 shows grey v as level v >> 4, so a gentle ramp
+-- comes out as two or three flat greys with hard edges between them, a
+-- pattern rather than a blur (maintainer, photo of the PW5). Dithered onto
+-- exact levels first, each pixel shows exactly as painted and the ramp
+-- survives as a fine stipple whose average is the tone the blur asked for.
+--
+-- KOReader's own ordered 8x8 dither (base ffi/blitbuffer.lua dither_o8x8,
+-- itself ImageMagick's o8x8 at 16 levels), the same threshold map and the
+-- same integer arithmetic, so the result is byte for byte what its
+-- ditherblitFrom would give. Ported rather than called so it runs on the
+-- same byte arrays as the rest of this file and the tests can check what
+-- the device runs; it costs one table read per pixel, once per build.
+M.O8X8 = { [0] = 1, 49, 13, 61, 4, 52, 16, 64, 33, 17, 45, 29, 36, 20, 48, 32,
+                 9, 57, 5, 53, 12, 60, 8, 56, 41, 25, 37, 21, 44, 28, 40, 24,
+                 3, 51, 15, 63, 2, 50, 14, 62, 35, 19, 47, 31, 34, 18, 46, 30,
+                 11, 59, 7, 55, 10, 58, 6, 54, 43, 27, 39, 23, 42, 26, 38, 22 }
+
+-- ditherLevel(x, y, v) -> n, 0..15: the level grey v lands on at pixel
+-- (x, y). The byte written is n * 17, and (n * 17) >> 4 == n, so the panel
+-- shows exactly level n: no band edge for it to fall across.
+function M.ditherLevel(x, y, v)
+    -- div255(v * (15 * 64 + 1)), as KOReader does it
+    local u = v * 961 + 128
+    local t = math.floor((u + math.floor(u / 256)) / 256)
+    local l = math.floor(t / 64)
+    t = t - l * 64
+    if t >= M.O8X8[(x % 8) + 8 * (y % 8)] then l = l + 1 end
+    if l > 15 then l = 15 end
+    return l
+end
+
+-- One table, built on first use: the byte for every (phase, v), 1-based
+-- (phase * 256 + v + 1) so it is all array part.
+local _lut = nil
+local function ditherLut()
+    if _lut then return _lut end
+    local lut = {}
+    for phase = 0, 63 do
+        local px, py = phase % 8, math.floor(phase / 8)
+        for v = 0, 255 do
+            lut[phase * 256 + v + 1] = M.ditherLevel(px, py, v) * 17
+        end
+    end
+    _lut = lut
+    return lut
+end
+
+-- dither(buf, stride, w, h, x0, y0) -> buf, every byte of a w x h grey image
+-- (one byte per pixel, stride per row) put on its level, in place. (x0, y0)
+-- is where the image sits on the screen, so the pattern is anchored to the
+-- screen and every patch cut from it lines up with the panel around it.
+function M.dither(buf, stride, w, h, x0, y0)
+    local lut = ditherLut()
+    x0, y0 = x0 or 0, y0 or 0
+    for y = 0, h - 1 do
+        local row = ((y0 + y) % 8) * 8
+        local p = y * stride
+        for x = 0, w - 1 do
+            local base = (row + (x0 + x) % 8) * 256 + 1
+            buf[p + x] = lut[base + buf[p + x]]
+        end
+    end
+    return buf
+end
+
 -- blur(src, sstride, bpp, nch, rw, rh, ox, oy, w, h, dst, dstride, alpha, alloc)
 -- The whole pipeline: a rw x rh region of src down, blurred, and back up
 -- into the w x h rect that starts (ox, oy) inside it. alloc(n) returns a

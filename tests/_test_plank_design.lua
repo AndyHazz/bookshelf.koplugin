@@ -78,6 +78,15 @@ t.test("an end image is composited OVER the strip, alpha included", function()
     assert(strip:find("d.alpha = math.floor(oa + 0.5)", 1, true), "the end's alpha is not combined into the strip")
 end)
 
+t.test("hanging art keeps clear of what a design stands above the plank (designRise)", function()
+    -- Maintainer: a sofa's back behind the books is part of the shelf, and
+    -- art never overlaps the shelf.
+    assert(src:find("function SpineShelf.designRise(row_h)", 1, true), "no designRise")
+    assert(src:find('text:match("bookshelf:plank_top%s*=%s*([%d%.]+)")', 1, true), "plank_top not read")
+    local room = src:match("hang_room = math.max%(1,.-%),\n")
+    assert(room and room:find("SpineShelf.designRise(opts.row_h)", 1, true), "hang_room ignores designRise")
+end)
+
 t.test("slots render see-through over a plank design, and repainters redraw it", function()
     assert(src:find("function SpineShelf.seeThrough()", 1, true), "no seeThrough")
     local slot = src:match("function SpineBookSlot:paintTo%(.-\nend")

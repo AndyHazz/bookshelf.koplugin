@@ -2962,6 +2962,7 @@ local function _pngInfo(path)
     local text = ok and Orn.pngDirectives and Orn.pngDirectives(head) or ""
     info.edge = tonumber(text:match("bookshelf:plank_end%s*=%s*([%d%.]+)"))
     info.bottom = tonumber(text:match("bookshelf:plank_bottom%s*=%s*([%d%.]+)"))
+    info.top = tonumber(text:match("bookshelf:plank_top%s*=%s*([%d%.]+)"))
     -- A SOLID end (tEXt "plank_solid"): the end image stands in for the
     -- middle across its whole width, see _designStrip.
     info.solid = text:find("bookshelf:plank_solid", 1, true) ~= nil
@@ -3119,13 +3120,16 @@ SpineShelf.DROP_ALPHA, SpineShelf.DROP_COVER = 128, 0.5
 local _drop_memo = {}
 -- _dropRows(path) -> rows, B0: the drop in the file's own pixels and its
 -- band height; memoised, so a placement reads no file.
-local function _dropRows(path)
-    local hit = _drop_memo[path]
+local function _bandRows(path, rise)
+    local key = path .. (rise and "|rise" or "|drop")
+    local hit = _drop_memo[key]
     if hit ~= nil then return hit[1], hit[2] end
     local rows = 0
     local info = _pngInfo(path)
-    if info and info.bottom then
+    if info and not rise and info.bottom then
         rows = info.bottom
+    elseif info and rise and info.top then
+        rows = info.top
     elseif info then
         pcall(function()
             local RenderImage = require("ui/renderimage")
@@ -3136,20 +3140,32 @@ local function _dropRows(path)
             local alpha = _alphaAt(src)
             local step = math.max(1, math.floor(w0 / 240))
             local need = SpineShelf.DROP_COVER * math.ceil(w0 / step)
-            for y = 2 * B0, 3 * B0 - 1 do
+            local function covered(y)
                 local n = 0
                 for x = 0, w0 - 1, step do
                     if alpha(x, y) >= SpineShelf.DROP_ALPHA then n = n + 1 end
                 end
-                if n >= need then rows = y - 2 * B0 + 1 end
+                return n >= need
+            end
+            if rise then
+                -- Band 1, from its top down: the first covered row is as
+                -- high as the design stands above the plank.
+                for y = 0, B0 - 1 do
+                    if covered(y) then rows = B0 - y; break end
+                end
+            else
+                for y = 2 * B0, 3 * B0 - 1 do
+                    if covered(y) then rows = y - 2 * B0 + 1 end
+                end
             end
             src:free()
         end)
     end
     local B0 = info and math.max(1, math.floor(info.h / 3)) or 1
-    _drop_memo[path] = { rows, B0 }
+    _drop_memo[key] = { rows, B0 }
     return rows, B0
 end
+local function _dropRows(path) return _bandRows(path, false) end
 
 -- designDrop(row_h) -> px the active plank design's shelf shows below the
 -- nominal plank (its bottom band's apron, a thicker front), at this row
@@ -3159,6 +3175,20 @@ function SpineShelf.designDrop(row_h)
     local design = SpineShelf.activePlankDesign()
     if not design or not design.middle then return 0 end
     local rows, B0 = _dropRows(design.middle)
+    if rows <= 0 then return 0 end
+    local plank = SpineShelf.plankSurface(row_h) + SpineShelf.plankFace(row_h)
+    return math.floor(rows * plank / B0 + 0.5)
+end
+
+-- designRise(row_h) -> px the active plank design's shelf stands ABOVE the
+-- plank (band 1: a sofa's back, a gallery rail, a snow drift), measured the
+-- same way, or from a bookshelf:plank_top=N tEXt marker; 0 with no design.
+-- Hanging pieces keep clear of it as they do of designDrop (plan's
+-- hang_room): art hangs on the wall and never overlaps the shelf.
+function SpineShelf.designRise(row_h)
+    local design = SpineShelf.activePlankDesign()
+    if not design or not design.middle then return 0 end
+    local rows, B0 = _bandRows(design.middle, true)
     if rows <= 0 then return 0 end
     local plank = SpineShelf.plankSurface(row_h) + SpineShelf.plankFace(row_h)
     return math.floor(rows * plank / B0 + 0.5)
@@ -3648,7 +3678,8 @@ function SpineShelf.plan(items, opts)
                 -- plank top, a front face's height kept clear of it.
                 hang_room = math.max(1, (opts.row_h - fh - SpineShelf.plankSurface(opts.row_h))
                                         + (opts.hang_gap or 0)
-                                        - SpineShelf.designDrop(opts.row_h) - fh),
+                                        - SpineShelf.designDrop(opts.row_h)
+                                        - SpineShelf.designRise(opts.row_h) - fh),
                 -- The widest any piece stands by default, in a section gap,
                 -- at a row end or on a bare plank (Orn.maxWidth: one stand
                 -- height, so it grows with the books). A wider piece is

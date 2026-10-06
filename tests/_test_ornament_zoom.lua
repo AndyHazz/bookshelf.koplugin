@@ -123,4 +123,15 @@ t.test("KOReader's own gestures pass through the zoom view", function()
         "the zoom view does not pass gestures and their actions through")
 end)
 
+t.test("the description panel follows the blur preference, like the shelf's panels", function()
+    -- Maintainer: the zoom view's panel should use "Blur the picture behind
+    -- panels" too. Wallpaper.panel blurs (and dithers on e-ink) when the
+    -- wallpaper is behind it; scrim never does.
+    local z = io.open("lib/bookshelf_ornament_zoom.lua"):read("*a")
+    assert(z:find('require("lib/bookshelf_wallpaper").panel(b, px, py, pw, ph, ground, strength, radius, on_wall)', 1, true),
+        "the zoom panel does not paint through Wallpaper.panel with the wallpaper as its frost")
+    assert(not z:find('bookshelf_wallpaper").scrim(b, px, py', 1, true), "the zoom panel still paints a plain scrim")
+    assert(z:find("bg, on_wall = wp, true", 1, true), "the frost flag does not follow the wallpaper ground")
+end)
+
 t.done()

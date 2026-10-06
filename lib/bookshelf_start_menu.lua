@@ -1500,7 +1500,14 @@ function StartMenu:_build()
                 end)
                 if ok_s then scrim_s = sv end
             end
-            local eraser = Wallpaper.eraser(true, art, box_h, scrim_c, scrim_s)
+            -- The shelf's own copy of what is under the button, when it has
+            -- one: the panel can carry a blur, and the bottom shelf's plank
+            -- design can stand in front of it, neither of which a replay of
+            -- picture and tint gets right.
+            local bw, menu = self.bw, self
+            local under = (bw and type(bw.burgerUnder) == "function")
+                and function() return bw:burgerUnder(menu) end or nil
+            local eraser = Wallpaper.eraser(true, art, box_h, scrim_c, scrim_s, under)
             if eraser then
                 close_inner = OverlapGroup:new{
                     dimen = Geom:new{ w = art, h = box_h },

@@ -357,6 +357,148 @@ function M.scrim(bb, x, y, w, h, colour, strength, radius)
     return ok
 end
 
+-- ── Blur behind the panels (frosted glass) ─────────────────────────────
+--
+-- OFF by default. With it on, the picture behind a translucent panel is
+-- blurred before the panel's tint goes over it, so the panel reads as frosted
+-- glass: the wallpaper's tone and colour come through, its detail does not
+-- fight the text on top. Only the PICTURE is blurred. The footer panel sits
+-- on the wall behind the shelf (bookshelf_widget's _paintFooterPanel), so a
+-- plank design reaching into it stays sharp in front of the glass.
+--
+-- The blur itself is lib/bookshelf_frost (downscale, box blur, bilinear back
+-- up). It is built once per panel rect and kept, keyed by what is behind it
+-- -- the decoded picture's own key, which already names the file, the screen
+-- size and the night pre-inversion -- so a paint is one blit, and only a new
+-- picture, a night toggle or a panel that moved pays for a rebuild.
+M.BLUR_SETTING = "wallpaper_panel_blur"
+function M.blurOn() return settingsRead(M.BLUR_SETTING) == true end
+
+-- A handful of entries: the top panel, the footer, and one big panel (list
+-- mode's, Covers' with Show panel behind, or the micro-module screen's).
+-- Cleared whenever the picture changes (frostClear).
+M._frost = {}
+M._frost_build = nil   -- seam: fn(src_bb, x, y, w, h) -> bb (tests)
+local FROST_MAX = 4
+
+local function frostClear()
+    for _i, e in ipairs(M._frost) do
+        pcall(function() e.bb:free() end)
+    end
+    M._frost = {}
+end
+M._frostClear = frostClear
+
+-- frostBuild(src_bb, x, y, w, h) -> a w x h Blitbuffer of the blurred
+-- picture under that rect, or nil. src_bb is the full-screen picture.
+local function frostBuild(src_bb, x, y, w, h)
+    local Blitbuffer = _blitbuffer()
+    if not (Blitbuffer and Blitbuffer.new) then return nil end
+    local ok_ffi, ffi = pcall(require, "ffi")
+    if not ok_ffi then return nil end
+    local Frost = require("lib/bookshelf_frost")
+    local t0 = _gettime()
+    -- Grey stays grey (a PW5's picture is BB8 after toScreenType); anything
+    -- else is worked on as RGB32 so a colour picture keeps its colour.
+    local grey = src_bb:getType() == Blitbuffer.TYPE_BB8
+    local btype = grey and Blitbuffer.TYPE_BB8 or Blitbuffer.TYPE_BBRGB32
+    local bpp, nch = grey and 1 or 4, grey and 1 or 3
+    local rx, ry, rw, rh = Frost.region(x, y, w, h, Frost.margin(),
+                                        src_bb:getWidth(), src_bb:getHeight())
+    if rw <= 0 or rh <= 0 then return nil end
+    -- A plain copy of the region first: one C blit, and it leaves a buffer
+    -- with no rotation, no inversion flag and a known byte layout to read.
+    local region = Blitbuffer.new(rw, rh, btype)
+    region:blitFrom(src_bb, 0, 0, rx, ry, rw, rh)
+    local out = Blitbuffer.new(w, h, btype)
+    local alloc = function(n) return ffi.new("double[?]", math.max(1, n)) end
+    local ok, err = pcall(Frost.blur,
+        ffi.cast("uint8_t *", region.data), tonumber(region.stride), bpp, nch, rw, rh,
+        x - rx, y - ry, w, h,
+        ffi.cast("uint8_t *", out.data), tonumber(out.stride),
+        (not grey) and 255 or nil, alloc)
+    region:free()
+    if not ok then
+        logger.warn("[bookshelf] panel blur failed:", err)
+        out:free()
+        return nil
+    end
+    -- Permanent, per the [bookshelf perf] convention: the one cost this
+    -- option adds, paid once per picture and panel rect.
+    logger.dbg(string.format("[bookshelf perf] frost: build=%.1fms %dx%d at %d,%d %s",
+        (_gettime() - t0) * 1000, w, h, x, y, grey and "BB8" or "RGB32"))
+    return out
+end
+
+-- frostFor(x, y, w, h) -> the cached blur for exactly that panel rect over
+-- the current picture, built on a miss; nil without a picture.
+local function frostFor(x, y, w, h)
+    local bg = M._bg
+    if not (bg and bg.bb and M._bg_key) then return nil end
+    for i, e in ipairs(M._frost) do
+        if e.bg_key == M._bg_key and e.x == x and e.y == y and e.w == w and e.h == h then
+            if i > 1 then table.remove(M._frost, i); table.insert(M._frost, 1, e) end
+            return e.bb
+        end
+    end
+    local bb = (M._frost_build or frostBuild)(bg.bb, x, y, w, h)
+    if not bb then return nil end
+    table.insert(M._frost, 1, { bg_key = M._bg_key, x = x, y = y, w = w, h = h, bb = bb })
+    while #M._frost > FROST_MAX do
+        local old = table.remove(M._frost)
+        pcall(function() old.bb:free() end)
+    end
+    return bb
+end
+
+-- frost(target, x, y, w, h, radius, outer) -> true when the blurred picture
+-- was laid over that (rounded) rect.
+--
+-- outer, a { x, y, w, h }, is the PANEL the rect belongs to: the blur is
+-- built for the whole panel and this rect cut from it, so a patch put back
+-- inside a panel (restore's reshade) matches the panel around it exactly.
+-- Without outer the rect is its own panel. Refuses an offscreen target, as
+-- restore does: the picture is screen-indexed.
+function M.frost(target, x, y, w, h, radius, outer)
+    if not M.blurOn() then return false end
+    local bg = M._bg
+    if not (bg and bg.bb and target and w and h) or w <= 0 or h <= 0 then return false end
+    if target.getWidth == nil or target:getWidth() ~= bg.w or target:getHeight() ~= bg.h then
+        return false
+    end
+    local ox, oy, ow, oh = x, y, w, h
+    if outer then ox, oy, ow, oh = outer.x, outer.y, outer.w, outer.h end
+    -- Clamped to the picture: a panel rect can overhang the screen edge.
+    if ox < 0 then ow = ow + ox; ox = 0 end
+    if oy < 0 then oh = oh + oy; oy = 0 end
+    if ox + ow > bg.w then ow = bg.w - ox end
+    if oy + oh > bg.h then oh = bg.h - oy end
+    if ow <= 0 or oh <= 0 then return false end
+    local fb = frostFor(ox, oy, ow, oh)
+    if not fb then return false end
+    return pcall(function()
+        for _i, s in ipairs(_roundedSpans(x, y, w, h, radius)) do
+            local x0, y0 = math.max(s.x, ox), math.max(s.y, oy)
+            local x1 = math.min(s.x + s.w, ox + ow)
+            local y1 = math.min(s.y + s.h, oy + oh)
+            if x1 > x0 and y1 > y0 then
+                target:blitFrom(fb, x0, y0, x0 - ox, y0 - oy, x1 - x0, y1 - y0)
+            end
+        end
+    end) and true or false
+end
+
+-- panel(bb, x, y, w, h, colour, strength, radius, frost) -> true if painted.
+-- A panel: the blurred picture, when the caller says the picture is what is
+-- behind it (frost) and the option is on, then the tint. A Solid panel hides
+-- the picture anyway, so it is never blurred.
+function M.panel(bb, x, y, w, h, colour, strength, radius, frost)
+    if frost and strength and strength > 0 and strength < 1 then
+        M.frost(bb, x, y, w, h, radius)
+    end
+    return M.scrim(bb, x, y, w, h, colour, strength, radius)
+end
+
 
 M._data_dir = nil          -- override for the data dir (tests)
 M._lfs      = nil          -- lazily required
@@ -718,8 +860,15 @@ end
 -- hamburger sits inside it, so restoring the raw wallpaper there punches a
 -- dark rectangle through the panel exactly the size of the close X's box.
 -- What was on screen is wallpaper THEN tint, so the eraser replays both.
+--
+-- under, optional: fn() -> { bb, x, y, w, h }, a copy of the screen under
+-- the button taken before the button was painted (the shelf keeps one, see
+-- BookshelfWidget:burgerUnder). It is the exact answer -- the panel, its
+-- blur AND the bottom shelf's plank design reaching into the footer, all of
+-- which replaying the picture and the tint would wipe -- so it wins whenever
+-- it covers this rect. Otherwise the replay, as before.
 local Eraser = nil
-function M.eraser(active, w, h, scrim_color, scrim_strength)
+function M.eraser(active, w, h, scrim_color, scrim_strength, under)
     if not active or not w or not h or w <= 0 or h <= 0 then return nil end
     if not Eraser then
         local Widget = require("ui/widget/widget")
@@ -729,7 +878,20 @@ function M.eraser(active, w, h, scrim_color, scrim_strength)
         end
         function Eraser:paintTo(target, x, y)
             self.dimen.x, self.dimen.y = x, y
+            local s = self.under and self.under()
+            if s and s.bb and x >= s.x and y >= s.y
+                    and x + self.w <= s.x + s.w and y + self.h <= s.y + s.h then
+                local ok = pcall(function()
+                    target:blitFrom(s.bb, x, y, x - s.x, y - s.y, self.w, self.h)
+                end)
+                if ok then return end
+            end
+            -- Without the footer panel's registration: its tint is put back
+            -- explicitly just below, and twice would be darker.
+            local fp = M._fpanel
+            M._fpanel = nil
             M.restore(target, x, y, self.w, self.h)
+            M._fpanel = fp
             -- No radius: this patch is strictly INSIDE the panel, so it wants
             -- the panel's fill, never its corners.
             if self.scrim_color and (self.scrim_strength or 0) > 0 then
@@ -738,7 +900,7 @@ function M.eraser(active, w, h, scrim_color, scrim_strength)
             end
         end
     end
-    return Eraser:new{ w = w, h = h,
+    return Eraser:new{ w = w, h = h, under = under,
                        scrim_color = scrim_color, scrim_strength = scrim_strength }
 end
 
@@ -824,25 +986,41 @@ M._panel = nil
 -- gap_y: a 1px row across the panel left untinted, where the full panel
 -- meets the footer (the shelf's own panel, list mode and Covers): a repaint
 -- over it puts the bare picture back there, as the panel left it.
-function M.setPanel(x, y, w, h, colour, strength, radius, gap_y)
+-- frost: the panel was painted over the blurred picture (M.panel's frost), so
+-- a patch put back inside it gets the same blur before the tint.
+local function _register(p, x, y, w, h, colour, strength, radius, gap_y, frost)
     if not (x and y and w and h) or w <= 0 or h <= 0
             or type(colour) == "nil" or not strength or strength <= 0 then
-        M._panel = nil
-        return
+        return nil
     end
-    -- Called on every paint of the top panel; mutate rather than allocate.
-    local p = M._panel or {}
+    -- Called on every paint of the panel; mutate rather than allocate.
+    p = p or {}
     p.x, p.y, p.w, p.h = x, y, w, h
     p.colour, p.strength, p.radius = colour, strength, radius or 0
     p.gap_y = gap_y
-    M._panel = p
+    p.frost = frost and true or false
+    return p
 end
 
--- _reshade(target, x, y, w, h): re-apply the panel's tint over a rect that
--- has just had raw picture put back into it. Clipped to the panel, so a rect
--- straddling its edge only gets tinted on the inside.
-local function _reshade(target, x, y, w, h)
-    local p = M._panel
+function M.setPanel(x, y, w, h, colour, strength, radius, gap_y, frost)
+    M._panel = _register(M._panel, x, y, w, h, colour, strength, radius, gap_y, frost)
+end
+
+-- THE FOOTER'S PANEL, the second registration, and only while the shelf paints
+-- it UNDER the rows (the panel sits on the wall, behind the shelf). Before
+-- that the footer's tint went on after everything else and covered whatever
+-- a repaint put back; now a row that restores the picture inside it has to
+-- put the tint back too. nil (any argument missing) clears it.
+M._fpanel = nil
+function M.setFooterPanel(x, y, w, h, colour, strength, radius, frost)
+    M._fpanel = _register(M._fpanel, x, y, w, h, colour, strength, radius, nil, frost)
+end
+
+-- _reshadeOne(p, target, x, y, w, h): re-apply panel p over a rect that has
+-- just had raw picture put back into it -- the blur first when the panel has
+-- it, then the tint. Clipped to the panel, so a rect straddling its edge only
+-- gets the panel on the inside.
+local function _reshadeOne(p, target, x, y, w, h)
     if not p then return end
     local x0 = math.max(x, p.x)
     local y0 = math.max(y, p.y)
@@ -850,26 +1028,35 @@ local function _reshade(target, x, y, w, h)
     local y1 = math.min(y + h, p.y + p.h)
     if x1 <= x0 or y1 <= y0 then return end
     local g = p.gap_y
+    local function shade(sy, sh)
+        if p.frost then M.frost(target, x0, sy, x1 - x0, sh, 0, p) end
+        M.scrim(target, x0, sy, x1 - x0, sh, p.colour, p.strength, 0)
+    end
     pcall(function()
         if g and g >= y0 and g < y1 then
             -- Either side of the gap row; the row itself stays bare.
-            if g > y0 then M.scrim(target, x0, y0, x1 - x0, g - y0, p.colour, p.strength, 0) end
-            if y1 > g + 1 then M.scrim(target, x0, g + 1, x1 - x0, y1 - g - 1, p.colour, p.strength, 0) end
+            if g > y0 then shade(y0, g - y0) end
+            if y1 > g + 1 then shade(g + 1, y1 - g - 1) end
         else
-            M.scrim(target, x0, y0, x1 - x0, y1 - y0, p.colour, p.strength, 0)
+            shade(y0, y1 - y0)
         end
     end)
 end
 
+local function _reshade(target, x, y, w, h)
+    _reshadeOne(M._panel, target, x, y, w, h)
+    _reshadeOne(M._fpanel, target, x, y, w, h)
+end
 
--- restoreBare(target, x, y, w, h) -> restore without the panel's tint: the
+
+-- restoreBare(target, x, y, w, h) -> restore without the panels' tint: the
 -- bare picture (or ground), for a gap that must show through a panel (the
--- 1px row above the footer). The registered panel is left as it is.
+-- 1px row above the footer). The registered panels are left as they are.
 function M.restoreBare(target, x, y, w, h)
-    local p = M._panel
-    M._panel = nil
+    local p, fp = M._panel, M._fpanel
+    M._panel, M._fpanel = nil, nil
     local ok = M.restore(target, x, y, w, h)
-    M._panel = p
+    M._panel, M._fpanel = p, fp
     return ok
 end
 
@@ -894,6 +1081,9 @@ function M.restore(target, x, y, w, h)
     local ok = pcall(function()
         target:paintRect(x, y, w, h, M._ground)
     end)
+    -- The footer's panel is under the rows now, so a ground put back inside
+    -- it needs its tint again, as the picture does above.
+    if ok then _reshadeOne(M._fpanel, target, x, y, w, h) end
     return ok and true or false
 end
 
@@ -1356,6 +1546,7 @@ end
 function M.free()
     local old, old2 = M._bg, M._bg2
     M._bg, M._bg_key, M._bg2, M._bg2_key = nil, nil, nil, nil
+    frostClear()
     freeWidget(old)
     freeWidget(old2)
 end
@@ -1399,6 +1590,7 @@ function M.flipNight(target_night)
         bg.bb:invertRect(0, 0, bg.bb:getWidth(), bg.bb:getHeight())
     end)
     if not ok then return false end
+    frostClear()   -- blurred from the other mode's picture
     if holds_night then
         M._bg_key = M._bg_key:sub(1, -3)
     else
@@ -1528,6 +1720,9 @@ function M.bg(name, w, h, night)
     local key = path .. "|" .. w .. "x" .. h .. (night and "|n" or "")
     if M._bg and M._bg_key == key then return M._bg end
     local keep = keepTwo()
+    -- A different picture: the blurs are of the old one. (Entries carry the
+    -- picture's key, so this is about the memory, not correctness.)
+    frostClear()
     if keep and M._bg2 and M._bg2_key == key then
         -- Back to the previous shelf's picture: swap, no decode.
         M._bg, M._bg2 = M._bg2, M._bg

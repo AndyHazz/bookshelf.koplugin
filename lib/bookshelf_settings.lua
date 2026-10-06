@@ -2009,6 +2009,31 @@ function Settings:_scrimSubItems()
         }
     end
     rows[#rows].separator = true
+    -- Frosted glass: the picture behind the panels blurred under their tint.
+    -- Greyed out where it has nothing to show: Transparent has no panel, and
+    -- Solid hides the picture.
+    rows[#rows + 1] = {
+        text = _("Blur the picture behind panels"),
+        help_text = _("Blurs the wallpaper behind the top panel and the footer "
+            .. "before the shading goes over it, like frosted glass, so the "
+            .. "picture's detail does not compete with the buttons and text. "
+            .. "Worked out once per wallpaper, then reused."),
+        keep_menu_open = true,
+        enabled_func = function()
+            local cur = self:_scrimStrength()
+            return cur > 0 and cur < 1
+        end,
+        checked_func = function()
+            return BookshelfSettings.read(Wallpaper.BLUR_SETTING) == true
+        end,
+        callback = function(touchmenu_instance)
+            local on = BookshelfSettings.read(Wallpaper.BLUR_SETTING) == true
+            BookshelfSettings.save(Wallpaper.BLUR_SETTING, (not on) and true or nil)
+            BookshelfSettings.flush()
+            self:_markDirty()
+            if touchmenu_instance then touchmenu_instance:updateItems() end
+        end,
+    }
     -- Covers shelves can take list mode's one panel, behind the top panel,
     -- the covers and the footer (issue 483), at the strength chosen above.
     rows[#rows + 1] = {

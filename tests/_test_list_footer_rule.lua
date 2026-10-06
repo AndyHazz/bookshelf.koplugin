@@ -37,7 +37,7 @@ t.test("a 1px gap, not a rule, where the panel swallowed the footer", function()
     local r = code:match("Wallpaper%.restoreBare%((.-)%)")
     assert(r and r:find("rule_y", 1, true) and r:find("w2", 1, true) and r:find("1", 1, true),
         "the gap is not the picture put back, one pixel high, across the panel")
-    assert(code:find("setPanel(px, py, w2, h2, ground, strength, radius, rule_y)", 1, true),
+    assert(code:find("setPanel(px, py, w2, h2, ground, strength, radius, rule_y, frost)", 1, true),
         "restore is not told about the gap, so a later repaint would tint it again")
 end)
 
@@ -79,7 +79,7 @@ t.test("the micro-module view: the same 1px gap in its panel, no hairline rule",
     assert(not m:find("footer_rule", 1, true), "the micro-module view still draws its footer rule")
     local paint = m:match("function panel:paintTo%(b%)(.-)\n                end")
     assert(paint, "the micro-module panel paint moved")
-    assert(paint:find("Wallpaper.scrim(", 1, true), "the panel is no longer painted")
+    assert(paint:find("Wallpaper.panel(", 1, true), "the panel is no longer painted")
     local r = paint:match("Wallpaper%.restoreBare%((.-)%)")
     assert(r and r:find("gap_y", 1, true) and r:find("pw", 1, true), "no 1px gap across the panel")
 end)

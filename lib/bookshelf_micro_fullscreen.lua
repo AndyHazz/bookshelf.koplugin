@@ -429,9 +429,12 @@ function MicroFullscreen:_build()
                 -- place of a hairline rule). Shelf context only: under the
                 -- reader there is no footer bar, just the launcher's glyphs.
                 local gap_y = (not launcher) and py or nil
+                -- Blurred under the tint (Panel shading > Blur) only over the
+                -- picture: bg is the wallpaper itself, not the white fallback.
+                local frost = type(bg) == "table" and type(bg.bb) ~= "nil"
                 panel = Widget:new{ dimen = Geom:new{ w = sw, h = sh } }
                 function panel:paintTo(b)
-                    Wallpaper.scrim(b, px, c_top, pw, c_h, ground, strength, radius)
+                    Wallpaper.panel(b, px, c_top, pw, c_h, ground, strength, radius, frost)
                     if gap_y and gap_y > c_top then Wallpaper.restoreBare(b, px, gap_y, pw, 1) end
                 end
             end

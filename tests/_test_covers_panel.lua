@@ -35,7 +35,8 @@ local function scrimMenu(store)
                               save = function(k, v) store[k] = v end, flush = function() end },
         require = function(m)
             if m == "lib/bookshelf_wallpaper" then
-                return { BUTTONS_SETTING = "b", SCRIM_SETTING = "s", COVERS_PANEL_SETTING = "covers_full_panel" }
+                return { BUTTONS_SETTING = "b", SCRIM_SETTING = "s", COVERS_PANEL_SETTING = "covers_full_panel",
+                         BLUR_SETTING = "wallpaper_panel_blur" }
             end
             return require(m)
         end,
@@ -53,7 +54,12 @@ t.test("Panel shading ends with the Covers checkbox, set apart, off by default",
     local last = rows[#rows]
     eq(last.text, "Show panel behind 'Covers' shelf style")
     eq(last.radio, nil, "it is a radio button, not a checkbox")
-    eq(rows[#rows - 1].separator, true, "not set apart from the shading levels")
+    -- Set apart from the levels by the separator under the last of them;
+    -- the blur row (also a checkbox) sits between, so it is not "the row above".
+    local last_radio
+    for i, r in ipairs(rows) do if r.radio then last_radio = i end end
+    eq(rows[last_radio].separator, true, "not set apart from the shading levels")
+    eq(rows[#rows - 1].text, "Blur the picture behind panels", "the blur row moved")
     eq(last.checked_func(), false, "on by default")
 end)
 
@@ -65,6 +71,33 @@ t.test("ticking it saves the setting and rebuilds the shelf; unticking clears it
     eq(store.covers_full_panel, true); eq(last.checked_func(), true); eq(seen.dirty, 1)
     last.callback(nil)
     eq(store.covers_full_panel, nil, "unticking left the setting behind")
+end)
+
+-- Panel shading > Blur the picture behind panels: off by default, a toggle
+-- that rebuilds, and greyed where it has nothing to act on.
+local function blurRow(store)
+    local rows, seen = scrimMenu(store)      -- its self answers Heavy, 0.85
+    local row = rows[#rows - 1]
+    eq(row.text, "Blur the picture behind panels")
+    return row, seen
+end
+
+t.test("the blur row: off by default, ticking saves and rebuilds, unticking clears", function()
+    local store = {}
+    local row, seen = blurRow(store)
+    eq(row.radio, nil, "a checkbox, not one of the levels")
+    eq(row.checked_func(), false, "on by default")
+    eq(row.enabled_func(), true, "greyed at Heavy, where the picture still shows through")
+    row.callback(nil)
+    eq(store.wallpaper_panel_blur, true); eq(seen.dirty, 1)
+    row.callback(nil)
+    eq(store.wallpaper_panel_blur, nil, "unticking left the setting behind")
+end)
+
+t.test("the blur row is greyed at Transparent (no panel) and Solid (no picture)", function()
+    local fn = assert(settings_src:match("text = _%(\"Blur the picture behind panels\"%),(.-)checked_func"),
+        "the blur row moved")
+    assert(fn:find("cur > 0 and cur < 1", 1, true), "enabled outside the translucent levels")
 end)
 
 -- _fullPanel, run for real.

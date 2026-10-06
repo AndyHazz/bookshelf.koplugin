@@ -362,9 +362,7 @@ end
 -- OFF by default. With it on, the picture behind a translucent panel is
 -- blurred before the panel's tint goes over it, so the panel reads as frosted
 -- glass: the wallpaper's tone and colour come through, its detail does not
--- fight the text on top. Only the PICTURE is blurred. The footer panel sits
--- on the wall behind the shelf (bookshelf_widget's _paintFooterPanel), so a
--- plank design reaching into it stays sharp in front of the glass.
+-- fight the text on top. Only the PICTURE is blurred.
 --
 -- The blur itself is lib/bookshelf_frost (downscale, box blur, bilinear back
 -- up). It is built once per panel rect and kept, keyed by what is behind it
@@ -886,12 +884,7 @@ function M.eraser(active, w, h, scrim_color, scrim_strength, under)
                 end)
                 if ok then return end
             end
-            -- Without the footer panel's registration: its tint is put back
-            -- explicitly just below, and twice would be darker.
-            local fp = M._fpanel
-            M._fpanel = nil
             M.restore(target, x, y, self.w, self.h)
-            M._fpanel = fp
             -- No radius: this patch is strictly INSIDE the panel, so it wants
             -- the panel's fill, never its corners.
             if self.scrim_color and (self.scrim_strength or 0) > 0 then
@@ -988,39 +981,27 @@ M._panel = nil
 -- over it puts the bare picture back there, as the panel left it.
 -- frost: the panel was painted over the blurred picture (M.panel's frost), so
 -- a patch put back inside it gets the same blur before the tint.
-local function _register(p, x, y, w, h, colour, strength, radius, gap_y, frost)
+function M.setPanel(x, y, w, h, colour, strength, radius, gap_y, frost)
     if not (x and y and w and h) or w <= 0 or h <= 0
             or type(colour) == "nil" or not strength or strength <= 0 then
-        return nil
+        M._panel = nil
+        return
     end
-    -- Called on every paint of the panel; mutate rather than allocate.
-    p = p or {}
+    -- Called on every paint of the top panel; mutate rather than allocate.
+    local p = M._panel or {}
     p.x, p.y, p.w, p.h = x, y, w, h
     p.colour, p.strength, p.radius = colour, strength, radius or 0
     p.gap_y = gap_y
     p.frost = frost and true or false
-    return p
+    M._panel = p
 end
 
-function M.setPanel(x, y, w, h, colour, strength, radius, gap_y, frost)
-    M._panel = _register(M._panel, x, y, w, h, colour, strength, radius, gap_y, frost)
-end
-
--- THE FOOTER'S PANEL, the second registration, and only while the shelf paints
--- it UNDER the rows (the panel sits on the wall, behind the shelf). Before
--- that the footer's tint went on after everything else and covered whatever
--- a repaint put back; now a row that restores the picture inside it has to
--- put the tint back too. nil (any argument missing) clears it.
-M._fpanel = nil
-function M.setFooterPanel(x, y, w, h, colour, strength, radius, frost)
-    M._fpanel = _register(M._fpanel, x, y, w, h, colour, strength, radius, nil, frost)
-end
-
--- _reshadeOne(p, target, x, y, w, h): re-apply panel p over a rect that has
--- just had raw picture put back into it -- the blur first when the panel has
--- it, then the tint. Clipped to the panel, so a rect straddling its edge only
+-- _reshade(target, x, y, w, h): re-apply the panel over a rect that has just
+-- had raw picture put back into it -- the blur first when the panel has it,
+-- then the tint. Clipped to the panel, so a rect straddling its edge only
 -- gets the panel on the inside.
-local function _reshadeOne(p, target, x, y, w, h)
+local function _reshade(target, x, y, w, h)
+    local p = M._panel
     if not p then return end
     local x0 = math.max(x, p.x)
     local y0 = math.max(y, p.y)
@@ -1043,20 +1024,15 @@ local function _reshadeOne(p, target, x, y, w, h)
     end)
 end
 
-local function _reshade(target, x, y, w, h)
-    _reshadeOne(M._panel, target, x, y, w, h)
-    _reshadeOne(M._fpanel, target, x, y, w, h)
-end
 
-
--- restoreBare(target, x, y, w, h) -> restore without the panels' tint: the
+-- restoreBare(target, x, y, w, h) -> restore without the panel's tint: the
 -- bare picture (or ground), for a gap that must show through a panel (the
--- 1px row above the footer). The registered panels are left as they are.
+-- 1px row above the footer). The registered panel is left as it is.
 function M.restoreBare(target, x, y, w, h)
-    local p, fp = M._panel, M._fpanel
-    M._panel, M._fpanel = nil, nil
+    local p = M._panel
+    M._panel = nil
     local ok = M.restore(target, x, y, w, h)
-    M._panel, M._fpanel = p, fp
+    M._panel = p
     return ok
 end
 
@@ -1081,9 +1057,6 @@ function M.restore(target, x, y, w, h)
     local ok = pcall(function()
         target:paintRect(x, y, w, h, M._ground)
     end)
-    -- The footer's panel is under the rows now, so a ground put back inside
-    -- it needs its tint again, as the picture does above.
-    if ok then _reshadeOne(M._fpanel, target, x, y, w, h) end
     return ok and true or false
 end
 

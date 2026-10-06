@@ -2354,9 +2354,6 @@ function BookshelfWidget:_rebuild()
         -- used to be `if self._selection:isActive()`, which dropped the
         -- launcher whenever a tab had no items -- e.g. an empty Series tab
         -- left the user with no way to open the start menu.
-        -- Nothing on an empty shelf reaches into the footer, so its panel
-        -- stays the footer's own (see _paintFooterPanel).
-        self._footer_on_wall = false
         local empty_footer = self:_buildFooterRow(content_w, 1, FOOTER_H)
         empty_overlap[#empty_overlap + 1] = BottomContainer:new{
             dimen = Geom:new{ w = self.width, h = self.height - FOOTER_BOTTOM_MARGIN },
@@ -2678,25 +2675,6 @@ function BookshelfWidget:_rebuild()
         padding_right = side_pad,
         inner_vgroup,
     }
-    -- THE FOOTER'S PANEL IS ON THE WALL, BEHIND THE SHELF (maintainer: "like
-    -- the footer panel is stuck on the wall, not floating in front"). A plank
-    -- design hangs its lower band (a sofa's fringe, an apron, brackets) below
-    -- the bottom row's plank, into the footer, and the footer row paints after
-    -- everything else, so its tint used to go OVER that art. Painted here
-    -- instead -- after the page ground (main_frame's fill), before the top
-    -- panel and the rows -- the bottom shelf stands in front of the panel and
-    -- only the footer's buttons go on top. Nothing moves: the footer row and
-    -- its buttons, and so every hit area, are exactly where they were; only
-    -- the tint changed layers. With nothing reaching into the footer the
-    -- frame is pixel for pixel what it was.
-    self._footer_on_wall = true
-    do
-        local inner_paint = inner_content.paintTo
-        inner_content.paintTo = function(slf, bb, x, y)
-            self:_paintFooterPanel(bb, true)
-            return inner_paint(slf, bb, x, y)
-        end
-    end
 
     local main_frame = FrameContainer:new{
         bordersize = 0,
@@ -4039,41 +4017,32 @@ function BookshelfWidget:footerPanelRect()
     return f[1], f[2], f[3], f[4], f[5], f[6], f[7]
 end
 
--- _paintFooterPanel(bb, on_wall) -- the footer's panel: the blurred picture
--- when Blur is on (Wallpaper.panel) and the tint, at footerPanelRect.
+-- _paintFooterPanel(bb) -- the footer's panel: the blurred picture when Blur
+-- is on (Wallpaper.panel) and the tint, at footerPanelRect. Painted by the
+-- footer row itself, AFTER the rows: the footer floats in front of the shelf.
+-- (Behind it was tried for 5.4 and dropped: with a single shelf row the
+-- bottom plank's design covered the footer entirely.)
 --
 -- INSET, where the top panel is OUTSET, and the asymmetry is the point.
 -- The hero card's box is its CONTENT box, so its panel has to grow to put
 -- a margin round it; the footer row is full-bleed and bottom-anchored, so its
 -- panel has to shrink instead. Both land half the layout padding from the
 -- screen edge, which is what makes the two panels' left edges line up. No
--- inset at the top: the layout reserves footer_h, so the BOOKS stop at the
--- row's top edge; what reaches lower is a plank design's lower band, which
--- now stands in front of this panel (see _rebuild).
+-- inset at the top: the layout reserves footer_h, so shelf content stops at
+-- the row's top edge and the panel cannot tint the last book on the page.
 --
 -- Suppressed when the shelf's own panel already runs down over the footer
 -- (list mode): those pixels are tinted once already, and a second pass
 -- would leave the footer a darker band inside the panel.
---
--- on_wall: painted under the rows, so restore() has to know about it
--- (Wallpaper.setFooterPanel): a row putting the picture back inside it puts
--- the panel back too. Registered on every paint, or cleared.
-function BookshelfWidget:_paintFooterPanel(bb, on_wall)
+function BookshelfWidget:_paintFooterPanel(bb)
     local ok_w, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
     if not ok_w then return end
     local strength = (self._panel_covers_footer or self:_groundState().panel_redundant) and 0
                      or self:wallpaperScrimStrength()
     local px, py, pw, ph, radius, _s, colour
     if strength > 0 then px, py, pw, ph, radius, _s, colour = self:footerPanelRect() end
-    if not px then
-        if on_wall then Wallpaper.setFooterPanel(nil) end
-        return
-    end
-    local frost = self:hasWallpaper()
-    Wallpaper.panel(bb, px, py, pw, ph, colour, strength, radius, frost)
-    if on_wall then
-        Wallpaper.setFooterPanel(px, py, pw, ph, colour, strength, radius, frost)
-    end
+    if not px then return end
+    Wallpaper.panel(bb, px, py, pw, ph, colour, strength, radius, self:hasWallpaper())
 end
 
 -- _keepBurgerUnder(bb, x, y, w, h) -- copy what is on screen under the start
@@ -4081,13 +4050,14 @@ end
 --
 -- The X replaces the hamburger, so it has to erase it first, and over a
 -- painted ground the eraser used to replay the picture and the panel's tint.
--- With the panel on the wall that is no longer the whole truth: the bottom
--- shelf's plank design can reach in front of it, under the button (Cats' sofa
--- fringe, by the left corner), and a replay wiped it for as long as the menu
--- was open. A copy taken here is exactly the frame minus the buttons, the
--- blur included. Small (the side strip by the footer's height, ~180x90 on a
--- PW5), one blit per paint, buffer reused; only while a ground is painted,
--- which is the only time the start menu uses an eraser at all.
+-- That is not the whole truth when the bottom shelf's plank design reaches
+-- into the footer under the button (Cats' sofa fringe, by the left corner):
+-- the replay wiped the tinted fringe and left a seam for as long as the menu
+-- was open. A copy taken here, after the footer's panel and before its
+-- buttons, is exactly the frame minus the buttons, the blur included. Small
+-- (the side strip by the footer's height, ~180x90 on a PW5), one blit per
+-- paint, buffer reused; only while a ground is painted, which is the only
+-- time the start menu uses an eraser at all.
 function BookshelfWidget:_keepBurgerUnder(bb, x, y, w, h)
     if not (bb and bb.getWidth) or w <= 0 or h <= 0 then return end
     if bb:getWidth() ~= self.width or bb:getHeight() ~= self.height then return end
@@ -7897,19 +7867,14 @@ function BookshelfWidget:_buildFooterRow(content_w, total_pages, footer_h)
     -- callers read row.dimen and swap the row in place, and an extra container
     -- would change that contract for a fill.
     --
-    -- On a shelf the panel is painted UNDER the rows (_footer_on_wall, set by
-    -- _rebuild), so the row paints only its buttons; the empty-shelf screen
-    -- keeps the panel here, where nothing reaches into it.
-    local on_wall = self._footer_on_wall and true or false
-    if not on_wall then
-        require("lib/bookshelf_wallpaper").setFooterPanel(nil)
-    end
+    -- The panel goes down first, over whatever of the bottom row reaches into
+    -- the footer, then the copy under the start menu button, then the buttons.
     local burger_side = (not self._selection:isActive())
         and self:_startMenuPosition() or "off"
     local side_w = math.floor((self.width - math.floor(content_w * 0.75)) / 2)
     local inner = row.paintTo
     row.paintTo = function(slf, bb, x, y)
-        if not on_wall then self:_paintFooterPanel(bb, false) end
+        self:_paintFooterPanel(bb)
         if burger_side == "left" or burger_side == "right" then
             self:_keepBurgerUnder(bb,
                 burger_side == "right" and (x + self.width - side_w) or x, y,

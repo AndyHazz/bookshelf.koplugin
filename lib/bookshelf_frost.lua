@@ -9,9 +9,9 @@
 --
 -- Cheap on purpose (a PW5 is a 1 GHz Cortex-A7): never a real Gaussian at
 -- full resolution. The region is averaged down FACTOR times in each axis,
--- box-blurred there PASSES times (three box passes are close to a Gaussian),
+-- box-blurred there PASSES times (repeated box passes approach a Gaussian),
 -- and stretched back with a bilinear filter, which keeps the result smooth
--- rather than the 8x8 blocks a nearest-neighbour stretch (bb:scale) leaves.
+-- rather than the blocks a nearest-neighbour stretch (bb:scale) leaves.
 -- Every pass touches each source pixel once, in a running sum, so the cost is
 -- linear in the panel's area and does not grow with the blur's radius.
 --
@@ -22,12 +22,13 @@
 local M = {}
 
 -- Downscale factor, box radius (in downscaled pixels) and passes. Together
--- about a 20px Gaussian at 300 dpi: enough to turn a print's detail into soft
--- tone behind the hero text, not so much that the picture stops reading as
--- itself.
-M.FACTOR = 8
-M.RADIUS = 2
-M.PASSES = 3
+-- about a 2-3px Gaussian (sigma ~2.3px, a fifth of a millimetre at 300 dpi):
+-- a soft frost that takes the edge off a print's fine lines while its shapes
+-- stay recognisable. The first version (8x, radius 2, three passes, ~20px)
+-- left "nothing of the background" at Low shading (maintainer).
+M.FACTOR = 2
+M.RADIUS = 1
+M.PASSES = 2
 
 -- margin(f, r, p) -> px of picture beyond the panel's edge the blur reads,
 -- so the panel's edges blend with what lies outside rather than smearing

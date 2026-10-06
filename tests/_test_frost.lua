@@ -65,21 +65,38 @@ t.test("detail goes, tone stays: a fine stripe pattern becomes its mean", functi
     end
 end)
 
-t.test("a hard edge comes back as a smooth ramp, not 8px steps", function()
+t.test("a hard edge comes back as a smooth ramp, not FACTOR-wide steps", function()
     -- left half dark, right half light: across the edge every output pixel
-    -- must be no darker than its left neighbour, and the steps small
+    -- must be no darker than its left neighbour, and no flat runs inside the
+    -- ramp (a nearest-neighbour stretch repeats each value FACTOR times)
     local w, h = 128, 48
     local src = image(w, h, function(x) return x < 64 and 40 or 220 end)
     local dst = blurInto(src, w, h, 1, 1, 0, 16, w, 16)
     local row = 8 * w
-    local worst = 0
+    local first, last
     for x = 1, w - 1 do
         local d = dst[row + x] - dst[row + x - 1]
         assert(d >= 0, "the ramp went backwards at x=" .. x)
-        if d > worst then worst = d end
+        if d > 0 then first = first or x; last = x end
     end
-    assert(worst <= 12, "a step of " .. worst .. " levels: blocky, not bilinear")
-    assert(dst[row] < 60 and dst[row + w - 1] > 200, "the blur reached the far ends")
+    assert(first and last - first + 1 >= 2 * Frost.FACTOR, "the edge was not softened")
+    for x = first, last do
+        assert(dst[row + x] ~= dst[row + x - 1], "a flat step inside the ramp at x=" .. x .. ": blocky")
+    end
+    eq(dst[row], 40, "the blur reached the far left")
+    eq(dst[row + w - 1], 220, "the blur reached the far right")
+end)
+
+t.test("soft, not a smear: a small light shape keeps its place and most of its contrast", function()
+    -- an 8px light square on a dark ground: the frost should leave it
+    -- recognisable -- still clearly lighter at its centre than its ground
+    local w, h = 64, 64
+    local src = image(w, h, function(x, y)
+        return (x >= 28 and x < 36 and y >= 28 and y < 36) and 220 or 40 end)
+    local dst = blurInto(src, w, h, 1, 1, 0, 0, w, h)
+    local c, ground = dst[32 * w + 32], dst[4 * w + 4]
+    eq(ground, 40)
+    assert(c - ground >= 0.6 * 180, "the shape's centre kept only " .. (c - ground) .. " of 180 levels")
 end)
 
 t.test("RGB32: channels blur apart and the alpha byte is written opaque", function()
@@ -91,8 +108,8 @@ t.test("RGB32: channels blur apart and the alpha byte is written opaque", functi
 end)
 
 t.test("region: the panel grown by the margin, clipped to the picture", function()
-    local rx, ry, rw, rh = Frost.region(18, 1561, 1200, 67, Frost.margin(), 1236, 1648)
-    eq(rx, 0, "clipped at the left edge"); eq(ry, 1561 - Frost.margin())
+    local rx, ry, rw, rh = Frost.region(18, 1561, 1200, 67, 48, 1236, 1648)
+    eq(rx, 0, "clipped at the left edge"); eq(ry, 1561 - 48)
     eq(rx + rw, 1236, "clipped at the right edge"); eq(ry + rh, 1648, "clipped at the bottom")
     eq(select(1, Frost.region(300, 5, 10, 10, 48, 1000, 100)), 252, "grown by the margin")
 end)

@@ -96,7 +96,10 @@ t.test("soft, not a smear: a small light shape keeps its place and most of its c
     local dst = blurInto(src, w, h, 1, 1, 0, 0, w, h)
     local c, ground = dst[32 * w + 32], dst[4 * w + 4]
     eq(ground, 40)
-    assert(c - ground >= 0.6 * 180, "the shape's centre kept only " .. (c - ground) .. " of 180 levels")
+    -- 35%: the ~4px frost (2x, radius 2, two passes; maintainer asked for a
+    -- slightly larger blur than ~2px) keeps ~41%; the first ~20px version
+    -- (8x, radius 2, three passes), which "left nothing", keeps far less.
+    assert(c - ground >= 0.35 * 180, "the shape's centre kept only " .. (c - ground) .. " of 180 levels")
 end)
 
 t.test("RGB32: channels blur apart and the alpha byte is written opaque", function()

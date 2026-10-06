@@ -22,12 +22,13 @@
 local M = {}
 
 -- Downscale factor, box radius (in downscaled pixels) and passes. Together
--- about a 2-3px Gaussian (sigma ~2.3px, a fifth of a millimetre at 300 dpi):
--- a soft frost that takes the edge off a print's fine lines while its shapes
--- stay recognisable. The first version (8x, radius 2, three passes, ~20px)
--- left "nothing of the background" at Low shading (maintainer).
+-- about a 4px Gaussian: a soft frost that takes a print's fine lines away
+-- while its shapes stay recognisable. History (maintainer): ~20px (8x,
+-- radius 2, three passes) left "nothing of the background"; ~2px (2x,
+-- radius 1) read well once dithered, and a "slightly larger blur" was asked
+-- for. FACTOR stays even: an odd one leaves 1px stripes unevenly averaged.
 M.FACTOR = 2
-M.RADIUS = 1
+M.RADIUS = 2
 M.PASSES = 2
 
 -- margin(f, r, p) -> px of picture beyond the panel's edge the blur reads,

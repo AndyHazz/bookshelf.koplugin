@@ -235,15 +235,18 @@ local SOURCE_SORT_DEFAULTS = {
     -- until books are actually fetched. Empty list means "no sort levels",
     -- not "fall through to an engine default" -- see _applySourceDefaults.
     opds          = {},
-    -- Kindle library: title, not filename. The catalogue's titles are what the
-    -- shelf shows, while the source files are named things like
-    -- "01. The Colour of Magic - Terry Pratchett_127FE891….kfx", so a filename
-    -- sort would look arbitrary next to the titles on screen.
-    kindle        = { { key = "title",            reverse = false } },
     -- Shelf of shelves: its shelves stand in the order they were added (and
     -- moved), like chips in the strip. No sort levels, as for OPDS.
     shelves       = {},
 }
+-- A registered source (lib/bookshelf_sources) brings its own default. The
+-- Kindle's is title rather than filename: its files are named things like
+-- "01. The Colour of Magic - Terry Pratchett_127FE891….kfx", so a filename sort
+-- would look arbitrary next to the titles on screen.
+setmetatable(SOURCE_SORT_DEFAULTS, { __index = function(_t, kind)
+    local spec = require("lib/bookshelf_sources").get(kind)
+    return spec and type(spec.sort_default) == "table" and spec.sort_default or nil
+end })
 
 -- _resolveOpdsTitle(id): the configured title for an OPDS server key, or nil
 -- if bookshelf_opds_source can't be loaded or the server has since been
@@ -257,46 +260,6 @@ local function _resolveOpdsTitle(id)
     local ok2, server = pcall(OpdsSource.getServer, id)
     if ok2 and server and server.title then return server.title end
     return nil
-end
-
--- The formats a new Kindle chip should start out showing: those holding at
--- least one book KOReader can actually open.
---
--- Derived from the catalogue rather than hardcoded, because openability is a
--- per-BOOK question and not a per-format one -- bookshelf_kindle_source weighs
--- DRM and the file's own magic bytes as well as the extension. A format earns
--- its place if any book in it is openable, which in practice keeps KFX (always
--- converted before KOReader sees it) and EPUB, and drops AZW3, which KOReader
--- registers no provider for.
---
--- Worth knowing where this stops: a format holding both openable and DRM-locked
--- books stays, and the locked ones stay with it. The Format dimension is an
--- include list of formats, so it cannot say "the unlocked ones" -- only a
--- per-book test could. The chip's Filters show exactly what was chosen and the
--- user can change it.
-local function _kindleOpenableFormats()
-    local ok, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
-    if not (ok and type(KindleSource) == "table" and KindleSource.listBooks) then
-        return nil
-    end
-    local ok_list, books = pcall(KindleSource.listBooks)
-    if not (ok_list and type(books) == "table") then return nil end
-    local allowed, openable, blocked = {}, false, false
-    for _i, b in ipairs(books) do
-        local fmt = b.format
-        if fmt and fmt ~= "" then
-            if b.kindle_blocked then
-                blocked = true
-            else
-                allowed[fmt] = true
-                openable = true
-            end
-        end
-    end
-    -- Nothing is blocked: leave the chip unfiltered rather than pinning it to
-    -- the formats owned today, which would hide one bought later.
-    if not (openable and blocked) then return nil end
-    return allowed
 end
 
 -- Editor.sourceSortDefaults(kind) -> a fresh { {key, reverse}, ... }, or nil.
@@ -323,17 +286,11 @@ local function _applySourceDefaults(draft)
     if copy then
         draft.sort_priority = copy
     end
-    -- A new Kindle chip starts with the formats KOReader cannot open filtered
-    -- out, so the shelf is not padded with books that can only refuse. Applied
-    -- only to a chip carrying no filter of its own, so re-picking the source
-    -- never discards one the user set.
-    if kind == "kindle" and not Filter.isActive(draft.filter) then
-        local formats = _kindleOpenableFormats()
-        if formats then
-            draft.filter = draft.filter or {}
-            draft.filter.formats = formats
-        end
-    end
+    -- A registered source can have the last word on a new shelf's defaults
+    -- (the Kindle's filters out formats KOReader cannot open).
+    local Sources = require("lib/bookshelf_sources")
+    local src_spec = kind and Sources.get(kind)
+    if src_spec and src_spec.new_shelf then Sources.call(src_spec, "new_shelf", draft) end
     -- QoL: if the chip's label is still the default "New shelf" (i.e.
     -- the user hasn't customised it), rename it to match the picked
     -- source — e.g. picking "Genres" sets the label to "Genres",
@@ -450,14 +407,18 @@ SOURCE_LABEL = {
     -- generic fallback. Once an id is present _resolveSourceLabel takes
     -- the "OPDS: <title>" branch instead of this one.
     opds          = function() return _("OPDS catalog")       end,
-    -- The Kindle's own library (issue #355). Only offered on a Kindle with
-    -- kindle.koplugin installed; see the picker row's availability gate.
-    kindle        = function() return _("Kindle Virtual Library") end,
     -- A shelf holding other shelves (5.4), each with its own source.
     shelves       = function() return _("Shelf of shelves") end,
     -- A shelf being created, before a source is picked (TabModel.newTab).
     none          = function() return _("(none)") end,
 }
+-- A registered source (lib/bookshelf_sources: the Kindle's own library, a
+-- plugin's) names itself.
+setmetatable(SOURCE_LABEL, { __index = function(_t, kind)
+    local Sources = require("lib/bookshelf_sources")
+    if not Sources.get(kind) then return nil end
+    return function() return Sources.label(kind) or kind end
+end })
 
 -- _resolveSourceLabel(source): display string for "Source: <label>".
 -- For built-in kinds returns just the label ("Recently read"). For
@@ -505,6 +466,22 @@ end
 -- editTab(tab_id, opts) -- modal editor for one tab.
 -- opts = { on_change = function() end, bw = <BookshelfWidget> }
 -- on_change fires after Save, and after each Move-left / Move-right tap.
+-- _deepCopy(v) / _sameValue(a, b): for the plain values a shelf record holds
+-- (strings, numbers, booleans and tables of them).
+function Editor._deepCopy(v)
+    if type(v) ~= "table" then return v end
+    local out = {}
+    for k, x in pairs(v) do out[k] = Editor._deepCopy(x) end
+    return out
+end
+
+function Editor._sameValue(a, b)
+    if type(a) ~= "table" or type(b) ~= "table" then return a == b end
+    for k, x in pairs(a) do if not Editor._sameValue(x, b[k]) then return false end end
+    for k in pairs(b) do if a[k] == nil then return false end end
+    return true
+end
+
 function Editor:editTab(tab_id, opts)
     opts = opts or {}
     local tabs = TabModel.load()
@@ -516,11 +493,12 @@ function Editor:editTab(tab_id, opts)
 
     -- In-memory draft. All sub-modals mutate this; settings only writes on Save.
     -- Cancel discards the draft without saving.
+    -- Deep: a registered source's editor buttons may edit a table inside
+    -- draft.source in place, and a shared one would reach the saved shelf.
     local draft = {}
     for k, v in pairs(target) do
         if type(v) == "table" then
-            local copy = {} for kk, vv in pairs(v) do copy[kk] = vv end
-            draft[k] = copy
+            draft[k] = Editor._deepCopy(v)
         else
             draft[k] = v
         end
@@ -908,7 +886,35 @@ function Editor:editTab(tab_id, opts)
         -- row collapses to a single disabled row naming the constraint
         -- rather than offering pickers that would silently do nothing.
         local sort_row
-        if draft.source and draft.source.kind == "opds" then
+        -- A fetch-mode registered source (lib/bookshelf_sources) orders itself
+        -- the same way.
+        local is_paged_src = draft.source
+            and require("lib/bookshelf_sources").isPaged(draft.source.kind) or false
+        -- ...unless it offers editor buttons of its own (its list, sort and
+        -- filters: SOURCE_API.md "Editor rows"), which take that row's place.
+        -- A button edits draft.source and calls done(); the shelf fetches
+        -- again on Save, draft.source being part of the shelf's cache key.
+        local src_rows
+        if is_paged_src then
+            local Sources = require("lib/bookshelf_sources")
+            local spec_rows = Sources.editorRows(draft.source.kind, draft)
+            for _r, row in ipairs(spec_rows or {}) do
+                local out = {}
+                for _b, b in ipairs(row) do
+                    out[#out + 1] = {
+                        text_func = function() return Sources.buttonText(b, draft) end,
+                        callback = function()
+                            local done = function() applyLivePreview(true); rebuild() end
+                            local ok, err = pcall(b.callback, draft, done)
+                            if not ok then logger.warn("[bookshelf] source: editor button failed:", tostring(err)) end
+                        end,
+                    }
+                end
+                src_rows = src_rows or {}
+                src_rows[#src_rows + 1] = out
+            end
+        end
+        if draft.source and (draft.source.kind == "opds" or is_paged_src) then
             sort_row = {
                 { text = _("Server order"), enabled = false },
             }
@@ -985,6 +991,8 @@ function Editor:editTab(tab_id, opts)
                     rebuild()
                 end,
             }
+        elseif is_paged_src then   -- luacheck: ignore 542
+            -- A fetch-mode source filters on its own side; no local Filters.
         elseif not is_opds_src then
             shelf_row[#shelf_row + 1] = {
                 text_func = function()
@@ -1064,7 +1072,7 @@ function Editor:editTab(tab_id, opts)
                     -- the screen: a tap in the middle opened the source menu.
                     show = function() UIManager:show(dialog, "ui") end,
                     -- A catalogue gets Default and List only; see above.
-                    is_opds = is_opds_src,
+                    is_opds = is_opds_src or is_paged_src,
                     -- The live shelf, so the density nudges can seed from the
                     -- numbers actually on screen instead of from a constant.
                     bw = opts.bw,
@@ -1207,11 +1215,15 @@ function Editor:editTab(tab_id, opts)
                         -- move buttons), find the tab by id, and update it in place.
                         -- Only persist if anything changed. Save-with-no-edits
                         -- skips the settings flush + cache invalidation.
+                        -- A new source (or a source's own list / sort /
+                        -- filter choice) makes any drilled-in folder stale.
+                        local source_changed = false
                         if is_dirty() or is_new then
                             draft.pending = nil
                             local save_tabs = TabModel.load()
                             for si, t in ipairs(save_tabs) do
                                 if t.id == tab_id then
+                                    source_changed = not Editor._sameValue(t.source, draft.source)
                                     save_tabs[si] = draft
                                     break
                                 end
@@ -1233,7 +1245,7 @@ function Editor:editTab(tab_id, opts)
                         local _t3 = _gettime()
                         UIManager:close(dialog)
                         local _t4 = _gettime()
-                        if (is_dirty() or arranged) and opts.on_change then opts.on_change() end
+                        if (is_dirty() or arranged) and opts.on_change then opts.on_change({ source_changed = source_changed }) end
                         local _t5 = _gettime()
                         logger.dbg(string.format(
                             "[bookshelf perf] editor-save: data_dirty=%s visual_dirty=%s clearOverride=%.0fms TabModel.save=%.0fms invalidate=%.0fms close=%.0fms on_change=%.0fms TOTAL=%.0fms",
@@ -1326,7 +1338,9 @@ function Editor:editTab(tab_id, opts)
         -- row borders. Filtering keeps the dialog cleanly grid-shaped.
         local non_empty_buttons = {}
         for _i,row in ipairs(buttons) do
-            if #row > 0 then non_empty_buttons[#non_empty_buttons + 1] = row end
+            if row == sort_row and src_rows then
+                for _r, r in ipairs(src_rows) do non_empty_buttons[#non_empty_buttons + 1] = r end
+            elseif #row > 0 then non_empty_buttons[#non_empty_buttons + 1] = row end
         end
         local button_table = ButtonTable:new{
             width   = dialog_w - 2 * Space.padding.default,
@@ -2926,14 +2940,33 @@ function Editor:_pickSource(draft, on_close)
         },
     }
 
-    -- Kindle library row (issue #355). Unlike the OPDS row above this one is
-    -- gated: it needs a Kindle whose catalogue we can read AND
-    -- kindle.koplugin installed to open the books. Everyone else must never see
-    -- a source they cannot use, so the row is inserted only when both hold --
-    -- above Cancel, so it reads as the last real source.
-    local ok_kindle, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
-    if ok_kindle and KindleSource and KindleSource.isAvailable() then
-        table.insert(rows, #rows, { btn("kindle", _("Kindle Virtual Library")) })
+    -- Registered sources (lib/bookshelf_sources): the Kindle's own library, and
+    -- any plugin's (issue 452). Unlike the OPDS row above these are gated on
+    -- the source being available -- the Kindle one needs a readable catalogue
+    -- AND kindle.koplugin to open the books -- so nobody sees a source they
+    -- cannot use. Above Cancel, so they read as the last real sources.
+    local Sources = require("lib/bookshelf_sources")
+    for _i, id in ipairs(Sources.pickerIds()) do
+        local spec = Sources.get(id)
+        local on_tap
+        if spec.pick then
+            -- The source asks its own question (which server, which library)
+            -- and fills draft.source; done() carries on as a plain pick would.
+            on_tap = function()
+                UIManager:close(d)
+                local prev = draft.source
+                draft.source = { kind = id }
+                local ok = Sources.call(spec, "pick", draft, function(accepted)
+                    if accepted == false then draft.source = prev; on_close() return end
+                    if type(draft.source) ~= "table" then draft.source = { kind = id } end
+                    draft.source.kind = id
+                    _applySourceDefaults(draft)
+                    on_close()
+                end)
+                if not ok then draft.source = prev; on_close() end
+            end
+        end
+        table.insert(rows, #rows, { btn(id, Sources.label(id) or id, on_tap) })
     end
     d = ButtonDialog:new{
         title   = _("Shelf source or grouping"),

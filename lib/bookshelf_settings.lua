@@ -3419,7 +3419,7 @@ function Settings:_hardcoverSubItems()
         -- inside home_dir and be walked as well as listed.
         local seen = {}
         for _i, fp in ipairs(filepaths) do seen[fp] = true end
-        for _i, fp in ipairs(Repo.kindleFilepaths() or {}) do
+        for _i, fp in ipairs(Repo.librarySourceFilepaths() or {}) do
             if not seen[fp] then
                 seen[fp] = true
                 filepaths[#filepaths + 1] = fp
@@ -4820,30 +4820,6 @@ function Settings:_advancedSubItems()
         },
     }
 
-    -- Kobo virtual-library shelf (beta). Always listed (like the calibre beta
-    -- toggle) so Kobo users can reliably find and enable it -- on non-Kobo
-    -- devices the option simply does nothing, because the "Kobo" chip is
-    -- separately gated on this setting AND KoboSource.isAvailable() (false
-    -- off-Kobo). Toggling rebuilds so the chip appears/disappears immediately.
-    items[#items + 1] = {
-        text = _("BETA: Kobo library shelf"),
-        help_text = _("Adds a \"Kobo\" shelf that surfaces your Kobo "
-            .. "virtual library (the books managed by the Kobo store / "
-            .. "OGKevin's kobo.koplugin). Read-only; "
-            .. "covers and opening depend on that plugin. Kobo devices only."),
-        checked_func = function()
-            return BookshelfSettings.read("kobo_shelf") == true
-        end,
-        keep_menu_open = true,
-        callback = function()
-            local enabled = BookshelfSettings.read("kobo_shelf") == true
-            BookshelfSettings.save("kobo_shelf", not enabled)
-            if self._bw and self._bw._rebuild then
-                self._bw:_rebuild()
-                UIManager:setDirty(self._bw, "ui")
-            end
-        end,
-    }
     return items
 end
 

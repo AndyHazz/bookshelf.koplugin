@@ -60,10 +60,10 @@ t.test("the Kindle share is never persisted", function()
     -- Nothing drops it when a Kindle status changes, so a Kindle contribution
     -- baked into the stored value would be served stale for up to 24h. The
     -- public function must therefore add it outside the cached/stored path.
-    assert(not count:match("_kindleStatusCounts"),
+    assert(not count:match("_librarySourceStatusCounts"),
         "the walked count is what gets stored -- it must not fold in Kindle "
         .. "books, or a stale Kindle tally survives a restart")
-    assert(pub:match("_kindleStatusCounts%(%)"),
+    assert(pub:match("_librarySourceStatusCounts%(%)"),
         "Repo.countFinishedBooks must add the Kindle share itself")
     assert(not pub:match("_saveFinishedCount"),
         "the public count must not persist its total -- only the walk is stored")

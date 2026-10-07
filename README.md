@@ -369,9 +369,9 @@ On a Kindle, Bookshelf can show the books in your Kindle's own library as an ord
 
 ## Kobo library (beta)
 
-The Kobo equivalent of the Kindle shelf above: your Kobo's own virtual library, the books managed by the Kobo store, shown as an ordinary shelf. Turn it on under **menu -> Settings -> Advanced -> BETA: Kobo library shelf** and a **Kobo** shelf appears.
+The Kobo equivalent of the Kindle shelf above: your Kobo's own virtual library, the books managed by the Kobo store, shown as an ordinary shelf. Add a shelf (long-press any shelf -> **+ Add new shelf**) and pick **Kobo library** as its source; like any other shelf you can then rename, move, hide or delete it.
 
-It needs [OGKevin's kobo.koplugin](https://github.com/OGKevin/kobo.koplugin), which is what actually holds that library, and it only appears on a Kobo. If the plugin is missing or its internals have moved, the shelf simply does not show rather than erroring.
+It needs [OGKevin's kobo.koplugin](https://github.com/OGKevin/kobo.koplugin), which is what actually holds that library, and the source is only offered on a Kobo with that plugin working. If the plugin is missing or its internals have moved, the source is not offered and an existing Kobo shelf stays empty rather than erroring.
 
 The shelf is **read-only**: covers and opening the books are the other plugin's job, so Bookshelf shows what it finds and hands taps straight back. Filters, sort priorities and the filter pickers work as they do on any other shelf, and as with the Kindle shelf the pickers describe the Kobo library's own books.
 
@@ -1034,6 +1034,12 @@ Until 5.3 these files sat loose in `koreader/settings/` (`bookshelf.lua` and `bo
 - **Page count for EPUBs** needs the book opened once, or a run of [Extract page counts](#page-counts): a reflowable book has no count until something lays it out.
 
 </details>
+
+---
+
+## For plugin authors
+
+Another plugin can add its own shelf source (a server's catalogue, a store's library) through a small registration interface, the same one Bookshelf's Kindle and Kobo library shelves use. See [SOURCE_API.md](SOURCE_API.md).
 
 ---
 

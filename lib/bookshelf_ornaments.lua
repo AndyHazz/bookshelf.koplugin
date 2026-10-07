@@ -1110,16 +1110,19 @@ function M.list()
     return out
 end
 
--- listFor(sp) -> the pieces a shelf deals from. sp is the shelf's theme as
--- bookshelf_theme_pack.shelfPackFor resolves it: nil (the library's) or
--- "none" deal what the collection has on (M.list); a pack deals its own
--- pieces and the loose ones (in no pack), minus pieces switched off -- even
--- when that pack is off in the collection, which governs only shelves
--- without a pack of their own. The same table while nothing changed: the
--- deck and the plan key on it.
+-- listFor(sp) -> the pieces a shelf deals from. sp is what
+-- bookshelf_theme_pack.ornamentsFor answers for the shelf: "mine" (or nil)
+-- deals what the collection has on (M.list, loose pieces included); "plain"
+-- deals nothing; a pack deals its OWN pieces only, minus pieces switched off
+-- -- even when that pack is off in the collection, whose pack switches shape
+-- the reader's own ornaments only. Themes do not mix: no loose pieces on a
+-- themed shelf (maintainer, 2026-10-07). The same table while nothing
+-- changed: the deck and the plan key on it.
 M._list_for = {}
+M._none = {}
 function M.listFor(sp)
-    if sp == nil or sp == "none" then return M.list() end
+    if sp == nil or sp == "mine" then return M.list() end
+    if sp == "plain" then return M._none end
     local all = M.listAll()
     local off = readSet(M.OFF_KEY)
     local sig = {}
@@ -1130,7 +1133,7 @@ function M.listFor(sp)
     if hit and hit.key == key then return hit.v end
     local out = {}
     for _i, e in ipairs(all) do
-        if (e.pack == nil or e.pack == sp) and not off[e.name] then out[#out + 1] = e end
+        if e.pack == sp and not off[e.name] then out[#out + 1] = e end
     end
     table.sort(out, function(a, b) return a.name < b.name end)
     M._list_for[sp] = { key = key, v = out }

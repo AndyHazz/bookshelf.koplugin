@@ -34,7 +34,7 @@ end)
 
 t.test("the plan deals from the shelf's pool", function()
     local sp = read("lib/bookshelf_spine_shelf.lua")
-    assert(sp:find("orn.mod.listFor(TP.shelfPackFor(opts.orn_shelf))", 1, true),
+    assert(sp:find("orn.mod.listFor(TP.ornamentsFor(opts.orn_shelf))", 1, true),
         "plan deals from the library pool")
 end)
 

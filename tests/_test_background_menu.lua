@@ -34,10 +34,17 @@ t.test("it is a top-level row, sitting before Settings", function()
     assert(set and bg < set, "it belongs before Settings, not after")
 end)
 
-t.test("the row is registered, with the maintainer's name", function()
+t.test("the row is registered, named by the one name of the reader's own look", function()
     local row = main:match("(menu_items%.bookshelf_background = {.-\n    }\n)")
     assert(row, "menu_items.bookshelf_background missing")
-    assert(row:find('_("Wallpaper, ornaments and colors")', 1, true), "the label changed")
+    -- The name lives in ONE place (TP.mineName), so it can be renamed with a
+    -- one-line change (maintainer, 2026-10-07).
+    assert(row:find("mineName()", 1, true), "the row does not take the one name")
+    local tp = io.open("lib/bookshelf_theme_pack.lua"):read("*a")
+    assert(tp:find('function M.mineName() return _("My theme") end', 1, true), "the name changed")
+    local n = 0
+    for _ in (settings .. main):gmatch('_%("My theme"%)') do n = n + 1 end
+    eq(n, 0, "the name is spelled out somewhere other than TP.mineName")
     assert(row:find("_backgroundSubItems", 1, true), "it must build the new menu")
     assert(row:find("S._bw = _live_widget", 1, true),
         "every menu that can repaint the shelf hands the live widget over first")
@@ -56,18 +63,26 @@ t.test("Settings no longer carries Colors or Wallpaper", function()
         .. "would eventually hold everything")
 end)
 
-t.test("the menu is background, then ornaments, then accents (the theme is above it)", function()
+t.test("the menu is light or dark, the picture, plank, ornaments, then colors; then the preferences", function()
     -- The theme (light or dark, theme packs) left this menu for a top-level
     -- row just above it (maintainer, 2026-10-02; main.lua bookshelf_theme).
     local body = settings:match("function Settings:_backgroundSubItems%(%)(.-)\nend\n")
     assert(body, "_backgroundSubItems missing")
     assert(not body:find("_shelfTheme", 1, true), "the theme row is still in this menu")
+    local look   = body:find("_lightDarkRow", 1, true)
     local wall   = body:find("_wallpaperMenu", 1, true)
+    local plank  = body:find("_plankRow", 1, true)
     local orn    = body:find("_ornamentsRow", 1, true)
-    local accent = body:find('_("Accent colors")', 1, true)
-    assert(wall and orn and accent, "a section is missing from the menu")
-    assert(wall < orn, "ornaments close the group, after the picture")
-    assert(orn < accent, "the accent list is last: it is a reference list")
+    local accent = body:find('_("Colors")', 1, true)
+    local shade  = body:find("_panelShadingRow", 1, true)
+    local folder = body:find("_wallpaperFolderRow", 1, true)
+    local newat  = body:find("_newOrnamentsRow", 1, true)
+    assert(look and wall and plank and orn and accent and shade and folder and newat,
+        "a section is missing from the menu")
+    assert(look < wall and wall < plank and plank < orn and orn < accent,
+        "the parts a theme can replace, in the spec's order")
+    assert(accent < shade and shade < folder and folder < newat,
+        "the preferences no theme touches come after the separator")
 end)
 
 t.test("the theme label has one definition, not a copy in the colour list", function()

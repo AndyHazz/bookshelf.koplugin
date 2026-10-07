@@ -821,13 +821,18 @@ local function _readOwnColor(base_key, default_day, default_night)
     return BookshelfSettings.read(base_key) or default_day
 end
 
--- _readModeColor: what the shelf PAINTS -- a pack's borrowed colour for this
--- slot when its colours are switched on (bookshelf_theme_pack), else the
--- reader's own. The menus read _readOwnColor: they show the reader's own
--- values, greyed while a theme lends its colours.
+-- _readModeColor: what the shelf PAINTS -- the shelf's theme colour for this
+-- slot when its theme has one (bookshelf_theme_pack), the defaults on Plain,
+-- else the reader's own. The menus read _readOwnColor: they show and edit
+-- the reader's own values, whatever a theme shows over them.
 local function _readModeColor(base_key, default_day, default_night)
     local ok, TP = pcall(require, "lib/bookshelf_theme_pack")
     if ok and TP and TP.colourOverride then
+        local ok_p, plain = pcall(TP.defaultColours)
+        if ok_p and plain then
+            if _modeSuffix() ~= "" then return default_night or default_day end
+            return default_day
+        end
         local ok2, v = pcall(TP.colourOverride, base_key, _modeSuffix() ~= "")
         if ok2 and v then return v end
     end
@@ -1000,6 +1005,12 @@ end
 -- in night mode they painted the day colour for an inverting frame and it
 -- displayed as its opposite.
 function M.pickedBarColors()
+    -- Plain paints the defaults: nothing picked.
+    local ok_t, TP = pcall(require, "lib/bookshelf_theme_pack")
+    if ok_t and TP and TP.defaultColours then
+        local ok_p, plain = pcall(TP.defaultColours)
+        if ok_p and plain then return nil end
+    end
     local suffix = _modeSuffix()
     local picked_fill  = BookshelfSettings.read("progress_fill" .. suffix)
     local picked_track = BookshelfSettings.read("progress_track" .. suffix)

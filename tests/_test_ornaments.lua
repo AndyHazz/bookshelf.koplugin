@@ -1136,7 +1136,7 @@ t.test("the menu shows and nudges the reader's own adjustment, not the pack's va
            and src:find('readerValue(entry, "lift")', 1, true), "the labels show the pack's values")
 end)
 
-t.test("listFor: a pack's pieces and loose ones, minus switched-off pieces; the library pool otherwise", function()
+t.test("listFor: a theme deals its own pieces only, minus switched-off pieces; Plain none; mine the collection", function()
     local Orn = fresh()
     local mem = {}
     Orn._store = { read = function(k) return mem[k] end, save = function(k, v) mem[k] = v end,
@@ -1145,12 +1145,17 @@ t.test("listFor: a pack's pieces and loose ones, minus switched-off pieces; the 
                   { name = "G/frame.png", pack = "G" }, { name = "pot.svg" } }
     Orn.listAll = function() return all, { "G", "H" } end
     Orn.setOff("H/cat.png", true)
-    Orn.setPackOff("H", true)                    -- off in the collection, chosen for the shelf
+    Orn.setPackOff("H", true)                    -- off in the collection, worn as a theme
     local names = {}
     for i, e in ipairs(Orn.listFor("H")) do names[i] = e.name end
-    eq(table.concat(names, ","), "H/bat.png,pot.svg")
+    -- No loose pot: themes do not mix (maintainer, 2026-10-07).
+    eq(table.concat(names, ","), "H/bat.png")
     assert(Orn.listFor("H") == Orn.listFor("H"), "listFor handed out a new table")
-    assert(Orn.listFor(nil) == Orn.list() and Orn.listFor("none") == Orn.list(), "the library pool changed")
+    eq(#Orn.listFor("plain"), 0, "Plain deals nothing")
+    assert(Orn.listFor(nil) == Orn.list() and Orn.listFor("mine") == Orn.list(), "the reader's pool changed")
+    names = {}
+    for i, e in ipairs(Orn.list()) do names[i] = e.name end
+    eq(table.concat(names, ","), "G/frame.png,pot.svg", "the reader's own: collection switches, loose pieces")
 end)
 
 t.test("a piece takes gestures only on its drawing, and never in the footer (start-menu taps)", function()

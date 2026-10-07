@@ -4247,11 +4247,12 @@ function SpineShelf.plan(items, opts)
     -- pattern, which piece is the saved order). One implementation for both
     -- passes, so the render and the page map cannot decide differently.
     -- The shelf's own deck (opts.orn_shelf, its chip id), dealt from the
-    -- shelf's own pool: its theme pack's pieces when it wears one.
+    -- shelf's own pool: its theme's pieces, none on Plain, else the
+    -- reader's own collection (TP.ornamentsFor).
     local TP = require("lib/bookshelf_theme_pack")
     if Deck and orn and orn_level ~= "off" then Deck.sync(orn.mod.listAll(), opts.orn_shelf) end
     local cards = (Deck and orn and orn_level ~= "off")
-        and Deck.order(orn.mod.listFor(TP.shelfPackFor(opts.orn_shelf)), opts.orn_shelf) or {}
+        and Deck.order(orn.mod.listFor(TP.ornamentsFor(opts.orn_shelf)), opts.orn_shelf) or {}
     -- cap: the most width the piece may take (the deck's squeeze, for a row
     -- that must also seat a book); caps a reader's scale nudge as well.
     local function size(kind, e, deal_no, cap)

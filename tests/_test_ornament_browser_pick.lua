@@ -99,7 +99,7 @@ end)
 
 t.test("the long-press menu's Swap hands the browser the shelf's pool", function()
     local m = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
-    assert(m:find("shelfPackFor(shelf)", 1, true) and m:find("pool = ", 1, true),
+    assert(m:find("ornamentsFor(shelf)", 1, true) and m:find("pool = ", 1, true),
         "Swap offers pieces this shelf never deals")
 end)
 

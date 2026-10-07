@@ -269,10 +269,10 @@ function M.show(entry, bw, piece)
     local function onNames()
         Deck.sync(Orn.listAll(), shelf)
         local names = {}
-        -- The shelf's own pool: what it deals (its pack's pieces when it
-        -- wears one, even if that pack is off in the collection).
+        -- The shelf's own pool: what it deals (its theme's pieces, even if
+        -- that pack is off in the collection; else the reader's own).
         local TP = require("lib/bookshelf_theme_pack")
-        for i, e in ipairs(Deck.order(Orn.listFor(TP.shelfPackFor(shelf)), shelf)) do names[i] = e.name end
+        for i, e in ipairs(Deck.order(Orn.listFor(TP.ornamentsFor(shelf)), shelf)) do names[i] = e.name end
         return names
     end
     local function step(delta)
@@ -356,10 +356,10 @@ function M.show(entry, bw, piece)
                     if bw and bw._rebuild then bw:_rebuild(); UIManager:setDirty(bw, "ui") end
                 end, { pool = (function()
                     -- Only the pieces this shelf deals from: a shelf that
-                    -- wears a pack deals that pack and loose pieces.
-                    local sp = require("lib/bookshelf_theme_pack").shelfPackFor(shelf)
-                    if sp == nil or sp == "none" then return nil end
-                    return function(e) return e.pack == nil or e.pack == sp end
+                    -- wears a theme deals that pack's pieces alone.
+                    local sp = require("lib/bookshelf_theme_pack").ornamentsFor(shelf)
+                    if sp == "mine" then return nil end
+                    return function(e) return e.pack ~= nil and e.pack == sp end
                 end)(), pick = function(chosen)
                     -- A piece never in the order yet (it was off) joins it first.
                     Deck.sync(Orn.listAll(), shelf)

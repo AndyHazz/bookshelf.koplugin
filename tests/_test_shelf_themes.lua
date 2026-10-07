@@ -1,7 +1,7 @@
--- tests/_test_theme_packs.lua
--- Theme packs: the theme/ subfolder of an ornament pack (wallpaper variants,
--- plank design, colours.json) and the "which pack is borrowed" state.
--- Run from the plugin root: lua tests/_test_theme_packs.lua
+-- tests/_test_shelf_themes.lua
+-- Themes per shelf: library_theme and tab.theme resolved at paint, part by
+-- part, over the reader's own look (5.4).
+-- Run from the plugin root: lua tests/_test_shelf_themes.lua
 package.path = "./?.lua;./?/init.lua;" .. package.path
 package.loaded["logger"] = { dbg = function() end, info = function() end,
                              warn = function() end, err = function() end }
@@ -109,37 +109,39 @@ local function halloween(d)
     mkwall(d, "Halloween"); mkcolours(d, "Halloween"); mkplank(d, "Halloween", "Ash")
 end
 
-t.test("an untouched shelf resolves as the library", function()
+local function lib(TP, v) TP.setLibraryTheme(v) end
+
+t.test("an untouched shelf under no library theme is the reader's own", function()
     local TP, d, settings, _po, _o, tabs = setup()
     halloween(d); TP.invalidate()
     tabs.home = { id = "home" }
     TP.setShelf("home")
-    eq(TP.shelfPack(), nil); eq(TP.shelfKey(), "lib")
+    eq(TP.shelfTheme(), "mine"); eq(TP.shelfKey(), "t:mine")
     eq(TP.colourOverride("ink_color", false), nil, "a shelf with no theme borrowed colours")
 end)
 
-t.test("unknown chip resolves as the library", function()
-    local TP = setup()
-    TP.setShelf("kobo")
-    eq(TP.shelfPack(), nil); eq(TP.shelfKey(), "lib")
-    TP.setShelf(nil)
-    eq(TP.shelfKey(), "lib")
+t.test("an unknown chip, or none, resolves as the library", function()
+    local TP, d = setup()
+    halloween(d); TP.invalidate()
+    lib(TP, "Halloween")
+    TP.setShelf("kobo"); eq(TP.shelfTheme(), "Halloween")
+    TP.setShelf(nil); eq(TP.shelfTheme(), "Halloween")
 end)
 
-t.test("a shelf pack lends its wallpaper, colours, plank and light/dark", function()
+t.test("a theme shows its wallpaper, colours, plank and light/dark", function()
     local TP, d, _s, _po, _o, tabs = setup()
     TP._plugin_root = "."
     halloween(d); TP.invalidate()
     tabs.manga = { id = "manga", theme = "Halloween" }
     TP.setShelf("manga")
-    eq(TP.shelfKey(), "pack:Halloween")
+    eq(TP.shelfKey(), "t:Halloween")
     eq(TP.shownWallpaper(false, false), "theme-pack\1Halloween\1wallpaper.png")
-    assert(TP.colourOverride("ink_color", false), "no colour from the shelf pack")
+    assert(TP.colourOverride("ink_color", false), "no colour from the shelf's theme")
     eq(TP.activePlank().id, "Halloween/theme/plank.Ash")
     eq(TP.shelfLook(), "dark")
 end)
 
-t.test("night on a shelf pack: dark variant and pre-inverted night colours", function()
+t.test("night on a theme: dark variant and pre-inverted night colours", function()
     local TP, d, _s, _po, _o, tabs = setup()
     mkmanifest(d, "Halloween", '{"shelf":"dark"}'); mkwall(d, "Halloween")
     touch(d .. "/Halloween/theme/colours.json", '{"day":{"text":"#112233"},"night":{"text":"#445566"}}')
@@ -151,59 +153,101 @@ t.test("night on a shelf pack: dark variant and pre-inverted night colours", fun
     eq(night and night.hex, TP.invertHex("#445566"))
 end)
 
-t.test("parts a shelf pack lacks fall through to the library's look", function()
+t.test("parts a theme lacks are the reader's own, never another theme's", function()
     local TP, d, settings, _po, _o, tabs = setup()
     TP._plugin_root = "."
     halloween(d); touch(d .. "/Gallery/frame.png"); TP.invalidate()
-    eq(TP.chooseTheme("Halloween"), true)
-    tabs.art = { id = "art", theme = "Gallery" }
+    settings.wallpaper_default = "green.jpg"
+    settings.theme_plank_pack = false
+    settings.shelf_theme = "light"
+    lib(TP, "Halloween")                                -- the library wears Halloween
+    tabs.art = { id = "art", theme = "Gallery" }        -- ornaments only
     TP.setShelf("art")
-    eq(TP.shelfKey(), "pack:Gallery")
-    eq(TP.shownWallpaper(false, false), "theme-pack\1Halloween\1wallpaper.png")
-    assert(TP.colourOverride("ink_color", false), "the library's colours did not fall through")
-    eq(TP.activePlank().id, "Halloween/theme/plank.Ash")
-    eq(TP.shelfLook(), "dark")
+    eq(TP.shelfKey(), "t:Gallery")
+    eq(TP.shownWallpaper(false, false), "green.jpg", "the library theme's wallpaper leaked onto another theme")
+    eq(TP.colourOverride("ink_color", false), nil, "the library theme's colours leaked")
+    eq(TP.activePlank(), nil, "the library theme's plank leaked")
+    eq(TP.shelfLook(), "light")
 end)
 
-t.test("none skips library-held groups: the reader's pre-theme plank and look", function()
+t.test("the reader's own on one shelf under a library theme: exactly their own look", function()
     local TP, d, settings, _po, _o, tabs = setup()
     TP._plugin_root = "."
     settings.shelf_theme = "light"
     settings.theme_plank_pack = false
+    settings.wallpaper_default = "green.jpg"
     halloween(d); TP.invalidate()
-    eq(TP.chooseTheme("Halloween"), true)
-    tabs.mine = { id = "mine", theme = "none" }
+    lib(TP, "Halloween")
+    tabs.mine = { id = "mine", theme = "mine" }
     TP.setShelf("mine")
-    eq(TP.shelfKey(), "none")
-    eq(TP.shelfLook(), "light", "No theme pack showed the library theme's light/dark")
-    eq(TP.activePlank(), nil, "No theme pack showed the library theme's plank")
-    eq(TP.colourOverride("ink_color", false), nil, "No theme pack borrowed the library's colours")
-    eq(TP.shownWallpaper(false, false), nil, "No theme pack showed the library theme's wallpaper")
+    eq(TP.shelfKey(), "t:mine")
+    eq(TP.shelfLook(), "light"); eq(TP.activePlank(), nil)
+    eq(TP.colourOverride("ink_color", false), nil)
+    eq(TP.shownWallpaper(false, false), "green.jpg")
+    -- And choosing the library theme wrote nothing of theirs.
+    eq(settings.wallpaper_default, "green.jpg"); eq(settings.shelf_theme, "light")
+    eq(settings.theme_plank_pack, false)
 end)
 
-t.test("theme_look precedence: the shelf's own, then its pack's, then the library's", function()
-    local TP, d, settings, _po, _o, tabs = setup()
-    halloween(d); mkmanifest(d, "Ukiyo-e"); TP.invalidate()
-    settings.shelf_theme = "light"
-    tabs.a = { id = "a", theme = "Halloween" }
-    tabs.b = { id = "b", theme = "Halloween", theme_look = "light" }
-    tabs.c = { id = "c", theme = "Ukiyo-e" }
-    TP.setShelf("a"); eq(TP.shelfLook(), "dark")
-    TP.setShelf("b"); eq(TP.shelfLook(), "light", "the shelf's own choice lost to its pack")
-    TP.setShelf("c"); eq(TP.shelfLook(), "light")
-    TP._store.save("shelf_theme", "dark")                     -- as the menu writes it
-    eq(TP.shelfLook(), "dark", "a shelf without a choice did not follow the library")
-    tabs.c.theme_look = "auto"
-    eq(TP.shelfKey(), "pack:Ukiyo-e|auto")
-end)
-
-t.test("missing pack resolves as library and keeps the name", function()
+t.test("rc/5.4's 'none' is read as the reader's own", function()
     local TP, d, _s, _po, _o, tabs = setup()
+    halloween(d); TP.invalidate()
+    lib(TP, "Halloween")
+    tabs.x = { id = "x", theme = "none" }
+    eq(TP.themeFor("x"), "mine")
+end)
+
+t.test("Plain: no wallpaper, the oak plank, default colours, no ornaments, the reader's light or dark", function()
+    local TP, d, settings, _po, _o, tabs = setup()
+    TP._plugin_root = "."
+    settings.wallpaper_default = "green.jpg"
+    settings.theme_plank_pack = false
+    settings.shelf_theme = "dark"
+    halloween(d); TP.invalidate()
+    lib(TP, "Halloween")
+    tabs.p = { id = "p", theme = "plain" }
+    TP.setShelf("p")
+    eq(TP.shownWallpaper(false, false), nil); eq(TP.shownWallpaper(true, false), nil)
+    local pl = TP.activePlank()
+    eq(pl and pl.id, "builtin:oak")
+    eq(TP.defaultColours(), true, "Plain did not ask for the default colours")
+    eq(TP.colourOverride("ink_color", false), nil)
+    eq(TP.ornamentsFor("p"), "plain")
+    eq(TP.shelfLook(), "dark", "Plain does not follow the reader's light or dark")
+    eq(TP.themeName("plain"), "Plain")
+end)
+
+t.test("ornaments: a theme deals its own; Plain none; a theme without pieces, the reader's", function()
+    local TP, d, _s, _po, _o, tabs = setup()
+    halloween(d); touch(d .. "/Gallery/frame.png"); TP.invalidate()
+    tabs.h = { id = "h", theme = "Halloween" }        -- no pieces in this fixture
+    tabs.g = { id = "g", theme = "Gallery" }
+    tabs.m = { id = "m" }
+    eq(TP.ornamentsFor("g"), "Gallery")
+    eq(TP.ornamentsFor("h"), "mine", "a theme with no pieces should deal the reader's own")
+    eq(TP.ornamentsFor("m"), "mine")
+    lib(TP, "Gallery")
+    eq(TP.ornamentsFor("m"), "Gallery", "a shelf following the library deals the library theme's")
+end)
+
+t.test("a sub-shelf wears its shelf of shelves' theme", function()
+    local TP, d, _s, _po, _o, tabs = setup()
+    halloween(d); TP.invalidate()
+    tabs.top = { id = "top", theme = "plain" }
+    tabs.sub = { id = "sub", parent = "top" }
+    eq(TP.themeFor("sub"), "plain")
+end)
+
+t.test("a missing pack resolves as the library and keeps the name", function()
+    local TP, d, _s, _po, _o, tabs = setup()
+    halloween(d); TP.invalidate()
+    lib(TP, "Halloween")
     tabs.manga = { id = "manga", theme = "Gone" }
-    TP.setShelf("manga")
     eq(TP.shelfChoiceFor("manga"), "Gone")
-    eq(TP.shelfPackFor("manga"), nil)
-    eq(TP.shelfKey(), "lib")
+    eq(TP.themeFor("manga"), "Halloween")
+    eq(TP.themeName("Gone"), "Gone (missing)")
+    lib(TP, "AlsoGone")
+    eq(TP.libraryChoice(), "AlsoGone"); eq(TP.libraryTheme(), "mine")
 end)
 
 t.test("setShelf bumps the generation only when the look changes", function()
@@ -213,7 +257,7 @@ t.test("setShelf bumps the generation only when the look changes", function()
     tabs.c = { id = "c", theme = "Halloween" }
     local n0 = bumps.n
     TP.setShelf("a"); TP.setShelf("b")
-    eq(bumps.n, n0, "two library shelves bumped")
+    eq(bumps.n, n0, "two shelves of the reader's own bumped")
     eq(TP.setShelf("c"), true); eq(TP.setShelf("c"), false)
     eq(TP.setShelf("a"), true)
     eq(bumps.n, n0 + 2)
@@ -225,45 +269,37 @@ t.test("the plank memo follows the shelf", function()
     TP.SCAN_TTL = 60
     halloween(d); TP.invalidate()
     tabs.a = { id = "a" }; tabs.c = { id = "c", theme = "Halloween" }
-    TP.setShelf("a"); local lib = TP.activePlank()
-    TP.setShelf("c"); eq(TP.activePlank().id, "Halloween/theme/plank.Ash", "the library's plank was served from the memo")
-    TP.setShelf("a"); eq(TP.activePlank() and TP.activePlank().id, lib and lib.id)
+    TP.setShelf("a"); local mine = TP.activePlank()
+    TP.setShelf("c"); eq(TP.activePlank().id, "Halloween/theme/plank.Ash", "the reader's plank was served from the memo")
+    TP.setShelf("a"); eq(TP.activePlank() and TP.activePlank().id, mine and mine.id)
 end)
 
-t.test("an ornament-only pack is a theme named by its folder", function()
+t.test("ornaments only: said only when a pack truly has nothing else", function()
     local TP, d = setup()
-    halloween(d); touch(d .. "/Gallery/frame.png"); TP.invalidate()
+    halloween(d); touch(d .. "/Gallery/frame.png")
+    touch(d .. "/Snow/flake.png"); mkwall(d, "Snow")           -- no theme.json, but a wallpaper
+    TP.invalidate()
     local all = TP.allThemes()
-    eq(#all, 2)
+    eq(#all, 3)
     eq(all[1].pack, "Halloween"); eq(all[1].ornaments_only, false)
-    eq(all[2].pack, "Gallery"); eq(all[2].name, "Gallery"); eq(all[2].ornaments_only, true)
-    eq(TP.displayName("Gallery"), "Gallery")
+    eq(all[2].pack, "Gallery"); eq(all[2].ornaments_only, true)
+    eq(all[3].pack, "Snow"); eq(all[3].ornaments_only, false, "Snow brings a wallpaper")
+    local labels = {}
+    for i, c in ipairs(TP.choices()) do labels[i] = c.label end
+    eq(table.concat(labels, ","), "My theme,Plain,Halloween,Gallery (ornaments only),Snow")
 end)
 
-t.test("choosing an ornament-only pack as the library theme: its pack on, others off, nothing else", function()
-    local TP, d, settings, packs_off = setup()
-    halloween(d); touch(d .. "/Gallery/frame.png"); TP.invalidate()
-    packs_off["Gallery"] = true
-    eq(TP.chooseTheme("Gallery"), true)
-    eq(packs_off["Gallery"], nil); eq(packs_off["Halloween"], true)
-    eq(settings.wallpaper_default, nil, "an ornament pack set a wallpaper")
-    eq(TP.currentTheme(), "Gallery")
-    TP.clearTheme()
-    eq(packs_off["Gallery"], true, "No theme pack did not give the packs back")
-end)
-
-t.test("shelfLookOf answers for any shelf, not just the one on screen", function()
+t.test("lookOf answers for any shelf, not just the one on screen", function()
     local TP, d, settings, _po, _o, tabs = setup()
-    halloween(d); TP.invalidate()
+    halloween(d); mkmanifest(d, "Ukiyo-e"); TP.invalidate()
     settings.shelf_theme = "light"
     tabs.home = { id = "home" }
     tabs.latest = { id = "latest", theme = "Halloween" }
-    tabs.mine = { id = "mine", theme = "none", theme_look = "dark" }
+    tabs.uk = { id = "uk", theme = "Ukiyo-e" }                 -- says nothing: the reader's
     TP.setShelf("home")
-    eq(TP.shelfLookOf("latest"), "dark", "a shelf's pack light/dark was not seen from another shelf")
-    eq(TP.shelfLookOf("mine"), "dark")
-    eq(TP.shelfLookOf("home"), "light")
-    eq(TP.shelfLook(), "light")
+    eq(TP.lookOf("latest"), "dark", "a theme's light/dark was not seen from another shelf")
+    eq(TP.lookOf("uk"), "light")
+    eq(TP.lookOf("home"), "light")
 end)
 
 t.test("a pack with only planks is not a theme; with a theme.json it is", function()
@@ -277,16 +313,15 @@ t.test("a pack with only planks is not a theme; with a theme.json it is", functi
     eq(table.concat(names, ","), "Halloween,Woods,Gallery")
 end)
 
-t.test("No theme pack keeps a pack wallpaper and colour theme the reader chose themselves", function()
-    local TP, d, settings, _po, _o, tabs = setup()
-    mkmanifest(d, "Ukiyo-e"); mkwall(d, "Ukiyo-e"); mkcolours(d, "Ukiyo-e"); TP.invalidate()
+t.test("the reader's own pack wallpaper shows whatever the pack switch says", function()
+    local TP, d, settings, packs_off, _o, tabs = setup()
+    mkmanifest(d, "Ukiyo-e"); mkwall(d, "Ukiyo-e"); TP.invalidate()
     settings.wallpaper_default = "theme-pack\1Ukiyo-e\1wallpaper.png"   -- picked in the wallpaper picker
-    settings.theme_colours_pack = "Ukiyo-e"                               -- picked as Color theme
-    tabs.mine = { id = "mine", theme = "none" }
+    packs_off["Ukiyo-e"] = true
+    tabs.mine = { id = "mine" }
     TP.setShelf("mine")
     eq(TP.shownWallpaper(false, false), "theme-pack\1Ukiyo-e\1wallpaper.png",
-       "No theme pack dropped the reader's own pack wallpaper")
-    assert(TP.colourOverride("ink_color", false), "No theme pack dropped the reader's own colour theme")
+       "a pack switched off in the collection hid the reader's own wallpaper choice")
 end)
 
 t.test("the shelf on screen is resolved once per settings generation", function()
@@ -294,60 +329,61 @@ t.test("the shelf on screen is resolved once per settings generation", function(
     halloween(d); TP.invalidate()
     tabs.c = { id = "c", theme = "Halloween" }
     TP.setShelf("c")
-    TP.shelfLook(); TP.shelfPack()
+    TP.shelfLook(); TP.shelfTheme()
     local n = bumps.lookups
-    for _k = 1, 20 do TP.shelfLook(); TP.shelfPack() end
+    for _k = 1, 20 do TP.shelfLook(); TP.shelfTheme() end
     eq(bumps.lookups, n, "every read looked the tab up again")
     bumps.gen = bumps.gen + 1
-    tabs.c.theme_look = "light"
-    eq(TP.shelfLook(), "light", "a new generation did not re-resolve")
+    tabs.c.theme = "plain"
+    eq(TP.shelfTheme(), "plain", "a new generation did not re-resolve")
 end)
 
 t.test("a shelf that looks the same as the last one asks for no repaint", function()
     local TP, d, settings, _po, _o, tabs, bumps = setup()
     TP._plugin_root = "."
     halloween(d); touch(d .. "/Gallery/frame.png"); TP.invalidate()
-    eq(TP.chooseTheme("Halloween"), true)                     -- the library theme
+    lib(TP, "Halloween")
     tabs.home = { id = "home" }
-    tabs.same = { id = "same", theme = "Halloween" }          -- the library's own pack
+    tabs.same = { id = "same", theme = "Halloween" }          -- the library's own theme
     tabs.art = { id = "art", theme = "Gallery" }              -- ornaments only
-    TP.setShelf("home")
+    tabs.mine = { id = "mine", theme = "mine" }
+    TP.setShelf("art")
     local n = bumps.n
-    eq(TP.setShelf("same"), false, "the library's own pack counted as a new look")
-    eq(TP.setShelf("art"), false, "an ornaments-only pack counted as a new look")
-    eq(TP.setShelf("home"), false)
-    eq(bumps.n, n, "a look that did not change bumped the generation")
-    eq(TP.shelfKey() ~= nil, true)
+    eq(TP.setShelf("mine"), false, "an ornaments-only theme counted as a new look")
+    eq(TP.setShelf("home"), true)
+    eq(TP.setShelf("same"), false, "the library's own theme counted as a new look")
+    eq(bumps.n, n + 1)
 end)
 
-t.test("No theme pack under no library theme looks the same as the library", function()
-    local TP, d, _s, _po, _o, tabs = setup()
-    halloween(d); TP.invalidate()
-    tabs.home = { id = "home" }; tabs.none = { id = "none", theme = "none" }
-    tabs.dark = { id = "dark", theme_look = "dark" }
-    TP.setShelf("home")
-    eq(TP.setShelf("none"), false, "No theme pack with no library theme flashed")
-    eq(TP.setShelf("dark"), true, "a shelf of its own light/dark did not change the look")
-end)
-
-t.test("anyShelfTheme: an enabled shelf with a theme or light/dark of its own", function()
+t.test("anyShelfTheme: an enabled shelf with a theme of its own", function()
     local TP = setup()
     TP._tabs_list = function() return { { id = "a" }, { id = "b", enabled = false, theme = "X" } } end
     eq(TP.anyShelfTheme(), false, "a disabled shelf counted")
-    TP._tabs_list = function() return { { id = "a" }, { id = "c", theme_look = "dark" } } end
+    TP._tabs_list = function() return { { id = "a" }, { id = "c", theme = "mine" } } end
     eq(TP.anyShelfTheme(), true)
 end)
 
 t.test("Auto and Light that look the same do not count as a new look", function()
     local TP, d, settings, _po, _o, tabs = setup()
-    tabs.home = { id = "home", theme_look = "auto" }
-    tabs.genres = { id = "genres", theme_look = "light" }
+    mkmanifest(d, "Day", '{"shelf":"light"}'); TP.invalidate()
+    tabs.home = { id = "home" }                               -- the reader's Auto
+    tabs.day = { id = "day", theme = "Day" }                  -- Light, nothing else
     local night = false
     TP._autoDark = function() return night end
     TP.setShelf("home")
-    eq(TP.setShelf("genres"), false, "Auto in daylight flashed against Light")
+    eq(TP.setShelf("day"), false, "Auto in daylight flashed against Light")
     night = true
     eq(TP.setShelf("home"), true, "Auto at night is dark, a different look from Light")
+end)
+
+t.test("brings: what each theme replaces of the reader's own", function()
+    local TP, d = setup()
+    halloween(d); touch(d .. "/Gallery/frame.png"); TP.invalidate()
+    eq(TP.brings("Halloween", "wallpaper"), true); eq(TP.brings("Halloween", "look"), true)
+    eq(TP.brings("Halloween", "ornaments"), false)
+    eq(TP.brings("Gallery", "ornaments"), true); eq(TP.brings("Gallery", "wallpaper"), false)
+    eq(TP.brings("plain", "plank"), true); eq(TP.brings("plain", "look"), false)
+    eq(TP.brings("mine", "wallpaper"), false)
 end)
 
 t.done()

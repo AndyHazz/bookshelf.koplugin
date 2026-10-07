@@ -2,14 +2,14 @@
 The wallpaper picker: every picture the shelf can show behind it, the
 reader's own (the wallpapers folder and the extra folders) and the packs'
 (a pack's theme/wallpaper), one per page, shown as large as the page allows.
-Opened from "Default wallpaper image" and "Full screen shelves image"; a tap
-uses that picture there and closes. On the ornament collection's screen
+Opened from the reader's own "Wallpaper" and "Full screen wallpaper" rows; a
+tap uses that picture there. On the ornament collection's screen
 (LibraryModal), like the plank picker.
 
-A pack's wallpaper is an ordinary choice (bookshelf_theme_pack
-chooseWallpaper): stored like any other, it takes the pack's full screen and
-dark variants by itself, and the reader's own picture comes back if the pack
-is switched off.
+A pack's wallpaper is an ordinary choice: stored like any other, it takes the
+pack's full screen and dark variants by itself, and shows whatever the
+collection's pack switches say (they shape ornaments only). The picker never
+switches a pack on or off.
 ]]
 local BookshelfSettings = require("lib/bookshelf_settings_store")
 local ok_i, I18n = pcall(require, "lib/bookshelf_i18n")
@@ -31,12 +31,12 @@ function WB.entries(key, chip)
         for _i, e in ipairs(TP().wallpaperEntries()) do
             if e.pack == chip then
                 out[#out + 1] = { kind = "pack", name = e.name, label = e.label, path = e.path,
-                                  pack = e.pack, pack_off = e.pack_off }
+                                  pack = e.pack }
             end
         end
         return out
     end
-    if key == WP().FULL_SETTING then out[#out + 1] = { kind = "same", label = _("Same as default") } end
+    if key == WP().FULL_SETTING then out[#out + 1] = { kind = "same", label = _("Same as wallpaper") } end
     out[#out + 1] = { kind = "none", label = _("None") }
     for _i, e in ipairs(WP().list()) do
         out[#out + 1] = { kind = "own", name = e.name, label = e.label, path = e.path }
@@ -44,7 +44,7 @@ function WB.entries(key, chip)
     if chip == WB.ALL then
         for _i, e in ipairs(TP().wallpaperEntries()) do
             out[#out + 1] = { kind = "pack", name = e.name, label = e.label, path = e.path,
-                              pack = e.pack, pack_off = e.pack_off }
+                              pack = e.pack }
         end
     end
     return out
@@ -82,21 +82,12 @@ end
 -- choose(key, item): store the choice (the old list menu's semantics: None
 -- is false, Same as default is unset), and drop the decoded bitmap.
 function WB.choose(key, item)
-    -- A key's _own is the reader's picture from before a pack's; with no
-    -- pack chosen it would only come back later by surprise.
     if item.kind == "same" then
         BookshelfSettings.delete(key)
-        BookshelfSettings.delete(key .. "_own")
     elseif item.kind == "none" then
         BookshelfSettings.save(key, false)
-        BookshelfSettings.delete(key .. "_own")
     else
-        -- An off pack lends nothing, so choosing its wallpaper switches it
-        -- on (as the plank picker does), or the tap would change nothing.
-        if item.pack_off and item.pack then
-            require("lib/bookshelf_ornaments").setPackOff(item.pack, false)
-        end
-        TP().chooseWallpaper(key, item.name)
+        BookshelfSettings.save(key, item.name)
     end
     if BookshelfSettings.flush then BookshelfSettings.flush() end
     pcall(function() WP().free() end)
@@ -151,20 +142,13 @@ local function renderCell(key, item, dimen)
     local name = item.label
     if item.kind == "pack" then name = T(_("%1 pack"), item.label) end
     -- The title row, aligned left as the plank picker's: the radio mark
-    -- (filled for the one in use), the name, and why it would not show when
-    -- its pack is off. The same height on every card, so the pictures above
-    -- are all one size whichever is chosen.
+    -- (filled for the one in use) and the name. The same height on every
+    -- card, so the pictures above are all one size whichever is chosen.
     local radio = Marks.Radio:new{ checked = WB.inUse(key, item) }
     local gap = Space.padding.small
-    local status = item.pack_off and TextWidget:new{ text = _("Pack off"), face = Font:getFace("cfont", 13),
-                                                      max_width = math.floor(inner_w / 3) } or nil
-    local name_w = inner_w - radio:getSize().w - gap - (status and (status:getSize().w + gap) or 0)
+    local name_w = inner_w - radio:getSize().w - gap
     local row = HorizontalGroup:new{ align = "center", radio, HorizontalSpan:new{ width = gap },
         TextWidget:new{ text = name, face = Font:getFace("cfont", 15), bold = true, max_width = math.max(1, name_w) } }
-    if status then
-        row[#row + 1] = HorizontalSpan:new{ width = gap }
-        row[#row + 1] = status
-    end
     local lines = LeftContainer:new{ dimen = Geom:new{ w = inner_w, h = row:getSize().h }, row }
     local box_h = math.max(1, inner_h - lines:getSize().h - Space.padding.small)
     local pic
@@ -232,7 +216,6 @@ end
 function WB.show(key, on_change, on_closed)
     local LibraryModal = require("lib/bookshelf_library_modal")
     local UIManager    = require("ui/uimanager")
-    local T            = require("ffi/util").template
     local self = { chip = WB.ALL }
     local function items() return WB.entries(key, self.chip) end
     self.items = items()
@@ -244,13 +227,12 @@ function WB.show(key, on_change, on_closed)
             { key = WB.YOURS, label = _("Yours"), is_active = self.chip == WB.YOURS },
         }
         for _i, e in ipairs(TP().wallpaperEntries()) do
-            out[#out + 1] = { key = e.pack, label = e.pack_off and T(_("%1 (off)"), e.pack) or e.pack,
-                              is_active = self.chip == e.pack }
+            out[#out + 1] = { key = e.pack, label = e.pack, is_active = self.chip == e.pack }
         end
         return out
     end
     local config = {
-        title = (key == WP().FULL_SETTING) and _("Full screen shelves image") or _("Default wallpaper image"),
+        title = (key == WP().FULL_SETTING) and _("Full screen wallpaper") or _("Wallpaper"),
         no_search = true,
         -- One to a page in portrait, a row of four in landscape (perPage);
         -- each marked by its radio, so choosing one does not resize it.
@@ -267,7 +249,6 @@ function WB.show(key, on_change, on_closed)
         on_cell_tap = function(item)
             WB.choose(key, item)
             self.changed = true
-            if item.pack_off then self.items = items() end   -- "Pack off" goes
             if on_change then pcall(on_change) end
             if modal then modal:refresh() end
         end,

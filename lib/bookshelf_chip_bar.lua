@@ -363,9 +363,13 @@ local function _modeSuffix()
 end
 
 local function _readBarColor(base_key)
-    -- A pack's borrowed colours first (bookshelf_theme_pack), else the
-    -- reader's own, as everywhere else the shelf paints.
+    -- The shelf's theme colours first (bookshelf_theme_pack; none set on
+    -- Plain), else the reader's own, as everywhere else the shelf paints.
     local ok_t, TP = pcall(require, "lib/bookshelf_theme_pack")
+    if ok_t and TP and TP.defaultColours then
+        local ok_p, plain = pcall(TP.defaultColours)
+        if ok_p and plain then return nil end
+    end
     if ok_t and TP and TP.colourOverride then
         local ok2, v = pcall(TP.colourOverride, base_key, _modeSuffix() ~= "")
         if ok2 and v then return v end

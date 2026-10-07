@@ -3764,10 +3764,9 @@ function BookshelfWidget:_wallpaperName()
         -- ONLY thing that can change the picture now -- the per-shelf override
         -- is gone, so moving between chips never changes what is behind them.
         local full = self._expanded and true or false
-        -- A pack's wallpaper is a choice like any other; its name picks the
-        -- pack's variant for this view (full screen, dark). Its pack off or
-        -- gone: the reader's own choice from before it, or for full screen
-        -- the default's (bookshelf_theme_pack.shownWallpaper).
+        -- The shelf's theme's wallpaper, else the reader's own; a pack's
+        -- picture picks its variant for this view (full screen, dark)
+        -- (bookshelf_theme_pack.shownWallpaper).
         local ok_t, TP = pcall(require, "lib/bookshelf_theme_pack")
         if ok_t and TP and TP.shownWallpaper then
             local dark = require("lib/bookshelf_cover_progress").theme()
@@ -3814,8 +3813,10 @@ function BookshelfWidget:_pageGroundColor()
         local Wallpaper     = require("lib/bookshelf_wallpaper")
         local CoverProgress = require("lib/bookshelf_cover_progress")
         local suffix = CoverProgress.modeSuffix and CoverProgress.modeSuffix() or ""
-        -- A pack's borrowed page colour first (bookshelf_theme_pack).
+        -- The shelf's theme page colour first (bookshelf_theme_pack); Plain
+        -- has the default ground.
         local ok_t, TP = pcall(require, "lib/bookshelf_theme_pack")
+        if ok_t and TP and TP.defaultColours and TP.defaultColours() then return nil end
         local raw = ok_t and TP and TP.colourOverride(Wallpaper.BG_SETTING, suffix ~= "")
                     or BookshelfSettings.read(Wallpaper.BG_SETTING .. suffix)
         if type(raw) ~= "table" then return nil end
@@ -4182,6 +4183,13 @@ function BookshelfWidget:_pageColourStored()
         local Wallpaper = require("lib/bookshelf_wallpaper")
         local CP        = require("lib/bookshelf_cover_progress")
         local suffix    = CP.modeSuffix and CP.modeSuffix() or ""
+        -- The page colour the shelf on screen paints: its theme's, none on
+        -- Plain, else the reader's own.
+        local ok_t, TP = pcall(require, "lib/bookshelf_theme_pack")
+        if ok_t and TP and TP.defaultColours then
+            if TP.defaultColours() then return false end
+            if TP.colourOverride(Wallpaper.BG_SETTING, suffix ~= "") then return true end
+        end
         return type(BookshelfSettings.read(Wallpaper.BG_SETTING .. suffix)) == "table"
     end)
     return (ok and set) and true or false

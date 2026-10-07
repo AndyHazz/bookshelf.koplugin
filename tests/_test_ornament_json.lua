@@ -479,7 +479,7 @@ t.test("the collection: one icon on its menu row and in the long-press menu's he
     local st = io.open("lib/bookshelf_settings.lua"):read("*a")
     local row = st:match("function Settings:_ornamentsRow%(%)(.-)\nend\n")
     assert(row, "no ornaments row")
-    assert(row:find('_("Ornament collection: %1/%2 enabled")', 1, true), "the row is not the collection with its count")
+    assert(row:find('_("Ornaments: %1 of %2 on")', 1, true), "the row is not the collection with its count")
     assert(row:find("#O.listAll()", 1, true), "the count has no total")
     assert(row:find("COLLECTION_ICON", 1, true), "the row has no icon")
     local orn = io.open("lib/bookshelf_ornaments.lua"):read("*a")

@@ -36,9 +36,9 @@ t.test("default wallpaper, All: None, the reader's own, then the packs'", functi
     eq(#e, 3); eq(e[1].kind, "none"); eq(e[2].kind, "own"); eq(e[3].kind, "pack"); eq(e[3].pack, "Japan")
 end)
 
-t.test("full screen: Same as default first", function()
+t.test("full screen: Same as wallpaper first", function()
     local e = WB.entries("wallpaper_full", WB.ALL)
-    eq(e[1].kind, "same"); eq(e[2].kind, "none"); eq(#e, 4)
+    eq(e[1].kind, "same"); eq(e[1].label, "Same as wallpaper"); eq(e[2].kind, "none"); eq(#e, 4)
 end)
 
 t.test("tabs: Yours is None and the reader's own; a pack's tab is its wallpaper", function()
@@ -61,16 +61,14 @@ t.test("which reads as in use", function()
     eq(WB.inUse("wallpaper_full", f[2]), true, "full false: None")
 end)
 
-t.test("a tap stores the choice: None, Same as default, a picture", function()
+t.test("a tap stores the choice, and only it: None, Same as wallpaper, a picture", function()
     store = { wallpaper_default = "leaves.png", wallpaper_full = "x.png" }
     local e = WB.entries("wallpaper_default", WB.ALL)
     WB.choose("wallpaper_default", e[1]); eq(store.wallpaper_default, false)
-    WB.choose("wallpaper_default", e[3]); eq(chosen[#chosen][2], "theme-pack\1Japan\1wallpaper.png")
+    WB.choose("wallpaper_default", e[3]); eq(store.wallpaper_default, "theme-pack\1Japan\1wallpaper.png")
+    eq(store.wallpaper_default_own, nil, "a pack's picture keeps a hidden copy of the reader's own")
     local f = WB.entries("wallpaper_full", WB.ALL)
     WB.choose("wallpaper_full", f[1]); eq(store.wallpaper_full, nil)
-    store.wallpaper_full_own = "x.png"; store.wallpaper_default_own = "y.png"
-    WB.choose("wallpaper_full", f[1]); eq(store.wallpaper_full_own, nil, "Same as default leaves no own behind")
-    WB.choose("wallpaper_default", e[1]); eq(store.wallpaper_default_own, nil, "None leaves no own behind")
 end)
 
 t.test("the None card says where the pictures come from", function()
@@ -79,10 +77,11 @@ t.test("the None card says where the pictures come from", function()
     assert(src:find('_("No images in %1")', 1, true), "the empty-folder message is gone")
 end)
 
-t.test("choosing an off pack's wallpaper switches the pack on, or nothing would show", function()
+t.test("choosing a pack's wallpaper never switches its pack on (the switches shape ornaments only)", function()
     store = {}
     WB.choose("wallpaper_default", { kind = "pack", name = "theme-pack\1Japan\1wallpaper.png", pack = "Japan", pack_off = true })
-    eq(switched_on[#switched_on], "Japan")
+    eq(#switched_on, 0, "the picker switched a pack on")
+    eq(store.wallpaper_default, "theme-pack\1Japan\1wallpaper.png")
 end)
 
 t.test("the picker opens on the page of the wallpaper in use", function()

@@ -58,7 +58,7 @@ local Bookshelf = WidgetContainer:extend{
 -- action, which probes addToMainMenu and hosts these in this order.
 -- Display order, banded with separators (set on the last item of each band in
 -- addToMainMenu): actions (Open) | customise (Shelf size, Chips) | configure
--- (Hardcover, Settings) | meta (Updates, About). Wallpaper, ornaments and colors
+-- (Hardcover, Settings) | meta (Updates, About). The reader's own look
 -- joined the customise band in 5.1: it is what a reader changes to make the
 -- shelf look like theirs, and it was buried two levels down under Settings. The detail-view editor and
 -- collection manager moved under Settings in 4.0, and the selection-mode
@@ -793,9 +793,9 @@ function Bookshelf:buildMenuItems(menu_items)
     -- Settings > Colors and Settings > Wallpaper and ornaments, which put the
     -- theme, the background colour and the panel shading in three different
     -- menus (maintainer). Text size stays under Settings on purpose.
-    -- The look as a whole, a row of its own above the parts (maintainer,
-    -- 2026-10-02): light or dark, and the installed theme packs, which choose
-    -- wallpaper, plank, colours and ornaments together.
+    -- The theme the library wears, a row of its own above the reader's own
+    -- look (maintainer, 2026-10-07): the reader's own, Plain, or a theme
+    -- pack, laid over the reader's own look; and each shelf's.
     menu_items.bookshelf_theme = {
         text_func = function()
             return MenuIcons.label(MenuIcons.THEME, S:_shelfThemeText())
@@ -807,9 +807,13 @@ function Bookshelf:buildMenuItems(menu_items)
         end,
     }
 
+    -- The reader's own look, under its one name (TP.mineName): light or
+    -- dark, wallpaper, plank, ornaments, colours. Themes never write it.
     menu_items.bookshelf_background = {
-        text                = MenuIcons.label(MenuIcons.APPEARANCE,
-                                  _("Wallpaper, ornaments and colors")),
+        text_func           = function()
+            return MenuIcons.label(MenuIcons.APPEARANCE,
+                                   require("lib/bookshelf_theme_pack").mineName())
+        end,
         sub_item_table_func = function()
             S._bw = _live_widget
             return S:_backgroundSubItems()

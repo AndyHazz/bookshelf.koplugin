@@ -155,10 +155,14 @@ end
 
 -- _pick(item): pick mode (the long-press menu's Swap). The chosen piece
 -- takes the slot; a switched-off one, or one in a switched-off pack, is
--- switched on, or the swap would put nothing there.
+-- switched on, or the swap would put nothing there. Not the pack on a
+-- themed shelf (opts.pool): a theme deals its pieces whatever the
+-- collection's pack switches say, which shape the reader's own ornaments.
 function Browser:_pick(item)
     if item.off then O().setOff(item.entry.name, false) end
-    if item.pack_off and item.entry.pack then O().setPackOff(item.entry.pack, false) end
+    if item.pack_off and item.entry.pack and not self.opts.pool then
+        O().setPackOff(item.entry.pack, false)
+    end
     self.opts.pick(item.entry)
     self._dirty = true
     self._close()
@@ -294,8 +298,7 @@ end
 
 -- _footerRows() -> the footer, one row: Select all, Select none and Apply
 -- (Add ornaments first on the All tab; Cancel alone when picking a
--- replacement). A pack's theme is chosen in the Shelf theme menu, not here
--- (bookshelf_theme_pack.chooseTheme).
+-- replacement). A theme is chosen in the Theme menu, not here.
 function Browser:_footerRows()
     local close = { key = "close", label = self.opts.pick and _("Cancel") or _("Apply"), on_tap = self._close }
     -- Choosing a replacement: nothing to switch here, only a way out.

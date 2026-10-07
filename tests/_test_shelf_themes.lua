@@ -274,19 +274,18 @@ t.test("the plank memo follows the shelf", function()
     TP.setShelf("a"); eq(TP.activePlank() and TP.activePlank().id, mine and mine.id)
 end)
 
-t.test("ornaments only: said only when a pack truly has nothing else", function()
+t.test("every pack is listed by its name: what it brings is the Theme library's card", function()
     local TP, d = setup()
     halloween(d); touch(d .. "/Gallery/frame.png")
     touch(d .. "/Snow/flake.png"); mkwall(d, "Snow")           -- no theme.json, but a wallpaper
     TP.invalidate()
     local all = TP.allThemes()
     eq(#all, 3)
-    eq(all[1].pack, "Halloween"); eq(all[1].ornaments_only, false)
-    eq(all[2].pack, "Gallery"); eq(all[2].ornaments_only, true)
-    eq(all[3].pack, "Snow"); eq(all[3].ornaments_only, false, "Snow brings a wallpaper")
+    eq(all[1].pack, "Halloween"); eq(all[2].pack, "Gallery"); eq(all[3].pack, "Snow")
     local labels = {}
     for i, c in ipairs(TP.choices()) do labels[i] = c.label end
-    eq(table.concat(labels, ","), "My theme,Plain,Halloween,Gallery (ornaments only),Snow")
+    eq(table.concat(labels, ","), "My theme,Plain,Halloween,Gallery,Snow",
+        "a pack of ornaments only is named for what it is again")
 end)
 
 t.test("lookOf answers for any shelf, not just the one on screen", function()

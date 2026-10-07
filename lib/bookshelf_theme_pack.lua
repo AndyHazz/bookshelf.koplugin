@@ -10,7 +10,9 @@
 --   <pack>/theme/colours.json               {"day": {name: "#RRGGBB"}, "night": {...}}
 --   <pack>/theme/theme.json                 makes it a THEME PACK: {"name",
 --                                           "description", "shelf": "light" |
---                                           "dark", "plank": a plank's name}
+--                                           "dark", "plank": a plank's name,
+--                                           "hero": the piece its card in the
+--                                           Theme library shows (file stem)}
 --
 -- In a subfolder on purpose: the ornament scan is one level deep and png/svg
 -- only (bookshelf_ornaments.listAll), so 5.2.x installs a theme pack as a plain
@@ -155,7 +157,8 @@ local function parseManifest(path, pack)
     end
     local shelf = str("shelf")
     if shelf ~= "light" and shelf ~= "dark" then shelf = nil end
-    return { name = str("name"), description = str("description"), shelf = shelf, plank = str("plank") }
+    return { name = str("name"), description = str("description"), shelf = shelf, plank = str("plank"),
+             hero = str("hero") }
 end
 
 -- _plankPart(file) -> name, part for "plank[.<name>].<middle|left|right>.png"
@@ -320,25 +323,25 @@ function M.themeName(choice)
     return M.displayName(choice)
 end
 
--- choices() -> what a library or a shelf can wear, in menu order: the
--- reader's own, Plain, then every theme ({ value, label, help }).
+-- choices() -> what a library or a shelf can wear, in the Theme library's
+-- order: the reader's own, Plain, then every theme ({ value, label }). What
+-- each brings is the Theme library's card (bookshelf_theme_library), so a
+-- pack of ornaments only says "27 ornaments" there, not in its name.
 function M.choices()
     local out = {
         { value = M.MINE, label = M.mineName() },
-        { value = M.PLAIN, label = M.plainName(),
-          help = _("No wallpaper, the oak plank, the default colors and no ornaments.") },
+        { value = M.PLAIN, label = M.plainName() },
     }
     for _i, th in ipairs(M.allThemes()) do
-        out[#out + 1] = { value = th.pack, help = th.description,
-                          label = th.ornaments_only and T(_("%1 (ornaments only)"), th.name) or th.name }
+        out[#out + 1] = { value = th.pack, label = th.name }
     end
     return out
 end
 
--- shelfChoices(cur) -> a shelf's theme list, in menu order: Same as library
+-- shelfChoices(cur) -> a shelf's theme list, in order: Same as library
 -- ({ same = true }), a missing pack the shelf still names (cur), the
--- reader's own, Plain, every theme. ONE list for Theme > Each shelf, My
--- theme's "This shelf" row and Shelf style's Theme row.
+-- reader's own, Plain, every theme. The Theme library's list for a shelf
+-- (Theme > Each shelf, My theme's "This shelf" row, Shelf style's Theme row).
 function M.shelfChoices(cur)
     local out = { { same = true, label = _("Same as library") } }
     cur = normalise(cur)
@@ -570,8 +573,7 @@ function M.displayName(pack)
 end
 
 -- allThemes() -> every pack as a theme: theme packs (a theme.json) by name,
--- then the others by folder; ornaments_only when a pack truly has nothing
--- but ornaments (no wallpaper, plank or colours). Switched-off packs too:
+-- then the others by folder. Switched-off packs too:
 -- the collection's switches shape the reader's own ornaments, not themes. A
 -- pack with neither a theme.json nor an ornament (a pack of planks) is not a
 -- theme: its planks are in the plank picker (maintainer, 2026-10-04).
@@ -591,11 +593,9 @@ function M.allThemes()
                 logger.warn("[bookshelf] a pack folder named like a built-in theme is not listed as a theme:", p)
             end
         elseif m then
-            full[#full + 1] = { pack = p, name = m.name or p, description = m.description,
-                                ornaments_only = false }
+            full[#full + 1] = { pack = p, name = m.name or p, description = m.description }
         elseif has_piece[p] then
-            local only = not (th.wallpaper or th.colours or #(th.planks or {}) > 0)
-            plain[#plain + 1] = { pack = p, name = p, ornaments_only = only }
+            plain[#plain + 1] = { pack = p, name = p }
         end
     end
     local function byName(a, b) return a.name:lower() < b.name:lower() end

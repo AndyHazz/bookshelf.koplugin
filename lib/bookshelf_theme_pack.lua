@@ -341,7 +341,7 @@ end
 -- shelfChoices(cur) -> a shelf's theme list, in order: Same as library
 -- ({ same = true }), a missing pack the shelf still names (cur), the
 -- reader's own, Plain, every theme. The Theme library's list for a shelf
--- (Theme > Each shelf, My theme's "This shelf" row, Shelf style's Theme row).
+-- (the Theme menu's shelf rows, My theme's "This shelf" row, Shelf style's Theme row).
 function M.shelfChoices(cur)
     local out = { { same = true, label = _("Same as library") } }
     cur = normalise(cur)

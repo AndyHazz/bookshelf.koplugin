@@ -1829,15 +1829,6 @@ function Settings:_setShelfThemeField(id, field, value)
     TabModel.save(tabs)
 end
 
--- _shelvesDiffer() -> how many enabled shelves wear a theme of their own.
-function Settings:_shelvesDiffer()
-    local n = 0
-    for _i, t in ipairs(require("lib/bookshelf_tab_model").getActive() or {}) do
-        if t.theme ~= nil then n = n + 1 end
-    end
-    return n
-end
-
 -- _shelfThemeLabelFor(tab) -> "Home: same as library", or "Manga: Ukiyo-e".
 function Settings:_shelfThemeLabelFor(tab)
     local label = tab.label or tab.id
@@ -1869,63 +1860,45 @@ function Settings:_openThemeLibrary(id, touchmenu_instance)
     opts.apply = function() self:_markDirty() end
     return require("lib/bookshelf_theme_library").show(opts)
 end
-
--- _perShelfThemesRow(): "Each shelf", a row per enabled shelf, each opening
--- that shelf's Theme library.
-function Settings:_perShelfThemesRow()
-    return {
-        -- How many enabled shelves wear a theme of their own: here, not on
-        -- the top row, which it cluttered (maintainer, 2026-10-04).
-        text_func = function()
-            local n = self:_shelvesDiffer()
-            if n == 0 then return _("Each shelf: all the same") end
-            -- "1 differ" without plural forms (bookshelf_i18n has none): a
-            -- count of a total reads right at any number.
-            local total = #(require("lib/bookshelf_tab_model").getActive() or {})
-            return T(_("Each shelf: own theme on %1 of %2"), n, total)
-        end,
-        sub_item_table_func = function()
-            local TabModel = require("lib/bookshelf_tab_model")
-            local items = {}
-            for _i, t in ipairs(TabModel.getActive() or {}) do
-                local id = t.id
-                items[#items + 1] = {
-                    text_func = function()
-                        return self:_shelfThemeLabelFor(TabModel.getById(id) or t)
-                    end,
-                    keep_menu_open = true,
-                    callback = function(touchmenu_instance)
-                        -- That shelf behind the picker, so a change is seen
-                        -- as it is made; it stays on screen after
-                        -- (maintainer, 2026-10-04).
-                        local bw = self._bw
-                        if bw and bw.chip ~= id and bw._setActiveChip then bw:_setActiveChip(id) end
-                        self:_openThemeLibrary(id, touchmenu_instance)
-                    end,
-                }
-            end
-            return items
-        end,
-    }
+-- _perShelfThemeRows() -> a row per enabled shelf, "Home: same as library" or
+-- "Manga: Ukiyo-e", each opening that shelf's Theme library.
+function Settings:_perShelfThemeRows()
+    local TabModel = require("lib/bookshelf_tab_model")
+    local items = {}
+    for _i, t in ipairs(TabModel.getActive() or {}) do
+        local id = t.id
+        items[#items + 1] = {
+            text_func = function()
+                return self:_shelfThemeLabelFor(TabModel.getById(id) or t)
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                -- That shelf behind the picker, so a change is seen as it is
+                -- made; it stays on screen after (maintainer, 2026-10-04).
+                local bw = self._bw
+                if bw and bw.chip ~= id and bw._setActiveChip then bw:_setActiveChip(id) end
+                self:_openThemeLibrary(id, touchmenu_instance)
+            end,
+        }
+    end
+    return items
 end
 
--- The Theme menu: Each shelf first (maintainer, 2026-10-07: which shelves
--- differ is the first thing to know before changing the library's), then
--- the library's own row, which opens the Theme library. Two rows rather than
--- the top-level row opening the picker itself: Each shelf keeps its place
--- as a menu, with nothing new to learn. Built each time it opens, after a
--- rescan, so a pack copied in since start-up is counted.
+-- The Theme menu (maintainer, 2026-10-07): the library's theme first, then
+-- every shelf with its theme, each row opening the Theme library for it. One
+-- level, no Each shelf submenu to drill into. Built each time it opens,
+-- after a rescan, so a pack copied in since start-up is listed.
 function Settings:_shelfThemeSubItems()
     local TP = require("lib/bookshelf_theme_pack")
     TP.rescan()
     local rows = {}
-    rows[1] = self:_perShelfThemesRow()
-    rows[1].separator = true
-    rows[2] = {
+    rows[1] = {
         text_func = function() return T(_("Library: %1"), TP.themeName(TP.libraryChoice())) end,
         keep_menu_open = true,
         callback = function(touchmenu_instance) self:_openThemeLibrary(nil, touchmenu_instance) end,
+        separator = true,
     }
+    for _i, r in ipairs(self:_perShelfThemeRows()) do rows[#rows + 1] = r end
     return rows
 end
 
@@ -2464,7 +2437,7 @@ function Settings:_shelfThemeHelp()
     return T(_("A theme can bring a wallpaper, a plank, colors, light or "
             .. "dark, and ornaments. Anything it does not bring comes from "
             .. "%1. Choosing a theme never changes %1.\n\nEach shelf can "
-            .. "have a theme of its own: Each shelf, or long-press a shelf "
+            .. "have a theme of its own: choose it here, or long-press a shelf "
             .. "chip, then Shelf style."), mine)
 end
 

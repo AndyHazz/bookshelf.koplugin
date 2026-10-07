@@ -1,5 +1,5 @@
 -- tests/_test_shelf_theme_menu.lua
--- The Theme menu (maintainer, 2026-10-07): Each shelf first, then the
+-- The Theme menu (maintainer, 2026-10-07): the library's row, then every
 -- library's row. Every theme is chosen in the Theme library
 -- (bookshelf_theme_library, its own suite): the library's, each shelf's from
 -- Each shelf and from My theme's This shelf row. Choosing writes ONE key and
@@ -27,10 +27,9 @@ local CODE = table.concat({
     grab("\n(function Settings:_shelfThemeText%(%).-\nend)\n", "_shelfThemeText"),
     grab("\n(function Settings:_shelfThemeHelp%(%).-\nend)\n", "_shelfThemeHelp"),
     grab("\n(function Settings:_setShelfThemeField%(id, field, value%).-\nend)\n", "_setShelfThemeField"),
-    grab("\n(function Settings:_shelvesDiffer%(%).-\nend)\n", "_shelvesDiffer"),
     grab("\n(function Settings:_shelfThemeLabelFor%(tab%).-\nend)\n", "_shelfThemeLabelFor"),
     grab("\n(function Settings:_openThemeLibrary%(id, touchmenu_instance%).-\nend)\n", "_openThemeLibrary"),
-    grab("\n(function Settings:_perShelfThemesRow%(%).-\nend)\n", "_perShelfThemesRow"),
+    grab("\n(function Settings:_perShelfThemeRows%(%).-\nend)\n", "_perShelfThemeRows"),
 }, "\n")
 
 -- build(packs, library, tabs, opts) -> the menu's rows and what the stubs saw.
@@ -158,14 +157,16 @@ local function texts(rows)
     return table.concat(o, " | ")
 end
 
-t.test("the Theme menu: Each shelf (set apart), then the library's row, which opens the Theme library", function()
+t.test("the Theme menu: the library's row (set apart), then every shelf with its theme", function()
+    -- Maintainer, 2026-10-07: one level, no Each shelf submenu to drill into.
     local self, S, seen = build({ MAC, UK, AUT }, "Macabre")
     local rows = S._shelfThemeSubItems(self)
-    eq(texts(rows), "Each shelf: all the same | Library: Macabre")
-    eq(rows[1].separator, true, "Each shelf is set apart")
+    eq(texts(rows), "Library: Macabre | Home: same as library | Manga: same as library")
+    eq(rows[1].separator, true, "the library's row is not set apart")
     eq(seen.rescans, 1, "opening the menu did not rescan the packs")
-    eq(rows[2].radio, nil, "a radio list again"); eq(rows[2].keep_menu_open, true)
-    rows[2].callback({})
+    eq(rows[1].radio, nil, "a radio list again"); eq(rows[1].keep_menu_open, true)
+    for _i, r in ipairs(rows) do eq(r.sub_item_table_func, nil, "a submenu to drill into again") end
+    rows[1].callback({})
     local o = seen.opened[1]
     assert(o, "the library's row did not open the Theme library")
     eq(o.shelf, nil, "the library's picker opened as a shelf's")
@@ -175,7 +176,7 @@ end)
 
 t.test("choosing for the library writes the library's theme and nothing else, and rebuilds the shelf", function()
     local self, S, seen = build({ MAC, UK }, nil)
-    S._shelfThemeSubItems(self)[2].callback({})
+    S._shelfThemeSubItems(self)[1].callback({})
     local o = seen.opened[1]
     eq(o.current(), "mine")
     o.choose("Macabre")
@@ -206,19 +207,18 @@ t.test("the top-level row names the library's theme; the help names the reader's
     assert(S2._shelfThemeHelp(self2):find("Choosing a theme never changes My theme", 1, true))
 end)
 
-t.test("Each shelf counts the shelves with a theme of their own, and lists each", function()
+t.test("each enabled shelf is listed with its theme, a disabled one is not", function()
     local tabs = { { id = "home", label = "Home" }, { id = "manga", label = "Manga", theme = "Ukiyo-e" },
                    { id = "rec", label = "Recent", theme = "mine" }, { id = "x", label = "Off", enabled = false, theme = "plain" } }
     local self, S = build({ MAC, UK }, "Macabre", tabs)
     local rows = S._shelfThemeSubItems(self)
-    eq(rows[1].text_func(), "Each shelf: own theme on 2 of 3")
-    eq(texts(rows[1].sub_item_table_func()), "Home: same as library | Manga: Ukiyo-e | Recent: My theme")
+    eq(texts(rows), "Library: Macabre | Home: same as library | Manga: Ukiyo-e | Recent: My theme")
 end)
 
 t.test("a shelf's row opens that shelf's Theme library; a choice writes that shelf only", function()
     local tabs = { { id = "home", label = "Home" }, { id = "manga", label = "Manga", theme = "Ukiyo-e" } }
     local self, S, seen, by = build({ MAC, UK }, "Macabre", tabs)
-    local rows = S._shelfThemeSubItems(self)[1].sub_item_table_func()
+    local rows = S._perShelfThemeRows(self)
     eq(rows[1].sub_item_table_func, nil, "a radio submenu again"); eq(rows[1].keep_menu_open, true)
     rows[1].callback({})
     local o = seen.opened[1]
@@ -238,7 +238,7 @@ end)
 t.test("rc/5.4's 'none' reads as the reader's own in a shelf's picker", function()
     local tabs = { { id = "a", label = "A", theme = "none" } }
     local self, S, seen = build({ UK }, nil, tabs)
-    S._shelfThemeSubItems(self)[1].sub_item_table_func()[1].callback({})
+    S._perShelfThemeRows(self)[1].callback({})
     eq(seen.opened[1].current(), "mine")
 end)
 
@@ -246,7 +246,7 @@ t.test("opening another shelf's picker shows that shelf behind it", function()
     local self, S, seen = build({ UK }, nil)
     local switched
     self._bw = { chip = "home", _setActiveChip = function(_bw, id) switched = id end }
-    local rows = S._shelfThemeSubItems(self)[1].sub_item_table_func()
+    local rows = S._perShelfThemeRows(self)
     rows[2].callback({})
     eq(switched, "manga"); eq(seen.opened[1].shelf, "Manga")
 end)

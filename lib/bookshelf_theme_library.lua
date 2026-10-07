@@ -2,7 +2,7 @@
 The Theme library: every theme a library or a shelf can wear, one card each,
 on the shared LibraryModal (maintainer, 2026-10-07: "a consistent way to show
 and pick themes"). ONE picker for every place a theme is chosen: the Theme
-menu (the library's), each shelf's (Theme > Each shelf, My theme's This shelf
+menu (the library's), each shelf's (a shelf row in the Theme menu, My theme's This shelf
 row) and Shelf style's Theme row.
 
 A card: the theme's name, what it brings ("Wallpaper · Plank · 55 ornaments ·

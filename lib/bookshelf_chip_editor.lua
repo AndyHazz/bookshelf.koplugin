@@ -2394,6 +2394,8 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                     end
                     local buttons = {}
                     for _i, r in ipairs(list) do buttons[#buttons + 1] = { r } end
+                    -- Add theme pack...: as at the end of every theme list.
+                    buttons[#buttons + 1] = {{ text = TP.addThemeLabel(), callback = function() TP.showAddThemeInfo() end }}
                     buttons[#buttons + 1] = {{ text = _("Back"), callback = back }}
                     sub = ButtonDialog:new{
                         title = _("Theme"), title_align = "center", buttons = buttons,

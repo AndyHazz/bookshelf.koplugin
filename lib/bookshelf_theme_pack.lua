@@ -253,6 +253,26 @@ M.SHELF_SETTING = "shelf_theme"          -- CoverProgress.THEME_SETTING
 -- mineName() -> what menus call the reader's own look. The ONE place the
 -- name lives, so it can be renamed with a one-line change (maintainer).
 function M.mineName() return _("My theme") end
+
+-- addThemeLabel() / showAddThemeInfo(): the "Add theme pack..." row that ends
+-- every list of themes (the Theme menu, each shelf's list, Shelf style's
+-- Theme list; maintainer, 2026-10-07) and the popup it opens: where theme
+-- packs go and where to get them. The shop link is a parameter, not part of
+-- the msgid, so a translation cannot break it.
+function M.addThemeLabel() return _("Add theme pack\xE2\x80\xA6") end
+function M.showAddThemeInfo()
+    local UIManager = require("ui/uimanager")
+    local InfoMessage = require("ui/widget/infomessage")
+    local T = require("ffi/util").template
+    -- A findable path: the settings dir can be relative.
+    local dir = require("lib/bookshelf_ornaments").dir() or "?"
+    local ok, util = pcall(require, "ffi/util")
+    local real = ok and util.realpath and util.realpath(dir)
+    UIManager:show(InfoMessage:new{
+        text = T(_("A theme pack brings a wallpaper, a plank, colors and ornaments together, and is chosen here. To add one, copy its folder into\n%1\nthen open this menu again.\n\nReady-made theme packs:\n%2"),
+            real or dir, "ko-fi.com/andyhazz/shop"),
+    })
+end
 function M.plainName() return _("Plain") end
 
 -- A pack folder whose name is a built-in value, in any case ("Plain",

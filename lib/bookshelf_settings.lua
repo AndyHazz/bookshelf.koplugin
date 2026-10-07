@@ -1862,8 +1862,15 @@ function Settings:_themeRadios(checked, choose)
     return rows
 end
 
+-- _addThemeRow(): "Add theme pack...", the last row of every theme list.
+function Settings:_addThemeRow()
+    local TP = require("lib/bookshelf_theme_pack")
+    return { text = TP.addThemeLabel(), keep_menu_open = true,
+             callback = function() TP.showAddThemeInfo() end }
+end
+
 -- _oneShelfThemeItems(id): the theme menu for one shelf, one radio list:
--- Same as library, then the same choices as the library's.
+-- Same as library, then the same choices as the library's, then Add theme pack.
 function Settings:_oneShelfThemeItems(id)
     local TP = require("lib/bookshelf_theme_pack")
     local function own() return TP.ownChoice(id) end
@@ -1887,6 +1894,8 @@ function Settings:_oneShelfThemeItems(id)
             end,
         }
     end
+    rows[#rows].separator = true
+    rows[#rows + 1] = self:_addThemeRow()
     return rows
 end
 
@@ -1928,7 +1937,7 @@ function Settings:_perShelfThemesRow()
 end
 
 -- The Theme menu: Each shelf first, then the library's theme (the reader's
--- own, Plain, each theme), then Get more themes. Built each time it opens,
+-- own, Plain, each theme), then Add theme pack. Built each time it opens,
 -- after a rescan, so a pack copied in since start-up shows without a restart.
 function Settings:_shelfThemeSubItems()
     local TP = require("lib/bookshelf_theme_pack")
@@ -1959,24 +1968,7 @@ function Settings:_shelfThemeSubItems()
         rows[#rows + 1] = r
     end
     rows[#rows].separator = true
-    -- Get more themes...: where theme packs go and where to get them. The
-    -- shop link is a parameter, not part of the msgid, so a translation
-    -- cannot break it.
-    rows[#rows + 1] = {
-        text = _("Get more themes\xE2\x80\xA6"),
-        keep_menu_open = true,
-        callback = function()
-            local InfoMessage = require("ui/widget/infomessage")
-            -- A findable path: the settings dir can be relative.
-            local dir = require("lib/bookshelf_ornaments").dir() or "?"
-            local ok, util = pcall(require, "ffi/util")
-            local real = ok and util.realpath and util.realpath(dir)
-            UIManager:show(InfoMessage:new{
-                text = T(_("A theme pack brings a wallpaper, a plank, colors and ornaments together, and is chosen here. To add one, copy its folder into\n%1\nthen open this menu again.\n\nReady-made theme packs:\n%2"),
-                    real or dir, "ko-fi.com/andyhazz/shop"),
-            })
-        end,
-    }
+    rows[#rows + 1] = self:_addThemeRow()
     return rows
 end
 

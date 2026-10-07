@@ -315,6 +315,28 @@ function M.choices()
     return out
 end
 
+-- shelfChoices(cur) -> a shelf's theme list, in menu order: Same as library
+-- ({ same = true }), a missing pack the shelf still names (cur), the
+-- reader's own, Plain, every theme. ONE list for Theme > Each shelf, My
+-- theme's "This shelf" row and Shelf style's Theme row.
+function M.shelfChoices(cur)
+    local out = { { same = true, label = _("Same as library") } }
+    cur = normalise(cur)
+    if packOf(cur) and not M.theme(cur).exists then
+        out[#out + 1] = { value = cur, label = M.themeName(cur), missing = true }
+    end
+    for _i, c in ipairs(M.choices()) do out[#out + 1] = c end
+    return out
+end
+
+-- shelfChoiceLabel(choice) -> how menus name a shelf's own choice:
+-- "Same as library (Macabre)" when it follows the library.
+function M.shelfChoiceLabel(choice)
+    choice = normalise(choice)
+    if choice == nil then return T(_("Same as library (%1)"), M.themeName(M.libraryChoice())) end
+    return M.themeName(choice)
+end
+
 -- libraryChoice() -> what the library is set to ("mine" when unset), even a
 -- pack that has gone; libraryTheme() -> what it shows.
 function M.libraryChoice() return normalise(read(M.LIBRARY_SETTING)) or M.MINE end
@@ -366,6 +388,13 @@ end
 -- pack's folder: the tab's own choice (or its shelf of shelves').
 function M.shelfChoiceFor(id)
     return inherited(id, function(tab) return normalise(tab.theme) end)
+end
+
+-- ownChoice(id) -> what that shelf itself is set to: nil (same as the
+-- library), "mine", "plain" or a pack (not inherited).
+function M.ownChoice(id)
+    local tab = tabFor(id)
+    return tab and normalise(tab.theme) or nil
 end
 
 -- themeFor(id) -> the theme that shelf shows: "mine", "plain" or a pack.

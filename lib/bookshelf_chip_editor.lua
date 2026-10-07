@@ -2379,20 +2379,16 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                         UIManager:close(sub)
                         show()
                     end
-                    local list = { radio(_("Same as library"), cur() == nil, function()
-                        draft.theme = nil
-                        if on_change then on_change() end
-                        back()
-                    end) }
-                    local v0 = cur()
-                    if TP.packOf(v0) and not TP.theme(v0).exists then
-                        list[#list + 1] = radio(TP.themeName(v0), true, function() back() end)
-                    end
-                    for _i, c in ipairs(TP.choices()) do
+                    -- The list Theme > Each shelf and My theme's This shelf
+                    -- row show (TP.shelfChoices): one implementation.
+                    local list = {}
+                    for _i, c in ipairs(TP.shelfChoices(cur())) do
                         local value = c.value
                         list[#list + 1] = radio(c.label, cur() == value, function()
-                            draft.theme = value
-                            if on_change then on_change() end
+                            if not c.missing then
+                                draft.theme = value
+                                if on_change then on_change() end
+                            end
                             back()
                         end)
                     end

@@ -51,9 +51,11 @@ t.test("Shelf style has the shelf's Theme row, top-level shelves only, previewed
     pick = pick:gsub("%-%-[^\n]*", "")
     local row = pick:match("if draft%.parent == nil then(.-)\n        end\n")
     assert(row and row:find('_("Theme: %1")', 1, true), "no Theme row, or not limited to top-level shelves")
-    assert(row:find("TP.choices()", 1, true), "the row's list is not the Theme menu's")
-    assert(row:find("draft.theme = value", 1, true) and row:find("draft.theme = nil", 1, true),
-        "a pick does not reach the draft (Same as library clears it)")
+    assert(row:find("TP.shelfChoices(cur())", 1, true), "the row's list is not the one the menus share")
+    assert(row:find("draft.theme = value", 1, true), "a pick does not reach the draft")
+    local st = read("lib/bookshelf_settings.lua")
+    local one = st:match("function Settings:_oneShelfThemeItems%(id%)(.-)\nend\n")
+    assert(one and one:find("TP.shelfChoices(own())", 1, true), "Each shelf builds its own list again")
     local preview = ed:match("override%.ornament_frequency  = draft%.ornament_frequency(.-)TabModel%.setOverride")
     assert(preview and preview:find("override.theme               = draft.theme", 1, true),
         "the live preview does not carry the shelf's theme")

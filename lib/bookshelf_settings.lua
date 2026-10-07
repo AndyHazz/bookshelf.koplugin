@@ -1531,42 +1531,24 @@ end
 -- folder color, cover badge color, progress bookmark color all
 -- expected to land here as they ship. Greyscale devices get a
 -- nudge dialog (% black); color devices get the palette picker.
--- _themeCoverRow() -> the first row of the reader's own look when the theme
--- of the shelf on screen replaces some of it ("Macabre covers this shelf"),
--- else nil. One row, not a suffix on each: the suffixes made the menu run to
--- two pages on a PW5 and were cut short (maintainer, 2026-10-07). Its help
--- (and a tap) names the parts the theme replaces; the rows below stay the
--- reader's own.
-Settings.COVER_PARTS = {
-    { part = "look",      label = function() return _("Light or dark") end },
-    { part = "wallpaper", label = function() return _("Wallpaper") end },
-    { part = "page",      label = function() return _("Color behind wallpaper") end },
-    { part = "plank",     label = function() return _("Plank") end },
-    { part = "ornaments", label = function() return _("Ornaments") end },
-    { part = "colours",   label = function() return _("Colors") end },
-}
-function Settings:_themeCoverRow()
-    local ok, TP = pcall(require, "lib/bookshelf_theme_pack")
-    if not (ok and TP and TP.shelfTheme) then return nil end
-    local ok2, th = pcall(TP.shelfTheme)
-    if not ok2 or th == nil or th == TP.MINE then return nil end
-    local parts = {}
-    for _i, c in ipairs(Settings.COVER_PARTS) do
-        local ok3, covers = pcall(TP.brings, th, c.part)
-        if ok3 and covers then parts[#parts + 1] = c.label() end
-    end
-    if #parts == 0 then return nil end
-    local name = TP.themeName(th)
-    local help = T(_("On this shelf, %1 shows its own: %2.\n\nThe rows below are %3: they show on shelves without a theme, and changing them does not change this shelf."),
-                   name, table.concat(parts, ", "), TP.mineName())
+-- _thisShelfRow() -> My theme's first row: "This shelf: %1", what the shelf
+-- on screen wears, opening the same radio list as Theme > Each shelf (and
+-- Shelf style's Theme row): a route to change the theme of the shelf in view
+-- from where its look is edited (maintainer, 2026-10-07). A sub-shelf wears
+-- its shelf of shelves' theme, so the row is that shelf's. nil without a
+-- shelf on screen.
+function Settings:_thisShelfRow()
+    local bw = self._bw
+    local chip = bw and bw.chip
+    if not chip then return nil end
+    local TP = require("lib/bookshelf_theme_pack")
+    local ok, TabModel = pcall(require, "lib/bookshelf_tab_model")
+    local id = (ok and TabModel and TabModel.rootOf) and TabModel.rootOf(chip) or chip
     return {
-        text = T(_("%1 covers this shelf"), name),
-        help_text = help,
-        keep_menu_open = true,
-        callback = function()
-            local InfoMessage = require("ui/widget/infomessage")
-            UIManager:show(InfoMessage:new{ text = help })
+        text_func = function()
+            return T(_("This shelf: %1"), TP.shelfChoiceLabel(TP.ownChoice(id)))
         end,
+        sub_item_table_func = function() return self:_oneShelfThemeItems(id) end,
         separator = true,
     }
 end
@@ -1867,35 +1849,26 @@ end
 -- Same as library, then the same choices as the library's.
 function Settings:_oneShelfThemeItems(id)
     local TP = require("lib/bookshelf_theme_pack")
-    local TabModel = require("lib/bookshelf_tab_model")
-    local function own()
-        local t = TabModel.getById(id)
-        local v = t and t.theme
-        if v == "none" then v = TP.MINE end
-        return v
-    end
-    -- A new look for the shelf: built again, the whole screen refreshed.
+    local function own() return TP.ownChoice(id) end
+    -- A new look for the shelf: built again, the whole screen refreshed, and
+    -- this list's marks with it (the menu above re-reads its rows on Back).
     local function set(value, touchmenu_instance)
         self:_setShelfThemeField(id, "theme", value)
         self:_markDirty()
         UIManager:setDirty("all", "full")
         if touchmenu_instance then touchmenu_instance:updateItems() end
     end
-    local rows = { {
-        text = _("Same as library"), radio = true, keep_menu_open = true,
-        checked_func = function() return own() == nil end,
-        callback = function(touchmenu_instance)
-            if own() ~= nil then set(nil, touchmenu_instance) end
-        end,
-    } }
-    local cur = own()
-    if TP.packOf(cur) and not TP.theme(cur).exists then
-        rows[#rows + 1] = { text = TP.themeName(cur), radio = true, keep_menu_open = true,
-                            checked_func = function() return own() == cur end,
-                            callback = function() end }
-    end
-    for _i, r in ipairs(self:_themeRadios(function(v) return own() == v end, set)) do
-        rows[#rows + 1] = r
+    local rows = {}
+    for _i, c in ipairs(TP.shelfChoices(own())) do
+        local value = c.value
+        rows[#rows + 1] = {
+            text = c.label, help_text = c.help, radio = true, keep_menu_open = true,
+            checked_func = function() return own() == value end,
+            callback = function(touchmenu_instance)
+                if own() == value or c.missing then return end
+                set(value, touchmenu_instance)
+            end,
+        }
     end
     return rows
 end
@@ -2484,7 +2457,7 @@ function Settings:_backgroundSubItems()
     -- The colour menu opens on the slot the shelf on screen paints from.
     self:_shelfSlot()
     local rows = {}
-    rows[#rows + 1] = self:_themeCoverRow()       -- nil unless a theme covers some of it
+    rows[#rows + 1] = self:_thisShelfRow()
     rows[#rows + 1] = self:_lightDarkRow()
     for _i, row in ipairs(self:_wallpaperMenu()) do
         rows[#rows + 1] = row

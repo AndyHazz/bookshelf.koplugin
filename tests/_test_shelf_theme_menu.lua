@@ -19,8 +19,7 @@ local CODE = table.concat({
     grab("\n(Settings%.SHELF_THEMES = {.-\n})\n", "SHELF_THEMES"),
     grab("\n(function Settings:_shelfTheme%(%).-\nend)\n", "_shelfTheme"),
     grab("\n(function Settings:_shelfThemeLabel%(%).-\nend)\n", "_shelfThemeLabel"),
-    grab("\n(Settings%.COVER_PARTS = {.-\n})\n", "COVER_PARTS"),
-    grab("\n(function Settings:_themeCoverRow%(%).-\nend)\n", "_themeCoverRow"),
+    grab("\n(function Settings:_thisShelfRow%(%).-\nend)\n", "_thisShelfRow"),
     grab("\n(function Settings:_lightDarkRow%(%).-\nend)\n", "_lightDarkRow"),
     grab("\n(function Settings:_shelfThemeSubItems%(%).-\nend)\n", "_shelfThemeSubItems"),
     grab("\n(function Settings:_shelfThemeText%(%).-\nend)\n", "_shelfThemeText"),
@@ -64,17 +63,36 @@ local function build(packs, library, tabs, opts)
             return o
         end,
         libraryChoice = function() return library or "mine" end,
+        shelfChoiceLabel = function(v)
+            if v == nil then return "Same as library (" .. (library and by[library] and by[library].name or library or "My theme") .. ")" end
+            if v == "mine" then return "My theme" end
+            if v == "plain" then return "Plain" end
+            return by[v] and by[v].name or (v .. " (missing)")
+        end,
         setLibraryTheme = function(v)
             seen.chosen[#seen.chosen + 1] = v
             library = (v ~= "mine") and v or nil
         end,
         shelfTheme = function() return opts.on_screen or library or "mine" end,
+        ownChoice = function(id)
+            local v = tabs_by[id] and tabs_by[id].theme
+            if v == "none" then v = "mine" end
+            return v
+        end,
         brings = function(th, part)
             if th == "mine" then return false end
             if th == "plain" then return part ~= "look" end
             return by[th] and by[th].brings and by[th].brings[part] or false
         end,
     }
+    TP.shelfChoices = function(cur)
+        local o = { { same = true, label = "Same as library" } }
+        if cur and cur ~= "mine" and cur ~= "plain" and not by[cur] then
+            o[#o + 1] = { value = cur, label = cur .. " (missing)", missing = true }
+        end
+        for _i, c in ipairs(TP.choices()) do o[#o + 1] = c end
+        return o
+    end
     local env = setmetatable({
         Settings = {},
         _ = function(s) return s end,
@@ -96,7 +114,12 @@ local function build(packs, library, tabs, opts)
                              for _i, tb in ipairs(tabs) do if tb.enabled ~= false then on[#on + 1] = tb end end
                              return on
                          end,
-                         getById = function(id) return tabs_by[id] end }
+                         getById = function(id) return tabs_by[id] end,
+                         rootOf = function(id)
+                             local tb = tabs_by[id]
+                             while tb and tb.parent and tabs_by[tb.parent] do tb = tabs_by[tb.parent] end
+                             return tb and tb.id or id
+                         end }
             end
             if m == "lib/bookshelf_cover_progress" then return { THEME_SETTING = "shelf_theme" } end
             if m == "ui/widget/infomessage" then return { new = function(_s, o) return o end } end
@@ -241,30 +264,36 @@ t.test("Light or dark: Auto (follow night mode), Light, Dark; the theme's own na
         "a theme on screen puts a suffix on the row again")
 end)
 
-t.test("one row says when the shelf on screen's theme covers the reader's own; its help names the parts", function()
-    local self, S = build({ MAC, AUT }, nil, nil, { on_screen = "Autumn" })
-    local row = S._themeCoverRow(self)
-    eq(row.text, "Autumn covers this shelf")
-    eq(row.help_text, "On this shelf, Autumn shows its own: Ornaments.\n\nThe rows below are My theme: "
-        .. "they show on shelves without a theme, and changing them does not change this shelf.")
+local function onShelf(self, id) self._bw = { chip = id } return self end
+
+t.test("My theme's first row names what the shelf on screen wears and opens its theme list", function()
+    local tabs = { { id = "home", label = "Home" }, { id = "rec", label = "Recent", theme = "plain" },
+                   { id = "sub", label = "Sub", parent = "rec" } }
+    local self, S, seen, by = build({ MAC, UK }, "Macabre", tabs)
+    local row = S._thisShelfRow(onShelf(self, "home"))
+    eq(row.text_func(), "This shelf: Same as library (Macabre)")
     eq(row.separator, true)
-    local self2, S2 = build({ MAC }, nil, nil, { on_screen = "Macabre" })
-    assert(S2._themeCoverRow(self2).help_text:find(": Light or dark, Wallpaper, Plank, Ornaments.", 1, true))
-    local self3, S3 = build({ MAC }, nil, nil, { on_screen = "mine" })
-    eq(S3._themeCoverRow(self3), nil, "the reader's own on screen: no row")
-    local UK2 = { pack = "Bare", name = "Bare" }                     -- brings nothing
-    local self4, S4 = build({ UK2 }, nil, nil, { on_screen = "Bare" })
-    eq(S4._themeCoverRow(self4), nil, "a theme that covers nothing: no row")
-    local self5, S5 = build({}, nil, nil, { on_screen = "plain" })
-    assert(S5._themeCoverRow(self5).text == "Plain covers this shelf")
+    local list = row.sub_item_table_func()
+    eq(texts(list), "Same as library | My theme | Plain | Macabre | Ukiyo-e", "not the Each shelf list")
+    local updated = 0
+    list[2].callback({ updateItems = function() updated = updated + 1 end })
+    eq(by.home.theme, "mine"); eq(by.rec.theme, "plain", "another shelf changed")
+    eq(seen.saves, 0, "the shelf's theme wrote the reader's own look")
+    eq(seen.dirty, 1, "the shelf was not rebuilt"); eq(seen.full, 1); eq(updated, 1)
+    eq(row.text_func(), "This shelf: My theme", "the row did not follow the choice")
+    eq(S._thisShelfRow(onShelf(self, "rec")).text_func(), "This shelf: Plain")
+    eq(S._thisShelfRow(onShelf(self, "sub")).text_func(), "This shelf: Plain",
+        "a sub-shelf wears its shelf of shelves' theme: the row is that shelf's")
+    self._bw = nil
+    eq(S._thisShelfRow(self), nil, "no shelf on screen: no row")
 end)
 
 t.test("no row of the reader's own carries a per-row theme suffix any more", function()
     local body = src:gsub("%-%-[^\n]*", "")
     assert(not body:find("on this shelf)", 1, true), "a per-row suffix is back")
     local bg = body:match("function Settings:_backgroundSubItems%(%)(.-)\nend\n")
-    assert(bg and bg:find("self:_themeCoverRow()", 1, true), "the cover row is not in the menu")
-    assert(bg:find("_themeCoverRow", 1, true) < bg:find("_lightDarkRow", 1, true), "the cover row is not first")
+    assert(bg and bg:find("self:_thisShelfRow()", 1, true), "the This shelf row is not in the menu")
+    assert(not src:find("covers this shelf", 1, true), "the info row is back")
 end)
 
 t.done()

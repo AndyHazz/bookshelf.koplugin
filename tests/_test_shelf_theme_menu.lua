@@ -1,9 +1,10 @@
 -- tests/_test_shelf_theme_menu.lua
 -- The Theme menu (maintainer, 2026-10-07): Each shelf first, then the
--- library's theme -- the reader's own, Plain, each theme -- then Get more
--- themes. Choosing a theme writes ONE key and nothing of the reader's own
--- look; a shelf's menu is one radio list starting with Same as library. Built
--- each time it opens, after a rescan, so a pack copied in since start-up shows.
+-- library's row. Every theme is chosen in the Theme library
+-- (bookshelf_theme_library, its own suite): the library's, each shelf's from
+-- Each shelf and from My theme's This shelf row. Choosing writes ONE key and
+-- nothing of the reader's own look. Built each time it opens, after a
+-- rescan, so a pack copied in since start-up is counted.
 -- Usage (from plugin root): lua tests/_test_shelf_theme_menu.lua
 package.path = "./?.lua;./?/init.lua;" .. package.path
 local H = dofile("tests/_helpers.lua")
@@ -28,17 +29,16 @@ local CODE = table.concat({
     grab("\n(function Settings:_setShelfThemeField%(id, field, value%).-\nend)\n", "_setShelfThemeField"),
     grab("\n(function Settings:_shelvesDiffer%(%).-\nend)\n", "_shelvesDiffer"),
     grab("\n(function Settings:_shelfThemeLabelFor%(tab%).-\nend)\n", "_shelfThemeLabelFor"),
-    grab("\n(function Settings:_themeRadios%(checked, choose%).-\nend)\n", "_themeRadios"),
-    grab("\n(function Settings:_oneShelfThemeItems%(id%).-\nend)\n", "_oneShelfThemeItems"),
+    grab("\n(function Settings:_openThemeLibrary%(id, touchmenu_instance%).-\nend)\n", "_openThemeLibrary"),
     grab("\n(function Settings:_perShelfThemesRow%(%).-\nend)\n", "_perShelfThemesRow"),
-    grab("\n(function Settings:_addThemeRow%(%).-\nend)\n", "_addThemeRow"),
 }, "\n")
 
 -- build(packs, library, tabs, opts) -> the menu's rows and what the stubs saw.
 -- packs: { pack, name, description, ornaments_only, brings = { part = true } }
 local function build(packs, library, tabs, opts)
     opts = opts or {}
-    local seen = { rescans = 0, chosen = {}, toasts = {}, dirty = 0, full = 0, store = {}, saves = 0 }
+    local seen = { rescans = 0, chosen = {}, toasts = {}, dirty = 0, full = 0, store = {}, saves = 0,
+                   opened = {}, hidden = 0, restored = 0 }
     tabs = tabs or { { id = "home", label = "Home" }, { id = "manga", label = "Manga" } }
     local tabs_by = {}
     for _i, tb in ipairs(tabs) do tabs_by[tb.id] = tb end
@@ -62,7 +62,7 @@ local function build(packs, library, tabs, opts)
             local o = { { value = "mine", label = "My theme" }, { value = "plain", label = "Plain" } }
             for _i, p in ipairs(packs) do
                 o[#o + 1] = { value = p.pack, help = p.description,
-                              label = p.ornaments_only and (p.name .. " (ornaments only)") or p.name }
+                              label = p.name }
             end
             return o
         end,
@@ -125,6 +125,9 @@ local function build(packs, library, tabs, opts)
                              return tb and tb.id or id
                          end }
             end
+            if m == "lib/bookshelf_theme_library" then
+                return { show = function(o) seen.opened[#seen.opened + 1] = o; return o end }
+            end
             if m == "lib/bookshelf_cover_progress" then return { THEME_SETTING = "shelf_theme" } end
             if m == "ui/widget/infomessage" then return { new = function(_s, o) return o end } end
             if m == "lib/bookshelf_ornaments" then return { dir = function() return "settings/bookshelf/ornaments" end } end
@@ -135,7 +138,11 @@ local function build(packs, library, tabs, opts)
     local chunk = assert((loadstring or load)(CODE, "=menu", "t", env))
     if setfenv then setfenv(chunk, env) end
     chunk()
-    local self = setmetatable({ _markDirty = function() seen.dirty = seen.dirty + 1 end },
+    local self = setmetatable({ _markDirty = function() seen.dirty = seen.dirty + 1 end,
+                                _hidePickerMenu = function()
+                                    seen.hidden = seen.hidden + 1
+                                    return function() seen.restored = seen.restored + 1 end
+                                end },
                               { __index = env.Settings })
     return self, env.Settings, seen, tabs_by
 end
@@ -143,7 +150,7 @@ end
 local MAC = { pack = "Macabre", name = "Macabre", description = "Candles and skulls.",
               brings = { wallpaper = true, plank = true, look = true, ornaments = true } }
 local UK  = { pack = "Ukiyo-e", name = "Ukiyo-e" }
-local AUT = { pack = "Autumn", name = "Autumn", ornaments_only = true, brings = { ornaments = true } }
+local AUT = { pack = "Autumn", name = "Autumn", brings = { ornaments = true } }
 
 local function texts(rows)
     local o = {}
@@ -151,66 +158,42 @@ local function texts(rows)
     return table.concat(o, " | ")
 end
 
-t.test("the menu: Each shelf (set apart), the reader's own, Plain, each theme, then Add theme pack", function()
-    local self, S, seen = build({ MAC, UK, AUT }, nil)
+t.test("the Theme menu: Each shelf (set apart), then the library's row, which opens the Theme library", function()
+    local self, S, seen = build({ MAC, UK, AUT }, "Macabre")
     local rows = S._shelfThemeSubItems(self)
-    eq(texts(rows), "Each shelf: all the same | My theme | Plain | Macabre | Ukiyo-e | Autumn (ornaments only)"
-        .. " | Add theme pack\xE2\x80\xA6")
+    eq(texts(rows), "Each shelf: all the same | Library: Macabre")
     eq(rows[1].separator, true, "Each shelf is set apart")
-    eq(rows[#rows - 1].separator, true, "Add theme pack is set apart")
     eq(seen.rescans, 1, "opening the menu did not rescan the packs")
-    eq(rows[2].checked_func(), true, "no library theme: the reader's own is checked")
-    eq(rows[4].help_text, "Candles and skulls.", "a theme's description is its help")
+    eq(rows[2].radio, nil, "a radio list again"); eq(rows[2].keep_menu_open, true)
+    rows[2].callback({})
+    local o = seen.opened[1]
+    assert(o, "the library's row did not open the Theme library")
+    eq(o.shelf, nil, "the library's picker opened as a shelf's")
+    eq(o.current(), "Macabre")
+    eq(seen.hidden, 1, "the menu stayed over the shelf"); o.on_closed(); eq(seen.restored, 1)
 end)
 
-t.test("with no packs: the reader's own and Plain are still there", function()
-    local self, S = build({}, nil)
-    eq(texts(S._shelfThemeSubItems(self)), "Each shelf: all the same | My theme | Plain | Add theme pack\xE2\x80\xA6")
-end)
-
-t.test("choosing a theme writes the library's theme and nothing else; the whole screen refreshes", function()
+t.test("choosing for the library writes the library's theme and nothing else, and rebuilds the shelf", function()
     local self, S, seen = build({ MAC, UK }, nil)
-    local rows = S._shelfThemeSubItems(self)
-    rows[4].callback()
+    S._shelfThemeSubItems(self)[2].callback({})
+    local o = seen.opened[1]
+    eq(o.current(), "mine")
+    o.choose("Macabre")
     eq(table.concat(seen.chosen, ","), "Macabre")
     eq(seen.saves, 0, "choosing a theme wrote a setting of the reader's own look")
-    eq(seen.full, 1, "a theme is the whole look: full refresh")
-    eq(seen.toasts[1], "Macabre theme on")
-    eq(rows[4].checked_func(), true)
-    rows[4].callback()
-    eq(#seen.chosen, 1, "choosing the checked theme again did something")
-    rows[2].callback()
-    eq(seen.chosen[2], "mine")
-    eq(seen.toasts[2], "Theme off")
-    rows[3].callback()
-    eq(seen.toasts[3], "Plain theme on")
+    eq(seen.dirty, 1, "the shelf was not rebuilt")
+    eq(o.current(), "Macabre", "the picker's mark does not follow the choice")
+    eq(#seen.toasts, 0, "a toast over the picker again")
+    o.choose("mine"); eq(seen.chosen[2], "mine")
 end)
 
-t.test("a library theme whose pack has gone is listed, checked", function()
-    local self, S = build({ UK }, "Macabre")
-    local rows = S._shelfThemeSubItems(self)
-    eq(rows[2].text, "Macabre (missing)")
-    eq(rows[2].checked_func(), true)
-end)
-
-t.test("Add theme pack ends every theme list and says where theme packs go", function()
-    -- Maintainer, 2026-10-07: anywhere there is a list of themes, with the
-    -- popup it had before (folder + shop link).
-    local self, S, seen = build({ MAC }, nil)
-    local rows = S._shelfThemeSubItems(self)
-    eq(rows[#rows].text, "Add theme pack\xE2\x80\xA6"); rows[#rows].callback()
-    eq(seen.add_info, 1, "the library's list does not open the popup")
-    local one = S._oneShelfThemeItems(self, "home")
-    eq(one[#one].text, "Add theme pack\xE2\x80\xA6", "a shelf's list has no Add theme pack")
-    eq(one[#one - 1].separator, true); one[#one].callback()
-    eq(seen.add_info, 2)
-    local tp = io.open("lib/bookshelf_theme_pack.lua"):read("*a")
-    local fn = tp:match("function M%.showAddThemeInfo%(%).-\nend")
-    assert(fn and fn:find("copy its folder into", 1, true) and fn:find('"ko-fi.com/andyhazz/shop")', 1, true),
-        "the popup lost its folder or its shop link (as a parameter)")
-    local ce = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
-    assert(ce:find("text = TP.addThemeLabel(), callback = function() TP.showAddThemeInfo() end", 1, true),
-        "Shelf style's Theme list has no Add theme pack")
+t.test("no theme list of its own in any menu: no radio rows, no Add theme pack row", function()
+    local body = src:gsub("%-%-[^\n]*", "")
+    assert(not body:find("_themeRadios", 1, true) and not body:find("_oneShelfThemeItems", 1, true),
+        "a menu builds its own theme list again")
+    assert(not body:find("TP.addThemeLabel()", 1, true), "Add theme pack is a menu row again (it is the picker's)")
+    local ce = io.open("lib/bookshelf_chip_editor.lua"):read("*a"):gsub("%-%-[^\n]*", "")
+    assert(not ce:find("TP.shelfChoices", 1, true), "Shelf style builds its own theme list again")
 end)
 
 t.test("the top-level row names the library's theme; the help names the reader's own", function()
@@ -230,42 +213,39 @@ t.test("Each shelf counts the shelves with a theme of their own, and lists each"
     eq(texts(rows[1].sub_item_table_func()), "Home: same as library | Manga: Ukiyo-e | Recent: My theme")
 end)
 
-t.test("a shelf's menu is one radio list: Same as library, the reader's own, Plain, each theme", function()
-    local tabs = { { id = "home", label = "Home" } }
+t.test("a shelf's row opens that shelf's Theme library; a choice writes that shelf only", function()
+    local tabs = { { id = "home", label = "Home" }, { id = "manga", label = "Manga", theme = "Ukiyo-e" } }
     local self, S, seen, by = build({ MAC, UK }, "Macabre", tabs)
-    local rows = S._oneShelfThemeItems(self, "home")
-    eq(texts(rows), "Same as library | My theme | Plain | Macabre | Ukiyo-e | Add theme pack\xE2\x80\xA6")
-    for i = 1, #rows - 1 do                     -- the last is Add theme pack
-        local r = rows[i]
-        eq(r.radio, true, "a checkbox again: " .. tostring(r.text))
-        eq(r.enabled_func, nil, "greyed rows again: " .. tostring(r.text))
-    end
-    eq(rows[1].checked_func(), true, "a shelf with nothing of its own is Same as library")
-    eq(rows[4].checked_func(), false, "following the library is not the same as choosing its theme")
-    rows[3].callback()
+    local rows = S._shelfThemeSubItems(self)[1].sub_item_table_func()
+    eq(rows[1].sub_item_table_func, nil, "a radio submenu again"); eq(rows[1].keep_menu_open, true)
+    rows[1].callback({})
+    local o = seen.opened[1]
+    eq(o.shelf, "Home", "the picker is not titled for the shelf")
+    eq(o.current(), nil, "a shelf with nothing of its own is Same as library")
+    o.choose("plain")
     eq(by.home.theme, "plain", "Plain was not written to the shelf")
+    eq(by.manga.theme, "Ukiyo-e", "another shelf changed")
     eq(seen.saves, 0, "choosing a shelf's theme wrote the reader's own look")
-    eq(seen.full, 1)
-    rows[1].callback()
+    eq(seen.dirty, 1, "the shelf was not rebuilt")
+    eq(o.current(), "plain")
+    o.choose(nil)
     eq(by.home.theme, nil, "Same as library did not clear the shelf's own")
 end)
 
-t.test("rc/5.4's 'none' reads as the reader's own; a missing pack is listed, checked", function()
-    local tabs = { { id = "a", label = "A", theme = "none" }, { id = "b", label = "B", theme = "Gone" } }
-    local self, S = build({ UK }, nil, tabs)
-    local a = S._oneShelfThemeItems(self, "a")
-    eq(a[2].text, "My theme"); eq(a[2].checked_func(), true)
-    local b = S._oneShelfThemeItems(self, "b")
-    eq(b[2].text, "Gone (missing)"); eq(b[2].checked_func(), true)
+t.test("rc/5.4's 'none' reads as the reader's own in a shelf's picker", function()
+    local tabs = { { id = "a", label = "A", theme = "none" } }
+    local self, S, seen = build({ UK }, nil, tabs)
+    S._shelfThemeSubItems(self)[1].sub_item_table_func()[1].callback({})
+    eq(seen.opened[1].current(), "mine")
 end)
 
-t.test("opening another shelf's theme menu shows that shelf behind it", function()
-    local self, S = build({ UK }, nil)
+t.test("opening another shelf's picker shows that shelf behind it", function()
+    local self, S, seen = build({ UK }, nil)
     local switched
     self._bw = { chip = "home", _setActiveChip = function(_bw, id) switched = id end }
     local rows = S._shelfThemeSubItems(self)[1].sub_item_table_func()
-    rows[2].sub_item_table_func()
-    eq(switched, "manga")
+    rows[2].callback({})
+    eq(switched, "manga"); eq(seen.opened[1].shelf, "Manga")
 end)
 
 t.test("Light or dark: Auto (follow night mode), Light, Dark; the theme's own named when it sets it", function()
@@ -290,23 +270,27 @@ t.test("My theme's first row names what the shelf on screen wears and opens its 
     local row = S._thisShelfRow(onShelf(self, "home"))
     eq(row.text_func(), "This shelf: Same as library (Macabre)")
     eq(row.separator, true)
-    local list = row.sub_item_table_func()
-    eq(texts(list), "Same as library | My theme | Plain | Macabre | Ukiyo-e | Add theme pack\xE2\x80\xA6", "not the Each shelf list")
-    local updated = 0
-    list[2].callback({ updateItems = function() updated = updated + 1 end })
+    eq(row.sub_item_table_func, nil, "a radio submenu again")
+    row.callback({})
+    local o = seen.opened[1]
+    assert(o, "the row did not open the Theme library"); eq(o.shelf, "Home")
+    o.choose("mine")
     eq(by.home.theme, "mine"); eq(by.rec.theme, "plain", "another shelf changed")
     eq(seen.saves, 0, "the shelf's theme wrote the reader's own look")
-    eq(seen.dirty, 1, "the shelf was not rebuilt"); eq(seen.full, 1); eq(updated, 1)
+    eq(seen.dirty, 1, "the shelf was not rebuilt")
+    o.on_closed(); eq(seen.restored, 1, "the menu did not come back")
     eq(row.text_func(), "This shelf: My theme", "the row did not follow the choice")
     eq(S._thisShelfRow(onShelf(self, "rec")).text_func(), "This shelf: Plain")
-    eq(S._thisShelfRow(onShelf(self, "sub")).text_func(), "This shelf: Plain",
+    local sub = S._thisShelfRow(onShelf(self, "sub"))
+    eq(sub.text_func(), "This shelf: Plain",
         "a sub-shelf wears its shelf of shelves' theme: the row is that shelf's")
+    sub.callback({}); eq(seen.opened[2].shelf, "Recent", "a sub-shelf's row opened the sub-shelf's picker")
     self._bw = nil
     eq(S._thisShelfRow(self), nil, "no shelf on screen: no row")
 end)
 
 t.test("a row of the reader's own is greyed while the theme on screen replaces its part", function()
-    local AUT2 = { pack = "Autumn", name = "Autumn", ornaments_only = true, brings = { ornaments = true } }
+    local AUT2 = { pack = "Autumn", name = "Autumn", brings = { ornaments = true } }
     local self, S = build({ MAC, AUT2 }, nil, nil, { on_screen = "Autumn" })
     eq(S._themeCovered(self, "ornaments")(), false, "Autumn deals its own pieces")
     eq(S._themeCovered(self, "wallpaper")(), true, "Autumn brings no wallpaper")

@@ -1532,11 +1532,11 @@ end
 -- expected to land here as they ship. Greyscale devices get a
 -- nudge dialog (% black); color devices get the palette picker.
 -- _thisShelfRow() -> My theme's first row: "This shelf: %1", what the shelf
--- on screen wears, opening the same radio list as Theme > Each shelf (and
--- Shelf style's Theme row): a route to change the theme of the shelf in view
--- from where its look is edited (maintainer, 2026-10-07). A sub-shelf wears
--- its shelf of shelves' theme, so the row is that shelf's. nil without a
--- shelf on screen.
+-- on screen wears, opening its Theme library as Theme > Each shelf (and
+-- Shelf style's Theme row) do: a route to change the theme of the shelf in
+-- view from where its look is edited (maintainer, 2026-10-07). A sub-shelf
+-- wears its shelf of shelves' theme, so the row is that shelf's. nil without
+-- a shelf on screen.
 function Settings:_thisShelfRow()
     local bw = self._bw
     local chip = bw and bw.chip
@@ -1548,7 +1548,8 @@ function Settings:_thisShelfRow()
         text_func = function()
             return T(_("This shelf: %1"), TP.shelfChoiceLabel(TP.ownChoice(id)))
         end,
-        sub_item_table_func = function() return self:_oneShelfThemeItems(id) end,
+        keep_menu_open = true,
+        callback = function(touchmenu_instance) self:_openThemeLibrary(id, touchmenu_instance) end,
         separator = true,
     }
 end
@@ -1844,62 +1845,36 @@ function Settings:_shelfThemeLabelFor(tab)
     return T(_("%1: %2"), label, require("lib/bookshelf_theme_pack").themeName(tab.theme))
 end
 
--- _themeRadios(checked, choose) -> the radio rows of a theme list: the
--- reader's own, Plain, each theme. checked(value) / choose(value).
-function Settings:_themeRadios(checked, choose)
-    local rows = {}
-    for _i, c in ipairs(require("lib/bookshelf_theme_pack").choices()) do
-        local value = c.value
-        rows[#rows + 1] = {
-            text = c.label, help_text = c.help, radio = true, keep_menu_open = true,
-            checked_func = function() return checked(value) end,
-            callback = function(touchmenu_instance)
-                if checked(value) then return end
-                choose(value, touchmenu_instance)
-            end,
-        }
-    end
-    return rows
-end
-
--- _addThemeRow(): "Add theme pack...", the last row of every theme list.
-function Settings:_addThemeRow()
+-- _openThemeLibrary(id, touchmenu_instance): the Theme library
+-- (bookshelf_theme_library), the one picker every theme is chosen in: the
+-- library's when id is nil, else that shelf's. The menu steps aside while it
+-- is open, so a choice is seen on the shelf behind, and comes back after
+-- with its rows refreshed. Choosing writes ONE key (library_theme, or the
+-- shelf's tab.theme) and rebuilds the shelf: a theme is a layer over the
+-- reader's own look, never written into it (maintainer, 2026-10-07).
+function Settings:_openThemeLibrary(id, touchmenu_instance)
     local TP = require("lib/bookshelf_theme_pack")
-    return { text = TP.addThemeLabel(), keep_menu_open = true,
-             callback = function() TP.showAddThemeInfo() end }
+    local opts = { on_closed = self:_hidePickerMenu(touchmenu_instance) }
+    if id then
+        local tab = require("lib/bookshelf_tab_model").getById(id)
+        opts.shelf = (tab and tab.label) or id
+        opts.current = function() return TP.ownChoice(id) end
+        opts.choose = function(value)
+            self:_setShelfThemeField(id, "theme", value)
+            self:_markDirty()
+        end
+    else
+        opts.current = function() return TP.libraryChoice() end
+        opts.choose = function(value)
+            TP.setLibraryTheme(value)
+            self:_markDirty()
+        end
+    end
+    return require("lib/bookshelf_theme_library").show(opts)
 end
 
--- _oneShelfThemeItems(id): the theme menu for one shelf, one radio list:
--- Same as library, then the same choices as the library's, then Add theme pack.
-function Settings:_oneShelfThemeItems(id)
-    local TP = require("lib/bookshelf_theme_pack")
-    local function own() return TP.ownChoice(id) end
-    -- A new look for the shelf: built again, the whole screen refreshed, and
-    -- this list's marks with it (the menu above re-reads its rows on Back).
-    local function set(value, touchmenu_instance)
-        self:_setShelfThemeField(id, "theme", value)
-        self:_markDirty()
-        UIManager:setDirty("all", "full")
-        if touchmenu_instance then touchmenu_instance:updateItems() end
-    end
-    local rows = {}
-    for _i, c in ipairs(TP.shelfChoices(own())) do
-        local value = c.value
-        rows[#rows + 1] = {
-            text = c.label, help_text = c.help, radio = true, keep_menu_open = true,
-            checked_func = function() return own() == value end,
-            callback = function(touchmenu_instance)
-                if own() == value or c.missing then return end
-                set(value, touchmenu_instance)
-            end,
-        }
-    end
-    rows[#rows].separator = true
-    rows[#rows + 1] = self:_addThemeRow()
-    return rows
-end
-
--- _perShelfThemesRow(): "Each shelf", a row per enabled shelf.
+-- _perShelfThemesRow(): "Each shelf", a row per enabled shelf, each opening
+-- that shelf's Theme library.
 function Settings:_perShelfThemesRow()
     return {
         -- How many enabled shelves wear a theme of their own: here, not on
@@ -1921,13 +1896,14 @@ function Settings:_perShelfThemesRow()
                     text_func = function()
                         return self:_shelfThemeLabelFor(TabModel.getById(id) or t)
                     end,
-                    sub_item_table_func = function()
-                        -- Show that shelf behind the menu, so a change is
-                        -- seen as it is made; it stays on screen after
+                    keep_menu_open = true,
+                    callback = function(touchmenu_instance)
+                        -- That shelf behind the picker, so a change is seen
+                        -- as it is made; it stays on screen after
                         -- (maintainer, 2026-10-04).
                         local bw = self._bw
                         if bw and bw.chip ~= id and bw._setActiveChip then bw:_setActiveChip(id) end
-                        return self:_oneShelfThemeItems(id)
+                        self:_openThemeLibrary(id, touchmenu_instance)
                     end,
                 }
             end
@@ -1936,39 +1912,23 @@ function Settings:_perShelfThemesRow()
     }
 end
 
--- The Theme menu: Each shelf first, then the library's theme (the reader's
--- own, Plain, each theme), then Add theme pack. Built each time it opens,
--- after a rescan, so a pack copied in since start-up shows without a restart.
+-- The Theme menu: Each shelf first (maintainer, 2026-10-07: which shelves
+-- differ is the first thing to know before changing the library's), then
+-- the library's own row, which opens the Theme library. Two rows rather than
+-- the top-level row opening the picker itself: Each shelf keeps its place
+-- as a menu, with nothing new to learn. Built each time it opens, after a
+-- rescan, so a pack copied in since start-up is counted.
 function Settings:_shelfThemeSubItems()
     local TP = require("lib/bookshelf_theme_pack")
     TP.rescan()
     local rows = {}
-    -- Each shelf first (maintainer, 2026-10-07): which shelves differ is the
-    -- first thing to know before changing the library's.
     rows[1] = self:_perShelfThemesRow()
     rows[1].separator = true
-    -- A theme is the whole look: the shelf is built again and the whole
-    -- screen refreshed.
-    local function choose(value, touchmenu_instance)
-        TP.setLibraryTheme(value)
-        self:_markDirty()
-        UIManager:setDirty("all", "full")
-        local InfoMessage = require("ui/widget/infomessage")
-        UIManager:show(InfoMessage:new{ timeout = 2,
-            text = value == TP.MINE and _("Theme off") or T(_("%1 theme on"), TP.themeName(value)) })
-        if touchmenu_instance then touchmenu_instance:updateItems() end
-    end
-    local cur = TP.libraryChoice()
-    if TP.packOf(cur) and not TP.theme(cur).exists then
-        rows[#rows + 1] = { text = TP.themeName(cur), radio = true, keep_menu_open = true,
-                            checked_func = function() return TP.libraryChoice() == cur end,
-                            callback = function() end }
-    end
-    for _i, r in ipairs(self:_themeRadios(function(v) return TP.libraryChoice() == v end, choose)) do
-        rows[#rows + 1] = r
-    end
-    rows[#rows].separator = true
-    rows[#rows + 1] = self:_addThemeRow()
+    rows[2] = {
+        text_func = function() return T(_("Library: %1"), TP.themeName(TP.libraryChoice())) end,
+        keep_menu_open = true,
+        callback = function(touchmenu_instance) self:_openThemeLibrary(nil, touchmenu_instance) end,
+    }
     return rows
 end
 

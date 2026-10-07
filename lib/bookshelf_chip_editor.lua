@@ -2354,11 +2354,13 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                 end),
             }}
         end
-        -- Theme: the shelf's own, from the same list as the Theme menu's
-        -- Each shelf (maintainer, 2026-10-07: readers who think "this shelf"
-        -- start here). Top-level shelves only: a sub-shelf wears its shelf
-        -- of shelves' theme (ruling, 2026-10-05). Its own list, a dialog in
-        -- place of this one, and back here after a pick.
+        -- Theme: the shelf's own, in the Theme library, the one picker the
+        -- Theme menu's Each shelf and My theme's This shelf row open too
+        -- (maintainer, 2026-10-07: readers who think "this shelf" start
+        -- here). Top-level shelves only: a sub-shelf wears its shelf of
+        -- shelves' theme (ruling, 2026-10-05). A pick goes into the draft
+        -- and is previewed on the shelf behind (on_change); this dialog
+        -- comes back, its row updated, when the picker closes.
         if draft.parent == nil then
             local TP = require("lib/bookshelf_theme_pack")
             local function cur()
@@ -2373,36 +2375,15 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                 end,
                 callback = function()
                     UIManager:close(d)
-                    TP.rescan()
-                    local sub
-                    local function back()
-                        UIManager:close(sub)
-                        show()
-                    end
-                    -- The list Theme > Each shelf and My theme's This shelf
-                    -- row show (TP.shelfChoices): one implementation.
-                    local list = {}
-                    for _i, c in ipairs(TP.shelfChoices(cur())) do
-                        local value = c.value
-                        list[#list + 1] = radio(c.label, cur() == value, function()
-                            if not c.missing then
-                                draft.theme = value
-                                if on_change then on_change() end
-                            end
-                            back()
-                        end)
-                    end
-                    local buttons = {}
-                    for _i, r in ipairs(list) do buttons[#buttons + 1] = { r } end
-                    -- Add theme pack...: as at the end of every theme list.
-                    buttons[#buttons + 1] = {{ text = TP.addThemeLabel(), callback = function() TP.showAddThemeInfo() end }}
-                    buttons[#buttons + 1] = {{ text = _("Back"), callback = back }}
-                    sub = ButtonDialog:new{
-                        title = _("Theme"), title_align = "center", buttons = buttons,
-                        anchor = _highAnchor(function() return sub end),
-                        tap_close_callback = function() show() end,
+                    require("lib/bookshelf_theme_library").show{
+                        shelf = draft.label or "",
+                        current = cur,
+                        choose = function(value)
+                            draft.theme = value
+                            if on_change then on_change() end
+                        end,
+                        on_closed = show,
                     }
-                    UIManager:show(sub)
                 end,
             }}
         end

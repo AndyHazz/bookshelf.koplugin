@@ -7,8 +7,8 @@ row) and Shelf style's Theme row.
 
 A card: the theme's name, what it brings ("Wallpaper · Plank · 55 ornaments ·
 Dark", only the parts it has), its theme.json description when there is one,
-and its hero ornament at the right end (theme.json "hero", else its first
-piece by name). A heavier frame on a light ground marks the choice in use. A tap chooses, the shelf
+and its hero ornament at the right end (theme.json "hero", else its newest
+piece switched on). A heavier frame on a light ground marks the choice in use. A tap chooses, the shelf
 behind is rebuilt with a full refresh, and the picker stays open with the
 mark moved, as the plank and wallpaper pickers do; Close (or a tap outside,
 or Back) when done.
@@ -89,29 +89,44 @@ function TL.summary(theme)
 end
 
 -- hero(theme) -> the ornament entry a theme's card shows, or nil. A pack:
--- its theme.json "hero" (a piece's file stem, any case), else its first
--- piece by name. The reader's own: their first loose piece (the ones no
--- theme deals), else the first they have on. Plain: none.
+-- its theme.json "hero" (a piece's file stem, any case) unless that piece is
+-- switched off; else its most recently added or changed piece (file mtime)
+-- that is switched on. My theme: the most recent piece the reader has on
+-- (the collection, loose pieces included). Plain: none. Pieces switched off
+-- are skipped (the starter cacti, maintainer 2026-10-07). Cached per theme
+-- while the scan and the off switches are unchanged, so the files are
+-- stat'ed once, not per paint.
+TL._hero_cache = {}
 function TL.hero(theme)
     local tp, orn = TP(), O()
     if theme == tp.PLAIN then return nil end
-    if theme == nil or theme == tp.MINE then
-        local list = orn.list() or {}
-        for _i, e in ipairs(list) do
-            if not e.pack then return e end
-        end
-        return list[1]
+    local all = orn.listAll() or {}
+    local mine = (theme == nil or theme == tp.MINE)
+    local pool = mine and (orn.list() or {}) or all
+    local key = tostring(theme) .. "|" .. tostring(all) .. "|" .. tostring(orn.list())
+    local hit = TL._hero_cache[key]
+    if hit ~= nil then return hit or nil end
+    local want
+    if not mine then
+        local m = tp.theme(theme).manifest
+        want = m and m.hero and m.hero:lower()
     end
-    local m = tp.theme(theme).manifest
-    local want = m and m.hero and m.hero:lower()
-    local first
-    for _i, e in ipairs(orn.listAll() or {}) do
-        if e.pack == theme then
-            if want and orn.displayName(e):lower() == want then return e end
-            first = first or e
+    local lfs_ok, lfs = pcall(require, "libs/libkoreader-lfs")
+    local function mtime(e)
+        local t = lfs_ok and lfs and e.path and lfs.attributes(e.path, "modification")
+        return tonumber(t) or 0
+    end
+    local best, best_t
+    for _i, e in ipairs(pool) do
+        if (mine or e.pack == theme) and not orn.isOff(e.name) then
+            if want and orn.displayName(e):lower() == want then best = e; break end
+            local t = mtime(e)
+            -- Newest first; a tie keeps the earlier by name (the list's order).
+            if not best or t > best_t then best, best_t = e, t end
         end
     end
-    return first
+    TL._hero_cache[key] = best or false
+    return best
 end
 
 -- items(ctx) -> the cards, in menu order. ctx.shelf: a shelf's picker (Same

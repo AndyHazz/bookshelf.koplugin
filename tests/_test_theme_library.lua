@@ -57,7 +57,15 @@ function TP.showAddThemeInfo() TP.add_info = (TP.add_info or 0) + 1 end
 
 -- The ornament scan: names and headers only. Rendering must not happen while
 -- the cards are listed.
-local function piece(pack, file) return { pack = pack, file = file, name = (pack and (pack .. "/") or "") .. file } end
+local function piece(pack, file) return { pack = pack, file = file, name = (pack and (pack .. "/") or "") .. file,
+                                          path = "/o/" .. (pack and (pack .. "/") or "") .. file } end
+-- File times: B07 is Autumn's newest; the starter cactus is newer than
+-- everything but switched off.
+local mtimes = { ["/o/Autumn/B07.png"] = 300, ["/o/Autumn/B03.png"] = 200, ["/o/cactus.svg"] = 900,
+                 ["/o/Macabre/A01.png"] = 100, ["/o/Autumn/B01.png"] = 50 }
+local off = { ["cactus.svg"] = true }
+package.loaded["libs/libkoreader-lfs"] = { attributes = function(p, what)
+    if what == "modification" then return mtimes[p] or 1 end end }
 local all = {}
 for i = 1, 55 do all[#all + 1] = piece("Macabre", string.format("A%02d.png", i)) end
 all[#all + 1] = piece("Macabre", "Munch - The Scream.png")
@@ -69,6 +77,7 @@ local Orn = {
     listAll = function() listAll_calls = listAll_calls + 1; return all, { "Autumn", "Macabre", "Planks", "Ukiyo" } end,
     list = function() return on end,
     displayName = function(e) return (e.file:gsub("%.[^%.]+$", "")) end,
+    isOff = function(name) return off[name] == true end,
     render = function() error("an ornament was decoded while the cards were listed") end,
     contentBox = function() error("an ornament was probed while the cards were listed") end,
 }
@@ -99,12 +108,20 @@ t.test("My theme is summed up from the reader's own settings; Plain is fixed", f
     eq(TL.summary("Gone"), nil, "a missing pack has nothing to say")
 end)
 
-t.test("the hero: theme.json's (any case), else the pack's first piece; the reader's own loose piece; none for Plain", function()
+t.test("the hero: theme.json's (any case), else the newest piece switched on; none for Plain", function()
+    -- Maintainer, 2026-10-07: skip pieces switched off (the starter cacti) and
+    -- show the most recently added or changed piece, not the first by name.
+    TL._hero_cache = {}
     eq(TL.hero("Macabre").file, "Munch - The Scream.png")
-    eq(TL.hero("Autumn").file, "B01.png", "no hero named: the first piece by name")
+    eq(TL.hero("Autumn").file, "B07.png", "no hero named: not the newest piece")
     eq(TL.hero("Planks"), nil, "a pack without pieces has no hero")
-    eq(TL.hero("mine").file, "cactus.svg", "My theme shows a piece of the reader's own first")
+    eq(TL.hero("mine").file, "A01.png", "My theme showed a piece switched off, or not its newest on")
     eq(TL.hero("plain"), nil)
+    off["Autumn/B07.png"] = true; TL._hero_cache = {}
+    eq(TL.hero("Autumn").file, "B03.png", "a piece switched off is still the hero")
+    off["Macabre/Munch - The Scream.png"] = true; TL._hero_cache = {}
+    eq(TL.hero("Macabre").file, "A01.png", "the named hero is shown though switched off")
+    off["Autumn/B07.png"] = nil; off["Macabre/Munch - The Scream.png"] = nil; TL._hero_cache = {}
 end)
 
 t.test("the library's cards: the reader's own, Plain, each theme; titled by name, described by theme.json", function()

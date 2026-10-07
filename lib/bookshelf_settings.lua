@@ -1902,7 +1902,7 @@ function Settings:_perShelfThemesRow()
         -- (maintainer, 2026-10-04).
         text_func = function()
             local n = self:_shelvesDiffer()
-            if n == 0 then return _("Themes for each shelf") end
+            if n == 0 then return _("Themes for each shelf (all default)") end
             local total = #(require("lib/bookshelf_tab_model").getActive() or {})
             return T(_("Themes for each shelf (%1 of %2)"), n, total)
         end,
@@ -1938,6 +1938,10 @@ function Settings:_shelfThemeSubItems()
     local CP = require("lib/bookshelf_cover_progress")
     local TP = require("lib/bookshelf_theme_pack")
     local rows = {}
+    -- Themes for each shelf first (maintainer, 2026-10-07): which shelves
+    -- differ is the first thing to know before changing the library's.
+    rows[1] = self:_perShelfThemesRow()
+    rows[1].separator = true
     for _i, t in ipairs(Settings.SHELF_THEMES) do
         local value = t.value
         rows[#rows + 1] = {
@@ -1980,7 +1984,6 @@ function Settings:_shelfThemeSubItems()
     local packs = TP.allThemes()
     rows[#rows].separator = true
     if #packs == 0 then
-        rows[#rows + 1] = self:_perShelfThemesRow()
         rows[#rows + 1] = addThemeRow()
         return rows
     end
@@ -2021,7 +2024,6 @@ function Settings:_shelfThemeSubItems()
         }
     end
     rows[#rows].separator = true
-    rows[#rows + 1] = self:_perShelfThemesRow()
     rows[#rows + 1] = addThemeRow()
     return rows
 end

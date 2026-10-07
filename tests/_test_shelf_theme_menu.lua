@@ -106,12 +106,13 @@ end
 local HW = { pack = "Halloween", name = "Halloween", description = "Bats and ghosts.", shelf = "dark" }
 local UK = { pack = "Ukiyo-e", name = "Ukiyo-e" }
 
-t.test("with no theme packs: Auto, Light, Dark, then Add theme", function()
+t.test("with no theme packs: Themes for each shelf, Auto, Light, Dark, then Add theme", function()
     local self, S, seen = build({}, nil)
     local rows = S._shelfThemeSubItems(self)
     eq(#rows, 5)
-    eq(rows[3].separator, true)
-    eq(rows[4].text_func(), "Themes for each shelf", "a shelf cannot pick light/dark without packs")
+    eq(rows[1].text_func(), "Themes for each shelf (all default)", "a shelf cannot pick light/dark without packs")
+    eq(rows[1].separator, true)
+    eq(rows[4].separator, true)
     eq(rows[5].text, "Add theme\xE2\x80\xA6")
     eq(seen.rescans, 1, "opening the menu did not rescan the packs")
 end)
@@ -120,13 +121,13 @@ t.test("theme packs follow a separator: No theme pack, then each by name, then A
     local self, S = build({ HW, UK }, "Halloween")
     local rows = S._shelfThemeSubItems(self)
     eq(#rows, 8)
-    eq(rows[3].separator, true)
-    eq(rows[4].text, "No theme pack"); eq(rows[5].text, "Halloween"); eq(rows[6].text, "Ukiyo-e")
-    eq(rows[5].help_text, "Bats and ghosts.")
-    for i = 4, 6 do eq(rows[i].radio, true); eq(rows[i].keep_menu_open, true) end
-    eq(rows[4].checked_func(), false); eq(rows[5].checked_func(), true); eq(rows[6].checked_func(), false)
-    eq(rows[6].separator, true, "the packs are not set apart")
-    eq(rows[7].text_func(), "Themes for each shelf")
+    eq(rows[1].text_func(), "Themes for each shelf (all default)")
+    eq(rows[4].separator, true)
+    eq(rows[5].text, "No theme pack"); eq(rows[6].text, "Halloween"); eq(rows[7].text, "Ukiyo-e")
+    eq(rows[6].help_text, "Bats and ghosts.")
+    for i = 5, 7 do eq(rows[i].radio, true); eq(rows[i].keep_menu_open, true) end
+    eq(rows[5].checked_func(), false); eq(rows[6].checked_func(), true); eq(rows[7].checked_func(), false)
+    eq(rows[7].separator, true, "the packs are not set apart")
     eq(rows[8].text, "Add theme\xE2\x80\xA6")
 end)
 
@@ -148,7 +149,7 @@ t.test("choosing a theme pack applies it, rebuilds the whole screen and says so"
     local self, S, seen = build({ HW, UK }, nil)
     local rows = S._shelfThemeSubItems(self)
     local updated = 0
-    rows[6].callback({ updateItems = function() updated = updated + 1 end })
+    rows[7].callback({ updateItems = function() updated = updated + 1 end })
     eq(seen.chosen[1], "Ukiyo-e")
     eq(seen.dirty, 1, "the shelf was not rebuilt"); eq(seen.full, 1, "no full refresh for a whole new look")
     eq(seen.toasts[1], "Ukiyo-e theme on")
@@ -158,9 +159,9 @@ end)
 t.test("No theme pack clears a theme, and does nothing without one", function()
     local self, S, seen = build({ HW }, "Halloween")
     local rows = S._shelfThemeSubItems(self)
-    rows[4].callback(nil)
+    rows[5].callback(nil)
     eq(seen.cleared, 1); eq(seen.toasts[1], "Theme pack off")
-    rows[4].callback(nil)
+    rows[5].callback(nil)
     eq(seen.cleared, 1, "cleared again with no theme on"); eq(#seen.toasts, 1)
 end)
 
@@ -179,19 +180,21 @@ t.test("Wallpaper, ornaments and colors no longer holds the theme row", function
     assert(not bg:find("_shelfTheme", 1, true), "the theme row is still in the wallpaper menu")
 end)
 
-t.test("Themes for each shelf sits between the packs and Add theme", function()
+t.test("Themes for each shelf is the first row, set apart, and says when all follow the library", function()
+    -- Maintainer, 2026-10-07: at the top of the menu, with "(all default)".
     local self, S = build({ HW, UK }, "Halloween")
     local rows = S._shelfThemeSubItems(self)
-    eq(rows[#rows - 1].text_func(), "Themes for each shelf")
+    eq(rows[1].text_func(), "Themes for each shelf (all default)")
+    eq(rows[1].separator, true, "not set apart from the library's own rows")
     eq(rows[#rows].text, "Add theme\xE2\x80\xA6")
-    assert(rows[#rows - 1].sub_item_table_func, "the row has no submenu")
+    assert(rows[1].sub_item_table_func, "the row has no submenu")
 end)
 
 t.test("ornament-only packs are themes too, after the theme packs", function()
     local GA = { pack = "Gallery", name = "Gallery", ornaments_only = true }
     local self, S = build({ HW, GA }, nil)
     local rows = S._shelfThemeSubItems(self)
-    eq(rows[5].text, "Halloween"); eq(rows[6].text, "Gallery (ornaments only)")
+    eq(rows[6].text, "Halloween"); eq(rows[7].text, "Gallery (ornaments only)")
 end)
 
 t.test("each shelf is listed with its theme, as the top-level row names it", function()
@@ -280,7 +283,7 @@ t.test("the count of shelves with their own theme is on Themes for each shelf, n
        "the count is not there, or counts a disabled shelf")
     eq(#S._perShelfThemesRow(self).sub_item_table_func(), 2, "a disabled shelf is listed")
     local self2, S2 = build({ HW }, "Halloween")
-    eq(S2._perShelfThemesRow(self2).text_func(), "Themes for each shelf")
+    eq(S2._perShelfThemesRow(self2).text_func(), "Themes for each shelf (all default)")
 end)
 
 t.test("opening another shelf's theme menu shows that shelf behind it", function()

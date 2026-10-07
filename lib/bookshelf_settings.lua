@@ -2481,8 +2481,9 @@ function Settings:_backgroundSubItems()
         end,
     }
     rows[#rows].separator = true
-    rows[#rows + 1] = self:_panelShadingRow()
-    rows[#rows + 1] = self:_wallpaperFolderRow()
+    -- How new ornaments join the deck: the collection's own preference.
+    -- Panel shading and the extra wallpaper folder are display preferences
+    -- no theme touches: they live in Settings' appearance band.
     rows[#rows + 1] = self:_newOrnamentsRow()
     return rows
 end
@@ -3160,6 +3161,12 @@ function Settings:_settingsSubItems()
         keep_menu_open = true,
         callback = function(touchmenu_instance) self:_pickBookshelfUIFont(touchmenu_instance) end,
     }
+    -- How the panels are shaded over a wallpaper, and an extra folder to
+    -- take wallpapers from: display preferences that no theme changes, so
+    -- they left the reader's own look (My theme) for here (maintainer,
+    -- 2026-10-07). Panel shading lived under Settings before 5.1 as well.
+    items[#items + 1] = self:_panelShadingRow()
+    items[#items + 1] = self:_wallpaperFolderRow()
     items[#items].separator = true  -- end appearance band
 
     -- ── surfaces band: micro-module placement + the start menu ──

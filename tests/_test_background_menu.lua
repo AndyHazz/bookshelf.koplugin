@@ -74,15 +74,21 @@ t.test("the menu is light or dark, the picture, plank, ornaments, then colors; t
     local plank  = body:find("_plankRow", 1, true)
     local orn    = body:find("_ornamentsRow", 1, true)
     local accent = body:find('_("Colors")', 1, true)
-    local shade  = body:find("_panelShadingRow", 1, true)
-    local folder = body:find("_wallpaperFolderRow", 1, true)
     local newat  = body:find("_newOrnamentsRow", 1, true)
-    assert(look and wall and plank and orn and accent and shade and folder and newat,
-        "a section is missing from the menu")
-    assert(look < wall and wall < plank and plank < orn and orn < accent,
-        "the parts a theme can replace, in the spec's order")
-    assert(accent < shade and shade < folder and folder < newat,
-        "the preferences no theme touches come after the separator")
+    assert(look and wall and plank and orn and accent and newat, "a section is missing from the menu")
+    assert(look < wall and wall < plank and plank < orn and orn < accent and accent < newat,
+        "the parts a theme can replace, in the spec's order, then New ornaments go")
+    -- Display preferences no theme touches are not part of the look: they
+    -- live in Settings' appearance band, so My theme fits one PW5 page.
+    assert(not body:find("_panelShadingRow", 1, true) and not body:find("_wallpaperFolderRow", 1, true),
+        "Panel shading or the extra wallpaper folder is back in My theme")
+    local sub = settings:match("function Settings:_settingsSubItems%(%)(.-)\nend\n")
+    local font = sub and sub:find("Bookshelf UI font: %1", 1, true)
+    local shade = sub and sub:find("self:_panelShadingRow()", 1, true)
+    local folder = sub and sub:find("self:_wallpaperFolderRow()", 1, true)
+    local band = sub and sub:find("-- end appearance band", 1, true)
+    assert(font and shade and folder and band and font < shade and shade < folder and folder < band,
+        "Panel shading and the extra wallpaper folder belong at the end of Settings' appearance band")
 end)
 
 t.test("the theme label has one definition, not a copy in the colour list", function()

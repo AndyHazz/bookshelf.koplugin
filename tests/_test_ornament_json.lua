@@ -310,11 +310,11 @@ t.test("an edit reaches the list() entry the shelf draws, while list() is still 
     eq(O.list()[1].lift, 0.2, "the entry the shelf draws did not get the edit")
 end)
 
-t.test("menu: Swap, Shuffle all and a Switch off/on toggle share a row; the toggle keeps the menu open", function()
+t.test("menu: Swap, Shuffle this shelf and a Switch off/on toggle share a row; the toggle keeps the menu open", function()
     local src = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
     local row = src:match('\n        {\n            { text = _%("Swap"%).-\n        },\n')
     assert(row, "no Swap row")
-    assert(row:find('_("Shuffle all")', 1, true), "Shuffle all is not on the Swap row")
+    assert(row:find('_("Shuffle this shelf")', 1, true), "Shuffle this shelf is not on the Swap row")
     assert(row:find('_("Switch on")', 1, true) and row:find('_("Switch off")', 1, true),
         "the Switch off/on toggle is not on the Swap row")
     local toggle = row:match("text_func = function%(%)%s*return Orn%.isOff%(entry%.name%).-end },")
@@ -440,8 +440,8 @@ t.test("menu: the piece's place in the order, with Earlier and Later, and Shuffl
            and src:find("enabled_func", 1, true)
            and src:find("return i ~= nil and #on > 1", 1, true),
         "Earlier / Later do not move the piece")
-    local shuffle = src:match('{ text = _%("Shuffle all"%)(.-)end },')
-    assert(shuffle and shuffle:find("ConfirmBox", 1, true), "Shuffle all does not ask first")
+    local shuffle = src:match('{ text = _%("Shuffle this shelf"%)(.-)end },')
+    assert(shuffle and shuffle:find("ConfirmBox", 1, true), "Shuffle this shelf does not ask first")
 end)
 
 t.test("the menu never moves past the screen's edge, however tall it is", function()

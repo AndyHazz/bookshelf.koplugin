@@ -1,5 +1,5 @@
 -- lib/bookshelf_frost.lua
--- The blur behind a panel (Panel shading > Blur the picture behind panels):
+-- The blur behind a panel (Panel shading > Blur wallpaper behind panels):
 -- frosted glass over the wallpaper, under the panel's tint.
 --
 -- PURE ARITHMETIC over 0-indexed arrays, so the same code runs on an ffi

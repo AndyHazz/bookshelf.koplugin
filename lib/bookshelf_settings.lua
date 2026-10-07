@@ -2074,7 +2074,7 @@ function Settings:_scrimSubItems()
     -- Greyed out where it has nothing to show: Transparent has no panel, and
     -- Solid hides the picture.
     rows[#rows + 1] = {
-        text = _("Blur the picture behind panels"),
+        text = _("Blur wallpaper behind panels"),
         help_text = _("Blurs the wallpaper behind the top panel and the footer "
             .. "before the shading goes over it, like frosted glass, so the "
             .. "picture's detail does not compete with the buttons and text. "
@@ -2098,7 +2098,7 @@ function Settings:_scrimSubItems()
     -- Covers shelves can take list mode's one panel, behind the top panel,
     -- the covers and the footer (issue 483), at the strength chosen above.
     rows[#rows + 1] = {
-        text = _("Show panel behind 'Covers' shelf style"),
+        text = _("Panel behind Covers shelves"),
         keep_menu_open = true,
         checked_func = function()
             return BookshelfSettings.read(Wallpaper.COVERS_PANEL_SETTING) == true
@@ -2877,9 +2877,8 @@ function Settings:_colorsSubItems()
             text_func = function()
                 return _("Border color") .. ": " .. valueLabel("border")
             end,
-            help_text = _("Color of the book cover frame border + pill"
-                .. " badge / page-count badge borders. Badge foreground"
-                .. " is now just badge text. Default black."),
+            help_text = _("The frame around covers and the border of"
+                .. " badges. Default black."),
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 pickColor("border_color", "border", 100,

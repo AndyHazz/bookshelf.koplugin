@@ -216,7 +216,7 @@ function Zoom:_build()
         function panel:paintTo(b)
             pcall(function()
                 -- Wallpaper.panel, as the shelf's own panels: the picture behind
-                -- it blurred when "Blur the picture behind panels" is on (and
+                -- it blurred when "Blur wallpaper behind panels" is on (and
                 -- dithered on greyscale e-ink), then the tint; plain scrim
                 -- otherwise (maintainer: the zoom's description panel should
                 -- follow the blur preference too).

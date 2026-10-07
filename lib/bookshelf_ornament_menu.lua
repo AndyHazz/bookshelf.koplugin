@@ -370,7 +370,7 @@ function M.show(entry, bw, piece)
             -- ornaments" action), which also clears its swaps.
             -- Asks first: an arrangement may have had a lot of care put into it
             -- (maintainer).
-            { text = _("Shuffle all"), callback = function()
+            { text = _("Shuffle this shelf"), callback = function()
                 local ConfirmBox = require("ui/widget/confirmbox")
                 UIManager:show(ConfirmBox:new{
                     text = _("Shuffle this shelf's ornaments into a new order? Its swaps and moves are lost."),

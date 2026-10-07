@@ -5548,7 +5548,7 @@ end
 
 -- _fullPanel() -> does the top panel run on behind the shelf and the footer?
 -- Always in list mode (its rows have no ground of their own); on Covers
--- shelves when Panel shading > "Show panel behind 'Covers' shelf style" is
+-- shelves when Panel shading > "Panel behind Covers shelves" is
 -- ticked (issue 483); never on spines, which stand on their planks.
 function BookshelfWidget:_fullPanel()
     if self:_isListMode() then return true end

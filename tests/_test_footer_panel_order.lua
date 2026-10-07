@@ -1,6 +1,6 @@
 -- tests/_test_footer_panel_order.lua
 -- The footer floats in FRONT of the shelf, and the panels can blur the
--- picture behind them (Panel shading > Blur the picture behind panels).
+-- picture behind them (Panel shading > Blur wallpaper behind panels).
 --
 -- 1. PAINT ORDER. The footer row paints after the rows: its panel tint, then
 --    its buttons, over whatever of the bottom row reaches into the footer.

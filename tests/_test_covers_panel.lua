@@ -1,5 +1,5 @@
 -- tests/_test_covers_panel.lua
--- Panel shading > "Show panel behind 'Covers' shelf style" (issue 483): the
+-- Panel shading > "Panel behind Covers shelves" (issue 483): the
 -- one continuous panel list mode draws behind the top panel, the shelf and
 -- the footer, for Covers shelves too, and without the label plates under
 -- cover titles, which the panel makes redundant.
@@ -52,14 +52,14 @@ t.test("Panel shading ends with the Covers checkbox, set apart, off by default",
     local store = {}
     local rows = scrimMenu(store)
     local last = rows[#rows]
-    eq(last.text, "Show panel behind 'Covers' shelf style")
+    eq(last.text, "Panel behind Covers shelves")
     eq(last.radio, nil, "it is a radio button, not a checkbox")
     -- Set apart from the levels by the separator under the last of them;
     -- the blur row (also a checkbox) sits between, so it is not "the row above".
     local last_radio
     for i, r in ipairs(rows) do if r.radio then last_radio = i end end
     eq(rows[last_radio].separator, true, "not set apart from the shading levels")
-    eq(rows[#rows - 1].text, "Blur the picture behind panels", "the blur row moved")
+    eq(rows[#rows - 1].text, "Blur wallpaper behind panels", "the blur row moved")
     eq(last.checked_func(), false, "on by default")
 end)
 
@@ -73,12 +73,12 @@ t.test("ticking it saves the setting and rebuilds the shelf; unticking clears it
     eq(store.covers_full_panel, nil, "unticking left the setting behind")
 end)
 
--- Panel shading > Blur the picture behind panels: off by default, a toggle
+-- Panel shading > Blur wallpaper behind panels: off by default, a toggle
 -- that rebuilds, and greyed where it has nothing to act on.
 local function blurRow(store)
     local rows, seen = scrimMenu(store)      -- its self answers Heavy, 0.85
     local row = rows[#rows - 1]
-    eq(row.text, "Blur the picture behind panels")
+    eq(row.text, "Blur wallpaper behind panels")
     return row, seen
 end
 
@@ -95,7 +95,7 @@ t.test("the blur row: off by default, ticking saves and rebuilds, unticking clea
 end)
 
 t.test("the blur row is greyed at Transparent (no panel) and Solid (no picture)", function()
-    local fn = assert(settings_src:match("text = _%(\"Blur the picture behind panels\"%),(.-)checked_func"),
+    local fn = assert(settings_src:match("text = _%(\"Blur wallpaper behind panels\"%),(.-)checked_func"),
         "the blur row moved")
     assert(fn:find("cur > 0 and cur < 1", 1, true), "enabled outside the translucent levels")
 end)

@@ -19,7 +19,8 @@ local CODE = table.concat({
     grab("\n(Settings%.SHELF_THEMES = {.-\n})\n", "SHELF_THEMES"),
     grab("\n(function Settings:_shelfTheme%(%).-\nend)\n", "_shelfTheme"),
     grab("\n(function Settings:_shelfThemeLabel%(%).-\nend)\n", "_shelfThemeLabel"),
-    grab("\n(function Settings:_themeCovers%(part, value%).-\nend)\n", "_themeCovers"),
+    grab("\n(Settings%.COVER_PARTS = {.-\n})\n", "COVER_PARTS"),
+    grab("\n(function Settings:_themeCoverRow%(%).-\nend)\n", "_themeCoverRow"),
     grab("\n(function Settings:_lightDarkRow%(%).-\nend)\n", "_lightDarkRow"),
     grab("\n(function Settings:_shelfThemeSubItems%(%).-\nend)\n", "_shelfThemeSubItems"),
     grab("\n(function Settings:_shelfThemeText%(%).-\nend)\n", "_shelfThemeText"),
@@ -236,20 +237,34 @@ t.test("Light or dark: Auto (follow night mode), Light, Dark; the theme's own na
     sub[3].callback()
     eq(seen.store.shelf_theme, "dark")
     local self2, S2 = build({ MAC }, nil, nil, { on_screen = "Macabre" })
-    eq(S2._lightDarkRow(self2).text_func(), "Light or dark: Auto (follow night mode) (Macabre's on this shelf)")
-    local self3, S3 = build({ MAC }, nil, nil, { on_screen = "plain" })
-    eq(S3._lightDarkRow(self3).text_func(), "Light or dark: Auto (follow night mode)",
-        "Plain follows the reader's light or dark")
+    eq(S2._lightDarkRow(self2).text_func(), "Light or dark: Auto (follow night mode)",
+        "a theme on screen puts a suffix on the row again")
 end)
 
-t.test("a row of the reader's own says when the shelf on screen's theme covers it", function()
+t.test("one row says when the shelf on screen's theme covers the reader's own; its help names the parts", function()
     local self, S = build({ MAC, AUT }, nil, nil, { on_screen = "Autumn" })
-    eq(S._themeCovers(self, "wallpaper", "Green"), "Green", "Autumn brings no wallpaper")
-    eq(S._themeCovers(self, "ornaments", 12), "12 (Autumn's on this shelf)")
-    local self2, S2 = build({ MAC }, nil, nil, { on_screen = "mine" })
-    eq(S2._themeCovers(self2, "wallpaper", "Green"), "Green")
-    local self3, S3 = build({ MAC }, nil, nil, { on_screen = "plain" })
-    eq(S3._themeCovers(self3, "plank", "Walnut"), "Walnut (Plain's on this shelf)")
+    local row = S._themeCoverRow(self)
+    eq(row.text, "Autumn covers this shelf")
+    eq(row.help_text, "On this shelf, Autumn shows its own: Ornaments.\n\nThe rows below are My theme: "
+        .. "they show on shelves without a theme, and changing them does not change this shelf.")
+    eq(row.separator, true)
+    local self2, S2 = build({ MAC }, nil, nil, { on_screen = "Macabre" })
+    assert(S2._themeCoverRow(self2).help_text:find(": Light or dark, Wallpaper, Plank, Ornaments.", 1, true))
+    local self3, S3 = build({ MAC }, nil, nil, { on_screen = "mine" })
+    eq(S3._themeCoverRow(self3), nil, "the reader's own on screen: no row")
+    local UK2 = { pack = "Bare", name = "Bare" }                     -- brings nothing
+    local self4, S4 = build({ UK2 }, nil, nil, { on_screen = "Bare" })
+    eq(S4._themeCoverRow(self4), nil, "a theme that covers nothing: no row")
+    local self5, S5 = build({}, nil, nil, { on_screen = "plain" })
+    assert(S5._themeCoverRow(self5).text == "Plain covers this shelf")
+end)
+
+t.test("no row of the reader's own carries a per-row theme suffix any more", function()
+    local body = src:gsub("%-%-[^\n]*", "")
+    assert(not body:find("on this shelf)", 1, true), "a per-row suffix is back")
+    local bg = body:match("function Settings:_backgroundSubItems%(%)(.-)\nend\n")
+    assert(bg and bg:find("self:_themeCoverRow()", 1, true), "the cover row is not in the menu")
+    assert(bg:find("_themeCoverRow", 1, true) < bg:find("_lightDarkRow", 1, true), "the cover row is not first")
 end)
 
 t.done()

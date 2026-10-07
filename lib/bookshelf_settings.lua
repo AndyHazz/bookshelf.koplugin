@@ -1531,18 +1531,44 @@ end
 -- folder color, cover badge color, progress bookmark color all
 -- expected to land here as they ship. Greyscale devices get a
 -- nudge dialog (% black); color devices get the palette picker.
--- _themeCovers(part, value) -> value, or "value (Macabre's on this shelf)"
--- when the theme of the shelf on screen replaces that part of the reader's
--- own look: the row still shows and edits the reader's own, and says why a
--- change to it does not show here (maintainer, 2026-10-07).
-function Settings:_themeCovers(part, value)
+-- _themeCoverRow() -> the first row of the reader's own look when the theme
+-- of the shelf on screen replaces some of it ("Macabre covers this shelf"),
+-- else nil. One row, not a suffix on each: the suffixes made the menu run to
+-- two pages on a PW5 and were cut short (maintainer, 2026-10-07). Its help
+-- (and a tap) names the parts the theme replaces; the rows below stay the
+-- reader's own.
+Settings.COVER_PARTS = {
+    { part = "look",      label = function() return _("Light or dark") end },
+    { part = "wallpaper", label = function() return _("Wallpaper") end },
+    { part = "page",      label = function() return _("Color behind wallpaper") end },
+    { part = "plank",     label = function() return _("Plank") end },
+    { part = "ornaments", label = function() return _("Ornaments") end },
+    { part = "colours",   label = function() return _("Colors") end },
+}
+function Settings:_themeCoverRow()
     local ok, TP = pcall(require, "lib/bookshelf_theme_pack")
-    if not (ok and TP and TP.shelfTheme) then return value end
+    if not (ok and TP and TP.shelfTheme) then return nil end
     local ok2, th = pcall(TP.shelfTheme)
-    if not ok2 or th == nil or th == TP.MINE then return value end
-    local ok3, covers = pcall(TP.brings, th, part)
-    if not (ok3 and covers) then return value end
-    return T(_("%1 (%2's on this shelf)"), value, TP.themeName(th))
+    if not ok2 or th == nil or th == TP.MINE then return nil end
+    local parts = {}
+    for _i, c in ipairs(Settings.COVER_PARTS) do
+        local ok3, covers = pcall(TP.brings, th, c.part)
+        if ok3 and covers then parts[#parts + 1] = c.label() end
+    end
+    if #parts == 0 then return nil end
+    local name = TP.themeName(th)
+    local help = T(_("On this shelf, %1 shows its own: %2.\n\nThe rows below are %3: they show on shelves without a theme, and changing them does not change this shelf."),
+                   name, table.concat(parts, ", "), TP.mineName())
+    return {
+        text = T(_("%1 covers this shelf"), name),
+        help_text = help,
+        keep_menu_open = true,
+        callback = function()
+            local InfoMessage = require("ui/widget/infomessage")
+            UIManager:show(InfoMessage:new{ text = help })
+        end,
+        separator = true,
+    }
 end
 
 -- _wallpaperMenu() - the reader's own wallpaper rows: the picture, the full
@@ -1592,16 +1618,15 @@ function Settings:_wallpaperMenu()
     local items = {
         {
             text_func = function()
-                return T(_("Wallpaper: %1"), self:_themeCovers("wallpaper",
-                         wallpaperLabel(Wallpaper.SETTING, _("None"))))
+                return T(_("Wallpaper: %1"), wallpaperLabel(Wallpaper.SETTING, _("None")))
             end,
             keep_menu_open = true,
             callback = openPicker(Wallpaper.SETTING),
         },
         {
             text_func = function()
-                return T(_("Full screen wallpaper: %1"), self:_themeCovers("wallpaper",
-                         wallpaperLabel(Wallpaper.FULL_SETTING, _("Same as wallpaper"))))
+                return T(_("Full screen wallpaper: %1"),
+                         wallpaperLabel(Wallpaper.FULL_SETTING, _("Same as wallpaper")))
             end,
             help_text = _("A different picture for full screen shelves. That "
                 .. "view is wall-to-wall covers and spines, where a backdrop "
@@ -1637,8 +1662,8 @@ function Settings:_wallpaperMenu()
             -- and it is what shows through any region the picture is kept out
             -- of. Shares the colours menu's picker, day/night slot included.
             text_func = function()
-                return T(_("Color behind wallpaper: %1"), self:_themeCovers("page",
-                         self:_colorValueLabel(Wallpaper.BG_SETTING, 0)))
+                return T(_("Color behind wallpaper: %1"),
+                         self:_colorValueLabel(Wallpaper.BG_SETTING, 0))
             end,
             keep_menu_open = true,
             callback = function(touchmenu_instance)
@@ -1756,7 +1781,7 @@ function Settings:_lightDarkRow()
     local CP = require("lib/bookshelf_cover_progress")
     return {
         text_func = function()
-            return T(_("Light or dark: %1"), self:_themeCovers("look", self:_shelfThemeLabel()))
+            return T(_("Light or dark: %1"), self:_shelfThemeLabel())
         end,
         help_text = _("Light or dark colors for the shelf, independently "
             .. "of KOReader's night mode, so you can keep the rest of "
@@ -2196,8 +2221,8 @@ function Settings:_plankRow(markDirty)
     return {
         text_func = function()
             local lbl = require("lib/bookshelf_theme_pack").plankRowLabel()
-            return T(_("Plank: %1"), self:_themeCovers("plank",
-                lbl or (_("color") .. " " .. self:_colorValueLabel("spine_plank_color"))))
+            return T(_("Plank: %1"),
+                lbl or (_("color") .. " " .. self:_colorValueLabel("spine_plank_color")))
         end,
         help_text = _("The plank the Spines style stands its books on: a plain"
             .. " color, the built-in oak, or a plank from an ornament pack."),
@@ -2368,7 +2393,7 @@ function Settings:_ornamentsRow()
                 total = ok_a and all or n
             end
             local icon = (O and O.COLLECTION_ICON) and (O.COLLECTION_ICON .. "  ") or ""
-            return icon .. self:_themeCovers("ornaments", T(_("Ornaments: %1 of %2 on"), n, total))
+            return icon .. T(_("Ornaments: %1 of %2 on"), n, total)
         end,
         help_text_func = function()
             local O = orn()
@@ -2440,6 +2465,7 @@ function Settings:_backgroundSubItems()
     -- The colour menu opens on the slot the shelf on screen paints from.
     pcall(function() require("lib/bookshelf_cover_progress").setEditSlot(nil) end)
     local rows = {}
+    rows[#rows + 1] = self:_themeCoverRow()       -- nil unless a theme covers some of it
     rows[#rows + 1] = self:_lightDarkRow()
     for _i, row in ipairs(self:_wallpaperMenu()) do
         rows[#rows + 1] = row
@@ -2449,9 +2475,7 @@ function Settings:_backgroundSubItems()
     rows[#rows + 1] = {
         -- The long list of colours (text, progress bar, bookmarks, badges)
         -- keeps a level of its own: a reference list people visit once.
-        text_func           = function()
-            return self:_themeCovers("colours", _("Colors"))
-        end,
+        text                = _("Colors"),
         sub_item_table_func = function()
             return self:_colorsSubItems()
         end,

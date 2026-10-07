@@ -68,6 +68,9 @@ end
 --   selected_filepath string|nil  filepath of the spine that should
 --                                 render with the selected (thicker)
 --                                 border. Typically the previewed book.
+--   label_mode    string   "title" / "author" / "series" / "custom" / "none"
+--   label_line    table    the Custom label ({ template, bold, uppercase });
+--                          read only when label_mode is "custom"
 -- }
 function ShelfRow.new(opts)
     local n_slots = opts.n_slots or 4
@@ -177,8 +180,29 @@ function ShelfRow.new(opts)
     -- back to the shared setting for any caller that doesn't.
     local label_mode = opts.label_mode
                        or BookshelfSettings.read("expanded_shelf_label") or "none"
-    if label_mode ~= "title" and label_mode ~= "author" and label_mode ~= "series" then
+    if label_mode ~= "title" and label_mode ~= "author" and label_mode ~= "series"
+            and label_mode ~= "custom" then
         label_mode = "none"
+    end
+    -- Custom: the reader's token template, expanded per book through a cache
+    -- (lib/bookshelf_cover_label.lua) so a page turn back to a page already
+    -- seen re-expands nothing. The resolver is made once per row: it reads
+    -- the cache's context (template, data generation, ...) once, not per cover.
+    local custom_label, CoverLabel
+    local label_ms = 0     -- this row's time in the resolver, for the perf line
+    if label_mode == "custom" then
+        CoverLabel = require("lib/bookshelf_cover_label")
+        local t0 = _gettime()
+        -- The saved line when the caller passed none (it resolved the mode
+        -- from the setting itself, above).
+        local resolve = CoverLabel.resolver(opts.label_line or CoverLabel.line())
+        label_ms = (_gettime() - t0) * 1000
+        custom_label = function(item)
+            local t1 = _gettime()
+            local text = resolve(item)
+            label_ms = label_ms + (_gettime() - t1) * 1000
+            return text
+        end
     end
     -- Two flags driven by the same `opts.show_titles` input — kept
     -- separate so the geometry stays consistent while the rendering
@@ -325,7 +349,12 @@ function ShelfRow.new(opts)
     -- stretch cap below keeps it from growing past ~5% of natural.
     if draw_label then
         local face_size = math.floor(14 * label_scale / 100 + 0.5)
-        title_face, title_bold = BFont:getFace("infofont", face_size)
+        -- Bold is the one style a Custom label carries: the strip's own face,
+        -- asked for its bold (a real bold file when there is one, else the
+        -- regular face drawn bold).
+        title_face, title_bold = BFont:getFace("infofont", face_size,
+            (custom_label and opts.label_line and opts.label_line.bold)
+                and { bold = true } or nil)
         title_block_h = label_gap + math.floor(face_size * 1.3)
         -- The plate is taller than the text it wraps, and title_block_h is
         -- what the cover height is derived FROM (cover_h = slot_h - this), so
@@ -334,6 +363,7 @@ function ShelfRow.new(opts)
         if plate_fill then title_block_h = title_block_h + 2 * PLATE_PAD_Y end
     end
     local function _labelFor(item)
+        if custom_label then return custom_label(item) end
         local title_fallback = item.title or
             ((item.filepath or ""):match("([^/]+)$") or ""):gsub("%.[^.]+$", "")
         if label_mode == "author" then
@@ -876,8 +906,11 @@ function ShelfRow.new(opts)
                 -- line below would just repeat it. Reserve the strip height
                 -- anyway (the else branch) so cover bottoms stay aligned with
                 -- the labelled covers in the same row.
-                if draw_label and not spine.is_fallback then
-                    local title_text = _labelFor(item)
+                -- An empty label (a Custom template that expanded to nothing for
+                -- this book) is no label: no plate, just the reserved strip.
+                local title_text = (draw_label and not spine.is_fallback)
+                    and _labelFor(item) or ""
+                if title_text ~= "" then
                     -- TextWidget (single-line) auto-truncates with ellipsis at
                     -- max_width — exactly what we want here. TextBoxWidget would
                     -- wrap to two lines for longer titles which crowds the grid.
@@ -900,7 +933,7 @@ function ShelfRow.new(opts)
                 -- after the cover and cropped the glyphs. The plate stays where
                 -- it is and the glyphs go back on top of it, the overlap the
                 -- maintainer chose ("the dangle can appear over the plate").
-                if plate_fill and draw_label and not spine.is_fallback then
+                if plate_fill and title_text ~= "" then
                     local base_paint = slot.paintTo
                     slot.paintTo = function(s, bb, x, y)
                         base_paint(s, bb, x, y)
@@ -958,6 +991,13 @@ function ShelfRow.new(opts)
     -- the gap recompute near slot_w finalisation) so the covers spread evenly
     -- across the full width. The CenterContainer is now only a safety net for
     -- the single-column case where there's no inter-cover gap to widen.
+    if custom_label then
+        local st = CoverLabel.takeStats()
+        logger.dbg(string.format(
+            "[bookshelf perf] cover labels: %.2fms hit=%d miss=%d",
+            label_ms, st.hits, st.misses))
+    end
+
     local row_w = n_slots * slot_w + (n_slots - 1) * gap
     local result = row
     if opts.width and opts.width > row_w and n_slots <= 1 then

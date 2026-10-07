@@ -99,12 +99,28 @@ end
 -- The Menu fallback below is now only reachable if the bundled module fails to
 -- load at all, i.e. a broken install; it is kept as a safety net rather than
 -- as a supported path.
-function Settings:_pickToken(dialog)
+--
+-- `filter` (optional): function(catalogue_entry) -> false to leave a token
+-- out, for a surface that can only ignore some of them (the cover label has
+-- no use for style tags or %bar). Both pickers honour it, and a category
+-- chip left with nothing to show goes with it.
+function Settings:_pickToken(dialog, filter)
     local ok, LibraryModal = pcall(require, "lib/bookshelf_library_modal")
     if ok and LibraryModal then
-        return self:_pickTokenViaLibraryModal(LibraryModal, dialog)
+        return self:_pickTokenViaLibraryModal(LibraryModal, dialog, filter)
     end
-    return self:_pickTokenFallback(dialog)
+    return self:_pickTokenFallback(dialog, filter)
+end
+
+-- The catalogue a picker shows: all of it, or what `filter` keeps.
+local function _pickerCatalogue(filter)
+    local Tokens = require("lib/bookshelf_tokens")
+    if type(filter) ~= "function" then return Tokens.CATALOGUE end
+    local out = {}
+    for _i, t in ipairs(Tokens.CATALOGUE) do
+        if filter(t) ~= false then out[#out + 1] = t end
+    end
+    return out
 end
 
 -- Renders the catalogue into the shared LibraryModal shell (chip strip,
@@ -115,7 +131,7 @@ end
 -- signature), and its catalogue includes Reader-context tokens we
 -- deliberately exclude. Takes the shell as an argument so the fallback path
 -- and the tests can hand it a different one.
-function Settings:_pickTokenViaLibraryModal(LibraryModal, dialog)
+function Settings:_pickTokenViaLibraryModal(LibraryModal, dialog, filter)
     local Tokens          = require("lib/bookshelf_tokens")
     local Font            = require("ui/font")
     local TextWidget      = require("lib/bookshelf_colour_text")
@@ -140,12 +156,22 @@ function Settings:_pickTokenViaLibraryModal(LibraryModal, dialog)
         { key = "Logic",    label = _("Logic") },
         { key = "Style",    label = _("Style") },
     }
+    local catalogue = _pickerCatalogue(filter)
+    if catalogue ~= Tokens.CATALOGUE then
+        local present = {}
+        for _i, t in ipairs(catalogue) do present[t.category] = true end
+        local kept = {}
+        for _i, c in ipairs(CHIPS) do
+            if c.key == "all" or present[c.key] then kept[#kept + 1] = c end
+        end
+        CHIPS = kept
+    end
     local active_chip = "all"
     local search_query
 
     local function items()
         local out = {}
-        for _i, t in ipairs(Tokens.CATALOGUE) do
+        for _i, t in ipairs(catalogue) do
             if active_chip == "all" or t.category == active_chip then
                 if not search_query or #search_query < 2 then
                     out[#out + 1] = t
@@ -305,7 +331,7 @@ end
 -- UIManager:show offset so Menu's own onCloseAllMenus (which does
 -- UIManager:close(self)) finds the Menu in the window stack and tap-outside
 -- dismissal works.
-function Settings:_pickTokenFallback(dialog)
+function Settings:_pickTokenFallback(dialog, filter)
     local Menu   = require("ui/widget/menu")
     local Screen = require("device").screen
     local Tokens = require("lib/bookshelf_tokens")
@@ -320,7 +346,7 @@ function Settings:_pickTokenFallback(dialog)
 
     local items = {}
     local current_cat
-    for _i, t in ipairs(Tokens.CATALOGUE) do
+    for _i, t in ipairs(_pickerCatalogue(filter)) do
         if t.category ~= current_cat then
             current_cat = t.category
             items[#items + 1] = {
@@ -676,12 +702,44 @@ function Settings:_coverDisplaySubItems()
         title  = _("Title"),
         author = _("Author"),
         series = _("Series"),
+        custom = _("Custom"),
         none   = _("None"),
     }
     local function readLabelMode()
         local v = BookshelfSettings.read("expanded_shelf_label")
-        if v == "author" or v == "series" or v == "none" then return v end
+        if v == "author" or v == "series" or v == "custom" or v == "none" then return v end
         return "title"
+    end
+    -- Custom: the reader's own token template (lib/bookshelf_cover_label.lua).
+    -- A row of the same radio group, but choosing it opens the editor rather
+    -- than saving: Save in the editor is what makes Custom the mode, Cancel
+    -- leaves the previous choice alone. Once it IS the mode the row shows what
+    -- the template says for the preview book, like the hero and list line
+    -- rows, and tapping it again reopens the editor.
+    local function customLabelRow()
+        return {
+            text_func = function()
+                if readLabelMode() ~= "custom" then return _("Custom\xE2\x80\xA6") end
+                local CoverLabel = require("lib/bookshelf_cover_label")
+                local book = self:_previewContext()
+                local ok, preview = pcall(CoverLabel.render, CoverLabel.line(),
+                    book and require("lib/bookshelf_token_record").wrap(book) or nil)
+                if not ok or type(preview) ~= "string" or preview == "" then
+                    return label_labels.custom
+                end
+                if #preview > 36 then
+                    preview = CoverLabel.utf8Cut(preview, 35) .. "\xE2\x80\xA6"
+                end
+                return label_labels.custom .. ": " .. preview
+            end,
+            checked_func   = function() return readLabelMode() == "custom" end,
+            radio          = true,
+            keep_menu_open = true,
+            callback       = function(touchmenu_instance)
+                require("lib/bookshelf_cover_label_editor").show(
+                    self._bw, self, touchmenu_instance)
+            end,
+        }
     end
     local function labelModeRow(mode)
         return {
@@ -713,6 +771,7 @@ function Settings:_coverDisplaySubItems()
                     labelModeRow("title"),
                     labelModeRow("author"),
                     labelModeRow("series"),
+                    customLabelRow(),
                     labelModeRow("none"),
                 }
             end,

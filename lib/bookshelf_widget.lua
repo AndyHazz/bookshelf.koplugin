@@ -5310,16 +5310,38 @@ end
 -- change; the stored key keeps its 3.x name so explicit choices carry over,
 -- and the old grid_shelf_labels checkbox is retired (its content already
 -- followed this mode, so the mode alone now decides).
+--
+-- "custom" is the reader's own token template (lib/bookshelf_cover_label.lua).
+-- While its editor is open the draft outranks the saved mode, so choosing
+-- Custom from Title or None previews the strip before anything is saved.
 function BookshelfWidget:_shelfLabelMode()
     local mode = BookshelfSettings.read("expanded_shelf_label")
+    if self._cover_label_preview then mode = "custom" end
     if mode == "none" then return nil end
-    if mode ~= "author" and mode ~= "series" then mode = "title" end
+    if mode ~= "author" and mode ~= "series" and mode ~= "custom" then mode = "title" end
     -- A chip that prints no label budgets no strip (see _gridDrawsLabels):
     -- every tile reserves the strip so cover bottoms line up across a row that
     -- mixes books and folders, but a chip of divider-style folders alone was
     -- reserving a blank band under every row for nothing.
     if not self:_gridDrawsLabels() then return nil end
     return mode
+end
+
+-- _coverLabelLine() -> the Custom label in effect: the editor's draft while it
+-- is open, else the saved one. The one read, so the rows and the preview
+-- cannot disagree about which template they are drawing.
+function BookshelfWidget:_coverLabelLine()
+    if self._cover_label_preview then return self._cover_label_preview end
+    return require("lib/bookshelf_cover_label").line()
+end
+
+-- _previewCoverLabel(line) -- draw `line` as the Custom label instead of the
+-- saved one, or drop the override when nil. A rebuild, because the labels are
+-- built with the rows, and choosing Custom from None adds the strip itself.
+function BookshelfWidget:_previewCoverLabel(line)
+    self._cover_label_preview = line
+    self:_rebuild()
+    UIManager:setDirty(self, "ui")
 end
 
 -- _gridLabelsKey() -> string
@@ -6211,6 +6233,7 @@ function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD, n_rows)
         selection         = bw._selection,
         show_titles       = (label_mode ~= nil),
         label_mode        = label_mode,
+        label_line        = (label_mode == "custom") and self:_coverLabelLine() or nil,
         in_series         = in_series,
         group_display     = self:_groupDisplayMode(),
     }

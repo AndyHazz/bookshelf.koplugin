@@ -2049,6 +2049,21 @@ local _folder_cover_cache_order = {}  -- insertion order backing the SHAPE_CACHE
 PROGRESS_CACHE_TTL = 120  -- seconds
 _progress_cache    = {}   -- filepath → { pct, status, expires_at }
 
+-- Repo.dataGeneration() -> a number that changes whenever something a book's
+-- fields read as may have changed under a cache that is not this file's own:
+-- a progress / status / metadata edit (invalidateProgressCache), a library
+-- refresh (invalidateWalkCache), a metadata-source toggle (invalidateLightMeta)
+-- and a closed book's statistics (invalidateStatsCache).
+--
+-- For the cover labels (lib/bookshelf_cover_label.lua), which keep each book's
+-- expanded text between rebuilds and must not outlive the data it was expanded
+-- from. A counter rather than a hook list: the consumer compares one number,
+-- and a bump that over-invalidates (one book closed, every label re-expanded)
+-- costs one expansion per visible cover, once.
+local _data_generation = 0
+function Repo.dataGeneration() return _data_generation end
+local function _bumpDataGeneration() _data_generation = _data_generation + 1 end
+
 -- Forward declarations so invalidateWalkCache below resolves these to the
 -- module-local tables created later (Repo.folderHasBooks's memo at
 -- ~line 1206 and _normalizeGenre's memo at ~line 1994). Without these
@@ -2244,6 +2259,7 @@ function Repo.invalidateCalibreCache()
 end
 
 function Repo.invalidateWalkCache()
+    _bumpDataGeneration()
     Repo.invalidateCalibreCache()
     _finished_count.value = nil
     _dropFinishedCount()
@@ -2436,6 +2452,7 @@ local function _resetLightMetaProgress(rec)
 end
 
 function Repo.invalidateProgressCache(filepath)
+    _bumpDataGeneration()
     -- The Pages sort remembers the counts it looked up.
     if SortEngine.clearPageCountMemo then SortEngine.clearPageCountMemo() end
     -- A status change is exactly what makes the stored finished count wrong.
@@ -2519,6 +2536,7 @@ end
 -- title/author/series/genres -- must force a rebuild or the chips stay stale.
 -- The walk cache (file list) is untouched; only the per-file metadata refetches.
 function Repo.invalidateLightMeta()
+    _bumpDataGeneration()
     _light_meta_cache = {}
     -- Re-read sidecar directories on the next derive so a freshly-written
     -- custom_metadata.lua (e.g. a genre edit) is seen by the fast gate.
@@ -7093,6 +7111,7 @@ local STATS_FIELDS = {
 }
 
 function Repo.invalidateStatsCache(filepath)
+    _bumpDataGeneration()
     if filepath then _stats_cache[filepath] = nil
     else _stats_cache = {} end
 end

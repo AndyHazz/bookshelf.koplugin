@@ -299,6 +299,44 @@ t.test("the case toggle can be suppressed, and only it", function()
     assert(button(dialog, "Save"))
 end)
 
+t.test("size, font and alignment can each be hidden, leaving the rest", function()
+    -- The cover label draws one line in the strip's own face and size,
+    -- centred: offering Size / Font / alignment there would be controls that
+    -- do nothing. Each flag removes its own button and no other.
+    local function alignOf(d)
+        for _r, row in ipairs(d.buttons or {}) do
+            for _c, b in ipairs(row) do
+                if b.font_face == "symbols" then return b end
+            end
+        end
+    end
+    local full = open{ line = { template = "x", font_size = 14 } }
+    assert(button(full, "Size: 14"), "the Size button is missing by default")
+    assert(button(full, "Font\xE2\x80\xA6"), "the Font button is missing by default")
+    assert(alignOf(full), "the alignment button is missing by default")
+
+    local bare = open{ line = { template = "x", font_size = 14 },
+                       size = false, font = false, alignment = false, italic = false }
+    assert(button(bare, "Size: 14") == nil, "size=false left the Size button")
+    assert(button(bare, "Font\xE2\x80\xA6") == nil, "font=false left the Font button")
+    assert(alignOf(bare) == nil, "alignment=false left the alignment button")
+    assert(button(bare, "Bold"), "hiding the others removed the Bold toggle")
+    assert(button(bare, "Aa"), "hiding the others removed the case toggle")
+    assert(button(bare, "Save") and button(bare, "Tokens\xE2\x80\xA6"),
+        "hiding style controls touched the action row")
+end)
+
+t.test("the token picker is handed the caller's filter", function()
+    local got_dialog, got_filter
+    local settings = { _pickToken = function(_self, d, f) got_dialog, got_filter = d, f end }
+    local function keep(_e) return true end
+    local dialog = open{ line = { template = "x" }, settings_module = settings,
+                         token_filter = keep }
+    press(dialog, "Tokens\xE2\x80\xA6")
+    assert(got_dialog == dialog, "the picker was not given the dialog to insert into")
+    assert(got_filter == keep, "the caller's token filter did not reach the picker")
+end)
+
 -- ── The bar row ────────────────────────────────────────────────────────────
 
 t.test("the bar row appears only when asked for", function()

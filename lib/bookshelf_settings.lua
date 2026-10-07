@@ -1667,11 +1667,13 @@ function Settings:_wallpaperMenu()
             end,
             keep_menu_open = true,
             callback = function(touchmenu_instance)
+                self:_shelfSlot()
                 self:_pickColor(Wallpaper.BG_SETTING, "wallpaper_bg", 0,
                     _("Color behind wallpaper (% black)"), touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance)
                 local CoverProgress = require("lib/bookshelf_cover_progress")
+                self:_shelfSlot()
                 BookshelfSettings.delete(Wallpaper.BG_SETTING .. CoverProgress.editSuffix())
                 self:_markDirty()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
@@ -2150,6 +2152,15 @@ function Settings:_markDirty()
     end
 end
 
+-- _shelfSlot(): the colour slot back to the one the shelf on screen paints
+-- from. "Colors for: Light | Dark" switches it for the Colors menu only; the
+-- menu resets it each time it opens, and every colour row outside it (Color
+-- behind wallpaper, the plank colour) resets it too, so a switch made in
+-- Colors never carries over to them.
+function Settings:_shelfSlot()
+    pcall(function() require("lib/bookshelf_cover_progress").setEditSlot(nil) end)
+end
+
 -- _colorValueLabel(raw_key, default_pct) -> the row's right-hand value.
 --
 -- The colours menu's own valueLabel reads through CoverProgress.rawColors(),
@@ -2160,6 +2171,9 @@ end
 function Settings:_colorValueLabel(raw_key, _default_pct)
     local CoverProgress = require("lib/bookshelf_cover_progress")
     local Screen        = require("device").screen
+    -- Only the reader's own look rows (outside Colors) ask this: the slot
+    -- the shelf on screen paints from, never the one Colors was left on.
+    self:_shelfSlot()
     local suffix = CoverProgress.editSuffix()
     local raw = BookshelfSettings.read(raw_key .. suffix)
     if type(raw) ~= "table" then return _("default") end
@@ -2180,6 +2194,7 @@ end
 -- to come back to itself instead of to the menu, which it keeps hidden.
 function Settings:_pickPlank(touchmenu_instance, refresh, before, on_done)
     local TP = require("lib/bookshelf_theme_pack")
+    self:_shelfSlot()
     refresh = refresh or function() self:_markDirty() end
     before = before or TP.plankChoice()
     return self:_pickColor("spine_plank_color", "plank", 45,
@@ -2254,6 +2269,7 @@ function Settings:_plankRow(markDirty)
         -- colour rows.
         hold_callback = function(touchmenu_instance)
             local CoverProgress = require("lib/bookshelf_cover_progress")
+            self:_shelfSlot()
             local suffix = CoverProgress.editSuffix()
             BookshelfSettings.delete("spine_plank_color" .. suffix)
             markDirty()
@@ -2463,7 +2479,7 @@ end
 -- pull in everything eventually ("that feels a bit of a slippery slope").
 function Settings:_backgroundSubItems()
     -- The colour menu opens on the slot the shelf on screen paints from.
-    pcall(function() require("lib/bookshelf_cover_progress").setEditSlot(nil) end)
+    self:_shelfSlot()
     local rows = {}
     rows[#rows + 1] = self:_themeCoverRow()       -- nil unless a theme covers some of it
     rows[#rows + 1] = self:_lightDarkRow()

@@ -134,4 +134,44 @@ t.test("the colour menu's slot is the menu's own: rawColors reads it, the palett
     assert(mode and not mode:find("_edit_slot", 1, true), "the palette paints from the menu's slot")
 end)
 
+-- The slot "Colors for:" switches is the Colors menu's alone: it is reset
+-- each time Colors opens, and the reader's own look rows outside it (Color
+-- behind wallpaper, the plank colour) always read and write the slot the
+-- shelf on screen paints from.
+t.test("the Colors slot is reset on opening Colors, and never leaks to the rows outside it", function()
+    local src = io.open("lib/bookshelf_settings.lua"):read("*a")
+    local function body(name)
+        local b = src:match("\nfunction Settings:" .. name .. "%((.-)\nend\n")
+        assert(b, name .. " moved"); return (b:gsub("%-%-[^\n]*", ""))
+    end
+    local colors = body("_colorsSubItems")
+    local first = colors:find("setEditSlot(nil)", 1, true)
+    assert(first and first < colors:find("local items", 1, true), "Colors does not reset the slot when it opens")
+    -- Behaviour: _colorValueLabel under a slot left on Dark reads the day key.
+    local slot = "dark"
+    local CP = { setEditSlot = function(v) slot = v end,
+                 editSuffix = function() return slot == "dark" and "_night" or "" end }
+    local store = { wallpaper_bg = { grey = 0 }, wallpaper_bg_night = { grey = 255 } }
+    local env = setmetatable({
+        _ = function(x) return x end,
+        BookshelfSettings = { read = function(k) return store[k] end },
+        _rawToScreenPct = function(raw) return raw.grey end,
+        require = function(m)
+            if m == "lib/bookshelf_cover_progress" then return CP end
+            if m == "device" then return { screen = { isColorEnabled = function() return false end } } end
+            error(m)
+        end,
+    }, { __index = _G })
+    local code = "local Settings = {}\nfunction Settings:_shelfSlot(" .. body("_shelfSlot") .. "\nend\n"
+        .. "function Settings:_colorValueLabel(" .. body("_colorValueLabel") .. "\nend\nreturn Settings"
+    local chunk = assert((loadstring or load)(code, "=s", "t", env))
+    if setfenv then setfenv(chunk, env) end
+    local S = chunk()
+    eq(S:_colorValueLabel("wallpaper_bg"), "0%", "a row outside Colors read the slot Colors was left on")
+    eq(slot, nil)
+    local bg = body("_wallpaperMenu")
+    local _a, n = bg:gsub("self:_shelfSlot%(%)", "")
+    assert(n >= 2, "Color behind wallpaper's pick or reset does not use the shelf's slot")
+end)
+
 t.done()

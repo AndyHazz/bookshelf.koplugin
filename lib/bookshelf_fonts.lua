@@ -94,22 +94,45 @@ function M.setUIFontFace(face)
     Settings.flush()
 end
 
+-- Defined further down, with the MuPDF file helpers.
+local facePath
+
+-- A derived sibling is only a guess at a file name, and many families have no
+-- such file (CJK fonts ship no italic). Font:getFace on a missing file logs an
+-- ERROR on every call before the caller falls back, so a font with no italic
+-- filled crash.log with one line per italic render. Check the disk instead,
+-- once per name: getFace is on the render path.
+local _sibling_on_disk = {}
+local function on_disk(name)
+    local hit = _sibling_on_disk[name]
+    if hit == nil then
+        hit = facePath(name) ~= nil
+        _sibling_on_disk[name] = hit
+    end
+    return hit
+end
+
 -- Derive the bold sibling of a regular font_face ("-Regular." -> "-Bold."),
--- mirroring KOReader's own bold-variant convention. nil if no substitution.
+-- mirroring KOReader's own bold-variant convention. nil if no substitution,
+-- or if no such file is installed.
 local function bold_sibling(face)
     local b, n = face:gsub("%-Regular%.", "-Bold.", 1)
-    if n > 0 then return b end
+    if n > 0 and on_disk(b) then return b end
     return nil
 end
 
 -- Derive the italic sibling: check bundled table first (explicit italic field),
--- then fall back to the "-Regular." -> "-Italic." name convention.
+-- then fall back to the "-Regular." -> "-Italic." name convention. nil if no
+-- such file is installed.
 local function italic_sibling(face)
     for _, b in pairs(M.BUNDLED) do
-        if b.regular == face and b.italic then return b.italic end
+        if b.regular == face and b.italic then
+            if on_disk(b.italic) then return b.italic end
+            return nil
+        end
     end
     local it, n = face:gsub("%-Regular%.", "-Italic.", 1)
-    if n > 0 then return it end
+    if n > 0 and on_disk(it) then return it end
     return nil
 end
 
@@ -314,7 +337,7 @@ local function absolute(path)
     local real = ok_u and ffiutil.realpath and ffiutil.realpath(path)
     return (type(real) == "string" and real:sub(1, 1) == "/") and real or nil
 end
-local function facePath(name)
+facePath = function(name)
     if type(name) ~= "string" or name == "" then return nil end
     if name:find("/", 1, true) then return absolute(name) end
     local ok, FontList = pcall(require, "fontlist")

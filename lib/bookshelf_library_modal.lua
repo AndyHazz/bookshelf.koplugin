@@ -1245,6 +1245,10 @@ function LibraryModal:refresh()
     -- card and below the last card is the refresh() inter-section gap.
     local area_height = rows_per_page * intrinsic_card_h
         + (rows_per_page - 1) * MARGIN
+    -- config.area_height(content_w): the caller's own height for the cards'
+    -- area, when its cards are not 64dp rows (the Theme library: three
+    -- cards of its own height, the modal no taller than they need).
+    if self.config.area_height then area_height = self.config.area_height(cw) end
 
     -- Frame's padding_left/right are 0 so the title bar separator runs edge-
     -- to-edge. Each non-title section is padded with HorizontalSpan(MARGIN)

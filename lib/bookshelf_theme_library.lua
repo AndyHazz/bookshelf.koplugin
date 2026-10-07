@@ -184,20 +184,34 @@ function TL.indexOf(items, current)
 end
 
 -- ── The picker ──────────────────────────────────────────────────────────
--- About half the screen's height, so the shelf behind shows around it and a
--- choice can be seen there; a card to every ~84dp of it, sized by share of
--- the screen, as the plank picker is, so it is the same shape at every DPI.
+-- Three cards a page, the picker no taller than they need and centred, so
+-- more of the shelf is seen around it (maintainer, 2026-10-07: "shorter so
+-- we can see more behind").
+TL.PER_PAGE = 3
+
+-- A card's height: what it was when the picker filled about half the screen
+-- (SHARE) with a card to every ~CARD_DP, sized by share of the screen as the
+-- plank picker is, so it is the same shape at every DPI; three of them now
+-- make the picker's whole height.
 TL.SHARE, TL.CARD_DP = 0.55, 84
 
-function TL.cellsPerPage()
+local function gap() return require("lib/bookshelf_space").px(10) end   -- LibraryModal's MARGIN
+
+function TL.cardHeight()
     local LibraryModal = require("lib/bookshelf_library_modal")
     local Screen = require("device").screen
-    local Space = require("lib/bookshelf_space")
     local rows = LibraryModal.rowsForShare(TL.SHARE)
     if Screen:getWidth() > Screen:getHeight() then rows = math.max(2, rows - 1) end  -- as the modal shaves
-    local gap = Space.px(10)                                -- LibraryModal's MARGIN
-    local area = rows * Screen:scaleBySize(64) + (rows - 1) * gap
-    return math.max(2, math.floor((area + gap) / (Screen:scaleBySize(TL.CARD_DP) + gap)))
+    local g = gap()
+    local area = rows * Screen:scaleBySize(64) + (rows - 1) * g
+    local n = math.max(2, math.floor((area + g) / (Screen:scaleBySize(TL.CARD_DP) + g)))
+    return math.floor((area - (n - 1) * g) / n)
+end
+
+-- areaHeight() -> the cards' area: PER_PAGE cards and the gaps between, no
+-- more, so the picker is no taller than its cards.
+function TL.areaHeight()
+    return TL.PER_PAGE * TL.cardHeight() + (TL.PER_PAGE - 1) * gap()
 end
 
 -- _renderCard(item, dimen, current) -> the card: the name, the summary, the
@@ -302,8 +316,8 @@ function TL.show(opts)
         title = opts.shelf and T(_("Theme: %1"), opts.shelf) or _("Theme"),
         no_search = true,
         grid_cols = function() return 1 end,
-        rows_per_page = function() return LibraryModal.rowsForShare(TL.SHARE) end,
-        cells_per_page = TL.cellsPerPage,
+        cells_per_page = function() return TL.PER_PAGE end,
+        area_height = TL.areaHeight,
         cell_renderer = function(item, dimen)
             return TL._renderCard(item, dimen, TL.isCurrent(item, opts.current()))
         end,

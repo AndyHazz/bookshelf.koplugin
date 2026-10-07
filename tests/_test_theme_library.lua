@@ -218,6 +218,19 @@ t.test("the library's picker: titled Theme, opens on the choice in use, Add them
     eq(shown[1], m)
 end)
 
+t.test("three cards a page, the picker no taller than they need, the cards as tall as before", function()
+    -- Maintainer, 2026-10-07: "shorter so we can see more behind, 3 instead of 5".
+    local _m, c = open{ current = function() return library end, choose = function() end }
+    eq(c.cells_per_page(), 3)
+    -- The card the half-screen picker gave (6 rows of 64dp, 4 cards of ~84dp, at this scale).
+    eq(TL.cardHeight(), 185, "a card's height changed")
+    eq(c.area_height(1000), 3 * 185 + 2 * 10, "the cards' area is not three cards and their gaps")
+    eq(c.anchor, nil, "the picker is not centred")
+    local lm = io.open("lib/bookshelf_library_modal.lua"):read("*a")
+    assert(lm:find("if self.config.area_height then area_height = self.config.area_height(cw) end", 1, true),
+        "the modal ignores the caller's area height")
+end)
+
 t.test("a tap chooses and moves the mark, then the shelf behind is rebuilt; the picker stays open", function()
     library = "mine"
     local chosen, built = {}, {}

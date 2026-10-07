@@ -114,12 +114,24 @@ end)
 t.test("the picker converts by slot, and the plank is left as it displays", function()
     local src = io.open("lib/bookshelf_settings.lua"):read("*a")
     local isnight = src:match("local function _isNight%(%)(.-)\nend\n")
-    assert(isnight and isnight:find("modeSuffix", 1, true) and not isnight:find("night_mode_sync", 1, true),
-        "_isNight must answer for the slot (modeSuffix), not the frame")
+    assert(isnight and isnight:find("editSuffix", 1, true) and not isnight:find("night_mode_sync", 1, true),
+        "_isNight must answer for the slot the menu edits (editSuffix), not the frame")
     assert(src:find('raw_key ~= "spine_plank_color"', 1, true), "the plank is stored as it displays")
     local chip = io.open("lib/bookshelf_chip_bar.lua"):read("*a")
     assert(chip:find("CP.resolvePicked(raw_bg)", 1, true),
         "the selected shelf button's colours need the palette's frame correction")
+end)
+
+-- Colors for: Light | Dark switches the slot the MENU shows and edits, never
+-- what the shelf paints and never KOReader's night mode (maintainer,
+-- 2026-10-07: the old row broadcast ToggleNightMode).
+t.test("the colour menu's slot is the menu's own: rawColors reads it, the palette does not", function()
+    local src = io.open("lib/bookshelf_cover_progress.lua"):read("*a"):gsub("%-%-[^\n]*", "")
+    local raw = src:match("function M%.rawColors%(%)(.-)\nend\n")
+    assert(raw and raw:find("M.editSuffix()", 1, true), "the menu's labels do not read the slot it edits")
+    assert(raw:find("is_night = tostring(is_night) .. sfx", 1, true), "switching the slot is served a stale label cache")
+    local mode = src:match("local function _modeSuffix%(%)(.-)\nend\n")
+    assert(mode and not mode:find("_edit_slot", 1, true), "the palette paints from the menu's slot")
 end)
 
 t.done()

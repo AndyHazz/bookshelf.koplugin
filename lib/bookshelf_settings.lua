@@ -1647,9 +1647,7 @@ function Settings:_wallpaperMenu()
             end,
             hold_callback = function(touchmenu_instance)
                 local CoverProgress = require("lib/bookshelf_cover_progress")
-                local suffix = CoverProgress.modeSuffix
-                               and CoverProgress.modeSuffix() or ""
-                BookshelfSettings.delete(Wallpaper.BG_SETTING .. suffix)
+                BookshelfSettings.delete(Wallpaper.BG_SETTING .. CoverProgress.editSuffix())
                 self:_markDirty()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
@@ -2068,8 +2066,9 @@ local MenuIcons  = require("lib/bookshelf_menu_icons")
 local ICON_RESET = MenuIcons.RESET .. "  "
 
 -- _isNight() -> true when the NIGHT slot is the one being edited: the slot
--- the palette paints from, which follows the shelf theme (CoverProgress.
--- modeSuffix), not whether KOReader is inverting. The night slot is stored
+-- the menu edits (CoverProgress.editSuffix: the one the shelf on screen
+-- paints from, unless Colors for: switched it), not whether KOReader is
+-- inverting. The night slot is stored
 -- pre-inverted for a frame that flips it, the day slot as it displays, and
 -- the palette corrects for the frame at paint time (resolvedColors' flip).
 -- So what the reader SEES converts to what is stored by the slot alone.
@@ -2079,7 +2078,7 @@ local ICON_RESET = MenuIcons.RESET .. "  "
 -- palette; this matches the conversion to it too).
 local function _isNight()
     local CP = require("lib/bookshelf_cover_progress")
-    return CP.modeSuffix and CP.modeSuffix() ~= "" or false
+    return CP.editSuffix() ~= ""
 end
 local function _byteToScreenPct(byte)
     if _isNight() then
@@ -2136,7 +2135,7 @@ end
 function Settings:_colorValueLabel(raw_key, _default_pct)
     local CoverProgress = require("lib/bookshelf_cover_progress")
     local Screen        = require("device").screen
-    local suffix = CoverProgress.modeSuffix and CoverProgress.modeSuffix() or ""
+    local suffix = CoverProgress.editSuffix()
     local raw = BookshelfSettings.read(raw_key .. suffix)
     if type(raw) ~= "table" then return _("default") end
     -- A colour panel can show the hex itself; everywhere else it is the
@@ -2230,7 +2229,7 @@ function Settings:_plankRow(markDirty)
         -- colour rows.
         hold_callback = function(touchmenu_instance)
             local CoverProgress = require("lib/bookshelf_cover_progress")
-            local suffix = CoverProgress.modeSuffix and CoverProgress.modeSuffix() or ""
+            local suffix = CoverProgress.editSuffix()
             BookshelfSettings.delete("spine_plank_color" .. suffix)
             markDirty()
             if touchmenu_instance then touchmenu_instance:updateItems() end
@@ -2269,7 +2268,7 @@ function Settings:_pickColor(raw_key, field, default_pct, title,
         -- Suffix routes day vs night-mode storage to separate keys so
         -- editing in night mode doesn't clobber the user's day colors
         -- and vice versa. Mirrors CoverProgress.resolvedColors().
-        local suffix = CoverProgress.modeSuffix and CoverProgress.modeSuffix() or ""
+        local suffix = CoverProgress.editSuffix()
         local key      = raw_key .. suffix
         local raw      = BookshelfSettings.read(key)
         local original = raw
@@ -2438,6 +2437,8 @@ end
 -- Text size stays under Settings. A name broad enough to pull that in would
 -- pull in everything eventually ("that feels a bit of a slippery slope").
 function Settings:_backgroundSubItems()
+    -- The colour menu opens on the slot the shelf on screen paints from.
+    pcall(function() require("lib/bookshelf_cover_progress").setEditSlot(nil) end)
     local rows = {}
     rows[#rows + 1] = self:_lightDarkRow()
     for _i, row in ipairs(self:_wallpaperMenu()) do
@@ -2480,6 +2481,8 @@ end
 
 function Settings:_colorsSubItems()
     local CoverProgress = require("lib/bookshelf_cover_progress")
+    -- Opens on the slot the shelf on screen paints from.
+    CoverProgress.setEditSlot(nil)
     local Color        = require("lib/bookshelf_color")
     local Screen        = require("device").screen
 
@@ -2546,32 +2549,30 @@ function Settings:_colorsSubItems()
     -- Helper for the hold-to-reset path so we don't repeat the suffix
     -- decision per row. Deletes the active mode's storage key.
     local function deleteModeKey(base)
-        local suffix = CoverProgress.modeSuffix and CoverProgress.modeSuffix() or ""
+        local suffix = CoverProgress.editSuffix()
         BookshelfSettings.delete(base .. suffix)
     end
 
     local items = {
         {
+            -- Which of the reader's two colour sets the rows show and edit:
+            -- the light one or the dark one. Switching it changes nothing
+            -- else -- not KOReader's night mode, not the shelf (maintainer,
+            -- 2026-10-07: the old row toggled night mode, and with a dark
+            -- theme the light colours could not be reached at all).
             text_func = function()
-                -- Matches _isNight / modeSuffix, so the label names the
-                -- slot the picker is really editing (issue 426).
                 if _isNight() then
-                    return _("\xe2\x97\x90 Editing night-mode colors (tap to switch)")
+                    return "\xe2\x97\x90 " .. T(_("Colors for: %1"), _("Dark"))
                 end
-                return _("\xe2\x98\x80 Editing day-mode colors (tap to switch)")
+                return "\xe2\x98\x80 " .. T(_("Colors for: %1"), _("Light"))
             end,
+            help_text = _("Your colors come in two sets, one for a light shelf "
+                .. "and one for a dark shelf. Tap to edit the other set; the "
+                .. "shelf and KOReader's night mode are not changed."),
             keep_menu_open = true,
             separator = true,
             callback = function(touchmenu_instance)
-                -- Toggle KOReader's night-mode setting + broadcast the
-                -- ToggleNightMode event so the FB inversion path runs
-                -- exactly as it does when the user toggles from the
-                -- gear menu / a gesture. The colour menu's text_func
-                -- runs again on the next paint, so the header label
-                -- flips itself.
-                local Event = require("ui/event")
-                UIManager:broadcastEvent(Event:new("ToggleNightMode"))
-                markDirty()
+                CoverProgress.setEditSlot(_isNight() and "light" or "dark")
                 if touchmenu_instance and touchmenu_instance.updateItems then
                     touchmenu_instance:updateItems()
                 end

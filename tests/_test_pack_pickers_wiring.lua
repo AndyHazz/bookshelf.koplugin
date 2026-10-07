@@ -62,12 +62,19 @@ t.test("the collection shows ornaments only, with no theme buttons", function()
     assert(not browser:find("_packAction", 1, true), "the whole-pack switch is still in the footer")
 end)
 
-t.test("Colors has no Color theme row, and nothing is greyed by a pack's colors", function()
+t.test("Colors starts with the Light | Dark slot switch; no Color theme row, nothing greyed by a pack", function()
     local body = settings:match("function Settings:_colorsSubItems%(.-\nend\n")
     assert(body, "_colorsSubItems moved")
     assert(not body:find('_("Color theme: %1")', 1, true), "the Color theme row is back")
     assert(not body:find("activeColoursPack", 1, true), "the rows are still greyed by a pack's colors")
     assert(not settings:find("withOverride", 1, true), "withOverride is still used")
+    local first = body:match("local items = {%s*{(.-)\n        },")
+    assert(first and first:find('_("Colors for: %1")', 1, true), "the slot switch is not the first row")
+    assert(first:find("setEditSlot", 1, true), "the switch does not change the slot")
+    -- The old row broadcast ToggleNightMode: with a dark theme the light
+    -- colours could not be reached, and the whole menu inverted.
+    assert(not first:find("ToggleNightMode", 1, true) and not body:find("ToggleNightMode", 1, true),
+        "the slot switch toggles KOReader's night mode")
 end)
 
 t.test("pickers never switch a pack on or off, and show no off state", function()

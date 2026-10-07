@@ -478,6 +478,8 @@ package.loaded["ffi/blitbuffer"] = {
 }
 package.loaded["lib/bookshelf_cover_progress"] = {
     modeSuffix   = function() return "" end,     -- day mode: unsuffixed keys
+    editSuffix   = function() return "" end,     -- the menu edits the day slot
+    setEditSlot  = function() end,
     rawColors    = function() return {} end,     -- nothing preset
     favoriteIcon = function() return "heart" end, -- one row's label depends on it
 }

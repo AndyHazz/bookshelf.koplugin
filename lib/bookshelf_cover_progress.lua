@@ -804,8 +804,10 @@ local function _modeSuffix()
     return dark and "_night" or ""
 end
 
-local function _readOwnColor(base_key, default_day, default_night)
-    local suffix = _modeSuffix()
+-- suffix (optional): the slot to read, "" or "_night"; default the one the
+-- shelf on screen paints from. The colour menu passes its own (editSuffix).
+local function _readOwnColor(base_key, default_day, default_night, suffix)
+    suffix = suffix or _modeSuffix()
     if suffix ~= "" then
         -- Night mode: explicit override wins, otherwise fall through to
         -- the dedicated night default. Crucially we do NOT fall back to
@@ -839,6 +841,7 @@ local function _readModeColor(base_key, default_day, default_night)
     return _readOwnColor(base_key, default_day, default_night)
 end
 M._readOwnColor = _readOwnColor
+local _readOwnColorIn = _readOwnColor
 
 -- ink() -> the themed text colour, or nil to leave a widget's own default.
 --
@@ -1030,9 +1033,14 @@ end
 function M.rawColors()
     local gen      = BookshelfSettings.generation()
     local is_night = require("lib/bookshelf_night_mode_sync").active(Screen)
+    -- The slot the colour menu edits (Colors for: Light | Dark), which is
+    -- part of the key: switching it changes nothing else.
+    local sfx = M.editSuffix()
+    is_night = tostring(is_night) .. sfx
     if _raw_cache and _raw_gen == gen and _raw_night == is_night then
         return _raw_cache
     end
+    local function _readOwnColor(k, d, n) return _readOwnColorIn(k, d, n, sfx) end
     _raw_cache = {
         fill              = _readOwnColor("progress_fill",  DEFAULT_FILL, NIGHT_DEFAULT_FILL),
         track             = _readOwnColor("progress_track", DEFAULT_TRACK, NIGHT_DEFAULT_TRACK),
@@ -1085,6 +1093,20 @@ end
 -- Exposed for the settings menu's pickColor helper so it writes the
 -- same suffixed key resolvedColors reads from. Returns "" or "_night".
 function M.modeSuffix()
+    return _modeSuffix()
+end
+
+-- The colour menu's slot (Colors for: Light | Dark): which of the reader's
+-- two colour sets the menu shows and edits. nil follows the shelf on screen
+-- (modeSuffix); "light" or "dark" is the reader's switch, which changes only
+-- what the menu edits -- never KOReader's night mode, nor what the shelf
+-- paints (maintainer, 2026-10-07). The menu sets it back to nil each time it
+-- opens.
+M._edit_slot = nil
+function M.setEditSlot(slot) M._edit_slot = slot end
+function M.editSuffix()
+    if M._edit_slot == "dark" then return "_night" end
+    if M._edit_slot == "light" then return "" end
     return _modeSuffix()
 end
 

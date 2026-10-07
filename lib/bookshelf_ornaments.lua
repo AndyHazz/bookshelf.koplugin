@@ -1620,15 +1620,33 @@ function M.Ornament:init()
     end
 end
 
-function M.Ornament:onHoldOrnament()
+-- hits(p, dimen, pos, blocked) -> does a gesture at pos land on the piece?
+-- Only on its DRAWING (contentBox: the file's transparent room and soft glow
+-- don't count), and never where the shelf says a control lives (blocked(pos):
+-- the footer). Before this a piece's whole box took gestures, so one in the
+-- bottom-left slot ate taps on the start-menu button (maintainer, PW5).
+function M.hits(p, dimen, pos, blocked)
+    if not (pos and dimen and dimen.x and dimen.y) then return true end
+    if blocked and blocked(pos) then return false end
+    local l, t, r, b = M.contentBox(p.entry)
+    if not (l and t and r and b) then return true end
+    if p.mirror then l, r = 1 - r, 1 - l end
+    local w, h = dimen.w or p.w, dimen.h or p.h
+    local fx, fy = (pos.x - dimen.x) / math.max(1, w), (pos.y - dimen.y) / math.max(1, h)
+    return fx >= l and fx <= r and fy >= t and fy <= b
+end
+
+function M.Ornament:onHoldOrnament(_arg, ges)
     local h = M.handlers.hold
     if not h then return false end
+    if not M.hits(self.placement, self.dimen, ges and ges.pos, M.handlers.blocked) then return false end
     return h(self.placement.entry, self.placement, self.dimen) and true or false
 end
 
-function M.Ornament:onTapOrnament()
+function M.Ornament:onTapOrnament(_arg, ges)
     local h = M.handlers.tap
     if not (h and self.placement.entry.tap) then return false end
+    if not M.hits(self.placement, self.dimen, ges and ges.pos, M.handlers.blocked) then return false end
     return h(self.placement.entry) and true or false
 end
 

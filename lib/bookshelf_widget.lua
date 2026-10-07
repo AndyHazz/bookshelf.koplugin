@@ -262,6 +262,11 @@ function BookshelfWidget:init()
     do
         local shelf = self
         require("lib/bookshelf_ornaments").handlers = {
+            -- A piece never takes a gesture in the footer's band: its
+            -- buttons (the start menu, page turns) are under it.
+            blocked = function(pos)
+                return pos.y >= shelf.height - _footerReserveH()
+            end,
             hold = function(entry, _placement, piece)
                 if not Gestures.on("ornament_hold") then return false end
                 require("lib/bookshelf_ornament_menu").show(entry, shelf, piece)

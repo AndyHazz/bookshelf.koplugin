@@ -1153,4 +1153,29 @@ t.test("listFor: a pack's pieces and loose ones, minus switched-off pieces; the 
     assert(Orn.listFor(nil) == Orn.list() and Orn.listFor("none") == Orn.list(), "the library pool changed")
 end)
 
+t.test("a piece takes gestures only on its drawing, and never in the footer (start-menu taps)", function()
+    local O = fresh()
+    O.contentBox = function() return 0.25, 0.5, 0.75, 1.0 end   -- drawing: middle half, lower half
+    local p = { entry = { name = "c.png" }, w = 100, h = 200 }
+    local dim = { x = 10, y = 400, w = 100, h = 200 }
+    eq(O.hits(p, dim, { x = 60, y = 550 }), true, "a tap on the drawing missed")
+    eq(O.hits(p, dim, { x = 15, y = 550 }), false, "the transparent margin took the tap")
+    eq(O.hits(p, dim, { x = 60, y = 420 }), false, "the empty top took the tap")
+    local blocked = function(pos) return pos.y >= 580 end
+    eq(O.hits(p, dim, { x = 60, y = 590 }, blocked), false, "a tap in the footer band went to the piece")
+    p.mirror = true
+    O.contentBox = function() return 0.0, 0.0, 0.3, 1.0 end     -- drawing on the left, mirrored to the right
+    eq(O.hits(p, dim, { x = 100, y = 500 }), true, "mirroring was ignored")
+    eq(O.hits(p, dim, { x = 15, y = 500 }), false)
+    eq(O.hits(p, dim, nil), true, "no position: keep the old behaviour")
+    local src = io.open("lib/bookshelf_ornaments.lua"):read("*a")
+    for _i, ev in ipairs({ "HoldOrnament", "TapOrnament" }) do
+        local body = src:match("function M%.Ornament:on" .. ev .. "%(.-\nend")
+        assert(body and body:find("M.hits(self.placement, self.dimen, ges and ges.pos, M.handlers.blocked)", 1, true),
+            ev .. " still takes gestures on the piece's whole box")
+    end
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    assert(w:find("pos.y >= shelf.height - _footerReserveH()", 1, true), "the shelf does not block the footer band")
+end)
+
 t.done()

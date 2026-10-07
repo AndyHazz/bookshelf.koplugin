@@ -187,7 +187,7 @@ t.test("Each shelf counts the shelves with a theme of their own, and lists each"
                    { id = "rec", label = "Recent", theme = "mine" }, { id = "x", label = "Off", enabled = false, theme = "plain" } }
     local self, S = build({ MAC, UK }, "Macabre", tabs)
     local rows = S._shelfThemeSubItems(self)
-    eq(rows[1].text_func(), "Each shelf: 2 differ")
+    eq(rows[1].text_func(), "Each shelf: own theme on 2 of 3")
     eq(texts(rows[1].sub_item_table_func()), "Home: same as library | Manga: Ukiyo-e | Recent: My theme")
 end)
 

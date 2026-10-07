@@ -1908,7 +1908,10 @@ function Settings:_perShelfThemesRow()
         text_func = function()
             local n = self:_shelvesDiffer()
             if n == 0 then return _("Each shelf: all the same") end
-            return T(_("Each shelf: %1 differ"), n)
+            -- "1 differ" without plural forms (bookshelf_i18n has none): a
+            -- count of a total reads right at any number.
+            local total = #(require("lib/bookshelf_tab_model").getActive() or {})
+            return T(_("Each shelf: own theme on %1 of %2"), n, total)
         end,
         sub_item_table_func = function()
             local TabModel = require("lib/bookshelf_tab_model")

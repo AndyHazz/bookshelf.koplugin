@@ -67,6 +67,30 @@ function Cropped:paintTo(bb, x, y)
     pcall(function() bb:alphablitFrom(img, x, y, self.src_x, self.src_y, self.w, self.h) end)
 end
 
+-- preview(e, box_w, box_h) -> the ornament's picture as large as fits
+-- box_w x box_h, the transparent room its file carries for the shelf cropped
+-- off. Rendered at paint by the ornaments' own renderer (cached; drawn for
+-- night mode as the shelf draws it). The collection's cards and the Theme
+-- library's heroes (bookshelf_theme_library) both show pieces this way.
+function Browser.preview(e, box_w, box_h)
+    local aspect = (e.aspect and e.aspect > 0) and e.aspect or 1
+    local l, t, r, b = O().contentBox(e)
+    if not l then l, t, r, b = 0, 0, 1, 1 end
+    local cut_aspect = aspect * (r - l) / (b - t)
+    local cw, ch = box_w, math.floor(box_w / cut_aspect)
+    if ch > box_h then ch = box_h; cw = math.floor(box_h * cut_aspect) end
+    cw, ch = math.max(1, cw), math.max(1, ch)
+    local preview = Cropped:new{
+        placement = { entry = e, w = math.max(1, math.floor(cw / (r - l) + 0.5)),
+                      h = math.max(1, math.floor(ch / (b - t) + 0.5)) },
+        night = Screen.night_mode and true or false,
+        src_x = 0, src_y = 0, w = cw, h = ch,
+    }
+    preview.src_x = math.floor(l * preview.placement.w + 0.5)
+    preview.src_y = math.floor(t * preview.placement.h + 0.5)
+    return preview
+end
+
 function Browser._renderCell(item, dimen)
     local e = item.entry
     local border = Size.border.default
@@ -85,21 +109,7 @@ function Browser._renderCell(item, dimen)
     local box_h = math.max(1, dimen.h - 2 * (border + pad) - text_h - Space.padding.small)
     -- Preview the picture, not the file: the transparent room an ornament
     -- carries for the shelf is cropped off, and what is left fits the box.
-    local aspect = (e.aspect and e.aspect > 0) and e.aspect or 1
-    local l, t, r, b = O().contentBox(e)
-    if not l then l, t, r, b = 0, 0, 1, 1 end
-    local cut_aspect = aspect * (r - l) / (b - t)
-    local cw, ch = inner_w, math.floor(inner_w / cut_aspect)
-    if ch > box_h then ch = box_h; cw = math.floor(box_h * cut_aspect) end
-    cw, ch = math.max(1, cw), math.max(1, ch)
-    local preview = Cropped:new{
-        placement = { entry = e, w = math.max(1, math.floor(cw / (r - l) + 0.5)),
-                      h = math.max(1, math.floor(ch / (b - t) + 0.5)) },
-        night = Screen.night_mode and true or false,
-        src_x = 0, src_y = 0, w = cw, h = ch,
-    }
-    preview.src_x = math.floor(l * preview.placement.w + 0.5)
-    preview.src_y = math.floor(t * preview.placement.h + 0.5)
+    local preview = Browser.preview(e, inner_w, box_h)
     if item.off or item.pack_off then preview = Faded:new{ child = preview } end
     local inner_h = dimen.h - 2 * (border + pad)
     local body = VerticalGroup:new{

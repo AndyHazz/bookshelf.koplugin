@@ -166,12 +166,23 @@ t.test("listing the cards decodes nothing: counts from the scan, heroes only at 
 end)
 
 -- ── The picker ──────────────────────────────────────────────────────────
-local shown, dirty = {}, {}
+local shown, dirty, tasks = {}, {}, {}
 package.loaded["ui/uimanager"] = {
     show = function(_u, w) shown[#shown + 1] = w end,
     close = function(_u, w) w.closed = true; if w.config.on_closed then w.config.on_closed() end end,
     setDirty = function(_u, w, mode) dirty[#dirty + 1] = tostring(w) .. ":" .. tostring(mode) end,
+    scheduleIn = function(_u, secs, fn) tasks[#tasks + 1] = { secs = secs, fn = fn } end,
+    unschedule = function(_u, fn)
+        for i = #tasks, 1, -1 do if tasks[i].fn == fn then table.remove(tasks, i) end end
+    end,
 }
+-- runTasks() -> how many scheduled tasks ran (the UIManager's next turn).
+local function runTasks()
+    local due = tasks
+    tasks = {}
+    for _i, task in ipairs(due) do task.fn() end
+    return #due
+end
 package.loaded["device"] = { screen = { getWidth = function() return 1236 end, getHeight = function() return 1648 end,
                                         scaleBySize = function(_s, v) return math.floor(v * 1.875) end } }
 package.loaded["lib/bookshelf_space"] = { px = function(v) return v end }
@@ -186,7 +197,7 @@ package.loaded["lib/bookshelf_library_modal"] = {
 }
 
 local function open(opts)
-    shown, dirty = {}, {}
+    shown, dirty, tasks = {}, {}, {}
     local m = TL.show(opts)
     return m, m.config
 end
@@ -207,19 +218,54 @@ t.test("the library's picker: titled Theme, opens on the choice in use, Add them
     eq(shown[1], m)
 end)
 
-t.test("a tap chooses, refreshes the whole screen and moves the mark; the picker stays open", function()
+t.test("a tap chooses and moves the mark, then the shelf behind is rebuilt; the picker stays open", function()
     library = "mine"
-    local chosen = {}
+    local chosen, built = {}, {}
     local m, c = open{ current = function() return library end,
-                       choose = function(v) chosen[#chosen + 1] = tostring(v); library = v end }
+                       choose = function(v) chosen[#chosen + 1] = tostring(v); library = v end,
+                       apply = function() built[#built + 1] = library end }
     c.on_cell_tap(c.item_at(3))
     eq(table.concat(chosen, ","), "Macabre")
-    eq(dirty[#dirty], "all:full", "a theme is the whole look: one full refresh")
     eq(m.refreshes, 2, "the mark did not move")            -- one for the keys' focus, one now
-    eq(m.closed, nil, "the picker closed on a choice")
     eq(m._dpad_idx, 3, "the keys' focus did not stay on the card chosen")
+    eq(#built, 0, "the shelf was rebuilt before the mark could show")
+    eq(tasks[1] and tasks[1].secs, TL.APPLY_DELAY, "the shelf behind is not rebuilt after a tap")
+    runTasks()
+    eq(table.concat(built, ","), "Macabre", "the shelf behind did not follow the choice while the picker is open")
+    eq(dirty[#dirty], "all:full", "a theme is the whole look: one full refresh, the picker repainted over it")
+    eq(m.closed, nil, "the picker closed on a choice")
     c.on_cell_tap(c.item_at(3))
     eq(#chosen, 1, "choosing the theme in use again did something")
+    eq(runTasks(), 0, "choosing the theme in use again rebuilt the shelf")
+end)
+
+t.test("a run of taps is one rebuild, for the last choice", function()
+    library = "mine"
+    local built = {}
+    local _m, c = open{ current = function() return library end,
+                        choose = function(v) library = v end,
+                        apply = function() built[#built + 1] = library end }
+    c.on_cell_tap(c.item_at(3)); c.on_cell_tap(c.item_at(4)); c.on_cell_tap(c.item_at(2))
+    eq(#tasks, 1, "every tap queued a rebuild of its own")
+    runTasks()
+    eq(table.concat(built, ","), "plain", "not one rebuild for the last choice")
+    local full = 0
+    for _i, d in ipairs(dirty) do if d == "all:full" then full = full + 1 end end
+    eq(full, 1, "more than one full refresh for a run of taps")
+end)
+
+t.test("a choice still waiting is applied when the picker closes, before the caller comes back", function()
+    library = "mine"
+    local order = {}
+    local m, c = open{ current = function() return library end,
+                       choose = function(v) library = v end,
+                       apply = function() order[#order + 1] = "apply:" .. tostring(library) end,
+                       on_closed = function() order[#order + 1] = "back" end }
+    c.on_cell_tap(c.item_at(3))
+    c.footer_rows[1][2].on_tap()
+    eq(m.closed, true)
+    eq(table.concat(order, ","), "apply:Macabre,back", "the menu came back before the shelf followed the choice")
+    eq(runTasks(), 0, "a rebuild was left waiting after the picker closed")
 end)
 
 t.test("a missing pack cannot be chosen again; once left it drops out of the list", function()

@@ -1848,8 +1848,8 @@ end
 -- _openThemeLibrary(id, touchmenu_instance): the Theme library
 -- (bookshelf_theme_library), the one picker every theme is chosen in: the
 -- library's when id is nil, else that shelf's. The menu steps aside while it
--- is open, so a choice is seen on the shelf behind, and comes back after
--- with its rows refreshed. Choosing writes ONE key (library_theme, or the
+-- is open, so a choice is seen on the shelf behind as it is made, and comes
+-- back after, at the same submenu, with its rows refreshed. Choosing writes ONE key (library_theme, or the
 -- shelf's tab.theme) and rebuilds the shelf: a theme is a layer over the
 -- reader's own look, never written into it (maintainer, 2026-10-07).
 function Settings:_openThemeLibrary(id, touchmenu_instance)
@@ -1859,17 +1859,14 @@ function Settings:_openThemeLibrary(id, touchmenu_instance)
         local tab = require("lib/bookshelf_tab_model").getById(id)
         opts.shelf = (tab and tab.label) or id
         opts.current = function() return TP.ownChoice(id) end
-        opts.choose = function(value)
-            self:_setShelfThemeField(id, "theme", value)
-            self:_markDirty()
-        end
+        opts.choose = function(value) self:_setShelfThemeField(id, "theme", value) end
     else
         opts.current = function() return TP.libraryChoice() end
-        opts.choose = function(value)
-            TP.setLibraryTheme(value)
-            self:_markDirty()
-        end
+        opts.choose = function(value) TP.setLibraryTheme(value) end
     end
+    -- The shelf behind rebuilt while the picker is still open (it asks once
+    -- a run of taps settles, and before the menu comes back).
+    opts.apply = function() self:_markDirty() end
     return require("lib/bookshelf_theme_library").show(opts)
 end
 

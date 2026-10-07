@@ -8,10 +8,11 @@ row) and Shelf style's Theme row.
 A card: the theme's name, what it brings ("Wallpaper · Plank · 55 ornaments ·
 Dark", only the parts it has), its theme.json description when there is one,
 and its hero ornament at the right end (theme.json "hero", else its newest
-piece switched on). A heavier frame on a light ground marks the choice in use. A tap chooses, the shelf
-behind is rebuilt with a full refresh, and the picker stays open with the
-mark moved, as the plank and wallpaper pickers do; Close (or a tap outside,
-or Back) when done.
+piece switched on). A heavier frame on a light ground marks the choice in use. A tap chooses
+and moves the mark, the shelf behind is rebuilt with a full refresh a moment
+later (a run of taps is one rebuild, for the last), and the picker stays
+open, as the plank and wallpaper pickers do; Close (or a tap outside, or
+Back) when done.
 
 Cheap to open: the parts come from the theme scan (bookshelf_theme_pack) and
 the ornament counts from the ornament scan (listAll: file headers, nothing
@@ -261,14 +262,21 @@ function TL._renderCard(item, dimen, current)
     }
 end
 
+-- How long after a tap the shelf behind is rebuilt: long enough for the
+-- moved mark to show first, and for taps made while a rebuild ran to arrive
+-- and be counted as one (only the last is built).
+TL.APPLY_DELAY = 0.15
+
 -- show(opts): the picker.
 --   opts.shelf     a shelf's label: that shelf's picker (Same as library
 --                  first, titled "Theme: <label>"); nil for the library's
 --   opts.current   function() -> the choice in use (nil: Same as library)
---   opts.choose    function(value): store it and rebuild the shelf; the
---                  picker then refreshes the whole screen (a theme is the
---                  whole look) and moves its mark
---   opts.on_closed once, however it closes (the caller's menu or dialog back)
+--   opts.choose    function(value): store it (cheap; the mark moves at once)
+--   opts.apply     function(): the shelf behind rebuilt for the choice; run
+--                  APPLY_DELAY after the last tap, then the whole screen is
+--                  refreshed (a theme is the whole look), the picker over it
+--   opts.on_closed once, however it closes (the caller's menu or dialog
+--                  back), after a choice still waiting has been applied
 function TL.show(opts)
     local LibraryModal = require("lib/bookshelf_library_modal")
     local UIManager    = require("ui/uimanager")
@@ -280,6 +288,16 @@ function TL.show(opts)
     load()
     local modal
     local function close() if modal then UIManager:close(modal) end end
+    -- The shelf behind follows the cards: one rebuild for a run of taps
+    -- (the last choice wins), and none left waiting when the picker closes.
+    local waiting = false
+    local function apply()
+        if not waiting then return end
+        waiting = false
+        UIManager:unschedule(apply)
+        if opts.apply then opts.apply() end
+        UIManager:setDirty("all", "full")
+    end
     local config = {
         title = opts.shelf and T(_("Theme: %1"), opts.shelf) or _("Theme"),
         no_search = true,
@@ -292,7 +310,6 @@ function TL.show(opts)
         on_cell_tap = function(item)
             if item.missing or TL.isCurrent(item, opts.current()) then return end
             opts.choose(item.value)
-            UIManager:setDirty("all", "full")
             -- Listed again: a missing pack that was the choice drops out.
             load()
             if modal then
@@ -300,6 +317,9 @@ function TL.show(opts)
                 if modal._dpad_idx then modal._dpad_idx = TL.indexOf(self.items, opts.current()) end
                 modal:refresh()
             end
+            UIManager:unschedule(apply)
+            waiting = true
+            UIManager:scheduleIn(TL.APPLY_DELAY, apply)
         end,
         item_count = function() return #self.items end,
         item_at = function(i) return self.items[i] end,
@@ -309,6 +329,7 @@ function TL.show(opts)
         } },
         on_closed = function()
             modal = nil
+            apply()
             if opts.on_closed then pcall(opts.on_closed) end
         end,
     }

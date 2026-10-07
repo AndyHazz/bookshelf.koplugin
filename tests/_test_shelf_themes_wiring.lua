@@ -54,8 +54,9 @@ t.test("Shelf style has the shelf's Theme row, top-level shelves only, previewed
     assert(row:find('require("lib/bookshelf_theme_library").show{', 1, true),
         "the row does not open the Theme library the menus open")
     assert(row:find("current = cur,", 1, true), "the picker does not mark the draft's choice")
-    assert(row:find("draft.theme = value", 1, true) and row:find("if on_change then on_change() end", 1, true),
-        "a pick does not reach the draft, or is not previewed")
+    assert(row:find("choose = function(value) draft.theme = value end,", 1, true)
+        and row:find("apply = on_change,", 1, true),
+        "a pick does not reach the draft, or is not previewed on the shelf behind")
     assert(row:find("on_closed = show,", 1, true), "Shelf style does not come back after the picker")
     local st = read("lib/bookshelf_settings.lua")
     local open = st:match("function Settings:_openThemeLibrary%(id, touchmenu_instance%)(.-)\nend\n")

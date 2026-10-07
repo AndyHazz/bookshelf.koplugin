@@ -2378,10 +2378,8 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                     require("lib/bookshelf_theme_library").show{
                         shelf = draft.label or "",
                         current = cur,
-                        choose = function(value)
-                            draft.theme = value
-                            if on_change then on_change() end
-                        end,
+                        choose = function(value) draft.theme = value end,
+                        apply = on_change,
                         on_closed = show,
                     }
                 end,

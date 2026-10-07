@@ -321,6 +321,10 @@ function Bookshelf:init()
     local Fonts = require("lib/bookshelf_fonts")
     Fonts.maybeSeedFreshInstall()
     Fonts.ensureInstalled()
+    -- Themes became layers over the reader's own look in 5.4: the old
+    -- applied-theme record is turned into the new keys, once, before any
+    -- menu or shelf reads them (bookshelf_theme_pack.migrate).
+    pcall(function() require("lib/bookshelf_theme_pack").migrate() end)
 
     -- Version marker, written every init. v5 is the FIRST build that
     -- writes it, which makes it the upgrade detector: settings present

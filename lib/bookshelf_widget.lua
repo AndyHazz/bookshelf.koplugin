@@ -251,7 +251,9 @@ function BookshelfWidget:init()
     self.width  = Screen:getWidth()
     self.height = Screen:getHeight()
     self.dimen  = Geom:new{ w = self.width, h = self.height }
-    -- The 5.3 betas' borrowed pack wallpaper becomes an ordinary choice, once.
+    -- Themes as layers (5.4): the old applied-theme record is migrated,
+    -- once (main.lua does it at plugin init too; a guard key makes the second
+    -- call free).
     if not BookshelfWidget._themes_migrated then
         BookshelfWidget._themes_migrated = true
         pcall(function() require("lib/bookshelf_theme_pack").migrate() end)

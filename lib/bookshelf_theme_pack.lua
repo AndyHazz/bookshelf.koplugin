@@ -860,15 +860,144 @@ function M.shownWallpaper(is_full, is_dark)
     return M.mineWallpaper(is_full, is_dark)
 end
 
--- migrate(): the 5.3 betas "lent" a pack's wallpaper (theme_wallpaper_pack);
--- it is now an ordinary choice. Moved once.
-function M.migrate()
-    local pack = read("theme_wallpaper_pack")
-    if type(pack) ~= "string" then return end
-    for _i, e in ipairs(M.wallpaperEntries()) do
-        if e.pack == pack then save("wallpaper_default", e.name) end
+-- ── MIGRATION (once, at start-up) ───────────────────────────────────────
+-- 5.3 and the rc/5.4 builds APPLIED a theme: choosing one wrote its parts
+-- into the reader's own settings and kept the old values in theme_applied.
+-- Now the reader's own look is never written by a theme, so (maintainer,
+-- 2026-10-07):
+--   1. theme_applied for pack P: every part and pack switch still as the
+--      theme left them -> the library wears P and the reader's own look is
+--      put back from the record; anything changed on top -> the settings
+--      stay as shown (the reader's own now holds what was on screen) and
+--      the library wears none. The record goes.
+--   2. theme_colours_pack Q (a Color theme): Q's colours are written into
+--      the colour keys, as they were shown, and the key goes.
+--   3. wallpaper_* naming a pack's picture stays the reader's choice; if it
+--      was not showing (its pack off or gone), the reader's own picture from
+--      before it (_own) takes its place. _own goes.
+--   4. rc/5.4 tabs: theme "none" -> "mine", theme_look dropped.
+-- Idempotent, and guarded by a version so it runs once.
+M.MIGRATION_SETTING = "theme_model"
+M.MIGRATION_VERSION = 1
+M.APPLIED_SETTING   = "theme_applied"
+M.COLOURS_SETTING   = "theme_colours_pack"
+M._tabmodel = nil   -- seam: the tab model ({ load, save })
+
+-- A saved nil in the old record, which a settings table cannot hold as a value.
+local NIL_MARK = "\0nil"
+local function dec(v) if v == NIL_MARK then return nil end return v end
+
+local function migrateApplied()
+    local s = read(M.APPLIED_SETTING)
+    if s == nil then return end
+    save(M.APPLIED_SETTING, nil)
+    if type(s) ~= "table" or type(s.before) ~= "table" or type(s.applied) ~= "table" then return end
+    local pack = s.pack
+    if not (type(pack) == "string" and M.theme(pack).exists) then return end
+    local O = orn()
+    local _all, packs = O.listAll()
+    -- Plank designs on or off is the device's preference now, not a part of
+    -- the look: neither compared nor put back.
+    local held = true
+    for k, a in pairs(s.applied) do
+        if k ~= M.DESIGNS_OFF_SETTING and read(k) ~= dec(a) then held = false end
     end
-    save("theme_wallpaper_pack", nil)
+    local packs_applied = type(s.packs_applied) == "table" and s.packs_applied or nil
+    if held and packs_applied then
+        for _i, p in ipairs(packs or {}) do
+            if (O.isPackOff(p) == true) ~= (packs_applied[p] == true) then held = false end
+        end
+    end
+    if not held then return end
+    for k in pairs(s.applied) do
+        if k ~= M.DESIGNS_OFF_SETTING then save(k, dec(s.before[k])) end
+    end
+    if packs_applied then
+        local before = type(s.packs_before) == "table" and s.packs_before or {}
+        for _i, p in ipairs(packs or {}) do O.setPackOff(p, before[p] == true) end
+    end
+    save(M.LIBRARY_SETTING, pack)
+end
+
+local function migrateColours()
+    local q = read(M.COLOURS_SETTING)
+    if q == nil then return end
+    save(M.COLOURS_SETTING, nil)
+    if type(q) ~= "string" or q == "" then return end
+    local th = M.theme(q)
+    -- Only what was on screen: a pack that was off or gone lent nothing.
+    if not (th.exists and th.colours) or orn().isPackOff(q) then return end
+    for _i, look in ipairs({ "day", "night" }) do
+        local dark = look == "night"
+        for key in pairs(th.colours[look]) do
+            save(key .. (dark and "_night" or ""), packColour(q, key, dark))
+        end
+    end
+end
+
+local function migrateWallpaper(key)
+    local own = read(key .. "_own")
+    if own ~= nil then save(key .. "_own", nil) end
+    local v = read(key)
+    if not M.isPackName(v) then return end
+    local pack = v:sub(#M.NAME_PREFIX + 1):match("^([^\1]+)\1")
+    local th = pack and M.theme(pack)
+    local showing = th and th.exists and th.wallpaper and not orn().isPackOff(pack)
+    if showing then return end
+    if type(own) == "string" and own ~= "" and not M.isPackName(own) then
+        save(key, own)
+    elseif not (th and th.exists and th.wallpaper) then
+        save(key, nil)            -- its pack is gone: it showed nothing
+    end
+end
+
+local function migrateTabs()
+    local TabModel = M._tabmodel
+    if not TabModel then
+        local ok, TM = pcall(require, "lib/bookshelf_tab_model")
+        TabModel = ok and TM or nil
+    end
+    if not (TabModel and TabModel.load and TabModel.save) then return end
+    local tabs = TabModel.load()
+    local changed = false
+    for _i, t in ipairs(tabs or {}) do
+        if t.theme == "none" then t.theme = M.MINE; changed = true end
+        if t.theme_look ~= nil then t.theme_look = nil; changed = true end
+    end
+    -- Saved only when something changed: TabModel.load hands an untouched
+    -- reader the DEFAULTS, and saving them would freeze them.
+    if changed then TabModel.save(tabs) end
+end
+
+function M.migrate()
+    local v = read(M.MIGRATION_SETTING)
+    if type(v) == "number" and v >= M.MIGRATION_VERSION then return end
+    local O = orn()
+    local own_defer = O.beginDeferred ~= nil and not O._defer
+    if own_defer then O.beginDeferred() end
+    local ok, err = pcall(function()
+        -- The 5.3 betas "lent" a pack's wallpaper (theme_wallpaper_pack).
+        local beta = read("theme_wallpaper_pack")
+        if beta ~= nil then
+            save("theme_wallpaper_pack", nil)
+            for _i, e in ipairs(M.wallpaperEntries()) do
+                if e.pack == beta then save("wallpaper_default", e.name) end
+            end
+        end
+        migrateApplied()
+        migrateColours()
+        migrateWallpaper("wallpaper_default")
+        migrateWallpaper("wallpaper_full")
+        migrateTabs()
+    end)
+    if own_defer then O.endDeferred() end
+    if not ok then
+        logger.warn("[bookshelf] theme migration failed:", tostring(err))
+        return
+    end
+    save(M.MIGRATION_SETTING, M.MIGRATION_VERSION)
+    M._plank_memo = nil
+    M._cur = nil
 end
 
 function M.wallpaperPath(rest)

@@ -412,6 +412,10 @@ t.test("the shelf maps a pack wallpaper to its variant", function()
     assert(b and b:find("TP.shownWallpaper(full,", 1, true), "the shelf does not ask shownWallpaper")
     assert(w:find("TP.isDarkName(", 1, true), "_wallpaperWidget does not skip the invert for a dark variant")
     assert(w:find('bookshelf_theme_pack").migrate()', 1, true), "the shelf does not migrate")
+    local main = io.open("main.lua"):read("*a")
+    local init = main:match("\nfunction Bookshelf:init%(%)(.-)\nend\n")
+    assert(init and init:find('bookshelf_theme_pack").migrate()', 1, true),
+        "the plugin does not migrate at init (a menu can open before the shelf)")
     local wp = io.open("lib/bookshelf_wallpaper.lua"):read("*a")
     assert(wp:find("wallpaperPath(", 1, true), "pathFor does not resolve theme names")
 end)
@@ -520,6 +524,143 @@ t.test("choosing a theme writes library_theme and nothing else; the reader's own
     eq(TP.shownWallpaper(false, false), "leaves.png"); eq(TP.shelfLook(), "light")
 end)
 
+-- ── Migration: 5.3 and rc/5.4 to themes as layers ─────────────────────────
+-- A record as 5.3.x's chooseTheme left it ("\0nil" is a saved nil).
+local NIL = "\0nil"
+local function applied53(settings, pack, before, applied, packs_before, packs_applied)
+    settings.theme_applied = { pack = pack, before = before, applied = applied,
+                               packs_before = packs_before, packs_applied = packs_applied }
+end
+
+t.test("migrate: an untouched 5.3 theme becomes the library theme; the reader's own comes back", function()
+    local TP, d, settings, packs_off = setup()
+    halloween(d); touch(d .. "/Cats/c.png"); TP.invalidate()
+    local wall = "theme-pack\1Halloween\1wallpaper.png"
+    -- On screen, as 5.3 left it: Halloween's parts in the reader's keys,
+    -- every other pack off.
+    settings.wallpaper_default = wall; settings.theme_colours_pack = "Halloween"
+    settings.theme_plank_pack = "Halloween/theme/plank.Ash"; settings.shelf_theme = "dark"
+    packs_off.Autumn = true; packs_off.Cats = true
+    applied53(settings, "Halloween",
+        { wallpaper_default = "leaves.png", wallpaper_default_own = NIL, theme_colours_pack = NIL,
+          theme_plank_pack = false, plank_wood = NIL, plank_designs_off = NIL, shelf_theme = "auto" },
+        { wallpaper_default = wall, wallpaper_default_own = "leaves.png", theme_colours_pack = "Halloween",
+          theme_plank_pack = "Halloween/theme/plank.Ash", plank_wood = NIL, plank_designs_off = NIL,
+          shelf_theme = "dark" },
+        { Cats = true }, { Autumn = true, Cats = true })
+    settings.wallpaper_default_own = "leaves.png"
+    TP.migrate()
+    eq(settings.library_theme, "Halloween")
+    eq(settings.wallpaper_default, "leaves.png"); eq(settings.shelf_theme, "auto")
+    eq(settings.theme_plank_pack, false); eq(settings.theme_colours_pack, nil)
+    eq(settings.theme_applied, nil); eq(settings.wallpaper_default_own, nil)
+    eq(packs_off.Autumn, nil, "the reader's collection was not put back")
+    eq(packs_off.Cats, true, "a pack off before the theme came back on")
+    -- The screen is unchanged: the library wears Halloween.
+    eq(TP.shownWallpaper(false, false), wall); eq(TP.shelfLook(), "dark")
+    eq(settings.theme_model, TP.MIGRATION_VERSION)
+end)
+
+t.test("migrate: a 5.3 theme with changes on top keeps what is on screen as the reader's own", function()
+    local TP, d, settings, packs_off = setup()
+    halloween(d); TP.invalidate()
+    local wall = "theme-pack\1Halloween\1wallpaper.png"
+    settings.wallpaper_default = "green.png"                 -- changed after the theme
+    settings.shelf_theme = "dark"
+    packs_off.Autumn = true
+    applied53(settings, "Halloween",
+        { wallpaper_default = "leaves.png", wallpaper_default_own = NIL, shelf_theme = "auto" },
+        { wallpaper_default = wall, wallpaper_default_own = "leaves.png", shelf_theme = "dark" },
+        {}, { Autumn = true })
+    TP.migrate()
+    eq(settings.library_theme, nil, "the library still wears the theme the reader changed")
+    eq(settings.wallpaper_default, "green.png"); eq(settings.shelf_theme, "dark")
+    eq(packs_off.Autumn, true, "the collection on screen was changed")
+    eq(settings.theme_applied, nil)
+end)
+
+t.test("migrate: a pack switch changed on top counts as a change", function()
+    local TP, d, settings, packs_off = setup()
+    halloween(d); TP.invalidate()
+    settings.shelf_theme = "dark"
+    applied53(settings, "Halloween", { shelf_theme = "auto" }, { shelf_theme = "dark" }, {}, { Autumn = true })
+    -- packs_off.Autumn is nil: the reader switched Autumn back on.
+    TP.migrate()
+    eq(settings.library_theme, nil); eq(settings.shelf_theme, "dark")
+end)
+
+t.test("migrate: a record whose pack has gone is dropped, the settings as shown", function()
+    local TP, _d, settings = setup()
+    settings.shelf_theme = "dark"
+    applied53(settings, "Gone", { shelf_theme = "auto" }, { shelf_theme = "dark" }, {}, {})
+    TP.migrate()
+    eq(settings.library_theme, nil); eq(settings.shelf_theme, "dark"); eq(settings.theme_applied, nil)
+end)
+
+t.test("migrate: a leftover Color theme is written into the colour keys as it showed", function()
+    local TP, d, settings = setup()
+    touch(d .. "/Japan/theme/colours.json",
+        '{"day": {"text": "#101010", "plank": "#806040"}, "night": {"text": "#F0F0F0", "plank": "#403020"}}')
+    TP.invalidate()
+    settings.theme_colours_pack = "Japan"
+    settings.badge_bg = { grey = 10 }                         -- not in the pack: stays
+    TP.migrate()
+    eq(settings.theme_colours_pack, nil)
+    eq(settings.ink_color.hex, "#101010")
+    eq(settings.ink_color_night.hex:upper(), "#0F0F0F", "the night slot is stored pre-inverted")
+    eq(settings.spine_plank_color_night.hex, "#403020", "the plank stays as it displays")
+    eq(settings.badge_bg.grey, 10)
+end)
+
+t.test("migrate: a Color theme whose pack was off showed nothing, and writes nothing", function()
+    local TP, d, settings, packs_off = setup()
+    touch(d .. "/Japan/theme/colours.json", '{"day": {"text": "#101010"}}'); TP.invalidate()
+    settings.theme_colours_pack = "Japan"; packs_off.Japan = true
+    TP.migrate()
+    eq(settings.theme_colours_pack, nil); eq(settings.ink_color, nil)
+end)
+
+t.test("migrate: wallpaper _own comes back only where the pack's picture was not showing", function()
+    local TP, d, settings, packs_off = setup()
+    touch(d .. "/Japan/theme/wallpaper.png"); touch(d .. "/Xmas/theme/wallpaper.png"); TP.invalidate()
+    -- Showing: the pack's picture stays the reader's choice.
+    settings.wallpaper_default = "theme-pack\1Japan\1wallpaper.png"
+    settings.wallpaper_default_own = "leaves.png"
+    -- Not showing (pack off): the reader's own from before comes back.
+    settings.wallpaper_full = "theme-pack\1Xmas\1wallpaper.png"
+    settings.wallpaper_full_own = "sky.png"
+    packs_off.Xmas = true
+    TP.migrate()
+    eq(settings.wallpaper_default, "theme-pack\1Japan\1wallpaper.png")
+    eq(settings.wallpaper_full, "sky.png")
+    eq(settings.wallpaper_default_own, nil); eq(settings.wallpaper_full_own, nil)
+end)
+
+t.test("migrate: a pack wallpaper whose pack has gone, with nothing before it, is cleared", function()
+    local TP, _d, settings = setup()
+    settings.wallpaper_default = "theme-pack\1Gone\1wallpaper.png"
+    TP.migrate()
+    eq(settings.wallpaper_default, nil)
+end)
+
+t.test("migrate: rc/5.4 tabs: 'none' becomes the reader's own, theme_look goes", function()
+    local TP, _d, settings = setup()
+    local saved
+    local tabs = { { id = "a", theme = "none", theme_look = "dark" }, { id = "b", theme = "Cats" }, { id = "c" } }
+    TP._tabmodel = { load = function() return tabs end, save = function(t2) saved = t2 end }
+    TP.migrate()
+    assert(saved, "the tabs were not saved")
+    eq(saved[1].theme, "mine"); eq(saved[1].theme_look, nil); eq(saved[2].theme, "Cats")
+end)
+
+t.test("migrate: untouched tabs are not saved (that would freeze the defaults)", function()
+    local TP = setup()
+    local saves = 0
+    TP._tabmodel = { load = function() return { { id = "home" } } end, save = function() saves = saves + 1 end }
+    TP.migrate()
+    eq(saves, 0)
+end)
+
 t.test("migrate: the 5.3 betas' borrowed wallpaper becomes the reader's choice", function()
     local TP, d, settings = setup()
     touch(d .. "/Japan/theme/wallpaper.png")
@@ -528,6 +669,38 @@ t.test("migrate: the 5.3 betas' borrowed wallpaper becomes the reader's choice",
     TP.migrate()
     eq(settings.wallpaper_default, "theme-pack\1Japan\1wallpaper.png")
     eq(settings.theme_wallpaper_pack, nil)
+end)
+
+t.test("migrate runs once: the version guards it, and a second run changes nothing", function()
+    local TP, d, settings = setup()
+    halloween(d); TP.invalidate()
+    TP._tabmodel = { load = function() return {} end, save = function() end }
+    TP.migrate()
+    eq(settings.theme_model, TP.MIGRATION_VERSION)
+    settings.theme_colours_pack = "Halloween"                -- would be migrated if it ran
+    TP.migrate()
+    eq(settings.theme_colours_pack, "Halloween", "a second start migrated again")
+    eq(settings.ink_color, nil)
+end)
+
+t.test("migrate is one flush, however much it moves", function()
+    local TP, d, settings, packs_off = setup()
+    halloween(d); touch(d .. "/Cats/c.png"); TP.invalidate()
+    settings.shelf_theme = "dark"; packs_off.Autumn = true; packs_off.Cats = true
+    applied53(settings, "Halloween", { shelf_theme = "auto" }, { shelf_theme = "dark" },
+        {}, { Autumn = true, Cats = true })
+    TP._tabmodel = { load = function() return {} end, save = function() end }
+    local O, flushes, store = TP._orn, 0, TP._store
+    store.saveDeferred = store.save
+    store.flush = function() flushes = flushes + 1 end
+    O._defer = false
+    O.beginDeferred = function() O._defer = true end
+    O.endDeferred = function() O._defer = false; store.flush() end
+    TP.migrate()
+    eq(settings.library_theme, "Halloween")
+    -- The deferred batch, then the version key's own save.
+    eq(flushes, 2, "the migration flushed per setting")
+    eq(O._defer, false, "left deferred")
 end)
 
 t.done()

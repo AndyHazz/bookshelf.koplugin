@@ -241,4 +241,14 @@ t.test("a card's hero is the ornaments' own cached render, through the collectio
         "the preview does not use the ornaments' cached renderer")
 end)
 
+t.test("the choice in use is a heavier frame on a light ground, not a radio mark", function()
+    -- Maintainer, 2026-10-07: the radio mark did not look good on a card.
+    local src = io.open("lib/bookshelf_theme_library.lua"):read("*a")
+    local card = src:match("function TL%._renderCard%(.-\nend\n")
+    assert(card, "_renderCard moved")
+    assert(not card:find("Marks.Radio", 1, true), "the radio mark is back")
+    assert(card:find("current and Size.border.thick or Size.border.thin", 1, true), "no heavier frame for the choice in use")
+    assert(card:find("current and Blitbuffer.Color8(0xEE)", 1, true), "no light ground for the choice in use")
+end)
+
 t.done()

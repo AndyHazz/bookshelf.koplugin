@@ -8,7 +8,7 @@ row) and Shelf style's Theme row.
 A card: the theme's name, what it brings ("Wallpaper · Plank · 55 ornaments ·
 Dark", only the parts it has), its theme.json description when there is one,
 and its hero ornament at the right end (theme.json "hero", else its first
-piece by name). The radio mark is the choice in use. A tap chooses, the shelf
+piece by name). A heavier frame on a light ground marks the choice in use. A tap chooses, the shelf
 behind is rebuilt with a full refresh, and the picker stays open with the
 mark moved, as the plank and wallpaper pickers do; Close (or a tap outside,
 or Back) when done.
@@ -184,8 +184,10 @@ function TL.cellsPerPage()
     return math.max(2, math.floor((area + gap) / (Screen:scaleBySize(TL.CARD_DP) + gap)))
 end
 
--- _renderCard(item, dimen, current) -> the card: the radio mark, the name,
--- the summary, the description (if there is room), the hero on the right.
+-- _renderCard(item, dimen, current) -> the card: the name, the summary, the
+-- description (if there is room), the hero on the right. The choice in use is
+-- a heavier frame on a light ground (maintainer, 2026-10-07: no radio mark,
+-- it did not look good on a card).
 function TL._renderCard(item, dimen, current)
     local Blitbuffer      = require("ffi/blitbuffer")
     local CenterContainer = require("ui/widget/container/centercontainer")
@@ -195,12 +197,11 @@ function TL._renderCard(item, dimen, current)
     local HorizontalGroup = require("ui/widget/horizontalgroup")
     local HorizontalSpan  = require("ui/widget/horizontalspan")
     local LeftContainer   = require("ui/widget/container/leftcontainer")
-    local Marks           = require("lib/bookshelf_marks")
     local Size            = require("ui/size")
     local Space           = require("lib/bookshelf_space")
     local TextWidget      = require("lib/bookshelf_colour_text")
     local VerticalGroup   = require("ui/widget/verticalgroup")
-    local border = Size.border.thin
+    local border = current and Size.border.thick or Size.border.thin
     -- Little padding above and below: three lines have to fit, also inside
     -- the keys' focus ring, which takes its width off the card.
     local pad, pad_v = Space.padding.default, Space.padding.small
@@ -211,8 +212,7 @@ function TL._renderCard(item, dimen, current)
     -- of its width. Kept on every card, with or without a hero, so the names
     -- line up down the page.
     local hero_w = math.max(1, math.min(inner_h, math.floor(inner_w / 4)))
-    local radio = Marks.Radio:new{ checked = current }
-    local text_w = math.max(1, inner_w - radio:getSize().w - hero_w - 2 * gap)
+    local text_w = math.max(1, inner_w - hero_w - gap)
     local ink = item.missing and Blitbuffer.COLOR_DARK_GRAY or Blitbuffer.COLOR_BLACK
     -- The name, then the summary, then the description, each one line (cut
     -- with an ellipsis), each only while it fits the card's height.
@@ -235,10 +235,9 @@ function TL._renderCard(item, dimen, current)
     return FrameContainer:new{
         bordersize = border, radius = Space.radius.default, margin = 0,
         padding = 0, padding_left = pad, padding_right = pad, padding_top = pad_v, padding_bottom = pad_v,
-        background = Blitbuffer.COLOR_WHITE,
+        -- 0xEE: one exact e-ink level (238), so it does not speckle.
+        background = current and Blitbuffer.Color8(0xEE) or Blitbuffer.COLOR_WHITE,
         HorizontalGroup:new{ align = "center",
-            radio,
-            HorizontalSpan:new{ width = gap },
             LeftContainer:new{ dimen = Geom:new{ w = text_w, h = inner_h }, lines },
             HorizontalSpan:new{ width = gap },
             CenterContainer:new{ dimen = Geom:new{ w = hero_w, h = inner_h },

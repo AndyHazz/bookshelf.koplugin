@@ -255,10 +255,21 @@ M.SHELF_SETTING = "shelf_theme"          -- CoverProgress.THEME_SETTING
 function M.mineName() return _("My theme") end
 function M.plainName() return _("Plain") end
 
+-- A pack folder whose name is a built-in value, in any case ("Plain",
+-- "mine", "NONE"), is never a theme: stored, it could not be told from the
+-- built-in. Its pieces, wallpaper and planks are still the reader's to use.
+M.RESERVED = { mine = true, plain = true, none = true }
+function M.isReserved(pack)
+    return type(pack) == "string" and M.RESERVED[pack:lower()] == true
+end
+
 -- normalise(v) -> a stored theme choice in today's terms, or nil (none
 -- stored). rc/5.4 wrote "none" for the reader's own.
 local function normalise(v)
     if v == "none" then return M.MINE end
+    if v == M.MINE or v == M.PLAIN then return v end
+    -- A pack named like a built-in (any case) is never a theme: unset.
+    if M.isReserved(v) then return nil end
     if type(v) == "string" and v ~= "" then return v end
     return nil
 end
@@ -268,6 +279,7 @@ end
 local function usable(v)
     v = normalise(v)
     if v == nil or v == M.MINE or v == M.PLAIN then return v end
+    if M.isReserved(v) then return nil end
     if M.theme(v).exists then return v end
     return nil
 end
@@ -524,7 +536,12 @@ function M.allThemes()
     for _i, p in ipairs(packs or {}) do
         local th = M.theme(p)
         local m = th.manifest
-        if m then
+        if M.isReserved(p) then
+            if not M._reserved_warned then
+                M._reserved_warned = true
+                logger.warn("[bookshelf] a pack folder named like a built-in theme is not listed as a theme:", p)
+            end
+        elseif m then
             full[#full + 1] = { pack = p, name = m.name or p, description = m.description,
                                 ornaments_only = false }
         elseif has_piece[p] then
@@ -896,7 +913,9 @@ local function migrateApplied()
     save(M.APPLIED_SETTING, nil)
     if type(s) ~= "table" or type(s.before) ~= "table" or type(s.applied) ~= "table" then return end
     local pack = s.pack
-    if not (type(pack) == "string" and M.theme(pack).exists) then return end
+    -- Gone, or a folder named like a built-in (never a theme now): the
+    -- settings stay as shown.
+    if not (type(pack) == "string" and M.theme(pack).exists) or M.isReserved(pack) then return end
     local O = orn()
     local _all, packs = O.listAll()
     -- Plank designs on or off is the device's preference now, not a part of

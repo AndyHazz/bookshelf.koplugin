@@ -703,4 +703,14 @@ t.test("migrate is one flush, however much it moves", function()
     eq(O._defer, false, "left deferred")
 end)
 
+t.test("migrate: a record for a pack folder named like a built-in is dropped, settings as shown", function()
+    local TP, d, settings = setup()
+    mkmanifest(d, "Plain"); mkwall(d, "Plain"); TP.invalidate()
+    settings.shelf_theme = "dark"
+    applied53(settings, "Plain", { shelf_theme = "auto" }, { shelf_theme = "dark" }, {}, {})
+    TP._tabmodel = { load = function() return {} end, save = function() end }
+    TP.migrate()
+    eq(settings.library_theme, nil); eq(settings.shelf_theme, "dark"); eq(settings.theme_applied, nil)
+end)
+
 t.done()

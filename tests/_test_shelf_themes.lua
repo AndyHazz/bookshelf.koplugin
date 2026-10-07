@@ -400,4 +400,35 @@ t.test("the shelf editor's live preview (a tab override) is seen without a setti
     package.loaded["lib/bookshelf_tab_model"] = nil
 end)
 
+t.test("a pack folder named like a built-in, in any case, is never a theme", function()
+    local TP, d, settings, _po, _o, tabs = setup()
+    TP._plugin_root = "."
+    halloween(d)
+    for _i, p in ipairs({ "Plain", "mine", "NONE" }) do
+        mkmanifest(d, p); mkwall(d, p); touch(d .. "/" .. p .. "/piece.png")
+    end
+    TP.invalidate()
+    local names = {}
+    for i, th in ipairs(TP.allThemes()) do names[i] = th.pack end
+    eq(table.concat(names, ","), "Halloween", "a reserved folder was listed as a theme")
+    for _i, c in ipairs(TP.choices()) do
+        assert(c.value == "mine" or c.value == "plain" or c.value == "Halloween", "listed: " .. c.value)
+    end
+    TP.setLibraryTheme("Halloween")
+    tabs.a = { id = "a", theme = "Plain" }        -- stored before: never the pack
+    tabs.b = { id = "b", theme = "NONE" }
+    tabs.c = { id = "c", theme = "plain" }        -- the built-in
+    tabs.e = { id = "e", theme = "mine" }
+    eq(TP.themeFor("a"), "Halloween", "a reserved pack name was worn as a theme")
+    eq(TP.themeFor("b"), "Halloween")
+    eq(TP.themeFor("c"), "plain")
+    TP.setShelf("c")
+    eq(TP.shownWallpaper(false, false), nil, "the built-in Plain showed the 'Plain' folder's wallpaper")
+    eq(TP.ornamentsFor("c"), "plain")
+    eq(TP.themeFor("e"), "mine")
+    settings.library_theme = "Mine"
+    eq(TP.libraryChoice(), "mine"); eq(TP.libraryTheme(), "mine")
+    eq(TP.themeName("Plain"), "My theme", "a stored reserved name is named as unset")
+end)
+
 t.done()

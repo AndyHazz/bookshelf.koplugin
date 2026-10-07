@@ -20,6 +20,7 @@ local CODE = table.concat({
     grab("\n(function Settings:_shelfTheme%(%).-\nend)\n", "_shelfTheme"),
     grab("\n(function Settings:_shelfThemeLabel%(%).-\nend)\n", "_shelfThemeLabel"),
     grab("\n(function Settings:_thisShelfRow%(%).-\nend)\n", "_thisShelfRow"),
+    grab("\n(function Settings:_themeCovered%(part%).-\nend)\n", "_themeCovered"),
     grab("\n(function Settings:_lightDarkRow%(%).-\nend)\n", "_lightDarkRow"),
     grab("\n(function Settings:_shelfThemeSubItems%(%).-\nend)\n", "_shelfThemeSubItems"),
     grab("\n(function Settings:_shelfThemeText%(%).-\nend)\n", "_shelfThemeText"),
@@ -286,6 +287,37 @@ t.test("My theme's first row names what the shelf on screen wears and opens its 
         "a sub-shelf wears its shelf of shelves' theme: the row is that shelf's")
     self._bw = nil
     eq(S._thisShelfRow(self), nil, "no shelf on screen: no row")
+end)
+
+t.test("a row of the reader's own is greyed while the theme on screen replaces its part", function()
+    local AUT2 = { pack = "Autumn", name = "Autumn", ornaments_only = true, brings = { ornaments = true } }
+    local self, S = build({ MAC, AUT2 }, nil, nil, { on_screen = "Autumn" })
+    eq(S._themeCovered(self, "ornaments")(), false, "Autumn deals its own pieces")
+    eq(S._themeCovered(self, "wallpaper")(), true, "Autumn brings no wallpaper")
+    local self2, S2 = build({ MAC }, nil, nil, { on_screen = "plain" })
+    for _i, part in ipairs({ "wallpaper", "page", "plank", "ornaments", "colours" }) do
+        eq(S2._themeCovered(self2, part)(), false, "Plain covers " .. part)
+    end
+    eq(S2._themeCovered(self2, "look")(), true, "Plain follows the reader's light or dark")
+    local self3, S3 = build({ MAC }, nil, nil, { on_screen = "mine" })
+    eq(S3._themeCovered(self3, "wallpaper")(), true)
+end)
+
+t.test("My theme: This shelf first; every part row greys with its part; New ornaments go with Ornaments", function()
+    local body = src:gsub("%-%-[^\n]*", "")
+    local bg = body:match("function Settings:_backgroundSubItems%(%)(.-)\nend\n")
+    assert(bg, "_backgroundSubItems moved")
+    assert(bg:find("self:_thisShelfRow()", 1, true) < bg:find("_lightDarkRow", 1, true), "This shelf is not first")
+    for _i, pair in ipairs({ { "_lightDarkRow%(%)", "look" }, { "_plankRow%(%)", "plank" },
+                             { "_ornamentsRow%(%)", "ornaments" }, { "_newOrnamentsRow%(%)", "ornaments" } }) do
+        assert(bg:find("part%(self:" .. pair[1] .. ", \"" .. pair[2] .. "\"%)"), pair[1] .. " is not tagged " .. pair[2])
+    end
+    assert(bg:find('}, "colours")', 1, true), "Colors is not tagged")
+    assert(bg:find("row.enabled_func = self:_themeCovered(row._part)", 1, true), "the tags grey nothing")
+    local wm = body:match("function Settings:_wallpaperMenu%(%)(.-)\nend\n")
+    local _a, nw = wm:gsub('_part = "wallpaper"', "")
+    local _b, np = wm:gsub('_part = "page"', "")
+    eq(nw, 3, "Wallpaper, Full screen wallpaper and Invert are the wallpaper part"); eq(np, 1)
 end)
 
 t.test("no row of the reader's own carries a per-row theme suffix any more", function()

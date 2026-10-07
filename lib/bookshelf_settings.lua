@@ -1553,6 +1553,19 @@ function Settings:_thisShelfRow()
     }
 end
 
+-- _themeCovered(part) -> an enabled_func for a row of the reader's own look:
+-- greyed while the theme of the shelf on screen replaces that part (Plain
+-- replaces them all), so a change could not be seen here. The value stays
+-- shown: it is still the reader's own (maintainer, 2026-10-07).
+function Settings:_themeCovered(part)
+    return function()
+        local ok, TP = pcall(require, "lib/bookshelf_theme_pack")
+        if not (ok and TP and TP.brings and TP.shelfTheme) then return true end
+        local ok2, covers = pcall(TP.brings, TP.shelfTheme(), part)
+        return not (ok2 and covers)
+    end
+end
+
 -- _wallpaperMenu() - the reader's own wallpaper rows: the picture, the full
 -- screen picture, inverting it when dark, and the colour behind it.
 function Settings:_wallpaperMenu()
@@ -1599,6 +1612,7 @@ function Settings:_wallpaperMenu()
 
     local items = {
         {
+            _part = "wallpaper",
             text_func = function()
                 return T(_("Wallpaper: %1"), wallpaperLabel(Wallpaper.SETTING, _("None")))
             end,
@@ -1606,6 +1620,7 @@ function Settings:_wallpaperMenu()
             callback = openPicker(Wallpaper.SETTING),
         },
         {
+            _part = "wallpaper",
             text_func = function()
                 return T(_("Full screen wallpaper: %1"),
                          wallpaperLabel(Wallpaper.FULL_SETTING, _("Same as wallpaper")))
@@ -1617,6 +1632,7 @@ function Settings:_wallpaperMenu()
             callback = openPicker(Wallpaper.FULL_SETTING),
         },
         {
+            _part = "wallpaper",
             text = _("Invert wallpaper when dark"),
             help_text = _("Show the wallpaper as its negative when the shelf "
                 .. "is dark, so a light picture turns dark. Off, the picture "
@@ -1643,6 +1659,7 @@ function Settings:_wallpaperMenu()
             -- The page ground. Useful on its own, with no wallpaper at all --
             -- and it is what shows through any region the picture is kept out
             -- of. Shares the colours menu's picker, day/night slot included.
+            _part = "page",
             text_func = function()
                 return T(_("Color behind wallpaper: %1"),
                          self:_colorValueLabel(Wallpaper.BG_SETTING, 0))
@@ -2458,25 +2475,31 @@ function Settings:_backgroundSubItems()
     self:_shelfSlot()
     local rows = {}
     rows[#rows + 1] = self:_thisShelfRow()
-    rows[#rows + 1] = self:_lightDarkRow()
+    local function part(row, name) row._part = name; return row end
+    rows[#rows + 1] = part(self:_lightDarkRow(), "look")
     for _i, row in ipairs(self:_wallpaperMenu()) do
-        rows[#rows + 1] = row
+        rows[#rows + 1] = row                     -- tagged "wallpaper" / "page"
     end
-    rows[#rows + 1] = self:_plankRow()
-    rows[#rows + 1] = self:_ornamentsRow()
-    rows[#rows + 1] = {
+    rows[#rows + 1] = part(self:_plankRow(), "plank")
+    rows[#rows + 1] = part(self:_ornamentsRow(), "ornaments")
+    rows[#rows + 1] = part({
         -- The long list of colours (text, progress bar, bookmarks, badges)
         -- keeps a level of its own: a reference list people visit once.
         text                = _("Colors"),
         sub_item_table_func = function()
             return self:_colorsSubItems()
         end,
-    }
+    }, "colours")
     rows[#rows].separator = true
-    -- How new ornaments join the deck: the collection's own preference.
-    -- Panel shading and the extra wallpaper folder are display preferences
-    -- no theme touches: they live in Settings' appearance band.
-    rows[#rows + 1] = self:_newOrnamentsRow()
+    -- How new ornaments join the deck: the collection's own preference, so
+    -- it greys with Ornaments. Panel shading and the extra wallpaper folder
+    -- are display preferences no theme touches: they live in Settings'
+    -- appearance band.
+    rows[#rows + 1] = part(self:_newOrnamentsRow(), "ornaments")
+    -- A part the theme of the shelf on screen replaces is greyed.
+    for _i, row in ipairs(rows) do
+        if row._part then row.enabled_func = self:_themeCovered(row._part) end
+    end
     return rows
 end
 

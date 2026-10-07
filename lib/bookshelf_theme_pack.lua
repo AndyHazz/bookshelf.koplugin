@@ -373,15 +373,18 @@ end
 
 -- current() -> the shelf on screen resolved ({ theme, look }), once per
 -- settings generation: colour reads ask for it per cover at paint time. A
--- tab save, a theme or pack change all bump the generation; without a
--- generation to key on, no memo.
+-- tab save, a theme or pack change all bump the generation, and the shelf
+-- editor's live preview (an in-memory tab override, which saves nothing)
+-- bumps the tab model's overrideGen; without a generation, no memo.
 M._cur = nil
 local function current()
     local s = store()
     local g = s and s.generation and s.generation()
+    local TM = package.loaded["lib/bookshelf_tab_model"]
+    local og = type(TM) == "table" and TM.overrideGen or 0
     local c = M._cur
-    if g ~= nil and c and c.g == g and c.id == M._shelf then return c end
-    c = { g = g, id = M._shelf, theme = M.themeFor(M._shelf), look = M.lookOf(M._shelf) }
+    if g ~= nil and c and c.g == g and c.og == og and c.id == M._shelf then return c end
+    c = { g = g, og = og, id = M._shelf, theme = M.themeFor(M._shelf), look = M.lookOf(M._shelf) }
     if g ~= nil then M._cur = c end
     return c
 end

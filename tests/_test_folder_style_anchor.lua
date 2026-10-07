@@ -153,6 +153,12 @@ local env = {
         if mod == "lib/bookshelf_settings_store" then
             return { isTrue = function() return false end }
         end
+        -- The Theme row (a top-level shelf's own theme).
+        if mod == "lib/bookshelf_theme_pack" then
+            return { MINE = "mine", themeName = function(v) return tostring(v) end,
+                     packOf = function() return nil end, rescan = function() end,
+                     choices = function() return {} end }
+        end
         error("picker required an unexpected module: " .. tostring(mod))
     end,
 }

@@ -687,6 +687,8 @@ function Editor:editTab(tab_id, opts)
         -- Same nil-means-default semantics. There is no library setting
         -- behind this one, so absent means Orn.FREQ_DEFAULT.
         override.ornament_frequency  = draft.ornament_frequency
+        -- The shelf's theme: the shelf behind shows it as it is picked.
+        override.theme               = draft.theme
         -- A shelf of shelves' "+ Add shelf" tile, shown unless hidden.
         override.hide_add_tile       = draft.hide_add_tile
         TabModel.setOverride(tab_id, override)
@@ -2350,6 +2352,60 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                     end
                     draft.group_display = opts_list[1].value
                 end),
+            }}
+        end
+        -- Theme: the shelf's own, from the same list as the Theme menu's
+        -- Each shelf (maintainer, 2026-10-07: readers who think "this shelf"
+        -- start here). Top-level shelves only: a sub-shelf wears its shelf
+        -- of shelves' theme (ruling, 2026-10-05). Its own list, a dialog in
+        -- place of this one, and back here after a pick.
+        if draft.parent == nil then
+            local TP = require("lib/bookshelf_theme_pack")
+            local function cur()
+                local v = draft.theme
+                if v == "none" then v = TP.MINE end
+                return v
+            end
+            rows[#rows + 1] = {{
+                text_func = function()
+                    local v = cur()
+                    return T(_("Theme: %1"), v == nil and _("Same as library") or TP.themeName(v))
+                end,
+                callback = function()
+                    UIManager:close(d)
+                    TP.rescan()
+                    local sub
+                    local function back()
+                        UIManager:close(sub)
+                        show()
+                    end
+                    local list = { radio(_("Same as library"), cur() == nil, function()
+                        draft.theme = nil
+                        if on_change then on_change() end
+                        back()
+                    end) }
+                    local v0 = cur()
+                    if TP.packOf(v0) and not TP.theme(v0).exists then
+                        list[#list + 1] = radio(TP.themeName(v0), true, function() back() end)
+                    end
+                    for _i, c in ipairs(TP.choices()) do
+                        local value = c.value
+                        list[#list + 1] = radio(c.label, cur() == value, function()
+                            draft.theme = value
+                            if on_change then on_change() end
+                            back()
+                        end)
+                    end
+                    local buttons = {}
+                    for _i, r in ipairs(list) do buttons[#buttons + 1] = { r } end
+                    buttons[#buttons + 1] = {{ text = _("Back"), callback = back }}
+                    sub = ButtonDialog:new{
+                        title = _("Theme"), title_align = "center", buttons = buttons,
+                        anchor = _highAnchor(function() return sub end),
+                        tap_close_callback = function() show() end,
+                    }
+                    UIManager:show(sub)
+                end,
             }}
         end
         -- OK, not Close and not Apply. Every pick has already been applied, so

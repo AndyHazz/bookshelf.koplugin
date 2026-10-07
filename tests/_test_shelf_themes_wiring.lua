@@ -44,4 +44,19 @@ t.test("page deal states are forgotten when the shelf's look changes", function(
     assert(body and body:find("TP.shelfKey()", 1, true), "_ornSig ignores the shelf's theme, so its pool")
 end)
 
+t.test("Shelf style has the shelf's Theme row, top-level shelves only, previewed live", function()
+    local ed = read("lib/bookshelf_chip_editor.lua")
+    local pick = ed:match("\nfunction Editor:_pickGroupDisplay%(draft, on_change, chrome%)(.-)\nfunction Editor:")
+    assert(pick, "_pickGroupDisplay moved")
+    pick = pick:gsub("%-%-[^\n]*", "")
+    local row = pick:match("if draft%.parent == nil then(.-)\n        end\n")
+    assert(row and row:find('_("Theme: %1")', 1, true), "no Theme row, or not limited to top-level shelves")
+    assert(row:find("TP.choices()", 1, true), "the row's list is not the Theme menu's")
+    assert(row:find("draft.theme = value", 1, true) and row:find("draft.theme = nil", 1, true),
+        "a pick does not reach the draft (Same as library clears it)")
+    local preview = ed:match("override%.ornament_frequency  = draft%.ornament_frequency(.-)TabModel%.setOverride")
+    assert(preview and preview:find("override.theme               = draft.theme", 1, true),
+        "the live preview does not carry the shelf's theme")
+end)
+
 t.done()

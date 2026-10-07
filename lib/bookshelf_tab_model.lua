@@ -227,13 +227,19 @@ end
 -- persisted record. clearOverride() restores normal lookup. Override
 -- is cleared on every editor close (Save / Cancel / X).
 local _override = nil  -- { id = <string>, tab = <tab record> }
+-- overrideGen: counts every set and clear, so a reader that memoises on the
+-- settings generation (bookshelf_theme_pack's shelf on screen) sees a
+-- preview change that saved nothing.
+TabModel.overrideGen = 0
 
 function TabModel.setOverride(tab_id, tab)
     _override = { id = tab_id, tab = tab }
+    TabModel.overrideGen = TabModel.overrideGen + 1
 end
 
 function TabModel.clearOverride()
     _override = nil
+    TabModel.overrideGen = TabModel.overrideGen + 1
 end
 
 -- getById(id): find a tab by id from the current loaded list. Consults the

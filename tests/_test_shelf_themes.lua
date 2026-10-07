@@ -386,4 +386,18 @@ t.test("brings: what each theme replaces of the reader's own", function()
     eq(TP.brings("mine", "wallpaper"), false)
 end)
 
+t.test("the shelf editor's live preview (a tab override) is seen without a settings save", function()
+    local TP, d, _s, _po, _o, tabs = setup()
+    halloween(d); TP.invalidate()
+    tabs.c = { id = "c" }
+    local TM = { overrideGen = 0 }
+    package.loaded["lib/bookshelf_tab_model"] = TM
+    TP.setShelf("c")
+    eq(TP.shelfTheme(), "mine")
+    tabs.c = { id = "c", theme = "plain" }        -- the override, same settings generation
+    TM.overrideGen = TM.overrideGen + 1
+    eq(TP.shelfTheme(), "plain", "the preview was served the memo from before it")
+    package.loaded["lib/bookshelf_tab_model"] = nil
+end)
+
 t.done()

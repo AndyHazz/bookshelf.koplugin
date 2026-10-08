@@ -77,9 +77,13 @@ end
 -- off. Rendered at paint by the ornaments' own renderer (cached; drawn for
 -- night mode as the shelf draws it). The collection's cards and the Theme
 -- library's heroes (bookshelf_theme_library) both show pieces this way.
+-- A piece seen for the first time is decoded once, not twice: contentBox
+-- holds its decode, and the render the paint will ask for is made from it
+-- here (bookshelf_ornaments ONE DECODE PER PREVIEW).
 function Browser.preview(e, box_w, box_h)
     local aspect = (e.aspect and e.aspect > 0) and e.aspect or 1
-    local l, t, r, b = O().contentBox(e)
+    local Orn = O()
+    local l, t, r, b = Orn.contentBox(e, true)
     if not l then l, t, r, b = 0, 0, 1, 1 end
     local cut_aspect = aspect * (r - l) / (b - t)
     local cw, ch = box_w, math.floor(box_w / cut_aspect)
@@ -93,6 +97,12 @@ function Browser.preview(e, box_w, box_h)
     }
     preview.src_x = math.floor(l * preview.placement.w + 0.5)
     preview.src_y = math.floor(t * preview.placement.h + 0.5)
+    -- Cropped:paintTo asks for exactly this render; made now from the held
+    -- decode, the paint finds it cached.
+    if Orn.holds(e) then
+        Orn.render(e, preview.placement.w, preview.placement.h, preview.night)
+        Orn.releaseHeld()
+    end
     return preview
 end
 

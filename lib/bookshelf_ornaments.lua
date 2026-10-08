@@ -1484,6 +1484,67 @@ local function defaultRender(path, w, h)
     if bb then M.unpremultiply(bb) end
     return bb
 end
+-- ONE DECODE PER PREVIEW. A preview (bookshelf_ornament_browser.preview,
+-- the collection's cards and the Theme library's heroes) needs the piece's
+-- content box before it knows the size to render at, and both came from
+-- decoding the file: the 96px probe, then the render, ~145ms each for a PNG
+-- on a PW5 (measured 2026-10-08), since MuPDF decodes a PNG at its own size
+-- whatever size is asked and scales after. contentBox(entry, true) decodes a
+-- PNG once at its own size and holds it; the probe and the next render of
+-- that piece are scaled from it with the scaler the decoder's own scaling
+-- uses (mupdf.renderImage is fz_scale_pixmap over the full-size pixmap, as
+-- mupdf.scaleBlitBuffer is), so both come out as they did. Held for that
+-- one render only: a full-size decode is big (up to the 8 MP cap).
+M._held = nil          -- { path, bb }: premultiplied, as MuPDF decodes
+M._decodeFull = nil    -- seam: function(path) -> bb at the file's own size
+M._scale = nil         -- seam: function(bb, w, h) -> a new bb at w x h
+
+-- canHold(path): a PNG, through the default decoder (a test's M._render
+-- stands for both decodes, so it keeps them apart). An SVG is rasterised at
+-- the size asked, so it has no full-size decode to share.
+local function canHold(path)
+    if not (type(path) == "string" and path:lower():match("%.png$")) then return false end
+    return M._decodeFull ~= nil or M._render == nil
+end
+
+local function decodeFull(path)
+    if M._decodeFull then return M._decodeFull(path) end
+    return require("ui/renderimage"):renderImageFile(path, false)
+end
+
+local function scaledCopy(bb, w, h)
+    if M._scale then return M._scale(bb, w, h) end
+    if bb:getWidth() == w and bb:getHeight() == h then return bb:copy() end
+    return require("ffi/mupdf").scaleBlitBuffer(bb, w, h)
+end
+
+-- releaseHeld(): free the held decode (preview, once its render is made).
+function M.releaseHeld()
+    local held = M._held
+    M._held = nil
+    if held and held.bb and held.bb.free then pcall(function() held.bb:free() end) end
+end
+
+-- holds(entry) -> a full-size decode of that piece is held for its render.
+function M.holds(entry)
+    return M._held ~= nil and type(entry) == "table" and M._held.path == entry.path
+end
+
+-- fromHeld(path, w, h) -> the render scaled from the held decode, which goes
+-- (one render each), or nil when none is held for that path.
+local function fromHeld(path, w, h)
+    local held = M._held
+    if not (held and held.path == path) then return nil end
+    M._held = nil
+    local ok, bb = pcall(function()
+        local out = scaledCopy(held.bb, w, h)
+        if out then M.unpremultiply(out) end
+        return out
+    end)
+    if held.bb.free then pcall(function() held.bb:free() end) end
+    return ok and bb or nil
+end
+
 -- render(entry, w, h, inverting) -> a bitmap ready to blit, or nil.
 --
 -- Two axes, as everywhere else on the shelf. `inverting` is the FRAME: the
@@ -1535,7 +1596,8 @@ function M.render(entry, w, h, inverting, mirror)
                 .. (mirror and "|m" or "")
     local bb = M._cache[key]
     if bb then return bb end
-    local ok, res = pcall(M._render or defaultRender, entry.path, w, h)
+    local ok, res = true, fromHeld(entry.path, w, h)
+    if not res then ok, res = pcall(M._render or defaultRender, entry.path, w, h) end
     if not ok or not res then
         logger.dbg("[bookshelf] ornament render failed:", entry.path)
         return nil
@@ -1578,9 +1640,11 @@ end
 -- its height against the books, side padding keeps it off them), which is
 -- right on the shelf and wasted space in the browser's preview. Found from a
 -- small render, so it is cheap, and remembered per file for the session.
+-- hold: a PNG is decoded once at its own size and the probe scaled from it,
+-- the decode held for the render that follows (ONE DECODE PER PREVIEW).
 M.CONTENT_PROBE = 96
 M._content = {}
-function M.contentBox(entry)
+function M.contentBox(entry, hold)
     local key = entry.path .. "|" .. tostring(entry.aspect)
     local hit = M._content[key]
     if hit ~= nil then
@@ -1591,7 +1655,17 @@ function M.contentBox(entry)
     local aspect = (entry.aspect and entry.aspect > 0) and entry.aspect or 1
     local h = M.CONTENT_PROBE
     local w = math.max(1, math.floor(h * aspect + 0.5))
-    local ok, bb = pcall(M._render or defaultRender, entry.path, w, h)
+    local ok, bb
+    if hold and canHold(entry.path) then
+        M.releaseHeld()
+        local okf, full = pcall(decodeFull, entry.path)
+        if okf and full then
+            M._held = { path = entry.path, bb = full }
+            -- Premultiplied, as the probe never was: only its alpha is read.
+            ok, bb = pcall(scaledCopy, full, w, h)
+        end
+    end
+    if not (ok and bb) then ok, bb = pcall(M._render or defaultRender, entry.path, w, h) end
     if ok and bb then
         pcall(function()
             local bw, bh = bb:getWidth(), bb:getHeight()

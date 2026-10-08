@@ -170,6 +170,69 @@ t.test("contentBox finds the opaque part of an ornament", function()
     os.execute("rm -rf '" .. d .. "'")
 end)
 
+-- Measured on a PW5, 2026-10-08: a Theme library hero seen for the first
+-- time decoded its PNG twice (the probe, then the render), ~145ms each.
+t.test("a preview decodes a PNG once: its probe and its render are scaled from one decode", function()
+    local O, d = setup()
+    local decodes, scales, renders, freed = 0, {}, 0, 0
+    local function fake(w, h, on_free)
+        return {
+            getWidth = function() return w end, getHeight = function() return h end,
+            getPixel = function(_, x, y)
+                return { alpha = (y >= h / 2 and x >= w / 4 and x < 3 * w / 4) and 255 or 0 }
+            end,
+            free = on_free or function() end,
+        }
+    end
+    O._decodeFull = function(_path) decodes = decodes + 1; return fake(400, 400, function() freed = freed + 1 end) end
+    O._scale = function(bb, w, h) scales[#scales + 1] = bb:getWidth() .. ">" .. w .. "x" .. h; return fake(w, h) end
+    O._render = function(_path, w, h) renders = renders + 1; return fake(w, h) end
+    O.CONTENT_PROBE = 8
+    local e = { path = d .. "/x.png", name = "x.png", aspect = 1 }
+    local l, tp, r, b = O.contentBox(e, true)
+    eq(l, 0.25); eq(tp, 0.5); eq(r, 0.75); eq(b, 1)
+    eq(decodes, 1); eq(renders, 0, "the probe decoded the file itself")
+    eq(scales[1], "400>8x8", "the probe is not scaled from the full-size decode")
+    eq(O.holds(e), true, "the decode is not held for the render")
+    local bb = O.render(e, 50, 50, false)
+    assert(bb, "no render from the held decode")
+    eq(renders, 0, "the render decoded the file a second time")
+    eq(scales[2], "400>50x50")
+    eq(O.holds(e), false, "the decode is held after its one render")
+    eq(freed, 1, "the full-size decode was not freed")
+    O.render(e, 60, 60, false)
+    eq(renders, 1, "another size is not rendered as before")
+    -- A second probe frees the first held decode; an SVG and a probe that
+    -- holds nothing decode as before.
+    O._content = {}
+    O.contentBox({ path = d .. "/y.png", name = "y.png", aspect = 1 }, true)
+    O.contentBox({ path = d .. "/z.png", name = "z.png", aspect = 1 }, true)
+    eq(freed, 2, "a held decode was left behind")
+    O.releaseHeld()
+    eq(freed, 3)
+    renders = 0
+    O.contentBox({ path = d .. "/v.svg", name = "v.svg", aspect = 1 }, true)
+    O.contentBox({ path = d .. "/w.png", name = "w.png", aspect = 1 })
+    eq(renders, 2); eq(decodes, 3); eq(O._held, nil)
+    O._decodeFull, O._scale, O._render = nil, nil, nil
+    os.execute("rm -rf '" .. d .. "'")
+end)
+
+t.test("the collection's preview probes with a held decode and renders from it", function()
+    local src = io.open("lib/bookshelf_ornament_browser.lua"):read("*a")
+    local prev = src:match("\nfunction Browser%.preview%(e, box_w, box_h%)\n(.-)\nend\n")
+    assert(prev, "Browser.preview moved")
+    assert(prev:find("Orn.contentBox(e, true)", 1, true), "the probe does not hold its decode")
+    local tail = prev:match("if Orn%.holds%(e%) then\n(.-)\n    end")
+    assert(tail, "the preview does not render from the held decode")
+    assert(tail:find("Orn.render(e, preview.placement.w, preview.placement.h, preview.night)", 1, true),
+        "the render made from the held decode is not the one the paint asks for")
+    assert(tail:find("Orn.releaseHeld()", 1, true), "the held decode is not let go")
+    local crop = src:match("\nfunction Cropped:paintTo%(bb, x, y%)\n(.-)\nend\n")
+    assert(crop and crop:find("O().render(p.entry, p.w, p.h, self.night)", 1, true),
+        "the paint asks for another render than the preview made")
+end)
+
 t.test("while deferred, switches are kept in memory and written once at the end", function()
     local O = fresh()
     local deferred, flushed = 0, 0

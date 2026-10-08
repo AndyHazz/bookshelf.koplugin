@@ -69,11 +69,78 @@ end)
 
 t.test("both labels go through it too, so all three agree", function()
     local n = select(2, src:gsub("_rawToScreenPct%(", ""))
-    assert(n >= 4,
-        "expected the definition plus the two labels and the picker, found " .. n)
+    assert(n >= 3,
+        "expected the definition plus the labels' one helper and the picker, found " .. n)
+    local cvl = src:match("function Settings:_colorValueLabel%(raw_key, _default_pct%)(.-)\nend\n")
+    assert(cvl and cvl:find("_valueText(", 1, true), "the look rows' label has its own derivation again")
+    local vl = src:match("local function valueLabel%(field%)(.-)\n    end\n")
+    assert(vl and vl:find("_valueText(", 1, true), "the Colors rows' label has its own derivation again")
     -- The Rec.601 constants should now live in exactly one place.
     local lum = select(2, src:gsub("0%.587", ""))
     eq(lum, 1, "the luminance conversion is written " .. lum .. " times; it was three")
+end)
+
+-- ── One form per screen (maintainer, 2026-10-08) ─────────────────────────
+-- Colors listed "Text ink: 100%" beside "Progress bar: #228B22": a grey was a
+-- percentage and a picked colour a hex on the same screen, and the palette
+-- came up under a "(% black)" title. The form now follows the picker: hex on
+-- a colour screen, "% black" on greyscale, and the title with it.
+local function grab(name)
+    local b = src:match("\nlocal function " .. name .. "%((.-)\nend\n")
+    assert(b, name .. " missing")
+    return "local function " .. name .. "(" .. b .. "\nend\n"
+end
+local function helpers_env(colour, night)
+    local env = setmetatable({
+        _ = function(x) return x end,
+        require = function(m)
+            if m == "device" then return { screen = { isColorEnabled = function() return colour end } } end
+            if m == "lib/bookshelf_color" then
+                return { invertValue = function(v)
+                    if v.grey then return { grey = 255 - v.grey } end
+                    local r, g, b = tonumber(v.hex:sub(2, 3), 16), tonumber(v.hex:sub(4, 5), 16), tonumber(v.hex:sub(6, 7), 16)
+                    return { hex = string.format("#%02X%02X%02X", 255 - r, 255 - g, 255 - b) }
+                end }
+            end
+            error("unexpected require " .. m)
+        end,
+    }, { __index = _G })
+    local code = "local function _isNight() return " .. tostring(night) .. " end\n"
+        .. grab("_byteToScreenPct") .. grab("_rawToScreenPct") .. grab("_colorScreen")
+        .. grab("_shownHex") .. grab("_valueText")
+        .. "return _valueText, _colorScreen"
+    return assert(load(code, "vt", "t", env))()
+end
+
+t.test("a colour screen shows every value as the palette's hex, a grey too", function()
+    local vt = helpers_env(true, false)
+    eq(vt({ grey = 0xFF }), "#FFFFFF"); eq(vt({ grey = 0x40 }), "#404040")
+    eq(vt({ hex = "#228b22" }), "#228B22"); eq(vt(nil), "default")
+end)
+
+t.test("a greyscale screen shows every value as % black, a hex too", function()
+    local vt = helpers_env(false, false)
+    eq(vt({ grey = 0x00 }), "100%"); eq(vt({ hex = "#B08050" }), "46%")
+end)
+
+t.test("the night slot shows what the picker shows: the stored colour turned back", function()
+    local vt = helpers_env(true, true)
+    eq(vt({ hex = "#000000" }), "#FFFFFF", "a pre-inverted night colour shown as stored")
+    eq(vt({ hex = "#000000" }, "spine_plank_color"), "#000000", "the plank is stored as it displays")
+end)
+
+t.test("the picker's title, its palette and the rows ask one question of the screen", function()
+    local picker = src:match("function Settings:_pickColor%(raw_key, field, default_pct, title,(.-)\nend\n")
+    assert(picker:find("local colour = _colorScreen()", 1, true), "the picker asks the screen its own way")
+    assert(picker:find("if type(title) == \"table\" then title = colour and title[1] or title[2] end", 1, true),
+        "the title does not follow the palette")
+    assert(picker:find("if colour then", 1, true), "the palette branch does not use the same answer")
+    assert(not src:find('_pickColor%([^\n]*\n[^\n]*_%("[^"]+ %(%% black%)"%), touchmenu'),
+        "a colour row still passes only a (% black) title")
+    for t_ in src:gmatch('_%("([^"]+) %(%% black%)"%)') do
+        assert(src:find('{ _("' .. t_ .. '"), _("' .. t_ .. ' (% black)") }', 1, true),
+            "no palette title for " .. t_)
+    end
 end)
 
 t.done()

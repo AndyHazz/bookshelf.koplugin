@@ -93,7 +93,10 @@ t.test("the colour picker inverts the night slot on the way in and out", functio
     local body = src:match("function Settings:_pickColor%(.-\nend\n")
     assert(body, "could not find _pickColor")
     assert(body:find("local night = _isNight()", 1, true), "the picker must ask which slot it edits")
-    assert(body:find("Color.invertValue(raw)", 1, true), "the shown colour must be the displayed one")
+    assert(body:find("_shownHex(raw, raw_key)", 1, true), "the shown colour must be the displayed one")
+    local shown = src:match("local function _shownHex%(raw, raw_key%)(.-)\nend\n")
+    assert(shown and shown:find('invertValue(raw)', 1, true) and shown:find("_isNight()", 1, true),
+        "the shown colour must be the displayed one")
     assert(body:find("if night then stored = Color.invertValue(stored) end", 1, true),
         "a night pick must be stored pre-inverted")
 end)
@@ -156,6 +159,7 @@ t.test("the Colors slot is reset on opening Colors, and never leaks to the rows 
         _ = function(x) return x end,
         BookshelfSettings = { read = function(k) return store[k] end },
         _rawToScreenPct = function(raw) return raw.grey end,
+        _valueText = function(raw) return raw.grey .. "%" end,
         require = function(m)
             if m == "lib/bookshelf_cover_progress" then return CP end
             if m == "device" then return { screen = { isColorEnabled = function() return false end } } end

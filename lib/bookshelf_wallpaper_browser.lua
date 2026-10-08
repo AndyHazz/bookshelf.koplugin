@@ -6,6 +6,12 @@ Opened from the reader's own "Wallpaper" and "Full screen wallpaper" rows; a
 tap uses that picture there. On the ornament collection's screen
 (LibraryModal), like the plank picker.
 
+The pages are pictures only. No wallpaper (and, for full screen, Same as
+wallpaper) are buttons in the footer, beside Close, greyed while they are the
+choice already (maintainer, 2026-10-08: the picker opened on a None page with
+a folder path on it, the pictures pages away). Where the pictures come from
+is the Wallpaper row's help, and the picker's own message when there are none.
+
 A pack's wallpaper is an ordinary choice: stored like any other, it takes the
 pack's full screen and dark variants by itself, and shows whatever the
 collection's pack switches say (they shape ornaments only). The picker never
@@ -21,11 +27,12 @@ WB.ALL, WB.YOURS = "__all", "__yours"
 local function WP() return require("lib/bookshelf_wallpaper") end
 local function TP() return require("lib/bookshelf_theme_pack") end
 
--- entries(key, chip) -> what the picker lists for that setting and tab:
---   { kind = "same" | "none" | "own" | "pack", name, label, path, pack }
--- All: (Same as default), None, the reader's own, then the packs'. Yours:
--- the same without the packs'. A pack's tab: its wallpaper alone.
-function WB.entries(key, chip)
+-- entries(key, chip) -> the pictures the picker lists for that tab:
+--   { kind = "own" | "pack", name, label, path, pack }
+-- All: the reader's own, then the packs'. Yours: the reader's own. A pack's
+-- tab: its wallpaper alone. No wallpaper and Same as wallpaper are not
+-- pictures: footer buttons (WB.show). key is unused, kept for the callers.
+function WB.entries(_key, chip)
     local out = {}
     if chip ~= WB.ALL and chip ~= WB.YOURS then
         for _i, e in ipairs(TP().wallpaperEntries()) do
@@ -36,8 +43,6 @@ function WB.entries(key, chip)
         end
         return out
     end
-    if key == WP().FULL_SETTING then out[#out + 1] = { kind = "same", label = _("Same as wallpaper") } end
-    out[#out + 1] = { kind = "none", label = _("None") }
     for _i, e in ipairs(WP().list()) do
         out[#out + 1] = { kind = "own", name = e.name, label = e.label, path = e.path }
     end
@@ -70,7 +75,8 @@ function WB.perPage()
 end
 
 -- startPage(key, items, per_page) -> the page showing the wallpaper in use,
--- so the picker opens on the current choice.
+-- so the picker opens on the current choice; the first page when it is no
+-- picture (No wallpaper, Same as wallpaper).
 function WB.startPage(key, items, per_page)
     per_page = math.max(1, per_page or 1)
     for i, item in ipairs(items) do
@@ -133,7 +139,6 @@ local function renderCell(key, item, dimen)
     local Size            = require("ui/size")
     local Space           = require("lib/bookshelf_space")
     local TextWidget      = require("lib/bookshelf_colour_text")
-    local TextBoxWidget   = require("ui/widget/textboxwidget")
     local VerticalGroup   = require("ui/widget/verticalgroup")
     local VerticalSpan    = require("ui/widget/verticalspan")
     local T               = require("ffi/util").template
@@ -159,44 +164,20 @@ local function renderCell(key, item, dimen)
         end
     end
     if not pic then
-        -- None / Same as default: a plain frame the size of a picture, with
-        -- where the reader's pictures come from under None.
-        -- Portrait, as the wallpapers are, in either orientation.
+        -- A picture that would not decode: a plain frame the size of one,
+        -- portrait as the wallpapers are, in either orientation.
         local Screen = require("device").screen
         local sw = math.min(Screen:getWidth(), Screen:getHeight())
         local sh = math.max(Screen:getWidth(), Screen:getHeight())
         local fw = inner_w
         local fh = math.min(box_h, math.floor(fw * sh / sw))
         if fh == box_h then fw = math.floor(fh * sw / sh) end
-        local hint
-        if item.kind == "none" then
-            local Wallpaper = WP()
-            local dir, user = Wallpaper.dir and Wallpaper.dir() or "?", Wallpaper.userDir and Wallpaper.userDir()
-            if #Wallpaper.list() == 0 then
-                hint = T(_("No images in %1"), dir)
-            elseif user then
-                hint = T(_("Images are loaded from %1 and %2"), dir, user)
-            else
-                hint = T(_("Images are loaded from %1"), dir)
-            end
-        elseif item.kind == "same" then
-            hint = _("Full screen shelves show the default wallpaper.")
-        end
-        -- The hint only where it fits: on a small screen's card the folder
-        -- path would run out of the frame a letter to a line.
-        local inner_fw, inner_fh = fw - 2 * Size.border.thin, fh - 2 * Size.border.thin
-        local hint_w
-        if hint then
-            hint_w = TextBoxWidget:new{ text = hint, face = Font:getFace("cfont", 12),
-                                        width = math.max(1, math.floor(inner_fw * 0.9)), alignment = "center" }
-            local hs = hint_w:getSize()
-            if inner_fw < Screen:scaleBySize(90) or hs.h > inner_fh then hint_w:free(); hint_w = nil end
-        end
         pic = FrameContainer:new{
             bordersize = Size.border.thin, padding = 0, margin = 0,
             background = Blitbuffer.COLOR_WHITE,
-            CenterContainer:new{ dimen = Geom:new{ w = inner_fw, h = inner_fh },
-                hint_w or VerticalSpan:new{ width = 1 } },
+            CenterContainer:new{ dimen = Geom:new{ w = math.max(1, fw - 2 * Size.border.thin),
+                                                   h = math.max(1, fh - 2 * Size.border.thin) },
+                                 VerticalSpan:new{ width = 1 } },
         }
     end
     return FrameContainer:new{
@@ -210,6 +191,26 @@ local function renderCell(key, item, dimen)
     }
 end
 
+-- NONE, SAME: the two choices that are not a picture, as the footer's
+-- buttons hand them to choose().
+WB.NONE, WB.SAME = { kind = "none" }, { kind = "same" }
+
+-- footerActions(key, pick, close) -> the footer's one row: Same as wallpaper
+-- (the full screen picker only), No wallpaper, Close. A button is greyed
+-- while it is the choice in use, so it also shows which is chosen.
+-- pick(item) is what a card tap does.
+function WB.footerActions(key, pick, close)
+    local row = {}
+    local function choice(k, label, item)
+        row[#row + 1] = { key = k, label = label, on_tap = function() pick(item) end,
+                          enabled_when = function() return not WB.inUse(key, item) end }
+    end
+    if key == WP().FULL_SETTING then choice("same", _("Same as wallpaper"), WB.SAME) end
+    choice("none", _("No wallpaper"), WB.NONE)
+    row[#row + 1] = { key = "close", label = _("Close"), on_tap = close }
+    return row
+end
+
 -- show(key, on_change, on_closed): the picker for that setting. on_change()
 -- runs after each choice, so the shelf behind can catch up; on_closed() once,
 -- however the picker closes (the caller brings its menu back).
@@ -221,6 +222,14 @@ function WB.show(key, on_change, on_closed)
     self.items = items()
     local modal
     local function close() if modal then UIManager:close(modal); modal = nil end end
+    -- A card or a footer button: used at once, behind the picker, which
+    -- stays open for the next.
+    local function pick(item)
+        WB.choose(key, item)
+        self.changed = true
+        if on_change then pcall(on_change) end
+        if modal then modal:refresh() end
+    end
     local function chips()
         local out = {
             { key = WB.ALL, label = _("All"), is_active = self.chip == WB.ALL },
@@ -246,12 +255,7 @@ function WB.show(key, on_change, on_closed)
         cell_renderer = function(item, dimen) return renderCell(key, item, dimen) end,
         -- A tap uses the picture at once, behind the picker, which stays open
         -- for the next (Close, or a tap outside it, when done).
-        on_cell_tap = function(item)
-            WB.choose(key, item)
-            self.changed = true
-            if on_change then pcall(on_change) end
-            if modal then modal:refresh() end
-        end,
+        on_cell_tap = function(item) pick(item) end,
         -- However it closes: one full refresh if the picture changed, to
         -- clear what the quick per-tap updates leave on e-ink.
         on_closed = function()
@@ -260,7 +264,20 @@ function WB.show(key, on_change, on_closed)
         end,
         item_count = function() return #self.items end,
         item_at = function(i) return self.items[i] end,
-        footer_rows = { { { key = "close", label = _("Close"), on_tap = close } } },
+        footer_rows = { WB.footerActions(key, function(item) pick(item) end, close) },
+        -- No pictures on this tab: where they come from, the one place the
+        -- picker names the folder.
+        empty_state = function(w, h)
+            local CenterContainer = require("ui/widget/container/centercontainer")
+            local Font            = require("ui/font")
+            local Geom            = require("ui/geometry")
+            local TextBoxWidget   = require("ui/widget/textboxwidget")
+            local T               = require("ffi/util").template
+            return CenterContainer:new{ dimen = Geom:new{ w = w, h = h },
+                TextBoxWidget:new{ text = T(_("No images in %1"), WP().dir and WP().dir() or "?"),
+                                   face = Font:getFace("cfont", 16), width = math.floor(w * 0.9),
+                                   alignment = "center" } }
+        end,
     }
     modal = LibraryModal:new{ config = config, page = WB.startPage(key, self.items, WB.perPage()) }
     UIManager:show(modal)

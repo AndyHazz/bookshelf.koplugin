@@ -31,50 +31,76 @@ local switched_on = {}
 package.loaded["lib/bookshelf_ornaments"] = { setPackOff = function(p, off) if not off then switched_on[#switched_on + 1] = p end end }
 local WB = dofile("lib/bookshelf_wallpaper_browser.lua")
 
-t.test("default wallpaper, All: None, the reader's own, then the packs'", function()
+t.test("All: the reader's own, then the packs': pictures only, no None page", function()
+    -- Maintainer, 2026-10-08: the picker opened on a None page with a folder
+    -- path, the pictures pages away. No wallpaper is a footer button now.
     local e = WB.entries("wallpaper_default", WB.ALL)
-    eq(#e, 3); eq(e[1].kind, "none"); eq(e[2].kind, "own"); eq(e[3].kind, "pack"); eq(e[3].pack, "Japan")
+    eq(#e, 2); eq(e[1].kind, "own"); eq(e[2].kind, "pack"); eq(e[2].pack, "Japan")
+    local f = WB.entries("wallpaper_full", WB.ALL)
+    eq(#f, 2, "full screen: Same as wallpaper or None came back as a page"); eq(f[1].kind, "own")
 end)
 
-t.test("full screen: Same as wallpaper first", function()
-    local e = WB.entries("wallpaper_full", WB.ALL)
-    eq(e[1].kind, "same"); eq(e[1].label, "Same as wallpaper"); eq(e[2].kind, "none"); eq(#e, 4)
-end)
-
-t.test("tabs: Yours is None and the reader's own; a pack's tab is its wallpaper", function()
+t.test("tabs: Yours is the reader's own; a pack's tab is its wallpaper", function()
     local y = WB.entries("wallpaper_default", WB.YOURS)
-    eq(#y, 2); eq(y[2].kind, "own")
+    eq(#y, 1); eq(y[1].kind, "own")
     local j = WB.entries("wallpaper_default", "Japan")
     eq(#j, 1); eq(j[1].pack, "Japan")
 end)
 
-t.test("which reads as in use", function()
+local function labels(row)
+    local o = {}
+    for i, a in ipairs(row) do o[i] = a.label end
+    return table.concat(o, ",")
+end
+
+t.test("the footer: No wallpaper (and Same as wallpaper for full screen) beside Close", function()
+    local picked, closed = {}, 0
+    local row = WB.footerActions("wallpaper_default", function(it) picked[#picked + 1] = it end, function() closed = closed + 1 end)
+    eq(labels(row), "No wallpaper,Close")
+    row[1].on_tap(); eq(picked[1].kind, "none", "No wallpaper did not choose none as a card tap does")
+    row[2].on_tap(); eq(closed, 1)
+    eq(labels(WB.footerActions("wallpaper_full", function() end, function() end)), "Same as wallpaper,No wallpaper,Close")
+end)
+
+t.test("a footer button is greyed while it is the choice in use", function()
+    store = {}
+    local d = WB.footerActions("wallpaper_default", function() end, function() end)
+    eq(d[1].enabled_when(), false, "nothing set: No wallpaper is the choice already")
+    store.wallpaper_default = "leaves.png"
+    eq(d[1].enabled_when(), true)
+    local f = WB.footerActions("wallpaper_full", function() end, function() end)
+    store.wallpaper_full = nil
+    eq(f[1].enabled_when(), false, "full unset: Same as wallpaper"); eq(f[2].enabled_when(), true)
+    store.wallpaper_full = false
+    eq(f[1].enabled_when(), true); eq(f[2].enabled_when(), false, "full false: No wallpaper")
+end)
+
+t.test("which picture reads as in use", function()
     store = {}
     local e = WB.entries("wallpaper_default", WB.ALL)
-    eq(WB.inUse("wallpaper_default", e[1]), true, "nothing set: None")
+    eq(WB.inUse("wallpaper_default", e[1]), false)
     store.wallpaper_default = "leaves.png"
-    eq(WB.inUse("wallpaper_default", e[2]), true); eq(WB.inUse("wallpaper_default", e[1]), false)
-    local f = WB.entries("wallpaper_full", WB.ALL)
-    store.wallpaper_full = nil
-    eq(WB.inUse("wallpaper_full", f[1]), true, "full unset: Same as default")
-    store.wallpaper_full = false
-    eq(WB.inUse("wallpaper_full", f[2]), true, "full false: None")
+    eq(WB.inUse("wallpaper_default", e[1]), true); eq(WB.inUse("wallpaper_default", WB.NONE), false)
 end)
 
-t.test("a tap stores the choice, and only it: None, Same as wallpaper, a picture", function()
+t.test("a choice stores it, and only it: No wallpaper, Same as wallpaper, a picture", function()
     store = { wallpaper_default = "leaves.png", wallpaper_full = "x.png" }
     local e = WB.entries("wallpaper_default", WB.ALL)
-    WB.choose("wallpaper_default", e[1]); eq(store.wallpaper_default, false)
-    WB.choose("wallpaper_default", e[3]); eq(store.wallpaper_default, "theme-pack\1Japan\1wallpaper.png")
+    WB.choose("wallpaper_default", WB.NONE); eq(store.wallpaper_default, false)
+    WB.choose("wallpaper_default", e[2]); eq(store.wallpaper_default, "theme-pack\1Japan\1wallpaper.png")
     eq(store.wallpaper_default_own, nil, "a pack's picture keeps a hidden copy of the reader's own")
-    local f = WB.entries("wallpaper_full", WB.ALL)
-    WB.choose("wallpaper_full", f[1]); eq(store.wallpaper_full, nil)
+    WB.choose("wallpaper_full", WB.SAME); eq(store.wallpaper_full, nil)
 end)
 
-t.test("the None card says where the pictures come from", function()
+t.test("the folder is named only where there are no pictures; the Wallpaper row's help names it", function()
     local src = io.open("lib/bookshelf_wallpaper_browser.lua"):read("*a")
-    assert(src:find('_("Images are loaded from %1")', 1, true), "the folder hint is gone")
-    assert(src:find('_("No images in %1")', 1, true), "the empty-folder message is gone")
+    assert(not src:find('_("Images are loaded from %1")', 1, true), "the picker still prints the folder path")
+    local empty = src:match("empty_state = function%(w, h%)(.-)\n        end,")
+    assert(empty and empty:find('_("No images in %1")', 1, true), "an empty tab does not say where pictures go")
+    local st = io.open("lib/bookshelf_settings.lua"):read("*a")
+    local row = st:match('_%("Wallpaper: %%1"%)(.-)callback = openPicker%(Wallpaper%.SETTING%)')
+    assert(row and row:find("help_text_func", 1, true) and row:find('_("Images are loaded from %1")', 1, true),
+        "the Wallpaper row's help does not say where the pictures come from")
 end)
 
 t.test("choosing a pack's wallpaper never switches its pack on (the switches shape ornaments only)", function()
@@ -87,10 +113,13 @@ end)
 t.test("the picker opens on the page of the wallpaper in use", function()
     store = { wallpaper_default = "leaves.png" }
     local e = WB.entries("wallpaper_default", WB.ALL)
+    store = { wallpaper_default = "theme-pack\1Japan\1wallpaper.png" }
     eq(WB.startPage("wallpaper_default", e, 1), 2, "one to a page (portrait): the second page")
     eq(WB.startPage("wallpaper_default", e, 4), 1, "four to a page (landscape): the first")
+    store = { wallpaper_default = "leaves.png" }
+    eq(WB.startPage("wallpaper_default", e, 1), 1, "the first picture: the first page")
     store = {}
-    eq(WB.startPage("wallpaper_default", e), 1, "nothing chosen: None, the first page")
+    eq(WB.startPage("wallpaper_default", e), 1, "no wallpaper: the first page")
 end)
 
 t.test("the picker marks the one in use with a radio mark, not a line under the picture", function()

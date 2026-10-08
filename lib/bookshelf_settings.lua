@@ -1617,6 +1617,13 @@ function Settings:_wallpaperMenu()
             text_func = function()
                 return T(_("Wallpaper: %1"), wallpaperLabel(Wallpaper.SETTING, _("None")))
             end,
+            -- Where the pictures come from: the picker itself shows only
+            -- pictures (and says so when there are none).
+            help_text_func = function()
+                local dir, user = Wallpaper.dir and Wallpaper.dir() or "?", Wallpaper.userDir and Wallpaper.userDir()
+                if user then return T(_("Images are loaded from %1 and %2"), dir, user) end
+                return T(_("Images are loaded from %1"), dir)
+            end,
             keep_menu_open = true,
             callback = openPicker(Wallpaper.SETTING),
         },

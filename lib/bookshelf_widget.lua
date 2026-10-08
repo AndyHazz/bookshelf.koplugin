@@ -1112,6 +1112,11 @@ function BookshelfWidget:_rebuild()
     -- a font nudge, a pinch, a chip switch, a rotation. One table, cleared in
     -- one place, so a stale entry cannot outlive the layout it described.
     self._list_geom_memo = nil
+    -- Before anything is sized: a collapsed list or spine shelf's hero is the
+    -- cover grid's, and that depends on the grid's label note for this set.
+    if not self._expanded and (self:_isListMode() or self:_isSpineMode()) then
+        self:_ensureGridLabels()
+    end
     -- FIRST LIST RENDER: take up the slack once, before anything is built.
     -- "yes I think we want that first render scale implemented, if there's a
     -- list on screen" -- so it is gated on list mode, which means a session
@@ -5369,6 +5374,10 @@ function BookshelfWidget:_gridLabelsKey()
     local pay  = tip and tip.payload
     return tostring(self.chip) .. "|" .. #path .. "|" .. tostring(tip and tip.kind)
         .. "|" .. tostring(pay and (pay.path or pay.query or pay.name or pay.id))
+        -- The tile style too: it decides whether a folder card prints its
+        -- name below itself, and the library-wide one can change from the
+        -- menu while the shelf shows another style, which notes nothing.
+        .. "|" .. tostring(require("lib/bookshelf_stack_display").resolve(self:_groupDisplayMode()))
 end
 
 -- _gridDrawsLabels() -> bool
@@ -5379,8 +5388,8 @@ end
 -- extra rebuild (see _rebuild), whereas skipping one that is needed would
 -- print labels over the footer.
 function BookshelfWidget:_gridDrawsLabels()
-    local m = self._grid_labels
-    if m and m.key == self:_gridLabelsKey() then return m.value end
+    local m = self._grid_labels and self._grid_labels[self:_gridLabelsKey()]
+    if m then return m.value end
     return true
 end
 
@@ -5408,8 +5417,56 @@ function BookshelfWidget:_noteGridLabels(items, windowed)
         if has == nil then has = true end
         v = has
     end
-    self._grid_labels = { key = self:_gridLabelsKey(), value = v }
+    -- One note per item set, not one for the last set seen: switching chips
+    -- in the cover grid re-ran the rows of every label-free chip once more
+    -- (the note was the other chip's), and a list or spine shelf would fetch
+    -- for it again on every switch (_ensureGridLabels). `gen` is the
+    -- repository's data generation, which _ensureGridLabels checks: a book
+    -- closing can change what a set holds.
+    local Repo = require("lib/bookshelf_book_repository")
+    self._grid_labels = self._grid_labels or {}
+    self._grid_labels[self:_gridLabelsKey()] = {
+        value = v, gen = Repo.dataGeneration and Repo.dataGeneration() }
     return v
+end
+
+-- _ensureGridLabels() -- the note above, for a list or spine shelf.
+--
+-- Both size their hero as the COVER GRID would (_listCollapsedHeroHeight and
+-- _collapsedSpineSplit ask _collapsedGridSplit under _asCoverGrid), so the
+-- hero does not jump between styles. The grid's hero depends on whether this
+-- item set prints a label under its tiles (_shelfLabelMode), and only the cover
+-- grid's own fetch ever noted that. So a shelf not yet shown as Covers this
+-- session sized its hero on the "labels" guess, and the first visit to Covers
+-- corrected it. Measured on the rig (tutorial recording, Home in Spines): the
+-- hero came back 462 > 516 px after Spines > Covers > List > Spines, the rows
+-- shorter, the page 1-46 instead of 1-43 and the ornaments moved.
+--
+-- So ask the grid's question here, before anything is sized: its own fetch,
+-- pinned to Covers, at page one, with covers off -- the note wants the item
+-- shapes, not their pictures. Once per item set and data generation. Skipped
+-- for a catalogue (OPDS, a fetch-mode source): its fetch reads feed windows,
+-- which are the network's business, and those shelves never stand as spines.
+function BookshelfWidget:_ensureGridLabels()
+    local key = self:_gridLabelsKey()
+    local gen = Repo.dataGeneration and Repo.dataGeneration()
+    local m = self._grid_labels and self._grid_labels[key]
+    if m and m.gen == gen then return end
+    local tab = require("lib/bookshelf_tab_model").getById(self.chip)
+    local kind = tab and tab.source and tab.source.kind
+    if kind == "opds" or (kind and require("lib/bookshelf_sources").isPaged(kind)) then
+        return
+    end
+    local cursor, quiet = self._cursor, Repo.suppress_covers
+    self._cursor = 1
+    Repo.suppress_covers = true
+    local got = _asCoverGrid(function()
+        local items, hint = self:_fetchChipItems(400)
+        return { items = items or {}, windowed = hint ~= nil }
+    end)
+    self._cursor = cursor
+    Repo.suppress_covers = quiet
+    if got then self:_noteGridLabels(got.items, got.windowed) end
 end
 
 -- ─── List view ───────────────────────────────────────────────────────────────

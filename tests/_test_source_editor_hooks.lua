@@ -19,10 +19,10 @@ t.test("the source's rows replace the Server order row", function()
         "the rows are not put in place of the sort row")
 end)
 
-t.test("a source button's done() marks the shelf changed and redraws", function()
+t.test("a source button's done() saves the change and redraws", function()
     local cb = editor:match("local done = function%(%)(.-)end")
-    assert(cb and cb:find("applyLivePreview(true)", 1, true) and cb:find("rebuild()", 1, true),
-        "done() does not mark the data dirty and rebuild")
+    assert(cb and cb:find("commit()", 1, true) and cb:find("rebuild()", 1, true),
+        "done() does not save the change and rebuild")
 end)
 
 t.test("info gets ctx.open", function()
@@ -32,14 +32,15 @@ t.test("info gets ctx.open", function()
         "info's ctx has no open(path)")
 end)
 
-t.test("the draft is a deep copy, so Cancel discards a nested source edit", function()
-    assert(editor:find("draft[k] = Editor._deepCopy(v)", 1, true),
-        "the draft still shares nested tables with the saved shelf")
+t.test("the working copy is a deep copy, so a refused change never reaches the saved shelf", function()
+    assert(editor:find("local draft = Editor._deepCopy(target)", 1, true),
+        "the working copy still shares nested tables with the saved shelf")
 end)
 
-t.test("Save tells the shelf when the source changed, and the drill resets", function()
-    assert(editor:find("opts.on_change({ source_changed = source_changed })", 1, true),
-        "Save does not say whether the source changed")
+t.test("a change tells the shelf when the source changed, and the drill resets", function()
+    assert(editor:find("owed_info.source_changed = true", 1, true)
+        and editor:find("if opts.on_change then opts.on_change(info) end", 1, true),
+        "the rebuild does not say whether the source changed")
     local body = widget:match("function BookshelfWidget:_afterChipEdit%(.-\nend\n")
     assert(body and body:find("source_changed", 1, true) and body:find("_drilldown_path = {}", 1, true),
         "a changed source keeps the old drill")

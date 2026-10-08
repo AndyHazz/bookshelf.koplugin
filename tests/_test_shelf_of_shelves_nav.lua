@@ -49,7 +49,6 @@ local function tab(id, kind, parent)
 end
 local function seed()
     stored = {}
-    TabModel.clearOverride()
     TabModel.save({
         tab("home", "all"),
         tab("box", "shelves"),
@@ -244,7 +243,8 @@ t.test("a sub-shelf's run badge opens it; the editor can hide the + tile", funct
     -- the + tile hangs on the wall: its foot clears the plank's whole top surface
     assert(sp:find("local tail = math.max(0, surf - inset)", 1, true), "the + tile stands on the plank")
     local ed = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
-    assert(ed:find('_("Show + Add shelf")', 1, true) and ed:find("override.hide_add_tile", 1, true),
+    local toggle = ed:match('draft%.hide_add_tile = %(not draft%.hide_add_tile%) or nil\n%s*commit%(%)')
+    assert(ed:find('_("Show + Add shelf")', 1, true) and toggle,
         "no live Show + Add shelf toggle")
 end)
 
@@ -285,22 +285,23 @@ t.test("go home climbs out of a shelf of shelves on both paths", function()
 end)
 
 t.test("changing a shelf of shelves' source asks, then deletes its shelves", function()
+    -- Behaviour in _test_chip_editor_live_apply; here, that the source picker
+    -- hands back through the path that asks.
     local ed = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
-    local _, n = ed:gsub("withShelvesResolved%(function%(drop%)", "")
-    eq(n, 2, "Save and + must both ask before hiding a shelf of shelves' shelves")
-    local _, d = ed:gsub("if drop then dropShelves%(save_tabs%) end", "")
-    eq(d, 2, "an OK must delete the shelves on both paths")
+    assert(ed:find("Editor:_pickSource(draft, sourceChosen)", 1, true),
+        "the Source row's picker does not go through sourceChosen")
+    assert(ed:find("ok_callback = function() commit(true); rebuild() end", 1, true),
+        "an OK must delete the shelves with the change")
 end)
 
-t.test("a new shelf starts with no source and is removed unless saved", function()
+t.test("a new shelf starts with no source and is removed unless it gets one", function()
+    -- Close, the X, a tap outside and Back: behaviour in
+    -- _test_chip_editor_live_apply (finish discards a new shelf with no source).
     local ed = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
-    local _, n = ed:gsub("if is_new then cancelPreview%(%); return discardNew%(%) end", "")
-    eq(n, 2, "Cancel and the X must both discard a shelf being created")
-    assert(ed:find("if is_new then discardNew(); return true end", 1, true), "a tap outside keeps a half-made shelf")
-    assert(ed:find("draft.source.kind == TabModel.NO_SOURCE then\n                return discardNew()", 1, true),
+    assert(ed:find("if is_new and not hasSource() then\n                return discardNew()", 1, true),
         "cancelling the first source pick keeps a half-made shelf")
-    local _, w = ed:gsub("if is_dirty%(%) or is_new then\n%s+draft%.pending = nil", "")
-    eq(w, 2, "Save and + must write a new shelf and clear pending")
+    assert(ed:find("if draft.pending and hasSource() then draft.pending = nil end", 1, true),
+        "a new shelf stays pending after it has a source")
     -- every creator goes through newTab, so none starts on a Home placeholder
     for _i, f in ipairs({ "lib/bookshelf_chip_editor.lua", "lib/bookshelf_settings.lua", "lib/bookshelf_widget.lua" }) do
         local s2 = io.open(f):read("*a")

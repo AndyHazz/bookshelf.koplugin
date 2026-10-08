@@ -310,34 +310,18 @@ t.test("a confirmed arrangement is reported back to the editor", function()
     eq(calls.arranged_fired, true, "the editor was never told the order changed")
 end)
 
--- The editor's close paths. editTab is a large UI function with no standalone
--- harness, so these are pinned in its source: the three that mean Cancel (the
--- Cancel button, the title bar X, a tap outside) and Save.
+-- The editor's close paths are behaviour-tested in _test_chip_editor_live_apply.
 local editor_src = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
-
-t.test("no close path repaints only on a visual change any more", function()
-    -- The condition every cancel-like path used. It left an arrangement --
-    -- already written to KOReader -- off the screen until something else
-    -- rebuilt the shelf.
-    assert(not editor_src:find("if visual_dirty and opts.on_change then", 1, true),
-        "a close path still ignores a confirmed arrangement")
-end)
-
-t.test("every cancel-like path repaints after an arrangement", function()
-    local n = select(2, editor_src:gsub("if repaintOnCancel%(%) and opts%.on_change then", ""))
-    eq(n, 3, "expected Cancel, the X and tap-outside to share the rule")
-    assert(editor_src:find("return visual_dirty or arranged", 1, true),
-        "the shared rule does not include an arrangement")
-end)
 
 t.test("a confirmed arrangement repaints the shelf straight away", function()
     -- The maintainer, on the PW5: the order is saved the moment the arrange
     -- window closes, so the shelf behind should show it then, not only once
     -- the whole editor is closed. Through the editor's own debounced preview,
     -- so the confirm tap is not held up by a shelf rebuild.
+    -- schedulePreview marks the rebuild owed, which every close path runs
+    -- if it has not run yet.
     local body = editor_src:match("local function onArranged%(%)(.-)\n    end\n")
     assert(body, "onArranged is gone, or became a one-liner again")
-    assert(body:find("arranged = true", 1, true), "the close paths no longer hear of it")
     assert(body:find("schedulePreview()", 1, true),
         "the shelf still waits for the editor to close")
 end)
@@ -352,14 +336,9 @@ t.test("onArranged is declared below the preview it schedules", function()
     assert(arr > sched, "onArranged would call a nil schedulePreview")
 end)
 
-t.test("Save repaints after an arrangement too", function()
-    assert(editor_src:find("if (is_dirty() or arranged) and opts.on_change then", 1, true),
-        "Save can skip the repaint when the only change was the arrangement")
-end)
-
 t.test("all three sort levels hand the picker the arrangement hook", function()
     local n = select(2, editor_src:gsub(
-        "Editor:_pickSortLevel%(draft, %d, function%(%) applyLivePreview%(true%); rebuild%(%) end, onArranged%)", ""))
+        "Editor:_pickSortLevel%(draft, %d, function%(%) commit%(%); rebuild%(%) end, onArranged%)", ""))
     eq(n, 3, "a sort level opens the picker without the arrangement hook")
 end)
 

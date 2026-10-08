@@ -25,7 +25,6 @@ local TabModel = dofile("lib/bookshelf_tab_model.lua")
 local pass, fail = 0, 0
 local function test(name, fn)
     stored = {}
-    TabModel.clearOverride()
     local ok, err = pcall(fn)
     if ok then pass = pass + 1
     else fail = fail + 1; io.stderr:write("FAIL  " .. name .. "\n  " .. tostring(err) .. "\n") end
@@ -66,12 +65,6 @@ test("getActive: sub-shelves never reach the chip strip", function()
     assert(ids(TabModel.getActive()) == "home,box,recent", ids(TabModel.getActive()))
 end)
 
-test("getActive: an override of a sub-shelf stays out of the strip", function()
-    TabModel.save(tree())
-    TabModel.setOverride("a", books("a", "box"))
-    assert(ids(TabModel.getActive()) == "home,box,recent")
-end)
-
 test("isShelves: only the shelves kind", function()
     assert(TabModel.isShelves(shelves("x")))
     assert(not TabModel.isShelves(books("y")))
@@ -83,13 +76,6 @@ test("childrenOf: direct children only, in stored order", function()
     assert(ids(TabModel.childrenOf("box")) == "a,inner,c", ids(TabModel.childrenOf("box")))
     assert(ids(TabModel.childrenOf("inner")) == "b")
     assert(ids(TabModel.childrenOf("home")) == "")
-end)
-
-test("childrenOf: an editor override shows its live label", function()
-    TabModel.save(tree())
-    local o = books("a", "box"); o.label = "renamed"
-    TabModel.setOverride("a", o)
-    assert(TabModel.childrenOf("box")[1].label == "renamed")
 end)
 
 test("ancestorsOf / rootOf: outermost first; top level has none", function()

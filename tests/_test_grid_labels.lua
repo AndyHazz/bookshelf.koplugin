@@ -51,7 +51,8 @@ local env = {
     BookshelfSettings = { read = function(k) return stored[k] end },
     require = function(name)
         if name == "lib/bookshelf_stack_display" then
-            return { anyExternalLabel = function(items, override) return any_label end }
+            return { anyExternalLabel = function(items, override) return any_label end,
+                     resolve = function(override) return override or "folder" end }
         elseif name == "lib/bookshelf_book_repository" then
             return { allHasBooks = function(path) repo_asked_path = path or "<root>"; return repo_has_books end }
         end
@@ -153,6 +154,114 @@ t.test("drilled into a folder, the repository is asked about that folder", funct
     noteGridLabels(w, { { kind = "folder", label = "A" } }, true)
     eq(repo_asked_path, "/lib/Discworld")
     any_label = true
+end)
+
+t.test("a note survives a switch to another chip and back", function()
+    -- One slot used to hold the LAST set seen, so Home's note was gone after
+    -- a look at Recent and a list or spine Home would fetch for it again.
+    local w = shelf()
+    any_label = false
+    noteGridLabels(w, {})
+    w.chip = "recent"; any_label = true
+    noteGridLabels(w, { { filepath = "/a.epub" } })
+    w.chip = "home"
+    eq(gridDrawsLabels(w), false, "Home's note was overwritten by Recent's")
+    any_label = true
+end)
+
+t.test("the tile style is part of the set's key", function()
+    local w = shelf()
+    local k1 = gridLabelsKey(w)
+    w._groupDisplayMode = function() return "divider" end
+    assert(gridLabelsKey(w) ~= k1, "a changed folder style must not reuse the old note")
+end)
+
+-- _ensureGridLabels: a list or spine shelf's hero is the cover grid's, so it
+-- needs the grid's label note before anything is sized. Measured on the rig
+-- (tutorial recording): Spines > Covers > List > Spines came back with the hero
+-- 462 > 516 px and the page 1-43 > 1-46, because only Covers ever noted it.
+local pin_depth = 0
+local fetches = {}
+local data_gen = 1
+local source_kind = "all"
+local repo_stub = { dataGeneration = function() return data_gen end,
+                    allHasBooks = function() return repo_has_books end }
+local env2 = setmetatable({
+    Repo = repo_stub,
+    _asCoverGrid = function(fn) pin_depth = pin_depth + 1; local v = fn(); pin_depth = pin_depth - 1; return v end,
+    require = function(name)
+        if name == "lib/bookshelf_tab_model" then
+            return { getById = function() return { source = { kind = source_kind } } end }
+        elseif name == "lib/bookshelf_sources" then
+            return { isPaged = function(k) return k == "komga" end }
+        elseif name == "lib/bookshelf_book_repository" then
+            return repo_stub
+        end
+        return env.require(name)
+    end,
+}, { __index = env })
+local ensure = bind(env2, "_ensureGridLabels")
+local note2  = bind(env2, "_noteGridLabels")
+local function spineShelf()
+    local w = shelf()
+    w._ensureGridLabels = ensure
+    w._noteGridLabels = note2
+    w._cursor = 40
+    w._fetchChipItems = function(self, n)
+        fetches[#fetches + 1] = { pinned = pin_depth > 0, cursor = self._cursor,
+                                  quiet = repo_stub.suppress_covers }
+        return { { kind = "folder", label = "Adventure" } }, 16
+    end
+    return w
+end
+
+t.test("a spine shelf notes the cover grid's labels before it is sized", function()
+    fetches = {}; any_label = false; repo_has_books = false
+    local w = spineShelf()
+    ensure(w)
+    eq(#fetches, 1)
+    eq(fetches[1].pinned, true, "the question is the COVER GRID's: fetch under the pin")
+    eq(fetches[1].cursor, 1, "page one, as the grid opens on")
+    eq(fetches[1].quiet, true, "the note wants shapes, not cover pictures")
+    eq(w._cursor, 40, "the shelf's own cursor is put back")
+    eq(repo_stub.suppress_covers, nil, "covers are switched back on")
+    eq(gridDrawsLabels(w), false, "a set of folders alone: no label strip in the hero's sum")
+    any_label = true; repo_has_books = nil
+end)
+
+t.test("once per set and data generation", function()
+    fetches = {}; any_label = false; repo_has_books = false
+    local w = spineShelf()
+    ensure(w); ensure(w)
+    eq(#fetches, 1, "a second rebuild must not fetch again")
+    data_gen = data_gen + 1
+    ensure(w)
+    eq(#fetches, 2, "a book closing may change the set: ask again")
+    any_label = true; repo_has_books = nil
+end)
+
+t.test("a catalogue is left alone", function()
+    fetches = {}
+    for _, k in ipairs({ "opds", "komga" }) do
+        source_kind = k
+        ensure(spineShelf())
+    end
+    source_kind = "all"
+    eq(#fetches, 0, "an OPDS or fetch-mode source must not be fetched for the note")
+end)
+
+t.test("_rebuild asks before sizing, for a collapsed list or spine shelf", function()
+    local body = src:match("\nfunction BookshelfWidget:_rebuild%(%)\n(.-)\nend\n")
+    assert(body, "no _rebuild")
+    body = body:gsub("%-%-[^\n]*", "")
+    local at = body:find("self:_ensureGridLabels()", 1, true)
+    assert(at, "_rebuild never asks for the cover grid's label note")
+    local gate = body:sub(1, at - 1):match("if ([^\n]-) then%s*$")
+    assert(gate and gate:find("not self._expanded", 1, true)
+        and gate:find("_isListMode", 1, true) and gate:find("_isSpineMode", 1, true),
+        "the note is asked for a collapsed list or spine shelf: " .. tostring(gate))
+    local assumed_at = body:find("local grid_labels_assumed", 1, true)
+    assert(assumed_at and at < assumed_at, "the note must come before anything is sized")
 end)
 
 t.test("_rebuild notes the labels after the fetch and re-runs once when the layout guessed wrong", function()

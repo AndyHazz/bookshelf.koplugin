@@ -372,20 +372,20 @@ function TL.show(opts)
     -- The ornaments, scanned once for the picker's life (TL.scan): every
     -- card, every page and every tap's relisting read this one.
     local scan = TL.scan()
-    -- Each tap's choice is kept in memory and the settings file written
-    -- once, as the picker closes however it closes (on_closed), as the
-    -- ornament collection does (Orn.beginDeferred): written per tap, the
-    -- 125 KB file cost ~60ms of every tap on a PW5 (measured 2026-10-08).
-    -- Not ours to end when something else began it. A suspend or an
-    -- autosave while it is open writes too (bookshelf_widget).
-    local orn = O()
-    local own_defer = orn.beginDeferred ~= nil and not orn._defer
-    if own_defer then orn.beginDeferred() end
     local function load()
         self.items = TL.items{ shelf = opts.shelf, current = opts.current(), spines = spines, scan = scan }
     end
     load()
     local modal
+    -- Each tap's choice is kept in memory and the settings file written
+    -- once, as the picker closes however it closes (on_closed), as the
+    -- ornament collection does (Orn.beginDeferred): written per tap, the
+    -- 125 KB file cost ~60ms of every tap on a PW5 (measured 2026-10-08).
+    -- Not ours to end when something else began it; begun only as the
+    -- picker is shown, so there is always a close to end it. A suspend or
+    -- an autosave while it is open writes too (bookshelf_widget).
+    local orn = O()
+    local own_defer = false
     local function close() if modal then UIManager:close(modal) end end
     -- The shelf behind follows the cards: one rebuild for a run of taps
     -- (the last choice wins), and none left waiting when the picker closes.
@@ -451,6 +451,8 @@ function TL.show(opts)
     modal = LibraryModal:new{ config = config, page = 1 }
     -- Keys: the focus starts on the choice in use when it is on that page.
     if modal._dpad_idx then modal._dpad_idx = (at <= per) and at or 1; modal:refresh() end
+    own_defer = orn.beginDeferred ~= nil and not orn._defer
+    if own_defer then orn.beginDeferred() end
     UIManager:show(modal)
     return modal
 end

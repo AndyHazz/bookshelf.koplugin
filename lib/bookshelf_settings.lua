@@ -1857,7 +1857,10 @@ function Settings:_setShelfThemeField(id, field, value)
     for _i, t in ipairs(tabs or {}) do
         if t.id == id then t[field] = value; break end
     end
-    TabModel.save(tabs)
+    -- In memory only while the Theme library is open: it writes the settings
+    -- once as it closes (Orn.beginDeferred), not on every tap.
+    local Orn = package.loaded["lib/bookshelf_ornaments"]
+    if Orn and Orn._defer then TabModel.saveDeferred(tabs) else TabModel.save(tabs) end
 end
 
 -- _shelfThemeLabelFor(tab) -> "Home: Same as library", or "Manga: Ukiyo-e".

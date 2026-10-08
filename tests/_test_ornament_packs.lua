@@ -254,6 +254,21 @@ t.test("while deferred, switches are kept in memory and written once at the end"
     eq(saved, 1, "after the end, saves are ordinary again")
 end)
 
+t.test("a deferral with no setting changed writes nothing at the end", function()
+    -- The Theme library defers while open; looked at and closed with no
+    -- choice, it must not cost a write of the whole settings file.
+    local O = fresh()
+    local gen, flushed = 7, 0
+    O._store.generation = function() return gen end
+    O._store.saveDeferred = function(k, v) gen = gen + 1; mem[k] = v end
+    O._store.flush = function() flushed = flushed + 1 end
+    O.beginDeferred(); O.endDeferred()
+    eq(flushed, 0, "nothing changed, yet the settings were written")
+    O.beginDeferred(); O.setOff("c.svg", true); O.endDeferred()
+    eq(flushed, 1, "a change was not written at the end")
+    O._store.generation = nil
+end)
+
 -- ── The new-file poll watches the ornament folders too ───────────────────────
 -- Maintainer: "piggyback on the background check for new books, to check for
 -- new ornaments without having to go in/out or refresh anything". The poll

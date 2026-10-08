@@ -372,6 +372,14 @@ function TL.show(opts)
     -- The ornaments, scanned once for the picker's life (TL.scan): every
     -- card, every page and every tap's relisting read this one.
     local scan = TL.scan()
+    -- Each tap's choice is kept in memory and the settings file written
+    -- once, as the picker closes however it closes (on_closed), as the
+    -- ornament collection does (Orn.beginDeferred): written per tap, the
+    -- 125 KB file cost ~60ms of every tap on a PW5 (measured 2026-10-08).
+    -- Not ours to end when something else began it.
+    local orn = O()
+    local own_defer = orn.beginDeferred ~= nil and not orn._defer
+    if own_defer then orn.beginDeferred() end
     local function load()
         self.items = TL.items{ shelf = opts.shelf, current = opts.current(), spines = spines, scan = scan }
     end
@@ -420,6 +428,7 @@ function TL.show(opts)
         on_closed = function()
             modal = nil
             apply()
+            if own_defer then own_defer = false; orn.endDeferred() end
             if opts.on_closed then pcall(opts.on_closed) end
         end,
     }

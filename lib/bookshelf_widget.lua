@@ -11229,11 +11229,20 @@ end
 -- can sleep cleanly with no pending callbacks; re-arm + immediate tick
 -- on wake so visible state catches up without the user waiting up to
 -- a full minute.
+-- A picker that keeps its choices in memory while it is open (the Theme
+-- library, the ornament collection: Orn.beginDeferred) writes them as it
+-- closes; a suspend or KOReader's autosave while one is open lands them too.
+local function flushOpenPickers()
+    local Orn = package.loaded["lib/bookshelf_ornaments"]
+    if Orn and Orn._defer then BookshelfSettings.flush() end
+end
+
 function BookshelfWidget:onSuspend()
     self:_stopStatusTimer()
     -- Suspend can be followed by a SIGTERM (Kindle frame switch) that never
     -- reaches onCloseWidget, so land deferred nav state here too.
     self:_flushNavStateNow()
+    flushOpenPickers()
 end
 
 -- KOReader broadcasts onFlushSettings on its periodic autosave and on a
@@ -11242,6 +11251,7 @@ end
 -- settings, independent of the debounce timer.
 function BookshelfWidget:onFlushSettings()
     self:_flushNavStateNow()
+    flushOpenPickers()
 end
 
 function BookshelfWidget:onResume()

@@ -552,11 +552,23 @@ end
 -- While the ornaments browser is open (beginDeferred .. endDeferred), switches
 -- are written in memory only and flushed once at the end: a save flushes the
 -- whole settings file, and a reader tapping through a pack paid that per tap.
+-- The Theme library defers the same way. Not flushed when no setting moved
+-- (the store's generation), so a look with no change writes nothing.
 M._defer = false
-function M.beginDeferred() M._defer = true end
+local function generation(st)
+    if not (st and st.generation) then return nil end
+    local ok, g = pcall(st.generation)
+    return ok and g or nil
+end
+function M.beginDeferred()
+    M._defer = true
+    M._defer_gen = generation(store())
+end
 function M.endDeferred()
     M._defer = false
     local st = store()
+    local g = generation(st)
+    if g ~= nil and g == M._defer_gen then return end
     if st and st.flush then pcall(st.flush) end
 end
 

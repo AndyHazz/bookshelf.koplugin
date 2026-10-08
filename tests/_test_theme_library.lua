@@ -78,6 +78,10 @@ all[#all + 1] = piece("Ukiyo", "Wave.png")
 local on = { piece("Autumn", "B01.png"), piece(nil, "cactus.svg"), piece("Macabre", "A01.png") }
 local listAll_calls = 0
 local Orn = {
+    -- The settings deferral (Orn.beginDeferred): written once on close.
+    _defer = false, deferred = {},
+    beginDeferred = function() local O = package.loaded["test/orn"]; O._defer = true; O.deferred[#O.deferred + 1] = "begin" end,
+    endDeferred = function() local O = package.loaded["test/orn"]; O._defer = false; O.deferred[#O.deferred + 1] = "end" end,
     listAll = function() listAll_calls = listAll_calls + 1; return all, { "Autumn", "Macabre", "Planks", "Ukiyo" } end,
     list = function() return on end,
     displayName = function(e) return (e.file:gsub("%.[^%.]+$", "")) end,
@@ -85,6 +89,7 @@ local Orn = {
     render = function() error("an ornament was decoded while the cards were listed") end,
     contentBox = function() error("an ornament was probed while the cards were listed") end,
 }
+package.loaded["test/orn"] = Orn
 local TL = dofile("lib/bookshelf_theme_library.lua")
 TL._tp, TL._orn = TP, Orn
 
@@ -339,6 +344,51 @@ t.test("a choice still waiting is applied when the picker closes, before the cal
     eq(m.closed, true)
     eq(table.concat(order, ","), "apply:Macabre,back", "the menu came back before the shelf followed the choice")
     eq(runTasks(), 0, "a rebuild was left waiting after the picker closed")
+end)
+
+t.test("taps keep the choice in memory; the settings are written once, as the picker closes", function()
+    -- Measured on a PW5, 2026-10-08: every tap wrote the 125 KB settings
+    -- file (~60ms). Deferred as the ornament collection does, flushed on
+    -- every way out (on_closed: Close, the X, Back, a tap outside).
+    library = "mine"
+    -- Pickers opened above were never closed.
+    Orn.deferred, Orn._defer = {}, false
+    local order = {}
+    local m, c = open{ current = function() return library end,
+                       choose = function(v) library = v; order[#order + 1] = "choose:" .. tostring(Orn._defer) end,
+                       apply = function() order[#order + 1] = "apply" end,
+                       on_closed = function() order[#order + 1] = "back:" .. tostring(Orn._defer) end }
+    eq(table.concat(Orn.deferred, ","), "begin", "the picker does not defer the settings while open")
+    c.on_cell_tap(c.item_at(3)); c.on_cell_tap(c.item_at(4))
+    m.config.on_closed()
+    eq(table.concat(Orn.deferred, ","), "begin,end", "the settings were not written as the picker closed")
+    eq(table.concat(order, ","), "choose:true,choose:true,apply,back:false",
+        "the choices were written before the shelf followed them, or after the caller came back")
+    m.config.on_closed()
+    eq(table.concat(Orn.deferred, ","), "begin,end", "a second close ended the deferral again")
+    -- Opened while something else defers (the collection), it is not ours to end.
+    Orn.deferred = {}; Orn._defer = true
+    local m2 = open{ current = function() return library end, choose = function() end }
+    m2.config.on_closed()
+    eq(#Orn.deferred, 0, "the picker ended a deferral it did not begin")
+    Orn._defer = false
+end)
+
+t.test("a suspend or KOReader's autosave while the picker is open writes its choices", function()
+    -- The picker writes as it closes; a Kindle frame switch after a
+    -- suspend can kill KOReader before it does.
+    local src = io.open("lib/bookshelf_widget.lua"):read("*a")
+    local at = src:find("\nlocal function flushOpenPickers%(%)\n")
+    local body = src:match("\nlocal function flushOpenPickers%(%)\n(.-)\nend\n")
+    assert(at and body, "flushOpenPickers moved")
+    assert(body:find("Orn and Orn._defer", 1, true) and body:find("BookshelfSettings.flush()", 1, true),
+        "the open picker's choices are not flushed")
+    for _i, name in ipairs({ "onSuspend", "onFlushSettings" }) do
+        local s0 = src:find("\nfunction BookshelfWidget:" .. name .. "%(%)\n")
+        local fn = src:match("\nfunction BookshelfWidget:" .. name .. "%(%)\n(.-)\nend\n")
+        assert(fn and fn:find("flushOpenPickers()", 1, true), name .. " does not land an open picker's choices")
+        assert(s0 > at, name .. " is above the local it calls")
+    end
 end)
 
 t.test("a missing pack cannot be chosen again; once left it drops out of the list", function()

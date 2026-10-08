@@ -123,6 +123,7 @@ local function build(packs, library, tabs, opts)
             if m == "lib/bookshelf_theme_pack" then return TP end
             if m == "lib/bookshelf_tab_model" then
                 return { load = function() return tabs end, save = function(v) seen.saved = v end,
+                         saveDeferred = function(v) seen.saved_deferred = v end,
                          getActive = function()
                              local on = {}
                              for _i, tb in ipairs(tabs) do if tb.enabled ~= false then on[#on + 1] = tb end end
@@ -248,6 +249,24 @@ t.test("a shelf's row opens that shelf's Theme library; a choice writes that she
     eq(o.current(), "plain")
     o.choose(nil)
     eq(by.home.theme, nil, "Same as library did not clear the shelf's own")
+end)
+
+t.test("while the Theme library is open a shelf's choice is kept in memory, written as it closes", function()
+    -- Written per tap, the settings file cost ~60ms of every tap on a PW5
+    -- (2026-10-08); the picker defers the ornaments' saves while open
+    -- (Orn.beginDeferred) and flushes once on close.
+    local self, S, seen, by = build({ MAC, UK }, "Macabre")
+    S._perShelfThemeRows(self)[1].callback({})
+    local o = seen.opened[1]
+    local had = package.loaded["lib/bookshelf_ornaments"]
+    package.loaded["lib/bookshelf_ornaments"] = { _defer = true }
+    o.choose("plain")
+    package.loaded["lib/bookshelf_ornaments"] = had
+    eq(by.home.theme, "plain")
+    eq(seen.saved, nil, "a tap wrote the settings file while the picker was open")
+    assert(seen.saved_deferred, "the choice was not kept in memory")
+    o.choose("Ukiyo-e")
+    assert(seen.saved, "outside a picker the choice is not written at once")
 end)
 
 t.test("rc/5.4's 'none' reads as the reader's own in a shelf's picker", function()

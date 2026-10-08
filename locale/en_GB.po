@@ -6575,6 +6575,52 @@ msgstr ""
 msgid "Updated %1h ago"
 msgstr ""
 
+#: lib/bookshelf_settings.lua:2506
+msgid ""
+"A theme can bring a wallpaper, a plank, colors, light or dark, and ornaments. Anything it does not bring comes from %1. Choosing a theme never changes %1.\n"
+"\n"
+"Each shelf can have a theme of its own: choose it here, or long-press a shelf chip, then Shelf style."
+msgstr ""
+"A theme can bring a wallpaper, a plank, colours, light or dark, and ornaments. Anything it does not bring comes from %1. Choosing a theme never changes %1.\n"
+"\n"
+"Each shelf can have a theme of its own: choose it here, or long-press a shelf chip, then Shelf style."
+
+#: lib/bookshelf_settings.lua:1679
+msgid "Color behind wallpaper"
+msgstr "Colour behind wallpaper"
+
+#: lib/bookshelf_settings.lua:1679
+msgid "Color behind wallpaper (% black)"
+msgstr "Colour behind wallpaper (% black)"
+
+#: lib/bookshelf_settings.lua:1672
+msgid "Color behind wallpaper: %1"
+msgstr "Colour behind wallpaper: %1"
+
+#: lib/bookshelf_settings.lua:2479 lib/bookshelf_theme_library.lua:87
+msgid "Colors"
+msgstr "Colours"
+
+#: lib/bookshelf_settings.lua:2626 lib/bookshelf_settings.lua:2628
+msgid "Colors for: %1"
+msgstr "Colours for: %1"
+
+#: lib/bookshelf_settings.lua:3855
+msgid "Draw plank designs (Oak, or one from a pack or a theme) on spine shelves. Drawing them is slow on some black and white e-readers; turn this off to use the plain plank color instead. Choosing a plank again, in the Plank picker, turns this back on."
+msgstr "Draw plank designs (Oak, or one from a pack or a theme) on spine shelves. Drawing them is slow on some black and white e-readers; turn this off to use the plain plank colour instead. Choosing a plank again, in the Plank picker, turns this back on."
+
+#: lib/bookshelf_settings.lua:1825
+msgid "Light or dark colors for the shelf, independently of KOReader's night mode, so you can keep the rest of KOReader light and still have a dark shelf. Auto follows night mode. Covers and ornaments are pictures and are never inverted; the wallpaper is inverted only when you ask for it."
+msgstr "Light or dark colours for the shelf, independently of KOReader's night mode, so you can keep the rest of KOReader light and still have a dark shelf. Auto follows night mode. Covers and ornaments are pictures and are never inverted; the wallpaper is inverted only when you ask for it."
+
+#: lib/bookshelf_settings.lua:2188
+msgid "Shelf plank color"
+msgstr "Shelf plank colour"
+
+#: lib/bookshelf_settings.lua:2630
+msgid "Your colors come in two sets, one for a light shelf and one for a dark shelf. Tap to edit the other set; the shelf and KOReader's night mode are not changed."
+msgstr "Your colours come in two sets, one for a light shelf and one for a dark shelf. Tap to edit the other set; the shelf and KOReader's night mode are not changed."
+
 #~ msgid ""
 #~ "Light or dark colors for the shelf, independently of KOReader's night mode -- so you can keep the rest of KOReader light and still have a dark shelf.\n"
 #~ "\n"
@@ -6584,8 +6630,6 @@ msgstr ""
 #~ "\n"
 #~ "Covers, wallpaper and ornaments are pictures and are never inverted; only the shelf's own colours change."
 
-#~ msgid "Shelf plank color"
-#~ msgstr "Shelf plank colour"
 
 #~ msgid "Color of the shelf plank the Spines style stands its books on. The lit top surface and shaded front edge are both tinted from this one color. Default light oak."
 #~ msgstr "Colour of the shelf plank the Spines style stands its books on. The lit top surface and shaded front edge are both tinted from this one colour. Default light oak."
@@ -6611,8 +6655,6 @@ msgstr ""
 #~ "\n"
 #~ "All custom shelves you have created or edited will be lost. Other Bookshelf settings (hero text, fonts, colours) are unaffected."
 
-#~ msgid "Colors"
-#~ msgstr "Colours"
 
 #~ msgid "How much memory to use for ready-scaled book covers. A bigger cache keeps more covers warm -- smoother paging and preloading -- at the cost of RAM. Default 24 MB. Lower it if memory is tight; raise it on a device with plenty of RAM. (How many covers that holds depends on their size: roughly 200-400 small grayscale covers, fewer large or color ones.)"
 #~ msgstr "How much memory to use for ready-scaled book covers. A bigger cache keeps more covers warm -- smoother paging and preloading -- at the cost of RAM. Default 24 MB. Lower it if memory is tight; raise it on a device with plenty of RAM. (How many covers that holds depends on their size: roughly 200-400 small greyscale covers, fewer large or colour ones.)"

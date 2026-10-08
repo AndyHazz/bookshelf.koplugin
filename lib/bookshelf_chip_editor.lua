@@ -2249,15 +2249,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                     require("lib/bookshelf_theme_library").show{
                         shelf = draft.label or "",
                         current = cur,
-                        -- Own theme, the first time: a copy of what the
-                        -- shelf shows now, so nothing on screen changes; a
-                        -- shelf that has one keeps it (TP.ensureOwn).
-                        choose = function(value)
-                            if value == TP.OWN then TP.ensureOwn(draft, TP.resolveChoice(cur(), draft)) end
-                            draft.theme = value
-                        end,
-                        own = function() return draft.own_theme end,
-                        showing = function() return TP.resolveChoice(cur(), draft) end,
+                        choose = function(value) draft.theme = value end,
                         apply = on_change,
                         on_closed = show,
                     }

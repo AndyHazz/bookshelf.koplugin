@@ -54,6 +54,10 @@ TP.rescans = 0
 function TP.rescan() TP.rescans = TP.rescans + 1 end
 function TP.addThemeLabel() return "Add theme pack\xE2\x80\xA6" end
 function TP.showAddThemeInfo() TP.add_info = (TP.add_info or 0) + 1 end
+-- The reader's edits to each theme (bookshelf_theme_pack EDITABLE THEMES).
+local edits = {}
+function TP.editsOf(th) return edits[th] end
+function TP.hasEdits(th) return edits[th] ~= nil end
 
 -- The ornament scan: names and headers only. Rendering must not happen while
 -- the cards are listed.
@@ -140,11 +144,36 @@ t.test("the hero: theme.json's (any case), else the newest piece switched on; no
     eq(TL.hero("Planks"), nil, "a pack without pieces has no hero")
     eq(TL.hero("mine").file, "A01.png", "My theme showed a piece switched off, or not its newest on")
     eq(TL.hero("plain"), nil)
+    -- A pack's pieces are switched in its own edited set (editable themes,
+    -- 2026-10-08); the collection's switches are My theme's.
     off["Autumn/B07.png"] = true; TL._hero_cache = {}
+    eq(TL.hero("Autumn").file, "B07.png", "the collection's switch reached a pack's hero")
+    off["Autumn/B07.png"] = nil
+    local set = {}
+    for _i, e in ipairs(all) do if e.pack == "Autumn" and e.file ~= "B07.png" then set[e.name] = true end end
+    edits.Autumn = { pieces = set }; TL._hero_cache = {}
     eq(TL.hero("Autumn").file, "B03.png", "a piece switched off is still the hero")
-    off["Macabre/Munch - The Scream.png"] = true; TL._hero_cache = {}
+    edits.Macabre = { pieces = { ["Macabre/A01.png"] = true } }; TL._hero_cache = {}
     eq(TL.hero("Macabre").file, "A01.png", "the named hero is shown though switched off")
-    off["Autumn/B07.png"] = nil; off["Macabre/Munch - The Scream.png"] = nil; TL._hero_cache = {}
+    -- Plain with pieces switched on deals them: its card shows one.
+    edits.plain = { pieces = { ["Autumn/B03.png"] = true } }
+    eq(TL.hero("plain").file, "B03.png", "Plain's edited set has no hero")
+    edits.Autumn, edits.Macabre, edits.plain = nil, nil, nil; TL._hero_cache = {}
+end)
+
+t.test("a pack or Plain the reader has edited says Edited first; My theme never does", function()
+    edits.Macabre = { keys = { wallpaper_default = "leaves.png" } }
+    eq(TL.summary("Macabre"), "Edited" .. DOT .. "Wallpaper" .. DOT .. "Plank" .. DOT .. "56 ornaments" .. DOT .. "Dark")
+    edits.Autumn = { keys = { progress_fill = { hex = "#00AA00" } } }
+    eq(TL.summary("Autumn", false), "Edited" .. DOT .. "27 ornaments (Spines shelves only)")
+    edits.plain = { keys = {} }
+    eq(TL.summary("plain"), "Edited" .. DOT .. "No wallpaper" .. DOT .. "Oak" .. DOT .. "No ornaments")
+    edits.mine = { keys = {} }
+    eq(TL.summary("mine"):find("Edited", 1, true), nil, "My theme says Edited")
+    local items = TL.items{ current = "mine" }
+    eq(items[3].summary:sub(1, 6), "Edited", "the card does not say Edited")
+    edits.Macabre, edits.Autumn, edits.plain, edits.mine = nil, nil, nil, nil
+    eq(TL.summary("Macabre"):find("Edited", 1, true), nil, "a theme reset still says Edited")
 end)
 
 t.test("the library's cards: the reader's own, Plain, each theme; titled by name, described by theme.json", function()
@@ -339,9 +368,7 @@ t.test("a card's hero is the ornaments' own cached render, through the collectio
     assert(card, "_renderCard moved")
     assert(card:find('require("lib/bookshelf_ornament_browser").preview(e, hero_w, inner_h)', 1, true),
         "the hero is not drawn as the collection draws a piece")
-    assert(card:find("TL.hero(item.shows, item.own)", 1, true), "the card's hero is not its theme's")
-    assert(card:find("if item.copies then e = TL.hero(item.copies)", 1, true),
-        "an Own theme not made yet does not show the hero of what it would copy")
+    assert(card:find("TL.hero(item.shows)", 1, true), "the card's hero is not its theme's")
     local ob = io.open("lib/bookshelf_ornament_browser.lua"):read("*a")
     local prev = ob:match("\nfunction Browser%.preview%(e, box_w, box_h%)\n(.-)\nend\n")
     assert(prev and prev:find("night = Screen.night_mode", 1, true), "the preview is not drawn for night mode")

@@ -510,6 +510,11 @@ t.test("no Own theme left: no card, no rows, no copy on choosing, the menu named
                              "deleteOwn", "TP.OWN", "ownerOf", "shownOwn" }) do
         assert(not code:find(gone, 1, true), "settings still has " .. gone)
     end
+    for _i, f in ipairs({ "lib/bookshelf_theme_library.lua", "lib/bookshelf_chip_editor.lua" }) do
+        local src = io.open(f):read("*a"):gsub("%-%-[^\n]*", "")
+        assert(not src:find("own_theme", 1, true) and not src:find("ownName", 1, true)
+            and not src:find("ensureOwn", 1, true), f .. " still knows the own theme")
+    end
     local main = io.open("main.lua"):read("*a")
     assert(main:find('require("lib/bookshelf_theme_pack").editName())', 1, true),
         "the menu is not named for the theme it edits")

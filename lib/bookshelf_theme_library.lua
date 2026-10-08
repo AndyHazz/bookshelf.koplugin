@@ -376,7 +376,8 @@ function TL.show(opts)
     -- once, as the picker closes however it closes (on_closed), as the
     -- ornament collection does (Orn.beginDeferred): written per tap, the
     -- 125 KB file cost ~60ms of every tap on a PW5 (measured 2026-10-08).
-    -- Not ours to end when something else began it.
+    -- Not ours to end when something else began it. A suspend or an
+    -- autosave while it is open writes too (bookshelf_widget).
     local orn = O()
     local own_defer = orn.beginDeferred ~= nil and not orn._defer
     if own_defer then orn.beginDeferred() end
@@ -428,7 +429,16 @@ function TL.show(opts)
         on_closed = function()
             modal = nil
             apply()
-            if own_defer then own_defer = false; orn.endDeferred() end
+            if own_defer then
+                own_defer = false
+                -- Once the close has painted: the write (~115ms on a PW5)
+                -- then does not hold up the shelf coming back.
+                if UIManager.tickAfterNext then
+                    UIManager:tickAfterNext(function() orn.endDeferred() end)
+                else
+                    orn.endDeferred()
+                end
+            end
             if opts.on_closed then pcall(opts.on_closed) end
         end,
     }

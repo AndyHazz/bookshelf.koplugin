@@ -232,6 +232,7 @@ package.loaded["ui/uimanager"] = {
     close = function(_u, w) w.closed = true; if w.config.on_closed then w.config.on_closed() end end,
     setDirty = function(_u, w, mode) dirty[#dirty + 1] = tostring(w) .. ":" .. tostring(mode) end,
     scheduleIn = function(_u, secs, fn) tasks[#tasks + 1] = { secs = secs, fn = fn } end,
+    tickAfterNext = function(_u, fn) tasks[#tasks + 1] = { secs = 0, after_paint = true, fn = fn } end,
     unschedule = function(_u, fn)
         for i = #tasks, 1, -1 do if tasks[i].fn == fn then table.remove(tasks, i) end end
     end,
@@ -361,10 +362,14 @@ t.test("taps keep the choice in memory; the settings are written once, as the pi
     eq(table.concat(Orn.deferred, ","), "begin", "the picker does not defer the settings while open")
     c.on_cell_tap(c.item_at(3)); c.on_cell_tap(c.item_at(4))
     m.config.on_closed()
+    eq(table.concat(order, ","), "choose:true,choose:true,apply,back:true",
+        "the choices were written before the shelf followed them")
+    -- Written once the close has painted, not in its way (~115ms on a PW5).
+    eq(table.concat(Orn.deferred, ","), "begin", "the write held up the close")
+    eq(#tasks, 1); eq(tasks[1].after_paint, true, "the write is not left for after the close's paint")
+    runTasks()
     eq(table.concat(Orn.deferred, ","), "begin,end", "the settings were not written as the picker closed")
-    eq(table.concat(order, ","), "choose:true,choose:true,apply,back:false",
-        "the choices were written before the shelf followed them, or after the caller came back")
-    m.config.on_closed()
+    m.config.on_closed(); runTasks()
     eq(table.concat(Orn.deferred, ","), "begin,end", "a second close ended the deferral again")
     -- Opened while something else defers (the collection), it is not ours to end.
     Orn.deferred = {}; Orn._defer = true

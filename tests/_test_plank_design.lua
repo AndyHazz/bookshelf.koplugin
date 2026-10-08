@@ -70,12 +70,17 @@ t.test("a solid end replaces the middle under it: no fade there, the middle cut 
         and strip:find("cut(l.right_x, l.clip_x1)", 1, true), "the middle is not cut under a solid end")
 end)
 
-t.test("an end image is composited OVER the strip, alpha included", function()
-    -- alphablitFrom keeps the target's alpha, so an end's part-transparent
-    -- shadow or soft edge over a cut or blank part of the strip vanished.
+t.test("a SOLID end is composited over the strip, alpha included; a fading end keeps the middle's alpha", function()
+    -- Solid: alphablitFrom keeps the target's alpha, so an end's soft shadow
+    -- over the part the solid end cleared vanished. Fading (5.3's planks):
+    -- composited over, Hinoki's flat end shadow cut sharp at the plank end
+    -- (maintainer, 2026-10-08), so those keep the old blit.
     local strip = src:match("local function _designStrip%(.-\nend\n")
-    assert(strip and not strip:find("strip:alphablitFrom(e,", 1, true), "ends still alphablit (target alpha kept)")
-    assert(strip:find("d.alpha = math.floor(oa + 0.5)", 1, true), "the end's alpha is not combined into the strip")
+    assert(strip and strip:find("if cw > 0 and not solid then", 1, true), "fading ends are composited over again")
+    assert(strip:find("strip:alphablitFrom(e, dx, 0, sx, 0, cw, total)", 1, true), "fading ends lost the old blit")
+    assert(strip:find("d.alpha = math.floor(oa + 0.5)", 1, true), "a solid end's alpha is not combined into the strip")
+    assert(strip:find("place(design.left, l.left_x, l.left_w, l.left_solid)", 1, true)
+        and strip:find("place(design.right, l.right_x, l.right_w, l.right_solid)", 1, true), "the solid flag is not passed")
 end)
 
 t.test("hanging art keeps clear of what a design stands above the plank (designRise)", function()

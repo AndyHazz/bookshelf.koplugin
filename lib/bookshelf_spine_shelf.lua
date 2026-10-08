@@ -3242,16 +3242,24 @@ local function _designStrip(design, width, row_x, row_w, surf_h, face_h, inverti
         if l.left_solid and l.left_w > 0 then cut(l.clip_x0, l.left_x + l.left_w) end
         if l.right_solid and l.right_w > 0 then cut(l.right_x, l.clip_x1) end
     end
-    local function place(path, ex, ew)
+    local function place(path, ex, ew, solid)
         if not path or ew <= 0 then return end
         local e = _bandImage(path, ew, l); if not e then return end
         local sx, dx, cw = 0, ex, ew
         if dx < 0 then sx = -dx; cw = cw + dx; dx = 0 end
         if dx + cw > width then cw = width - dx end
-        if cw > 0 then
-            -- "Over", alpha included: alphablitFrom keeps the target's alpha,
-            -- so a part-transparent end pixel (a cast shadow, a soft edge)
-            -- over a cleared or blank part of the strip was lost.
+        if cw > 0 and not solid then
+            -- A fading end (5.3's kind: Hinoki, the Planks pack): drawn over
+            -- the middle keeping the middle's alpha, so its shadow fades with
+            -- the middle's end taper. Composited "over" (below), Hinoki's
+            -- flat end shadow showed at full strength right up to the plank
+            -- end: a sharp cut (maintainer, 2026-10-08).
+            strip:alphablitFrom(e, dx, 0, sx, 0, cw, total)
+        elseif cw > 0 then
+            -- A SOLID end: "over", alpha included. alphablitFrom keeps the
+            -- target's alpha, so a part-transparent end pixel (a cast shadow,
+            -- a soft edge) over the part of the strip the solid end cleared
+            -- was lost.
             for yy = 0, total - 1 do
                 for xx = 0, cw - 1 do
                     local s = e:getPixelP(sx + xx, yy)
@@ -3272,8 +3280,8 @@ local function _designStrip(design, width, row_x, row_w, surf_h, face_h, inverti
         end
         e:free()
     end
-    place(design.left, l.left_x, l.left_w)
-    place(design.right, l.right_x, l.right_w)
+    place(design.left, l.left_x, l.left_w, l.left_solid)
+    place(design.right, l.right_x, l.right_w, l.right_solid)
     if inverting then strip:invertRect(0, 0, width, total) end
     local ok_r, regions = pcall(SpineShelf.alphaRegions, width, total, _alphaAt(strip))
     if not ok_r then regions = nil end

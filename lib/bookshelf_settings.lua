@@ -1728,6 +1728,36 @@ function Settings:_wallpaperFolderRow()
     }
 end
 
+-- _transparentShelfMenuRow(): the shelf menu without its bar. Not a colour
+-- and set by no theme, so it sits with Panel shading, the other "what shows
+-- through" row, not in Colors (which it pushed onto a third page,
+-- maintainer 2026-10-08). The Colors reset still turns it off: it is
+-- the bar's ground, the Shelf menu background's other state.
+function Settings:_transparentShelfMenuRow()
+    return {
+        -- The bar's colour is a colour, and "none" is not one the pickers
+        -- can offer, so this is its own row. It does what Panel shading's
+        -- Transparent already did to this strip, without changing the
+        -- panels: the chips go without a ground, so a wallpaper shows
+        -- through behind them. The selected shelf keeps its own fill, and
+        -- the start menu, which is painted in the same colour, stays solid.
+        text = _("Transparent shelf menu"),
+        help_text = _("Leave out the bar behind the shelf menu, so the "
+            .. "wallpaper shows through. The selected shelf keeps its "
+            .. "fill."),
+        checked_func = function()
+            return BookshelfSettings.isTrue("chip_bar_transparent")
+        end,
+        keep_menu_open = true,
+        callback = function(touchmenu_instance)
+            BookshelfSettings.save("chip_bar_transparent",
+                not BookshelfSettings.isTrue("chip_bar_transparent"))
+            self:_markDirty()
+            if touchmenu_instance then touchmenu_instance:updateItems() end
+        end,
+    }
+end
+
 -- _panelShadingRow(): how hard the panels are shaded over the picture. The
 -- same for every theme: no pack sets it.
 function Settings:_panelShadingRow()
@@ -2552,6 +2582,40 @@ function Settings:_colorsSubItems()
 
     local items = {
         {
+            -- First, set apart: at the end it was a page of its own, so the
+            -- page arrows moved (maintainer, 2026-10-08). Both slots.
+            text = ICON_RESET .. _("Reset to default colors"),
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                -- MUST list every key a row in this menu can write, or Reset
+                -- silently leaves that colour set (the chip pair was missed when
+                -- it was added, #294). _test_settings_font_scale.lua compares this
+                -- list against the pickColor call sites to keep them in step.
+                local keys = {
+                    "ink_color",
+                    "progress_fill", "progress_track",
+                    "bookmark_color", "complete_bookmark_color",
+                    "favorite_star_color", "favorite_heart_color",
+                    "badge_fg", "badge_bg", "border_color",
+                    "chrome_bg", "chip_bar_transparent",
+                    "module_bg", "module_border", "panel_bg",
+                    "selection_color", "card_shadow_color",
+                    "spine_plank_color",
+                    "folder_overlay_bg", "folder_overlay_fg",
+                    "chip_selected_bg", "chip_selected_fg",
+                }
+                -- Clear both day AND night variants so "Reset" lives up
+                -- to its name regardless of which mode the menu is in.
+                for _i, k in ipairs(keys) do
+                    BookshelfSettings.delete(k)
+                    BookshelfSettings.delete(k .. "_night")
+                end
+                markDirty()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end,
+            separator = true,
+        },
+        {
             -- Which of the reader's two colour sets the rows show and edit:
             -- the light one or the dark one. Switching it changes nothing
             -- else -- not KOReader's night mode, not the shelf (maintainer,
@@ -2567,13 +2631,13 @@ function Settings:_colorsSubItems()
                 .. "and one for a dark shelf. Tap to edit the other set; the "
                 .. "shelf and KOReader's night mode are not changed."),
             keep_menu_open = true,
-            separator = true,
             callback = function(touchmenu_instance)
                 CoverProgress.setEditSlot(_isNight() and "light" or "dark")
                 if touchmenu_instance and touchmenu_instance.updateItems then
                     touchmenu_instance:updateItems()
                 end
             end,
+            separator = true,
         },
         {
             -- The text colour itself. The palette has carried an `ink` entry
@@ -2594,7 +2658,6 @@ function Settings:_colorsSubItems()
                 .. "Covers, wallpaper and ornaments are pictures and are "
                 .. "never recolored."),
             keep_menu_open = true,
-            separator = true,
             callback = function(touchmenu_instance)
                 pickColor("ink_color", "ink", _byteToScreenPct(0x00),
                     { _("Text ink"), _("Text ink (% black)") }, touchmenu_instance)
@@ -2604,6 +2667,7 @@ function Settings:_colorsSubItems()
                 markDirty()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
+            separator = true,
         },
         {
             text_func = function()
@@ -2728,46 +2792,6 @@ function Settings:_colorsSubItems()
         },
         {
             text_func = function()
-                return _("Shelf menu background") .. ": " .. valueLabel("chrome_bg")
-            end,
-            help_text = _("The solid bar behind the shelf menu. White by day "
-                .. "and black at night unless you change it. The panels have "
-                .. "their own colour."),
-            keep_menu_open = true,
-            callback = function(touchmenu_instance)
-                pickColor("chrome_bg", "chrome_bg", 0,
-                    { _("Shelf menu background"), _("Shelf menu background (% black)") }, touchmenu_instance)
-            end,
-            hold_callback = function(touchmenu_instance)
-                deleteModeKey("chrome_bg")
-                markDirty()
-                if touchmenu_instance then touchmenu_instance:updateItems() end
-            end,
-        },
-        {
-            -- The bar's colour is a colour, and "none" is not one the pickers
-            -- can offer, so this is its own row. It does what Panel shading's
-            -- Transparent already did to this strip, without changing the
-            -- panels: the chips go without a ground, so a wallpaper shows
-            -- through behind them. The selected shelf keeps its own fill, and
-            -- the start menu, which is painted in the same colour, stays solid.
-            text = _("Transparent shelf menu"),
-            help_text = _("Leave out the bar behind the shelf menu, so the "
-                .. "wallpaper shows through. The selected shelf keeps its "
-                .. "fill."),
-            checked_func = function()
-                return BookshelfSettings.isTrue("chip_bar_transparent")
-            end,
-            keep_menu_open = true,
-            callback = function(touchmenu_instance)
-                BookshelfSettings.save("chip_bar_transparent",
-                    not BookshelfSettings.isTrue("chip_bar_transparent"))
-                markDirty()
-                if touchmenu_instance then touchmenu_instance:updateItems() end
-            end,
-        },
-        {
-            text_func = function()
                 return _("Micro-module background") .. ": " .. valueLabel("module_bg")
             end,
             help_text = _("The card behind each micro-module. Kept solid: the "
@@ -2800,7 +2824,7 @@ function Settings:_colorsSubItems()
                 markDirty()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
-            separator = true,   -- end of the panels band
+            separator = true,   -- end of the micro-modules band
         },
         {
             text_func = function()
@@ -2892,7 +2916,27 @@ function Settings:_colorsSubItems()
         },
         {
             text_func = function()
-                return _("Selected shelf fill") .. ": " .. valueLabel("chip_selected_bg")
+                return _("Shelf menu background") .. ": " .. valueLabel("chrome_bg")
+            end,
+            help_text = _("The solid bar behind the shelf menu. White by day "
+                .. "and black at night unless you change it. The panels have "
+                .. "their own colour."),
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                pickColor("chrome_bg", "chrome_bg", 0,
+                    { _("Shelf menu background"), _("Shelf menu background (% black)") }, touchmenu_instance)
+            end,
+            hold_callback = function(touchmenu_instance)
+                deleteModeKey("chrome_bg")
+                markDirty()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end,
+        },
+        {
+            -- "background", as the rows beside it say (Shelf menu
+            -- background), not "fill".
+            text_func = function()
+                return _("Selected shelf background") .. ": " .. valueLabel("chip_selected_bg")
             end,
             help_text = _("Fill behind the selected shelf in the shelf menu."
                 .. " Left unset, the selected shelf is drawn by inverting"
@@ -2901,7 +2945,7 @@ function Settings:_colorsSubItems()
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 pickColor("chip_selected_bg", "chip_selected_bg", 100,
-                    { _("Selected shelf fill"), _("Selected shelf fill (% black)") }, touchmenu_instance,
+                    { _("Selected shelf background"), _("Selected shelf background (% black)") }, touchmenu_instance,
                     refreshChipBar, chipBarAnchor)
             end,
             hold_callback = function(touchmenu_instance)
@@ -2925,39 +2969,6 @@ function Settings:_colorsSubItems()
             hold_callback = function(touchmenu_instance)
                 deleteModeKey("chip_selected_fg")
                 refreshChipBar()
-                if touchmenu_instance then touchmenu_instance:updateItems() end
-            end,
-            separator = true,   -- end of the the shelf menu band
-        },
-        {
-            text = ICON_RESET .. _("Reset to default colors"),
-            separator = true,
-            keep_menu_open = true,
-            callback = function(touchmenu_instance)
-                -- MUST list every key a row in this menu can write, or Reset
-                -- silently leaves that colour set (the chip pair was missed when
-                -- it was added, #294). _test_settings_font_scale.lua compares this
-                -- list against the pickColor call sites to keep them in step.
-                local keys = {
-                    "ink_color",
-                    "progress_fill", "progress_track",
-                    "bookmark_color", "complete_bookmark_color",
-                    "favorite_star_color", "favorite_heart_color",
-                    "badge_fg", "badge_bg", "border_color",
-                    "chrome_bg", "chip_bar_transparent",
-                    "module_bg", "module_border", "panel_bg",
-                    "selection_color", "card_shadow_color",
-                    "spine_plank_color",
-                    "folder_overlay_bg", "folder_overlay_fg",
-                    "chip_selected_bg", "chip_selected_fg",
-                }
-                -- Clear both day AND night variants so "Reset" lives up
-                -- to its name regardless of which mode the menu is in.
-                for _i, k in ipairs(keys) do
-                    BookshelfSettings.delete(k)
-                    BookshelfSettings.delete(k .. "_night")
-                end
-                markDirty()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
         },
@@ -3138,6 +3149,7 @@ function Settings:_settingsSubItems()
     -- they left the reader's own look (My theme) for here (maintainer,
     -- 2026-10-07). Panel shading lived under Settings before 5.1 as well.
     items[#items + 1] = self:_panelShadingRow()
+    items[#items + 1] = self:_transparentShelfMenuRow()
     items[#items + 1] = self:_wallpaperFolderRow()
     items[#items].separator = true  -- end appearance band
 

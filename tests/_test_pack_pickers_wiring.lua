@@ -62,14 +62,17 @@ t.test("the collection shows ornaments only, with no theme buttons", function()
     assert(not browser:find("_packAction", 1, true), "the whole-pack switch is still in the footer")
 end)
 
-t.test("Colors starts with the Light | Dark slot switch; no Color theme row, nothing greyed by a pack", function()
+t.test("Colors starts with Reset, then the Light | Dark slot switch; no Color theme row, nothing greyed by a pack", function()
     local body = settings:match("function Settings:_colorsSubItems%(.-\nend\n")
     assert(body, "_colorsSubItems moved")
     assert(not body:find('_("Color theme: %1")', 1, true), "the Color theme row is back")
     assert(not body:find("activeColoursPack", 1, true), "the rows are still greyed by a pack's colors")
     assert(not settings:find("withOverride", 1, true), "withOverride is still used")
-    local first = body:match("local items = {%s*{(.-)\n        },")
-    assert(first and first:find('_("Colors for: %1")', 1, true), "the slot switch is not the first row")
+    -- Reset first (maintainer, 2026-10-08), the slot switch right after it,
+    -- over the rows it switches.
+    local reset, first = body:match("local items = {%s*{(.-)\n        },%s*{(.-)\n        },")
+    assert(reset and reset:find('_("Reset to default colors")', 1, true), "Reset is not the first row")
+    assert(first and first:find('_("Colors for: %1")', 1, true), "the slot switch is not the second row")
     assert(first:find("setEditSlot", 1, true), "the switch does not change the slot")
     -- The old row broadcast ToggleNightMode: with a dark theme the light
     -- colours could not be reached, and the whole menu inverted.

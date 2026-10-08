@@ -520,7 +520,7 @@ local function openChipColourDialog(row_label)
     return dialog, bw, row, tm
 end
 
-for _, row_label in ipairs({ "Selected shelf fill", "Selected shelf text" }) do
+for _, row_label in ipairs({ "Selected shelf background", "Selected shelf text" }) do
     t.test(row_label .. ": nudging recolours the strip, never rebuilds the shelf",
     function()
         local dialog, bw = openChipColourDialog(row_label)
@@ -587,7 +587,7 @@ t.test("a colour nudge with no live chip bar falls back to a shelf rebuild", fun
     Settings._bw, Settings._plugin = bw, makePlugin()
     local row
     for _, item in ipairs(Settings:_colorsSubItems()) do
-        if item.text_func and item.text_func():find("Selected shelf fill", 1, true) then
+        if item.text_func and item.text_func():find("Selected shelf background", 1, true) then
             row = item
         end
     end
@@ -639,6 +639,29 @@ t.test("Reset clears the night variant of every colour key too", function()
     local body = src:match("Reset to default colors.-markDirty%(%)")
     assert(body and body:find('BookshelfSettings.delete(k .. "_night")', 1, true),
         "reset must delete the _night variant alongside each base key")
+end)
+
+-- ── The Colors list's shape (maintainer, 2026-10-08) ─────────────────────
+-- Reset was a third page of its own, so the page arrows jumped. Reset is the
+-- first row now, set apart; Transparent shelf menu (not a colour) went to
+-- the appearance band beside Panel shading; 20 rows, two pages of ten.
+t.test("Colors: Reset first and set apart, twenty rows, the shelf menu rows together", function()
+    resetStore()
+    Settings._bw, Settings._plugin = makeBwWithChipBar(), makePlugin()
+    local items = Settings:_colorsSubItems()
+    local function label(it) return it.text or (it.text_func and it.text_func()) or "" end
+    assert(label(items[1]):find("Reset to default colors", 1, true), "Reset is not the first row")
+    eq(items[1].separator, true, "Reset is not set apart")
+    eq(#items, 20, "Colors no longer fits two pages of ten")
+    for _i, it in ipairs(items) do
+        assert(not label(it):find("Transparent shelf menu", 1, true), "Transparent shelf menu is back in Colors")
+    end
+    local n = #items
+    assert(label(items[n - 2]):find("Shelf menu background", 1, true) and label(items[n - 1]):find("Selected shelf background", 1, true)
+        and label(items[n]):find("Selected shelf text", 1, true), "the shelf menu's colour rows are not together at the end")
+    local src = io.open("lib/bookshelf_settings.lua"):read("*a")
+    assert(src:find("items[#items + 1] = self:_panelShadingRow()\n    items[#items + 1] = self:_transparentShelfMenuRow()", 1, true),
+        "Transparent shelf menu is not beside Panel shading")
 end)
 
 -- ── The Text size band ─────────────────────────────────────────────────────

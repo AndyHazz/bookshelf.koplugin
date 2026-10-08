@@ -26,6 +26,10 @@ package.loaded["lib/bookshelf_theme_pack"] = {
                                              pack = "Japan", path = "/o/Japan/theme/wallpaper.png" } } end,
     isPackName = function(n) return type(n) == "string" and n:sub(1, 11) == "theme-pack\1" end,
     chooseWallpaper = function(k, n) chosen[#chosen + 1] = { k, n }; store[k] = n end,
+    -- The editing seam: the reader's own keys (no own theme on screen).
+    partRead = function(k) return store[k] end,
+    partSave = function(k, v) store[k] = v end,
+    partDelete = function(k) store[k] = nil end,
 }
 local switched_on = {}
 package.loaded["lib/bookshelf_ornaments"] = { setPackOff = function(p, off) if not off then switched_on[#switched_on + 1] = p end end }

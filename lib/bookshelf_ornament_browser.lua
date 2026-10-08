@@ -41,6 +41,11 @@ local Browser = {}
 local ALL = "__all"
 
 local function O() return require("lib/bookshelf_ornaments") end
+-- The switches this browser reads and writes: the collection's, or the
+-- shelf on screen's own theme's set while it shows one
+-- (bookshelf_theme_pack.switches, the one seam). Asked each time: the
+-- browser can outlive a change of shelf.
+local function SW() return require("lib/bookshelf_theme_pack").switches() end
 
 -- An ornament's PICTURE is faded while it will not be placed, whether switched
 -- off itself or through its pack: the grid reads as "what the shelf uses".
@@ -140,7 +145,7 @@ function Browser._renderCell(item, dimen)
 end
 
 function Browser:_items()
-    local Orn = O()
+    local Orn, sw = O(), SW()
     local all = Orn.listAll()
     local out = {}
     for _i, e in ipairs(all) do
@@ -149,8 +154,8 @@ function Browser:_items()
         local keep = (self.chip == ALL or (e.pack ~= nil and e.pack == self.chip))
                      and (not self.opts.pool or self.opts.pool(e))
         if keep then
-            out[#out + 1] = { entry = e, off = Orn.isOff(e.name),
-                              pack_off = Orn.isPackOff(e.pack) }
+            out[#out + 1] = { entry = e, off = sw.isOff(e.name),
+                              pack_off = sw.isPackOff(e.pack) }
         end
     end
     return out
@@ -159,7 +164,7 @@ end
 -- _toggle(item): switch an ornament on or off. (Planks are chosen in the
 -- plank picker, wallpapers in the wallpaper picker.)
 function Browser:_toggle(item)
-    O().setOff(item.entry.name, not item.off)
+    SW().setOff(item.entry.name, not item.off)
     self:_changed()
 end
 
@@ -169,9 +174,10 @@ end
 -- themed shelf (opts.pool): a theme deals its pieces whatever the
 -- collection's pack switches say, which shape the reader's own ornaments.
 function Browser:_pick(item)
-    if item.off then O().setOff(item.entry.name, false) end
+    local sw = SW()
+    if item.off then sw.setOff(item.entry.name, false) end
     if item.pack_off and item.entry.pack and not self.opts.pool then
-        O().setPackOff(item.entry.pack, false)
+        sw.setPackOff(item.entry.pack, false)
     end
     self.opts.pick(item.entry)
     self._dirty = true
@@ -198,7 +204,7 @@ function Browser:_changed(rescan)
 end
 
 function Browser:_chips()
-    local Orn = O()
+    local Orn, sw = O(), SW()
     local all, packs = Orn.listAll()
     -- All, then one per pack. No tab for the loose ornaments on their own:
     -- All already shows them, and a tab is for something you switch as one
@@ -210,7 +216,7 @@ function Browser:_chips()
     for _i, pack in ipairs(packs) do
         if has[pack] then chips[#chips + 1] = {
             key = pack,
-            label = Orn.isPackOff(pack) and T(_("%1 (off)"), pack) or pack,
+            label = sw.isPackOff(pack) and T(_("%1 (off)"), pack) or pack,
             is_active = self.chip == pack,
         } end
     end
@@ -295,12 +301,12 @@ end
 -- also switches on a pack a theme had switched off, or its ornaments would be
 -- on and still not show.
 function Browser:_setAll(on)
-    local Orn = O()
+    local sw = SW()
     for _i, item in ipairs(self.items or {}) do
         local e = item.entry
         if e then
-            Orn.setOff(e.name, not on)
-            if on and e.pack and Orn.isPackOff(e.pack) then Orn.setPackOff(e.pack, false) end
+            sw.setOff(e.name, not on)
+            if on and e.pack and sw.isPackOff(e.pack) then sw.setPackOff(e.pack, false) end
         end
     end
     self:_changed()

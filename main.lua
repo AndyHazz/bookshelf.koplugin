@@ -815,8 +815,10 @@ function Bookshelf:buildMenuItems(menu_items)
     -- dark, wallpaper, plank, ornaments, colours. Themes never write it.
     menu_items.bookshelf_background = {
         text_func           = function()
+            -- "Own theme: Manga" while the shelf on screen shows its own
+            -- theme: these rows edit that then (TP.editName).
             return MenuIcons.label(MenuIcons.APPEARANCE,
-                                   require("lib/bookshelf_theme_pack").mineName())
+                                   require("lib/bookshelf_theme_pack").editName())
         end,
         sub_item_table_func = function()
             S._bw = _live_widget

@@ -28,7 +28,7 @@ local CODE = table.concat({
     grab("\n(function Settings:_shelfThemeHelp%(%).-\nend)\n", "_shelfThemeHelp"),
     grab("\n(function Settings:_setShelfThemeField%(id, field, value%).-\nend)\n", "_setShelfThemeField"),
     grab("\n(function Settings:_shelfThemeLabelFor%(tab%).-\nend)\n", "_shelfThemeLabelFor"),
-    grab("\n(function Settings:_openThemeLibrary%(id, touchmenu_instance%).-\nend)\n", "_openThemeLibrary"),
+    grab("\n(function Settings:_openThemeLibrary%(id, touchmenu_instance, after%).-\nend)\n", "_openThemeLibrary"),
     grab("\n(function Settings:_perShelfThemeRows%(%).-\nend)\n", "_perShelfThemeRows"),
 }, "\n")
 
@@ -44,7 +44,15 @@ local function build(packs, library, tabs, opts)
     local by = {}
     for _i, p in ipairs(packs) do by[p.pack] = p end
     local TP = {
-        MINE = "mine", PLAIN = "plain",
+        MINE = "mine", PLAIN = "plain", OWN = "own",
+        -- The editing seam: no shelf on screen shows an own theme here, so
+        -- it is the reader's own keys.
+        partRead = function(k) return seen.store[k] end,
+        partSave = function(k, v) seen.store[k] = v end,
+        themeFor = function(id) return tabs_by[id] and tabs_by[id].theme or library or "mine" end,
+        ensureOwn = function(tab, showing)
+            if not tab.own_theme then tab.own_theme = { from = showing } end
+        end,
         rescan = function() seen.rescans = seen.rescans + 1 end,
         mineName = function() return "My theme" end,
         addThemeLabel = function() return "Add theme pack\xE2\x80\xA6" end,
@@ -138,6 +146,7 @@ local function build(packs, library, tabs, opts)
     if setfenv then setfenv(chunk, env) end
     chunk()
     local self = setmetatable({ _markDirty = function() seen.dirty = seen.dirty + 1 end,
+                                _reopenSubMenu = function() seen.reopened = (seen.reopened or 0) + 1 end,
                                 _hidePickerMenu = function()
                                     seen.hidden = seen.hidden + 1
                                     return function() seen.restored = seen.restored + 1 end
@@ -283,6 +292,9 @@ t.test("My theme's first row names what the shelf on screen wears and opens its 
     o.apply()
     eq(seen.dirty, 1, "the shelf was not rebuilt")
     o.on_closed(); eq(seen.restored, 1, "the menu did not come back")
+    -- Its rows come back for the theme now on the shelf (an own theme has
+    -- rows of its own).
+    eq(seen.reopened, 1, "My theme's rows were not rebuilt after the picker")
     eq(row.text_func(), "This shelf: My theme", "the row did not follow the choice")
     eq(S._thisShelfRow(onShelf(self, "rec")).text_func(), "This shelf: Plain")
     local sub = S._thisShelfRow(onShelf(self, "sub"))

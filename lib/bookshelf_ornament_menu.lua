@@ -67,6 +67,9 @@ M.STEPS = {
 }
 
 local function O() return require("lib/bookshelf_ornaments") end
+-- A piece on or off as the shelf on screen's theme has it: its own theme's
+-- set, or the collection's (bookshelf_theme_pack.switches, the one seam).
+local function SW() return require("lib/bookshelf_theme_pack").switches() end
 local Deck = require("lib/bookshelf_ornament_deck")
 
 local function pct(v) return string.format("%+d%%", math.floor((v or 0) * 100 + 0.5)) end
@@ -182,7 +185,7 @@ function M.show(entry, bw, piece)
         }
         local text_w = math.max(1, avail - pic.dimen.w - gap - manage:getSize().w)
         local sub = entry.pack or ""
-        if Orn.isOff(entry.name) then
+        if SW().isOff(entry.name) then
             sub = (sub ~= "" and (sub .. " \xC2\xB7 ") or "") .. _("switched off")   -- U+00B7 middle dot
         end
         local lines = VerticalGroup:new{ align = "left",
@@ -357,8 +360,9 @@ function M.show(entry, bw, piece)
                 end, { pool = (function()
                     -- Only the pieces this shelf deals from: a shelf that
                     -- wears a theme deals that pack's pieces alone.
+                    -- An own theme may switch on any piece: all of them.
                     local sp = require("lib/bookshelf_theme_pack").ornamentsFor(shelf)
-                    if sp == "mine" then return nil end
+                    if sp == "mine" or type(sp) == "table" then return nil end
                     return function(e) return e.pack ~= nil and e.pack == sp end
                 end)(), pick = function(chosen)
                     -- A piece never in the order yet (it was off) joins it first.
@@ -384,9 +388,10 @@ function M.show(entry, bw, piece)
             -- Out of the deck and back, with the menu still open: a piece
             -- switched off keeps its place in the saved order, so switching
             -- it back on puts it where it stood (maintainer).
-            { text_func = function() return Orn.isOff(entry.name) and _("Switch on") or _("Switch off") end,
+            { text_func = function() return SW().isOff(entry.name) and _("Switch on") or _("Switch off") end,
               callback = function()
-                Orn.setOff(entry.name, not Orn.isOff(entry.name))
+                local sw = SW()
+                sw.setOff(entry.name, not sw.isOff(entry.name))
                 redraw()
             end },
         },

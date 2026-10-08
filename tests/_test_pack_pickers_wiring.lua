@@ -143,7 +143,7 @@ t.test("Select all and Select none switch every ornament on the tab", function()
         setPackOff = function(p, v) packs_off[p] = v and true or nil end,
     }
     local f = load("return function(self, on)\n" .. body .. "\nend", "setAll", "t",
-        { O = function() return Orn end, ipairs = ipairs })()
+        { O = function() return Orn end, SW = function() return Orn end, ipairs = ipairs })()
     local self = { items = { { entry = { name = "Autumn/a.png", pack = "Autumn" } },
                              { entry = { name = "Autumn/b.png", pack = "Autumn" } },
                              { entry = { name = "loose.png" } } },

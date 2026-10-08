@@ -8,8 +8,9 @@ t.test("the browser has a pick mode", function()
     local b = src:match("function Browser:_pick%(item%)(.-)\nend\n")
     assert(b, "no _pick")
     assert(not src:find("is_plank", 1, true), "plank tiles are back in the collection")
-    assert(b:find('O().setOff(item.entry.name, false)', 1, true), "a picked off piece stays off")
-    assert(b:find('O().setPackOff(item.entry.pack, false)', 1, true), "a picked piece's off pack stays off")
+    -- Through the seam (SW: the shelf's own theme's set, or the collection's).
+    assert(b:find('sw.setOff(item.entry.name, false)', 1, true), "a picked off piece stays off")
+    assert(b:find('sw.setPackOff(item.entry.pack, false)', 1, true), "a picked piece's off pack stays off")
     assert(b:find("self.opts.pick(item.entry)", 1, true))
     assert(b:find("self._close()", 1, true), "picking does not close the browser")
     assert(src:find('self.opts.pick and _("Cancel") or _("Apply")', 1, true), "the pick footer still says Apply")
@@ -37,8 +38,8 @@ t.test("a pack with no ornaments (planks only) gets no chip", function()
         isPackOff = function() return false end,
     }
     local chips = load("return function(self)\n" .. method(src, "Browser:_chips()") .. "\nend", "c", "t",
-        { O = function() return Orn end, _ = function(x) return x end, T = function(x) return x end,
-          ALL = "\0all", ipairs = ipairs, pairs = pairs })()
+        { O = function() return Orn end, SW = function() return Orn end, _ = function(x) return x end,
+          T = function(x) return x end, ALL = "\0all", ipairs = ipairs, pairs = pairs })()
     local got = {}
     for _i, c in ipairs(chips({ chip = "\0all" })) do got[#got + 1] = c.label end
     H.eq(table.concat(got, ","), "All,Autumn")
@@ -87,7 +88,7 @@ t.test("Swap lists only the pieces the shelf deals from", function()
         isPackOff = function() return false end,
     }
     local items = load("return function(self)\n" .. method(src, "Browser:_items()") .. "\nend", "i", "t",
-        { O = function() return Orn end, ALL = "\0all", ipairs = ipairs })()
+        { O = function() return Orn end, SW = function() return Orn end, ALL = "\0all", ipairs = ipairs })()
     local function names(opts)
         local got = {}
         for _i, it in ipairs(items({ chip = "\0all", opts = opts })) do got[#got + 1] = it.entry.name end

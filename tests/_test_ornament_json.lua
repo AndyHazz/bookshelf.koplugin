@@ -317,10 +317,11 @@ t.test("menu: Swap, Shuffle this shelf and a Switch off/on toggle share a row; t
     assert(row:find('_("Shuffle this shelf")', 1, true), "Shuffle this shelf is not on the Swap row")
     assert(row:find('_("Switch on")', 1, true) and row:find('_("Switch off")', 1, true),
         "the Switch off/on toggle is not on the Swap row")
-    local toggle = row:match("text_func = function%(%)%s*return Orn%.isOff%(entry%.name%).-end },")
+    -- Through the seam (SW: the shelf's own theme's set, or the collection's).
+    local toggle = row:match("text_func = function%(%)%s*return SW%(%)%.isOff%(entry%.name%).-end },")
     assert(toggle, "the toggle's label does not follow the piece's state")
     assert(not toggle:find("closeAnd", 1, true), "switching off closes the menu")
-    assert(toggle:find("Orn.setOff(entry.name, not Orn.isOff(entry.name))", 1, true), "the toggle does not toggle")
+    assert(toggle:find("sw.setOff(entry.name, not sw.isOff(entry.name))", 1, true), "the toggle does not toggle")
     assert(src:find("Deck.swap(entry.name, chosen.name, shelf)", 1, true), "Swap does not trade places on this shelf")
     assert(src:find("bw:onBookshelfShuffleOrnaments()", 1, true), "Shuffle all is not the shuffle action")
 end)

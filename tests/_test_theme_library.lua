@@ -147,8 +147,11 @@ end)
 t.test("a shelf's cards start with Same as library, which shows the library's theme", function()
     library = "Macabre"
     local items = TL.items{ shelf = "Home", current = nil }
-    eq(items[1].same, true); eq(items[1].title, "Same as library (Macabre)")
-    eq(items[1].shows, "Macabre"); eq(items[1].summary, TL.summary("Macabre"))
+    -- Maintainer, 2026-10-08: it read as a second "My theme" card. Named
+    -- for following, the theme it follows first in its summary.
+    eq(items[1].same, true); eq(items[1].title, "Same as library")
+    eq(items[1].shows, "Macabre")
+    eq(items[1].summary, "Follows the library: Macabre" .. DOT .. TL.summary("Macabre"))
     eq(items[1].description, "Candles and skulls.")
     eq(TL.isCurrent(items[1], nil), true); eq(TL.isCurrent(items[2], nil), false)
     eq(TL.isCurrent(items[1], "mine"), false, "a shelf on My theme read as following the library")

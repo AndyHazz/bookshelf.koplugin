@@ -161,7 +161,7 @@ t.test("the Theme menu: the library's row (set apart), then every shelf with its
     -- Maintainer, 2026-10-07: one level, no Each shelf submenu to drill into.
     local self, S, seen = build({ MAC, UK, AUT }, "Macabre")
     local rows = S._shelfThemeSubItems(self)
-    eq(texts(rows), "Library: Macabre | Home: same as library | Manga: same as library")
+    eq(texts(rows), "Library: Macabre | Home: Same as library | Manga: Same as library")
     eq(rows[1].separator, true, "the library's row is not set apart")
     eq(seen.rescans, 1, "opening the menu did not rescan the packs")
     eq(rows[1].radio, nil, "a radio list again"); eq(rows[1].keep_menu_open, true)
@@ -212,7 +212,7 @@ t.test("each enabled shelf is listed with its theme, a disabled one is not", fun
                    { id = "rec", label = "Recent", theme = "mine" }, { id = "x", label = "Off", enabled = false, theme = "plain" } }
     local self, S = build({ MAC, UK }, "Macabre", tabs)
     local rows = S._shelfThemeSubItems(self)
-    eq(texts(rows), "Library: Macabre | Home: same as library | Manga: Ukiyo-e | Recent: My theme")
+    eq(texts(rows), "Library: Macabre | Home: Same as library | Manga: Ukiyo-e | Recent: My theme")
 end)
 
 t.test("a shelf's row opens that shelf's Theme library; a choice writes that shelf only", function()

@@ -1829,10 +1829,12 @@ function Settings:_setShelfThemeField(id, field, value)
     TabModel.save(tabs)
 end
 
--- _shelfThemeLabelFor(tab) -> "Home: same as library", or "Manga: Ukiyo-e".
+-- _shelfThemeLabelFor(tab) -> "Home: Same as library", or "Manga: Ukiyo-e".
+-- The choice is named as its card and Shelf style name it, capital and all,
+-- like every other value after a colon here ("Wallpaper: Leafy").
 function Settings:_shelfThemeLabelFor(tab)
     local label = tab.label or tab.id
-    if tab.theme == nil then return T(_("%1: same as library"), label) end
+    if tab.theme == nil then return T(_("%1: %2"), label, _("Same as library")) end
     return T(_("%1: %2"), label, require("lib/bookshelf_theme_pack").themeName(tab.theme))
 end
 
@@ -1860,7 +1862,7 @@ function Settings:_openThemeLibrary(id, touchmenu_instance)
     opts.apply = function() self:_markDirty() end
     return require("lib/bookshelf_theme_library").show(opts)
 end
--- _perShelfThemeRows() -> a row per enabled shelf, "Home: same as library" or
+-- _perShelfThemeRows() -> a row per enabled shelf, "Home: Same as library" or
 -- "Manga: Ukiyo-e", each opening that shelf's Theme library.
 function Settings:_perShelfThemeRows()
     local TabModel = require("lib/bookshelf_tab_model")

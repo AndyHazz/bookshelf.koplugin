@@ -152,7 +152,11 @@ function TL.items(ctx)
     for _i, c in ipairs(list) do
         local it = { value = c.value, same = c.same, missing = c.missing }
         if c.same then
-            it.title = tp.shelfChoiceLabel(nil)
+            -- Reads as following, not as a second copy of the library's
+            -- card (maintainer, 2026-10-08: "Same as library (My theme)"
+            -- and "My theme" looked the same): the name says Same as
+            -- library, the summary which theme that is now.
+            it.title = _("Same as library")
             it.shows = tp.libraryTheme()
         else
             it.title = tp.themeName(c.value)
@@ -160,6 +164,10 @@ function TL.items(ctx)
         end
         if not it.missing then
             it.summary = TL.summary(it.shows)
+            if c.same then
+                local follows = T(_("Follows the library: %1"), tp.themeName(it.shows))
+                it.summary = it.summary and (follows .. TL.SEP .. it.summary) or follows
+            end
             local p = tp.packOf(it.shows)
             local m = p and tp.theme(p).manifest
             it.description = m and m.description or nil

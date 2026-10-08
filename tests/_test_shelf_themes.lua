@@ -450,8 +450,9 @@ t.test("one shelf theme list for every menu: Same as library, a missing pack, mi
         for i, c in ipairs(l) do o[i] = c.label .. (c.same and "*" or "") .. (c.missing and "!" or "") end
         return table.concat(o, ",")
     end
-    eq(labels(TP.shelfChoices(nil)), "Same as library*,My theme,Plain,Halloween")
-    eq(labels(TP.shelfChoices("Gone")), "Same as library*,Gone (missing)!,My theme,Plain,Halloween")
+    -- A shelf's list has its Own theme card after the built-ins (2026-10-08).
+    eq(labels(TP.shelfChoices(nil)), "Same as library*,My theme,Plain,Own theme,Halloween")
+    eq(labels(TP.shelfChoices("Gone")), "Same as library*,Gone (missing)!,My theme,Plain,Own theme,Halloween")
     eq(TP.shelfChoices(nil)[1].value, nil, "Same as library stores nothing")
     tabs.a = { id = "a", theme = "none" }; tabs.b = { id = "b" }; tabs.s = { id = "s", parent = "a" }
     eq(TP.ownChoice("a"), "mine"); eq(TP.ownChoice("b"), nil)

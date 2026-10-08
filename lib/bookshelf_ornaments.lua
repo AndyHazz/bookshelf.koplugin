@@ -1123,6 +1123,26 @@ M._none = {}
 function M.listFor(sp)
     if sp == nil or sp == "mine" then return M.list() end
     if sp == "plain" then return M._none end
+    -- A shelf's own theme (bookshelf_theme_pack.ownPool): its own switched-on
+    -- set, from any pack or loose (maintainer, 2026-10-08). Its own switches
+    -- only: the collection's piece and pack switches shape the reader's own.
+    -- The key carries the own theme's edit count, so an edit is a new list.
+    if type(sp) == "table" then
+        local all = M.listAll()
+        local key = tostring(all) .. "|" .. tostring(sp.key)
+        -- One slot per shelf, not per edit: an edit replaces the shelf's list.
+        local slot = "\1" .. (tostring(sp.key):match("^own:([^:]*)") or tostring(sp.key))
+        local hit = M._list_for[slot]
+        if hit and hit.key == key and hit.on == sp.on then return hit.v end
+        local on = type(sp.on) == "table" and sp.on or {}
+        local out = {}
+        for _i, e in ipairs(all) do
+            if on[e.name] then out[#out + 1] = e end
+        end
+        table.sort(out, function(a, b) return a.name < b.name end)
+        M._list_for[slot] = { key = key, on = sp.on, v = out }
+        return out
+    end
     local all = M.listAll()
     local off = readSet(M.OFF_KEY)
     local sig = {}

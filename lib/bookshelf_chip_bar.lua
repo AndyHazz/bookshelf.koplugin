@@ -374,14 +374,19 @@ local function _readBarColor(base_key)
         local ok2, v = pcall(TP.colourOverride, base_key, _modeSuffix() ~= "")
         if ok2 and v then return v end
     end
+    -- The reader's own, or the shelf's own theme's (TP.partRead).
+    local function partRead(k)
+        if ok_t and TP and TP.partRead then return TP.partRead(k) end
+        return BookshelfSettings.read(k)
+    end
     local suffix = _modeSuffix()
     if suffix ~= "" then
         -- Night overrides do NOT inherit the day value (same reasoning as
         -- _readModeColor in bookshelf_cover_progress): inheriting a day colour
         -- into night showed the inverted day appearance, not the night theme.
-        return BookshelfSettings.read(base_key .. suffix)
+        return partRead(base_key .. suffix)
     end
-    return BookshelfSettings.read(base_key)
+    return partRead(base_key)
 end
 
 -- Returns fill, ink (Blitbuffer colours) or nil when the chip should invert.

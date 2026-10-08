@@ -81,7 +81,13 @@ local function settingsRead(key)
     return ok and Set and Set.read(key) or nil
 end
 
-function M.invertsAtNight() return settingsRead(M.INVERT_NIGHT_SETTING) == true end
+-- A part of the look: the shelf on screen's own theme's when it shows one
+-- (bookshelf_theme_pack.partRead), else the reader's own.
+function M.invertsAtNight()
+    local ok_t, TP = pcall(require, "lib/bookshelf_theme_pack")
+    if ok_t and TP and TP.partRead then return TP.partRead(M.INVERT_NIGHT_SETTING) == true end
+    return settingsRead(M.INVERT_NIGHT_SETTING) == true
+end
 
 -- showsNegative(frame_night) -> should the picture DISPLAY as its negative,
 -- for a frame that is (or is not) inverting? The theme's answer for that

@@ -3824,8 +3824,15 @@ function BookshelfWidget:_pageGroundColor()
         -- has the default ground.
         local ok_t, TP = pcall(require, "lib/bookshelf_theme_pack")
         if ok_t and TP and TP.defaultColours and TP.defaultColours() then return nil end
-        local raw = ok_t and TP and TP.colourOverride(Wallpaper.BG_SETTING, suffix ~= "")
-                    or BookshelfSettings.read(Wallpaper.BG_SETTING .. suffix)
+        -- Else the reader's own, or the shelf's own theme's (TP.partRead:
+        -- unset there is the default ground, never the reader's).
+        local raw
+        if ok_t and TP and TP.partRead then
+            raw = TP.colourOverride(Wallpaper.BG_SETTING, suffix ~= "")
+                  or TP.partRead(Wallpaper.BG_SETTING .. suffix)
+        else
+            raw = BookshelfSettings.read(Wallpaper.BG_SETTING .. suffix)
+        end
         if type(raw) ~= "table" then return nil end
         -- grey is stored in PAINT space already (the picker's % black helper
         -- does the night-mode flip on the way in), so it is used as-is.
@@ -4196,6 +4203,7 @@ function BookshelfWidget:_pageColourStored()
         if ok_t and TP and TP.defaultColours then
             if TP.defaultColours() then return false end
             if TP.colourOverride(Wallpaper.BG_SETTING, suffix ~= "") then return true end
+            if TP.partRead then return type(TP.partRead(Wallpaper.BG_SETTING .. suffix)) == "table" end
         end
         return type(BookshelfSettings.read(Wallpaper.BG_SETTING .. suffix)) == "table"
     end)

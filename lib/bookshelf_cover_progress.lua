@@ -804,6 +804,16 @@ local function _modeSuffix()
     return dark and "_night" or ""
 end
 
+-- _partRead(key): a colour as the theme being painted and edited holds it:
+-- the shelf on screen's own theme when it shows one, else the reader's own
+-- (bookshelf_theme_pack.partRead, the one seam).
+local function _partRead(key)
+    local ok, TP = pcall(require, "lib/bookshelf_theme_pack")
+    if ok and TP and TP.partRead then return TP.partRead(key) end
+    return BookshelfSettings.read(key)
+end
+M._partRead = _partRead
+
 -- suffix (optional): the slot to read, "" or "_night"; default the one the
 -- shelf on screen paints from. The colour menu passes its own (editSuffix).
 local function _readOwnColor(base_key, default_day, default_night, suffix)
@@ -816,11 +826,11 @@ local function _readOwnColor(base_key, default_day, default_night, suffix)
         -- showing the inverted day appearance instead of the intended
         -- night palette. Users who want matching colors can set the
         -- night override explicitly.
-        local night = BookshelfSettings.read(base_key .. suffix)
+        local night = _partRead(base_key .. suffix)
         if night then return night end
         return default_night or default_day
     end
-    return BookshelfSettings.read(base_key) or default_day
+    return _partRead(base_key) or default_day
 end
 
 -- _readModeColor: what the shelf PAINTS -- the shelf's theme colour for this
@@ -1015,8 +1025,8 @@ function M.pickedBarColors()
         if ok_p and plain then return nil end
     end
     local suffix = _modeSuffix()
-    local picked_fill  = BookshelfSettings.read("progress_fill" .. suffix)
-    local picked_track = BookshelfSettings.read("progress_track" .. suffix)
+    local picked_fill  = _partRead("progress_fill" .. suffix)
+    local picked_track = _partRead("progress_track" .. suffix)
     if type(picked_fill) == "nil" and type(picked_track) == "nil" then return nil end
     local colors = M.resolvedColors()
     return {

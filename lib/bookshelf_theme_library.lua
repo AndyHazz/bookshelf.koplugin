@@ -59,11 +59,15 @@ local function ornamentsPart(n)
     return T(_("%1 ornaments"), n)
 end
 
--- summary(theme) -> what that theme brings, one line: "mine", "plain" or a
--- pack. Only the parts a pack has, so a pack of ornaments only says
--- "27 ornaments" and nothing else; light or dark only when its theme.json
--- says. The reader's own is summed up from their own settings.
-function TL.summary(theme)
+-- summary(theme, spines) -> what that theme brings, one line: "mine",
+-- "plain" or a pack. Only the parts a pack has, so a pack of ornaments only
+-- says "27 ornaments" and nothing else; light or dark only when its
+-- theme.json says. The reader's own is summed up from their own settings.
+-- spines == false (the shelf it is for is not on Spines): a pack that brings
+-- ornaments and nothing else says they only show on Spines shelves, since on
+-- that shelf choosing it changes nothing to be seen (maintainer, 2026-10-08:
+-- Autumn on a Covers shelf). Not for a theme with other parts: those show.
+function TL.summary(theme, spines)
     local tp = TP()
     local parts = {}
     local function add(s) parts[#parts + 1] = s end
@@ -81,12 +85,38 @@ function TL.summary(theme)
         local np = #(th.planks or {})
         if np == 1 then add(_("Plank")) elseif np > 1 then add(T(_("%1 planks"), np)) end
         if th.colours then add(_("Colors")) end
+        local others = #parts
         local n = TL.pieces(theme)
         if n > 0 then add(ornamentsPart(n)) end
         local shelf = th.manifest and th.manifest.shelf
         if shelf == "dark" then add(_("Dark")) elseif shelf == "light" then add(_("Light")) end
+        if spines == false and n > 0 and others == 0 and #parts == 1 then
+            return T(_("%1 (Spines shelves only)"), parts[1])
+        end
     end
     return table.concat(parts, TL.SEP)
+end
+
+-- spinesShown() -> is the shelf on screen on Spines: true or false, nil
+-- when there is no shelf to ask (then no card says anything about it). The
+-- Theme menu puts the shelf a picker is for on screen before opening it, and
+-- Shelf style is opened over the shelf it edits.
+function TL.spinesShown()
+    local function ask(w)
+        if type(w) ~= "table" or type(w._isSpineMode) ~= "function" then return nil end
+        local ok, v = pcall(w._isSpineMode, w)
+        if ok then return v and true or false end
+        return nil
+    end
+    local S = package.loaded["lib/bookshelf_settings"]
+    local v = ask(type(S) == "table" and S._bw or nil)
+    if v ~= nil then return v end
+    local ok, UIManager = pcall(require, "ui/uimanager")
+    for _i, e in ipairs((ok and UIManager and UIManager._window_stack) or {}) do
+        v = ask(e.widget)
+        if v ~= nil then return v end
+    end
+    return nil
 end
 
 -- hero(theme) -> the ornament entry a theme's card shows, or nil. A pack:
@@ -132,7 +162,8 @@ end
 
 -- items(ctx) -> the cards, in menu order. ctx.shelf: a shelf's picker (Same
 -- as library first); ctx.current: the choice in use (a missing pack still
--- chosen is listed, marked, and cannot be chosen again).
+-- chosen is listed, marked, and cannot be chosen again); ctx.spines: is the
+-- shelf it is for on Spines (summary).
 --   { value, same, missing, title, shows, summary, description }
 -- shows: the theme the card stands for (Same as library: the library's).
 function TL.items(ctx)
@@ -163,7 +194,7 @@ function TL.items(ctx)
             it.shows = c.value
         end
         if not it.missing then
-            it.summary = TL.summary(it.shows)
+            it.summary = TL.summary(it.shows, ctx.spines)
             if c.same then
                 local follows = T(_("Follows the library: %1"), tp.themeName(it.shows))
                 it.summary = it.summary and (follows .. TL.SEP .. it.summary) or follows
@@ -306,7 +337,9 @@ function TL.show(opts)
     -- A pack copied in (or deleted) since the last look is seen now.
     tp.rescan()
     local self = {}
-    local function load() self.items = TL.items{ shelf = opts.shelf, current = opts.current() } end
+    -- Asked once: the shelf behind keeps its style while the picker is open.
+    local spines = TL.spinesShown()
+    local function load() self.items = TL.items{ shelf = opts.shelf, current = opts.current(), spines = spines } end
     load()
     local modal
     local function close() if modal then UIManager:close(modal) end end

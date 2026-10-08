@@ -92,6 +92,29 @@ t.test("a pack's summary names only the parts it has, its pieces counted", funct
     eq(TL.summary("Autumn"), "27 ornaments", "a pack of ornaments only says so by what it lists")
 end)
 
+t.test("off Spines, a pack of ornaments only says where they show; nothing else does", function()
+    -- Maintainer, 2026-10-08: Autumn chosen for a Covers shelf changed
+    -- nothing to be seen, and its card did not say why.
+    eq(TL.summary("Autumn", false), "27 ornaments (Spines shelves only)")
+    eq(TL.summary("Autumn", true), "27 ornaments")
+    eq(TL.summary("Autumn"), "27 ornaments", "no shelf to ask: no note")
+    eq(TL.summary("Macabre", false), TL.summary("Macabre"), "a theme with other parts got the note")
+    eq(TL.summary("Ukiyo", false), TL.summary("Ukiyo"), "a theme with colors got the note")
+    eq(TL.summary("mine", false), TL.summary("mine")); eq(TL.summary("plain", false), TL.summary("plain"))
+    local items = TL.items{ current = "mine", spines = false }
+    eq(items[5].summary, "27 ornaments (Spines shelves only)", "the cards are not told the shelf's style")
+end)
+
+t.test("the shelf's style is asked of the shelf on screen", function()
+    local S = { _bw = { _isSpineMode = function() return false end } }
+    package.loaded["lib/bookshelf_settings"] = S
+    eq(TL.spinesShown(), false)
+    S._bw._isSpineMode = function() return true end
+    eq(TL.spinesShown(), true)
+    package.loaded["lib/bookshelf_settings"] = nil
+    eq(TL.spinesShown(), nil, "no shelf: no answer")
+end)
+
 t.test("light or dark only when the pack's theme.json says", function()
     eq(TL.summary("Autumn"):find("Dark", 1, true), nil)
     eq(TL.summary("Autumn"):find("Light", 1, true), nil)

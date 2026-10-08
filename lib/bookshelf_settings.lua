@@ -2316,7 +2316,14 @@ function Settings:_pickColor(raw_key, field, default_pct, title,
             local night = _isNight() and raw_key ~= "spine_plank_color"
             local current_hex = _shownHex(raw, raw_key)
             -- With the wood on, no colour swatch is the current choice.
-            if wood and wood.special_tile and wood.special_tile.selected then current_hex = nil end
+            local wood_on = wood and wood.special_tile and wood.special_tile.selected
+            if wood_on then current_hex = nil end
+            -- Nothing stored: the hex field still opens on the colour the row
+            -- shows (its default), not empty. The wood has no hex to show.
+            local hex_text
+            if not current_hex and not wood_on then
+                hex_text = _shownHex(CoverProgress.rawColors()[field], raw_key)
+            end
             self._plugin:showColorPicker(
                 title, current_hex, Color.defaultHexFor(field),
                 function(new_hex)
@@ -2339,7 +2346,7 @@ function Settings:_pickColor(raw_key, field, default_pct, title,
                     if wood and wood.revert then wood.revert() end
                     refresh()
                 end,
-                menu_for_dialog, nil, nil, wood and wood.special_tile or nil)
+                menu_for_dialog, nil, nil, wood and wood.special_tile or nil, hex_text)
             return
         end
 

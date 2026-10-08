@@ -143,4 +143,21 @@ t.test("the picker's title, its palette and the rows ask one question of the scr
     end
 end)
 
+t.test("an untouched colour's hex field opens on the colour its row shows", function()
+    -- The row read "Progress bar: #404040" and the field opened empty: the
+    -- picker was only handed what was STORED, and a default is not stored.
+    local picker = src:match("function Settings:_pickColor%(raw_key, field, default_pct, title,(.-)\nend\n")
+    assert(picker:find("hex_text = _shownHex(CoverProgress.rawColors()[field], raw_key)", 1, true),
+        "the field is not seeded from the row's own value")
+    assert(picker:find("wood and wood.special_tile or nil, hex_text)", 1, true),
+        "the seed is not passed to the palette")
+    local pal = io.open("lib/bookshelf_color_palette.lua"):read("*a")
+    assert(pal:find("local initial_text = self.selected_hex or self.hex_text or \"\"", 1, true),
+        "the palette does not start its hex field from hex_text")
+    assert(pal:find("special_tile, hex_text)\n        showColorPicker(self, title, current_hex, default_hex, on_apply, on_default, on_revert, touchmenu_instance, null_tile_label, white_hex, special_tile, hex_text)", 1, true),
+        "the installed method drops hex_text")
+    -- Seeding the field must not mark a swatch: only selected_hex does.
+    assert(pal:find("local is_selected = (hex == self.selected_hex)", 1, true))
+end)
+
 t.done()

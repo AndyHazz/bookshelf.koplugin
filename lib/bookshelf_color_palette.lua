@@ -204,6 +204,10 @@ local ColorPaletteWidget = FocusManager:extend{
     is_always_active = true,
     title            = nil,
     selected_hex     = nil,
+    -- hex_text: what the hex field starts with when no swatch is the choice
+    -- (an untouched colour: the row shows its default or the theme's, so
+    -- the field does too rather than opening empty). Marks nothing.
+    hex_text         = nil,
     apply_callback   = nil,
     default_callback = nil,
     revert_callback  = nil,
@@ -343,7 +347,7 @@ function ColorPaletteWidget:update()
     }
     -- Strip any leading # from the seed value — the # is rendered as a
     -- separate static label so the user only edits the six hex digits.
-    local initial_text = self.selected_hex or ""
+    local initial_text = self.selected_hex or self.hex_text or ""
     if initial_text:sub(1, 1) == "#" then initial_text = initial_text:sub(2) end
     -- InputText draws its own border (Size.border.inputtext, 2px) and
     -- handles its own focus highlight, so wrap it directly in the row
@@ -370,7 +374,7 @@ function ColorPaletteWidget:update()
     -- _updatePreview (which only re-paints the swatch's bounds), so the
     -- whole picker doesn't rebuild while the user is typing.
     local preview_side = Screen:scaleBySize(36)
-    local preview_hex = self.selected_hex or "#FFFFFF"
+    local preview_hex = self.selected_hex or self.hex_text or "#FFFFFF"
     if #preview_hex ~= 7 then preview_hex = "#FFFFFF" end
     self.preview_swatch = Swatch:new{
         hex      = preview_hex,
@@ -549,7 +553,7 @@ end
 -- before the hex field ("[tile] or # RRGGBB") that is not a colour: the
 -- plank's built-in wood. Tapping
 -- it runs on_tap and closes; it shows selected while `selected` is true.
-local function showColorPicker(bookshelf, title, current_hex, default_hex, on_apply, on_default, on_revert, touchmenu_instance, null_tile_label, white_hex, special_tile)
+local function showColorPicker(bookshelf, title, current_hex, default_hex, on_apply, on_default, on_revert, touchmenu_instance, null_tile_label, white_hex, special_tile, hex_text)
     local restoreMenu = bookshelf:hideMenu(touchmenu_instance)
 
     local closed = false
@@ -563,6 +567,7 @@ local function showColorPicker(bookshelf, title, current_hex, default_hex, on_ap
     widget = ColorPaletteWidget:new{
         title            = title or _("Pick a color"),
         selected_hex     = current_hex,
+        hex_text         = hex_text,
         apply_callback   = on_apply,
         default_callback = function()
             UIManager:close(widget, "ui")
@@ -607,8 +612,8 @@ end
 
 local M = {}
 function M.attach(Bookshelf)
-    function Bookshelf:showColorPicker(title, current_hex, default_hex, on_apply, on_default, on_revert, touchmenu_instance, null_tile_label, white_hex, special_tile)
-        showColorPicker(self, title, current_hex, default_hex, on_apply, on_default, on_revert, touchmenu_instance, null_tile_label, white_hex, special_tile)
+    function Bookshelf:showColorPicker(title, current_hex, default_hex, on_apply, on_default, on_revert, touchmenu_instance, null_tile_label, white_hex, special_tile, hex_text)
+        showColorPicker(self, title, current_hex, default_hex, on_apply, on_default, on_revert, touchmenu_instance, null_tile_label, white_hex, special_tile, hex_text)
     end
 end
 return M

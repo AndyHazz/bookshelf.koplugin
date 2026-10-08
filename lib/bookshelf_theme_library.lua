@@ -127,11 +127,30 @@ end
 -- are skipped (the starter cacti, maintainer 2026-10-07). Cached per theme
 -- while the scan and the off switches are unchanged, so the files are
 -- stat'ed once, not per paint.
+-- A shelf's own theme (own: its tab.own_theme): the newest piece of its own
+-- set.
 TL._hero_cache = {}
-function TL.hero(theme)
+function TL.hero(theme, own)
     local tp, orn = TP(), O()
     if theme == tp.PLAIN then return nil end
     local all = orn.listAll() or {}
+    if theme == tp.OWN then
+        if type(own) ~= "table" then return nil end
+        local on = type(own.pieces) == "table" and own.pieces or {}
+        local key = "own|" .. tostring(own) .. "|" .. tostring(own.rev) .. "|" .. tostring(all)
+        local hit = TL._hero_cache[key]
+        if hit ~= nil then return hit or nil end
+        local lfs_ok, lfs = pcall(require, "libs/libkoreader-lfs")
+        local best, best_t
+        for _i, e in ipairs(all) do
+            if on[e.name] then
+                local t = tonumber(lfs_ok and lfs and e.path and lfs.attributes(e.path, "modification")) or 0
+                if not best or t > best_t then best, best_t = e, t end
+            end
+        end
+        TL._hero_cache[key] = best or false
+        return best
+    end
     local mine = (theme == nil or theme == tp.MINE)
     local pool = mine and (orn.list() or {}) or all
     local key = tostring(theme) .. "|" .. tostring(all) .. "|" .. tostring(orn.list())
@@ -161,15 +180,20 @@ function TL.hero(theme)
 end
 
 -- items(ctx) -> the cards, in menu order. ctx.shelf: a shelf's picker (Same
--- as library first); ctx.current: the choice in use (a missing pack still
--- chosen is listed, marked, and cannot be chosen again); ctx.spines: is the
--- shelf it is for on Spines (summary).
---   { value, same, missing, title, shows, summary, description }
+-- as library first, and the shelf's Own theme card after Plain); ctx.current:
+-- the choice in use (a missing pack still chosen is listed, marked, and
+-- cannot be chosen again); ctx.spines: is the shelf it is for on Spines
+-- (summary); ctx.own: that shelf's own theme, if it has one yet, and
+-- ctx.showing: the theme a first choice of it would copy (what the shelf
+-- shows). ctx.themes: every theme and nothing else (Start again from...).
+--   { value, same, missing, title, shows, summary, description, own }
 -- shows: the theme the card stands for (Same as library: the library's).
 function TL.items(ctx)
     local tp = TP()
     local list
-    if ctx.shelf then
+    if ctx.themes then
+        list = tp.choices()
+    elseif ctx.shelf then
         list = tp.shelfChoices(ctx.current)
     else
         list = {}
@@ -189,11 +213,22 @@ function TL.items(ctx)
             -- library, the summary which theme that is now.
             it.title = _("Same as library")
             it.shows = tp.libraryTheme()
+        elseif c.value == tp.OWN then
+            -- The shelf's own theme: where it started (or would start) from.
+            it.title = tp.ownName()
+            it.shows = tp.OWN
+            it.own = ctx.own
         else
             it.title = tp.themeName(c.value)
             it.shows = c.value
         end
-        if not it.missing then
+        if it.shows == tp.OWN then
+            if type(ctx.own) == "table" then
+                it.summary = T(_("Started from %1"), tp.themeName(ctx.own.from))
+            else
+                it.summary = T(_("Starts as a copy of %1"), tp.themeName(ctx.showing or tp.MINE))
+            end
+        elseif not it.missing then
             it.summary = TL.summary(it.shows, ctx.spines)
             if c.same then
                 local follows = T(_("Follows the library: %1"), tp.themeName(it.shows))
@@ -299,7 +334,7 @@ function TL._renderCard(item, dimen, current)
     line(item.title, 18, ink, true)
     line(item.summary, 14, ink)
     line(item.description, 13, Blitbuffer.COLOR_DARK_GRAY)
-    local e = (not item.missing) and TL.hero(item.shows) or nil
+    local e = (not item.missing) and TL.hero(item.shows, item.own) or nil
     local hero = e and require("lib/bookshelf_ornament_browser").preview(e, hero_w, inner_h)
     return FrameContainer:new{
         bordersize = border, radius = Space.radius.default, margin = 0,
@@ -330,6 +365,13 @@ TL.APPLY_DELAY = 0.15
 --                  refreshed (a theme is the whole look), the picker over it
 --   opts.on_closed once, however it closes (the caller's menu or dialog
 --                  back), after a choice still waiting has been applied
+--   opts.own, opts.showing  functions: the shelf's own theme and what it
+--                  shows, for its Own theme card (items' ctx.own, .showing)
+--   opts.pick      function(value, close): every theme and nothing else,
+--                  none marked; a tap hands its theme over and the picker
+--                  waits to be closed (Start again from..., which asks
+--                  first). current, choose and apply are not used.
+--   opts.title     the picker's title, instead of "Theme"
 function TL.show(opts)
     local LibraryModal = require("lib/bookshelf_library_modal")
     local UIManager    = require("ui/uimanager")
@@ -339,7 +381,16 @@ function TL.show(opts)
     local self = {}
     -- Asked once: the shelf behind keeps its style while the picker is open.
     local spines = TL.spinesShown()
-    local function load() self.items = TL.items{ shelf = opts.shelf, current = opts.current(), spines = spines } end
+    if opts.pick then
+        opts.current = function() return nil end
+        opts.choose = function() end
+    end
+    local function load()
+        self.items = TL.items{ shelf = opts.shelf, current = opts.current(), spines = spines,
+                               themes = opts.pick ~= nil,
+                               own = opts.own and opts.own() or nil,
+                               showing = opts.showing and opts.showing() or nil }
+    end
     load()
     local modal
     local function close() if modal then UIManager:close(modal) end end
@@ -354,15 +405,19 @@ function TL.show(opts)
         UIManager:setDirty("all", "full")
     end
     local config = {
-        title = opts.shelf and T(_("Theme: %1"), opts.shelf) or _("Theme"),
+        title = opts.title or (opts.shelf and T(_("Theme: %1"), opts.shelf)) or _("Theme"),
         no_search = true,
         grid_cols = function() return 1 end,
         cells_per_page = function() return TL.PER_PAGE end,
         area_height = TL.areaHeight,
         cell_renderer = function(item, dimen)
-            return TL._renderCard(item, dimen, TL.isCurrent(item, opts.current()))
+            return TL._renderCard(item, dimen, (not opts.pick) and TL.isCurrent(item, opts.current()))
         end,
         on_cell_tap = function(item)
+            if opts.pick then
+                if not item.missing then opts.pick(item.value, close) end
+                return
+            end
             if item.missing or TL.isCurrent(item, opts.current()) then return end
             opts.choose(item.value)
             -- Listed again: a missing pack that was the choice drops out.

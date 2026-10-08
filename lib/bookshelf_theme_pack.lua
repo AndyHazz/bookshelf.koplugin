@@ -324,7 +324,7 @@ function M.themeName(choice)
 end
 
 -- choices() -> what a library or a shelf can wear, in the Theme library's
--- order: the reader's own, Plain, then every theme ({ value, label }). What
+-- order: the reader's own, Plain, then every theme by name ({ value, label }). What
 -- each brings is the Theme library's card (bookshelf_theme_library), so a
 -- pack of ornaments only says "27 ornaments" there, not in its name.
 function M.choices()
@@ -572,8 +572,11 @@ function M.displayName(pack)
     return (m and m.name) or pack
 end
 
--- allThemes() -> every pack as a theme: theme packs (a theme.json) by name,
--- then the others by folder. Switched-off packs too:
+-- allThemes() -> every pack as a theme, ONE alphabetical list by the name
+-- menus show (a theme.json's name, else the folder's), whether or not it has
+-- a theme.json (maintainer, 2026-10-08: Autumn, a pack of ornaments, came
+-- after Ukiyo-e). Case-insensitive, by byte, so the order is the same in
+-- every locale; a tie goes by folder. Switched-off packs too:
 -- the collection's switches shape the reader's own ornaments, not themes. A
 -- pack with neither a theme.json nor an ornament (a pack of planks) is not a
 -- theme: its planks are in the plank picker (maintainer, 2026-10-04).
@@ -583,7 +586,7 @@ function M.allThemes()
     for _i, e in ipairs(all or {}) do
         if e.pack then has_piece[e.pack] = true end
     end
-    local full, plain = {}, {}
+    local out = {}
     for _i, p in ipairs(packs or {}) do
         local th = M.theme(p)
         local m = th.manifest
@@ -593,15 +596,17 @@ function M.allThemes()
                 logger.warn("[bookshelf] a pack folder named like a built-in theme is not listed as a theme:", p)
             end
         elseif m then
-            full[#full + 1] = { pack = p, name = m.name or p, description = m.description }
+            out[#out + 1] = { pack = p, name = m.name or p, description = m.description }
         elseif has_piece[p] then
-            plain[#plain + 1] = { pack = p, name = p }
+            out[#out + 1] = { pack = p, name = p }
         end
     end
-    local function byName(a, b) return a.name:lower() < b.name:lower() end
-    table.sort(full, byName); table.sort(plain, byName)
-    for _i, e in ipairs(plain) do full[#full + 1] = e end
-    return full
+    table.sort(out, function(a, b)
+        local x, y = a.name:lower(), b.name:lower()
+        if x ~= y then return x < y end
+        return a.pack < b.pack
+    end)
+    return out
 end
 
 -- rescan(): forget the theme folders' scan, so a pack copied in or deleted

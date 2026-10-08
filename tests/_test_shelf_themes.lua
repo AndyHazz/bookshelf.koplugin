@@ -281,10 +281,10 @@ t.test("every pack is listed by its name: what it brings is the Theme library's 
     TP.invalidate()
     local all = TP.allThemes()
     eq(#all, 3)
-    eq(all[1].pack, "Halloween"); eq(all[2].pack, "Gallery"); eq(all[3].pack, "Snow")
+    eq(all[1].pack, "Gallery"); eq(all[2].pack, "Halloween"); eq(all[3].pack, "Snow")
     local labels = {}
     for i, c in ipairs(TP.choices()) do labels[i] = c.label end
-    eq(table.concat(labels, ","), "My theme,Plain,Halloween,Gallery,Snow",
+    eq(table.concat(labels, ","), "My theme,Plain,Gallery,Halloween,Snow",
         "a pack of ornaments only is named for what it is again")
 end)
 
@@ -301,6 +301,18 @@ t.test("lookOf answers for any shelf, not just the one on screen", function()
     eq(TP.lookOf("home"), "light")
 end)
 
+t.test("allThemes is one alphabetical list by shown name, theme.json or not, any case", function()
+    -- Maintainer, 2026-10-08: Autumn (ornaments only, no theme.json) came
+    -- after Ukiyo-e because theme packs were listed first.
+    local TP, d = setup()
+    mkmanifest(d, "Ukiyo-e"); mkmanifest(d, "zz", '{"name":"apple"}')
+    touch(d .. "/Autumn/leaf.png"); touch(d .. "/bats/bat.png")
+    TP.invalidate()
+    local names = {}
+    for i, th in ipairs(TP.allThemes()) do names[i] = th.name end
+    eq(table.concat(names, ","), "apple,Autumn,bats,Ukiyo-e")
+end)
+
 t.test("a pack with only planks is not a theme; with a theme.json it is", function()
     local TP, d = setup()
     halloween(d); touch(d .. "/Gallery/frame.png")
@@ -309,7 +321,7 @@ t.test("a pack with only planks is not a theme; with a theme.json it is", functi
     TP.invalidate()
     local names = {}
     for i, th in ipairs(TP.allThemes()) do names[i] = th.pack end
-    eq(table.concat(names, ","), "Halloween,Woods,Gallery")
+    eq(table.concat(names, ","), "Gallery,Halloween,Woods")
 end)
 
 t.test("the reader's own pack wallpaper shows whatever the pack switch says", function()

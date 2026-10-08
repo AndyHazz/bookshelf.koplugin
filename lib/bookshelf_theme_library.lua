@@ -347,11 +347,15 @@ function TL.show(opts)
             if opts.on_closed then pcall(opts.on_closed) end
         end,
     }
+    -- Always opens on the first page, where My theme and Plain (and Same as
+    -- library) are, wherever the choice in use is: its card is marked on its
+    -- own page (maintainer, 2026-10-08: opened on Ukiyo-e's page, the
+    -- built-ins were out of sight).
     local at = TL.indexOf(self.items, opts.current())
-    local per = config.cells_per_page()
-    modal = LibraryModal:new{ config = config, page = math.ceil(at / math.max(1, per)) }
-    -- Keys: the focus starts on the choice in use, not on the first card.
-    if modal._dpad_idx then modal._dpad_idx = at; modal:refresh() end
+    local per = math.max(1, config.cells_per_page())
+    modal = LibraryModal:new{ config = config, page = 1 }
+    -- Keys: the focus starts on the choice in use when it is on that page.
+    if modal._dpad_idx then modal._dpad_idx = (at <= per) and at or 1; modal:refresh() end
     UIManager:show(modal)
     return modal
 end

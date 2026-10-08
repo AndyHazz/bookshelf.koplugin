@@ -202,20 +202,25 @@ local function open(opts)
     return m, m.config
 end
 
-t.test("the library's picker: titled Theme, opens on the choice in use, Add theme pack and Close", function()
+t.test("the library's picker: titled Theme, opens on page 1 always, Add theme pack and Close", function()
     library = "Autumn"
     local before = TP.rescans
     local m, c = open{ current = function() return library end, choose = function(v) library = v end }
     eq(TP.rescans, before + 1, "a pack copied in since start-up is not seen")
     eq(c.title, "Theme")
     eq(c.grid_cols(), 1, "one card per row")
-    local per = c.cells_per_page()
-    eq(m.page, math.ceil(5 / per), "not opened on the page of the choice in use")
-    eq(m._dpad_idx, 5, "the keys' focus does not start on the choice in use")
+    -- Maintainer, 2026-10-08: the built-ins stay in sight; the choice in use
+    -- (Autumn, the fifth card) is marked on its own page.
+    eq(c.cells_per_page() < 5, true)
+    eq(m.page, 1, "not opened on the first page, where My theme and Plain are")
+    eq(m._dpad_idx, 1, "the keys' focus started on a card that is not on the page")
     local f = c.footer_rows[1]
     eq(f[1].label, "Add theme pack\xE2\x80\xA6"); eq(f[2].label, "Close")
     f[1].on_tap(); eq(TP.add_info, 1)
     eq(shown[1], m)
+    library = "plain"
+    local m2 = open{ current = function() return library end, choose = function(v) library = v end }
+    eq(m2.page, 1); eq(m2._dpad_idx, 2, "the keys' focus does not start on the choice in use on page 1")
 end)
 
 t.test("three cards a page, the picker no taller than they need, the cards as tall as before", function()

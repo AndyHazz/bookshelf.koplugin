@@ -62,9 +62,9 @@ t.test("Shelf style has the shelf's Theme row, top-level shelves only, previewed
     local open = st:match("function Settings:_openThemeLibrary%(id, touchmenu_instance%)(.-)\nend\n")
     assert(open and open:find('require("lib/bookshelf_theme_library").show(opts)', 1, true),
         "the menus do not open the Theme library")
-    local preview = ed:match("override%.ornament_frequency  = draft%.ornament_frequency(.-)TabModel%.setOverride")
-    assert(preview and preview:find("override.theme               = draft.theme", 1, true),
-        "the live preview does not carry the shelf's theme")
+    -- The pick reaches the saved shelf: commit writes the whole working copy.
+    assert(ed:find("save_tabs[i] = Editor._deepCopy(draft)", 1, true),
+        "a change is not written onto the saved shelf whole, so the theme may not reach it")
 end)
 
 t.done()

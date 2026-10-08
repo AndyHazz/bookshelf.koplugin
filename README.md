@@ -750,6 +750,8 @@ Within the top panel card the cover is a single focus target: the rating stars, 
 
 Each shelf points at one of these, set under **Source / grouping** in the shelf editor. The picker lists the book shelves first and the grouped ones (series, authors, genres and so on) after, with Shelf of shelves beside OPDS catalog.
 
+Everything in the shelf editor applies as you choose it, with the shelf redrawing behind the editor, so there is nothing to save: tap **Close** when you are done. A new shelf is kept once it has a source; closing the editor before you pick one removes it.
+
 - **Home (folders)** -- your library as a folder tree.
 - **Home (flat)** -- every book in one list, no folders.
 - **Recent** -- books you've opened, newest-read first.

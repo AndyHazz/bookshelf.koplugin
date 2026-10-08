@@ -171,7 +171,8 @@ end
 
 -- saveDeferred(tabs): the same write with no flush, for a hot path.
 --
--- One caller: the pinch, which writes a row count onto the chip it is aimed at
+-- Two callers: the shelf editor (each change as it is made; it flushes as it
+-- closes) and the pinch, which writes a row count onto the chip it is aimed at
 -- and must not stop for a settings flush -- hundreds of milliseconds on Kindle
 -- flash, landing between the gesture and the repaint. The in-memory value
 -- updates immediately, so the rebuild that follows sees the new count;
@@ -179,6 +180,12 @@ end
 -- onFlushSettings boundary, exactly as the column nudge does.
 function TabModel.saveDeferred(tabs)
     BookshelfSettings.saveDeferred(STORAGE_KEY, tabs)
+end
+
+-- flush(): write what saveDeferred holds. The shelf editor saves each change
+-- in memory as it is made and flushes once, as it closes.
+function TabModel.flush()
+    BookshelfSettings.flush()
 end
 
 -- insertAfter(tabs, anchor_id, new_tab): splice `new_tab` into `tabs`
@@ -221,51 +228,22 @@ function TabModel.insertAfter(tabs, anchor_id, new_tab)
     tabs[#tabs + 1] = new_tab
 end
 
--- In-memory override used by the editor to drive live preview without
--- persisting to disk on every keystroke. setOverride(tab_id, tab) makes
--- getById(tab_id) / getActive() return the override in place of the
--- persisted record. clearOverride() restores normal lookup. Override
--- is cleared on every editor close (Save / Cancel / X).
-local _override = nil  -- { id = <string>, tab = <tab record> }
--- overrideGen: counts every set and clear, so a reader that memoises on the
--- settings generation (bookshelf_theme_pack's shelf on screen) sees a
--- preview change that saved nothing.
-TabModel.overrideGen = 0
-
-function TabModel.setOverride(tab_id, tab)
-    _override = { id = tab_id, tab = tab }
-    TabModel.overrideGen = TabModel.overrideGen + 1
-end
-
-function TabModel.clearOverride()
-    _override = nil
-    TabModel.overrideGen = TabModel.overrideGen + 1
-end
-
--- getById(id): find a tab by id from the current loaded list. Consults the
--- in-memory override first so live preview during edits doesn't require
--- hitting disk.
+-- getById(id): find a tab by id from the current loaded list.
 function TabModel.getById(id)
-    if _override and _override.id == id then return _override.tab end
     for _i, t in ipairs(TabModel.load()) do
         if t.id == id then return t end
     end
     return nil
 end
 
--- getActive(): list of enabled tabs in their stored order. If an override
--- is set, the matching tab is substituted in-place so position is preserved
--- and live label/icon edits surface immediately.
+-- getActive(): list of enabled tabs in their stored order.
 --
 -- Top-level shelves only: a sub-shelf (see "Shelf of shelves" below) lives
 -- inside its parent's shelf, never in the chip strip.
 function TabModel.getActive()
     local out = {}
     for _i, t in ipairs(TabModel.load()) do
-        if _override and _override.id == t.id then
-            local o = _override.tab
-            if o.enabled ~= false and not o.parent then out[#out + 1] = o end
-        elseif t.enabled ~= false and not t.parent then
+        if t.enabled ~= false and not t.parent then
             out[#out + 1] = t
         end
     end
@@ -294,13 +272,7 @@ function TabModel.childrenOf(id, tabs)
     local out = {}
     if id == nil then return out end
     for _i, t in ipairs(tabs or TabModel.load()) do
-        if t.parent == id then
-            if _override and _override.id == t.id then
-                out[#out + 1] = _override.tab
-            else
-                out[#out + 1] = t
-            end
-        end
+        if t.parent == id then out[#out + 1] = t end
     end
     return out
 end

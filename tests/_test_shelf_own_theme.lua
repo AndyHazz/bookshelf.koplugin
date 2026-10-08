@@ -414,6 +414,8 @@ t.test("the Theme library: a shelf's picker has Own theme after the built-ins, t
     eq(titles(TL.items{ themes = true }), "My theme,Plain,Macabre,Ukiyo-e", "Start again from lists more than every theme")
     local card = TL.items{ shelf = "Home", showing = "Macabre" }[4]
     eq(card.value, "own"); eq(card.summary, "Starts as a copy of Macabre")
+    -- Not made yet: its hero is what it would copy, not a blank box.
+    eq(card.copies, "Macabre", "an Own theme not made yet shows no hero")
     tabs.home = { id = "home", theme = "Macabre" }
     choose(TP, tabs, "home", "own")
     card = TL.items{ shelf = "Home", current = "own", own = tabs.home.own_theme }[4]
@@ -486,12 +488,15 @@ t.test("the paint reads through the seam: colours, bars, chips, the page ground,
     assert(inv and inv:find("TP.partRead(M.INVERT_NIGHT_SETTING)", 1, true), "invert at night reads My theme's key")
 end)
 
-t.test("the menu: Start again from first and Delete own theme last, only while the shelf shows its own", function()
+t.test("the menu: This shelf, then Start again from, Delete own theme last, only while the shelf shows its own", function()
     local set = io.open("lib/bookshelf_settings.lua"):read("*a"):gsub("%-%-[^\n]*", "")
     local bg = set:match("\nfunction Settings:_backgroundSubItems%(%)\n(.-)\nend\n")
     assert(bg, "_backgroundSubItems moved")
-    local r = bg:find("if owner then rows[#rows + 1] = self:_ownRestartRow(owner) end", 1, true)
-    assert(r and r < bg:find("self:_thisShelfRow()", 1, true), "Start again from is not the first row")
+    -- The choice reads before what can be done with it (maintainer's
+    -- screenshot review, 2026-10-08).
+    local r = bg:find("local restart = self:_ownRestartRow(owner)", 1, true)
+    local this = bg:find("rows[#rows + 1] = this_shelf", 1, true)
+    assert(r and this and this < r, "Start again from is not right after This shelf")
     local del = bg:find("rows[#rows + 1] = self:_ownDeleteRow(owner)", 1, true)
     assert(del and del > bg:find("_newOrnamentsRow", 1, true), "Delete own theme is not the last row")
     local restart = set:match("\nfunction Settings:_ownRestartRow%(id%)\n(.-)\nend\n")

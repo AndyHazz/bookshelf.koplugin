@@ -218,6 +218,8 @@ function TL.items(ctx)
             it.title = tp.ownName()
             it.shows = tp.OWN
             it.own = ctx.own
+            -- Not made yet: the card shows the hero of what it would copy.
+            if type(ctx.own) ~= "table" then it.copies = ctx.showing or tp.MINE end
         else
             it.title = tp.themeName(c.value)
             it.shows = c.value
@@ -334,7 +336,9 @@ function TL._renderCard(item, dimen, current)
     line(item.title, 18, ink, true)
     line(item.summary, 14, ink)
     line(item.description, 13, Blitbuffer.COLOR_DARK_GRAY)
-    local e = (not item.missing) and TL.hero(item.shows, item.own) or nil
+    local e
+    if item.copies then e = TL.hero(item.copies)
+    elseif not item.missing then e = TL.hero(item.shows, item.own) end
     local hero = e and require("lib/bookshelf_ornament_browser").preview(e, hero_w, inner_h)
     return FrameContainer:new{
         bordersize = border, radius = Space.radius.default, margin = 0,

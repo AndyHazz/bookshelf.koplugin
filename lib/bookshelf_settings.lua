@@ -2567,8 +2567,16 @@ function Settings:_backgroundSubItems()
     self:_shelfSlot()
     local owner = require("lib/bookshelf_theme_pack").ownerOf()
     local rows = {}
-    if owner then rows[#rows + 1] = self:_ownRestartRow(owner) end
-    rows[#rows + 1] = self:_thisShelfRow()
+    -- What the shelf shows first, then (an own theme only) starting it
+    -- again: the choice reads before what can be done with it.
+    local this_shelf = self:_thisShelfRow()
+    rows[#rows + 1] = this_shelf
+    if owner then
+        if this_shelf then this_shelf.separator = nil end
+        local restart = self:_ownRestartRow(owner)
+        restart.separator = true
+        rows[#rows + 1] = restart
+    end
     local function part(row, name) row._part = name; return row end
     rows[#rows + 1] = part(self:_lightDarkRow(), "look")
     for _i, row in ipairs(self:_wallpaperMenu()) do

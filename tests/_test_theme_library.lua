@@ -340,6 +340,8 @@ t.test("a card's hero is the ornaments' own cached render, through the collectio
     assert(card:find('require("lib/bookshelf_ornament_browser").preview(e, hero_w, inner_h)', 1, true),
         "the hero is not drawn as the collection draws a piece")
     assert(card:find("TL.hero(item.shows, item.own)", 1, true), "the card's hero is not its theme's")
+    assert(card:find("if item.copies then e = TL.hero(item.copies)", 1, true),
+        "an Own theme not made yet does not show the hero of what it would copy")
     local ob = io.open("lib/bookshelf_ornament_browser.lua"):read("*a")
     local prev = ob:match("\nfunction Browser%.preview%(e, box_w, box_h%)\n(.-)\nend\n")
     assert(prev and prev:find("night = Screen.night_mode", 1, true), "the preview is not drawn for night mode")

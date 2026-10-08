@@ -811,12 +811,13 @@ function Bookshelf:buildMenuItems(menu_items)
         end,
     }
 
-    -- The reader's own look, under its one name (TP.mineName): light or
-    -- dark, wallpaper, plank, ornaments, colours. Themes never write it.
+    -- The look of the shelf on screen: light or dark, wallpaper, plank,
+    -- ornaments, colours. On a My theme shelf the reader's own look, under
+    -- its one name (TP.mineName); on a pack or Plain, that theme's edits.
     menu_items.bookshelf_background = {
         text_func           = function()
-            -- "Own theme: Manga" while the shelf on screen shows its own
-            -- theme: these rows edit that then (TP.editName).
+            -- Named for the theme of the shelf on screen, which these rows
+            -- edit (TP.editName): My theme, Plain, Macabre.
             return MenuIcons.label(MenuIcons.APPEARANCE,
                                    require("lib/bookshelf_theme_pack").editName())
         end,

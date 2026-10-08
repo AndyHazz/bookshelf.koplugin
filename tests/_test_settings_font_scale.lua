@@ -636,14 +636,14 @@ t.test("Reset clears the night variant of every colour key too", function()
     -- Day and night colours are stored under separate keys (base and
     -- base .. "_night"), so a reset that only clears one leaves the other mode
     -- looking untouched.
-    -- Through the editing seam (TP.partClear: My theme's keys, or the shelf
-    -- on screen's own theme), which clears both slots of each.
+    -- Through the editing seam (TP.partClear: My theme's keys, or the edits
+    -- to the theme on screen), which clears both slots of each.
     local body = src:match("Reset to default colors.-markDirty%(%)")
     assert(body and body:find("partClear(keys)", 1, true), "reset does not go through the seam")
     local tp = io.open("lib/bookshelf_theme_pack.lua"):read("*a")
     local clear = tp:match("\nfunction M%.partClear%(keys%)\n(.-)\nend\n")
     assert(clear and clear:find('save(k .. "_night", nil)', 1, true)
-        and clear:find('own.keys[k .. "_night"] = nil', 1, true),
+        and clear:find('e.keys[k .. "_night"] = M.UNSET', 1, true),
         "reset must delete the _night variant alongside each base key")
 end)
 

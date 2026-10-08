@@ -38,13 +38,17 @@ t.test("the row is registered, named by the one name of the reader's own look", 
     local row = main:match("(menu_items%.bookshelf_background = {.-\n    }\n)")
     assert(row, "menu_items.bookshelf_background missing")
     -- The name lives in ONE place (TP.mineName), so it can be renamed with a
-    -- one-line change (maintainer, 2026-10-07). The row asks editName, which
-    -- is that name unless the shelf on screen shows its own theme.
+    -- one-line change (maintainer, 2026-10-07). The row asks editName: the
+    -- theme of the shelf on screen, which the rows edit, by themeName, which
+    -- names the reader's own by that name.
     assert(row:find("editName()", 1, true), "the row does not take the one name")
     local tp = io.open("lib/bookshelf_theme_pack.lua"):read("*a")
     assert(tp:find('function M.mineName() return _("My theme") end', 1, true), "the name changed")
-    local en = tp:match("\nfunction M%.editName%(%)\n(.-)\nend\n")
-    assert(en and en:find("if not id then return M.mineName() end", 1, true), "editName does not use the one name")
+    assert(tp:find("function M.editName() return M.themeName(M.shelfTheme()) end", 1, true),
+        "editName does not name the theme on screen")
+    local tn = tp:match("\nfunction M%.themeName%(choice%)\n(.-)\nend\n")
+    assert(tn and tn:find("if choice == nil or choice == M.MINE then return M.mineName() end", 1, true),
+        "the reader's own is not named by the one name")
     local n = 0
     for _ in (settings .. main):gmatch('_%("My theme"%)') do n = n + 1 end
     eq(n, 0, "the name is spelled out somewhere other than TP.mineName")

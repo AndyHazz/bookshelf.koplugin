@@ -67,8 +67,8 @@ M.STEPS = {
 }
 
 local function O() return require("lib/bookshelf_ornaments") end
--- A piece on or off as the shelf on screen's theme has it: its own theme's
--- set, or the collection's (bookshelf_theme_pack.switches, the one seam).
+-- A piece on or off as the shelf on screen's theme has it: that theme's set,
+-- or the collection's (bookshelf_theme_pack.switches, the one seam).
 local function SW() return require("lib/bookshelf_theme_pack").switches() end
 local Deck = require("lib/bookshelf_ornament_deck")
 
@@ -360,7 +360,8 @@ function M.show(entry, bw, piece)
                 end, { pool = (function()
                     -- Only the pieces this shelf deals from: a shelf that
                     -- wears a theme deals that pack's pieces alone.
-                    -- An own theme may switch on any piece: all of them.
+                    -- A theme whose set is edited may switch on any piece:
+                    -- all of them.
                     local sp = require("lib/bookshelf_theme_pack").ornamentsFor(shelf)
                     if sp == "mine" or type(sp) == "table" then return nil end
                     return function(e) return e.pack ~= nil and e.pack == sp end

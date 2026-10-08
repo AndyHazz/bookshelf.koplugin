@@ -1113,25 +1113,26 @@ end
 -- listFor(sp) -> the pieces a shelf deals from. sp is what
 -- bookshelf_theme_pack.ornamentsFor answers for the shelf: "mine" (or nil)
 -- deals what the collection has on (M.list, loose pieces included); "plain"
--- deals nothing; a pack deals its OWN pieces only, minus pieces switched off
--- -- even when that pack is off in the collection, whose pack switches shape
--- the reader's own ornaments only. Themes do not mix: no loose pieces on a
--- themed shelf (maintainer, 2026-10-07). The same table while nothing
--- changed: the deck and the plan key on it.
+-- deals nothing; a pack deals its OWN pieces only, every one -- even when
+-- that pack or piece is off in the collection, whose switches shape the
+-- reader's own ornaments only. Themes do not mix: no loose pieces on a
+-- themed shelf (maintainer, 2026-10-07), unless the reader edits the
+-- theme's set (a table, below). The same table while nothing changed: the
+-- deck and the plan key on it.
 M._list_for = {}
 M._none = {}
 function M.listFor(sp)
     if sp == nil or sp == "mine" then return M.list() end
     if sp == "plain" then return M._none end
-    -- A shelf's own theme (bookshelf_theme_pack.ownPool): its own switched-on
-    -- set, from any pack or loose (maintainer, 2026-10-08). Its own switches
-    -- only: the collection's piece and pack switches shape the reader's own.
-    -- The key carries the own theme's edit count, so an edit is a new list.
+    -- A theme whose ornaments the reader has edited
+    -- (bookshelf_theme_pack.editPoolOf): its switched-on set, from any pack
+    -- or loose (spec, 2026-10-08). Its own switches only. The key changes
+    -- with the set, so an edit is a new list.
     if type(sp) == "table" then
         local all = M.listAll()
         local key = tostring(all) .. "|" .. tostring(sp.key)
-        -- One slot per shelf, not per edit: an edit replaces the shelf's list.
-        local slot = "\1" .. (tostring(sp.key):match("^own:([^:]*)") or tostring(sp.key))
+        -- One slot per theme, not per edit: an edit replaces the list.
+        local slot = "\1" .. tostring(sp.slot or sp.key)
         local hit = M._list_for[slot]
         if hit and hit.key == key and hit.on == sp.on then return hit.v end
         local on = type(sp.on) == "table" and sp.on or {}
@@ -1143,17 +1144,15 @@ function M.listFor(sp)
         M._list_for[slot] = { key = key, on = sp.on, v = out }
         return out
     end
+    -- The collection's off switches no longer reach a pack's shelf: 5.3's
+    -- were moved into the packs' edits (bookshelf_theme_pack migration 5).
     local all = M.listAll()
-    local off = readSet(M.OFF_KEY)
-    local sig = {}
-    for k in pairs(off) do sig[#sig + 1] = k end
-    table.sort(sig)
-    local key = tostring(all) .. "|" .. table.concat(sig, "\0")
+    local key = tostring(all)
     local hit = M._list_for[sp]
     if hit and hit.key == key then return hit.v end
     local out = {}
     for _i, e in ipairs(all) do
-        if e.pack == sp and not off[e.name] then out[#out + 1] = e end
+        if e.pack == sp then out[#out + 1] = e end
     end
     table.sort(out, function(a, b) return a.name < b.name end)
     M._list_for[sp] = { key = key, v = out }

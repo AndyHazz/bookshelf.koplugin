@@ -374,7 +374,7 @@ local function _readBarColor(base_key)
         local ok2, v = pcall(TP.colourOverride, base_key, _modeSuffix() ~= "")
         if ok2 and v then return v end
     end
-    -- The reader's own, or the shelf's own theme's (TP.partRead).
+    -- The reader's own, or their edit to the theme on screen (TP.partRead).
     local function partRead(k)
         if ok_t and TP and TP.partRead then return TP.partRead(k) end
         return BookshelfSettings.read(k)

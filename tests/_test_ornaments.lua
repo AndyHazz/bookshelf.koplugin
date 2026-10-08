@@ -1136,7 +1136,7 @@ t.test("the menu shows and nudges the reader's own adjustment, not the pack's va
            and src:find('readerValue(entry, "lift")', 1, true), "the labels show the pack's values")
 end)
 
-t.test("listFor: a theme deals its own pieces only, minus switched-off pieces; Plain none; mine the collection", function()
+t.test("listFor: a theme deals its own pieces only, whatever the collection's switches; Plain none; mine the collection", function()
     local Orn = fresh()
     local mem = {}
     Orn._store = { read = function(k) return mem[k] end, save = function(k, v) mem[k] = v end,
@@ -1148,8 +1148,10 @@ t.test("listFor: a theme deals its own pieces only, minus switched-off pieces; P
     Orn.setPackOff("H", true)                    -- off in the collection, worn as a theme
     local names = {}
     for i, e in ipairs(Orn.listFor("H")) do names[i] = e.name end
-    -- No loose pot: themes do not mix (maintainer, 2026-10-07).
-    eq(table.concat(names, ","), "H/bat.png")
+    -- No loose pot: themes do not mix (maintainer, 2026-10-07). The cat is
+    -- off in the collection, which is My theme's set: a pack's own set is
+    -- edited with the theme (editable themes, 2026-10-08).
+    eq(table.concat(names, ","), "H/bat.png,H/cat.png")
     assert(Orn.listFor("H") == Orn.listFor("H"), "listFor handed out a new table")
     eq(#Orn.listFor("plain"), 0, "Plain deals nothing")
     assert(Orn.listFor(nil) == Orn.list() and Orn.listFor("mine") == Orn.list(), "the reader's pool changed")

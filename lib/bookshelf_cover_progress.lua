@@ -805,8 +805,8 @@ local function _modeSuffix()
 end
 
 -- _partRead(key): a colour as the theme being painted and edited holds it:
--- the shelf on screen's own theme when it shows one, else the reader's own
--- (bookshelf_theme_pack.partRead, the one seam).
+-- the reader's edit to the theme on screen, else its own, else the reader's
+-- own (bookshelf_theme_pack.partRead, the one seam).
 local function _partRead(key)
     local ok, TP = pcall(require, "lib/bookshelf_theme_pack")
     if ok and TP and TP.partRead then return TP.partRead(key) end

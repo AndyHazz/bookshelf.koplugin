@@ -21,7 +21,7 @@ local CODE = table.concat({
     grab("\n(function Settings:_shelfTheme%(%).-\nend)\n", "_shelfTheme"),
     grab("\n(function Settings:_shelfThemeLabel%(%).-\nend)\n", "_shelfThemeLabel"),
     grab("\n(function Settings:_thisShelfRow%(%).-\nend)\n", "_thisShelfRow"),
-    grab("\n(function Settings:_themeCovered%(part%).-\nend)\n", "_themeCovered"),
+    grab("\n(function Settings:_resetThemeRow%(%).-\nend)\n", "_resetThemeRow"),
     grab("\n(function Settings:_lightDarkRow%(%).-\nend)\n", "_lightDarkRow"),
     grab("\n(function Settings:_shelfThemeSubItems%(%).-\nend)\n", "_shelfThemeSubItems"),
     grab("\n(function Settings:_shelfThemeText%(%).-\nend)\n", "_shelfThemeText"),
@@ -44,14 +44,17 @@ local function build(packs, library, tabs, opts)
     local by = {}
     for _i, p in ipairs(packs) do by[p.pack] = p end
     local TP = {
-        MINE = "mine", PLAIN = "plain", OWN = "own",
-        -- The editing seam: no shelf on screen shows an own theme here, so
-        -- it is the reader's own keys.
+        MINE = "mine", PLAIN = "plain",
+        -- The editing seam: the reader's own keys here (bookshelf_theme_pack
+        -- has its own suite for the edits to a theme).
         partRead = function(k) return seen.store[k] end,
         partSave = function(k, v) seen.store[k] = v end,
         themeFor = function(id) return tabs_by[id] and tabs_by[id].theme or library or "mine" end,
-        ensureOwn = function(tab, showing)
-            if not tab.own_theme then tab.own_theme = { from = showing } end
+        -- The edits to each theme (EDITABLE THEMES): opts.edited.
+        hasEdits = function(th) return (opts.edited or {})[th] == true end,
+        resetEdits = function(th)
+            seen.reset = th
+            if opts.edited then opts.edited[th] = nil end
         end,
         rescan = function() seen.rescans = seen.rescans + 1 end,
         mineName = function() return "My theme" end,
@@ -114,7 +117,7 @@ local function build(packs, library, tabs, opts)
         BookshelfSettings = { read = function(k) return seen.store[k] end,
                               save = function(k, v) seen.store[k] = v; seen.saves = seen.saves + 1 end,
                               flush = function() end },
-        UIManager = { show = function(_u, w) seen.toasts[#seen.toasts + 1] = w.text end,
+        UIManager = { show = function(_u, w) seen.toasts[#seen.toasts + 1] = w.text; seen.shown = w end,
                       setDirty = function(_u, w, mode) if w == "all" and mode == "full" then seen.full = seen.full + 1 end end },
         require = function(m)
             if m == "lib/bookshelf_theme_pack" then return TP end
@@ -136,7 +139,10 @@ local function build(packs, library, tabs, opts)
                 return { show = function(o) seen.opened[#seen.opened + 1] = o; return o end }
             end
             if m == "lib/bookshelf_cover_progress" then return { THEME_SETTING = "shelf_theme" } end
-            if m == "ui/widget/infomessage" then return { new = function(_s, o) return o end } end
+            if m == "ui/widget/infomessage" or m == "ui/widget/confirmbox" then
+                return { new = function(_s, o) return o end }
+            end
+            if m == "lib/bookshelf_wallpaper" then return { free = function() seen.freed = true end } end
             if m == "lib/bookshelf_ornaments" then return { dir = function() return "settings/bookshelf/ornaments" end } end
             if m == "ffi/util" then return { realpath = function(p) return "/mnt/us/koreader/" .. p end } end
             return require(m)
@@ -292,8 +298,8 @@ t.test("My theme's first row names what the shelf on screen wears and opens its 
     o.apply()
     eq(seen.dirty, 1, "the shelf was not rebuilt")
     o.on_closed(); eq(seen.restored, 1, "the menu did not come back")
-    -- Its rows come back for the theme now on the shelf (an own theme has
-    -- rows of its own).
+    -- Its rows come back for the theme now on the shelf (they edit it, and
+    -- only a pack or Plain has Reset to original).
     eq(seen.reopened, 1, "My theme's rows were not rebuilt after the picker")
     eq(row.text_func(), "This shelf: My theme", "the row did not follow the choice")
     eq(S._thisShelfRow(onShelf(self, "rec")).text_func(), "This shelf: Plain")
@@ -305,35 +311,44 @@ t.test("My theme's first row names what the shelf on screen wears and opens its 
     eq(S._thisShelfRow(self), nil, "no shelf on screen: no row")
 end)
 
-t.test("a row of the reader's own is greyed while the theme on screen replaces its part", function()
-    local AUT2 = { pack = "Autumn", name = "Autumn", brings = { ornaments = true } }
-    local self, S = build({ MAC, AUT2 }, nil, nil, { on_screen = "Autumn" })
-    eq(S._themeCovered(self, "ornaments")(), false, "Autumn deals its own pieces")
-    eq(S._themeCovered(self, "wallpaper")(), true, "Autumn brings no wallpaper")
-    local self2, S2 = build({ MAC }, nil, nil, { on_screen = "plain" })
-    for _i, part in ipairs({ "wallpaper", "page", "plank", "ornaments", "colours" }) do
-        eq(S2._themeCovered(self2, part)(), false, "Plain covers " .. part)
-    end
-    eq(S2._themeCovered(self2, "look")(), true, "Plain follows the reader's light or dark")
-    local self3, S3 = build({ MAC }, nil, nil, { on_screen = "mine" })
-    eq(S3._themeCovered(self3, "wallpaper")(), true)
+t.test("Reset to original names the theme on screen, greyed while it has no edits, asks first", function()
+    -- Maintainer, 2026-10-08: "Perhaps the reset button could be greyed out
+    -- when the theme pack is already as original."
+    local edited = {}
+    local self, S, seen = build({ MAC }, nil, nil, { on_screen = "Macabre", edited = edited })
+    local row = S._resetThemeRow(self)
+    eq(row.text_func(), "Reset Macabre to original")
+    eq(row.enabled_func(), false, "Reset is not greyed on a theme as original")
+    edited.Macabre = true
+    eq(row.enabled_func(), true, "Reset is greyed on an edited theme")
+    local updated = 0
+    row.callback({ updateItems = function() updated = updated + 1 end })
+    eq(seen.reset, nil, "Reset did not ask first")
+    eq(seen.shown.text, "Reset Macabre to its original settings? Your changes to it are lost.")
+    seen.shown.ok_callback()
+    eq(seen.reset, "Macabre"); eq(row.enabled_func(), false)
+    eq(seen.dirty, 1, "the shelf was not rebuilt"); eq(updated, 1, "the menu's rows did not follow")
+    eq(seen.freed, true, "the edited wallpaper's decode was kept")
+    -- Plain resets the same way; My theme has nothing to reset to.
+    local self2, S2 = build({ MAC }, nil, nil, { on_screen = "plain", edited = { plain = true } })
+    eq(S2._resetThemeRow(self2).text_func(), "Reset Plain to original")
+    eq(S2._resetThemeRow(self2).enabled_func(), true)
+    local self3, S3 = build({ MAC }, nil, nil, { on_screen = "mine", edited = { mine = true } })
+    eq(S3._resetThemeRow(self3).enabled_func(), false, "My theme can be reset to an original")
 end)
 
-t.test("My theme: This shelf first; every part row greys with its part; New ornaments go with Ornaments", function()
+t.test("the theme menu: This shelf first, no row greyed for a theme's part, Reset last on a pack or Plain", function()
     local body = src:gsub("%-%-[^\n]*", "")
     local bg = body:match("function Settings:_backgroundSubItems%(%)(.-)\nend\n")
     assert(bg, "_backgroundSubItems moved")
     assert(bg:find("self:_thisShelfRow()", 1, true) < bg:find("_lightDarkRow", 1, true), "This shelf is not first")
-    for _i, pair in ipairs({ { "_lightDarkRow%(%)", "look" }, { "_plankRow%(%)", "plank" },
-                             { "_ornamentsRow%(%)", "ornaments" }, { "_newOrnamentsRow%(%)", "ornaments" } }) do
-        assert(bg:find("part%(self:" .. pair[1] .. ", \"" .. pair[2] .. "\"%)"), pair[1] .. " is not tagged " .. pair[2])
-    end
-    assert(bg:find('}, "colours")', 1, true), "Colors is not tagged")
-    assert(bg:find("row.enabled_func = self:_themeCovered(row._part)", 1, true), "the tags grey nothing")
-    local wm = body:match("function Settings:_wallpaperMenu%(%)(.-)\nend\n")
-    local _a, nw = wm:gsub('_part = "wallpaper"', "")
-    local _b, np = wm:gsub('_part = "page"', "")
-    eq(nw, 3, "Wallpaper, Full screen wallpaper and Invert are the wallpaper part"); eq(np, 1)
+    -- Every theme is editable: its rows are never greyed because the theme
+    -- has that part (spec, 2026-10-08).
+    assert(not bg:find("enabled_func", 1, true) and not body:find("_themeCovered", 1, true),
+        "a row is greyed because the theme on screen has its part")
+    local reset = bg:find("rows[#rows + 1] = self:_resetThemeRow()", 1, true)
+    assert(reset and reset > bg:find("_newOrnamentsRow", 1, true), "Reset to original is not the last row")
+    assert(bg:find("if TP.shelfTheme() ~= TP.MINE then", 1, true), "My theme has a Reset to original row")
 end)
 
 t.test("no row of the reader's own carries a per-row theme suffix any more", function()

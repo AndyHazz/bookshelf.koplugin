@@ -3824,8 +3824,8 @@ function BookshelfWidget:_pageGroundColor()
         -- has the default ground.
         local ok_t, TP = pcall(require, "lib/bookshelf_theme_pack")
         if ok_t and TP and TP.defaultColours and TP.defaultColours() then return nil end
-        -- Else the reader's own, or the shelf's own theme's (TP.partRead:
-        -- unset there is the default ground, never the reader's).
+        -- Else the reader's own, or their edit to the theme on screen
+        -- (TP.partRead: edited to unset is the default ground).
         local raw
         if ok_t and TP and TP.partRead then
             raw = TP.colourOverride(Wallpaper.BG_SETTING, suffix ~= "")
@@ -7002,7 +7002,7 @@ function BookshelfWidget:_ornSig()
     -- one piece off and another on).
     local pool = (ok and Orn) and tostring(Orn.list()) or ""
     local f = (ok and Orn) and Orn.frequency() or 0
-    -- And the shelf's own theme, which picks its pool (Orn.listFor) without
+    -- And the shelf's theme, which picks its pool (Orn.listFor) without
     -- touching Orn.list() or the deck: choosing one for the shelf on screen
     -- must not leave later pages dealing from the old pool's states.
     local ok_t, TP = pcall(require, "lib/bookshelf_theme_pack")

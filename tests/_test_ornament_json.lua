@@ -317,7 +317,7 @@ t.test("menu: Swap, Shuffle this shelf and a Switch off/on toggle share a row; t
     assert(row:find('_("Shuffle this shelf")', 1, true), "Shuffle this shelf is not on the Swap row")
     assert(row:find('_("Switch on")', 1, true) and row:find('_("Switch off")', 1, true),
         "the Switch off/on toggle is not on the Swap row")
-    -- Through the seam (SW: the shelf's own theme's set, or the collection's).
+    -- Through the seam (SW: the set of the theme on screen, or the collection's).
     local toggle = row:match("text_func = function%(%)%s*return SW%(%)%.isOff%(entry%.name%).-end },")
     assert(toggle, "the toggle's label does not follow the piece's state")
     assert(not toggle:find("closeAnd", 1, true), "switching off closes the menu")

@@ -1803,7 +1803,7 @@ t.test("a wallpaper name that no longer resolves reads as none", function()
         -- A pack's wallpaper is named by its pack (5.3); these names are not.
         require = function(m)
             if m == "lib/bookshelf_theme_pack" then
-                return { isPackName = function() return false end, shownOwn = function() return nil end,
+                return { isPackName = function() return false end, partEdited = function() return false end,
                          partRead = function() return "screensavers:bg_ss27.png" end }
             end
             return require(m)

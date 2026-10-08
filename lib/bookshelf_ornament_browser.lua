@@ -41,8 +41,8 @@ local Browser = {}
 local ALL = "__all"
 
 local function O() return require("lib/bookshelf_ornaments") end
--- The switches this browser reads and writes: the collection's, or the
--- shelf on screen's own theme's set while it shows one
+-- The switches this browser reads and writes: the collection's, or the set
+-- of the theme on screen, a pack or Plain, which the reader is editing
 -- (bookshelf_theme_pack.switches, the one seam). Asked each time: the
 -- browser can outlive a change of shelf.
 local function SW() return require("lib/bookshelf_theme_pack").switches() end

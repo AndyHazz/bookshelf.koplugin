@@ -81,8 +81,8 @@ local function settingsRead(key)
     return ok and Set and Set.read(key) or nil
 end
 
--- A part of the look: the shelf on screen's own theme's when it shows one
--- (bookshelf_theme_pack.partRead), else the reader's own.
+-- A part of the look: the reader's edit to the theme on screen when there
+-- is one (bookshelf_theme_pack.partRead), else the reader's own.
 function M.invertsAtNight()
     local ok_t, TP = pcall(require, "lib/bookshelf_theme_pack")
     if ok_t and TP and TP.partRead then return TP.partRead(M.INVERT_NIGHT_SETTING) == true end

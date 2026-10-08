@@ -8,7 +8,7 @@ t.test("the browser has a pick mode", function()
     local b = src:match("function Browser:_pick%(item%)(.-)\nend\n")
     assert(b, "no _pick")
     assert(not src:find("is_plank", 1, true), "plank tiles are back in the collection")
-    -- Through the seam (SW: the shelf's own theme's set, or the collection's).
+    -- Through the seam (SW: the set of the theme on screen, or the collection's).
     assert(b:find('sw.setOff(item.entry.name, false)', 1, true), "a picked off piece stays off")
     assert(b:find('sw.setPackOff(item.entry.pack, false)', 1, true), "a picked piece's off pack stays off")
     assert(b:find("self.opts.pick(item.entry)", 1, true))

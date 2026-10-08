@@ -242,18 +242,17 @@ function M.forgetChoice() M._plank_memo = nil end
 --
 --   library_theme   nil (mine) | "plain" | a pack's folder
 --   tab.theme       nil (same as the library) | "mine" | "plain" | a pack
---                   | "own" (the shelf's own theme, tab.own_theme: see A
---                   SHELF'S OWN THEME below)
+--   theme_edits     { [a pack's folder, or "plain"] = the reader's edits to
+--                   that theme }: see EDITABLE THEMES below
 --
 -- Per shelf: its own choice, else the library's, else mine. Per part: the
--- theme's when it has one, else mine. Plain's parts are fixed: no wallpaper,
--- the built-in Oak, the default colours, no ornaments; light or dark follows
--- the reader's setting, as it does for mine and for a theme whose
--- theme.json does not say.
+-- reader's edit to that theme, else the theme's when it has one, else mine.
+-- Plain's parts are fixed: no wallpaper, the built-in Oak, the default
+-- colours, no ornaments; light or dark follows the reader's setting, as it
+-- does for mine and for a theme whose theme.json does not say.
 M.LIBRARY_SETTING = "library_theme"
 M.MINE  = "mine"
 M.PLAIN = "plain"
-M.OWN   = "own"
 M.SHELF_SETTING = "shelf_theme"          -- CoverProgress.THEME_SETTING
 
 -- mineName() -> what menus call the reader's own look. The ONE place the
@@ -280,11 +279,12 @@ function M.showAddThemeInfo()
     })
 end
 function M.plainName() return _("Plain") end
-function M.ownName() return _("Own theme") end
 
 -- A pack folder whose name is a built-in value, in any case ("Plain",
 -- "mine", "NONE"), is never a theme: stored, it could not be told from the
 -- built-in. Its pieces, wallpaper and planks are still the reader's to use.
+-- "own": an unreleased feat/my-look build stored it for a shelf's own theme
+-- (replaced by editable themes, 2026-10-08); reserved, it reads as unset.
 M.RESERVED = { mine = true, plain = true, none = true, own = true }
 function M.isReserved(pack)
     return type(pack) == "string" and M.RESERVED[pack:lower()] == true
@@ -294,7 +294,7 @@ end
 -- stored). rc/5.4 wrote "none" for the reader's own.
 local function normalise(v)
     if v == "none" then return M.MINE end
-    if v == M.MINE or v == M.PLAIN or v == M.OWN then return v end
+    if v == M.MINE or v == M.PLAIN then return v end
     -- A pack named like a built-in (any case) is never a theme: unset.
     if M.isReserved(v) then return nil end
     if type(v) == "string" and v ~= "" then return v end
@@ -302,11 +302,9 @@ local function normalise(v)
 end
 
 -- usable(v) -> v, or nil when it names a pack that is gone. The stored name
--- is kept, so the theme comes back with its folder. "own" needs its shelf
--- (themeFor), so alone it is nil: the library can never wear one.
+-- is kept, so the theme comes back with its folder.
 local function usable(v)
     v = normalise(v)
-    if v == M.OWN then return nil end
     if v == nil or v == M.MINE or v == M.PLAIN then return v end
     if M.isReserved(v) then return nil end
     if M.theme(v).exists then return v end
@@ -315,7 +313,7 @@ end
 
 -- packOf(theme) -> the pack a resolved theme is, or nil for mine and Plain.
 local function packOf(theme)
-    if theme == nil or theme == M.MINE or theme == M.PLAIN or theme == M.OWN then return nil end
+    if theme == nil or theme == M.MINE or theme == M.PLAIN then return nil end
     return theme
 end
 M.packOf = packOf
@@ -325,7 +323,6 @@ function M.themeName(choice)
     choice = normalise(choice)
     if choice == nil or choice == M.MINE then return M.mineName() end
     if choice == M.PLAIN then return M.plainName() end
-    if choice == M.OWN then return M.ownName() end
     if not M.theme(choice).exists then return T(_("%1 (missing)"), choice) end
     return M.displayName(choice)
 end
@@ -347,20 +344,16 @@ end
 
 -- shelfChoices(cur) -> a shelf's theme list, in order: Same as library
 -- ({ same = true }), a missing pack the shelf still names (cur), the
--- reader's own, Plain, the shelf's own theme, every theme. The Theme
--- library's list for a shelf (the Theme menu's shelf rows, My theme's "This
--- shelf" row, Shelf style's Theme row). The library's list has no Own theme:
--- only a shelf owns one (maintainer, 2026-10-08).
+-- reader's own, Plain, every theme. The Theme library's list for a shelf
+-- (the Theme menu's shelf rows, My theme's "This shelf" row, Shelf style's
+-- Theme row).
 function M.shelfChoices(cur)
     local out = { { same = true, label = _("Same as library") } }
     cur = normalise(cur)
     if packOf(cur) and not M.theme(cur).exists then
         out[#out + 1] = { value = cur, label = M.themeName(cur), missing = true }
     end
-    for _i, c in ipairs(M.choices()) do
-        out[#out + 1] = c
-        if c.value == M.PLAIN then out[#out + 1] = { value = M.OWN, label = M.ownName() } end
-    end
+    for _i, c in ipairs(M.choices()) do out[#out + 1] = c end
     return out
 end
 
@@ -374,16 +367,12 @@ end
 
 -- libraryChoice() -> what the library is set to ("mine" when unset), even a
 -- pack that has gone; libraryTheme() -> what it shows.
-function M.libraryChoice()
-    local v = normalise(read(M.LIBRARY_SETTING))
-    if v == M.OWN then return M.MINE end
-    return v or M.MINE
-end
+function M.libraryChoice() return normalise(read(M.LIBRARY_SETTING)) or M.MINE end
 function M.libraryTheme() return usable(read(M.LIBRARY_SETTING)) or M.MINE end
 
 function M.setLibraryTheme(choice)
     choice = normalise(choice)
-    if choice == M.MINE or choice == M.OWN then choice = nil end
+    if choice == M.MINE then choice = nil end
     save(M.LIBRARY_SETTING, choice)
     M._plank_memo = nil
 end
@@ -423,17 +412,10 @@ local function inherited(id, rd)
     return nil
 end
 
--- choiceTab(id): the tab whose choice that shelf follows: itself, or the
--- shelf of shelves it inherits from; nil when it follows the library.
-local function choiceTab(id)
-    return inherited(id, function(tab) if normalise(tab.theme) ~= nil then return tab end end)
-end
-
--- shelfChoiceFor(id): nil (same as the library) | "mine" | "plain" |
--- "own" | a pack's folder: the tab's own choice (or its shelf of shelves').
+-- shelfChoiceFor(id) -> nil (same as the library) | "mine" | "plain" | a
+-- pack's folder: the tab's own choice (or its shelf of shelves').
 function M.shelfChoiceFor(id)
-    local tab = choiceTab(id)
-    return tab and normalise(tab.theme) or nil
+    return inherited(id, function(tab) return normalise(tab.theme) end)
 end
 
 -- ownChoice(id) -> what that shelf itself is set to: nil (same as the
@@ -443,34 +425,16 @@ function M.ownChoice(id)
     return tab and normalise(tab.theme) or nil
 end
 
--- themeFor(id): the theme that shelf shows: "mine", "plain", "own" or a
--- pack; for "own", also the tab that owns it (the shelf, or the shelf of
--- shelves it inherits from: a sub-shelf shows its parent's own theme). A
--- shelf set to "own" with no own theme stored (a hand edit) follows the
--- library.
+-- themeFor(id) -> the theme that shelf shows: "mine", "plain" or a pack.
 function M.themeFor(id)
-    local tab = choiceTab(id)
-    local c = tab and normalise(tab.theme) or nil
-    if c == M.OWN then
-        if type(tab.own_theme) == "table" then return M.OWN, tab end
-        c = nil
-    end
-    return usable(c) or M.libraryTheme()
+    return usable(M.shelfChoiceFor(id)) or M.libraryTheme()
 end
 
--- lookOf(id) -> "auto" | "light" | "dark" for that shelf: its theme's
--- manifest when it says, its own theme's when it has one, else the reader's
--- own setting.
+-- lookOf(id) -> "auto" | "light" | "dark" for that shelf: the reader's edit
+-- to its theme, else its theme's manifest when it says, else the reader's
+-- own setting (themePart).
 function M.lookOf(id)
-    local th, owner = M.themeFor(id)
-    local v
-    if th == M.OWN then
-        v = M.ownPart(owner.own_theme, M.SHELF_SETTING)
-    else
-        local p = packOf(th)
-        local m = p and M.theme(p).manifest
-        v = (m and m.shelf) or read(M.SHELF_SETTING)
-    end
+    local v = M.themePart(M.themeFor(id), M.SHELF_SETTING)
     if v == "light" or v == "dark" then return v end
     return "auto"
 end
@@ -488,11 +452,12 @@ local function current()
     local og = type(TM) == "table" and TM.overrideGen or 0
     local c = M._cur
     if g ~= nil and c and c.g == g and c.og == og and c.id == M._shelf then return c end
-    local theme, owner = M.themeFor(M._shelf)
+    local theme = M.themeFor(M._shelf)
+    local e = M.editsOf(theme)
     c = { g = g, og = og, id = M._shelf, theme = theme, look = M.lookOf(M._shelf),
-          -- The own theme on screen and the shelf that owns it: what the
-          -- editing seam (partRead / partSave) reads and writes.
-          owner = owner and owner.id or nil, own = owner and owner.own_theme or nil }
+          -- The reader's edits to that theme (EDITABLE THEMES), and whether
+          -- they touch a colour: the colour readers ask per cover.
+          e = e, ecol = e ~= nil and M.editsColours(e) }
     if g ~= nil then M._cur = c end
     return c
 end
@@ -514,11 +479,12 @@ end
 -- brings(theme, part) -> does that theme replace the reader's own part?
 -- part: "wallpaper", "plank", "colours", "page" (the colour behind the
 -- wallpaper), "look" (light or dark), "ornaments". theme defaults to the
--- shelf on screen's.
+-- shelf on screen's. A part the reader has edited in that theme is the
+-- theme's now (EDITABLE THEMES).
 function M.brings(theme, part)
     theme = theme or M.shelfTheme()
-    -- An own theme is edited in place by those rows, like the reader's own.
-    if theme == M.MINE or theme == M.OWN then return false end
+    if theme == M.MINE then return false end
+    if M.editsPart(theme, part) then return true end
     if theme == M.PLAIN then return part ~= "look" end
     local th = M.theme(theme)
     if part == "wallpaper" then return th.wallpaper ~= nil end
@@ -536,11 +502,17 @@ end
 -- ornamentsFor(id) -> what that shelf deals from: "mine" (the collection,
 -- loose pieces included), "plain" (nothing) or a pack (its own pieces only:
 -- themes do not mix, maintainer). A theme without pieces deals the reader's.
-function M.ornamentsFor(id)
-    local th, owner = M.themeFor(id)
-    if th == M.PLAIN then return M.PLAIN end
-    if th == M.OWN then return M.ownPool(owner) end
-    if th ~= M.MINE and M.hasPieces(th) then return th end
+-- A theme whose ornaments the reader has edited deals its edited set
+-- (poolOf: a table, bookshelf_ornaments.listFor).
+function M.ornamentsFor(id) return M.poolOf(M.themeFor(id)) end
+
+-- poolOf(theme) -> what a shelf showing that theme deals from, as above.
+function M.poolOf(theme)
+    if theme == nil or theme == M.MINE then return M.MINE end
+    local e = M.editsOf(theme)
+    if e and type(e.pieces) == "table" then return M.editPoolOf(theme, e) end
+    if theme == M.PLAIN then return M.PLAIN end
+    if M.hasPieces(theme) then return theme end
     return M.MINE
 end
 
@@ -562,12 +534,14 @@ function M.anyShelfTheme()
 end
 
 -- shelfKey() -> the theme of the shelf on screen, as a cache key (the plank
--- memo, the ornament plan). An own theme's names its shelf and its edit
--- count, so every edit is a new key (ownKey).
+-- memo, the ornament plan). A theme whose ornaments are edited adds its
+-- pool's key, so switching a piece is a new key; an edit to another part
+-- keeps it, and the pages keep their ornaments.
 function M.shelfKey()
     local c = current()
-    if c.theme == M.OWN then return "t:" .. M.ownKey(c.owner, c.own) end
-    return "t:" .. tostring(c.theme)
+    local k = "t:" .. tostring(c.theme)
+    if c.e and type(c.e.pieces) == "table" then k = k .. "|" .. M.editPoolOf(c.theme, c.e).key end
+    return k
 end
 
 -- lookKey() -> what the shelf on screen actually shows: its wallpaper (both
@@ -589,13 +563,13 @@ function M.lookKey()
     local plank = M.activePlank()
     local look = M.shelfLook()
     if look == "auto" then look = autoDark() and "dark" or "light" end
-    -- An own theme's colours are its own: two shelves with one each, or one
-    -- edited, look different though both say "own".
+    -- And the edits to its theme: an edited colour is not in the parts
+    -- above. Two shelves on one theme still share the key.
     local c = current()
     return table.concat({
         tostring(M.shownWallpaper(false, false)), tostring(M.shownWallpaper(true, false)),
         tostring(M.coloursSource()), tostring(plank and plank.id), look,
-        c.theme == M.OWN and M.ownKey(c.owner, c.own) or "",
+        c.e and (tostring(c.theme) .. ":" .. tostring(c.e.rev)) or "",
     }, "\2")
 end
 
@@ -731,9 +705,10 @@ function M.activePlank()
 end
 
 -- chosenPlank() -> the plank design the shelf on screen shows, whether or not
--- designs are switched on (what Performance tweaks names): Plain's Oak, a
--- theme's plank when it has one, else the reader's own choice. The memo is
--- per shelf theme.
+-- designs are switched on (what Performance tweaks names): the reader's edit
+-- to its theme, else Plain's Oak, a theme's plank when it has one, else the
+-- reader's own choice (themePart). The memo is per shelf theme; an edit
+-- drops it.
 function M.chosenPlank()
     local now = M._clock()
     local key = M.shelfKey()
@@ -741,26 +716,15 @@ function M.chosenPlank()
     if memo and memo.key == key and M.SCAN_TTL > 0 and (now - memo.at) < M.SCAN_TTL then
         return memo.v
     end
-    local v
-    local th = M.shelfTheme()
-    local p = packOf(th)
-    if th == M.PLAIN then
-        v = M.builtinPlank()
-    elseif th == M.OWN then
-        v = M.plankIn(current().own)
-    elseif p and #(M.theme(p).planks or {}) > 0 then
-        v = M.themePlank(p)
-    else
-        v = M.minePlank()
-    end
+    local v = M.plankIn(M.shelfTheme())
     M._plank_memo = { at = now, v = v, key = key }
     return v
 end
 
--- plankIn(own): the plank design of that own theme (nil: the reader's
+-- plankIn(theme): the plank design that theme shows (nil: the reader's
 -- own), or nil for the colour; minePlank() the reader's own.
-function M.plankIn(own)
-    local c = M.plankChoiceIn(own)
+function M.plankIn(theme)
+    local c = M.plankChoiceIn(theme)
     if c == "oak" then return M.builtinPlank() end
     if c ~= "colour" then return M._packPlank(c) end
     return nil
@@ -808,20 +772,18 @@ local function fallbackChoice()
     return "oak"
 end
 
--- plankChoiceIn(own): "colour" | "oak" | a pack plank's id: that own
--- theme's, else the reader's own (a pack plank whose pack is gone reads as
--- the fallback, and comes back with the pack; in an own theme the fallback
--- is the built-in Oak, as for a missing pack's). plankChoice() is the theme
+-- plankChoiceIn(theme): "colour" | "oak" | a pack plank's id: what that
+-- theme shows (nil: the reader's own). A pack plank whose pack is gone reads
+-- as the fallback, and comes back with the pack. plankChoice() is the theme
 -- being edited (the seam, partRead).
-function M.plankChoiceIn(own)
-    local v = M.ownPart(own, M.PLANK_SETTING)
+function M.plankChoiceIn(theme)
+    local v = M.themePart(theme, M.PLANK_SETTING)
     if v == false then return "colour" end
     if v == "oak" then return "oak" end
     if type(v) == "string" and M._packPlank(v) then return v end
-    if own then return "oak" end
     return fallbackChoice()
 end
-function M.plankChoice() return M.plankChoiceIn(M.shownOwn()) end
+function M.plankChoice() return M.plankChoiceIn(M.shelfTheme()) end
 
 -- choosePlank(choice): the reader's pick, for the theme being edited.
 -- Choosing a design shows it, even with designs off (Performance tweaks);
@@ -831,22 +793,23 @@ function M.choosePlank(choice)
     local v = choice
     if choice == "colour" then v = false end
     M.partSave(M.PLANK_SETTING, v)
-    if not M.shownOwn() then save(M.WOOD_SETTING, nil) end   -- folded into the one choice
+    -- Folded into the one choice; the reader's own only.
+    if M.shelfTheme() == M.MINE then save(M.WOOD_SETTING, nil) end
     if choice ~= "colour" and not M.designsOn() then M.setDesignsOn(true) end
     M._plank_memo = nil
 end
 
 -- plankRowLabel(): the plank of the theme being edited as the Plank row
 -- and Performance tweaks name it: "Oak", "Walnut (Planks pack)", "Walnut
--- (missing)" for an own theme's plank whose pack has gone, or nil for the
--- plain colour (the caller shows the colour's value).
+-- (missing)" for an edit to a theme naming a plank whose pack has gone, or
+-- nil for the plain colour (the caller shows the colour's value).
 function M.plankRowLabel()
-    local own = M.shownOwn()
-    local stored = own and M.ownPart(own, M.PLANK_SETTING)
+    local th = M.shelfTheme()
+    local stored = M.partEdited(M.PLANK_SETTING) and M.partRead(M.PLANK_SETTING)
     if type(stored) == "string" and stored ~= "oak" and not M._packPlank(stored) then
         return T(_("%1 (missing)"), stored:match("plank%.([^/]+)$") or stored:match("^([^/]+)") or stored)
     end
-    local p = M.plankIn(own)
+    local p = M.plankIn(th)
     if not p then return nil end
     if p.pack and p.name then return T(_("%1 (%2 pack)"), p.name, p.pack) end
     return M.plankLabel(p)
@@ -896,18 +859,21 @@ function M.invertHex(hex)
 end
 
 -- coloursSource() -> whose colours the shelf on screen paints: "mine",
--- "plain" (the defaults) or a pack with a colours.json.
+-- "plain" (the defaults) or a pack with a colours.json, or with colours the
+-- reader has edited.
 function M.coloursSource()
-    local th = M.shelfTheme()
-    if th == M.MINE or th == M.PLAIN or th == M.OWN then return th end
-    if M.theme(th).colours then return th end
+    local c = current()
+    local th = c.theme
+    if th == M.MINE or th == M.PLAIN then return th end
+    if M.theme(th).colours or c.ecol then return th end
     return M.MINE
 end
 
 -- defaultColours() -> true when the shelf on screen paints the default
--- colours whatever the reader has set (Plain). The colour readers
--- (CoverProgress, the chip bar, the page ground) ask before reading the keys.
-function M.defaultColours() return M.coloursSource() == M.PLAIN end
+-- colours whatever the reader has set (Plain, while none of its colours is
+-- edited). The colour readers (CoverProgress, the chip bar, the page ground)
+-- ask before reading the keys.
+function M.defaultColours() return M.coloursSource() == M.PLAIN and not current().ecol end
 
 -- packColour(pack, key, dark) -> that pack's colour for that setting in the
 -- STORED convention of its slot, or nil. Night slots hold colours
@@ -926,9 +892,10 @@ end
 -- setting, or nil for the reader's own.
 function M.colourOverride(key, dark)
     local src = M.coloursSource()
-    -- An own theme's colours are read where the reader's are (partRead):
-    -- unset there is the default, never the reader's own.
-    if src == M.MINE or src == M.PLAIN or src == M.OWN then return nil end
+    if src == M.MINE or src == M.PLAIN then return nil end
+    -- An edited colour is read where the reader's are (partRead): edited to
+    -- the default, it is the default, never the pack's or the reader's own.
+    if M.partEdited(key .. (dark and "_night" or "")) then return nil end
     return packColour(src, key, dark)
 end
 
@@ -971,19 +938,19 @@ function M.variantName(name, is_full, is_dark)
     return file and (M.NAME_PREFIX .. pack .. "\1" .. file) or nil
 end
 
--- mineWallpaper(is_full, is_dark, own): the reader's own wallpaper name
--- for this view (own: that own theme's instead). Full screen: None stays
--- None; its own choice wins, else whatever the wallpaper shows ("Same"). A
--- pack's picture chosen as the reader's own shows as that pack's variant for
--- the view.
-function M.mineWallpaper(is_full, is_dark, own)
+-- mineWallpaper(is_full, is_dark, theme): the reader's own wallpaper name
+-- for this view (theme: what that theme shows instead, themePart). Full
+-- screen: None stays None; its own choice wins, else whatever the wallpaper
+-- shows ("Same"). A pack's picture shows as that pack's variant for the
+-- view, chosen as the reader's own or as a pack's own.
+function M.mineWallpaper(is_full, is_dark, theme)
     local function layer(key, full_view)
-        local v = M.ownPart(own, key)
+        local v = M.themePart(theme, key)
         if M.isPackName(v) then return M.variantName(v, full_view, is_dark) end
         return (type(v) == "string" and v ~= "") and v or nil
     end
     if is_full then
-        if M.ownPart(own, "wallpaper_full") == false then return nil end
+        if M.themePart(theme, "wallpaper_full") == false then return nil end
         local n = layer("wallpaper_full", true)
         if n then return n end
     end
@@ -991,138 +958,234 @@ function M.mineWallpaper(is_full, is_dark, own)
 end
 
 -- shownWallpaper(is_full, is_dark) -> the wallpaper name the shelf on
--- screen shows in this view: Plain's none, a theme's own (full screen None
--- stays None: a view preference), else the reader's own.
+-- screen shows in this view: the reader's edit to its theme, else Plain's
+-- none, a theme's own (full screen None stays None: a view preference), else
+-- the reader's own (themePart's originals).
 function M.shownWallpaper(is_full, is_dark)
     local th = M.shelfTheme()
-    if th == M.PLAIN then return nil end
-    if th == M.OWN then return M.mineWallpaper(is_full, is_dark, current().own) end
-    local p = packOf(th)
-    local w = p and M.theme(p).wallpaper
-    if w then
-        if is_full and read("wallpaper_full") == false then return nil end
-        local file = M.wallpaperFile(w, is_full, is_dark)
-        if file then return M.NAME_PREFIX .. p .. "\1" .. file end
-    end
-    return M.mineWallpaper(is_full, is_dark)
+    if th == M.MINE then return M.mineWallpaper(is_full, is_dark) end
+    return M.mineWallpaper(is_full, is_dark, th)
 end
 
--- ── A SHELF'S OWN THEME ─────────────────────────────────────────────────
--- A shelf can own a complete theme, like My theme but for that shelf alone:
--- tab.theme = "own", the theme in tab.own_theme (maintainer, 2026-10-08).
--- Not overrides on top of another theme: every part My theme has, held by
--- the shelf.
+-- ── EDITABLE THEMES ─────────────────────────────────────────────────────
+-- Every theme can be edited, and the edits are saved with that theme, to
+-- appear wherever it does (maintainer, 2026-10-08: "you could apply macabre,
+-- edit it to change to another wallpaper, swap back to plain, then use
+-- macabre again in future on a specific shelf and it'd still have your
+-- edits, then reset it back to original"). Once per theme, not per shelf:
+-- two shelves on one theme cannot differ.
 --
---   tab.own_theme = {
---     from   = the theme it was copied from ("mine", "plain" or a pack),
---     made   = when (the clock), and rev = its edit count: with the shelf's
---              id, the cache key (ownKey), so every edit repaints,
---     keys   = { [a part's settings key] = value }: My theme's own keys
+--   theme_edits = { [a pack's folder, or "plain"] = {
+--     keys   = { [a part's settings key] = value }: the parts edited
 --              (PART_KEYS), stored as My theme stores them (the night slot
---              pre-inverted, the plank colour the exception); unset is the
---              default, never the reader's own,
---     pieces = { [ornament relpath] = true }: its switched-on ornaments, from
---              any pack or loose (ornaments are picked with the theme),
---   }
+--              pre-inverted, the plank colour the exception); UNSET is a
+--              part edited to unset: the default, never the theme's or the
+--              reader's own,
+--     pieces = { [ornament relpath] = true }: its switched-on ornaments once
+--              they are edited, from any pack or loose; nil while they are
+--              the theme's own,
+--     rev    = its edit count (lookKey),
+--   } }
 --
--- The wallpaper, the plank and the pieces are REFERENCES (a pack's picture
--- name, a plank id, a relpath), never copies of files: one that has gone
--- falls back as a missing pack's does (no wallpaper, the built-in Oak, the
--- piece skipped), and its row says so.
+-- A part resolves (themePart) as the reader's edit, else the theme's
+-- original (Plain's fixed parts, a pack's), else, for a pack without that
+-- part, My theme's. My theme IS the reader's own settings: no edits, no
+-- original. An edit that puts a part back as the theme has it is dropped, so
+-- Reset to original greys once nothing differs; resetEdits removes the
+-- theme's entry. A pack updated in place keeps its edits over the new
+-- version (Reset gives the new original); one deleted keeps them, harmless,
+-- for when it comes back. The wallpaper, the plank and the pieces are
+-- REFERENCES (a picture's name, a plank id, a relpath), never copies: one
+-- that has gone falls back as a missing pack's does, and its row says so.
 --
--- It starts as a copy of what the shelf shows when it is first chosen, part
--- by part as it resolves (ownCopy), so nothing on screen changes. Choosing
--- another theme keeps it; only Start again from... (restartOwn) and Delete
--- own theme (deleteOwn), both confirmed, replace or remove it.
---
--- THE SEAM: partRead / partSave. Every reader of a part of the reader's own
--- look that is also what the shelf paints, and every row that edits one,
--- goes through them: they answer for the shelf on screen's own theme when it
--- shows one, else for My theme's keys.
+-- THE SEAM: partRead / partSave. Every reader of a part of the look the
+-- shelf paints, and every row of the theme menu that edits one, goes through
+-- them: they answer for the theme of the shelf on screen (My theme: the
+-- reader's own keys).
+M.EDITS_SETTING = "theme_edits"
+M.UNSET = "\0nil"
 
 -- PART_KEYS: My theme's parts, as settings keys: what its menu writes
 -- (light or dark, the wallpaper rows, the plank, every colour row; each
--- colour in both slots). The ornament switches are pieces, above. Panel
--- shading, the extra wallpaper folder, the transparent shelf menu and
--- plank designs on or off are display preferences no theme touches.
+-- colour in both slots), and the part each belongs to (brings). The
+-- ornament switches are pieces, above. Panel shading, the extra wallpaper
+-- folder, the transparent shelf menu and plank designs on or off are
+-- display preferences no theme touches.
 M.PART_KEYS = {
-    [M.SHELF_SETTING]          = true,     -- light or dark
-    ["wallpaper_default"]      = true,
-    ["wallpaper_full"]         = true,
-    ["wallpaper_invert_night"] = true,
-    [M.PLANK_SETTING]          = true,
+    [M.SHELF_SETTING]          = "look",
+    ["wallpaper_default"]      = "wallpaper",
+    ["wallpaper_full"]         = "wallpaper",
+    ["wallpaper_invert_night"] = "wallpaper",
+    [M.PLANK_SETTING]          = "plank",
 }
+-- A colour key's slot: { the colours.json setting, night }.
+local COLOUR_SLOT = {}
 for _n, key in pairs(M.COLOUR_NAMES) do
-    M.PART_KEYS[key] = true
-    M.PART_KEYS[key .. "_night"] = true
+    local part = key == "wallpaper_bg" and "page" or "colours"
+    M.PART_KEYS[key] = part
+    M.PART_KEYS[key .. "_night"] = part
+    COLOUR_SLOT[key] = { key, false }
+    COLOUR_SLOT[key .. "_night"] = { key, true }
 end
-function M.isPart(key) return M.PART_KEYS[key] == true end
+function M.isPart(key) return M.PART_KEYS[key] ~= nil end
 
--- ownPart(own, key): that part's value in that own theme; own nil: the
--- reader's own (the global key).
-function M.ownPart(own, key)
-    if own == nil then return read(key) end
-    local keys = type(own) == "table" and own.keys
-    if type(keys) ~= "table" then return nil end
-    return keys[key]
+-- editsOf(theme) -> the reader's edits to that theme, or nil (none, or My
+-- theme). hasEdits(theme): Reset to original is greyed without them, and
+-- the theme's card says Edited with them.
+function M.editsOf(theme)
+    if theme == nil or theme == M.MINE then return nil end
+    local all = read(M.EDITS_SETTING)
+    local e = type(all) == "table" and all[theme] or nil
+    return type(e) == "table" and e or nil
 end
+function M.hasEdits(theme) return M.editsOf(theme) ~= nil end
 
--- shownOwn(): the own theme the shelf on screen shows (its own, or its
--- shelf of shelves'), or nil; ownerOf() the id of the shelf that owns it.
-function M.shownOwn() return current().own end
-function M.ownerOf() return current().owner end
-
--- partRead(key): a part's value in the theme the shelf on screen paints
--- and the menu edits: its own theme's, else My theme's.
-function M.partRead(key)
-    if not M.isPart(key) then return read(key) end
-    return M.ownPart(M.shownOwn(), key)
+-- editsPart(theme, part) -> has the reader edited that part of that theme
+-- (brings' parts: "colours", "page", "wallpaper", "plank", "look",
+-- "ornaments"). editsColours(e): any colour, the page's included.
+function M.editsPart(theme, part)
+    local e = M.editsOf(theme)
+    if not e then return false end
+    if part == "ornaments" then return type(e.pieces) == "table" end
+    for k in pairs(type(e.keys) == "table" and e.keys or {}) do
+        if M.PART_KEYS[k] == part then return true end
+    end
+    return false
 end
-
-local function tabModel()
-    if M._tabmodel then return M._tabmodel end
-    local ok, TM = pcall(require, "lib/bookshelf_tab_model")
-    return ok and TM or nil
-end
-
--- writeTab(id, fn): true when the shelf was found: fn(tab) changes the
--- saved shelf, which is saved (deferred while the ornament browser is open,
--- as the collection's own switches are).
-local function writeTab(id, fn)
-    local TM = tabModel()
-    if not (TM and TM.load and TM.save) or id == nil then return false end
-    local tabs = TM.load()
-    for _i, t in ipairs(tabs or {}) do
-        if t.id == id then
-            fn(t)
-            local O = M._orn or package.loaded["lib/bookshelf_ornaments"]
-            if O and O._defer and TM.saveDeferred then TM.saveDeferred(tabs) else TM.save(tabs) end
-            M._plank_memo, M._cur = nil, nil
-            return true
-        end
+function M.editsColours(e)
+    for k in pairs(type(e) == "table" and type(e.keys) == "table" and e.keys or {}) do
+        if COLOUR_SLOT[k] then return true end
     end
     return false
 end
 
--- writeOwn(id, fn): an edit to that shelf's own theme; one more rev.
-local function writeOwn(id, fn)
-    return writeTab(id, function(t)
-        local own = t.own_theme
-        if type(own) ~= "table" then return end
-        if type(own.keys) ~= "table" then own.keys = {} end
-        if type(own.pieces) ~= "table" then own.pieces = {} end
-        fn(own)
-        own.rev = (tonumber(own.rev) or 0) + 1
-    end)
+-- originalPart(theme, key) -> that part as the theme has it, unedited, in
+-- the stored convention: Plain's fixed parts (no wallpaper, the built-in
+-- Oak, the default colours; light or dark and invert the reader's), a
+-- pack's own (a colours.json lends only the colours it names; its wallpaper
+-- by name, so the full screen and dark variants come with it; full screen
+-- None is the reader's view preference, kept), else the reader's own.
+function M.originalPart(theme, key)
+    if theme == nil or theme == M.MINE then return read(key) end
+    local slot = COLOUR_SLOT[key]
+    if theme == M.PLAIN then
+        if slot or key == "wallpaper_default" or key == "wallpaper_full" then return nil end
+        if key == M.PLANK_SETTING then return "oak" end
+        return read(key)
+    end
+    local th = M.theme(theme)
+    if slot then return (th.colours and packColour(theme, slot[1], slot[2])) or read(key) end
+    if key == M.SHELF_SETTING then return (th.manifest and th.manifest.shelf) or read(key) end
+    if th.wallpaper and key == "wallpaper_default" then
+        return M.NAME_PREFIX .. theme .. "\1" .. th.wallpaper.base
+    end
+    if th.wallpaper and key == "wallpaper_full" then
+        if read(key) == false then return false end
+        return nil
+    end
+    if key == M.PLANK_SETTING and #(th.planks or {}) > 0 then
+        local pl = M.themePlank(theme)
+        return pl and pl.id or nil
+    end
+    return read(key)
+end
+
+-- themePart(theme, key) -> that part as that theme shows it: the reader's
+-- edit, else its original (nil theme: My theme's, the reader's own key).
+function M.themePart(theme, key)
+    if theme == nil or theme == M.MINE then return read(key) end
+    local e = M.editsOf(theme)
+    local keys = e and e.keys
+    if type(keys) == "table" and keys[key] ~= nil then
+        local v = keys[key]
+        if v == M.UNSET then return nil end
+        return v
+    end
+    return M.originalPart(theme, key)
+end
+
+-- partRead(key): a part's value in the theme the shelf on screen paints
+-- and the menu edits. A key that is not a part is the reader's preference.
+function M.partRead(key)
+    if not M.isPart(key) then return read(key) end
+    return M.themePart(current().theme, key)
+end
+
+-- partEdited(key) -> has the reader edited that part of the theme on
+-- screen (a row names a reference that has gone as "(missing)").
+function M.partEdited(key)
+    local e = current().e
+    return e ~= nil and type(e.keys) == "table" and e.keys[key] ~= nil
+end
+
+local function same(a, b)
+    if a == b then return true end
+    if type(a) ~= "table" or type(b) ~= "table" then return false end
+    for k, v in pairs(a) do if b[k] ~= v then return false end end
+    for k, v in pairs(b) do if a[k] ~= v then return false end end
+    return true
+end
+
+-- originalPieces(theme) -> { [relpath] = true }: what that theme deals
+-- unedited: none on Plain, a pack's own pieces, else (a pack without any)
+-- the collection's switched-on set. Shared: copy before changing it. Once
+-- per list, not per piece the browser asks about.
+M._orig = {}
+local function originalPieces(theme)
+    if theme == M.PLAIN then return {} end
+    local O = orn()
+    local list = M.hasPieces(theme) and O.listFor(theme) or O.list()
+    local hit = M._orig[theme]
+    if hit and hit.list == list then return hit.set end
+    local set = {}
+    for _i, e in ipairs(list or {}) do set[e.name] = true end
+    M._orig[theme] = { list = list, set = set }
+    return set
+end
+
+-- writeEdits(theme, fn): fn(e) edits that theme's entry (a copy: the stored
+-- one is replaced whole, never changed in place); parts and pieces put back
+-- as the theme has them are dropped, an entry left with nothing goes. One
+-- settings write, which bumps the generation, so every memo moves (deferred
+-- while the ornament browser is open, as the collection's switches are).
+local function writeEdits(theme, fn)
+    if theme == nil or theme == M.MINE then return end
+    local all = read(M.EDITS_SETTING)
+    local out = {}
+    if type(all) == "table" then for k, v in pairs(all) do out[k] = v end end
+    local old = type(out[theme]) == "table" and out[theme] or {}
+    -- pieces keeps its table unless fn replaces it: the pool keys on it, and
+    -- a colour edit must not re-deal the pages' ornaments.
+    local e = { keys = {}, pieces = old.pieces }
+    if type(old.keys) == "table" then for k, v in pairs(old.keys) do e.keys[k] = v end end
+    fn(e)
+    for k, v in pairs(e.keys) do
+        local val = v
+        if val == M.UNSET then val = nil end
+        if same(val, M.originalPart(theme, k)) then e.keys[k] = nil end
+    end
+    if type(e.pieces) == "table" and e.pieces ~= old.pieces and same(e.pieces, originalPieces(theme)) then
+        e.pieces = nil
+    end
+    if next(e.keys) == nil and type(e.pieces) ~= "table" then
+        out[theme] = nil
+    else
+        e.rev = (tonumber(old.rev) or 0) + 1
+        out[theme] = e
+    end
+    save(M.EDITS_SETTING, next(out) ~= nil and out or nil)
+    M._plank_memo, M._cur = nil, nil
 end
 
 -- partSave(key, v): a part edited, in the theme the menu edits (as
--- partRead). A key that is not a part is the reader's preference: saved
--- as it always was.
+-- partRead): My theme's key, else that theme's edits. A key that is not a
+-- part is the reader's preference: saved as it always was.
 function M.partSave(key, v)
-    local id = M.ownerOf()
-    if id and M.isPart(key) then
-        writeOwn(id, function(own) own.keys[key] = v end)
+    local th = M.shelfTheme()
+    if th ~= M.MINE and M.isPart(key) then
+        writeEdits(th, function(e)
+            if v == nil then e.keys[key] = M.UNSET else e.keys[key] = v end
+        end)
         return
     end
     save(key, v)
@@ -1130,15 +1193,15 @@ end
 function M.partDelete(key) M.partSave(key, nil) end
 
 -- partClear(keys): those parts back to the default, both slots, in one
--- write (Reset to default colors). In an own theme only its parts: a
--- preference listed with them stays as the reader set it.
+-- write (Reset to default colors). In a theme only its parts: a preference
+-- listed with them stays as the reader set it.
 function M.partClear(keys)
-    local id = M.ownerOf()
-    if id then
-        writeOwn(id, function(own)
+    local th = M.shelfTheme()
+    if th ~= M.MINE then
+        writeEdits(th, function(e)
             for _i, k in ipairs(keys) do
-                if M.isPart(k) then own.keys[k] = nil end
-                if M.isPart(k .. "_night") then own.keys[k .. "_night"] = nil end
+                if M.isPart(k) then e.keys[k] = M.UNSET end
+                if M.isPart(k .. "_night") then e.keys[k .. "_night"] = M.UNSET end
             end
         end)
         return
@@ -1146,171 +1209,72 @@ function M.partClear(keys)
     for _i, k in ipairs(keys) do save(k, nil); save(k .. "_night", nil) end
 end
 
--- ownKey(id, own): a cache key for that shelf's own theme as it is now.
-function M.ownKey(id, own)
-    own = type(own) == "table" and own or {}
-    return "own:" .. tostring(id) .. ":" .. tostring(own.made) .. ":" .. tostring(own.rev)
+-- resetEdits(theme): Reset to original (confirmed by the caller): that
+-- theme's edits gone, wherever it shows. true when it had some.
+function M.resetEdits(theme)
+    local all = read(M.EDITS_SETTING)
+    if type(all) ~= "table" or all[theme] == nil then return false end
+    local out = {}
+    for k, v in pairs(all) do if k ~= theme then out[k] = v end end
+    save(M.EDITS_SETTING, next(out) ~= nil and out or nil)
+    M._plank_memo, M._cur = nil, nil
+    return true
 end
 
--- ownPool(tab): what a shelf showing that tab's own theme deals from
--- (bookshelf_ornaments.listFor): { key, on = its switched-on pieces }. The
--- same table while the own theme is unchanged: the deck and the plan key on
--- what listFor hands back.
-M._pools = {}
-function M.ownPool(tab)
-    local own = tab and tab.own_theme
-    local key = M.ownKey(tab and tab.id, own)
-    local hit = M._pools[tab and tab.id or false]
-    if hit and hit.key == key and hit.src == own then return hit.v end
-    local v = { own = true, key = key, on = (type(own) == "table" and type(own.pieces) == "table") and own.pieces or {} }
-    M._pools[tab and tab.id or false] = { key = key, src = own, v = v }
+-- editPoolOf(theme, e): what a shelf showing a theme with edited ornaments
+-- deals from (bookshelf_ornaments.listFor): { slot, key, on = its
+-- switched-on pieces }. The same table while the pieces are unchanged: the
+-- deck and the plan key on what listFor hands back.
+M._pools, M._pool_n = {}, 0
+function M.editPoolOf(theme, e)
+    local hit = M._pools[theme]
+    if hit and hit.src == e.pieces then return hit.v end
+    M._pool_n = M._pool_n + 1
+    local slot = "edit:" .. tostring(theme)
+    local v = { edit = theme, slot = slot, key = slot .. ":" .. M._pool_n, on = e.pieces }
+    M._pools[theme] = { src = e.pieces, v = v }
     return v
 end
 
--- editPool(): the pool of the theme the menu edits: the shelf on screen's
--- own theme's, else My theme's ("mine").
-function M.editPool()
-    local c = current()
-    if c.own then return M.ownPool({ id = c.owner, own_theme = c.own }) end
-    return M.MINE
-end
+-- editPool(): the pool of the theme the menu edits (the Ornaments row's
+-- count).
+function M.editPool() return M.poolOf(M.shelfTheme()) end
 
 -- switches(): the ornament on/off switches the editors (the ornament
--- browser, a piece's own menu) read and write: the shelf on screen's own
--- theme's pieces when it shows one, else the collection's. An own theme has
--- no pack switches: a pack is only pieces to it.
+-- browser, a piece's own menu) read and write: the collection's on a My
+-- theme shelf, else the theme on screen's set. Editing a theme's ornaments
+-- may switch on any installed piece, from any pack or loose (spec,
+-- 2026-10-08); a theme has no pack switches: a pack is only pieces to it.
 function M.switches()
-    local id = M.ownerOf()
-    if id then
-        local function on(name)
-            local own = M.shownOwn()
-            return type(own) == "table" and type(own.pieces) == "table" and own.pieces[name] == true
-        end
-        return {
-            own = true,
-            isOff = function(name) return not on(name) end,
-            isPackOff = function() return false end,
-            setOff = function(name, off)
-                writeOwn(id, function(own) own.pieces[name] = (not off) or nil end)
-            end,
-            setPackOff = function() end,
-        }
-    end
-    local O = orn()
-    return { isOff = O.isOff, isPackOff = O.isPackOff, setOff = O.setOff, setPackOff = O.setPackOff }
-end
-
-local function copyValue(v)
-    if type(v) ~= "table" then return v end
-    local out = {}
-    for k, x in pairs(v) do out[k] = x end
-    return out
-end
-
--- ownCopy(theme): a new own theme holding what `theme` ("mine", "plain"
--- or a pack) shows, part by part as it resolves: a pack's parts where it has
--- them, the reader's own where it does not (a pack's colours.json lends only
--- the colours it names), Plain's fixed parts. Nothing on screen changes when
--- a shelf moves onto the copy.
-function M.ownCopy(theme)
-    theme = normalise(theme) or M.MINE
-    if theme == M.OWN then theme = M.MINE end
-    local plain = theme == M.PLAIN
-    local p = packOf(theme)
-    local th = p and M.theme(p) or nil
-    if th and not th.exists then p, th = nil, nil end
-    local keys = {}
-    -- Colours, both slots, in the stored convention (packColour).
-    for _n, key in pairs(M.COLOUR_NAMES) do
-        for _i, dark in ipairs({ false, true }) do
-            local k = key .. (dark and "_night" or "")
-            if not plain then
-                keys[k] = (th and th.colours and packColour(p, key, dark)) or copyValue(read(k))
-            end
-        end
-    end
-    -- Light or dark: a theme.json's, else the reader's (Plain follows it).
-    keys[M.SHELF_SETTING] = (th and th.manifest and th.manifest.shelf) or read(M.SHELF_SETTING)
-    -- The wallpaper. A pack's goes by its name, so its full screen and dark
-    -- variants come with it; full screen None is the reader's view
-    -- preference, kept.
-    if th and th.wallpaper then
-        keys.wallpaper_default = M.NAME_PREFIX .. p .. "\1" .. th.wallpaper.base
-        if read("wallpaper_full") == false then keys.wallpaper_full = false end
-    elseif not plain then
-        keys.wallpaper_default = read("wallpaper_default")
-        keys.wallpaper_full = read("wallpaper_full")
-    end
-    keys.wallpaper_invert_night = read("wallpaper_invert_night")
-    -- The plank: Plain's Oak, a theme's plank, else the reader's choice.
-    local plank
-    if plain then plank = "oak"
-    elseif th and #(th.planks or {}) > 0 then plank = M.themePlank(p).id
-    else plank = M.plankChoiceIn(nil) end
-    if plank == "colour" then plank = false end
-    keys[M.PLANK_SETTING] = plank
-    -- The pieces it deals: none on Plain, a theme's own, else the
-    -- collection's switched-on set.
-    local pieces = {}
-    if not plain then
+    local th = M.shelfTheme()
+    if th == M.MINE then
         local O = orn()
-        local list
-        if p and M.hasPieces(p) then list = O.listFor(p) else list = O.list() end
-        for _i, e in ipairs(list or {}) do pieces[e.name] = true end
+        return { isOff = O.isOff, isPackOff = O.isPackOff, setOff = O.setOff, setPackOff = O.setPackOff }
     end
-    return { from = theme, made = M._clock(), rev = 1, keys = keys, pieces = pieces }
-end
-
--- ensureOwn(tab, showing): the first choice of Own theme for a shelf with
--- none makes it, a copy of what the shelf shows (`showing`); a shelf that
--- has one keeps it, exactly as it was left.
-function M.ensureOwn(tab, showing)
-    if type(tab) ~= "table" or type(tab.own_theme) == "table" then return end
-    tab.own_theme = M.ownCopy(showing)
-    M._plank_memo, M._cur = nil, nil
-end
-
--- restartOwn(id, theme): Start again from...: that shelf's own theme
--- replaced by a copy of `theme` (confirmed by the caller).
-function M.restartOwn(id, theme)
-    local fresh = M.ownCopy(theme)
-    return writeOwn(id, function(own)
-        local rev = own.rev
-        for k in pairs(own) do own[k] = nil end
-        for k, v in pairs(fresh) do own[k] = v end
-        own.rev = rev
-    end)
-end
-
--- deleteOwn(id): Delete own theme (confirmed by the caller): gone, and the
--- shelf back to the same theme as the library.
-function M.deleteOwn(id)
-    return writeTab(id, function(t)
-        t.own_theme = nil
-        if normalise(t.theme) == M.OWN then t.theme = nil end
-    end)
-end
-
--- resolveChoice(choice, tab): the theme a shelf whose own choice is
--- `choice` shows ("own" only when the tab has one; a top-level shelf).
-function M.resolveChoice(choice, tab)
-    choice = normalise(choice)
-    if choice == M.OWN then
-        if type(tab) == "table" and type(tab.own_theme) == "table" then return M.OWN end
-        choice = nil
+    local function on()
+        local e = M.editsOf(th)
+        if e and type(e.pieces) == "table" then return e.pieces end
+        return originalPieces(th)
     end
-    return usable(choice) or M.libraryTheme()
+    return {
+        theme = th,
+        isOff = function(name) return not on()[name] end,
+        isPackOff = function() return false end,
+        setOff = function(name, off)
+            writeEdits(th, function(e)
+                local p = {}
+                for k, v in pairs(type(e.pieces) == "table" and e.pieces or originalPieces(th)) do p[k] = v end
+                p[name] = (not off) or nil
+                e.pieces = p
+            end)
+        end,
+        setPackOff = function() end,
+    }
 end
 
--- editName(): what the menu that edits the reader's own look is called
--- now: My theme, or "Own theme: Manga" while the shelf on screen shows its
--- own theme (the rows edit that, maintainer 2026-10-08).
-function M.editName()
-    local id = M.ownerOf()
-    if not id then return M.mineName() end
-    local tab = tabFor(id)
-    return T(_("Own theme: %1"), (tab and tab.label) or id)
-end
+-- editName(): what the menu that edits the look is called now: the theme of
+-- the shelf on screen, which its rows edit (My theme, Plain, Macabre).
+function M.editName() return M.themeName(M.shelfTheme()) end
 
 -- ── MIGRATION (once, at start-up) ───────────────────────────────────────
 -- 5.3 and the rc/5.4 builds APPLIED a theme: choosing one wrote its parts
@@ -1328,9 +1292,16 @@ end
 --      was not showing (its pack off or gone), the reader's own picture from
 --      before it (_own) takes its place. _own goes.
 --   4. rc/5.4 tabs: theme "none" -> "mine", theme_look dropped.
--- Idempotent, and guarded by a version so it runs once.
+-- Version 2 (editable themes, 2026-10-08):
+--   5. 5.3 switched single pack pieces off in the collection (ornaments_off)
+--      and a shelf wearing that pack did not deal them. A pack deals its own
+--      set now, edited with the theme: each pack's off switches become that
+--      pack's edit, so nothing on screen changes. ornaments_off stays as it
+--      is: it is My theme's set, which deals pack pieces too.
+--   6. The unreleased own theme: tab.own_theme dropped, theme "own" unset.
+-- Idempotent, and guarded by a version so each step runs once.
 M.MIGRATION_SETTING = "theme_model"
-M.MIGRATION_VERSION = 1
+M.MIGRATION_VERSION = 2
 M.APPLIED_SETTING   = "theme_applied"
 M.COLOURS_SETTING   = "theme_colours_pack"
 M._tabmodel = nil   -- seam: the tab model ({ load, save })
@@ -1405,12 +1376,14 @@ local function migrateWallpaper(key)
     end
 end
 
+local function tabModel()
+    if M._tabmodel then return M._tabmodel end
+    local ok, TM = pcall(require, "lib/bookshelf_tab_model")
+    return ok and TM or nil
+end
+
 local function migrateTabs()
-    local TabModel = M._tabmodel
-    if not TabModel then
-        local ok, TM = pcall(require, "lib/bookshelf_tab_model")
-        TabModel = ok and TM or nil
-    end
+    local TabModel = tabModel()
     if not (TabModel and TabModel.load and TabModel.save) then return end
     local tabs = TabModel.load()
     local changed = false
@@ -1423,26 +1396,66 @@ local function migrateTabs()
     if changed then TabModel.save(tabs) end
 end
 
+local function migratePieceSwitches()
+    local O = orn()
+    local all = O.listAll() or {}
+    local packs = {}
+    for _i, e in ipairs(all) do
+        if e.pack and not M.isReserved(e.pack) and O.isOff(e.name) then packs[e.pack] = true end
+    end
+    for pack in pairs(packs) do
+        local had = M.editsOf(pack)
+        if not (had and type(had.pieces) == "table") then
+            writeEdits(pack, function(ed)
+                local p = {}
+                for _i, e in ipairs(all) do
+                    if e.pack == pack and not O.isOff(e.name) then p[e.name] = true end
+                end
+                ed.pieces = p
+            end)
+        end
+    end
+end
+
+local function migrateOwnThemes()
+    local TabModel = tabModel()
+    if not (TabModel and TabModel.load and TabModel.save) then return end
+    local tabs = TabModel.load()
+    local changed = false
+    for _i, t in ipairs(tabs or {}) do
+        if t.own_theme ~= nil then t.own_theme = nil; changed = true end
+        if t.theme == "own" then t.theme = nil; changed = true end
+    end
+    if changed then TabModel.save(tabs) end
+end
+
 function M.migrate()
     local v = read(M.MIGRATION_SETTING)
     if type(v) == "number" and v >= M.MIGRATION_VERSION then return end
+    local from = type(v) == "number" and v or 0
     local O = orn()
     local own_defer = O.beginDeferred ~= nil and not O._defer
     if own_defer then O.beginDeferred() end
     local ok, err = pcall(function()
-        -- The 5.3 betas "lent" a pack's wallpaper (theme_wallpaper_pack).
-        local beta = read("theme_wallpaper_pack")
-        if beta ~= nil then
-            save("theme_wallpaper_pack", nil)
-            for _i, e in ipairs(M.wallpaperEntries()) do
-                if e.pack == beta then save("wallpaper_default", e.name) end
+        if from < 1 then
+            -- The 5.3 betas "lent" a pack's wallpaper (theme_wallpaper_pack).
+            local beta = read("theme_wallpaper_pack")
+            if beta ~= nil then
+                save("theme_wallpaper_pack", nil)
+                for _i, e in ipairs(M.wallpaperEntries()) do
+                    if e.pack == beta then save("wallpaper_default", e.name) end
+                end
             end
+            migrateApplied()
+            migrateColours()
+            migrateWallpaper("wallpaper_default")
+            migrateWallpaper("wallpaper_full")
+            migrateTabs()
         end
-        migrateApplied()
-        migrateColours()
-        migrateWallpaper("wallpaper_default")
-        migrateWallpaper("wallpaper_full")
-        migrateTabs()
+        if from < 2 then
+            migratePieceSwitches()
+            migrateOwnThemes()
+        end
     end)
     if own_defer then O.endDeferred() end
     if not ok then

@@ -364,17 +364,49 @@ end)
 
 t.test("a card's hero is the ornaments' own cached render, through the collection's preview", function()
     local src = io.open("lib/bookshelf_theme_library.lua"):read("*a")
-    local card = src:match("\nfunction TL%._renderCard%(item, dimen, current%)\n(.-)\nend\n")
+    local card = src:match("\nfunction TL%._renderCard%(item, dimen, current, all%)\n(.-)\nend\n")
     assert(card, "_renderCard moved")
     assert(card:find('require("lib/bookshelf_ornament_browser").preview(e, hero_w, inner_h)', 1, true),
         "the hero is not drawn as the collection draws a piece")
-    assert(card:find("TL.hero(item.shows)", 1, true), "the card's hero is not its theme's")
+    assert(card:find("TL.hero(item.shows, all)", 1, true), "the card's hero is not its theme's")
     local ob = io.open("lib/bookshelf_ornament_browser.lua"):read("*a")
     local prev = ob:match("\nfunction Browser%.preview%(e, box_w, box_h%)\n(.-)\nend\n")
     assert(prev and prev:find("night = Screen.night_mode", 1, true), "the preview is not drawn for night mode")
     local crop = ob:match("\nfunction Cropped:paintTo%(bb, x, y%)\n(.-)\nend\n")
     assert(crop and crop:find("O().render(p.entry, p.w, p.h, self.night)", 1, true),
         "the preview does not use the ornaments' cached renderer")
+end)
+
+t.test("the ornaments are scanned once per open, not per card, page or tap", function()
+    -- Measured on a PW5, 2026-10-08: listAll walks every ornament folder
+    -- (~28ms) before answering from its cache, and the cards asked it 18
+    -- times for each open and again for each tap.
+    library = "mine"
+    local scans_seen = {}
+    local choices0, shelf0 = TP.choices, TP.shelfChoices
+    TP.choices = function(scan) scans_seen[#scans_seen + 1] = scan; return choices0() end
+    TP.shelfChoices = function(cur, scan) scans_seen[#scans_seen + 1] = scan; return shelf0(cur) end
+    local render0 = TL._renderCard
+    -- The card as the picker paints it, its widgets aside: the hero asked of
+    -- the scan it is handed.
+    TL._renderCard = function(item, _dimen, _current, all) return TL.hero(item.shows, all) end
+    listAll_calls = 0
+    local _m, c = open{ current = function() return library end, choose = function(v) library = v end }
+    for i = 1, c.item_count() do TL._hero_cache = {}; c.cell_renderer(c.item_at(i), {}) end
+    c.on_cell_tap(c.item_at(3)); c.on_cell_tap(c.item_at(4))
+    for i = 1, c.item_count() do TL._hero_cache = {}; c.cell_renderer(c.item_at(i), {}) end
+    eq(listAll_calls, 1, "the ornaments were scanned again by a card, a page or a tap")
+    eq(#scans_seen >= 3 and scans_seen[1] ~= nil and scans_seen[1] == scans_seen[#scans_seen], true,
+        "the theme list is not handed the picker's scan")
+    listAll_calls = 0
+    local _m2, c2 = open{ shelf = "Home", current = function() return nil end, choose = function() end }
+    eq(listAll_calls, 1, "a shelf's picker scanned more than once")
+    eq(c2.item_at(1).same, true)
+    -- Listed on its own (no picker), the cards share one scan.
+    listAll_calls = 0
+    TL.items{ current = "mine" }
+    eq(listAll_calls, 1, "items() scanned per card")
+    TP.choices, TP.shelfChoices, TL._renderCard = choices0, shelf0, render0
 end)
 
 t.test("the choice in use is a heavier frame on a light ground, not a radio mark", function()

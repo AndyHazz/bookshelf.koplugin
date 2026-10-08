@@ -474,6 +474,28 @@ t.test("allThemes lists theme packs by name, switched-off ones too", function()
     eq(list[2].pack, "Ukiyo-e"); eq(list[2].name, "Ukiyo-e")
 end)
 
+t.test("allThemes and the choices read a scan the caller holds instead of scanning again", function()
+    -- The Theme library takes one ornament scan per open (listAll walks
+    -- every folder, ~28ms on a PW5) and hands it down.
+    local TP, d = setup()
+    mkmanifest(d, "Real")
+    TP.invalidate()
+    local n = 0
+    local list0 = TP._orn.listAll
+    TP._orn.listAll = function() n = n + 1; return list0() end
+    local scan = { all = { { pack = "Held", name = "Held/a.png" } }, packs = { "Held" } }
+    local list = TP.allThemes(scan)
+    eq(n, 0, "allThemes scanned though handed a scan")
+    eq(#list, 1); eq(list[1].pack, "Held")
+    local ch = TP.choices(scan)
+    eq(ch[#ch].value, "Held", "choices did not pass the scan on")
+    local sc = TP.shelfChoices(nil, scan)
+    eq(sc[#sc].value, "Held", "shelfChoices did not pass the scan on")
+    eq(n, 0, "the choices scanned though handed a scan")
+    eq(TP.allThemes()[1].pack, "Real", "without a scan, allThemes no longer scans")
+    eq(n, 1)
+end)
+
 t.test("rescan drops the theme folders' cache, not the ornaments list's", function()
     local TP = setup()
     local n = 0

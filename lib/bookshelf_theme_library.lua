@@ -37,12 +37,24 @@ local function O() return TL._orn or require("lib/bookshelf_ornaments") end
 -- Between the parts of a summary: a middle dot, not part of any msgid.
 TL.SEP = " \xC2\xB7 "
 
--- pieces(pack) -> how many ornaments the pack holds, counted from the
--- ornament scan once per scan (listAll hands back the same table while
--- nothing on disk changed).
+-- scan() -> { all, packs }: the ornament scan, taken ONCE per picker open
+-- (show) or per items() and handed down to every card. listAll walks every
+-- ornament folder before it can answer from its cache (~28ms on a PW5), and
+-- asked per card part it was 18 walks for each open and each tap (measured
+-- 2026-10-08). The picker holds it for its life: nothing it does adds or
+-- removes a piece, and the next open (after the Theme menu's rescan) sees
+-- what was copied in meanwhile.
+function TL.scan()
+    local all, packs = O().listAll()
+    return { all = all or {}, packs = packs or {} }
+end
+
+-- pieces(pack, all) -> how many ornaments the pack holds, counted from the
+-- ornament scan (all: the one the caller holds, else a scan now) once per
+-- scan (listAll hands back the same table while nothing on disk changed).
 local _counted_from, _counts
-function TL.pieces(pack)
-    local all = O().listAll() or {}
+function TL.pieces(pack, all)
+    all = all or O().listAll() or {}
     if _counted_from ~= all then
         local c = {}
         for _i, e in ipairs(all) do
@@ -68,8 +80,9 @@ end
 -- that shelf choosing it changes nothing to be seen (maintainer, 2026-10-08:
 -- Autumn on a Covers shelf). Not for a theme with other parts: those show.
 -- A pack or Plain the reader has edited says Edited first: its edits show
--- wherever it does, until it is reset (spec, 2026-10-08).
-function TL.summary(theme, spines)
+-- wherever it does, until it is reset (spec, 2026-10-08). all: the ornament
+-- scan the caller holds (pieces).
+function TL.summary(theme, spines, all)
     local tp = TP()
     local parts = {}
     local function add(s) parts[#parts + 1] = s end
@@ -91,7 +104,7 @@ function TL.summary(theme, spines)
         if np == 1 then add(_("Plank")) elseif np > 1 then add(T(_("%1 planks"), np)) end
         if th.colours then add(_("Colors")) end
         local others = #parts - first
-        local n = TL.pieces(theme)
+        local n = TL.pieces(theme, all)
         if n > 0 then add(ornamentsPart(n)) end
         local shelf = th.manifest and th.manifest.shelf
         if shelf == "dark" then add(_("Dark")) elseif shelf == "light" then add(_("Light")) end
@@ -133,15 +146,15 @@ end
 -- Plain whose ornaments the reader has edited, those not in its edited set
 -- (bookshelf_theme_pack EDITABLE THEMES). Cached per theme while the scan
 -- and the switches are unchanged, so the files are stat'ed once, not per
--- paint.
+-- paint. all: the ornament scan the picker holds (else a scan now).
 TL._hero_cache = {}
-function TL.hero(theme)
+function TL.hero(theme, all)
     local tp, orn = TP(), O()
     local mine = (theme == nil or theme == tp.MINE)
     local ed = (not mine) and tp.editsOf and tp.editsOf(theme) or nil
     local set = ed and type(ed.pieces) == "table" and ed.pieces or nil
     if theme == tp.PLAIN and not set then return nil end
-    local all = orn.listAll() or {}
+    all = all or orn.listAll() or {}
     local pool = mine and (orn.list() or {}) or all
     local key = tostring(theme) .. "|" .. tostring(all) .. "|" .. tostring(orn.list()) .. "|" .. tostring(set)
     local hit = TL._hero_cache[key]
@@ -177,21 +190,23 @@ end
 -- items(ctx) -> the cards, in menu order. ctx.shelf: a shelf's picker (Same
 -- as library first); ctx.current: the choice in use (a missing pack still
 -- chosen is listed, marked, and cannot be chosen again); ctx.spines: is the
--- shelf it is for on Spines (summary).
+-- shelf it is for on Spines (summary); ctx.scan: the picker's ornament scan
+-- (TL.scan; else one is taken here, once for every card).
 --   { value, same, missing, title, shows, summary, description }
 -- shows: the theme the card stands for (Same as library: the library's).
 function TL.items(ctx)
     local tp = TP()
+    local scan = ctx.scan or TL.scan()
     local list
     if ctx.shelf then
-        list = tp.shelfChoices(ctx.current)
+        list = tp.shelfChoices(ctx.current, scan)
     else
         list = {}
         local cur = ctx.current
         if tp.packOf(cur) and not tp.theme(cur).exists then
             list[1] = { value = cur, missing = true }
         end
-        for _i, c in ipairs(tp.choices()) do list[#list + 1] = c end
+        for _i, c in ipairs(tp.choices(scan)) do list[#list + 1] = c end
     end
     local out = {}
     for _i, c in ipairs(list) do
@@ -208,7 +223,7 @@ function TL.items(ctx)
             it.shows = c.value
         end
         if not it.missing then
-            it.summary = TL.summary(it.shows, ctx.spines)
+            it.summary = TL.summary(it.shows, ctx.spines, scan.all)
             if c.same then
                 local follows = T(_("Follows the library: %1"), tp.themeName(it.shows))
                 it.summary = it.summary and (follows .. TL.SEP .. it.summary) or follows
@@ -267,11 +282,12 @@ function TL.areaHeight()
     return TL.PER_PAGE * TL.cardHeight() + (TL.PER_PAGE - 1) * gap()
 end
 
--- _renderCard(item, dimen, current) -> the card: the name, the summary, the
--- description (if there is room), the hero on the right. The choice in use is
--- a heavier frame on a light ground (maintainer, 2026-10-07: no radio mark,
--- it did not look good on a card).
-function TL._renderCard(item, dimen, current)
+-- _renderCard(item, dimen, current, all) -> the card: the name, the summary,
+-- the description (if there is room), the hero on the right (all: the
+-- picker's ornament scan, TL.hero). The choice in use is a heavier frame on
+-- a light ground (maintainer, 2026-10-07: no radio mark, it did not look
+-- good on a card).
+function TL._renderCard(item, dimen, current, all)
     local Blitbuffer      = require("ffi/blitbuffer")
     local CenterContainer = require("ui/widget/container/centercontainer")
     local Font            = require("ui/font")
@@ -313,7 +329,7 @@ function TL._renderCard(item, dimen, current)
     line(item.title, 18, ink, true)
     line(item.summary, 14, ink)
     line(item.description, 13, Blitbuffer.COLOR_DARK_GRAY)
-    local e = (not item.missing) and TL.hero(item.shows) or nil
+    local e = (not item.missing) and TL.hero(item.shows, all) or nil
     local hero = e and require("lib/bookshelf_ornament_browser").preview(e, hero_w, inner_h)
     return FrameContainer:new{
         bordersize = border, radius = Space.radius.default, margin = 0,
@@ -353,7 +369,12 @@ function TL.show(opts)
     local self = {}
     -- Asked once: the shelf behind keeps its style while the picker is open.
     local spines = TL.spinesShown()
-    local function load() self.items = TL.items{ shelf = opts.shelf, current = opts.current(), spines = spines } end
+    -- The ornaments, scanned once for the picker's life (TL.scan): every
+    -- card, every page and every tap's relisting read this one.
+    local scan = TL.scan()
+    local function load()
+        self.items = TL.items{ shelf = opts.shelf, current = opts.current(), spines = spines, scan = scan }
+    end
     load()
     local modal
     local function close() if modal then UIManager:close(modal) end end
@@ -374,7 +395,7 @@ function TL.show(opts)
         cells_per_page = function() return TL.PER_PAGE end,
         area_height = TL.areaHeight,
         cell_renderer = function(item, dimen)
-            return TL._renderCard(item, dimen, TL.isCurrent(item, opts.current()))
+            return TL._renderCard(item, dimen, TL.isCurrent(item, opts.current()), scan.all)
         end,
         on_cell_tap = function(item)
             if item.missing or TL.isCurrent(item, opts.current()) then return end

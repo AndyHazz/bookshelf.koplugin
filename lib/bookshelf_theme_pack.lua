@@ -327,16 +327,17 @@ function M.themeName(choice)
     return M.displayName(choice)
 end
 
--- choices() -> what a library or a shelf can wear, in the Theme library's
+-- choices(scan) -> what a library or a shelf can wear, in the Theme library's
 -- order: the reader's own, Plain, then every theme by name ({ value, label }). What
 -- each brings is the Theme library's card (bookshelf_theme_library), so a
--- pack of ornaments only says "27 ornaments" there, not in its name.
-function M.choices()
+-- pack of ornaments only says "27 ornaments" there, not in its name. scan
+-- (optional): the ornament scan the caller already holds (allThemes).
+function M.choices(scan)
     local out = {
         { value = M.MINE, label = M.mineName() },
         { value = M.PLAIN, label = M.plainName() },
     }
-    for _i, th in ipairs(M.allThemes()) do
+    for _i, th in ipairs(M.allThemes(scan)) do
         out[#out + 1] = { value = th.pack, label = th.name }
     end
     return out
@@ -346,14 +347,14 @@ end
 -- ({ same = true }), a missing pack the shelf still names (cur), the
 -- reader's own, Plain, every theme. The Theme library's list for a shelf
 -- (the Theme menu's shelf rows, My theme's "This shelf" row, Shelf style's
--- Theme row).
-function M.shelfChoices(cur)
+-- Theme row). scan: as choices.
+function M.shelfChoices(cur, scan)
     local out = { { same = true, label = _("Same as library") } }
     cur = normalise(cur)
     if packOf(cur) and not M.theme(cur).exists then
         out[#out + 1] = { value = cur, label = M.themeName(cur), missing = true }
     end
-    for _i, c in ipairs(M.choices()) do out[#out + 1] = c end
+    for _i, c in ipairs(M.choices(scan)) do out[#out + 1] = c end
     return out
 end
 
@@ -609,8 +610,12 @@ end
 -- the collection's switches shape the reader's own ornaments, not themes. A
 -- pack with neither a theme.json nor an ornament (a pack of planks) is not a
 -- theme: its planks are in the plank picker (maintainer, 2026-10-04).
-function M.allThemes()
-    local all, packs = orn().listAll()
+-- scan (optional): { all, packs }, the ornament scan the caller holds (the
+-- Theme library takes one per open): listAll walks every folder each time
+-- it is asked, ~28ms on a PW5.
+function M.allThemes(scan)
+    local all, packs
+    if scan then all, packs = scan.all, scan.packs else all, packs = orn().listAll() end
     local has_piece = {}
     for _i, e in ipairs(all or {}) do
         if e.pack then has_piece[e.pack] = true end

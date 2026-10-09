@@ -312,14 +312,14 @@ function TL.showReset(item, after)
 end
 
 -- ── The picker ──────────────────────────────────────────────────────────
--- Three cards a page, the picker no taller than they need and centred, so
+-- Four cards a page, the picker no taller than they need and centred, so
 -- more of the shelf is seen around it (maintainer, 2026-10-07: "shorter so
--- we can see more behind").
-TL.PER_PAGE = 3
+-- we can see more behind", then three; 2026-10-09: four).
+TL.PER_PAGE = 4
 
 -- A card's height: what it was when the picker filled about half the screen
 -- (SHARE) with a card to every ~CARD_DP, sized by share of the screen as the
--- plank picker is, so it is the same shape at every DPI; three of them now
+-- plank picker is, so it is the same shape at every DPI; PER_PAGE of them
 -- make the picker's whole height.
 TL.SHARE, TL.CARD_DP = 0.55, 84
 

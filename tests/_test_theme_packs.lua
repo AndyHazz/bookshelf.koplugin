@@ -413,11 +413,18 @@ t.test("the shelf maps a pack wallpaper to its variant", function()
     local b = w:match("function BookshelfWidget:_wallpaperName%(%)(.-)\nend\n")
     assert(b and b:find("TP.shownWallpaper(full,", 1, true), "the shelf does not ask shownWallpaper")
     assert(w:find("TP.isDarkName(", 1, true), "_wallpaperWidget does not skip the invert for a dark variant")
-    assert(w:find('bookshelf_theme_pack").migrate()', 1, true), "the shelf does not migrate")
+    -- Migrated ONCE, at plugin init: the shelf is only ever made by the
+    -- plugin (Bookshelf:show), after its init, and a menu can open before
+    -- the shelf does.
+    assert(not w:find('bookshelf_theme_pack").migrate()', 1, true), "the shelf migrates a second time")
     local main = io.open("main.lua"):read("*a")
     local init = main:match("\nfunction Bookshelf:init%(%)(.-)\nend\n")
-    assert(init and init:find('bookshelf_theme_pack").migrate()', 1, true),
-        "the plugin does not migrate at init (a menu can open before the shelf)")
+    local at = init and init:find('bookshelf_theme_pack").migrate()', 1, true)
+    assert(at, "the plugin does not migrate at init")
+    eq(init:find('require("lib/bookshelf_theme_pack")', 1, true), at - #'require("lib/',
+        "the plugin's init reads the themes before migrating them")
+    local _n, calls = main:gsub('bookshelf_theme_pack"%)%.migrate%(%)', "")
+    eq(calls, 1, "main.lua migrates in more than one place")
     local wp = io.open("lib/bookshelf_wallpaper.lua"):read("*a")
     assert(wp:find("wallpaperPath(", 1, true), "pathFor does not resolve theme names")
 end)

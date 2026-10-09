@@ -251,13 +251,6 @@ function BookshelfWidget:init()
     self.width  = Screen:getWidth()
     self.height = Screen:getHeight()
     self.dimen  = Geom:new{ w = self.width, h = self.height }
-    -- Themes as layers (5.4): the old applied-theme record is migrated,
-    -- once (main.lua does it at plugin init too; a guard key makes the second
-    -- call free).
-    if not BookshelfWidget._themes_migrated then
-        BookshelfWidget._themes_migrated = true
-        pcall(function() require("lib/bookshelf_theme_pack").migrate() end)
-    end
     -- An ornament on the shelf: long-press adjusts it, a tap runs its action
     -- if it has one. The pieces know nothing of this widget, so they are
     -- handed these (the live shelf's, replaced by each new one).

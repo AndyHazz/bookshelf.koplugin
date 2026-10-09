@@ -250,8 +250,11 @@ package.loaded["lib/bookshelf_space"] = { px = function(v) return v end }
 package.loaded["lib/bookshelf_library_modal"] = {
     rowsForShare = function() return 6 end,
     new = function(_c, o)
-        o.refreshes = 0
-        function o:refresh() self.refreshes = self.refreshes + 1 end
+        o.refreshes, o.quiet = 0, 0
+        function o:refresh(quiet)
+            self.refreshes = self.refreshes + 1
+            if quiet then self.quiet = self.quiet + 1 end
+        end
         o._dpad_idx = 1                     -- a keys device
         return o
     end,
@@ -306,6 +309,10 @@ t.test("a tap chooses and moves the mark, then the shelf behind is rebuilt; the 
     c.on_cell_tap(c.item_at(3))
     eq(table.concat(chosen, ","), "Macabre")
     eq(m.refreshes, 2, "the mark did not move")            -- one for the keys' focus, one now
+    -- Quiet: the mark shows with the apply's full refresh below. A refresh
+    -- of its own was a second e-ink flash showing only the moved mark
+    -- (maintainer on the PW5, 2026-10-09).
+    eq(m.quiet, 1, "the tap refreshed the screen itself as well as the apply: two flashes")
     eq(m._dpad_idx, 3, "the keys' focus did not stay on the card chosen")
     eq(#built, 0, "the shelf was rebuilt before the mark could show")
     eq(tasks[1] and tasks[1].secs, TL.APPLY_DELAY, "the shelf behind is not rebuilt after a tap")
@@ -507,6 +514,7 @@ t.test("a long-press on a pack's or Plain's card offers Reset to original, greye
     asked[1].after()
     eq(c.item_at(3).summary:find("Edited", 1, true), nil, "the card still says Edited")
     eq(m.refreshes, 1, "the cards were not redrawn")
+    eq(m.quiet, 1, "the card refreshed on its own as well as the shelf behind: two flashes")
     runTasks()
     eq(built, 1, "the shelf behind showing that theme did not follow")
     eq(dirty[#dirty], "all:full")

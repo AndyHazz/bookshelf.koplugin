@@ -1207,7 +1207,12 @@ function LibraryModal:onSwipePrevPage()
     return true
 end
 
-function LibraryModal:refresh()
+-- refresh(quiet): rebuild the modal. quiet: no refresh of its own, for a
+-- caller that refreshes the whole screen straight after (the Theme library:
+-- a tap rebuilds the shelf behind and refreshes everything 0.15 s later; a
+-- refresh here as well was a second e-ink flash showing only the moved mark,
+-- maintainer on the PW5, 2026-10-09).
+function LibraryModal:refresh(quiet)
     local Screen = Device.screen
     local HorizontalGroup = require("ui/widget/horizontalgroup")
     local cw = self.content_w
@@ -1305,7 +1310,7 @@ function LibraryModal:refresh()
     -- Self-bounded dirty rect is sufficient now that the modal is a fixed,
     -- content-derived size. setDirty(nil, ...) was triggering full-screen
     -- repaints that stacked ~1s each on e-ink.
-    UIManager:setDirty(self, "ui")
+    if not quiet then UIManager:setDirty(self, "ui") end
 end
 
 return LibraryModal

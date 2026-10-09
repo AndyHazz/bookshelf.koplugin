@@ -384,9 +384,10 @@ function TL._renderCard(item, dimen, current, all)
     }
 end
 
--- How long after a tap the shelf behind is rebuilt: long enough for the
--- moved mark to show first, and for taps made while a rebuild ran to arrive
--- and be counted as one (only the last is built).
+-- How long after a tap the shelf behind is rebuilt: long enough for taps
+-- made while a rebuild ran to arrive and be counted as one (only the last is
+-- built). The moved mark shows with that rebuild's refresh, not before it:
+-- on e-ink a refresh of its own was a second flash (PW5, 2026-10-09).
 TL.APPLY_DELAY = 0.15
 
 -- show(opts): the picker.
@@ -453,7 +454,9 @@ function TL.show(opts)
             if modal then
                 -- Keys: the focus stays on the card just chosen.
                 if modal._dpad_idx then modal._dpad_idx = TL.indexOf(self.items, opts.current()) end
-                modal:refresh()
+                -- Quiet: the apply below refreshes the whole screen, the
+                -- moved mark with it; one flash, not two (PW5, 2026-10-09).
+                modal:refresh(true)
             end
             UIManager:unschedule(apply)
             waiting = true
@@ -464,8 +467,12 @@ function TL.show(opts)
         cell_long_tap = function(item)
             TL.showReset(item, function()
                 load()
-                if modal then modal:refresh() end
-                if tp.shelfTheme and tp.shelfTheme() == item.value then
+                -- The shelf follows only when it shows that theme; then its
+                -- refresh carries the card too (one flash), else the card
+                -- refreshes on its own.
+                local shown = tp.shelfTheme and tp.shelfTheme() == item.value
+                if modal then modal:refresh(shown) end
+                if shown then
                     UIManager:unschedule(apply)
                     waiting = true
                     UIManager:scheduleIn(TL.APPLY_DELAY, apply)

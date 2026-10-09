@@ -244,6 +244,60 @@ t.test("an edit back to the original is no edit: Reset greys once nothing differ
     eq(TP.hasEdits("Macabre"), false, "choosing the pack's own plank is an edit")
 end)
 
+t.test("an edit to a part the pack lacks stays an edit, even equal to Custom theme's value", function()
+    -- writeEdits compared EVERY stored key with originalPart, which for a
+    -- part the pack lacks is Custom theme's live value: an edit equal to it
+    -- was dropped, then or on any later write, and the pack followed Custom
+    -- theme's next change (review, 2026-10-09).
+    local TP, d, settings, tabs = setup()
+    world(d, settings)
+    tabs.home = { id = "home", theme = "Macabre" }    -- no progress bar colour
+    on(TP, "home")
+    TP.partSave("progress_fill", { hex = "#AA0000" })   -- Custom theme's own value
+    eq(TP.hasEdits("Macabre"), true, "an edit equal to Custom theme's value was dropped")
+    settings.progress_fill = { hex = "#BBBBBB" }; on(TP, "home")
+    eq(paint(TP, "progress_fill"), "#AA0000", "the pack followed Custom theme's change")
+    -- Another write does not re-normalise it away once Custom matches.
+    TP.partSave("progress_fill", { hex = "#00AA00" })
+    settings.progress_fill = { hex = "#00AA00" }; on(TP, "home")
+    TP.partSave("ink_color", { hex = "#445566" })
+    settings.progress_fill = { hex = "#CCCCCC" }; on(TP, "home")
+    eq(paint(TP, "progress_fill"), "#00AA00", "an unrelated write dropped the edit")
+    -- Unset (Default) while Custom theme's is unset too: still the default after.
+    TP.partDelete("progress_fill_night")
+    settings.progress_fill_night = nil; on(TP, "home")
+    TP.partSave("ink_color", { hex = "#000001" })
+    settings.progress_fill_night = { hex = "#123123" }; on(TP, "home")
+    eq(paint(TP, "progress_fill_night"), "-", "an unset edit followed Custom theme")
+    -- The pack's own part put back is still no edit.
+    TP.partSave("ink_color", { hex = "#112233" })
+    eq(edits(settings, "Macabre").keys.ink_color, nil, "the pack's own colour put back stayed an edit")
+end)
+
+t.test("a picker's Cancel puts an unedited part back unedited, an edited one as it was", function()
+    local TP, d, settings, tabs = setup()
+    world(d, settings)
+    tabs.home = { id = "home", theme = "Macabre" }
+    on(TP, "home")
+    local snap = TP.partSnapshot("progress_fill")
+    TP.partSave("progress_fill", { hex = "#00AA00" })   -- the live pick
+    TP.partRestore("progress_fill", snap)
+    eq(TP.hasEdits("Macabre"), false, "Cancel pinned the part to Custom theme's value")
+    settings.progress_fill = { hex = "#BBBBBB" }; on(TP, "home")
+    eq(paint(TP, "progress_fill"), "#BBBBBB")
+    TP.partSave("badge_bg", { hex = "#010101" })
+    snap = TP.partSnapshot("badge_bg")
+    TP.partSave("badge_bg", { hex = "#020202" })
+    TP.partRestore("badge_bg", snap)
+    eq(edits(settings, "Macabre").keys.badge_bg.hex, "#010101")
+    -- Custom theme: its own key, as before.
+    tabs.home.theme = "mine"; on(TP, "home")
+    snap = TP.partSnapshot("progress_fill")
+    TP.partSave("progress_fill", { hex = "#00AA00" })
+    TP.partRestore("progress_fill", snap)
+    eq(settings.progress_fill.hex, "#BBBBBB")
+end)
+
 t.test("edited to unset is the default: never the pack's, never the reader's own", function()
     local TP, d, settings, tabs = setup()
     world(d, settings)
@@ -462,7 +516,8 @@ t.test("the editor rows write through the seam", function()
     assert(not pick:find("BookshelfSettings.save(key", 1, true) and not pick:find("BookshelfSettings.delete(key", 1, true),
         "the colour picker writes Custom theme's key directly")
     local _n, saves = pick:gsub("TP%.partSave%(key", "")
-    eq(saves >= 3, true, "the palette, its revert and the nudge do not all write through the seam")
+    eq(saves >= 2, true, "the palette and the nudge do not both write through the seam")
+    assert(pick:find("TP.partRestore(key, before)", 1, true), "the palette's Cancel does not restore through the seam")
     local ld = body("_lightDarkRow()")
     assert(ld:find("partSave(CP.THEME_SETTING, value)", 1, true), "light or dark writes Custom theme's key directly")
     assert(body("_shelfTheme()"):find("partRead(CP.THEME_SETTING)", 1, true), "light or dark reads Custom theme's key")

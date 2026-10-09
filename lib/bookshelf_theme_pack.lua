@@ -1062,34 +1062,50 @@ function M.editsColours(e)
     return false
 end
 
--- originalPart(theme, key) -> that part as the theme has it, unedited, in
--- the stored convention: Plain's fixed parts (no wallpaper, the built-in
--- Oak, the default colours; light or dark and invert the reader's), a
--- pack's own (a colours.json lends only the colours it names; its wallpaper
--- by name, so the full screen and dark variants come with it; full screen
--- None is the reader's view preference, kept), else the reader's own.
-function M.originalPart(theme, key)
-    if theme == nil or theme == M.MINE then return read(key) end
+-- ownPart(theme, key) -> true, value when that theme has that part of its
+-- own, in the stored convention: Plain's fixed parts (no wallpaper, the
+-- built-in Oak, the default colours), a pack's own (a colours.json lends
+-- only the colours it names; its wallpaper by name, so the full screen and
+-- dark variants come with it). false for a part it takes from Custom theme:
+-- light or dark and invert on Plain, whatever a pack lacks, and full screen
+-- None, the reader's view preference over a pack's wallpaper.
+local function ownPart(theme, key)
     local slot = COLOUR_SLOT[key]
     if theme == M.PLAIN then
-        if slot or key == "wallpaper_default" or key == "wallpaper_full" then return nil end
-        if key == M.PLANK_SETTING then return "oak" end
-        return read(key)
+        if slot or key == "wallpaper_default" or key == "wallpaper_full" then return true, nil end
+        if key == M.PLANK_SETTING then return true, "oak" end
+        return false
     end
     local th = M.theme(theme)
-    if slot then return (th.colours and packColour(theme, slot[1], slot[2])) or read(key) end
-    if key == M.SHELF_SETTING then return (th.manifest and th.manifest.shelf) or read(key) end
+    if slot then
+        local c = th.colours and packColour(theme, slot[1], slot[2])
+        if c then return true, c end
+        return false
+    end
+    if key == M.SHELF_SETTING then
+        if th.manifest and th.manifest.shelf then return true, th.manifest.shelf end
+        return false
+    end
     if th.wallpaper and key == "wallpaper_default" then
-        return M.NAME_PREFIX .. theme .. "\1" .. th.wallpaper.base
+        return true, M.NAME_PREFIX .. theme .. "\1" .. th.wallpaper.base
     end
     if th.wallpaper and key == "wallpaper_full" then
         if read(key) == false then return false end
-        return nil
+        return true, nil
     end
     if key == M.PLANK_SETTING and #(th.planks or {}) > 0 then
         local pl = M.themePlank(theme)
-        return pl and pl.id or nil
+        return true, pl and pl.id or nil
     end
+    return false
+end
+
+-- originalPart(theme, key) -> that part as the theme shows it unedited: its
+-- own (ownPart), else the reader's own.
+function M.originalPart(theme, key)
+    if theme == nil or theme == M.MINE then return read(key) end
+    local has, v = ownPart(theme, key)
+    if has then return v end
     return read(key)
 end
 
@@ -1157,15 +1173,21 @@ local function writeEdits(theme, fn)
     local out = {}
     if type(all) == "table" then for k, v in pairs(all) do out[k] = v end end
     local old = type(out[theme]) == "table" and out[theme] or {}
+    local old_keys = type(old.keys) == "table" and old.keys or {}
     -- pieces keeps its table unless fn replaces it: the pool keys on it, and
     -- a colour edit must not re-deal the pages' ornaments.
     local e = { keys = {}, pieces = old.pieces }
-    if type(old.keys) == "table" then for k, v in pairs(old.keys) do e.keys[k] = v end end
+    for k, v in pairs(old_keys) do e.keys[k] = v end
     fn(e)
+    -- Only the parts this write changed, and only against the theme's OWN
+    -- part (ownPart): an edit that equals what the theme takes from Custom
+    -- theme is still an edit, or the theme would follow Custom theme's
+    -- next change (review, 2026-10-09).
     for k, v in pairs(e.keys) do
-        local val = v
-        if val == M.UNSET then val = nil end
-        if same(val, M.originalPart(theme, k)) then e.keys[k] = nil end
+        if not same(v, old_keys[k]) then
+            local has, orig = ownPart(theme, k)
+            if has and same(v ~= M.UNSET and v or nil, orig) then e.keys[k] = nil end
+        end
     end
     if type(e.pieces) == "table" and e.pieces ~= old.pieces and same(e.pieces, originalPieces(theme)) then
         e.pieces = nil
@@ -1194,6 +1216,22 @@ function M.partSave(key, v)
     save(key, v)
 end
 function M.partDelete(key) M.partSave(key, nil) end
+
+-- partSnapshot(key) / partRestore(key, snap): a picker's Cancel puts the
+-- part back as it was, edited or not: an unedited part of a theme goes
+-- back to unedited, so it follows Custom theme again, rather than being
+-- pinned to the value it showed when the picker opened.
+function M.partSnapshot(key)
+    return { v = M.partRead(key), edited = M.partEdited(key) }
+end
+function M.partRestore(key, snap)
+    local th = M.shelfTheme()
+    if th ~= M.MINE and M.isPart(key) and not snap.edited then
+        writeEdits(th, function(e) e.keys[key] = nil end)
+        return
+    end
+    M.partSave(key, snap.v)
+end
 
 -- partClear(keys): those parts back to the default, both slots, in one
 -- write (Reset to default colors). In a theme only its parts: a preference

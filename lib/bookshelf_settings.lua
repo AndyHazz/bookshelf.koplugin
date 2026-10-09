@@ -2380,7 +2380,7 @@ function Settings:_pickColor(raw_key, field, default_pct, title,
         -- edits to the theme on screen (bookshelf_theme_pack.partSave).
         local TP       = require("lib/bookshelf_theme_pack")
         local raw      = TP.partRead(key)
-        local original = raw
+        local before   = TP.partSnapshot(key)
 
         local colour = _colorScreen()
         if type(title) == "table" then title = colour and title[1] or title[2] end
@@ -2418,7 +2418,7 @@ function Settings:_pickColor(raw_key, field, default_pct, title,
                     refresh()
                 end,
                 function()
-                    TP.partSave(key, original)
+                    TP.partRestore(key, before)
                     if wood and wood.revert then wood.revert() end
                     refresh()
                 end,

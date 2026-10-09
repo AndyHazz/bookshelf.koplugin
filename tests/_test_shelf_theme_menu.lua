@@ -23,6 +23,7 @@ local CODE = table.concat({
     grab("\n(Settings%.SHELF_THEMES = {.-\n})\n", "SHELF_THEMES"),
     grab("\n(function Settings:_shelfTheme%(%).-\nend)\n", "_shelfTheme"),
     grab("\n(function Settings:_shelfThemeLabel%(%).-\nend)\n", "_shelfThemeLabel"),
+    grab("\n(function Settings:_themeShelfOnScreen%(%).-\nend)\n", "_themeShelfOnScreen"),
     grab("\n(function Settings:_themeLibraryRow%(%).-\nend)\n", "_themeLibraryRow"),
     grab("\n(function Settings:_rebuildThemeMenu%(touchmenu_instance%).-\nend)\n", "_rebuildThemeMenu"),
     grab("\n(function Settings:_libraryThemeRow%(%).-\nend)\n", "_libraryThemeRow"),
@@ -33,7 +34,8 @@ local CODE = table.concat({
     grab("\n(function Settings:_setShelfThemeField%(id, field, value%).-\nend)\n", "_setShelfThemeField"),
     grab("\n(function Settings:_shelfThemeLabelFor%(tab%).-\nend)\n", "_shelfThemeLabelFor"),
     grab("\n(function Settings:_openThemeLibrary%(id, touchmenu_instance, after%).-\nend)\n", "_openThemeLibrary"),
-    grab("\n(function Settings:_perShelfThemeRows%(%).-\nend)\n", "_perShelfThemeRows"),
+    grab("\n(function Settings:_perShelfThemeRows%(skip%).-\nend)\n", "_perShelfThemeRows"),
+    grab("\n(function Settings:_otherShelvesRow%(%).-\nend)\n", "_otherShelvesRow"),
 }, "\n")
 
 -- build(packs, library, tabs, opts) -> the menu's rows and what the stubs saw.
@@ -127,7 +129,7 @@ local function build(packs, library, tabs, opts)
                          saveDeferred = function(v) seen.saved_deferred = v end,
                          getActive = function()
                              local on = {}
-                             for _i, tb in ipairs(tabs) do if tb.enabled ~= false then on[#on + 1] = tb end end
+                             for _i, tb in ipairs(tabs) do if tb.enabled ~= false and not tb.parent then on[#on + 1] = tb end end
                              return on
                          end,
                          getById = function(id) return tabs_by[id] end,
@@ -197,7 +199,7 @@ local function rowOf(rows, prefix)
     end
 end
 
-t.test("ONE Theme menu: This shelf, Default theme, the editing rows, Reset, then every shelf", function()
+t.test("ONE Theme menu, one page: This shelf, Other shelves, Default theme, then the editing rows", function()
     -- Maintainer, 2026-10-09: the Theme menu and the My theme menu are one,
     -- as Bookends' "Preset (Name)" opens with "Preset library..." above the
     -- tweaks saved into the preset; the shelves stay flat (2026-10-07).
@@ -207,23 +209,31 @@ t.test("ONE Theme menu: This shelf, Default theme, the editing rows, Reset, then
     -- set, and "Default theme" wherever a shelf follows it: "Theme library..."
     -- and "Library: My theme" opened the same picker, and "library" also
     -- named the picker itself.
-    eq(texts(rows), "This shelf: Default theme | Default theme: Macabre | Light or dark: Auto (follow night mode)"
+    -- Maintainer, 2026-10-09: the other shelves a level down, below This
+    -- shelf, so the menu fits one page.
+    eq(texts(rows), "This shelf: Default theme | Other shelves: all default | Default theme: Macabre"
+        .. " | Light or dark: Auto (follow night mode)"
         .. " | Wallpaper | Full screen wallpaper | Invert | Color behind wallpaper | Plank | Ornaments | Colors"
-        .. " | New ornaments go | Home: Default theme | Manga: Default theme")
+        .. " | New ornaments go")
     for _i, r in ipairs(rows) do
         local tx = r.text or (r.text_func and r.text_func()) or ""
         assert(not tx:lower():find("library", 1, true), "a row still says library: " .. tx)
     end
     local sep = {}
     for i, r in ipairs(rows) do if r.separator then sep[#sep + 1] = i end end
-    eq(table.concat(sep, ","), "2,10,11", "the bands are not choosing | editing | preferences | shelves")
+    eq(table.concat(sep, ","), "3,11", "the bands are not choosing | editing | preferences")
     eq(seen.rescans, 1, "opening the menu did not rescan the packs")
     eq(seen.slot, true, "the colour rows do not open on the slot of the shelf on screen")
-    -- The choosing rows and the shelves open the Theme library, never a
-    -- list to drill into.
-    for _i, i in ipairs({ 1, 2, 12, 13 }) do
+    -- The choosing rows open the Theme library, never a list to drill
+    -- into; Other shelves is the submenu of the shelves' rows.
+    for _i, i in ipairs({ 1, 3 }) do
         eq(rows[i].radio, nil, "a radio list again")
         eq(rows[i].sub_item_table_func, nil, "a submenu to drill into again: " .. texts({ rows[i] }))
+    end
+    assert(rows[2].sub_item_table_func, "Other shelves is not a submenu")
+    for _i, r in ipairs(rows) do
+        local tx = r.text or (r.text_func and r.text_func()) or ""
+        assert(not tx:find("^Home: ") and not tx:find("^Manga: "), "a shelf's row is flat in the menu again: " .. tx)
     end
 end)
 
@@ -233,20 +243,20 @@ t.test("no Reset row on any shelf, an edited pack's included: Reset is in the Th
         local self, S = build({ MAC }, nil, nil, { on_screen = th, edited = { [th] = true } })
         local rows = S._themeSubItems(onShelf(self, "home"))
         eq(rowOf(rows, "Reset "), nil, "a Reset row in the Theme menu on " .. th)
-        local newat = rowOf(rows, "New ornaments go")
-        eq(newat.separator, true, "the shelves are not set apart from the editing rows")
-        eq(rows[#rows].text_func(), "Manga: Default theme")
+        eq(rows[#rows].text, "New ornaments go", "the menu does not end with the preferences")
     end
 end)
 
-t.test("every editing row is on the first page of a PW5 menu (ten rows)", function()
-    -- The rig's PW5-size TouchMenu shows ten rows a page (2026-10-09): the
-    -- choosing rows and every row that edits a part of the theme fit on it.
-    local self, S = build({ MAC }, "Macabre", nil, { on_screen = "Macabre" })
-    local rows = S._themeSubItems(onShelf(self, "home"))
-    local at
-    for i, r in ipairs(rows) do if r.text == "Colors" then at = i end end
-    assert(at and at <= 10, "the last editing row is row " .. tostring(at))
+t.test("the whole Theme menu is one page of a PW5 menu (ten rows), whatever the shelves", function()
+    -- The rig's PW5-size TouchMenu shows ten rows a page (2026-10-09); the
+    -- maintainer wants the whole menu on it (2026-10-09). The real wallpaper
+    -- rows are one submenu row (its own suite, _test_background_menu).
+    local many = {}
+    for i = 1, 12 do many[i] = { id = "s" .. i, label = "S" .. i, theme = (i % 2 == 0) and "plain" or nil } end
+    local self, S = build({ MAC }, "Macabre", many, { on_screen = "Macabre" })
+    self._wallpaperMenu = function() return { { text = "Wallpaper", sub_item_table = {} } } end
+    local rows = S._themeSubItems(onShelf(self, "s1"))
+    assert(#rows <= 10, "the Theme menu is " .. #rows .. " rows: " .. texts(rows))
 end)
 
 t.test("This shelf opens the shelf on screen's picker, named for its own choice; rebuilt as it closes", function()
@@ -340,6 +350,39 @@ t.test("each enabled shelf is listed with its theme, a disabled one is not", fun
                    { id = "rec", label = "Recent", theme = "mine" }, { id = "x", label = "Off", enabled = false, theme = "plain" } }
     local self, S = build({ MAC, UK }, "Macabre", tabs)
     eq(texts(S._perShelfThemeRows(self)), "Home: Default theme | Manga: Ukiyo-e | Recent: Custom theme")
+    eq(texts(S._perShelfThemeRows(self, "manga")), "Home: Default theme | Recent: Custom theme",
+        "the shelf skipped is listed")
+end)
+
+t.test("Other shelves: every shelf but the one on screen, counted by those with a theme of their own", function()
+    -- Maintainer, 2026-10-09: "Other shelves: 2 with own themes", or "all
+    -- default" when none, the shelves' rows a level down.
+    local tabs = { { id = "home", label = "Home" }, { id = "manga", label = "Manga", theme = "Ukiyo-e" },
+                   { id = "rec", label = "Recent", theme = "mine" }, { id = "x", label = "Off", enabled = false, theme = "plain" },
+                   { id = "sub", label = "Sub", parent = "manga", theme = "plain" } }
+    local self, S, _seen, by = build({ MAC, UK }, "Macabre", tabs)
+    local row = S._otherShelvesRow(onShelf(self, "home"))
+    eq(row.text_func(), "Other shelves: 2 with own themes")
+    eq(row.enabled_func(), true)
+    eq(texts(row.sub_item_table_func()), "Manga: Ukiyo-e | Recent: Custom theme")
+    -- The shelf on screen is This shelf's, not counted or listed here; a
+    -- sub-shelf on screen is its shelf of shelves.
+    onShelf(self, "manga")
+    eq(row.text_func(), "Other shelves: 1 with own theme")
+    eq(texts(row.sub_item_table_func()), "Home: Default theme | Recent: Custom theme")
+    onShelf(self, "sub")
+    eq(texts(row.sub_item_table_func()), "Home: Default theme | Recent: Custom theme",
+        "a sub-shelf on screen lists its shelf of shelves as another shelf")
+    by.rec.theme = nil
+    eq(row.text_func(), "Other shelves: all default")
+    -- No shelf on screen: all of them.
+    self._bw = nil
+    eq(texts(row.sub_item_table_func()), "Home: Default theme | Manga: Ukiyo-e | Recent: Default theme")
+    -- One shelf, on screen: nothing to list, greyed.
+    local self2, S2 = build({ MAC }, nil, { { id = "home", label = "Home", theme = "plain" } })
+    local row2 = S2._otherShelvesRow(onShelf(self2, "home"))
+    eq(row2.enabled_func(), false, "Other shelves is not greyed with no other shelf")
+    eq(row2.text_func(), "Other shelves: all default")
 end)
 
 t.test("a shelf's row opens that shelf's Theme library; a choice writes that shelf only", function()
@@ -361,7 +404,10 @@ t.test("a shelf's row opens that shelf's Theme library; a choice writes that she
     o.choose(nil)
     eq(by.home.theme, nil, "Default theme did not clear the shelf's own")
     o.on_closed()
-    eq(seen.reopened, 1, "the rows above do not follow the shelf now on screen")
+    -- The menu comes back (its rows' names refreshed by the restore) on
+    -- the same shelves: not rebuilt as the Theme menu's top level.
+    eq(seen.restored, 1, "the menu did not come back")
+    eq(seen.reopened, nil, "Other shelves' rows were rebuilt as another level")
 end)
 
 t.test("while the Theme library is open a shelf's choice is kept in memory, written as it closes", function()

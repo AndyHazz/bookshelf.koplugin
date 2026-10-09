@@ -1545,13 +1545,18 @@ end
 -- whose card is then the one marked. A sub-shelf wears
 -- its shelf of shelves' theme, so the row is that shelf's. Without a shelf on
 -- screen, the default's.
+-- _themeShelfOnScreen(): the shelf whose theme the Theme menu is about:
+-- the shelf on screen, or its shelf of shelves for a sub-shelf (which wears
+-- that one's theme); nil without a shelf on screen.
+function Settings:_themeShelfOnScreen()
+    local chip = self._bw and self._bw.chip
+    if not chip then return nil end
+    local ok, TabModel = pcall(require, "lib/bookshelf_tab_model")
+    return (ok and TabModel and TabModel.rootOf) and TabModel.rootOf(chip) or chip
+end
+
 function Settings:_themeLibraryRow()
-    local function shelfOnScreen()
-        local chip = self._bw and self._bw.chip
-        if not chip then return nil end
-        local ok, TabModel = pcall(require, "lib/bookshelf_tab_model")
-        return (ok and TabModel and TabModel.rootOf) and TabModel.rootOf(chip) or chip
-    end
+    local function shelfOnScreen() return self:_themeShelfOnScreen() end
     return {
         text_func = function()
             local id = shelfOnScreen()
@@ -1917,29 +1922,72 @@ function Settings:_openThemeLibrary(id, touchmenu_instance, after)
     opts.apply = function() self:_markDirty() end
     return require("lib/bookshelf_theme_library").show(opts)
 end
--- _perShelfThemeRows() -> a row per enabled shelf, "Home: Default theme" or
--- "Manga: Ukiyo-e", each opening that shelf's Theme library.
-function Settings:_perShelfThemeRows()
+-- _perShelfThemeRows(skip): a row per enabled shelf but skip (the shelf
+-- on screen, which This shelf sets), "Home: Default theme" or "Manga:
+-- Ukiyo-e", each opening that shelf's Theme library. Other shelves' rows.
+function Settings:_perShelfThemeRows(skip)
     local TabModel = require("lib/bookshelf_tab_model")
     local items = {}
     for _i, t in ipairs(TabModel.getActive() or {}) do
         local id = t.id
-        items[#items + 1] = {
-            text_func = function()
-                return self:_shelfThemeLabelFor(TabModel.getById(id) or t)
-            end,
-            keep_menu_open = true,
-            callback = function(touchmenu_instance)
-                -- That shelf behind the picker, so a change is seen as it is
-                -- made; it stays on screen after (maintainer, 2026-10-04),
-                -- and the rows above then edit its theme.
-                local bw = self._bw
-                if bw and bw.chip ~= id and bw._setActiveChip then bw:_setActiveChip(id) end
-                self:_openThemeLibrary(id, touchmenu_instance, self:_rebuildThemeMenu(touchmenu_instance))
-            end,
-        }
+        if id ~= skip then
+            items[#items + 1] = {
+                text_func = function()
+                    return self:_shelfThemeLabelFor(TabModel.getById(id) or t)
+                end,
+                keep_menu_open = true,
+                callback = function(touchmenu_instance)
+                    -- That shelf behind the picker, so a change is seen as it
+                    -- is made; it stays on screen after (maintainer,
+                    -- 2026-10-04), and the Theme menu's rows then edit its
+                    -- theme. This list keeps the shelves it opened with: the
+                    -- one just shown stays in it, rather than the rows moving
+                    -- under the finger; the menu comes back with their names
+                    -- refreshed.
+                    local bw = self._bw
+                    if bw and bw.chip ~= id and bw._setActiveChip then bw:_setActiveChip(id) end
+                    self:_openThemeLibrary(id, touchmenu_instance)
+                end,
+            }
+        end
     end
     return items
+end
+
+-- _otherShelvesRow(): "Other shelves: 2 with own themes", right below This
+-- shelf: every other shelf's theme, a level down so the Theme menu fits one
+-- page now that it holds the editing rows (maintainer, 2026-10-09; it was
+-- flat, 2026-10-07, when it held only shelves). Named for how many have a
+-- theme of their own rather than the default, "all default" when none.
+-- Greyed with no other shelf. The shelf on screen is not counted or listed:
+-- This shelf is its row.
+function Settings:_otherShelvesRow()
+    local TabModel = require("lib/bookshelf_tab_model")
+    local TP = require("lib/bookshelf_theme_pack")
+    local function others()
+        local skip, out = self:_themeShelfOnScreen(), {}
+        for _i, t in ipairs(TabModel.getActive() or {}) do
+            if t.id ~= skip then out[#out + 1] = t end
+        end
+        return out
+    end
+    return {
+        text_func = function()
+            local n = 0
+            for _i, t in ipairs(others()) do
+                if TP.ownChoice(t.id) ~= nil then n = n + 1 end
+            end
+            -- Two msgids, as "1 ornament" / "%1 ornaments": the plugin's
+            -- translations have no plural forms.
+            if n == 0 then return _("Other shelves: all default") end
+            if n == 1 then return _("Other shelves: 1 with own theme") end
+            return T(_("Other shelves: %1 with own themes"), n)
+        end,
+        enabled_func = function() return #others() > 0 end,
+        sub_item_table_func = function()
+            return self:_perShelfThemeRows(self:_themeShelfOnScreen())
+        end,
+    }
 end
 
 -- _libraryThemeRow(): "Default theme: Macabre": the theme every shelf without
@@ -2481,13 +2529,15 @@ end
 -- screen, "Theme (Macabre)" (maintainer, 2026-10-09, after Bookends' "Preset
 -- (Name)"): it replaced a Theme menu that chose themes and a My theme menu
 -- that edited them. First the choosing, as Bookends opens with "Preset
--- library...": This shelf, the Theme library for the shelf on screen, then
--- Default theme, the one every shelf without its own wears. Then the rows that edit the theme on screen, whatever it
--- is, kept on the first page of a PW5 menu: everything a theme can replace
+-- library...": This shelf, the Theme library for the shelf on screen, Other
+-- shelves, then Default theme, the one every shelf without its own wears.
+-- Then the rows that edit the theme on screen, whatever it is, all of the
+-- menu on the first page of a PW5 menu: everything a theme can replace
 -- (never greyed because a theme has that part, spec 2026-10-08), then the
--- collection's own New ornaments go (Reset is in the Theme library). Last,
--- every shelf with its theme, flat: no submenu to drill into (maintainer,
--- 2026-10-07). Every write goes through bookshelf_theme_pack's seam
+-- collection's own New ornaments go (Reset is in the Theme library). The
+-- other shelves' themes are a level down, under Other shelves below This
+-- shelf, so it all fits one page (maintainer, 2026-10-09; they were flat at
+-- the end, 2026-10-07). Every write goes through bookshelf_theme_pack's seam
 -- (partSave, choosePlank, switches); nothing but these rows writes the
 -- reader's own look (maintainer, 2026-10-07). Built each time it opens and
 -- each time a Theme library opened from it closes, after a rescan, so a pack
@@ -2502,6 +2552,7 @@ function Settings:_themeSubItems()
     TP.rescan()
     local rows = {}
     rows[#rows + 1] = self:_themeLibraryRow()
+    rows[#rows + 1] = self:_otherShelvesRow()
     rows[#rows + 1] = self:_libraryThemeRow()
     rows[#rows].separator = true
     rows[#rows + 1] = self:_lightDarkRow()
@@ -2523,8 +2574,6 @@ function Settings:_themeSubItems()
     -- original is not a row here: it is in the Theme library's footer, with
     -- the themes (maintainer, 2026-10-09).
     rows[#rows + 1] = self:_newOrnamentsRow()
-    rows[#rows].separator = true
-    for _i, r in ipairs(self:_perShelfThemeRows()) do rows[#rows + 1] = r end
     return rows
 end
 

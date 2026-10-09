@@ -794,8 +794,9 @@ function Bookshelf:buildMenuItems(menu_items)
     -- menus (maintainer). Text size stays under Settings on purpose.
     -- The Theme menu, ONE row named for the theme of the shelf on screen,
     -- "Theme (Macabre)" (maintainer, 2026-10-09, after Bookends' "Preset
-    -- (Name)"): This shelf and Default theme first, then the
-    -- rows that edit that theme, then each shelf's theme. It replaced a Theme
+    -- (Name)"): This shelf, Other shelves (each other shelf's theme, a
+    -- level down) and Default theme first, then the rows that edit that
+    -- theme, all on one page (maintainer, 2026-10-09). It replaced a Theme
     -- menu that chose themes and a My theme menu that edited them.
     menu_items.bookshelf_theme = {
         text_func = function()

@@ -1701,6 +1701,38 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         --     lands on "Auto" instead, so the way back to automatic still
         --     exists but costs no dialog height.
 
+        -- Theme: first, above Show as: the theme sits behind the layout
+        -- style (maintainer, 2026-10-09). The shelf's own, in the Theme
+        -- library, the one picker the
+        -- Theme menu's This shelf and shelf rows open too
+        -- (maintainer, 2026-10-07: readers who think "this shelf" start
+        -- here). Top-level shelves only: a sub-shelf wears its shelf of
+        -- shelves' theme (ruling, 2026-10-05). A pick is saved and shown on
+        -- the shelf behind (on_change); this dialog comes back, its row
+        -- updated, when the picker closes.
+        -- Following the default reads "Theme: Default theme", as its row in
+        -- the Theme menu does; never "library", the Theme library's own
+        -- name, nor a bare "Default" (maintainer, 2026-10-09).
+        if draft.parent == nil then
+            local TP = require("lib/bookshelf_theme_pack")
+            local function cur() return draft.theme end
+            rows[#rows + 1] = {{
+                text_func = function()
+                    local v = cur()
+                    return T(_("Theme: %1"), TP.choiceLabel(v))
+                end,
+                callback = function()
+                    UIManager:close(d)
+                    require("lib/bookshelf_theme_library").show{
+                        shelf = draft.label or "",
+                        current = cur,
+                        choose = function(value) draft.theme = value end,
+                        apply = function() on_change(true) end,
+                        on_closed = show,
+                    }
+                end,
+            }}
+        end
         -- Show as: Auto / List / Covers, three across. COVERS is the default
         -- (unset), so a chip that has never seen this picker looks exactly as
         -- it did before list view existed; Auto is now an explicit choice
@@ -2229,36 +2261,6 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                     end
                     draft.group_display = opts_list[1].value
                 end),
-            }}
-        end
-        -- Theme: the shelf's own, in the Theme library, the one picker the
-        -- Theme menu's This shelf and shelf rows open too
-        -- (maintainer, 2026-10-07: readers who think "this shelf" start
-        -- here). Top-level shelves only: a sub-shelf wears its shelf of
-        -- shelves' theme (ruling, 2026-10-05). A pick is saved and shown on
-        -- the shelf behind (on_change); this dialog comes back, its row
-        -- updated, when the picker closes.
-        -- Following the default reads "Theme: Default theme", as its row in
-        -- the Theme menu does; never "library", the Theme library's own
-        -- name, nor a bare "Default" (maintainer, 2026-10-09).
-        if draft.parent == nil then
-            local TP = require("lib/bookshelf_theme_pack")
-            local function cur() return draft.theme end
-            rows[#rows + 1] = {{
-                text_func = function()
-                    local v = cur()
-                    return T(_("Theme: %1"), TP.choiceLabel(v))
-                end,
-                callback = function()
-                    UIManager:close(d)
-                    require("lib/bookshelf_theme_library").show{
-                        shelf = draft.label or "",
-                        current = cur,
-                        choose = function(value) draft.theme = value end,
-                        apply = function() on_change(true) end,
-                        on_closed = show,
-                    }
-                end,
             }}
         end
         -- Close: every pick has already been applied and saved, so there is

@@ -70,6 +70,11 @@ t.test("Shelf style has the shelf's Theme row, top-level shelves only, previewed
     assert(open_ed:find("Editor:_pickGroupDisplay%(draft, function%(now%)\n%s*commit%(%)\n%s*if now then settlePreview%(%) end\n%s*rebuild%(%)"),
         "the Theme library's apply leaves the shelf's rebuild on the debounce: two flashes")
     assert(row:find("on_closed = show,", 1, true), "Shelf style does not come back after the picker")
+    -- First, above Show as: the theme sits behind the layout style
+    -- (maintainer, 2026-10-09).
+    local th = pick:find("if draft.parent == nil then", 1, true)
+    local sa = pick:find('rows[#rows + 1] = header(_("Show as"))', 1, true)
+    assert(th and sa and th < sa, "the Theme row is not above Show as")
     local tm = read("lib/bookshelf_theme_menu.lua")
     local open = tm:match("function M%.openLibrary%(S, id, touchmenu_instance, after%)(.-)\nend\n")
     assert(open and open:find('require("lib/bookshelf_theme_library").show(opts)', 1, true),

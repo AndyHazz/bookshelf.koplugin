@@ -103,9 +103,14 @@ function LibraryModal:init()
     -- off to the footer (+ New tag / Cancel / Save) when Down is pressed at
     -- the bottom of the grid -- see onGridFocusDown/Up. Only registered when
     -- the caller provides a cell_renderer (grid mode).
+    -- config.focus_on_key (optional): function() -> the cell the focus
+    -- should show on: the ring stays hidden until the first key press, which
+    -- shows it there (when on the page shown, else on the page's first cell)
+    -- rather than moving it. For a picker that marks its choice with a frame
+    -- of its own, where a ring seeded on another cell looked like that mark.
     if Device:hasDPad() and self.config.cell_renderer then
         local total = self.config.item_count and self.config.item_count() or 0
-        if total > 0 then self._dpad_idx = 1 end
+        if total > 0 and not self.config.focus_on_key then self._dpad_idx = 1 end
         self._focus_zone = "grid"  -- or "footer", see onGridFocusUp/Down
         self.key_events = self.key_events or {}
         self.key_events.GridFocusUp    = { { "Up" } }
@@ -176,6 +181,23 @@ function LibraryModal:onClose()
     return true
 end
 
+-- _revealFocus() -> true when the focus ring was hidden (config.focus_on_key)
+-- and this key press showed it instead of moving it.
+function LibraryModal:_revealFocus()
+    if self._dpad_idx ~= nil or not self.config.focus_on_key then return false end
+    local total = self.config.item_count and self.config.item_count() or 0
+    if total == 0 then return false end
+    local per = self.config.cells_per_page and self.config.cells_per_page(self.content_w) or 1
+    local first = ((self.page or 1) - 1) * per + 1
+    local last = math.min(total, first + per - 1)
+    local want = self.config.focus_on_key()
+    if not (want and want >= first and want <= last) then want = first end
+    self._dpad_idx = want
+    self._focus_zone = "grid"
+    self:refresh()
+    return true
+end
+
 -- Grid dpad navigation. `delta` is ±1 (Left/Right) or ±cols (Up/Down).
 -- Clamps at [1, total] and pages automatically when crossing a page boundary.
 function LibraryModal:_gridNav(delta)
@@ -216,6 +238,7 @@ end
 -- book-detail popup's own tabs/pills/buttons chain together (see
 -- [[project_dpad_focus_navigation]]).
 function LibraryModal:onGridFocusLeft()
+    if self:_revealFocus() then return true end
     if self._focus_zone == "footer" then
         self._footer_col = self:_clampFooterCol(self._footer_row or 1, (self._footer_col or 1) - 1)
         self:refresh()
@@ -226,6 +249,7 @@ function LibraryModal:onGridFocusLeft()
 end
 
 function LibraryModal:onGridFocusRight()
+    if self:_revealFocus() then return true end
     if self._focus_zone == "footer" then
         self._footer_col = self:_clampFooterCol(self._footer_row or 1, (self._footer_col or 1) + 1)
         self:refresh()
@@ -236,6 +260,7 @@ function LibraryModal:onGridFocusRight()
 end
 
 function LibraryModal:onGridFocusUp()
+    if self:_revealFocus() then return true end
     if self._focus_zone == "footer" then
         if (self._footer_row or 1) <= 1 then
             self._focus_zone = "grid"  -- back to wherever _dpad_idx last was
@@ -251,6 +276,7 @@ function LibraryModal:onGridFocusUp()
 end
 
 function LibraryModal:onGridFocusDown()
+    if self:_revealFocus() then return true end
     if self._focus_zone == "footer" then
         local rows = self._footer_layout and #self._footer_layout or 0
         if (self._footer_row or 1) < rows then
@@ -275,6 +301,7 @@ function LibraryModal:onGridFocusDown()
 end
 
 function LibraryModal:onGridPress()
+    if self:_revealFocus() then return true end
     if self._focus_zone == "footer" then
         local row = self._footer_layout and self._footer_layout[self._footer_row or 1]
         local btn = row and row[self._footer_col or 1]

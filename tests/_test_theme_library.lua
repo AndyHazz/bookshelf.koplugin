@@ -252,7 +252,9 @@ package.loaded["lib/bookshelf_library_modal"] = {
     new = function(_c, o)
         o.refreshes = 0
         function o:refresh() self.refreshes = self.refreshes + 1 end
-        o._dpad_idx = 1                     -- a keys device
+        -- A keys device: LibraryModal seeds the focus unless the caller
+        -- asks for it on the first key press (focus_on_key).
+        if not o.config.focus_on_key then o._dpad_idx = 1 end
         return o
     end,
 }
@@ -275,7 +277,10 @@ t.test("the default's picker: titled Default theme, opens on page 1 always, Add 
     -- (Autumn, the fifth card) is marked on its own page.
     eq(c.cells_per_page() < 5, true)
     eq(m.page, 1, "not opened on the first page, where Custom theme and Plain are")
-    eq(m._dpad_idx, 1, "the keys' focus started on a card that is not on the page")
+    -- No focus ring until a key is pressed: seeded on the first card, it
+    -- read as the in-use mark (review, 2026-10-09).
+    eq(m._dpad_idx, nil, "the keys' focus ring shows before any key is pressed")
+    eq(c.focus_on_key(), 5, "the first key press does not look for the choice in use")
     local f = c.footer_rows[1]
     -- Reset between them (maintainer, 2026-10-09).
     eq(#f, 3); eq(f[1].label, "Add theme pack\xE2\x80\xA6"); eq(f[2].label, "Reset"); eq(f[3].label, "Close")
@@ -283,7 +288,8 @@ t.test("the default's picker: titled Default theme, opens on page 1 always, Add 
     eq(shown[1], m)
     library = "plain"
     local m2 = open{ current = function() return library end, choose = function(v) library = v end }
-    eq(m2.page, 1); eq(m2._dpad_idx, 2, "the keys' focus does not start on the choice in use on page 1")
+    eq(m2.page, 1); eq(m2._dpad_idx, nil)
+    eq(m2.config.focus_on_key(), 2, "the keys' focus does not show on the choice in use on page 1")
 end)
 
 t.test("four cards a page, the picker no taller than they need, the cards as tall as before", function()
@@ -306,9 +312,10 @@ t.test("a tap chooses and moves the mark, then the shelf behind is rebuilt; the 
     local m, c = open{ current = function() return library end,
                        choose = function(v) chosen[#chosen + 1] = tostring(v); library = v end,
                        apply = function() built[#built + 1] = library end }
+    m._dpad_idx = 1                                         -- a key was pressed
     c.on_cell_tap(c.item_at(3))
     eq(table.concat(chosen, ","), "Macabre")
-    eq(m.refreshes, 2, "the mark did not move")            -- one for the keys' focus, one now
+    eq(m.refreshes, 1, "the mark did not move")
     eq(m._dpad_idx, 3, "the keys' focus did not stay on the card chosen")
     eq(#built, 0, "the shelf was rebuilt before the mark could show")
     eq(tasks[1] and tasks[1].secs, TL.APPLY_DELAY, "the shelf behind is not rebuilt after a tap")

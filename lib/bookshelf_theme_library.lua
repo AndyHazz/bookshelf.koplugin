@@ -535,15 +535,16 @@ function TL.show(opts)
             if opts.on_closed then pcall(opts.on_closed) end
         end,
     }
+    -- Keys: no focus ring until the first key press, which shows it on the
+    -- choice in use when that is on the page shown. Seeded at open, the ring
+    -- sat on the first card while the choice was on another page, and read
+    -- as the in-use mark (review, 2026-10-09).
+    config.focus_on_key = function() return TL.indexOf(self.items, opts.current()) end
     -- Always opens on the first page, where Custom theme and Plain (and Default
     -- theme) are, wherever the choice in use is: its card is marked on its
     -- own page (maintainer, 2026-10-08: opened on Ukiyo-e's page, the
     -- built-ins were out of sight).
-    local at = TL.indexOf(self.items, opts.current())
-    local per = math.max(1, config.cells_per_page())
     modal = LibraryModal:new{ config = config, page = 1 }
-    -- Keys: the focus starts on the choice in use when it is on that page.
-    if modal._dpad_idx then modal._dpad_idx = (at <= per) and at or 1; modal:refresh() end
     own_defer = orn.beginDeferred ~= nil and not orn._defer
     if own_defer then orn.beginDeferred() end
     UIManager:show(modal)

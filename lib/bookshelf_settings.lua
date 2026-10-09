@@ -1540,8 +1540,9 @@ end
 -- 2026-10-09). Named for what it sets, as the Default theme row below it is
 -- (maintainer, 2026-10-09: "Theme library..." and "Library: My theme" opened
 -- the same picker and could not be told apart). It names the shelf's own
--- choice as that shelf's row on the last page does, "Default" while it
--- follows the default, whose card is then the one marked. A sub-shelf wears
+-- choice as that shelf's row under Other shelves does, "Default theme" while
+-- it follows the default (maintainer, 2026-10-09: not a bare "Default"),
+-- whose card is then the one marked. A sub-shelf wears
 -- its shelf of shelves' theme, so the row is that shelf's. Without a shelf on
 -- screen, the default's.
 function Settings:_themeLibraryRow()
@@ -1556,7 +1557,7 @@ function Settings:_themeLibraryRow()
             local id = shelfOnScreen()
             local TP = require("lib/bookshelf_theme_pack")
             local own = id and TP.ownChoice(id)
-            return T(_("This shelf: %1"), own == nil and _("Default") or TP.themeName(own))
+            return T(_("This shelf: %1"), own == nil and _("Default theme") or TP.themeName(own))
         end,
         keep_menu_open = true,
         callback = function(touchmenu_instance)
@@ -1878,14 +1879,15 @@ function Settings:_setShelfThemeField(id, field, value)
     if Orn and Orn._defer then TabModel.saveDeferred(tabs) else TabModel.save(tabs) end
 end
 
--- _shelfThemeLabelFor(tab) -> "Home: Default", or "Manga: Ukiyo-e".
+-- _shelfThemeLabelFor(tab): "Home: Default theme", or "Manga: Ukiyo-e".
 -- The choice is named as Shelf style names it, capital and all, like every
 -- other value after a colon here ("Wallpaper: Leafy"). Following the default
--- reads "Default", never "library", which is the Theme library's name
--- (maintainer, 2026-10-09).
+-- reads "Default theme", as the picker's card does: never "library", which
+-- is the Theme library's name, nor a bare "Default" (maintainer,
+-- 2026-10-09).
 function Settings:_shelfThemeLabelFor(tab)
     local label = tab.label or tab.id
-    if tab.theme == nil then return T(_("%1: %2"), label, _("Default")) end
+    if tab.theme == nil then return T(_("%1: %2"), label, _("Default theme")) end
     return T(_("%1: %2"), label, require("lib/bookshelf_theme_pack").themeName(tab.theme))
 end
 
@@ -1915,7 +1917,7 @@ function Settings:_openThemeLibrary(id, touchmenu_instance, after)
     opts.apply = function() self:_markDirty() end
     return require("lib/bookshelf_theme_library").show(opts)
 end
--- _perShelfThemeRows() -> a row per enabled shelf, "Home: Default" or
+-- _perShelfThemeRows() -> a row per enabled shelf, "Home: Default theme" or
 -- "Manga: Ukiyo-e", each opening that shelf's Theme library.
 function Settings:_perShelfThemeRows()
     local TabModel = require("lib/bookshelf_tab_model")

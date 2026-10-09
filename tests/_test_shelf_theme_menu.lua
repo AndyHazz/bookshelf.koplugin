@@ -205,12 +205,12 @@ t.test("ONE Theme menu: This shelf, Default theme, the editing rows, Reset, then
     local self, S, seen = build({ MAC, UK, AUT }, "Macabre", nil, { on_screen = "Macabre" })
     local rows = S._themeSubItems(onShelf(self, "home"))
     -- Maintainer, 2026-10-09: the two choosing rows named for what they
-    -- set, and "Default" wherever a shelf follows it: "Theme library..."
+    -- set, and "Default theme" wherever a shelf follows it: "Theme library..."
     -- and "Library: My theme" opened the same picker, and "library" also
     -- named the picker itself.
-    eq(texts(rows), "This shelf: Default | Default theme: Macabre | Light or dark: Auto (follow night mode)"
+    eq(texts(rows), "This shelf: Default theme | Default theme: Macabre | Light or dark: Auto (follow night mode)"
         .. " | Wallpaper | Full screen wallpaper | Invert | Color behind wallpaper | Plank | Ornaments | Colors"
-        .. " | New ornaments go | Reset Macabre to original | Home: Default | Manga: Default")
+        .. " | New ornaments go | Reset Macabre to original | Home: Default theme | Manga: Default theme")
     for _i, r in ipairs(rows) do
         local tx = r.text or (r.text_func and r.text_func()) or ""
         assert(not tx:lower():find("library", 1, true), "a row still says library: " .. tx)
@@ -234,7 +234,7 @@ t.test("on a Custom theme shelf there is nothing to reset: no Reset row, the pre
     eq(rowOf(rows, "Reset "), nil, "Custom theme has a Reset to original row")
     local newat = rowOf(rows, "New ornaments go")
     eq(newat.separator, true, "the shelves are not set apart from the editing rows")
-    eq(rows[#rows].text_func(), "Manga: Default")
+    eq(rows[#rows].text_func(), "Manga: Default theme")
 end)
 
 t.test("every editing row is on the first page of a PW5 menu (ten rows)", function()
@@ -252,7 +252,7 @@ t.test("This shelf opens the shelf on screen's picker, named for its own choice;
                    { id = "sub", label = "Sub", parent = "rec" } }
     local self, S, seen, by = build({ MAC, UK }, "Macabre", tabs)
     local row = S._themeLibraryRow(onShelf(self, "home"))
-    eq(row.text_func(), "This shelf: Default"); eq(row.keep_menu_open, true)
+    eq(row.text_func(), "This shelf: Default theme"); eq(row.keep_menu_open, true)
     eq(S._themeLibraryRow(onShelf(self, "rec")).text_func(), "This shelf: Plain")
     eq(S._themeLibraryRow(onShelf(self, "sub")).text_func(), "This shelf: Plain",
         "a sub-shelf's row is not its shelf of shelves' choice")
@@ -279,7 +279,7 @@ t.test("This shelf opens the shelf on screen's picker, named for its own choice;
     self._bw = nil
     S._themeLibraryRow(self).callback({})
     eq(seen.opened[3].shelf, nil, "no shelf on screen: not the default's picker")
-    eq(S._themeLibraryRow(self).text_func(), "This shelf: Default")
+    eq(S._themeLibraryRow(self).text_func(), "This shelf: Default theme")
 end)
 
 t.test("Default theme opens the default's Theme library, and the menu follows as it closes", function()
@@ -337,7 +337,7 @@ t.test("each enabled shelf is listed with its theme, a disabled one is not", fun
     local tabs = { { id = "home", label = "Home" }, { id = "manga", label = "Manga", theme = "Ukiyo-e" },
                    { id = "rec", label = "Recent", theme = "mine" }, { id = "x", label = "Off", enabled = false, theme = "plain" } }
     local self, S = build({ MAC, UK }, "Macabre", tabs)
-    eq(texts(S._perShelfThemeRows(self)), "Home: Default | Manga: Ukiyo-e | Recent: Custom theme")
+    eq(texts(S._perShelfThemeRows(self)), "Home: Default theme | Manga: Ukiyo-e | Recent: Custom theme")
 end)
 
 t.test("a shelf's row opens that shelf's Theme library; a choice writes that shelf only", function()

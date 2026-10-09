@@ -2238,9 +2238,9 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         -- shelves' theme (ruling, 2026-10-05). A pick is saved and shown on
         -- the shelf behind (on_change); this dialog comes back, its row
         -- updated, when the picker closes.
-        -- Following the default reads "Theme: Default", as its row in the
-        -- Theme menu does; never "library", the Theme library's own name
-        -- (maintainer, 2026-10-09).
+        -- Following the default reads "Theme: Default theme", as its row in
+        -- the Theme menu does; never "library", the Theme library's own
+        -- name, nor a bare "Default" (maintainer, 2026-10-09).
         if draft.parent == nil then
             local TP = require("lib/bookshelf_theme_pack")
             local function cur()
@@ -2251,7 +2251,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             rows[#rows + 1] = {{
                 text_func = function()
                     local v = cur()
-                    return T(_("Theme: %1"), v == nil and _("Default") or TP.themeName(v))
+                    return T(_("Theme: %1"), v == nil and _("Default theme") or TP.themeName(v))
                 end,
                 callback = function()
                     UIManager:close(d)

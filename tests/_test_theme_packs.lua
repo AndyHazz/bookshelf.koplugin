@@ -665,24 +665,6 @@ t.test("migrate: a pack wallpaper whose pack has gone, with nothing before it, i
     eq(settings.wallpaper_default, nil)
 end)
 
-t.test("migrate: rc/5.4 tabs: 'none' becomes the reader's own, theme_look goes", function()
-    local TP, _d, settings = setup()
-    local saved
-    local tabs = { { id = "a", theme = "none", theme_look = "dark" }, { id = "b", theme = "Cats" }, { id = "c" } }
-    TP._tabmodel = { load = function() return tabs end, save = function(t2) saved = t2 end }
-    TP.migrate()
-    assert(saved, "the tabs were not saved")
-    eq(saved[1].theme, "mine"); eq(saved[1].theme_look, nil); eq(saved[2].theme, "Cats")
-end)
-
-t.test("migrate: untouched tabs are not saved (that would freeze the defaults)", function()
-    local TP = setup()
-    local saves = 0
-    TP._tabmodel = { load = function() return { { id = "home" } } end, save = function() saves = saves + 1 end }
-    TP.migrate()
-    eq(saves, 0)
-end)
-
 t.test("migrate: the 5.3 betas' borrowed wallpaper becomes the reader's choice", function()
     local TP, d, settings = setup()
     touch(d .. "/Japan/theme/wallpaper.png")
@@ -696,7 +678,6 @@ end)
 t.test("migrate runs once: the version guards it, and a second run changes nothing", function()
     local TP, d, settings = setup()
     halloween(d); TP.invalidate()
-    TP._tabmodel = { load = function() return {} end, save = function() end }
     TP.migrate()
     eq(settings.theme_model, TP.MIGRATION_VERSION)
     settings.theme_colours_pack = "Halloween"                -- would be migrated if it ran
@@ -711,7 +692,6 @@ t.test("migrate is one flush, however much it moves", function()
     settings.shelf_theme = "dark"; packs_off.Autumn = true; packs_off.Cats = true
     applied53(settings, "Halloween", { shelf_theme = "auto" }, { shelf_theme = "dark" },
         {}, { Autumn = true, Cats = true })
-    TP._tabmodel = { load = function() return {} end, save = function() end }
     local O, flushes, store = TP._orn, 0, TP._store
     store.saveDeferred = store.save
     store.flush = function() flushes = flushes + 1 end
@@ -730,7 +710,6 @@ t.test("migrate: a record for a pack folder named like a built-in is dropped, se
     mkmanifest(d, "Plain"); mkwall(d, "Plain"); TP.invalidate()
     settings.shelf_theme = "dark"
     applied53(settings, "Plain", { shelf_theme = "auto" }, { shelf_theme = "dark" }, {}, {})
-    TP._tabmodel = { load = function() return {} end, save = function() end }
     TP.migrate()
     eq(settings.library_theme, nil); eq(settings.shelf_theme, "dark"); eq(settings.theme_applied, nil)
 end)

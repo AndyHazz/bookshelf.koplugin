@@ -55,8 +55,8 @@ local function touch(p, body)
     local f = io.open(p, "wb"); f:write(body or "x"); f:close()
 end
 
--- setup(): TP over a scratch ornaments folder, a settings table and a
--- tab list (the tab model's load/save seam writes into the same records).
+-- setup(): TP over a scratch ornaments folder, a settings table and the
+-- tabs by id.
 local function setup()
     local d = scratch()
     local settings = {}
@@ -110,17 +110,14 @@ local function setup()
     TP._lfs, TP._orn, TP._decode = lfs_shim, orn, tiny_json
     TP._plugin_root = "."
     TP.SCAN_TTL = 0
-    local st = { gen = 0, tab_saves = 0, saves = 0 }
+    local st = { gen = 0, saves = 0 }
     TP._store = { read = function(k) return settings[k] end,
                   save = function(k, v) settings[k] = v; st.saves = st.saves + 1; st.gen = st.gen + 1 end,
                   flush = function() end,
                   generation = function() return st.gen end,
                   bump = function() st.gen = st.gen + 1 end }
-    local list = {}
-    local tabs = setmetatable({}, { __newindex = function(m, k, v) rawset(m, k, v); list[#list + 1] = v end })
-    TP._tab = function(id) return rawget(tabs, id) end
-    TP._tabmodel = { load = function() return list end,
-                     save = function() st.tab_saves = st.tab_saves + 1; st.gen = st.gen + 1 end }
+    local tabs = {}
+    TP._tab = function(id) return tabs[id] end
     return TP, d, settings, tabs, st, off, packs_off
 end
 
@@ -393,14 +390,13 @@ t.test("bookshelf_ornaments.listFor deals an edited set, from any pack or loose;
     eq(#O.listFor("Macabre"), 1, "a pack's piece off in the collection is off on the pack's shelf")
 end)
 
-t.test("migration 2: a 5.3 pack piece switched off becomes that pack's edit; the own theme is dropped", function()
+t.test("migration 2: a 5.3 pack piece switched off becomes that pack's edit", function()
     local TP, d, settings, tabs, _st, off = setup()
     world(d, settings)
     settings.theme_model = 1
     off["Macabre/skull.png"] = true; off["cactus.svg"] = true
     settings.wallpaper_default = "theme-pack\1Gone\1wallpaper.png"   -- a v1 step would clear it
-    tabs.home = { id = "home", theme = "own", own_theme = { keys = {} } }
-    tabs.rec = { id = "rec", theme = "Macabre", own_theme = { keys = {} } }
+    tabs.rec = { id = "rec", theme = "Macabre" }
     TP.migrate()
     eq(settings.theme_model, 2)
     eq(settings.wallpaper_default, "theme-pack\1Gone\1wallpaper.png", "a version 1 step ran again")
@@ -409,8 +405,6 @@ t.test("migration 2: a 5.3 pack piece switched off becomes that pack's edit; the
     eq(e.pieces["Macabre/candle.png"], true); eq(e.pieces["Macabre/skull.png"], nil)
     eq(edits(settings, "Ukiyo-e"), nil, "a pack with nothing off got an edit")
     eq(off["Macabre/skull.png"], true, "Custom theme's switch went (it deals pack pieces too)")
-    eq(tabs.home.own_theme, nil); eq(tabs.home.theme, nil); eq(tabs.rec.own_theme, nil)
-    eq(tabs.rec.theme, "Macabre")
     -- Nothing on screen changes: the Macabre shelf deals the candle alone.
     on(TP, "rec")
     local list = TP._orn.listFor(TP.ornamentsFor("rec"))

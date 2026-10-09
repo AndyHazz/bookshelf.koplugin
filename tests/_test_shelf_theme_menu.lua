@@ -69,7 +69,7 @@ local function build(packs, library, tabs, opts)
         packOf = function(v) if v == nil or v == "mine" or v == "plain" then return nil end return v end,
         theme = function(p) return { exists = by[p] ~= nil } end,
         themeName = function(v)
-            if v == nil or v == "mine" or v == "none" then return "Custom theme" end
+            if v == nil or v == "mine" then return "Custom theme" end
             if v == "plain" then return "Plain" end
             if not by[v] then return v .. " (missing)" end
             return by[v].name
@@ -86,7 +86,6 @@ local function build(packs, library, tabs, opts)
         -- exactly a built-in's id is no theme.
         ownChoice = function(id)
             local v = tabs_by[id] and tabs_by[id].theme
-            if v == "none" then v = "mine" end
             if type(v) == "string" and v ~= "mine" and v ~= "plain"
                 and ({ mine = 1, plain = 1, none = 1, own = 1 })[v:lower()] then v = nil end
             return v
@@ -412,13 +411,6 @@ t.test("while the Theme library is open a shelf's choice is kept in memory, writ
     assert(seen.saved_deferred, "the choice was not kept in memory")
     o.choose("Ukiyo-e")
     assert(seen.saved, "outside a picker the choice is not written at once")
-end)
-
-t.test("rc/5.4's 'none' reads as the reader's own in a shelf's picker", function()
-    local tabs = { { id = "a", label = "A", theme = "none" } }
-    local self, S, seen = build({ UK }, nil, tabs)
-    S._perShelfThemeRows(self)[1].callback({})
-    eq(seen.opened[1].current(), "mine")
 end)
 
 t.test("opening another shelf's picker shows that shelf behind it", function()

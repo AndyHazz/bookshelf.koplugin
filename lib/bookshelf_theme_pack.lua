@@ -287,17 +287,15 @@ function M.plainName() return _("Plain") end
 -- A pack folder whose name is a built-in value, in any case ("Plain",
 -- "mine", "NONE"), is never a theme: stored, it could not be told from the
 -- built-in. Its pieces, wallpaper and planks are still the reader's to use.
--- "own": an unreleased feat/my-look build stored it for a shelf's own theme
--- (replaced by editable themes, 2026-10-08); reserved, it reads as unset.
+-- "none" and "own" were ids of unreleased builds; still reserved, and a
+-- stored one reads as unset.
 M.RESERVED = { mine = true, plain = true, none = true, own = true }
 function M.isReserved(pack)
     return type(pack) == "string" and M.RESERVED[pack:lower()] == true
 end
 
--- normalise(v) -> a stored theme choice in today's terms, or nil (none
--- stored). rc/5.4 wrote "none" for the reader's own.
+-- normalise(v) -> a stored theme choice, or nil (none stored, or no theme).
 local function normalise(v)
-    if v == "none" then return M.MINE end
     if v == M.MINE or v == M.PLAIN then return v end
     -- A pack named like a built-in (any case) is never a theme: unset.
     if M.isReserved(v) then return nil end
@@ -1321,22 +1319,19 @@ function M.editName() return M.themeName(M.shelfTheme()) end
 --   3. wallpaper_* naming a pack's picture stays the reader's choice; if it
 --      was not showing (its pack off or gone), the reader's own picture from
 --      before it (_own) takes its place. _own goes.
---   4. rc/5.4 tabs: theme "none" -> "mine", theme_look dropped.
 -- Version 2 (editable themes, 2026-10-08):
---   5. 5.3 switched single pack pieces off in the collection (ornaments_off)
+--   4. 5.3 switched single pack pieces off in the collection (ornaments_off)
 --      and a shelf wearing that pack did not deal them. A pack deals its own
 --      set now, edited with the theme: each pack's off switches become that
 --      pack's edit, so nothing on screen changes. ornaments_off stays as it
 --      is: it is Custom theme's set, which deals pack pieces too. The pack
 --      the library wore (step 1) already has its edit: everything 5.3 dealt
 --      there, loose pieces included.
---   6. The unreleased own theme: tab.own_theme dropped, theme "own" unset.
 -- Idempotent, and guarded by a version so each step runs once.
 M.MIGRATION_SETTING = "theme_model"
 M.MIGRATION_VERSION = 2
 M.APPLIED_SETTING   = "theme_applied"
 M.COLOURS_SETTING   = "theme_colours_pack"
-M._tabmodel = nil   -- seam: the tab model ({ load, save })
 
 -- A saved nil in the old record, which a settings table cannot hold as a value.
 local NIL_MARK = "\0nil"
@@ -1419,26 +1414,6 @@ local function migrateWallpaper(key)
     end
 end
 
-local function tabModel()
-    if M._tabmodel then return M._tabmodel end
-    local ok, TM = pcall(require, "lib/bookshelf_tab_model")
-    return ok and TM or nil
-end
-
-local function migrateTabs()
-    local TabModel = tabModel()
-    if not (TabModel and TabModel.load and TabModel.save) then return end
-    local tabs = TabModel.load()
-    local changed = false
-    for _i, t in ipairs(tabs or {}) do
-        if t.theme == "none" then t.theme = M.MINE; changed = true end
-        if t.theme_look ~= nil then t.theme_look = nil; changed = true end
-    end
-    -- Saved only when something changed: TabModel.load hands an untouched
-    -- reader the DEFAULTS, and saving them would freeze them.
-    if changed then TabModel.save(tabs) end
-end
-
 local function migratePieceSwitches()
     local O = orn()
     local all = O.listAll() or {}
@@ -1458,18 +1433,6 @@ local function migratePieceSwitches()
             end)
         end
     end
-end
-
-local function migrateOwnThemes()
-    local TabModel = tabModel()
-    if not (TabModel and TabModel.load and TabModel.save) then return end
-    local tabs = TabModel.load()
-    local changed = false
-    for _i, t in ipairs(tabs or {}) do
-        if t.own_theme ~= nil then t.own_theme = nil; changed = true end
-        if t.theme == "own" then t.theme = nil; changed = true end
-    end
-    if changed then TabModel.save(tabs) end
 end
 
 function M.migrate()
@@ -1493,11 +1456,9 @@ function M.migrate()
             migrateColours()
             migrateWallpaper("wallpaper_default")
             migrateWallpaper("wallpaper_full")
-            migrateTabs()
         end
         if from < 2 then
             migratePieceSwitches()
-            migrateOwnThemes()
         end
     end)
     if own_defer then O.endDeferred() end

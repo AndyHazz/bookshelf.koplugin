@@ -2243,11 +2243,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         -- name, nor a bare "Default" (maintainer, 2026-10-09).
         if draft.parent == nil then
             local TP = require("lib/bookshelf_theme_pack")
-            local function cur()
-                local v = draft.theme
-                if v == "none" then v = TP.MINE end
-                return v
-            end
+            local function cur() return draft.theme end
             rows[#rows + 1] = {{
                 text_func = function()
                     local v = cur()

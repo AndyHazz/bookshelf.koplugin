@@ -189,12 +189,12 @@ t.test("the reader's own on one shelf under a library theme: exactly their own l
     eq(settings.theme_plank_pack, false)
 end)
 
-t.test("rc/5.4's 'none' is read as the reader's own", function()
+t.test("'none', an unreleased build's id, reads as unset: the shelf follows the default", function()
     local TP, d, _s, _po, _o, tabs = setup()
     halloween(d); TP.invalidate()
     lib(TP, "Halloween")
     tabs.x = { id = "x", theme = "none" }
-    eq(TP.themeFor("x"), "mine")
+    eq(TP.themeFor("x"), "Halloween")
 end)
 
 t.test("Plain: no wallpaper, the oak plank, default colours, no ornaments, the reader's light or dark", function()
@@ -433,7 +433,7 @@ t.test("one shelf theme list for every menu: Default theme, a missing pack, mine
     -- The default's list: no Default theme card, the missing pack kept.
     eq(labels(TP.choiceList("Gone")), "Gone (missing)!,Custom theme,Plain,Halloween")
     tabs.a = { id = "a", theme = "none" }; tabs.b = { id = "b" }; tabs.s = { id = "s", parent = "a" }
-    eq(TP.ownChoice("a"), "mine"); eq(TP.ownChoice("b"), nil)
+    eq(TP.ownChoice("a"), nil, "a reserved id is a choice"); eq(TP.ownChoice("b"), nil)
     eq(TP.ownChoice("s"), nil, "ownChoice is the shelf's own, not inherited")
 end)
 

@@ -1015,8 +1015,14 @@ function Editor:editTab(tab_id, opts)
                     .. (mode or SD.chipLabelFor(draft.group_display))
             end,
             callback = function()
-                Editor:_pickGroupDisplay(draft, function()
+                -- now: the shelf behind rebuilt at once, not on the
+                -- debounce; the Theme library debounces its taps itself and
+                -- refreshes the whole screen as it applies, so a rebuild left
+                -- for later was a flash that showed nothing, then a second
+                -- one with the theme (maintainer on the PW5, 2026-10-09).
+                Editor:_pickGroupDisplay(draft, function(now)
                     commit()
+                    if now then settlePreview() end
                     rebuild()
                 end, {
                     -- Stand the editor down while the picker is up: it sits
@@ -2250,7 +2256,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                         shelf = draft.label or "",
                         current = cur,
                         choose = function(value) draft.theme = value end,
-                        apply = on_change,
+                        apply = function() on_change(true) end,
                         on_closed = show,
                     }
                 end,

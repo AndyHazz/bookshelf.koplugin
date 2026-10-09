@@ -271,7 +271,7 @@ t.test("each sub-dialog hands back through commit", function()
     }) do
         assert(src:find(call, 1, true), "not applied on selection: " .. call)
     end
-    assert(src:find("Editor:_pickGroupDisplay(draft, function()\n                    commit()", 1, true),
+    assert(src:find("Editor:_pickGroupDisplay(draft, function(now)\n                    commit()", 1, true),
         "Shelf style picks do not apply")
     assert(src:find("Editor:_openCatalogSettings(draft, function()\n                        commit()", 1, true),
         "catalog settings do not apply")

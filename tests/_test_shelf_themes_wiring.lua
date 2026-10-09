@@ -55,8 +55,14 @@ t.test("Shelf style has the shelf's Theme row, top-level shelves only, previewed
         "the row does not open the Theme library the menus open")
     assert(row:find("current = cur,", 1, true), "the picker does not mark the draft's choice")
     assert(row:find("choose = function(value) draft.theme = value end,", 1, true)
-        and row:find("apply = on_change,", 1, true),
-        "a pick does not reach the draft, or is not previewed on the shelf behind")
+        and row:find("apply = function() on_change(true) end,", 1, true),
+        "a pick does not reach the draft, or is not previewed on the shelf behind at once")
+    -- At once, not on the editor's debounce: the Theme library refreshes the
+    -- whole screen as it applies, so a rebuild left for later was a flash
+    -- that showed nothing, then a second with the theme (PW5, 2026-10-09).
+    local open_ed = ed:gsub("%-%-[^\n]*", "")
+    assert(open_ed:find("Editor:_pickGroupDisplay%(draft, function%(now%)\n%s*commit%(%)\n%s*if now then settlePreview%(%) end\n%s*rebuild%(%)"),
+        "the Theme library's apply leaves the shelf's rebuild on the debounce: two flashes")
     assert(row:find("on_closed = show,", 1, true), "Shelf style does not come back after the picker")
     local st = read("lib/bookshelf_settings.lua")
     local open = st:match("function Settings:_openThemeLibrary%(id, touchmenu_instance, after%)(.-)\nend\n")

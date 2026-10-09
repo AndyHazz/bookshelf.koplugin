@@ -6,8 +6,9 @@ Theme menu's This shelf row (the shelf on screen's), its Default theme row
 (the default every shelf without its own wears) and shelf rows (each
 shelf's), and Shelf style's Theme row.
 
-A card: the theme's name, what it brings ("Wallpaper · Plank · 55 ornaments ·
-Dark", only the parts it has), its theme.json description when there is one,
+A card: the theme's name, what it brings (the Theme menu rows' icons for the
+parts it has, "<wallpaper> <plank> <cup> 55 <moon>", nothing for a part it
+does not have), its theme.json description when there is one,
 and its hero ornament at the right end (theme.json "hero", else its newest
 piece switched on). A heavier frame on a light ground marks the choice in use. A tap chooses
 and moves the mark, the shelf behind is rebuilt with a full refresh a moment
@@ -70,10 +71,25 @@ function TL.pieces(pack, all)
     return _counts[pack] or 0
 end
 
+-- A summary is icons, the ones the Theme menu's rows wear, so a card and the
+-- row that edits that part look alike (maintainer, 2026-10-09, variant B). A
+-- part a pack simply has is its icon alone (wallpaper, plank, colours, light
+-- or dark); ornaments are the icon and how many; Custom theme's and Plain's
+-- parts keep the names that tell something (the wallpaper, the plank). A part
+-- a theme does not have is left out, icon and all, never "None" (maintainer,
+-- 2026-10-09). Icon parts are set apart by space, not a dot: the icon itself
+-- marks where each starts. Words in front (Edited, Uses:) keep the dot.
+local function Icons() return require("lib/bookshelf_menu_icons") end
+local NB = "\xC2\xA0"
+local function ic(glyph, text) return text and (glyph .. NB .. text) or glyph end
+TL.ICON_SEP = NB .. NB .. "  "
+
+-- ornamentsPart(n) -> the ornaments' part, nil for none.
 local function ornamentsPart(n)
-    if n == 0 then return _("No ornaments") end
-    if n == 1 then return _("1 ornament") end
-    return T(_("%1 ornaments"), n)
+    if not n or n < 1 then return nil end
+    -- The cup overhangs its advance (1036 of 946 units): a second no-break
+    -- space so it sits as far from its count as the others from their words.
+    return ic((O().COLLECTION_ICON or "") .. NB, tostring(n))
 end
 
 -- wallpaperName(name) -> a wallpaper as the menus name it: a file without its
@@ -87,10 +103,11 @@ local function wallpaperName(name)
     return name:match("^(.+)%.[^%.]+$") or name
 end
 
--- summary(theme, spines) -> what that theme brings, one line: "mine",
--- "plain" or a pack. Only the parts a pack has, so a pack of ornaments only
--- says "27 ornaments" and nothing else; light or dark only when its
--- theme.json says. The reader's own is summed up from their own settings.
+-- summary(theme, spines) -> what that theme brings, one line, or nil when
+-- it brings nothing to say: "mine", "plain" or a pack. Only the parts it has
+-- (see Icons above), so a pack of ornaments only says "<cup> 27" and Plain
+-- only its oak plank; light or dark only when its theme.json says. The
+-- reader's own is summed up from their own settings.
 -- spines == false (the shelf it is for is not on Spines): a pack that brings
 -- ornaments and nothing else says they only show on Spines shelves, since on
 -- that shelf choosing it changes nothing to be seen (maintainer, 2026-10-08:
@@ -100,38 +117,40 @@ end
 -- scan the caller holds (pieces).
 function TL.summary(theme, spines, all)
     local tp = TP()
+    local I = Icons()
     local parts = {}
-    local function add(s) parts[#parts + 1] = s end
+    local function add(x) if x then parts[#parts + 1] = x end end
     local edited = theme ~= nil and theme ~= tp.MINE and tp.hasEdits and tp.hasEdits(theme)
-    if edited then add(_("Edited")) end
     if theme == nil or theme == tp.MINE then
         -- The wallpaper's own name, as the Wallpaper row gives it ("Leafy
         -- wallpaper", "Macabre pack"); "Your wallpaper" said nothing
         -- (maintainer, 2026-10-09).
-        add(wallpaperName(tp.mineWallpaper(false, false)) or _("No wallpaper"))
+        local wp = wallpaperName(tp.mineWallpaper(false, false))
+        if wp then add(ic(I.WALLPAPER, wp)) end
         local pl = tp.minePlank()
-        add(pl and tp.plankLabel(pl) or _("Plain color"))
+        add(ic(I.PLANK, pl and tp.plankLabel(pl) or _("Plain color")))
         add(ornamentsPart(#(O().list() or {})))
     elseif theme == tp.PLAIN then
-        add(_("No wallpaper")); add(_("Oak")); add(_("No ornaments"))
+        add(ic(I.PLANK, _("Oak")))
     else
         local th = tp.theme(theme)
         if not th.exists then return nil end
-        local first = #parts
-        if th.wallpaper then add(_("Wallpaper")) end
+        if th.wallpaper then add(I.WALLPAPER) end
         local np = #(th.planks or {})
-        if np == 1 then add(_("Plank")) elseif np > 1 then add(T(_("%1 planks"), np)) end
-        if th.colours then add(_("Colors")) end
-        local others = #parts - first
+        if np == 1 then add(I.PLANK) elseif np > 1 then add(ic(I.PLANK, tostring(np))) end
+        if th.colours then add(I.COLORS) end
+        local others = #parts
         local n = TL.pieces(theme, all)
-        if n > 0 then add(ornamentsPart(n)) end
+        add(ornamentsPart(n))
         local shelf = th.manifest and th.manifest.shelf
-        if shelf == "dark" then add(_("Dark")) elseif shelf == "light" then add(_("Light")) end
-        if spines == false and n > 0 and others == 0 and #parts == first + 1 then
-            parts[#parts] = T(_("%1 (Spines shelves only)"), parts[#parts])
+        if shelf == "dark" then add(I.DARK) elseif shelf == "light" then add(I.LIGHT) end
+        if spines == false and n > 0 and others == 0 and #parts == 1 then
+            parts[1] = T(_("%1 (Spines shelves only)"), parts[1])
         end
     end
-    return table.concat(parts, TL.SEP)
+    local out = #parts > 0 and table.concat(parts, TL.ICON_SEP) or nil
+    if edited then out = out and (_("Edited") .. TL.SEP .. out) or _("Edited") end
+    return out
 end
 
 -- spinesShown() -> is the shelf on screen on Spines: true or false, nil

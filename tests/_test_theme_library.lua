@@ -1,7 +1,7 @@
 -- tests/_test_theme_library.lua
 -- The Theme library (lib/bookshelf_theme_library): one card per theme, with
--- what it brings ("Wallpaper · Plank · 55 ornaments · Dark", only the parts it
--- has), its description and its hero ornament; the choice in use marked; a
+-- what it brings (the Theme menu rows' icons for the parts it has, nothing
+-- for a part it has not), its description and its hero ornament; the choice in use marked; a
 -- missing pack listed but not chosen again. One picker for the library and
 -- every shelf. Building the cards decodes nothing.
 -- Usage (from plugin root): lua tests/_test_theme_library.lua
@@ -13,6 +13,14 @@ package.loaded["lib/bookshelf_i18n"] = { gettext = function(s) return s end }
 local H = dofile("tests/_helpers.lua")
 local t, eq = H.runner(), H.eq
 local DOT = " \xC2\xB7 "
+-- A summary's icons (maintainer, 2026-10-09, variant B): the Theme menu
+-- rows', a part's name or count after a no-break space, parts set apart by
+-- space.
+local MI = dofile("lib/bookshelf_menu_icons.lua")
+local NB = "\xC2\xA0"
+local GAP = NB .. NB .. "  "
+local function ic(g, s) return s and (g .. NB .. s) or g end
+local function row(...) return table.concat({ ... }, GAP) end
 
 -- The theme scan, as bookshelf_theme_pack reports it.
 local themes = {
@@ -22,6 +30,8 @@ local themes = {
     Planks  = { exists = true, planks = { {}, {}, {} } },
     Ukiyo   = { exists = true, colours = { day = {}, night = {} }, manifest = { name = "Ukiyo-e", shelf = "light" } },
     Autumn  = { exists = true, planks = {} },
+    -- Nothing a card can name: no wallpaper, plank, colours, pieces or shelf.
+    Empty   = { exists = true, planks = {} },
 }
 local library, mine_wall, mine_plank = "mine", "forest.png", { name = "Oak" }
 local TP = { MINE = "mine", PLAIN = "plain" }
@@ -75,6 +85,7 @@ all[#all + 1] = piece("Ukiyo", "Wave.png")
 local on = { piece("Autumn", "B01.png"), piece(nil, "cactus.svg"), piece("Macabre", "A01.png") }
 local listAll_calls = 0
 local Orn = {
+    COLLECTION_ICON = "\xEF\x83\xB4",
     -- The settings deferral (Orn.beginDeferred): written once on close.
     _defer = false, deferred = {},
     beginDeferred = function() local O = package.loaded["test/orn"]; O._defer = true; O.deferred[#O.deferred + 1] = "begin" end,
@@ -89,26 +100,47 @@ local Orn = {
 package.loaded["test/orn"] = Orn
 local TL = dofile("lib/bookshelf_theme_library.lua")
 TL._tp, TL._orn = TP, Orn
+-- The cup overhangs its advance: a second no-break space after it.
+local function orn(n) return ic(Orn.COLLECTION_ICON .. NB, tostring(n)) end
 
 t.test("a pack's summary names only the parts it has, its pieces counted", function()
     -- 56 = the 55 plus the hero
-    eq(TL.summary("Macabre"), "Wallpaper" .. DOT .. "Plank" .. DOT .. "56 ornaments" .. DOT .. "Dark")
-    eq(TL.summary("Planks"), "3 planks", "a pack of planks")
-    eq(TL.summary("Ukiyo"), "Colors" .. DOT .. "1 ornament" .. DOT .. "Light")
-    eq(TL.summary("Autumn"), "27 ornaments", "a pack of ornaments only says so by what it lists")
+    eq(TL.summary("Macabre"), row(MI.WALLPAPER, MI.PLANK, orn(56), MI.DARK))
+    eq(TL.summary("Planks"), ic(MI.PLANK, "3"), "a pack of planks")
+    eq(TL.summary("Ukiyo"), row(MI.COLORS, orn(1), MI.LIGHT))
+    eq(TL.summary("Autumn"), orn(27), "a pack of ornaments only says so by what it lists")
+end)
+
+t.test("a part a theme does not have is left out, icon and all; nothing to say is no summary", function()
+    -- Maintainer, 2026-10-09: "instead of e.g. wallpaper icon and 'none'
+    -- just don't show icon/label if that pack doesn't include wallpaper".
+    for _i, th in ipairs({ "mine", "plain", "Macabre", "Planks", "Ukiyo", "Autumn" }) do
+        local s = TL.summary(th)
+        assert(not s:find("None", 1, true) and not s:find("No ", 1, true), th .. " names a part it has not: " .. s)
+    end
+    eq(TL.summary("Planks"):find(MI.WALLPAPER, 1, true), nil, "a wallpaper icon on a pack without one")
+    eq(TL.summary("Planks"):find(Orn.COLLECTION_ICON, 1, true), nil, "an ornaments icon on a pack without pieces")
+    eq(TL.summary("Empty"), nil, "a pack with nothing to name says something")
+    edits.Empty = { keys = {} }
+    eq(TL.summary("Empty"), "Edited", "an edited pack with nothing to name")
+    edits.Empty = nil
+    -- A Default theme card following it says which, and nothing after.
+    local saved = library; library = "Empty"
+    eq(TL.items{ shelf = "Home", current = nil }[1].summary, "Uses: Empty")
+    library = saved
 end)
 
 t.test("off Spines, a pack of ornaments only says where they show; nothing else does", function()
     -- Maintainer, 2026-10-08: Autumn chosen for a Covers shelf changed
     -- nothing to be seen, and its card did not say why.
-    eq(TL.summary("Autumn", false), "27 ornaments (Spines shelves only)")
-    eq(TL.summary("Autumn", true), "27 ornaments")
-    eq(TL.summary("Autumn"), "27 ornaments", "no shelf to ask: no note")
+    eq(TL.summary("Autumn", false), orn(27) .. " (Spines shelves only)")
+    eq(TL.summary("Autumn", true), orn(27))
+    eq(TL.summary("Autumn"), orn(27), "no shelf to ask: no note")
     eq(TL.summary("Macabre", false), TL.summary("Macabre"), "a theme with other parts got the note")
     eq(TL.summary("Ukiyo", false), TL.summary("Ukiyo"), "a theme with colors got the note")
     eq(TL.summary("mine", false), TL.summary("mine")); eq(TL.summary("plain", false), TL.summary("plain"))
     local items = TL.items{ current = "mine", spines = false }
-    eq(items[5].summary, "27 ornaments (Spines shelves only)", "the cards are not told the shelf's style")
+    eq(items[5].summary, orn(27) .. " (Spines shelves only)", "the cards are not told the shelf's style")
 end)
 
 t.test("the shelf's style is asked of the shelf on screen", function()
@@ -122,23 +154,27 @@ t.test("the shelf's style is asked of the shelf on screen", function()
 end)
 
 t.test("light or dark only when the pack's theme.json says", function()
-    eq(TL.summary("Autumn"):find("Dark", 1, true), nil)
-    eq(TL.summary("Autumn"):find("Light", 1, true), nil)
+    eq(TL.summary("Autumn"):find(MI.DARK, 1, true), nil)
+    eq(TL.summary("Autumn"):find(MI.LIGHT, 1, true), nil)
+    assert(TL.summary("Macabre"):find(MI.DARK, 1, true), "a dark pack is not the moon")
 end)
 
 t.test("Custom theme is summed up from the reader's own settings; Plain is fixed", function()
     mine_wall, mine_plank = "forest.png", { name = "Oak" }
     -- The wallpaper by its name, as the Wallpaper row names it; "Your
     -- wallpaper" said nothing (maintainer, 2026-10-09).
-    eq(TL.summary("mine"), "forest" .. DOT .. "Oak" .. DOT .. "3 ornaments")
+    eq(TL.summary("mine"), row(ic(MI.WALLPAPER, "forest"), ic(MI.PLANK, "Oak"), orn(3)))
     mine_wall = "theme-pack\1Macabre\1wallpaper.png"
-    eq(TL.summary("mine"):match("^[^\xC2]+"), "Macabre pack ", "a pack's picture is not named by its pack")
-    mine_wall = "forest.png"
-    mine_wall, mine_plank = nil, nil
+    eq(TL.summary("mine"):sub(1, #ic(MI.WALLPAPER, "Macabre pack") + #NB), ic(MI.WALLPAPER, "Macabre pack") .. NB,
+        "a pack's picture is not named by its pack")
+    -- No wallpaper: left out, not "None".
+    mine_wall = nil
+    eq(TL.summary("mine"), row(ic(MI.PLANK, "Oak"), orn(3)))
+    mine_plank = nil
     local saved = on; on = {}
-    eq(TL.summary("mine"), "No wallpaper" .. DOT .. "Plain color" .. DOT .. "No ornaments")
+    eq(TL.summary("mine"), ic(MI.PLANK, "Plain color"), "a plain color plank is still a plank")
     on = saved; mine_wall, mine_plank = "forest.png", { name = "Oak" }
-    eq(TL.summary("plain"), "No wallpaper" .. DOT .. "Oak" .. DOT .. "No ornaments")
+    eq(TL.summary("plain"), ic(MI.PLANK, "Oak"), "Plain names more than its oak plank")
     eq(TL.summary("Gone"), nil, "a missing pack has nothing to say")
 end)
 
@@ -170,11 +206,11 @@ end)
 
 t.test("a pack or Plain the reader has edited says Edited first; Custom theme never does", function()
     edits.Macabre = { keys = { wallpaper_default = "leaves.png" } }
-    eq(TL.summary("Macabre"), "Edited" .. DOT .. "Wallpaper" .. DOT .. "Plank" .. DOT .. "56 ornaments" .. DOT .. "Dark")
+    eq(TL.summary("Macabre"), "Edited" .. DOT .. row(MI.WALLPAPER, MI.PLANK, orn(56), MI.DARK))
     edits.Autumn = { keys = { progress_fill = { hex = "#00AA00" } } }
-    eq(TL.summary("Autumn", false), "Edited" .. DOT .. "27 ornaments (Spines shelves only)")
+    eq(TL.summary("Autumn", false), "Edited" .. DOT .. orn(27) .. " (Spines shelves only)")
     edits.plain = { keys = {} }
-    eq(TL.summary("plain"), "Edited" .. DOT .. "No wallpaper" .. DOT .. "Oak" .. DOT .. "No ornaments")
+    eq(TL.summary("plain"), "Edited" .. DOT .. ic(MI.PLANK, "Oak"))
     edits.mine = { keys = {} }
     eq(TL.summary("mine"):find("Edited", 1, true), nil, "Custom theme says Edited")
     local items = TL.items{ current = "mine" }
@@ -191,7 +227,7 @@ t.test("the library's cards: the reader's own, Plain, each theme; titled by name
     eq(table.concat(titles, ","), "Custom theme,Plain,Macabre,Ukiyo-e,Autumn")
     eq(items[3].description, "Candles and skulls.")
     eq(items[1].description, nil); eq(items[5].description, nil)
-    eq(items[5].summary, "27 ornaments")
+    eq(items[5].summary, orn(27))
     eq(TL.isCurrent(items[3], "Macabre"), true); eq(TL.isCurrent(items[1], "Macabre"), false)
     eq(TL.indexOf(items, "Macabre"), 3); eq(TL.indexOf(items, "nothing"), 1)
 end)

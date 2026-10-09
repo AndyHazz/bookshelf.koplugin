@@ -162,7 +162,7 @@ function M.otherShelvesRow(S)
             for _i, t in ipairs(others()) do
                 if TP.ownChoice(t.id) ~= nil then n = n + 1 end
             end
-            -- Two msgids, as "1 ornament" / "%1 ornaments": the plugin's
+            -- Two msgids, one and many: the plugin's
             -- translations have no plural forms.
             if n == 0 then return _("Other shelves: all default") end
             if n == 1 then return _("Other shelves: 1 with own theme") end

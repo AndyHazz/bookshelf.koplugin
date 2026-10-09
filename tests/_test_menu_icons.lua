@@ -29,7 +29,7 @@ local function codepoint(g)
     return (b1 - 0xE0) * 0x1000 + (b2 - 0x80) * 0x40 + (b3 - 0x80)
 end
 
-local NAMES = { "RESET", "SHELF_SIZE", "SHELVES", "THEME", "APPEARANCE",
+local NAMES = { "RESET", "SHELF_SIZE", "SHELVES", "THEME",
                 "HARDCOVER", "SETTINGS", "UPDATES" }
 
 -- Which top-level rows carry an icon, and which deliberately do not. Pinned in
@@ -42,7 +42,6 @@ local WANTS_ICON = {
     bookshelf_shelf_size = true,
     bookshelf_shelf_tabs = true,
     bookshelf_theme      = true,
-    bookshelf_background = true,
     bookshelf_hardcover  = true,
     bookshelf_settings   = true,
     bookshelf_updates    = true,
@@ -139,19 +138,21 @@ t.test("the bundled font actually has them", function()
     eq(out, "ok", "codepoints missing from the bundled symbols face: " .. out)
 end)
 
-t.test("the theme is a top-level row, just above Wallpaper, with the image glyph", function()
-    -- Maintainer, 2026-10-02: light or dark and the theme packs moved out of
-    -- "Wallpaper, ornaments and colors" to a row of their own above it.
+t.test("the theme is a top-level row, after Edit shelves, with the image glyph", function()
+    -- Maintainer, 2026-10-02: the theme got a row of its own; 2026-10-09: it
+    -- is the ONE theme menu, its editing rows included, so the palette
+    -- glyph of the old editing menu went with it.
     eq(codepoint(Icons.THEME), 0xF03E, "not U+F03E (image)")
+    eq(Icons.APPEARANCE, nil, "the old editing menu's glyph is back, with nothing to carry it")
     local order = main:match("Bookshelf%.MENU_ORDER = {(.-)\n}")
     local keys = {}
     for key in order:gmatch('"([%w_]+)"') do keys[#keys + 1] = key end
     local at
     for i, k in ipairs(keys) do if k == "bookshelf_theme" then at = i end end
     assert(at, "no bookshelf_theme in MENU_ORDER")
-    eq(keys[at + 1], "bookshelf_background", "the theme row is not just above Wallpaper")
+    eq(keys[at - 1], "bookshelf_shelf_tabs", "the theme row is not just after Edit shelves")
     local row = main:match("(menu_items%.bookshelf_theme = {.-\n    }\n)")
-    assert(row and row:find("S:_shelfThemeSubItems()", 1, true), "the row does not open the Shelf theme menu")
+    assert(row and row:find("S:_themeSubItems()", 1, true), "the row does not open the Theme menu")
     assert(row:find("MenuIcons.THEME", 1, true), "the row's glyph is not THEME")
 end)
 

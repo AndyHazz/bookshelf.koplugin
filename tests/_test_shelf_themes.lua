@@ -456,10 +456,6 @@ t.test("one shelf theme list for every menu: Same as library, a missing pack, mi
     tabs.a = { id = "a", theme = "none" }; tabs.b = { id = "b" }; tabs.s = { id = "s", parent = "a" }
     eq(TP.ownChoice("a"), "mine"); eq(TP.ownChoice("b"), nil)
     eq(TP.ownChoice("s"), nil, "ownChoice is the shelf's own, not inherited")
-    eq(TP.shelfChoiceLabel(nil), "Same as library (My theme)")
-    TP.setLibraryTheme("Halloween")
-    eq(TP.shelfChoiceLabel(nil), "Same as library (Halloween)")
-    eq(TP.shelfChoiceLabel("plain"), "Plain"); eq(TP.shelfChoiceLabel("none"), "My theme")
 end)
 
 t.done()

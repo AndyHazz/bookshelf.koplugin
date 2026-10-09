@@ -1382,11 +1382,14 @@ end
 -- screen: adding or deleting a preset changes the SET of rows, and
 -- TouchMenu:updateItems only re-renders the rows it already has. The live
 -- table's identity has to be preserved -- TouchMenu holds the reference, so
--- replacing it leaves the menu rendering the old array.
+-- replacing it leaves the menu rendering the old array. A MenuHost (the
+-- start menu's route) has no item_table: its shim hands over the open
+-- level's rows (liveItems), mapped again on updateItems.
 function Settings:_reopenSubMenu(touchmenu_instance, build)
     if not touchmenu_instance then return end
-    if touchmenu_instance.item_table then
-        local live = touchmenu_instance.item_table
+    local live = touchmenu_instance.item_table
+        or (touchmenu_instance.liveItems and touchmenu_instance.liveItems())
+    if live then
         for i = #live, 1, -1 do live[i] = nil end
         for i, row in ipairs(build()) do live[i] = row end
     end
@@ -1531,33 +1534,36 @@ end
 -- folder color, cover badge color, progress bookmark color all
 -- expected to land here as they ship. Greyscale devices get a
 -- nudge dialog (% black); color devices get the palette picker.
--- _thisShelfRow() -> My theme's first row: "This shelf: %1", what the shelf
--- on screen wears, opening its Theme library as Theme > Each shelf (and
--- Shelf style's Theme row) do: a route to change the theme of the shelf in
--- view from where its look is edited (maintainer, 2026-10-07). A sub-shelf
--- wears its shelf of shelves' theme, so the row is that shelf's. nil without
--- a shelf on screen.
-function Settings:_thisShelfRow()
-    local bw = self._bw
-    local chip = bw and bw.chip
-    if not chip then return nil end
-    local TP = require("lib/bookshelf_theme_pack")
-    local ok, TabModel = pcall(require, "lib/bookshelf_tab_model")
-    local id = (ok and TabModel and TabModel.rootOf) and TabModel.rootOf(chip) or chip
+-- _themeLibraryRow(): the Theme menu's first row, "Theme library...": the
+-- Theme library for the shelf on screen, as Bookends' Preset menu opens with
+-- "Preset library..." above the tweaks saved into the preset (maintainer,
+-- 2026-10-09). Its "Same as library" card is marked while the shelf follows
+-- the library. A sub-shelf wears its shelf of shelves' theme, so the picker
+-- is that shelf's. Without a shelf on screen, the library's.
+function Settings:_themeLibraryRow()
     return {
-        text_func = function()
-            return T(_("This shelf: %1"), TP.shelfChoiceLabel(TP.ownChoice(id)))
-        end,
+        text = _("Theme library\xE2\x80\xA6"),
         keep_menu_open = true,
         callback = function(touchmenu_instance)
-            -- The rows come back for what the shelf shows now: they edit
-            -- that theme, and only a theme with an original can be reset.
-            self:_openThemeLibrary(id, touchmenu_instance, function()
-                self:_reopenSubMenu(touchmenu_instance, function() return self:_backgroundSubItems() end)
-            end)
+            local chip = self._bw and self._bw.chip
+            local id
+            if chip then
+                local ok, TabModel = pcall(require, "lib/bookshelf_tab_model")
+                id = (ok and TabModel and TabModel.rootOf) and TabModel.rootOf(chip) or chip
+            end
+            self:_openThemeLibrary(id, touchmenu_instance, self:_rebuildThemeMenu(touchmenu_instance))
         end,
-        separator = true,
     }
+end
+
+-- _rebuildThemeMenu(touchmenu_instance): what runs as a Theme library
+-- closes: the Theme menu's rows built again for what the shelf on screen
+-- shows now. They edit that theme, only a pack or Plain has Reset, and a
+-- shelf's row may have put another shelf on screen.
+function Settings:_rebuildThemeMenu(touchmenu_instance)
+    return function()
+        self:_reopenSubMenu(touchmenu_instance, function() return self:_themeSubItems() end)
+    end
 end
 
 -- _wallpaperMenu() - the reader's own wallpaper rows: the picture, the full
@@ -1912,35 +1918,29 @@ function Settings:_perShelfThemeRows()
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 -- That shelf behind the picker, so a change is seen as it is
-                -- made; it stays on screen after (maintainer, 2026-10-04).
+                -- made; it stays on screen after (maintainer, 2026-10-04),
+                -- and the rows above then edit its theme.
                 local bw = self._bw
                 if bw and bw.chip ~= id and bw._setActiveChip then bw:_setActiveChip(id) end
-                self:_openThemeLibrary(id, touchmenu_instance)
+                self:_openThemeLibrary(id, touchmenu_instance, self:_rebuildThemeMenu(touchmenu_instance))
             end,
         }
     end
     return items
 end
 
--- The Theme menu (maintainer, 2026-10-07): the library's theme first, then
--- every shelf with its theme, each row opening the Theme library for it. One
--- level, no Each shelf submenu to drill into. Built each time it opens,
--- after a rescan, so a pack copied in since start-up is listed.
-function Settings:_shelfThemeSubItems()
+-- _libraryThemeRow(): "Library: Macabre": the theme every shelf without
+-- one of its own wears, chosen in the library's Theme library.
+function Settings:_libraryThemeRow()
     local TP = require("lib/bookshelf_theme_pack")
-    TP.rescan()
-    local rows = {}
-    rows[1] = {
+    return {
         text_func = function() return T(_("Library: %1"), TP.themeName(TP.libraryChoice())) end,
         keep_menu_open = true,
-        callback = function(touchmenu_instance) self:_openThemeLibrary(nil, touchmenu_instance) end,
-        separator = true,
+        callback = function(touchmenu_instance)
+            self:_openThemeLibrary(nil, touchmenu_instance, self:_rebuildThemeMenu(touchmenu_instance))
+        end,
     }
-    for _i, r in ipairs(self:_perShelfThemeRows()) do rows[#rows + 1] = r end
-    return rows
 end
-
-
 
 function Settings:_scrimStrength()
     local Wallpaper = require("lib/bookshelf_wallpaper")
@@ -2462,9 +2462,10 @@ function Settings:_newOrnamentsRow()
     }
 end
 
--- _resetThemeRow(): "Reset Macabre to original", last in the theme menu
--- of a pack or Plain: the reader's edits to that theme gone, wherever it
--- shows, once confirmed. Greyed, not hidden, while it has none (maintainer,
+-- _resetThemeRow(): "Reset Macabre to original", after the editing rows of
+-- the Theme menu on a pack or Plain: the reader's edits to that theme gone,
+-- wherever it shows, once confirmed (TP.confirmReset, the question a card's
+-- long-press asks too). Greyed, not hidden, while it has none (maintainer,
 -- 2026-10-08: "Perhaps the reset button could be greyed out when the theme
 -- pack is already as original"). My theme IS the reader's own: no original,
 -- no row (its rows have their own resets).
@@ -2480,44 +2481,42 @@ function Settings:_resetThemeRow()
         callback = function(touchmenu_instance)
             local th = TP.shelfTheme()
             if th == TP.MINE then return end
-            local ConfirmBox = require("ui/widget/confirmbox")
-            UIManager:show(ConfirmBox:new{
-                text = T(_("Reset %1 to its original settings? Your changes to it are lost."), TP.themeName(th)),
-                ok_text = _("Reset"),
-                ok_callback = function()
-                    TP.resetEdits(th)
-                    BookshelfSettings.flush()
-                    -- The edited wallpaper's decode goes with it.
-                    pcall(function() require("lib/bookshelf_wallpaper").free() end)
-                    self:_markDirty()
-                    if touchmenu_instance then touchmenu_instance:updateItems() end
-                    UIManager:setDirty("all", "full")
-                end,
-            })
+            TP.confirmReset(th, function()
+                self:_markDirty()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+                UIManager:setDirty("all", "full")
+            end)
         end,
     }
 end
 
--- The reader's own look (TP.mineName(), "My theme"): everything a theme can
--- replace, then the preferences no theme touches. Raised to the top level,
--- before Settings, because this is what a reader changes to make the shelf
--- look like theirs. Nothing but these rows writes the reader's own look
--- (maintainer, 2026-10-07). Every theme is editable since 2026-10-08: the
--- same rows edit the theme of the shelf on screen, whatever it is (the
--- menu is named for it, TP.editName), never greyed because a theme has that
--- part, and a pack or Plain can be reset to its original (_resetThemeRow).
--- Every write goes through bookshelf_theme_pack's seam (partSave,
--- choosePlank, switches).
+-- The Theme menu, ONE top-level menu named for the theme of the shelf on
+-- screen, "Theme (Macabre)" (maintainer, 2026-10-09, after Bookends' "Preset
+-- (Name)"): it replaced a Theme menu that chose themes and a My theme menu
+-- that edited them. First the choosing, as Bookends opens with "Preset
+-- library...": the Theme library for the shelf on screen, then the
+-- library's theme. Then the rows that edit the theme on screen, whatever it
+-- is, kept on the first page of a PW5 menu: everything a theme can replace
+-- (never greyed because a theme has that part, spec 2026-10-08), then the
+-- collection's own New ornaments go, then Reset on a pack or Plain. Last,
+-- every shelf with its theme, flat: no submenu to drill into (maintainer,
+-- 2026-10-07). Every write goes through bookshelf_theme_pack's seam
+-- (partSave, choosePlank, switches); nothing but these rows writes the
+-- reader's own look (maintainer, 2026-10-07). Built each time it opens and
+-- each time a Theme library opened from it closes, after a rescan, so a pack
+-- copied in since start-up is listed and the rows follow the shelf.
 --
 -- Text size stays under Settings. A name broad enough to pull that in would
 -- pull in everything eventually ("that feels a bit of a slippery slope").
-function Settings:_backgroundSubItems()
+function Settings:_themeSubItems()
     -- The colour menu opens on the slot the shelf on screen paints from.
     self:_shelfSlot()
     local TP = require("lib/bookshelf_theme_pack")
+    TP.rescan()
     local rows = {}
-    -- What the shelf shows first: the theme these rows edit.
-    rows[#rows + 1] = self:_thisShelfRow()
+    rows[#rows + 1] = self:_themeLibraryRow()
+    rows[#rows + 1] = self:_libraryThemeRow()
+    rows[#rows].separator = true
     rows[#rows + 1] = self:_lightDarkRow()
     for _i, row in ipairs(self:_wallpaperMenu()) do rows[#rows + 1] = row end
     rows[#rows + 1] = self:_plankRow()
@@ -2536,29 +2535,33 @@ function Settings:_backgroundSubItems()
     -- no theme touches: they live in Settings' appearance band.
     rows[#rows + 1] = self:_newOrnamentsRow()
     -- A pack or Plain can go back to its original; My theme has none. The
-    -- rows are built again when This shelf's picker closes, so the row comes
-    -- and goes with the theme on screen.
+    -- rows are built again when a Theme library opened from here closes, so
+    -- the row comes and goes with the theme on screen.
     if TP.shelfTheme() ~= TP.MINE then
         rows[#rows].separator = true
         rows[#rows + 1] = self:_resetThemeRow()
     end
+    rows[#rows].separator = true
+    for _i, r in ipairs(self:_perShelfThemeRows()) do rows[#rows + 1] = r end
     return rows
 end
 
--- The Theme row's label and help, for the top-level row (main.lua
--- bookshelf_theme): the library's theme.
-function Settings:_shelfThemeText()
-    local TP = require("lib/bookshelf_theme_pack")
-    return T(_("Theme: %1"), TP.themeName(TP.libraryChoice()))
+-- The top-level row's label and help (main.lua bookshelf_theme): named for
+-- the theme of the shelf on screen, which its rows edit (TP.editName): "Theme
+-- (My theme)", "Theme (Plain)", "Theme (Macabre)".
+function Settings:_themeMenuText()
+    return T(_("Theme (%1)"), require("lib/bookshelf_theme_pack").editName())
 end
 
 function Settings:_shelfThemeHelp()
     local mine = require("lib/bookshelf_theme_pack").mineName()
     return T(_("A theme can bring a wallpaper, a plank, colors, light or "
             .. "dark, and ornaments. Anything it does not bring comes from "
-            .. "%1. Choosing a theme never changes %1.\n\nEach shelf can "
-            .. "have a theme of its own: choose it here, or long-press a shelf "
-            .. "chip, then Shelf style."), mine)
+            .. "%1. Choosing a theme never changes %1.\n\nThe rows here edit "
+            .. "the theme of the shelf on screen. Your changes stay with that "
+            .. "theme wherever it shows, and Reset brings back its original.\n\n"
+            .. "Each shelf can have a theme of its own: choose it here, or "
+            .. "long-press a shelf chip, then Shelf style."), mine)
 end
 
 function Settings:_colorsSubItems()
@@ -3173,10 +3176,10 @@ function Settings:_settingsSubItems()
             return self:_textSizeSubItems()
         end,
     }
-    -- Colors and Wallpaper both left this menu for the top-level
-    -- "Wallpaper, ornaments and colors" (see _backgroundSubItems): the theme, the
-    -- background and the accents are only ever set together, and being three
-    -- levels apart made them read as unrelated.
+    -- Colors and Wallpaper both left this menu for the top-level Theme menu
+    -- (see _themeSubItems): the theme, the background and the accents are
+    -- only ever set together, and being three levels apart made them read
+    -- as unrelated.
     -- Bookshelf UI font: promoted here from Advanced to sit with the other
     -- appearance settings.
     items[#items + 1] = {
@@ -3196,7 +3199,7 @@ function Settings:_settingsSubItems()
     }
     -- How the panels are shaded over a wallpaper, and an extra folder to
     -- take wallpapers from: display preferences that no theme changes, so
-    -- they left the reader's own look (My theme) for here (maintainer,
+    -- they left the Theme menu's editing rows for here (maintainer,
     -- 2026-10-07). Panel shading lived under Settings before 5.1 as well.
     items[#items + 1] = self:_panelShadingRow()
     items[#items + 1] = self:_transparentShelfMenuRow()

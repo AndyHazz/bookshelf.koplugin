@@ -154,6 +154,14 @@ function MenuHost.show(opts)
         closeMenu   = function() MenuHost.close(host) end,
         -- safety net: the shim is not a widget; swallow events sent at it
         handleEvent = function() return false end,
+        -- The open level's own rows, which a caller that changes the SET of
+        -- rows rebuilds in place (Settings:_reopenSubMenu) as it does a
+        -- TouchMenu's item_table: the Theme menu after a Theme library closes
+        -- gains or loses its Reset row with the theme on screen.
+        liveItems = function()
+            local lvl = host._stack[#host._stack]
+            return lvl and lvl.src or nil
+        end,
         -- show_parent (the real Menu widget) is attached below, once built
     }
     function host:_current()

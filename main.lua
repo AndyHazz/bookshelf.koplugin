@@ -71,7 +71,6 @@ Bookshelf.MENU_ORDER = {
     "bookshelf_shelf_size",
     "bookshelf_shelf_tabs",
     "bookshelf_theme",
-    "bookshelf_background",
     "bookshelf_hardcover",
     "bookshelf_settings",
     "bookshelf_updates",
@@ -787,46 +786,32 @@ function Bookshelf:buildMenuItems(menu_items)
         separator = true,
     }
 
-    -- Hardcover enrichment, promoted from Settings to the top level (below
-    -- Manage collections). Only shown while the Hardcover plugin is live
-    -- (installed and enabled); uninstalling/disabling it hides the menu and
-    -- reverts all Hardcover data to native. Defined conditionally rather than
     -- Everything that decides what the shelf LOOKS like, in one place and at
     -- the top level: the theme, the background (picture, colour, shading), the
     -- ornaments and the accent colours. They used to be split between
     -- Settings > Colors and Settings > Wallpaper and ornaments, which put the
     -- theme, the background colour and the panel shading in three different
     -- menus (maintainer). Text size stays under Settings on purpose.
-    -- The theme the library wears, a row of its own above the reader's own
-    -- look (maintainer, 2026-10-07): the reader's own, Plain, or a theme
-    -- pack, laid over the reader's own look; and each shelf's.
+    -- The Theme menu, ONE row named for the theme of the shelf on screen,
+    -- "Theme (Macabre)" (maintainer, 2026-10-09, after Bookends' "Preset
+    -- (Name)"): the Theme library and the library's theme first, then the
+    -- rows that edit that theme, then each shelf's theme. It replaced a Theme
+    -- menu that chose themes and a My theme menu that edited them.
     menu_items.bookshelf_theme = {
         text_func = function()
-            return MenuIcons.label(MenuIcons.THEME, S:_shelfThemeText())
+            return MenuIcons.label(MenuIcons.THEME, S:_themeMenuText())
         end,
         help_text = S:_shelfThemeHelp(),
         sub_item_table_func = function()
             S._bw = _live_widget
-            return S:_shelfThemeSubItems()
+            return S:_themeSubItems()
         end,
     }
 
-    -- The look of the shelf on screen: light or dark, wallpaper, plank,
-    -- ornaments, colours. On a My theme shelf the reader's own look, under
-    -- its one name (TP.mineName); on a pack or Plain, that theme's edits.
-    menu_items.bookshelf_background = {
-        text_func           = function()
-            -- Named for the theme of the shelf on screen, which these rows
-            -- edit (TP.editName): My theme, Plain, Macabre.
-            return MenuIcons.label(MenuIcons.APPEARANCE,
-                                   require("lib/bookshelf_theme_pack").editName())
-        end,
-        sub_item_table_func = function()
-            S._bw = _live_widget
-            return S:_backgroundSubItems()
-        end,
-    }
-
+    -- Hardcover enrichment, promoted from Settings to the top level (below
+    -- Manage collections). Only shown while the Hardcover plugin is live
+    -- (installed and enabled); uninstalling/disabling it hides the menu and
+    -- reverts all Hardcover data to native. Defined conditionally rather than
     -- greyed out -- the order list keeps its slot and KOMenu skips a missing key.
     do
         local ok_hc, HC = pcall(require, "lib/bookshelf_hardcover")

@@ -2226,7 +2226,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             }}
         end
         -- Theme: the shelf's own, in the Theme library, the one picker the
-        -- Theme menu's shelf rows and My theme's This shelf row open too
+        -- Theme menu's Theme library and shelf rows open too
         -- (maintainer, 2026-10-07: readers who think "this shelf" start
         -- here). Top-level shelves only: a sub-shelf wears its shelf of
         -- shelves' theme (ruling, 2026-10-05). A pick is saved and shown on

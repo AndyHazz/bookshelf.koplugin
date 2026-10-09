@@ -17,7 +17,7 @@ end)
 t.test("the Plank row opens the plank picker, and is in one place only", function()
     local row = settings:match("function Settings:_plankRow%(.-\nend\n")
     assert(row and row:find('bookshelf_plank_browser").show(', 1, true), "the plank row does not open the picker")
-    local bg = settings:match("function Settings:_backgroundSubItems%(%)(.-)\nend\n")
+    local bg = settings:match("function Settings:_themeSubItems%(%)(.-)\nend\n")
     assert(bg and bg:find("self:_plankRow(", 1, true), "no plank row next to the wallpaper rows")
     local colours = settings:match("function Settings:_colorsSubItems%(.-\nend\n")
     assert(colours and not colours:find("_plankRow", 1, true),

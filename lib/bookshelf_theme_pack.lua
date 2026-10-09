@@ -346,8 +346,8 @@ end
 -- shelfChoices(cur) -> a shelf's theme list, in order: Same as library
 -- ({ same = true }), a missing pack the shelf still names (cur), the
 -- reader's own, Plain, every theme. The Theme library's list for a shelf
--- (the Theme menu's shelf rows, My theme's "This shelf" row, Shelf style's
--- Theme row). scan: as choices.
+-- (the Theme menu's Theme library row and shelf rows, Shelf style's Theme
+-- row). scan: as choices.
 function M.shelfChoices(cur, scan)
     local out = { { same = true, label = _("Same as library") } }
     cur = normalise(cur)
@@ -356,14 +356,6 @@ function M.shelfChoices(cur, scan)
     end
     for _i, c in ipairs(M.choices(scan)) do out[#out + 1] = c end
     return out
-end
-
--- shelfChoiceLabel(choice) -> how menus name a shelf's own choice:
--- "Same as library (Macabre)" when it follows the library.
-function M.shelfChoiceLabel(choice)
-    choice = normalise(choice)
-    if choice == nil then return T(_("Same as library (%1)"), M.themeName(M.libraryChoice())) end
-    return M.themeName(choice)
 end
 
 -- libraryChoice() -> what the library is set to ("mine" when unset), even a
@@ -1226,6 +1218,26 @@ function M.resetEdits(theme)
     return true
 end
 
+-- confirmReset(theme, after): Reset to original for a pack or Plain, asked
+-- first: the Theme menu's Reset row and a card's long-press in the Theme
+-- library (maintainer, 2026-10-09) ask the one question. after(): once the
+-- edits are gone, to refresh what showed them.
+function M.confirmReset(theme, after)
+    if theme == nil or theme == M.MINE then return end
+    local UIManager = require("ui/uimanager")
+    local ConfirmBox = require("ui/widget/confirmbox")
+    UIManager:show(ConfirmBox:new{
+        text = T(_("Reset %1 to its original settings? Your changes to it are lost."), M.themeName(theme)),
+        ok_text = _("Reset"),
+        ok_callback = function()
+            M.resetEdits(theme)
+            -- The edited wallpaper's decode goes with it.
+            pcall(function() require("lib/bookshelf_wallpaper").free() end)
+            if after then after() end
+        end,
+    })
+end
+
 -- editPoolOf(theme, e): what a shelf showing a theme with edited ornaments
 -- deals from (bookshelf_ornaments.listFor): { slot, key, on = its
 -- switched-on pieces }. The same table while the pieces are unchanged: the
@@ -1277,8 +1289,8 @@ function M.switches()
     }
 end
 
--- editName(): what the menu that edits the look is called now: the theme of
--- the shelf on screen, which its rows edit (My theme, Plain, Macabre).
+-- editName(): the theme the Theme menu is named for, "Theme (Macabre)": the
+-- theme of the shelf on screen, which its rows edit (My theme, Plain, Macabre).
 function M.editName() return M.themeName(M.shelfTheme()) end
 
 -- ── MIGRATION (once, at start-up) ───────────────────────────────────────

@@ -1,5 +1,6 @@
 -- tests/_test_background_menu.lua
--- "Wallpaper, ornaments and colors" is one top-level menu, not three scattered rows.
+-- The look of the shelf is one top-level menu, not three scattered rows: since
+-- 2026-10-09 the Theme menu, which chooses themes and edits the one on screen.
 --
 -- WHAT NEEDS PINNING. The theme lived under Settings > Colors, the background
 -- colour and the panel shading under Settings > Wallpaper and ornaments, and
@@ -27,21 +28,30 @@ local settings = io.open("lib/bookshelf_settings.lua"):read("*a")
 t.test("it is a top-level row, sitting before Settings", function()
     local order = main:match("Bookshelf%.MENU_ORDER = {(.-)\n}")
     assert(order, "MENU_ORDER moved or was renamed")
-    local bg  = order:find('"bookshelf_background"', 1, true)
+    local th  = order:find('"bookshelf_theme"', 1, true)
     local set = order:find('"bookshelf_settings"', 1, true)
-    assert(bg, "the new menu is not in the canonical order, so the start "
+    assert(th, "the Theme menu is not in the canonical order, so the start "
         .. "menu's Bookshelf action would not host it either")
-    assert(set and bg < set, "it belongs before Settings, not after")
+    assert(set and th < set, "it belongs before Settings, not after")
+    -- ONE theme menu (maintainer, 2026-10-09): the My theme menu that edited
+    -- the look is part of it, not a second row beside it.
+    assert(not order:find('"bookshelf_background"', 1, true), "the separate editing menu is back in the order")
+    assert(not main:find("menu_items.bookshelf_background", 1, true), "the separate editing menu is back")
 end)
 
-t.test("the row is registered, named by the one name of the reader's own look", function()
-    local row = main:match("(menu_items%.bookshelf_background = {.-\n    }\n)")
-    assert(row, "menu_items.bookshelf_background missing")
-    -- The name lives in ONE place (TP.mineName), so it can be renamed with a
-    -- one-line change (maintainer, 2026-10-07). The row asks editName: the
-    -- theme of the shelf on screen, which the rows edit, by themeName, which
-    -- names the reader's own by that name.
-    assert(row:find("editName()", 1, true), "the row does not take the one name")
+t.test("the row is named for the theme it edits, by a template, and the reader's own by the one name", function()
+    local row = main:match("(menu_items%.bookshelf_theme = {.-\n    }\n)")
+    assert(row, "menu_items.bookshelf_theme missing")
+    assert(row:find("S:_themeMenuText()", 1, true), "the row does not take its label from _themeMenuText")
+    -- "Theme (Macabre)", as Bookends' "Preset (Name)": a whole msgid with a
+    -- slot, so a translation can move the name, not "Theme" .. " (" .. name.
+    local text = settings:match("\nfunction Settings:_themeMenuText%(%)\n(.-)\nend\n")
+    assert(text, "_themeMenuText missing")
+    assert(text:find('T(_("Theme (%1)"), require("lib/bookshelf_theme_pack").editName())', 1, true),
+        "the label is not the Theme (%1) template over the theme on screen")
+    assert(not text:find("..", 1, true), "the label is built by concatenation")
+    -- The name of the reader's own lives in ONE place (TP.mineName), so it
+    -- can be renamed with a one-line change (maintainer, 2026-10-07).
     local tp = io.open("lib/bookshelf_theme_pack.lua"):read("*a")
     assert(tp:find('function M.mineName() return _("My theme") end', 1, true), "the name changed")
     assert(tp:find("function M.editName() return M.themeName(M.shelfTheme()) end", 1, true),
@@ -52,7 +62,8 @@ t.test("the row is registered, named by the one name of the reader's own look", 
     local n = 0
     for _ in (settings .. main):gmatch('_%("My theme"%)') do n = n + 1 end
     eq(n, 0, "the name is spelled out somewhere other than TP.mineName")
-    assert(row:find("_backgroundSubItems", 1, true), "it must build the new menu")
+    assert(row:find("S:_themeSubItems()", 1, true), "it must build the merged menu")
+    assert(row:find("MenuIcons.THEME", 1, true), "the row's glyph is not THEME")
     assert(row:find("S._bw = _live_widget", 1, true),
         "every menu that can repaint the shelf hands the live widget over first")
 end)
@@ -70,25 +81,29 @@ t.test("Settings no longer carries Colors or Wallpaper", function()
         .. "would eventually hold everything")
 end)
 
-t.test("the menu is light or dark, the picture, plank, ornaments, then colors; then the preferences", function()
-    -- The theme (light or dark, theme packs) left this menu for a top-level
-    -- row just above it (maintainer, 2026-10-02; main.lua bookshelf_theme).
-    local body = settings:match("function Settings:_backgroundSubItems%(%)(.-)\nend\n")
-    assert(body, "_backgroundSubItems missing")
-    assert(not body:find("_shelfTheme", 1, true), "the theme row is still in this menu")
+t.test("the menu: Theme library, Library, then light or dark, the picture, plank, ornaments, colors; then the preferences", function()
+    local body = settings:match("function Settings:_themeSubItems%(%)(.-)\nend\n")
+    assert(body, "_themeSubItems missing")
+    -- Choosing first, as Bookends opens its Preset menu with "Preset
+    -- library..." (maintainer, 2026-10-09), set apart from the editing.
+    local lib    = body:find("self:_themeLibraryRow()", 1, true)
+    local whole  = body:find("self:_libraryThemeRow()", 1, true)
     local look   = body:find("_lightDarkRow", 1, true)
     local wall   = body:find("_wallpaperMenu", 1, true)
     local plank  = body:find("_plankRow", 1, true)
     local orn    = body:find("_ornamentsRow", 1, true)
     local accent = body:find('_("Colors")', 1, true)
     local newat  = body:find("_newOrnamentsRow", 1, true)
-    assert(look and wall and plank and orn and accent and newat, "a section is missing from the menu")
+    assert(lib and whole and look and wall and plank and orn and accent and newat, "a section is missing from the menu")
+    assert(lib < whole and whole < look, "the Theme library and the library's theme do not come first")
+    assert(body:sub(whole, look):find("rows[#rows].separator = true", 1, true),
+        "no separator between the choosing and the editing")
     assert(look < wall and wall < plank and plank < orn and orn < accent and accent < newat,
         "the parts a theme can replace, in the spec's order, then New ornaments go")
     -- Display preferences no theme touches are not part of the look: they
-    -- live in Settings' appearance band, so My theme fits one PW5 page.
+    -- live in Settings' appearance band, so the editing rows fit one PW5 page.
     assert(not body:find("_panelShadingRow", 1, true) and not body:find("_wallpaperFolderRow", 1, true),
-        "Panel shading or the extra wallpaper folder is back in My theme")
+        "Panel shading or the extra wallpaper folder is back in the Theme menu")
     local sub = settings:match("function Settings:_settingsSubItems%(%)(.-)\nend\n")
     local font = sub and sub:find("Bookshelf UI font: %1", 1, true)
     local shade = sub and sub:find("self:_panelShadingRow()", 1, true)
@@ -99,10 +114,10 @@ t.test("the menu is light or dark, the picture, plank, ornaments, then colors; t
 end)
 
 t.test("the theme label has one definition, not a copy in the colour list", function()
-    assert(settings:find("function Settings:_shelfThemeText()", 1, true),
+    assert(settings:find("function Settings:_themeMenuText()", 1, true),
         "the theme label builder is missing")
     local main = io.open("main.lua"):read("*a")
-    assert(main:find("S:_shelfThemeText()", 1, true), "the top-level row builds its own label")
+    assert(main:find("S:_themeMenuText()", 1, true), "the top-level row builds its own label")
     local colours = settings:match("function Settings:_colorsSubItems%(%)(.-)\nend\n")
     assert(colours, "_colorsSubItems moved or was renamed")
     assert(not colours:find("_shelfThemeLabel", 1, true),

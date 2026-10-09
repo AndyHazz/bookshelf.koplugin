@@ -516,8 +516,61 @@ t.test("no Own theme left: no card, no rows, no copy on choosing, the menu named
             and not src:find("ensureOwn", 1, true), f .. " still knows the own theme")
     end
     local main = io.open("main.lua"):read("*a")
-    assert(main:find('require("lib/bookshelf_theme_pack").editName())', 1, true),
+    assert(main:find("S:_themeMenuText()", 1, true)
+        and set:find('T(_("Theme (%1)"), require("lib/bookshelf_theme_pack").editName())', 1, true),
         "the menu is not named for the theme it edits")
 end)
+
+-- withUI(fn): fn(seen) with KOReader's dialogs stubbed: what was shown.
+local function withUI(fn)
+    local names = { "ui/uimanager", "ui/widget/confirmbox", "ui/widget/infomessage",
+                    "lib/bookshelf_wallpaper", "lib/bookshelf_ornaments", "ffi/util" }
+    local had = {}
+    for _i, n in ipairs(names) do had[n] = package.loaded[n] end
+    local seen = { shown = {}, freed = 0 }
+    package.loaded["ui/uimanager"] = { show = function(_u, w) seen.shown[#seen.shown + 1] = w end }
+    package.loaded["ui/widget/confirmbox"] = { new = function(_c, o) o.kind = "confirm"; return o end }
+    package.loaded["ui/widget/infomessage"] = { new = function(_c, o) o.kind = "info"; return o end }
+    package.loaded["lib/bookshelf_wallpaper"] = { free = function() seen.freed = seen.freed + 1 end }
+    package.loaded["lib/bookshelf_ornaments"] = { dir = function() return "settings/bookshelf/ornaments" end }
+    package.loaded["ffi/util"] = {
+        realpath = function(p) return "/mnt/us/koreader/" .. p end,
+        template = function(f, ...)
+            local a = { ... }
+            return (f:gsub("%%(%d)", function(i) return tostring(a[tonumber(i)]) end))
+        end,
+    }
+    local ok, err = pcall(fn, seen)
+    for _i, n in ipairs(names) do package.loaded[n] = had[n] end
+    assert(ok, err)
+end
+
+t.test("confirmReset asks first, then resets the theme, frees its wallpaper and calls back; never My theme", function()
+    -- Maintainer, 2026-10-09: the Theme menu's Reset row and a card's
+    -- long-press in the Theme library ask the one question.
+    local TP, d, settings, tabs = setup()
+    world(d, settings)
+    tabs.home = { id = "home", theme = "Macabre" }
+    on(TP, "home")
+    TP.partSave("ink_color", { hex = "#00FF00" })
+    eq(TP.hasEdits("Macabre"), true)
+    withUI(function(seen)
+        local after = 0
+        TP.confirmReset("Macabre", function() after = after + 1 end)
+        local box = seen.shown[1]
+        eq(box and box.kind, "confirm", "Reset did not ask first")
+        eq(box.text, "Reset Macabre to its original settings? Your changes to it are lost.")
+        eq(box.ok_text, "Reset")
+        eq(TP.hasEdits("Macabre"), true, "the edits went before the question was answered")
+        box.ok_callback()
+        eq(TP.hasEdits("Macabre"), false, "Reset did not reset")
+        eq(seen.freed, 1, "the edited wallpaper's decode was kept")
+        eq(after, 1, "what showed the edits was not told")
+        TP.confirmReset("mine", function() after = after + 1 end)
+        TP.confirmReset(nil)
+        eq(#seen.shown, 1, "My theme was offered a reset to an original it does not have")
+    end)
+end)
+
 
 t.done()

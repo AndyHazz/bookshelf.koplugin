@@ -30,7 +30,6 @@ M.RESET      = "\xEE\xB6\x8F"   -- U+ED8F  bomb
 M.SHELF_SIZE = "\xEE\xB4\x95"   -- U+ED15  arrow-expand
 M.SHELVES    = "\xEE\xA5\xB8"   -- U+E978  format-list-bulleted
 M.THEME      = "\xEF\x80\xBE"   -- U+F03E  image
-M.APPEARANCE = "\xEE\xAB\x97"   -- U+EAD7  palette
 M.HARDCOVER  = "\xEE\xB4\xBE"   -- U+ED3E  cloud-sync
 M.SETTINGS   = "\xEF\x80\x93"   -- U+F013  cog
 M.UPDATES    = "\xEE\xB6\xAE"   -- U+EDAE  update

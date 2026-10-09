@@ -86,9 +86,9 @@ t.test("the menu: This shelf, Other shelves, Default theme, then light or dark, 
     assert(body, "_themeSubItems missing")
     -- Choosing first, as Bookends opens its Preset menu with "Preset
     -- library..." (maintainer, 2026-10-09), set apart from the editing.
-    local lib    = body:find("self:_themeLibraryRow()", 1, true)
+    local lib    = body:find("self:_thisShelfThemeRow()", 1, true)
     local others = body:find("self:_otherShelvesRow()", 1, true)
-    local whole  = body:find("self:_libraryThemeRow()", 1, true)
+    local whole  = body:find("self:_defaultThemeRow()", 1, true)
     local look   = body:find("_lightDarkRow", 1, true)
     -- The wallpaper rows are ONE row, a submenu (maintainer, 2026-10-09).
     local wall   = body:find("rows[#rows + 1] = self:_wallpaperRow()", 1, true)
@@ -156,7 +156,7 @@ t.test("the theme label has one definition, not a copy in the colour list", func
     assert(main:find("S:_themeMenuText()", 1, true), "the top-level row builds its own label")
     local colours = settings:match("function Settings:_colorsSubItems%(%)(.-)\nend\n")
     assert(colours, "_colorsSubItems moved or was renamed")
-    assert(not colours:find("_shelfThemeLabel", 1, true),
+    assert(not colours:find("_lightDarkLabel", 1, true),
         "the theme row was left behind in the colour list as well; two copies drift")
 end)
 

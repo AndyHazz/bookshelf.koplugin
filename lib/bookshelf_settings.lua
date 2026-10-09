@@ -1540,7 +1540,7 @@ function Settings:_themeShelfOnScreen()
     return (ok and TabModel and TabModel.rootOf) and TabModel.rootOf(chip) or chip
 end
 
--- _themeLibraryRow(): the Theme menu's first row, "This shelf: Macabre": the
+-- _thisShelfThemeRow(): the Theme menu's first row, "This shelf: Macabre": the
 -- Theme library for the shelf on screen, as Bookends' Preset menu opens with
 -- the preset library above the tweaks saved into the preset (maintainer,
 -- 2026-10-09). Named for what it sets, as the Default theme row below it is
@@ -1551,7 +1551,7 @@ end
 -- whose card is then the one marked. A sub-shelf wears its shelf of
 -- shelves' theme, so the row is that shelf's. Only with a shelf on screen
 -- (_themeSubItems).
-function Settings:_themeLibraryRow()
+function Settings:_thisShelfThemeRow()
     local function shelfOnScreen() return self:_themeShelfOnScreen() end
     return {
         text_func = function()
@@ -1820,21 +1820,21 @@ Settings.SCRIM_LEVELS = {
 
 -- Light or dark, the reader's own (shelf_theme). A theme may set it in its
 -- theme.json; the reader's own look and Plain follow this.
-Settings.SHELF_THEMES = {
+Settings.LIGHT_DARK = {
     { value = "auto",  label = function() return _("Auto (follow night mode)") end },
     { value = "light", label = function() return _("Light") end },
     { value = "dark",  label = function() return _("Dark") end },
 }
 
-function Settings:_shelfTheme()
+function Settings:_lightDark()
     local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
     if not (ok and CP and CP.THEME_SETTING) then return "auto" end
     return require("lib/bookshelf_theme_pack").partRead(CP.THEME_SETTING) or "auto"
 end
 
-function Settings:_shelfThemeLabel()
-    local cur = self:_shelfTheme()
-    for _i, t in ipairs(Settings.SHELF_THEMES) do
+function Settings:_lightDarkLabel()
+    local cur = self:_lightDark()
+    for _i, t in ipairs(Settings.LIGHT_DARK) do
         if t.value == cur then return t.label() end
     end
     return cur
@@ -1846,7 +1846,7 @@ function Settings:_lightDarkRow()
     local CP = require("lib/bookshelf_cover_progress")
     return {
         text_func = function()
-            return T(_("Light or dark: %1"), self:_shelfThemeLabel())
+            return T(_("Light or dark: %1"), self:_lightDarkLabel())
         end,
         help_text = _("Light or dark colors for the shelf, independently "
             .. "of KOReader's night mode, so you can keep the rest of "
@@ -1855,12 +1855,12 @@ function Settings:_lightDarkRow()
             .. "inverted; the wallpaper is inverted only when you ask for it."),
         sub_item_table_func = function()
             local rows = {}
-            for _i, t in ipairs(Settings.SHELF_THEMES) do
+            for _i, t in ipairs(Settings.LIGHT_DARK) do
                 local value = t.value
                 rows[#rows + 1] = {
                     text = t.label(),
                     radio = true,
-                    checked_func = function() return self:_shelfTheme() == value end,
+                    checked_func = function() return self:_lightDark() == value end,
                     keep_menu_open = true,
                     callback = function(touchmenu_instance)
                         require("lib/bookshelf_theme_pack").partSave(CP.THEME_SETTING, value)
@@ -2003,11 +2003,11 @@ function Settings:_otherShelvesRow()
     }
 end
 
--- _libraryThemeRow(): "Default theme: Macabre": the theme every shelf without
+-- _defaultThemeRow(): "Default theme: Macabre": the theme every shelf without
 -- one of its own wears (library_theme), chosen in the default's Theme
 -- library. "Default", not "Library": that clashed with the Theme library
 -- itself (maintainer, 2026-10-09).
-function Settings:_libraryThemeRow()
+function Settings:_defaultThemeRow()
     local TP = require("lib/bookshelf_theme_pack")
     return {
         text_func = function() return T(_("Default theme: %1"), TP.themeName(TP.libraryChoice())) end,
@@ -2565,9 +2565,9 @@ function Settings:_themeSubItems()
     local rows = {}
     -- No shelf on screen (the menu opened elsewhere): no This shelf row,
     -- rather than one named for a shelf that opens the default's picker.
-    if self:_themeShelfOnScreen() then rows[#rows + 1] = self:_themeLibraryRow() end
+    if self:_themeShelfOnScreen() then rows[#rows + 1] = self:_thisShelfThemeRow() end
     rows[#rows + 1] = self:_otherShelvesRow()
-    rows[#rows + 1] = self:_libraryThemeRow()
+    rows[#rows + 1] = self:_defaultThemeRow()
     rows[#rows].separator = true
     rows[#rows + 1] = self:_lightDarkRow()
     rows[#rows + 1] = self:_wallpaperRow()
@@ -2598,7 +2598,7 @@ function Settings:_themeMenuText()
     return T(_("Theme (%1)"), require("lib/bookshelf_theme_pack").editName())
 end
 
-function Settings:_shelfThemeHelp()
+function Settings:_themeMenuHelp()
     local mine = require("lib/bookshelf_theme_pack").mineName()
     return T(_("A theme can bring a wallpaper, a plank, colors, light or "
             .. "dark, and ornaments. Anything it does not bring comes from "

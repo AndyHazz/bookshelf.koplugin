@@ -802,7 +802,7 @@ function Bookshelf:buildMenuItems(menu_items)
         text_func = function()
             return MenuIcons.label(MenuIcons.THEME, S:_themeMenuText())
         end,
-        help_text = S:_shelfThemeHelp(),
+        help_text = S:_themeMenuHelp(),
         sub_item_table_func = function()
             S._bw = _live_widget
             return S:_themeSubItems()

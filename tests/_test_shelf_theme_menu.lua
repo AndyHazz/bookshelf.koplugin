@@ -20,17 +20,17 @@ local function grab(pat, what)
     return body
 end
 local CODE = table.concat({
-    grab("\n(Settings%.SHELF_THEMES = {.-\n})\n", "SHELF_THEMES"),
-    grab("\n(function Settings:_shelfTheme%(%).-\nend)\n", "_shelfTheme"),
-    grab("\n(function Settings:_shelfThemeLabel%(%).-\nend)\n", "_shelfThemeLabel"),
+    grab("\n(Settings%.LIGHT_DARK = {.-\n})\n", "LIGHT_DARK"),
+    grab("\n(function Settings:_lightDark%(%).-\nend)\n", "_lightDark"),
+    grab("\n(function Settings:_lightDarkLabel%(%).-\nend)\n", "_lightDarkLabel"),
     grab("\n(function Settings:_themeShelfOnScreen%(%).-\nend)\n", "_themeShelfOnScreen"),
-    grab("\n(function Settings:_themeLibraryRow%(%).-\nend)\n", "_themeLibraryRow"),
+    grab("\n(function Settings:_thisShelfThemeRow%(%).-\nend)\n", "_thisShelfThemeRow"),
     grab("\n(function Settings:_rebuildThemeMenu%(touchmenu_instance%).-\nend)\n", "_rebuildThemeMenu"),
-    grab("\n(function Settings:_libraryThemeRow%(%).-\nend)\n", "_libraryThemeRow"),
+    grab("\n(function Settings:_defaultThemeRow%(%).-\nend)\n", "_defaultThemeRow"),
     grab("\n(function Settings:_lightDarkRow%(%).-\nend)\n", "_lightDarkRow"),
     grab("\n(function Settings:_themeSubItems%(%).-\nend)\n", "_themeSubItems"),
     grab("\n(function Settings:_themeMenuText%(%).-\nend)\n", "_themeMenuText"),
-    grab("\n(function Settings:_shelfThemeHelp%(%).-\nend)\n", "_shelfThemeHelp"),
+    grab("\n(function Settings:_themeMenuHelp%(%).-\nend)\n", "_themeMenuHelp"),
     grab("\n(function Settings:_setShelfThemeField%(id, field, value%).-\nend)\n", "_setShelfThemeField"),
     grab("\n(function Settings:_shelfThemeLabelFor%(tab%).-\nend)\n", "_shelfThemeLabelFor"),
     grab("\n(function Settings:_openThemeLibrary%(id, touchmenu_instance, after%).-\nend)\n", "_openThemeLibrary"),
@@ -242,10 +242,10 @@ t.test("This shelf opens the shelf on screen's picker, named for its own choice;
     local tabs = { { id = "home", label = "Home" }, { id = "rec", label = "Recent", theme = "plain" },
                    { id = "sub", label = "Sub", parent = "rec" } }
     local self, S, seen, by = build({ MAC, UK }, "Macabre", tabs)
-    local row = S._themeLibraryRow(onShelf(self, "home"))
+    local row = S._thisShelfThemeRow(onShelf(self, "home"))
     eq(row.text_func(), "This shelf: Default theme"); eq(row.keep_menu_open, true)
-    eq(S._themeLibraryRow(onShelf(self, "rec")).text_func(), "This shelf: Plain")
-    eq(S._themeLibraryRow(onShelf(self, "sub")).text_func(), "This shelf: Plain",
+    eq(S._thisShelfThemeRow(onShelf(self, "rec")).text_func(), "This shelf: Plain")
+    eq(S._thisShelfThemeRow(onShelf(self, "sub")).text_func(), "This shelf: Plain",
         "a sub-shelf's row is not its shelf of shelves' choice")
     onShelf(self, "home")
     eq(row.sub_item_table_func, nil, "a radio submenu again")
@@ -265,7 +265,7 @@ t.test("This shelf opens the shelf on screen's picker, named for its own choice;
     eq(seen.reopened, 1, "the Theme menu's rows were not rebuilt after the picker")
     assert(seen.rebuilt and rowOf(seen.rebuilt, "This shelf: "), "the rebuild is not the Theme menu")
     eq(rowOf(seen.rebuilt, "This shelf: ").text_func(), "This shelf: Custom theme", "the row does not follow the choice")
-    S._themeLibraryRow(onShelf(self, "sub")).callback({})
+    S._thisShelfThemeRow(onShelf(self, "sub")).callback({})
     eq(seen.opened[2].shelf, "Recent", "a sub-shelf's row opened the sub-shelf's picker")
     -- No shelf on screen: no This shelf row (it read "This shelf: Default
     -- theme" and opened the default's picker, review 2026-10-09).
@@ -277,7 +277,7 @@ end)
 
 t.test("Default theme opens the default's Theme library, and the menu follows as it closes", function()
     local self, S, seen = build({ MAC, UK, AUT }, "Macabre")
-    local row = S._libraryThemeRow(self)
+    local row = S._defaultThemeRow(self)
     eq(row.text_func(), "Default theme: Macabre"); eq(row.keep_menu_open, true); eq(row.radio, nil)
     row.callback({})
     local o = seen.opened[1]
@@ -290,7 +290,7 @@ end)
 
 t.test("choosing the default writes the default's theme and nothing else, and rebuilds the shelf", function()
     local self, S, seen = build({ MAC, UK }, nil)
-    S._libraryThemeRow(self).callback({})
+    S._defaultThemeRow(self).callback({})
     local o = seen.opened[1]
     eq(o.current(), "mine")
     o.choose("Macabre")
@@ -320,7 +320,7 @@ t.test("the top-level row is named for the theme on screen; the help says its ro
     eq(S2._themeMenuText(self2), "Theme (Plain)")
     local self3, S3 = build({ MAC }, nil)
     eq(S3._themeMenuText(self3), "Theme (Custom theme)")
-    local help = S3._shelfThemeHelp(self3)
+    local help = S3._themeMenuHelp(self3)
     assert(help:find("Choosing a theme never changes Custom theme", 1, true))
     assert(help:find("The rows here edit the theme of the shelf on screen.", 1, true),
         "the help does not say what the editing rows edit")

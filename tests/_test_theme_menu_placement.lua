@@ -107,7 +107,8 @@ t.test("Wallpaper is a submenu named for the picture: the picture, full screen, 
     -- Theme menu fits one page; inside, the rows it held, as they were.
     local code = settings:match("\n(function Settings:_wallpaperRow%(%).-\nend)\n")
     assert(code, "_wallpaperRow missing")
-    local env = setmetatable({ Settings = {} }, { __index = _G })
+    local MI = dofile("lib/bookshelf_menu_icons.lua")
+    local env = setmetatable({ Settings = {}, MenuIcons = MI }, { __index = _G })
     local chunk = assert((loadstring or load)(code, "=w", "t", env))
     if setfenv then setfenv(chunk, env) end
     chunk()
@@ -119,7 +120,8 @@ t.test("Wallpaper is a submenu named for the picture: the picture, full screen, 
     end
     local self = { _wallpaperMenu = inner }
     local row = env.Settings._wallpaperRow(self)
-    eq(row.text_func(), "Wallpaper: Macabre pack", "the row is not named for the picture")
+    -- With the icon the Theme library's cards show for a wallpaper.
+    eq(row.text_func(), MI.label(MI.WALLPAPER, "Wallpaper: Macabre pack"), "the row is not named for the picture")
     eq(row.help_text_func(), "from", "the row's help is not where the pictures come from")
     eq(row.callback, nil, "the row opens a picker, not its submenu")
     local before = built

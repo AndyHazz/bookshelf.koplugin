@@ -34,6 +34,16 @@ M.HARDCOVER  = "\xEE\xB4\xBE"   -- U+ED3E  cloud-sync
 M.SETTINGS   = "\xEF\x80\x93"   -- U+F013  cog
 M.UPDATES    = "\xEE\xB6\xAE"   -- U+EDAE  update
 
+-- The parts of a theme: the Theme library's cards and the Theme menu's rows
+-- that edit them wear the same one, so a card and its row look alike.
+-- Ornaments is bookshelf_ornaments.COLLECTION_ICON (U+F0F4 coffee).
+M.WALLPAPER  = "\xEE\xA7\xA8"   -- U+E9E8  image (mdi)
+M.PLANK      = "\xEE\xB8\xA7"   -- U+EE27  view-sequential
+M.COLORS     = "\xEE\xAB\x97"   -- U+EAD7  palette
+M.LIGHT      = "\xEE\xB2\xA7"   -- U+ECA7  white-balance-sunny
+M.DARK       = "\xEE\x9F\x9A"   -- U+E7DA  brightness-2 (crescent moon)
+M.LIGHT_DARK = "\xEE\xB0\x8D"   -- U+EC0D  theme-light-dark
+
 -- label(glyph, text) -> the text with the glyph in front of it.
 --
 -- Two spaces, not one: at menu size the glyph sits tight against a capital

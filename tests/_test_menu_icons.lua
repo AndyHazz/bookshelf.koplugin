@@ -30,7 +30,10 @@ local function codepoint(g)
 end
 
 local NAMES = { "RESET", "SHELF_SIZE", "SHELVES", "THEME",
-                "HARDCOVER", "SETTINGS", "UPDATES" }
+                "HARDCOVER", "SETTINGS", "UPDATES",
+                -- A theme's parts: the Theme menu's rows and the Theme
+                -- library's cards (ornaments: bookshelf_ornaments' cup).
+                "WALLPAPER", "PLANK", "COLORS", "LIGHT", "DARK", "LIGHT_DARK" }
 
 -- Which top-level rows carry an icon, and which deliberately do not. Pinned in
 -- BOTH directions: the plain pair is a decision, not an omission waiting to be
@@ -98,6 +101,36 @@ t.test("the right top-level entries carry one, and the right ones do not", funct
         seen = seen + 1
     end
     assert(seen >= 7, "only " .. seen .. " entries checked; the order list shrank")
+end)
+
+t.test("the Theme menu's editing rows wear the icons the Theme library's cards show", function()
+    -- Maintainer, 2026-10-09 (variant B): a card's parts are these icons, so
+    -- the row that edits a part wears the same one.
+    eq(codepoint(Icons.WALLPAPER), 0xE9E8); eq(codepoint(Icons.PLANK), 0xEE27)
+    eq(codepoint(Icons.COLORS), 0xEAD7); eq(codepoint(Icons.LIGHT), 0xECA7)
+    eq(codepoint(Icons.DARK), 0xE7DA); eq(codepoint(Icons.LIGHT_DARK), 0xEC0D)
+    local settings = io.open("lib/bookshelf_settings.lua"):read("*a")
+    local function body(sig)
+        local b = settings:match("\nfunction Settings:" .. sig .. "(.-)\nend\n")
+        assert(b, sig .. " moved")
+        return b
+    end
+    assert(body("_plankRow%(markDirty%)"):find("MenuIcons.label(MenuIcons.PLANK,", 1, true),
+        "the Plank row lost the plank icon")
+    assert(body("_wallpaperRow%(%)"):find("MenuIcons.label(MenuIcons.WALLPAPER,", 1, true),
+        "the Wallpaper row lost the wallpaper icon")
+    local ld = body("_lightDarkRow%(%)")
+    for _i, k in ipairs({ "LIGHT", "DARK", "LIGHT_DARK" }) do
+        assert(ld:find("MenuIcons." .. k .. "%f[^%w_]"), "Light or dark lost its " .. k .. " icon")
+    end
+    local menu = io.open("lib/bookshelf_theme_menu.lua"):read("*a")
+    assert(menu:find('require("lib/bookshelf_menu_icons").COLORS, _("Colors"))', 1, true),
+        "the Colors row lost the colours icon")
+    -- Declared above the first row that uses it: a local declared below a
+    -- function is a nil global inside it.
+    local decl = settings:find("\nlocal MenuIcons%s*=")
+    local first = settings:find("MenuIcons.", 1, true)
+    assert(decl and first and decl < first, "MenuIcons is used above its declaration")
 end)
 
 t.test("the glyphs live in the table and nowhere else", function()

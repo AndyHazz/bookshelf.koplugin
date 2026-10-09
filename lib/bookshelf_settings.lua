@@ -16,6 +16,9 @@ local Focus        = require("lib/bookshelf_focus")
 local BookshelfSettings = require("lib/bookshelf_settings_store")
 local BFont        = require("lib/bookshelf_fonts")
 local Space        = require("lib/bookshelf_space")
+-- Up here, not beside ICON_RESET: the Theme menu's rows above that use it
+-- too, and a local declared below a function reads nil in it.
+local MenuIcons    = require("lib/bookshelf_menu_icons")
 
 -- ─── Settings singleton ───────────────────────────────────────────────────────
 
@@ -1537,7 +1540,10 @@ end
 function Settings:_wallpaperRow()
     local picture = self:_wallpaperMenu()[1]
     return {
-        text_func           = picture.text_func,
+        -- The icon a Theme library card shows for a wallpaper.
+        text_func           = function()
+            return MenuIcons.label(MenuIcons.WALLPAPER, picture.text_func())
+        end,
         help_text_func      = picture.help_text_func,
         sub_item_table_func = function() return self:_wallpaperMenu() end,
     }
@@ -1799,7 +1805,11 @@ function Settings:_lightDarkRow()
     local CP = require("lib/bookshelf_cover_progress")
     return {
         text_func = function()
-            return T(_("Light or dark: %1"), self:_lightDarkLabel())
+            -- The card's sun or moon for the shelf's choice; Auto, both.
+            local v = self:_lightDark()
+            local g = (v == "light" and MenuIcons.LIGHT) or (v == "dark" and MenuIcons.DARK)
+                or MenuIcons.LIGHT_DARK
+            return MenuIcons.label(g, T(_("Light or dark: %1"), self:_lightDarkLabel()))
         end,
         help_text = _("Light or dark colors for the shelf, independently "
             .. "of KOReader's night mode, so you can keep the rest of "
@@ -1930,7 +1940,6 @@ end
 -- The reset glyph, from the shared table: see lib/bookshelf_menu_icons.lua
 -- for why it is Private-Use-Area only and why the glyph rides outside the
 -- translatable string.
-local MenuIcons  = require("lib/bookshelf_menu_icons")
 local ICON_RESET = MenuIcons.RESET .. "  "
 
 -- _isNight() -> true when the NIGHT slot is the one being edited: the slot
@@ -2110,8 +2119,9 @@ function Settings:_plankRow(markDirty)
     return {
         text_func = function()
             local lbl = require("lib/bookshelf_theme_pack").plankRowLabel()
-            return T(_("Plank: %1"),
-                lbl or (_("color") .. " " .. self:_colorValueLabel("spine_plank_color")))
+            -- The icon a Theme library card shows for a plank.
+            return MenuIcons.label(MenuIcons.PLANK, T(_("Plank: %1"),
+                lbl or (_("color") .. " " .. self:_colorValueLabel("spine_plank_color"))))
         end,
         help_text = _("The plank the Spines style stands its books on: a plain"
             .. " color, the built-in oak, or a plank from an ornament pack."),

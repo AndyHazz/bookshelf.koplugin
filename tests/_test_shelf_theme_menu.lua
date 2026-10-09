@@ -28,6 +28,9 @@ local CODE = table.concat({
     grab("\n(function Settings:_lightDarkRow%(%).-\nend)\n", "_lightDarkRow"),
 }, "\n")
 local menu_src = io.open("lib/bookshelf_theme_menu.lua"):read("*a")
+-- The rows' icons: the ones the Theme library's cards show (maintainer,
+-- 2026-10-09).
+local MI = dofile("lib/bookshelf_menu_icons.lua")
 -- TM: the Theme menu module, loaded over the last build's stubs.
 local TM
 
@@ -88,6 +91,7 @@ local function build(packs, library, tabs, opts)
     TP.choiceLabel = function(v) if v == nil then return "Default theme" end return TP.themeName(v) end
     local env = setmetatable({
         Settings = {},
+        MenuIcons = MI,
         _ = function(s) return s end,
         T = function(f, ...)
             local a = { ... }
@@ -190,8 +194,8 @@ t.test("ONE Theme menu, one page: This shelf, Other shelves, Default theme, then
     -- Maintainer, 2026-10-09: the other shelves a level down, below This
     -- shelf, so the menu fits one page.
     eq(texts(rows), "This shelf: Default theme | Other shelves: all default | Default theme: Macabre"
-        .. " | Light or dark: Auto (follow night mode)"
-        .. " | Wallpaper | Plank | Ornaments | Colors | New ornaments go")
+        .. " | " .. MI.label(MI.LIGHT_DARK, "Light or dark: Auto (follow night mode)")
+        .. " | Wallpaper | Plank | Ornaments | " .. MI.label(MI.COLORS, "Colors") .. " | New ornaments go")
     for _i, r in ipairs(rows) do
         local tx = r.text or (r.text_func and r.text_func()) or ""
         assert(not tx:lower():find("library", 1, true), "a row still says library: " .. tx)
@@ -426,13 +430,17 @@ end)
 t.test("Light or dark: Auto (follow night mode), Light, Dark; the theme's own named when it sets it", function()
     local self, S, seen = build({ MAC }, nil)
     local row = S._lightDarkRow(self)
-    eq(row.text_func(), "Light or dark: Auto (follow night mode)")
+    -- Its icon the card's: sun, moon, or the two for Auto.
+    eq(row.text_func(), MI.label(MI.LIGHT_DARK, "Light or dark: Auto (follow night mode)"))
     local sub = row.sub_item_table_func()
     eq(texts(sub), "Auto (follow night mode) | Light | Dark")
     sub[3].callback()
     eq(seen.store.shelf_theme, "dark")
+    eq(row.text_func(), MI.label(MI.DARK, "Light or dark: Dark"), "Dark is not the moon")
+    sub[2].callback()
+    eq(row.text_func(), MI.label(MI.LIGHT, "Light or dark: Light"), "Light is not the sun")
     local self2, S2 = build({ MAC }, nil, nil, { on_screen = "Macabre" })
-    eq(S2._lightDarkRow(self2).text_func(), "Light or dark: Auto (follow night mode)",
+    eq(S2._lightDarkRow(self2).text_func(), MI.label(MI.LIGHT_DARK, "Light or dark: Auto (follow night mode)"),
         "a theme on screen puts a suffix on the row again")
 end)
 

@@ -65,7 +65,9 @@ function M.items(S)
     rows[#rows + 1] = {
         -- The long list of colours (text, progress bar, bookmarks, badges)
         -- keeps a level of its own: a reference list people visit once.
-        text                = _("Colors"),
+        -- The icon a Theme library card shows for a theme's colours.
+        text                = require("lib/bookshelf_menu_icons").label(
+            require("lib/bookshelf_menu_icons").COLORS, _("Colors")),
         sub_item_table_func = function()
             return S:_colorsSubItems()
         end,

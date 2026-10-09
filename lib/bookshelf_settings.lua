@@ -2311,7 +2311,7 @@ function Settings:_pickColor(raw_key, field, default_pct, title,
         -- and vice versa. Mirrors CoverProgress.resolvedColors().
         local suffix = CoverProgress.editSuffix()
         local key      = raw_key .. suffix
-        -- Read and written through the one seam: My theme's key, or the
+        -- Read and written through the one seam: Custom theme's key, or the
         -- edits to the theme on screen (bookshelf_theme_pack.partSave).
         local TP       = require("lib/bookshelf_theme_pack")
         local raw      = TP.partRead(key)

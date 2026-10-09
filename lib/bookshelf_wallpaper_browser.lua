@@ -58,7 +58,7 @@ end
 -- inUse(key, item) -> is this what the setting holds now. The full screen
 -- image has three states: unset (Same as default), false (None), a name.
 -- Read and written through the one seam (bookshelf_theme_pack.partRead /
--- partSave): My theme's, or the edits to the theme on screen.
+-- partSave): Custom theme's, or the edits to the theme on screen.
 function WB.inUse(key, item)
     local v = TP().partRead(key)
     if item.kind == "same" then return v == nil end

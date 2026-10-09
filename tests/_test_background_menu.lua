@@ -53,14 +53,14 @@ t.test("the row is named for the theme it edits, by a template, and the reader's
     -- The name of the reader's own lives in ONE place (TP.mineName), so it
     -- can be renamed with a one-line change (maintainer, 2026-10-07).
     local tp = io.open("lib/bookshelf_theme_pack.lua"):read("*a")
-    assert(tp:find('function M.mineName() return _("My theme") end', 1, true), "the name changed")
+    assert(tp:find('function M.mineName() return _("Custom theme") end', 1, true), "the name changed")
     assert(tp:find("function M.editName() return M.themeName(M.shelfTheme()) end", 1, true),
         "editName does not name the theme on screen")
     local tn = tp:match("\nfunction M%.themeName%(choice%)\n(.-)\nend\n")
     assert(tn and tn:find("if choice == nil or choice == M.MINE then return M.mineName() end", 1, true),
         "the reader's own is not named by the one name")
     local n = 0
-    for _ in (settings .. main):gmatch('_%("My theme"%)') do n = n + 1 end
+    for _ in (settings .. main):gmatch('_%("Custom theme"%)') do n = n + 1 end
     eq(n, 0, "the name is spelled out somewhere other than TP.mineName")
     assert(row:find("S:_themeSubItems()", 1, true), "it must build the merged menu")
     assert(row:find("MenuIcons.THEME", 1, true), "the row's glyph is not THEME")

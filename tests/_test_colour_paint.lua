@@ -163,7 +163,7 @@ t.test("the Colors slot is reset on opening Colors, and never leaks to the rows 
         require = function(m)
             if m == "lib/bookshelf_cover_progress" then return CP end
             if m == "device" then return { screen = { isColorEnabled = function() return false end } } end
-            -- The editing seam: the reader's own keys (a My theme shelf).
+            -- The editing seam: the reader's own keys (a Custom theme shelf).
             if m == "lib/bookshelf_theme_pack" then return { partRead = function(k) return store[k] end } end
             error(m)
         end,

@@ -142,7 +142,7 @@ end
 -- hero(theme) -> the ornament entry a theme's card shows, or nil. A pack:
 -- its theme.json "hero" (a piece's file stem, any case) unless that piece is
 -- switched off; else its most recently added or changed piece (file mtime)
--- that is switched on. My theme: the most recent piece the reader has on
+-- that is switched on. Custom theme: the most recent piece the reader has on
 -- (the collection, loose pieces included). Plain: none. Pieces switched off
 -- are skipped (the starter cacti, maintainer 2026-10-07): for a pack or
 -- Plain whose ornaments the reader has edited, those not in its edited set
@@ -256,7 +256,7 @@ function TL.indexOf(items, current)
 end
 
 -- resettable(item): that card's theme can be reset to its original: a
--- pack or Plain. Not My theme (the reader's own, no original), not Default
+-- pack or Plain. Not Custom theme (the reader's own, no original), not Default
 -- theme (it stands for another card), not a missing pack.
 function TL.resettable(item)
     local tp = TP()
@@ -499,7 +499,7 @@ function TL.show(opts)
             if opts.on_closed then pcall(opts.on_closed) end
         end,
     }
-    -- Always opens on the first page, where My theme and Plain (and Default
+    -- Always opens on the first page, where Custom theme and Plain (and Default
     -- theme) are, wherever the choice in use is: its card is marked on its
     -- own page (maintainer, 2026-10-08: opened on Ukiyo-e's page, the
     -- built-ins were out of sight).

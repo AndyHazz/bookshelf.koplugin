@@ -62,19 +62,19 @@ local function build(packs, library, tabs, opts)
             if opts.edited then opts.edited[th] = nil end
         end,
         rescan = function() seen.rescans = seen.rescans + 1 end,
-        mineName = function() return "My theme" end,
+        mineName = function() return "Custom theme" end,
         addThemeLabel = function() return "Add theme pack\xE2\x80\xA6" end,
         showAddThemeInfo = function() seen.add_info = (seen.add_info or 0) + 1 end,
         packOf = function(v) if v == nil or v == "mine" or v == "plain" then return nil end return v end,
         theme = function(p) return { exists = by[p] ~= nil } end,
         themeName = function(v)
-            if v == nil or v == "mine" or v == "none" then return "My theme" end
+            if v == nil or v == "mine" or v == "none" then return "Custom theme" end
             if v == "plain" then return "Plain" end
             if not by[v] then return v .. " (missing)" end
             return by[v].name
         end,
         choices = function()
-            local o = { { value = "mine", label = "My theme" }, { value = "plain", label = "Plain" } }
+            local o = { { value = "mine", label = "Custom theme" }, { value = "plain", label = "Plain" } }
             for _i, p in ipairs(packs) do
                 o[#o + 1] = { value = p.pack, help = p.description,
                               label = p.name }
@@ -228,10 +228,10 @@ t.test("ONE Theme menu: This shelf, Default theme, the editing rows, Reset, then
     end
 end)
 
-t.test("on a My theme shelf there is nothing to reset: no Reset row, the preferences end the editing", function()
+t.test("on a Custom theme shelf there is nothing to reset: no Reset row, the preferences end the editing", function()
     local self, S = build({ MAC }, nil, nil, { on_screen = "mine" })
     local rows = S._themeSubItems(onShelf(self, "home"))
-    eq(rowOf(rows, "Reset "), nil, "My theme has a Reset to original row")
+    eq(rowOf(rows, "Reset "), nil, "Custom theme has a Reset to original row")
     local newat = rowOf(rows, "New ornaments go")
     eq(newat.separator, true, "the shelves are not set apart from the editing rows")
     eq(rows[#rows].text_func(), "Manga: Default")
@@ -273,7 +273,7 @@ t.test("This shelf opens the shelf on screen's picker, named for its own choice;
     -- only a pack or Plain has Reset to original).
     eq(seen.reopened, 1, "the Theme menu's rows were not rebuilt after the picker")
     assert(seen.rebuilt and rowOf(seen.rebuilt, "This shelf: "), "the rebuild is not the Theme menu")
-    eq(rowOf(seen.rebuilt, "This shelf: ").text_func(), "This shelf: My theme", "the row does not follow the choice")
+    eq(rowOf(seen.rebuilt, "This shelf: ").text_func(), "This shelf: Custom theme", "the row does not follow the choice")
     S._themeLibraryRow(onShelf(self, "sub")).callback({})
     eq(seen.opened[2].shelf, "Recent", "a sub-shelf's row opened the sub-shelf's picker")
     self._bw = nil
@@ -326,9 +326,9 @@ t.test("the top-level row is named for the theme on screen; the help says its ro
     local self2, S2 = build({ MAC }, nil, nil, { on_screen = "plain" })
     eq(S2._themeMenuText(self2), "Theme (Plain)")
     local self3, S3 = build({ MAC }, nil)
-    eq(S3._themeMenuText(self3), "Theme (My theme)")
+    eq(S3._themeMenuText(self3), "Theme (Custom theme)")
     local help = S3._shelfThemeHelp(self3)
-    assert(help:find("Choosing a theme never changes My theme", 1, true))
+    assert(help:find("Choosing a theme never changes Custom theme", 1, true))
     assert(help:find("The rows here edit the theme of the shelf on screen.", 1, true),
         "the help does not say what the editing rows edit")
 end)
@@ -337,7 +337,7 @@ t.test("each enabled shelf is listed with its theme, a disabled one is not", fun
     local tabs = { { id = "home", label = "Home" }, { id = "manga", label = "Manga", theme = "Ukiyo-e" },
                    { id = "rec", label = "Recent", theme = "mine" }, { id = "x", label = "Off", enabled = false, theme = "plain" } }
     local self, S = build({ MAC, UK }, "Macabre", tabs)
-    eq(texts(S._perShelfThemeRows(self)), "Home: Default | Manga: Ukiyo-e | Recent: My theme")
+    eq(texts(S._perShelfThemeRows(self)), "Home: Default | Manga: Ukiyo-e | Recent: Custom theme")
 end)
 
 t.test("a shelf's row opens that shelf's Theme library; a choice writes that shelf only", function()
@@ -427,14 +427,14 @@ t.test("Reset to original names the theme on screen, greyed while it has no edit
     seen.confirm.after()
     eq(seen.dirty, 1, "the shelf was not rebuilt"); eq(updated, 1, "the menu's rows did not follow")
     eq(seen.full, 1, "no full refresh for the whole look changing")
-    -- Plain resets the same way; My theme has nothing to reset to.
+    -- Plain resets the same way; Custom theme has nothing to reset to.
     local self2, S2 = build({ MAC }, nil, nil, { on_screen = "plain", edited = { plain = true } })
     eq(S2._resetThemeRow(self2).text_func(), "Reset Plain to original")
     eq(S2._resetThemeRow(self2).enabled_func(), true)
     local self3, S3, seen3 = build({ MAC }, nil, nil, { on_screen = "mine", edited = { mine = true } })
-    eq(S3._resetThemeRow(self3).enabled_func(), false, "My theme can be reset to an original")
+    eq(S3._resetThemeRow(self3).enabled_func(), false, "Custom theme can be reset to an original")
     S3._resetThemeRow(self3).callback({})
-    eq(seen3.confirm, nil, "My theme was asked about a reset")
+    eq(seen3.confirm, nil, "Custom theme was asked about a reset")
 end)
 
 t.test("the editing rows: no row greyed for a theme's part, Reset after them on a pack or Plain", function()
@@ -448,7 +448,7 @@ t.test("the editing rows: no row greyed for a theme's part, Reset after them on 
     local reset = bg:find("rows[#rows + 1] = self:_resetThemeRow()", 1, true)
     assert(reset and reset > bg:find("_newOrnamentsRow", 1, true), "Reset to original is not after the editing rows")
     assert(reset < bg:find("_perShelfThemeRows", 1, true), "Reset is not before the shelves")
-    assert(bg:find("if TP.shelfTheme() ~= TP.MINE then", 1, true), "My theme has a Reset to original row")
+    assert(bg:find("if TP.shelfTheme() ~= TP.MINE then", 1, true), "Custom theme has a Reset to original row")
 end)
 
 t.test("the two old menus are gone: no old This shelf row, no My theme menu, no second Theme menu", function()

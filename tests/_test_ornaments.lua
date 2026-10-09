@@ -1149,7 +1149,7 @@ t.test("listFor: a theme deals its own pieces only, whatever the collection's sw
     local names = {}
     for i, e in ipairs(Orn.listFor("H")) do names[i] = e.name end
     -- No loose pot: themes do not mix (maintainer, 2026-10-07). The cat is
-    -- off in the collection, which is My theme's set: a pack's own set is
+    -- off in the collection, which is Custom theme's set: a pack's own set is
     -- edited with the theme (editable themes, 2026-10-08).
     eq(table.concat(names, ","), "H/bat.png,H/cat.png")
     assert(Orn.listFor("H") == Orn.listFor("H"), "listFor handed out a new table")

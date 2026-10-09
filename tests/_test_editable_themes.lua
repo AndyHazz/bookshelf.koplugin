@@ -4,9 +4,9 @@
 -- wallpaper, swap back to plain, then use macabre again in future on a
 -- specific shelf and it'd still have your edits, then reset it back to
 -- original". theme_edits holds one entry per pack (or Plain); a part
--- resolves as the edit, else the theme's original, else My theme's; every
+-- resolves as the edit, else the theme's original, else Custom theme's; every
 -- editor writes through one seam (partRead / partSave, choosePlank,
--- switches) that picks My theme's keys or the theme on screen's edits.
+-- switches) that picks Custom theme's keys or the theme on screen's edits.
 -- Run from the plugin root: lua tests/_test_editable_themes.lua
 package.path = "./?.lua;./?/init.lua;" .. package.path
 package.loaded["logger"] = { dbg = function() end, info = function() end,
@@ -162,7 +162,7 @@ local function edits(settings, th) return (settings.theme_edits or {})[th] end
 -- on(TP, id): the shelf on screen, after a tab save (a new generation).
 local function on(TP, id) TP._store.bump(); TP.setShelf(id) end
 
-t.test("an edit on a pack's shelf goes to that theme's edits, never to My theme", function()
+t.test("an edit on a pack's shelf goes to that theme's edits, never to Custom theme", function()
     local TP, d, settings, tabs, st = setup()
     world(d, settings)
     tabs.home = { id = "home", theme = "Macabre" }
@@ -174,7 +174,7 @@ t.test("an edit on a pack's shelf goes to that theme's edits, never to My theme"
     TP.partSave("wallpaper_default", "leaves.png")
     TP.choosePlank("oak")
     TP.partSave("shelf_theme", "light")
-    eq(settings.progress_fill.hex, "#AA0000", "My theme's colour changed")
+    eq(settings.progress_fill.hex, "#AA0000", "Custom theme's colour changed")
     eq(settings.theme_plank_pack, nil); eq(settings.shelf_theme, nil)
     eq(settings.wallpaper_default, "leaves.png")
     assert(st.gen > gen, "an edit did not bump the generation, so nothing repaints")
@@ -192,7 +192,7 @@ t.test("an edit on a pack's shelf goes to that theme's edits, never to My theme"
     eq(TP.editName(), "Macabre", "the menu is not named for the theme it edits")
 end)
 
-t.test("the maintainer's round trip: edits come back wherever the theme is used; My theme untouched", function()
+t.test("the maintainer's round trip: edits come back wherever the theme is used; Custom theme untouched", function()
     local TP, d, settings, tabs = setup()
     world(d, settings)
     tabs.home = { id = "home", theme = "Macabre" }
@@ -216,7 +216,7 @@ t.test("the maintainer's round trip: edits come back wherever the theme is used;
     eq(TP.shownWallpaper(false, false), "theme-pack\1Ukiyo-e\1wallpaper.jpg")
     eq(TP.switches().isOff("Macabre/skull.png"), true)
     on(TP, "mine")
-    eq(shown(TP), mine_before, "My theme changed")
+    eq(shown(TP), mine_before, "Custom theme changed")
     eq(TP.hasEdits("mine"), false)
     -- Reset: the original back, everywhere.
     eq(TP.resetEdits("Macabre"), true)
@@ -312,7 +312,7 @@ t.test("ornaments: a theme's set, switched by the browser's seam; any piece may 
     TP.partSave("progress_fill", { hex = "#00AA00" })
     assert(TP.ornamentsFor("home") == pool, "a colour edit made a new pool")
     eq(TP.shelfKey(), key1, "a colour edit re-dealt the pages' ornaments")
-    -- On a My theme shelf the browser switches the collection, as before.
+    -- On a Custom theme shelf the browser switches the collection, as before.
     tabs.rec = { id = "rec", theme = "mine" }
     on(TP, "rec")
     TP.switches().setOff("cactus.svg", true)
@@ -335,7 +335,7 @@ t.test("bookshelf_ornaments.listFor deals an edited set, from any pack or loose;
     assert(O.listFor({ slot = "edit:Macabre", key = "edit:Macabre:1", on = set }) == l1, "the same list while unchanged")
     local set2 = { ["Macabre/skull.png"] = true }
     eq(#O.listFor({ slot = "edit:Macabre", key = "edit:Macabre:2", on = set2 }), 1, "an edit was not seen")
-    -- My theme's off switches do not reach a pack's shelf any more.
+    -- Custom theme's off switches do not reach a pack's shelf any more.
     eq(#O.listFor("Macabre"), 1, "a pack's piece off in the collection is off on the pack's shelf")
 end)
 
@@ -354,7 +354,7 @@ t.test("migration 2: a 5.3 pack piece switched off becomes that pack's edit; the
     assert(e and e.pieces, "the off switch did not become Macabre's edit")
     eq(e.pieces["Macabre/candle.png"], true); eq(e.pieces["Macabre/skull.png"], nil)
     eq(edits(settings, "Ukiyo-e"), nil, "a pack with nothing off got an edit")
-    eq(off["Macabre/skull.png"], true, "My theme's switch went (it deals pack pieces too)")
+    eq(off["Macabre/skull.png"], true, "Custom theme's switch went (it deals pack pieces too)")
     eq(tabs.home.own_theme, nil); eq(tabs.home.theme, nil); eq(tabs.rec.own_theme, nil)
     eq(tabs.rec.theme, "Macabre")
     -- Nothing on screen changes: the Macabre shelf deals the candle alone.
@@ -438,7 +438,7 @@ end)
 
 -- ── Wiring: every editor writes through the seam ─────────────────────────
 -- Reverting any of these to a direct settings write sends an edit to a
--- theme into My theme, which is the bug the seam exists to prevent.
+-- theme into Custom theme, which is the bug the seam exists to prevent.
 t.test("the editor rows write through the seam", function()
     local set = io.open("lib/bookshelf_settings.lua"):read("*a")
     local function body(sig)
@@ -446,61 +446,61 @@ t.test("the editor rows write through the seam", function()
         assert(b, sig .. " moved"); return (b:gsub("%-%-[^\n]*", ""))
     end
     local pick = body("_pickColor(raw_key, field, default_pct, title,")
-    assert(pick:find("TP.partRead(key)", 1, true), "the colour picker reads My theme's key directly")
+    assert(pick:find("TP.partRead(key)", 1, true), "the colour picker reads Custom theme's key directly")
     assert(not pick:find("BookshelfSettings.save(key", 1, true) and not pick:find("BookshelfSettings.delete(key", 1, true),
-        "the colour picker writes My theme's key directly")
+        "the colour picker writes Custom theme's key directly")
     local _n, saves = pick:gsub("TP%.partSave%(key", "")
     eq(saves >= 3, true, "the palette, its revert and the nudge do not all write through the seam")
     local ld = body("_lightDarkRow()")
-    assert(ld:find("partSave(CP.THEME_SETTING, value)", 1, true), "light or dark writes My theme's key directly")
-    assert(body("_shelfTheme()"):find("partRead(CP.THEME_SETTING)", 1, true), "light or dark reads My theme's key")
+    assert(ld:find("partSave(CP.THEME_SETTING, value)", 1, true), "light or dark writes Custom theme's key directly")
+    assert(body("_shelfTheme()"):find("partRead(CP.THEME_SETTING)", 1, true), "light or dark reads Custom theme's key")
     local wm = body("_wallpaperMenu()")
-    assert(wm:find("TP.partSave(Wallpaper.INVERT_NIGHT_SETTING", 1, true), "invert writes My theme's key directly")
-    assert(wm:find("TP.partDelete(Wallpaper.BG_SETTING", 1, true), "the page colour's reset writes My theme's key")
-    assert(wm:find("local name = TP.partRead(setting)", 1, true), "the wallpaper rows read My theme's keys")
+    assert(wm:find("TP.partSave(Wallpaper.INVERT_NIGHT_SETTING", 1, true), "invert writes Custom theme's key directly")
+    assert(wm:find("TP.partDelete(Wallpaper.BG_SETTING", 1, true), "the page colour's reset writes Custom theme's key")
+    assert(wm:find("local name = TP.partRead(setting)", 1, true), "the wallpaper rows read Custom theme's keys")
     assert(wm:find("if TP.partEdited(setting) then", 1, true), "an edited picture that has gone does not say so")
     assert(body("_plankRow(markDirty)"):find('partDelete("spine_plank_color" .. suffix)', 1, true),
-        "the plank colour's reset writes My theme's key directly")
+        "the plank colour's reset writes Custom theme's key directly")
     assert(body("_colorValueLabel(raw_key, _default_pct)"):find("partRead(raw_key .. suffix)", 1, true),
-        "a colour row's value reads My theme's key")
+        "a colour row's value reads Custom theme's key")
     local colors = body("_colorsSubItems()")
-    assert(colors:find("partDelete(base .. suffix)", 1, true), "a colour row's reset writes My theme's key")
-    assert(colors:find("partClear(keys)", 1, true), "Reset to default colors writes My theme's keys")
+    assert(colors:find("partDelete(base .. suffix)", 1, true), "a colour row's reset writes Custom theme's key")
+    assert(colors:find("partClear(keys)", 1, true), "Reset to default colors writes Custom theme's keys")
     assert(body("_ornamentsRow()"):find("listFor(require(\"lib/bookshelf_theme_pack\").editPool())", 1, true),
         "the Ornaments row counts the collection on a theme's shelf")
     local wb = io.open("lib/bookshelf_wallpaper_browser.lua"):read("*a")
     local wch = wb:match("\nfunction WB%.choose%(key, item%)\n(.-)\nend\n")
     assert(wch and wch:find("TP().partSave(key, item.name)", 1, true)
-        and not wch:find("BookshelfSettings.save(key", 1, true), "the wallpaper picker writes My theme's key directly")
+        and not wch:find("BookshelfSettings.save(key", 1, true), "the wallpaper picker writes Custom theme's key directly")
     local ob = io.open("lib/bookshelf_ornament_browser.lua"):read("*a")
     local tog = ob:match("\nfunction Browser:_toggle%(item%)\n(.-)\nend\n")
     assert(tog and tog:find("SW().setOff(", 1, true), "the ornament browser switches the collection directly")
     assert(ob:find('require("lib/bookshelf_theme_pack").switches()', 1, true), "the browser's switches are not the seam's")
     local tp = io.open("lib/bookshelf_theme_pack.lua"):read("*a")
     local cp = tp:match("\nfunction M%.choosePlank%(choice%)\n(.-)\nend\n")
-    assert(cp and cp:find("M.partSave(M.PLANK_SETTING, v)", 1, true), "the plank picker writes My theme's key directly")
+    assert(cp and cp:find("M.partSave(M.PLANK_SETTING, v)", 1, true), "the plank picker writes Custom theme's key directly")
 end)
 
 t.test("the paint reads through the seam: colours, bars, chips, the page ground, invert", function()
     local cp = io.open("lib/bookshelf_cover_progress.lua"):read("*a")
     local own = cp:match("\nlocal function _readOwnColor%(base_key, default_day, default_night, suffix%)\n(.-)\nend\n")
     assert(own and own:find("_partRead(base_key .. suffix)", 1, true) and own:find("_partRead(base_key)", 1, true)
-        and not own:find("BookshelfSettings.read", 1, true), "the colours read My theme's keys on a theme's shelf")
+        and not own:find("BookshelfSettings.read", 1, true), "the colours read Custom theme's keys on a theme's shelf")
     local bars = cp:match("\nfunction M%.pickedBarColors%(%)\n(.-)\nend\n")
-    assert(bars and bars:find('_partRead("progress_fill" .. suffix)', 1, true), "the hero bars read My theme's keys")
+    assert(bars and bars:find('_partRead("progress_fill" .. suffix)', 1, true), "the hero bars read Custom theme's keys")
     local cb = io.open("lib/bookshelf_chip_bar.lua"):read("*a")
     local bar = cb:match("\nlocal function _readBarColor%(base_key%)\n(.-)\nend\n")
-    assert(bar and bar:find("TP.partRead(k)", 1, true), "the selected shelf reads My theme's keys")
+    assert(bar and bar:find("TP.partRead(k)", 1, true), "the selected shelf reads Custom theme's keys")
     local w = io.open("lib/bookshelf_widget.lua"):read("*a")
     local ground = w:match("\nfunction BookshelfWidget:_pageGroundColor%(%)\n(.-)\nend\n")
     assert(ground and ground:find("TP.partRead(Wallpaper.BG_SETTING .. suffix)", 1, true),
-        "the page ground reads My theme's key")
+        "the page ground reads Custom theme's key")
     local stored = w:match("\nfunction BookshelfWidget:_pageColourStored%(%)\n(.-)\nend\n")
     assert(stored and stored:find("TP.partRead(Wallpaper.BG_SETTING .. suffix)", 1, true),
-        "the page colour's presence reads My theme's key")
+        "the page colour's presence reads Custom theme's key")
     local wp = io.open("lib/bookshelf_wallpaper.lua"):read("*a")
     local inv = wp:match("\nfunction M%.invertsAtNight%(%)\n(.-)\nend\n")
-    assert(inv and inv:find("TP.partRead(M.INVERT_NIGHT_SETTING)", 1, true), "invert at night reads My theme's key")
+    assert(inv and inv:find("TP.partRead(M.INVERT_NIGHT_SETTING)", 1, true), "invert at night reads Custom theme's key")
 end)
 
 t.test("no Own theme left: no card, no rows, no copy on choosing, the menu named for its theme", function()
@@ -545,7 +545,7 @@ local function withUI(fn)
     assert(ok, err)
 end
 
-t.test("confirmReset asks first, then resets the theme, frees its wallpaper and calls back; never My theme", function()
+t.test("confirmReset asks first, then resets the theme, frees its wallpaper and calls back; never Custom theme", function()
     -- Maintainer, 2026-10-09: the Theme menu's Reset row and a card's
     -- long-press in the Theme library ask the one question.
     local TP, d, settings, tabs = setup()
@@ -568,7 +568,7 @@ t.test("confirmReset asks first, then resets the theme, frees its wallpaper and 
         eq(after, 1, "what showed the edits was not told")
         TP.confirmReset("mine", function() after = after + 1 end)
         TP.confirmReset(nil)
-        eq(#seen.shown, 1, "My theme was offered a reset to an original it does not have")
+        eq(#seen.shown, 1, "Custom theme was offered a reset to an original it does not have")
     end)
 end)
 

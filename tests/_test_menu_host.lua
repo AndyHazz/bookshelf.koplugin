@@ -198,19 +198,19 @@ end)
 
 t.test("a level's title follows the row that opened it when the level is refreshed", function()
     -- Theme > Default theme: Macabre chosen in the Theme library: the level's title
-    -- was "Theme: My theme" until the menu was closed and opened again.
+    -- was "Theme: Custom theme" until the menu was closed and opened again.
     local Menu = package.loaded["ui/widget/menu"]
     Menu.new = function(_c, o)
         o.paths = {}
         o.switchItemTable = function(self, title) self.title = title end
         return o
     end
-    local theme = "My theme"
+    local theme = "Custom theme"
     local src = { { text_func = function() return "Theme: " .. theme end,
                     sub_item_table = { { text = "Library", callback = function() end } } } }
     local host = Host.show{ title = "Bookshelf", item_table = src }
     map(host, src)[1].callback()
-    assert(host._menu.title == "Theme: My theme", "pushed under " .. tostring(host._menu.title))
+    assert(host._menu.title == "Theme: Custom theme", "pushed under " .. tostring(host._menu.title))
     theme = "Macabre"
     host._shim.updateItems()
     assert(host._menu.title == "Theme: Macabre", "the title stayed " .. tostring(host._menu.title))

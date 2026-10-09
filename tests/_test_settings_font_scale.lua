@@ -636,7 +636,7 @@ t.test("Reset clears the night variant of every colour key too", function()
     -- Day and night colours are stored under separate keys (base and
     -- base .. "_night"), so a reset that only clears one leaves the other mode
     -- looking untouched.
-    -- Through the editing seam (TP.partClear: My theme's keys, or the edits
+    -- Through the editing seam (TP.partClear: Custom theme's keys, or the edits
     -- to the theme on screen), which clears both slots of each.
     local body = src:match("Reset to default colors.-markDirty%(%)")
     assert(body and body:find("partClear(keys)", 1, true), "reset does not go through the seam")

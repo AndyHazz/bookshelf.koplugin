@@ -31,13 +31,13 @@ function TP.mineWallpaper() return mine_wall end
 function TP.minePlank() return mine_plank end
 function TP.plankLabel(p) return p.name end
 function TP.themeName(v)
-    if v == nil or v == "mine" then return "My theme" end
+    if v == nil or v == "mine" then return "Custom theme" end
     if v == "plain" then return "Plain" end
     if not themes[v] then return v .. " (missing)" end
     return (themes[v].manifest and themes[v].manifest.name) or v
 end
 function TP.choices()
-    return { { value = "mine", label = "My theme" }, { value = "plain", label = "Plain" },
+    return { { value = "mine", label = "Custom theme" }, { value = "plain", label = "Plain" },
              { value = "Macabre", label = "Macabre" }, { value = "Ukiyo", label = "Ukiyo-e" },
              { value = "Autumn", label = "Autumn" } }
 end
@@ -128,7 +128,7 @@ t.test("light or dark only when the pack's theme.json says", function()
     eq(TL.summary("Autumn"):find("Light", 1, true), nil)
 end)
 
-t.test("My theme is summed up from the reader's own settings; Plain is fixed", function()
+t.test("Custom theme is summed up from the reader's own settings; Plain is fixed", function()
     mine_wall, mine_plank = "forest.png", { name = "Oak" }
     eq(TL.summary("mine"), "Your wallpaper" .. DOT .. "Oak" .. DOT .. "3 ornaments")
     mine_wall, mine_plank = nil, nil
@@ -146,10 +146,10 @@ t.test("the hero: theme.json's (any case), else the newest piece switched on; no
     eq(TL.hero("Macabre").file, "Munch - The Scream.png")
     eq(TL.hero("Autumn").file, "B07.png", "no hero named: not the newest piece")
     eq(TL.hero("Planks"), nil, "a pack without pieces has no hero")
-    eq(TL.hero("mine").file, "A01.png", "My theme showed a piece switched off, or not its newest on")
+    eq(TL.hero("mine").file, "A01.png", "Custom theme showed a piece switched off, or not its newest on")
     eq(TL.hero("plain"), nil)
     -- A pack's pieces are switched in its own edited set (editable themes,
-    -- 2026-10-08); the collection's switches are My theme's.
+    -- 2026-10-08); the collection's switches are Custom theme's.
     off["Autumn/B07.png"] = true; TL._hero_cache = {}
     eq(TL.hero("Autumn").file, "B07.png", "the collection's switch reached a pack's hero")
     off["Autumn/B07.png"] = nil
@@ -165,7 +165,7 @@ t.test("the hero: theme.json's (any case), else the newest piece switched on; no
     edits.Autumn, edits.Macabre, edits.plain = nil, nil, nil; TL._hero_cache = {}
 end)
 
-t.test("a pack or Plain the reader has edited says Edited first; My theme never does", function()
+t.test("a pack or Plain the reader has edited says Edited first; Custom theme never does", function()
     edits.Macabre = { keys = { wallpaper_default = "leaves.png" } }
     eq(TL.summary("Macabre"), "Edited" .. DOT .. "Wallpaper" .. DOT .. "Plank" .. DOT .. "56 ornaments" .. DOT .. "Dark")
     edits.Autumn = { keys = { progress_fill = { hex = "#00AA00" } } }
@@ -173,7 +173,7 @@ t.test("a pack or Plain the reader has edited says Edited first; My theme never 
     edits.plain = { keys = {} }
     eq(TL.summary("plain"), "Edited" .. DOT .. "No wallpaper" .. DOT .. "Oak" .. DOT .. "No ornaments")
     edits.mine = { keys = {} }
-    eq(TL.summary("mine"):find("Edited", 1, true), nil, "My theme says Edited")
+    eq(TL.summary("mine"):find("Edited", 1, true), nil, "Custom theme says Edited")
     local items = TL.items{ current = "mine" }
     eq(items[3].summary:sub(1, 6), "Edited", "the card does not say Edited")
     edits.Macabre, edits.Autumn, edits.plain, edits.mine = nil, nil, nil, nil
@@ -185,7 +185,7 @@ t.test("the library's cards: the reader's own, Plain, each theme; titled by name
     local items = TL.items{ current = "Macabre" }
     local titles = {}
     for i, it in ipairs(items) do titles[i] = it.title end
-    eq(table.concat(titles, ","), "My theme,Plain,Macabre,Ukiyo-e,Autumn")
+    eq(table.concat(titles, ","), "Custom theme,Plain,Macabre,Ukiyo-e,Autumn")
     eq(items[3].description, "Candles and skulls.")
     eq(items[1].description, nil); eq(items[5].description, nil)
     eq(items[5].summary, "27 ornaments")
@@ -203,7 +203,7 @@ end)
 t.test("a shelf's cards start with Default theme, which shows the default's theme", function()
     library = "Macabre"
     local items = TL.items{ shelf = "Home", current = nil }
-    -- Maintainer, 2026-10-08: it read as a second "My theme" card. Named
+    -- Maintainer, 2026-10-08: it read as a second "Custom theme" card. Named
     -- for following, the theme it follows first in its summary. "Default",
     -- not "library", the picker's own name (maintainer, 2026-10-09).
     eq(items[1].same, true); eq(items[1].title, "Default theme")
@@ -211,7 +211,7 @@ t.test("a shelf's cards start with Default theme, which shows the default's them
     eq(items[1].summary, "Uses: Macabre" .. DOT .. TL.summary("Macabre"))
     eq(items[1].description, "Candles and skulls.")
     eq(TL.isCurrent(items[1], nil), true); eq(TL.isCurrent(items[2], nil), false)
-    eq(TL.isCurrent(items[1], "mine"), false, "a shelf on My theme read as following the default")
+    eq(TL.isCurrent(items[1], "mine"), false, "a shelf on Custom theme read as following the default")
     local gone = TL.items{ shelf = "Home", current = "Gone" }
     eq(gone[2].missing, true); eq(TL.indexOf(gone, "Gone"), 2)
 end)
@@ -274,7 +274,7 @@ t.test("the default's picker: titled Default theme, opens on page 1 always, Add 
     -- Maintainer, 2026-10-08: the built-ins stay in sight; the choice in use
     -- (Autumn, the fifth card) is marked on its own page.
     eq(c.cells_per_page() < 5, true)
-    eq(m.page, 1, "not opened on the first page, where My theme and Plain are")
+    eq(m.page, 1, "not opened on the first page, where Custom theme and Plain are")
     eq(m._dpad_idx, 1, "the keys' focus started on a card that is not on the page")
     local f = c.footer_rows[1]
     eq(f[1].label, "Add theme pack\xE2\x80\xA6"); eq(f[2].label, "Close")
@@ -523,19 +523,19 @@ t.test("a long-press on a pack's or Plain's card offers Reset to original, greye
     edits.plain = nil
     asked[#asked].after()
     eq(runTasks(), 0, "the shelf behind was rebuilt for a theme it does not show")
-    -- My theme (no original), Default theme (it stands for another card)
+    -- Custom theme (no original), Default theme (it stands for another card)
     -- and a missing pack: nothing.
     local n = #shown
     eq(c.item_at(1).value, "mine")
     c.cell_long_tap(c.item_at(1))
-    eq(#shown, n, "My theme's card showed a dialog")
+    eq(#shown, n, "Custom theme's card showed a dialog")
     local _m2, c2 = open{ shelf = "Home", current = function() return nil end, choose = function() end }
     n = #shown
     eq(c2.item_at(1).same, true)
     c2.cell_long_tap(c2.item_at(1))
     eq(TL.showReset({ value = "Gone", missing = true, title = "Gone (missing)" }), nil)
     eq(#shown, n, "a card with nothing to reset showed a dialog")
-    eq(TL.showReset({ value = "mine", title = "My theme" }), nil, "My theme offered a reset")
+    eq(TL.showReset({ value = "mine", title = "Custom theme" }), nil, "Custom theme offered a reset")
     TP.confirmReset, TP.shelfTheme = nil, nil
     package.loaded["ui/widget/buttondialog"] = nil
 end)

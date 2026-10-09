@@ -257,7 +257,9 @@ M.SHELF_SETTING = "shelf_theme"          -- CoverProgress.THEME_SETTING
 
 -- mineName() -> what menus call the reader's own look. The ONE place the
 -- name lives, so it can be renamed with a one-line change (maintainer).
-function M.mineName() return _("My theme") end
+-- "Custom theme", not "My theme" (maintainer, 2026-10-09); the id stays
+-- "mine".
+function M.mineName() return _("Custom theme") end
 
 -- addThemeLabel() / showAddThemeInfo(): the "Add theme pack..." row that ends
 -- every list of themes (the Theme library, wherever it is opened from;
@@ -977,7 +979,7 @@ end
 --
 --   theme_edits = { [a pack's folder, or "plain"] = {
 --     keys   = { [a part's settings key] = value }: the parts edited
---              (PART_KEYS), stored as My theme stores them (the night slot
+--              (PART_KEYS), stored as Custom theme stores them (the night slot
 --              pre-inverted, the plank colour the exception); UNSET is a
 --              part edited to unset: the default, never the theme's or the
 --              reader's own,
@@ -989,7 +991,7 @@ end
 --
 -- A part resolves (themePart) as the reader's edit, else the theme's
 -- original (Plain's fixed parts, a pack's), else, for a pack without that
--- part, My theme's. My theme IS the reader's own settings: no edits, no
+-- part, Custom theme's. Custom theme IS the reader's own settings: no edits, no
 -- original. An edit that puts a part back as the theme has it is dropped, so
 -- Reset to original greys once nothing differs; resetEdits removes the
 -- theme's entry. A pack updated in place keeps its edits over the new
@@ -1000,12 +1002,12 @@ end
 --
 -- THE SEAM: partRead / partSave. Every reader of a part of the look the
 -- shelf paints, and every row of the theme menu that edits one, goes through
--- them: they answer for the theme of the shelf on screen (My theme: the
+-- them: they answer for the theme of the shelf on screen (Custom theme: the
 -- reader's own keys).
 M.EDITS_SETTING = "theme_edits"
 M.UNSET = "\0nil"
 
--- PART_KEYS: My theme's parts, as settings keys: what its menu writes
+-- PART_KEYS: Custom theme's parts, as settings keys: what its menu writes
 -- (light or dark, the wallpaper rows, the plank, every colour row; each
 -- colour in both slots), and the part each belongs to (brings). The
 -- ornament switches are pieces, above. Panel shading, the extra wallpaper
@@ -1091,7 +1093,7 @@ function M.originalPart(theme, key)
 end
 
 -- themePart(theme, key) -> that part as that theme shows it: the reader's
--- edit, else its original (nil theme: My theme's, the reader's own key).
+-- edit, else its original (nil theme: Custom theme's, the reader's own key).
 function M.themePart(theme, key)
     if theme == nil or theme == M.MINE then return read(key) end
     local e = M.editsOf(theme)
@@ -1178,7 +1180,7 @@ local function writeEdits(theme, fn)
 end
 
 -- partSave(key, v): a part edited, in the theme the menu edits (as
--- partRead): My theme's key, else that theme's edits. A key that is not a
+-- partRead): Custom theme's key, else that theme's edits. A key that is not a
 -- part is the reader's preference: saved as it always was.
 function M.partSave(key, v)
     local th = M.shelfTheme()
@@ -1293,7 +1295,8 @@ function M.switches()
 end
 
 -- editName(): the theme the Theme menu is named for, "Theme (Macabre)": the
--- theme of the shelf on screen, which its rows edit (My theme, Plain, Macabre).
+-- theme of the shelf on screen, which its rows edit (Custom theme, Plain,
+-- Macabre).
 function M.editName() return M.themeName(M.shelfTheme()) end
 
 -- ── MIGRATION (once, at start-up) ───────────────────────────────────────
@@ -1317,7 +1320,7 @@ function M.editName() return M.themeName(M.shelfTheme()) end
 --      and a shelf wearing that pack did not deal them. A pack deals its own
 --      set now, edited with the theme: each pack's off switches become that
 --      pack's edit, so nothing on screen changes. ornaments_off stays as it
---      is: it is My theme's set, which deals pack pieces too.
+--      is: it is Custom theme's set, which deals pack pieces too.
 --   6. The unreleased own theme: tab.own_theme dropped, theme "own" unset.
 -- Idempotent, and guarded by a version so each step runs once.
 M.MIGRATION_SETTING = "theme_model"

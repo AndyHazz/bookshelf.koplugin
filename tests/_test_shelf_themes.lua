@@ -284,7 +284,7 @@ t.test("every pack is listed by its name: what it brings is the Theme library's 
     eq(all[1].pack, "Gallery"); eq(all[2].pack, "Halloween"); eq(all[3].pack, "Snow")
     local labels = {}
     for i, c in ipairs(TP.choices()) do labels[i] = c.label end
-    eq(table.concat(labels, ","), "My theme,Plain,Gallery,Halloween,Snow",
+    eq(table.concat(labels, ","), "Custom theme,Plain,Gallery,Halloween,Snow",
         "a pack of ornaments only is named for what it is again")
 end)
 
@@ -439,7 +439,7 @@ t.test("a pack folder named like a built-in, in any case, is never a theme", fun
     eq(TP.themeFor("e"), "mine")
     settings.library_theme = "Mine"
     eq(TP.libraryChoice(), "mine"); eq(TP.libraryTheme(), "mine")
-    eq(TP.themeName("Plain"), "My theme", "a stored reserved name is named as unset")
+    eq(TP.themeName("Plain"), "Custom theme", "a stored reserved name is named as unset")
 end)
 
 t.test("one shelf theme list for every menu: Default theme, a missing pack, mine, Plain, each theme", function()
@@ -451,8 +451,8 @@ t.test("one shelf theme list for every menu: Default theme, a missing pack, mine
         return table.concat(o, ",")
     end
     -- "Default", not "library" (maintainer, 2026-10-09).
-    eq(labels(TP.shelfChoices(nil)), "Default theme*,My theme,Plain,Halloween")
-    eq(labels(TP.shelfChoices("Gone")), "Default theme*,Gone (missing)!,My theme,Plain,Halloween")
+    eq(labels(TP.shelfChoices(nil)), "Default theme*,Custom theme,Plain,Halloween")
+    eq(labels(TP.shelfChoices("Gone")), "Default theme*,Gone (missing)!,Custom theme,Plain,Halloween")
     eq(TP.shelfChoices(nil)[1].value, nil, "Default theme stores nothing")
     tabs.a = { id = "a", theme = "none" }; tabs.b = { id = "b" }; tabs.s = { id = "s", parent = "a" }
     eq(TP.ownChoice("a"), "mine"); eq(TP.ownChoice("b"), nil)

@@ -2566,7 +2566,9 @@ function Settings:_themeSubItems()
     local TP = require("lib/bookshelf_theme_pack")
     TP.rescan()
     local rows = {}
-    rows[#rows + 1] = self:_themeLibraryRow()
+    -- No shelf on screen (the menu opened elsewhere): no This shelf row,
+    -- rather than one named for a shelf that opens the default's picker.
+    if self:_themeShelfOnScreen() then rows[#rows + 1] = self:_themeLibraryRow() end
     rows[#rows + 1] = self:_otherShelvesRow()
     rows[#rows + 1] = self:_libraryThemeRow()
     rows[#rows].separator = true

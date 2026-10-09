@@ -90,9 +90,13 @@ local function build(packs, library, tabs, opts)
         shelfTheme = function() return opts.on_screen or library or "mine" end,
         -- The question Reset asks (bookshelf_theme_pack's own suite pins it).
         confirmReset = function(th, after) seen.confirm = { theme = th, after = after } end,
+        -- As bookshelf_theme_pack normalises: a reserved name that is not
+        -- exactly a built-in's id is no theme.
         ownChoice = function(id)
             local v = tabs_by[id] and tabs_by[id].theme
             if v == "none" then v = "mine" end
+            if type(v) == "string" and v ~= "mine" and v ~= "plain"
+                and ({ mine = 1, plain = 1, none = 1, own = 1 })[v:lower()] then v = nil end
             return v
         end,
         brings = function(th, part)
@@ -284,10 +288,12 @@ t.test("This shelf opens the shelf on screen's picker, named for its own choice;
     eq(rowOf(seen.rebuilt, "This shelf: ").text_func(), "This shelf: Custom theme", "the row does not follow the choice")
     S._themeLibraryRow(onShelf(self, "sub")).callback({})
     eq(seen.opened[2].shelf, "Recent", "a sub-shelf's row opened the sub-shelf's picker")
+    -- No shelf on screen: no This shelf row (it read "This shelf: Default
+    -- theme" and opened the default's picker, review 2026-10-09).
     self._bw = nil
-    S._themeLibraryRow(self).callback({})
-    eq(seen.opened[3].shelf, nil, "no shelf on screen: not the default's picker")
-    eq(S._themeLibraryRow(self).text_func(), "This shelf: Default theme")
+    local rows = S._themeSubItems(self)
+    eq(rowOf(rows, "This shelf"), nil, "a This shelf row with no shelf on screen")
+    assert(rowOf(rows, "Default theme: "), "the Default theme row went with it")
 end)
 
 t.test("Default theme opens the default's Theme library, and the menu follows as it closes", function()

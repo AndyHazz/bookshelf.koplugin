@@ -1360,7 +1360,9 @@ function M.editName() return M.themeName(M.shelfTheme()) end
 --      and a shelf wearing that pack did not deal them. A pack deals its own
 --      set now, edited with the theme: each pack's off switches become that
 --      pack's edit, so nothing on screen changes. ornaments_off stays as it
---      is: it is Custom theme's set, which deals pack pieces too.
+--      is: it is Custom theme's set, which deals pack pieces too. The pack
+--      the library wore (step 1) already has its edit: everything 5.3 dealt
+--      there, loose pieces included.
 --   6. The unreleased own theme: tab.own_theme dropped, theme "own" unset.
 -- Idempotent, and guarded by a version so each step runs once.
 M.MIGRATION_SETTING = "theme_model"
@@ -1397,6 +1399,16 @@ local function migrateApplied()
         end
     end
     if not held then return end
+    -- What 5.3 dealt with the theme on: every piece switched on whose pack
+    -- was on (its own, the loose ones, any pack switched back on). A pack
+    -- deals only its own pieces now, so this becomes the pack's edited set,
+    -- or the loose pieces would leave the shelf. Taken before the reader's
+    -- pack switches come back; the card then says Edited (maintainer,
+    -- 2026-10-09), unless it is just the pack's own set (writeEdits drops it).
+    local dealt = {}
+    for _i, e in ipairs((O.listAll()) or {}) do
+        if not O.isOff(e.name) and not (e.pack and O.isPackOff(e.pack)) then dealt[e.name] = true end
+    end
     for k in pairs(s.applied) do
         if k ~= M.DESIGNS_OFF_SETTING then save(k, dec(s.before[k])) end
     end
@@ -1405,6 +1417,7 @@ local function migrateApplied()
         for _i, p in ipairs(packs or {}) do O.setPackOff(p, before[p] == true) end
     end
     save(M.LIBRARY_SETTING, pack)
+    writeEdits(pack, function(ed) ed.pieces = dealt end)
 end
 
 local function migrateColours()

@@ -71,6 +71,8 @@ local function setup()
         isOff = function(r) return off[r] == true end,
         setPackOff = function(p, v) packs_off[p] = v and true or nil end,
         setOff = function(r, v) off[r] = v and true or nil end,
+        list = function() return {} end,
+        listFor = function() return {} end,
     }
     package.loaded["lib/bookshelf_theme_pack"] = nil
     local TP = dofile("lib/bookshelf_theme_pack.lua")

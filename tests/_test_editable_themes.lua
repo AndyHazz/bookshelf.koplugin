@@ -420,6 +420,42 @@ t.test("migration 2: a 5.3 pack piece switched off becomes that pack's edit; the
     eq(edits(settings, "Macabre").rev, e.rev, "the migration ran twice")
 end)
 
+t.test("migration from 5.3: the library's pack keeps dealing what 5.3 dealt there, loose pieces too", function()
+    -- 5.3 applied a pack by switching every other pack off; loose pieces
+    -- stayed on and were dealt with the pack's. A pack deals only its own
+    -- set now, so without an edit the loose pieces left the shelf (review,
+    -- 2026-10-09). A 5.3-shaped settings file:
+    local TP, d, settings, tabs, _st, off, packs_off = setup()
+    world(d, settings)
+    settings.wallpaper_default = nil; settings.progress_fill = nil; settings.progress_fill_night = nil
+    settings.shelf_theme = "dark"
+    off["Macabre/skull.png"] = true                -- switched off under the theme
+    packs_off["Ukiyo-e"] = true                    -- the theme switched it off
+    settings.theme_applied = { pack = "Macabre", before = { shelf_theme = "\0nil" }, applied = { shelf_theme = "dark" },
+                               packs_before = {}, packs_applied = { ["Ukiyo-e"] = true } }
+    tabs.home = { id = "home" }
+    local function dealt()
+        local names = {}
+        for _i, e in ipairs(TP._orn.listFor(TP.ornamentsFor("home"))) do names[#names + 1] = e.name end
+        table.sort(names); return table.concat(names, " ")
+    end
+    eq(dealt(), "Macabre/candle.png cactus.svg", "the fixture is not what 5.3 dealt")  -- 5.3: the collection
+    TP.migrate()
+    eq(settings.library_theme, "Macabre"); eq(settings.shelf_theme, nil); eq(packs_off["Ukiyo-e"], nil)
+    on(TP, "home")
+    eq(dealt(), "Macabre/candle.png cactus.svg", "the library's shelf deals other pieces than 5.3 did")
+    eq(TP.hasEdits("Macabre"), true)
+    -- Only the pack's own set, as 5.3 dealt it: no edit to show.
+    local TP2, d2, settings2, _tabs2, _st2, _off2, packs_off2 = setup()
+    touch(d2 .. "/Macabre/theme/theme.json", '{"shelf":"dark"}'); touch(d2 .. "/Macabre/skull.png")
+    touch(d2 .. "/Ukiyo-e/wave.png")
+    packs_off2["Ukiyo-e"] = true; settings2.shelf_theme = "dark"
+    settings2.theme_applied = { pack = "Macabre", before = { shelf_theme = "\0nil" }, applied = { shelf_theme = "dark" },
+                                packs_before = {}, packs_applied = { ["Ukiyo-e"] = true } }
+    TP2.migrate()
+    eq(settings2.library_theme, "Macabre"); eq(TP2.hasEdits("Macabre"), false, "the pack's own set became an edit")
+end)
+
 t.test("a pack updated in place keeps its edits; one deleted keeps them for when it comes back", function()
     local TP, d, settings, tabs = setup()
     world(d, settings)

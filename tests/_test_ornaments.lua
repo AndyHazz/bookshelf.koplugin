@@ -989,6 +989,23 @@ t.test("json: padding reaches the placement in px", function()
     eq(p.pad_px, -15, "5% of a 300px stand, tighter")
 end)
 
+t.test("json: trim tucks in a share of the DRAWN width, so it shrinks with the piece", function()
+    -- A pack's transparent side margin (a candle's glow) is a share of the
+    -- picture; a fixed pad in stand heights did not shrink with a smaller
+    -- piece and pushed the books into the drawing (PW5, Macabre candelabra
+    -- at 90% of its pack size).
+    local O = fresh()
+    local e = { name = "c.svg", aspect = 0.5, overhang = 0, trim = 0.2 }
+    local big = O.place(e, 1000, 300, {}, 1)          -- 240 tall, 120 wide
+    eq(big.w, 120); eq(big.pad_px, -24, "a fifth of 120 each side")
+    e.scale = 0.5                                     -- the reader's Size, 50%
+    local small = O.place(e, 1000, 300, {}, 1)
+    eq(small.w, 60); eq(small.pad_px, -12, "the tuck halves with the piece")
+    e.scale = 1; e.pad = 0.1                          -- padding still adds
+    eq(O.place(e, 1000, 300, {}, 1).pad_px, 30 - 24, "pad in stand heights, less the trim")
+    eq(O.place({ name = "n.svg", aspect = 1, overhang = 0 }, 400, 300, {}, 1).pad_px, 0, "no trim, no tuck")
+end)
+
 t.test("json: mirror always flips every deal; alternate every other one", function()
     local O = fresh()
     local al = { name = "al.svg", aspect = 1, overhang = 0, mirror = "always" }

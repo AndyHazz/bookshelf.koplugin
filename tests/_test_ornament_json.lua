@@ -132,6 +132,16 @@ t.test("bad values are skipped and clamped, the rest applies", function()
     eq(e.pad, -0.05, "negative padding tightens")
 end)
 
+t.test("trim is read from a pack's file and clamped to half the piece", function()
+    local O, new = setup()
+    svg(new .. "/Autumn/owl.svg"); svg(new .. "/Autumn/bat.svg"); svg(new .. "/Autumn/fox.svg")
+    write(new .. "/Autumn/ornaments.json",
+          '{ "owl.svg": { "trim": 0.12 }, "bat.svg": { "trim": 3 }, "fox.svg": { "trim": "lots" } }')
+    eq(byName(O)["Autumn/owl.svg"].trim, 0.12)
+    eq(byName(O)["Autumn/bat.svg"].trim, 0.5, "no more than half each side")
+    eq(byName(O)["Autumn/fox.svg"].trim, 0, "a non-number is ignored")
+end)
+
 t.test("an edited file is seen without a restart", function()
     local O, new = setup()
     O.SCAN_TTL = 0

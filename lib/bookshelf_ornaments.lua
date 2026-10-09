@@ -677,7 +677,7 @@ end
 --
 -- Units hold at any DPI and shelf size: scale against the default size, lift
 -- in the piece's own height (+ up), pad in the books' stand height (each
--- side, - tightens it against the books).
+-- side, - tightens it against the books), trim in the piece's own width.
 M.JSON_NAME = "ornaments.json"
 M.FIELDS = {
     -- 5%, not half: a reader may want a piece small (maintainer). Not zero,
@@ -694,6 +694,12 @@ M.FIELDS = {
     -- ornament ... the % height doesn't act usefully").
     lift   = { kind = "number", min = -1, max = 1.5, default = 0 },
     pad    = { kind = "number", min = -1,  max = 2, default = 0 },
+    -- A pack's transparent side margin (a glow, a shadow) to tuck in behind
+    -- the books each side, as a share of the piece's own width, so it shrinks
+    -- and grows with the piece. Pad is in stand heights and does not: a pad
+    -- that tucked a candle's glow in at the pack's size cut into the candle
+    -- once the piece was made smaller. Pack makers only; no menu row.
+    trim   = { kind = "number", min = 0,   max = 0.5, default = 0 },
     night  = { kind = "enum", values = { invert = true, off = true } },
     mirror = { kind = "enum", values = { off = true, always = true, alternate = true }, default = "off" },
     -- A stored action ({ action, plugin, internal, label }), or "zoom": the
@@ -795,6 +801,7 @@ local function applyLayers(e, layers)
     e.anchor = get("anchor") or "bottom"
     e.lift   = get("lift") or 0
     e.pad    = get("pad") or 0
+    e.trim   = get("trim") or 0
     local night = get("night")
     if night ~= nil then e.night_invert = (night == "invert") end
     e.mirror = get("mirror") or "off"
@@ -1412,7 +1419,9 @@ function M.place(entry, cap_px, stand_h, o, deal_no)
         mirror = mirror,
         -- Extra room each side, in px (negative: tighter, even behind the
         -- books beside it); the shelf adds it to its own pad (SpineShelf.ornPad).
-        pad_px = math.floor((entry.pad or 0) * (stand_h or 0) + 0.5),
+        -- The trim is a share of the width as placed (pack scale, the
+        -- reader's size and any cap already in it), so it follows the drawing.
+        pad_px = math.floor((entry.pad or 0) * (stand_h or 0) - (entry.trim or 0) * width + 0.5),
     }
 end
 

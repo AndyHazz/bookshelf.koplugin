@@ -51,6 +51,12 @@ t.test("Shelf style has the shelf's Theme row, top-level shelves only, previewed
     pick = pick:gsub("%-%-[^\n]*", "")
     local row = pick:match("if draft%.parent == nil then(.-)\n        end\n")
     assert(row and row:find('_("Theme: %1")', 1, true), "no Theme row, or not limited to top-level shelves")
+    -- Following the default reads "Theme: Default", as the Theme menu's
+    -- shelf rows do; "library" is the Theme library's own name (maintainer,
+    -- 2026-10-09).
+    assert(row:find('T(_("Theme: %1"), v == nil and _("Default") or TP.themeName(v))', 1, true),
+        "Shelf style does not name following the default Default")
+    assert(not row:find("as library", 1, true), "Shelf style's Theme row still says library")
     assert(row:find('require("lib/bookshelf_theme_library").show{', 1, true),
         "the row does not open the Theme library the menus open")
     assert(row:find("current = cur,", 1, true), "the picker does not mark the draft's choice")

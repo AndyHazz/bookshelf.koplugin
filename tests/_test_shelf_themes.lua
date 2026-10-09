@@ -442,7 +442,7 @@ t.test("a pack folder named like a built-in, in any case, is never a theme", fun
     eq(TP.themeName("Plain"), "My theme", "a stored reserved name is named as unset")
 end)
 
-t.test("one shelf theme list for every menu: Same as library, a missing pack, mine, Plain, each theme", function()
+t.test("one shelf theme list for every menu: Default theme, a missing pack, mine, Plain, each theme", function()
     local TP, d, _s, _po, _o, tabs = setup()
     halloween(d); TP.invalidate()
     local function labels(l)
@@ -450,9 +450,10 @@ t.test("one shelf theme list for every menu: Same as library, a missing pack, mi
         for i, c in ipairs(l) do o[i] = c.label .. (c.same and "*" or "") .. (c.missing and "!" or "") end
         return table.concat(o, ",")
     end
-    eq(labels(TP.shelfChoices(nil)), "Same as library*,My theme,Plain,Halloween")
-    eq(labels(TP.shelfChoices("Gone")), "Same as library*,Gone (missing)!,My theme,Plain,Halloween")
-    eq(TP.shelfChoices(nil)[1].value, nil, "Same as library stores nothing")
+    -- "Default", not "library" (maintainer, 2026-10-09).
+    eq(labels(TP.shelfChoices(nil)), "Default theme*,My theme,Plain,Halloween")
+    eq(labels(TP.shelfChoices("Gone")), "Default theme*,Gone (missing)!,My theme,Plain,Halloween")
+    eq(TP.shelfChoices(nil)[1].value, nil, "Default theme stores nothing")
     tabs.a = { id = "a", theme = "none" }; tabs.b = { id = "b" }; tabs.s = { id = "s", parent = "a" }
     eq(TP.ownChoice("a"), "mine"); eq(TP.ownChoice("b"), nil)
     eq(TP.ownChoice("s"), nil, "ownChoice is the shelf's own, not inherited")

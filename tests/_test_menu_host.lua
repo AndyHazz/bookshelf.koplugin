@@ -197,7 +197,7 @@ t.test("hold_callback_func wins over hold_callback", function()
 end)
 
 t.test("a level's title follows the row that opened it when the level is refreshed", function()
-    -- Theme > Library: Macabre chosen in the Theme library: the level's title
+    -- Theme > Default theme: Macabre chosen in the Theme library: the level's title
     -- was "Theme: My theme" until the menu was closed and opened again.
     local Menu = package.loaded["ui/widget/menu"]
     Menu.new = function(_c, o)

@@ -42,14 +42,13 @@ function TP.choices()
              { value = "Autumn", label = "Autumn" } }
 end
 function TP.shelfChoices(cur)
-    local o = { { same = true, label = "Same as library" } }
+    local o = { { same = true, label = "Default theme" } }
     if TP.packOf(cur) and not themes[cur] then o[#o + 1] = { value = cur, label = cur .. " (missing)", missing = true } end
     for _i, c in ipairs(TP.choices()) do o[#o + 1] = c end
     return o
 end
 function TP.libraryChoice() return library end
 function TP.libraryTheme() return themes[library] and library or (TP.packOf(library) and "mine" or library) end
-function TP.shelfChoiceLabel(v) if v == nil then return "Same as library (" .. TP.themeName(library) .. ")" end return TP.themeName(v) end
 TP.rescans = 0
 function TP.rescan() TP.rescans = TP.rescans + 1 end
 function TP.addThemeLabel() return "Add theme pack\xE2\x80\xA6" end
@@ -201,17 +200,18 @@ t.test("a missing pack still chosen is listed first, marked, with nothing to sho
     eq(#TL.items{ current = "Macabre" }, 5, "a missing pack listed when it is not the choice")
 end)
 
-t.test("a shelf's cards start with Same as library, which shows the library's theme", function()
+t.test("a shelf's cards start with Default theme, which shows the default's theme", function()
     library = "Macabre"
     local items = TL.items{ shelf = "Home", current = nil }
     -- Maintainer, 2026-10-08: it read as a second "My theme" card. Named
-    -- for following, the theme it follows first in its summary.
-    eq(items[1].same, true); eq(items[1].title, "Same as library")
+    -- for following, the theme it follows first in its summary. "Default",
+    -- not "library", the picker's own name (maintainer, 2026-10-09).
+    eq(items[1].same, true); eq(items[1].title, "Default theme")
     eq(items[1].shows, "Macabre")
-    eq(items[1].summary, "Follows the library: Macabre" .. DOT .. TL.summary("Macabre"))
+    eq(items[1].summary, "Uses: Macabre" .. DOT .. TL.summary("Macabre"))
     eq(items[1].description, "Candles and skulls.")
     eq(TL.isCurrent(items[1], nil), true); eq(TL.isCurrent(items[2], nil), false)
-    eq(TL.isCurrent(items[1], "mine"), false, "a shelf on My theme read as following the library")
+    eq(TL.isCurrent(items[1], "mine"), false, "a shelf on My theme read as following the default")
     local gone = TL.items{ shelf = "Home", current = "Gone" }
     eq(gone[2].missing, true); eq(TL.indexOf(gone, "Gone"), 2)
 end)
@@ -263,12 +263,13 @@ local function open(opts)
     return m, m.config
 end
 
-t.test("the library's picker: titled Theme, opens on page 1 always, Add theme pack and Close", function()
+t.test("the default's picker: titled Default theme, opens on page 1 always, Add theme pack and Close", function()
     library = "Autumn"
     local before = TP.rescans
     local m, c = open{ current = function() return library end, choose = function(v) library = v end }
     eq(TP.rescans, before + 1, "a pack copied in since start-up is not seen")
-    eq(c.title, "Theme")
+    -- Named for what it sets, as its row is (maintainer, 2026-10-09).
+    eq(c.title, "Default theme")
     eq(c.grid_cols(), 1, "one card per row")
     -- Maintainer, 2026-10-08: the built-ins stay in sight; the choice in use
     -- (Autumn, the fifth card) is marked on its own page.
@@ -522,7 +523,7 @@ t.test("a long-press on a pack's or Plain's card offers Reset to original, greye
     edits.plain = nil
     asked[#asked].after()
     eq(runTasks(), 0, "the shelf behind was rebuilt for a theme it does not show")
-    -- My theme (no original), Same as library (it stands for another card)
+    -- My theme (no original), Default theme (it stands for another card)
     -- and a missing pack: nothing.
     local n = #shown
     eq(c.item_at(1).value, "mine")

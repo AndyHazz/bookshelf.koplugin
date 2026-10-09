@@ -345,13 +345,14 @@ function M.choices(scan)
     return out
 end
 
--- shelfChoices(cur) -> a shelf's theme list, in order: Same as library
--- ({ same = true }), a missing pack the shelf still names (cur), the
--- reader's own, Plain, every theme. The Theme library's list for a shelf
--- (the Theme menu's Theme library row and shelf rows, Shelf style's Theme
--- row). scan: as choices.
+-- shelfChoices(cur) -> a shelf's theme list, in order: Default theme
+-- ({ same = true }; "Default", not "library", which is the Theme library's
+-- own name, maintainer, 2026-10-09), a missing pack the shelf still names
+-- (cur), the reader's own, Plain, every theme. The Theme library's list for
+-- a shelf (the Theme menu's This shelf row and shelf rows, Shelf style's
+-- Theme row). scan: as choices.
 function M.shelfChoices(cur, scan)
-    local out = { { same = true, label = _("Same as library") } }
+    local out = { { same = true, label = _("Default theme") } }
     cur = normalise(cur)
     if packOf(cur) and not M.theme(cur).exists then
         out[#out + 1] = { value = cur, label = M.themeName(cur), missing = true }

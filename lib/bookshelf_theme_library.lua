@@ -1,9 +1,10 @@
 --[[
-The Theme library: every theme a library or a shelf can wear, one card each,
-on the shared LibraryModal (maintainer, 2026-10-07: "a consistent way to show
-and pick themes"). ONE picker for every place a theme is chosen: the Theme
-menu's Theme library row (the shelf on screen's), its Library row (the
-library's) and shelf rows (each shelf's), and Shelf style's Theme row.
+The Theme library: every theme the default or a shelf can wear, one card
+each, on the shared LibraryModal (maintainer, 2026-10-07: "a consistent way to
+show and pick themes"). ONE picker for every place a theme is chosen: the
+Theme menu's This shelf row (the shelf on screen's), its Default theme row
+(the default every shelf without its own wears) and shelf rows (each
+shelf's), and Shelf style's Theme row.
 
 A card: the theme's name, what it brings ("Wallpaper · Plank · 55 ornaments ·
 Dark", only the parts it has), its theme.json description when there is one,
@@ -188,13 +189,13 @@ function TL.hero(theme, all)
     return best
 end
 
--- items(ctx) -> the cards, in menu order. ctx.shelf: a shelf's picker (Same
--- as library first); ctx.current: the choice in use (a missing pack still
+-- items(ctx) -> the cards, in menu order. ctx.shelf: a shelf's picker
+-- (Default theme first); ctx.current: the choice in use (a missing pack still
 -- chosen is listed, marked, and cannot be chosen again); ctx.spines: is the
 -- shelf it is for on Spines (summary); ctx.scan: the picker's ornament scan
 -- (TL.scan; else one is taken here, once for every card).
 --   { value, same, missing, title, shows, summary, description }
--- shows: the theme the card stands for (Same as library: the library's).
+-- shows: the theme the card stands for (Default theme: the default's).
 function TL.items(ctx)
     local tp = TP()
     local scan = ctx.scan or TL.scan()
@@ -213,11 +214,13 @@ function TL.items(ctx)
     for _i, c in ipairs(list) do
         local it = { value = c.value, same = c.same, missing = c.missing }
         if c.same then
-            -- Reads as following, not as a second copy of the library's
+            -- Reads as following, not as a second copy of the default's
             -- card (maintainer, 2026-10-08: "Same as library (My theme)"
-            -- and "My theme" looked the same): the name says Same as
-            -- library, the summary which theme that is now.
-            it.title = _("Same as library")
+            -- and "My theme" looked the same): the name says Default
+            -- theme, the summary which theme that is now. "Default", not
+            -- "library", which is this picker's own name (maintainer,
+            -- 2026-10-09).
+            it.title = _("Default theme")
             it.shows = tp.libraryTheme()
         else
             it.title = tp.themeName(c.value)
@@ -226,7 +229,7 @@ function TL.items(ctx)
         if not it.missing then
             it.summary = TL.summary(it.shows, ctx.spines, scan.all)
             if c.same then
-                local follows = T(_("Follows the library: %1"), tp.themeName(it.shows))
+                local follows = T(_("Uses: %1"), tp.themeName(it.shows))
                 it.summary = it.summary and (follows .. TL.SEP .. it.summary) or follows
             end
             local p = tp.packOf(it.shows)
@@ -253,8 +256,8 @@ function TL.indexOf(items, current)
 end
 
 -- resettable(item): that card's theme can be reset to its original: a
--- pack or Plain. Not My theme (the reader's own, no original), not Same as
--- library (it stands for another card), not a missing pack.
+-- pack or Plain. Not My theme (the reader's own, no original), not Default
+-- theme (it stands for another card), not a missing pack.
 function TL.resettable(item)
     local tp = TP()
     return item ~= nil and not item.same and not item.missing
@@ -390,9 +393,11 @@ end
 TL.APPLY_DELAY = 0.15
 
 -- show(opts): the picker.
---   opts.shelf     a shelf's label: that shelf's picker (Same as library
---                  first, titled "Theme: <label>"); nil for the library's
---   opts.current   function() -> the choice in use (nil: Same as library)
+--   opts.shelf     a shelf's label: that shelf's picker (Default theme
+--                  first, titled "Theme: <label>"); nil for the default's,
+--                  titled "Default theme", what it sets (maintainer,
+--                  2026-10-09)
+--   opts.current   function() -> the choice in use (nil: Default theme)
 --   opts.choose    function(value): store it (cheap; the mark moves at once)
 --   opts.apply     function(): the shelf behind rebuilt for the choice; run
 --                  APPLY_DELAY after the last tap, then the whole screen is
@@ -437,7 +442,7 @@ function TL.show(opts)
         UIManager:setDirty("all", "full")
     end
     local config = {
-        title = opts.shelf and T(_("Theme: %1"), opts.shelf) or _("Theme"),
+        title = opts.shelf and T(_("Theme: %1"), opts.shelf) or _("Default theme"),
         no_search = true,
         grid_cols = function() return 1 end,
         cells_per_page = function() return TL.PER_PAGE end,
@@ -494,8 +499,8 @@ function TL.show(opts)
             if opts.on_closed then pcall(opts.on_closed) end
         end,
     }
-    -- Always opens on the first page, where My theme and Plain (and Same as
-    -- library) are, wherever the choice in use is: its card is marked on its
+    -- Always opens on the first page, where My theme and Plain (and Default
+    -- theme) are, wherever the choice in use is: its card is marked on its
     -- own page (maintainer, 2026-10-08: opened on Ukiyo-e's page, the
     -- built-ins were out of sight).
     local at = TL.indexOf(self.items, opts.current())

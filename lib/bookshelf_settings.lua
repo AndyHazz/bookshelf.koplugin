@@ -1534,24 +1534,33 @@ end
 -- folder color, cover badge color, progress bookmark color all
 -- expected to land here as they ship. Greyscale devices get a
 -- nudge dialog (% black); color devices get the palette picker.
--- _themeLibraryRow(): the Theme menu's first row, "Theme library...": the
+-- _themeLibraryRow(): the Theme menu's first row, "This shelf: Macabre": the
 -- Theme library for the shelf on screen, as Bookends' Preset menu opens with
--- "Preset library..." above the tweaks saved into the preset (maintainer,
--- 2026-10-09). Its "Same as library" card is marked while the shelf follows
--- the library. A sub-shelf wears its shelf of shelves' theme, so the picker
--- is that shelf's. Without a shelf on screen, the library's.
+-- the preset library above the tweaks saved into the preset (maintainer,
+-- 2026-10-09). Named for what it sets, as the Default theme row below it is
+-- (maintainer, 2026-10-09: "Theme library..." and "Library: My theme" opened
+-- the same picker and could not be told apart). It names the shelf's own
+-- choice as that shelf's row on the last page does, "Default" while it
+-- follows the default, whose card is then the one marked. A sub-shelf wears
+-- its shelf of shelves' theme, so the row is that shelf's. Without a shelf on
+-- screen, the default's.
 function Settings:_themeLibraryRow()
+    local function shelfOnScreen()
+        local chip = self._bw and self._bw.chip
+        if not chip then return nil end
+        local ok, TabModel = pcall(require, "lib/bookshelf_tab_model")
+        return (ok and TabModel and TabModel.rootOf) and TabModel.rootOf(chip) or chip
+    end
     return {
-        text = _("Theme library\xE2\x80\xA6"),
+        text_func = function()
+            local id = shelfOnScreen()
+            local TP = require("lib/bookshelf_theme_pack")
+            local own = id and TP.ownChoice(id)
+            return T(_("This shelf: %1"), own == nil and _("Default") or TP.themeName(own))
+        end,
         keep_menu_open = true,
         callback = function(touchmenu_instance)
-            local chip = self._bw and self._bw.chip
-            local id
-            if chip then
-                local ok, TabModel = pcall(require, "lib/bookshelf_tab_model")
-                id = (ok and TabModel and TabModel.rootOf) and TabModel.rootOf(chip) or chip
-            end
-            self:_openThemeLibrary(id, touchmenu_instance, self:_rebuildThemeMenu(touchmenu_instance))
+            self:_openThemeLibrary(shelfOnScreen(), touchmenu_instance, self:_rebuildThemeMenu(touchmenu_instance))
         end,
     }
 end
@@ -1869,18 +1878,20 @@ function Settings:_setShelfThemeField(id, field, value)
     if Orn and Orn._defer then TabModel.saveDeferred(tabs) else TabModel.save(tabs) end
 end
 
--- _shelfThemeLabelFor(tab) -> "Home: Same as library", or "Manga: Ukiyo-e".
--- The choice is named as its card and Shelf style name it, capital and all,
--- like every other value after a colon here ("Wallpaper: Leafy").
+-- _shelfThemeLabelFor(tab) -> "Home: Default", or "Manga: Ukiyo-e".
+-- The choice is named as Shelf style names it, capital and all, like every
+-- other value after a colon here ("Wallpaper: Leafy"). Following the default
+-- reads "Default", never "library", which is the Theme library's name
+-- (maintainer, 2026-10-09).
 function Settings:_shelfThemeLabelFor(tab)
     local label = tab.label or tab.id
-    if tab.theme == nil then return T(_("%1: %2"), label, _("Same as library")) end
+    if tab.theme == nil then return T(_("%1: %2"), label, _("Default")) end
     return T(_("%1: %2"), label, require("lib/bookshelf_theme_pack").themeName(tab.theme))
 end
 
 -- _openThemeLibrary(id, touchmenu_instance): the Theme library
 -- (bookshelf_theme_library), the one picker every theme is chosen in: the
--- library's when id is nil, else that shelf's. The menu steps aside while it
+-- default's when id is nil, else that shelf's. The menu steps aside while it
 -- is open, so a choice is seen on the shelf behind as it is made, and comes
 -- back after, at the same submenu, with its rows refreshed. Choosing writes ONE key (library_theme, or the
 -- shelf's tab.theme) and rebuilds the shelf: a theme is a layer over the
@@ -1904,7 +1915,7 @@ function Settings:_openThemeLibrary(id, touchmenu_instance, after)
     opts.apply = function() self:_markDirty() end
     return require("lib/bookshelf_theme_library").show(opts)
 end
--- _perShelfThemeRows() -> a row per enabled shelf, "Home: Same as library" or
+-- _perShelfThemeRows() -> a row per enabled shelf, "Home: Default" or
 -- "Manga: Ukiyo-e", each opening that shelf's Theme library.
 function Settings:_perShelfThemeRows()
     local TabModel = require("lib/bookshelf_tab_model")
@@ -1929,12 +1940,14 @@ function Settings:_perShelfThemeRows()
     return items
 end
 
--- _libraryThemeRow(): "Library: Macabre": the theme every shelf without
--- one of its own wears, chosen in the library's Theme library.
+-- _libraryThemeRow(): "Default theme: Macabre": the theme every shelf without
+-- one of its own wears (library_theme), chosen in the default's Theme
+-- library. "Default", not "Library": that clashed with the Theme library
+-- itself (maintainer, 2026-10-09).
 function Settings:_libraryThemeRow()
     local TP = require("lib/bookshelf_theme_pack")
     return {
-        text_func = function() return T(_("Library: %1"), TP.themeName(TP.libraryChoice())) end,
+        text_func = function() return T(_("Default theme: %1"), TP.themeName(TP.libraryChoice())) end,
         keep_menu_open = true,
         callback = function(touchmenu_instance)
             self:_openThemeLibrary(nil, touchmenu_instance, self:_rebuildThemeMenu(touchmenu_instance))
@@ -2494,8 +2507,8 @@ end
 -- screen, "Theme (Macabre)" (maintainer, 2026-10-09, after Bookends' "Preset
 -- (Name)"): it replaced a Theme menu that chose themes and a My theme menu
 -- that edited them. First the choosing, as Bookends opens with "Preset
--- library...": the Theme library for the shelf on screen, then the
--- library's theme. Then the rows that edit the theme on screen, whatever it
+-- library...": This shelf, the Theme library for the shelf on screen, then
+-- Default theme, the one every shelf without its own wears. Then the rows that edit the theme on screen, whatever it
 -- is, kept on the first page of a PW5 menu: everything a theme can replace
 -- (never greyed because a theme has that part, spec 2026-10-08), then the
 -- collection's own New ornaments go, then Reset on a pack or Plain. Last,

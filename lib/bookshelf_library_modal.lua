@@ -1273,7 +1273,7 @@ function LibraryModal:refresh()
     local area_height = rows_per_page * intrinsic_card_h
         + (rows_per_page - 1) * MARGIN
     -- config.area_height(content_w): the caller's own height for the cards'
-    -- area, when its cards are not 64dp rows (the Theme library: three
+    -- area, when its cards are not 64dp rows (the Theme library: a page of
     -- cards of its own height, the modal no taller than they need).
     if self.config.area_height then area_height = self.config.area_height(cw) end
 

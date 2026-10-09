@@ -1530,21 +1530,6 @@ function Settings:_groupDisplaySubItems()
     return rows
 end
 
--- Colors sub-menu: progress-bar Read / Unread colors today;
--- folder color, cover badge color, progress bookmark color all
--- expected to land here as they ship. Greyscale devices get a
--- nudge dialog (% black); color devices get the palette picker.
--- _themeLibraryRow(): the Theme menu's first row, "This shelf: Macabre": the
--- Theme library for the shelf on screen, as Bookends' Preset menu opens with
--- the preset library above the tweaks saved into the preset (maintainer,
--- 2026-10-09). Named for what it sets, as the Default theme row below it is
--- (maintainer, 2026-10-09: "Theme library..." and "Library: My theme" opened
--- the same picker and could not be told apart). It names the shelf's own
--- choice as that shelf's row under Other shelves does, "Default theme" while
--- it follows the default (maintainer, 2026-10-09: not a bare "Default"),
--- whose card is then the one marked. A sub-shelf wears
--- its shelf of shelves' theme, so the row is that shelf's. Without a shelf on
--- screen, the default's.
 -- _themeShelfOnScreen(): the shelf whose theme the Theme menu is about:
 -- the shelf on screen, or its shelf of shelves for a sub-shelf (which wears
 -- that one's theme); nil without a shelf on screen.
@@ -1555,6 +1540,17 @@ function Settings:_themeShelfOnScreen()
     return (ok and TabModel and TabModel.rootOf) and TabModel.rootOf(chip) or chip
 end
 
+-- _themeLibraryRow(): the Theme menu's first row, "This shelf: Macabre": the
+-- Theme library for the shelf on screen, as Bookends' Preset menu opens with
+-- the preset library above the tweaks saved into the preset (maintainer,
+-- 2026-10-09). Named for what it sets, as the Default theme row below it is
+-- (maintainer, 2026-10-09: "Theme library..." and "Library: My theme" opened
+-- the same picker and could not be told apart). It names the shelf's own
+-- choice as that shelf's row under Other shelves does, "Default theme" while
+-- it follows the default (maintainer, 2026-10-09: not a bare "Default"),
+-- whose card is then the one marked. A sub-shelf wears its shelf of
+-- shelves' theme, so the row is that shelf's. Only with a shelf on screen
+-- (_themeSubItems).
 function Settings:_themeLibraryRow()
     local function shelfOnScreen() return self:_themeShelfOnScreen() end
     return {
@@ -2597,7 +2593,7 @@ end
 
 -- The top-level row's label and help (main.lua bookshelf_theme): named for
 -- the theme of the shelf on screen, which its rows edit (TP.editName): "Theme
--- (My theme)", "Theme (Plain)", "Theme (Macabre)".
+-- (Custom theme)", "Theme (Plain)", "Theme (Macabre)".
 function Settings:_themeMenuText()
     return T(_("Theme (%1)"), require("lib/bookshelf_theme_pack").editName())
 end

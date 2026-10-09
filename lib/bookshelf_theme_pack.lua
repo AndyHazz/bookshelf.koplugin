@@ -1009,8 +1009,8 @@ for _n, key in pairs(M.COLOUR_NAMES) do
 end
 function M.isPart(key) return M.PART_KEYS[key] == true end
 
--- editsOf(theme) -> the reader's edits to that theme, or nil (none, or My
--- theme). hasEdits(theme): Reset to original is greyed without them, and
+-- editsOf(theme) -> the reader's edits to that theme, or nil (none, or
+-- Custom theme). hasEdits(theme): Reset to original is greyed without them, and
 -- the theme's card says Edited with them.
 function M.editsOf(theme)
     if theme == nil or theme == M.MINE then return nil end
@@ -1270,7 +1270,7 @@ end
 function M.editPool() return M.poolOf(M.shelfTheme()) end
 
 -- switches(): the ornament on/off switches the editors (the ornament
--- browser, a piece's own menu) read and write: the collection's on a My
+-- browser, a piece's own menu) read and write: the collection's on a Custom
 -- theme shelf, else the theme on screen's set. Editing a theme's ornaments
 -- may switch on any installed piece, from any pack or loose (spec,
 -- 2026-10-08); a theme has no pack switches: a pack is only pieces to it.

@@ -157,7 +157,7 @@ function MenuHost.show(opts)
         -- The open level's own rows, which a caller that changes the SET of
         -- rows rebuilds in place (Settings:_reopenSubMenu) as it does a
         -- TouchMenu's item_table: the Theme menu after a Theme library closes
-        -- gains or loses its Reset row with the theme on screen.
+        -- gains or loses its This shelf row with the shelf on screen.
         liveItems = function()
             local lvl = host._stack[#host._stack]
             return lvl and lvl.src or nil

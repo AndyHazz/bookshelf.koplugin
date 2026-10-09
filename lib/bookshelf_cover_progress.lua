@@ -832,10 +832,11 @@ local function _readOwnColor(base_key, default_day, default_night, suffix)
     return _partRead(base_key) or default_day
 end
 
--- _readModeColor: what the shelf PAINTS -- the shelf's theme colour for this
--- slot when its theme has one (bookshelf_theme_pack), the defaults on Plain,
--- else the reader's own. The menus read _readOwnColor: they show and edit
--- the reader's own values, whatever a theme shows over them.
+-- _readModeColor: what the shelf PAINTS -- the defaults on an unedited
+-- Plain, else the shelf's theme colour for this slot when its pack has one
+-- and the reader has not edited it, else the edit or the reader's own
+-- (bookshelf_theme_pack). The menus read _readOwnColor: what the rows show
+-- and edit, through the same seam.
 local function _readModeColor(base_key, default_day, default_night)
     local ok, TP = pcall(require, "lib/bookshelf_theme_pack")
     if ok and TP and TP.colourOverride then

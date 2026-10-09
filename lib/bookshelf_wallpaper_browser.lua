@@ -56,7 +56,7 @@ function WB.entries(_key, chip)
 end
 
 -- inUse(key, item) -> is this what the setting holds now. The full screen
--- image has three states: unset (Same as default), false (None), a name.
+-- image has three states: unset (Same as wallpaper), false (None), a name.
 -- Read and written through the one seam (bookshelf_theme_pack.partRead /
 -- partSave): Custom theme's, or the edits to the theme on screen.
 function WB.inUse(key, item)
@@ -88,7 +88,7 @@ function WB.startPage(key, items, per_page)
 end
 
 -- choose(key, item): store the choice (the old list menu's semantics: None
--- is false, Same as default is unset), and drop the decoded bitmap.
+-- is false, Same as wallpaper is unset), and drop the decoded bitmap.
 function WB.choose(key, item)
     if item.kind == "same" then
         TP().partDelete(key)

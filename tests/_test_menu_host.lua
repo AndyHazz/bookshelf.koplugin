@@ -218,16 +218,16 @@ t.test("a level's title follows the row that opened it when the level is refresh
 end)
 
 t.test("a level's rows can be rebuilt in place, as a TouchMenu's item_table is", function()
-    -- The Theme menu gains or loses its Reset row with the theme on screen
-    -- after a Theme library closes (Settings:_reopenSubMenu); from the start
-    -- menu's route the shim hands over the open level's rows to rebuild.
+    -- The Theme menu's rows are built again after a Theme library closes
+    -- (Settings:_reopenSubMenu); from the start menu's route the shim hands
+    -- over the open level's rows to rebuild.
     local Menu = package.loaded["ui/widget/menu"]
     Menu.new = function(_c, o)
         o.paths = {}
         o.switchItemTable = function(self, title, items) self.title = title; self.items = items end
         return o
     end
-    local sub = { { text = "Theme library" }, { text = "Reset Macabre to original" } }
+    local sub = { { text = "This shelf: Macabre" }, { text = "Default theme: Custom theme" } }
     local src = { { text = "Theme (Macabre)", sub_item_table = sub } }
     local host = Host.show{ title = "Bookshelf", item_table = src }
     assert(host._shim.liveItems() == src, "the root level's rows are not handed over")

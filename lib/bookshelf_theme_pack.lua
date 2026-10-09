@@ -557,17 +557,18 @@ local function autoDark()
     return ok2 and dark == true
 end
 
+-- NOT the edits' count: an edit is a settings write, which bumps the
+-- generation itself, so every memo keyed on it follows; in the key, every
+-- colour nudge on a pack's shelf was a full-screen flash (review, 2026-10-09).
+-- A theme with edited colours paints its own (coloursSource names it), so
+-- two themes still tell apart; two shelves on one theme share the key.
 function M.lookKey()
     local plank = M.activePlank()
     local look = M.shelfLook()
     if look == "auto" then look = autoDark() and "dark" or "light" end
-    -- And the edits to its theme: an edited colour is not in the parts
-    -- above. Two shelves on one theme still share the key.
-    local c = current()
     return table.concat({
         tostring(M.shownWallpaper(false, false)), tostring(M.shownWallpaper(true, false)),
         tostring(M.coloursSource()), tostring(plank and plank.id), look,
-        c.e and (tostring(c.theme) .. ":" .. tostring(c.e.rev)) or "",
     }, "\2")
 end
 

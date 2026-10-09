@@ -417,23 +417,35 @@ t.test("the own theme is gone: 'own' stored by the unreleased build reads as uns
     for _i, c in ipairs(TP.shelfChoices(nil)) do assert(c.value ~= "own", "a shelf's list has Own theme") end
 end)
 
-t.test("lookKey follows an edit; two shelves on one edited theme share it", function()
-    local TP, d, settings, tabs = setup()
+t.test("an edit keeps the look key: a colour nudge on a pack's shelf is no full-screen flash", function()
+    -- The key was bumped by every edit (its rev), so setShelf bumped the
+    -- generation and the widget asked for a "full" refresh on each nudge
+    -- (review, 2026-10-09). The edit's own write moves the memos.
+    local TP, d, settings, tabs, st = setup()
     world(d, settings)
     tabs.home = { id = "home", theme = "Macabre" }
     tabs.rec = { id = "rec", theme = "Macabre" }
     on(TP, "home")
     local k0 = TP.lookKey()
+    local gen = st.gen
     TP.partSave("badge_bg", { hex = "#123456" })
-    local k1 = TP.lookKey()
-    assert(k1 ~= k0, "a colour edit kept the look key")
+    assert(st.gen > gen, "an edit did not bump the generation, so the memos keep the old colour")
+    eq(paint(TP, "badge_bg"), "#123456", "the shelf's memo kept the colour from before the edit")
+    eq(TP.lookKey(), k0, "a colour edit changed the look key")
+    eq(TP.setShelf("home"), false, "a colour edit asked for a full-screen refresh")
+    TP.switches().setOff("Macabre/skull.png", true)
+    eq(TP.setShelf("home"), false, "an ornament edit asked for a full-screen refresh")
     on(TP, "rec")
-    eq(TP.lookKey(), k1, "two shelves on one theme look different")
-    eq(TP.brings("Ukiyo-e", "colours"), false)
-    tabs.rec.theme = "Ukiyo-e"; on(TP, "rec")
+    eq(TP.lookKey(), k0, "two shelves on one theme look different")
+    -- A theme switch still does.
+    tabs.rec.theme = "Ukiyo-e"; TP._store.bump()
+    eq(TP.setShelf("rec"), true, "a theme switch kept the look")
+    -- Edited colours on a pack without any: its own now, told apart from
+    -- the reader's.
+    local k1 = TP.lookKey()
     TP.partSave("badge_bg", { hex = "#654321" })
-    eq(TP.brings("Ukiyo-e", "colours"), true, "brings does not know the edit")
     eq(TP.coloursSource(), "Ukiyo-e", "a pack with edited colours paints the reader's own")
+    assert(TP.lookKey() ~= k1, "edited colours on a pack without any read as the reader's own look")
 end)
 
 -- ── Wiring: every editor writes through the seam ─────────────────────────

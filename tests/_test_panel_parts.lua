@@ -8,7 +8,7 @@
 -- set them ("panel_shading", "panel_blur", "covers_panel"), else it takes
 -- Custom theme's; an edit on a pack or Plain shelf is saved with that theme
 -- and Reset to original brings the theme's own back. Every reader of the
--- four keys asks the seam.
+-- four keys asks the seam, and the rows live in the theme's Wallpaper menu.
 -- Run from the plugin root: lua tests/_test_panel_parts.lua
 package.path = "./?.lua;./?/init.lua;" .. package.path
 package.loaded["logger"] = { dbg = function() end, info = function() end,
@@ -392,6 +392,40 @@ t.test("nothing in lib/ reads or writes the four keys past the seam", function()
             end
         end
     end
+end)
+
+-- ── The menu: the Wallpaper submenu ends with the panel rows ──────────────
+
+t.test("the Wallpaper submenu: picture, full screen, invert, colour behind | shading, blur, Covers panel", function()
+    local set = src("lib/bookshelf_settings.lua")
+    local fn = assert(set:match("\n(function Settings:_wallpaperMenu%(%).-\nend)\n"), "_wallpaperMenu moved")
+    local stubT = function(f, a) return (f:gsub("%%1", tostring(a))) end
+    local env = setmetatable({
+        Settings = {}, _ = function(s) return s end, T = stubT,
+        require = function(m)
+            if m == "lib/bookshelf_wallpaper" then
+                return { SETTING = "wallpaper_default", FULL_SETTING = "wallpaper_full", BG_SETTING = "wallpaper_bg",
+                         INVERT_NIGHT_SETTING = "wallpaper_invert_night", invertsAtNight = function() return false end,
+                         pathFor = function() return nil end, dir = function() return "/w" end, userDir = function() end }
+            end
+            if m == "lib/bookshelf_theme_pack" then
+                return { partRead = function() return nil end, partEdited = function() return false end,
+                         isPackName = function() return false end }
+            end
+            return require(m)
+        end,
+    }, { __index = _G })
+    compile(fn, env, "wallpaperMenu")()
+    local self = setmetatable({
+        _colorValueLabel = function() return "Default" end,
+        _panelRows = function() return { { text = "Panel shading" }, { text = "Blur" }, { text = "Covers" } } end,
+    }, { __index = env.Settings })
+    local rows = env.Settings._wallpaperMenu(self)
+    eq(#rows, 7, "the Wallpaper submenu is not seven rows (one page)")
+    eq(rows[1].text_func(), "Wallpaper: None"); eq(rows[3].text, "Invert wallpaper when dark")
+    eq(rows[4].text_func(), "Color behind wallpaper: Default")
+    eq(rows[4].separator, true, "the panel rows are not set apart")
+    eq(rows[5].text, "Panel shading"); eq(rows[6].text, "Blur"); eq(rows[7].text, "Covers")
 end)
 
 t.done()

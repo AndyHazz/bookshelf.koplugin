@@ -1,5 +1,5 @@
 -- tests/_test_covers_panel.lua
--- Panel shading > "Panel behind Covers shelves" (issue 483): the
+-- Theme > Wallpaper > "Panel behind Covers shelves" (issue 483): the
 -- one continuous panel list mode draws behind the top panel, the shelf and
 -- the footer, for Covers shelves too, and without the label plates under
 -- cover titles, which the panel makes redundant.
@@ -24,15 +24,20 @@ t.test("the setting has one key, beside the shading keys", function()
     assert(wp_src:find('M.COVERS_PANEL_SETTING = "covers_full_panel"', 1, true), "no COVERS_PANEL_SETTING")
 end)
 
--- _scrimSubItems, run for real.
-local function scrimMenu(store)
+-- _panelRows and _scrimSubItems, run for real, over a stub seam: the rows
+-- read and write the theme on screen's parts (TP.partRead / partSave), never
+-- the reader's keys directly (part of the theme since 2026-10-09).
+local function panelMenu(store)
     local levels = assert(settings_src:match("\n(Settings%.SCRIM_LEVELS = {.-\n})\n"), "SCRIM_LEVELS moved")
-    local fn = assert(settings_src:match("\n(function Settings:_scrimSubItems%(%).-\nend)\n"), "_scrimSubItems moved")
-    local seen = { dirty = 0 }
+    local fn = assert(settings_src:match("\n(function Settings:_panelRows%(%).-\nend)\n"), "_panelRows moved")
+    local sub = assert(settings_src:match("\n(function Settings:_scrimSubItems%(%).-\nend)\n"), "_scrimSubItems moved")
+    local seen = { dirty = 0, part_saves = 0 }
+    local TP = { partRead = function(k) return store[k] end,
+                 partSave = function(k, v) seen.part_saves = seen.part_saves + 1; store[k] = v end }
     local env = setmetatable({
         Settings = {}, _ = function(s) return s end,
-        -- The reader's own keys: a row that wrote here bypassed the seam
-        -- (the panels are part of the theme since 2026-10-09).
+        T = function(f, a) return (f:gsub("%%1", tostring(a))) end,
+        -- The reader's own keys: a row that wrote here bypassed the seam.
         BookshelfSettings = { read = function() error("read the reader's key, not the theme's part") end,
                               save = function() error("saved the reader's key, not the theme's part") end,
                               flush = function() end },
@@ -41,63 +46,69 @@ local function scrimMenu(store)
                 return { BUTTONS_SETTING = "b", SCRIM_SETTING = "s", COVERS_PANEL_SETTING = "covers_full_panel",
                          BLUR_SETTING = "wallpaper_panel_blur" }
             end
-            if m == "lib/bookshelf_theme_pack" then
-                return { partRead = function(k) return store[k] end, partSave = function(k, v) store[k] = v end }
-            end
+            if m == "lib/bookshelf_theme_pack" then return TP end
             return require(m)
         end,
     }, { __index = _G })
-    compile(levels .. "\n" .. fn, env, "scrim")()
+    compile(levels .. "\n" .. fn .. "\n" .. sub, env, "scrim")()
     local self = setmetatable({ _scrimStrength = function() return 0.85 end,
+                                _scrimLabel = function() return "Heavy" end,
                                 _markDirty = function() seen.dirty = seen.dirty + 1 end },
                               { __index = env.Settings })
-    return env.Settings._scrimSubItems(self), seen
+    return env.Settings._panelRows(self), seen, self
 end
 
-t.test("Panel shading ends with the Covers checkbox, set apart, off by default", function()
+t.test("three panel rows: Panel shading (its levels), then Blur, then the Covers checkbox", function()
     local store = {}
-    local rows = scrimMenu(store)
-    local last = rows[#rows]
-    eq(last.text, "Panel behind Covers shelves")
-    eq(last.radio, nil, "it is a radio button, not a checkbox")
-    -- Set apart from the levels by the separator under the last of them;
-    -- the blur row (also a checkbox) sits between, so it is not "the row above".
-    local last_radio
-    for i, r in ipairs(rows) do if r.radio then last_radio = i end end
-    eq(rows[last_radio].separator, true, "not set apart from the shading levels")
-    eq(rows[#rows - 1].text, "Blur wallpaper behind panels", "the blur row moved")
-    eq(last.checked_func(), false, "on by default")
+    local rows = panelMenu(store)
+    eq(#rows, 3)
+    eq(rows[1].text_func(), "Panel shading: Heavy")
+    local levels = rows[1].sub_item_table_func()
+    eq(#levels, 5, "the submenu is not the five levels alone")
+    for _i, r in ipairs(levels) do eq(r.radio, true, "a level is not a radio button") end
+    eq(rows[2].text, "Blur wallpaper behind panels", "the blur row moved")
+    eq(rows[3].text, "Panel behind Covers shelves")
+    eq(rows[3].radio, nil, "it is a radio button, not a checkbox")
+    eq(rows[3].checked_func(), false, "on by default")
+    for i = 1, 3 do
+        local h = rows[i].help_text or ""
+        assert(h:find("Part of the theme", 1, true), "row " .. i .. "'s help does not say it is part of the theme")
+    end
 end)
 
-t.test("ticking it saves the setting and rebuilds the shelf; unticking clears it", function()
+t.test("a level writes the shading and the buttons flag as parts, and rebuilds", function()
     local store = {}
-    local rows, seen = scrimMenu(store)
-    local last = rows[#rows]
+    local rows, seen = panelMenu(store)
+    local levels = rows[1].sub_item_table_func()
+    levels[1].callback(nil)                     -- Transparent
+    eq(store.s, 0); eq(store.b, true); eq(seen.dirty, 1)
+    levels[2].callback(nil)                     -- Low
+    eq(store.s, 0.35); eq(store.b, false, "the buttons flag stuck on from Transparent")
+end)
+
+t.test("ticking Covers saves the part and rebuilds the shelf; unticking clears it", function()
+    local store = {}
+    local rows, seen = panelMenu(store)
+    local last = rows[3]
     last.callback(nil)
     eq(store.covers_full_panel, true); eq(last.checked_func(), true); eq(seen.dirty, 1)
     last.callback(nil)
-    eq(store.covers_full_panel, nil, "unticking left the setting behind")
+    eq(store.covers_full_panel, nil, "unticking left the part behind")
 end)
 
--- Panel shading > Blur wallpaper behind panels: off by default, a toggle
--- that rebuilds, and greyed where it has nothing to act on.
-local function blurRow(store)
-    local rows, seen = scrimMenu(store)      -- its self answers Heavy, 0.85
-    local row = rows[#rows - 1]
-    eq(row.text, "Blur wallpaper behind panels")
-    return row, seen
-end
-
+-- Blur wallpaper behind panels: off by default, a toggle that rebuilds,
+-- and greyed where it has nothing to act on.
 t.test("the blur row: off by default, ticking saves and rebuilds, unticking clears", function()
     local store = {}
-    local row, seen = blurRow(store)
+    local rows, seen = panelMenu(store)        -- its self answers Heavy, 0.85
+    local row = rows[2]
     eq(row.radio, nil, "a checkbox, not one of the levels")
     eq(row.checked_func(), false, "on by default")
     eq(row.enabled_func(), true, "greyed at Heavy, where the picture still shows through")
     row.callback(nil)
     eq(store.wallpaper_panel_blur, true); eq(seen.dirty, 1)
     row.callback(nil)
-    eq(store.wallpaper_panel_blur, nil, "unticking left the setting behind")
+    eq(store.wallpaper_panel_blur, nil, "unticking left the part behind")
 end)
 
 t.test("the blur row is greyed at Transparent (no panel) and Solid (no picture)", function()

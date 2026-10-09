@@ -74,10 +74,11 @@ function M.items(S)
     }
     rows[#rows].separator = true
     -- How new ornaments join the deck: the collection's own preference.
-    -- Panel shading and the extra wallpaper folder are display preferences
-    -- no theme touches: they live in Settings' appearance band. Reset to
-    -- original is not a row here: it is in the Theme library's footer, with
-    -- the themes (maintainer, 2026-10-09).
+    -- The extra wallpaper folder is a display preference no theme touches:
+    -- it lives in Settings' appearance band. Panel shading and the other
+    -- panel rows are part of the theme, in the Wallpaper submenu
+    -- (2026-10-09). Reset to original is not a row here: it is in the Theme
+    -- library's footer, with the themes (maintainer, 2026-10-09).
     rows[#rows + 1] = S:_newOrnamentsRow()
     return rows
 end

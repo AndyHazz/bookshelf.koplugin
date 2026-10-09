@@ -1550,9 +1550,10 @@ function Settings:_wallpaperRow()
 end
 
 -- _wallpaperMenu() - the wallpaper rows of the theme on screen: the picture,
--- the full screen picture, inverting it when dark, and the colour behind it.
--- The Wallpaper submenu (_wallpaperRow); each reads and writes through the
--- theme edit seam (TP.partRead, partSave, partDelete).
+-- the full screen picture, inverting it when dark, the colour behind it,
+-- then the panels over it (_panelRows). The Wallpaper submenu
+-- (_wallpaperRow); each reads and writes through the theme edit seam
+-- (TP.partRead, partSave, partDelete).
 function Settings:_wallpaperMenu()
     local Wallpaper = require("lib/bookshelf_wallpaper")
     -- The name a wallpaper row shows, or the fallback when there is none.
@@ -1672,6 +1673,10 @@ function Settings:_wallpaperMenu()
             end,
         },
     }
+    -- Then the panels over the picture, set apart: part of the theme too
+    -- (2026-10-09), and here because they only matter over a wallpaper.
+    items[#items].separator = true
+    for _i, row in ipairs(self:_panelRows()) do items[#items + 1] = row end
     return items
 end
 
@@ -1713,22 +1718,70 @@ function Settings:_wallpaperFolderRow()
     }
 end
 
--- _panelShadingRow(): how hard the panels are shaded over the picture. Part
--- of the theme on screen (2026-10-09): its rows read and write through the
--- seam (TP.partRead, partSave); a pack's theme.json may set them.
-function Settings:_panelShadingRow()
+-- _panelRows(): the panels over the picture, part of the theme on screen
+-- (2026-10-09; a pack's theme.json may set them): how hard they are shaded,
+-- the picture blurred behind them, and Covers shelves on one panel. The end
+-- of the Wallpaper submenu (_wallpaperMenu): they only matter over a
+-- picture. Every one reads and writes through the seam (TP.partRead,
+-- partSave); on a pack's shelf a change is an edit to that pack.
+function Settings:_panelRows()
+    local Wallpaper = require("lib/bookshelf_wallpaper")
+    local TP = require("lib/bookshelf_theme_pack")
+    local function toggle(key)
+        return function(touchmenu_instance)
+            TP.partSave(key, (TP.partRead(key) ~= true) or nil)
+            BookshelfSettings.flush()
+            self:_markDirty()
+            if touchmenu_instance then touchmenu_instance:updateItems() end
+        end
+    end
     return {
-        text_func = function()
-            return T(_("Panel shading: %1"), self:_scrimLabel())
-        end,
-        help_text = _("How much to shade the top panel and the footer so "
-            .. "the buttons stay legible over a picture. Transparent lets "
-            .. "the wallpaper through untouched, which reads well over a "
-            .. "plain texture and poorly over a busy photograph. Solid "
-            .. "hides the picture behind those strips entirely."),
-        sub_item_table_func = function()
-            return self:_scrimSubItems()
-        end,
+        {
+            text_func = function()
+                return T(_("Panel shading: %1"), self:_scrimLabel())
+            end,
+            help_text = _("How much to shade the top panel and the footer so "
+                .. "the buttons stay legible over a picture. Transparent lets "
+                .. "the wallpaper through untouched, which reads well over a "
+                .. "plain texture and poorly over a busy photograph. Solid "
+                .. "hides the picture behind those strips entirely. Part of "
+                .. "the theme, as the wallpaper is."),
+            sub_item_table_func = function()
+                return self:_scrimSubItems()
+            end,
+        },
+        -- Frosted glass: the picture behind the panels blurred under their
+        -- tint. Greyed out where it has nothing to show: Transparent has no
+        -- panel, and Solid hides the picture.
+        {
+            text = _("Blur wallpaper behind panels"),
+            help_text = _("Blurs the wallpaper behind the top panel and the footer "
+                .. "before the shading goes over it, like frosted glass, so the "
+                .. "picture's detail does not compete with the buttons and text. "
+                .. "Worked out once per wallpaper, then reused. Part of the theme."),
+            keep_menu_open = true,
+            enabled_func = function()
+                local cur = self:_scrimStrength()
+                return cur > 0 and cur < 1
+            end,
+            checked_func = function()
+                return TP.partRead(Wallpaper.BLUR_SETTING) == true
+            end,
+            callback = toggle(Wallpaper.BLUR_SETTING),
+        },
+        -- Covers shelves can take list mode's one panel, behind the top
+        -- panel, the covers and the footer (issue 483), at the shading above.
+        {
+            text = _("Panel behind Covers shelves"),
+            help_text = _("Covers shelves get one panel behind the top panel, "
+                .. "the covers and the footer, as list shelves have, in place "
+                .. "of a plate under each title. Part of the theme."),
+            keep_menu_open = true,
+            checked_func = function()
+                return TP.partRead(Wallpaper.COVERS_PANEL_SETTING) == true
+            end,
+            callback = toggle(Wallpaper.COVERS_PANEL_SETTING),
+        },
     }
 end
 
@@ -1854,51 +1907,8 @@ function Settings:_scrimSubItems()
             end,
         }
     end
-    rows[#rows].separator = true
-    -- Frosted glass: the picture behind the panels blurred under their tint.
-    -- Greyed out where it has nothing to show: Transparent has no panel, and
-    -- Solid hides the picture.
-    rows[#rows + 1] = {
-        text = _("Blur wallpaper behind panels"),
-        help_text = _("Blurs the wallpaper behind the top panel and the footer "
-            .. "before the shading goes over it, like frosted glass, so the "
-            .. "picture's detail does not compete with the buttons and text. "
-            .. "Worked out once per wallpaper, then reused."),
-        keep_menu_open = true,
-        enabled_func = function()
-            local cur = self:_scrimStrength()
-            return cur > 0 and cur < 1
-        end,
-        checked_func = function()
-            return TP.partRead(Wallpaper.BLUR_SETTING) == true
-        end,
-        callback = function(touchmenu_instance)
-            local on = TP.partRead(Wallpaper.BLUR_SETTING) == true
-            TP.partSave(Wallpaper.BLUR_SETTING, (not on) and true or nil)
-            BookshelfSettings.flush()
-            self:_markDirty()
-            if touchmenu_instance then touchmenu_instance:updateItems() end
-        end,
-    }
-    -- Covers shelves can take list mode's one panel, behind the top panel,
-    -- the covers and the footer (issue 483), at the strength chosen above.
-    rows[#rows + 1] = {
-        text = _("Panel behind Covers shelves"),
-        keep_menu_open = true,
-        checked_func = function()
-            return TP.partRead(Wallpaper.COVERS_PANEL_SETTING) == true
-        end,
-        callback = function(touchmenu_instance)
-            local on = TP.partRead(Wallpaper.COVERS_PANEL_SETTING) == true
-            TP.partSave(Wallpaper.COVERS_PANEL_SETTING, (not on) and true or nil)
-            BookshelfSettings.flush()
-            self:_markDirty()
-            if touchmenu_instance then touchmenu_instance:updateItems() end
-        end,
-    }
     return rows
 end
-
 
 
 -- ── The colour picker, shared ──────────────────────────────────────────────
@@ -3014,11 +3024,10 @@ function Settings:_settingsSubItems()
         keep_menu_open = true,
         callback = function(touchmenu_instance) self:_pickBookshelfUIFont(touchmenu_instance) end,
     }
-    -- How the panels are shaded over a wallpaper, and an extra folder to
-    -- take wallpapers from: display preferences that no theme changes, so
-    -- they left the Theme menu's editing rows for here (maintainer,
-    -- 2026-10-07). Panel shading lived under Settings before 5.1 as well.
-    items[#items + 1] = self:_panelShadingRow()
+    -- An extra folder to take wallpapers from: a device preference no theme
+    -- changes. The panel rows (shading, blur, Covers panel) were here from
+    -- 2026-10-07 and went back to the theme's Wallpaper menu on 2026-10-09
+    -- (maintainer: "Yes make those part of the theme").
     items[#items + 1] = self:_wallpaperFolderRow()
     items[#items].separator = true  -- end appearance band
 

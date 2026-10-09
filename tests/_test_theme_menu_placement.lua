@@ -83,23 +83,29 @@ t.test("Settings no longer carries Colors or Wallpaper", function()
         .. "would eventually hold everything")
 end)
 
-t.test("display preferences no theme touches are in Settings' appearance band, not the Theme menu", function()
+t.test("the extra wallpaper folder is in Settings' appearance band; the panel rows are not", function()
     -- The row order of the Theme menu is pinned by its behaviour in
     -- _test_shelf_theme_menu.lua.
     local body = menu:match("function M%.items%(S%)(.-)\nend\n")
     assert(body, "items missing")
     assert(not body:find("_wallpaperMenu", 1, true), "the wallpaper rows are flat in the Theme menu again")
-    -- Display preferences no theme touches are not part of the look: they
-    -- live in Settings' appearance band, so the editing rows fit one PW5 page.
-    assert(not body:find("_panelShadingRow", 1, true) and not body:find("_wallpaperFolderRow", 1, true),
-        "Panel shading or the extra wallpaper folder is back in the Theme menu")
+    -- The panel rows are part of the theme (2026-10-09), inside its
+    -- Wallpaper submenu, so the Theme menu itself still fits one PW5 page.
+    assert(not body:find("_panelRows", 1, true) and not body:find("_wallpaperFolderRow", 1, true),
+        "the panel rows or the extra wallpaper folder are flat in the Theme menu")
     local sub = settings:match("function Settings:_settingsSubItems%(%)(.-)\nend\n")
-    local font = sub and sub:find("Bookshelf UI font: %1", 1, true)
-    local shade = sub and sub:find("self:_panelShadingRow()", 1, true)
-    local folder = sub and sub:find("self:_wallpaperFolderRow()", 1, true)
-    local band = sub and sub:find("-- end appearance band", 1, true)
-    assert(font and shade and folder and band and font < shade and shade < folder and folder < band,
-        "Panel shading and the extra wallpaper folder belong at the end of Settings' appearance band")
+    assert(sub, "_settingsSubItems moved")
+    -- Comments out: one may tell where the rows went.
+    local code = sub:gsub("%-%-[^\n]*", "")
+    for _i, name in ipairs({ "_panelRows", "_panelShadingRow", "_scrimSubItems",
+                             "Panel shading", "Blur wallpaper behind panels", "Panel behind Covers shelves" }) do
+        assert(not code:find(name, 1, true), "Settings still lists " .. name)
+    end
+    local font = sub:find("Bookshelf UI font: %1", 1, true)
+    local folder = sub:find("self:_wallpaperFolderRow()", 1, true)
+    local band = sub:find("-- end appearance band", 1, true)
+    assert(font and folder and band and font < folder and folder < band,
+        "the extra wallpaper folder belongs at the end of Settings' appearance band")
 end)
 
 t.test("Wallpaper is a submenu named for the picture: the picture, full screen, invert, the colour behind", function()
@@ -133,8 +139,11 @@ t.test("Wallpaper is a submenu named for the picture: the picture, full screen, 
     local b = menu:find('T(_("Full screen wallpaper: %1")', 1, true)
     local c = menu:find('text = _("Invert wallpaper when dark")', 1, true)
     local d = menu:find('T(_("Color behind wallpaper: %1")', 1, true)
+    local e = menu:find("self:_panelRows()", 1, true)
     assert(a and b and c and d and a < b and b < c and c < d,
         "the submenu is not the picture, full screen, invert, the colour behind")
+    -- Then the panels over the picture, part of the theme (2026-10-09).
+    assert(e and d < e, "the panel rows do not end the Wallpaper submenu")
 end)
 
 t.test("the theme label has one definition, not a copy in the colour list", function()

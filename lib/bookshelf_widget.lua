@@ -1782,11 +1782,12 @@ function BookshelfWidget:_rebuild()
         has_wallpaper     = self:wallpaperButtonsTransparent(),
         -- The FACT of a painted ground, for the tap flash's refresh mode.
         painted_ground    = self:groundIsPainted(),
-        -- The strip goes opaque whenever the reader has not asked for
-        -- transparency, whatever the panel's own shading is set to: at
-        -- Transparent shading, or with Shelf menu background: Transparent.
-        solid_ground      = self:wallpaperScrimStrength() > 0
-                            and require("lib/bookshelf_theme_pack").partRead("chip_bar_transparent") ~= true,
+        -- The bar is left out only when the reader chose Shelf menu
+        -- background: Transparent. Panel shading is the panels' and no
+        -- longer clears it too (maintainer, 2026-10-09: Transparent shading
+        -- made the bar transparent though it was not set to be; a reader
+        -- who had that look keeps it, migration step 5).
+        solid_ground      = require("lib/bookshelf_theme_pack").partRead("chip_bar_transparent") ~= true,
         active            = root_chip or self.chip,
         selected_key      = root_chip or self.chip,   -- seeds the chip page (infinite-chips)
         focused_key       = self._chip_cursor_key,

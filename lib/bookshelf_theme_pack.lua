@@ -1342,9 +1342,14 @@ function M.editName() return M.themeName(M.shelfTheme()) end
 --      is: it is Custom theme's set, which deals pack pieces too. The pack
 --      the library wore (step 1) already has its edit: everything 5.3 dealt
 --      there, loose pieces included.
+-- Version 3 (2026-10-09):
+--   5. Panel shading Transparent used to leave out the shelf menu's bar as
+--      well; now only Shelf menu background: Transparent does. A reader at
+--      Transparent shading with no choice of their own for the bar gets that
+--      choice set, so the bar stays as they saw it.
 -- Idempotent, and guarded by a version so each step runs once.
 M.MIGRATION_SETTING = "theme_model"
-M.MIGRATION_VERSION = 2
+M.MIGRATION_VERSION = 3
 M.APPLIED_SETTING   = "theme_applied"
 M.COLOURS_SETTING   = "theme_colours_pack"
 
@@ -1474,6 +1479,12 @@ function M.migrate()
         end
         if from < 2 then
             migratePieceSwitches()
+        end
+        if from < 3 then
+            local shading = read("wallpaper_chrome_scrim")
+            if type(shading) == "number" and shading <= 0 and read("chip_bar_transparent") == nil then
+                save("chip_bar_transparent", true)
+            end
         end
     end)
     if own_defer then O.endDeferred() end

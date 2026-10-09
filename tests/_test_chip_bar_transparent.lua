@@ -20,10 +20,13 @@ local sm = io.open("lib/bookshelf_start_menu.lua"):read("*a")
 t.test("the chip bar drops its ground when the row is on", function()
     local expr = w:match("solid_ground%s*=%s*(.-),\n%s+active%s*=")
     assert(expr, "the chip bar's solid_ground moved")
-    assert(expr:find("self:wallpaperScrimStrength() > 0", 1, true),
-        "Transparent panel shading no longer clears it")
+    -- Only the bar's own Transparent leaves it out; Panel shading is the
+    -- panels' (maintainer, 2026-10-09: Transparent shading cleared the bar
+    -- though it was not set to be).
+    assert(not expr:find("wallpaperScrimStrength", 1, true),
+        "Panel shading still decides the shelf menu's bar")
     assert(expr:find('require("lib/bookshelf_theme_pack").partRead("chip_bar_transparent") ~= true', 1, true),
-        "the new row does nothing")
+        "Transparent does nothing")
 end)
 
 t.test("Shelf menu background offers it: a palette tile, a greyscale button, through the seam", function()

@@ -917,8 +917,9 @@ end
 -- chrome_bg is 0xFF in both modes and night inverts the frame, so this is a
 -- white bar by day and a black one at night, with no branch here.
 --
--- Skipped entirely at Transparent, which means "let the picture through": a
--- solid bar is exactly what that reader asked not to have.
+-- Skipped when Shelf menu background is Transparent (solid_ground false),
+-- which means "let the picture through": a solid bar is exactly what that
+-- reader asked not to have. Panel shading no longer decides it.
 -- Shared with the page wipe, which composes into its OWN buffer and paints
 -- self[1] directly rather than going through paintTo -- so a ground that
 -- lived only in paintTo vanished for the length of every swipe.

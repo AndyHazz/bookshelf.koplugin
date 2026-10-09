@@ -697,6 +697,21 @@ t.test("migrate runs once: the version guards it, and a second run changes nothi
     eq(settings.ink_color, nil)
 end)
 
+t.test("migrate 3: a reader at Transparent shading keeps the bar left out, as they saw it", function()
+    local TP, d, settings = setup()
+    settings.wallpaper_chrome_scrim = 0
+    TP.migrate()
+    eq(settings.chip_bar_transparent, true, "Transparent shading's reader got the bar back on upgrade")
+    local TP2, d2, settings2 = setup()
+    settings2.wallpaper_chrome_scrim = 0.85
+    TP2.migrate()
+    eq(settings2.chip_bar_transparent, nil, "shaded panels left the bar out")
+    local TP3, d3, settings3 = setup()
+    settings3.wallpaper_chrome_scrim = 0; settings3.chip_bar_transparent = false
+    TP3.migrate()
+    eq(settings3.chip_bar_transparent, false, "a reader's own choice for the bar was overridden")
+end)
+
 t.test("migrate is one flush, however much it moves", function()
     local TP, d, settings, packs_off = setup()
     halloween(d); touch(d .. "/Cats/c.png"); TP.invalidate()

@@ -394,7 +394,7 @@ t.test("migration 2: a 5.3 pack piece switched off becomes that pack's edit", fu
     settings.wallpaper_default = "theme-pack\1Gone\1wallpaper.png"   -- a v1 step would clear it
     tabs.rec = { id = "rec", theme = "Macabre" }
     TP.migrate()
-    eq(settings.theme_model, 2)
+    eq(settings.theme_model, TP.MIGRATION_VERSION)
     eq(settings.wallpaper_default, "theme-pack\1Gone\1wallpaper.png", "a version 1 step ran again")
     local e = edits(settings, "Macabre")
     assert(e and e.pieces, "the off switch did not become Macabre's edit")

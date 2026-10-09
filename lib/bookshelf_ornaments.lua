@@ -1796,8 +1796,11 @@ end
 
 -- shadowFor(pl, night) -> the silhouette of a placement's picture, cached per
 -- file, size, flip and night (a nudge redraws the menu; the picture's size
--- does not change with it).
+-- does not change with it). The long-press menu's picture and the Theme
+-- library's heroes cast one: SHADOW_CACHE holds a page of heroes (four) and
+-- the menu's with room to spare, so neither evicts the other on a repaint.
 M.SHADOW_ALPHA = 0.35
+M.SHADOW_CACHE = 8
 M._shadows, M._shadow_order = {}, {}
 function M.shadowFor(pl, night)
     local key = table.concat({ pl.entry.path or pl.entry.name, pl.w, pl.h,
@@ -1809,7 +1812,7 @@ function M.shadowFor(pl, night)
     if not ok or not sh then return nil end
     M._shadows[key] = sh
     M._shadow_order[#M._shadow_order + 1] = key
-    while #M._shadow_order > 4 do
+    while #M._shadow_order > M.SHADOW_CACHE do
         local old = table.remove(M._shadow_order, 1)
         local ob = M._shadows[old]
         M._shadows[old] = nil

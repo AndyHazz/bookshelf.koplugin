@@ -428,7 +428,9 @@ t.test("a card's hero is the ornaments' own cached render, through the collectio
     local src = io.open("lib/bookshelf_theme_library.lua"):read("*a")
     local card = src:match("\nfunction TL%._renderCard%(item, dimen, current, all%)\n(.-)\nend\n")
     assert(card, "_renderCard moved")
-    assert(card:find('require("lib/bookshelf_ornament_browser").preview(e, hero_w, inner_h)', 1, true),
+    assert(card:find("TL.heroWidget(e, hero_w, inner_h)", 1, true), "the hero is not the shadowed hero")
+    local hw = src:match("\nfunction TL%.heroWidget%(e, box_w, box_h%)\n(.-)\nend\n")
+    assert(hw and hw:find('require("lib/bookshelf_ornament_browser").preview(e,', 1, true),
         "the hero is not drawn as the collection draws a piece")
     assert(card:find("TL.hero(item.shows, all)", 1, true), "the card's hero is not its theme's")
     local ob = io.open("lib/bookshelf_ornament_browser.lua"):read("*a")
@@ -437,6 +439,55 @@ t.test("a card's hero is the ornaments' own cached render, through the collectio
     local crop = ob:match("\nfunction Cropped:paintTo%(bb, x, y%)\n(.-)\nend\n")
     assert(crop and crop:find("O().render(p.entry, p.w, p.h, self.night)", 1, true),
         "the preview does not use the ornaments' cached renderer")
+end)
+
+t.test("a hero casts the long-press menu's drop shadow, inside its box, for the frame's night", function()
+    -- Maintainer, 2026-10-09: the same shadow as the ornament long-press
+    -- menu (Orn.shadowFor, SHADOW_DP right and down), no second copy.
+    local names = { "ui/geometry", "ui/widget/widget", "lib/bookshelf_ornament_menu",
+                    "lib/bookshelf_ornament_browser", "lib/bookshelf_night_mode_sync" }
+    local had = {}
+    for _i, n in ipairs(names) do had[n] = package.loaded[n] end
+    local asked = {}
+    package.loaded["ui/geometry"] = { new = function(_g, o) return o end }
+    package.loaded["ui/widget/widget"] = { new = function(_w, o) return o end }
+    package.loaded["lib/bookshelf_ornament_menu"] = { SHADOW_DP = 3 }
+    local night = true
+    package.loaded["lib/bookshelf_night_mode_sync"] = { active = function() return night end }
+    local painted = {}
+    package.loaded["lib/bookshelf_ornament_browser"] = {
+        preview = function(e, w, h)
+            asked.box = { w, h }
+            return { w = w - 10, h = h - 20, src_x = 4, src_y = 5,
+                     placement = { entry = e, w = 300, h = 400 },
+                     paintTo = function(_p, _bb, x, y) painted[#painted + 1] = "pic@" .. x .. "," .. y end }
+        end,
+    }
+    local orn0 = TL._orn
+    local shadow = {}
+    TL._orn = { shadowFor = function(pl, n) asked.pl, asked.night = pl, n; return shadow end }
+    local bb = { alphablitFrom = function(_b, src, x, y, sx, sy, w, h)
+        painted[#painted + 1] = (src == shadow and "shadow" or "?") .. "@" .. table.concat({ x, y, sx, sy, w, h }, ",")
+    end }
+    local ok, err = pcall(function()
+        local w = TL.heroWidget({ name = "Macabre/skull.png" }, 100, 120)
+        local d = 5                                   -- 3dp at the test's scale (1.875)
+        eq(asked.box[1], 100 - d, "the picture is not shrunk by the shadow's offset")
+        eq(asked.box[2], 120 - d)
+        local sz = w:getSize()
+        eq(sz.w <= 100 and sz.h <= 120, true, "the shadow reaches out of the hero's box")
+        w:paintTo(bb, 10, 20)
+        eq(table.concat(painted, " "), "shadow@15,25,4,5,85,95 pic@10,20", "not the shadow under the picture, offset right and down")
+        eq(asked.pl.w, 300); eq(asked.pl.h, 400); eq(asked.pl.entry.name, "Macabre/skull.png")
+        eq(asked.night, true, "the shadow is not drawn for the frame's night")
+    end)
+    TL._orn = orn0
+    for _i, n in ipairs(names) do package.loaded[n] = had[n] end
+    assert(ok, err)
+    local orn_src = io.open("lib/bookshelf_ornaments.lua"):read("*a")
+    local cap = tonumber(orn_src:match("\nM%.SHADOW_CACHE = (%d+)\n"))
+    assert(cap and cap >= TL.PER_PAGE + 1, "the shadow cache cannot hold a page of heroes and the long-press menu's")
+    assert(orn_src:find("while #M._shadow_order > M.SHADOW_CACHE do", 1, true), "the cache ignores its size")
 end)
 
 t.test("the ornaments are scanned once per open, not per card, page or tap", function()

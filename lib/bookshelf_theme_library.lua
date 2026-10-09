@@ -332,6 +332,37 @@ function TL.areaHeight()
     return TL.PER_PAGE * TL.cardHeight() + (TL.PER_PAGE - 1) * gap()
 end
 
+-- heroWidget(e, box_w, box_h) -> the hero as the collection previews it
+-- (bookshelf_ornament_browser.preview), over the drop shadow the piece's
+-- long-press menu draws (bookshelf_ornament_menu: Orn.shadowFor, offset
+-- SHADOW_DP right and down, for the frame's night). The picture is shrunk by
+-- the offset so the shadow stays inside box_w x box_h. The shadow is made
+-- from the render the picture paints, so still one decode a hero.
+function TL.heroWidget(e, box_w, box_h)
+    local Geom   = require("ui/geometry")
+    local Widget = require("ui/widget/widget")
+    local Screen = require("device").screen
+    local OM     = require("lib/bookshelf_ornament_menu")
+    local d = Screen:scaleBySize(OM.SHADOW_DP)
+    local pic = require("lib/bookshelf_ornament_browser").preview(e, math.max(1, box_w - d), math.max(1, box_h - d))
+    if not pic then return nil end
+    local orn = O()
+    local w = Widget:new{ dimen = Geom:new{ w = pic.w + d, h = pic.h + d } }
+    function w:getSize() return Geom:new{ w = pic.w + d, h = pic.h + d } end
+    function w:paintTo(bb, x, y)
+        self.dimen = Geom:new{ x = x, y = y, w = pic.w + d, h = pic.h + d }
+        local night = false
+        pcall(function() night = require("lib/bookshelf_night_mode_sync").active() and true or false end)
+        local p = pic.placement
+        local shadow = orn.shadowFor({ entry = p.entry, w = p.w, h = p.h }, night)
+        if shadow then
+            pcall(function() bb:alphablitFrom(shadow, x + d, y + d, pic.src_x, pic.src_y, pic.w, pic.h) end)
+        end
+        pic:paintTo(bb, x, y)
+    end
+    return w
+end
+
 -- _renderCard(item, dimen, current, all) -> the card: the name, the summary,
 -- the description (if there is room), the hero on the right (all: the
 -- picker's ornament scan, TL.hero). The choice in use is a heavier frame on
@@ -380,7 +411,7 @@ function TL._renderCard(item, dimen, current, all)
     line(item.summary, 14, ink)
     line(item.description, 13, Blitbuffer.COLOR_DARK_GRAY)
     local e = (not item.missing) and TL.hero(item.shows, all) or nil
-    local hero = e and require("lib/bookshelf_ornament_browser").preview(e, hero_w, inner_h)
+    local hero = e and TL.heroWidget(e, hero_w, inner_h)
     return FrameContainer:new{
         bordersize = border, radius = Space.radius.default, margin = 0,
         padding = 0, padding_left = pad, padding_right = pad, padding_top = pad_v, padding_bottom = pad_v,

@@ -200,7 +200,7 @@ end
 function ImageSource.getImageLibraryPath()
     local override = Store.read("image_library_path")
     if type(override) == "string" and override ~= "" then return override end
-    local home = G_reader_settings and G_reader_settings:readSetting("home_dir")
+    local home = require("lib/bookshelf_home_dir").get()
     if type(home) ~= "string" or home == "" then return nil end
     return home:gsub("/+$", "") .. "/.bookshelf-images"
 end

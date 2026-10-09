@@ -1587,7 +1587,7 @@ function Settings:_wallpaperMenu()
                 UIManager:show(PathChooser:new{
                     title            = _("Choose wallpaper folder"),
                     path             = Wallpaper.userDir()
-                                       or G_reader_settings:readSetting("home_dir") or "/",
+                                       or require("lib/bookshelf_home_dir").get() or "/",
                     select_directory = true,
                     select_file      = false,
                     show_files       = false,
@@ -5540,7 +5540,7 @@ function Settings:_pickImageLibraryPath(touchmenu_instance)
     local PathChooser = require("ui/widget/pathchooser")
     local ImageSource = require("lib/bookshelf_image_source")
     local start_path = ImageSource.getImageLibraryPath()
-        or G_reader_settings:readSetting("home_dir") or "/"
+        or require("lib/bookshelf_home_dir").get() or "/"
     UIManager:show(PathChooser:new{
         title            = _("Choose image library folder"),
         path             = start_path,

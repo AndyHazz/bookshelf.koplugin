@@ -14200,7 +14200,7 @@ local function _ornamentStamp()
 end
 
 local function _snapshotHomeDirs()
-    local home = G_reader_settings:readSetting("home_dir")
+    local home = require("lib/bookshelf_home_dir").get()
     if not home or home == "" then return nil end
     local lfs = require("libs/libkoreader-lfs")
     local snap = {}
@@ -19047,7 +19047,7 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
     if rich and book.filepath then
         local shown = book.filepath
         local ok_gs, gs = pcall(function() return G_reader_settings end)
-        local home = ok_gs and gs and gs:readSetting("home_dir")
+        local home = ok_gs and gs and require("lib/bookshelf_home_dir").get()
         if type(home) == "string" then
             home = home:gsub("/+$", "")
             if home ~= "" and shown:sub(1, #home + 1) == home .. "/" then
@@ -19496,7 +19496,7 @@ function BookshelfWidget:_buildPillSpecs(book, collection_set, close_cb, filter)
     do
         local ok_gs, gs = pcall(function() return G_reader_settings end)
         if ok_gs and gs then
-            home_dir = gs:readSetting("home_dir")
+            home_dir = require("lib/bookshelf_home_dir").get()
             if type(home_dir) == "string" then
                 home_dir = home_dir:gsub("/+$", "")
             end
@@ -21616,7 +21616,7 @@ function BookshelfWidget:_pickBookCoverFromDevice(book, modal, state)
     local PathChooser = require("ui/widget/pathchooser")
     local ImageSource = require("lib/bookshelf_image_source")
     local bw = self
-    local start_path = G_reader_settings:readSetting("home_dir")
+    local start_path = require("lib/bookshelf_home_dir").get()
         or (book.filepath:match("^(.*)/[^/]+$")) or "/"
     UIManager:show(PathChooser:new{
         title            = _("Choose cover image"),
@@ -23603,7 +23603,7 @@ function BookshelfWidget:_pickFolderImage(folder_path)
     local PathChooser = require("ui/widget/pathchooser")
     local ImageSource = require("lib/bookshelf_image_source")
     local bw = self
-    local start_path = G_reader_settings:readSetting("home_dir") or folder_path
+    local start_path = require("lib/bookshelf_home_dir").get() or folder_path
     local chooser
     chooser = PathChooser:new{
         title            = _("Choose folder image"),
@@ -23642,7 +23642,7 @@ function BookshelfWidget:_pickStackImage(kind, name)
     -- Open the picker rooted at the image library so the user lands
     -- in the right place when they've already organised files there.
     local start_path = ImageSource.getImageLibraryPath()
-        or G_reader_settings:readSetting("home_dir") or "/"
+        or require("lib/bookshelf_home_dir").get() or "/"
     local chooser
     chooser = PathChooser:new{
         title            = _("Choose image"),

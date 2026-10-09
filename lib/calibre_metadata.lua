@@ -173,7 +173,7 @@ local function _calibreMetadataFor(filepath, enabled)
         return _calibre_state.map[_normPath(filepath)]
     end
     _calibre_state.last_check = now
-    local home = G_reader_settings:readSetting("home_dir") or "/"
+    local home = require("lib/bookshelf_home_dir").get() or "/"
     local lfs  = require("libs/libkoreader-lfs")
     -- Home first, then the folder above it: Calibre sends metadata.calibre to
     -- the root of the device, and a home set to a Books folder under that

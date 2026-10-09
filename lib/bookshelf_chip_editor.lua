@@ -2681,7 +2681,7 @@ function Editor:_pickSource(draft, on_close)
             local PathChooser = require("ui/widget/pathchooser")
             local confirmed = false
             UIManager:show(PathChooser:new{
-                path             = G_reader_settings:readSetting("home_dir") or "/",
+                path             = require("lib/bookshelf_home_dir").get() or "/",
                 select_directory = true,
                 select_file      = false,
                 show_files       = false,
@@ -3159,7 +3159,7 @@ function Editor:_pickFolderFilter(draft, on_close)
     local function add_via_chooser(set)
         local confirmed = false
         UIManager:show(PathChooser:new{
-            path             = G_reader_settings:readSetting("home_dir") or "/",
+            path             = require("lib/bookshelf_home_dir").get() or "/",
             select_directory = true,
             select_file      = false,
             show_files       = false,

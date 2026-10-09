@@ -172,21 +172,21 @@ t.test("a gone pack: its wallpaper names nothing, its colours are not shown", fu
     os.execute("rm -rf '" .. d .. "/A'")
     TP.invalidate()
     eq(TP.variantName(name, false, false), nil, "a gone pack's wallpaper names nothing")
-    eq(TP.coloursSource(), "mine"); eq(TP.colourOverride("ink_color", false), nil)
+    eq(TP.coloursSource(), "mine"); eq(TP.colour("ink_color"), nil)
     eq(TP.libraryChoice(), "A", "the library keeps the name, for when the pack comes back")
 end)
 
-t.test("colour override: day as written, night pre-inverted, plank never", function()
+t.test("a pack's colours: day as written, night pre-inverted, plank never", function()
     local TP, d = setup()
     touch(d .. "/A/theme/colours.json",
         '{"day": {"text": "#101010"}, "night": {"text": "#F0F0F0", "plank": "#806040"}}')
     TP.setLibraryTheme("A")
-    eq(TP.colourOverride("ink_color", false).hex, "#101010")
-    eq(TP.colourOverride("ink_color", true).hex:upper(), "#0F0F0F", "night slot is stored pre-inverted")
-    eq(TP.colourOverride("spine_plank_color", true).hex, "#806040", "plank is display space")
-    eq(TP.colourOverride("badge_bg", false), nil, "a colour the pack does not set")
+    eq(TP.colour("ink_color").hex, "#101010")
+    eq(TP.colour("ink_color_night").hex:upper(), "#0F0F0F", "night slot is stored pre-inverted")
+    eq(TP.colour("spine_plank_color_night").hex, "#806040", "plank is display space")
+    eq(TP.colour("badge_bg"), nil, "a colour the pack does not set")
     TP.setLibraryTheme("mine")
-    eq(TP.colourOverride("ink_color", false), nil)
+    eq(TP.colour("ink_color"), nil)
 end)
 
 t.test("a theme's colours show whatever the collection's switch says", function()
@@ -194,30 +194,34 @@ t.test("a theme's colours show whatever the collection's switch says", function(
     touch(d .. "/A/theme/colours.json", '{"day": {"text": "#101010"}}')
     TP.setLibraryTheme("A")
     packs_off["A"] = true
-    eq(TP.colourOverride("ink_color", false).hex, "#101010",
+    eq(TP.colour("ink_color").hex, "#101010",
         "a pack switched off in the collection hid a chosen theme's colours")
 end)
 
-t.test("every colour read asks the theme first, Plain for defaults; the menu reads the reader's own", function()
+t.test("every colour reader asks the one resolver, TP.colour", function()
     local cp = io.open("lib/bookshelf_cover_progress.lua"):read("*a")
-    assert(cp:find("local function _readOwnColor", 1, true), "no _readOwnColor")
-    local rm = cp:match("local function _readModeColor%(.-\nend\n")
-    assert(rm and rm:find("TP.colourOverride, base_key", 1, true), "_readModeColor does not ask the theme")
-    assert(rm:find("TP.defaultColours", 1, true), "_readModeColor ignores Plain's defaults")
-    local raw = cp:match("function M%.rawColors%(%).-\nend")
-    assert(raw and not raw:find("_readModeColor(", 1, true), "rawColors must read the reader's OWN colours")
+    local _n, defs = cp:gsub("\nlocal function _readModeColor%(", "")
+    eq(defs, 1, "not one colour reader for the paint and the rows")
+    -- ONE resolver for the paint and the rows (TP.colour): Plain's
+    -- defaults, the theme's colours, an edit, the reader's own.
+    local pr = cp:match("local function _partRead%(key%)\n(.-)\nend\n")
+    assert(pr and pr:find("TP.colour(key)", 1, true), "the palette does not ask the one resolver")
     local pb = cp:match("function M%.pickedBarColors%(%).-\nend")
-    assert(pb and pb:find("TP.defaultColours", 1, true), "the bars ignore Plain's defaults")
+    assert(pb and pb:find('_partRead("progress_fill" .. suffix)', 1, true), "the bars do not ask the one resolver")
     local cb = io.open("lib/bookshelf_chip_bar.lua"):read("*a")
     local rb = cb:match("local function _readBarColor%(.-\nend\n")
-    assert(rb and rb:find("TP.colourOverride, base_key", 1, true), "selected chip colours ignore the theme")
-    assert(rb:find("TP.defaultColours", 1, true), "selected chip colours ignore Plain")
+    assert(rb and rb:find("TP.colour(k)", 1, true), "selected chip colours do not ask the one resolver")
     local w = io.open("lib/bookshelf_widget.lua"):read("*a")
     local pg = w:match("function BookshelfWidget:_pageGroundColor%(%).-\nend")
-    assert(pg and pg:find("colourOverride(", 1, true) and pg:find("defaultColours", 1, true),
-        "the page ground ignores the theme or Plain")
+    assert(pg and pg:find("TP.colour(Wallpaper.BG_SETTING .. suffix)", 1, true), "the page ground does not ask the one resolver")
     local ps = w:match("function BookshelfWidget:_pageColourStored%(%).-\nend")
-    assert(ps and ps:find("defaultColours", 1, true), "the ground state ignores the theme or Plain")
+    assert(ps and ps:find("TP.colour(Wallpaper.BG_SETTING .. suffix)", 1, true), "the ground state does not ask the one resolver")
+    for _i, f in ipairs({ "lib/bookshelf_cover_progress.lua", "lib/bookshelf_chip_bar.lua", "lib/bookshelf_widget.lua",
+                          "lib/bookshelf_theme_pack.lua" }) do
+        local src = io.open(f):read("*a"):gsub("%-%-[^\n]*", "")
+        assert(not src:find("colourOverride", 1, true) and not src:find("defaultColours", 1, true),
+            f .. " still has the old colour override path")
+    end
 end)
 
 t.test("theme colours cost no file checks per read within the scan TTL", function()
@@ -225,11 +229,11 @@ t.test("theme colours cost no file checks per read within the scan TTL", functio
     touch(d .. "/A/theme/colours.json", '{"day": {"text": "#101010"}}')
     TP.setLibraryTheme("A")
     TP.SCAN_TTL = 15; TP._clock = function() return 5 end
-    TP.colourOverride("ink_color", false)
+    TP.colour("ink_color")
     local stats = 0
     local real = TP._lfs.attributes
     TP._lfs.attributes = function(...) stats = stats + 1; return real(...) end
-    for _i = 1, 20 do TP.colourOverride("ink_color", false) end
+    for _i = 1, 20 do TP.colour("ink_color") end
     TP._lfs.attributes = real
     eq(stats, 0, "twenty colour reads, no stat calls")
 end)

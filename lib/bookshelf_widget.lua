@@ -3813,16 +3813,13 @@ function BookshelfWidget:_pageGroundColor()
         local Wallpaper     = require("lib/bookshelf_wallpaper")
         local CoverProgress = require("lib/bookshelf_cover_progress")
         local suffix = CoverProgress.modeSuffix and CoverProgress.modeSuffix() or ""
-        -- The shelf's theme page colour first (bookshelf_theme_pack); Plain
-        -- has the default ground.
+        -- As the shelf paints every colour (bookshelf_theme_pack.colour):
+        -- Plain's default ground, the theme's page colour, the reader's
+        -- edit (unset is the default ground) or their own.
         local ok_t, TP = pcall(require, "lib/bookshelf_theme_pack")
-        if ok_t and TP and TP.defaultColours and TP.defaultColours() then return nil end
-        -- Else the reader's own, or their edit to the theme on screen
-        -- (TP.partRead: edited to unset is the default ground).
         local raw
-        if ok_t and TP and TP.partRead then
-            raw = TP.colourOverride(Wallpaper.BG_SETTING, suffix ~= "")
-                  or TP.partRead(Wallpaper.BG_SETTING .. suffix)
+        if ok_t and TP and TP.colour then
+            raw = TP.colour(Wallpaper.BG_SETTING .. suffix)
         else
             raw = BookshelfSettings.read(Wallpaper.BG_SETTING .. suffix)
         end
@@ -4190,13 +4187,11 @@ function BookshelfWidget:_pageColourStored()
         local Wallpaper = require("lib/bookshelf_wallpaper")
         local CP        = require("lib/bookshelf_cover_progress")
         local suffix    = CP.modeSuffix and CP.modeSuffix() or ""
-        -- The page colour the shelf on screen paints: its theme's, none on
-        -- Plain, else the reader's own.
+        -- The page colour the shelf on screen paints (bookshelf_theme_pack
+        -- .colour): its theme's, none on Plain, else the reader's own.
         local ok_t, TP = pcall(require, "lib/bookshelf_theme_pack")
-        if ok_t and TP and TP.defaultColours then
-            if TP.defaultColours() then return false end
-            if TP.colourOverride(Wallpaper.BG_SETTING, suffix ~= "") then return true end
-            if TP.partRead then return type(TP.partRead(Wallpaper.BG_SETTING .. suffix)) == "table" end
+        if ok_t and TP and TP.colour then
+            return type(TP.colour(Wallpaper.BG_SETTING .. suffix)) == "table"
         end
         return type(BookshelfSettings.read(Wallpaper.BG_SETTING .. suffix)) == "table"
     end)

@@ -804,18 +804,23 @@ local function _modeSuffix()
     return dark and "_night" or ""
 end
 
--- _partRead(key): a colour as the theme being painted and edited holds it:
--- the reader's edit to the theme on screen, else its own, else the reader's
--- own (bookshelf_theme_pack.partRead, the one seam).
+-- _partRead(key): a colour as the shelf on screen paints it, which the
+-- colour rows also show and edit: the defaults on an unedited Plain, the
+-- reader's edit to the theme on screen, else its own (a pack's
+-- colours.json), else the reader's own (bookshelf_theme_pack.colour, the
+-- one resolver, memoised per settings generation).
 local function _partRead(key)
     local ok, TP = pcall(require, "lib/bookshelf_theme_pack")
-    if ok and TP and TP.partRead then return TP.partRead(key) end
+    if ok and TP and TP.colour then return TP.colour(key) end
     return BookshelfSettings.read(key)
 end
 
--- suffix (optional): the slot to read, "" or "_night"; default the one the
--- shelf on screen paints from. The colour menu passes its own (editSuffix).
-local function _readOwnColor(base_key, default_day, default_night, suffix)
+-- _readModeColor(base_key, default_day, default_night, suffix): what the
+-- shelf PAINTS for a colour, and what its row shows and edits: one resolver
+-- (_partRead). suffix (optional): the slot to read, "" or "_night"; default
+-- the one the shelf on screen paints from. The colour menu passes its own
+-- (editSuffix).
+local function _readModeColor(base_key, default_day, default_night, suffix)
     suffix = suffix or _modeSuffix()
     if suffix ~= "" then
         -- Night mode: explicit override wins, otherwise fall through to
@@ -832,26 +837,6 @@ local function _readOwnColor(base_key, default_day, default_night, suffix)
     return _partRead(base_key) or default_day
 end
 
--- _readModeColor: what the shelf PAINTS -- the defaults on an unedited
--- Plain, else the shelf's theme colour for this slot when its pack has one
--- and the reader has not edited it, else the edit or the reader's own
--- (bookshelf_theme_pack). The menus read _readOwnColor: what the rows show
--- and edit, through the same seam.
-local function _readModeColor(base_key, default_day, default_night)
-    local ok, TP = pcall(require, "lib/bookshelf_theme_pack")
-    if ok and TP and TP.colourOverride then
-        local ok_p, plain = pcall(TP.defaultColours)
-        if ok_p and plain then
-            if _modeSuffix() ~= "" then return default_night or default_day end
-            return default_day
-        end
-        local ok2, v = pcall(TP.colourOverride, base_key, _modeSuffix() ~= "")
-        if ok2 and v then return v end
-    end
-    return _readOwnColor(base_key, default_day, default_night)
-end
-M._readOwnColor = _readOwnColor
-local _readOwnColorIn = _readOwnColor
 
 -- ink() -> the themed text colour, or nil to leave a widget's own default.
 --
@@ -1018,12 +1003,7 @@ end
 -- in night mode they painted the day colour for an inverting frame and it
 -- displayed as its opposite.
 function M.pickedBarColors()
-    -- Plain paints the defaults: nothing picked.
-    local ok_t, TP = pcall(require, "lib/bookshelf_theme_pack")
-    if ok_t and TP and TP.defaultColours then
-        local ok_p, plain = pcall(TP.defaultColours)
-        if ok_p and plain then return nil end
-    end
+    -- Plain paints the defaults: nothing picked (TP.colour reads nil).
     local suffix = _modeSuffix()
     local picked_fill  = _partRead("progress_fill" .. suffix)
     local picked_track = _partRead("progress_track" .. suffix)
@@ -1050,7 +1030,8 @@ function M.rawColors()
     if _raw_cache and _raw_gen == gen and _raw_night == is_night then
         return _raw_cache
     end
-    local function _readOwnColor(k, d, n) return _readOwnColorIn(k, d, n, sfx) end
+    -- The slot the colour menu edits.
+    local function _readOwnColor(k, d, n) return _readModeColor(k, d, n, sfx) end
     _raw_cache = {
         fill              = _readOwnColor("progress_fill",  DEFAULT_FILL, NIGHT_DEFAULT_FILL),
         track             = _readOwnColor("progress_track", DEFAULT_TRACK, NIGHT_DEFAULT_TRACK),

@@ -226,7 +226,7 @@ function M.theme(pack)
     return v
 end
 
-function M.invalidate() M._cache = {}; M._plank_memo = nil end
+function M.invalidate() M._cache = {}; M._plank_memo = nil; M._cur = nil end
 -- forgetChoice(): after a switch, work out which plank shows again, without
 -- re-listing every pack's theme folder the way invalidate() does.
 function M.forgetChoice() M._plank_memo = nil end
@@ -526,6 +526,17 @@ end
 -- colour nudge on a pack's shelf was a full-screen flash (review, 2026-10-09).
 -- A theme with edited colours paints its own (coloursSource names it), so
 -- two themes still tell apart; two shelves on one theme share the key.
+-- coloursSource() -> whose colours the shelf on screen paints: "mine",
+-- "plain" (the defaults) or a pack with a colours.json, or with colours the
+-- reader has edited. Part of the look's key.
+function M.coloursSource()
+    local c = current()
+    local th = c.theme
+    if th == M.MINE or th == M.PLAIN then return th end
+    if M.theme(th).colours or c.ecol then return th end
+    return M.MINE
+end
+
 -- lookParts() -> the look but its colours, and whose colours it paints.
 local function lookParts()
     local plank = M.activePlank()
@@ -838,23 +849,6 @@ function M.invertHex(hex)
                          255 - tonumber(g, 16), 255 - tonumber(b, 16))
 end
 
--- coloursSource() -> whose colours the shelf on screen paints: "mine",
--- "plain" (the defaults) or a pack with a colours.json, or with colours the
--- reader has edited.
-function M.coloursSource()
-    local c = current()
-    local th = c.theme
-    if th == M.MINE or th == M.PLAIN then return th end
-    if M.theme(th).colours or c.ecol then return th end
-    return M.MINE
-end
-
--- defaultColours() -> true when the shelf on screen paints the default
--- colours whatever the reader has set (Plain, while none of its colours is
--- edited). The colour readers (CoverProgress, the chip bar, the page ground)
--- ask before reading the keys.
-function M.defaultColours() return M.coloursSource() == M.PLAIN and not current().ecol end
-
 -- packColour(pack, key, dark) -> that pack's colour for that setting in the
 -- STORED convention of its slot, or nil. Night slots hold colours
 -- pre-inverted for a frame that will flip (see bookshelf_color.invertValue);
@@ -868,15 +862,29 @@ local function packColour(pack, key, dark)
     return { hex = hex }
 end
 
--- colourOverride(key, dark) -> the shelf on screen's theme colour for that
--- setting, or nil for the reader's own.
-function M.colourOverride(key, dark)
-    local src = M.coloursSource()
-    if src == M.MINE or src == M.PLAIN then return nil end
-    -- An edited colour is read where the reader's are (partRead): edited to
-    -- the default, it is the default, never the pack's or the reader's own.
-    if M.partEdited(key .. (dark and "_night" or "")) then return nil end
-    return packColour(src, key, dark)
+-- colour(key) -> the colour the shelf on screen PAINTS for a colour setting
+-- (key with its slot's suffix, "ink_color_night"), in the stored shape, or
+-- nil for the default. THE one resolver every colour reader asks (the
+-- palette, the hero and list bars, the selected shelf, the page ground) and
+-- what the colour rows show and edit: the reader's edit to the theme on
+-- screen (unset is the default), else the theme's own (Plain's defaults, a
+-- pack's colours.json), else Custom theme's (partRead). Asked per cover at
+-- paint, so memoised on the shelf's resolution, which a new settings
+-- generation, an edit or a rescan replaces: a page of covers reads the
+-- settings once a key, not once a cover.
+local NONE = {}
+function M.colour(key)
+    local c = current()
+    local memo = c.colours
+    if not memo then memo = {}; c.colours = memo end
+    local v = memo[key]
+    if v == nil then
+        v = M.partRead(key)
+        memo[key] = (v == nil) and NONE or v
+        return v
+    end
+    if v == NONE then return nil end
+    return v
 end
 
 -- A pack's wallpaper travels under a NAME, like every other wallpaper, so
@@ -1076,9 +1084,11 @@ end
 
 -- themePart(theme, key) -> that part as that theme shows it: the reader's
 -- edit, else its original (nil theme: Custom theme's, the reader's own key).
-function M.themePart(theme, key)
+-- e (optional): that theme's edits when the caller holds them (partRead:
+-- the shelf's resolution has them), so they are not read again.
+function M.themePart(theme, key, e)
     if theme == nil or theme == M.MINE then return read(key) end
-    local e = M.editsOf(theme)
+    if e == nil then e = M.editsOf(theme) end
     local keys = e and e.keys
     if type(keys) == "table" and keys[key] ~= nil then
         local v = keys[key]
@@ -1092,7 +1102,8 @@ end
 -- and the menu edits. A key that is not a part is the reader's preference.
 function M.partRead(key)
     if not M.isPart(key) then return read(key) end
-    return M.themePart(current().theme, key)
+    local c = current()
+    return M.themePart(c.theme, key, c.e or false)
 end
 
 -- partEdited(key) -> has the reader edited that part of the theme on

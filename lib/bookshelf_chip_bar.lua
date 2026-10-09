@@ -363,30 +363,15 @@ local function _modeSuffix()
 end
 
 local function _readBarColor(base_key)
-    -- The shelf's theme colours first (bookshelf_theme_pack; none set on
-    -- Plain), else the reader's own, as everywhere else the shelf paints.
+    -- As everywhere else the shelf paints (bookshelf_theme_pack.colour: the
+    -- defaults on Plain, the theme's colours, the reader's edit or own).
+    -- Night overrides do NOT inherit the day value (same reasoning as
+    -- _readModeColor in bookshelf_cover_progress): inheriting a day colour
+    -- into night showed the inverted day appearance, not the night theme.
+    local k = base_key .. _modeSuffix()
     local ok_t, TP = pcall(require, "lib/bookshelf_theme_pack")
-    if ok_t and TP and TP.defaultColours then
-        local ok_p, plain = pcall(TP.defaultColours)
-        if ok_p and plain then return nil end
-    end
-    if ok_t and TP and TP.colourOverride then
-        local ok2, v = pcall(TP.colourOverride, base_key, _modeSuffix() ~= "")
-        if ok2 and v then return v end
-    end
-    -- The reader's own, or their edit to the theme on screen (TP.partRead).
-    local function partRead(k)
-        if ok_t and TP and TP.partRead then return TP.partRead(k) end
-        return BookshelfSettings.read(k)
-    end
-    local suffix = _modeSuffix()
-    if suffix ~= "" then
-        -- Night overrides do NOT inherit the day value (same reasoning as
-        -- _readModeColor in bookshelf_cover_progress): inheriting a day colour
-        -- into night showed the inverted day appearance, not the night theme.
-        return partRead(base_key .. suffix)
-    end
-    return partRead(base_key)
+    if ok_t and TP and TP.colour then return TP.colour(k) end
+    return BookshelfSettings.read(k)
 end
 
 -- Returns fill, ink (Blitbuffer colours) or nil when the chip should invert.

@@ -137,13 +137,9 @@ local function world(d, settings)
     settings.wallpaper_default = "leaves.png"
 end
 
--- What the shelf paints: the defaults on an unedited Plain, a theme's
--- colour, else the edit or the reader's own (as bookshelf_cover_progress
--- reads them: defaultColours, colourOverride, then partRead).
+-- What the shelf paints (TP.colour, the one resolver): "-" is the default.
 local function paint(TP, key)
-    if TP.defaultColours() then return "default" end
-    local base, night = key:gsub("_night$", "")
-    local v = TP.colourOverride(base, night > 0) or TP.partRead(key)
+    local v = TP.colour(key)
     return v and v.hex or "-"
 end
 local function shown(TP)
@@ -177,7 +173,7 @@ t.test("an edit on a pack's shelf goes to that theme's edits, never to Custom th
     assert(st.gen > gen, "an edit did not bump the generation, so nothing repaints")
     local e = edits(settings, "Macabre")
     eq(e.keys.progress_fill.hex, "#00AA00"); eq(e.keys.theme_plank_pack, "oak")
-    -- The pack's own colour does not win over the edit (colourOverride).
+    -- The pack's own colour does not win over the edit.
     eq(paint(TP, "ink_color"), "#445566", "the pack's colour painted over the edit")
     eq(paint(TP, "progress_fill"), "#00AA00")
     eq(TP.shownWallpaper(false, false), "leaves.png")
@@ -323,13 +319,12 @@ t.test("Plain is editable the same way; unedited, it paints the defaults whateve
     world(d, settings)
     tabs.home = { id = "home", theme = "plain" }
     on(TP, "home")
-    eq(TP.defaultColours(), true); eq(paint(TP, "progress_fill"), "default")
+    eq(paint(TP, "progress_fill"), "-", "Plain painted the reader's own colour")
     eq(TP.activePlank().id, "builtin:oak"); eq(TP.shownWallpaper(false, false), nil)
     eq(#TP._orn.listFor(TP.ornamentsFor("home")), 0)
     TP.partSave("badge_bg", { hex = "#123456" })
     TP.partSave("wallpaper_default", "leaves.png")
     TP.switches().setOff("cactus.svg", false)
-    eq(TP.defaultColours(), false, "an edited colour on Plain is not painted")
     eq(paint(TP, "badge_bg"), "#123456")
     eq(paint(TP, "progress_fill"), "-", "Plain's unedited colour read the reader's own")
     eq(TP.shownWallpaper(false, false), "leaves.png")
@@ -339,7 +334,7 @@ t.test("Plain is editable the same way; unedited, it paints the defaults whateve
     eq(edits(settings, "plain").keys.badge_bg.hex, "#123456")
     TP.resetEdits("plain")
     on(TP, "home")
-    eq(TP.defaultColours(), true); eq(TP.shownWallpaper(false, false), nil)
+    eq(paint(TP, "badge_bg"), "-", "Reset kept Plain's edited colour"); eq(TP.shownWallpaper(false, false), nil)
 end)
 
 t.test("ornaments: a theme's set, switched by the browser's seam; any piece may join; the collection untouched", function()
@@ -587,21 +582,12 @@ end)
 
 t.test("the paint reads through the seam: colours, bars, chips, the page ground, invert", function()
     local cp = io.open("lib/bookshelf_cover_progress.lua"):read("*a")
-    local own = cp:match("\nlocal function _readOwnColor%(base_key, default_day, default_night, suffix%)\n(.-)\nend\n")
+    local own = cp:match("\nlocal function _readModeColor%(base_key, default_day, default_night, suffix%)\n(.-)\nend\n")
     assert(own and own:find("_partRead(base_key .. suffix)", 1, true) and own:find("_partRead(base_key)", 1, true)
         and not own:find("BookshelfSettings.read", 1, true), "the colours read Custom theme's keys on a theme's shelf")
-    local bars = cp:match("\nfunction M%.pickedBarColors%(%)\n(.-)\nend\n")
-    assert(bars and bars:find('_partRead("progress_fill" .. suffix)', 1, true), "the hero bars read Custom theme's keys")
-    local cb = io.open("lib/bookshelf_chip_bar.lua"):read("*a")
-    local bar = cb:match("\nlocal function _readBarColor%(base_key%)\n(.-)\nend\n")
-    assert(bar and bar:find("TP.partRead(k)", 1, true), "the selected shelf reads Custom theme's keys")
-    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
-    local ground = w:match("\nfunction BookshelfWidget:_pageGroundColor%(%)\n(.-)\nend\n")
-    assert(ground and ground:find("TP.partRead(Wallpaper.BG_SETTING .. suffix)", 1, true),
-        "the page ground reads Custom theme's key")
-    local stored = w:match("\nfunction BookshelfWidget:_pageColourStored%(%)\n(.-)\nend\n")
-    assert(stored and stored:find("TP.partRead(Wallpaper.BG_SETTING .. suffix)", 1, true),
-        "the page colour's presence reads Custom theme's key")
+    -- The bars, the selected shelf and the page ground ask the same
+    -- resolver: _test_theme_packs.lua, "every colour reader asks the one
+    -- resolver".
     local wp = io.open("lib/bookshelf_wallpaper.lua"):read("*a")
     local inv = wp:match("\nfunction M%.invertsAtNight%(%)\n(.-)\nend\n")
     assert(inv and inv:find("TP.partRead(M.INVERT_NIGHT_SETTING)", 1, true), "invert at night reads Custom theme's key")

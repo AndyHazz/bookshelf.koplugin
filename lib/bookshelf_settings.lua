@@ -1581,8 +1581,23 @@ function Settings:_rebuildThemeMenu(touchmenu_instance)
     end
 end
 
--- _wallpaperMenu() - the reader's own wallpaper rows: the picture, the full
--- screen picture, inverting it when dark, and the colour behind it.
+-- _wallpaperRow(): "Wallpaper: Macabre pack", a submenu of the wallpaper
+-- rows (_wallpaperMenu), so the Theme menu fits one page (maintainer,
+-- 2026-10-09). Named for the picture, as its first row is; the help is that
+-- row's (where the pictures come from). Built again each time it opens.
+function Settings:_wallpaperRow()
+    local picture = self:_wallpaperMenu()[1]
+    return {
+        text_func           = picture.text_func,
+        help_text_func      = picture.help_text_func,
+        sub_item_table_func = function() return self:_wallpaperMenu() end,
+    }
+end
+
+-- _wallpaperMenu() - the wallpaper rows of the theme on screen: the picture,
+-- the full screen picture, inverting it when dark, and the colour behind it.
+-- The Wallpaper submenu (_wallpaperRow); each reads and writes through the
+-- theme edit seam (TP.partRead, partSave, partDelete).
 function Settings:_wallpaperMenu()
     local Wallpaper = require("lib/bookshelf_wallpaper")
     -- The name a wallpaper row shows, or the fallback when there is none.
@@ -2556,7 +2571,7 @@ function Settings:_themeSubItems()
     rows[#rows + 1] = self:_libraryThemeRow()
     rows[#rows].separator = true
     rows[#rows + 1] = self:_lightDarkRow()
-    for _i, row in ipairs(self:_wallpaperMenu()) do rows[#rows + 1] = row end
+    rows[#rows + 1] = self:_wallpaperRow()
     rows[#rows + 1] = self:_plankRow()
     rows[#rows + 1] = self:_ornamentsRow()
     rows[#rows + 1] = {

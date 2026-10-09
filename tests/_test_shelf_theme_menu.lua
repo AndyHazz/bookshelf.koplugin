@@ -163,9 +163,8 @@ local function build(packs, library, tabs, opts)
                                 end,
                                 -- The editing rows, by name (their own suites).
                                 _shelfSlot = function() seen.slot = true end,
-                                _wallpaperMenu = function()
-                                    return { { text = "Wallpaper" }, { text = "Full screen wallpaper" },
-                                             { text = "Invert" }, { text = "Color behind wallpaper" } }
+                                _wallpaperRow = function()
+                                    return { text = "Wallpaper", sub_item_table_func = function() return {} end }
                                 end,
                                 _plankRow = function() return { text = "Plank" } end,
                                 _ornamentsRow = function() return { text = "Ornaments" } end,
@@ -213,15 +212,14 @@ t.test("ONE Theme menu, one page: This shelf, Other shelves, Default theme, then
     -- shelf, so the menu fits one page.
     eq(texts(rows), "This shelf: Default theme | Other shelves: all default | Default theme: Macabre"
         .. " | Light or dark: Auto (follow night mode)"
-        .. " | Wallpaper | Full screen wallpaper | Invert | Color behind wallpaper | Plank | Ornaments | Colors"
-        .. " | New ornaments go")
+        .. " | Wallpaper | Plank | Ornaments | Colors | New ornaments go")
     for _i, r in ipairs(rows) do
         local tx = r.text or (r.text_func and r.text_func()) or ""
         assert(not tx:lower():find("library", 1, true), "a row still says library: " .. tx)
     end
     local sep = {}
     for i, r in ipairs(rows) do if r.separator then sep[#sep + 1] = i end end
-    eq(table.concat(sep, ","), "3,11", "the bands are not choosing | editing | preferences")
+    eq(table.concat(sep, ","), "3,8", "the bands are not choosing | editing | preferences")
     eq(seen.rescans, 1, "opening the menu did not rescan the packs")
     eq(seen.slot, true, "the colour rows do not open on the slot of the shelf on screen")
     -- The choosing rows open the Theme library, never a list to drill
@@ -249,12 +247,10 @@ end)
 
 t.test("the whole Theme menu is one page of a PW5 menu (ten rows), whatever the shelves", function()
     -- The rig's PW5-size TouchMenu shows ten rows a page (2026-10-09); the
-    -- maintainer wants the whole menu on it (2026-10-09). The real wallpaper
-    -- rows are one submenu row (its own suite, _test_background_menu).
+    -- maintainer wants the whole menu on it (2026-10-09).
     local many = {}
     for i = 1, 12 do many[i] = { id = "s" .. i, label = "S" .. i, theme = (i % 2 == 0) and "plain" or nil } end
     local self, S = build({ MAC }, "Macabre", many, { on_screen = "Macabre" })
-    self._wallpaperMenu = function() return { { text = "Wallpaper", sub_item_table = {} } } end
     local rows = S._themeSubItems(onShelf(self, "s1"))
     assert(#rows <= 10, "the Theme menu is " .. #rows .. " rows: " .. texts(rows))
 end)

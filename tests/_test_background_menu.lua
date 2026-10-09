@@ -81,21 +81,24 @@ t.test("Settings no longer carries Colors or Wallpaper", function()
         .. "would eventually hold everything")
 end)
 
-t.test("the menu: Theme library, Library, then light or dark, the picture, plank, ornaments, colors; then the preferences", function()
+t.test("the menu: This shelf, Other shelves, Default theme, then light or dark, the wallpaper, plank, ornaments, colors; then the preferences", function()
     local body = settings:match("function Settings:_themeSubItems%(%)(.-)\nend\n")
     assert(body, "_themeSubItems missing")
     -- Choosing first, as Bookends opens its Preset menu with "Preset
     -- library..." (maintainer, 2026-10-09), set apart from the editing.
     local lib    = body:find("self:_themeLibraryRow()", 1, true)
+    local others = body:find("self:_otherShelvesRow()", 1, true)
     local whole  = body:find("self:_libraryThemeRow()", 1, true)
     local look   = body:find("_lightDarkRow", 1, true)
-    local wall   = body:find("_wallpaperMenu", 1, true)
+    -- The wallpaper rows are ONE row, a submenu (maintainer, 2026-10-09).
+    local wall   = body:find("rows[#rows + 1] = self:_wallpaperRow()", 1, true)
     local plank  = body:find("_plankRow", 1, true)
     local orn    = body:find("_ornamentsRow", 1, true)
     local accent = body:find('_("Colors")', 1, true)
     local newat  = body:find("_newOrnamentsRow", 1, true)
-    assert(lib and whole and look and wall and plank and orn and accent and newat, "a section is missing from the menu")
-    assert(lib < whole and whole < look, "the Theme library and the library's theme do not come first")
+    assert(lib and others and whole and look and wall and plank and orn and accent and newat, "a section is missing from the menu")
+    assert(lib < others and others < whole and whole < look, "This shelf, Other shelves and Default theme do not come first")
+    assert(not body:find("_wallpaperMenu", 1, true), "the wallpaper rows are flat in the Theme menu again")
     assert(body:sub(whole, look):find("rows[#rows].separator = true", 1, true),
         "no separator between the choosing and the editing")
     assert(look < wall and wall < plank and plank < orn and orn < accent and accent < newat,
@@ -111,6 +114,39 @@ t.test("the menu: Theme library, Library, then light or dark, the picture, plank
     local band = sub and sub:find("-- end appearance band", 1, true)
     assert(font and shade and folder and band and font < shade and shade < folder and folder < band,
         "Panel shading and the extra wallpaper folder belong at the end of Settings' appearance band")
+end)
+
+t.test("Wallpaper is a submenu named for the picture: the picture, full screen, invert, the colour behind", function()
+    -- Maintainer, 2026-10-09: one row, "Wallpaper: Macabre pack", so the
+    -- Theme menu fits one page; inside, the rows it held, as they were.
+    local code = settings:match("\n(function Settings:_wallpaperRow%(%).-\nend)\n")
+    assert(code, "_wallpaperRow missing")
+    local env = setmetatable({ Settings = {} }, { __index = _G })
+    local chunk = assert((loadstring or load)(code, "=w", "t", env))
+    if setfenv then setfenv(chunk, env) end
+    chunk()
+    local built = 0
+    local inner = function()
+        built = built + 1
+        return { { text_func = function() return "Wallpaper: Macabre pack" end, help_text_func = function() return "from" end },
+                 { text = "Full" }, { text = "Invert" }, { text = "Behind" } }
+    end
+    local self = { _wallpaperMenu = inner }
+    local row = env.Settings._wallpaperRow(self)
+    eq(row.text_func(), "Wallpaper: Macabre pack", "the row is not named for the picture")
+    eq(row.help_text_func(), "from", "the row's help is not where the pictures come from")
+    eq(row.callback, nil, "the row opens a picker, not its submenu")
+    local before = built
+    local sub = row.sub_item_table_func()
+    eq(#sub, 4); eq(built, before + 1, "the submenu is not built as it opens")
+    -- The rows themselves, in order, each still wired as before.
+    local menu = settings:match("function Settings:_wallpaperMenu%(%)(.-)\nend\n")
+    local a = menu:find('T(_("Wallpaper: %1")', 1, true)
+    local b = menu:find('T(_("Full screen wallpaper: %1")', 1, true)
+    local c = menu:find('text = _("Invert wallpaper when dark")', 1, true)
+    local d = menu:find('T(_("Color behind wallpaper: %1")', 1, true)
+    assert(a and b and c and d and a < b and b < c and c < d,
+        "the submenu is not the picture, full screen, invert, the colour behind")
 end)
 
 t.test("the theme label has one definition, not a copy in the colour list", function()

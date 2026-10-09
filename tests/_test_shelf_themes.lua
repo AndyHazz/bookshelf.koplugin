@@ -283,7 +283,7 @@ t.test("every pack is listed by its name: what it brings is the Theme library's 
     eq(#all, 3)
     eq(all[1].pack, "Gallery"); eq(all[2].pack, "Halloween"); eq(all[3].pack, "Snow")
     local labels = {}
-    for i, c in ipairs(TP.choices()) do labels[i] = c.label end
+    for i, c in ipairs(TP.choiceList()) do labels[i] = TP.choiceLabel(c.value) end
     eq(table.concat(labels, ","), "Custom theme,Plain,Gallery,Halloween,Snow",
         "a pack of ornaments only is named for what it is again")
 end)
@@ -398,7 +398,7 @@ t.test("a pack folder named like a built-in, in any case, is never a theme", fun
     local names = {}
     for i, th in ipairs(TP.allThemes()) do names[i] = th.pack end
     eq(table.concat(names, ","), "Halloween", "a reserved folder was listed as a theme")
-    for _i, c in ipairs(TP.choices()) do
+    for _i, c in ipairs(TP.choiceList()) do
         assert(c.value == "mine" or c.value == "plain" or c.value == "Halloween", "listed: " .. c.value)
     end
     TP.setLibraryTheme("Halloween")
@@ -423,13 +423,15 @@ t.test("one shelf theme list for every menu: Default theme, a missing pack, mine
     halloween(d); TP.invalidate()
     local function labels(l)
         local o = {}
-        for i, c in ipairs(l) do o[i] = c.label .. (c.same and "*" or "") .. (c.missing and "!" or "") end
+        for i, c in ipairs(l) do o[i] = TP.choiceLabel(c.value) .. (c.same and "*" or "") .. (c.missing and "!" or "") end
         return table.concat(o, ",")
     end
     -- "Default", not "library" (maintainer, 2026-10-09).
-    eq(labels(TP.shelfChoices(nil)), "Default theme*,Custom theme,Plain,Halloween")
-    eq(labels(TP.shelfChoices("Gone")), "Default theme*,Gone (missing)!,Custom theme,Plain,Halloween")
-    eq(TP.shelfChoices(nil)[1].value, nil, "Default theme stores nothing")
+    eq(labels(TP.choiceList(nil, true)), "Default theme*,Custom theme,Plain,Halloween")
+    eq(labels(TP.choiceList("Gone", true)), "Default theme*,Gone (missing)!,Custom theme,Plain,Halloween")
+    eq(TP.choiceList(nil, true)[1].value, nil, "Default theme stores nothing")
+    -- The default's list: no Default theme card, the missing pack kept.
+    eq(labels(TP.choiceList("Gone")), "Gone (missing)!,Custom theme,Plain,Halloween")
     tabs.a = { id = "a", theme = "none" }; tabs.b = { id = "b" }; tabs.s = { id = "s", parent = "a" }
     eq(TP.ownChoice("a"), "mine"); eq(TP.ownChoice("b"), nil)
     eq(TP.ownChoice("s"), nil, "ownChoice is the shelf's own, not inherited")

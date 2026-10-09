@@ -54,7 +54,7 @@ t.test("Shelf style has the shelf's Theme row, top-level shelves only, previewed
     -- Following the default reads "Theme: Default theme", as the Theme
     -- menu's shelf rows do; "library" is the Theme library's own name, and
     -- a bare "Default" was not enough (maintainer, 2026-10-09).
-    assert(row:find('T(_("Theme: %1"), v == nil and _("Default theme") or TP.themeName(v))', 1, true),
+    assert(row:find('T(_("Theme: %1"), TP.choiceLabel(v))', 1, true),
         "Shelf style does not name following the default Default theme")
     assert(not row:find("as library", 1, true), "Shelf style's Theme row still says library")
     assert(row:find('require("lib/bookshelf_theme_library").show{', 1, true),

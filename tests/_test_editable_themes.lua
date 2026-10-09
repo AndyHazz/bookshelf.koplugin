@@ -504,7 +504,7 @@ t.test("the own theme is gone: 'own' stored by the unreleased build reads as uns
                           "ownPool", "shownOwn", "ownerOf", "resolveChoice" }) do
         eq(TP[k], nil, "TP." .. k .. " is still there")
     end
-    for _i, c in ipairs(TP.shelfChoices(nil)) do assert(c.value ~= "own", "a shelf's list has Own theme") end
+    for _i, c in ipairs(TP.choiceList(nil, true)) do assert(c.value ~= "own", "a shelf's list has Own theme") end
 end)
 
 t.test("an edit keeps the look key: a colour nudge on a pack's shelf is no full-screen flash", function()

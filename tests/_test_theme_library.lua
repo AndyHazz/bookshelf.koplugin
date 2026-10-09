@@ -36,17 +36,14 @@ function TP.themeName(v)
     if not themes[v] then return v .. " (missing)" end
     return (themes[v].manifest and themes[v].manifest.name) or v
 end
-function TP.choices()
-    return { { value = "mine", label = "Custom theme" }, { value = "plain", label = "Plain" },
-             { value = "Macabre", label = "Macabre" }, { value = "Ukiyo", label = "Ukiyo-e" },
-             { value = "Autumn", label = "Autumn" } }
-end
-function TP.shelfChoices(cur)
-    local o = { { same = true, label = "Default theme" } }
-    if TP.packOf(cur) and not themes[cur] then o[#o + 1] = { value = cur, label = cur .. " (missing)", missing = true } end
-    for _i, c in ipairs(TP.choices()) do o[#o + 1] = c end
+function TP.choiceList(cur, shelf)
+    local o = {}
+    if shelf then o[1] = { same = true } end
+    if TP.packOf(cur) and not themes[cur] then o[#o + 1] = { value = cur, missing = true } end
+    for _i, v in ipairs({ "mine", "plain", "Macabre", "Ukiyo", "Autumn" }) do o[#o + 1] = { value = v } end
     return o
 end
+function TP.choiceLabel(v) if v == nil then return "Default theme" end return TP.themeName(v) end
 function TP.libraryChoice() return library end
 function TP.libraryTheme() return themes[library] and library or (TP.packOf(library) and "mine" or library) end
 TP.rescans = 0
@@ -448,9 +445,8 @@ t.test("the ornaments are scanned once per open, not per card, page or tap", fun
     -- times for each open and again for each tap.
     library = "mine"
     local scans_seen = {}
-    local choices0, shelf0 = TP.choices, TP.shelfChoices
-    TP.choices = function(scan) scans_seen[#scans_seen + 1] = scan; return choices0() end
-    TP.shelfChoices = function(cur, scan) scans_seen[#scans_seen + 1] = scan; return shelf0(cur) end
+    local list0 = TP.choiceList
+    TP.choiceList = function(cur, shelf, scan) scans_seen[#scans_seen + 1] = scan; return list0(cur, shelf) end
     local render0 = TL._renderCard
     -- The card as the picker paints it, its widgets aside: the hero asked of
     -- the scan it is handed.
@@ -471,7 +467,7 @@ t.test("the ornaments are scanned once per open, not per card, page or tap", fun
     listAll_calls = 0
     TL.items{ current = "mine" }
     eq(listAll_calls, 1, "items() scanned per card")
-    TP.choices, TP.shelfChoices, TL._renderCard = choices0, shelf0, render0
+    TP.choiceList, TL._renderCard = list0, render0
 end)
 
 t.test("the choice in use is a heavier frame on a light ground, not a radio mark", function()

@@ -2251,7 +2251,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             rows[#rows + 1] = {{
                 text_func = function()
                     local v = cur()
-                    return T(_("Theme: %1"), v == nil and _("Default theme") or TP.themeName(v))
+                    return T(_("Theme: %1"), TP.choiceLabel(v))
                 end,
                 callback = function()
                     UIManager:close(d)

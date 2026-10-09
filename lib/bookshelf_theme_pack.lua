@@ -331,36 +331,29 @@ function M.themeName(choice)
     return M.displayName(choice)
 end
 
--- choices(scan) -> what a library or a shelf can wear, in the Theme library's
--- order: the reader's own, Plain, then every theme by name ({ value, label }). What
--- each brings is the Theme library's card (bookshelf_theme_library), so a
--- pack of ornaments only says "27 ornaments" there, not in its name. scan
+-- choiceList(cur, shelf, scan) -> the Theme library's list, in order: for a
+-- shelf (shelf true) Default theme ({ same = true }, stores nothing), then a
+-- missing pack still chosen (cur; { value, missing = true }), Custom theme,
+-- Plain, every theme by name ({ value }). The cards name them (choiceLabel,
+-- themeName) and say what each brings (bookshelf_theme_library). scan
 -- (optional): the ornament scan the caller already holds (allThemes).
-function M.choices(scan)
-    local out = {
-        { value = M.MINE, label = M.mineName() },
-        { value = M.PLAIN, label = M.plainName() },
-    }
-    for _i, th in ipairs(M.allThemes(scan)) do
-        out[#out + 1] = { value = th.pack, label = th.name }
-    end
+function M.choiceList(cur, shelf, scan)
+    local out = {}
+    if shelf then out[1] = { same = true } end
+    cur = normalise(cur)
+    if packOf(cur) and not M.theme(cur).exists then out[#out + 1] = { value = cur, missing = true } end
+    out[#out + 1] = { value = M.MINE }
+    out[#out + 1] = { value = M.PLAIN }
+    for _i, th in ipairs(M.allThemes(scan)) do out[#out + 1] = { value = th.pack } end
     return out
 end
 
--- shelfChoices(cur) -> a shelf's theme list, in order: Default theme
--- ({ same = true }; "Default", not "library", which is the Theme library's
--- own name, maintainer, 2026-10-09), a missing pack the shelf still names
--- (cur), the reader's own, Plain, every theme. The Theme library's list for
--- a shelf (the Theme menu's This shelf row and shelf rows, Shelf style's
--- Theme row). scan: as choices.
-function M.shelfChoices(cur, scan)
-    local out = { { same = true, label = _("Default theme") } }
-    cur = normalise(cur)
-    if packOf(cur) and not M.theme(cur).exists then
-        out[#out + 1] = { value = cur, label = M.themeName(cur), missing = true }
-    end
-    for _i, c in ipairs(M.choices(scan)) do out[#out + 1] = c end
-    return out
+-- choiceLabel(choice) -> what a shelf's choice is called: "Default theme"
+-- while it follows the default (nil; "Default", not "library", the Theme
+-- library's own name, maintainer 2026-10-09), else the theme's name.
+function M.choiceLabel(choice)
+    if choice == nil then return _("Default theme") end
+    return M.themeName(choice)
 end
 
 -- libraryChoice() -> what the library is set to ("mine" when unset), even a

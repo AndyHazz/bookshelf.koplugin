@@ -74,14 +74,6 @@ local function build(packs, library, tabs, opts)
             if not by[v] then return v .. " (missing)" end
             return by[v].name
         end,
-        choices = function()
-            local o = { { value = "mine", label = "Custom theme" }, { value = "plain", label = "Plain" } }
-            for _i, p in ipairs(packs) do
-                o[#o + 1] = { value = p.pack, help = p.description,
-                              label = p.name }
-            end
-            return o
-        end,
         libraryChoice = function() return library or "mine" end,
         setLibraryTheme = function(v)
             seen.chosen[#seen.chosen + 1] = v
@@ -101,14 +93,7 @@ local function build(packs, library, tabs, opts)
         end,
     }
     TP.editName = function() return TP.themeName(TP.shelfTheme()) end
-    TP.shelfChoices = function(cur)
-        local o = { { same = true, label = "Same as library" } }
-        if cur and cur ~= "mine" and cur ~= "plain" and not by[cur] then
-            o[#o + 1] = { value = cur, label = cur .. " (missing)", missing = true }
-        end
-        for _i, c in ipairs(TP.choices()) do o[#o + 1] = c end
-        return o
-    end
+    TP.choiceLabel = function(v) if v == nil then return "Default theme" end return TP.themeName(v) end
     local env = setmetatable({
         Settings = {},
         _ = function(s) return s end,
@@ -325,7 +310,7 @@ t.test("no theme list of its own in any menu: no radio rows, no Add theme pack r
         "a menu builds its own theme list again")
     assert(not body:find("TP.addThemeLabel()", 1, true), "Add theme pack is a menu row again (it is the picker's)")
     local ce = io.open("lib/bookshelf_chip_editor.lua"):read("*a"):gsub("%-%-[^\n]*", "")
-    assert(not ce:find("TP.shelfChoices", 1, true), "Shelf style builds its own theme list again")
+    assert(not ce:find("TP.choiceList", 1, true), "Shelf style builds its own theme list again")
 end)
 
 t.test("the top-level row is named for the theme on screen; the help says its rows edit it", function()

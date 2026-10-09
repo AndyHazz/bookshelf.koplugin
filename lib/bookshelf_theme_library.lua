@@ -202,17 +202,7 @@ end
 function TL.items(ctx)
     local tp = TP()
     local scan = ctx.scan or TL.scan()
-    local list
-    if ctx.shelf then
-        list = tp.shelfChoices(ctx.current, scan)
-    else
-        list = {}
-        local cur = ctx.current
-        if tp.packOf(cur) and not tp.theme(cur).exists then
-            list[1] = { value = cur, missing = true }
-        end
-        for _i, c in ipairs(tp.choices(scan)) do list[#list + 1] = c end
-    end
+    local list = tp.choiceList(ctx.current, ctx.shelf ~= nil, scan)
     local out = {}
     for _i, c in ipairs(list) do
         local it = { value = c.value, same = c.same, missing = c.missing }
@@ -223,7 +213,7 @@ function TL.items(ctx)
             -- theme, the summary which theme that is now. "Default", not
             -- "library", which is this picker's own name (maintainer,
             -- 2026-10-09).
-            it.title = _("Default theme")
+            it.title = tp.choiceLabel(nil)
             it.shows = tp.libraryTheme()
         else
             it.title = tp.themeName(c.value)
@@ -476,7 +466,7 @@ function TL.show(opts)
         end
     end
     local config = {
-        title = opts.shelf and T(_("Theme: %1"), opts.shelf) or _("Default theme"),
+        title = opts.shelf and T(_("Theme: %1"), opts.shelf) or tp.choiceLabel(nil),
         no_search = true,
         grid_cols = function() return 1 end,
         cells_per_page = function() return TL.PER_PAGE end,

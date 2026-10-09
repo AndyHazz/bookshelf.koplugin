@@ -152,7 +152,7 @@ t.test("the theme is a top-level row, after Edit shelves, with the image glyph",
     assert(at, "no bookshelf_theme in MENU_ORDER")
     eq(keys[at - 1], "bookshelf_shelf_tabs", "the theme row is not just after Edit shelves")
     local row = main:match("(menu_items%.bookshelf_theme = {.-\n    }\n)")
-    assert(row and row:find("S:_themeSubItems()", 1, true), "the row does not open the Theme menu")
+    assert(row and row:find("ThemeMenu.items(S)", 1, true), "the row does not open the Theme menu")
     assert(row:find("MenuIcons.THEME", 1, true), "the row's glyph is not THEME")
 end)
 

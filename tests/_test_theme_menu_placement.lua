@@ -25,6 +25,7 @@ local t  = helpers.runner()
 local eq = helpers.eq
 local main     = io.open("main.lua"):read("*a")
 local settings = io.open("lib/bookshelf_settings.lua"):read("*a")
+local menu     = io.open("lib/bookshelf_theme_menu.lua"):read("*a")
 
 t.test("it is a top-level row, sitting before Settings", function()
     local order = main:match("Bookshelf%.MENU_ORDER = {(.-)\n}")
@@ -43,11 +44,11 @@ end)
 t.test("the row is named for the theme it edits, by a template, and the reader's own by the one name", function()
     local row = main:match("(menu_items%.bookshelf_theme = {.-\n    }\n)")
     assert(row, "menu_items.bookshelf_theme missing")
-    assert(row:find("S:_themeMenuText()", 1, true), "the row does not take its label from _themeMenuText")
+    assert(row:find("ThemeMenu.menuText()", 1, true), "the row does not take its label from menuText")
     -- "Theme (Macabre)", as Bookends' "Preset (Name)": a whole msgid with a
     -- slot, so a translation can move the name, not "Theme" .. " (" .. name.
-    local text = settings:match("\nfunction Settings:_themeMenuText%(%)\n(.-)\nend\n")
-    assert(text, "_themeMenuText missing")
+    local text = menu:match("\nfunction M%.menuText%(%)\n(.-)\nend\n")
+    assert(text, "menuText missing")
     assert(text:find('T(_("Theme (%1)"), require("lib/bookshelf_theme_pack").editName())', 1, true),
         "the label is not the Theme (%1) template over the theme on screen")
     assert(not text:find("..", 1, true), "the label is built by concatenation")
@@ -61,9 +62,9 @@ t.test("the row is named for the theme it edits, by a template, and the reader's
     assert(tn and tn:find("if choice == nil or choice == M.MINE then return M.mineName() end", 1, true),
         "the reader's own is not named by the one name")
     local n = 0
-    for _ in (settings .. main):gmatch('_%("Custom theme"%)') do n = n + 1 end
+    for _ in (settings .. menu .. main):gmatch('_%("Custom theme"%)') do n = n + 1 end
     eq(n, 0, "the name is spelled out somewhere other than TP.mineName")
-    assert(row:find("S:_themeSubItems()", 1, true), "it must build the merged menu")
+    assert(row:find("ThemeMenu.items(S)", 1, true), "it must build the merged menu")
     assert(row:find("MenuIcons.THEME", 1, true), "the row's glyph is not THEME")
     assert(row:find("S._bw = _live_widget", 1, true),
         "every menu that can repaint the shelf hands the live widget over first")
@@ -85,8 +86,8 @@ end)
 t.test("display preferences no theme touches are in Settings' appearance band, not the Theme menu", function()
     -- The row order of the Theme menu is pinned by its behaviour in
     -- _test_shelf_theme_menu.lua.
-    local body = settings:match("function Settings:_themeSubItems%(%)(.-)\nend\n")
-    assert(body, "_themeSubItems missing")
+    local body = menu:match("function M%.items%(S%)(.-)\nend\n")
+    assert(body, "items missing")
     assert(not body:find("_wallpaperMenu", 1, true), "the wallpaper rows are flat in the Theme menu again")
     -- Display preferences no theme touches are not part of the look: they
     -- live in Settings' appearance band, so the editing rows fit one PW5 page.
@@ -135,10 +136,8 @@ t.test("Wallpaper is a submenu named for the picture: the picture, full screen, 
 end)
 
 t.test("the theme label has one definition, not a copy in the colour list", function()
-    assert(settings:find("function Settings:_themeMenuText()", 1, true),
-        "the theme label builder is missing")
-    local main = io.open("main.lua"):read("*a")
-    assert(main:find("S:_themeMenuText()", 1, true), "the top-level row builds its own label")
+    assert(menu:find("function M.menuText()", 1, true), "the theme label builder is missing")
+    assert(main:find("ThemeMenu.menuText()", 1, true), "the top-level row builds its own label")
     local colours = settings:match("function Settings:_colorsSubItems%(%)(.-)\nend\n")
     assert(colours, "_colorsSubItems moved or was renamed")
     assert(not colours:find("_lightDarkLabel", 1, true),

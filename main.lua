@@ -798,14 +798,15 @@ function Bookshelf:buildMenuItems(menu_items)
     -- level down) and Default theme first, then the rows that edit that
     -- theme, all on one page (maintainer, 2026-10-09). It replaced a Theme
     -- menu that chose themes and a My theme menu that edited them.
+    local ThemeMenu = require("lib/bookshelf_theme_menu")
     menu_items.bookshelf_theme = {
         text_func = function()
-            return MenuIcons.label(MenuIcons.THEME, S:_themeMenuText())
+            return MenuIcons.label(MenuIcons.THEME, ThemeMenu.menuText())
         end,
-        help_text = S:_themeMenuHelp(),
+        help_text = ThemeMenu.menuHelp(),
         sub_item_table_func = function()
             S._bw = _live_widget
-            return S:_themeSubItems()
+            return ThemeMenu.items(S)
         end,
     }
 

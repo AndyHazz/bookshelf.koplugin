@@ -668,8 +668,9 @@ end)
 
 t.test("the menu has the new-ornaments choice beside the collection", function()
     local st = io.open("lib/bookshelf_settings.lua"):read("*a")
-    local bg = st:match("function Settings:_themeSubItems%(%)(.-)\nend\n")
-    assert(bg and bg:find("self:_ornamentsRow()", 1, true) and bg:find("self:_newOrnamentsRow()", 1, true),
+    local tm = io.open("lib/bookshelf_theme_menu.lua"):read("*a")
+    local bg = tm:match("function M%.items%(S%)(.-)\nend\n")
+    assert(bg and bg:find("S:_ornamentsRow()", 1, true) and bg:find("S:_newOrnamentsRow()", 1, true),
         "the choice is not in the Theme menu")
     local row = st:match("function Settings:_newOrnamentsRow%(%)(.-)\nend\n")
     assert(row and row:find("BookshelfSettings.save(Deck.NEW_AT_KEY, value)", 1, true), "the row does not save the choice")

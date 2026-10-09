@@ -70,8 +70,8 @@ t.test("Shelf style has the shelf's Theme row, top-level shelves only, previewed
     assert(open_ed:find("Editor:_pickGroupDisplay%(draft, function%(now%)\n%s*commit%(%)\n%s*if now then settlePreview%(%) end\n%s*rebuild%(%)"),
         "the Theme library's apply leaves the shelf's rebuild on the debounce: two flashes")
     assert(row:find("on_closed = show,", 1, true), "Shelf style does not come back after the picker")
-    local st = read("lib/bookshelf_settings.lua")
-    local open = st:match("function Settings:_openThemeLibrary%(id, touchmenu_instance, after%)(.-)\nend\n")
+    local tm = read("lib/bookshelf_theme_menu.lua")
+    local open = tm:match("function M%.openLibrary%(S, id, touchmenu_instance, after%)(.-)\nend\n")
     assert(open and open:find('require("lib/bookshelf_theme_library").show(opts)', 1, true),
         "the menus do not open the Theme library")
     -- The pick reaches the saved shelf: commit writes the whole working copy.

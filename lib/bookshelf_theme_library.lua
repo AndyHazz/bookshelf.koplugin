@@ -76,6 +76,17 @@ local function ornamentsPart(n)
     return T(_("%1 ornaments"), n)
 end
 
+-- wallpaperName(name) -> a wallpaper as the menus name it: a file without its
+-- extension, a pack's picture by its pack; nil for none.
+local function wallpaperName(name)
+    if type(name) ~= "string" or name == "" then return nil end
+    local tp = TP()
+    if tp.isPackName(name) then
+        return T(_("%1 pack"), name:match("^theme%-pack\1([^\1]+)") or "?")
+    end
+    return name:match("^(.+)%.[^%.]+$") or name
+end
+
 -- summary(theme, spines) -> what that theme brings, one line: "mine",
 -- "plain" or a pack. Only the parts a pack has, so a pack of ornaments only
 -- says "27 ornaments" and nothing else; light or dark only when its
@@ -94,7 +105,10 @@ function TL.summary(theme, spines, all)
     local edited = theme ~= nil and theme ~= tp.MINE and tp.hasEdits and tp.hasEdits(theme)
     if edited then add(_("Edited")) end
     if theme == nil or theme == tp.MINE then
-        add(tp.mineWallpaper(false, false) and _("Your wallpaper") or _("No wallpaper"))
+        -- The wallpaper's own name, as the Wallpaper row gives it ("Leafy
+        -- wallpaper", "Macabre pack"); "Your wallpaper" said nothing
+        -- (maintainer, 2026-10-09).
+        add(wallpaperName(tp.mineWallpaper(false, false)) or _("No wallpaper"))
         local pl = tp.minePlank()
         add(pl and tp.plankLabel(pl) or _("Plain color"))
         add(ornamentsPart(#(O().list() or {})))

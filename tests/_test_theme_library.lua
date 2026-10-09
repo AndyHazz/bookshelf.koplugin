@@ -28,6 +28,7 @@ local TP = { MINE = "mine", PLAIN = "plain" }
 function TP.theme(p) return themes[p] or { exists = false, planks = {} } end
 function TP.packOf(v) if v == nil or v == "mine" or v == "plain" then return nil end return v end
 function TP.mineWallpaper() return mine_wall end
+function TP.isPackName(n) return type(n) == "string" and n:sub(1, 11) == "theme-pack\1" end
 function TP.minePlank() return mine_plank end
 function TP.plankLabel(p) return p.name end
 function TP.themeName(v)
@@ -127,7 +128,12 @@ end)
 
 t.test("Custom theme is summed up from the reader's own settings; Plain is fixed", function()
     mine_wall, mine_plank = "forest.png", { name = "Oak" }
-    eq(TL.summary("mine"), "Your wallpaper" .. DOT .. "Oak" .. DOT .. "3 ornaments")
+    -- The wallpaper by its name, as the Wallpaper row names it; "Your
+    -- wallpaper" said nothing (maintainer, 2026-10-09).
+    eq(TL.summary("mine"), "forest" .. DOT .. "Oak" .. DOT .. "3 ornaments")
+    mine_wall = "theme-pack\1Macabre\1wallpaper.png"
+    eq(TL.summary("mine"):match("^[^\xC2]+"), "Macabre pack ", "a pack's picture is not named by its pack")
+    mine_wall = "forest.png"
     mine_wall, mine_plank = nil, nil
     local saved = on; on = {}
     eq(TL.summary("mine"), "No wallpaper" .. DOT .. "Plain color" .. DOT .. "No ornaments")

@@ -649,26 +649,23 @@ end)
 
 -- ── The Colors list's shape (maintainer, 2026-10-08, 2026-10-09) ─────────
 -- Reset was a third page of its own, so the page arrows jumped. Reset is the
--- first row now, set apart. Transparent shelf menu sat beside Panel shading
--- from 2026-10-08; since 2026-10-09 it is back in Colors, next to Shelf menu
--- background (the bar's other state), and saved with the theme.
-t.test("Colors: Reset first and set apart, the shelf menu rows together, Transparent beside its background", function()
+-- first row now, set apart; 20 rows, two pages of ten. Transparent shelf menu
+-- was a row (beside Panel shading, then in Colors, a third page again); it
+-- is now a choice in Shelf menu background's picker (2026-10-09).
+t.test("Colors: Reset first and set apart, twenty rows, the shelf menu rows together", function()
     resetStore()
     Settings._bw, Settings._plugin = makeBwWithChipBar(), makePlugin()
     local items = Settings:_colorsSubItems()
     local function label(it) return it.text or (it.text_func and it.text_func()) or "" end
     assert(label(items[1]):find("Reset to default colors", 1, true), "Reset is not the first row")
     eq(items[1].separator, true, "Reset is not set apart")
-    eq(#items, 21)
+    eq(#items, 20, "Colors no longer fits two pages of ten")
+    for _i, it in ipairs(items) do
+        assert(not label(it):find("Transparent shelf menu", 1, true), "Transparent is a row again")
+    end
     local n = #items
-    assert(label(items[n - 3]):find("Shelf menu background", 1, true)
-        and label(items[n - 2]):find("Transparent shelf menu", 1, true)
-        and label(items[n - 1]):find("Selected shelf background", 1, true)
-        and label(items[n]):find("Selected shelf text", 1, true),
-        "the shelf menu rows are not together at the end, Transparent after its background")
-    local src = io.open("lib/bookshelf_settings.lua"):read("*a")
-    assert(not src:find("items[#items + 1] = self:_panelShadingRow()\n    items[#items + 1] = self:_transparentShelfMenuRow()", 1, true),
-        "Transparent shelf menu is still beside Panel shading")
+    assert(label(items[n - 2]):find("Shelf menu background", 1, true) and label(items[n - 1]):find("Selected shelf background", 1, true)
+        and label(items[n]):find("Selected shelf text", 1, true), "the shelf menu's colour rows are not together at the end")
 end)
 
 -- ── The Text size band ─────────────────────────────────────────────────────

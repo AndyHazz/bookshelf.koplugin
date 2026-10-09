@@ -1713,36 +1713,6 @@ function Settings:_wallpaperFolderRow()
     }
 end
 
--- _transparentShelfMenuRow(): the shelf menu without its bar, in Colors
--- next to Shelf menu background, the bar's other state (maintainer,
--- 2026-10-09; it sat with Panel shading from 2026-10-08). A part of the
--- theme like the colours around it: read and written through the seam, so
--- an edit stays with the theme on screen; the Colors reset turns it off.
-function Settings:_transparentShelfMenuRow()
-    return {
-        -- The bar's colour is a colour, and "none" is not one the pickers
-        -- can offer, so this is its own row. It does what Panel shading's
-        -- Transparent already did to this strip, without changing the
-        -- panels: the chips go without a ground, so a wallpaper shows
-        -- through behind them. The selected shelf keeps its own fill, and
-        -- the start menu, which is painted in the same colour, stays solid.
-        text = _("Transparent shelf menu"),
-        help_text = _("Leave out the bar behind the shelf menu, so the "
-            .. "wallpaper shows through. The selected shelf keeps its "
-            .. "fill."),
-        checked_func = function()
-            return require("lib/bookshelf_theme_pack").partRead("chip_bar_transparent") == true
-        end,
-        keep_menu_open = true,
-        callback = function(touchmenu_instance)
-            local TP = require("lib/bookshelf_theme_pack")
-            TP.partSave("chip_bar_transparent", TP.partRead("chip_bar_transparent") ~= true)
-            self:_markDirty()
-            if touchmenu_instance then touchmenu_instance:updateItems() end
-        end,
-    }
-end
-
 -- _panelShadingRow(): how hard the panels are shaded over the picture. The
 -- same for every theme: no pack sets it.
 function Settings:_panelShadingRow()
@@ -2167,7 +2137,8 @@ end
 -- wood (optional, the plank only): { on_colour = fn, revert = fn } -- picking
 -- a colour makes the plank the colour (on_colour), Revert restores the plank
 -- that was there. special_tile / extra_button (a palette tile, a button in
--- the greyscale dialog) are still passed through when given.
+-- the greyscale dialog) are still passed through when given; on_default runs
+-- when Default is chosen (Shelf menu background: Default is the bar again).
 function Settings:_pickColor(raw_key, field, default_pct, title,
                              touchmenu_instance, refresh, anchor, wood)
     local CoverProgress = require("lib/bookshelf_cover_progress")
@@ -2234,6 +2205,7 @@ function Settings:_pickColor(raw_key, field, default_pct, title,
                 end,
                 function()
                     TP.partDelete(key)
+                    if wood and wood.on_default then wood.on_default() end
                     refresh()
                 end,
                 function()
@@ -2265,6 +2237,7 @@ function Settings:_pickColor(raw_key, field, default_pct, title,
             on_done, nil, nil, nudge_menu,
             function()
                 TP.partDelete(key)
+                if wood and wood.on_default then wood.on_default() end
                 refresh()
             end,
             _("Default"), wood and wood.extra_button or nil, anchor)
@@ -2417,9 +2390,9 @@ function Settings:_colorsSubItems()
     -- menu's background-colour row can use the very same one rather than
     -- growing a second, subtly different copy.
     local function pickColor(raw_key, field, default_pct, title, touchmenu_instance,
-                             refresh, anchor)
+                             refresh, anchor, wood)
         return self:_pickColor(raw_key, field, default_pct, title,
-                               touchmenu_instance, refresh or markDirty, anchor)
+                               touchmenu_instance, refresh or markDirty, anchor, wood)
     end
 
     -- Helper for the hold-to-reset path so we don't repeat the suffix
@@ -2427,6 +2400,12 @@ function Settings:_colorsSubItems()
     local function deleteModeKey(base)
         local suffix = CoverProgress.editSuffix()
         require("lib/bookshelf_theme_pack").partDelete(base .. suffix)
+    end
+    -- The shelf menu without its bar: one setting for both slots, a part of
+    -- the theme on screen (bookshelf_theme_pack.PART_KEYS).
+    local TRANSPARENT_KEY = "chip_bar_transparent"
+    local function transparentBar()
+        return require("lib/bookshelf_theme_pack").partRead(TRANSPARENT_KEY) == true
     end
 
     local items = {
@@ -2763,24 +2742,61 @@ function Settings:_colorsSubItems()
             separator = true,   -- end of the folder and series cards band
         },
         {
+            -- Transparent is one of its choices, in the picker beside the
+            -- colours (a tile; a button in the greyscale dialog), not a row
+            -- of its own (maintainer, 2026-10-09: the row put Colors on a
+            -- third page). It is the bar left out so the wallpaper shows
+            -- through, a part of the theme like the colour.
             text_func = function()
+                if transparentBar() then
+                    return _("Shelf menu background") .. ": " .. _("Transparent")
+                end
                 return _("Shelf menu background") .. ": " .. valueLabel("chrome_bg")
             end,
-            help_text = _("The solid bar behind the shelf menu. White by day "
-                .. "and black at night unless you change it. The panels have "
-                .. "their own colour."),
+            help_text = _("The bar behind the shelf menu. White by day and "
+                .. "black at night unless you change it; Transparent leaves "
+                .. "it out, so the wallpaper shows through (the selected shelf "
+                .. "keeps its fill). The panels have their own colour."),
             keep_menu_open = true,
             callback = function(touchmenu_instance)
+                local TP = require("lib/bookshelf_theme_pack")
+                local was = TP.partSnapshot(TRANSPARENT_KEY)
+                local function off() if transparentBar() then TP.partSave(TRANSPARENT_KEY, false) end end
                 pickColor("chrome_bg", "chrome_bg", 0,
-                    { _("Shelf menu background"), _("Shelf menu background (% black)") }, touchmenu_instance)
+                    { _("Shelf menu background"), _("Shelf menu background (% black)") }, touchmenu_instance,
+                    nil, nil, {
+                        -- A colour, or Default, brings the bar back.
+                        on_colour = off,
+                        on_default = off,
+                        revert = function() TP.partRestore(TRANSPARENT_KEY, was) end,
+                        special_tile = {
+                            label = _("Transparent"),
+                            selected = transparentBar(),
+                            on_tap = function()
+                                TP.partSave(TRANSPARENT_KEY, true)
+                                markDirty()
+                                if touchmenu_instance then touchmenu_instance:updateItems() end
+                            end,
+                        },
+                        extra_button = {
+                            text_func = function()
+                                return (transparentBar() and "\xE2\x9C\x93 " or "") .. _("Transparent")
+                            end,
+                            no_change = true,
+                            callback = function()
+                                TP.partSave(TRANSPARENT_KEY, not transparentBar())
+                                markDirty()
+                            end,
+                        },
+                    })
             end,
             hold_callback = function(touchmenu_instance)
                 deleteModeKey("chrome_bg")
+                require("lib/bookshelf_theme_pack").partDelete(TRANSPARENT_KEY)
                 markDirty()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
         },
-        self:_transparentShelfMenuRow(),
         {
             -- "background", as the rows beside it say (Shelf menu
             -- background), not "fill".
@@ -4762,7 +4778,9 @@ function Settings:showNudgeDialog(title, value, min_val, max_val, default_val, u
                             or function() return extra_button.text end,
                         callback = function()
                             extra_button.callback()
-                            on_change(value)
+                            -- no_change: the button is a choice of its own
+                            -- (Transparent), not a value to apply as well.
+                            if not extra_button.no_change then on_change(value) end
                             reinitLocked()
                         end,
                     })

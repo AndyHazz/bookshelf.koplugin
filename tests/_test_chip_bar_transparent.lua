@@ -26,10 +26,16 @@ t.test("the chip bar drops its ground when the row is on", function()
         "the new row does nothing")
 end)
 
-t.test("the row toggles the key the bar reads", function()
-    assert(st:find('text = _("Transparent shelf menu")', 1, true))
-    -- Through the seam: saved with the theme on screen (2026-10-09).
-    assert(st:find('TP.partSave("chip_bar_transparent", TP.partRead("chip_bar_transparent") ~= true)', 1, true))
+t.test("Shelf menu background offers it: a palette tile, a greyscale button, through the seam", function()
+    -- A choice in the picker, not a row of its own (maintainer, 2026-10-09).
+    assert(not st:find('text = _("Transparent shelf menu")', 1, true), "Transparent is a row again")
+    local row = st:match('Shelf menu background"%) %.%. ": " %.%. _%("Transparent"%)(.-)hold_callback')
+    assert(row, "the Shelf menu background row does not say Transparent when it is")
+    assert(row:find("special_tile = {", 1, true) and row:find('label = _("Transparent")', 1, true), "no Transparent tile in the palette")
+    assert(row:find("extra_button = {", 1, true) and row:find("no_change = true", 1, true), "no Transparent button in the greyscale dialog")
+    assert(row:find("TP.partSave(TRANSPARENT_KEY, true)", 1, true), "the tile does not set it through the seam")
+    assert(row:find("on_colour = off,", 1, true) and row:find("on_default = off,", 1, true),
+        "picking a colour or Default leaves the bar out")
 end)
 
 t.test("Reset to default colors turns it off again", function()

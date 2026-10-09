@@ -1784,7 +1784,7 @@ function BookshelfWidget:_rebuild()
         painted_ground    = self:groundIsPainted(),
         -- The strip goes opaque whenever the reader has not asked for
         -- transparency, whatever the panel's own shading is set to: at
-        -- Transparent shading, or with Transparent shelf menu on.
+        -- Transparent shading, or with Shelf menu background: Transparent.
         solid_ground      = self:wallpaperScrimStrength() > 0
                             and require("lib/bookshelf_theme_pack").partRead("chip_bar_transparent") ~= true,
         active            = root_chip or self.chip,

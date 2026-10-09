@@ -1786,7 +1786,7 @@ function BookshelfWidget:_rebuild()
         -- transparency, whatever the panel's own shading is set to: at
         -- Transparent shading, or with Transparent shelf menu on.
         solid_ground      = self:wallpaperScrimStrength() > 0
-                            and not BookshelfSettings.isTrue("chip_bar_transparent"),
+                            and require("lib/bookshelf_theme_pack").partRead("chip_bar_transparent") ~= true,
         active            = root_chip or self.chip,
         selected_key      = root_chip or self.chip,   -- seeds the chip page (infinite-chips)
         focused_key       = self._chip_cursor_key,

@@ -178,10 +178,11 @@ t.test("an edit on a pack's shelf goes to that theme's edits, never to Custom th
     eq(paint(TP, "progress_fill"), "#00AA00")
     eq(TP.shownWallpaper(false, false), "leaves.png")
     eq(TP.activePlank().id, "builtin:oak"); eq(TP.shelfLook(), "light")
-    -- Not a part: the reader's preference, as always.
+    -- Transparent shelf menu is a part since it moved into Colors
+    -- (maintainer, 2026-10-09): saved with the theme, not the reader's own.
     TP.partSave("chip_bar_transparent", true)
-    eq(settings.chip_bar_transparent, true)
-    eq(e.keys.chip_bar_transparent, nil)
+    eq(settings.chip_bar_transparent, nil, "the toggle wrote Custom theme's setting from a pack shelf")
+    eq(TP.editsOf("Macabre").keys.chip_bar_transparent, true)
     eq(TP.editName(), "Macabre", "the menu is not named for the theme it edits")
 end)
 

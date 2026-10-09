@@ -1004,6 +1004,9 @@ M.PART_KEYS = {
     ["wallpaper_full"]         = true,
     ["wallpaper_invert_night"] = true,
     [M.PLANK_SETTING]          = true,
+    -- The shelf menu without its bar: in Colors beside the bar's colour, so
+    -- saved with the theme as the colours are (maintainer, 2026-10-09).
+    ["chip_bar_transparent"]   = true,
 }
 -- A colour key's slot: { the colours.json setting, night }.
 local COLOUR_SLOT = {}
@@ -1047,6 +1050,7 @@ local function ownPart(theme, key)
     if theme == M.PLAIN then
         if slot or key == "wallpaper_default" or key == "wallpaper_full" then return true, nil end
         if key == M.PLANK_SETTING then return true, "oak" end
+        if key == "chip_bar_transparent" then return true, nil end   -- the bar, as by default
         return false
     end
     local th = M.theme(theme)

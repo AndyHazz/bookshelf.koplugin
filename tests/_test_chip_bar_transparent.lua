@@ -22,13 +22,14 @@ t.test("the chip bar drops its ground when the row is on", function()
     assert(expr, "the chip bar's solid_ground moved")
     assert(expr:find("self:wallpaperScrimStrength() > 0", 1, true),
         "Transparent panel shading no longer clears it")
-    assert(expr:find('not BookshelfSettings.isTrue("chip_bar_transparent")', 1, true),
+    assert(expr:find('require("lib/bookshelf_theme_pack").partRead("chip_bar_transparent") ~= true', 1, true),
         "the new row does nothing")
 end)
 
 t.test("the row toggles the key the bar reads", function()
     assert(st:find('text = _("Transparent shelf menu")', 1, true))
-    assert(st:find('BookshelfSettings.save("chip_bar_transparent",', 1, true))
+    -- Through the seam: saved with the theme on screen (2026-10-09).
+    assert(st:find('TP.partSave("chip_bar_transparent", TP.partRead("chip_bar_transparent") ~= true)', 1, true))
 end)
 
 t.test("Reset to default colors turns it off again", function()

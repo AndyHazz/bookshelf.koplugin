@@ -1713,11 +1713,11 @@ function Settings:_wallpaperFolderRow()
     }
 end
 
--- _transparentShelfMenuRow(): the shelf menu without its bar. Not a colour
--- and set by no theme, so it sits with Panel shading, the other "what shows
--- through" row, not in Colors (which it pushed onto a third page,
--- maintainer 2026-10-08). The Colors reset still turns it off: it is
--- the bar's ground, the Shelf menu background's other state.
+-- _transparentShelfMenuRow(): the shelf menu without its bar, in Colors
+-- next to Shelf menu background, the bar's other state (maintainer,
+-- 2026-10-09; it sat with Panel shading from 2026-10-08). A part of the
+-- theme like the colours around it: read and written through the seam, so
+-- an edit stays with the theme on screen; the Colors reset turns it off.
 function Settings:_transparentShelfMenuRow()
     return {
         -- The bar's colour is a colour, and "none" is not one the pickers
@@ -1731,12 +1731,12 @@ function Settings:_transparentShelfMenuRow()
             .. "wallpaper shows through. The selected shelf keeps its "
             .. "fill."),
         checked_func = function()
-            return BookshelfSettings.isTrue("chip_bar_transparent")
+            return require("lib/bookshelf_theme_pack").partRead("chip_bar_transparent") == true
         end,
         keep_menu_open = true,
         callback = function(touchmenu_instance)
-            BookshelfSettings.save("chip_bar_transparent",
-                not BookshelfSettings.isTrue("chip_bar_transparent"))
+            local TP = require("lib/bookshelf_theme_pack")
+            TP.partSave("chip_bar_transparent", TP.partRead("chip_bar_transparent") ~= true)
             self:_markDirty()
             if touchmenu_instance then touchmenu_instance:updateItems() end
         end,
@@ -2780,6 +2780,7 @@ function Settings:_colorsSubItems()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
         },
+        self:_transparentShelfMenuRow(),
         {
             -- "background", as the rows beside it say (Shelf menu
             -- background), not "fill".
@@ -2997,7 +2998,6 @@ function Settings:_settingsSubItems()
     -- they left the Theme menu's editing rows for here (maintainer,
     -- 2026-10-07). Panel shading lived under Settings before 5.1 as well.
     items[#items + 1] = self:_panelShadingRow()
-    items[#items + 1] = self:_transparentShelfMenuRow()
     items[#items + 1] = self:_wallpaperFolderRow()
     items[#items].separator = true  -- end appearance band
 

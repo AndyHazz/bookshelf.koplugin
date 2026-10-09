@@ -39,7 +39,7 @@ local CODE = table.concat({
 }, "\n")
 
 -- build(packs, library, tabs, opts) -> the menu's rows and what the stubs saw.
--- packs: { pack, name, description, ornaments_only, brings = { part = true } }
+-- packs: { pack, name, description }
 local function build(packs, library, tabs, opts)
     opts = opts or {}
     local seen = { rescans = 0, chosen = {}, toasts = {}, dirty = 0, full = 0, store = {}, saves = 0,
@@ -98,11 +98,6 @@ local function build(packs, library, tabs, opts)
             if type(v) == "string" and v ~= "mine" and v ~= "plain"
                 and ({ mine = 1, plain = 1, none = 1, own = 1 })[v:lower()] then v = nil end
             return v
-        end,
-        brings = function(th, part)
-            if th == "mine" then return false end
-            if th == "plain" then return part ~= "look" end
-            return by[th] and by[th].brings and by[th].brings[part] or false
         end,
     }
     TP.editName = function() return TP.themeName(TP.shelfTheme()) end
@@ -181,10 +176,9 @@ local function build(packs, library, tabs, opts)
     return self, env.Settings, seen, tabs_by
 end
 
-local MAC = { pack = "Macabre", name = "Macabre", description = "Candles and skulls.",
-              brings = { wallpaper = true, plank = true, look = true, ornaments = true } }
+local MAC = { pack = "Macabre", name = "Macabre", description = "Candles and skulls." }
 local UK  = { pack = "Ukiyo-e", name = "Ukiyo-e" }
-local AUT = { pack = "Autumn", name = "Autumn", brings = { ornaments = true } }
+local AUT = { pack = "Autumn", name = "Autumn" }
 
 local function texts(rows)
     local o = {}

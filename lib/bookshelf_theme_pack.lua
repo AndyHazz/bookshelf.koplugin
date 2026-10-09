@@ -380,7 +380,6 @@ end
 -- answer for that shelf. Nothing is written: a change of look only bumps the
 -- settings generation, so the caches keyed on it are rebuilt.
 M._shelf = nil
-M._shelf_key = "lib"
 M._tab = nil      -- seam: fn(id) -> tab record
 
 local function tabFor(id)
@@ -439,20 +438,17 @@ end
 
 -- current() -> the shelf on screen resolved ({ theme, look }), once per
 -- settings generation: colour reads ask for it per cover at paint time. A
--- tab save, a theme or pack change all bump the generation, and the shelf
--- editor's live preview (an in-memory tab override, which saves nothing)
--- bumps the tab model's overrideGen; without a generation, no memo.
+-- tab save, a theme or pack change all bump the generation; without a
+-- generation, no memo.
 M._cur = nil
 local function current()
     local s = store()
     local g = s and s.generation and s.generation()
-    local TM = package.loaded["lib/bookshelf_tab_model"]
-    local og = type(TM) == "table" and TM.overrideGen or 0
     local c = M._cur
-    if g ~= nil and c and c.g == g and c.og == og and c.id == M._shelf then return c end
+    if g ~= nil and c and c.g == g and c.id == M._shelf then return c end
     local theme = M.themeFor(M._shelf)
     local e = M.editsOf(theme)
-    c = { g = g, og = og, id = M._shelf, theme = theme, look = M.lookOf(M._shelf),
+    c = { g = g, id = M._shelf, theme = theme, look = M.lookOf(M._shelf),
           -- The reader's edits to that theme (EDITABLE THEMES), and whether
           -- they touch a colour: the colour readers ask per cover.
           e = e, ecol = e ~= nil and M.editsColours(e) }
@@ -471,29 +467,6 @@ function M.hasPieces(pack)
     for _i, e in ipairs(all or {}) do
         if e.pack == pack then return true end
     end
-    return false
-end
-
--- brings(theme, part) -> does that theme replace the reader's own part?
--- part: "wallpaper", "plank", "colours", "page" (the colour behind the
--- wallpaper), "look" (light or dark), "ornaments". theme defaults to the
--- shelf on screen's. A part the reader has edited in that theme is the
--- theme's now (EDITABLE THEMES).
-function M.brings(theme, part)
-    theme = theme or M.shelfTheme()
-    if theme == M.MINE then return false end
-    if M.editsPart(theme, part) then return true end
-    if theme == M.PLAIN then return part ~= "look" end
-    local th = M.theme(theme)
-    if part == "wallpaper" then return th.wallpaper ~= nil end
-    if part == "plank" then return #(th.planks or {}) > 0 end
-    if part == "colours" then return th.colours ~= nil end
-    if part == "page" then
-        local c = th.colours
-        return c ~= nil and (c.day.wallpaper_bg ~= nil or c.night.wallpaper_bg ~= nil)
-    end
-    if part == "look" then return th.manifest ~= nil and th.manifest.shelf ~= nil end
-    if part == "ornaments" then return M.hasPieces(theme) end
     return false
 end
 
@@ -577,7 +550,6 @@ end
 M._look_key = nil
 function M.setShelf(id)
     M._shelf = id
-    M._shelf_key = M.shelfKey()
     local look = M.lookKey()
     if M._look_key == nil then
         -- The first shelf: anything read before it was read as the
@@ -1010,27 +982,25 @@ M.UNSET = "\0nil"
 
 -- PART_KEYS: Custom theme's parts, as settings keys: what its menu writes
 -- (light or dark, the wallpaper rows, the plank, every colour row; each
--- colour in both slots), and the part each belongs to (brings). The
--- ornament switches are pieces, above. Panel shading, the extra wallpaper
--- folder, the transparent shelf menu and plank designs on or off are
--- display preferences no theme touches.
+-- colour in both slots). The ornament switches are pieces, above. Panel
+-- shading, the extra wallpaper folder, the transparent shelf menu and plank
+-- designs on or off are display preferences no theme touches.
 M.PART_KEYS = {
-    [M.SHELF_SETTING]          = "look",
-    ["wallpaper_default"]      = "wallpaper",
-    ["wallpaper_full"]         = "wallpaper",
-    ["wallpaper_invert_night"] = "wallpaper",
-    [M.PLANK_SETTING]          = "plank",
+    [M.SHELF_SETTING]          = true,
+    ["wallpaper_default"]      = true,
+    ["wallpaper_full"]         = true,
+    ["wallpaper_invert_night"] = true,
+    [M.PLANK_SETTING]          = true,
 }
 -- A colour key's slot: { the colours.json setting, night }.
 local COLOUR_SLOT = {}
 for _n, key in pairs(M.COLOUR_NAMES) do
-    local part = key == "wallpaper_bg" and "page" or "colours"
-    M.PART_KEYS[key] = part
-    M.PART_KEYS[key .. "_night"] = part
+    M.PART_KEYS[key] = true
+    M.PART_KEYS[key .. "_night"] = true
     COLOUR_SLOT[key] = { key, false }
     COLOUR_SLOT[key .. "_night"] = { key, true }
 end
-function M.isPart(key) return M.PART_KEYS[key] ~= nil end
+function M.isPart(key) return M.PART_KEYS[key] == true end
 
 -- editsOf(theme) -> the reader's edits to that theme, or nil (none, or My
 -- theme). hasEdits(theme): Reset to original is greyed without them, and
@@ -1043,18 +1013,8 @@ function M.editsOf(theme)
 end
 function M.hasEdits(theme) return M.editsOf(theme) ~= nil end
 
--- editsPart(theme, part) -> has the reader edited that part of that theme
--- (brings' parts: "colours", "page", "wallpaper", "plank", "look",
--- "ornaments"). editsColours(e): any colour, the page's included.
-function M.editsPart(theme, part)
-    local e = M.editsOf(theme)
-    if not e then return false end
-    if part == "ornaments" then return type(e.pieces) == "table" end
-    for k in pairs(type(e.keys) == "table" and e.keys or {}) do
-        if M.PART_KEYS[k] == part then return true end
-    end
-    return false
-end
+-- editsColours(e): has the reader edited any colour of that theme, the
+-- page's included.
 function M.editsColours(e)
     for k in pairs(type(e) == "table" and type(e.keys) == "table" and e.keys or {}) do
         if COLOUR_SLOT[k] then return true end

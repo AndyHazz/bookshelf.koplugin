@@ -243,7 +243,6 @@ function PB.show(opts)
         on_cell_tap = function(o)
             if o.kind == "hint" then return end
             local before = TP().plankChoice()
-            local full = false
             TP().choosePlank(PB.choiceOf(o))
             self.changed = true
             if o.kind == "colour" then
@@ -251,7 +250,7 @@ function PB.show(opts)
                 -- tab when it closes (reopen); the menu stays away meanwhile.
                 self.reopening = true
                 close()
-                if opts.on_change then pcall(opts.on_change, full) end
+                if opts.on_change then pcall(opts.on_change) end
                 local function reopen()
                     local again = {}
                     for k, v in pairs(opts) do again[k] = v end
@@ -261,7 +260,7 @@ function PB.show(opts)
                 if opts.pick_colour then opts.pick_colour(before, reopen) else reopen() end
                 return
             end
-            if opts.on_change then pcall(opts.on_change, full) end
+            if opts.on_change then pcall(opts.on_change) end
             if modal then modal:refresh() end
         end,
         item_count = function() return #self.items end,

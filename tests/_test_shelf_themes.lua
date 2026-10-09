@@ -387,30 +387,6 @@ t.test("Auto and Light that look the same do not count as a new look", function(
     eq(TP.setShelf("home"), true, "Auto at night is dark, a different look from Light")
 end)
 
-t.test("brings: what each theme replaces of the reader's own", function()
-    local TP, d = setup()
-    halloween(d); touch(d .. "/Gallery/frame.png"); TP.invalidate()
-    eq(TP.brings("Halloween", "wallpaper"), true); eq(TP.brings("Halloween", "look"), true)
-    eq(TP.brings("Halloween", "ornaments"), false)
-    eq(TP.brings("Gallery", "ornaments"), true); eq(TP.brings("Gallery", "wallpaper"), false)
-    eq(TP.brings("plain", "plank"), true); eq(TP.brings("plain", "look"), false)
-    eq(TP.brings("mine", "wallpaper"), false)
-end)
-
-t.test("the shelf editor's live preview (a tab override) is seen without a settings save", function()
-    local TP, d, _s, _po, _o, tabs = setup()
-    halloween(d); TP.invalidate()
-    tabs.c = { id = "c" }
-    local TM = { overrideGen = 0 }
-    package.loaded["lib/bookshelf_tab_model"] = TM
-    TP.setShelf("c")
-    eq(TP.shelfTheme(), "mine")
-    tabs.c = { id = "c", theme = "plain" }        -- the override, same settings generation
-    TM.overrideGen = TM.overrideGen + 1
-    eq(TP.shelfTheme(), "plain", "the preview was served the memo from before it")
-    package.loaded["lib/bookshelf_tab_model"] = nil
-end)
-
 t.test("a pack folder named like a built-in, in any case, is never a theme", function()
     local TP, d, settings, _po, _o, tabs = setup()
     TP._plugin_root = "."

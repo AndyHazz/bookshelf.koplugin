@@ -812,7 +812,6 @@ local function _partRead(key)
     if ok and TP and TP.partRead then return TP.partRead(key) end
     return BookshelfSettings.read(key)
 end
-M._partRead = _partRead
 
 -- suffix (optional): the slot to read, "" or "_night"; default the one the
 -- shelf on screen paints from. The colour menu passes its own (editSuffix).

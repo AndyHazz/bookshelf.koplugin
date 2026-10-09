@@ -338,7 +338,7 @@ t.test("Plain is editable the same way; unedited, it paints the defaults whateve
     eq(TP.shownWallpaper(false, false), "leaves.png")
     local list = TP._orn.listFor(TP.ornamentsFor("home"))
     eq(#list, 1); eq(list[1].name, "cactus.svg")
-    eq(TP.brings("plain", "look"), false); TP.partSave("shelf_theme", "dark"); eq(TP.brings("plain", "look"), true)
+    TP.partSave("shelf_theme", "dark"); eq(TP.shelfLook(), "dark", "Plain's light or dark is not editable")
     eq(edits(settings, "plain").keys.badge_bg.hex, "#123456")
     TP.resetEdits("plain")
     on(TP, "home")

@@ -2315,12 +2315,11 @@ function Settings:_plankRow(markDirty)
             require("lib/bookshelf_plank_browser").show({
                 on_closed = restore,
                 -- Each tap in the picker: the shelf behind shows the plank at
-                -- once. Only its rows are rebuilt (the hero and chips do not
-                -- change), unless the tap switched a pack on, which brings
-                -- its ornaments: then the whole shelf.
-                on_change = function(full)
+                -- once. On Spines only its rows are rebuilt (the hero and
+                -- chips do not change); else the whole shelf.
+                on_change = function()
                     local bw = self._bw
-                    if not full and bw and bw._swapShelvesInPlace and bw._isSpineMode
+                    if bw and bw._swapShelvesInPlace and bw._isSpineMode
                             and bw:_isSpineMode() then
                         bw:_swapShelvesInPlace()
                         UIManager:setDirty(bw, "ui")   -- the band under the last row too

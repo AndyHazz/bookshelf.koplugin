@@ -528,22 +528,33 @@ end
 -- colour nudge on a pack's shelf was a full-screen flash (review, 2026-10-09).
 -- A theme with edited colours paints its own (coloursSource names it), so
 -- two themes still tell apart; two shelves on one theme share the key.
-function M.lookKey()
+-- lookParts() -> the look but its colours, and whose colours it paints.
+local function lookParts()
     local plank = M.activePlank()
     local look = M.shelfLook()
     if look == "auto" then look = autoDark() and "dark" or "light" end
     return table.concat({
         tostring(M.shownWallpaper(false, false)), tostring(M.shownWallpaper(true, false)),
-        tostring(M.coloursSource()), tostring(plank and plank.id), look,
-    }, "\2")
+        tostring(plank and plank.id), look,
+    }, "\2"), tostring(M.coloursSource())
+end
+function M.lookKey()
+    local rest, colours = lookParts()
+    return rest .. "\2" .. colours
 end
 
--- setShelf(id) -> true when the shelf on screen now LOOKS different: then
--- the settings generation is bumped, so the caches keyed on it rebuild.
+-- setShelf(id) -> true when the shelf on screen now LOOKS different, worth a
+-- full-screen refresh. A different look bumps the settings generation, so
+-- the caches keyed on it rebuild. An edit on screen that only changes whose
+-- colours paint (a pack without a colours.json gets its first edited
+-- colour, or loses its last) bumps it too, but is a colour change like any
+-- other: no full-screen refresh, as on a Custom theme shelf.
 M._look_key = nil
+M._look_at = nil      -- { id, theme, rest }: what the last key was taken for
 function M.setShelf(id)
     M._shelf = id
-    local look = M.lookKey()
+    local rest, colours = lookParts()
+    local look = rest .. "\2" .. colours
     if M._look_key == nil then
         -- The first shelf: anything read before it was read as the
         -- library's, so compare with the library's look.
@@ -551,10 +562,13 @@ function M.setShelf(id)
         M._look_key = M.lookKey()
         M._shelf = id
     end
+    local prev, theme = M._look_at, M.shelfTheme()
+    M._look_at = { id = id, theme = theme, rest = rest }
     if look == M._look_key then return false end
     M._look_key = look
     local s = store()
     if s and s.bump then s.bump() end
+    if prev and prev.id == id and prev.theme == theme and prev.rest == rest then return false end
     return true
 end
 

@@ -536,6 +536,18 @@ t.test("an edit keeps the look key: a colour nudge on a pack's shelf is no full-
     TP.partSave("badge_bg", { hex = "#654321" })
     eq(TP.coloursSource(), "Ukiyo-e", "a pack with edited colours paints the reader's own")
     assert(TP.lookKey() ~= k1, "edited colours on a pack without any read as the reader's own look")
+    -- Its first colour edit is still no flash (rig, 2026-10-09: the rig's
+    -- Macabre has no colours.json), though the caches move.
+    local g = st.gen
+    eq(TP.setShelf("rec"), false, "the first colour edit on a pack without colours asked for a full refresh")
+    assert(st.gen > g, "the first colour edit did not move the caches")
+    TP.partSave("badge_bg", nil); TP.resetEdits("Ukiyo-e")
+    eq(TP.setShelf("rec"), false, "the last colour edit put back asked for a full refresh")
+    -- A shelf switch to a look that differs only in its colours still does.
+    tabs.home.theme = "Ukiyo-e"; TP.partSave("badge_bg", { hex = "#654321" })
+    TP._store.bump(); TP.setShelf("home")
+    tabs.rec.theme = "mine"; TP._store.bump()
+    eq(TP.setShelf("rec"), true, "a shelf switch to other colours kept the look")
 end)
 
 -- ── Wiring: every editor writes through the seam ─────────────────────────

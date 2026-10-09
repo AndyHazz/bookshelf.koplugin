@@ -13,8 +13,11 @@ piece switched on). A heavier frame on a light ground marks the choice in use. A
 and moves the mark, the shelf behind is rebuilt with a full refresh a moment
 later (a run of taps is one rebuild, for the last), and the picker stays
 open, as the plank and wallpaper pickers do; Close (or a tap outside, or
-Back) when done. A long-press on a pack's or Plain's card offers Reset to
-original, greyed while that theme is unedited (TL.showReset).
+Back) when done. Reset, in the footer between Add theme pack and Close,
+brings back the original of the theme marked, greyed unless that is a pack or
+Plain the reader has edited (maintainer, 2026-10-09: it left the Theme menu
+for here, where the themes are). A long-press on a pack's or Plain's card
+offers the same for that card (TL.showReset).
 
 Cheap to open: the parts come from the theme scan (bookshelf_theme_pack) and
 the ornament counts from the ornament scan (listAll: file headers, nothing
@@ -264,12 +267,27 @@ function TL.resettable(item)
         and item.value ~= nil and item.value ~= tp.MINE
 end
 
+-- canReset(item): resettable, and there is something to reset: the reader
+-- has edited it. What greys the footer's Reset and the long-press's.
+function TL.canReset(item)
+    return TL.resettable(item) and TP().hasEdits(item.value) and true or false
+end
+
+-- marked(items, current): the card of the choice in use, or nil (a
+-- choice no card stands for). Unlike indexOf, never the first card instead.
+function TL.marked(items, current)
+    for _i, it in ipairs(items) do
+        if TL.isCurrent(it, current) then return it end
+    end
+end
+
 -- showReset(item, after): a card's long-press: a small dialog titled with
 -- the theme, holding Reset to original, greyed unless that theme has edits,
 -- asked again before anything is lost (TP.confirmReset, the question the
--- Theme menu's Reset row asks), as a long-press on a Bookends preset opens
--- its Manage dialog (maintainer, 2026-10-09). after(): once reset. Nothing
--- for a card that cannot be reset (resettable).
+-- footer's Reset asks), as a long-press on a Bookends preset opens its
+-- Manage dialog (maintainer, 2026-10-09). Kept beside the footer's Reset as
+-- a shortcut to any card's, not only the marked one's. after(): once reset.
+-- Nothing for a card that cannot be reset (resettable).
 function TL.showReset(item, after)
     if not TL.resettable(item) then return nil end
     local tp = TP()
@@ -282,7 +300,7 @@ function TL.showReset(item, after)
         title_align = "center",
         buttons = { { {
             text = _("Reset to original"),
-            enabled = tp.hasEdits(theme) and true or false,
+            enabled = TL.canReset(item),
             callback = function()
                 UIManager:close(d)
                 tp.confirmReset(theme, after)
@@ -404,6 +422,8 @@ TL.APPLY_DELAY = 0.15
 --                  refreshed (a theme is the whole look), the picker over it
 --   opts.on_closed once, however it closes (the caller's menu or dialog
 --                  back), after a choice still waiting has been applied
+-- The footer: Add theme pack..., Reset (the marked theme, TL.canReset),
+-- Close.
 function TL.show(opts)
     local LibraryModal = require("lib/bookshelf_library_modal")
     local UIManager    = require("ui/uimanager")
@@ -441,6 +461,20 @@ function TL.show(opts)
         if opts.apply then opts.apply() end
         UIManager:setDirty("all", "full")
     end
+    -- reset(theme): once a theme's edits are gone, from the footer or a
+    -- card's long-press. Its card loses Edited and the footer's Reset greys
+    -- at once (the picker's own ui refresh, no flash on a PW5); the shelf
+    -- behind follows when it shows that theme, as a tap does: one full
+    -- refresh APPLY_DELAY later, never a second one before it.
+    local function reset(theme)
+        load()
+        if modal then modal:refresh() end
+        if tp.shelfTheme and tp.shelfTheme() == theme then
+            UIManager:unschedule(apply)
+            waiting = true
+            UIManager:scheduleIn(TL.APPLY_DELAY, apply)
+        end
+    end
     local config = {
         title = opts.shelf and T(_("Theme: %1"), opts.shelf) or _("Default theme"),
         no_search = true,
@@ -464,23 +498,25 @@ function TL.show(opts)
             waiting = true
             UIManager:scheduleIn(TL.APPLY_DELAY, apply)
         end,
-        -- A pack or Plain: Reset to original. Its card loses Edited, and the
-        -- shelf behind follows when it shows that theme.
+        -- A pack or Plain: Reset to original, for that card.
         cell_long_tap = function(item)
-            TL.showReset(item, function()
-                load()
-                if modal then modal:refresh() end
-                if tp.shelfTheme and tp.shelfTheme() == item.value then
-                    UIManager:unschedule(apply)
-                    waiting = true
-                    UIManager:scheduleIn(TL.APPLY_DELAY, apply)
-                end
-            end)
+            TL.showReset(item, function() reset(item.value) end)
         end,
         item_count = function() return #self.items end,
         item_at = function(i) return self.items[i] end,
         footer_rows = { {
             { key = "add", label = tp.addThemeLabel(), on_tap = function() tp.showAddThemeInfo() end },
+            -- The theme marked, whatever page is shown: the one in use where
+            -- the picker was opened from (maintainer, 2026-10-09). Greyed for
+            -- Custom theme and Default theme, and for a theme as original;
+            -- asked first, as the long-press asks (TP.confirmReset).
+            { key = "reset", label = _("Reset"),
+              enabled_when = function() return TL.canReset(TL.marked(self.items, opts.current())) end,
+              on_tap = function()
+                  local item = TL.marked(self.items, opts.current())
+                  if not TL.canReset(item) then return end
+                  tp.confirmReset(item.value, function() reset(item.value) end)
+              end },
             { key = "close", label = _("Close"), on_tap = close },
         } },
         on_closed = function()

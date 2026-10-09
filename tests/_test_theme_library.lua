@@ -263,7 +263,7 @@ local function open(opts)
     return m, m.config
 end
 
-t.test("the default's picker: titled Default theme, opens on page 1 always, Add theme pack and Close", function()
+t.test("the default's picker: titled Default theme, opens on page 1 always, Add theme pack, Reset, Close", function()
     library = "Autumn"
     local before = TP.rescans
     local m, c = open{ current = function() return library end, choose = function(v) library = v end }
@@ -277,7 +277,8 @@ t.test("the default's picker: titled Default theme, opens on page 1 always, Add 
     eq(m.page, 1, "not opened on the first page, where Custom theme and Plain are")
     eq(m._dpad_idx, 1, "the keys' focus started on a card that is not on the page")
     local f = c.footer_rows[1]
-    eq(f[1].label, "Add theme pack\xE2\x80\xA6"); eq(f[2].label, "Close")
+    -- Reset between them (maintainer, 2026-10-09).
+    eq(#f, 3); eq(f[1].label, "Add theme pack\xE2\x80\xA6"); eq(f[2].label, "Reset"); eq(f[3].label, "Close")
     f[1].on_tap(); eq(TP.add_info, 1)
     eq(shown[1], m)
     library = "plain"
@@ -342,7 +343,7 @@ t.test("a choice still waiting is applied when the picker closes, before the cal
                        apply = function() order[#order + 1] = "apply:" .. tostring(library) end,
                        on_closed = function() order[#order + 1] = "back" end }
     c.on_cell_tap(c.item_at(3))
-    c.footer_rows[1][2].on_tap()
+    c.footer_rows[1][3].on_tap()
     eq(m.closed, true)
     eq(table.concat(order, ","), "apply:Macabre,back", "the menu came back before the shelf followed the choice")
     eq(runTasks(), 0, "a rebuild was left waiting after the picker closed")
@@ -414,7 +415,7 @@ t.test("a shelf's picker is titled for it, and Close brings the caller back once
                        on_closed = function() back = back + 1 end }
     eq(c.title, "Theme: Home")
     eq(c.item_at(1).same, true)
-    c.footer_rows[1][2].on_tap()
+    c.footer_rows[1][3].on_tap()
     eq(m.closed, true); eq(back, 1)
 end)
 
@@ -473,6 +474,79 @@ t.test("the choice in use is a heavier frame on a light ground, not a radio mark
     assert(not card:find("Marks.Radio", 1, true), "the radio mark is back")
     assert(card:find("current and Size.border.thick or Size.border.thin", 1, true), "no heavier frame for the choice in use")
     assert(card:find("current and Blitbuffer.Color8(0xEE)", 1, true), "no light ground for the choice in use")
+end)
+
+t.test("the footer's Reset: the marked theme, greyed unless an edited pack or Plain, asked first", function()
+    -- Maintainer, 2026-10-09: Reset left the Theme menu for the picker's
+    -- footer, between Add theme pack and Close, acting on the theme marked.
+    local asked = {}
+    TP.confirmReset = function(th, after) asked[#asked + 1] = { theme = th, after = after } end
+    local on_screen = "Macabre"
+    TP.shelfTheme = function() return on_screen end
+    library = "Macabre"
+    local built = 0
+    local m, c = open{ current = function() return library end, choose = function(v) library = v end,
+                       apply = function() built = built + 1 end }
+    local reset = c.footer_rows[1][2]
+    eq(reset.key, "reset")
+    -- As original: greyed, and a tap (keys can still reach it) does nothing.
+    eq(reset.enabled_when(), false, "Reset is not greyed on a theme as original")
+    reset.on_tap(); eq(#asked, 0, "a greyed Reset asked")
+    edits.Macabre = { keys = { wallpaper_default = "leaves.png" } }
+    eq(reset.enabled_when(), true, "Reset is greyed on the marked theme, edited")
+    m.refreshes = 0
+    reset.on_tap()
+    eq(asked[1] and asked[1].theme, "Macabre", "Reset did not ask about the marked theme")
+    eq(m.refreshes, 0, "the cards were redrawn before the question was answered")
+    edits.Macabre = nil                                -- what confirmReset's OK does
+    asked[1].after()
+    eq(c.item_at(3).summary:find("Edited", 1, true), nil, "the card still says Edited")
+    eq(m.refreshes, 1, "the card and the footer were not redrawn at once")
+    eq(reset.enabled_when(), false, "Reset is not greyed once reset")
+    local full = 0
+    for _i, d in ipairs(dirty) do if d == "all:full" then full = full + 1 end end
+    eq(full, 0, "a full refresh before the shelf behind was rebuilt (a second flash)")
+    runTasks()
+    eq(built, 1, "the shelf behind showing that theme did not follow")
+    eq(dirty[#dirty], "all:full", "no full refresh for the whole look changing")
+    full = 0
+    for _i, d in ipairs(dirty) do if d == "all:full" then full = full + 1 end end
+    eq(full, 1, "more than one full refresh for a reset")
+    -- Plain, edited, marked: Reset. The shelf behind on another theme: left
+    -- alone.
+    library = "plain"; edits.plain = { keys = {} }; on_screen = "Ukiyo"
+    eq(reset.enabled_when(), true)
+    reset.on_tap(); eq(asked[2].theme, "plain")
+    edits.plain = nil; asked[2].after()
+    eq(runTasks(), 0, "the shelf behind was rebuilt for a theme it does not show")
+    -- Custom theme (no original) and Default theme (it stands for another
+    -- card): greyed, even when the reader has changed things.
+    edits.mine = { keys = {} }; edits.Macabre = { keys = {} }
+    library = "mine"
+    eq(reset.enabled_when(), false, "Custom theme offered a reset")
+    local _m2, c2 = open{ shelf = "Home", current = function() return nil end, choose = function() end }
+    eq(c2.footer_rows[1][2].enabled_when(), false, "the Default theme card offered a reset")
+    c2.footer_rows[1][2].on_tap(); eq(#asked, 2, "a greyed Reset asked")
+    -- A shelf's picker, its own pack marked and edited: Reset.
+    local _m3, c3 = open{ shelf = "Home", current = function() return "Macabre" end, choose = function() end }
+    eq(c3.footer_rows[1][2].enabled_when(), true)
+    edits.mine, edits.Macabre = nil, nil
+    TP.confirmReset, TP.shelfTheme = nil, nil
+end)
+
+t.test("LibraryModal greys a footer button whose enabled_when says so, and a press on it does nothing", function()
+    -- The keys' focus can rest on it (the footer is a row of Buttons), but
+    -- its callback runs only while enabled.
+    local lm = io.open("lib/bookshelf_library_modal.lua"):read("*a")
+    assert(lm:find("if action.enabled_when then enabled = action.enabled_when() end", 1, true),
+        "the footer ignores enabled_when")
+    assert(lm:find("callback = function() if enabled then action.on_tap() end end,", 1, true)
+        and lm:find("enabled = enabled,", 1, true), "a greyed footer button still acts")
+    local tl = io.open("lib/bookshelf_theme_library.lua"):read("*a")
+    assert(tl:find('{ key = "add", label = tp.addThemeLabel()', 1, true)
+        < tl:find('{ key = "reset", label = _("Reset"),', 1, true)
+        and tl:find('{ key = "reset", label = _("Reset"),', 1, true) < tl:find('{ key = "close", label = _("Close")', 1, true),
+        "Reset is not between Add theme pack and Close")
 end)
 
 t.test("a long-press on a pack's or Plain's card offers Reset to original, greyed unless it is edited", function()

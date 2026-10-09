@@ -26,7 +26,6 @@ local CODE = table.concat({
     grab("\n(function Settings:_themeLibraryRow%(%).-\nend)\n", "_themeLibraryRow"),
     grab("\n(function Settings:_rebuildThemeMenu%(touchmenu_instance%).-\nend)\n", "_rebuildThemeMenu"),
     grab("\n(function Settings:_libraryThemeRow%(%).-\nend)\n", "_libraryThemeRow"),
-    grab("\n(function Settings:_resetThemeRow%(%).-\nend)\n", "_resetThemeRow"),
     grab("\n(function Settings:_lightDarkRow%(%).-\nend)\n", "_lightDarkRow"),
     grab("\n(function Settings:_themeSubItems%(%).-\nend)\n", "_themeSubItems"),
     grab("\n(function Settings:_themeMenuText%(%).-\nend)\n", "_themeMenuText"),
@@ -210,31 +209,34 @@ t.test("ONE Theme menu: This shelf, Default theme, the editing rows, Reset, then
     -- named the picker itself.
     eq(texts(rows), "This shelf: Default theme | Default theme: Macabre | Light or dark: Auto (follow night mode)"
         .. " | Wallpaper | Full screen wallpaper | Invert | Color behind wallpaper | Plank | Ornaments | Colors"
-        .. " | New ornaments go | Reset Macabre to original | Home: Default theme | Manga: Default theme")
+        .. " | New ornaments go | Home: Default theme | Manga: Default theme")
     for _i, r in ipairs(rows) do
         local tx = r.text or (r.text_func and r.text_func()) or ""
         assert(not tx:lower():find("library", 1, true), "a row still says library: " .. tx)
     end
     local sep = {}
     for i, r in ipairs(rows) do if r.separator then sep[#sep + 1] = i end end
-    eq(table.concat(sep, ","), "2,10,11,12", "the bands are not choosing | editing | preferences | Reset | shelves")
+    eq(table.concat(sep, ","), "2,10,11", "the bands are not choosing | editing | preferences | shelves")
     eq(seen.rescans, 1, "opening the menu did not rescan the packs")
     eq(seen.slot, true, "the colour rows do not open on the slot of the shelf on screen")
     -- The choosing rows and the shelves open the Theme library, never a
     -- list to drill into.
-    for _i, i in ipairs({ 1, 2, 13, 14 }) do
+    for _i, i in ipairs({ 1, 2, 12, 13 }) do
         eq(rows[i].radio, nil, "a radio list again")
         eq(rows[i].sub_item_table_func, nil, "a submenu to drill into again: " .. texts({ rows[i] }))
     end
 end)
 
-t.test("on a Custom theme shelf there is nothing to reset: no Reset row, the preferences end the editing", function()
-    local self, S = build({ MAC }, nil, nil, { on_screen = "mine" })
-    local rows = S._themeSubItems(onShelf(self, "home"))
-    eq(rowOf(rows, "Reset "), nil, "Custom theme has a Reset to original row")
-    local newat = rowOf(rows, "New ornaments go")
-    eq(newat.separator, true, "the shelves are not set apart from the editing rows")
-    eq(rows[#rows].text_func(), "Manga: Default theme")
+t.test("no Reset row on any shelf, an edited pack's included: Reset is in the Theme library", function()
+    -- Maintainer, 2026-10-09: Reset moves to the Theme library's footer.
+    for _i, th in ipairs({ "Macabre", "plain", "mine" }) do
+        local self, S = build({ MAC }, nil, nil, { on_screen = th, edited = { [th] = true } })
+        local rows = S._themeSubItems(onShelf(self, "home"))
+        eq(rowOf(rows, "Reset "), nil, "a Reset row in the Theme menu on " .. th)
+        local newat = rowOf(rows, "New ornaments go")
+        eq(newat.separator, true, "the shelves are not set apart from the editing rows")
+        eq(rows[#rows].text_func(), "Manga: Default theme")
+    end
 end)
 
 t.test("every editing row is on the first page of a PW5 menu (ten rows)", function()
@@ -409,35 +411,7 @@ t.test("Light or dark: Auto (follow night mode), Light, Dark; the theme's own na
         "a theme on screen puts a suffix on the row again")
 end)
 
-t.test("Reset to original names the theme on screen, greyed while it has no edits, asks first", function()
-    -- Maintainer, 2026-10-08: "Perhaps the reset button could be greyed out
-    -- when the theme pack is already as original."
-    local edited = {}
-    local self, S, seen = build({ MAC }, nil, nil, { on_screen = "Macabre", edited = edited })
-    local row = S._resetThemeRow(self)
-    eq(row.text_func(), "Reset Macabre to original")
-    eq(row.enabled_func(), false, "Reset is not greyed on a theme as original")
-    edited.Macabre = true
-    eq(row.enabled_func(), true, "Reset is greyed on an edited theme")
-    local updated = 0
-    row.callback({ updateItems = function() updated = updated + 1 end })
-    -- The one question (TP.confirmReset), the one a card's long-press asks.
-    eq(seen.confirm and seen.confirm.theme, "Macabre", "Reset did not ask about the theme on screen")
-    eq(seen.dirty, 0, "the shelf was rebuilt before the question was answered")
-    seen.confirm.after()
-    eq(seen.dirty, 1, "the shelf was not rebuilt"); eq(updated, 1, "the menu's rows did not follow")
-    eq(seen.full, 1, "no full refresh for the whole look changing")
-    -- Plain resets the same way; Custom theme has nothing to reset to.
-    local self2, S2 = build({ MAC }, nil, nil, { on_screen = "plain", edited = { plain = true } })
-    eq(S2._resetThemeRow(self2).text_func(), "Reset Plain to original")
-    eq(S2._resetThemeRow(self2).enabled_func(), true)
-    local self3, S3, seen3 = build({ MAC }, nil, nil, { on_screen = "mine", edited = { mine = true } })
-    eq(S3._resetThemeRow(self3).enabled_func(), false, "Custom theme can be reset to an original")
-    S3._resetThemeRow(self3).callback({})
-    eq(seen3.confirm, nil, "Custom theme was asked about a reset")
-end)
-
-t.test("the editing rows: no row greyed for a theme's part, Reset after them on a pack or Plain", function()
+t.test("the editing rows: no row greyed for a theme's part; no Reset row of the menu's own", function()
     local body = src:gsub("%-%-[^\n]*", "")
     local bg = body:match("function Settings:_themeSubItems%(%)(.-)\nend\n")
     assert(bg, "_themeSubItems moved")
@@ -445,10 +419,9 @@ t.test("the editing rows: no row greyed for a theme's part, Reset after them on 
     -- has that part (spec, 2026-10-08).
     assert(not bg:find("enabled_func", 1, true) and not body:find("_themeCovered", 1, true),
         "a row is greyed because the theme on screen has its part")
-    local reset = bg:find("rows[#rows + 1] = self:_resetThemeRow()", 1, true)
-    assert(reset and reset > bg:find("_newOrnamentsRow", 1, true), "Reset to original is not after the editing rows")
-    assert(reset < bg:find("_perShelfThemeRows", 1, true), "Reset is not before the shelves")
-    assert(bg:find("if TP.shelfTheme() ~= TP.MINE then", 1, true), "Custom theme has a Reset to original row")
+    -- Reset is the Theme library's (maintainer, 2026-10-09).
+    assert(not body:find("_resetThemeRow", 1, true) and not body:find('"Reset %1 to original"', 1, true),
+        "the Theme menu has its Reset row again")
 end)
 
 t.test("the two old menus are gone: no old This shelf row, no My theme menu, no second Theme menu", function()

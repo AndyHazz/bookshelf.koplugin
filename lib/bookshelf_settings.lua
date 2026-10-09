@@ -1568,8 +1568,8 @@ end
 
 -- _rebuildThemeMenu(touchmenu_instance): what runs as a Theme library
 -- closes: the Theme menu's rows built again for what the shelf on screen
--- shows now. They edit that theme, only a pack or Plain has Reset, and a
--- shelf's row may have put another shelf on screen.
+-- shows now: a shelf's row may have put another shelf on screen, whose
+-- theme the rows then edit.
 function Settings:_rebuildThemeMenu(touchmenu_instance)
     return function()
         self:_reopenSubMenu(touchmenu_instance, function() return self:_themeSubItems() end)
@@ -2477,34 +2477,6 @@ function Settings:_newOrnamentsRow()
     }
 end
 
--- _resetThemeRow(): "Reset Macabre to original", after the editing rows of
--- the Theme menu on a pack or Plain: the reader's edits to that theme gone,
--- wherever it shows, once confirmed (TP.confirmReset, the question a card's
--- long-press asks too). Greyed, not hidden, while it has none (maintainer,
--- 2026-10-08: "Perhaps the reset button could be greyed out when the theme
--- pack is already as original"). My theme IS the reader's own: no original,
--- no row (its rows have their own resets).
-function Settings:_resetThemeRow()
-    local TP = require("lib/bookshelf_theme_pack")
-    return {
-        text_func = function() return T(_("Reset %1 to original"), TP.themeName(TP.shelfTheme())) end,
-        enabled_func = function()
-            local th = TP.shelfTheme()
-            return th ~= TP.MINE and TP.hasEdits(th)
-        end,
-        keep_menu_open = true,
-        callback = function(touchmenu_instance)
-            local th = TP.shelfTheme()
-            if th == TP.MINE then return end
-            TP.confirmReset(th, function()
-                self:_markDirty()
-                if touchmenu_instance then touchmenu_instance:updateItems() end
-                UIManager:setDirty("all", "full")
-            end)
-        end,
-    }
-end
-
 -- The Theme menu, ONE top-level menu named for the theme of the shelf on
 -- screen, "Theme (Macabre)" (maintainer, 2026-10-09, after Bookends' "Preset
 -- (Name)"): it replaced a Theme menu that chose themes and a My theme menu
@@ -2513,7 +2485,7 @@ end
 -- Default theme, the one every shelf without its own wears. Then the rows that edit the theme on screen, whatever it
 -- is, kept on the first page of a PW5 menu: everything a theme can replace
 -- (never greyed because a theme has that part, spec 2026-10-08), then the
--- collection's own New ornaments go, then Reset on a pack or Plain. Last,
+-- collection's own New ornaments go (Reset is in the Theme library). Last,
 -- every shelf with its theme, flat: no submenu to drill into (maintainer,
 -- 2026-10-07). Every write goes through bookshelf_theme_pack's seam
 -- (partSave, choosePlank, switches); nothing but these rows writes the
@@ -2547,15 +2519,10 @@ function Settings:_themeSubItems()
     rows[#rows].separator = true
     -- How new ornaments join the deck: the collection's own preference.
     -- Panel shading and the extra wallpaper folder are display preferences
-    -- no theme touches: they live in Settings' appearance band.
+    -- no theme touches: they live in Settings' appearance band. Reset to
+    -- original is not a row here: it is in the Theme library's footer, with
+    -- the themes (maintainer, 2026-10-09).
     rows[#rows + 1] = self:_newOrnamentsRow()
-    -- A pack or Plain can go back to its original; My theme has none. The
-    -- rows are built again when a Theme library opened from here closes, so
-    -- the row comes and goes with the theme on screen.
-    if TP.shelfTheme() ~= TP.MINE then
-        rows[#rows].separator = true
-        rows[#rows + 1] = self:_resetThemeRow()
-    end
     rows[#rows].separator = true
     for _i, r in ipairs(self:_perShelfThemeRows()) do rows[#rows + 1] = r end
     return rows
@@ -2574,7 +2541,8 @@ function Settings:_shelfThemeHelp()
             .. "dark, and ornaments. Anything it does not bring comes from "
             .. "%1. Choosing a theme never changes %1.\n\nThe rows here edit "
             .. "the theme of the shelf on screen. Your changes stay with that "
-            .. "theme wherever it shows, and Reset brings back its original.\n\n"
+            .. "theme wherever it shows, and Reset in the Theme library brings "
+            .. "back its original.\n\n"
             .. "Each shelf can have a theme of its own: choose it here, or "
             .. "long-press a shelf chip, then Shelf style."), mine)
 end

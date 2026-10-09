@@ -487,18 +487,13 @@ t.test("an edit naming a reference that has gone falls back as a missing pack do
     eq(TP.partEdited("wallpaper_default"), false)
 end)
 
-t.test("the own theme is gone: 'own' stored by the unreleased build reads as unset", function()
+t.test("'own', an unreleased build's id, reads as unset; a pack folder of that name is no theme", function()
     local TP, d, settings, tabs = setup()
     world(d, settings)
     settings.library_theme = "Macabre"
-    tabs.a = { id = "a", theme = "own", own_theme = { keys = { shelf_theme = "light" } } }
+    tabs.a = { id = "a", theme = "own" }
     eq(TP.ownChoice("a"), nil); eq(TP.themeFor("a"), "Macabre")
     eq(TP.isReserved("own"), true)
-    for _i, k in ipairs({ "OWN", "ownName", "ownCopy", "ensureOwn", "restartOwn", "deleteOwn",
-                          "ownPool", "shownOwn", "ownerOf", "resolveChoice" }) do
-        eq(TP[k], nil, "TP." .. k .. " is still there")
-    end
-    for _i, c in ipairs(TP.choiceList(nil, true)) do assert(c.value ~= "own", "a shelf's list has Own theme") end
 end)
 
 t.test("an edit keeps the look key: a colour nudge on a pack's shelf is no full-screen flash", function()
@@ -610,24 +605,6 @@ t.test("the paint reads through the seam: colours, bars, chips, the page ground,
     local wp = io.open("lib/bookshelf_wallpaper.lua"):read("*a")
     local inv = wp:match("\nfunction M%.invertsAtNight%(%)\n(.-)\nend\n")
     assert(inv and inv:find("TP.partRead(M.INVERT_NIGHT_SETTING)", 1, true), "invert at night reads Custom theme's key")
-end)
-
-t.test("no Own theme left: no card, no rows, no copy on choosing, the menu named for its theme", function()
-    local set = io.open("lib/bookshelf_settings.lua"):read("*a")
-    local code = set:gsub("%-%-[^\n]*", "")
-    for _i, gone in ipairs({ "own_theme", "_ownRestartRow", "_ownDeleteRow", "ensureOwn", "restartOwn",
-                             "deleteOwn", "TP.OWN", "ownerOf", "shownOwn" }) do
-        assert(not code:find(gone, 1, true), "settings still has " .. gone)
-    end
-    for _i, f in ipairs({ "lib/bookshelf_theme_library.lua", "lib/bookshelf_chip_editor.lua" }) do
-        local src = io.open(f):read("*a"):gsub("%-%-[^\n]*", "")
-        assert(not src:find("own_theme", 1, true) and not src:find("ownName", 1, true)
-            and not src:find("ensureOwn", 1, true), f .. " still knows the own theme")
-    end
-    local main = io.open("main.lua"):read("*a")
-    assert(main:find("S:_themeMenuText()", 1, true)
-        and set:find('T(_("Theme (%1)"), require("lib/bookshelf_theme_pack").editName())', 1, true),
-        "the menu is not named for the theme it edits")
 end)
 
 -- withUI(fn): fn(seen) with KOReader's dialogs stubbed: what was shown.

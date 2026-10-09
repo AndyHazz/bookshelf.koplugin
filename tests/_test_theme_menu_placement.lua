@@ -1,6 +1,7 @@
--- tests/_test_background_menu.lua
+-- tests/_test_theme_menu_placement.lua
 -- The look of the shelf is one top-level menu, not three scattered rows: since
 -- 2026-10-09 the Theme menu, which chooses themes and edits the one on screen.
+-- Where it sits and what it is named; its rows are _test_shelf_theme_menu.lua.
 --
 -- WHAT NEEDS PINNING. The theme lived under Settings > Colors, the background
 -- colour and the panel shading under Settings > Wallpaper and ornaments, and
@@ -17,7 +18,7 @@
 -- The theme row has ONE definition. It was lifted out of the colour list, and
 -- a copy left behind would drift.
 --
--- Usage (from plugin root): lua tests/_test_background_menu.lua
+-- Usage (from plugin root): lua tests/_test_theme_menu_placement.lua
 package.path = "./?.lua;./?/init.lua;" .. package.path
 local helpers = dofile("tests/_helpers.lua")
 local t  = helpers.runner()
@@ -81,28 +82,12 @@ t.test("Settings no longer carries Colors or Wallpaper", function()
         .. "would eventually hold everything")
 end)
 
-t.test("the menu: This shelf, Other shelves, Default theme, then light or dark, the wallpaper, plank, ornaments, colors; then the preferences", function()
+t.test("display preferences no theme touches are in Settings' appearance band, not the Theme menu", function()
+    -- The row order of the Theme menu is pinned by its behaviour in
+    -- _test_shelf_theme_menu.lua.
     local body = settings:match("function Settings:_themeSubItems%(%)(.-)\nend\n")
     assert(body, "_themeSubItems missing")
-    -- Choosing first, as Bookends opens its Preset menu with "Preset
-    -- library..." (maintainer, 2026-10-09), set apart from the editing.
-    local lib    = body:find("self:_thisShelfThemeRow()", 1, true)
-    local others = body:find("self:_otherShelvesRow()", 1, true)
-    local whole  = body:find("self:_defaultThemeRow()", 1, true)
-    local look   = body:find("_lightDarkRow", 1, true)
-    -- The wallpaper rows are ONE row, a submenu (maintainer, 2026-10-09).
-    local wall   = body:find("rows[#rows + 1] = self:_wallpaperRow()", 1, true)
-    local plank  = body:find("_plankRow", 1, true)
-    local orn    = body:find("_ornamentsRow", 1, true)
-    local accent = body:find('_("Colors")', 1, true)
-    local newat  = body:find("_newOrnamentsRow", 1, true)
-    assert(lib and others and whole and look and wall and plank and orn and accent and newat, "a section is missing from the menu")
-    assert(lib < others and others < whole and whole < look, "This shelf, Other shelves and Default theme do not come first")
     assert(not body:find("_wallpaperMenu", 1, true), "the wallpaper rows are flat in the Theme menu again")
-    assert(body:sub(whole, look):find("rows[#rows].separator = true", 1, true),
-        "no separator between the choosing and the editing")
-    assert(look < wall and wall < plank and plank < orn and orn < accent and accent < newat,
-        "the parts a theme can replace, in the spec's order, then New ornaments go")
     -- Display preferences no theme touches are not part of the look: they
     -- live in Settings' appearance band, so the editing rows fit one PW5 page.
     assert(not body:find("_panelShadingRow", 1, true) and not body:find("_wallpaperFolderRow", 1, true),

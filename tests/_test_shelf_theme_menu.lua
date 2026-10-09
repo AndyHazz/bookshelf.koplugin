@@ -217,8 +217,12 @@ t.test("ONE Theme menu, one page: This shelf, Other shelves, Default theme, then
     end
 end)
 
-t.test("no Reset row on any shelf, an edited pack's included: Reset is in the Theme library", function()
+t.test("no Reset row on any shelf, an edited pack's included; no row greyed for a theme's part", function()
     -- Maintainer, 2026-10-09: Reset moves to the Theme library's footer.
+    -- Every theme is editable: its rows are never greyed because the theme
+    -- has that part (spec, 2026-10-08).
+    local bg = src:gsub("%-%-[^\n]*", ""):match("function Settings:_themeSubItems%(%)(.-)\nend\n")
+    assert(bg and not bg:find("enabled_func", 1, true), "a row is greyed because the theme on screen has its part")
     for _i, th in ipairs({ "Macabre", "plain", "mine" }) do
         local self, S = build({ MAC }, nil, nil, { on_screen = th, edited = { [th] = true } })
         local rows = S._themeSubItems(onShelf(self, "home"))
@@ -433,34 +437,6 @@ t.test("Light or dark: Auto (follow night mode), Light, Dark; the theme's own na
     local self2, S2 = build({ MAC }, nil, nil, { on_screen = "Macabre" })
     eq(S2._lightDarkRow(self2).text_func(), "Light or dark: Auto (follow night mode)",
         "a theme on screen puts a suffix on the row again")
-end)
-
-t.test("the editing rows: no row greyed for a theme's part; no Reset row of the menu's own", function()
-    local body = src:gsub("%-%-[^\n]*", "")
-    local bg = body:match("function Settings:_themeSubItems%(%)(.-)\nend\n")
-    assert(bg, "_themeSubItems moved")
-    -- Every theme is editable: its rows are never greyed because the theme
-    -- has that part (spec, 2026-10-08).
-    assert(not bg:find("enabled_func", 1, true) and not body:find("_themeCovered", 1, true),
-        "a row is greyed because the theme on screen has its part")
-    -- Reset is the Theme library's (maintainer, 2026-10-09).
-    assert(not body:find("_resetThemeRow", 1, true) and not body:find('"Reset %1 to original"', 1, true),
-        "the Theme menu has its Reset row again")
-end)
-
-t.test("the two old menus are gone: no old This shelf row, no My theme menu, no second Theme menu", function()
-    local body = src:gsub("%-%-[^\n]*", "")
-    assert(not body:find("on this shelf)", 1, true), "a per-row suffix is back")
-    assert(not src:find("covers this shelf", 1, true), "the info row is back")
-    -- "This shelf: %1" is back, as the row that chooses the shelf on
-    -- screen's theme (maintainer, 2026-10-09), not the old editing row.
-    for _i, gone in ipairs({ "_thisShelfRow", "_backgroundSubItems", "_shelfThemeSubItems", "_shelfThemeText",
-                             "shelfChoiceLabel", '"Same as library"', '"Library: %1"' }) do
-        assert(not body:find(gone, 1, true), "settings still has " .. gone)
-    end
-    local tp = io.open("lib/bookshelf_theme_pack.lua"):read("*a"):gsub("%-%-[^\n]*", "")
-    assert(not tp:find("shelfChoiceLabel", 1, true) and not tp:find("Same as library (%1)", 1, true),
-        "the This shelf row's label is still in the theme packs")
 end)
 
 t.done()

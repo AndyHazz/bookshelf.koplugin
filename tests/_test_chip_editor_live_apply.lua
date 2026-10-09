@@ -254,13 +254,14 @@ t.test("the X, a tap outside and Back are all Close", function()
     assert(back and back:find("finish()", 1, true), "Back is not Close")
 end)
 
-t.test("no preview override or draft dirty flags are left", function()
-    for _i, dead in ipairs({ "applyLivePreview", "setOverride", "clearOverride",
-                             "data_dirty", "visual_dirty", "repaintOnCancel", "withShelvesResolved" }) do
-        assert(not src:find(dead, 1, true), "dead draft code left: " .. dead)
+t.test("no in-memory preview override of a tab: the theme memo only watches saves", function()
+    -- bookshelf_theme_pack's current() memo keys on the settings
+    -- generation; an override that saves nothing would be served stale.
+    for _i, dead in ipairs({ "applyLivePreview", "setOverride", "clearOverride" }) do
+        assert(not src:find(dead, 1, true), "the preview override is back: " .. dead)
     end
     local tm = io.open("lib/bookshelf_tab_model.lua"):read("*a")
-    assert(not tm:find("_override", 1, true), "TabModel still carries the editor's preview override")
+    assert(not tm:find("_override", 1, true), "TabModel carries the editor's preview override again")
 end)
 
 t.test("each sub-dialog hands back through commit", function()

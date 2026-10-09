@@ -572,5 +572,21 @@ t.test("confirmReset asks first, then resets the theme, frees its wallpaper and 
     end)
 end)
 
+t.test("Add theme pack says any theme can be edited and reset; the shop link stays a parameter", function()
+    -- Maintainer, 2026-10-09, as Bookends' gallery help: "Once installed,
+    -- you can edit each preset freely".
+    local TP = setup()
+    withUI(function(seen)
+        TP.showAddThemeInfo()
+        local msg = seen.shown[1]
+        eq(msg and msg.kind, "info")
+        assert(msg.text:find("You can edit any theme freely; your changes stay with it, and Reset brings back the original.", 1, true),
+            "the popup does not say themes can be edited and reset")
+        assert(msg.text:find("settings/bookshelf/ornaments", 1, true), "the folder is not named")
+        assert(msg.text:find("ko%-fi%.com/andyhazz/shop$"), "the shop link is not the popup's last line")
+    end)
+    local src = io.open("lib/bookshelf_theme_pack.lua"):read("*a")
+    assert(not src:find('_("[^"]*ko%-fi'), "the shop link is inside a msgid, where a translation can break it")
+end)
 
 t.done()

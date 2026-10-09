@@ -474,4 +474,69 @@ t.test("the choice in use is a heavier frame on a light ground, not a radio mark
     assert(card:find("current and Blitbuffer.Color8(0xEE)", 1, true), "no light ground for the choice in use")
 end)
 
+t.test("a long-press on a pack's or Plain's card offers Reset to original, greyed unless it is edited", function()
+    -- Maintainer, 2026-10-09, as a long-press on a Bookends preset opens its
+    -- Manage dialog: Reset on the card, asked first (TP.confirmReset, the
+    -- Theme menu's question); the card loses Edited, and the shelf behind
+    -- follows when it shows that theme.
+    package.loaded["ui/widget/buttondialog"] = { new = function(_c, o) o.config = {}; o.dialog = true; return o end }
+    local asked = {}
+    TP.confirmReset = function(th, after) asked[#asked + 1] = { theme = th, after = after } end
+    local on_screen = "Macabre"
+    TP.shelfTheme = function() return on_screen end
+    library = "mine"
+    local built = 0
+    local m, c = open{ current = function() return library end, choose = function(v) library = v end,
+                       apply = function() built = built + 1 end }
+    assert(c.cell_long_tap, "a card has no long-press")
+    edits.Macabre = { keys = { wallpaper_default = "leaves.png" } }
+    m.refreshes = 0
+    local mac = c.item_at(3)
+    eq(mac.title, "Macabre")
+    c.cell_long_tap(mac)
+    local d = shown[#shown]
+    assert(d and d.dialog, "the long-press showed no dialog")
+    eq(d.title, "Macabre", "the dialog does not say which theme")
+    local b = d.buttons[1][1]
+    eq(#d.buttons, 1); eq(b.text, "Reset to original")
+    eq(b.enabled, true, "Reset is greyed on an edited theme")
+    b.callback()
+    eq(d.closed, true, "the dialog stayed over the question")
+    eq(asked[1] and asked[1].theme, "Macabre", "Reset did not ask about that card's theme")
+    edits.Macabre = nil                                -- what confirmReset's OK does
+    asked[1].after()
+    eq(c.item_at(3).summary:find("Edited", 1, true), nil, "the card still says Edited")
+    eq(m.refreshes, 1, "the cards were not redrawn")
+    runTasks()
+    eq(built, 1, "the shelf behind showing that theme did not follow")
+    eq(dirty[#dirty], "all:full")
+    -- Unedited: greyed. Plain: the same dialog. The shelf behind on another
+    -- theme: left alone.
+    c.cell_long_tap(c.item_at(3))
+    eq(shown[#shown].buttons[1][1].enabled, false, "Reset is not greyed on a theme as original")
+    edits.plain = { keys = {} }
+    on_screen = "Ukiyo"
+    c.cell_long_tap(c.item_at(2))
+    eq(shown[#shown].title, "Plain"); eq(shown[#shown].buttons[1][1].enabled, true)
+    shown[#shown].buttons[1][1].callback()
+    edits.plain = nil
+    asked[#asked].after()
+    eq(runTasks(), 0, "the shelf behind was rebuilt for a theme it does not show")
+    -- My theme (no original), Same as library (it stands for another card)
+    -- and a missing pack: nothing.
+    local n = #shown
+    eq(c.item_at(1).value, "mine")
+    c.cell_long_tap(c.item_at(1))
+    eq(#shown, n, "My theme's card showed a dialog")
+    local _m2, c2 = open{ shelf = "Home", current = function() return nil end, choose = function() end }
+    n = #shown
+    eq(c2.item_at(1).same, true)
+    c2.cell_long_tap(c2.item_at(1))
+    eq(TL.showReset({ value = "Gone", missing = true, title = "Gone (missing)" }), nil)
+    eq(#shown, n, "a card with nothing to reset showed a dialog")
+    eq(TL.showReset({ value = "mine", title = "My theme" }), nil, "My theme offered a reset")
+    TP.confirmReset, TP.shelfTheme = nil, nil
+    package.loaded["ui/widget/buttondialog"] = nil
+end)
+
 t.done()

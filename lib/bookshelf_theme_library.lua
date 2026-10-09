@@ -2,8 +2,8 @@
 The Theme library: every theme a library or a shelf can wear, one card each,
 on the shared LibraryModal (maintainer, 2026-10-07: "a consistent way to show
 and pick themes"). ONE picker for every place a theme is chosen: the Theme
-menu (the library's), each shelf's (a shelf row in the Theme menu, My theme's This shelf
-row) and Shelf style's Theme row.
+menu's Theme library row (the shelf on screen's), its Library row (the
+library's) and shelf rows (each shelf's), and Shelf style's Theme row.
 
 A card: the theme's name, what it brings ("Wallpaper · Plank · 55 ornaments ·
 Dark", only the parts it has), its theme.json description when there is one,
@@ -12,7 +12,8 @@ piece switched on). A heavier frame on a light ground marks the choice in use. A
 and moves the mark, the shelf behind is rebuilt with a full refresh a moment
 later (a run of taps is one rebuild, for the last), and the picker stays
 open, as the plank and wallpaper pickers do; Close (or a tap outside, or
-Back) when done.
+Back) when done. A long-press on a pack's or Plain's card offers Reset to
+original, greyed while that theme is unedited (TL.showReset).
 
 Cheap to open: the parts come from the theme scan (bookshelf_theme_pack) and
 the ornament counts from the ornament scan (listAll: file headers, nothing
@@ -251,6 +252,44 @@ function TL.indexOf(items, current)
     return 1
 end
 
+-- resettable(item): that card's theme can be reset to its original: a
+-- pack or Plain. Not My theme (the reader's own, no original), not Same as
+-- library (it stands for another card), not a missing pack.
+function TL.resettable(item)
+    local tp = TP()
+    return item ~= nil and not item.same and not item.missing
+        and item.value ~= nil and item.value ~= tp.MINE
+end
+
+-- showReset(item, after): a card's long-press: a small dialog titled with
+-- the theme, holding Reset to original, greyed unless that theme has edits,
+-- asked again before anything is lost (TP.confirmReset, the question the
+-- Theme menu's Reset row asks), as a long-press on a Bookends preset opens
+-- its Manage dialog (maintainer, 2026-10-09). after(): once reset. Nothing
+-- for a card that cannot be reset (resettable).
+function TL.showReset(item, after)
+    if not TL.resettable(item) then return nil end
+    local tp = TP()
+    local UIManager = require("ui/uimanager")
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local theme = item.value
+    local d
+    d = ButtonDialog:new{
+        title = item.title,
+        title_align = "center",
+        buttons = { { {
+            text = _("Reset to original"),
+            enabled = tp.hasEdits(theme) and true or false,
+            callback = function()
+                UIManager:close(d)
+                tp.confirmReset(theme, after)
+            end,
+        } } },
+    }
+    UIManager:show(d)
+    return d
+end
+
 -- ── The picker ──────────────────────────────────────────────────────────
 -- Three cards a page, the picker no taller than they need and centred, so
 -- more of the shelf is seen around it (maintainer, 2026-10-07: "shorter so
@@ -419,6 +458,19 @@ function TL.show(opts)
             UIManager:unschedule(apply)
             waiting = true
             UIManager:scheduleIn(TL.APPLY_DELAY, apply)
+        end,
+        -- A pack or Plain: Reset to original. Its card loses Edited, and the
+        -- shelf behind follows when it shows that theme.
+        cell_long_tap = function(item)
+            TL.showReset(item, function()
+                load()
+                if modal then modal:refresh() end
+                if tp.shelfTheme and tp.shelfTheme() == item.value then
+                    UIManager:unschedule(apply)
+                    waiting = true
+                    UIManager:scheduleIn(TL.APPLY_DELAY, apply)
+                end
+            end)
         end,
         item_count = function() return #self.items end,
         item_at = function(i) return self.items[i] end,

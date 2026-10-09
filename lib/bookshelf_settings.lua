@@ -1906,9 +1906,13 @@ end
 -- is the Theme library's name, nor a bare "Default" (maintainer,
 -- 2026-10-09).
 function Settings:_shelfThemeLabelFor(tab)
+    local TP = require("lib/bookshelf_theme_pack")
     local label = tab.label or tab.id
-    if tab.theme == nil then return T(_("%1: %2"), label, _("Default theme")) end
-    return T(_("%1: %2"), label, require("lib/bookshelf_theme_pack").themeName(tab.theme))
+    -- What the shelf is set to as the count and This shelf read it: a
+    -- stored value that is no theme (a reserved name) is Default theme.
+    local own = TP.ownChoice(tab.id)
+    if own == nil then return T(_("%1: %2"), label, _("Default theme")) end
+    return T(_("%1: %2"), label, TP.themeName(own))
 end
 
 -- _openThemeLibrary(id, touchmenu_instance): the Theme library

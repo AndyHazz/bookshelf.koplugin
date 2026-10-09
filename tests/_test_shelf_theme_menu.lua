@@ -354,6 +354,11 @@ t.test("each enabled shelf is listed with its theme, a disabled one is not", fun
     eq(texts(S._perShelfThemeRows(self)), "Home: Default theme | Manga: Ukiyo-e | Recent: Custom theme")
     eq(texts(S._perShelfThemeRows(self, "manga")), "Home: Default theme | Recent: Custom theme",
         "the shelf skipped is listed")
+    -- Named as the count and This shelf read the shelf (ownChoice), not
+    -- from the raw stored value.
+    local by_raw = { { id = "a", label = "A", theme = "OWN" } }
+    local self2, S2 = build({ UK }, nil, by_raw)
+    eq(texts(S2._perShelfThemeRows(self2)), "A: Default theme", "a shelf's row reads the raw stored theme")
 end)
 
 t.test("Other shelves: every shelf but the one on screen, counted by those with a theme of their own", function()

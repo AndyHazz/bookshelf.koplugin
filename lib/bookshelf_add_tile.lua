@@ -69,9 +69,8 @@ function AddTile.shading()
         local painted = (Wallpaper.isShowing and Wallpaper.isShowing())
             or (Wallpaper.ground and type(Wallpaper.ground()) ~= "nil")
         if not painted then return end
-        local v = require("lib/bookshelf_settings_store").read(Wallpaper.SCRIM_SETTING)
-        if type(v) ~= "number" then v = Wallpaper.SCRIM_DEFAULT end
-        if v < 0 then v = 0 elseif v > 1 then v = 1 end
+        -- The theme on screen's Panel shading (Wallpaper.shading, the seam).
+        local v = Wallpaper.shading()
         if v > 0 and colors then fill, strength = colors.panel_bg, v end
     end)
     return fill, strength, ink

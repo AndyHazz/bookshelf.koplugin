@@ -81,12 +81,17 @@ local function settingsRead(key)
     return ok and Set and Set.read(key) or nil
 end
 
--- A part of the look: the reader's edit to the theme on screen when there
--- is one (bookshelf_theme_pack.partRead), else the reader's own.
-function M.invertsAtNight()
+-- partRead(key): a part of the look as the theme on screen has it (the
+-- reader's edit to it, the theme's own, else Custom theme's: the seam,
+-- bookshelf_theme_pack.partRead); a key that is not a part, the reader's own.
+function M.partRead(key)
     local ok_t, TP = pcall(require, "lib/bookshelf_theme_pack")
-    if ok_t and TP and TP.partRead then return TP.partRead(M.INVERT_NIGHT_SETTING) == true end
-    return settingsRead(M.INVERT_NIGHT_SETTING) == true
+    if ok_t and TP and TP.partRead then return TP.partRead(key) end
+    return settingsRead(key)
+end
+
+function M.invertsAtNight()
+    return M.partRead(M.INVERT_NIGHT_SETTING) == true
 end
 
 -- showsNegative(frame_night) -> should the picture DISPLAY as its negative,
@@ -162,6 +167,8 @@ M.SCRIM_DEFAULT = 0.85
 --
 -- Transparent buttons is the zero point rather than a separate code path, so
 -- there is only ever one question at the paint site: how much to tint.
+-- read: the shelf's reader (M.partRead, the theme on screen's: Panel shading
+-- is part of the theme since 2026-10-09); a fixed table of values in tests.
 function M.scrimStrength(read)
     if type(read) ~= "function" then return M.SCRIM_DEFAULT end
     if M.transparentButtons(read) then return 0 end
@@ -171,6 +178,21 @@ function M.scrimStrength(read)
     if v > 1 then return 1 end
     return v
 end
+
+-- shading() -> 0..1, Panel shading as the theme on screen sets it, NOT
+-- scrimStrength(): that one also answers 0 for transparent buttons, a choice
+-- about the CHROME. The label plates under covers and the add tile read
+-- this (bookshelf_shelf_row, bookshelf_add_tile).
+function M.shading()
+    local v = M.partRead(M.SCRIM_SETTING)
+    if type(v) ~= "number" then return M.SCRIM_DEFAULT end
+    if v < 0 then return 0 end
+    if v > 1 then return 1 end
+    return v
+end
+
+-- coversPanel() -> Panel behind Covers shelves, as the theme on screen sets it.
+function M.coversPanel() return M.partRead(M.COVERS_PANEL_SETTING) == true end
 
 -- _roundedSpans(x, y, w, h, r) -> a list of {x, y, w, h} rows that tile a
 -- rounded rectangle EXACTLY ONCE each.
@@ -387,8 +409,9 @@ end
 -- -- the decoded picture's own key, which already names the file, the screen
 -- size and the night pre-inversion -- so a paint is one blit, and only a new
 -- picture, a night toggle or a panel that moved pays for a rebuild.
+-- Part of the theme on screen (M.partRead): a pack may switch it off.
 M.BLUR_SETTING = "wallpaper_panel_blur"
-function M.blurOn() return settingsRead(M.BLUR_SETTING) == true end
+function M.blurOn() return M.partRead(M.BLUR_SETTING) == true end
 
 -- ── Dithered onto the panel's greys (greyscale e-ink) ──
 --

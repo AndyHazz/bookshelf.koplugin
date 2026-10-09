@@ -591,7 +591,9 @@ t.test("the paint reads through the seam: colours, bars, chips, the page ground,
     -- resolver".
     local wp = io.open("lib/bookshelf_wallpaper.lua"):read("*a")
     local inv = wp:match("\nfunction M%.invertsAtNight%(%)\n(.-)\nend\n")
-    assert(inv and inv:find("TP.partRead(M.INVERT_NIGHT_SETTING)", 1, true), "invert at night reads Custom theme's key")
+    assert(inv and inv:find("M.partRead(M.INVERT_NIGHT_SETTING)", 1, true), "invert at night reads Custom theme's key")
+    local pr = wp:match("\nfunction M%.partRead%(key%)\n(.-)\nend\n")
+    assert(pr and pr:find("return TP.partRead(key)", 1, true), "Wallpaper.partRead is not the seam")
 end)
 
 -- withUI(fn): fn(seen) with KOReader's dialogs stubbed: what was shown.

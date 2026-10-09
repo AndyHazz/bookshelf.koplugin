@@ -1713,8 +1713,9 @@ function Settings:_wallpaperFolderRow()
     }
 end
 
--- _panelShadingRow(): how hard the panels are shaded over the picture. The
--- same for every theme: no pack sets it.
+-- _panelShadingRow(): how hard the panels are shaded over the picture. Part
+-- of the theme on screen (2026-10-09): its rows read and write through the
+-- seam (TP.partRead, partSave); a pack's theme.json may set them.
 function Settings:_panelShadingRow()
     return {
         text_func = function()
@@ -1739,12 +1740,16 @@ end
 -- Transparent is the same choice as the old "Transparent buttons" toggle, not
 -- merely equivalent to it: picking it sets that flag, so the hero's tag pills
 -- go see-through with the strips rather than drifting out of step.
+--
+-- name: what a theme.json's "panel_shading" calls the level (the English
+-- label in lower case; bookshelf_theme_pack.SHADING_LEVELS, kept the same by
+-- a test).
 Settings.SCRIM_LEVELS = {
-    { value = 0,    label = function() return _("Transparent") end },
-    { value = 0.35, label = function() return _("Low") end },
-    { value = 0.6,  label = function() return _("Moderate") end },
-    { value = 0.85, label = function() return _("Heavy") end },
-    { value = 1,    label = function() return _("Solid") end },
+    { name = "transparent", value = 0,    label = function() return _("Transparent") end },
+    { name = "low",         value = 0.35, label = function() return _("Low") end },
+    { name = "moderate",    value = 0.6,  label = function() return _("Moderate") end },
+    { name = "heavy",       value = 0.85, label = function() return _("Heavy") end },
+    { name = "solid",       value = 1,    label = function() return _("Solid") end },
 }
 
 -- Light or dark, the reader's own (shelf_theme). A theme may set it in its
@@ -1810,11 +1815,10 @@ function Settings:_lightDarkRow()
     }
 end
 
+-- The theme on screen's (Wallpaper.partRead: the seam).
 function Settings:_scrimStrength()
     local Wallpaper = require("lib/bookshelf_wallpaper")
-    return Wallpaper.scrimStrength(function(k)
-        return BookshelfSettings.read(k)
-    end)
+    return Wallpaper.scrimStrength(Wallpaper.partRead)
 end
 
 function Settings:_scrimLabel()
@@ -1827,6 +1831,7 @@ end
 
 function Settings:_scrimSubItems()
     local Wallpaper = require("lib/bookshelf_wallpaper")
+    local TP = require("lib/bookshelf_theme_pack")
     local rows = {}
     for _i, lvl in ipairs(Settings.SCRIM_LEVELS) do
         local value = lvl.value
@@ -1841,8 +1846,8 @@ function Settings:_scrimSubItems()
                 -- Both keys every time. Writing only the one that changed
                 -- would leave the buttons flag stuck on from an earlier
                 -- Transparent, and scrimStrength short-circuits on it.
-                BookshelfSettings.save(Wallpaper.BUTTONS_SETTING, value <= 0)
-                BookshelfSettings.save(Wallpaper.SCRIM_SETTING, value)
+                TP.partSave(Wallpaper.BUTTONS_SETTING, value <= 0)
+                TP.partSave(Wallpaper.SCRIM_SETTING, value)
                 BookshelfSettings.flush()
                 self:_markDirty()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
@@ -1865,11 +1870,11 @@ function Settings:_scrimSubItems()
             return cur > 0 and cur < 1
         end,
         checked_func = function()
-            return BookshelfSettings.read(Wallpaper.BLUR_SETTING) == true
+            return TP.partRead(Wallpaper.BLUR_SETTING) == true
         end,
         callback = function(touchmenu_instance)
-            local on = BookshelfSettings.read(Wallpaper.BLUR_SETTING) == true
-            BookshelfSettings.save(Wallpaper.BLUR_SETTING, (not on) and true or nil)
+            local on = TP.partRead(Wallpaper.BLUR_SETTING) == true
+            TP.partSave(Wallpaper.BLUR_SETTING, (not on) and true or nil)
             BookshelfSettings.flush()
             self:_markDirty()
             if touchmenu_instance then touchmenu_instance:updateItems() end
@@ -1881,11 +1886,11 @@ function Settings:_scrimSubItems()
         text = _("Panel behind Covers shelves"),
         keep_menu_open = true,
         checked_func = function()
-            return BookshelfSettings.read(Wallpaper.COVERS_PANEL_SETTING) == true
+            return TP.partRead(Wallpaper.COVERS_PANEL_SETTING) == true
         end,
         callback = function(touchmenu_instance)
-            local on = BookshelfSettings.read(Wallpaper.COVERS_PANEL_SETTING) == true
-            BookshelfSettings.save(Wallpaper.COVERS_PANEL_SETTING, (not on) and true or nil)
+            local on = TP.partRead(Wallpaper.COVERS_PANEL_SETTING) == true
+            TP.partSave(Wallpaper.COVERS_PANEL_SETTING, (not on) and true or nil)
             BookshelfSettings.flush()
             self:_markDirty()
             if touchmenu_instance then touchmenu_instance:updateItems() end

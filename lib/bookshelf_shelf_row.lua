@@ -281,25 +281,24 @@ function ShelfRow.new(opts)
     -- down (or off) everywhere else. Same colour, same geometry, same rounding
     -- -- painted as a scrim so the picture shows through it by as much as the
     -- rest of the chrome does.
-    if plate_fill and plate_wp and plate_wp.SCRIM_SETTING then
-        -- The shading setting itself, NOT Wallpaper.scrimStrength(): that one
-        -- also returns 0 for "transparent buttons", which is a choice about
-        -- the CHROME. A label under a cover is one of the surfaces that has no
-        -- legible alternative -- the same reason the shelf planks, the list
-        -- rows and the hero text are not gated on it either.
-        local v = BookshelfSettings.read(plate_wp.SCRIM_SETTING)
-        if type(v) ~= "number" then v = plate_wp.SCRIM_DEFAULT end
-        if v < 0 then v = 0 elseif v > 1 then v = 1 end
-        plate_strength = v
+    if plate_fill and plate_wp and plate_wp.shading then
+        -- The shading level itself (Wallpaper.shading), NOT
+        -- Wallpaper.scrimStrength(): that one also returns 0 for "transparent
+        -- buttons", which is a choice about the CHROME. A label under a cover
+        -- is one of the surfaces that has no legible alternative -- the same
+        -- reason the shelf planks, the list rows and the hero text are not
+        -- gated on it either. As the theme on screen sets it (part of the
+        -- theme since 2026-10-09), through the seam.
+        plate_strength = plate_wp.shading()
         -- Shading turned off: no plate at all, which is what the setting
         -- asks for. The label keeps its themed ink and sits on the ground,
         -- exactly as it does on a plain page.
         if type(plate_strength) == "number" and plate_strength <= 0 then
             plate_fill = nil
         end
-        -- The shelf's own panel runs behind the covers (Panel shading > Show
-        -- panel behind 'Covers' shelf style, issue 483): no plate on top.
-        if BookshelfSettings.read(plate_wp.COVERS_PANEL_SETTING or "") == true then
+        -- The shelf's own panel runs behind the covers (the theme's
+        -- Wallpaper > Panel behind Covers shelves, issue 483): no plate on top.
+        if plate_wp.coversPanel and plate_wp.coversPanel() then
             plate_fill = nil
         end
     end

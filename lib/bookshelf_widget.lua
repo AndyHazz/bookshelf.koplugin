@@ -3876,9 +3876,8 @@ function BookshelfWidget:wallpaperButtonsTransparent()
     if not self:groundIsPainted() then return false end
     local ok, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
     if not ok then return false end
-    return Wallpaper.transparentButtons(function(k)
-        return BookshelfSettings.read(k)
-    end)
+    -- Part of the theme on screen, with Panel shading (Wallpaper.partRead).
+    return Wallpaper.transparentButtons(Wallpaper.partRead)
 end
 
 -- _chromeInk() -> the colour hand-painted chrome glyphs should use.
@@ -4144,12 +4143,12 @@ function BookshelfWidget:wallpaperScrimStrength()
     return self:_groundState().strength
 end
 
+-- Panel shading is part of the theme on screen (2026-10-09): read through
+-- the seam (Wallpaper.partRead), so a pack's own shading paints on its shelf.
 function BookshelfWidget:_scrimStrengthRaw()
     local ok, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
     if not ok then return 0 end
-    return Wallpaper.scrimStrength(function(k)
-        return BookshelfSettings.read(k)
-    end)
+    return Wallpaper.scrimStrength(Wallpaper.partRead)
 end
 
 -- hasWallpaper() -> is there something behind the page right now?
@@ -5612,14 +5611,13 @@ end
 
 -- _fullPanel() -> does the top panel run on behind the shelf and the footer?
 -- Always in list mode (its rows have no ground of their own); on Covers
--- shelves when Panel shading > "Panel behind Covers shelves" is
--- ticked (issue 483); never on spines, which stand on their planks.
+-- shelves when the theme on screen has Wallpaper > "Panel behind Covers
+-- shelves" ticked (issue 483); never on spines, which stand on their planks.
 function BookshelfWidget:_fullPanel()
     if self:_isListMode() then return true end
     if self:_viewMode() ~= ViewMode.COVERS then return false end
     local ok, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
-    return (ok and Wallpaper and BookshelfSettings.read(Wallpaper.COVERS_PANEL_SETTING) == true)
-        and true or false
+    return (ok and Wallpaper and Wallpaper.coversPanel()) and true or false
 end
 
 -- _flipViewMode() -- the footer-hold gesture: pin THIS CHIP to the other mode.

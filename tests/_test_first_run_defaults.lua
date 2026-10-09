@@ -70,7 +70,7 @@ t.test("panel shading defaults to Heavy", function()
     local v = tonumber(wall:match("M.SCRIM_DEFAULT = ([%d%.]+)"))
     assert(v, "SCRIM_DEFAULT moved")
     -- The menu's own Heavy stop, so the two cannot drift apart.
-    local heavy = tonumber(set:match('{ value = ([%d%.]+),%s*label = function%(%) return _%("Heavy"%)'))
+    local heavy = tonumber(set:match('value = ([%d%.]+),%s*label = function%(%) return _%("Heavy"%)'))
     assert(heavy, "the Heavy stop moved")
     eq(v, heavy, "the default is no longer the Heavy stop")
     assert(v > 0.6, "shading went back down; legibility over a busy picture "

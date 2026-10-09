@@ -140,6 +140,25 @@ local function parseColours(path, pack)
     return any and out or nil
 end
 
+-- The panel options a theme.json may set (5.4, maintainer 2026-10-09:
+-- "macabre looks best with light transparency and blur off"), each optional:
+--   "panel_shading": a level name as the Panel shading menu shows it, in
+--                    lower case: "transparent", "low", "moderate", "heavy",
+--                    "solid"; or a number from 0 (transparent) to 1 (solid)
+--   "panel_blur":    true or false, Blur wallpaper behind panels
+--   "covers_panel":  true or false, Panel behind Covers shelves
+-- Anything else is ignored, so the shelf keeps Custom theme's. The values are
+-- Settings.SCRIM_LEVELS' (a test keeps the two the same).
+M.SHADING_LEVELS = { transparent = 0, low = 0.35, moderate = 0.6, heavy = 0.85, solid = 1 }
+-- shadingValue(v) -> 0..1 for a theme.json panel_shading, or nil.
+function M.shadingValue(v)
+    if type(v) == "string" then v = M.SHADING_LEVELS[v:lower()] end
+    if type(v) ~= "number" or v ~= v then return nil end
+    if v < 0 then return 0 end
+    if v > 1 then return 1 end
+    return v
+end
+
 -- parseManifest(path, pack) -> theme.json's fields (any of them nil). A file
 -- that cannot be read is logged and gives {}: the pack is still a theme pack,
 -- listed by its folder name, so a typo cannot hide a pack someone paid for.
@@ -157,8 +176,13 @@ local function parseManifest(path, pack)
     end
     local shelf = str("shelf")
     if shelf ~= "light" and shelf ~= "dark" then shelf = nil end
+    local function bool(k)
+        if type(doc[k]) == "boolean" then return doc[k] end
+        return nil
+    end
     return { name = str("name"), description = str("description"), shelf = shelf, plank = str("plank"),
-             hero = str("hero") }
+             hero = str("hero"), panel_shading = M.shadingValue(doc.panel_shading),
+             panel_blur = bool("panel_blur"), covers_panel = bool("covers_panel") }
 end
 
 -- _plankPart(file) -> name, part for "plank[.<name>].<middle|left|right>.png"
@@ -537,15 +561,24 @@ function M.coloursSource()
     return M.MINE
 end
 
--- lookParts() -> the look but its colours, and whose colours it paints.
+-- lookParts() -> the look but its colours, and whose colours it paints
+-- with how its panels are shaded. The panels go with the colours: two
+-- shelves that differ only there still bump the generation when one follows
+-- the other (the ground memo and the plates read them), and an edit to one is
+-- a colour-like change on screen, never a full-screen flash per tap.
 local function lookParts()
     local plank = M.activePlank()
     local look = M.shelfLook()
     if look == "auto" then look = autoDark() and "dark" or "light" end
+    local P = M.PANEL_KEYS
     return table.concat({
         tostring(M.shownWallpaper(false, false)), tostring(M.shownWallpaper(true, false)),
         tostring(plank and plank.id), look,
-    }, "\2"), tostring(M.coloursSource())
+    }, "\2"), table.concat({
+        tostring(M.coloursSource()),
+        tostring(M.partRead(P.shading)), tostring(M.partRead(P.buttons) == true),
+        tostring(M.partRead(P.blur) == true), tostring(M.partRead(P.covers) == true),
+    }, "\2")
 end
 function M.lookKey()
     local rest, colours = lookParts()
@@ -994,10 +1027,10 @@ M.EDITS_SETTING = "theme_edits"
 M.UNSET = "\0nil"
 
 -- PART_KEYS: Custom theme's parts, as settings keys: what its menu writes
--- (light or dark, the wallpaper rows, the plank, every colour row; each
--- colour in both slots). The ornament switches are pieces, above. Panel
--- shading, the extra wallpaper folder, the transparent shelf menu and plank
--- designs on or off are display preferences no theme touches.
+-- (light or dark, the wallpaper rows, the panel rows, the plank, every
+-- colour row; each colour in both slots). The ornament switches are pieces,
+-- above. The extra wallpaper folder and plank designs on or off are display
+-- preferences no theme touches.
 M.PART_KEYS = {
     [M.SHELF_SETTING]          = true,
     ["wallpaper_default"]      = true,
@@ -1008,6 +1041,19 @@ M.PART_KEYS = {
     -- saved with the theme as the colours are (maintainer, 2026-10-09).
     ["chip_bar_transparent"]   = true,
 }
+-- The panels over a wallpaper (Wallpaper's SCRIM_SETTING, BUTTONS_SETTING,
+-- BLUR_SETTING, COVERS_PANEL_SETTING): part of the theme since 2026-10-09
+-- (maintainer: "Yes make those part of the theme"), in its Wallpaper menu.
+-- Transparent buttons is not a row: Panel shading writes it with the level
+-- (Transparent sets it), so it is a part beside it, or a pack's light
+-- shading would be cut to nothing by Custom theme's Transparent.
+M.PANEL_KEYS = {
+    shading = "wallpaper_chrome_scrim",
+    buttons = "wallpaper_transparent_buttons",
+    blur    = "wallpaper_panel_blur",
+    covers  = "covers_full_panel",
+}
+for _n, key in pairs(M.PANEL_KEYS) do M.PART_KEYS[key] = true end
 -- A colour key's slot: { the colours.json setting, night }.
 local COLOUR_SLOT = {}
 for _n, key in pairs(M.COLOUR_NAMES) do
@@ -1017,6 +1063,8 @@ for _n, key in pairs(M.COLOUR_NAMES) do
     COLOUR_SLOT[key .. "_night"] = { key, true }
 end
 function M.isPart(key) return M.PART_KEYS[key] == true end
+local PANEL_PART = {}
+for _n, key in pairs(M.PANEL_KEYS) do PANEL_PART[key] = true end
 
 -- editsOf(theme) -> the reader's edits to that theme, or nil (none, or
 -- Custom theme). hasEdits(theme): Reset to original is greyed without them, and
@@ -1051,9 +1099,20 @@ local function ownPart(theme, key)
         if slot or key == "wallpaper_default" or key == "wallpaper_full" then return true, nil end
         if key == M.PLANK_SETTING then return true, "oak" end
         if key == "chip_bar_transparent" then return true, nil end   -- the bar, as by default
+        -- The panels as by default: Heavy shading, no blur, no Covers panel.
+        if PANEL_PART[key] then return true, nil end
         return false
     end
     local th = M.theme(theme)
+    if PANEL_PART[key] then
+        local m = th.manifest or {}
+        local P = M.PANEL_KEYS
+        if key == P.shading and m.panel_shading ~= nil then return true, m.panel_shading end
+        if key == P.buttons and m.panel_shading ~= nil then return true, (m.panel_shading <= 0) or nil end
+        if key == P.blur and m.panel_blur ~= nil then return true, m.panel_blur or nil end
+        if key == P.covers and m.covers_panel ~= nil then return true, m.covers_panel or nil end
+        return false
+    end
     if slot then
         local c = th.colours and packColour(theme, slot[1], slot[2])
         if c then return true, c end

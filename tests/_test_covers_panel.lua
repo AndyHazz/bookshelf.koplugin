@@ -31,12 +31,18 @@ local function scrimMenu(store)
     local seen = { dirty = 0 }
     local env = setmetatable({
         Settings = {}, _ = function(s) return s end,
-        BookshelfSettings = { read = function(k) return store[k] end,
-                              save = function(k, v) store[k] = v end, flush = function() end },
+        -- The reader's own keys: a row that wrote here bypassed the seam
+        -- (the panels are part of the theme since 2026-10-09).
+        BookshelfSettings = { read = function() error("read the reader's key, not the theme's part") end,
+                              save = function() error("saved the reader's key, not the theme's part") end,
+                              flush = function() end },
         require = function(m)
             if m == "lib/bookshelf_wallpaper" then
                 return { BUTTONS_SETTING = "b", SCRIM_SETTING = "s", COVERS_PANEL_SETTING = "covers_full_panel",
                          BLUR_SETTING = "wallpaper_panel_blur" }
+            end
+            if m == "lib/bookshelf_theme_pack" then
+                return { partRead = function(k) return store[k] end, partSave = function(k, v) store[k] = v end }
             end
             return require(m)
         end,
@@ -106,8 +112,12 @@ local function fullPanel(mode, on)
     local env = {
         ViewMode = { COVERS = "covers", LIST = "list", SPINES = "spines",
                      isList = function(m) return m == "list" end },
-        BookshelfSettings = { read = function(k) return k == "covers_full_panel" and on or nil end },
-        require = function(m) return { COVERS_PANEL_SETTING = "covers_full_panel" } end,
+        -- The reader's own key says the opposite: _fullPanel must ask the
+        -- theme on screen (Wallpaper.coversPanel, the seam).
+        BookshelfSettings = { read = function(k) return k == "covers_full_panel" and not on or nil end },
+        require = function(m)
+            return { COVERS_PANEL_SETTING = "covers_full_panel", coversPanel = function() return on == true end }
+        end,
         pcall = pcall,
     }
     local self = { _viewMode = function() return mode end,
@@ -128,8 +138,10 @@ end)
 
 t.test("with the option on, cover labels get no plate", function()
     local code = row_src:gsub("%-%-[^\n]*", "")
-    assert(code:find("COVERS_PANEL_SETTING", 1, true), "the label plate ignores the option")
-    assert(code:match("COVERS_PANEL_SETTING[^\n]*\n[^\n]*plate_fill = nil"), "the option does not drop the plate")
+    assert(code:find("plate_wp.coversPanel()", 1, true), "the label plate ignores the option")
+    assert(code:match("plate_wp%.coversPanel%(%)[^\n]*\n[^\n]*plate_fill = nil"), "the option does not drop the plate")
+    -- The theme's part, not the reader's key (Wallpaper.coversPanel).
+    assert(not code:find("COVERS_PANEL_SETTING", 1, true), "the plate reads the reader's key directly")
 end)
 
 t.done()

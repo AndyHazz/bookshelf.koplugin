@@ -53,7 +53,7 @@ t.test("switching packs keeps the browser one height", function()
     -- a general fix.
     assert(not src:find("footer_min_rows", 1, true), "the browser still reserves two footer rows")
     local m = io.open("lib/bookshelf_library_modal.lua"):read("*a")
-    local r = method(m, "LibraryModal:refresh(quiet)")
+    local r = method(m, "LibraryModal:refresh()")
     assert(not r:find("footer_min_rows", 1, true), "the modal's unused footer_min_rows is still there")
     assert(r:find("self:_repaintIfResized(old)", 1, true), "a resized modal does not repaint where it was")
     -- _repaintIfResized: the rectangle the modal last had (centred on the

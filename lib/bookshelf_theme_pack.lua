@@ -1224,9 +1224,12 @@ function M.resetEdits(theme)
 end
 
 -- confirmReset(theme, after): Reset to original for a pack or Plain, asked
--- first: the Theme menu's Reset row and a card's long-press in the Theme
--- library (maintainer, 2026-10-09) ask the one question. after(): once the
--- edits are gone, to refresh what showed them.
+-- first: the Theme library's footer Reset and a card's long-press
+-- (maintainer, 2026-10-09) ask the one question. after(): once the edits are
+-- gone, to refresh what showed them. The wallpaper's decode is NOT freed:
+-- Wallpaper.bg keys it by the picture, so a shelf that shows another one
+-- after the reset decodes that one on its rebuild, and a shelf on another
+-- theme keeps its picture (freed, it went blank until the next page turn).
 function M.confirmReset(theme, after)
     if theme == nil or theme == M.MINE then return end
     local UIManager = require("ui/uimanager")
@@ -1236,8 +1239,6 @@ function M.confirmReset(theme, after)
         ok_text = _("Reset"),
         ok_callback = function()
             M.resetEdits(theme)
-            -- The edited wallpaper's decode goes with it.
-            pcall(function() require("lib/bookshelf_wallpaper").free() end)
             if after then after() end
         end,
     })

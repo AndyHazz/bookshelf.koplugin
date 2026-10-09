@@ -545,9 +545,9 @@ local function withUI(fn)
     assert(ok, err)
 end
 
-t.test("confirmReset asks first, then resets the theme, frees its wallpaper and calls back; never Custom theme", function()
-    -- Maintainer, 2026-10-09: the Theme menu's Reset row and a card's
-    -- long-press in the Theme library ask the one question.
+t.test("confirmReset asks first, then resets the theme and calls back; never Custom theme", function()
+    -- Maintainer, 2026-10-09: the Theme library's footer Reset and a card's
+    -- long-press ask the one question.
     local TP, d, settings, tabs = setup()
     world(d, settings)
     tabs.home = { id = "home", theme = "Macabre" }
@@ -564,7 +564,9 @@ t.test("confirmReset asks first, then resets the theme, frees its wallpaper and 
         eq(TP.hasEdits("Macabre"), true, "the edits went before the question was answered")
         box.ok_callback()
         eq(TP.hasEdits("Macabre"), false, "Reset did not reset")
-        eq(seen.freed, 1, "the edited wallpaper's decode was kept")
+        -- The decode is keyed by its picture: freeing it blanked the
+        -- wallpaper of a shelf on another theme until the next page turn.
+        eq(seen.freed, 0, "Reset freed the wallpaper on screen")
         eq(after, 1, "what showed the edits was not told")
         TP.confirmReset("mine", function() after = after + 1 end)
         TP.confirmReset(nil)

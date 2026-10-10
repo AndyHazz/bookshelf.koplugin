@@ -71,7 +71,7 @@ msgstr "Thư viện ảo Kindle"
 
 #: lib/bookshelf_builtin_sources.lua:85
 msgid "Kobo library"
-msgstr ""
+msgstr "Thư viện Kobo"
 
 #: lib/bookshelf_bulk_actions.lua:26
 #, lua-format
@@ -440,7 +440,7 @@ msgstr "Danh mục OPDS"
 
 #: lib/bookshelf_chip_editor.lua:407 lib/bookshelf_chip_editor.lua:2843
 msgid "Shelf of shelves"
-msgstr ""
+msgstr "Kệ chứa các kệ"
 
 #: lib/bookshelf_chip_editor.lua:409 lib/bookshelf_chip_editor.lua:424
 #: lib/bookshelf_settings.lua:4349
@@ -453,11 +453,11 @@ msgstr "OPDS: %1"
 
 #: lib/bookshelf_chip_editor.lua:645
 msgid "Changing this shelf's source deletes the shelves inside it. This cannot be undone."
-msgstr ""
+msgstr "Đổi nguồn của kệ này sẽ xóa các kệ bên trong nó. Điều này không thể hoàn tác."
 
 #: lib/bookshelf_chip_editor.lua:646
 msgid "Change"
-msgstr ""
+msgstr "Thay đổi"
 
 #: lib/bookshelf_chip_editor.lua:727
 msgid "Insert icon…"
@@ -485,7 +485,7 @@ msgstr "Thứ tự máy chủ"
 
 #: lib/bookshelf_chip_editor.lua:889
 msgid "Shelves stand in the order you arrange them"
-msgstr ""
+msgstr "Các kệ đứng theo thứ tự bạn sắp xếp"
 
 #: lib/bookshelf_chip_editor.lua:932
 msgid "Source / grouping: "
@@ -493,7 +493,7 @@ msgstr "Nguồn / gom nhóm: "
 
 #: lib/bookshelf_chip_editor.lua:950
 msgid "Show + Add shelf"
-msgstr ""
+msgstr "Hiện nút + Thêm kệ"
 
 #: lib/bookshelf_chip_editor.lua:963
 msgid "Filters: "
@@ -513,7 +513,7 @@ msgstr "Sửanhãn"
 
 #: lib/bookshelf_chip_editor.lua:1108
 msgid "Delete this shelf and the shelves inside it? This cannot be undone."
-msgstr ""
+msgstr "Xóa kệ này và các kệ bên trong nó? Điều này không thể hoàn tác."
 
 #: lib/bookshelf_chip_editor.lua:1109
 msgid "Delete this shelf? This cannot be undone."
@@ -521,7 +521,7 @@ msgstr "Xóa kệ này? Điều này không thể hoàn tác."
 
 #: lib/bookshelf_chip_editor.lua:1221
 msgid "Choose a source to keep this new shelf."
-msgstr ""
+msgstr "Chọn một nguồn để giữ kệ mới này."
 
 #: lib/bookshelf_chip_editor.lua:1253
 msgid "Edit shelf"
@@ -581,7 +581,7 @@ msgstr "Trong một bộ sưu tập"
 
 #: lib/bookshelf_chip_editor.lua:1722 lib/bookshelf_theme_library.lua:539
 msgid "Theme: %1"
-msgstr ""
+msgstr "Giao diện: %1"
 
 #: lib/bookshelf_chip_editor.lua:1743
 msgid "Show as"
@@ -1081,7 +1081,7 @@ msgstr "%1×%2px"
 
 #: lib/bookshelf_cover_label_editor.lua:104
 msgid "Text below covers"
-msgstr ""
+msgstr "Chữ dưới bìa"
 
 #: lib/bookshelf_cover_sources.lua:189
 msgid "Google Books"
@@ -2309,11 +2309,11 @@ msgstr "Đổi"
 
 #: lib/bookshelf_ornament_menu.lua:378
 msgid "Shuffle this shelf"
-msgstr ""
+msgstr "Xáo trộn kệ này"
 
 #: lib/bookshelf_ornament_menu.lua:381
 msgid "Shuffle this shelf's ornaments into a new order? Its swaps and moves are lost."
-msgstr ""
+msgstr "Xáo trộn vật trang trí của kệ này theo thứ tự mới? Các lượt đổi và di chuyển của kệ sẽ mất."
 
 #: lib/bookshelf_ornament_menu.lua:382
 msgid "Shuffle"
@@ -2499,7 +2499,7 @@ msgstr "Tích hợp sẵn"
 
 #: lib/bookshelf_plank_browser.lua:223
 msgid "Plank"
-msgstr ""
+msgstr "Ván kệ"
 
 #: lib/bookshelf_reader_park.lua:437 lib/bookshelf_widget.lua:24943
 #: main.lua:1331
@@ -2637,11 +2637,11 @@ msgstr "Set"
 
 #: lib/bookshelf_settings.lua:708
 msgid "Custom"
-msgstr ""
+msgstr "Tùy chỉnh"
 
 #: lib/bookshelf_settings.lua:725
 msgid "Custom…"
-msgstr ""
+msgstr "Tùy chỉnh…"
 
 #: lib/bookshelf_settings.lua:766
 msgid "Show text below covers"
@@ -2837,7 +2837,7 @@ msgstr "Di chuyển xuống"
 #: lib/bookshelf_settings.lua:1574 lib/bookshelf_theme_pack.lua:352
 #: lib/bookshelf_theme_pack.lua:834
 msgid "%1 (missing)"
-msgstr ""
+msgstr "%1 (bị thiếu)"
 
 #: lib/bookshelf_settings.lua:1587 lib/bookshelf_settings.lua:1589
 #: lib/bookshelf_theme_library.lua:104 lib/bookshelf_wallpaper_browser.lua:150
@@ -2846,7 +2846,7 @@ msgstr "Gói %1"
 
 #: lib/bookshelf_settings.lua:1611
 msgid "Wallpaper: %1"
-msgstr ""
+msgstr "Ảnh nền: %1"
 
 #: lib/bookshelf_settings.lua:1617
 msgid "Images are loaded from %1 and %2"
@@ -2858,39 +2858,39 @@ msgstr "Ảnh được nạp từ %1"
 
 #: lib/bookshelf_settings.lua:1625
 msgid "Full screen wallpaper: %1"
-msgstr ""
+msgstr "Ảnh nền toàn màn hình: %1"
 
 #: lib/bookshelf_settings.lua:1626 lib/bookshelf_wallpaper_browser.lua:210
 msgid "Same as wallpaper"
-msgstr ""
+msgstr "Giống ảnh nền"
 
 #: lib/bookshelf_settings.lua:1628
 msgid "A different picture for full screen shelves. That view is wall-to-wall covers and spines, where a backdrop that reads well behind the top panel is often too busy."
-msgstr ""
+msgstr "Một ảnh khác dành cho kệ toàn màn hình. Chế độ xem đó phủ kín màn hình bằng bìa và gáy sách, nơi một ảnh nền vốn hợp khi nằm sau bảng trên thường lại quá rối."
 
 #: lib/bookshelf_settings.lua:1635
 msgid "Invert wallpaper when dark"
-msgstr ""
+msgstr "Đảo màu ảnh nền khi tối"
 
 #: lib/bookshelf_settings.lua:1636
 msgid "Show the wallpaper as its negative when the shelf is dark, so a light picture turns dark. Off, the picture looks the same dark as light. A theme's own dark wallpaper is always shown as drawn."
-msgstr ""
+msgstr "Hiển thị ảnh nền dưới dạng âm bản khi kệ ở chế độ tối, để ảnh sáng trở thành tối. Khi tắt, ảnh trông giống nhau cả khi tối lẫn khi sáng. Ảnh nền tối riêng của một giao diện luôn được hiển thị đúng như bản gốc."
 
 #: lib/bookshelf_settings.lua:1658
 msgid "Color behind wallpaper: %1"
-msgstr ""
+msgstr "Màu sau ảnh nền: %1"
 
 #: lib/bookshelf_settings.lua:1665
 msgid "Color behind wallpaper"
-msgstr ""
+msgstr "Màu sau ảnh nền"
 
 #: lib/bookshelf_settings.lua:1665
 msgid "Color behind wallpaper (% black)"
-msgstr ""
+msgstr "Màu sau ảnh nền (% đen)"
 
 #: lib/bookshelf_settings.lua:1691
 msgid "Extra wallpaper folder: %1"
-msgstr ""
+msgstr "Thư mục ảnh nền thêm: %1"
 
 #: lib/bookshelf_settings.lua:1693
 msgid "A folder of your own to take wallpapers from, listed along with the ones in %1. Useful when you already keep pictures somewhere else. Nothing in it is changed. Long-press to stop using it."
@@ -2906,23 +2906,23 @@ msgstr "Độ che bảng: %1"
 
 #: lib/bookshelf_settings.lua:1743
 msgid "How much to shade the top panel and the footer so the buttons stay legible over a picture. Transparent lets the wallpaper through untouched, which reads well over a plain texture and poorly over a busy photograph. Solid hides the picture behind those strips entirely. Part of the theme, as the wallpaper is."
-msgstr ""
+msgstr "Mức che nền bảng trên và thanh chân trang để các nút vẫn dễ đọc khi nằm trên một bức ảnh. Trong suốt sẽ để ảnh nền hiện nguyên vẹn, hợp với nền vân đơn giản nhưng kém với ảnh chụp nhiều chi tiết. Đặc sẽ che hoàn toàn bức ảnh phía sau những dải đó. Là một phần của giao diện, giống như ảnh nền."
 
 #: lib/bookshelf_settings.lua:1757
 msgid "Blur wallpaper behind panels"
-msgstr ""
+msgstr "Làm mờ ảnh nền sau các bảng"
 
 #: lib/bookshelf_settings.lua:1758
 msgid "Blurs the wallpaper behind the top panel and the footer before the shading goes over it, like frosted glass, so the picture's detail does not compete with the buttons and text. Worked out once per wallpaper, then reused. Part of the theme."
-msgstr ""
+msgstr "Làm mờ ảnh nền phía sau bảng trên và thanh chân trang trước khi phủ lớp che, như kính mờ, để chi tiết của ảnh không lấn át các nút và chữ. Chỉ tính một lần cho mỗi ảnh nền, sau đó dùng lại. Là một phần của giao diện."
 
 #: lib/bookshelf_settings.lua:1775
 msgid "Panel behind Covers shelves"
-msgstr ""
+msgstr "Bảng nền sau kệ bìa"
 
 #: lib/bookshelf_settings.lua:1776
 msgid "Covers shelves get one panel behind the top panel, the covers and the footer, as list shelves have, in place of a plate under each title. Part of the theme."
-msgstr ""
+msgstr "Kệ bìa có một bảng nền chung phía sau bảng trên, các bìa và thanh chân trang, giống kệ danh sách, thay cho một tấm nền dưới mỗi tiêu đề. Là một phần của giao diện."
 
 #: lib/bookshelf_settings.lua:1801 lib/bookshelf_settings.lua:2767
 #: lib/bookshelf_settings.lua:2788 lib/bookshelf_settings.lua:2798
@@ -2947,7 +2947,7 @@ msgstr "Đặc"
 
 #: lib/bookshelf_settings.lua:1811
 msgid "Auto (follow night mode)"
-msgstr ""
+msgstr "Tự động (theo chế độ đêm)"
 
 #: lib/bookshelf_settings.lua:1812 lib/bookshelf_settings.lua:2470
 msgid "Light"
@@ -2959,11 +2959,11 @@ msgstr "Tối"
 
 #: lib/bookshelf_settings.lua:1840
 msgid "Light or dark: %1"
-msgstr ""
+msgstr "Sáng hay tối: %1"
 
 #: lib/bookshelf_settings.lua:1842
 msgid "Light or dark colors for the shelf, independently of KOReader's night mode, so you can keep the rest of KOReader light and still have a dark shelf. Auto follows night mode. Covers and ornaments are pictures and are never inverted; the wallpaper is inverted only when you ask for it."
-msgstr ""
+msgstr "Màu sáng hoặc tối cho kệ, độc lập với chế độ đêm của KOReader, để bạn có thể giữ phần còn lại của KOReader ở chế độ sáng mà vẫn có một kệ tối. Tự động sẽ theo chế độ đêm. Bìa sách và vật trang trí đều là hình ảnh nên không bao giờ bị đảo màu; ảnh nền chỉ bị đảo màu khi bạn yêu cầu."
 
 #: lib/bookshelf_settings.lua:2007 lib/bookshelf_settings.lua:2013
 msgid "default"
@@ -2979,7 +2979,7 @@ msgstr "Màu ván kệ (% đen)"
 
 #: lib/bookshelf_settings.lua:2108
 msgid "Plank: %1"
-msgstr ""
+msgstr "Ván kệ: %1"
 
 #: lib/bookshelf_settings.lua:2109
 msgid "color"
@@ -2991,7 +2991,7 @@ msgstr "Ván kệ mà kiểu Gáy sách đặt sách lên: một màu trơn, g�
 
 #: lib/bookshelf_settings.lua:2290
 msgid "Ornaments: %1 of %2 on"
-msgstr ""
+msgstr "Vật trang trí: bật %1/%2"
 
 #: lib/bookshelf_settings.lua:2295
 msgid ""
@@ -3005,7 +3005,7 @@ msgstr ""
 
 #: lib/bookshelf_settings.lua:2340
 msgid "New ornaments go: %1"
-msgstr ""
+msgstr "Vật trang trí mới đặt ở: %1"
 
 #: lib/bookshelf_settings.lua:2340
 msgid "first"
@@ -3033,11 +3033,11 @@ msgstr "Khôi phục lại màu sắc mặc định"
 
 #: lib/bookshelf_settings.lua:2468 lib/bookshelf_settings.lua:2470
 msgid "Colors for: %1"
-msgstr ""
+msgstr "Màu cho: %1"
 
 #: lib/bookshelf_settings.lua:2472
 msgid "Your colors come in two sets, one for a light shelf and one for a dark shelf. Tap to edit the other set; the shelf and KOReader's night mode are not changed."
-msgstr ""
+msgstr "Màu của bạn gồm hai bộ, một cho kệ sáng và một cho kệ tối. Chạm để chỉnh sửa bộ còn lại; kệ và chế độ đêm của KOReader không bị thay đổi."
 
 #: lib/bookshelf_settings.lua:2496 lib/bookshelf_settings.lua:2505
 msgid "Text ink"
@@ -3145,7 +3145,7 @@ msgstr "Màu viền"
 
 #: lib/bookshelf_settings.lua:2675
 msgid "The frame around covers and the border of badges. Default black."
-msgstr ""
+msgstr "Khung quanh bìa và viền của huy hiệu. Mặc định là đen."
 
 #: lib/bookshelf_settings.lua:2680
 msgid "Border color (% black)"
@@ -3201,8 +3201,8 @@ msgid "Shelf menu background"
 msgstr "Nền menu kệ"
 
 #: lib/bookshelf_settings.lua:2771
-msgid "The bar behind the shelf menu. White by day and black at night unless you change it; Transparent leaves it out, so the wallpaper shows through (the selected shelf keeps its fill). The panels have their own colour."
-msgstr ""
+msgid "The bar behind the shelf menu. White by day and black at night unless you change it; Transparent leaves it out, so the wallpaper shows through (the selected shelf keeps its fill). The panels have their own color."
+msgstr "Thanh phía sau menu kệ. Trắng ban ngày và đen ban đêm trừ khi bạn thay đổi; Trong suốt sẽ bỏ thanh này đi để ảnh nền hiện qua (kệ đang chọn vẫn giữ màu nền). Các bảng có màu riêng."
 
 #: lib/bookshelf_settings.lua:2781
 msgid "Shelf menu background (% black)"
@@ -3210,7 +3210,7 @@ msgstr "Nền menu kệ (% đen)"
 
 #: lib/bookshelf_settings.lua:2819 lib/bookshelf_settings.lua:2828
 msgid "Selected shelf background"
-msgstr ""
+msgstr "Nền kệ đang chọn"
 
 #: lib/bookshelf_settings.lua:2821
 msgid "Fill behind the selected shelf in the shelf menu. Left unset, the selected shelf is drawn by inverting it -- the fastest path and identical on every device. Setting a color paints it instead. Long-press to clear."
@@ -3218,7 +3218,7 @@ msgstr "Màu nền phía sau kệ đang chọn trong menu kệ. Nếu để tr�
 
 #: lib/bookshelf_settings.lua:2828
 msgid "Selected shelf background (% black)"
-msgstr ""
+msgstr "Nền kệ đang chọn (% đen)"
 
 #: lib/bookshelf_settings.lua:2839 lib/bookshelf_settings.lua:2846
 msgid "Selected shelf text"
@@ -3537,7 +3537,7 @@ msgstr "Hoa văn ván kệ: %1"
 
 #: lib/bookshelf_settings.lua:3733
 msgid "Draw plank designs (Oak, or one from a pack or a theme) on spine shelves. Drawing them is slow on some black and white e-readers; turn this off to use the plain plank color instead. Choosing a plank again, in the Plank picker, turns this back on."
-msgstr ""
+msgstr "Vẽ hoa văn ván kệ (Oak, hoặc một ván từ gói hay giao diện) trên kệ gáy sách. Việc vẽ này chậm trên một số máy đọc sách đen trắng; tắt tùy chọn này để dùng màu ván trơn thay thế. Chọn lại một ván kệ, trong bộ chọn Ván kệ, sẽ bật lại tùy chọn này."
 
 #: lib/bookshelf_settings.lua:3751
 msgid "Instant book close (beta)"
@@ -4356,19 +4356,19 @@ msgstr "Thẻ"
 
 #: lib/bookshelf_theme_library.lua:151
 msgid "%1 (Spines shelves only)"
-msgstr ""
+msgstr "%1 (chỉ kệ gáy sách)"
 
 #: lib/bookshelf_theme_library.lua:155
 msgid "Edited"
-msgstr ""
+msgstr "Đã sửa"
 
 #: lib/bookshelf_theme_library.lua:264
 msgid "Uses: %1"
-msgstr ""
+msgstr "Dùng: %1"
 
 #: lib/bookshelf_theme_library.lua:331
 msgid "Reset to original"
-msgstr ""
+msgstr "Khôi phục bản gốc"
 
 #: lib/bookshelf_theme_menu.lua:70
 msgid "Colors"
@@ -4376,7 +4376,7 @@ msgstr "Màu sắc"
 
 #: lib/bookshelf_theme_menu.lua:91
 msgid "Theme (%1)"
-msgstr ""
+msgstr "Giao diện (%1)"
 
 #: lib/bookshelf_theme_menu.lua:96
 msgid ""
@@ -4385,39 +4385,39 @@ msgid ""
 "The rows here edit the theme of the shelf on screen. Your changes stay with that theme wherever it shows, and Reset in the Theme library brings back its original.\n"
 "\n"
 "Each shelf can have a theme of its own: choose it here, or long-press a shelf chip, then Shelf style."
-msgstr ""
+msgstr "Một giao diện có thể mang theo ảnh nền, ván kệ, màu sắc, chế độ sáng hoặc tối, và vật trang trí. Những gì nó không mang theo sẽ lấy từ %1. Chọn một giao diện không bao giờ thay đổi %1.\n\nCác hàng ở đây chỉnh sửa giao diện của kệ đang hiển thị. Thay đổi của bạn đi theo giao diện đó ở mọi nơi nó xuất hiện, và Khởi tạo lại trong Thư viện giao diện sẽ đưa bản gốc trở lại.\n\nMỗi kệ có thể có giao diện riêng: chọn ở đây, hoặc nhấn giữ một chip kệ, rồi chọn Kiểu kệ."
 
 #: lib/bookshelf_theme_menu.lua:134
 msgid "This shelf: %1"
-msgstr ""
+msgstr "Kệ này: %1"
 
 #: lib/bookshelf_theme_menu.lua:168
 msgid "Other shelves: all default"
-msgstr ""
+msgstr "Các kệ khác: đều mặc định"
 
 #: lib/bookshelf_theme_menu.lua:169
 msgid "Other shelves: 1 with own theme"
-msgstr ""
+msgstr "Các kệ khác: 1 kệ có giao diện riêng"
 
 #: lib/bookshelf_theme_menu.lua:170
 msgid "Other shelves: %1 with own themes"
-msgstr ""
+msgstr "Các kệ khác: %1 kệ có giao diện riêng"
 
 #: lib/bookshelf_theme_menu.lua:222
 msgid "%1: %2"
-msgstr ""
+msgstr "%1: %2"
 
 #: lib/bookshelf_theme_menu.lua:232
 msgid "Default theme: %1"
-msgstr ""
+msgstr "Giao diện mặc định: %1"
 
 #: lib/bookshelf_theme_pack.lua:286
 msgid "Custom theme"
-msgstr ""
+msgstr "Giao diện tùy chỉnh"
 
 #: lib/bookshelf_theme_pack.lua:295
 msgid "Add theme pack…"
-msgstr ""
+msgstr "Thêm gói giao diện…"
 
 #: lib/bookshelf_theme_pack.lua:305
 msgid ""
@@ -4429,19 +4429,19 @@ msgid ""
 "\n"
 "Ready-made theme packs:\n"
 "%2"
-msgstr ""
+msgstr "Một gói giao diện kết hợp ảnh nền, ván kệ, màu sắc và vật trang trí, và được chọn ở đây. Để thêm một gói, hãy sao chép thư mục của nó vào\n%1\nrồi mở lại Thư viện giao diện.\n\nBạn có thể tự do chỉnh sửa bất kỳ giao diện nào; thay đổi của bạn được giữ cùng giao diện đó, và Khởi tạo lại sẽ đưa bản gốc trở lại.\n\nCác gói giao diện có sẵn:\n%2"
 
 #: lib/bookshelf_theme_pack.lua:309
 msgid "Plain"
-msgstr ""
+msgstr "Trơn"
 
 #: lib/bookshelf_theme_pack.lua:377
 msgid "Default theme"
-msgstr ""
+msgstr "Giao diện mặc định"
 
 #: lib/bookshelf_theme_pack.lua:1316
 msgid "Reset %1 to its original settings? Your changes to it are lost."
-msgstr ""
+msgstr "Đặt %1 về cài đặt gốc? Các thay đổi của bạn với nó sẽ mất."
 
 #: lib/bookshelf_tokens.lua:69
 msgid "First author"
@@ -4924,7 +4924,7 @@ msgstr "ảnh nền"
 
 #: lib/bookshelf_wallpaper_browser.lua:211
 msgid "No wallpaper"
-msgstr ""
+msgstr "Không có ảnh nền"
 
 #: lib/bookshelf_wallpaper_browser.lua:238
 msgid "Yours"
@@ -4932,11 +4932,11 @@ msgstr "Của bạn"
 
 #: lib/bookshelf_wallpaper_browser.lua:246
 msgid "Full screen wallpaper"
-msgstr ""
+msgstr "Ảnh nền toàn màn hình"
 
 #: lib/bookshelf_wallpaper_browser.lua:246
 msgid "Wallpaper"
-msgstr ""
+msgstr "Ảnh nền"
 
 #: lib/bookshelf_wallpaper_browser.lua:279
 msgid "No images in %1"
@@ -5777,7 +5777,7 @@ msgstr "Chọn hình ảnh"
 
 #: lib/bookshelf_widget.lua:24310 lib/bookshelf_widget.lua:24350
 msgid "Add shelf"
-msgstr ""
+msgstr "Thêm kệ"
 
 #: lib/bookshelf_widget.lua:24573
 msgid "Search library"
@@ -7041,7 +7041,7 @@ msgstr "Đã cập nhật %1h trước"
 #~ msgid "☀ Editing day-mode colors (tap to switch)"
 #~ msgstr "☀ Chỉnh sửa màu ngày (nhấn để chuyển)"
 
-#~ msgid "The solid bar behind the shelf menu. White by day and black at night unless you change it. The panels have their own colour."
+#~ msgid "The solid bar behind the shelf menu. White by day and black at night unless you change it. The panels have their own color."
 #~ msgstr "Thanh nền đặc phía sau menu kệ. Mặc định là trắng vào ban ngày và đen vào ban đêm trừ khi bạn đổi. Các bảng có màu riêng của chúng."
 
 #~ msgid "Transparent shelf menu"

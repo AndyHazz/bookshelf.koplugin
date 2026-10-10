@@ -82,7 +82,7 @@ msgstr "Віртуальна бібліотека Kindle"
 
 #: lib/bookshelf_builtin_sources.lua:85
 msgid "Kobo library"
-msgstr ""
+msgstr "Бібліотека Kobo"
 
 #: lib/bookshelf_bulk_actions.lua:26
 #, lua-format
@@ -451,7 +451,7 @@ msgstr "Каталог OPDS"
 
 #: lib/bookshelf_chip_editor.lua:407 lib/bookshelf_chip_editor.lua:2843
 msgid "Shelf of shelves"
-msgstr ""
+msgstr "Полиця полиць"
 
 #: lib/bookshelf_chip_editor.lua:409 lib/bookshelf_chip_editor.lua:424
 #: lib/bookshelf_settings.lua:4349
@@ -464,11 +464,11 @@ msgstr "OPDS: %1"
 
 #: lib/bookshelf_chip_editor.lua:645
 msgid "Changing this shelf's source deletes the shelves inside it. This cannot be undone."
-msgstr ""
+msgstr "Зміна джерела цієї полиці видалить полиці в ній. Цю дію не можна скасувати."
 
 #: lib/bookshelf_chip_editor.lua:646
 msgid "Change"
-msgstr ""
+msgstr "Змінити"
 
 #: lib/bookshelf_chip_editor.lua:727
 msgid "Insert icon…"
@@ -496,7 +496,7 @@ msgstr "Порядок сервера"
 
 #: lib/bookshelf_chip_editor.lua:889
 msgid "Shelves stand in the order you arrange them"
-msgstr ""
+msgstr "Полиці стоять у порядку, який ви задали"
 
 #: lib/bookshelf_chip_editor.lua:932
 msgid "Source / grouping: "
@@ -504,7 +504,7 @@ msgstr "Джерело / групування: "
 
 #: lib/bookshelf_chip_editor.lua:950
 msgid "Show + Add shelf"
-msgstr ""
+msgstr "Показувати «+ Додати полицю»"
 
 #: lib/bookshelf_chip_editor.lua:963
 msgid "Filters: "
@@ -524,7 +524,7 @@ msgstr "Редагувати мітку"
 
 #: lib/bookshelf_chip_editor.lua:1108
 msgid "Delete this shelf and the shelves inside it? This cannot be undone."
-msgstr ""
+msgstr "Видалити цю полицю та полиці в ній? Цю дію не можна скасувати."
 
 #: lib/bookshelf_chip_editor.lua:1109
 msgid "Delete this shelf? This cannot be undone."
@@ -532,7 +532,7 @@ msgstr "Видалити цю полицю? Цю дію не можна скас
 
 #: lib/bookshelf_chip_editor.lua:1221
 msgid "Choose a source to keep this new shelf."
-msgstr ""
+msgstr "Виберіть джерело, щоб зберегти цю нову полицю."
 
 #: lib/bookshelf_chip_editor.lua:1253
 msgid "Edit shelf"
@@ -592,7 +592,7 @@ msgstr "У колекції"
 
 #: lib/bookshelf_chip_editor.lua:1722 lib/bookshelf_theme_library.lua:539
 msgid "Theme: %1"
-msgstr ""
+msgstr "Тема: %1"
 
 #: lib/bookshelf_chip_editor.lua:1743
 msgid "Show as"
@@ -1092,7 +1092,7 @@ msgstr "%1×%2 пкс"
 
 #: lib/bookshelf_cover_label_editor.lua:104
 msgid "Text below covers"
-msgstr ""
+msgstr "Текст під обкладинками"
 
 #: lib/bookshelf_cover_sources.lua:189
 msgid "Google Books"
@@ -2320,11 +2320,11 @@ msgstr "Замінити"
 
 #: lib/bookshelf_ornament_menu.lua:378
 msgid "Shuffle this shelf"
-msgstr ""
+msgstr "Перемішати цю полицю"
 
 #: lib/bookshelf_ornament_menu.lua:381
 msgid "Shuffle this shelf's ornaments into a new order? Its swaps and moves are lost."
-msgstr ""
+msgstr "Перемішати прикраси цієї полиці в новому порядку? Заміни та переміщення на ній буде втрачено."
 
 #: lib/bookshelf_ornament_menu.lua:382
 msgid "Shuffle"
@@ -2510,7 +2510,7 @@ msgstr "Вбудовані"
 
 #: lib/bookshelf_plank_browser.lua:223
 msgid "Plank"
-msgstr ""
+msgstr "Дошка"
 
 #: lib/bookshelf_reader_park.lua:437 lib/bookshelf_widget.lua:24943
 #: main.lua:1331
@@ -2648,11 +2648,11 @@ msgstr "Встановити"
 
 #: lib/bookshelf_settings.lua:708
 msgid "Custom"
-msgstr ""
+msgstr "Власний"
 
 #: lib/bookshelf_settings.lua:725
 msgid "Custom…"
-msgstr ""
+msgstr "Власний…"
 
 #: lib/bookshelf_settings.lua:766
 msgid "Show text below covers"
@@ -2848,7 +2848,7 @@ msgstr "Перемістити вниз"
 #: lib/bookshelf_settings.lua:1574 lib/bookshelf_theme_pack.lua:352
 #: lib/bookshelf_theme_pack.lua:834
 msgid "%1 (missing)"
-msgstr ""
+msgstr "%1 (не знайдено)"
 
 #: lib/bookshelf_settings.lua:1587 lib/bookshelf_settings.lua:1589
 #: lib/bookshelf_theme_library.lua:104 lib/bookshelf_wallpaper_browser.lua:150
@@ -2857,7 +2857,7 @@ msgstr "набір %1"
 
 #: lib/bookshelf_settings.lua:1611
 msgid "Wallpaper: %1"
-msgstr ""
+msgstr "Шпалери: %1"
 
 #: lib/bookshelf_settings.lua:1617
 msgid "Images are loaded from %1 and %2"
@@ -2869,39 +2869,39 @@ msgstr "Зображення завантажуються з %1"
 
 #: lib/bookshelf_settings.lua:1625
 msgid "Full screen wallpaper: %1"
-msgstr ""
+msgstr "Повноекранні шпалери: %1"
 
 #: lib/bookshelf_settings.lua:1626 lib/bookshelf_wallpaper_browser.lua:210
 msgid "Same as wallpaper"
-msgstr ""
+msgstr "Як шпалери"
 
 #: lib/bookshelf_settings.lua:1628
 msgid "A different picture for full screen shelves. That view is wall-to-wall covers and spines, where a backdrop that reads well behind the top panel is often too busy."
-msgstr ""
+msgstr "Інше зображення для повноекранних полиць. Там суцільні обкладинки й корінці, і фон, що добре виглядає за верхньою панеллю, часто надто строкатий."
 
 #: lib/bookshelf_settings.lua:1635
 msgid "Invert wallpaper when dark"
-msgstr ""
+msgstr "Інвертувати шпалери на темній полиці"
 
 #: lib/bookshelf_settings.lua:1636
 msgid "Show the wallpaper as its negative when the shelf is dark, so a light picture turns dark. Off, the picture looks the same dark as light. A theme's own dark wallpaper is always shown as drawn."
-msgstr ""
+msgstr "Показувати шпалери в негативі, коли полиця темна, щоб світле зображення стало темним. Якщо вимкнено, зображення однакове на темній і світлій полиці. Власні темні шпалери теми завжди показуються як є."
 
 #: lib/bookshelf_settings.lua:1658
 msgid "Color behind wallpaper: %1"
-msgstr ""
+msgstr "Колір під шпалерами: %1"
 
 #: lib/bookshelf_settings.lua:1665
 msgid "Color behind wallpaper"
-msgstr ""
+msgstr "Колір під шпалерами"
 
 #: lib/bookshelf_settings.lua:1665
 msgid "Color behind wallpaper (% black)"
-msgstr ""
+msgstr "Колір під шпалерами (% чорного)"
 
 #: lib/bookshelf_settings.lua:1691
 msgid "Extra wallpaper folder: %1"
-msgstr ""
+msgstr "Додаткова папка шпалер: %1"
 
 #: lib/bookshelf_settings.lua:1693
 msgid "A folder of your own to take wallpapers from, listed along with the ones in %1. Useful when you already keep pictures somewhere else. Nothing in it is changed. Long-press to stop using it."
@@ -2917,23 +2917,23 @@ msgstr "Затінення панелей: %1"
 
 #: lib/bookshelf_settings.lua:1743
 msgid "How much to shade the top panel and the footer so the buttons stay legible over a picture. Transparent lets the wallpaper through untouched, which reads well over a plain texture and poorly over a busy photograph. Solid hides the picture behind those strips entirely. Part of the theme, as the wallpaper is."
-msgstr ""
+msgstr "Наскільки затінювати верхню панель і підвал, щоб кнопки лишалися читабельними поверх зображення. «Прозоре» пропускає шпалери без змін: добре на простій текстурі й погано на строкатій фотографії. «Суцільне» повністю ховає зображення під цими смугами. Входить до теми, як і шпалери."
 
 #: lib/bookshelf_settings.lua:1757
 msgid "Blur wallpaper behind panels"
-msgstr ""
+msgstr "Розмивати шпалери під панелями"
 
 #: lib/bookshelf_settings.lua:1758
 msgid "Blurs the wallpaper behind the top panel and the footer before the shading goes over it, like frosted glass, so the picture's detail does not compete with the buttons and text. Worked out once per wallpaper, then reused. Part of the theme."
-msgstr ""
+msgstr "Розмиває шпалери під верхньою панеллю та підвалом перед затіненням, як матове скло, щоб деталі зображення не заважали кнопкам і тексту. Обчислюється один раз для кожних шпалер, потім використовується повторно. Входить до теми."
 
 #: lib/bookshelf_settings.lua:1775
 msgid "Panel behind Covers shelves"
-msgstr ""
+msgstr "Панель під полицями «Обкладинки»"
 
 #: lib/bookshelf_settings.lua:1776
 msgid "Covers shelves get one panel behind the top panel, the covers and the footer, as list shelves have, in place of a plate under each title. Part of the theme."
-msgstr ""
+msgstr "Полиці «Обкладинки» отримують одну панель під верхньою панеллю, обкладинками та підвалом, як полиці зі списком, замість підкладки під кожною назвою. Входить до теми."
 
 #: lib/bookshelf_settings.lua:1801 lib/bookshelf_settings.lua:2767
 #: lib/bookshelf_settings.lua:2788 lib/bookshelf_settings.lua:2798
@@ -2958,7 +2958,7 @@ msgstr "Суцільне"
 
 #: lib/bookshelf_settings.lua:1811
 msgid "Auto (follow night mode)"
-msgstr ""
+msgstr "Авто (за нічним режимом)"
 
 #: lib/bookshelf_settings.lua:1812 lib/bookshelf_settings.lua:2470
 msgid "Light"
@@ -2970,11 +2970,11 @@ msgstr "Темне"
 
 #: lib/bookshelf_settings.lua:1840
 msgid "Light or dark: %1"
-msgstr ""
+msgstr "Світле чи темне: %1"
 
 #: lib/bookshelf_settings.lua:1842
 msgid "Light or dark colors for the shelf, independently of KOReader's night mode, so you can keep the rest of KOReader light and still have a dark shelf. Auto follows night mode. Covers and ornaments are pictures and are never inverted; the wallpaper is inverted only when you ask for it."
-msgstr ""
+msgstr "Світлі чи темні кольори для полиці, незалежно від нічного режиму KOReader, тож решта KOReader може лишатися світлою, а полиця темною. «Авто» слідує за нічним режимом. Обкладинки та прикраси є зображеннями й ніколи не інвертуються; шпалери інвертуються лише на ваш запит."
 
 #: lib/bookshelf_settings.lua:2007 lib/bookshelf_settings.lua:2013
 msgid "default"
@@ -2990,7 +2990,7 @@ msgstr "Колір дошки полиці (% чорного)"
 
 #: lib/bookshelf_settings.lua:2108
 msgid "Plank: %1"
-msgstr ""
+msgstr "Дошка: %1"
 
 #: lib/bookshelf_settings.lua:2109
 msgid "color"
@@ -3002,7 +3002,7 @@ msgstr "Дошка, на якій стиль «Корінці» розставл
 
 #: lib/bookshelf_settings.lua:2290
 msgid "Ornaments: %1 of %2 on"
-msgstr ""
+msgstr "Прикраси: увімкнено %1 з %2"
 
 #: lib/bookshelf_settings.lua:2295
 msgid ""
@@ -3016,7 +3016,7 @@ msgstr ""
 
 #: lib/bookshelf_settings.lua:2340
 msgid "New ornaments go: %1"
-msgstr ""
+msgstr "Нові прикраси додаються: %1"
 
 #: lib/bookshelf_settings.lua:2340
 msgid "first"
@@ -3044,11 +3044,11 @@ msgstr "Скинути до кольорів за замовчуванням"
 
 #: lib/bookshelf_settings.lua:2468 lib/bookshelf_settings.lua:2470
 msgid "Colors for: %1"
-msgstr ""
+msgstr "Кольори: %1"
 
 #: lib/bookshelf_settings.lua:2472
 msgid "Your colors come in two sets, one for a light shelf and one for a dark shelf. Tap to edit the other set; the shelf and KOReader's night mode are not changed."
-msgstr ""
+msgstr "Ваші кольори мають два набори: для світлої полиці та для темної. Торкніться, щоб редагувати інший набір; полиця та нічний режим KOReader не змінюються."
 
 #: lib/bookshelf_settings.lua:2496 lib/bookshelf_settings.lua:2505
 msgid "Text ink"
@@ -3156,7 +3156,7 @@ msgstr "Колір рамки"
 
 #: lib/bookshelf_settings.lua:2675
 msgid "The frame around covers and the border of badges. Default black."
-msgstr ""
+msgstr "Рамка навколо обкладинок і облямівка значків. За замовчуванням чорна."
 
 #: lib/bookshelf_settings.lua:2680
 msgid "Border color (% black)"
@@ -3212,8 +3212,8 @@ msgid "Shelf menu background"
 msgstr "Фон меню полиць"
 
 #: lib/bookshelf_settings.lua:2771
-msgid "The bar behind the shelf menu. White by day and black at night unless you change it; Transparent leaves it out, so the wallpaper shows through (the selected shelf keeps its fill). The panels have their own colour."
-msgstr ""
+msgid "The bar behind the shelf menu. White by day and black at night unless you change it; Transparent leaves it out, so the wallpaper shows through (the selected shelf keeps its fill). The panels have their own color."
+msgstr "Смуга під меню полиць. Біла вдень і чорна вночі, якщо ви її не зміните; «Прозоре» прибирає її, тож видно шпалери (вибрана полиця зберігає заливку). Панелі мають власний колір."
 
 #: lib/bookshelf_settings.lua:2781
 msgid "Shelf menu background (% black)"
@@ -3221,7 +3221,7 @@ msgstr "Фон меню полиць (% чорного)"
 
 #: lib/bookshelf_settings.lua:2819 lib/bookshelf_settings.lua:2828
 msgid "Selected shelf background"
-msgstr ""
+msgstr "Фон вибраної полиці"
 
 #: lib/bookshelf_settings.lua:2821
 msgid "Fill behind the selected shelf in the shelf menu. Left unset, the selected shelf is drawn by inverting it -- the fastest path and identical on every device. Setting a color paints it instead. Long-press to clear."
@@ -3229,7 +3229,7 @@ msgstr "Заливка позаду вибраної полиці в меню п
 
 #: lib/bookshelf_settings.lua:2828
 msgid "Selected shelf background (% black)"
-msgstr ""
+msgstr "Фон вибраної полиці (% чорного)"
 
 #: lib/bookshelf_settings.lua:2839 lib/bookshelf_settings.lua:2846
 msgid "Selected shelf text"
@@ -3548,7 +3548,7 @@ msgstr "Дизайни дощок полиці: %1"
 
 #: lib/bookshelf_settings.lua:3733
 msgid "Draw plank designs (Oak, or one from a pack or a theme) on spine shelves. Drawing them is slow on some black and white e-readers; turn this off to use the plain plank color instead. Choosing a plank again, in the Plank picker, turns this back on."
-msgstr ""
+msgstr "Малювати дизайни дощок (Дуб або дошку з набору чи теми) на полицях із корінцями. На деяких чорно-білих рідерах це повільно; вимкніть, щоб натомість використовувати простий колір дошки. Повторний вибір дошки у вікні «Дошка» знову вмикає цей параметр."
 
 #: lib/bookshelf_settings.lua:3751
 msgid "Instant book close (beta)"
@@ -4367,19 +4367,19 @@ msgstr "Теги"
 
 #: lib/bookshelf_theme_library.lua:151
 msgid "%1 (Spines shelves only)"
-msgstr ""
+msgstr "%1 (лише полиці «Корінці»)"
 
 #: lib/bookshelf_theme_library.lua:155
 msgid "Edited"
-msgstr ""
+msgstr "Змінено"
 
 #: lib/bookshelf_theme_library.lua:264
 msgid "Uses: %1"
-msgstr ""
+msgstr "Використовує: %1"
 
 #: lib/bookshelf_theme_library.lua:331
 msgid "Reset to original"
-msgstr ""
+msgstr "Скинути до оригіналу"
 
 #: lib/bookshelf_theme_menu.lua:70
 msgid "Colors"
@@ -4387,7 +4387,7 @@ msgstr "Кольори"
 
 #: lib/bookshelf_theme_menu.lua:91
 msgid "Theme (%1)"
-msgstr ""
+msgstr "Тема (%1)"
 
 #: lib/bookshelf_theme_menu.lua:96
 msgid ""
@@ -4396,39 +4396,39 @@ msgid ""
 "The rows here edit the theme of the shelf on screen. Your changes stay with that theme wherever it shows, and Reset in the Theme library brings back its original.\n"
 "\n"
 "Each shelf can have a theme of its own: choose it here, or long-press a shelf chip, then Shelf style."
-msgstr ""
+msgstr "Тема може містити шпалери, дошку, кольори, світле чи темне оформлення та прикраси. Усе, чого вона не містить, береться з «%1». Вибір теми ніколи не змінює «%1».\n\nПункти тут редагують тему полиці на екрані. Ваші зміни лишаються з цією темою, де б вона не показувалася, а «Скинути» в бібліотеці тем повертає її оригінал.\n\nКожна полиця може мати власну тему: виберіть її тут або утримуйте кнопку полиці, потім «Стиль полиці»."
 
 #: lib/bookshelf_theme_menu.lua:134
 msgid "This shelf: %1"
-msgstr ""
+msgstr "Ця полиця: %1"
 
 #: lib/bookshelf_theme_menu.lua:168
 msgid "Other shelves: all default"
-msgstr ""
+msgstr "Інші полиці: усі за замовчуванням"
 
 #: lib/bookshelf_theme_menu.lua:169
 msgid "Other shelves: 1 with own theme"
-msgstr ""
+msgstr "Інші полиці: 1 з власною темою"
 
 #: lib/bookshelf_theme_menu.lua:170
 msgid "Other shelves: %1 with own themes"
-msgstr ""
+msgstr "Інші полиці: %1 з власними темами"
 
 #: lib/bookshelf_theme_menu.lua:222
 msgid "%1: %2"
-msgstr ""
+msgstr "%1: %2"
 
 #: lib/bookshelf_theme_menu.lua:232
 msgid "Default theme: %1"
-msgstr ""
+msgstr "Тема за замовчуванням: %1"
 
 #: lib/bookshelf_theme_pack.lua:286
 msgid "Custom theme"
-msgstr ""
+msgstr "Власна тема"
 
 #: lib/bookshelf_theme_pack.lua:295
 msgid "Add theme pack…"
-msgstr ""
+msgstr "Додати набір теми…"
 
 #: lib/bookshelf_theme_pack.lua:305
 msgid ""
@@ -4440,19 +4440,19 @@ msgid ""
 "\n"
 "Ready-made theme packs:\n"
 "%2"
-msgstr ""
+msgstr "Набір теми поєднує шпалери, дошку, кольори та прикраси й вибирається тут. Щоб додати набір, скопіюйте його папку в\n%1\nа потім знову відкрийте бібліотеку тем.\n\nБудь-яку тему можна вільно редагувати; ваші зміни лишаються з нею, а «Скинути» повертає оригінал.\n\nГотові набори тем:\n%2"
 
 #: lib/bookshelf_theme_pack.lua:309
 msgid "Plain"
-msgstr ""
+msgstr "Проста"
 
 #: lib/bookshelf_theme_pack.lua:377
 msgid "Default theme"
-msgstr ""
+msgstr "Тема за замовчуванням"
 
 #: lib/bookshelf_theme_pack.lua:1316
 msgid "Reset %1 to its original settings? Your changes to it are lost."
-msgstr ""
+msgstr "Скинути «%1» до початкових налаштувань? Ваші зміни буде втрачено."
 
 #: lib/bookshelf_tokens.lua:69
 msgid "First author"
@@ -4935,7 +4935,7 @@ msgstr "шпалери"
 
 #: lib/bookshelf_wallpaper_browser.lua:211
 msgid "No wallpaper"
-msgstr ""
+msgstr "Без шпалер"
 
 #: lib/bookshelf_wallpaper_browser.lua:238
 msgid "Yours"
@@ -4943,11 +4943,11 @@ msgstr "Ваші"
 
 #: lib/bookshelf_wallpaper_browser.lua:246
 msgid "Full screen wallpaper"
-msgstr ""
+msgstr "Повноекранні шпалери"
 
 #: lib/bookshelf_wallpaper_browser.lua:246
 msgid "Wallpaper"
-msgstr ""
+msgstr "Шпалери"
 
 #: lib/bookshelf_wallpaper_browser.lua:279
 msgid "No images in %1"
@@ -5788,7 +5788,7 @@ msgstr "Вибрати зображення"
 
 #: lib/bookshelf_widget.lua:24310 lib/bookshelf_widget.lua:24350
 msgid "Add shelf"
-msgstr ""
+msgstr "Додати полицю"
 
 #: lib/bookshelf_widget.lua:24573
 msgid "Search library"
@@ -7052,7 +7052,7 @@ msgstr "Оновлено %1г тому"
 #~ msgid "☀ Editing day-mode colors (tap to switch)"
 #~ msgstr "☀ Редагування кольорів денного режиму (торкніться, щоб перемкнути)"
 
-#~ msgid "The solid bar behind the shelf menu. White by day and black at night unless you change it. The panels have their own colour."
+#~ msgid "The solid bar behind the shelf menu. White by day and black at night unless you change it. The panels have their own color."
 #~ msgstr "Суцільна смуга позаду меню полиць. Вдень біла, вночі чорна, якщо ви її не зміните. Панелі мають власний колір."
 
 #~ msgid "Transparent shelf menu"

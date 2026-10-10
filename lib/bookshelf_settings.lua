@@ -2771,7 +2771,7 @@ function Settings:_colorsSubItems()
             help_text = _("The bar behind the shelf menu. White by day and "
                 .. "black at night unless you change it; Transparent leaves "
                 .. "it out, so the wallpaper shows through (the selected shelf "
-                .. "keeps its fill). The panels have their own colour."),
+                .. "keeps its fill). The panels have their own color."),
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 local TP = require("lib/bookshelf_theme_pack")

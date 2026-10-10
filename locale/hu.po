@@ -77,7 +77,7 @@ msgstr "Kindle virtuális könyvtár"
 
 #: lib/bookshelf_builtin_sources.lua:85
 msgid "Kobo library"
-msgstr ""
+msgstr "Kobo könyvtár"
 
 #: lib/bookshelf_bulk_actions.lua:26
 #, lua-format
@@ -446,7 +446,7 @@ msgstr "OPDS-katalógus"
 
 #: lib/bookshelf_chip_editor.lua:407 lib/bookshelf_chip_editor.lua:2843
 msgid "Shelf of shelves"
-msgstr ""
+msgstr "Polcok polca"
 
 #: lib/bookshelf_chip_editor.lua:409 lib/bookshelf_chip_editor.lua:424
 #: lib/bookshelf_settings.lua:4349
@@ -459,11 +459,11 @@ msgstr "OPDS: %1"
 
 #: lib/bookshelf_chip_editor.lua:645
 msgid "Changing this shelf's source deletes the shelves inside it. This cannot be undone."
-msgstr ""
+msgstr "A polc forrásának módosítása törli a benne lévő polcokat. Ez nem vonható vissza."
 
 #: lib/bookshelf_chip_editor.lua:646
 msgid "Change"
-msgstr ""
+msgstr "Módosítás"
 
 #: lib/bookshelf_chip_editor.lua:727
 msgid "Insert icon…"
@@ -491,7 +491,7 @@ msgstr "Szerver szerinti sorrend"
 
 #: lib/bookshelf_chip_editor.lua:889
 msgid "Shelves stand in the order you arrange them"
-msgstr ""
+msgstr "A polcok az általad megadott sorrendben állnak"
 
 #: lib/bookshelf_chip_editor.lua:932
 msgid "Source / grouping: "
@@ -499,7 +499,7 @@ msgstr "Forrás / csoportosítás: "
 
 #: lib/bookshelf_chip_editor.lua:950
 msgid "Show + Add shelf"
-msgstr ""
+msgstr "+ Polc hozzáadása megjelenítése"
 
 #: lib/bookshelf_chip_editor.lua:963
 msgid "Filters: "
@@ -519,7 +519,7 @@ msgstr "Felirat szerkesztése"
 
 #: lib/bookshelf_chip_editor.lua:1108
 msgid "Delete this shelf and the shelves inside it? This cannot be undone."
-msgstr ""
+msgstr "Törlöd ezt a polcot és a benne lévő polcokat? Ez nem vonható vissza."
 
 #: lib/bookshelf_chip_editor.lua:1109
 msgid "Delete this shelf? This cannot be undone."
@@ -527,7 +527,7 @@ msgstr "Törlöd ezt a polcot? Ez nem vonható vissza."
 
 #: lib/bookshelf_chip_editor.lua:1221
 msgid "Choose a source to keep this new shelf."
-msgstr ""
+msgstr "Válassz forrást, hogy megtartsd ezt az új polcot."
 
 #: lib/bookshelf_chip_editor.lua:1253
 msgid "Edit shelf"
@@ -587,7 +587,7 @@ msgstr "Gyűjteményben"
 
 #: lib/bookshelf_chip_editor.lua:1722 lib/bookshelf_theme_library.lua:539
 msgid "Theme: %1"
-msgstr ""
+msgstr "Téma: %1"
 
 #: lib/bookshelf_chip_editor.lua:1743
 msgid "Show as"
@@ -1087,7 +1087,7 @@ msgstr "%1×%2px"
 
 #: lib/bookshelf_cover_label_editor.lua:104
 msgid "Text below covers"
-msgstr ""
+msgstr "Szöveg a borítók alatt"
 
 #: lib/bookshelf_cover_sources.lua:189
 msgid "Google Books"
@@ -2315,11 +2315,11 @@ msgstr "Csere"
 
 #: lib/bookshelf_ornament_menu.lua:378
 msgid "Shuffle this shelf"
-msgstr ""
+msgstr "E polc keverése"
 
 #: lib/bookshelf_ornament_menu.lua:381
 msgid "Shuffle this shelf's ornaments into a new order? Its swaps and moves are lost."
-msgstr ""
+msgstr "E polc díszeinek új sorrendbe keverése? A cseréi és mozgatásai elvesznek."
 
 #: lib/bookshelf_ornament_menu.lua:382
 msgid "Shuffle"
@@ -2505,7 +2505,7 @@ msgstr "Beépített"
 
 #: lib/bookshelf_plank_browser.lua:223
 msgid "Plank"
-msgstr ""
+msgstr "Polcdeszka"
 
 #: lib/bookshelf_reader_park.lua:437 lib/bookshelf_widget.lua:24943
 #: main.lua:1331
@@ -2643,11 +2643,11 @@ msgstr "Beállít"
 
 #: lib/bookshelf_settings.lua:708
 msgid "Custom"
-msgstr ""
+msgstr "Egyéni"
 
 #: lib/bookshelf_settings.lua:725
 msgid "Custom…"
-msgstr ""
+msgstr "Egyéni…"
 
 #: lib/bookshelf_settings.lua:766
 msgid "Show text below covers"
@@ -2843,7 +2843,7 @@ msgstr "Mozgatás lefelé"
 #: lib/bookshelf_settings.lua:1574 lib/bookshelf_theme_pack.lua:352
 #: lib/bookshelf_theme_pack.lua:834
 msgid "%1 (missing)"
-msgstr ""
+msgstr "%1 (hiányzik)"
 
 #: lib/bookshelf_settings.lua:1587 lib/bookshelf_settings.lua:1589
 #: lib/bookshelf_theme_library.lua:104 lib/bookshelf_wallpaper_browser.lua:150
@@ -2852,7 +2852,7 @@ msgstr "%1 csomag"
 
 #: lib/bookshelf_settings.lua:1611
 msgid "Wallpaper: %1"
-msgstr ""
+msgstr "Háttérkép: %1"
 
 #: lib/bookshelf_settings.lua:1617
 msgid "Images are loaded from %1 and %2"
@@ -2864,39 +2864,39 @@ msgstr "A képek betöltési helye: %1"
 
 #: lib/bookshelf_settings.lua:1625
 msgid "Full screen wallpaper: %1"
-msgstr ""
+msgstr "Teljes képernyős háttérkép: %1"
 
 #: lib/bookshelf_settings.lua:1626 lib/bookshelf_wallpaper_browser.lua:210
 msgid "Same as wallpaper"
-msgstr ""
+msgstr "Ugyanaz, mint a háttérkép"
 
 #: lib/bookshelf_settings.lua:1628
 msgid "A different picture for full screen shelves. That view is wall-to-wall covers and spines, where a backdrop that reads well behind the top panel is often too busy."
-msgstr ""
+msgstr "Másik kép a teljes képernyős polcokhoz. Ez a nézet teljesen tele van borítókkal és gerincekkel, ahol egy, a felső panel mögött jól mutató háttér gyakran túl zsúfolt."
 
 #: lib/bookshelf_settings.lua:1635
 msgid "Invert wallpaper when dark"
-msgstr ""
+msgstr "Háttérkép invertálása sötét polcon"
 
 #: lib/bookshelf_settings.lua:1636
 msgid "Show the wallpaper as its negative when the shelf is dark, so a light picture turns dark. Off, the picture looks the same dark as light. A theme's own dark wallpaper is always shown as drawn."
-msgstr ""
+msgstr "Negatívként mutatja a háttérképet, amikor a polc sötét, így a világos kép sötét lesz. Kikapcsolva a kép sötétben ugyanúgy néz ki, mint világosban. Egy téma saját sötét háttérképe mindig eredeti formájában látszik."
 
 #: lib/bookshelf_settings.lua:1658
 msgid "Color behind wallpaper: %1"
-msgstr ""
+msgstr "Szín a háttérkép mögött: %1"
 
 #: lib/bookshelf_settings.lua:1665
 msgid "Color behind wallpaper"
-msgstr ""
+msgstr "Szín a háttérkép mögött"
 
 #: lib/bookshelf_settings.lua:1665
 msgid "Color behind wallpaper (% black)"
-msgstr ""
+msgstr "Szín a háttérkép mögött (% fekete)"
 
 #: lib/bookshelf_settings.lua:1691
 msgid "Extra wallpaper folder: %1"
-msgstr ""
+msgstr "További háttérkép mappa: %1"
 
 #: lib/bookshelf_settings.lua:1693
 msgid "A folder of your own to take wallpapers from, listed along with the ones in %1. Useful when you already keep pictures somewhere else. Nothing in it is changed. Long-press to stop using it."
@@ -2912,23 +2912,23 @@ msgstr "Panelárnyalás: %1"
 
 #: lib/bookshelf_settings.lua:1743
 msgid "How much to shade the top panel and the footer so the buttons stay legible over a picture. Transparent lets the wallpaper through untouched, which reads well over a plain texture and poorly over a busy photograph. Solid hides the picture behind those strips entirely. Part of the theme, as the wallpaper is."
-msgstr ""
+msgstr "Mennyire árnyalja a felső panelt és a láblécet, hogy a gombok olvashatók maradjanak egy kép fölött. Az Átlátszó érintetlenül átengedi a háttérképet, ami egy egyszerű textúra fölött jól olvasható, egy zsúfolt fénykép fölött viszont rosszul. A Tömör teljesen eltakarja a képet ezek mögött a sávok mögött. A téma része, akárcsak a háttérkép."
 
 #: lib/bookshelf_settings.lua:1757
 msgid "Blur wallpaper behind panels"
-msgstr ""
+msgstr "Háttérkép elmosása a panelek mögött"
 
 #: lib/bookshelf_settings.lua:1758
 msgid "Blurs the wallpaper behind the top panel and the footer before the shading goes over it, like frosted glass, so the picture's detail does not compete with the buttons and text. Worked out once per wallpaper, then reused. Part of the theme."
-msgstr ""
+msgstr "Elmossa a háttérképet a felső panel és a lábléc mögött, mielőtt az árnyalás rákerül, mint egy matt üveg, így a kép részletei nem versenyeznek a gombokkal és a szöveggel. Háttérképenként egyszer számolja ki, utána újrahasználja. A téma része."
 
 #: lib/bookshelf_settings.lua:1775
 msgid "Panel behind Covers shelves"
-msgstr ""
+msgstr "Panel a Borítók polcok mögött"
 
 #: lib/bookshelf_settings.lua:1776
 msgid "Covers shelves get one panel behind the top panel, the covers and the footer, as list shelves have, in place of a plate under each title. Part of the theme."
-msgstr ""
+msgstr "A Borítók polcok egyetlen panelt kapnak a felső panel, a borítók és a lábléc mögé, ahogy a lista polcoknak is van, az egyes címek alatti lapok helyett. A téma része."
 
 #: lib/bookshelf_settings.lua:1801 lib/bookshelf_settings.lua:2767
 #: lib/bookshelf_settings.lua:2788 lib/bookshelf_settings.lua:2798
@@ -2953,7 +2953,7 @@ msgstr "Tömör"
 
 #: lib/bookshelf_settings.lua:1811
 msgid "Auto (follow night mode)"
-msgstr ""
+msgstr "Automatikus (éjszakai mód szerint)"
 
 #: lib/bookshelf_settings.lua:1812 lib/bookshelf_settings.lua:2470
 msgid "Light"
@@ -2965,11 +2965,11 @@ msgstr "Sötét"
 
 #: lib/bookshelf_settings.lua:1840
 msgid "Light or dark: %1"
-msgstr ""
+msgstr "Világos vagy sötét: %1"
 
 #: lib/bookshelf_settings.lua:1842
 msgid "Light or dark colors for the shelf, independently of KOReader's night mode, so you can keep the rest of KOReader light and still have a dark shelf. Auto follows night mode. Covers and ornaments are pictures and are never inverted; the wallpaper is inverted only when you ask for it."
-msgstr ""
+msgstr "Világos vagy sötét színek a polchoz, a KOReader éjszakai módjától függetlenül, így a KOReader többi része maradhat világos, miközben a polc sötét. Az Automatikus az éjszakai módot követi. A borítók és a díszek képek, ezeket sosem invertálja; a háttérképet csak akkor, ha kéred."
 
 #: lib/bookshelf_settings.lua:2007 lib/bookshelf_settings.lua:2013
 msgid "default"
@@ -2985,7 +2985,7 @@ msgstr "Polcdeszka színe (% fekete)"
 
 #: lib/bookshelf_settings.lua:2108
 msgid "Plank: %1"
-msgstr ""
+msgstr "Polcdeszka: %1"
 
 #: lib/bookshelf_settings.lua:2109
 msgid "color"
@@ -2997,7 +2997,7 @@ msgstr "A polcdeszka, amelyre a Gerincek stílus a könyveit állítja: egyszín
 
 #: lib/bookshelf_settings.lua:2290
 msgid "Ornaments: %1 of %2 on"
-msgstr ""
+msgstr "Díszek: %1 / %2 bekapcsolva"
 
 #: lib/bookshelf_settings.lua:2295
 msgid ""
@@ -3011,7 +3011,7 @@ msgstr ""
 
 #: lib/bookshelf_settings.lua:2340
 msgid "New ornaments go: %1"
-msgstr ""
+msgstr "Új díszek helye: %1"
 
 #: lib/bookshelf_settings.lua:2340
 msgid "first"
@@ -3039,11 +3039,11 @@ msgstr "Alapértelmezett színek visszaállítása"
 
 #: lib/bookshelf_settings.lua:2468 lib/bookshelf_settings.lua:2470
 msgid "Colors for: %1"
-msgstr ""
+msgstr "Színkészlet: %1"
 
 #: lib/bookshelf_settings.lua:2472
 msgid "Your colors come in two sets, one for a light shelf and one for a dark shelf. Tap to edit the other set; the shelf and KOReader's night mode are not changed."
-msgstr ""
+msgstr "A színeid két készletben vannak: egy a világos és egy a sötét polchoz. Koppints a másik készlet szerkesztéséhez; a polc és a KOReader éjszakai módja nem változik."
 
 #: lib/bookshelf_settings.lua:2496 lib/bookshelf_settings.lua:2505
 msgid "Text ink"
@@ -3151,7 +3151,7 @@ msgstr "Keret színe"
 
 #: lib/bookshelf_settings.lua:2675
 msgid "The frame around covers and the border of badges. Default black."
-msgstr ""
+msgstr "A borítók körüli keret és a jelvények szegélye. Alapértelmezés szerint fekete."
 
 #: lib/bookshelf_settings.lua:2680
 msgid "Border color (% black)"
@@ -3207,8 +3207,8 @@ msgid "Shelf menu background"
 msgstr "Polcmenü háttér"
 
 #: lib/bookshelf_settings.lua:2771
-msgid "The bar behind the shelf menu. White by day and black at night unless you change it; Transparent leaves it out, so the wallpaper shows through (the selected shelf keeps its fill). The panels have their own colour."
-msgstr ""
+msgid "The bar behind the shelf menu. White by day and black at night unless you change it; Transparent leaves it out, so the wallpaper shows through (the selected shelf keeps its fill). The panels have their own color."
+msgstr "A polcmenü mögötti sáv. Nappal fehér, éjszaka fekete, hacsak meg nem változtatod; az Átlátszó elhagyja, így átlátszik a háttérkép (a kiválasztott polc megtartja a kitöltését). A paneleknek saját színük van."
 
 #: lib/bookshelf_settings.lua:2781
 msgid "Shelf menu background (% black)"
@@ -3216,7 +3216,7 @@ msgstr "Polcmenü háttér (% fekete)"
 
 #: lib/bookshelf_settings.lua:2819 lib/bookshelf_settings.lua:2828
 msgid "Selected shelf background"
-msgstr ""
+msgstr "Kiválasztott polc háttere"
 
 #: lib/bookshelf_settings.lua:2821
 msgid "Fill behind the selected shelf in the shelf menu. Left unset, the selected shelf is drawn by inverting it -- the fastest path and identical on every device. Setting a color paints it instead. Long-press to clear."
@@ -3224,7 +3224,7 @@ msgstr "A polcmenüben a kiválasztott polc mögötti kitöltés. Ha nincs beál
 
 #: lib/bookshelf_settings.lua:2828
 msgid "Selected shelf background (% black)"
-msgstr ""
+msgstr "Kiválasztott polc háttere (% fekete)"
 
 #: lib/bookshelf_settings.lua:2839 lib/bookshelf_settings.lua:2846
 msgid "Selected shelf text"
@@ -3543,7 +3543,7 @@ msgstr "Polcdeszka-mintázat: %1"
 
 #: lib/bookshelf_settings.lua:3733
 msgid "Draw plank designs (Oak, or one from a pack or a theme) on spine shelves. Drawing them is slow on some black and white e-readers; turn this off to use the plain plank color instead. Choosing a plank again, in the Plank picker, turns this back on."
-msgstr ""
+msgstr "Polcdeszka-mintázatok (Tölgy, vagy egy csomagból, illetve témából származó) rajzolása a gerincpolcokon. Néhány fekete-fehér e-olvasón a rajzolásuk lassú; kapcsold ki, hogy helyettük az egyszínű polcdeszka-színt használja. Ha a Polcdeszka választóban újra kiválasztasz egy deszkát, ez visszakapcsol."
 
 #: lib/bookshelf_settings.lua:3751
 msgid "Instant book close (beta)"
@@ -4362,19 +4362,19 @@ msgstr "Címkék"
 
 #: lib/bookshelf_theme_library.lua:151
 msgid "%1 (Spines shelves only)"
-msgstr ""
+msgstr "%1 (csak Gerincek polcokon)"
 
 #: lib/bookshelf_theme_library.lua:155
 msgid "Edited"
-msgstr ""
+msgstr "Szerkesztve"
 
 #: lib/bookshelf_theme_library.lua:264
 msgid "Uses: %1"
-msgstr ""
+msgstr "Ezt használja: %1"
 
 #: lib/bookshelf_theme_library.lua:331
 msgid "Reset to original"
-msgstr ""
+msgstr "Eredeti visszaállítása"
 
 #: lib/bookshelf_theme_menu.lua:70
 msgid "Colors"
@@ -4382,7 +4382,7 @@ msgstr "Színek"
 
 #: lib/bookshelf_theme_menu.lua:91
 msgid "Theme (%1)"
-msgstr ""
+msgstr "Téma (%1)"
 
 #: lib/bookshelf_theme_menu.lua:96
 msgid ""
@@ -4391,39 +4391,39 @@ msgid ""
 "The rows here edit the theme of the shelf on screen. Your changes stay with that theme wherever it shows, and Reset in the Theme library brings back its original.\n"
 "\n"
 "Each shelf can have a theme of its own: choose it here, or long-press a shelf chip, then Shelf style."
-msgstr ""
+msgstr "Egy téma hozhat háttérképet, polcdeszkát, színeket, világos vagy sötét módot és díszeket. Amit nem hoz, azt a(z) %1 adja. Egy téma kiválasztása sosem módosítja a(z) %1 beállításait.\n\nAz itteni sorok a képernyőn lévő polc témáját szerkesztik. A módosításaid ahhoz a témához tartoznak, bárhol jelenik is meg, és a Témakönyvtárban a Visszaállítás visszahozza az eredetit.\n\nMinden polcnak lehet saját témája: válaszd ki itt, vagy tartsd nyomva egy polc gombját, majd Polc stílusa."
 
 #: lib/bookshelf_theme_menu.lua:134
 msgid "This shelf: %1"
-msgstr ""
+msgstr "Ez a polc: %1"
 
 #: lib/bookshelf_theme_menu.lua:168
 msgid "Other shelves: all default"
-msgstr ""
+msgstr "Többi polc: mind alapértelmezett"
 
 #: lib/bookshelf_theme_menu.lua:169
 msgid "Other shelves: 1 with own theme"
-msgstr ""
+msgstr "Többi polc: 1 saját témával"
 
 #: lib/bookshelf_theme_menu.lua:170
 msgid "Other shelves: %1 with own themes"
-msgstr ""
+msgstr "Többi polc: %1 saját témával"
 
 #: lib/bookshelf_theme_menu.lua:222
 msgid "%1: %2"
-msgstr ""
+msgstr "%1: %2"
 
 #: lib/bookshelf_theme_menu.lua:232
 msgid "Default theme: %1"
-msgstr ""
+msgstr "Alapértelmezett téma: %1"
 
 #: lib/bookshelf_theme_pack.lua:286
 msgid "Custom theme"
-msgstr ""
+msgstr "Egyéni téma"
 
 #: lib/bookshelf_theme_pack.lua:295
 msgid "Add theme pack…"
-msgstr ""
+msgstr "Témacsomag hozzáadása…"
 
 #: lib/bookshelf_theme_pack.lua:305
 msgid ""
@@ -4435,19 +4435,19 @@ msgid ""
 "\n"
 "Ready-made theme packs:\n"
 "%2"
-msgstr ""
+msgstr "Egy témacsomag háttérképet, polcdeszkát, színeket és díszeket fog össze, és itt választható ki. A hozzáadásához másold a mappáját ide:\n%1\nmajd nyisd meg újra a Témakönyvtárat.\n\nBármelyik témát szabadon szerkesztheted; a módosításaid hozzá tartoznak, és a Visszaállítás visszahozza az eredetit.\n\nKész témacsomagok:\n%2"
 
 #: lib/bookshelf_theme_pack.lua:309
 msgid "Plain"
-msgstr ""
+msgstr "Egyszerű"
 
 #: lib/bookshelf_theme_pack.lua:377
 msgid "Default theme"
-msgstr ""
+msgstr "Alapértelmezett téma"
 
 #: lib/bookshelf_theme_pack.lua:1316
 msgid "Reset %1 to its original settings? Your changes to it are lost."
-msgstr ""
+msgstr "Visszaállítod a(z) %1 eredeti beállításait? A rajta végzett módosításaid elvesznek."
 
 #: lib/bookshelf_tokens.lua:69
 msgid "First author"
@@ -4930,7 +4930,7 @@ msgstr "háttérképek"
 
 #: lib/bookshelf_wallpaper_browser.lua:211
 msgid "No wallpaper"
-msgstr ""
+msgstr "Nincs háttérkép"
 
 #: lib/bookshelf_wallpaper_browser.lua:238
 msgid "Yours"
@@ -4938,11 +4938,11 @@ msgstr "Saját"
 
 #: lib/bookshelf_wallpaper_browser.lua:246
 msgid "Full screen wallpaper"
-msgstr ""
+msgstr "Teljes képernyős háttérkép"
 
 #: lib/bookshelf_wallpaper_browser.lua:246
 msgid "Wallpaper"
-msgstr ""
+msgstr "Háttérkép"
 
 #: lib/bookshelf_wallpaper_browser.lua:279
 msgid "No images in %1"
@@ -5783,7 +5783,7 @@ msgstr "Kép kiválasztása"
 
 #: lib/bookshelf_widget.lua:24310 lib/bookshelf_widget.lua:24350
 msgid "Add shelf"
-msgstr ""
+msgstr "Polc hozzáadása"
 
 #: lib/bookshelf_widget.lua:24573
 msgid "Search library"
@@ -7047,7 +7047,7 @@ msgstr "Frissítve: %1 órával ezelőtt"
 #~ msgid "☀ Editing day-mode colors (tap to switch)"
 #~ msgstr "☀ Nappali mód színeinek szerkesztése (koppints a váltáshoz)"
 
-#~ msgid "The solid bar behind the shelf menu. White by day and black at night unless you change it. The panels have their own colour."
+#~ msgid "The solid bar behind the shelf menu. White by day and black at night unless you change it. The panels have their own color."
 #~ msgstr "A polcmenü mögötti tömör sáv. Nappal fehér, éjszaka fekete, hacsak meg nem változtatod. A paneleknek saját színük van."
 
 #~ msgid "Transparent shelf menu"

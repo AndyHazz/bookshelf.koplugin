@@ -81,7 +81,7 @@ msgstr "Kindle 虚拟书库"
 
 #: lib/bookshelf_builtin_sources.lua:85
 msgid "Kobo library"
-msgstr ""
+msgstr "Kobo 书库"
 
 #: lib/bookshelf_bulk_actions.lua:26
 #, lua-format
@@ -450,7 +450,7 @@ msgstr "OPDS 目录"
 
 #: lib/bookshelf_chip_editor.lua:407 lib/bookshelf_chip_editor.lua:2843
 msgid "Shelf of shelves"
-msgstr ""
+msgstr "书架组"
 
 #: lib/bookshelf_chip_editor.lua:409 lib/bookshelf_chip_editor.lua:424
 #: lib/bookshelf_settings.lua:4349
@@ -463,11 +463,11 @@ msgstr "OPDS：%1"
 
 #: lib/bookshelf_chip_editor.lua:645
 msgid "Changing this shelf's source deletes the shelves inside it. This cannot be undone."
-msgstr ""
+msgstr "更改此书架的来源会删除其中的书架。无法撤销。"
 
 #: lib/bookshelf_chip_editor.lua:646
 msgid "Change"
-msgstr ""
+msgstr "更改"
 
 #: lib/bookshelf_chip_editor.lua:727
 msgid "Insert icon…"
@@ -495,7 +495,7 @@ msgstr "服务器顺序"
 
 #: lib/bookshelf_chip_editor.lua:889
 msgid "Shelves stand in the order you arrange them"
-msgstr ""
+msgstr "书架按你排列的顺序摆放"
 
 #: lib/bookshelf_chip_editor.lua:932
 msgid "Source / grouping: "
@@ -503,7 +503,7 @@ msgstr "来源 / 分组："
 
 #: lib/bookshelf_chip_editor.lua:950
 msgid "Show + Add shelf"
-msgstr ""
+msgstr "显示「+ 添加书架」"
 
 #: lib/bookshelf_chip_editor.lua:963
 msgid "Filters: "
@@ -523,7 +523,7 @@ msgstr "编辑标签"
 
 #: lib/bookshelf_chip_editor.lua:1108
 msgid "Delete this shelf and the shelves inside it? This cannot be undone."
-msgstr ""
+msgstr "删除此书架及其中的书架？无法撤销。"
 
 #: lib/bookshelf_chip_editor.lua:1109
 msgid "Delete this shelf? This cannot be undone."
@@ -531,7 +531,7 @@ msgstr "删除这个书架？无法撤销。"
 
 #: lib/bookshelf_chip_editor.lua:1221
 msgid "Choose a source to keep this new shelf."
-msgstr ""
+msgstr "请选择一个来源以保留这个新书架。"
 
 #: lib/bookshelf_chip_editor.lua:1253
 msgid "Edit shelf"
@@ -591,7 +591,7 @@ msgstr "在书单中"
 
 #: lib/bookshelf_chip_editor.lua:1722 lib/bookshelf_theme_library.lua:539
 msgid "Theme: %1"
-msgstr ""
+msgstr "主题：%1"
 
 #: lib/bookshelf_chip_editor.lua:1743
 msgid "Show as"
@@ -1091,7 +1091,7 @@ msgstr "%1×%2px"
 
 #: lib/bookshelf_cover_label_editor.lua:104
 msgid "Text below covers"
-msgstr ""
+msgstr "封面下方文字"
 
 #: lib/bookshelf_cover_sources.lua:189
 msgid "Google Books"
@@ -2319,11 +2319,11 @@ msgstr "替换"
 
 #: lib/bookshelf_ornament_menu.lua:378
 msgid "Shuffle this shelf"
-msgstr ""
+msgstr "随机排列此书架"
 
 #: lib/bookshelf_ornament_menu.lua:381
 msgid "Shuffle this shelf's ornaments into a new order? Its swaps and moves are lost."
-msgstr ""
+msgstr "将此书架的摆件重新随机排列？其替换和移动都会丢失。"
 
 #: lib/bookshelf_ornament_menu.lua:382
 msgid "Shuffle"
@@ -2509,7 +2509,7 @@ msgstr "内置"
 
 #: lib/bookshelf_plank_browser.lua:223
 msgid "Plank"
-msgstr ""
+msgstr "搁板"
 
 #: lib/bookshelf_reader_park.lua:437 lib/bookshelf_widget.lua:24943
 #: main.lua:1331
@@ -2647,11 +2647,11 @@ msgstr "设置"
 
 #: lib/bookshelf_settings.lua:708
 msgid "Custom"
-msgstr ""
+msgstr "自定义"
 
 #: lib/bookshelf_settings.lua:725
 msgid "Custom…"
-msgstr ""
+msgstr "自定义…"
 
 #: lib/bookshelf_settings.lua:766
 msgid "Show text below covers"
@@ -2847,7 +2847,7 @@ msgstr "下移"
 #: lib/bookshelf_settings.lua:1574 lib/bookshelf_theme_pack.lua:352
 #: lib/bookshelf_theme_pack.lua:834
 msgid "%1 (missing)"
-msgstr ""
+msgstr "%1 (缺失)"
 
 #: lib/bookshelf_settings.lua:1587 lib/bookshelf_settings.lua:1589
 #: lib/bookshelf_theme_library.lua:104 lib/bookshelf_wallpaper_browser.lua:150
@@ -2856,7 +2856,7 @@ msgstr "%1 摆件包"
 
 #: lib/bookshelf_settings.lua:1611
 msgid "Wallpaper: %1"
-msgstr ""
+msgstr "壁纸：%1"
 
 #: lib/bookshelf_settings.lua:1617
 msgid "Images are loaded from %1 and %2"
@@ -2868,39 +2868,39 @@ msgstr "图片从 %1 加载"
 
 #: lib/bookshelf_settings.lua:1625
 msgid "Full screen wallpaper: %1"
-msgstr ""
+msgstr "全屏壁纸：%1"
 
 #: lib/bookshelf_settings.lua:1626 lib/bookshelf_wallpaper_browser.lua:210
 msgid "Same as wallpaper"
-msgstr ""
+msgstr "与壁纸相同"
 
 #: lib/bookshelf_settings.lua:1628
 msgid "A different picture for full screen shelves. That view is wall-to-wall covers and spines, where a backdrop that reads well behind the top panel is often too busy."
-msgstr ""
+msgstr "为全屏书架单独指定一张图片。该视图中封面与书脊铺满整屏，在顶部面板后方好看的背景，放在这里往往显得杂乱。"
 
 #: lib/bookshelf_settings.lua:1635
 msgid "Invert wallpaper when dark"
-msgstr ""
+msgstr "深色时反转壁纸"
 
 #: lib/bookshelf_settings.lua:1636
 msgid "Show the wallpaper as its negative when the shelf is dark, so a light picture turns dark. Off, the picture looks the same dark as light. A theme's own dark wallpaper is always shown as drawn."
-msgstr ""
+msgstr "书架为深色时，以负片显示壁纸，让浅色图片变暗。关闭时，图片在深色和浅色下看起来一样。主题自带的深色壁纸始终按原样显示。"
 
 #: lib/bookshelf_settings.lua:1658
 msgid "Color behind wallpaper: %1"
-msgstr ""
+msgstr "壁纸后方颜色：%1"
 
 #: lib/bookshelf_settings.lua:1665
 msgid "Color behind wallpaper"
-msgstr ""
+msgstr "壁纸后方颜色"
 
 #: lib/bookshelf_settings.lua:1665
 msgid "Color behind wallpaper (% black)"
-msgstr ""
+msgstr "壁纸后方颜色 (% 黑色)"
 
 #: lib/bookshelf_settings.lua:1691
 msgid "Extra wallpaper folder: %1"
-msgstr ""
+msgstr "额外壁纸文件夹：%1"
 
 #: lib/bookshelf_settings.lua:1693
 msgid "A folder of your own to take wallpapers from, listed along with the ones in %1. Useful when you already keep pictures somewhere else. Nothing in it is changed. Long-press to stop using it."
@@ -2916,23 +2916,23 @@ msgstr "面板遮罩：%1"
 
 #: lib/bookshelf_settings.lua:1743
 msgid "How much to shade the top panel and the footer so the buttons stay legible over a picture. Transparent lets the wallpaper through untouched, which reads well over a plain texture and poorly over a busy photograph. Solid hides the picture behind those strips entirely. Part of the theme, as the wallpaper is."
-msgstr ""
+msgstr "为顶部面板和底栏添加多少遮罩，使按钮叠在图片上时仍然清晰可读。「透明」让壁纸原样透出，在素净的纹理上效果不错，在繁杂的照片上则很差。「不透明」会把这两条区域后方的图片完全遮住。与壁纸一样，属于主题的一部分。"
 
 #: lib/bookshelf_settings.lua:1757
 msgid "Blur wallpaper behind panels"
-msgstr ""
+msgstr "模糊面板后方的壁纸"
 
 #: lib/bookshelf_settings.lua:1758
 msgid "Blurs the wallpaper behind the top panel and the footer before the shading goes over it, like frosted glass, so the picture's detail does not compete with the buttons and text. Worked out once per wallpaper, then reused. Part of the theme."
-msgstr ""
+msgstr "在叠加遮罩之前，先模糊顶部面板和底栏后方的壁纸，如同磨砂玻璃，使图片细节不会干扰按钮和文字。每张壁纸只计算一次，之后重复使用。属于主题的一部分。"
 
 #: lib/bookshelf_settings.lua:1775
 msgid "Panel behind Covers shelves"
-msgstr ""
+msgstr "封面书架衬底面板"
 
 #: lib/bookshelf_settings.lua:1776
 msgid "Covers shelves get one panel behind the top panel, the covers and the footer, as list shelves have, in place of a plate under each title. Part of the theme."
-msgstr ""
+msgstr "封面书架在顶部面板、封面和底栏后方使用一整块面板 (与列表书架相同)，取代每个标题下方的衬底。属于主题的一部分。"
 
 #: lib/bookshelf_settings.lua:1801 lib/bookshelf_settings.lua:2767
 #: lib/bookshelf_settings.lua:2788 lib/bookshelf_settings.lua:2798
@@ -2957,7 +2957,7 @@ msgstr "不透明"
 
 #: lib/bookshelf_settings.lua:1811
 msgid "Auto (follow night mode)"
-msgstr ""
+msgstr "自动 (跟随夜间模式)"
 
 #: lib/bookshelf_settings.lua:1812 lib/bookshelf_settings.lua:2470
 msgid "Light"
@@ -2969,11 +2969,11 @@ msgstr "深色"
 
 #: lib/bookshelf_settings.lua:1840
 msgid "Light or dark: %1"
-msgstr ""
+msgstr "浅色或深色：%1"
 
 #: lib/bookshelf_settings.lua:1842
 msgid "Light or dark colors for the shelf, independently of KOReader's night mode, so you can keep the rest of KOReader light and still have a dark shelf. Auto follows night mode. Covers and ornaments are pictures and are never inverted; the wallpaper is inverted only when you ask for it."
-msgstr ""
+msgstr "为书架选择浅色或深色，与 KOReader 的夜间模式相互独立，因此可以让 KOReader 的其余部分保持浅色，而书架依然是深色。「自动」跟随夜间模式。封面和摆件都是图片，永远不会被反色；壁纸只在你要求时才会反色。"
 
 #: lib/bookshelf_settings.lua:2007 lib/bookshelf_settings.lua:2013
 msgid "default"
@@ -2989,7 +2989,7 @@ msgstr "书架搁板颜色（黑色百分比）"
 
 #: lib/bookshelf_settings.lua:2108
 msgid "Plank: %1"
-msgstr ""
+msgstr "搁板：%1"
 
 #: lib/bookshelf_settings.lua:2109
 msgid "color"
@@ -3001,7 +3001,7 @@ msgstr "书脊样式中书籍所立的搁板：可以是纯色、内置的橡木
 
 #: lib/bookshelf_settings.lua:2290
 msgid "Ornaments: %1 of %2 on"
-msgstr ""
+msgstr "摆件：%1/%2 已启用"
 
 #: lib/bookshelf_settings.lua:2295
 msgid ""
@@ -3015,7 +3015,7 @@ msgstr ""
 
 #: lib/bookshelf_settings.lua:2340
 msgid "New ornaments go: %1"
-msgstr ""
+msgstr "新增摆件位置：%1"
 
 #: lib/bookshelf_settings.lua:2340
 msgid "first"
@@ -3043,11 +3043,11 @@ msgstr "重置为默认颜色"
 
 #: lib/bookshelf_settings.lua:2468 lib/bookshelf_settings.lua:2470
 msgid "Colors for: %1"
-msgstr ""
+msgstr "编辑颜色：%1"
 
 #: lib/bookshelf_settings.lua:2472
 msgid "Your colors come in two sets, one for a light shelf and one for a dark shelf. Tap to edit the other set; the shelf and KOReader's night mode are not changed."
-msgstr ""
+msgstr "你的颜色分为两套，一套用于浅色书架，一套用于深色书架。点击可编辑另一套；书架和 KOReader 的夜间模式不会改变。"
 
 #: lib/bookshelf_settings.lua:2496 lib/bookshelf_settings.lua:2505
 msgid "Text ink"
@@ -3155,7 +3155,7 @@ msgstr "边框颜色"
 
 #: lib/bookshelf_settings.lua:2675
 msgid "The frame around covers and the border of badges. Default black."
-msgstr ""
+msgstr "封面外框和徽章边框。默认为黑色。"
 
 #: lib/bookshelf_settings.lua:2680
 msgid "Border color (% black)"
@@ -3211,8 +3211,8 @@ msgid "Shelf menu background"
 msgstr "书架菜单背景"
 
 #: lib/bookshelf_settings.lua:2771
-msgid "The bar behind the shelf menu. White by day and black at night unless you change it; Transparent leaves it out, so the wallpaper shows through (the selected shelf keeps its fill). The panels have their own colour."
-msgstr ""
+msgid "The bar behind the shelf menu. White by day and black at night unless you change it; Transparent leaves it out, so the wallpaper shows through (the selected shelf keeps its fill). The panels have their own color."
+msgstr "书架菜单后方的横条。除非另行更改，白天为白色、夜间为黑色；「透明」会去掉横条，让壁纸透出 (选中书架仍保留其填充色)。各面板另有自己的颜色。"
 
 #: lib/bookshelf_settings.lua:2781
 msgid "Shelf menu background (% black)"
@@ -3220,7 +3220,7 @@ msgstr "书架菜单背景 (% 黑色)"
 
 #: lib/bookshelf_settings.lua:2819 lib/bookshelf_settings.lua:2828
 msgid "Selected shelf background"
-msgstr ""
+msgstr "选中书架背景"
 
 #: lib/bookshelf_settings.lua:2821
 msgid "Fill behind the selected shelf in the shelf menu. Left unset, the selected shelf is drawn by inverting it -- the fastest path and identical on every device. Setting a color paints it instead. Long-press to clear."
@@ -3228,7 +3228,7 @@ msgstr "书架菜单中选中书架背后的填充色。留空时，选中书架
 
 #: lib/bookshelf_settings.lua:2828
 msgid "Selected shelf background (% black)"
-msgstr ""
+msgstr "选中书架背景 (% 黑色)"
 
 #: lib/bookshelf_settings.lua:2839 lib/bookshelf_settings.lua:2846
 msgid "Selected shelf text"
@@ -3550,7 +3550,7 @@ msgstr "搁板样式：%1"
 
 #: lib/bookshelf_settings.lua:3733
 msgid "Draw plank designs (Oak, or one from a pack or a theme) on spine shelves. Drawing them is slow on some black and white e-readers; turn this off to use the plain plank color instead. Choosing a plank again, in the Plank picker, turns this back on."
-msgstr ""
+msgstr "在书脊书架上绘制搁板样式 (橡木，或来自摆件包或主题的样式)。在部分黑白墨水屏设备上绘制较慢；关闭此项可改用纯色搁板。在「搁板」选择器中重新选择一个搁板，会重新开启此项。"
 
 #: lib/bookshelf_settings.lua:3751
 msgid "Instant book close (beta)"
@@ -4369,19 +4369,19 @@ msgstr "标签"
 
 #: lib/bookshelf_theme_library.lua:151
 msgid "%1 (Spines shelves only)"
-msgstr ""
+msgstr "%1 (仅书脊书架)"
 
 #: lib/bookshelf_theme_library.lua:155
 msgid "Edited"
-msgstr ""
+msgstr "已修改"
 
 #: lib/bookshelf_theme_library.lua:264
 msgid "Uses: %1"
-msgstr ""
+msgstr "沿用：%1"
 
 #: lib/bookshelf_theme_library.lua:331
 msgid "Reset to original"
-msgstr ""
+msgstr "恢复原始设置"
 
 #: lib/bookshelf_theme_menu.lua:70
 msgid "Colors"
@@ -4389,7 +4389,7 @@ msgstr "颜色"
 
 #: lib/bookshelf_theme_menu.lua:91
 msgid "Theme (%1)"
-msgstr ""
+msgstr "主题 (%1)"
 
 #: lib/bookshelf_theme_menu.lua:96
 msgid ""
@@ -4398,39 +4398,39 @@ msgid ""
 "The rows here edit the theme of the shelf on screen. Your changes stay with that theme wherever it shows, and Reset in the Theme library brings back its original.\n"
 "\n"
 "Each shelf can have a theme of its own: choose it here, or long-press a shelf chip, then Shelf style."
-msgstr ""
+msgstr "主题可以包含壁纸、搁板、颜色、浅色或深色，以及摆件。主题未包含的部分来自%1。选择主题永远不会改变%1。\n\n这里的各行用于编辑当前屏幕上书架的主题。你的修改会随该主题保留，无论它出现在哪里；在「主题库」中重置可恢复其原始设置。\n\n每个书架都可以有自己的主题：在这里选择，或长按书架按钮，然后打开「书架样式」。"
 
 #: lib/bookshelf_theme_menu.lua:134
 msgid "This shelf: %1"
-msgstr ""
+msgstr "此书架：%1"
 
 #: lib/bookshelf_theme_menu.lua:168
 msgid "Other shelves: all default"
-msgstr ""
+msgstr "其他书架：均为默认"
 
 #: lib/bookshelf_theme_menu.lua:169
 msgid "Other shelves: 1 with own theme"
-msgstr ""
+msgstr "其他书架：1 个有自己的主题"
 
 #: lib/bookshelf_theme_menu.lua:170
 msgid "Other shelves: %1 with own themes"
-msgstr ""
+msgstr "其他书架：%1 个有自己的主题"
 
 #: lib/bookshelf_theme_menu.lua:222
 msgid "%1: %2"
-msgstr ""
+msgstr "%1：%2"
 
 #: lib/bookshelf_theme_menu.lua:232
 msgid "Default theme: %1"
-msgstr ""
+msgstr "默认主题：%1"
 
 #: lib/bookshelf_theme_pack.lua:286
 msgid "Custom theme"
-msgstr ""
+msgstr "自定义主题"
 
 #: lib/bookshelf_theme_pack.lua:295
 msgid "Add theme pack…"
-msgstr ""
+msgstr "添加主题包…"
 
 #: lib/bookshelf_theme_pack.lua:305
 msgid ""
@@ -4442,19 +4442,19 @@ msgid ""
 "\n"
 "Ready-made theme packs:\n"
 "%2"
-msgstr ""
+msgstr "主题包会将壁纸、搁板、颜色与摆件整合在一起，并在这里选用。要添加一个，请将它的文件夹复制到\n%1\n然后重新打开「主题库」。\n\n你可以随意编辑任何主题；你的修改会随它保留，「重置」可恢复原始设置。\n\n现成的主题包：\n%2"
 
 #: lib/bookshelf_theme_pack.lua:309
 msgid "Plain"
-msgstr ""
+msgstr "素色"
 
 #: lib/bookshelf_theme_pack.lua:377
 msgid "Default theme"
-msgstr ""
+msgstr "默认主题"
 
 #: lib/bookshelf_theme_pack.lua:1316
 msgid "Reset %1 to its original settings? Your changes to it are lost."
-msgstr ""
+msgstr "将%1恢复为原始设置？你对它的修改都会丢失。"
 
 #: lib/bookshelf_tokens.lua:69
 msgid "First author"
@@ -4937,7 +4937,7 @@ msgstr "壁纸"
 
 #: lib/bookshelf_wallpaper_browser.lua:211
 msgid "No wallpaper"
-msgstr ""
+msgstr "无壁纸"
 
 #: lib/bookshelf_wallpaper_browser.lua:238
 msgid "Yours"
@@ -4945,11 +4945,11 @@ msgstr "我的"
 
 #: lib/bookshelf_wallpaper_browser.lua:246
 msgid "Full screen wallpaper"
-msgstr ""
+msgstr "全屏壁纸"
 
 #: lib/bookshelf_wallpaper_browser.lua:246
 msgid "Wallpaper"
-msgstr ""
+msgstr "壁纸"
 
 #: lib/bookshelf_wallpaper_browser.lua:279
 msgid "No images in %1"
@@ -5790,7 +5790,7 @@ msgstr "选择图像"
 
 #: lib/bookshelf_widget.lua:24310 lib/bookshelf_widget.lua:24350
 msgid "Add shelf"
-msgstr ""
+msgstr "添加书架"
 
 #: lib/bookshelf_widget.lua:24573
 msgid "Search library"
@@ -7054,7 +7054,7 @@ msgstr "%1 小时前更新"
 #~ msgid "☀ Editing day-mode colors (tap to switch)"
 #~ msgstr "☀ 编辑白天模式颜色 (点击切换)"
 
-#~ msgid "The solid bar behind the shelf menu. White by day and black at night unless you change it. The panels have their own colour."
+#~ msgid "The solid bar behind the shelf menu. White by day and black at night unless you change it. The panels have their own color."
 #~ msgstr "书架菜单后方的实色横条。除非另行更改，白天为白色、夜间为黑色。各面板另有自己的颜色。"
 
 #~ msgid "Transparent shelf menu"

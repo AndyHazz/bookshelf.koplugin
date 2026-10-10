@@ -3174,8 +3174,8 @@ msgid "Shelf menu background"
 msgstr ""
 
 #: lib/bookshelf_settings.lua:2771
-msgid "The bar behind the shelf menu. White by day and black at night unless you change it; Transparent leaves it out, so the wallpaper shows through (the selected shelf keeps its fill). The panels have their own colour."
-msgstr ""
+msgid "The bar behind the shelf menu. White by day and black at night unless you change it; Transparent leaves it out, so the wallpaper shows through (the selected shelf keeps its fill). The panels have their own color."
+msgstr "The bar behind the shelf menu. White by day and black at night unless you change it; Transparent leaves it out, so the wallpaper shows through (the selected shelf keeps its fill). The panels have their own colour."
 
 #: lib/bookshelf_settings.lua:2781
 msgid "Shelf menu background (% black)"

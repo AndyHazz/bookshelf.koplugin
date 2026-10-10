@@ -73,7 +73,7 @@ msgstr "Libreria virtuale Kindle"
 
 #: lib/bookshelf_builtin_sources.lua:85
 msgid "Kobo library"
-msgstr ""
+msgstr "Libreria Kobo"
 
 #: lib/bookshelf_bulk_actions.lua:26
 #, lua-format
@@ -442,7 +442,7 @@ msgstr "Catalogo OPDS"
 
 #: lib/bookshelf_chip_editor.lua:407 lib/bookshelf_chip_editor.lua:2843
 msgid "Shelf of shelves"
-msgstr ""
+msgstr "Scaffale di scaffali"
 
 #: lib/bookshelf_chip_editor.lua:409 lib/bookshelf_chip_editor.lua:424
 #: lib/bookshelf_settings.lua:4349
@@ -455,11 +455,11 @@ msgstr "OPDS: %1"
 
 #: lib/bookshelf_chip_editor.lua:645
 msgid "Changing this shelf's source deletes the shelves inside it. This cannot be undone."
-msgstr ""
+msgstr "Cambiare la sorgente di questo scaffale elimina gli scaffali al suo interno. L'operazione non può essere annullata."
 
 #: lib/bookshelf_chip_editor.lua:646
 msgid "Change"
-msgstr ""
+msgstr "Cambia"
 
 #: lib/bookshelf_chip_editor.lua:727
 msgid "Insert icon…"
@@ -487,7 +487,7 @@ msgstr "Ordine del server"
 
 #: lib/bookshelf_chip_editor.lua:889
 msgid "Shelves stand in the order you arrange them"
-msgstr ""
+msgstr "Gli scaffali seguono l'ordine che scegli"
 
 #: lib/bookshelf_chip_editor.lua:932
 msgid "Source / grouping: "
@@ -495,7 +495,7 @@ msgstr "Origine / raggruppamento: "
 
 #: lib/bookshelf_chip_editor.lua:950
 msgid "Show + Add shelf"
-msgstr ""
+msgstr "Mostra + Aggiungi scaffale"
 
 #: lib/bookshelf_chip_editor.lua:963
 msgid "Filters: "
@@ -515,7 +515,7 @@ msgstr "Modifica etichetta"
 
 #: lib/bookshelf_chip_editor.lua:1108
 msgid "Delete this shelf and the shelves inside it? This cannot be undone."
-msgstr ""
+msgstr "Eliminare questo scaffale e gli scaffali al suo interno? L'operazione non può essere annullata."
 
 #: lib/bookshelf_chip_editor.lua:1109
 msgid "Delete this shelf? This cannot be undone."
@@ -523,7 +523,7 @@ msgstr "Eliminare questo scaffale? L'operazione non può essere annullata."
 
 #: lib/bookshelf_chip_editor.lua:1221
 msgid "Choose a source to keep this new shelf."
-msgstr ""
+msgstr "Scegli una sorgente per tenere questo nuovo scaffale."
 
 #: lib/bookshelf_chip_editor.lua:1253
 msgid "Edit shelf"
@@ -583,7 +583,7 @@ msgstr "In una raccolta"
 
 #: lib/bookshelf_chip_editor.lua:1722 lib/bookshelf_theme_library.lua:539
 msgid "Theme: %1"
-msgstr ""
+msgstr "Tema: %1"
 
 #: lib/bookshelf_chip_editor.lua:1743
 msgid "Show as"
@@ -1083,7 +1083,7 @@ msgstr "%1×%2px"
 
 #: lib/bookshelf_cover_label_editor.lua:104
 msgid "Text below covers"
-msgstr ""
+msgstr "Testo sotto le copertine"
 
 #: lib/bookshelf_cover_sources.lua:189
 msgid "Google Books"
@@ -2311,11 +2311,11 @@ msgstr "Scambia"
 
 #: lib/bookshelf_ornament_menu.lua:378
 msgid "Shuffle this shelf"
-msgstr ""
+msgstr "Rimescola questo scaffale"
 
 #: lib/bookshelf_ornament_menu.lua:381
 msgid "Shuffle this shelf's ornaments into a new order? Its swaps and moves are lost."
-msgstr ""
+msgstr "Rimescolare gli ornamenti di questo scaffale in un nuovo ordine? Scambi e spostamenti andranno persi."
 
 #: lib/bookshelf_ornament_menu.lua:382
 msgid "Shuffle"
@@ -2501,7 +2501,7 @@ msgstr "Integrato"
 
 #: lib/bookshelf_plank_browser.lua:223
 msgid "Plank"
-msgstr ""
+msgstr "Ripiano"
 
 #: lib/bookshelf_reader_park.lua:437 lib/bookshelf_widget.lua:24943
 #: main.lua:1331
@@ -2639,11 +2639,11 @@ msgstr "Imposta"
 
 #: lib/bookshelf_settings.lua:708
 msgid "Custom"
-msgstr ""
+msgstr "Personalizzato"
 
 #: lib/bookshelf_settings.lua:725
 msgid "Custom…"
-msgstr ""
+msgstr "Personalizzato…"
 
 #: lib/bookshelf_settings.lua:766
 msgid "Show text below covers"
@@ -2839,7 +2839,7 @@ msgstr "Sposta giù"
 #: lib/bookshelf_settings.lua:1574 lib/bookshelf_theme_pack.lua:352
 #: lib/bookshelf_theme_pack.lua:834
 msgid "%1 (missing)"
-msgstr ""
+msgstr "%1 (mancante)"
 
 #: lib/bookshelf_settings.lua:1587 lib/bookshelf_settings.lua:1589
 #: lib/bookshelf_theme_library.lua:104 lib/bookshelf_wallpaper_browser.lua:150
@@ -2848,7 +2848,7 @@ msgstr "Pacchetto %1"
 
 #: lib/bookshelf_settings.lua:1611
 msgid "Wallpaper: %1"
-msgstr ""
+msgstr "Sfondo: %1"
 
 #: lib/bookshelf_settings.lua:1617
 msgid "Images are loaded from %1 and %2"
@@ -2860,39 +2860,39 @@ msgstr "Le immagini vengono caricate da %1"
 
 #: lib/bookshelf_settings.lua:1625
 msgid "Full screen wallpaper: %1"
-msgstr ""
+msgstr "Sfondo a schermo intero: %1"
 
 #: lib/bookshelf_settings.lua:1626 lib/bookshelf_wallpaper_browser.lua:210
 msgid "Same as wallpaper"
-msgstr ""
+msgstr "Come lo sfondo"
 
 #: lib/bookshelf_settings.lua:1628
 msgid "A different picture for full screen shelves. That view is wall-to-wall covers and spines, where a backdrop that reads well behind the top panel is often too busy."
-msgstr ""
+msgstr "Un'immagine diversa per gli scaffali a schermo intero. Quella vista è piena di copertine e dorsi da bordo a bordo, e uno sfondo che sta bene dietro il pannello superiore lì risulta spesso troppo carico."
 
 #: lib/bookshelf_settings.lua:1635
 msgid "Invert wallpaper when dark"
-msgstr ""
+msgstr "Inverti lo sfondo se scuro"
 
 #: lib/bookshelf_settings.lua:1636
 msgid "Show the wallpaper as its negative when the shelf is dark, so a light picture turns dark. Off, the picture looks the same dark as light. A theme's own dark wallpaper is always shown as drawn."
-msgstr ""
+msgstr "Mostra lo sfondo in negativo quando lo scaffale è scuro, così un'immagine chiara diventa scura. Se disattivato, l'immagine appare uguale da scuro e da chiaro. Lo sfondo scuro proprio di un tema è sempre mostrato così com'è."
 
 #: lib/bookshelf_settings.lua:1658
 msgid "Color behind wallpaper: %1"
-msgstr ""
+msgstr "Colore dietro lo sfondo: %1"
 
 #: lib/bookshelf_settings.lua:1665
 msgid "Color behind wallpaper"
-msgstr ""
+msgstr "Colore dietro lo sfondo"
 
 #: lib/bookshelf_settings.lua:1665
 msgid "Color behind wallpaper (% black)"
-msgstr ""
+msgstr "Colore dietro lo sfondo (% nero)"
 
 #: lib/bookshelf_settings.lua:1691
 msgid "Extra wallpaper folder: %1"
-msgstr ""
+msgstr "Cartella sfondi aggiuntiva: %1"
 
 #: lib/bookshelf_settings.lua:1693
 msgid "A folder of your own to take wallpapers from, listed along with the ones in %1. Useful when you already keep pictures somewhere else. Nothing in it is changed. Long-press to stop using it."
@@ -2908,23 +2908,23 @@ msgstr "Ombreggiatura pannelli: %1"
 
 #: lib/bookshelf_settings.lua:1743
 msgid "How much to shade the top panel and the footer so the buttons stay legible over a picture. Transparent lets the wallpaper through untouched, which reads well over a plain texture and poorly over a busy photograph. Solid hides the picture behind those strips entirely. Part of the theme, as the wallpaper is."
-msgstr ""
+msgstr "Quanto ombreggiare il pannello superiore e il piè di pagina perché i pulsanti restino leggibili sopra un'immagine. Trasparente lascia vedere lo sfondo intatto, il che funziona bene su una texture semplice e male su una foto molto dettagliata. Pieno nasconde del tutto l'immagine dietro quelle fasce. Fa parte del tema, come lo sfondo."
 
 #: lib/bookshelf_settings.lua:1757
 msgid "Blur wallpaper behind panels"
-msgstr ""
+msgstr "Sfoca lo sfondo dietro i pannelli"
 
 #: lib/bookshelf_settings.lua:1758
 msgid "Blurs the wallpaper behind the top panel and the footer before the shading goes over it, like frosted glass, so the picture's detail does not compete with the buttons and text. Worked out once per wallpaper, then reused. Part of the theme."
-msgstr ""
+msgstr "Sfoca lo sfondo dietro il pannello superiore e il piè di pagina prima di applicare l'ombreggiatura, come un vetro smerigliato, così i dettagli dell'immagine non competono con pulsanti e testo. Calcolato una volta per sfondo, poi riutilizzato. Fa parte del tema."
 
 #: lib/bookshelf_settings.lua:1775
 msgid "Panel behind Covers shelves"
-msgstr ""
+msgstr "Pannello dietro gli scaffali Copertine"
 
 #: lib/bookshelf_settings.lua:1776
 msgid "Covers shelves get one panel behind the top panel, the covers and the footer, as list shelves have, in place of a plate under each title. Part of the theme."
-msgstr ""
+msgstr "Gli scaffali Copertine ricevono un unico pannello dietro il pannello superiore, le copertine e il piè di pagina, come gli scaffali a elenco, al posto di una targhetta sotto ogni titolo. Fa parte del tema."
 
 #: lib/bookshelf_settings.lua:1801 lib/bookshelf_settings.lua:2767
 #: lib/bookshelf_settings.lua:2788 lib/bookshelf_settings.lua:2798
@@ -2949,7 +2949,7 @@ msgstr "Pieno"
 
 #: lib/bookshelf_settings.lua:1811
 msgid "Auto (follow night mode)"
-msgstr ""
+msgstr "Auto (segui modalità notturna)"
 
 #: lib/bookshelf_settings.lua:1812 lib/bookshelf_settings.lua:2470
 msgid "Light"
@@ -2961,11 +2961,11 @@ msgstr "Scuro"
 
 #: lib/bookshelf_settings.lua:1840
 msgid "Light or dark: %1"
-msgstr ""
+msgstr "Chiaro o scuro: %1"
 
 #: lib/bookshelf_settings.lua:1842
 msgid "Light or dark colors for the shelf, independently of KOReader's night mode, so you can keep the rest of KOReader light and still have a dark shelf. Auto follows night mode. Covers and ornaments are pictures and are never inverted; the wallpaper is inverted only when you ask for it."
-msgstr ""
+msgstr "Colori chiari o scuri per lo scaffale, indipendentemente dalla modalità notturna di KOReader, così puoi tenere chiaro il resto di KOReader e avere comunque uno scaffale scuro. Auto segue la modalità notturna. Copertine e ornamenti sono immagini e non vengono mai invertiti; lo sfondo viene invertito solo se lo chiedi."
 
 #: lib/bookshelf_settings.lua:2007 lib/bookshelf_settings.lua:2013
 msgid "default"
@@ -2981,7 +2981,7 @@ msgstr "Colore del ripiano dello scaffale (% di nero)"
 
 #: lib/bookshelf_settings.lua:2108
 msgid "Plank: %1"
-msgstr ""
+msgstr "Ripiano: %1"
 
 #: lib/bookshelf_settings.lua:2109
 msgid "color"
@@ -2993,7 +2993,7 @@ msgstr "Il ripiano su cui lo stile Dorsi appoggia i libri: una tinta unita, il r
 
 #: lib/bookshelf_settings.lua:2290
 msgid "Ornaments: %1 of %2 on"
-msgstr ""
+msgstr "Ornamenti: %1 di %2 attivi"
 
 #: lib/bookshelf_settings.lua:2295
 msgid ""
@@ -3007,7 +3007,7 @@ msgstr ""
 
 #: lib/bookshelf_settings.lua:2340
 msgid "New ornaments go: %1"
-msgstr ""
+msgstr "Nuovi ornamenti: %1"
 
 #: lib/bookshelf_settings.lua:2340
 msgid "first"
@@ -3035,11 +3035,11 @@ msgstr "Ripristina colori predefiniti"
 
 #: lib/bookshelf_settings.lua:2468 lib/bookshelf_settings.lua:2470
 msgid "Colors for: %1"
-msgstr ""
+msgstr "Colori per: %1"
 
 #: lib/bookshelf_settings.lua:2472
 msgid "Your colors come in two sets, one for a light shelf and one for a dark shelf. Tap to edit the other set; the shelf and KOReader's night mode are not changed."
-msgstr ""
+msgstr "I tuoi colori sono in due serie, una per lo scaffale chiaro e una per quello scuro. Tocca per modificare l'altra serie; lo scaffale e la modalità notturna di KOReader non cambiano."
 
 #: lib/bookshelf_settings.lua:2496 lib/bookshelf_settings.lua:2505
 msgid "Text ink"
@@ -3147,7 +3147,7 @@ msgstr "Colore bordo"
 
 #: lib/bookshelf_settings.lua:2675
 msgid "The frame around covers and the border of badges. Default black."
-msgstr ""
+msgstr "La cornice attorno alle copertine e il bordo dei distintivi. Predefinito: nero."
 
 #: lib/bookshelf_settings.lua:2680
 msgid "Border color (% black)"
@@ -3203,8 +3203,8 @@ msgid "Shelf menu background"
 msgstr "Sfondo menu scaffali"
 
 #: lib/bookshelf_settings.lua:2771
-msgid "The bar behind the shelf menu. White by day and black at night unless you change it; Transparent leaves it out, so the wallpaper shows through (the selected shelf keeps its fill). The panels have their own colour."
-msgstr ""
+msgid "The bar behind the shelf menu. White by day and black at night unless you change it; Transparent leaves it out, so the wallpaper shows through (the selected shelf keeps its fill). The panels have their own color."
+msgstr "La barra dietro il menu scaffali. Bianca di giorno e nera di notte se non la cambi; Trasparente la toglie, così si vede lo sfondo (lo scaffale selezionato mantiene il suo riempimento). I pannelli hanno un colore proprio."
 
 #: lib/bookshelf_settings.lua:2781
 msgid "Shelf menu background (% black)"
@@ -3212,7 +3212,7 @@ msgstr "Sfondo menu scaffali (% nero)"
 
 #: lib/bookshelf_settings.lua:2819 lib/bookshelf_settings.lua:2828
 msgid "Selected shelf background"
-msgstr ""
+msgstr "Sfondo scaffale selezionato"
 
 #: lib/bookshelf_settings.lua:2821
 msgid "Fill behind the selected shelf in the shelf menu. Left unset, the selected shelf is drawn by inverting it -- the fastest path and identical on every device. Setting a color paints it instead. Long-press to clear."
@@ -3220,7 +3220,7 @@ msgstr "Sfondo dietro lo scaffale selezionato nel menu scaffali. Se non impostat
 
 #: lib/bookshelf_settings.lua:2828
 msgid "Selected shelf background (% black)"
-msgstr ""
+msgstr "Sfondo scaffale selezionato (% nero)"
 
 #: lib/bookshelf_settings.lua:2839 lib/bookshelf_settings.lua:2846
 msgid "Selected shelf text"
@@ -3539,7 +3539,7 @@ msgstr "Motivo del ripiano: %1"
 
 #: lib/bookshelf_settings.lua:3733
 msgid "Draw plank designs (Oak, or one from a pack or a theme) on spine shelves. Drawing them is slow on some black and white e-readers; turn this off to use the plain plank color instead. Choosing a plank again, in the Plank picker, turns this back on."
-msgstr ""
+msgstr "Disegna i motivi del ripiano (Quercia, o uno da un pacchetto o da un tema) sugli scaffali a dorsi. Disegnarli è lento su alcuni e-reader in bianco e nero; disattiva per usare invece la tinta unita del ripiano. Scegliere di nuovo un ripiano, nel selettore Ripiano, lo riattiva."
 
 #: lib/bookshelf_settings.lua:3751
 msgid "Instant book close (beta)"
@@ -4358,19 +4358,19 @@ msgstr "Tag"
 
 #: lib/bookshelf_theme_library.lua:151
 msgid "%1 (Spines shelves only)"
-msgstr ""
+msgstr "%1 (solo scaffali Dorsi)"
 
 #: lib/bookshelf_theme_library.lua:155
 msgid "Edited"
-msgstr ""
+msgstr "Modificato"
 
 #: lib/bookshelf_theme_library.lua:264
 msgid "Uses: %1"
-msgstr ""
+msgstr "Usa: %1"
 
 #: lib/bookshelf_theme_library.lua:331
 msgid "Reset to original"
-msgstr ""
+msgstr "Ripristina originale"
 
 #: lib/bookshelf_theme_menu.lua:70
 msgid "Colors"
@@ -4378,7 +4378,7 @@ msgstr "Colori"
 
 #: lib/bookshelf_theme_menu.lua:91
 msgid "Theme (%1)"
-msgstr ""
+msgstr "Tema (%1)"
 
 #: lib/bookshelf_theme_menu.lua:96
 msgid ""
@@ -4387,39 +4387,39 @@ msgid ""
 "The rows here edit the theme of the shelf on screen. Your changes stay with that theme wherever it shows, and Reset in the Theme library brings back its original.\n"
 "\n"
 "Each shelf can have a theme of its own: choose it here, or long-press a shelf chip, then Shelf style."
-msgstr ""
+msgstr "Un tema può portare uno sfondo, un ripiano, colori, chiaro o scuro, e ornamenti. Ciò che non porta viene da %1. Scegliere un tema non cambia mai %1.\n\nLe voci qui modificano il tema dello scaffale sullo schermo. Le tue modifiche restano con quel tema ovunque appaia, e Ripristina nella Libreria temi riporta l'originale.\n\nOgni scaffale può avere un tema proprio: sceglilo qui, oppure tieni premuto un chip scaffale, poi Stile scaffale."
 
 #: lib/bookshelf_theme_menu.lua:134
 msgid "This shelf: %1"
-msgstr ""
+msgstr "Questo scaffale: %1"
 
 #: lib/bookshelf_theme_menu.lua:168
 msgid "Other shelves: all default"
-msgstr ""
+msgstr "Altri scaffali: tutti predefiniti"
 
 #: lib/bookshelf_theme_menu.lua:169
 msgid "Other shelves: 1 with own theme"
-msgstr ""
+msgstr "Altri scaffali: 1 con tema proprio"
 
 #: lib/bookshelf_theme_menu.lua:170
 msgid "Other shelves: %1 with own themes"
-msgstr ""
+msgstr "Altri scaffali: %1 con tema proprio"
 
 #: lib/bookshelf_theme_menu.lua:222
 msgid "%1: %2"
-msgstr ""
+msgstr "%1: %2"
 
 #: lib/bookshelf_theme_menu.lua:232
 msgid "Default theme: %1"
-msgstr ""
+msgstr "Tema predefinito: %1"
 
 #: lib/bookshelf_theme_pack.lua:286
 msgid "Custom theme"
-msgstr ""
+msgstr "Tema personalizzato"
 
 #: lib/bookshelf_theme_pack.lua:295
 msgid "Add theme pack…"
-msgstr ""
+msgstr "Aggiungi pacchetto tema…"
 
 #: lib/bookshelf_theme_pack.lua:305
 msgid ""
@@ -4431,19 +4431,19 @@ msgid ""
 "\n"
 "Ready-made theme packs:\n"
 "%2"
-msgstr ""
+msgstr "Un pacchetto tema riunisce uno sfondo, un ripiano, colori e ornamenti, e si sceglie qui. Per aggiungerne uno, copia la sua cartella in\n%1\npoi riapri la Libreria temi.\n\nPuoi modificare liberamente qualsiasi tema; le tue modifiche restano con esso, e Ripristina riporta l'originale.\n\nPacchetti tema già pronti:\n%2"
 
 #: lib/bookshelf_theme_pack.lua:309
 msgid "Plain"
-msgstr ""
+msgstr "Semplice"
 
 #: lib/bookshelf_theme_pack.lua:377
 msgid "Default theme"
-msgstr ""
+msgstr "Tema predefinito"
 
 #: lib/bookshelf_theme_pack.lua:1316
 msgid "Reset %1 to its original settings? Your changes to it are lost."
-msgstr ""
+msgstr "Ripristinare le impostazioni originali di %1? Le modifiche apportate andranno perse."
 
 #: lib/bookshelf_tokens.lua:69
 msgid "First author"
@@ -4926,7 +4926,7 @@ msgstr "sfondi"
 
 #: lib/bookshelf_wallpaper_browser.lua:211
 msgid "No wallpaper"
-msgstr ""
+msgstr "Nessuno sfondo"
 
 #: lib/bookshelf_wallpaper_browser.lua:238
 msgid "Yours"
@@ -4934,11 +4934,11 @@ msgstr "Tuoi"
 
 #: lib/bookshelf_wallpaper_browser.lua:246
 msgid "Full screen wallpaper"
-msgstr ""
+msgstr "Sfondo a schermo intero"
 
 #: lib/bookshelf_wallpaper_browser.lua:246
 msgid "Wallpaper"
-msgstr ""
+msgstr "Sfondo"
 
 #: lib/bookshelf_wallpaper_browser.lua:279
 msgid "No images in %1"
@@ -5779,7 +5779,7 @@ msgstr "Scegli immagine"
 
 #: lib/bookshelf_widget.lua:24310 lib/bookshelf_widget.lua:24350
 msgid "Add shelf"
-msgstr ""
+msgstr "Aggiungi scaffale"
 
 #: lib/bookshelf_widget.lua:24573
 msgid "Search library"
@@ -7043,7 +7043,7 @@ msgstr "Aggiornato %1h fa"
 #~ msgid "☀ Editing day-mode colors (tap to switch)"
 #~ msgstr "☀ Modifica colori modalità diurna (tocca per cambiare)"
 
-#~ msgid "The solid bar behind the shelf menu. White by day and black at night unless you change it. The panels have their own colour."
+#~ msgid "The solid bar behind the shelf menu. White by day and black at night unless you change it. The panels have their own color."
 #~ msgstr "La barra piena dietro il menu scaffali. Bianca di giorno e nera di notte, se non la cambi. I pannelli hanno un colore proprio."
 
 #~ msgid "Transparent shelf menu"

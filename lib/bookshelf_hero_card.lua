@@ -657,13 +657,14 @@ buildLine = function(expanded, region, width, book, max_height, single_line)
         -- Resolve user-chosen Progress bar / Progress bar track colors for
         -- the hero strip:
         --
-        -- * Pacman has a fixed identity baked into bookends's render path
-        --   (yellow body, peach pellets) and ignores per-bar color
-        --   overrides. Skip the color plumbing entirely for this style
-        --   so the user's bar-color picks don't bleed in.
+        -- * Pacman has a fixed identity baked into the bar painter
+        --   (lib/bookshelf_bar_paint: yellow body, peach pellets) and
+        --   ignores per-bar color overrides. Skip the color plumbing
+        --   entirely for this style so the user's bar-color picks don't
+        --   bleed in.
         --
         -- * For every other style, only pass the color fields when the
-        --   user has actually picked something. Each bookends style has
+        --   user has actually picked something. Each painter style has
         --   its own internal defaults; passing bookshelf's default fill /
         --   track values (dark grey + white) would wash those out for
         --   users who never opened the colors menu.

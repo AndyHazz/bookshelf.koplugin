@@ -73,13 +73,17 @@ t.test("nothing requires KOReader's TextWidget directly", function()
     assert(#offenders == 0, "use lib/bookshelf_colour_text instead in: " .. table.concat(offenders, ", "))
 end)
 
-t.test("the shelf menu strip and the hero fallback bar paint colour-safely", function()
+t.test("the shelf menu strip and the hero bar paint colour-safely", function()
     local chip = io.open("lib/bookshelf_chip_bar.lua"):read("*a")
     assert(chip:find('require("lib/bookshelf_color").paintRect(bb, x, y, w or 0, h or 0, colors.chrome_bg)', 1, true),
         "the strip ground must go through Color.paintRect")
-    local bar = io.open("lib/bookshelf_hero_bar.lua"):read("*a")
-    assert(bar:find("ColourBar", 1, true) and bar:find("Color.paintRect(bb, x + bw, y + bw, fw", 1, true),
-        "without bookends, a picked bar colour must be painted by ColourBar")
+    -- The hero bar paints with bookshelf's copy of bookends' painter for
+    -- everyone now; its paint helpers dispatch a ColorRGB32 to the RGB32
+    -- variants, so a picked colour is not flattened to grey.
+    local paint = io.open("lib/bookshelf_bar_paint.lua"):read("*a")
+    assert(paint:find("bb:paintRectRGB32(x, y, w, h, c)", 1, true)
+        and paint:find("bb:paintRoundedRectRGB32(x, y, w, h, c, r)", 1, true),
+        "the bar painter must paint a picked colour through the RGB32 variants")
     local card = io.open("lib/bookshelf_hero_card.lua"):read("*a")
     assert(card:find("keeps_colour", 1, true),
         "a coloured hero bar must stay out of the one-colour wallpaper mask")

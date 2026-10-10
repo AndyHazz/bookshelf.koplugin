@@ -1187,9 +1187,9 @@ end
 --
 -- ListRow.bar(line, width) -> a paintable bar for this line's %bar.
 --
--- The same backend the hero uses (lib/bookshelf_hero_bar.lua: bookends's
--- painter when it is installed, KOReader's ProgressWidget when it is not), the
--- same two colour settings, and the same height rule -- a percentage of the
+-- The same painter the hero uses (lib/bookshelf_hero_bar.lua: bookshelf's
+-- copy of bookends' painter, so every style draws with or without bookends),
+-- the same two colour settings, and the same height rule -- a percentage of the
 -- face's NOMINAL point size rather than of its rendered line height, because
 -- the rendered height includes leading and descender and a bar measured
 -- against it comes out about twice as tall as the glyphs beside it.
@@ -1199,7 +1199,7 @@ end
 -- a round trip without the model naming them, and the shared line editor
 -- surfaces them on the same button row.
 local function resolvedBarColors(style)
-    -- Pacman has a fixed identity baked into bookends's painter (yellow body,
+    -- Pacman has a fixed identity baked into the painter (yellow body,
     -- peach pellets) and ignores overrides, so the plumbing is skipped rather
     -- than passed and discarded.
     if style == "pacman" then return nil end

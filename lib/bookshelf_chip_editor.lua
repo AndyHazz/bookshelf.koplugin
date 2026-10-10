@@ -2240,8 +2240,11 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         -- chip pinned to List -- "folder tiles option has no purpose in the
         -- list style menu": a list's group rows draw a deck of member covers,
         -- not these cards.
+        -- Book text (below) shares this row (maintainer on the PW5,
+        -- 2026-10-10): both are how the covers are drawn.
+        local tiles_row
         if not (chrome and chrome.is_opds) and show_covers then
-            rows[#rows + 1] = {{
+            tiles_row = {{
                 text_func = function()
                     local cur = StackDisplay.pinned(draft.group_display)
                                 or StackDisplay.FOLLOW_DEFAULT
@@ -2266,20 +2269,25 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                     draft.group_display = opts_list[1].value
                 end),
             }}
+            rows[#rows + 1] = tiles_row
         end
-        -- Text below covers and below groups, this shelf's own (Reddit,
-        -- after 5.4: "author under folders, but only on my series shelf").
-        -- One row, the pair, as Author on spine and Ornaments are: the
-        -- dialog stays short enough to see the shelf. Each opens its own
+        -- Text below covers, this shelf's own (Reddit, after 5.4: "I only
+        -- want the series name in a shelf that lists my series"). Opens a
         -- short picker, since Custom opens the line editor and a cycle stop
         -- cannot. Unset follows Cover display's choice, or a sub-shelf's
         -- shelf of shelves' (CoverLabel.modeFor), and reads "Default" or
         -- "Same as Fiction" accordingly. Covers only: a list or spine shelf
-        -- has no label strip.
+        -- has no label strip. Text below GROUPS stays library-wide: the only
+        -- group text with anything to print is a series stack's author.
         if show_covers then
-            rows[#rows + 1] = self:_coverTextRow(draft, function()
+            local text_row = self:_coverTextRow(draft, function()
                 if on_change then on_change() end
             end, function() UIManager:close(d) end, show, bw)
+            if tiles_row then
+                tiles_row[#tiles_row + 1] = text_row[1]
+            else
+                rows[#rows + 1] = text_row
+            end
         end
         -- Close: every pick has already been applied and saved, so there is
         -- nothing to confirm. It was OK while the editor's own Save did the
@@ -2305,40 +2313,31 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
     show()
 end
 
--- _coverTextRow(draft, on_change, close, reshow, bw) -> Shelf style's row of
--- two: "Book text: Title" | "Group text: Author", each opening its picker
--- (_pickCoverText). `close` takes Shelf style down, `reshow` brings it back.
+-- _coverTextRow(draft, on_change, close, reshow, bw) -> Shelf style's
+-- "Book text: Title" row, opening its picker (_pickCoverText). `close` takes
+-- Shelf style down, `reshow` brings it back.
 function Editor:_coverTextRow(draft, on_change, close, reshow, bw)
-    local CL = require("lib/bookshelf_cover_label")
-    local function btn(groups)
-        local which = groups and CL.SHELF.groups or CL.SHELF.books
-        return {
-            text_func = function()
-                local fmt = groups and _("Group text: %1") or _("Book text: %1")
-                return T(fmt, Editor._coverTextLabel(draft, which, draft[which.mode]))
-            end,
-            callback = function()
-                close()
-                Editor:_pickCoverText(draft, groups, on_change, reshow, bw)
-            end,
-        }
-    end
-    return { btn(false), btn(true) }
+    return {{
+        text_func = function()
+            return T(_("Book text: %1"), Editor._coverTextLabel(draft, draft.cover_text))
+        end,
+        callback = function()
+            close()
+            Editor:_pickCoverText(draft, on_change, reshow, bw)
+        end,
+    }}
 end
 
 -- The choices, laid out as a grid rather than a column of one per row (on
 -- the PW5 the column was seven rows for one question, maintainer
 -- 2026-10-10): what it follows and None, the line's contents, then Custom.
 -- "follow" is unset.
-local COVER_TEXT_LAYOUT = {
-    books  = { { "follow", "none" }, { "title", "author", "series" }, { "custom" } },
-    groups = { { "follow", "none" }, { "author", "custom" } },
-}
+local COVER_TEXT_LAYOUT = { { "follow", "none" }, { "title", "author", "series" }, { "custom" } }
 
--- _coverTextLabel(draft, which, value) -> how a choice reads: its name, or
--- for unset what it follows, "Default" (Cover display's) or "Same as
--- Fiction" (a sub-shelf's shelf of shelves).
-function Editor._coverTextLabel(draft, which, value)
+-- _coverTextLabel(draft, value) -> how a choice reads: its name, or for
+-- unset what it follows, "Default" (Cover display's) or "Same as Fiction"
+-- (a sub-shelf's shelf of shelves).
+function Editor._coverTextLabel(draft, value)
     if value == "title"  then return _("Title") end
     if value == "author" then return _("Author") end
     if value == "series" then return _("Series") end
@@ -2351,28 +2350,26 @@ function Editor._coverTextLabel(draft, which, value)
     return _("Default")
 end
 
--- _pickCoverText(draft, groups, on_change, back, bw): the shelf's own text
--- below covers (or below groups). A pick is written to the draft, shown on
--- the shelf, and hands back to Shelf style: one question, one answer, and no
--- close-and-reopen of this picker per tap, which flashes the whole screen on
--- a Kindle (see the Face out picker). Custom... opens the line editor on the
--- shelf's own line (CoverLabelEditor.showForShelf), and its Save is what
--- makes Custom the choice, as in Cover display. Back returns unchanged.
-function Editor:_pickCoverText(draft, groups, on_change, back, bw)
+-- _pickCoverText(draft, on_change, back, bw): the shelf's own text below
+-- covers. A pick is written to the draft, shown on the shelf, and hands back
+-- to Shelf style: one question, one answer, and no close-and-reopen of this
+-- picker per tap, which flashes the whole screen on a Kindle (see the Face
+-- out picker). Custom... opens the line editor on the shelf's own line
+-- (CoverLabelEditor.showForShelf), and its Save is what makes Custom the
+-- choice, as in Cover display. Back returns unchanged.
+function Editor:_pickCoverText(draft, on_change, back, bw)
     local CL = require("lib/bookshelf_cover_label")
     local Kit = require("lib/bookshelf_module_kit")
-    local which = groups and CL.SHELF.groups or CL.SHELF.books
     local d
     local function set(v)
         return function()
-            draft[which.mode] = v
+            draft.cover_text = v
             on_change()
             UIManager:close(d)
             back()
         end
     end
-    local cur = draft[which.mode]
-    local rows = {}
+    local cur = draft.cover_text
     local function customBtn()
         return {
             text = (cur == "custom" and "\xE2\x9C\x93 " or "") .. _("Custom\xE2\x80\xA6"),
@@ -2380,16 +2377,11 @@ function Editor:_pickCoverText(draft, groups, on_change, back, bw)
                 UIManager:close(d)
                 -- Starts from the shelf's own line, else the one it shows
                 -- now, so Custom changes nothing until it is edited.
-                local line = draft[which.line]
-                if line == nil then
-                    line = groups and CL.groupLineFor(draft.id) or CL.lineFor(draft.id)
-                end
                 require("lib/bookshelf_cover_label_editor").showForShelf(bw, {
-                    groups = groups,
-                    line   = line,
-                    save   = function(l)
-                        draft[which.line] = CL.normalise(l, which.template)
-                        draft[which.mode] = "custom"
+                    line = draft.cover_text_line or CL.lineFor(draft.id),
+                    save = function(l)
+                        draft.cover_text_line = CL.normalise(l)
+                        draft.cover_text = "custom"
                         on_change()
                     end,
                     on_closed = back,
@@ -2397,25 +2389,15 @@ function Editor:_pickCoverText(draft, groups, on_change, back, bw)
             end,
         }
     end
-    -- Author below groups is a series stack's author (StackDisplay.groupLabel)
-    -- and only a Series shelf builds series stacks: on Genres, Authors, Tags or
-    -- folders it printed nothing (maintainer on the PW5, 2026-10-10: "if it
-    -- can't work, we probably shouldn't give the option"). A shelf of shelves
-    -- keeps it, for its sub-shelves to follow; a shelf already on it keeps
-    -- it, so the choice can be seen and changed.
-    local kind = draft.source and draft.source.kind
-    local offers_author = not groups or kind == "series" or kind == "shelves"
-                          or cur == "author"
-    for _i, layout_row in ipairs(groups and COVER_TEXT_LAYOUT.groups or COVER_TEXT_LAYOUT.books) do
+    local rows = {}
+    for _i, layout_row in ipairs(COVER_TEXT_LAYOUT) do
         local row = {}
         for _j, v in ipairs(layout_row) do
-            if v == "author" and not offers_author then
-                -- left out (above)
-            elseif v == "custom" then
+            if v == "custom" then
                 row[#row + 1] = customBtn()
             else
                 local value = (v ~= "follow") and v or nil
-                row[#row + 1] = Kit.radioRow{ label = Editor._coverTextLabel(draft, which, value),
+                row[#row + 1] = Kit.radioRow{ label = Editor._coverTextLabel(draft, value),
                                               active = cur == value, on_pick = set(value) }
             end
         end
@@ -2429,7 +2411,7 @@ function Editor:_pickCoverText(draft, groups, on_change, back, bw)
         end,
     }}
     d = ButtonDialog:new{
-        title       = groups and _("Show text below groups") or _("Text below covers"),
+        title       = _("Text below covers"),
         title_align = "center",
         buttons     = rows,
         anchor      = _highAnchor(function() return d end),

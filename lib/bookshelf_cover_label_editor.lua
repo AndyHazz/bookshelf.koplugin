@@ -46,8 +46,8 @@
 --
 -- ── ONE SHELF'S ────────────────────────────────────────────────────────────
 --
--- showForShelf edits a shelf's own line (Shelf style, after 5.4), books' or
--- groups': the caller hands it the line and the save, which writes the
+-- showForShelf edits a shelf's own books' line (Shelf style, after 5.4):
+-- the caller hands it the line and the save, which writes the
 -- shelf's draft rather than the settings, and gets on_closed once it is
 -- done, either way, to bring Shelf style back. The preview is the same: the
 -- shelf behind is the shelf being styled.
@@ -92,12 +92,11 @@ function CoverLabelEditor.show(bw, settings_module, touchmenu_instance, groups)
 end
 
 -- showForShelf(bw, spec): one shelf's line.
---   spec.groups     true for the groups' line
 --   spec.line       the shelf's line to start from
 --   spec.save(line) store it on the shelf (and make Custom its choice)
 --   spec.on_closed  after Save or Cancel
 function CoverLabelEditor.showForShelf(bw, spec)
-    local base = spec.groups and GROUPS or BOOKS
+    local base = BOOKS
     local target = {
         title    = base.title,
         line     = function() return CoverLabel.normalise(spec.line, base.template) end,

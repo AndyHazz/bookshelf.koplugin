@@ -5383,14 +5383,14 @@ end
 -- draft outranks the saved choice, as the books' does.
 function BookshelfWidget:_groupLabelMode()
     if self._group_label_preview then return "custom" end
-    return require("lib/bookshelf_cover_label").groupModeFor(self.chip)
+    return require("lib/bookshelf_cover_label").groupMode()
 end
 
 -- _groupLabelLine() -> the groups' Custom line in effect (the draft while its
 -- editor is open, else the saved one).
 function BookshelfWidget:_groupLabelLine()
     if self._group_label_preview then return self._group_label_preview end
-    return require("lib/bookshelf_cover_label").groupLineFor(self.chip)
+    return require("lib/bookshelf_cover_label").groupLine()
 end
 
 -- _previewGroupLabel(line) -- the groups' editor preview: draw `line` under

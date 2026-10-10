@@ -595,6 +595,71 @@ do
         eq(SD.anyExternalLabel(folders, nil), SD.needsExternalLabel(SD.resolve(nil)))
         eq(SD.anyExternalLabel(folders, "stack"), true)
     end
+
+    -- ── Show text below groups (issue 486) ────────────────────────────────────
+    do -- a tile that names itself frees the line for the groups' text
+        local s = { series_name = "Discworld", stack_author = "Terry Pratchett", books = {} }
+        local txt, own = SD.groupLabel(SD.DIVIDER, s, s.series_name, "author")
+        eq(txt, "Terry Pratchett", "divider + Author: the reporter's case")
+        eq(own, true, "the author is group text, in the groups' face")
+        eq(SD.groupLabel(SD.RIBBON, s, s.series_name, "author"), "Terry Pratchett")
+        eq(SD.groupLabel(SD.TEXT, s, s.series_name, "author"), "Terry Pratchett")
+        eq(SD.groupLabel(SD.DIVIDER, s, s.series_name, "author", function(a) return "Pratchett, Terry" end),
+            "Pratchett, Terry", "the book labels' author formatting applies")
+    end
+    do -- a tile that does not name itself keeps the line for its name
+        local s = { series_name = "Discworld", stack_author = "Terry Pratchett", books = {} }
+        for _i, m in ipairs({ SD.STACK, SD.COLLAGE, SD.NONE }) do
+            local txt, own = SD.groupLabel(m, s, s.series_name, "author")
+            eq(txt, "Discworld", m .. ": the name keeps the line")
+            eq(own, false, m .. ": the name is not group text")
+        end
+    end
+    do -- None (the default) is exactly today: names only where the style needs them
+        local s = { series_name = "Discworld", stack_author = "Terry Pratchett", books = {} }
+        eq(SD.groupLabel(SD.DIVIDER, s, s.series_name, nil), nil)
+        eq(SD.groupLabel(SD.STACK, s, s.series_name, nil), "Discworld")
+        for _i, m in ipairs({ SD.DIVIDER, SD.RIBBON, SD.STACK, SD.COLLAGE, SD.TEXT, SD.NONE }) do
+            eq(SD.groupLabel(m, s, s.series_name, nil), SD.externalLabel(m, s.series_name),
+                m .. ": None must match the old externalLabel")
+        end
+    end
+    do -- Author: only where there is an author that is not already the name
+        eq(SD.groupLabel(SD.DIVIDER, { kind = "author", series_name = "Ann Leckie",
+            stack_author = "Ann Leckie" }, "Ann Leckie", "author"), nil, "an author stack IS its author")
+        eq(SD.groupLabel(SD.DIVIDER, { kind = "genre", series_name = "Horror" }, "Horror", "author"), nil)
+        eq(SD.groupLabel(SD.DIVIDER, { kind = "folder", label = "Books" }, "Books", "author"), nil)
+        eq(SD.groupLabel(SD.DIVIDER, { series_name = "X", books = {} }, "X", "author"), nil, "no member author")
+        eq(SD.groupLabel(SD.DIVIDER, { series_name = "X", stack_author = "", books = {} }, "X", "author"), nil)
+        eq(SD.groupLabel(SD.DIVIDER, nil, nil, "author"), nil)
+    end
+    do -- Custom: the groups' template, for every group kind but a nav tile
+        local seen = {}
+        local function custom(item) seen[#seen + 1] = item; return "C:" .. tostring(item.series_name or item.label) end
+        eq(SD.groupLabel(SD.DIVIDER, { kind = "genre", series_name = "Horror" }, "Horror", "custom", nil, custom), "C:Horror")
+        eq(SD.groupLabel(SD.DIVIDER, { kind = "folder", label = "Books" }, "Books", "custom", nil, custom), "C:Books")
+        eq(SD.groupLabel(SD.STACK, { kind = "folder", label = "Books" }, "Books", "custom", nil, custom), "Books",
+            "the name still wins the line")
+        eq(SD.groupLabel(SD.DIVIDER, { kind = "opds_nav", label = "More" }, "More", "custom", nil, custom), nil)
+        eq(SD.groupLabel(SD.DIVIDER, { kind = "tag", series_name = "T" }, "T", "custom", nil,
+            function() return "" end), nil, "an empty expansion is no label")
+    end
+    do -- the strip budget follows: unchanged by default, groups can need it alone
+        local divider_series = { { series_name = "S", stack_author = "A", books = {} } }
+        local divider_genre  = { { kind = "genre", series_name = "G", label = "G" } }
+        eq(SD.anyExternalLabel(divider_series, SD.DIVIDER), true, "a Series shelf keeps its strip, as before")
+        eq(SD.anyExternalLabel(divider_genre, SD.DIVIDER), false, "unchanged: a divider genre prints nothing")
+        eq(SD.anyExternalLabel(divider_genre, SD.DIVIDER, { groups = "custom" }), true)
+        eq(SD.anyExternalLabel(divider_genre, SD.DIVIDER, { groups = "author" }), false, "no author to print")
+        local none = { books = false }
+        eq(SD.anyExternalLabel(divider_series, SD.DIVIDER, none), false, "books None, groups None: no strip")
+        eq(SD.anyExternalLabel(divider_series, SD.DIVIDER, { books = false, groups = "author" }), true,
+            "books None, groups Author: the strip is the series author's")
+        eq(SD.anyExternalLabel({ { filepath = "/a.epub" } }, SD.DIVIDER, { books = false, groups = "author" }), false,
+            "a book prints nothing on None")
+        eq(SD.anyExternalLabel({ { series_name = "S", books = {} } }, SD.STACK, none), true,
+            "a stack-style series still prints its name")
+    end
     
     
     -- ── the layer body is never seen, except through a seam ────────────────────

@@ -231,33 +231,103 @@ function M.externalLabel(mode, name)
     return name
 end
 
--- itemDrawsExternalLabel(item, mode) -> bool
+-- groupLabel(mode, item, name, group_text, format, custom)
+--   -> text, is_group_text   (nil when nothing goes below the tile)
+--
+-- What goes on the one line below a GROUP tile (a folder, or a series,
+-- author, genre, collection or language stack).
+--
+-- The group's NAME comes first, as externalLabel decides it: a tile that does
+-- not name itself (Book stack, Collage, None) keeps the line for its name, as
+-- it always has, and the group text has nowhere to go. A tile that does
+-- (Divider card, Ribbon, Text) leaves the line free, and the reader's
+-- "Show text below groups" choice (`group_text`, CoverLabel.groupMode) fills
+-- it (issue 486):
+--
+--   "author"  a series stack's author: item.stack_author, its members' modal
+--             author (Repo's hydrateSeriesShape), formatted by `format` as a
+--             book's author label is. Nothing under an author stack (it IS
+--             the author) or under a genre, collection, language or folder
+--             tile (none has an author of its own).
+--   "custom"  the groups' own template, expanded by `custom(item)`
+--             (CoverLabel.groupResolver), for every group kind.
+--   nil       nothing: the default, and every shelf before this choice.
+--
+-- is_group_text tells the row which face to set it in: the name keeps the
+-- strip's face, the group text takes the groups' own (Custom's Bold).
+function M.groupLabel(mode, item, name, group_text, format, custom)
+    local n = M.externalLabel(mode, name)
+    if n then return n, false end
+    if type(item) ~= "table" or item.kind == "opds_nav" then return nil end
+    if group_text == "author" then
+        if item.kind == "author" then return nil end
+        local a = item.stack_author
+        if type(a) ~= "string" or a == "" then return nil end
+        if format then a = format(a) or a end
+        return a, true
+    elseif group_text == "custom" and custom then
+        local t = custom(item)
+        if type(t) == "string" and t ~= "" then return t, true end
+    end
+    return nil
+end
+
+-- groupTextDraws(item, group_text) -> bool: whether groupLabel can print the
+-- group text under this tile, for the strip budget below. Custom answers yes
+-- for any group: whether a template expands to nothing is only known per tile
+-- at build time, and a strip reserved for nothing costs a blank line, where
+-- one missing would print over the footer.
+local function groupTextDraws(item, group_text)
+    if item.kind == "opds_nav" then return false end
+    if group_text == "author" then
+        local a = item.stack_author
+        return item.kind ~= "author" and type(a) == "string" and a ~= ""
+    end
+    return group_text == "custom"
+end
+
+-- itemDrawsExternalLabel(item, mode, labels) -> bool
 -- Whether the shelf prints a name BELOW this tile, with labels on and the
 -- folder display already resolved to `mode`. Mirrors what ShelfRow builds: a
 -- book gets its title under the cover; a folder or any other group gets its
 -- name there only in the modes whose artwork does not carry it (see
 -- needsExternalLabel); a nav tile is a Text tile and never does.
-function M.itemDrawsExternalLabel(item, mode)
+--
+-- `labels` (optional): { books = false } when the books print nothing below
+-- their covers, groups = CoverLabel.groupMode() when the groups do. Omitted,
+-- the answer is the one it has always been (books on, no group text).
+-- A series stack (no kind, a member list) counts as a book here, as it always
+-- has, so a Series shelf keeps the strip it had whatever its tile style.
+function M.itemDrawsExternalLabel(item, mode, labels)
     if type(item) ~= "table" then return false end
-    if item.kind == nil then return true end
+    local books  = not (labels and labels.books == false)
+    local groups = labels and labels.groups
+    if item.kind == nil then
+        if books then return true end
+        if type(item.books) ~= "table" then return false end
+        if M.externalLabel(mode, item.series_name) ~= nil then return true end
+        return groups ~= nil and groupTextDraws(item, groups)
+    end
     if item.kind == "opds_nav" then return false end
-    return M.externalLabel(mode, item.label) ~= nil
+    if M.externalLabel(mode, item.label) ~= nil then return true end
+    return groups ~= nil and groupTextDraws(item, groups)
 end
 
--- anyExternalLabel(items, override) -> bool
+-- anyExternalLabel(items, override, labels) -> bool
 -- Does ANY tile in this item set print a name below itself? The shelf asks
 -- before it budgets the label strip: a chip whose tiles all carry their name
 -- inside (a folder chip in the divider or text style) would otherwise show a
 -- blank strip under every row. `override` is the chip's raw folder-display
 -- value, resolved here the way ShelfRow resolves it, so the two agree.
+-- `labels` as itemDrawsExternalLabel's.
 --
 -- pairs(), not ipairs(): a page's item list has holes for its empty slots,
 -- and the fetch result carries a flag field beside the items.
-function M.anyExternalLabel(items, override)
+function M.anyExternalLabel(items, override, labels)
     if type(items) ~= "table" then return false end
     local mode = M.resolve(override)
     for _, it in pairs(items) do
-        if M.itemDrawsExternalLabel(it, mode) then return true end
+        if M.itemDrawsExternalLabel(it, mode, labels) then return true end
     end
     return false
 end

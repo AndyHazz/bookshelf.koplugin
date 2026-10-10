@@ -3734,6 +3734,76 @@ test("getSeriesGroups: other dimensions still filter standalones under 'both' (#
     _G._test_docsettings_data = nil
 end)
 
+-- Issue 486: "Show text below covers: Author" names a series stack's author,
+-- so the hydrated stack carries one. Taken from the cached members, which
+-- know every member's author: books[2..n] are bare filepath stubs, so reading
+-- them (or books[1] alone) would answer the first volume's author.
+local function seriesAuthorFixture()
+    Repo.invalidateWalkCache()
+    package.loaded["readhistory"].hist = {}
+    _G._test_bim_data = {
+        -- Long Earth: a guest first author on volume 1, then two by Baxter.
+        ["/lib/le1.epub"] = { title = "LE1", series = "Long Earth #1", authors = "Terry Pratchett" },
+        ["/lib/le2.epub"] = { title = "LE2", series = "Long Earth #2", authors = "Stephen Baxter" },
+        ["/lib/le3.epub"] = { title = "LE3", series = "Long Earth #3", authors = "Stephen Baxter" },
+        -- A tie: the first-seen member's author wins, never pairs() order.
+        ["/lib/t1.epub"]  = { title = "T1", series = "Tied #1", authors = "Ann Leckie" },
+        ["/lib/t2.epub"]  = { title = "T2", series = "Tied #2", authors = "Iain M. Banks" },
+        -- No author anywhere: nothing to name.
+        ["/lib/n1.epub"]  = { title = "N1", series = "Nobody #1" },
+        ["/lib/n2.epub"]  = { title = "N2", series = "Nobody #2" },
+    }
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/lib")
+            and { ".", "..", "le1.epub", "le2.epub", "le3.epub", "t1.epub", "t2.epub",
+                  "n1.epub", "n2.epub" }
+            or {}
+        local i = 0
+        return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == "mode" then return "file" end
+        if key == "modification" then return 0 end
+    end
+end
+
+local function bySeries(items)
+    local out = {}
+    for _i, it in ipairs(items) do if it.series_name then out[it.series_name] = it end end
+    return out
+end
+
+test("getSeriesGroups: a stack carries its members' modal author (#486)", function()
+    seriesAuthorFixture()
+    local items = Repo.getSeriesGroups(10)
+    local g = bySeries(items)
+    assert(g["Long Earth"], "Long Earth stack missing")
+    assert(g["Long Earth"].stack_author == "Stephen Baxter",
+        "expected the modal member author, got " .. tostring(g["Long Earth"].stack_author))
+    assert(g["Tied"].stack_author == "Ann Leckie",
+        "a tie goes to the first-seen member, got " .. tostring(g["Tied"].stack_author))
+    assert(g["Nobody"].stack_author == nil, "no member author, no stack author")
+    -- Not `author`: the sort engine and the book checks read that field.
+    assert(g["Long Earth"].author == nil, "the stack must not pose as a book")
+    -- The cache HIT path hydrates the same way.
+    local g2 = bySeries(Repo.getSeriesGroups(10))
+    assert(g2["Long Earth"].stack_author == "Stephen Baxter", "cache hit lost the author")
+end)
+
+test("getSeriesGroups: a filtered stack names the author of the books it shows (#486)", function()
+    seriesAuthorFixture()
+    _G._test_docsettings_data = {
+        ["/lib/le1.epub"] = { summary = { status = "complete" } },
+    }
+    local items = Repo.getSeriesGroups(10, 0, nil, { statuses = { finished = true } })
+    local g = bySeries(items)
+    assert(g["Long Earth"], "the finished volume's stack is missing")
+    assert(g["Long Earth"].stack_author == "Terry Pratchett",
+        "expected the shown member's author, got " .. tostring(g["Long Earth"].stack_author))
+    _G._test_docsettings_data = nil
+end)
+
 test("getFolderBookPaths: finds books nested deeper than the home walk depth (#202)", function()
     -- Novels/Genre/Subgenre/Author/Book.epub sits 4 dirs below home; the
     -- home-rooted walk (depth 3) never reaches it, so the status-filter

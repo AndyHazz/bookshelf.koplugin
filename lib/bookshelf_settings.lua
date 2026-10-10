@@ -3694,13 +3694,15 @@ function Settings:_hardcoverSubItems()
 end
 
 -- (The Expanded shelf submenu was dissolved in 4.0: its label mode moved
--- to Cover display as the unified "Show text below covers", and "Tap a book
--- in expanded shelf" lives in Settings > Behavior.)
--- Nudge dialog for the expanded-shelf label font scale. Same shape as
--- _pickFontScale; live preview kicks the live widget's _rebuild.
+-- to Cover display as the unified "Cover captions", and "Tap a book in
+-- expanded shelf" lives in Settings > Behavior.)
+-- Nudge dialog for the cover captions' font scale (the key keeps its
+-- expanded-shelf name). Titled for its Text size row, as the others are; it
+-- said "Full screen shelves" long after it sized every shelf's captions.
+-- Same shape as _pickFontScale; live preview kicks the live widget's _rebuild.
 function Settings:_pickExpandedShelfFontScale(touchmenu_instance)
     self:_showScaleNudge(touchmenu_instance, {
-        key = "expanded_shelf_font_scale", title = _("Full screen shelves font scale"), max = 300, fine = 5,
+        key = "expanded_shelf_font_scale", title = _("Cover captions font scale"), max = 300, fine = 5,
     })
 end
 

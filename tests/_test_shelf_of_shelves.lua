@@ -176,5 +176,20 @@ test("newTab: a new shelf has no source and is pending until saved", function()
     assert(t.pending == true and t.enabled == true)
 end)
 
+test("an empty sub-shelf says to long-press its tile; a new shelf says to choose a source", function()
+    -- The shelf of shelves demo (2026-10-10): a sub-shelf's empty panel said
+    -- "Long-press it in the shelf menu above", where it has no name, and a
+    -- new shelf behind its source picker said the same.
+    local src = io.open("lib/bookshelf_widget.lua"):read("*a")
+    local a = src:find('if _source_kind == "none" then', 1, true)
+    local b = src:find('_("Choose a source to keep this new shelf.")', a or 1, true)
+    assert(a and b, "a new shelf with no source does not say to choose one")
+    local c = src:find("_tab and _tab.parent then", b, true)
+    local d = src:find("Go back and long-press its tile to edit its source or filter", c or 1, true)
+    assert(c and d, "an empty sub-shelf is told to use the shelf menu")
+    assert(src:find("Go back and long-press its tile to edit its filter", 1, true),
+        "a filtered sub-shelf is told to use the shelf menu")
+end)
+
 io.write(string.format("shelf_of_shelves: %d passed, %d failed\n", pass, fail))
 if fail > 0 then os.exit(1) end

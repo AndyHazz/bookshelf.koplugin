@@ -2159,7 +2159,19 @@ function BookshelfWidget:_rebuild()
             local builtin_kinds = { all=1, library=1, recent=1, latest=1,
                 series=1, authors=1, genres=1, tags=1, formats=1,
                 ratings=1, favorites=1 }
-            if _source_kind and not builtin_kinds[_source_kind] then
+            if _source_kind == "none" then
+                -- A new shelf with no source yet (behind its source picker,
+                -- or left without one): there is nothing to long-press for,
+                -- only a source to choose (shelf of shelves demo, 2026-10-10).
+                placeholder_text = _("Choose a source to keep this new shelf.")
+            elseif _source_kind and not builtin_kinds[_source_kind] and _tab and _tab.parent then
+                -- A shelf inside a shelf of shelves has no name in the shelf
+                -- menu above: it is edited from its tile in the shelf it
+                -- sits in.
+                placeholder_text = string.format(
+                    _("No books in %s yet \xC2\xB7 Go back and long-press its tile to edit its source or filter"),
+                    _tab.label or self.chip)
+            elseif _source_kind and not builtin_kinds[_source_kind] then
                 placeholder_text = string.format(
                     -- "the shelf" reads as the shelf AREA, which is not
                     -- what takes the long press: the shelf's own name in the
@@ -2177,9 +2189,15 @@ function BookshelfWidget:_rebuild()
         -- placeholder when statuses are set.
         if _tab and _tab.filter and Filter.isActive(_tab.filter) then
             local label = _tab.label or self:_chipLabel()
-            placeholder_text = string.format(
-                _("Nothing in %s yet \xC2\xB7 Long-press it in the shelf menu above to edit its filter"),
-                label)
+            if _tab.parent then
+                placeholder_text = string.format(
+                    _("Nothing in %s yet \xC2\xB7 Go back and long-press its tile to edit its filter"),
+                    label)
+            else
+                placeholder_text = string.format(
+                    _("Nothing in %s yet \xC2\xB7 Long-press it in the shelf menu above to edit its filter"),
+                    label)
+            end
         end
 
         -- Blitbuffer.gray semantics: 0 = white, 1 = black (i.e. "blackness level").

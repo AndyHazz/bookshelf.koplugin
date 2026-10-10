@@ -5487,12 +5487,19 @@ function Repo.getSeriesGroups(limit, offset, sort_priority_override, filter, opt
                     author_sort = book.author_sort,
                 }
             end
-            local t = read_time[book.filepath] or c.mtime or 0
+            -- latest: the most recent READ TIME among the members, as on the
+            -- author, genre and rating shelves. Adding a book doesn't count
+            -- as reading it: only "Most recently added" (latest_added below)
+            -- brings a series forward for a new book (maintainer,
+            -- 2026-10-10). It took member file dates too, so a series read
+            -- months ago jumped to the front of "Most recently read" when a
+            -- new unread book joined it, and the list view's "last opened"
+            -- for the series showed that date.
+            local t = read_time[book.filepath] or 0
             if t > g.latest then g.latest = t end
             -- latest_added is the max member MTIME, kept separate from
-            -- `latest` above: that one folds in read time and drives "latest
-            -- activity", so reusing it here would make merely opening an old
-            -- book look like adding it. The sort engine's date_added
+            -- `latest` above: that one is read time only, so reusing it here
+            -- would make merely opening an old book look like adding it. The sort engine's date_added
             -- comparator reads this field on a group shape, and without it
             -- cmp's isMissing sends every series group to the END of a "Sort
             -- by date added" -- a freshly synced book in a series vanished off

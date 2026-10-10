@@ -21,6 +21,16 @@ t.test("a standalone's latest is its read time, never its file date", function()
     assert(std:find("latest_added = c.mtime or 0,", 1, true), "date added lost its file date")
 end)
 
+t.test("a series' latest is its members' read time; a new unread book does not bring it forward", function()
+    -- Maintainer, 2026-10-10: "Adding a book shouldn't count as reading it.
+    -- Only when sorting by recently added should a series get bumped".
+    assert(repo:find("local t = read_time[book.filepath] or 0\n            if t > g.latest then g.latest = t end", 1, true),
+        "a series still takes its members' file dates as read time")
+    assert(not repo:find("read_time[book.filepath] or c.mtime", 1, true), "a file date still counts as reading")
+    assert(repo:find("if added > (g.latest_added or 0) then g.latest_added = added end", 1, true),
+        "Most recently added lost the series' newest file date")
+end)
+
 t.test("the author and genre shelves keep read time only", function()
     assert(repo:find("local rt = read_time[book.filepath]\n                        if rt and rt > g.latest then g.latest = rt end", 1, true))
 end)

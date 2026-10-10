@@ -373,11 +373,13 @@ t.test("bar style cycles through what the caller offers", function()
         line = { template = "%bar", bar_style = "bordered" }, bar = true,
         bar_styles = function() return { "bordered", "solid", "wavy" } end,
     }
-    local style = button(dialog, "Bar: bordered")
+    -- The button names the style by its label (bookends' names), not its id.
+    local style = button(dialog, "Bar: Bordered")
     assert(style, "the style button did not report the current style")
     style.callback()
-    eq(button(dialog, "Bar: solid") ~= nil, true)
+    eq(button(dialog, "Bar: Solid") ~= nil, true)
     style.callback()
+    eq(button(dialog, "Bar: Wave") ~= nil, true, "wavy must show as Wave")
     press(dialog, "Save")
     eq(getSaved().bar_style, "wavy")
 end)

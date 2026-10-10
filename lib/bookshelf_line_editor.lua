@@ -84,6 +84,19 @@ local function cycleNext(list, current)
     return list[1]
 end
 
+-- Bar style names as the Bar style button shows them: bookends' labels
+-- (bookends_line_editor.lua), so a style reads the same in both plugins.
+-- Looked up at call time so a language switch takes effect. An id with no
+-- label (the radial dials the editor does not offer, a style the painter
+-- gains later) shows as itself.
+local function barStyleLabel(id)
+    local labels = {
+        bordered = _("Bordered"), solid = _("Solid"), rounded = _("Rounded"),
+        metro = _("Metro"), wavy = _("Wave"), pacman = _("Pacman"),
+    }
+    return labels[id] or id
+end
+
 local ALIGN_CYCLE  = { "left", "center", "right" }
 -- Nerd Font / Symbols MDI glyphs for alignment. Same family as the
 -- battery / wifi / nightmode icons so the row reads coherently.
@@ -477,7 +490,7 @@ function LineEditor.edit(spec)
                 {
                     text_func = function()
                         if not hasBarToken(dialog) then return _("Bar style") end
-                        return _("Bar: ") .. (draft.bar_style or "bordered")
+                        return _("Bar: ") .. barStyleLabel(draft.bar_style or "bordered")
                     end,
                     enabled_func = function() return hasBarToken(dialog) end,
                     callback = function()
@@ -596,6 +609,7 @@ LineEditor.showSizeNudge  = showSizeNudge
 LineEditor.hideParentMenu = hideParentMenu
 LineEditor.guardStrayTaps = guardStrayTaps
 LineEditor.cycleNext      = cycleNext
+LineEditor.barStyleLabel  = barStyleLabel
 LineEditor.ALIGN_LABELS   = ALIGN_LABELS
 LineEditor.ALIGN_CYCLE    = ALIGN_CYCLE
 

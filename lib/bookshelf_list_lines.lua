@@ -460,8 +460,7 @@ function Lines.groupRecord(g)
         rec.authors = { name }
     elseif type(g.stack_author) == "string" and g.stack_author ~= "" then
         -- A series stack: its members' modal author (Repo's
-        -- hydrateSeriesShape), the name the shelf sorts it under. Read by the
-        -- "Show text below groups" Custom line (issue 486).
+        -- hydrateSeriesShape), the name the shelf sorts it under.
         rec.author  = g.stack_author
         rec.authors = { g.stack_author }
     end

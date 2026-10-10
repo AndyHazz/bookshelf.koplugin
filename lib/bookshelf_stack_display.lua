@@ -231,7 +231,7 @@ function M.externalLabel(mode, name)
     return name
 end
 
--- groupLabel(mode, item, name, group_text, format, custom)
+-- groupLabel(mode, item, name, group_text, format)
 --   -> text, is_group_text   (nil when nothing goes below the tile)
 --
 -- What goes on the one line below a GROUP tile (a folder, or a series,
@@ -241,21 +241,21 @@ end
 -- not name itself (Book stack, Collage, None) keeps the line for its name, as
 -- it always has, and the group text has nowhere to go. A tile that does
 -- (Divider card, Ribbon, Text) leaves the line free, and the reader's
--- "Show text below groups" choice (`group_text`, CoverLabel.groupMode) fills
--- it (issue 486):
+-- "Show author below series" choice (`group_text`, CoverLabel.groupMode)
+-- fills it (issue 486):
 --
 --   "author"  a series stack's author: item.stack_author, its members' modal
 --             author (Repo's hydrateSeriesShape), formatted by `format` as a
 --             book's author label is. Nothing under an author stack (it IS
 --             the author) or under a genre, collection, language or folder
 --             tile (none has an author of its own).
---   "custom"  the groups' own template, expanded by `custom(item)`
---             (CoverLabel.groupResolver), for every group kind.
 --   nil       nothing: the default, and every shelf before this choice.
 --
--- is_group_text tells the row which face to set it in: the name keeps the
--- strip's face, the group text takes the groups' own (Custom's Bold).
-function M.groupLabel(mode, item, name, group_text, format, custom)
+-- 5.4's "custom" (a template for groups) is gone: it had nothing to print
+-- but this author (CoverLabel.groupMode reads it as "author").
+--
+-- is_group_text tells the row which face to set it in (the groups' own).
+function M.groupLabel(mode, item, name, group_text, format)
     local n = M.externalLabel(mode, name)
     if n then return n, false end
     if type(item) ~= "table" or item.kind == "opds_nav" then return nil end
@@ -265,25 +265,19 @@ function M.groupLabel(mode, item, name, group_text, format, custom)
         if type(a) ~= "string" or a == "" then return nil end
         if format then a = format(a) or a end
         return a, true
-    elseif group_text == "custom" and custom then
-        local t = custom(item)
-        if type(t) == "string" and t ~= "" then return t, true end
     end
     return nil
 end
 
 -- groupTextDraws(item, group_text) -> bool: whether groupLabel can print the
--- group text under this tile, for the strip budget below. Custom answers yes
--- for any group: whether a template expands to nothing is only known per tile
--- at build time, and a strip reserved for nothing costs a blank line, where
--- one missing would print over the footer.
+-- group text under this tile, for the strip budget below.
 local function groupTextDraws(item, group_text)
     if item.kind == "opds_nav" then return false end
     if group_text == "author" then
         local a = item.stack_author
         return item.kind ~= "author" and type(a) == "string" and a ~= ""
     end
-    return group_text == "custom"
+    return false
 end
 
 -- itemDrawsExternalLabel(item, mode, labels) -> bool

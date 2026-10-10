@@ -759,42 +759,6 @@ function Settings:_coverDisplaySubItems()
             end,
         }
     end
-    -- Show text below groups: None / Author / Custom (lib/bookshelf_cover_label).
-    local function readGroupMode()
-        return require("lib/bookshelf_cover_label").groupMode() or "none"
-    end
-    local function groupModeRow(mode)
-        return {
-            text           = label_labels[mode],
-            checked_func   = function() return readGroupMode() == mode end,
-            radio          = true,
-            keep_menu_open = true,
-            callback       = function(touchmenu_instance)
-                require("lib/bookshelf_cover_label").saveGroupMode(mode)
-                markDirty()
-                if touchmenu_instance and touchmenu_instance.updateItems then
-                    touchmenu_instance:updateItems()
-                end
-            end,
-        }
-    end
-    -- As the books' Custom row: choosing it opens the editor, and Save there
-    -- is what makes Custom the groups' choice.
-    local function groupCustomRow()
-        return {
-            text_func = function()
-                if readGroupMode() ~= "custom" then return _("Custom\xE2\x80\xA6") end
-                return label_labels.custom
-            end,
-            checked_func   = function() return readGroupMode() == "custom" end,
-            radio          = true,
-            keep_menu_open = true,
-            callback       = function(touchmenu_instance)
-                require("lib/bookshelf_cover_label_editor").show(
-                    self._bw, self, touchmenu_instance, true)
-            end,
-        }
-    end
     return {
         -- ── layout: what a cover row is made of ──
         {
@@ -815,24 +779,28 @@ function Settings:_coverDisplaySubItems()
                 }
             end,
         },
-        -- Text below GROUPS (issue 486): its own choice, apart from the
-        -- books' ("title under covers and author under series groups").
-        -- None by default, which is every shelf before it. No Title: the
-        -- group's name is already on the tile, or already on this line.
+        -- Author below series (issue 486): a series stack's author on the
+        -- line below its tile, apart from the books' text ("title under
+        -- covers and author under series groups"). Off by default, which is
+        -- every shelf before it. A switch, not 5.4's None / Author / Custom:
+        -- a series stack is the only group with anything to print there
+        -- (lib/bookshelf_cover_label, maintainer 2026-10-10).
         {
-            text_func = function()
-                return _("Show text below groups") .. ": " .. label_labels[readGroupMode()]
-            end,
-            help_text = _("A line of text under stacks and folders, chosen"
-                .. " apart from the books' text. Author shows a series' author."
-                .. " Folder title styles that print the name below the tile keep"
+            text = _("Show author below series"),
+            help_text = _("The author's name under each series stack. Folder"
+                .. " title styles that print the series name below the tile keep"
                 .. " that line for the name."),
-            sub_item_table_func = function()
-                return {
-                    groupModeRow("author"),
-                    groupCustomRow(),
-                    groupModeRow("none"),
-                }
+            checked_func = function()
+                return require("lib/bookshelf_cover_label").groupMode() == "author"
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                local CL = require("lib/bookshelf_cover_label")
+                CL.saveGroupMode(CL.groupMode() ~= "author")
+                markDirty()
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
             end,
         },
         {

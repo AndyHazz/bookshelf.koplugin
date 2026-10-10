@@ -633,23 +633,14 @@ do
         eq(SD.groupLabel(SD.DIVIDER, { series_name = "X", stack_author = "", books = {} }, "X", "author"), nil)
         eq(SD.groupLabel(SD.DIVIDER, nil, nil, "author"), nil)
     end
-    do -- Custom: the groups' template, for every group kind but a nav tile
-        local seen = {}
-        local function custom(item) seen[#seen + 1] = item; return "C:" .. tostring(item.series_name or item.label) end
-        eq(SD.groupLabel(SD.DIVIDER, { kind = "genre", series_name = "Horror" }, "Horror", "custom", nil, custom), "C:Horror")
-        eq(SD.groupLabel(SD.DIVIDER, { kind = "folder", label = "Books" }, "Books", "custom", nil, custom), "C:Books")
-        eq(SD.groupLabel(SD.STACK, { kind = "folder", label = "Books" }, "Books", "custom", nil, custom), "Books",
-            "the name still wins the line")
-        eq(SD.groupLabel(SD.DIVIDER, { kind = "opds_nav", label = "More" }, "More", "custom", nil, custom), nil)
-        eq(SD.groupLabel(SD.DIVIDER, { kind = "tag", series_name = "T" }, "T", "custom", nil,
-            function() return "" end), nil, "an empty expansion is no label")
+    do -- 5.4's Custom is gone: it prints nothing (CoverLabel.groupMode reads it as Author)
+        eq(SD.groupLabel(SD.DIVIDER, { kind = "genre", series_name = "Horror" }, "Horror", "custom"), nil)
     end
     do -- the strip budget follows: unchanged by default, groups can need it alone
         local divider_series = { { series_name = "S", stack_author = "A", books = {} } }
         local divider_genre  = { { kind = "genre", series_name = "G", label = "G" } }
         eq(SD.anyExternalLabel(divider_series, SD.DIVIDER), true, "a Series shelf keeps its strip, as before")
         eq(SD.anyExternalLabel(divider_genre, SD.DIVIDER), false, "unchanged: a divider genre prints nothing")
-        eq(SD.anyExternalLabel(divider_genre, SD.DIVIDER, { groups = "custom" }), true)
         eq(SD.anyExternalLabel(divider_genre, SD.DIVIDER, { groups = "author" }), false, "no author to print")
         local none = { books = false }
         eq(SD.anyExternalLabel(divider_series, SD.DIVIDER, none), false, "books None, groups None: no strip")

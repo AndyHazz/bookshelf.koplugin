@@ -204,28 +204,16 @@ function ShelfRow.new(opts)
             return text
         end
     end
-    -- Text below GROUPS (issue 486): the reader's own choice for group tiles,
-    -- independent of the books' ("title under covers and author under series
-    -- groups"). "author" / "custom", or nil for None. The caller passes it
-    -- (false = None); any caller that doesn't gets the saved choice.
+    -- Author below series (issue 486): a series stack's author on the line
+    -- below its tile, independent of the books' text ("title under covers
+    -- and author under series groups"). "author", or nil when off. The
+    -- caller passes it (false = off); any caller that doesn't gets the saved
+    -- choice.
     local group_text = opts.group_label_mode
     if group_text == nil then
         group_text = require("lib/bookshelf_cover_label").groupMode()
     end
-    if group_text ~= "author" and group_text ~= "custom" then group_text = nil end
-    local group_custom
-    if group_text == "custom" then
-        local CL = CoverLabel or require("lib/bookshelf_cover_label")
-        local t0 = _gettime()
-        local resolve = CL.groupResolver(opts.group_label_line or CL.groupLine())
-        label_ms = label_ms + (_gettime() - t0) * 1000
-        group_custom = function(item)
-            local t1 = _gettime()
-            local text = resolve(item)
-            label_ms = label_ms + (_gettime() - t1) * 1000
-            return text
-        end
-    end
+    if group_text ~= "author" then group_text = nil end
     -- Two flags driven by the same `opts.show_titles` input — kept
     -- separate so the geometry stays consistent while the rendering
     -- adapts:
@@ -383,9 +371,7 @@ function ShelfRow.new(opts)
             (custom_label and opts.label_line and opts.label_line.bold)
                 and { bold = true } or nil)
         if draw_group_label then
-            group_face, group_bold = BFont:getFace("infofont", face_size,
-                (group_custom and opts.group_label_line and opts.group_label_line.bold)
-                    and { bold = true } or nil)
+            group_face, group_bold = BFont:getFace("infofont", face_size, nil)
         end
         title_block_h = label_gap + math.floor(face_size * 1.3)
         -- The plate is taller than the text it wraps, and title_block_h is
@@ -557,7 +543,7 @@ function ShelfRow.new(opts)
     -- tile, its name or the groups' text (StackDisplay.groupLabel).
     local function _groupLabel(item, name)
         return StackDisplay.groupLabel(group_mode, item, name, group_text,
-                                       _authorLabel, group_custom)
+                                       _authorLabel)
     end
 
     for i = 1, n_slots do
@@ -1034,7 +1020,7 @@ function ShelfRow.new(opts)
     -- the gap recompute near slot_w finalisation) so the covers spread evenly
     -- across the full width. The CenterContainer is now only a safety net for
     -- the single-column case where there's no inter-cover gap to widen.
-    if custom_label or group_custom then
+    if custom_label then
         local st = require("lib/bookshelf_cover_label").takeStats()
         logger.dbg(string.format(
             "[bookshelf perf] cover labels: %.2fms hit=%d miss=%d",

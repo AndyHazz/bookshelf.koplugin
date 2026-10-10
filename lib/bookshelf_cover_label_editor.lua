@@ -36,14 +36,6 @@
 -- reader who was on Title and backs out is still on Title; the preview
 -- override is simply dropped.
 --
--- ── GROUPS ─────────────────────────────────────────────────────────────────
---
--- The same editor edits the groups' Custom line (Show text below groups,
--- issue 486) when opened with groups = true: its own stored line, default
--- and Save (CoverLabel.groupLine / groupDefaultLine / saveGroup), and its own
--- preview override on the shelf (_previewGroupLabel). Everything else is the
--- books' editor, control for control.
---
 -- ── ONE SHELF'S ────────────────────────────────────────────────────────────
 --
 -- showForShelf edits a shelf's own books' line (Shelf style, after 5.4):
@@ -63,7 +55,7 @@ local PREVIEW_DELAY = 0.45
 
 local CoverLabelEditor = {}
 
--- The two lines this editor edits: the books' and the groups'.
+-- The line this editor edits: the books' (a shelf's own via showForShelf).
 local BOOKS = {
     title    = function() return _("Text below covers") end,
     line     = function() return CoverLabel.line() end,
@@ -72,23 +64,14 @@ local BOOKS = {
     preview  = "_previewCoverLabel",
     template = CoverLabel.DEFAULT_TEMPLATE,
 }
-local GROUPS = {
-    title    = function() return _("Show text below groups") end,
-    line     = function() return CoverLabel.groupLine() end,
-    defaults = function() return CoverLabel.groupDefaultLine() end,
-    save     = function(l) return CoverLabel.saveGroup(l) end,
-    preview  = "_previewGroupLabel",
-    template = CoverLabel.GROUP_DEFAULT_TEMPLATE,
-}
-CoverLabelEditor._targets = { books = BOOKS, groups = GROUPS }
+CoverLabelEditor._targets = { books = BOOKS }
 
--- show(bw, settings_module, touchmenu_instance, groups)
+-- show(bw, settings_module, touchmenu_instance)
 --
 -- `bw` is the live BookshelfWidget and may be nil (no preview then, everything
--- else works). `groups` true edits the groups' line instead of the books'.
-function CoverLabelEditor.show(bw, settings_module, touchmenu_instance, groups)
-    return CoverLabelEditor._open(bw, settings_module, touchmenu_instance,
-                                  groups and GROUPS or BOOKS)
+-- else works).
+function CoverLabelEditor.show(bw, settings_module, touchmenu_instance)
+    return CoverLabelEditor._open(bw, settings_module, touchmenu_instance, BOOKS)
 end
 
 -- showForShelf(bw, spec): one shelf's line.

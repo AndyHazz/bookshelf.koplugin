@@ -5378,27 +5378,10 @@ function BookshelfWidget:_shelfLabelMode()
     return mode
 end
 
--- _groupLabelMode() -> "author" / "custom", or nil for None: Cover display >
--- Show text below groups (issue 486). While the groups' editor is open its
--- draft outranks the saved choice, as the books' does.
+-- _groupLabelMode() -> "author", or nil when off: Cover display > Show
+-- author below series (issue 486).
 function BookshelfWidget:_groupLabelMode()
-    if self._group_label_preview then return "custom" end
     return require("lib/bookshelf_cover_label").groupMode()
-end
-
--- _groupLabelLine() -> the groups' Custom line in effect (the draft while its
--- editor is open, else the saved one).
-function BookshelfWidget:_groupLabelLine()
-    if self._group_label_preview then return self._group_label_preview end
-    return require("lib/bookshelf_cover_label").groupLine()
-end
-
--- _previewGroupLabel(line) -- the groups' editor preview: draw `line` under
--- the group tiles, or drop the override when nil.
-function BookshelfWidget:_previewGroupLabel(line)
-    self._group_label_preview = line
-    self:_rebuild()
-    UIManager:setDirty(self, "ui")
 end
 
 -- _coverLabelLine() -> the Custom label in effect: the editor's draft while it
@@ -6372,9 +6355,8 @@ function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD, n_rows)
         show_titles       = (label_mode ~= nil),
         label_mode        = label_mode,
         label_line        = (label_mode == "custom") and self:_coverLabelLine() or nil,
-        -- Text below groups (issue 486): false = None.
+        -- Author below series (issue 486): false = off.
         group_label_mode  = self:_groupLabelMode() or false,
-        group_label_line  = (self:_groupLabelMode() == "custom") and self:_groupLabelLine() or nil,
         in_series         = in_series,
         group_display     = self:_groupDisplayMode(),
     }

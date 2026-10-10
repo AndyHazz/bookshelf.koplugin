@@ -262,55 +262,30 @@ end)
 
 -- ── Text below groups (issue 486) ──────────────────────────────────────────
 
-t.test("groups start on None, apart from the books", function()
+t.test("author below series: off by default, apart from the books; 5.4's Custom reads as on", function()
     fresh()
     eq(CoverLabel.groupMode(), nil, "a reader who never chose must see no change")
     stored.group_label = "none";   eq(CoverLabel.groupMode(), nil)
     stored.group_label = "title";  eq(CoverLabel.groupMode(), nil, "groups have no Title")
     stored.group_label = "author"; eq(CoverLabel.groupMode(), "author")
-    eq(CoverLabel.groupLine().template, "%author")
-    eq(CoverLabel.groupDefaultLine().template, "%author")
+    -- Custom only ever had a series' author to print (maintainer, 2026-10-10).
+    stored.group_label = "custom"; eq(CoverLabel.groupMode(), "author")
+    assert(CoverLabel.groupResolver == nil and CoverLabel.groupLine == nil and CoverLabel.saveGroup == nil,
+        "the groups' Custom template is still there")
 end)
 
-t.test("the groups' Save and choice never touch the books'", function()
+t.test("the switch never touches the books' choice", function()
     fresh()
     stored.expanded_shelf_label = "title"
     stored.expanded_shelf_label_custom = { template = "%title · %author" }
     local f0 = flushed
-    CoverLabel.saveGroup({ template = "%series", bold = true, font_size = 30 })
-    eq(stored.group_label, "custom")
-    eq(stored.group_label_custom.template, "%series")
-    eq(stored.group_label_custom.bold, true)
-    eq(stored.group_label_custom.font_size, nil)
+    CoverLabel.saveGroupMode(true)
+    eq(stored.group_label, "author"); eq(flushed, f0 + 1)
+    CoverLabel.saveGroupMode(false)
+    eq(stored.group_label, "none"); eq(CoverLabel.groupMode(), nil)
+    CoverLabel.saveGroupMode("author"); eq(CoverLabel.groupMode(), "author", "5.4's string form")
     eq(stored.expanded_shelf_label, "title", "the books' mode moved")
     eq(stored.expanded_shelf_label_custom.template, "%title · %author", "the books' line moved")
-    eq(flushed, f0 + 1)
-    CoverLabel.saveGroupMode("author")
-    eq(stored.group_label, "author")
-    CoverLabel.saveGroupMode("none")
-    eq(CoverLabel.groupMode(), nil)
-    eq(stored.group_label_custom.template, "%series", "None threw the template away")
-end)
-
-t.test("a group's Custom line reads the group, not its first book", function()
-    fresh()
-    local r = CoverLabel.groupResolver({ template = "%author · %title" })
-    local series = { series_name = "Long Earth", label = "Long Earth", stack_author = "Stephen Baxter",
-                     books = { { filepath = "/le1.epub", title = "LE1", author = "Terry Pratchett" } } }
-    eq(r(series), "Stephen Baxter · Long Earth")
-    eq(r({ kind = "author", series_name = "Ann Leckie", books = {} }), "Ann Leckie · Ann Leckie")
-    eq(CoverLabel.groupResolver({ template = "%author" })({ kind = "genre", series_name = "Horror", books = {} }), "",
-        "a genre has no author: empty, never 'nil'")
-end)
-
-t.test("the groups' line leaves the books' cache alone", function()
-    fresh()
-    local rb = CoverLabel.resolver({ template = "%title" })
-    rb(book("/b/1.epub"))
-    CoverLabel.takeStats()
-    CoverLabel.groupResolver({ template = "%author" })({ series_name = "S", books = {} })
-    CoverLabel.resolver({ template = "%title" })(book("/b/1.epub"))
-    eq(CoverLabel.takeStats().hits, 1, "asking for the groups' line emptied the books' cache")
 end)
 
 -- ── The token picker ───────────────────────────────────────────────────────
@@ -369,25 +344,8 @@ t.test("keystrokes preview debounced, button taps at once", function()
     eq(previews[2].bold, true)
 end)
 
-t.test("the groups' editor edits the groups' line and previews on the groups' override", function()
-    fresh()
-    stored.expanded_shelf_label = "title"
-    SPEC, scheduled = nil, {}
-    local book_previews, group_previews = {}, {}
-    local bw = { _previewCoverLabel = function(_s, l) book_previews[#book_previews + 1] = l or false end,
-                 _previewGroupLabel = function(_s, l) group_previews[#group_previews + 1] = l or false end }
-    require("lib/bookshelf_cover_label_editor").show(bw, { name = "settings" }, nil, true)
-    assert(SPEC, "the groups' editor did not open")
-    eq(SPEC.line.template, "%author")
-    eq(SPEC.defaults.template, "%author")
-    SPEC.on_preview({ template = "%author", bold = true })
-    eq(#group_previews, 1); eq(#book_previews, 0, "the groups' draft previewed on the books")
-    SPEC.on_save({ template = "%series" })
-    eq(stored.group_label, "custom")
-    eq(stored.group_label_custom.template, "%series")
-    eq(stored.expanded_shelf_label, "title", "the groups' Save changed the books' mode")
-    eq(stored.expanded_shelf_label_custom, nil)
-    eq(group_previews[#group_previews], false)
+t.test("the editor has no groups' line any more", function()
+    eq(require("lib/bookshelf_cover_label_editor")._targets.groups, nil)
 end)
 
 t.test("Save writes and drops the preview; Cancel writes nothing", function()

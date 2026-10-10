@@ -5486,7 +5486,12 @@ function Repo.getSeriesGroups(limit, offset, sort_priority_override, filter, opt
                 -- standalone went to the end of the shelf.
                 author       = book.author,
                 author_sort  = book.author_sort,
-                latest       = read_time[book.filepath] or c.mtime or 0,
+                -- Read time only, as on the author and genre shelves: a book
+                -- never opened has none, so under "Most recently read" it
+                -- sorts after the read ones, by the next sort key. Its file
+                -- date put a newly added unread book first, ahead of
+                -- everything read (reported on Reddit, 2026-10-10).
+                latest       = read_time[book.filepath] or 0,
                 latest_added = c.mtime or 0,
                 -- Sort-only field (hydration replaces this shape with a real
                 -- Book record). 0, not 1: under a book-count sort a standalone

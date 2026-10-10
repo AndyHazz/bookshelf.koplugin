@@ -56,6 +56,10 @@ local env = {
             return { anyExternalLabel = function(items, override, labels)
                          last_labels = labels; return any_label end,
                      resolve = function(override) return override or "folder" end }
+        elseif name == "lib/bookshelf_cover_label" then
+            -- The shelf's own choice, else the setting: no shelf here has
+            -- its own (_test_cover_label pins modeFor).
+            return { modeFor = function() return stored.expanded_shelf_label end }
         elseif name == "lib/bookshelf_book_repository" then
             return { allHasBooks = function(path) repo_asked_path = path or "<root>"; return repo_has_books end }
         end
@@ -66,6 +70,7 @@ local shelfLabelMode  = bind(env, "_shelfLabelMode")
 local gridDrawsLabels = bind(env, "_gridDrawsLabels")
 local gridLabelsKey   = bind(env, "_gridLabelsKey")
 local noteGridLabels  = bind(env, "_noteGridLabels")
+local booksLabelNone  = bind(env, "_booksLabelNone")
 
 -- The bodies call each other through self, so the fake shelf carries them.
 local function shelf()
@@ -73,7 +78,8 @@ local function shelf()
              _groupDisplayMode = function() return nil end,
              _groupLabelMode = function() return group_mode end,
              _gridDrawsLabels = gridDrawsLabels, _gridLabelsKey = gridLabelsKey,
-             _noteGridLabels = noteGridLabels, _shelfLabelMode = shelfLabelMode }
+             _noteGridLabels = noteGridLabels, _shelfLabelMode = shelfLabelMode,
+             _booksLabelNone = booksLabelNone }
 end
 
 t.test("with nothing known about the chip, the layout assumes labels", function()

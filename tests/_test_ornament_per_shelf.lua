@@ -89,7 +89,8 @@ t.test("four stops, in the maintainer's words, and no hidden Default", function(
     local words = {}
     for i, stop in ipairs(STOPS) do words[i] = stop.word end
     eq(table.concat(words, ","), "None,Rarely,Often,Always")
-    assert(not editor:find('return _("Default")', 1, true),
+    local orn = editor:match("local ORN_STOPS = {(.-)\n            }")
+    assert(orn and not orn:find('_("Default")', 1, true),
         "a Default stop stores a value the reader cannot see")
 end)
 

@@ -157,6 +157,90 @@ function CoverLabel.saveGroup(line)
     if S.flush then S.flush() end
 end
 
+-- ── Per shelf ──────────────────────────────────────────────────────────────
+--
+-- Each shelf may choose its own text below covers and below groups (Shelf
+-- style; Reddit, after 5.4: "author under folders, but only on my series
+-- shelf"). The Cover display settings above stay the default every shelf
+-- without its own wears. Stored on the shelf's tab, mode and line apart as
+-- the globals are, so switching a shelf off Custom keeps its template:
+--
+--   cover_text       "title" / "author" / "series" / "custom" / "none"
+--   cover_text_line  the books' Custom line
+--   group_text       "author" / "custom" / "none"
+--   group_text_line  the groups' Custom line
+--
+-- Unset is "follow": a sub-shelf with no choice of its own wears its shelf
+-- of shelves' (and so on up), then the default, as a theme does
+-- (bookshelf_theme_pack inherited). Mode and line come from the SAME shelf,
+-- so a sub-shelf following a Custom parent shows the parent's template.
+CoverLabel.SHELF = {
+    books  = { mode = "cover_text", line = "cover_text_line",
+               template = CoverLabel.DEFAULT_TEMPLATE },
+    groups = { mode = "group_text", line = "group_text_line",
+               template = CoverLabel.GROUP_DEFAULT_TEMPLATE },
+}
+
+local function tabFor(id)
+    if id == nil then return nil end
+    if CoverLabel._tab then return CoverLabel._tab(id) end
+    local ok, TabModel = pcall(require, "lib/bookshelf_tab_model")
+    if not ok or not TabModel or not TabModel.getById then return nil end
+    local ok2, tab = pcall(TabModel.getById, id)
+    return ok2 and tab or nil
+end
+
+-- shelfWith(id, key) -> the first shelf, walking up from `id` through its
+-- shelves of shelves, that has `key` set; nil when none has.
+local function shelfWith(id, key)
+    local seen = {}
+    for _i = 1, 32 do
+        if id == nil or seen[id] then return nil end
+        seen[id] = true
+        local tab = tabFor(id)
+        if not tab then return nil end
+        if tab[key] ~= nil then return tab end
+        id = tab.parent
+    end
+    return nil
+end
+
+-- modeFor(id) -> the books' mode as stored for that shelf, its own or the
+-- one it follows, else the Cover display setting (nil when that is unset;
+-- the callers read nil as Title, as they always have).
+function CoverLabel.modeFor(id)
+    local tab = shelfWith(id, "cover_text")
+    if tab then return tab.cover_text end
+    return store().read(CoverLabel.MODE_SETTING)
+end
+
+-- lineFor(id) -> the books' Custom line that shelf shows.
+function CoverLabel.lineFor(id)
+    local tab = shelfWith(id, "cover_text")
+    if tab and tab.cover_text == "custom" then
+        return CoverLabel.normalise(tab.cover_text_line)
+    end
+    return CoverLabel.line()
+end
+
+-- groupModeFor(id) -> "author" / "custom", or nil for None: that shelf's.
+function CoverLabel.groupModeFor(id)
+    local tab = shelfWith(id, "group_text")
+    local v
+    if tab then v = tab.group_text else v = store().read(CoverLabel.GROUP_MODE_SETTING) end
+    if v == "author" or v == "custom" then return v end
+    return nil
+end
+
+-- groupLineFor(id) -> the groups' Custom line that shelf shows.
+function CoverLabel.groupLineFor(id)
+    local tab = shelfWith(id, "group_text")
+    if tab and tab.group_text == "custom" then
+        return CoverLabel.normalise(tab.group_text_line, CoverLabel.GROUP_DEFAULT_TEMPLATE)
+    end
+    return CoverLabel.groupLine()
+end
+
 -- ── Rendering one label ────────────────────────────────────────────────────
 
 -- Back off to the start of a UTF-8 sequence, so a cut never splits a glyph.

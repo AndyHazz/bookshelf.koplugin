@@ -2267,6 +2267,20 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                 end),
             }}
         end
+        -- Text below covers and below groups, this shelf's own (Reddit,
+        -- after 5.4: "author under folders, but only on my series shelf").
+        -- One row, the pair, as Author on spine and Ornaments are: the
+        -- dialog stays short enough to see the shelf. Each opens its own
+        -- short picker, since Custom opens the line editor and a cycle stop
+        -- cannot. Unset follows Cover display's choice, or a sub-shelf's
+        -- shelf of shelves' (CoverLabel.modeFor), and reads "Default" or
+        -- "Same as Fiction" accordingly. Covers only: a list or spine shelf
+        -- has no label strip.
+        if show_covers then
+            rows[#rows + 1] = self:_coverTextRow(draft, function()
+                if on_change then on_change() end
+            end, function() UIManager:close(d) end, show, bw)
+        end
         -- Close: every pick has already been applied and saved, so there is
         -- nothing to confirm. It was OK while the editor's own Save did the
         -- saving; the maintainer wanted every change applied on selection.
@@ -2289,6 +2303,120 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         UIManager:show(d)
     end
     show()
+end
+
+-- _coverTextRow(draft, on_change, close, reshow, bw) -> Shelf style's row of
+-- two: "Book text: Title" | "Group text: Author", each opening its picker
+-- (_pickCoverText). `close` takes Shelf style down, `reshow` brings it back.
+function Editor:_coverTextRow(draft, on_change, close, reshow, bw)
+    local CL = require("lib/bookshelf_cover_label")
+    local function btn(groups)
+        local which = groups and CL.SHELF.groups or CL.SHELF.books
+        return {
+            text_func = function()
+                local fmt = groups and _("Group text: %1") or _("Book text: %1")
+                return T(fmt, Editor._coverTextLabel(draft, which, draft[which.mode]))
+            end,
+            callback = function()
+                close()
+                Editor:_pickCoverText(draft, groups, on_change, reshow, bw)
+            end,
+        }
+    end
+    return { btn(false), btn(true) }
+end
+
+-- The choices, in the order the global Cover display menu lists them.
+local COVER_TEXT_MODES = {
+    books  = { "title", "author", "series", "none", "custom" },
+    groups = { "none", "author", "custom" },
+}
+
+-- _coverTextLabel(draft, which, value) -> how a choice reads: its name, or
+-- for unset what it follows, "Default" (Cover display's) or "Same as
+-- Fiction" (a sub-shelf's shelf of shelves).
+function Editor._coverTextLabel(draft, which, value)
+    if value == "title"  then return _("Title") end
+    if value == "author" then return _("Author") end
+    if value == "series" then return _("Series") end
+    if value == "custom" then return _("Custom") end
+    if value == "none"   then return _("None") end
+    if draft.parent ~= nil then
+        local parent = TabModel.getById(draft.parent)
+        return T(_("Same as %1"), (parent and parent.label) or draft.parent)
+    end
+    return _("Default")
+end
+
+-- _pickCoverText(draft, groups, on_change, back, bw): the shelf's own text
+-- below covers (or below groups). A pick is written to the draft, shown on
+-- the shelf, and hands back to Shelf style: one question, one answer, and no
+-- close-and-reopen of this picker per tap, which flashes the whole screen on
+-- a Kindle (see the Face out picker). Custom... opens the line editor on the
+-- shelf's own line (CoverLabelEditor.showForShelf), and its Save is what
+-- makes Custom the choice, as in Cover display. Back returns unchanged.
+function Editor:_pickCoverText(draft, groups, on_change, back, bw)
+    local CL = require("lib/bookshelf_cover_label")
+    local Kit = require("lib/bookshelf_module_kit")
+    local which = groups and CL.SHELF.groups or CL.SHELF.books
+    local d
+    local function set(v)
+        return function()
+            draft[which.mode] = v
+            on_change()
+            UIManager:close(d)
+            back()
+        end
+    end
+    local cur = draft[which.mode]
+    local rows = {}
+    -- Unset first: following is what every shelf starts on.
+    rows[#rows + 1] = { Kit.radioRow{ label = Editor._coverTextLabel(draft, which, nil),
+                                      active = cur == nil, on_pick = set(nil) } }
+    for _i, v in ipairs(groups and COVER_TEXT_MODES.groups or COVER_TEXT_MODES.books) do
+        if v == "custom" then
+            rows[#rows + 1] = {{
+                text = (cur == "custom" and "\xE2\x9C\x93 " or "  ") .. _("Custom\xE2\x80\xA6"),
+                callback = function()
+                    UIManager:close(d)
+                    -- Starts from the shelf's own line, else the one it shows
+                    -- now, so Custom changes nothing until it is edited.
+                    local line = draft[which.line]
+                    if line == nil then
+                        line = groups and CL.groupLineFor(draft.id) or CL.lineFor(draft.id)
+                    end
+                    require("lib/bookshelf_cover_label_editor").showForShelf(bw, {
+                        groups = groups,
+                        line   = line,
+                        save   = function(l)
+                            draft[which.line] = CL.normalise(l, which.template)
+                            draft[which.mode] = "custom"
+                            on_change()
+                        end,
+                        on_closed = back,
+                    })
+                end,
+            }}
+        else
+            rows[#rows + 1] = { Kit.radioRow{ label = Editor._coverTextLabel(draft, which, v),
+                                              active = cur == v, on_pick = set(v) } }
+        end
+    end
+    rows[#rows + 1] = {{
+        text = _("Back"),
+        callback = function()
+            UIManager:close(d)
+            back()
+        end,
+    }}
+    d = ButtonDialog:new{
+        title       = groups and _("Show text below groups") or _("Text below covers"),
+        title_align = "center",
+        buttons     = rows,
+        anchor      = _highAnchor(function() return d end),
+        tap_close_callback = back,
+    }
+    UIManager:show(d)
 end
 
 -- _pickOpdsOption(draft, field, options, title, on_close) - one radio list for

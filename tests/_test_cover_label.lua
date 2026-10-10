@@ -56,6 +56,7 @@ package.loaded["lib/bookshelf_line_editor"] = { edit = function(spec) SPEC = spe
 local scheduled = {}
 package.loaded["ui/uimanager"] = {
     scheduleIn = function(_self, _s, fn) scheduled[#scheduled + 1] = fn end,
+    nextTick   = function(_self, fn) scheduled[#scheduled + 1] = fn end,
     unschedule = function(_self, fn)
         for i = #scheduled, 1, -1 do if scheduled[i] == fn then table.remove(scheduled, i) end end
     end,
@@ -458,9 +459,14 @@ t.test("the shelf reads Custom from the setting and from an open editor", functi
         return assert(load(src, "_shelfLabelMode", "t", env))
     end
     local mode, groups
-    local env = { BookshelfSettings = { read = function() return mode end } }
+    -- The mode comes from CoverLabel.modeFor(self.chip): the shelf's own,
+    -- else the setting (its own test above).
+    local env = { require = function(m)
+        assert(m == "lib/bookshelf_cover_label", m)
+        return { modeFor = function(chip) assert(chip == "c", "not the chip on screen"); return mode end }
+    end }
     local f = compile("local self = ... ; " .. body, env)
-    local shelf = { _gridDrawsLabels = function() return true end,
+    local shelf = { chip = "c", _gridDrawsLabels = function() return true end,
                     _groupLabelMode = function() return groups end }
     mode = "custom"; eq(f(shelf), "custom")
     mode = "none";   eq(f(shelf), nil)
@@ -517,6 +523,88 @@ t.test("the per-book key reads fields the shelf's record builder really emits", 
     for _i, f in ipairs({ "title", "author", "series", "series_num", "page_count" }) do
         assert(body:find("\n%s+" .. f .. "%s+=") , "buildBookMeta no longer sets " .. f)
     end
+end)
+
+-- ── Per shelf (Shelf style, after 5.4) ──────────────────────────────────────
+
+t.test("a shelf's own text below covers and groups wins; a sub-shelf follows its shelf of shelves", function()
+    for k in pairs(stored) do stored[k] = nil end
+    local tabs = {
+        series = { id = "series", label = "Series", group_text = "author" },
+        sub    = { id = "sub", label = "Sub", parent = "series" },
+        home   = { id = "home", label = "Home" },
+        mine   = { id = "mine", label = "Mine", cover_text = "custom",
+                   cover_text_line = { template = "%author" } },
+        kid    = { id = "kid", label = "Kid", parent = "mine", cover_text = "none" },
+    }
+    CoverLabel._tab = function(id) return tabs[id] end
+    -- Unset everywhere: the settings, as before (nil books mode = Title).
+    eq(CoverLabel.modeFor("home"), nil)
+    eq(CoverLabel.groupModeFor("home"), nil)
+    stored[CoverLabel.MODE_SETTING] = "series"
+    stored[CoverLabel.GROUP_MODE_SETTING] = "none"
+    eq(CoverLabel.modeFor("home"), "series")
+    -- Groups: the shelf's own, and its sub-shelf's by inheritance.
+    eq(CoverLabel.groupModeFor("series"), "author")
+    eq(CoverLabel.groupModeFor("sub"), "author", "a sub-shelf does not follow its shelf of shelves")
+    eq(CoverLabel.groupModeFor("home"), nil, "another shelf picked up a shelf's own choice")
+    -- An explicit None on a shelf beats an Author default.
+    stored[CoverLabel.GROUP_MODE_SETTING] = "author"
+    tabs.home.group_text = "none"
+    eq(CoverLabel.groupModeFor("home"), nil, "a shelf's None does not override the default")
+    -- Books: Custom with the shelf's own template, not the global one.
+    stored[CoverLabel.LINE_SETTING] = { template = "%title" }
+    eq(CoverLabel.modeFor("mine"), "custom")
+    eq(CoverLabel.lineFor("mine").template, "%author", "the shelf's own line is not used")
+    eq(CoverLabel.lineFor("home").template, "%title")
+    -- The sub-shelf's own None outranks its parent's Custom.
+    eq(CoverLabel.modeFor("kid"), "none")
+    -- Group line: the shelf's own when Custom, the global otherwise.
+    tabs.series.group_text = "custom"
+    tabs.series.group_text_line = { template = "%series" }
+    eq(CoverLabel.groupLineFor("sub").template, "%series")
+    eq(CoverLabel.groupLineFor("home").template, CoverLabel.GROUP_DEFAULT_TEMPLATE)
+    CoverLabel._tab = nil
+end)
+
+t.test("one shelf's editor edits the shelf's line, not the settings, and hands back", function()
+    for k in pairs(stored) do stored[k] = nil end
+    package.loaded["lib/bookshelf_settings"] = { _pickToken = function() end }
+    local saved, closed = nil, 0
+    SPEC = nil
+    require("lib/bookshelf_cover_label_editor").showForShelf(nil, {
+        groups = true,
+        line = { template = "%author %series" },
+        save = function(l) saved = l end,
+        on_closed = function() closed = closed + 1 end,
+    })
+    assert(SPEC, "the editor did not open")
+    eq(SPEC.line.template, "%author %series", "the shelf's line is not what it opens on")
+    eq(SPEC.title, "Show text below groups")
+    assert(SPEC.settings_module and SPEC.settings_module._pickToken, "no token picker")
+    SPEC.on_save({ template = "%series" })
+    eq(saved and saved.template, "%series")
+    eq(stored[CoverLabel.GROUP_LINE_SETTING], nil, "the shelf's Save wrote the settings")
+    eq(stored[CoverLabel.GROUP_MODE_SETTING], nil, "the shelf's Save wrote the settings")
+    runTimers()
+    eq(closed, 1, "Shelf style is not brought back after Save")
+    SPEC.on_cancel(); runTimers()
+    eq(closed, 2, "Shelf style is not brought back after Cancel")
+    package.loaded["lib/bookshelf_settings"] = nil
+end)
+
+t.test("the shelf reads each label choice for the chip on screen", function()
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    for _i, pat in ipairs({
+        'require%("lib/bookshelf_cover_label"%)%.modeFor%(self%.chip%)',
+        'require%("lib/bookshelf_cover_label"%)%.lineFor%(self%.chip%)',
+        'require%("lib/bookshelf_cover_label"%)%.groupModeFor%(self%.chip%)',
+        'require%("lib/bookshelf_cover_label"%)%.groupLineFor%(self%.chip%)',
+    }) do
+        assert(w:find(pat), "the shelf does not ask for the chip's own: " .. pat)
+    end
+    assert(not w:find('BookshelfSettings.read("expanded_shelf_label")', 1, true),
+        "the shelf still reads the global label mode directly, past the shelf's own")
 end)
 
 t.done()

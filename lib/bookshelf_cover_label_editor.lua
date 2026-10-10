@@ -57,7 +57,7 @@ local CoverLabelEditor = {}
 
 -- The line this editor edits: the books' (a shelf's own via showForShelf).
 local BOOKS = {
-    title    = function() return _("Text below covers") end,
+    title    = function() return _("Cover captions") end,
     line     = function() return CoverLabel.line() end,
     defaults = function() return CoverLabel.defaultLine() end,
     save     = function(l) return CoverLabel.save(l) end,

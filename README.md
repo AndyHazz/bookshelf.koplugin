@@ -133,7 +133,7 @@ Each cover on the grid is either a book or a stack of books (for series, authors
 - **Swipe down** on the top panel for a bigger panel and one shelf row fewer; **swipe up** on it gives the row back.
 - **Swipe down** on the shelf area to refresh the library after adding new books over USB or Calibre.
 
-Every shelf shows a line of text under each cover -- the title by default. One setting drives it everywhere: **menu > Settings > Cover display > Show text below covers** picks Title, Author, Series, Custom, or None (covers then use the full row). **Custom…** opens an editor that builds the line from [tokens](#tokens-placeholders), the same ones the top panel uses: `%book_pct · %size`, say, for how far you have read and the file size. Save in the editor makes Custom the choice; Cancel keeps the one you had. Its text size is **Cover labels** under **Settings > Text size**. Books without covers already show their title and author on the placeholder itself, so those skip the extra label.
+Every shelf shows a caption under each cover -- the title by default. **menu > Settings > Cover display > Cover captions** picks Title, Author, Series, Custom, or None (covers then use the full row), and a shelf can choose its own under **Shelf style > Captions** (the series name on a Series shelf, say). **Custom…** opens an editor that builds the line from [tokens](#tokens-placeholders), the same ones the top panel uses: `%book_pct · %size`, say, for how far you have read and the file size. Save in the editor makes Custom the choice; Cancel keeps the one you had. Its text size is **Cover captions** under **Settings > Text size**. Books without covers already show their title and author on the placeholder itself, so those skip the caption. **Show author below series**, under it, puts each series' author under its stack.
 
 The full gesture reference is in [Gestures cheatsheet](#gestures-cheatsheet) below; physical-key devices have their own reference in [Keyboard and D-pad](#keyboard-and-d-pad).
 
@@ -506,7 +506,7 @@ The top of the Theme menu is for choosing:
 
 Each opens the **Theme library**: a card per theme, four to a page, with its name, icons for the parts it brings (and how many ornaments), any description the pack has, and one of its ornaments. Tap a card to choose it: the mark moves, the shelf behind changes, and the library stays open so you can compare; **Close** when you are done. In a shelf's library the first card is **Default theme**, which says which theme that is now. **Add theme pack…** in the footer says where a pack's folder goes; a pack copied in shows the next time you open it.
 
-You can also choose a shelf's theme where you set its style: long-press the shelf, then **Shelf style**, whose first row is **Theme**. A shelf inside a [shelf of shelves](#sources) wears the theme of the shelf it sits in.
+You can also choose a shelf's theme where you set its style: long-press the shelf, then **Shelf style**, whose first row is **Theme**. A shelf inside a [shelf of shelves](#sources) wears the theme of the shelf it sits in until you give it one of its own.
 
 **Editing a theme.** The rest of the Theme menu edits the theme on screen, whatever it is: Custom theme, Plain or a pack. Your changes stay with that theme on every shelf that wears it, and its card in the Theme library says **Edited**. **Reset** in the Theme library's footer puts the marked theme back to its original, as a long-press on a pack's or Plain's card does for that card; Custom theme has no original to go back to. Bookshelf asks before it resets.
 

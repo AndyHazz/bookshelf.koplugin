@@ -693,7 +693,7 @@ t.test("Text size lists every scale key exactly once, on its own picker", functi
     -- "Shelf menu" / "List text" are adjacent on purpose: they are the same band
     -- shape on two keys, and a user tuning one should see the other.
     eq(keys, {
-        "Cover labels", "Cover badges", "Stack & folder labels",
+        "Cover captions", "Cover badges", "Stack & folder labels",
         "Shelf menu", "List text",
         "\xEE\x9E\xBD  Top panel", "\xEE\xB1\xAF  Micro-modules",
         "Start menu", "Modal tabs",

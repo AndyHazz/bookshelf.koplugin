@@ -2314,12 +2314,12 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
 end
 
 -- _coverTextRow(draft, on_change, close, reshow, bw) -> Shelf style's
--- "Book text: Title" row, opening its picker (_pickCoverText). `close` takes
+-- "Captions: Title" button, opening its picker (_pickCoverText). `close` takes
 -- Shelf style down, `reshow` brings it back.
 function Editor:_coverTextRow(draft, on_change, close, reshow, bw)
     return {{
         text_func = function()
-            return T(_("Book text: %1"), Editor._coverTextLabel(draft, draft.cover_text))
+            return T(_("Captions: %1"), Editor._coverTextLabel(draft, draft.cover_text))
         end,
         callback = function()
             close()
@@ -2411,7 +2411,7 @@ function Editor:_pickCoverText(draft, on_change, back, bw)
         end,
     }}
     d = ButtonDialog:new{
-        title       = _("Text below covers"),
+        title       = _("Cover captions"),
         title_align = "center",
         buttons     = rows,
         anchor      = _highAnchor(function() return d end),

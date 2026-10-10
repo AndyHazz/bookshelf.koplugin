@@ -79,12 +79,12 @@ t.test("the row names the choice: Default, or Same as for a sub-shelf", function
     local draft = { id = "series", label = "Series" }
     local row = Editor:_coverTextRow(draft, function() end, function() end, function() end)
     eq(#row, 1, "one button: text below groups is not per shelf")
-    eq(texts({ row }), "Book text: Default")
+    eq(texts({ row }), "Captions: Default")
     draft.cover_text = "series"
-    eq(texts({ row }), "Book text: Series")
+    eq(texts({ row }), "Captions: Series")
     local sub = { id = "sub", label = "Sub", parent = "series" }
     eq(texts({ Editor:_coverTextRow(sub, function() end, function() end, function() end) }),
-       "Book text: Same as Series")
+       "Captions: Same as Series")
 end)
 
 t.test("a pick is written to the shelf, shown, and hands back to Shelf style", function()
@@ -95,7 +95,7 @@ t.test("a pick is written to the shelf, shown, and hands back to Shelf style", f
         function() end, function() backs = backs + 1 end)
     row[1].callback()
     local d = shown[#shown]
-    eq(d.title, "Text below covers")
+    eq(d.title, "Cover captions")
     eq(texts(d.buttons), "Default | None | Title | Author | Series | Custom… | Back")
     local shape = {}
     for i, r in ipairs(d.buttons) do shape[i] = #r end

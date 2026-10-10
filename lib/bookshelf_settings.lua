@@ -763,12 +763,13 @@ function Settings:_coverDisplaySubItems()
         -- ── layout: what a cover row is made of ──
         {
             text_func = function()
-                return _("Show text below covers") .. ": " .. label_labels[readLabelMode()]
+                return _("Cover captions") .. ": " .. label_labels[readLabelMode()]
             end,
             help_text = _("A line of text under each cover, on the regular"
                 .. " shelf and full screen shelves alike. Choose what it shows,"
-                .. " or None to let covers use the full row. Text size follows"
-                .. " the Cover labels setting under Text size."),
+                .. " or None to let covers use the full row. A shelf can choose"
+                .. " its own under Shelf style. Text size follows the Cover"
+                .. " captions setting under Text size."),
             sub_item_table_func = function()
                 return {
                     labelModeRow("title"),
@@ -5563,7 +5564,7 @@ function Settings:_textSizeSubItems()
         -- ── shelf ──
         -- Sizes the label strip under covers on BOTH surfaces since the 4.0
         -- unification (the key keeps its historical name).
-        row(_("Cover labels"),          "expanded_shelf_font_scale", 100, "_pickExpandedShelfFontScale"),
+        row(_("Cover captions"),        "expanded_shelf_font_scale", 100, "_pickExpandedShelfFontScale"),
         row(_("Cover badges"),          "cover_badge_font_scale",    100, "_pickCoverBadgeFontScale"),
         row(_("Stack & folder labels"), "stack_label_font_scale",    100, "_pickStackLabelFontScale"),
         row(_("Shelf menu"),              "chip_font_scale",           100, "_pickChipFontScale"),

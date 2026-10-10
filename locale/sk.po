@@ -3,7 +3,7 @@
 msgid ""
 msgstr ""
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-10 07:21+0100\n"
+"POT-Creation-Date: 2026-10-10 09:16+0100\n"
 "Last-Translator: misko903\n"
 "Language: sk\n"
 "MIME-Version: 1.0\n"
@@ -59,12 +59,12 @@ msgstr "Ponuka Bookshelf"
 msgid "Choose an action"
 msgstr "Vybrať akciu"
 
-#: lib/bookshelf_book_repository.lua:6051
-#: lib/bookshelf_book_repository.lua:8355 micromodules/weather.lua:62
+#: lib/bookshelf_book_repository.lua:6058
+#: lib/bookshelf_book_repository.lua:8362 micromodules/weather.lua:62
 msgid "Unknown"
 msgstr "Neznáme"
 
-#: lib/bookshelf_book_repository.lua:7029 lib/bookshelf_chip_editor.lua:2569
+#: lib/bookshelf_book_repository.lua:7036 lib/bookshelf_chip_editor.lua:2569
 #: lib/bookshelf_filter.lua:294
 msgid "Unrated"
 msgstr "Bez hodnotenia"
@@ -131,7 +131,7 @@ msgstr "Vymazať"
 #: lib/bookshelf_collection_manager.lua:505
 #: lib/bookshelf_collection_manager.lua:530 lib/bookshelf_color_palette.lua:421
 #: lib/bookshelf_folder_picker.lua:61 lib/bookshelf_folder_picker.lua:199
-#: lib/bookshelf_line_editor.lua:527 lib/bookshelf_move_flow.lua:34
+#: lib/bookshelf_line_editor.lua:540 lib/bookshelf_move_flow.lua:34
 #: lib/bookshelf_move_flow.lua:386 lib/bookshelf_opds_catalog_editor.lua:45
 #: lib/bookshelf_ornament_browser.lua:329 lib/bookshelf_pack_editor.lua:311
 #: lib/bookshelf_page_count_dialog.lua:188 lib/bookshelf_settings.lua:1536
@@ -276,7 +276,7 @@ msgstr "Aktualizovať"
 #: lib/bookshelf_chip_editor.lua:2473 lib/bookshelf_chip_editor.lua:2956
 #: lib/bookshelf_chip_editor.lua:3320 lib/bookshelf_collection_manager.lua:562
 #: lib/bookshelf_folder_picker.lua:168 lib/bookshelf_font_picker.lua:271
-#: lib/bookshelf_icons_library.lua:497 lib/bookshelf_line_editor.lua:157
+#: lib/bookshelf_icons_library.lua:497 lib/bookshelf_line_editor.lua:170
 #: lib/bookshelf_module_picker.lua:226 lib/bookshelf_plank_browser.lua:268
 #: lib/bookshelf_reviews_modal.lua:561 lib/bookshelf_settings.lua:321
 #: lib/bookshelf_theme_library.lua:580 lib/bookshelf_updater.lua:409
@@ -752,7 +752,7 @@ msgstr "Vybrať katalóg OPDS"
 msgid "Add catalog…"
 msgstr "Pridať katalóg…"
 
-#: lib/bookshelf_chip_editor.lua:2668 lib/bookshelf_line_editor.lua:570
+#: lib/bookshelf_chip_editor.lua:2668 lib/bookshelf_line_editor.lua:583
 #: lib/bookshelf_widget.lua:21352 lib/bookshelf_widget.lua:21642
 #: lib/bookshelf_widget.lua:22150 lib/bookshelf_widget.lua:22248
 msgid "Edit"
@@ -972,7 +972,7 @@ msgid "Create"
 msgstr "Vytvoriť"
 
 #: lib/bookshelf_collection_manager.lua:510
-#: lib/bookshelf_collection_manager.lua:534 lib/bookshelf_line_editor.lua:556
+#: lib/bookshelf_collection_manager.lua:534 lib/bookshelf_line_editor.lua:569
 #: lib/bookshelf_opds_catalog_editor.lua:50 lib/bookshelf_widget.lua:20314
 #: lib/bookshelf_widget.lua:22523 main.lua:2347 micromodules/action.lua:230
 #: micromodules/countdown.lua:144 micromodules/reading_goal.lua:415
@@ -1032,7 +1032,7 @@ msgid "or"
 msgstr "alebo"
 
 #: lib/bookshelf_color_palette.lua:423 lib/bookshelf_font_picker.lua:192
-#: lib/bookshelf_line_editor.lua:152 lib/bookshelf_line_editor.lua:552
+#: lib/bookshelf_line_editor.lua:165 lib/bookshelf_line_editor.lua:565
 #: lib/bookshelf_settings.lua:2314 lib/bookshelf_settings.lua:2984
 #: lib/bookshelf_settings.lua:4830 lib/bookshelf_settings.lua:5211
 #: lib/bookshelf_settings.lua:5420 lib/bookshelf_settings.lua:5507
@@ -1814,68 +1814,92 @@ msgstr "Umiestnite súbory .svg alebo .png do koreader/icons/"
 msgid "Search"
 msgstr "Hľadať"
 
-#: lib/bookshelf_line_editor.lua:114 lib/bookshelf_settings.lua:570
+#: lib/bookshelf_line_editor.lua:94
+msgid "Bordered"
+msgstr "S okrajom"
+
+#: lib/bookshelf_line_editor.lua:94
+msgid "Rounded"
+msgstr "Zaoblená"
+
+#: lib/bookshelf_line_editor.lua:94 lib/bookshelf_settings.lua:1861
+msgid "Solid"
+msgstr "Plné"
+
+#: lib/bookshelf_line_editor.lua:95
+msgid "Metro"
+msgstr "Metro"
+
+#: lib/bookshelf_line_editor.lua:95
+msgid "Pacman"
+msgstr "Pacman"
+
+#: lib/bookshelf_line_editor.lua:95
+msgid "Wave"
+msgstr "Vlna"
+
+#: lib/bookshelf_line_editor.lua:127 lib/bookshelf_settings.lua:570
 msgid "Font size"
 msgstr "Veľkosť písma"
 
-#: lib/bookshelf_line_editor.lua:375 lib/bookshelf_line_editor.lua:376
-#: lib/bookshelf_line_editor.lua:379
+#: lib/bookshelf_line_editor.lua:388 lib/bookshelf_line_editor.lua:389
+#: lib/bookshelf_line_editor.lua:392
 msgid "Bold"
 msgstr "Tučné"
 
-#: lib/bookshelf_line_editor.lua:378
+#: lib/bookshelf_line_editor.lua:391
 msgid "Bold italic"
 msgstr "Tučná kurzíva"
 
-#: lib/bookshelf_line_editor.lua:380
+#: lib/bookshelf_line_editor.lua:393
 msgid "Italic"
 msgstr "Kurzíva"
 
-#: lib/bookshelf_line_editor.lua:381
+#: lib/bookshelf_line_editor.lua:394
 msgid "Regular"
 msgstr "Obyčajné"
 
-#: lib/bookshelf_line_editor.lua:403
+#: lib/bookshelf_line_editor.lua:416
 msgid "Size"
 msgstr "Veľkosť"
 
-#: lib/bookshelf_line_editor.lua:416
+#: lib/bookshelf_line_editor.lua:429
 msgid "Font ✓"
 msgstr "Písmo ✓"
 
-#: lib/bookshelf_line_editor.lua:416
+#: lib/bookshelf_line_editor.lua:429
 msgid "Font…"
 msgstr "Písmo…"
 
-#: lib/bookshelf_line_editor.lua:479
+#: lib/bookshelf_line_editor.lua:492
 msgid "Bar style"
 msgstr "Štýl panela"
 
-#: lib/bookshelf_line_editor.lua:480
+#: lib/bookshelf_line_editor.lua:493
 msgid "Bar: "
 msgstr "Panel: "
 
-#: lib/bookshelf_line_editor.lua:493
+#: lib/bookshelf_line_editor.lua:506
 msgid "+ Bar"
 msgstr "+ Panel"
 
-#: lib/bookshelf_line_editor.lua:493
+#: lib/bookshelf_line_editor.lua:506
 msgid "- Bar"
 msgstr "- Panel"
 
-#: lib/bookshelf_line_editor.lua:503 lib/bookshelf_line_editor.lua:518
+#: lib/bookshelf_line_editor.lua:516 lib/bookshelf_line_editor.lua:531
 msgid "Bar height"
 msgstr "Výška panela"
 
-#: lib/bookshelf_line_editor.lua:504
+#: lib/bookshelf_line_editor.lua:517
 msgid "Height: "
 msgstr "Výška: "
 
-#: lib/bookshelf_line_editor.lua:536
+#: lib/bookshelf_line_editor.lua:549
 msgid "Tokens…"
 msgstr "Tokeny…"
 
-#: lib/bookshelf_line_editor.lua:545
+#: lib/bookshelf_line_editor.lua:558
 msgid "Icons…"
 msgstr "Ikony…"
 
@@ -2952,10 +2976,6 @@ msgstr "Mierne"
 #: lib/bookshelf_settings.lua:1860
 msgid "Heavy"
 msgstr "Silné"
-
-#: lib/bookshelf_settings.lua:1861
-msgid "Solid"
-msgstr "Plné"
 
 #: lib/bookshelf_settings.lua:1867
 msgid "Auto (follow night mode)"

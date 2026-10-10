@@ -3,7 +3,7 @@
 msgid ""
 msgstr ""
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-10 09:16+0100\n"
+"POT-Creation-Date: 2026-10-10 22:02+0100\n"
 "Last-Translator: misko903\n"
 "Language: sk\n"
 "MIME-Version: 1.0\n"
@@ -64,7 +64,7 @@ msgstr "Vybrať akciu"
 msgid "Unknown"
 msgstr "Neznáme"
 
-#: lib/bookshelf_book_repository.lua:7036 lib/bookshelf_chip_editor.lua:2569
+#: lib/bookshelf_book_repository.lua:7036 lib/bookshelf_chip_editor.lua:2702
 #: lib/bookshelf_filter.lua:294
 msgid "Unrated"
 msgstr "Bez hodnotenia"
@@ -82,27 +82,27 @@ msgstr "Knižnica Kobo"
 msgid "Edit selected (%d)"
 msgstr "Upraviť vybrané (%d)"
 
-#: lib/bookshelf_bulk_actions.lua:111 lib/bookshelf_widget.lua:20944
+#: lib/bookshelf_bulk_actions.lua:111 lib/bookshelf_widget.lua:20934
 msgid "Unopened"
 msgstr "Neotvorené"
 
 #: lib/bookshelf_bulk_actions.lua:112 lib/bookshelf_filter.lua:249
 #: lib/bookshelf_filter.lua:281 lib/bookshelf_icons_catalogue.lua:23
-#: lib/bookshelf_tokens.lua:261 lib/bookshelf_widget.lua:20944
+#: lib/bookshelf_tokens.lua:261 lib/bookshelf_widget.lua:20934
 #: micromodules/shelf_size.lua:18
 msgid "Reading"
 msgstr "Čítanie"
 
 #: lib/bookshelf_bulk_actions.lua:113 lib/bookshelf_filter.lua:250
 #: lib/bookshelf_filter.lua:282 lib/bookshelf_tokens.lua:262
-#: lib/bookshelf_widget.lua:20945 micromodules/random_unread.lua:235
+#: lib/bookshelf_widget.lua:20935 micromodules/random_unread.lua:235
 #: micromodules/shelf_size.lua:20
 msgid "On hold"
 msgstr "Pozastavené"
 
 #: lib/bookshelf_bulk_actions.lua:114 lib/bookshelf_filter.lua:250
 #: lib/bookshelf_filter.lua:283 lib/bookshelf_tokens.lua:263
-#: lib/bookshelf_widget.lua:20945 micromodules/random_unread.lua:236
+#: lib/bookshelf_widget.lua:20935 micromodules/random_unread.lua:236
 #: micromodules/shelf_size.lua:21
 msgid "Finished"
 msgstr "Dokončené"
@@ -117,14 +117,14 @@ msgstr "Hodnotenie"
 msgid "(clear)"
 msgstr "(vymazať)"
 
-#: lib/bookshelf_bulk_actions.lua:160 lib/bookshelf_chip_editor.lua:3123
+#: lib/bookshelf_bulk_actions.lua:160 lib/bookshelf_chip_editor.lua:3256
 msgid "Clear"
 msgstr "Vymazať"
 
 #: lib/bookshelf_bulk_actions.lua:165 lib/bookshelf_bulk_actions.lua:424
-#: lib/bookshelf_chip_editor.lua:722 lib/bookshelf_chip_editor.lua:2323
-#: lib/bookshelf_chip_editor.lua:2373 lib/bookshelf_chip_editor.lua:2509
-#: lib/bookshelf_chip_editor.lua:2849 lib/bookshelf_collection_manager.lua:339
+#: lib/bookshelf_chip_editor.lua:722 lib/bookshelf_chip_editor.lua:2456
+#: lib/bookshelf_chip_editor.lua:2506 lib/bookshelf_chip_editor.lua:2642
+#: lib/bookshelf_chip_editor.lua:2982 lib/bookshelf_collection_manager.lua:339
 #: lib/bookshelf_collection_manager.lua:415
 #: lib/bookshelf_collection_manager.lua:422
 #: lib/bookshelf_collection_manager.lua:455
@@ -134,19 +134,19 @@ msgstr "Vymazať"
 #: lib/bookshelf_line_editor.lua:540 lib/bookshelf_move_flow.lua:34
 #: lib/bookshelf_move_flow.lua:386 lib/bookshelf_opds_catalog_editor.lua:45
 #: lib/bookshelf_ornament_browser.lua:329 lib/bookshelf_pack_editor.lua:311
-#: lib/bookshelf_page_count_dialog.lua:188 lib/bookshelf_settings.lua:1536
-#: lib/bookshelf_settings.lua:2983 lib/bookshelf_settings.lua:3465
-#: lib/bookshelf_settings.lua:4820 lib/bookshelf_settings.lua:5047
-#: lib/bookshelf_settings.lua:5210 lib/bookshelf_settings.lua:5412
-#: lib/bookshelf_settings.lua:5506 lib/bookshelf_start_menu_edit.lua:57
+#: lib/bookshelf_page_count_dialog.lua:188 lib/bookshelf_settings.lua:1505
+#: lib/bookshelf_settings.lua:2952 lib/bookshelf_settings.lua:3434
+#: lib/bookshelf_settings.lua:4791 lib/bookshelf_settings.lua:5018
+#: lib/bookshelf_settings.lua:5181 lib/bookshelf_settings.lua:5383
+#: lib/bookshelf_settings.lua:5477 lib/bookshelf_start_menu_edit.lua:57
 #: lib/bookshelf_start_menu_edit.lua:181 lib/bookshelf_start_menu_edit.lua:293
-#: lib/bookshelf_start_menu_edit.lua:358 lib/bookshelf_widget.lua:8326
-#: lib/bookshelf_widget.lua:18004 lib/bookshelf_widget.lua:20312
-#: lib/bookshelf_widget.lua:22396 lib/bookshelf_widget.lua:22476
-#: lib/bookshelf_widget.lua:22521 lib/bookshelf_widget.lua:22589
-#: lib/bookshelf_widget.lua:22637 lib/bookshelf_widget.lua:22643
-#: lib/bookshelf_widget.lua:23689 lib/bookshelf_widget.lua:23848
-#: lib/bookshelf_widget.lua:24646 main.lua:2342 micromodules/action.lua:227
+#: lib/bookshelf_start_menu_edit.lua:358 lib/bookshelf_widget.lua:8316
+#: lib/bookshelf_widget.lua:17994 lib/bookshelf_widget.lua:20302
+#: lib/bookshelf_widget.lua:22386 lib/bookshelf_widget.lua:22466
+#: lib/bookshelf_widget.lua:22511 lib/bookshelf_widget.lua:22579
+#: lib/bookshelf_widget.lua:22627 lib/bookshelf_widget.lua:22633
+#: lib/bookshelf_widget.lua:23679 lib/bookshelf_widget.lua:23838
+#: lib/bookshelf_widget.lua:24636 main.lua:2342 micromodules/action.lua:227
 #: micromodules/countdown.lua:60 micromodules/reading_goal.lua:408
 #: micromodules/reading_goal.lua:453 micromodules/weather.lua:254
 msgid "Cancel"
@@ -157,26 +157,26 @@ msgid "Set rating"
 msgstr "Nastaviť hodnotenie"
 
 #: lib/bookshelf_bulk_actions.lua:184 lib/bookshelf_bulk_actions.lua:186
-#: lib/bookshelf_bulk_actions.lua:188 lib/bookshelf_widget.lua:21122
+#: lib/bookshelf_bulk_actions.lua:188 lib/bookshelf_widget.lua:21112
 msgid "Favorite"
 msgstr "Obľúbené"
 
 #: lib/bookshelf_bulk_actions.lua:214 lib/bookshelf_chip_editor.lua:385
-#: lib/bookshelf_chip_editor.lua:2815 lib/bookshelf_settings.lua:565
-#: lib/bookshelf_widget.lua:22166
+#: lib/bookshelf_chip_editor.lua:2948 lib/bookshelf_settings.lua:565
+#: lib/bookshelf_widget.lua:22156
 msgid "Collections"
 msgstr "Zbierky"
 
-#: lib/bookshelf_bulk_actions.lua:246 lib/bookshelf_widget.lua:20892
+#: lib/bookshelf_bulk_actions.lua:246 lib/bookshelf_widget.lua:20882
 msgid "Refresh metadata"
 msgstr "Obnoviť metadáta"
 
-#: lib/bookshelf_bulk_actions.lua:259 lib/bookshelf_widget.lua:20816
-#: lib/bookshelf_widget.lua:21125
+#: lib/bookshelf_bulk_actions.lua:259 lib/bookshelf_widget.lua:20806
+#: lib/bookshelf_widget.lua:21115
 msgid "Remove from history"
 msgstr "Odstrániť z histórie"
 
-#: lib/bookshelf_bulk_actions.lua:278 lib/bookshelf_widget.lua:20853
+#: lib/bookshelf_bulk_actions.lua:278 lib/bookshelf_widget.lua:20843
 msgid "Reset book data…"
 msgstr "Vynulovať údaje knihy…"
 
@@ -186,9 +186,9 @@ msgid "Reset %d books?"
 msgstr "Vynulovať %d kníh?"
 
 #: lib/bookshelf_bulk_actions.lua:285 lib/bookshelf_font_picker.lua:275
-#: lib/bookshelf_ornament_menu.lua:400 lib/bookshelf_settings.lua:4619
-#: lib/bookshelf_settings.lua:4662 lib/bookshelf_theme_library.lua:573
-#: lib/bookshelf_theme_pack.lua:1317 main.lua:2985
+#: lib/bookshelf_ornament_menu.lua:400 lib/bookshelf_settings.lua:4590
+#: lib/bookshelf_settings.lua:4633 lib/bookshelf_theme_library.lua:581
+#: lib/bookshelf_theme_pack.lua:1342 main.lua:2985
 msgid "Reset"
 msgstr "Vynulovať"
 
@@ -198,14 +198,14 @@ msgid "Pending changes discarded"
 msgstr "Neuložené zmeny zahodené"
 
 #: lib/bookshelf_bulk_actions.lua:329 lib/bookshelf_bulk_actions.lua:345
-#: lib/bookshelf_chip_editor.lua:1110 lib/bookshelf_chip_editor.lua:2672
+#: lib/bookshelf_chip_editor.lua:1110 lib/bookshelf_chip_editor.lua:2805
 #: lib/bookshelf_collection_manager.lua:383
 #: lib/bookshelf_collection_manager.lua:413
 #: lib/bookshelf_opds_catalog_editor.lua:104
 #: lib/bookshelf_ornament_browser.lua:243
-#: lib/bookshelf_page_count_dialog.lua:72 lib/bookshelf_settings.lua:1528
-#: lib/bookshelf_start_menu_edit.lua:382 lib/bookshelf_widget.lua:20857
-#: lib/bookshelf_widget.lua:20876 lib/bookshelf_widget.lua:22636
+#: lib/bookshelf_page_count_dialog.lua:72 lib/bookshelf_settings.lua:1497
+#: lib/bookshelf_start_menu_edit.lua:382 lib/bookshelf_widget.lua:20847
+#: lib/bookshelf_widget.lua:20866 lib/bookshelf_widget.lua:22626
 msgid "Delete"
 msgstr "Vymazať"
 
@@ -224,9 +224,9 @@ msgid "Move to folder…"
 msgstr "Presunúť do priečinka…"
 
 #: lib/bookshelf_bulk_actions.lua:461 lib/bookshelf_color_palette.lua:425
-#: lib/bookshelf_ornament_browser.lua:329 lib/bookshelf_settings.lua:2986
-#: lib/bookshelf_settings.lua:4870 lib/bookshelf_settings.lua:5213
-#: lib/bookshelf_settings.lua:5426 lib/bookshelf_settings.lua:5509
+#: lib/bookshelf_ornament_browser.lua:329 lib/bookshelf_settings.lua:2955
+#: lib/bookshelf_settings.lua:4841 lib/bookshelf_settings.lua:5184
+#: lib/bookshelf_settings.lua:5397 lib/bookshelf_settings.lua:5480
 msgid "Apply"
 msgstr "Použiť"
 
@@ -266,21 +266,21 @@ msgid "Newer"
 msgstr "Novšie"
 
 #: lib/bookshelf_changelog.lua:139 lib/bookshelf_chip_editor.lua:1481
-#: lib/bookshelf_reviews_modal.lua:529 lib/bookshelf_widget.lua:21525
+#: lib/bookshelf_reviews_modal.lua:529 lib/bookshelf_widget.lua:21515
 #: micromodules/quote_of_day.lua:202
 msgid "Refresh"
 msgstr "Aktualizovať"
 
 #: lib/bookshelf_changelog.lua:148 lib/bookshelf_chip_editor.lua:1146
-#: lib/bookshelf_chip_editor.lua:1484 lib/bookshelf_chip_editor.lua:2270
-#: lib/bookshelf_chip_editor.lua:2473 lib/bookshelf_chip_editor.lua:2956
-#: lib/bookshelf_chip_editor.lua:3320 lib/bookshelf_collection_manager.lua:562
+#: lib/bookshelf_chip_editor.lua:1484 lib/bookshelf_chip_editor.lua:2296
+#: lib/bookshelf_chip_editor.lua:2606 lib/bookshelf_chip_editor.lua:3089
+#: lib/bookshelf_chip_editor.lua:3453 lib/bookshelf_collection_manager.lua:562
 #: lib/bookshelf_folder_picker.lua:168 lib/bookshelf_font_picker.lua:271
 #: lib/bookshelf_icons_library.lua:497 lib/bookshelf_line_editor.lua:170
 #: lib/bookshelf_module_picker.lua:226 lib/bookshelf_plank_browser.lua:268
 #: lib/bookshelf_reviews_modal.lua:561 lib/bookshelf_settings.lua:321
-#: lib/bookshelf_theme_library.lua:580 lib/bookshelf_updater.lua:409
-#: lib/bookshelf_wallpaper_browser.lua:212 lib/bookshelf_widget.lua:18560
+#: lib/bookshelf_theme_library.lua:588 lib/bookshelf_updater.lua:409
+#: lib/bookshelf_wallpaper_browser.lua:212 lib/bookshelf_widget.lua:18550
 #: micromodules/daily_fun.lua:288
 msgid "Close"
 msgstr "Zatvoriť"
@@ -293,31 +293,31 @@ msgstr "Zoznam zmien (%1 z %2)"
 msgid "Could not fetch the changelog."
 msgstr "Zoznam zmien sa nepodarilo načítať."
 
-#: lib/bookshelf_chip_editor.lua:114 lib/bookshelf_chip_editor.lua:1759
-#: lib/bookshelf_widget.lua:5648
+#: lib/bookshelf_chip_editor.lua:114 lib/bookshelf_chip_editor.lua:1763
+#: lib/bookshelf_widget.lua:5639
 msgid "List"
 msgstr "Zoznam"
 
-#: lib/bookshelf_chip_editor.lua:115 lib/bookshelf_chip_editor.lua:1755
-#: lib/bookshelf_widget.lua:5647
+#: lib/bookshelf_chip_editor.lua:115 lib/bookshelf_chip_editor.lua:1759
+#: lib/bookshelf_widget.lua:5638
 msgid "Covers"
 msgstr "Obálky"
 
-#: lib/bookshelf_chip_editor.lua:116 lib/bookshelf_chip_editor.lua:1745
-#: lib/bookshelf_chip_editor.lua:1809 lib/bookshelf_chip_editor.lua:1870
-#: lib/bookshelf_settings.lua:4298 lib/bookshelf_settings.lua:4301
-#: lib/bookshelf_settings.lua:4333 lib/bookshelf_start_menu_edit.lua:320
-#: lib/bookshelf_widget.lua:5650
+#: lib/bookshelf_chip_editor.lua:116 lib/bookshelf_chip_editor.lua:1749
+#: lib/bookshelf_chip_editor.lua:1813 lib/bookshelf_chip_editor.lua:1874
+#: lib/bookshelf_settings.lua:4269 lib/bookshelf_settings.lua:4272
+#: lib/bookshelf_settings.lua:4304 lib/bookshelf_start_menu_edit.lua:320
+#: lib/bookshelf_widget.lua:5641
 msgid "Auto"
 msgstr "Automaticky"
 
-#: lib/bookshelf_chip_editor.lua:117 lib/bookshelf_chip_editor.lua:1768
-#: lib/bookshelf_widget.lua:5649
+#: lib/bookshelf_chip_editor.lua:117 lib/bookshelf_chip_editor.lua:1772
+#: lib/bookshelf_widget.lua:5640
 msgid "Spines"
 msgstr "Chrbty"
 
 #: lib/bookshelf_chip_editor.lua:302 lib/bookshelf_chip_editor.lua:1184
-#: lib/bookshelf_settings.lua:6177 lib/bookshelf_widget.lua:24257
+#: lib/bookshelf_settings.lua:6148 lib/bookshelf_widget.lua:24247
 msgid "New shelf"
 msgstr "Nová polica"
 
@@ -345,64 +345,65 @@ msgstr "Naposledy pridané"
 msgid "Book count"
 msgstr "Počet kníh"
 
-#: lib/bookshelf_chip_editor.lua:378 lib/bookshelf_chip_editor.lua:2784
+#: lib/bookshelf_chip_editor.lua:378 lib/bookshelf_chip_editor.lua:2917
 msgid "Home (folders)"
 msgstr "Domov (priečinky)"
 
-#: lib/bookshelf_chip_editor.lua:379 lib/bookshelf_chip_editor.lua:2785
+#: lib/bookshelf_chip_editor.lua:379 lib/bookshelf_chip_editor.lua:2918
 msgid "Home (flattened)"
 msgstr "Domov (sploštené)"
 
-#: lib/bookshelf_chip_editor.lua:380 lib/bookshelf_chip_editor.lua:2777
+#: lib/bookshelf_chip_editor.lua:380 lib/bookshelf_chip_editor.lua:2910
 msgid "Recently read"
 msgstr "Nedávno čítané"
 
-#: lib/bookshelf_chip_editor.lua:381 lib/bookshelf_chip_editor.lua:2778
+#: lib/bookshelf_chip_editor.lua:381 lib/bookshelf_chip_editor.lua:2911
 msgid "Latest added"
 msgstr "Najnovšie pridané"
 
 #: lib/bookshelf_chip_editor.lua:382 lib/bookshelf_chip_editor.lua:397
-#: lib/bookshelf_chip_editor.lua:2800 lib/bookshelf_filter.lua:37
-#: lib/bookshelf_settings.lua:564 lib/bookshelf_settings.lua:707
-#: lib/bookshelf_sort_engine.lua:560 lib/bookshelf_tab_model.lua:76
-#: lib/bookshelf_widget.lua:1749 lib/bookshelf_widget.lua:22165
+#: lib/bookshelf_chip_editor.lua:2343 lib/bookshelf_chip_editor.lua:2933
+#: lib/bookshelf_filter.lua:37 lib/bookshelf_settings.lua:564
+#: lib/bookshelf_settings.lua:707 lib/bookshelf_sort_engine.lua:560
+#: lib/bookshelf_tab_model.lua:76 lib/bookshelf_widget.lua:1749
+#: lib/bookshelf_widget.lua:22155
 msgid "Series"
 msgstr "Séria"
 
-#: lib/bookshelf_chip_editor.lua:383 lib/bookshelf_chip_editor.lua:2805
+#: lib/bookshelf_chip_editor.lua:383 lib/bookshelf_chip_editor.lua:2938
 #: lib/bookshelf_settings.lua:155 lib/bookshelf_tab_model.lua:80
 #: lib/bookshelf_tokens.lua:30 lib/bookshelf_widget.lua:1748
 msgid "Authors"
 msgstr "Autori"
 
-#: lib/bookshelf_chip_editor.lua:384 lib/bookshelf_chip_editor.lua:2810
+#: lib/bookshelf_chip_editor.lua:384 lib/bookshelf_chip_editor.lua:2943
 #: lib/bookshelf_settings.lua:566 lib/bookshelf_tab_model.lua:88
-#: lib/bookshelf_widget.lua:1750 lib/bookshelf_widget.lua:22167
+#: lib/bookshelf_widget.lua:1750 lib/bookshelf_widget.lua:22157
 msgid "Genres"
 msgstr "Žánre"
 
-#: lib/bookshelf_chip_editor.lua:386 lib/bookshelf_chip_editor.lua:2819
+#: lib/bookshelf_chip_editor.lua:386 lib/bookshelf_chip_editor.lua:2952
 msgid "Formats"
 msgstr "Formáty"
 
-#: lib/bookshelf_chip_editor.lua:387 lib/bookshelf_chip_editor.lua:2824
-#: lib/bookshelf_widget.lua:1753 lib/bookshelf_widget.lua:21284
+#: lib/bookshelf_chip_editor.lua:387 lib/bookshelf_chip_editor.lua:2957
+#: lib/bookshelf_widget.lua:1753 lib/bookshelf_widget.lua:21274
 msgid "Ratings"
 msgstr "Hodnotenia"
 
-#: lib/bookshelf_chip_editor.lua:388 lib/bookshelf_chip_editor.lua:2828
+#: lib/bookshelf_chip_editor.lua:388 lib/bookshelf_chip_editor.lua:2961
 #: lib/bookshelf_tab_model.lua:93
 msgid "Languages"
 msgstr "Jazyky"
 
-#: lib/bookshelf_chip_editor.lua:389 lib/bookshelf_chip_editor.lua:1900
+#: lib/bookshelf_chip_editor.lua:389 lib/bookshelf_chip_editor.lua:1904
 #: lib/bookshelf_collection_manager.lua:119 lib/bookshelf_tab_model.lua:95
-#: lib/bookshelf_widget.lua:19848 lib/bookshelf_widget.lua:19885
+#: lib/bookshelf_widget.lua:19838 lib/bookshelf_widget.lua:19875
 msgid "Favorites"
 msgstr "Obľúbené"
 
 #: lib/bookshelf_chip_editor.lua:391 lib/bookshelf_settings.lua:567
-#: lib/bookshelf_widget.lua:1752 lib/bookshelf_widget.lua:22168
+#: lib/bookshelf_widget.lua:1752 lib/bookshelf_widget.lua:22158
 msgid "Folder"
 msgstr "Priečinok"
 
@@ -419,9 +420,9 @@ msgstr "Zbierka"
 msgid "Genre"
 msgstr "Žáner"
 
-#: lib/bookshelf_chip_editor.lua:396 lib/bookshelf_settings.lua:444
-#: lib/bookshelf_settings.lua:563 lib/bookshelf_settings.lua:706
-#: lib/bookshelf_sort_engine.lua:556
+#: lib/bookshelf_chip_editor.lua:396 lib/bookshelf_chip_editor.lua:2342
+#: lib/bookshelf_settings.lua:444 lib/bookshelf_settings.lua:563
+#: lib/bookshelf_settings.lua:706 lib/bookshelf_sort_engine.lua:556
 msgid "Author"
 msgstr "Autor"
 
@@ -442,12 +443,12 @@ msgstr "Jazyk"
 msgid "OPDS catalog"
 msgstr "Katalóg OPDS"
 
-#: lib/bookshelf_chip_editor.lua:407 lib/bookshelf_chip_editor.lua:2843
+#: lib/bookshelf_chip_editor.lua:407 lib/bookshelf_chip_editor.lua:2976
 msgid "Shelf of shelves"
 msgstr "Polica políc"
 
 #: lib/bookshelf_chip_editor.lua:409 lib/bookshelf_chip_editor.lua:424
-#: lib/bookshelf_settings.lua:4405
+#: lib/bookshelf_settings.lua:4376
 msgid "(none)"
 msgstr "(žiadne)"
 
@@ -564,10 +565,10 @@ msgid "How many count as recently added"
 msgstr "Koľko sa počíta ako nedávno pridané"
 
 #: lib/bookshelf_chip_editor.lua:1534 lib/bookshelf_chip_editor.lua:1588
-#: lib/bookshelf_chip_editor.lua:2110 lib/bookshelf_chip_editor.lua:3134
-#: lib/bookshelf_chip_editor.lua:3192 lib/bookshelf_chip_editor.lua:3255
-#: lib/bookshelf_menu_host.lua:135 lib/bookshelf_widget.lua:1772
-#: micromodules/quote_of_day.lua:86
+#: lib/bookshelf_chip_editor.lua:2114 lib/bookshelf_chip_editor.lua:2407
+#: lib/bookshelf_chip_editor.lua:3267 lib/bookshelf_chip_editor.lua:3325
+#: lib/bookshelf_chip_editor.lua:3388 lib/bookshelf_menu_host.lua:135
+#: lib/bookshelf_widget.lua:1772 micromodules/quote_of_day.lua:86
 msgid "Back"
 msgstr "Späť"
 
@@ -579,341 +580,379 @@ msgstr "Nedávno pridané"
 msgid "No collections yet"
 msgstr "Zatiaľ žiadne zbierky"
 
-#: lib/bookshelf_chip_editor.lua:1595 lib/bookshelf_chip_editor.lua:1906
+#: lib/bookshelf_chip_editor.lua:1595 lib/bookshelf_chip_editor.lua:1910
 msgid "In a collection"
 msgstr "V zbierke"
 
-#: lib/bookshelf_chip_editor.lua:1722 lib/bookshelf_theme_library.lua:539
+#: lib/bookshelf_chip_editor.lua:1724 lib/bookshelf_chip_editor.lua:1725
+#: lib/bookshelf_theme_library.lua:547
 msgid "Theme: %1"
 msgstr "Téma: %1"
 
-#: lib/bookshelf_chip_editor.lua:1743
+#: lib/bookshelf_chip_editor.lua:1747
 msgid "Show as"
 msgstr "Zobraziť ako"
 
-#: lib/bookshelf_chip_editor.lua:1838
+#: lib/bookshelf_chip_editor.lua:1842
 msgid "Auto shows covers by default,"
 msgstr "Automaticky predvolene zobrazuje obálky,"
 
-#: lib/bookshelf_chip_editor.lua:1839
+#: lib/bookshelf_chip_editor.lua:1843
 msgid "and a list in full screen or a folder."
 msgstr "a zoznam na celej obrazovke alebo v priečinku."
 
-#: lib/bookshelf_chip_editor.lua:1843
+#: lib/bookshelf_chip_editor.lua:1847
 msgid "List columns"
 msgstr "Stĺpce zoznamu"
 
-#: lib/bookshelf_chip_editor.lua:1845
+#: lib/bookshelf_chip_editor.lua:1849
 msgid "List rows"
 msgstr "Riadky zoznamu"
 
-#: lib/bookshelf_chip_editor.lua:1857
+#: lib/bookshelf_chip_editor.lua:1861
 msgid "Spine rows"
 msgstr "Riadky chrbtov"
 
-#: lib/bookshelf_chip_editor.lua:1891
+#: lib/bookshelf_chip_editor.lua:1895
 msgid "Spine thickness"
 msgstr "Hrúbka chrbta"
 
-#: lib/bookshelf_chip_editor.lua:1899 lib/bookshelf_chip_editor.lua:2186
-#: lib/bookshelf_settings.lua:709 lib/bookshelf_settings.lua:1000
-#: lib/bookshelf_settings.lua:1059 lib/bookshelf_settings.lua:1637
-#: lib/bookshelf_settings.lua:1667 lib/bookshelf_settings.lua:1747
-#: lib/bookshelf_shelf_row.lua:432 lib/bookshelf_stack_display.lua:106
+#: lib/bookshelf_chip_editor.lua:1903 lib/bookshelf_chip_editor.lua:2190
+#: lib/bookshelf_chip_editor.lua:2345 lib/bookshelf_settings.lua:709
+#: lib/bookshelf_settings.lua:969 lib/bookshelf_settings.lua:1028
+#: lib/bookshelf_settings.lua:1606 lib/bookshelf_settings.lua:1636
+#: lib/bookshelf_settings.lua:1716 lib/bookshelf_shelf_row.lua:418
+#: lib/bookshelf_stack_display.lua:106
 msgid "None"
 msgstr "Žiadne"
 
-#: lib/bookshelf_chip_editor.lua:1901
+#: lib/bookshelf_chip_editor.lua:1905
 msgid "First in series"
 msgstr "Prvá v sérii"
 
-#: lib/bookshelf_chip_editor.lua:1902
+#: lib/bookshelf_chip_editor.lua:1906
 msgid "First unread in series"
 msgstr "Prvá neprečítaná v sérii"
 
-#: lib/bookshelf_chip_editor.lua:1903 lib/bookshelf_settings.lua:3981
+#: lib/bookshelf_chip_editor.lua:1907 lib/bookshelf_settings.lua:3952
 msgid "Currently reading"
 msgstr "Práve čítané"
 
-#: lib/bookshelf_chip_editor.lua:1904 lib/bookshelf_filter.lua:249
+#: lib/bookshelf_chip_editor.lua:1908 lib/bookshelf_filter.lua:249
 #: lib/bookshelf_filter.lua:280 lib/bookshelf_tokens.lua:260
 #: micromodules/random_unread.lua:233 micromodules/shelf_size.lua:19
 msgid "Unread"
 msgstr "Neprečítané"
 
-#: lib/bookshelf_chip_editor.lua:1905
+#: lib/bookshelf_chip_editor.lua:1909
 msgid "Unread standalone"
 msgstr "Neprečítané samostatné"
 
-#: lib/bookshelf_chip_editor.lua:1907 micromodules/random_unread.lua:232
+#: lib/bookshelf_chip_editor.lua:1911 micromodules/random_unread.lua:232
 msgid "All books"
 msgstr "Všetky knihy"
 
-#: lib/bookshelf_chip_editor.lua:1918 lib/bookshelf_chip_editor.lua:1920
-#: lib/bookshelf_chip_editor.lua:1937 lib/bookshelf_chip_editor.lua:2117
+#: lib/bookshelf_chip_editor.lua:1922 lib/bookshelf_chip_editor.lua:1924
+#: lib/bookshelf_chip_editor.lua:1941 lib/bookshelf_chip_editor.lua:2121
 msgid "Face out"
 msgstr "Obálkou dopredu"
 
-#: lib/bookshelf_chip_editor.lua:1926
+#: lib/bookshelf_chip_editor.lua:1930
 msgid "Newest %1"
 msgstr "Najnovších %1"
 
-#: lib/bookshelf_chip_editor.lua:1935
+#: lib/bookshelf_chip_editor.lua:1939
 msgid "Face out: %1 reasons"
 msgstr "Obálkou dopredu: %1 dôvodov"
 
-#: lib/bookshelf_chip_editor.lua:1980
+#: lib/bookshelf_chip_editor.lua:1984
 msgid "Recently added (%1)"
 msgstr "Nedávno pridané (%1)"
 
-#: lib/bookshelf_chip_editor.lua:1983
+#: lib/bookshelf_chip_editor.lua:1987
 msgid "How many: %1"
 msgstr "Koľko: %1"
 
-#: lib/bookshelf_chip_editor.lua:1991
+#: lib/bookshelf_chip_editor.lua:1995
 msgid "Collection: %1 (not found)"
 msgstr "Zbierka: %1 (nenájdená)"
 
-#: lib/bookshelf_chip_editor.lua:1993
+#: lib/bookshelf_chip_editor.lua:1997
 msgid "Collection: %1"
 msgstr "Zbierka: %1"
 
-#: lib/bookshelf_chip_editor.lua:1995
+#: lib/bookshelf_chip_editor.lua:1999
 msgid "Choose collection"
 msgstr "Vybrať zbierku"
 
-#: lib/bookshelf_chip_editor.lua:2121
+#: lib/bookshelf_chip_editor.lua:2125
 msgid "Ticked books stand face out. Tick as many reasons as you like."
 msgstr "Zaškrtnuté knihy stoja obálkou dopredu. Zaškrtnite ľubovoľný počet dôvodov."
 
-#: lib/bookshelf_chip_editor.lua:2187
+#: lib/bookshelf_chip_editor.lua:2191
 msgid "Rarely"
 msgstr "Zriedka"
 
-#: lib/bookshelf_chip_editor.lua:2188
+#: lib/bookshelf_chip_editor.lua:2192
 msgid "Often"
 msgstr "Často"
 
-#: lib/bookshelf_chip_editor.lua:2189 lib/bookshelf_settings.lua:1117
+#: lib/bookshelf_chip_editor.lua:2193 lib/bookshelf_settings.lua:1086
 msgid "Always"
 msgstr "Vždy"
 
-#: lib/bookshelf_chip_editor.lua:2206
+#: lib/bookshelf_chip_editor.lua:2210
 msgid "Author on spine"
 msgstr "Autor na chrbte"
 
-#: lib/bookshelf_chip_editor.lua:2221
+#: lib/bookshelf_chip_editor.lua:2225
 msgid "Ornaments"
 msgstr "Ozdoby"
 
-#: lib/bookshelf_chip_editor.lua:2246
+#: lib/bookshelf_chip_editor.lua:2253
 msgid "Folder tiles: "
 msgstr "Dlaždice priečinka: "
 
-#: lib/bookshelf_chip_editor.lua:2249
+#: lib/bookshelf_chip_editor.lua:2256
 msgid "Folder tiles"
 msgstr "Dlaždice priečinka"
 
-#: lib/bookshelf_chip_editor.lua:2277
+#: lib/bookshelf_chip_editor.lua:2303
 msgid "Shelf style"
 msgstr "Štýl police"
 
-#: lib/bookshelf_chip_editor.lua:2345
+#: lib/bookshelf_chip_editor.lua:2322
+msgid "Cover captions: %1"
+msgstr "Popisky obálok: %1"
+
+#: lib/bookshelf_chip_editor.lua:2341 lib/bookshelf_settings.lua:443
+#: lib/bookshelf_settings.lua:705 lib/bookshelf_sort_engine.lua:545
+#: lib/bookshelf_tokens.lua:68
+msgid "Title"
+msgstr "Názov"
+
+#: lib/bookshelf_chip_editor.lua:2344 lib/bookshelf_settings.lua:708
+msgid "Custom"
+msgstr "Vlastné"
+
+#: lib/bookshelf_chip_editor.lua:2348 lib/bookshelf_theme_pack.lua:451
+msgid "Same as %1"
+msgstr "Rovnako ako %1"
+
+#: lib/bookshelf_chip_editor.lua:2350 lib/bookshelf_color_palette.lua:423
+#: lib/bookshelf_font_picker.lua:192 lib/bookshelf_line_editor.lua:165
+#: lib/bookshelf_line_editor.lua:565 lib/bookshelf_settings.lua:2283
+#: lib/bookshelf_settings.lua:2953 lib/bookshelf_settings.lua:4801
+#: lib/bookshelf_settings.lua:5182 lib/bookshelf_settings.lua:5391
+#: lib/bookshelf_settings.lua:5478 lib/bookshelf_stack_display.lua:194
+msgid "Default"
+msgstr "Predvolené"
+
+#: lib/bookshelf_chip_editor.lua:2375 lib/bookshelf_settings.lua:725
+msgid "Custom…"
+msgstr "Vlastné…"
+
+#: lib/bookshelf_chip_editor.lua:2414 lib/bookshelf_cover_label_editor.lua:60
+#: lib/bookshelf_settings.lua:766 lib/bookshelf_settings.lua:5569
+msgid "Cover captions"
+msgstr "Popisky obálok"
+
+#: lib/bookshelf_chip_editor.lua:2478
 msgid "Save downloads from this catalog to…"
 msgstr "Uložiť stiahnuté z tohto katalógu do…"
 
-#: lib/bookshelf_chip_editor.lua:2349
+#: lib/bookshelf_chip_editor.lua:2482
 msgid "Choose folder…"
 msgstr "Vybrať priečinok…"
 
-#: lib/bookshelf_chip_editor.lua:2353
+#: lib/bookshelf_chip_editor.lua:2486
 msgid "Save downloads to…"
 msgstr "Uložiť stiahnuté do…"
 
-#: lib/bookshelf_chip_editor.lua:2364 lib/bookshelf_chip_editor.lua:2365
+#: lib/bookshelf_chip_editor.lua:2497 lib/bookshelf_chip_editor.lua:2498
 msgid "KOReader's download folder"
 msgstr "Priečinok sťahovania KOReader"
 
-#: lib/bookshelf_chip_editor.lua:2425 lib/bookshelf_chip_editor.lua:2513
+#: lib/bookshelf_chip_editor.lua:2558 lib/bookshelf_chip_editor.lua:2646
 msgid "Choose "
 msgstr "Vybrať "
 
-#: lib/bookshelf_chip_editor.lua:2426 lib/bookshelf_chip_editor.lua:3094
+#: lib/bookshelf_chip_editor.lua:2559 lib/bookshelf_chip_editor.lua:3227
 #: lib/bookshelf_folder_picker.lua:137 lib/bookshelf_library_modal.lua:557
-#: lib/bookshelf_widget.lua:8291 lib/bookshelf_widget.lua:22496
+#: lib/bookshelf_widget.lua:8281 lib/bookshelf_widget.lua:22486
 msgid "Search…"
 msgstr "Hľadať…"
 
-#: lib/bookshelf_chip_editor.lua:2651
+#: lib/bookshelf_chip_editor.lua:2784
 msgid "Choose OPDS catalog"
 msgstr "Vybrať katalóg OPDS"
 
-#: lib/bookshelf_chip_editor.lua:2653
+#: lib/bookshelf_chip_editor.lua:2786
 msgid "Add catalog…"
 msgstr "Pridať katalóg…"
 
-#: lib/bookshelf_chip_editor.lua:2668 lib/bookshelf_line_editor.lua:583
-#: lib/bookshelf_widget.lua:21352 lib/bookshelf_widget.lua:21642
-#: lib/bookshelf_widget.lua:22150 lib/bookshelf_widget.lua:22248
+#: lib/bookshelf_chip_editor.lua:2801 lib/bookshelf_line_editor.lua:583
+#: lib/bookshelf_widget.lua:21342 lib/bookshelf_widget.lua:21632
+#: lib/bookshelf_widget.lua:22140 lib/bookshelf_widget.lua:22238
 msgid "Edit"
 msgstr "Upraviť"
 
-#: lib/bookshelf_chip_editor.lua:2744
+#: lib/bookshelf_chip_editor.lua:2877
 msgid "Choose folder within home folder"
 msgstr "Vybrať priečinok v domovskom priečinku"
 
-#: lib/bookshelf_chip_editor.lua:2746 lib/bookshelf_folder_picker.lua:111
+#: lib/bookshelf_chip_editor.lua:2879 lib/bookshelf_folder_picker.lua:111
 msgid "Browse device…"
 msgstr "Prehľadávať zariadenie…"
 
-#: lib/bookshelf_chip_editor.lua:2771 lib/bookshelf_sort_engine.lua:652
+#: lib/bookshelf_chip_editor.lua:2904 lib/bookshelf_sort_engine.lua:652
 #: micromodules/shelf_size.lua:159 micromodules/trivia.lua:44
 msgid "Books"
 msgstr "Knihy"
 
-#: lib/bookshelf_chip_editor.lua:2779
+#: lib/bookshelf_chip_editor.lua:2912
 msgid "★ Favorites"
 msgstr "★ Obľúbené"
 
-#: lib/bookshelf_chip_editor.lua:2792
+#: lib/bookshelf_chip_editor.lua:2925
 msgid "Specific folder…"
 msgstr "Konkrétny priečinok…"
 
-#: lib/bookshelf_chip_editor.lua:2794
+#: lib/bookshelf_chip_editor.lua:2927
 msgid "Flattened folder…"
 msgstr "Sploštený priečinok…"
 
-#: lib/bookshelf_chip_editor.lua:2798
+#: lib/bookshelf_chip_editor.lua:2931
 msgid "Grouped"
 msgstr "Zoskupené"
 
-#: lib/bookshelf_chip_editor.lua:2801
+#: lib/bookshelf_chip_editor.lua:2934
 msgid "Specific series…"
 msgstr "Konkrétna séria…"
 
-#: lib/bookshelf_chip_editor.lua:2806
+#: lib/bookshelf_chip_editor.lua:2939
 msgid "Specific author…"
 msgstr "Konkrétny autor…"
 
-#: lib/bookshelf_chip_editor.lua:2811
+#: lib/bookshelf_chip_editor.lua:2944
 msgid "Specific genre…"
 msgstr "Konkrétny žáner…"
 
-#: lib/bookshelf_chip_editor.lua:2816
+#: lib/bookshelf_chip_editor.lua:2949
 msgid "Specific collection…"
 msgstr "Konkrétna zbierka…"
 
-#: lib/bookshelf_chip_editor.lua:2820
+#: lib/bookshelf_chip_editor.lua:2953
 msgid "Specific format…"
 msgstr "Konkrétny formát…"
 
-#: lib/bookshelf_chip_editor.lua:2825
+#: lib/bookshelf_chip_editor.lua:2958
 msgid "Specific rating…"
 msgstr "Konkrétne hodnotenie…"
 
-#: lib/bookshelf_chip_editor.lua:2829
+#: lib/bookshelf_chip_editor.lua:2962
 msgid "Specific language…"
 msgstr "Konkrétny jazyk…"
 
-#: lib/bookshelf_chip_editor.lua:2844
+#: lib/bookshelf_chip_editor.lua:2977
 msgid "OPDS catalog…"
 msgstr "Katalóg OPDS…"
 
-#: lib/bookshelf_chip_editor.lua:2882
+#: lib/bookshelf_chip_editor.lua:3015
 msgid "Shelf source or grouping"
 msgstr "Zdroj alebo zoskupenie police"
 
-#: lib/bookshelf_chip_editor.lua:2950
+#: lib/bookshelf_chip_editor.lua:3083
 msgid "Clear all filters"
 msgstr "Vymazať všetky filtre"
 
-#: lib/bookshelf_chip_editor.lua:2959
+#: lib/bookshelf_chip_editor.lua:3092
 msgid "Pick filters to narrow the shelf. Several picks in the same row match any of them, so picking two genres shows books in either. Picks in different rows must all match, so adding a 5-star rating then limits those to 5-star books only. Numbers below filter choices show how many books currently match based on other selected filters."
 msgstr "Vyberte filtre na zúženie police. Viacero volieb v tom istom riadku sa zhoduje s ktoroukoľvek z nich, takže výber dvoch žánrov zobrazí knihy patriace aspoň do jedného z nich. Voľby v rôznych riadkoch musia platiť všetky súčasne, takže pridanie 5-hviezdičkového hodnotenia potom obmedzí výsledok len na knihy s 5 hviezdičkami. Čísla pod voľbami filtra ukazujú, koľko kníh aktuálne vyhovuje na základe ostatných zvolených filtrov."
 
-#: lib/bookshelf_chip_editor.lua:2961
+#: lib/bookshelf_chip_editor.lua:3094
 msgid "Filters"
 msgstr "Filtre"
 
-#: lib/bookshelf_chip_editor.lua:3011
+#: lib/bookshelf_chip_editor.lua:3144
 msgid "Series filter"
 msgstr "Filter série"
 
-#: lib/bookshelf_chip_editor.lua:3026
+#: lib/bookshelf_chip_editor.lua:3159
 msgid "Reading status filter"
 msgstr "Filter stavu čítania"
 
-#: lib/bookshelf_chip_editor.lua:3027
+#: lib/bookshelf_chip_editor.lua:3160
 msgid "Genre filter"
 msgstr "Filter žánru"
 
-#: lib/bookshelf_chip_editor.lua:3028
+#: lib/bookshelf_chip_editor.lua:3161
 msgid "Language filter"
 msgstr "Filter jazyka"
 
-#: lib/bookshelf_chip_editor.lua:3029
+#: lib/bookshelf_chip_editor.lua:3162
 msgid "Format filter"
 msgstr "Filter formátu"
 
-#: lib/bookshelf_chip_editor.lua:3030
+#: lib/bookshelf_chip_editor.lua:3163
 msgid "Rating filter"
 msgstr "Filter hodnotenia"
 
-#: lib/bookshelf_chip_editor.lua:3031
+#: lib/bookshelf_chip_editor.lua:3164
 msgid "Collection filter"
 msgstr "Filter zbierky"
 
-#: lib/bookshelf_chip_editor.lua:3033
+#: lib/bookshelf_chip_editor.lua:3166
 msgid "Filter"
 msgstr "Filter"
 
-#: lib/bookshelf_chip_editor.lua:3170 micromodules/trivia.lua:42
+#: lib/bookshelf_chip_editor.lua:3303 micromodules/trivia.lua:42
 #: micromodules/trivia.lua:63 micromodules/trivia.lua:70
 #: micromodules/trivia.lua:402
 msgid "Any"
 msgstr "Akékoľvek"
 
-#: lib/bookshelf_chip_editor.lua:3190
+#: lib/bookshelf_chip_editor.lua:3323
 msgid "(none in library)"
 msgstr "(žiadne v knižnici)"
 
-#: lib/bookshelf_chip_editor.lua:3248
+#: lib/bookshelf_chip_editor.lua:3381
 msgid "(no folder filters - tap to remove once added)"
 msgstr "(žiadne filtre priečinkov – po pridaní ťuknutím odstránite)"
 
-#: lib/bookshelf_chip_editor.lua:3252
+#: lib/bookshelf_chip_editor.lua:3385
 msgid "Add folder to include"
 msgstr "Pridať priečinok na zahrnutie"
 
-#: lib/bookshelf_chip_editor.lua:3253
+#: lib/bookshelf_chip_editor.lua:3386
 msgid "Add folder to exclude"
 msgstr "Pridať priečinok na vylúčenie"
 
-#: lib/bookshelf_chip_editor.lua:3258
+#: lib/bookshelf_chip_editor.lua:3391
 msgid "Folder filter"
 msgstr "Filter priečinka"
 
-#: lib/bookshelf_chip_editor.lua:3312
+#: lib/bookshelf_chip_editor.lua:3445
 msgid "Clear sort"
 msgstr "Vymazať zoradenie"
 
-#: lib/bookshelf_chip_editor.lua:3389
+#: lib/bookshelf_chip_editor.lua:3522
 msgid "Edit collection order"
 msgstr "Upraviť poradie zbierky"
 
-#: lib/bookshelf_chip_editor.lua:3399
+#: lib/bookshelf_chip_editor.lua:3532
 msgid "Sort groups by"
 msgstr "Zoradiť skupiny podľa"
 
-#: lib/bookshelf_chip_editor.lua:3401
+#: lib/bookshelf_chip_editor.lua:3534
 msgid "Within each group, then by"
 msgstr "V rámci každej skupiny potom podľa"
 
-#: lib/bookshelf_chip_editor.lua:3403
+#: lib/bookshelf_chip_editor.lua:3536
 msgid "Sort by"
 msgstr "Zoradiť podľa"
 
-#: lib/bookshelf_chip_editor.lua:3405
+#: lib/bookshelf_chip_editor.lua:3538
 msgid "Then by"
 msgstr "Potom podľa"
 
@@ -921,15 +960,15 @@ msgstr "Potom podľa"
 msgid "Rename collection"
 msgstr "Premenovať zbierku"
 
-#: lib/bookshelf_collection_manager.lua:337 lib/bookshelf_widget.lua:22587
+#: lib/bookshelf_collection_manager.lua:337 lib/bookshelf_widget.lua:22577
 msgid "New name"
 msgstr "Nový názov"
 
 #: lib/bookshelf_collection_manager.lua:341
 #: lib/bookshelf_collection_manager.lua:409 lib/bookshelf_move_flow.lua:389
 #: lib/bookshelf_start_menu_edit.lua:101 lib/bookshelf_start_menu_edit.lua:107
-#: lib/bookshelf_start_menu_edit.lua:108 lib/bookshelf_widget.lua:22591
-#: lib/bookshelf_widget.lua:22632
+#: lib/bookshelf_start_menu_edit.lua:108 lib/bookshelf_widget.lua:22581
+#: lib/bookshelf_widget.lua:22622
 msgid "Rename"
 msgstr "Premenovať"
 
@@ -947,8 +986,8 @@ msgid "\"? Books are not deleted, only the tag."
 msgstr "\"? Knihy sa nevymažú, iba štítok."
 
 #: lib/bookshelf_collection_manager.lua:410
-#: lib/bookshelf_collection_manager.lua:421 lib/bookshelf_widget.lua:22634
-#: lib/bookshelf_widget.lua:22641
+#: lib/bookshelf_collection_manager.lua:421 lib/bookshelf_widget.lua:22624
+#: lib/bookshelf_widget.lua:22631
 msgid "Pin to shelf menu"
 msgstr "Pripnúť do ponuky políc"
 
@@ -973,8 +1012,8 @@ msgstr "Vytvoriť"
 
 #: lib/bookshelf_collection_manager.lua:510
 #: lib/bookshelf_collection_manager.lua:534 lib/bookshelf_line_editor.lua:569
-#: lib/bookshelf_opds_catalog_editor.lua:50 lib/bookshelf_widget.lua:20314
-#: lib/bookshelf_widget.lua:22523 main.lua:2347 micromodules/action.lua:230
+#: lib/bookshelf_opds_catalog_editor.lua:50 lib/bookshelf_widget.lua:20304
+#: lib/bookshelf_widget.lua:22513 main.lua:2347 micromodules/action.lua:230
 #: micromodules/countdown.lua:144 micromodules/reading_goal.lua:415
 #: micromodules/reading_goal.lua:460 micromodules/weather.lua:261
 msgid "Save"
@@ -1014,12 +1053,12 @@ msgid "Mixed"
 msgstr "Zmiešané"
 
 #: lib/bookshelf_collection_manager.lua:830
-#: lib/bookshelf_start_menu_edit.lua:518 lib/bookshelf_widget.lua:22398
-#: lib/bookshelf_widget.lua:22478 micromodules/countdown.lua:121
+#: lib/bookshelf_start_menu_edit.lua:518 lib/bookshelf_widget.lua:22388
+#: lib/bookshelf_widget.lua:22468 micromodules/countdown.lua:121
 msgid "Add"
 msgstr "Pridať"
 
-#: lib/bookshelf_collection_manager.lua:832 lib/bookshelf_widget.lua:22625
+#: lib/bookshelf_collection_manager.lua:832 lib/bookshelf_widget.lua:22615
 msgid "Remove"
 msgstr "Odstrániť"
 
@@ -1030,15 +1069,6 @@ msgstr "Usporiadať knihy v zbierke"
 #: lib/bookshelf_color_palette.lua:402
 msgid "or"
 msgstr "alebo"
-
-#: lib/bookshelf_color_palette.lua:423 lib/bookshelf_font_picker.lua:192
-#: lib/bookshelf_line_editor.lua:165 lib/bookshelf_line_editor.lua:565
-#: lib/bookshelf_settings.lua:2314 lib/bookshelf_settings.lua:2984
-#: lib/bookshelf_settings.lua:4830 lib/bookshelf_settings.lua:5211
-#: lib/bookshelf_settings.lua:5420 lib/bookshelf_settings.lua:5507
-#: lib/bookshelf_stack_display.lua:194
-msgid "Default"
-msgstr "Predvolené"
 
 #: lib/bookshelf_color_palette.lua:427
 msgid "White"
@@ -1052,8 +1082,8 @@ msgstr "Vybrať farbu"
 msgid "Invalid hex color (use #RGB or #RRGGBB)"
 msgstr "Neplatná hex farba (použite #RGB alebo #RRGGBB)"
 
-#: lib/bookshelf_cover_apply.lua:166 lib/bookshelf_widget.lua:20596
-#: lib/bookshelf_widget.lua:22342
+#: lib/bookshelf_cover_apply.lua:166 lib/bookshelf_widget.lua:20586
+#: lib/bookshelf_widget.lua:22332
 msgid "Embedded"
 msgstr "Vstavané"
 
@@ -1070,8 +1100,8 @@ msgid "Previous cover"
 msgstr "Predchádzajúca obálka"
 
 #: lib/bookshelf_cover_apply.lua:208 lib/bookshelf_cover_sources.lua:295
-#: lib/bookshelf_widget.lua:20597 lib/bookshelf_widget.lua:21258
-#: lib/bookshelf_widget.lua:22344 lib/bookshelf_widget.lua:23283
+#: lib/bookshelf_widget.lua:20587 lib/bookshelf_widget.lua:21248
+#: lib/bookshelf_widget.lua:22334 lib/bookshelf_widget.lua:23273
 msgid "Hardcover"
 msgstr "Hardcover"
 
@@ -1082,14 +1112,6 @@ msgstr "%1×%2px · %3"
 #: lib/bookshelf_cover_grid_cell.lua:71
 msgid "%1×%2px"
 msgstr "%1×%2px"
-
-#: lib/bookshelf_cover_label_editor.lua:60
-msgid "Text below covers"
-msgstr "Text pod obálkami"
-
-#: lib/bookshelf_cover_label_editor.lua:68 lib/bookshelf_settings.lua:824
-msgid "Show text below groups"
-msgstr "Zobraziť text pod skupinami"
 
 #: lib/bookshelf_cover_sources.lua:189
 msgid "Google Books"
@@ -1211,7 +1233,7 @@ msgid "Pick font"
 msgstr "Vybrať písmo"
 
 #: lib/bookshelf_font_picker.lua:284 lib/bookshelf_ornament_menu.lua:405
-#: lib/bookshelf_widget.lua:23212
+#: lib/bookshelf_widget.lua:23202
 msgid "Done"
 msgstr "Hotovo"
 
@@ -1311,7 +1333,7 @@ msgstr "Ťuknutím na ozdobu spustíte jej akciu"
 msgid "All gestures"
 msgstr "Všetky gestá"
 
-#: lib/bookshelf_hero_card.lua:413 lib/bookshelf_widget.lua:16396
+#: lib/bookshelf_hero_card.lua:413 lib/bookshelf_widget.lua:16386
 msgid "Stop"
 msgstr "Zastaviť"
 
@@ -1347,7 +1369,7 @@ msgid "Dynamic"
 msgstr "Dynamické"
 
 #: lib/bookshelf_icons_catalogue.lua:22 lib/bookshelf_settings.lua:158
-#: lib/bookshelf_tokens.lua:32 lib/bookshelf_widget.lua:22046
+#: lib/bookshelf_tokens.lua:32 lib/bookshelf_widget.lua:22036
 msgid "Device"
 msgstr "Zariadenie"
 
@@ -1409,7 +1431,7 @@ msgstr "Piky"
 msgid "Club"
 msgstr "Kríže"
 
-#: lib/bookshelf_icons_catalogue.lua:178 lib/bookshelf_settings.lua:1167
+#: lib/bookshelf_icons_catalogue.lua:178 lib/bookshelf_settings.lua:1136
 msgid "Heart"
 msgstr "Srdce"
 
@@ -1809,8 +1831,8 @@ msgstr "Hľadať ikony %1 podľa názvu…"
 msgid "Drop .svg or .png files in koreader/icons/"
 msgstr "Umiestnite súbory .svg alebo .png do koreader/icons/"
 
-#: lib/bookshelf_library_modal.lua:593 lib/bookshelf_widget.lua:17999
-#: lib/bookshelf_widget.lua:24651
+#: lib/bookshelf_library_modal.lua:593 lib/bookshelf_widget.lua:17989
+#: lib/bookshelf_widget.lua:24641
 msgid "Search"
 msgstr "Hľadať"
 
@@ -1822,7 +1844,7 @@ msgstr "S okrajom"
 msgid "Rounded"
 msgstr "Zaoblená"
 
-#: lib/bookshelf_line_editor.lua:94 lib/bookshelf_settings.lua:1861
+#: lib/bookshelf_line_editor.lua:94 lib/bookshelf_settings.lua:1830
 msgid "Solid"
 msgstr "Plné"
 
@@ -2490,11 +2512,11 @@ msgstr "Extrahovať počty strán"
 msgid "No books to count here."
 msgstr "Nie sú tu žiadne knihy na spočítanie."
 
-#: lib/bookshelf_pagination.lua:85 lib/bookshelf_widget.lua:7318
+#: lib/bookshelf_pagination.lua:85 lib/bookshelf_widget.lua:7308
 msgid "Page %1 of %2+"
 msgstr "Strana %1 z %2+"
 
-#: lib/bookshelf_pagination.lua:86 lib/bookshelf_widget.lua:7319
+#: lib/bookshelf_pagination.lua:86 lib/bookshelf_widget.lua:7309
 msgid "Page %1 of %2"
 msgstr "Strana %1 z %2"
 
@@ -2521,7 +2543,7 @@ msgstr "Dub"
 msgid "More planks come with packs: see Add ornaments in the Ornament collection."
 msgstr "Ďalšie dosky prichádzajú s balíkmi: pozrite Pridať ozdoby v Zbierke ozdôb."
 
-#: lib/bookshelf_plank_browser.lua:148 lib/bookshelf_theme_pack.lua:838
+#: lib/bookshelf_plank_browser.lua:148 lib/bookshelf_theme_pack.lua:863
 msgid "%1 (%2 pack)"
 msgstr "%1 (balík %2)"
 
@@ -2533,13 +2555,13 @@ msgstr "Vstavané"
 msgid "Plank"
 msgstr "Doska"
 
-#: lib/bookshelf_reader_park.lua:437 lib/bookshelf_widget.lua:25009
+#: lib/bookshelf_reader_park.lua:437 lib/bookshelf_widget.lua:24999
 #: main.lua:1331
 msgid "Closing book…"
 msgstr "Zatvára sa kniha…"
 
 #: lib/bookshelf_reviews_modal.lua:507 lib/bookshelf_updater.lua:212
-#: lib/bookshelf_widget.lua:18490
+#: lib/bookshelf_widget.lua:18480
 msgid "Open"
 msgstr "Otvoriť"
 
@@ -2606,11 +2628,6 @@ msgstr "Pomoc"
 msgid "Status line"
 msgstr "Stavový riadok"
 
-#: lib/bookshelf_settings.lua:443 lib/bookshelf_settings.lua:705
-#: lib/bookshelf_sort_engine.lua:545 lib/bookshelf_tokens.lua:68
-msgid "Title"
-msgstr "Názov"
-
 #: lib/bookshelf_settings.lua:445
 msgid "Rating (interactive)"
 msgstr "Hodnotenie (interaktívne)"
@@ -2619,9 +2636,9 @@ msgstr "Hodnotenie (interaktívne)"
 msgid "Metadata"
 msgstr "Metadáta"
 
-#: lib/bookshelf_settings.lua:447 lib/bookshelf_widget.lua:18548
-#: lib/bookshelf_widget.lua:20586 lib/bookshelf_widget.lua:22766
-#: lib/bookshelf_widget.lua:22776
+#: lib/bookshelf_settings.lua:447 lib/bookshelf_widget.lua:18538
+#: lib/bookshelf_widget.lua:20576 lib/bookshelf_widget.lua:22756
+#: lib/bookshelf_widget.lua:22766
 msgid "Description"
 msgstr "Popis"
 
@@ -2642,12 +2659,12 @@ msgid "Center"
 msgstr "Na stred"
 
 #: lib/bookshelf_settings.lua:596 lib/bookshelf_settings.lua:601
-#: lib/bookshelf_settings.lua:5237
+#: lib/bookshelf_settings.lua:5208
 msgid "Left"
 msgstr "Vľavo"
 
 #: lib/bookshelf_settings.lua:596 lib/bookshelf_settings.lua:603
-#: lib/bookshelf_settings.lua:5238
+#: lib/bookshelf_settings.lua:5209
 msgid "Right"
 msgstr "Vpravo"
 
@@ -2663,369 +2680,361 @@ msgstr "Maximálny počet riadkov štítkov"
 msgid "How many rows of tag pills the top panel shows before the rest collapse into a tappable +N button."
 msgstr "Koľko riadkov štítkov (pilulky) zobrazí horný panel, kým sa zvyšok nezbalí do klikateľného tlačidla +N."
 
-#: lib/bookshelf_settings.lua:627 lib/bookshelf_settings.lua:3577
+#: lib/bookshelf_settings.lua:627 lib/bookshelf_settings.lua:3546
 msgid "Set"
 msgstr "Nastaviť"
 
-#: lib/bookshelf_settings.lua:708
-msgid "Custom"
-msgstr "Vlastné"
+#: lib/bookshelf_settings.lua:768
+msgid "A line of text under each cover, on the regular shelf and full screen shelves alike. Choose what it shows, or None to let covers use the full row. A shelf can choose its own under Shelf style. Text size follows the Cover captions setting under Text size."
+msgstr "Riadok textu pod každou obálkou, na bežnej polici aj v policiach na celú obrazovku. Vyberte, čo zobrazuje, alebo Žiadne, aby obálky využili celý riadok. Polica si môže zvoliť vlastné v časti Štýl police. Veľkosť textu sa riadi nastavením Popisky obálok v časti Veľkosť textu."
 
-#: lib/bookshelf_settings.lua:725 lib/bookshelf_settings.lua:786
-msgid "Custom…"
-msgstr "Vlastné…"
+#: lib/bookshelf_settings.lua:790
+msgid "Show author below series"
+msgstr "Zobraziť autora pod sériou"
 
-#: lib/bookshelf_settings.lua:802
-msgid "Show text below covers"
-msgstr "Zobraziť text pod obálkami"
+#: lib/bookshelf_settings.lua:791
+msgid "The author's name under each series stack. Folder title styles that print the series name below the tile keep that line for the name."
+msgstr "Meno autora pod každým stohom série. Štýly názvov priečinkov, ktoré vypisujú názov série pod dlaždicou, si tento riadok ponechajú pre názov."
 
-#: lib/bookshelf_settings.lua:804
-msgid "A line of text under each cover, on the regular shelf and full screen shelves alike. Choose what it shows, or None to let covers use the full row. Text size follows the Cover labels setting under Text size."
-msgstr "Riadok textu pod každou obálkou, rovnako na bežnej polici ako na policiach na celú obrazovku. Vyberte, čo sa má zobraziť, alebo Žiadne, aby obálky využili celý riadok. Veľkosť textu sa riadi nastavením Popisky obálok v časti Veľkosť textu."
-
-#: lib/bookshelf_settings.lua:826
-msgid "A line of text under stacks and folders, chosen apart from the books' text. Author shows a series' author. Folder title styles that print the name below the tile keep that line for the name."
-msgstr "Riadok textu pod stohmi a priečinkami, vybraný oddelene od textu kníh. Autor zobrazuje autora série. Štýly priečinkov, ktoré píšu názov pod dlaždicu, si tento riadok ponechávajú pre názov."
-
-#: lib/bookshelf_settings.lua:839
+#: lib/bookshelf_settings.lua:808
 msgid "True cover aspect ratio"
 msgstr "Skutočný pomer strán obálky"
 
-#: lib/bookshelf_settings.lua:840
+#: lib/bookshelf_settings.lua:809
 msgid "Show each cover at its real shape instead of a uniform book rectangle. Covers keep the same width but vary in height: on the shelf they sit along the bottom shelf line, and in the top panel they align to the top. Wide or square covers stop being cropped or stretched. Off by default (uniform grid)."
 msgstr "Zobrazí každú obálku v jej skutočnom tvare namiesto jednotného obdĺžnika knihy. Obálky si zachovávajú rovnakú šírku, no líšia sa výškou: na polici sedia na spodnej línii police a v hornom paneli sa zarovnávajú hore. Široké alebo štvorcové obálky sa už neorezávajú ani nenaťahujú. Predvolene vypnuté (jednotná mriežka)."
 
-#: lib/bookshelf_settings.lua:870
+#: lib/bookshelf_settings.lua:839
 msgid "(default)"
 msgstr "(predvolené)"
 
-#: lib/bookshelf_settings.lua:891
+#: lib/bookshelf_settings.lua:860
 msgid "Tallest cover shape"
 msgstr "Najvyšší tvar obálky"
 
-#: lib/bookshelf_settings.lua:894
+#: lib/bookshelf_settings.lua:863
 msgid "How tall a cover may be, relative to its width, before the extra height is trimmed. Taller values show more of an unusually tall cover; they also make every row taller, so fewer rows fit on the shelf. Only applies with True cover aspect ratio on."
 msgstr "Aká vysoká môže byť obálka vzhľadom na svoju šírku, kým sa nadbytočná výška neorezala. Vyššie hodnoty zobrazia viac z nezvyčajne vysokej obálky, no zároveň zvyšujú každý riadok, takže na policu sa zmestí menej riadkov. Platí iba pri zapnutom Skutočnom pomere strán obálky."
 
-#: lib/bookshelf_settings.lua:907
+#: lib/bookshelf_settings.lua:876
 msgid "Square cover corners"
 msgstr "Štvorcové rohy obálky"
 
-#: lib/bookshelf_settings.lua:908
+#: lib/bookshelf_settings.lua:877
 msgid "Draw covers with square corners instead of the rounded card shape. Independent of the drop shadow, so a flatter look can keep the shadow or drop it separately. Off by default (rounded)."
 msgstr "Vykresľuje obálky s ostrými rohmi namiesto zaobleného tvaru karty. Nezávislé od vrhaného tieňa, takže plochší vzhľad môže tieň zachovať alebo ho samostatne vypnúť. Predvolene vypnuté (zaoblené)."
 
-#: lib/bookshelf_settings.lua:924
+#: lib/bookshelf_settings.lua:893
 msgid "No cover drop shadow"
 msgstr "Bez vrhaného tieňa obálky"
 
-#: lib/bookshelf_settings.lua:925
+#: lib/bookshelf_settings.lua:894
 msgid "Draw covers flat against the page instead of raised off it. The pixels the shadow reserved go back to the cover, so covers get slightly larger. Off by default (shadow shown)."
 msgstr "Vykresľuje obálky naplocho oproti stránke namiesto nadvihnutých nad ňou. Pixely vyhradené pre tieň sa vrátia obálke, takže obálky sú o niečo väčšie. Predvolene vypnuté (tieň zobrazený)."
 
-#: lib/bookshelf_settings.lua:955
+#: lib/bookshelf_settings.lua:924
 msgid "Default folder style: "
 msgstr "Predvolený štýl priečinka: "
 
-#: lib/bookshelf_settings.lua:957
+#: lib/bookshelf_settings.lua:926
 msgid "How folders and stacks are drawn on any shelf that has not chosen its own. Long-press a shelf to override it there."
 msgstr "Ako sa vykresľujú priečinky a stohy na každej polici, ktorá si nezvolila vlastný štýl. Dlhým stlačením police to na nej prepíšete."
 
-#: lib/bookshelf_settings.lua:967
+#: lib/bookshelf_settings.lua:936
 msgid "Show progress bars"
 msgstr "Zobraziť ukazovatele priebehu"
 
-#: lib/bookshelf_settings.lua:969
+#: lib/bookshelf_settings.lua:938
 msgid "Show reading bookmarks"
 msgstr "Zobraziť záložky čítania"
 
-#: lib/bookshelf_settings.lua:973
+#: lib/bookshelf_settings.lua:942
 msgid "Show page count"
 msgstr "Zobraziť počet strán"
 
-#: lib/bookshelf_settings.lua:1001
+#: lib/bookshelf_settings.lua:970
 msgid "Bookmark style"
 msgstr "Štýl záložky"
 
-#: lib/bookshelf_settings.lua:1002
+#: lib/bookshelf_settings.lua:971
 msgid "Small tick box"
 msgstr "Malé zaškrtávacie políčko"
 
-#: lib/bookshelf_settings.lua:1017
+#: lib/bookshelf_settings.lua:986
 msgid "Completed book badge"
 msgstr "Odznak dokončenej knihy"
 
-#: lib/bookshelf_settings.lua:1031
+#: lib/bookshelf_settings.lua:1000
 msgid "Fade finished books"
 msgstr "Stlmiť dokončené knihy"
 
-#: lib/bookshelf_settings.lua:1060
+#: lib/bookshelf_settings.lua:1029
 msgid "Pause badge"
 msgstr "Odznak pozastavenia"
 
-#: lib/bookshelf_settings.lua:1061
+#: lib/bookshelf_settings.lua:1030
 msgid "Faded cover"
 msgstr "Stlmená obálka"
 
-#: lib/bookshelf_settings.lua:1062 micromodules/quote_of_day.lua:106
+#: lib/bookshelf_settings.lua:1031 micromodules/quote_of_day.lua:106
 #: micromodules/quote_of_day.lua:193
 msgid "Both"
 msgstr "Oboje"
 
-#: lib/bookshelf_settings.lua:1067
+#: lib/bookshelf_settings.lua:1036
 msgid "Pause badge + faded cover"
 msgstr "Odznak pozastavenia + stlmená obálka"
 
-#: lib/bookshelf_settings.lua:1082
+#: lib/bookshelf_settings.lua:1051
 msgid "On-hold display"
 msgstr "Zobrazenie pozastavených"
 
-#: lib/bookshelf_settings.lua:1118
+#: lib/bookshelf_settings.lua:1087
 msgid "Within series folder"
 msgstr "V rámci priečinka série"
 
-#: lib/bookshelf_settings.lua:1119
+#: lib/bookshelf_settings.lua:1088
 msgid "Never"
 msgstr "Nikdy"
 
-#: lib/bookshelf_settings.lua:1134
+#: lib/bookshelf_settings.lua:1103
 msgid "Show series #"
 msgstr "Zobraziť č. série"
 
-#: lib/bookshelf_settings.lua:1152
+#: lib/bookshelf_settings.lua:1121
 msgid "Show favorites icon"
 msgstr "Zobraziť ikonu obľúbených"
 
-#: lib/bookshelf_settings.lua:1167
+#: lib/bookshelf_settings.lua:1136
 msgid "Star"
 msgstr "Hviezda"
 
-#: lib/bookshelf_settings.lua:1181
+#: lib/bookshelf_settings.lua:1150
 msgid "Favorite icon"
 msgstr "Ikona obľúbených"
 
-#: lib/bookshelf_settings.lua:1217 lib/bookshelf_settings.lua:3099
-#: lib/bookshelf_settings.lua:3932 lib/bookshelf_settings.lua:3959
-#: lib/bookshelf_settings.lua:5239
+#: lib/bookshelf_settings.lua:1186 lib/bookshelf_settings.lua:3068
+#: lib/bookshelf_settings.lua:3903 lib/bookshelf_settings.lua:3930
+#: lib/bookshelf_settings.lua:5210
 msgid "Off"
 msgstr "Vypnuté"
 
-#: lib/bookshelf_settings.lua:1218
+#: lib/bookshelf_settings.lua:1187
 msgid "Folders only"
 msgstr "Iba priečinky"
 
-#: lib/bookshelf_settings.lua:1219
+#: lib/bookshelf_settings.lua:1188
 msgid "Groups only"
 msgstr "Iba skupiny"
 
-#: lib/bookshelf_settings.lua:1220
+#: lib/bookshelf_settings.lua:1189
 msgid "All stacks"
 msgstr "Všetky stohy"
 
-#: lib/bookshelf_settings.lua:1235
+#: lib/bookshelf_settings.lua:1204
 msgid "Stack count badge"
 msgstr "Odznak počtu v stohu"
 
-#: lib/bookshelf_settings.lua:1266
+#: lib/bookshelf_settings.lua:1235
 msgid "Total"
 msgstr "Celkom"
 
-#: lib/bookshelf_settings.lua:1267
+#: lib/bookshelf_settings.lua:1236
 msgid "Finished / Total"
 msgstr "Dokončené / Celkom"
 
-#: lib/bookshelf_settings.lua:1282
+#: lib/bookshelf_settings.lua:1251
 msgid "Stack count format"
 msgstr "Formát počtu v stohu"
 
-#: lib/bookshelf_settings.lua:1297
+#: lib/bookshelf_settings.lua:1266
 msgid "Cover opening effect"
 msgstr "Efekt otvárania obálky"
 
-#: lib/bookshelf_settings.lua:1298
+#: lib/bookshelf_settings.lua:1267
 msgid "When you open a book, briefly flex its cover open before the page appears. Purely cosmetic; turn it off for an instant, plain open. On by default."
 msgstr "Pri otvorení knihy sa jej obálka na chvíľu pootvorí, kým sa neobjaví stránka. Iba kozmetický efekt; vypnutím dosiahnete okamžité, jednoduché otvorenie. Predvolene zapnuté."
 
-#: lib/bookshelf_settings.lua:1386
+#: lib/bookshelf_settings.lua:1355
 msgid "Rows, columns and view are set per shelf:"
 msgstr "Riadky, stĺpce a zobrazenie sa nastavujú pre každú policu zvlášť:"
 
-#: lib/bookshelf_settings.lua:1390
+#: lib/bookshelf_settings.lua:1359
 msgid "long-press a shelf, then open Shelf style."
 msgstr "podržte policu a otvorte Štýl police."
 
-#: lib/bookshelf_settings.lua:1417
+#: lib/bookshelf_settings.lua:1386
 msgid "Add a line (maximum reached)"
 msgstr "Pridať riadok (dosiahnuté maximum)"
 
-#: lib/bookshelf_settings.lua:1419
+#: lib/bookshelf_settings.lua:1388
 msgid "Add a line"
 msgstr "Pridať riadok"
 
-#: lib/bookshelf_settings.lua:1520
+#: lib/bookshelf_settings.lua:1489
 msgid "Move up"
 msgstr "Presunúť nahor"
 
-#: lib/bookshelf_settings.lua:1523
+#: lib/bookshelf_settings.lua:1492
 msgid "Move down"
 msgstr "Presunúť nadol"
 
-#: lib/bookshelf_settings.lua:1630 lib/bookshelf_theme_pack.lua:352
-#: lib/bookshelf_theme_pack.lua:834
+#: lib/bookshelf_settings.lua:1599 lib/bookshelf_theme_pack.lua:352
+#: lib/bookshelf_theme_pack.lua:859
 msgid "%1 (missing)"
 msgstr "%1 (chýba)"
 
-#: lib/bookshelf_settings.lua:1643 lib/bookshelf_settings.lua:1645
+#: lib/bookshelf_settings.lua:1612 lib/bookshelf_settings.lua:1614
 #: lib/bookshelf_theme_library.lua:104 lib/bookshelf_wallpaper_browser.lua:150
 msgid "%1 pack"
 msgstr "balík %1"
 
-#: lib/bookshelf_settings.lua:1667
+#: lib/bookshelf_settings.lua:1636
 msgid "Wallpaper: %1"
 msgstr "Tapeta: %1"
 
-#: lib/bookshelf_settings.lua:1673
+#: lib/bookshelf_settings.lua:1642
 msgid "Images are loaded from %1 and %2"
 msgstr "Obrázky sa načítavajú z %1 a %2"
 
-#: lib/bookshelf_settings.lua:1674
+#: lib/bookshelf_settings.lua:1643
 msgid "Images are loaded from %1"
 msgstr "Obrázky sa načítavajú z %1"
 
-#: lib/bookshelf_settings.lua:1681
+#: lib/bookshelf_settings.lua:1650
 msgid "Full screen wallpaper: %1"
 msgstr "Tapeta na celú obrazovku: %1"
 
-#: lib/bookshelf_settings.lua:1682 lib/bookshelf_wallpaper_browser.lua:210
+#: lib/bookshelf_settings.lua:1651 lib/bookshelf_wallpaper_browser.lua:210
 msgid "Same as wallpaper"
 msgstr "Rovnaká ako tapeta"
 
-#: lib/bookshelf_settings.lua:1684
+#: lib/bookshelf_settings.lua:1653
 msgid "A different picture for full screen shelves. That view is wall-to-wall covers and spines, where a backdrop that reads well behind the top panel is often too busy."
 msgstr "Iný obrázok pre police na celú obrazovku. Toto zobrazenie je od okraja po okraj plné obálok a chrbtov, takže pozadie, ktoré dobre vyzerá za horným panelom, je tam často príliš rušné."
 
-#: lib/bookshelf_settings.lua:1691
+#: lib/bookshelf_settings.lua:1660
 msgid "Invert wallpaper when dark"
 msgstr "Invertovať tapetu pri tmavej polici"
 
-#: lib/bookshelf_settings.lua:1692
+#: lib/bookshelf_settings.lua:1661
 msgid "Show the wallpaper as its negative when the shelf is dark, so a light picture turns dark. Off, the picture looks the same dark as light. A theme's own dark wallpaper is always shown as drawn."
 msgstr "Zobrazí tapetu ako negatív, keď je polica tmavá, takže svetlý obrázok stmavne. Keď je vypnuté, obrázok vyzerá na tmavej polici rovnako ako na svetlej. Vlastná tmavá tapeta témy sa vždy zobrazí tak, ako bola nakreslená."
 
-#: lib/bookshelf_settings.lua:1714
+#: lib/bookshelf_settings.lua:1683
 msgid "Color behind wallpaper: %1"
 msgstr "Farba za tapetou: %1"
 
-#: lib/bookshelf_settings.lua:1721
+#: lib/bookshelf_settings.lua:1690
 msgid "Color behind wallpaper"
 msgstr "Farba za tapetou"
 
-#: lib/bookshelf_settings.lua:1721
+#: lib/bookshelf_settings.lua:1690
 msgid "Color behind wallpaper (% black)"
 msgstr "Farba za tapetou (% čiernej)"
 
-#: lib/bookshelf_settings.lua:1747
+#: lib/bookshelf_settings.lua:1716
 msgid "Extra wallpaper folder: %1"
 msgstr "Ďalší priečinok tapiet: %1"
 
-#: lib/bookshelf_settings.lua:1749
+#: lib/bookshelf_settings.lua:1718
 msgid "A folder of your own to take wallpapers from, listed along with the ones in %1. Useful when you already keep pictures somewhere else. Nothing in it is changed. Long-press to stop using it."
 msgstr "Vlastný priečinok, z ktorého sa berú tapety, zobrazené spolu s tými v %1. Užitočné, ak už obrázky máte uložené inde. Nič sa v ňom nemení. Dlhým stlačením ho prestanete používať."
 
-#: lib/bookshelf_settings.lua:1757
+#: lib/bookshelf_settings.lua:1726
 msgid "Choose wallpaper folder"
 msgstr "Vybrať priečinok tapiet"
 
-#: lib/bookshelf_settings.lua:1797
+#: lib/bookshelf_settings.lua:1766
 msgid "Panel shading: %1"
 msgstr "Tienenie panelov: %1"
 
-#: lib/bookshelf_settings.lua:1799
+#: lib/bookshelf_settings.lua:1768
 msgid "How much to shade the top panel and the footer so the buttons stay legible over a picture. Transparent lets the wallpaper through untouched, which reads well over a plain texture and poorly over a busy photograph. Solid hides the picture behind those strips entirely. Part of the theme, as the wallpaper is."
 msgstr "Nakoľko stmaviť horný panel a pätu, aby tlačidlá zostali čitateľné nad obrázkom. Priehľadné prepustí tapetu bez zmeny, čo dobre vyzerá nad jednoduchou textúrou a zle nad rušnou fotografiou. Plné za týmito pruhmi obrázok úplne skryje. Je súčasťou témy, rovnako ako tapeta."
 
-#: lib/bookshelf_settings.lua:1813
+#: lib/bookshelf_settings.lua:1782
 msgid "Blur wallpaper behind panels"
 msgstr "Rozmazať tapetu za panelmi"
 
-#: lib/bookshelf_settings.lua:1814
+#: lib/bookshelf_settings.lua:1783
 msgid "Blurs the wallpaper behind the top panel and the footer before the shading goes over it, like frosted glass, so the picture's detail does not compete with the buttons and text. Worked out once per wallpaper, then reused. Part of the theme."
 msgstr "Pred stmavením rozmaže tapetu za horným panelom a pätou ako matné sklo, aby detaily obrázka nekonkurovali tlačidlám a textu. Vypočíta sa raz pre každú tapetu a potom sa znova použije. Je súčasťou témy."
 
-#: lib/bookshelf_settings.lua:1831
+#: lib/bookshelf_settings.lua:1800
 msgid "Panel behind Covers shelves"
 msgstr "Panel za policami s obálkami"
 
-#: lib/bookshelf_settings.lua:1832
+#: lib/bookshelf_settings.lua:1801
 msgid "Covers shelves get one panel behind the top panel, the covers and the footer, as list shelves have, in place of a plate under each title. Part of the theme."
 msgstr "Police s obálkami dostanú jeden panel za horným panelom, obálkami a pätou, ako ho majú police so zoznamom, namiesto podložky pod každým názvom. Je súčasťou témy."
 
-#: lib/bookshelf_settings.lua:1857 lib/bookshelf_settings.lua:2823
-#: lib/bookshelf_settings.lua:2844 lib/bookshelf_settings.lua:2854
+#: lib/bookshelf_settings.lua:1826 lib/bookshelf_settings.lua:2792
+#: lib/bookshelf_settings.lua:2813 lib/bookshelf_settings.lua:2823
 msgid "Transparent"
 msgstr "Priehľadné"
 
-#: lib/bookshelf_settings.lua:1858
+#: lib/bookshelf_settings.lua:1827
 msgid "Low"
 msgstr "Slabé"
 
-#: lib/bookshelf_settings.lua:1859
+#: lib/bookshelf_settings.lua:1828
 msgid "Moderate"
 msgstr "Mierne"
 
-#: lib/bookshelf_settings.lua:1860
+#: lib/bookshelf_settings.lua:1829
 msgid "Heavy"
 msgstr "Silné"
 
-#: lib/bookshelf_settings.lua:1867
+#: lib/bookshelf_settings.lua:1836
 msgid "Auto (follow night mode)"
 msgstr "Automaticky (podľa nočného režimu)"
 
-#: lib/bookshelf_settings.lua:1868 lib/bookshelf_settings.lua:2526
+#: lib/bookshelf_settings.lua:1837 lib/bookshelf_settings.lua:2495
 msgid "Light"
 msgstr "Svetlé"
 
-#: lib/bookshelf_settings.lua:1869 lib/bookshelf_settings.lua:2524
+#: lib/bookshelf_settings.lua:1838 lib/bookshelf_settings.lua:2493
 msgid "Dark"
 msgstr "Tmavé"
 
-#: lib/bookshelf_settings.lua:1896
+#: lib/bookshelf_settings.lua:1865
 msgid "Light or dark: %1"
 msgstr "Svetlé alebo tmavé: %1"
 
-#: lib/bookshelf_settings.lua:1898
+#: lib/bookshelf_settings.lua:1867
 msgid "Light or dark colors for the shelf, independently of KOReader's night mode, so you can keep the rest of KOReader light and still have a dark shelf. Auto follows night mode. Covers and ornaments are pictures and are never inverted; the wallpaper is inverted only when you ask for it."
 msgstr "Svetlé alebo tmavé farby police, nezávisle od nočného režimu KOReader, takže zvyšok KOReader môže zostať svetlý a polica môže byť tmavá. Automaticky sa riadi nočným režimom. Obálky a ozdoby sú obrázky a nikdy sa neinvertujú; tapeta sa invertuje, iba ak o to požiadate."
 
-#: lib/bookshelf_settings.lua:2063 lib/bookshelf_settings.lua:2069
+#: lib/bookshelf_settings.lua:2032 lib/bookshelf_settings.lua:2038
 msgid "default"
 msgstr "predvolená"
 
-#: lib/bookshelf_settings.lua:2125
+#: lib/bookshelf_settings.lua:2094
 msgid "Shelf plank color"
 msgstr "Farba dosky police"
 
-#: lib/bookshelf_settings.lua:2125
+#: lib/bookshelf_settings.lua:2094
 msgid "Shelf plank color (% black)"
 msgstr "Farba dosky police (% čiernej)"
 
-#: lib/bookshelf_settings.lua:2164
+#: lib/bookshelf_settings.lua:2133
 msgid "Plank: %1"
 msgstr "Doska: %1"
 
-#: lib/bookshelf_settings.lua:2165
+#: lib/bookshelf_settings.lua:2134
 msgid "color"
 msgstr "farba"
 
-#: lib/bookshelf_settings.lua:2167
+#: lib/bookshelf_settings.lua:2136
 msgid "The plank the Spines style stands its books on: a plain color, the built-in oak, or a plank from an ornament pack."
 msgstr "Doska, na ktorej štýl Chrbty stavia svoje knihy: jednoduchá farba, vstavaný dub alebo doska z balíka ozdôb."
 
-#: lib/bookshelf_settings.lua:2346
+#: lib/bookshelf_settings.lua:2315
 msgid "Ornaments: %1 of %2 on"
 msgstr "Ozdoby: zapnuté %1 z %2"
 
-#: lib/bookshelf_settings.lua:2351
+#: lib/bookshelf_settings.lua:2320
 msgid ""
 "Small pieces that stand in the gaps on a spine shelf. Drop PNG or SVG files into %1 and they appear there; a folder of them there is a pack, switched on and off as one.\n"
 "\n"
@@ -3035,326 +3044,326 @@ msgstr ""
 "\n"
 "Ťuknutím ich prehliadate, vypínate a zapínate alebo mažete. Ako často sa objavujú, sa nastavuje pre každú policu zvlášť: dlho podržte policu a potom Štýl police."
 
-#: lib/bookshelf_settings.lua:2396
+#: lib/bookshelf_settings.lua:2365
 msgid "New ornaments go: %1"
 msgstr "Nové ozdoby pridávať: %1"
 
-#: lib/bookshelf_settings.lua:2396
+#: lib/bookshelf_settings.lua:2365
 msgid "first"
 msgstr "na začiatku"
 
-#: lib/bookshelf_settings.lua:2396
+#: lib/bookshelf_settings.lua:2365
 msgid "last"
 msgstr "na konci"
 
-#: lib/bookshelf_settings.lua:2398
+#: lib/bookshelf_settings.lua:2367
 msgid "Where ornaments you add join the order they are dealt onto the shelf in. First: you see them straight away, and the pieces already there move along to make room. Last: your shelf stays as it is, and the new ones come round in their turn."
 msgstr "Kam sa v poradí zaradia ozdoby, ktoré pridáte, keď sa rozdávajú na policu. Na začiatku: uvidíte ich hneď a kúsky, ktoré už tam sú, sa posunú, aby im urobili miesto. Na konci: vaša polica zostane taká, aká je, a nové kúsky prídu na rad postupne."
 
-#: lib/bookshelf_settings.lua:2400
+#: lib/bookshelf_settings.lua:2369
 msgid "First, so you see them"
 msgstr "Na začiatku, aby ste ich hneď videli"
 
-#: lib/bookshelf_settings.lua:2401
+#: lib/bookshelf_settings.lua:2370
 msgid "Last, so your shelf stays put"
 msgstr "Na konci, aby vaša polica zostala nezmenená"
 
-#: lib/bookshelf_settings.lua:2486
+#: lib/bookshelf_settings.lua:2455
 msgid "Reset to default colors"
 msgstr "Obnoviť predvolené farby"
 
-#: lib/bookshelf_settings.lua:2524 lib/bookshelf_settings.lua:2526
+#: lib/bookshelf_settings.lua:2493 lib/bookshelf_settings.lua:2495
 msgid "Colors for: %1"
 msgstr "Farby pre: %1"
 
-#: lib/bookshelf_settings.lua:2528
+#: lib/bookshelf_settings.lua:2497
 msgid "Your colors come in two sets, one for a light shelf and one for a dark shelf. Tap to edit the other set; the shelf and KOReader's night mode are not changed."
 msgstr "Vaše farby majú dve sady, jednu pre svetlú policu a jednu pre tmavú. Ťuknutím upravíte druhú sadu; polica ani nočný režim KOReader sa nezmenia."
 
-#: lib/bookshelf_settings.lua:2552 lib/bookshelf_settings.lua:2561
+#: lib/bookshelf_settings.lua:2521 lib/bookshelf_settings.lua:2530
 msgid "Text ink"
 msgstr "Farba textu"
 
-#: lib/bookshelf_settings.lua:2554
+#: lib/bookshelf_settings.lua:2523
 msgid "The color of the shelf's own text. Black by default in the light theme and white in the dark one. Covers, wallpaper and ornaments are pictures and are never recolored."
 msgstr "Farba vlastného textu police. Predvolene čierna vo svetlej téme a biela v tmavej. Obálky, tapeta a ozdoby sú obrázky a nikdy sa neprefarbujú."
 
-#: lib/bookshelf_settings.lua:2561
+#: lib/bookshelf_settings.lua:2530
 msgid "Text ink (% black)"
 msgstr "Farba textu (% čiernej)"
 
-#: lib/bookshelf_settings.lua:2572 lib/bookshelf_settings.lua:2577
+#: lib/bookshelf_settings.lua:2541 lib/bookshelf_settings.lua:2546
 msgid "Progress bar"
 msgstr "Ukazovateľ priebehu"
 
-#: lib/bookshelf_settings.lua:2577
+#: lib/bookshelf_settings.lua:2546
 msgid "Progress bar (% black)"
 msgstr "Ukazovateľ priebehu (% čiernej)"
 
-#: lib/bookshelf_settings.lua:2587 lib/bookshelf_settings.lua:2592
+#: lib/bookshelf_settings.lua:2556 lib/bookshelf_settings.lua:2561
 msgid "Progress bar track"
 msgstr "Dráha ukazovateľa priebehu"
 
-#: lib/bookshelf_settings.lua:2592
+#: lib/bookshelf_settings.lua:2561
 msgid "Progress bar track (% black)"
 msgstr "Dráha ukazovateľa priebehu (% čiernej)"
 
-#: lib/bookshelf_settings.lua:2603 lib/bookshelf_settings.lua:2608
+#: lib/bookshelf_settings.lua:2572 lib/bookshelf_settings.lua:2577
 msgid "Bookmark color"
 msgstr "Farba záložky"
 
-#: lib/bookshelf_settings.lua:2608
+#: lib/bookshelf_settings.lua:2577
 msgid "Bookmark color (% black)"
 msgstr "Farba záložky (% čiernej)"
 
-#: lib/bookshelf_settings.lua:2618 lib/bookshelf_settings.lua:2624
+#: lib/bookshelf_settings.lua:2587 lib/bookshelf_settings.lua:2593
 msgid "Finished bookmark color"
 msgstr "Farba záložky dokončených"
 
-#: lib/bookshelf_settings.lua:2624
+#: lib/bookshelf_settings.lua:2593
 msgid "Finished bookmark color (% black)"
 msgstr "Farba záložky dokončených (% čiernej)"
 
-#: lib/bookshelf_settings.lua:2638 lib/bookshelf_settings.lua:2646
+#: lib/bookshelf_settings.lua:2607 lib/bookshelf_settings.lua:2615
 msgid "Favorite heart color"
 msgstr "Farba srdiečka obľúbených"
 
-#: lib/bookshelf_settings.lua:2638 lib/bookshelf_settings.lua:2649
+#: lib/bookshelf_settings.lua:2607 lib/bookshelf_settings.lua:2618
 msgid "Favorite star color"
 msgstr "Farba hviezdičky obľúbených"
 
-#: lib/bookshelf_settings.lua:2646
+#: lib/bookshelf_settings.lua:2615
 msgid "Favorite heart color (% black)"
 msgstr "Farba srdiečka obľúbených (% čiernej)"
 
-#: lib/bookshelf_settings.lua:2649
+#: lib/bookshelf_settings.lua:2618
 msgid "Favorite star color (% black)"
 msgstr "Farba hviezdičky obľúbených (% čiernej)"
 
-#: lib/bookshelf_settings.lua:2662 lib/bookshelf_settings.lua:2667
+#: lib/bookshelf_settings.lua:2631 lib/bookshelf_settings.lua:2636
 msgid "Badge foreground"
 msgstr "Popredie odznaku"
 
-#: lib/bookshelf_settings.lua:2667
+#: lib/bookshelf_settings.lua:2636
 msgid "Badge foreground (% black)"
 msgstr "Popredie odznaku (% čiernej)"
 
-#: lib/bookshelf_settings.lua:2677 lib/bookshelf_settings.lua:2682
+#: lib/bookshelf_settings.lua:2646 lib/bookshelf_settings.lua:2651
 msgid "Badge background"
 msgstr "Pozadie odznaku"
 
-#: lib/bookshelf_settings.lua:2682
+#: lib/bookshelf_settings.lua:2651
 msgid "Badge background (% black)"
 msgstr "Pozadie odznaku (% čiernej)"
 
-#: lib/bookshelf_settings.lua:2693 lib/bookshelf_settings.lua:2701
+#: lib/bookshelf_settings.lua:2662 lib/bookshelf_settings.lua:2670
 msgid "Micro-module background"
 msgstr "Pozadie mikromodulu"
 
-#: lib/bookshelf_settings.lua:2695
+#: lib/bookshelf_settings.lua:2664
 msgid "The card behind each micro-module. Kept solid: the text inside a module draws its own opaque background, so a see-through card shows a box behind every line."
 msgstr "Karta za každým mikromodulom. Ostáva plná: text vnútri modulu si kreslí vlastné nepriehľadné pozadie, takže priesvitná karta by za každým riadkom ukázala obdĺžnik."
 
-#: lib/bookshelf_settings.lua:2701
+#: lib/bookshelf_settings.lua:2670
 msgid "Micro-module background (% black)"
 msgstr "Pozadie mikromodulu (% čiernej)"
 
-#: lib/bookshelf_settings.lua:2711 lib/bookshelf_settings.lua:2718
+#: lib/bookshelf_settings.lua:2680 lib/bookshelf_settings.lua:2687
 msgid "Micro-module border"
 msgstr "Okraj mikromodulu"
 
-#: lib/bookshelf_settings.lua:2713
+#: lib/bookshelf_settings.lua:2682
 msgid "The thin line around each micro-module card. Left unset it follows the text color. Long-press to clear."
 msgstr "Tenká čiara okolo každej karty mikromodulu. Ak nie je nastavená, riadi sa farbou textu. Dlhým stlačením vymažete."
 
-#: lib/bookshelf_settings.lua:2718
+#: lib/bookshelf_settings.lua:2687
 msgid "Micro-module border (% black)"
 msgstr "Okraj mikromodulu (% čiernej)"
 
-#: lib/bookshelf_settings.lua:2729 lib/bookshelf_settings.lua:2736
+#: lib/bookshelf_settings.lua:2698 lib/bookshelf_settings.lua:2705
 msgid "Border color"
 msgstr "Farba okraja"
 
-#: lib/bookshelf_settings.lua:2731
+#: lib/bookshelf_settings.lua:2700
 msgid "The frame around covers and the border of badges. Default black."
 msgstr "Rám okolo obálok a okraj odznakov. Predvolene čierna."
 
-#: lib/bookshelf_settings.lua:2736
+#: lib/bookshelf_settings.lua:2705
 msgid "Border color (% black)"
 msgstr "Farba okraja (% čiernej)"
 
-#: lib/bookshelf_settings.lua:2746 lib/bookshelf_settings.lua:2753
+#: lib/bookshelf_settings.lua:2715 lib/bookshelf_settings.lua:2722
 msgid "Selection outline color"
 msgstr "Farba obrysu výberu"
 
-#: lib/bookshelf_settings.lua:2748
+#: lib/bookshelf_settings.lua:2717
 msgid "Color of the ring drawn around the selected book or the one you are currently reading. Default black."
 msgstr "Farba prstenca vykresleného okolo vybranej knihy alebo knihy, ktorú práve čítate. Predvolene čierna."
 
-#: lib/bookshelf_settings.lua:2753
+#: lib/bookshelf_settings.lua:2722
 msgid "Selection outline color (% black)"
 msgstr "Farba obrysu výberu (% čiernej)"
 
-#: lib/bookshelf_settings.lua:2763 lib/bookshelf_settings.lua:2771
+#: lib/bookshelf_settings.lua:2732 lib/bookshelf_settings.lua:2740
 msgid "Cover shadow color"
 msgstr "Farba tieňa obálky"
 
-#: lib/bookshelf_settings.lua:2765
+#: lib/bookshelf_settings.lua:2734
 msgid "Color of the drop shadow behind book covers and folder cards. Has no effect where the shadow is switched off. Default mid gray, and darker in night mode."
 msgstr "Farba vrhaného tieňa za obálkami kníh a kartami priečinkov. Nemá žiadny účinok tam, kde je tieň vypnutý. Predvolene stredne sivá, v nočnom režime tmavšia."
 
-#: lib/bookshelf_settings.lua:2771
+#: lib/bookshelf_settings.lua:2740
 msgid "Cover shadow color (% black)"
 msgstr "Farba tieňa obálky (% čiernej)"
 
-#: lib/bookshelf_settings.lua:2782 lib/bookshelf_settings.lua:2787
+#: lib/bookshelf_settings.lua:2751 lib/bookshelf_settings.lua:2756
 msgid "Folder overlay background"
 msgstr "Pozadie prekrytia priečinka"
 
-#: lib/bookshelf_settings.lua:2787
+#: lib/bookshelf_settings.lua:2756
 msgid "Folder overlay background (% black)"
 msgstr "Pozadie prekrytia priečinka (% čiernej)"
 
-#: lib/bookshelf_settings.lua:2797 lib/bookshelf_settings.lua:2806
+#: lib/bookshelf_settings.lua:2766 lib/bookshelf_settings.lua:2775
 msgid "Folder text color"
 msgstr "Farba textu priečinka"
 
-#: lib/bookshelf_settings.lua:2799
+#: lib/bookshelf_settings.lua:2768
 msgid "Color of the label text inside folder / series / author / genre / tag cards. The cardboard outline around the card itself follows the Border color setting above."
 msgstr "Farba textu popisku vo vnútri kariet priečinkov / sérií / autorov / žánrov / štítkov. Obrys kartónového rámu samotnej karty sa riadi nastavením Farba okraja vyššie."
 
-#: lib/bookshelf_settings.lua:2806
+#: lib/bookshelf_settings.lua:2775
 msgid "Folder text color (% black)"
 msgstr "Farba textu priečinka (% čiernej)"
 
-#: lib/bookshelf_settings.lua:2823 lib/bookshelf_settings.lua:2825
-#: lib/bookshelf_settings.lua:2837
+#: lib/bookshelf_settings.lua:2792 lib/bookshelf_settings.lua:2794
+#: lib/bookshelf_settings.lua:2806
 msgid "Shelf menu background"
 msgstr "Pozadie ponuky políc"
 
-#: lib/bookshelf_settings.lua:2827
+#: lib/bookshelf_settings.lua:2796
 msgid "The bar behind the shelf menu. White by day and black at night unless you change it; Transparent leaves it out, so the wallpaper shows through (the selected shelf keeps its fill). The panels have their own color."
 msgstr "Pruh za ponukou políc. Cez deň biely a v noci čierny, ak ho nezmeníte; Priehľadné ho vynechá, aby presvitala tapeta (vybraná polica si ponechá svoju výplň). Panely majú vlastnú farbu."
 
-#: lib/bookshelf_settings.lua:2837
+#: lib/bookshelf_settings.lua:2806
 msgid "Shelf menu background (% black)"
 msgstr "Pozadie ponuky políc (% čiernej)"
 
-#: lib/bookshelf_settings.lua:2875 lib/bookshelf_settings.lua:2884
+#: lib/bookshelf_settings.lua:2844 lib/bookshelf_settings.lua:2853
 msgid "Selected shelf background"
 msgstr "Pozadie vybranej police"
 
-#: lib/bookshelf_settings.lua:2877
+#: lib/bookshelf_settings.lua:2846
 msgid "Fill behind the selected shelf in the shelf menu. Left unset, the selected shelf is drawn by inverting it -- the fastest path and identical on every device. Setting a color paints it instead. Long-press to clear."
 msgstr "Výplň za vybranou policou v ponuke políc. Ak nie je nastavená, vybraná polica sa vykreslí invertovaním -- najrýchlejší spôsob, rovnaký na každom zariadení. Nastavením farby sa namiesto toho vyfarbí. Dlhým stlačením vymažete."
 
-#: lib/bookshelf_settings.lua:2884
+#: lib/bookshelf_settings.lua:2853
 msgid "Selected shelf background (% black)"
 msgstr "Pozadie vybranej police (% čiernej)"
 
-#: lib/bookshelf_settings.lua:2895 lib/bookshelf_settings.lua:2902
+#: lib/bookshelf_settings.lua:2864 lib/bookshelf_settings.lua:2871
 msgid "Selected shelf text"
 msgstr "Text vybranej police"
 
-#: lib/bookshelf_settings.lua:2897
+#: lib/bookshelf_settings.lua:2866
 msgid "Label color on the selected shelf. Defaults to paper white over the fill. Long-press to clear."
 msgstr "Farba popisku na vybranej polici. Predvolene papierovo biela na výplni. Dlhým stlačením vymažete."
 
-#: lib/bookshelf_settings.lua:2902
+#: lib/bookshelf_settings.lua:2871
 msgid "Selected shelf text (% black)"
 msgstr "Text vybranej police (% čiernej)"
 
-#: lib/bookshelf_settings.lua:3001
+#: lib/bookshelf_settings.lua:2970
 msgid "Cover badge size"
 msgstr "Veľkosť odznaku obálky"
 
-#: lib/bookshelf_settings.lua:3027
+#: lib/bookshelf_settings.lua:2996
 msgid "Edit top panel content"
 msgstr "Upraviť obsah horného panela"
 
-#: lib/bookshelf_settings.lua:3028
+#: lib/bookshelf_settings.lua:2997
 msgid "The lines of book information shown in the top panel: title, author, rating, metadata, description, tags and progress. Tap a line to edit its template; hold to toggle it. The status line at the top has its own entry."
 msgstr "Riadky informácií o knihe zobrazené v hornom paneli: názov, autor, hodnotenie, metadáta, popis, štítky a priebeh. Ťuknutím na riadok upravíte jeho šablónu; podržaním ho zapnete alebo vypnete. Stavový riadok navrchu má vlastnú položku."
 
-#: lib/bookshelf_settings.lua:3045
+#: lib/bookshelf_settings.lua:3014
 msgid "Cover display"
 msgstr "Zobrazenie obálky"
 
-#: lib/bookshelf_settings.lua:3051
+#: lib/bookshelf_settings.lua:3020
 msgid "List view"
 msgstr "Zobrazenie zoznamu"
 
-#: lib/bookshelf_settings.lua:3057 lib/bookshelf_settings.lua:5122
+#: lib/bookshelf_settings.lua:3026 lib/bookshelf_settings.lua:5093
 msgid "Text size"
 msgstr "Veľkosť textu"
 
-#: lib/bookshelf_settings.lua:3072 micromodules/clock.lua:51
+#: lib/bookshelf_settings.lua:3041 micromodules/clock.lua:51
 msgid "Follow KOReader"
 msgstr "Podľa KOReader"
 
-#: lib/bookshelf_settings.lua:3074
+#: lib/bookshelf_settings.lua:3043
 msgid "Bookshelf UI font: %1"
 msgstr "Písmo rozhrania Bookshelf: %1"
 
-#: lib/bookshelf_settings.lua:3076
+#: lib/bookshelf_settings.lua:3045
 msgid "The font Bookshelf uses for its own UI text (shelf names, labels, metadata). Pick any installed font (same picker as the top panel); '(Default)' follows your KOReader UI font. The title and author have their own fonts in the book detail editor."
 msgstr "Písmo, ktoré Bookshelf používa pre vlastný text rozhrania (názvy políc, popisky, metadáta). Vyberte ľubovoľné nainštalované písmo (rovnaký výber ako pri hornom paneli); „(Predvolené)“ sa riadi písmom rozhrania KOReader. Názov a autor majú vlastné písma v editore detailu knihy."
 
-#: lib/bookshelf_settings.lua:3099 lib/bookshelf_settings.lua:3101
-#: lib/bookshelf_settings.lua:3982
+#: lib/bookshelf_settings.lua:3068 lib/bookshelf_settings.lua:3070
+#: lib/bookshelf_settings.lua:3953
 msgid "Micro modules"
 msgstr "Mikromoduly"
 
-#: lib/bookshelf_settings.lua:3103
+#: lib/bookshelf_settings.lua:3072
 msgid "Where micro-modules appear. Each surface is independent: In start menu shows module cards in the start-menu launcher; In top panel adds a shelf-menu entry that swaps the book for the grid; Full-screen button adds a footer button opening a full-screen grid. The top panel and full screen shelves keep their own module lists. Turn all three off to disable micro-modules entirely."
 msgstr "Kde sa mikromoduly zobrazujú. Každé miesto je nezávislé: V úvodnej ponuke zobrazí karty modulov v spúšťači úvodnej ponuky; V hornom paneli pridá do ponuky políc položku, ktorá vymení knihu za mriežku; Tlačidlo na celú obrazovku pridá do päty tlačidlo otvárajúce mriežku na celú obrazovku. Horný panel a police na celú obrazovku majú vlastné zoznamy modulov. Vypnutím všetkých troch mikromoduly úplne deaktivujete."
 
-#: lib/bookshelf_settings.lua:3155
+#: lib/bookshelf_settings.lua:3124
 msgid "In start menu"
 msgstr "V úvodnej ponuke"
 
-#: lib/bookshelf_settings.lua:3156
+#: lib/bookshelf_settings.lua:3125
 msgid "In the top panel"
 msgstr "V hornom paneli"
 
-#: lib/bookshelf_settings.lua:3157
+#: lib/bookshelf_settings.lua:3126
 msgid "Full-screen button"
 msgstr "Tlačidlo na celú obrazovku"
 
-#: lib/bookshelf_settings.lua:3162 lib/bookshelf_settings.lua:5262
-#: lib/bookshelf_settings.lua:5624
+#: lib/bookshelf_settings.lua:3131 lib/bookshelf_settings.lua:5233
+#: lib/bookshelf_settings.lua:5595
 msgid "Start menu"
 msgstr "Úvodná ponuka"
 
-#: lib/bookshelf_settings.lua:3171
+#: lib/bookshelf_settings.lua:3140
 msgid "Behavior"
 msgstr "Správanie"
 
-#: lib/bookshelf_settings.lua:3177
+#: lib/bookshelf_settings.lua:3146
 msgid "Library & search"
 msgstr "Knižnica a vyhľadávanie"
 
-#: lib/bookshelf_settings.lua:3183
+#: lib/bookshelf_settings.lua:3152
 msgid "Advanced"
 msgstr "Rozšírené"
 
-#: lib/bookshelf_settings.lua:3193
+#: lib/bookshelf_settings.lua:3162
 msgid "never"
 msgstr "nikdy"
 
-#: lib/bookshelf_settings.lua:3300 main.lua:2906
+#: lib/bookshelf_settings.lua:3269 main.lua:2906
 msgid "Hardcover plugin is not available"
 msgstr "Doplnok Hardcover nie je dostupný"
 
-#: lib/bookshelf_settings.lua:3328
+#: lib/bookshelf_settings.lua:3297
 msgid "No unlinked books to auto-link."
 msgstr "Žiadne neprepojené knihy na automatické prepojenie."
 
-#: lib/bookshelf_settings.lua:3351
+#: lib/bookshelf_settings.lua:3320
 msgid "Auto-link report"
 msgstr "Správa o automatickom prepojení"
 
-#: lib/bookshelf_settings.lua:3437
+#: lib/bookshelf_settings.lua:3406
 msgid ""
 "Auto-linking from Hardcover…\n"
 "\n"
@@ -3368,7 +3377,7 @@ msgstr ""
 "\n"
 "(zrušíte ťuknutím)"
 
-#: lib/bookshelf_settings.lua:3452
+#: lib/bookshelf_settings.lua:3421
 msgid ""
 "Auto-link %1 unlinked book(s)?\n"
 "\n"
@@ -3378,128 +3387,128 @@ msgstr ""
 "\n"
 "Kontaktuje Hardcover (s obmedzenou rýchlosťou), trvá až ~%2 min. Dá sa zrušiť, na konci je správa."
 
-#: lib/bookshelf_settings.lua:3457
+#: lib/bookshelf_settings.lua:3426
 msgid "Exact match (ISBN / Hardcover id)"
 msgstr "Presná zhoda (ISBN / Hardcover id)"
 
-#: lib/bookshelf_settings.lua:3461
+#: lib/bookshelf_settings.lua:3430
 msgid "Best guess (title & author)"
 msgstr "Najlepší odhad (názov a autor)"
 
-#: lib/bookshelf_settings.lua:3478
+#: lib/bookshelf_settings.lua:3447
 msgid "Cached Hardcover ratings: unavailable"
 msgstr "Uložené hodnotenia Hardcover: nedostupné"
 
-#: lib/bookshelf_settings.lua:3481
+#: lib/bookshelf_settings.lua:3450
 #, lua-format
 msgid "Cached Hardcover ratings: %d/%d · %s"
 msgstr "Uložené hodnotenia Hardcover: %d/%d · %s"
 
-#: lib/bookshelf_settings.lua:3491
+#: lib/bookshelf_settings.lua:3460
 msgid "Auto-link all books"
 msgstr "Automaticky prepojiť všetky knihy"
 
-#: lib/bookshelf_settings.lua:3492
+#: lib/bookshelf_settings.lua:3461
 msgid "Scan the library and link books to Hardcover, fetching each match's details (description, cover, rating) in the same pass. Choose Exact match (uses an embedded ISBN / Hardcover id, fast) or Best guess (searches by title and author and picks the most confident match, slower but catches books with no embedded id). A report at the end lists exactly what was linked. Contacts Hardcover (rate-limited) with cancellable progress."
 msgstr "Prehľadá knižnicu a prepojí knihy s Hardcover, pričom v tom istom priechode stiahne podrobnosti každej zhody (popis, obálku, hodnotenie). Vyberte Presná zhoda (používa vstavané ISBN / Hardcover id, rýchle) alebo Najlepší odhad (hľadá podľa názvu a autora a vyberie najistejšiu zhodu, pomalšie, no zachytí aj knihy bez vstavaného id). Na konci je správa s presným výpisom, čo bolo prepojené. Kontaktuje Hardcover (s obmedzenou rýchlosťou), priebeh sa dá zrušiť."
 
-#: lib/bookshelf_settings.lua:3502
+#: lib/bookshelf_settings.lua:3471
 msgid "Show Hardcover ratings"
 msgstr "Zobraziť hodnotenia Hardcover"
 
-#: lib/bookshelf_settings.lua:3503
+#: lib/bookshelf_settings.lua:3472
 msgid "When enabled, the rating row shows the cached public Hardcover rating instead of KOReader's local rating. Enabling this also turns on the rating row. Normal Bookshelf rendering only reads the local cache."
 msgstr "Keď je zapnuté, riadok hodnotenia zobrazí uložené verejné hodnotenie Hardcover namiesto lokálneho hodnotenia KOReader. Zapnutím sa aktivuje aj riadok hodnotenia. Bežné vykresľovanie Bookshelf číta iba lokálnu vyrovnávaciu pamäť."
 
-#: lib/bookshelf_settings.lua:3526
+#: lib/bookshelf_settings.lua:3495
 msgid "Use Hardcover metadata"
 msgstr "Použiť metadáta Hardcover"
 
-#: lib/bookshelf_settings.lua:3527
+#: lib/bookshelf_settings.lua:3496
 msgid "For books linked to Hardcover, show Hardcover's title, author, series and genres in place of the book's own -- a clean switch, no merging. Covers and descriptions stay under their per-book toggles. This affects sorting, search and series grouping for linked books; non-linked books are unaffected. Metadata is always cached, so this only decides whether it's used."
 msgstr "Pre knihy prepojené s Hardcover zobrazí namiesto vlastného názvu, autora, série a žánrov knihy tie z Hardcover -- čisté prepnutie, bez zlučovania. Obálky a popisy zostávajú pod svojimi vlastnými prepínačmi pre jednotlivé knihy. Toto ovplyvňuje zoradenie, vyhľadávanie a zoskupovanie do sérií pre prepojené knihy; neprepojené knihy nie sú ovplyvnené. Metadáta sa vždy ukladajú do vyrovnávacej pamäte, toto nastavenie iba rozhoduje, či sa použijú."
 
-#: lib/bookshelf_settings.lua:3542
+#: lib/bookshelf_settings.lua:3511
 msgid "Download covers from Hardcover"
 msgstr "Sťahovať obálky z Hardcover"
 
-#: lib/bookshelf_settings.lua:3543
+#: lib/bookshelf_settings.lua:3512
 msgid "When on, linking a book also downloads its Hardcover cover and stores it as the book's cover. Off by default: most books already have a cover, and downloaded covers use storage and get picked up by the library metadata scan. Descriptions, ratings and metadata are fetched either way; turn this on only if you want Hardcover covers too."
 msgstr "Keď je zapnuté, prepojenie knihy zároveň stiahne jej obálku z Hardcover a uloží ju ako obálku knihy. Predvolene vypnuté: väčšina kníh už obálku má a stiahnuté obálky zaberajú úložisko a zachytáva ich skenovanie metadát knižnice. Popisy, hodnotenia a metadáta sa sťahujú v oboch prípadoch; toto zapnite, iba ak chcete aj obálky z Hardcover."
 
-#: lib/bookshelf_settings.lua:3559
+#: lib/bookshelf_settings.lua:3528
 msgid "Hardcover genres used: %1"
 msgstr "Použité žánre Hardcover: %1"
 
-#: lib/bookshelf_settings.lua:3561
+#: lib/bookshelf_settings.lua:3530
 msgid "How many of a linked book's Hardcover genres to use -- for the tag pills and the genre shelves/stacks -- when Use Hardcover metadata is on. 0 uses none."
 msgstr "Koľko žánrov Hardcover prepojenej knihy sa použije -- pre štítky a žánrové police/stohy -- keď je zapnuté Použiť metadáta Hardcover. 0 nepoužije žiadny."
 
-#: lib/bookshelf_settings.lua:3570
+#: lib/bookshelf_settings.lua:3539
 msgid "Hardcover genres used"
 msgstr "Použité žánre Hardcover"
 
-#: lib/bookshelf_settings.lua:3571
+#: lib/bookshelf_settings.lua:3540
 msgid "How many of a book's Hardcover genres to use for tag pills and the genre shelves/stacks."
 msgstr "Koľko žánrov Hardcover knihy sa použije pre štítky a žánrové police/stohy."
 
-#: lib/bookshelf_settings.lua:3591
+#: lib/bookshelf_settings.lua:3560
 msgid "Manage Hardcover data"
 msgstr "Spravovať údaje Hardcover"
 
-#: lib/bookshelf_settings.lua:3598
+#: lib/bookshelf_settings.lua:3567
 msgid "Refresh ratings only"
 msgstr "Obnoviť iba hodnotenia"
 
-#: lib/bookshelf_settings.lua:3599
+#: lib/bookshelf_settings.lua:3568
 msgid "Fetch up-to-date public ratings and review counts for every linked book in one quick batched request -- seconds, even for a large library. Ratings drift daily; for the rarely-changing details (author, genres, series, description, pages) use Refresh linked book details instead."
 msgstr "Stiahne aktuálne verejné hodnotenia a počty recenzií pre každú prepojenú knihu v jedinej rýchlej dávkovej požiadavke -- otázka sekúnd aj pri veľkej knižnici. Hodnotenia sa menia každý deň; pre zriedka sa meniace údaje (autor, žánre, séria, popis, počet strán) použite radšej Obnoviť údaje prepojených kníh."
 
-#: lib/bookshelf_settings.lua:3607 lib/bookshelf_widget.lua:23049
+#: lib/bookshelf_settings.lua:3576 lib/bookshelf_widget.lua:23039
 msgid "Hardcover integration could not be loaded"
 msgstr "Integráciu Hardcover sa nepodarilo načítať"
 
-#: lib/bookshelf_settings.lua:3610
+#: lib/bookshelf_settings.lua:3579
 msgid "Fetching Hardcover ratings..."
 msgstr "Sťahujú sa hodnotenia Hardcover..."
 
-#: lib/bookshelf_settings.lua:3613
+#: lib/bookshelf_settings.lua:3582
 msgid "Hardcover ratings refresh failed"
 msgstr "Obnovenie hodnotení Hardcover zlyhalo"
 
-#: lib/bookshelf_settings.lua:3618
+#: lib/bookshelf_settings.lua:3587
 msgid "Hardcover ratings refreshed: %1 rated of %2 linked books"
 msgstr "Hodnotenia Hardcover obnovené: %1 hodnotených z %2 prepojených kníh"
 
-#: lib/bookshelf_settings.lua:3631
+#: lib/bookshelf_settings.lua:3600
 msgid "Refresh linked book details"
 msgstr "Obnoviť údaje prepojených kníh"
 
-#: lib/bookshelf_settings.lua:3632
+#: lib/bookshelf_settings.lua:3601
 msgid "Re-fetch the cached details (author, description, series, genres, page count, ratings) for every linked book, one rate-limited request per book -- minutes on a large library, cancellable. Use after an upgrade note asks for it, or when cached data looks stale; for just the ratings, Refresh ratings only is much faster."
 msgstr "Znova stiahne uložené údaje (autor, popis, séria, žánre, počet strán, hodnotenia) pre každú prepojenú knihu, jedna požiadavka na knihu s obmedzením rýchlosti -- pri veľkej knižnici minúty, dá sa zrušiť. Použite, keď o to požiada poznámka k aktualizácii, alebo keď uložené údaje vyzerajú neaktuálne; ak potrebujete iba hodnotenia, Obnoviť iba hodnotenia je oveľa rýchlejšie."
 
-#: lib/bookshelf_settings.lua:3645
+#: lib/bookshelf_settings.lua:3614
 msgid "Clear cache (keeps links)"
 msgstr "Vymazať vyrovnávaciu pamäť (zachová prepojenia)"
 
-#: lib/bookshelf_settings.lua:3646
+#: lib/bookshelf_settings.lua:3615
 msgid "Remove Bookshelf's cached Hardcover descriptions, cover images, ratings, review counts and review text. Existing book links are kept, so you can refresh again later."
 msgstr "Odstráni uložené popisy, obrázky obálok, hodnotenia, počty recenzií a text recenzií z Hardcover. Existujúce prepojenia kníh zostanú zachované, takže ich môžete neskôr znova obnoviť."
 
-#: lib/bookshelf_settings.lua:3659
+#: lib/bookshelf_settings.lua:3628
 msgid "Hardcover cache cleared"
 msgstr "Vyrovnávacia pamäť Hardcover vymazaná"
 
-#: lib/bookshelf_settings.lua:3667
+#: lib/bookshelf_settings.lua:3636
 msgid "Remove downloaded covers"
 msgstr "Odstrániť stiahnuté obálky"
 
-#: lib/bookshelf_settings.lua:3668
+#: lib/bookshelf_settings.lua:3637
 msgid "Delete every downloaded Hardcover cover and restore each book's original cover, keeping links, descriptions and ratings. Frees the storage the covers use and clears them out of the library metadata scan."
 msgstr "Vymaže všetky stiahnuté obálky z Hardcover a obnoví pôvodnú obálku každej knihy, pričom zachová prepojenia, popisy a hodnotenia. Uvoľní úložisko, ktoré obálky zaberali, a odstráni ich zo skenovania metadát knižnice."
 
-#: lib/bookshelf_settings.lua:3672
+#: lib/bookshelf_settings.lua:3641
 msgid ""
 "Remove all downloaded Hardcover covers?\n"
 "\n"
@@ -3509,23 +3518,23 @@ msgstr ""
 "\n"
 "Pôvodná obálka každej knihy sa obnoví; prepojenia, popisy a hodnotenia zostanú zachované."
 
-#: lib/bookshelf_settings.lua:3673
+#: lib/bookshelf_settings.lua:3642
 msgid "Remove covers"
 msgstr "Odstrániť obálky"
 
-#: lib/bookshelf_settings.lua:3686
+#: lib/bookshelf_settings.lua:3655
 msgid "Removed downloaded covers (%1 book(s))."
 msgstr "Odstránené stiahnuté obálky (počet kníh: %1)."
 
-#: lib/bookshelf_settings.lua:3696
+#: lib/bookshelf_settings.lua:3665
 msgid "Remove all Hardcover data"
 msgstr "Odstrániť všetky údaje Hardcover"
 
-#: lib/bookshelf_settings.lua:3697
+#: lib/bookshelf_settings.lua:3666
 msgid "Unlink every book and delete all cached Hardcover descriptions, covers, ratings and reviews, resetting the library to how it was before any Hardcover linking. Only covers Hardcover added are removed; a cover you had before is restored. Cannot be undone."
 msgstr "Zruší prepojenie všetkých kníh a vymaže všetky uložené popisy, obálky, hodnotenia a recenzie z Hardcover, čím knižnicu vráti do stavu pred akýmkoľvek prepojením s Hardcover. Odstránia sa iba obálky pridané cez Hardcover; obálka, ktorú ste mali predtým, sa obnoví. Túto akciu nemožno vrátiť späť."
 
-#: lib/bookshelf_settings.lua:3701
+#: lib/bookshelf_settings.lua:3670
 msgid ""
 "Remove ALL Hardcover data?\n"
 "\n"
@@ -3539,323 +3548,323 @@ msgstr ""
 "\n"
 "Túto akciu nemožno vrátiť späť."
 
-#: lib/bookshelf_settings.lua:3702
+#: lib/bookshelf_settings.lua:3671
 msgid "Remove all"
 msgstr "Odstrániť všetky"
 
-#: lib/bookshelf_settings.lua:3715
+#: lib/bookshelf_settings.lua:3684
 msgid "All Hardcover data removed (%1 book(s) unlinked)."
 msgstr "Všetky údaje Hardcover odstránené (odpojených kníh: %1)."
 
-#: lib/bookshelf_settings.lua:3734
-msgid "Full screen shelves font scale"
-msgstr "Mierka písma políc na celú obrazovku"
+#: lib/bookshelf_settings.lua:3705
+msgid "Cover captions font scale"
+msgstr "Mierka písma popiskov obálok"
 
-#: lib/bookshelf_settings.lua:3751
+#: lib/bookshelf_settings.lua:3722
 msgid "Disable spine mode shadows"
 msgstr "Vypnúť tiene v režime chrbtov"
 
-#: lib/bookshelf_settings.lua:3752
+#: lib/bookshelf_settings.lua:3723
 msgid "Spine shelves paint a recess behind the books and a shadow either side of each spine, which is what makes the shelf look deep. Turn this off if drawing it is slow on your device; the books then sit flat on the shelf."
 msgstr "Police s chrbtami vykresľujú za knihami výklenok a tieň po oboch stranách každého chrbta, vďaka čomu polica pôsobí hlboko. Vypnite to, ak je vykresľovanie na vašom zariadení pomalé; knihy potom budú na polici ploché."
 
-#: lib/bookshelf_settings.lua:3786
+#: lib/bookshelf_settings.lua:3757
 msgid "Plank designs: none in use"
 msgstr "Vzory dosiek: nepoužívajú sa"
 
-#: lib/bookshelf_settings.lua:3787
+#: lib/bookshelf_settings.lua:3758
 msgid "Plank designs: %1"
 msgstr "Vzory dosiek: %1"
 
-#: lib/bookshelf_settings.lua:3789
+#: lib/bookshelf_settings.lua:3760
 msgid "Draw plank designs (Oak, or one from a pack or a theme) on spine shelves. Drawing them is slow on some black and white e-readers; turn this off to use the plain plank color instead. Choosing a plank again, in the Plank picker, turns this back on."
 msgstr "Vykreslí vzory dosiek (Dub, alebo niektorý z balíka či témy) na policiach s chrbtami. Na niektorých čiernobielych čítačkách je ich vykresľovanie pomalé; vypnutím namiesto toho použijete jednoduchú farbu dosky. Opätovným výberom dosky vo výbere Doska sa toto znova zapne."
 
-#: lib/bookshelf_settings.lua:3807
+#: lib/bookshelf_settings.lua:3778
 msgid "Instant book close (beta)"
 msgstr "Okamžité zatvorenie knihy (beta)"
 
-#: lib/bookshelf_settings.lua:3808
+#: lib/bookshelf_settings.lua:3779
 msgid "Show Bookshelf immediately when leaving a book. The book finishes closing at the next quiet moment - opening another book, half a minute of inactivity, or leaving Bookshelf - so browsing never has to wait for it. Until then, going straight back into the same book is instant. Turn this off to close books fully before Bookshelf appears, as before."
 msgstr "Zobrazí Bookshelf ihneď po opustení knihy. Kniha sa dokončí zatvárať pri najbližšej vhodnej chvíli -- otvorení inej knihy, po pol minúte nečinnosti alebo pri opustení Bookshelf -- takže prehliadanie naň nikdy nemusí čakať. Dovtedy je návrat priamo do tej istej knihy okamžitý. Vypnutím tejto voľby sa knihy pred zobrazením Bookshelf zatvoria úplne, ako predtým."
 
-#: lib/bookshelf_settings.lua:3826
+#: lib/bookshelf_settings.lua:3797
 msgid "Pre-warm shelf cache"
 msgstr "Predhriať vyrovnávaciu pamäť políc"
 
-#: lib/bookshelf_settings.lua:3827
+#: lib/bookshelf_settings.lua:3798
 msgid "Warms each shelf's data in the background shortly after launch so switching shelves is instant. On a large library with many shelves this adds a few seconds of work after startup; turn it off for a quicker, lighter launch (shelves then load on first use)."
 msgstr "Krátko po spustení na pozadí predhreje údaje každej police, takže prepínanie medzi policami je okamžité. Vo veľkej knižnici s mnohými policami to po spustení pridá niekoľko sekúnd práce; vypnite to pre rýchlejšie a ľahšie spustenie (police sa potom načítajú pri prvom použití)."
 
-#: lib/bookshelf_settings.lua:3842
+#: lib/bookshelf_settings.lua:3813
 msgid "\"Latest\" walk depth"
 msgstr "Hĺbka prehľadávania pre „Najnovšie“"
 
-#: lib/bookshelf_settings.lua:3848
+#: lib/bookshelf_settings.lua:3819
 msgid "Cover cache"
 msgstr "Vyrovnávacia pamäť obálok"
 
-#: lib/bookshelf_settings.lua:3854
+#: lib/bookshelf_settings.lua:3825
 msgid "How much memory to use for ready-scaled book covers. A bigger cache keeps more covers warm -- smoother paging and preloading -- at the cost of RAM. Default %1 MB on this device. Lower it if memory is tight; raise it on a device with plenty of RAM. (How many covers that holds depends on their size: roughly 200-400 small grayscale covers, fewer large or color ones.)"
 msgstr "Koľko pamäte použiť pre pripravené, preškálované obálky kníh. Väčšia vyrovnávacia pamäť udržiava viac obálok pripravených -- plynulejšie prechádzanie strán a prednačítavanie -- na úkor RAM. Na tomto zariadení predvolene %1 MB. Znížte, ak máte málo pamäte; zvýšte na zariadení s dostatkom RAM. (Koľko obálok sa tam zmestí, závisí od ich veľkosti: zhruba 200 - 400 malých čiernobielych obálok, menej veľkých alebo farebných.)"
 
-#: lib/bookshelf_settings.lua:3867
+#: lib/bookshelf_settings.lua:3838
 msgid "Clear cover cache"
 msgstr "Vymazať vyrovnávaciu pamäť obálok"
 
-#: lib/bookshelf_settings.lua:3868
+#: lib/bookshelf_settings.lua:3839
 msgid "Drop all cached scaled covers, in memory and on disk. Use this when a book's cover has been updated outside KOReader (e.g. a metadata-enrichment tool rewrote the EPUB) and the old cover is still showing on the shelf. The next render fetches fresh covers from the EPUBs."
 msgstr "Zahodí všetky uložené preškálované obálky, v pamäti aj na disku. Použite to, keď bola obálka knihy zmenená mimo KOReader (napr. nástroj na obohatenie metadát prepísal EPUB) a na poličke sa stále zobrazuje stará obálka. Ďalšie vykreslenie načíta nové obálky z EPUB súborov."
 
-#: lib/bookshelf_settings.lua:3878
+#: lib/bookshelf_settings.lua:3849
 msgid "Cover cache cleared"
 msgstr "Vyrovnávacia pamäť obálok vymazaná"
 
-#: lib/bookshelf_settings.lua:3891
+#: lib/bookshelf_settings.lua:3862
 msgid "Color panel dithering"
 msgstr "Rozptyľovanie farieb na farebnom paneli"
 
-#: lib/bookshelf_settings.lua:3892
+#: lib/bookshelf_settings.lua:3863
 msgid "Applies the color-dither waveform when redrawing book covers so they keep their full saturation on color e-ink panels. Turn it off to compare; with it off, covers can look washed out until a full-screen refresh. Color panels only."
 msgstr "Pri prekresľovaní obálok kníh použije farebné rozptyľovanie (dithering), aby si na farebných e-ink paneloch zachovali plnú sýtosť. Vypnutím môžete porovnať; bez neho môžu obálky pôsobiť vyblednuto až do obnovenia celej obrazovky. Iba farebné panely."
 
-#: lib/bookshelf_settings.lua:3933 lib/bookshelf_settings.lua:3960
+#: lib/bookshelf_settings.lua:3904 lib/bookshelf_settings.lua:3931
 msgid "Fast"
 msgstr "Rýchlo"
 
-#: lib/bookshelf_settings.lua:3934 lib/bookshelf_settings.lua:3961
+#: lib/bookshelf_settings.lua:3905 lib/bookshelf_settings.lua:3932
 msgid "Normal"
 msgstr "Normálne"
 
-#: lib/bookshelf_settings.lua:3935 lib/bookshelf_settings.lua:3962
+#: lib/bookshelf_settings.lua:3906 lib/bookshelf_settings.lua:3933
 msgid "Slow"
 msgstr "Pomaly"
 
-#: lib/bookshelf_settings.lua:4016
+#: lib/bookshelf_settings.lua:3987
 msgid "Top panel starts with"
 msgstr "Horný panel začína na"
 
-#: lib/bookshelf_settings.lua:4018
+#: lib/bookshelf_settings.lua:3989
 msgid "What the top panel above the shelf shows when it opens: the book you're currently reading, or a grid of micro-modules (clock, quote, random book, reading goals…). You can also switch between them from the shelf menu."
 msgstr "Čo horný panel nad policou zobrazí pri otvorení: knihu, ktorú práve čítate, alebo mriežku mikromodulov (hodiny, citát, náhodná kniha, ciele čítania…). Prepínať medzi nimi môžete aj z ponuky políc."
 
-#: lib/bookshelf_settings.lua:4037
+#: lib/bookshelf_settings.lua:4008
 msgid "Show the book's details"
 msgstr "Zobraziť detail knihy"
 
-#: lib/bookshelf_settings.lua:4038
+#: lib/bookshelf_settings.lua:4009
 msgid "Open with a single tap"
 msgstr "Otvoriť jedným ťuknutím"
 
-#: lib/bookshelf_settings.lua:4039
+#: lib/bookshelf_settings.lua:4010
 msgid "Open with a double tap"
 msgstr "Otvoriť dvojitým ťuknutím"
 
-#: lib/bookshelf_settings.lua:4061
+#: lib/bookshelf_settings.lua:4032
 msgid "Tap a book in full screen shelves"
 msgstr "Ťuknutie na knihu v policiach na celú obrazovku"
 
-#: lib/bookshelf_settings.lua:4064
+#: lib/bookshelf_settings.lua:4035
 msgid "What tapping a book does in full screen shelves: show that book's detail in the top panel, open it with a single tap, or open it with a double tap (first tap selects). The top panel's own double-tap-to-open is the next row."
 msgstr "Čo urobí ťuknutie na knihu v policiach na celú obrazovku: zobrazí jej detail v hornom paneli, otvorí ju jedným ťuknutím alebo ju otvorí dvojitým ťuknutím (prvé ťuknutie vyberie). Vlastné otváranie horného panela dvojitým ťuknutím je v nasledujúcom riadku."
 
-#: lib/bookshelf_settings.lua:4082
+#: lib/bookshelf_settings.lua:4053
 msgid "Bookshelf gestures"
 msgstr "Gestá Bookshelf"
 
-#: lib/bookshelf_settings.lua:4083
+#: lib/bookshelf_settings.lua:4054
 msgid "Switch off any of Bookshelf's own gestures. A gesture switched off does nothing on the shelf. Tapping a book and swiping between pages always work."
 msgstr "Vypnite ktorékoľvek z vlastných gest Bookshelf. Vypnuté gesto na polici nerobí nič. Ťuknutie na knihu a potiahnutie medzi stranami fungujú vždy."
 
-#: lib/bookshelf_settings.lua:4091
+#: lib/bookshelf_settings.lua:4062
 msgid "Double tap to open books"
 msgstr "Otvárať knihy dvojitým ťuknutím"
 
-#: lib/bookshelf_settings.lua:4092
+#: lib/bookshelf_settings.lua:4063
 msgid "When enabled, opening a book from the top panel card or from a shelf cover in full screen shelves requires two taps -- the first selects the cover (focus ring), the second commits. Useful if you tend to open books accidentally while browsing. Regular shelf covers (with the top panel visible) already work this way -- tap stages the book in the top panel, tapping that opens it -- and are unaffected by this setting."
 msgstr "Keď je zapnuté, otvorenie knihy z karty horného panela alebo z obálky v policiach na celú obrazovku vyžaduje dve ťuknutia -- prvé vyberie obálku (zvýrazňujúci prstenec), druhé potvrdí. Užitočné, ak máte sklon otvárať knihy náhodne počas prehliadania. Bežné obálky na polici (keď je horný panel viditeľný) už takto fungujú -- ťuknutie pripraví knihu v hornom paneli, ťuknutie naň ju otvorí -- a týmto nastavením nie sú ovplyvnené."
 
-#: lib/bookshelf_settings.lua:4117
+#: lib/bookshelf_settings.lua:4088
 msgid "Page turn animation"
 msgstr "Animácia otáčania strán"
 
-#: lib/bookshelf_settings.lua:4118
+#: lib/bookshelf_settings.lua:4089
 msgid "Animate shelf page turns and shelf-menu paging with a wipe effect. E-ink only (the effect relies on the panel's refresh, so it does nothing on LCD screens). Fast / Medium / Slow trade snappiness for smoothness. Slow looks smoothest but takes longer on older panels."
 msgstr "Animuje otáčanie strán police a listovanie v ponuke políc efektom stierania. Iba e-ink (efekt sa spolieha na obnovenie panelu, takže na LCD obrazovkách nič nerobí). Rýchlo / Stredne / Pomaly mení svižnosť za plynulosť. Pomaly vyzerá najplynulejšie, no na starších paneloch trvá dlhšie."
 
-#: lib/bookshelf_settings.lua:4123
+#: lib/bookshelf_settings.lua:4094
 msgid "Start menu animation"
 msgstr "Animácia úvodnej ponuky"
 
-#: lib/bookshelf_settings.lua:4124
+#: lib/bookshelf_settings.lua:4095
 msgid "Animate the start menu opening and closing. Separate from the page-turn wipe, so you can keep one and turn off the other - the menu reveal repaints a taller area and can look choppy on some screens, particularly while reading. E-ink only."
 msgstr "Animuje otváranie a zatváranie úvodnej ponuky. Nezávislé od stierania pri otáčaní strán, takže jedno môžete ponechať a druhé vypnúť -- odkrytie ponuky prekresľuje vyššiu oblasť a na niektorých obrazovkách môže vyzerať trhane, najmä počas čítania. Iba e-ink."
 
-#: lib/bookshelf_settings.lua:4130
+#: lib/bookshelf_settings.lua:4101
 msgid "Closing book notification"
 msgstr "Upozornenie na zatváranie knihy"
 
-#: lib/bookshelf_settings.lua:4131
+#: lib/bookshelf_settings.lua:4102
 msgid "Show a 'Closing book…' message in the center of the screen while a book is being closed back to Bookshelf. The book-close work takes a moment, so the message confirms your gesture landed during the wait. Some users on color e-ink panels see a brief flash from the message appearing. Turn it off here if you prefer no message and no flash."
 msgstr "Zobrazí v strede obrazovky správu „Zatvára sa kniha…“, kým sa kniha zatvára späť do Bookshelf. Zatváranie knihy chvíľu trvá, takže správa potvrdzuje, že vaše gesto bolo zaznamenané počas čakania. Niektorí používatelia farebných e-ink panelov vidia pri zobrazení správy krátke bliknutie. Ak nechcete žiadnu správu ani bliknutie, tu to vypnite."
 
-#: lib/bookshelf_settings.lua:4213
+#: lib/bookshelf_settings.lua:4184
 msgid "Scan all library metadata"
 msgstr "Prehľadať všetky metadáta knižnice"
 
-#: lib/bookshelf_settings.lua:4222 lib/bookshelf_widget.lua:23989
+#: lib/bookshelf_settings.lua:4193 lib/bookshelf_widget.lua:23979
 msgid "Extract page counts…"
 msgstr "Extrahovať počty strán…"
 
-#: lib/bookshelf_settings.lua:4223
+#: lib/bookshelf_settings.lua:4194
 msgid "Find page counts for your books, so spines, page count badges and tokens reflect their length. Publisher page numbers and Hardcover editions are used where a book has them; the rest are rendered in the background at your reading settings, which can take a while on a large library."
 msgstr "Zistí počty strán vašich kníh, aby chrbty, odznaky počtu strán a tokeny zodpovedali ich dĺžke. Kde ich kniha má, použijú sa čísla strán od vydavateľa a vydania z Hardcover; ostatné sa vykreslia na pozadí podľa vašich nastavení čítania, čo pri veľkej knižnici môže chvíľu trvať."
 
-#: lib/bookshelf_settings.lua:4248
+#: lib/bookshelf_settings.lua:4219
 msgid "Manage collections…"
 msgstr "Spravovať zbierky…"
 
-#: lib/bookshelf_settings.lua:4249
+#: lib/bookshelf_settings.lua:4220
 msgid "Create, rename, reorder and delete collections. Also reachable from collection shelves and stacks."
 msgstr "Vytváranie, premenovanie, zmena poradia a mazanie zbierok. Dostupné aj z políc a stohov zbierok."
 
-#: lib/bookshelf_settings.lua:4273 lib/bookshelf_settings.lua:4275
+#: lib/bookshelf_settings.lua:4244 lib/bookshelf_settings.lua:4246
 msgid "Bulk selection mode"
 msgstr "Režim hromadného výberu"
 
-#: lib/bookshelf_settings.lua:4277
+#: lib/bookshelf_settings.lua:4248
 msgid "Select several books at once to move or delete them or add them to a collection. Also available from a book's Edit tab (Select), the stack menus (Select N), or as a gesture. Not available in remote catalog views."
 msgstr "Vyberte naraz viacero kníh, aby ste ich presunuli, vymazali alebo pridali do zbierky. Dostupné aj z karty knihy Upraviť (Vybrať), z ponúk stohov (Vybrať N) alebo ako gesto. Nie je dostupné v zobrazeniach vzdialených katalógov."
 
-#: lib/bookshelf_settings.lua:4299 lib/bookshelf_settings.lua:4334
+#: lib/bookshelf_settings.lua:4270 lib/bookshelf_settings.lua:4305
 msgid "First Last"
 msgstr "Meno Priezvisko"
 
-#: lib/bookshelf_settings.lua:4300 lib/bookshelf_settings.lua:4335
+#: lib/bookshelf_settings.lua:4271 lib/bookshelf_settings.lua:4306
 msgid "Last, First"
 msgstr "Priezvisko, Meno"
 
-#: lib/bookshelf_settings.lua:4302
+#: lib/bookshelf_settings.lua:4273
 msgid "Author name formatting"
 msgstr "Formátovanie mena autora"
 
-#: lib/bookshelf_settings.lua:4304
+#: lib/bookshelf_settings.lua:4275
 msgid "How author names are displayed on the Authors shelf. Auto keeps whichever form was first found (\"Richard Osman\" or \"Osman, Richard\"). First Last and Last, First force every author card into the same shape regardless of how each book stored the name."
 msgstr "Ako sa zobrazujú mená autorov na polici Autori. Automaticky ponechá tvar, aký sa našiel ako prvý („Richard Osman“ alebo „Osman, Richard“). Meno Priezvisko a Priezvisko, Meno vynútia rovnaký tvar pre každú kartu autora bez ohľadu na to, ako je meno uložené v jednotlivých knihách."
 
-#: lib/bookshelf_settings.lua:4343
+#: lib/bookshelf_settings.lua:4314
 msgid "Spine text direction"
 msgstr "Smer textu na chrbte"
 
-#: lib/bookshelf_settings.lua:4344
+#: lib/bookshelf_settings.lua:4315
 msgid "Which way a title runs down a spine. British and American books are printed to read downwards; Continental European printing runs the other way. Spines only."
 msgstr "Ktorým smerom beží názov po chrbte. Britské a americké knihy sa tlačia tak, aby sa čítali zhora nadol; kontinentálna európska tlač beží opačne. Iba pre chrbty."
 
-#: lib/bookshelf_settings.lua:4350
+#: lib/bookshelf_settings.lua:4321
 msgid "Top to bottom"
 msgstr "Zhora nadol"
 
-#: lib/bookshelf_settings.lua:4351
+#: lib/bookshelf_settings.lua:4322
 msgid "Bottom to top"
 msgstr "Zdola nahor"
 
-#: lib/bookshelf_settings.lua:4365
+#: lib/bookshelf_settings.lua:4336
 msgid "Hide single-book series and genres"
 msgstr "Skryť série a žánre s jednou knihou"
 
-#: lib/bookshelf_settings.lua:4366
+#: lib/bookshelf_settings.lua:4337
 msgid "When a series or genre contains only one book, hide it from the Series and Genres tabs. Useful when a book carries a one-off series name, or its own title as the series. Off by default."
 msgstr "Keď séria alebo žáner obsahuje iba jednu knihu, skryje ju z kariet Séria a Žánre. Užitočné, keď kniha nesie jedinečný názov série alebo vlastný názov ako sériu. Predvolene vypnuté."
 
-#: lib/bookshelf_settings.lua:4405
+#: lib/bookshelf_settings.lua:4376
 msgid "Image library"
 msgstr "Knižnica obrázkov"
 
-#: lib/bookshelf_settings.lua:4408
+#: lib/bookshelf_settings.lua:4379
 msgid "Where Bookshelf looks for custom cover images. For stacks, place files like authors/author-name.jpg into the matching subfolder (authors, series, genres, collections). For folders, drop a cover.jpg into the folder itself. See the README for more matching options."
 msgstr "Kde Bookshelf hľadá vlastné obrázky obálok. Pre stohy vložte súbory ako authors/meno-autora.jpg do príslušného podpriečinka (authors, series, genres, collections). Pre priečinky vložte cover.jpg priamo do daného priečinka. Ďalšie možnosti zhody nájdete v súbore README."
 
-#: lib/bookshelf_settings.lua:4416
+#: lib/bookshelf_settings.lua:4387
 msgid "Include folder names in search results"
 msgstr "Zahrnúť názvy priečinkov do výsledkov hľadania"
 
-#: lib/bookshelf_settings.lua:4417
+#: lib/bookshelf_settings.lua:4388
 msgid "When searching, also match the names of folders in your library and list them as folder results. Off by default: most libraries file books into author, series or genre folders, so a matching folder just duplicates the author / series / genre result of the same name. Turn on if you navigate by folder and want folders in search."
 msgstr "Pri hľadaní zohľadní aj názvy priečinkov vo vašej knižnici a uvedie ich ako výsledky typu priečinok. Predvolene vypnuté: väčšina knižníc triedi knihy do priečinkov podľa autora, série alebo žánru, takže zhodný priečinok by iba zdvojil výsledok autora / série / žánru rovnakého názvu. Zapnite, ak sa v knižnici pohybujete podľa priečinkov a chcete ich vo výsledkoch hľadania."
 
-#: lib/bookshelf_settings.lua:4435
+#: lib/bookshelf_settings.lua:4406
 msgid "Include genres and tags in search results"
 msgstr "Zahrnúť žánre a štítky do výsledkov vyhľadávania"
 
-#: lib/bookshelf_settings.lua:4436
+#: lib/bookshelf_settings.lua:4407
 msgid "When searching, also match books by their genres and tags, and list matching genres as results. Turn off if you search by title, author or series and the genre matches get in the way."
 msgstr "Pri vyhľadávaní sa knihy porovnávajú aj podľa žánrov a štítkov a zhodné žánre sa zobrazia vo výsledkoch. Vypnite, ak hľadáte podľa názvu, autora alebo série a zhody so žánrami vám prekážajú."
 
-#: lib/bookshelf_settings.lua:4454
+#: lib/bookshelf_settings.lua:4425
 msgid "Ignore The, A, An when sorting"
 msgstr "Ignorovať The, A, An pri triedení"
 
-#: lib/bookshelf_settings.lua:4455
+#: lib/bookshelf_settings.lua:4426
 msgid "Sorts titles and series names by the word after a leading The, A or An, and uses Calibre's title sort where a book has one. Turn off to sort them exactly as written."
 msgstr "Triedi názvy a názvy sérií podľa slova za úvodným The, A alebo An a ak má kniha triediaci názov z Calibre, použije ho. Vypnutím sa budú triediť presne tak, ako sú napísané."
 
-#: lib/bookshelf_settings.lua:4475
+#: lib/bookshelf_settings.lua:4446
 msgid "Sort Chinese text by pinyin"
 msgstr "Zoradiť čínsky text podľa pinyinu"
 
-#: lib/bookshelf_settings.lua:4476
+#: lib/bookshelf_settings.lua:4447
 msgid "Sorts Chinese characters by their Mandarin pinyin reading, so Chinese titles and authors file alphabetically alongside Latin names. When off, Chinese text sorts in Unicode order (roughly by radical and stroke count), after Latin names. Japanese kanji are also affected, so leave this off for Japanese-language libraries."
 msgstr "Zoradí čínske znaky podľa ich čítania v mandarínskom pinyine, takže čínske názvy a autori sa zaradia abecedne popri latinských menách. Keď je vypnuté, čínsky text sa zoraďuje podľa poradia Unicode (približne podľa radikálu a počtu ťahov), za latinskými menami. Ovplyvňuje to aj japonské kandži, takže pre knižnice v japončine toto nechajte vypnuté."
 
-#: lib/bookshelf_settings.lua:4526
+#: lib/bookshelf_settings.lua:4497
 msgid "Show status line"
 msgstr "Zobraziť stavový riadok"
 
-#: lib/bookshelf_settings.lua:4527
+#: lib/bookshelf_settings.lua:4498
 msgid "Puts Bookshelf's status line across the top of the reader, drawn by the same code that draws it on the shelf, so it reads the same in both. Edit the line itself under Settings > Status line. If you also use Bookends, its top row and any top-anchored progress bar move down to make space."
 msgstr "Umiestni stavový riadok Bookshelf naprieč vrchom čítačky, vykreslený tým istým kódom ako na poličke, takže vyzerá rovnako na oboch miestach. Samotný riadok upravíte v Nastavenia > Stavový riadok. Ak používate aj Bookends, jeho horný riadok a prípadný hore ukotvený ukazovateľ priebehu sa posunú nižšie, aby uvoľnili miesto."
 
-#: lib/bookshelf_settings.lua:4549
+#: lib/bookshelf_settings.lua:4520
 msgid "Show menu button"
 msgstr "Zobraziť tlačidlo ponuky"
 
-#: lib/bookshelf_settings.lua:4550
+#: lib/bookshelf_settings.lua:4521
 msgid "Adds the Bookshelf menu button to the reader. Takes effect the next time you open a book."
 msgstr "Pridá do čítačky tlačidlo ponuky Bookshelf. Prejaví sa pri ďalšom otvorení knihy."
 
-#: lib/bookshelf_settings.lua:4559
+#: lib/bookshelf_settings.lua:4530
 msgid "Show micro-modules button"
 msgstr "Zobraziť tlačidlo mikromodulov"
 
-#: lib/bookshelf_settings.lua:4560
+#: lib/bookshelf_settings.lua:4531
 msgid "Adds the micro-modules button to the reader, in the corner opposite the menu button. Takes effect the next time you open a book."
 msgstr "Pridá do čítačky tlačidlo mikromodulov, v rohu oproti tlačidlu ponuky. Prejaví sa pri ďalšom otvorení knihy."
 
-#: lib/bookshelf_settings.lua:4570
+#: lib/bookshelf_settings.lua:4541
 msgid "Launcher button position and size"
 msgstr "Poloha a veľkosť tlačidiel spúšťača"
 
-#: lib/bookshelf_settings.lua:4571
+#: lib/bookshelf_settings.lua:4542
 msgid "Position, size, side and which edge the in-reader launcher buttons sit on. Opens a blank screen showing just the buttons, so you can see them move as you adjust."
 msgstr "Poloha, veľkosť, strana a okraj, na ktorom ležia tlačidlá spúšťača v čítačke. Otvorí prázdnu obrazovku zobrazujúcu iba tlačidlá, takže vidíte, ako sa pri úpravách presúvajú."
 
-#: lib/bookshelf_settings.lua:4589
+#: lib/bookshelf_settings.lua:4560
 msgid "Performance tweaks"
 msgstr "Ladenie výkonu"
 
-#: lib/bookshelf_settings.lua:4595
+#: lib/bookshelf_settings.lua:4566
 msgid "While reading"
 msgstr "Počas čítania"
 
-#: lib/bookshelf_settings.lua:4603
+#: lib/bookshelf_settings.lua:4574
 msgid "Reset shelf menu to defaults"
 msgstr "Obnoviť predvolenú ponuku políc"
 
-#: lib/bookshelf_settings.lua:4604
+#: lib/bookshelf_settings.lua:4575
 msgid "Clears your custom shelf menu (which shelves are shown, their order, their labels and icons, their sources and filters and sorts) and restores the fresh-install set: Home / Recent / Series / Favorites enabled, the rest available to toggle on. Also returns the active shelf to Home and the page indicator to 1. Other settings (top-panel text, fonts, colors) are unaffected."
 msgstr "Vymaže vašu vlastnú ponuku políc (ktoré police sa zobrazujú, ich poradie, popisky a ikony, zdroje, filtre a zoradenie) a obnoví pôvodnú sadu ako pri novej inštalácii: zapnuté Domov / Nedávne / Séria / Obľúbené, zvyšok dostupný na zapnutie. Zároveň vráti aktívnu policu na Domov a ukazovateľ strany na 1. Ostatné nastavenia (text horného panela, písma, farby) nie sú ovplyvnené."
 
-#: lib/bookshelf_settings.lua:4615
+#: lib/bookshelf_settings.lua:4586
 msgid ""
 "Reset the shelf menu to default settings?\n"
 "\n"
@@ -3865,15 +3874,15 @@ msgstr ""
 "\n"
 "Všetky vlastné police, ktoré ste vytvorili alebo upravili, sa stratia. Ostatné nastavenia Bookshelf (text horného panela, písma, farby) nie sú ovplyvnené."
 
-#: lib/bookshelf_settings.lua:4651
+#: lib/bookshelf_settings.lua:4622
 msgid "Reset top panel content to defaults"
 msgstr "Obnoviť predvolený obsah horného panela"
 
-#: lib/bookshelf_settings.lua:4652
+#: lib/bookshelf_settings.lua:4623
 msgid "Clears your top-panel customizations and restores the fresh-install detail layout, including the bundled title (Inter ExtraBold) and author (Caveat) fonts. The Bookshelf UI font and shelf menu are unaffected."
 msgstr "Vymaže vaše úpravy horného panela a obnoví pôvodné rozloženie detailu ako pri novej inštalácii, vrátane pribalených písiem pre názov (Inter ExtraBold) a autora (Caveat). Písmo rozhrania Bookshelf a ponuka políc nie sú ovplyvnené."
 
-#: lib/bookshelf_settings.lua:4659
+#: lib/bookshelf_settings.lua:4630
 msgid ""
 "Reset the top panel's content to default settings?\n"
 "\n"
@@ -3883,167 +3892,163 @@ msgstr ""
 "\n"
 "Všetky úpravy textu a písiem horného panela sa stratia. Písmo rozhrania Bookshelf a ponuka políc nie sú ovplyvnené."
 
-#: lib/bookshelf_settings.lua:4679
+#: lib/bookshelf_settings.lua:4650
 msgid "BETA: Read calibre metadata.calibre"
 msgstr "BETA: Čítať metadata.calibre z Calibre"
 
-#: lib/bookshelf_settings.lua:4684
+#: lib/bookshelf_settings.lua:4655
 msgid "For users with a Calibre-managed library. Reads the metadata.calibre file in your home folder, or the folder above it, to fill in title, authors, series, tags, language and description for every book at once, with no per-book extraction. Calibre's values take priority over the metadata KOReader extracted from the book file itself. Anything you have edited in Book information still wins over both. Covers and page counts always come from KOReader."
 msgstr "Pre používateľov s knižnicou spravovanou v Calibre. Načíta súbor metadata.calibre vo vašom domovskom priečinku alebo v priečinku nad ním a naraz doplní názov, autorov, sériu, štítky, jazyk a popis pre každú knihu, bez extrakcie po jednotlivých knihách. Hodnoty z Calibre majú prednosť pred metadátami, ktoré KOReader získal priamo zo súboru knihy. Čokoľvek, čo ste upravili v Informáciách o knihe, má stále prednosť pred oboma. Obálky a počty strán vždy pochádzajú z KOReader."
 
-#: lib/bookshelf_settings.lua:5011
+#: lib/bookshelf_settings.lua:4982
 msgid "Rows and columns set how much of the screen the shelf takes; the top panel above fills whatever is left. List and spine shelves use that same space with their own row counts, so covers are shown here while you adjust it."
 msgstr "Riadky a stĺpce určujú, koľko obrazovky zaberá polica; horný panel nad ňou vyplní zvyšok. Police so zoznamom a s chrbtami využívajú ten istý priestor s vlastnými počtami riadkov, preto sa tu pri nastavovaní zobrazujú obálky."
 
-#: lib/bookshelf_settings.lua:5019 main.lua:761
+#: lib/bookshelf_settings.lua:4990 main.lua:761
 msgid "Adjust shelf/top panel size"
 msgstr "Upraviť veľkosť police/horného panela"
 
-#: lib/bookshelf_settings.lua:5033
+#: lib/bookshelf_settings.lua:5004
 msgid "Columns: "
 msgstr "Stĺpce: "
 
-#: lib/bookshelf_settings.lua:5041
+#: lib/bookshelf_settings.lua:5012
 msgid "Rows: "
 msgstr "Riadky: "
 
-#: lib/bookshelf_settings.lua:5048
+#: lib/bookshelf_settings.lua:5019
 msgid "Accept"
 msgstr "Prijať"
 
-#: lib/bookshelf_settings.lua:5071
+#: lib/bookshelf_settings.lua:5042
 msgid "Top panel font scale"
 msgstr "Mierka písma horného panela"
 
-#: lib/bookshelf_settings.lua:5082
+#: lib/bookshelf_settings.lua:5053
 msgid "Micro-modules font scale"
 msgstr "Mierka písma mikromodulov"
 
-#: lib/bookshelf_settings.lua:5092
+#: lib/bookshelf_settings.lua:5063
 msgid "Shelf menu font scale"
 msgstr "Mierka písma ponuky políc"
 
-#: lib/bookshelf_settings.lua:5133
+#: lib/bookshelf_settings.lua:5104
 msgid "Stack & folder label scale"
 msgstr "Mierka popiskov stohov a priečinkov"
 
-#: lib/bookshelf_settings.lua:5199
+#: lib/bookshelf_settings.lua:5170
 msgid "Start menu font scale"
 msgstr "Mierka písma úvodnej ponuky"
 
-#: lib/bookshelf_settings.lua:5264
+#: lib/bookshelf_settings.lua:5235
 msgid "Where the start-menu button sits in the footer. Right moves the button and its menu to the bottom-right corner; Off hides the button entirely."
 msgstr "Kde sa v päte nachádza tlačidlo úvodnej ponuky. Vpravo presunie tlačidlo a jeho ponuku do pravého dolného rohu; Vypnuté tlačidlo úplne skryje."
 
-#: lib/bookshelf_settings.lua:5282
+#: lib/bookshelf_settings.lua:5253
 msgid "Minimum start menu width: default"
 msgstr "Minimálna šírka úvodnej ponuky: predvolená"
 
-#: lib/bookshelf_settings.lua:5283
+#: lib/bookshelf_settings.lua:5254
 msgid "Minimum start menu width: %1 dp"
 msgstr "Minimálna šírka úvodnej ponuky: %1 dp"
 
-#: lib/bookshelf_settings.lua:5285
+#: lib/bookshelf_settings.lua:5256
 msgid "The start menu is normally only as wide as its longest label, so short menu text also narrows the micro-module cards. Raise this to widen the panel without lengthening the text."
 msgstr "Úvodná ponuka je bežne široká iba toľko, koľko je jej najdlhší popisok, takže krátky text ponuky zužuje aj karty mikromodulov. Zvýšením tejto hodnoty panel rozšírite bez predĺženia textu."
 
-#: lib/bookshelf_settings.lua:5372
+#: lib/bookshelf_settings.lua:5343
 msgid "Launcher buttons"
 msgstr "Tlačidlá spúšťača"
 
-#: lib/bookshelf_settings.lua:5378
+#: lib/bookshelf_settings.lua:5349
 msgid "edge %1 dp"
 msgstr "okraj %1 dp"
 
-#: lib/bookshelf_settings.lua:5387
+#: lib/bookshelf_settings.lua:5358
 msgid "side %1 dp"
 msgstr "strana %1 dp"
 
-#: lib/bookshelf_settings.lua:5396
+#: lib/bookshelf_settings.lua:5367
 msgid "size %1%"
 msgstr "veľkosť %1%"
 
-#: lib/bookshelf_settings.lua:5404
+#: lib/bookshelf_settings.lua:5375
 msgid "Side: left"
 msgstr "Strana: vľavo"
 
-#: lib/bookshelf_settings.lua:5404
+#: lib/bookshelf_settings.lua:5375
 msgid "Side: right"
 msgstr "Strana: vpravo"
 
-#: lib/bookshelf_settings.lua:5409
+#: lib/bookshelf_settings.lua:5380
 msgid "Edge: bottom"
 msgstr "Okraj: dole"
 
-#: lib/bookshelf_settings.lua:5409
+#: lib/bookshelf_settings.lua:5380
 msgid "Edge: top"
 msgstr "Okraj: hore"
 
-#: lib/bookshelf_settings.lua:5495
+#: lib/bookshelf_settings.lua:5466
 msgid "Minimum start menu width"
 msgstr "Minimálna šírka úvodnej ponuky"
 
-#: lib/bookshelf_settings.lua:5526
+#: lib/bookshelf_settings.lua:5497
 msgid "Modal tab label font scale"
 msgstr "Mierka písma popiskov kariet modálneho okna"
 
-#: lib/bookshelf_settings.lua:5598
-msgid "Cover labels"
-msgstr "Popisky obálok"
-
-#: lib/bookshelf_settings.lua:5599
+#: lib/bookshelf_settings.lua:5570
 msgid "Cover badges"
 msgstr "Odznaky obálok"
 
-#: lib/bookshelf_settings.lua:5600
+#: lib/bookshelf_settings.lua:5571
 msgid "Stack & folder labels"
 msgstr "Popisky stohov a priečinkov"
 
-#: lib/bookshelf_settings.lua:5601
+#: lib/bookshelf_settings.lua:5572
 msgid "Shelf menu"
 msgstr "Ponuka políc"
 
-#: lib/bookshelf_settings.lua:5612
+#: lib/bookshelf_settings.lua:5583
 msgid "List text"
 msgstr "Text zoznamu"
 
-#: lib/bookshelf_settings.lua:5617
+#: lib/bookshelf_settings.lua:5588
 msgid "Top panel"
 msgstr "Horný panel"
 
-#: lib/bookshelf_settings.lua:5619 lib/bookshelf_widget.lua:15058
+#: lib/bookshelf_settings.lua:5590 lib/bookshelf_widget.lua:15048
 msgid "Micro-modules"
 msgstr "Mikromoduly"
 
-#: lib/bookshelf_settings.lua:5625
+#: lib/bookshelf_settings.lua:5596
 msgid "Modal tabs"
 msgstr "Karty modálneho okna"
 
-#: lib/bookshelf_settings.lua:5642
+#: lib/bookshelf_settings.lua:5613
 msgid "Choose image library folder"
 msgstr "Vybrať priečinok knižnice obrázkov"
 
-#: lib/bookshelf_settings.lua:5668
+#: lib/bookshelf_settings.lua:5639
 msgid "\"Latest\" folder walk depth"
 msgstr "Hĺbka prehľadávania priečinkov pre „Najnovšie“"
 
-#: lib/bookshelf_settings.lua:5669
+#: lib/bookshelf_settings.lua:5640
 msgid "How deep to scan your library folder for newly-added books. Higher values take longer on a cold start."
 msgstr "Ako hlboko prehľadávať priečinok knižnice pre novo pridané knihy. Vyššie hodnoty predlžujú čas pri studenom spustení."
 
-#: lib/bookshelf_settings.lua:5687
+#: lib/bookshelf_settings.lua:5658
 msgid "MB"
 msgstr "MB"
 
-#: lib/bookshelf_settings.lua:5688
+#: lib/bookshelf_settings.lua:5659
 msgid "Cover cache budget"
 msgstr "Rozpočet vyrovnávacej pamäte obálok"
 
-#: lib/bookshelf_settings.lua:5689
+#: lib/bookshelf_settings.lua:5660
 msgid "Memory budget for ready-scaled book covers (MB). Higher = smoother paging and preloading, more RAM. Default %1 MB on this device."
 msgstr "Pamäťový rozpočet pre pripravené, preškálované obálky kníh (MB). Vyššie = plynulejšie prechádzanie strán a prednačítavanie, viac RAM. Na tomto zariadení predvolene %1 MB."
 
-#: lib/bookshelf_settings.lua:5812
+#: lib/bookshelf_settings.lua:5783
 msgid ""
 "Another copy of Bookshelf is installed and is also being loaded:\n"
 "%1\n"
@@ -4055,80 +4060,80 @@ msgstr ""
 "\n"
 "Odstráňte ju a reštartujte, inak sa môže zdať, že aktualizácie nič nerobia."
 
-#: lib/bookshelf_settings.lua:5847
+#: lib/bookshelf_settings.lua:5818
 msgid "Link copied to clipboard"
 msgstr "Odkaz skopírovaný do schránky"
 
-#: lib/bookshelf_settings.lua:5937 main.lua:851
+#: lib/bookshelf_settings.lua:5908 main.lua:851
 msgid "Update available"
 msgstr "Dostupná aktualizácia"
 
-#: lib/bookshelf_settings.lua:5940 lib/bookshelf_settings.lua:5997
+#: lib/bookshelf_settings.lua:5911 lib/bookshelf_settings.lua:5968
 msgid "Check for updates"
 msgstr "Skontrolovať aktualizácie"
 
-#: lib/bookshelf_settings.lua:5942
+#: lib/bookshelf_settings.lua:5913
 msgid "Checks GitHub for a newer Bookshelf release and offers to install it, with the release notes shown first. The version in brackets is what's installed."
 msgstr "Skontroluje GitHub, či nie je dostupné novšie vydanie Bookshelf, a ponúkne jeho inštaláciu, pričom najprv zobrazí poznámky k vydaniu. Verzia v zátvorkách je tá nainštalovaná."
 
-#: lib/bookshelf_settings.lua:5949
+#: lib/bookshelf_settings.lua:5920
 msgid "View changelog"
 msgstr "Zobraziť zoznam zmien"
 
-#: lib/bookshelf_settings.lua:5950
+#: lib/bookshelf_settings.lua:5921
 msgid "Browse this and past releases' notes, newest first. Notes are cached, so anything fetched once stays readable offline; Refresh pulls the latest."
 msgstr "Prehliadajte poznámky tohto aj predchádzajúcich vydaní, najnovšie prvé. Poznámky sa ukladajú do vyrovnávacej pamäte, takže raz stiahnuté zostanú čitateľné aj offline; Obnoviť stiahne najnovšie."
 
-#: lib/bookshelf_settings.lua:5960
+#: lib/bookshelf_settings.lua:5931
 msgid "Notify on wake when update available"
 msgstr "Upozorniť pri prebudení, keď je dostupná aktualizácia"
 
-#: lib/bookshelf_settings.lua:5971 lib/bookshelf_settings.lua:5975
+#: lib/bookshelf_settings.lua:5942 lib/bookshelf_settings.lua:5946
 msgid "Developer updates"
 msgstr "Vývojárske aktualizácie"
 
-#: lib/bookshelf_settings.lua:5981 lib/bookshelf_settings.lua:5982
+#: lib/bookshelf_settings.lua:5952 lib/bookshelf_settings.lua:5953
 #: main.lua:2337
 msgid "Development branch"
 msgstr "Vývojová vetva"
 
-#: lib/bookshelf_settings.lua:5998
+#: lib/bookshelf_settings.lua:5969
 msgid "Install branch"
 msgstr "Nainštalovať vetvu"
 
-#: lib/bookshelf_settings.lua:6004
+#: lib/bookshelf_settings.lua:5975
 msgid "Reset to latest stable release"
 msgstr "Vrátiť sa na najnovšie stabilné vydanie"
 
-#: lib/bookshelf_settings.lua:6015 lib/bookshelf_settings.lua:6018
+#: lib/bookshelf_settings.lua:5986 lib/bookshelf_settings.lua:5989
 msgid "Installed: v"
 msgstr "Nainštalované: v"
 
-#: lib/bookshelf_settings.lua:6027
+#: lib/bookshelf_settings.lua:5998
 msgid "Pack editor…"
 msgstr "Editor balíka…"
 
-#: lib/bookshelf_settings.lua:6072
+#: lib/bookshelf_settings.lua:6043
 msgid "Flexible shelf widths"
 msgstr "Pružné šírky políc"
 
-#: lib/bookshelf_settings.lua:6073
+#: lib/bookshelf_settings.lua:6044
 msgid "Off: every shelf gets the same width. On: each shelf is sized to its label, so single-icon shelves stay narrow and longer text labels get more room. Falls back to equal widths when natural sizes don't fit."
 msgstr "Vypnuté: každá polica má rovnakú šírku. Zapnuté: veľkosť každej police sa prispôsobí jej popisku, takže police len s ikonou zostanú úzke a dlhšie textové popisky dostanú viac miesta. Ak sa prirodzené veľkosti nezmestia, vráti sa k rovnakým šírkam."
 
-#: lib/bookshelf_settings.lua:6088
+#: lib/bookshelf_settings.lua:6059
 msgid "Uppercase labels"
 msgstr "Popisky veľkými písmenami"
 
-#: lib/bookshelf_settings.lua:6089
+#: lib/bookshelf_settings.lua:6060
 msgid "On: shelf names and the drill breadcrumb are shown in capitals, the default look. Off: each label reads exactly as you typed it, so \"Sci-Fi\" stays \"Sci-Fi\"."
 msgstr "Zapnuté: názvy políc a navigačná omrvinka sa zobrazujú veľkými písmenami, predvolený vzhľad. Vypnuté: každý popisok sa zobrazí presne tak, ako bol zadaný, takže „Sci-Fi“ zostane „Sci-Fi“."
 
-#: lib/bookshelf_settings.lua:6167
+#: lib/bookshelf_settings.lua:6138
 msgid "Tap a shelf to edit it. Long-press to show or hide it."
 msgstr "Ťuknutím na policu ju upravíte. Dlhým stlačením ju zobrazíte alebo skryjete."
 
-#: lib/bookshelf_settings.lua:6172
+#: lib/bookshelf_settings.lua:6143
 msgid "+ Add new shelf"
 msgstr "+ Pridať novú policu"
 
@@ -4200,8 +4205,8 @@ msgstr "Čítanie/Neprečítané/Dokončené"
 msgid "Reading 1st"
 msgstr "Najprv rozčítané"
 
-#: lib/bookshelf_sort_engine.lua:633 lib/bookshelf_widget.lua:19435
-#: lib/bookshelf_widget.lua:19450
+#: lib/bookshelf_sort_engine.lua:633 lib/bookshelf_widget.lua:19425
+#: lib/bookshelf_widget.lua:19440
 msgid "Added"
 msgstr "Pridané"
 
@@ -4217,7 +4222,7 @@ msgstr "Veľkosť súboru"
 msgid "Page count"
 msgstr "Počet strán"
 
-#: lib/bookshelf_sort_engine.lua:668 lib/bookshelf_widget.lua:19432
+#: lib/bookshelf_sort_engine.lua:668 lib/bookshelf_widget.lua:19422
 msgid "Pages"
 msgstr "Strany"
 
@@ -4382,7 +4387,7 @@ msgid "Latest"
 msgstr "Najnovšie"
 
 #: lib/bookshelf_tab_model.lua:91 lib/bookshelf_widget.lua:1751
-#: lib/bookshelf_widget.lua:22174
+#: lib/bookshelf_widget.lua:22164
 msgid "Tags"
 msgstr "Štítky"
 
@@ -4394,11 +4399,11 @@ msgstr "%1 (iba police s chrbtami)"
 msgid "Edited"
 msgstr "Upravená"
 
-#: lib/bookshelf_theme_library.lua:264
+#: lib/bookshelf_theme_library.lua:269
 msgid "Uses: %1"
 msgstr "Používa: %1"
 
-#: lib/bookshelf_theme_library.lua:331
+#: lib/bookshelf_theme_library.lua:336
 msgid "Reset to original"
 msgstr "Obnoviť pôvodnú"
 
@@ -4424,27 +4429,27 @@ msgstr ""
 "\n"
 "Každá polica môže mať vlastnú tému: vyberte ju tu, alebo podržte čip police a otvorte Štýl police."
 
-#: lib/bookshelf_theme_menu.lua:134
+#: lib/bookshelf_theme_menu.lua:131
 msgid "This shelf: %1"
 msgstr "Táto polica: %1"
 
-#: lib/bookshelf_theme_menu.lua:168
+#: lib/bookshelf_theme_menu.lua:165
 msgid "Other shelves: all default"
 msgstr "Ostatné police: všetky predvolené"
 
-#: lib/bookshelf_theme_menu.lua:169
+#: lib/bookshelf_theme_menu.lua:166
 msgid "Other shelves: 1 with own theme"
 msgstr "Ostatné police: 1 s vlastnou témou"
 
-#: lib/bookshelf_theme_menu.lua:170
+#: lib/bookshelf_theme_menu.lua:167
 msgid "Other shelves: %1 with own themes"
 msgstr "Ostatné police: %1 s vlastnou témou"
 
-#: lib/bookshelf_theme_menu.lua:222
+#: lib/bookshelf_theme_menu.lua:219
 msgid "%1: %2"
 msgstr "%1: %2"
 
-#: lib/bookshelf_theme_menu.lua:232
+#: lib/bookshelf_theme_menu.lua:229
 msgid "Default theme: %1"
 msgstr "Predvolená téma: %1"
 
@@ -4484,7 +4489,7 @@ msgstr "Jednoduchá"
 msgid "Default theme"
 msgstr "Predvolená téma"
 
-#: lib/bookshelf_theme_pack.lua:1316
+#: lib/bookshelf_theme_pack.lua:1341
 msgid "Reset %1 to its original settings? Your changes to it are lost."
 msgstr "Obnoviť pôvodné nastavenia „%1“? Vaše zmeny sa stratia."
 
@@ -5076,7 +5081,7 @@ msgstr "Nastaviť domovský priečinok"
 msgid "Current home folder:"
 msgstr "Aktuálny domovský priečinok:"
 
-#: lib/bookshelf_widget.lua:4604 lib/bookshelf_widget.lua:20764
+#: lib/bookshelf_widget.lua:4604 lib/bookshelf_widget.lua:20754
 msgid "File no longer exists. The bookshelf entry is stale."
 msgstr "Súbor už neexistuje. Položka na poličke je neaktuálna."
 
@@ -5142,87 +5147,87 @@ msgstr "Pripravuje sa kniha…"
 msgid "This book is still being prepared. Please try again in a moment."
 msgstr "Táto kniha sa ešte pripravuje. Skúste to prosím o chvíľu znova."
 
-#: lib/bookshelf_widget.lua:5645
+#: lib/bookshelf_widget.lua:5636
 msgid "Show search results as"
 msgstr "Zobraziť výsledky hľadania ako"
 
-#: lib/bookshelf_widget.lua:6119
+#: lib/bookshelf_widget.lua:6110
 msgid "Catalog books can't be selected."
 msgstr "Knihy z katalógu nemožno vybrať."
 
-#: lib/bookshelf_widget.lua:7321
+#: lib/bookshelf_widget.lua:7311
 msgid "%1 - %2 of %3+"
 msgstr "%1 - %2 z %3+"
 
-#: lib/bookshelf_widget.lua:7322
+#: lib/bookshelf_widget.lua:7312
 msgid "%1 - %2 of %3"
 msgstr "%1 - %2 z %3"
 
-#: lib/bookshelf_widget.lua:7958 lib/bookshelf_widget.lua:12134
+#: lib/bookshelf_widget.lua:7948 lib/bookshelf_widget.lua:12124
 msgid "Selection cleared"
 msgstr "Výber zrušený"
 
-#: lib/bookshelf_widget.lua:8257
+#: lib/bookshelf_widget.lua:8247
 #, lua-format
 msgid "No items start with %q"
 msgstr "Žiadne položky nezačínajú na %q"
 
-#: lib/bookshelf_widget.lua:8302
+#: lib/bookshelf_widget.lua:8292
 msgid "Go to letter"
 msgstr "Prejsť na písmeno"
 
-#: lib/bookshelf_widget.lua:8313
+#: lib/bookshelf_widget.lua:8303
 msgid "Enter text, letter or book number"
 msgstr "Zadajte text, písmeno alebo číslo knihy"
 
-#: lib/bookshelf_widget.lua:8314
+#: lib/bookshelf_widget.lua:8304
 msgid "Enter text, letter or page number"
 msgstr "Zadajte text, písmeno alebo číslo strany"
 
-#: lib/bookshelf_widget.lua:8321
+#: lib/bookshelf_widget.lua:8311
 #, lua-format
 msgid "(a - z) or (1 - %d)"
 msgstr "(a - z) alebo (1 - %d)"
 
-#: lib/bookshelf_widget.lua:8331
+#: lib/bookshelf_widget.lua:8321
 msgid "Go to book"
 msgstr "Prejsť na knihu"
 
-#: lib/bookshelf_widget.lua:8331
+#: lib/bookshelf_widget.lua:8321
 msgid "Go to page"
 msgstr "Prejsť na stranu"
 
-#: lib/bookshelf_widget.lua:8338
+#: lib/bookshelf_widget.lua:8328
 #, lua-format
 msgid "Book must be between 1 and %d"
 msgstr "Kniha musí byť medzi 1 a %d"
 
-#: lib/bookshelf_widget.lua:8339
+#: lib/bookshelf_widget.lua:8329
 #, lua-format
 msgid "Page must be between 1 and %d"
 msgstr "Strana musí byť medzi 1 a %d"
 
-#: lib/bookshelf_widget.lua:10520
+#: lib/bookshelf_widget.lua:10510
 msgid "Retrieving book cover…"
 msgstr "Načítava sa obálka knihy…"
 
-#: lib/bookshelf_widget.lua:15062
+#: lib/bookshelf_widget.lua:15052
 msgid "Reset modules to default"
 msgstr "Obnoviť predvolené moduly"
 
-#: lib/bookshelf_widget.lua:15071
+#: lib/bookshelf_widget.lua:15061
 msgid "Remove micro-modules (re-enable in settings)"
 msgstr "Odstrániť mikromoduly (znova zapnete v nastaveniach)"
 
-#: lib/bookshelf_widget.lua:15218 lib/bookshelf_widget.lua:23557
+#: lib/bookshelf_widget.lua:15208 lib/bookshelf_widget.lua:23547
 msgid "Bulk selection isn't available in remote catalog views."
 msgstr "Hromadný výber nie je dostupný v zobrazeniach vzdialených katalógov."
 
-#: lib/bookshelf_widget.lua:15832
+#: lib/bookshelf_widget.lua:15822
 msgid "Refreshing library…"
 msgstr "Obnovuje sa knižnica…"
 
-#: lib/bookshelf_widget.lua:16318
+#: lib/bookshelf_widget.lua:16308
 msgid ""
 "Fetching %1… (%2 books)\n"
 "(Tap to cancel)"
@@ -5230,7 +5235,7 @@ msgstr ""
 "Načítava sa %1… (%2 kníh)\n"
 "(zrušíte ťuknutím)"
 
-#: lib/bookshelf_widget.lua:16322
+#: lib/bookshelf_widget.lua:16312
 msgid ""
 "Fetching %1…\n"
 "(Tap to cancel)"
@@ -5238,7 +5243,7 @@ msgstr ""
 "Načítava sa %1…\n"
 "(zrušíte ťuknutím)"
 
-#: lib/bookshelf_widget.lua:16392
+#: lib/bookshelf_widget.lua:16382
 msgid ""
 "Stop loading %1?\n"
 "%2 books so far."
@@ -5246,115 +5251,115 @@ msgstr ""
 "Zastaviť načítavanie %1?\n"
 "Zatiaľ %2 kníh."
 
-#: lib/bookshelf_widget.lua:16394
+#: lib/bookshelf_widget.lua:16384
 msgid "Stop loading %1?"
 msgstr "Zastaviť načítavanie %1?"
 
-#: lib/bookshelf_widget.lua:16396
+#: lib/bookshelf_widget.lua:16386
 msgid "Keep loading"
 msgstr "Pokračovať v načítavaní"
 
-#: lib/bookshelf_widget.lua:16448 lib/bookshelf_widget.lua:18116
-#: lib/bookshelf_widget.lua:18921
+#: lib/bookshelf_widget.lua:16438 lib/bookshelf_widget.lua:18106
+#: lib/bookshelf_widget.lua:18911
 msgid "Authentication failed for %1"
 msgstr "Overenie zlyhalo pre %1"
 
-#: lib/bookshelf_widget.lua:16450 lib/bookshelf_widget.lua:18118
+#: lib/bookshelf_widget.lua:16440 lib/bookshelf_widget.lua:18108
 msgid "%1 refused every format Bookshelf asked for"
 msgstr "%1 odmietol každý formát, o ktorý Bookshelf požiadal"
 
-#: lib/bookshelf_widget.lua:16452 lib/bookshelf_widget.lua:18120
+#: lib/bookshelf_widget.lua:16442 lib/bookshelf_widget.lua:18110
 msgid "%1 is limiting requests. Wait a minute and try again."
 msgstr "%1 obmedzuje počet požiadaviek. Počkajte minútu a skúste to znova."
 
-#: lib/bookshelf_widget.lua:16453 lib/bookshelf_widget.lua:18121
-#: lib/bookshelf_widget.lua:18925
+#: lib/bookshelf_widget.lua:16443 lib/bookshelf_widget.lua:18111
+#: lib/bookshelf_widget.lua:18915
 msgid "Couldn't reach %1"
 msgstr "Nepodarilo sa spojiť s %1"
 
-#: lib/bookshelf_widget.lua:16486 lib/bookshelf_widget.lua:16516
+#: lib/bookshelf_widget.lua:16476 lib/bookshelf_widget.lua:16506
 msgid "No books found in %1"
 msgstr "V %1 sa nenašli žiadne knihy"
 
-#: lib/bookshelf_widget.lua:16515
+#: lib/bookshelf_widget.lua:16505
 msgid "No downloadable titles in this category."
 msgstr "V tejto kategórii nie sú žiadne knihy na stiahnutie."
 
-#: lib/bookshelf_widget.lua:16711 lib/bookshelf_widget.lua:18065
-#: lib/bookshelf_widget.lua:18727 lib/bookshelf_widget.lua:18860
-#: lib/bookshelf_widget.lua:24933
+#: lib/bookshelf_widget.lua:16701 lib/bookshelf_widget.lua:18055
+#: lib/bookshelf_widget.lua:18717 lib/bookshelf_widget.lua:18850
+#: lib/bookshelf_widget.lua:24923
 msgid "The catalog is busy. Try again in a moment."
 msgstr "Katalóg je zaneprázdnený. Skúste to o chvíľu znova."
 
-#: lib/bookshelf_widget.lua:17961
+#: lib/bookshelf_widget.lua:17951
 msgid "This catalog does not offer search."
 msgstr "Tento katalóg neponúka vyhľadávanie."
 
-#: lib/bookshelf_widget.lua:17962
+#: lib/bookshelf_widget.lua:17952
 msgid "Load the catalog first, then search it."
 msgstr "Najprv načítajte katalóg a potom v ňom hľadajte."
 
-#: lib/bookshelf_widget.lua:18009
+#: lib/bookshelf_widget.lua:17999
 msgid "Search my library"
 msgstr "Hľadať v mojej knižnici"
 
-#: lib/bookshelf_widget.lua:18015
+#: lib/bookshelf_widget.lua:18005
 msgid "Search %1"
 msgstr "Hľadať v %1"
 
-#: lib/bookshelf_widget.lua:18088
+#: lib/bookshelf_widget.lua:18078
 msgid "Searching %1…"
 msgstr "Hľadá sa v %1…"
 
-#: lib/bookshelf_widget.lua:18150
+#: lib/bookshelf_widget.lua:18140
 msgid "Search: \"%1\""
 msgstr "Hľadanie: „%1“"
 
-#: lib/bookshelf_widget.lua:18383 lib/bookshelf_widget.lua:19331
+#: lib/bookshelf_widget.lua:18373 lib/bookshelf_widget.lua:19321
 msgid "(no title)"
 msgstr "(bez názvu)"
 
-#: lib/bookshelf_widget.lua:18517
+#: lib/bookshelf_widget.lua:18507
 msgid "Download"
 msgstr "Stiahnuť"
 
-#: lib/bookshelf_widget.lua:18517
+#: lib/bookshelf_widget.lua:18507
 msgid "Download %1"
 msgstr "Stiahnuť %1"
 
-#: lib/bookshelf_widget.lua:18523
+#: lib/bookshelf_widget.lua:18513
 msgid "Recommended"
 msgstr "Odporúčané"
 
-#: lib/bookshelf_widget.lua:18525
+#: lib/bookshelf_widget.lua:18515
 msgid "Alternatives"
 msgstr "Alternatívy"
 
-#: lib/bookshelf_widget.lua:18540
+#: lib/bookshelf_widget.lua:18530
 msgid "No formats this device can open"
 msgstr "Žiadne formáty, ktoré toto zariadenie dokáže otvoriť"
 
-#: lib/bookshelf_widget.lua:18752
+#: lib/bookshelf_widget.lua:18742
 msgid "Set a home folder in KOReader before downloading books."
 msgstr "Pred sťahovaním kníh nastavte v KOReader domovský priečinok."
 
-#: lib/bookshelf_widget.lua:18809
+#: lib/bookshelf_widget.lua:18799
 msgid "%1 already exists. Download it again?"
 msgstr "%1 už existuje. Stiahnuť to znova?"
 
-#: lib/bookshelf_widget.lua:18810
+#: lib/bookshelf_widget.lua:18800
 msgid "Overwrite"
 msgstr "Prepísať"
 
-#: lib/bookshelf_widget.lua:18885
+#: lib/bookshelf_widget.lua:18875
 msgid "Downloading %1… (tap to cancel)"
 msgstr "Sťahuje sa %1… (zrušíte ťuknutím)"
 
-#: lib/bookshelf_widget.lua:18897
+#: lib/bookshelf_widget.lua:18887
 msgid "Download cancelled"
 msgstr "Sťahovanie zrušené"
 
-#: lib/bookshelf_widget.lua:18915
+#: lib/bookshelf_widget.lua:18905
 msgid ""
 "Insecure redirect refused.\n"
 "\n"
@@ -5372,363 +5377,363 @@ msgstr ""
 "\n"
 "Mnohé aplikácie to odmietajú, pretože by mohlo ísť o downgrade útok."
 
-#: lib/bookshelf_widget.lua:19024
+#: lib/bookshelf_widget.lua:19014
 msgid "%1 downloaded. Read it now?"
 msgstr "%1 stiahnuté. Prečítať teraz?"
 
-#: lib/bookshelf_widget.lua:19025 lib/bookshelf_widget.lua:19436
+#: lib/bookshelf_widget.lua:19015 lib/bookshelf_widget.lua:19426
 msgid "Read"
 msgstr "Čítať"
 
-#: lib/bookshelf_widget.lua:19033
+#: lib/bookshelf_widget.lua:19023
 msgid "Not now"
 msgstr "Teraz nie"
 
-#: lib/bookshelf_widget.lua:19285
+#: lib/bookshelf_widget.lua:19275
 msgid "%1 bookmarks"
 msgstr "%1 záložiek"
 
-#: lib/bookshelf_widget.lua:19285
+#: lib/bookshelf_widget.lua:19275
 msgid "1 bookmark"
 msgstr "1 záložka"
 
-#: lib/bookshelf_widget.lua:19451
+#: lib/bookshelf_widget.lua:19441
 msgid "Last read"
 msgstr "Naposledy čítané"
 
-#: lib/bookshelf_widget.lua:20306 lib/bookshelf_widget.lua:22857
-#: lib/bookshelf_widget.lua:22862
+#: lib/bookshelf_widget.lua:20296 lib/bookshelf_widget.lua:22847
+#: lib/bookshelf_widget.lua:22852
 msgid "My review"
 msgstr "Moja recenzia"
 
-#: lib/bookshelf_widget.lua:20618
+#: lib/bookshelf_widget.lua:20608
 msgid "(from Hardcover)"
 msgstr "(z Hardcover)"
 
-#: lib/bookshelf_widget.lua:20760
+#: lib/bookshelf_widget.lua:20750
 msgid "Show info"
 msgstr "Zobraziť info"
 
-#: lib/bookshelf_widget.lua:20821
+#: lib/bookshelf_widget.lua:20811
 msgid "Removed from history"
 msgstr "Odstránené z histórie"
 
-#: lib/bookshelf_widget.lua:20875
+#: lib/bookshelf_widget.lua:20865
 msgid "Delete file permanently?"
 msgstr "Vymazať súbor natrvalo?"
 
-#: lib/bookshelf_widget.lua:20884
+#: lib/bookshelf_widget.lua:20874
 msgid "Failed to delete file."
 msgstr "Súbor sa nepodarilo vymazať."
 
-#: lib/bookshelf_widget.lua:20906
+#: lib/bookshelf_widget.lua:20896
 msgid "Metadata refresh queued"
 msgstr "Obnovenie metadát zaradené do fronty"
 
-#: lib/bookshelf_widget.lua:20908
+#: lib/bookshelf_widget.lua:20898
 msgid "Select"
 msgstr "Vybrať"
 
-#: lib/bookshelf_widget.lua:20921
+#: lib/bookshelf_widget.lua:20911
 msgid "Move…"
 msgstr "Presunúť…"
 
-#: lib/bookshelf_widget.lua:21055
+#: lib/bookshelf_widget.lua:21045
 msgid "Reading status"
 msgstr "Stav čítania"
 
-#: lib/bookshelf_widget.lua:21196
+#: lib/bookshelf_widget.lua:21186
 msgid "Your rating"
 msgstr "Vaše hodnotenie"
 
-#: lib/bookshelf_widget.lua:21338
+#: lib/bookshelf_widget.lua:21328
 msgid "File & metadata"
 msgstr "Súbor a metadáta"
 
-#: lib/bookshelf_widget.lua:21351
+#: lib/bookshelf_widget.lua:21341
 msgid "Not linked"
 msgstr "Neprepojené"
 
-#: lib/bookshelf_widget.lua:21352
+#: lib/bookshelf_widget.lua:21342
 msgid "Link…"
 msgstr "Prepojiť…"
 
-#: lib/bookshelf_widget.lua:21364
+#: lib/bookshelf_widget.lua:21354
 msgid "Plugin actions"
 msgstr "Akcie doplnku"
 
-#: lib/bookshelf_widget.lua:21511
+#: lib/bookshelf_widget.lua:21501
 #, lua-format
 msgid "%d ratings"
 msgstr "%d hodnotení"
 
-#: lib/bookshelf_widget.lua:21514
+#: lib/bookshelf_widget.lua:21504
 #, lua-format
 msgid "%d reviews"
 msgstr "%d recenzií"
 
-#: lib/bookshelf_widget.lua:21642
+#: lib/bookshelf_widget.lua:21632
 msgid "Write…"
 msgstr "Napísať…"
 
-#: lib/bookshelf_widget.lua:21664
+#: lib/bookshelf_widget.lua:21654
 msgid "You haven't reviewed this book yet."
 msgstr "Túto knihu ste zatiaľ nerecenzovali."
 
-#: lib/bookshelf_widget.lua:21744
+#: lib/bookshelf_widget.lua:21734
 msgid "Choose from device"
 msgstr "Vybrať zo zariadenia"
 
-#: lib/bookshelf_widget.lua:21748
+#: lib/bookshelf_widget.lua:21738
 msgid "Search online…"
 msgstr "Hľadať online…"
 
-#: lib/bookshelf_widget.lua:21815
+#: lib/bookshelf_widget.lua:21805
 msgid "No covers stored yet. Use Search online or Choose from device."
 msgstr "Zatiaľ nie sú uložené žiadne obálky. Použite Hľadať online alebo Vybrať zo zariadenia."
 
-#: lib/bookshelf_widget.lua:21963
+#: lib/bookshelf_widget.lua:21953
 msgid "That cover is unavailable"
 msgstr "Táto obálka nie je dostupná"
 
-#: lib/bookshelf_widget.lua:21970
+#: lib/bookshelf_widget.lua:21960
 msgid "Couldn't set the cover"
 msgstr "Obálku sa nepodarilo nastaviť"
 
-#: lib/bookshelf_widget.lua:22025
+#: lib/bookshelf_widget.lua:22015
 msgid "Cover updated"
 msgstr "Obálka aktualizovaná"
 
-#: lib/bookshelf_widget.lua:22025
+#: lib/bookshelf_widget.lua:22015
 msgid "Reverted to embedded cover"
 msgstr "Vrátené na vstavanú obálku"
 
-#: lib/bookshelf_widget.lua:22038
+#: lib/bookshelf_widget.lua:22028
 msgid "Choose cover image"
 msgstr "Vybrať obrázok obálky"
 
-#: lib/bookshelf_widget.lua:22069
+#: lib/bookshelf_widget.lua:22059
 msgid "No cover matches found"
 msgstr "Nenašli sa žiadne zodpovedajúce obálky"
 
-#: lib/bookshelf_widget.lua:22078
+#: lib/bookshelf_widget.lua:22068
 msgid "Cover search failed"
 msgstr "Vyhľadávanie obálky zlyhalo"
 
-#: lib/bookshelf_widget.lua:22164
+#: lib/bookshelf_widget.lua:22154
 msgid "Author(s)"
 msgstr "Autor(i)"
 
-#: lib/bookshelf_widget.lua:22343
+#: lib/bookshelf_widget.lua:22333
 msgid "Calibre"
 msgstr "Calibre"
 
-#: lib/bookshelf_widget.lua:22394 lib/bookshelf_widget.lua:22474
-#: lib/bookshelf_widget.lua:22519
+#: lib/bookshelf_widget.lua:22384 lib/bookshelf_widget.lua:22464
+#: lib/bookshelf_widget.lua:22509
 msgid "New tag"
 msgstr "Nový štítok"
 
-#: lib/bookshelf_widget.lua:22495
+#: lib/bookshelf_widget.lua:22485
 msgid "Edit tags"
 msgstr "Upraviť štítky"
 
-#: lib/bookshelf_widget.lua:22586
+#: lib/bookshelf_widget.lua:22576
 msgid "Rename tag"
 msgstr "Premenovať štítok"
 
-#: lib/bookshelf_widget.lua:22624
+#: lib/bookshelf_widget.lua:22614
 msgid "Remove the tag \"%1\" from this book?"
 msgstr "Odstrániť štítok „%1“ z tejto knihy?"
 
-#: lib/bookshelf_widget.lua:22647
+#: lib/bookshelf_widget.lua:22637
 msgid "Edit tag: "
 msgstr "Upraviť štítok: "
 
-#: lib/bookshelf_widget.lua:22736
+#: lib/bookshelf_widget.lua:22726
 msgid "Not in any collection."
 msgstr "Nie je v žiadnej zbierke."
 
-#: lib/bookshelf_widget.lua:22826
+#: lib/bookshelf_widget.lua:22816
 msgid "Reviews couldn't be fetched."
 msgstr "Recenzie sa nepodarilo načítať."
 
-#: lib/bookshelf_widget.lua:22842
+#: lib/bookshelf_widget.lua:22832
 msgid "Tap Refresh to load reviews."
 msgstr "Ťuknutím na Obnoviť načítate recenzie."
 
-#: lib/bookshelf_widget.lua:22856 lib/bookshelf_widget.lua:22862
+#: lib/bookshelf_widget.lua:22846 lib/bookshelf_widget.lua:22852
 msgid "Reviews"
 msgstr "Recenzie"
 
-#: lib/bookshelf_widget.lua:22894
+#: lib/bookshelf_widget.lua:22884
 msgid "Cover"
 msgstr "Obálka"
 
-#: lib/bookshelf_widget.lua:23092
+#: lib/bookshelf_widget.lua:23082
 msgid "Hardcover metadata refreshed"
 msgstr "Metadáta z Hardcover obnovené"
 
-#: lib/bookshelf_widget.lua:23094
+#: lib/bookshelf_widget.lua:23084
 msgid "Hardcover refresh failed"
 msgstr "Obnovenie z Hardcover zlyhalo"
 
-#: lib/bookshelf_widget.lua:23106
+#: lib/bookshelf_widget.lua:23096
 msgid "Auto link"
 msgstr "Automatické prepojenie"
 
-#: lib/bookshelf_widget.lua:23106
+#: lib/bookshelf_widget.lua:23096
 msgid "Auto link (best guess)"
 msgstr "Automatické prepojenie (najlepší odhad)"
 
-#: lib/bookshelf_widget.lua:23111
+#: lib/bookshelf_widget.lua:23101
 msgid "No embedded Hardcover identifier found"
 msgstr "Nenašiel sa žiadny vstavaný identifikátor Hardcover"
 
-#: lib/bookshelf_widget.lua:23114 lib/bookshelf_widget.lua:23149
+#: lib/bookshelf_widget.lua:23104 lib/bookshelf_widget.lua:23139
 msgid "Hardcover book linked"
 msgstr "Kniha prepojená s Hardcover"
 
-#: lib/bookshelf_widget.lua:23121
+#: lib/bookshelf_widget.lua:23111
 msgid "No confident Hardcover match -- try Manual link"
 msgstr "Žiadna istá zhoda v Hardcover -- skúste Manuálne prepojenie"
 
-#: lib/bookshelf_widget.lua:23122 lib/bookshelf_widget.lua:23156
+#: lib/bookshelf_widget.lua:23112 lib/bookshelf_widget.lua:23146
 msgid "Hardcover search failed"
 msgstr "Vyhľadávanie v Hardcover zlyhalo"
 
-#: lib/bookshelf_widget.lua:23126
+#: lib/bookshelf_widget.lua:23116
 msgid "Hardcover book linked (best guess)"
 msgstr "Kniha prepojená s Hardcover (najlepší odhad)"
 
-#: lib/bookshelf_widget.lua:23133
+#: lib/bookshelf_widget.lua:23123
 msgid "Manual link"
 msgstr "Manuálne prepojenie"
 
-#: lib/bookshelf_widget.lua:23141 lib/bookshelf_widget.lua:23175
+#: lib/bookshelf_widget.lua:23131 lib/bookshelf_widget.lua:23165
 msgid "Hardcover link failed"
 msgstr "Prepojenie s Hardcover zlyhalo"
 
-#: lib/bookshelf_widget.lua:23146
+#: lib/bookshelf_widget.lua:23136
 msgid "Book linked, but metadata refresh failed: %1"
 msgstr "Kniha prepojená, no obnovenie metadát zlyhalo: %1"
 
-#: lib/bookshelf_widget.lua:23163
+#: lib/bookshelf_widget.lua:23153
 msgid "Select edition"
 msgstr "Vybrať vydanie"
 
-#: lib/bookshelf_widget.lua:23168
+#: lib/bookshelf_widget.lua:23158
 msgid "Link a Hardcover book first"
 msgstr "Najprv prepojte knihu s Hardcover"
 
-#: lib/bookshelf_widget.lua:23180
+#: lib/bookshelf_widget.lua:23170
 msgid "Edition linked, but metadata refresh failed: %1"
 msgstr "Vydanie prepojené, no obnovenie metadát zlyhalo: %1"
 
-#: lib/bookshelf_widget.lua:23183
+#: lib/bookshelf_widget.lua:23173
 msgid "Hardcover edition linked"
 msgstr "Vydanie z Hardcover prepojené"
 
-#: lib/bookshelf_widget.lua:23188
+#: lib/bookshelf_widget.lua:23178
 msgid "Hardcover edition search failed"
 msgstr "Vyhľadávanie vydania v Hardcover zlyhalo"
 
-#: lib/bookshelf_widget.lua:23195
+#: lib/bookshelf_widget.lua:23185
 msgid "Clear link"
 msgstr "Zrušiť prepojenie"
 
-#: lib/bookshelf_widget.lua:23201
+#: lib/bookshelf_widget.lua:23191
 msgid "Hardcover link cleared"
 msgstr "Prepojenie s Hardcover zrušené"
 
-#: lib/bookshelf_widget.lua:23203
+#: lib/bookshelf_widget.lua:23193
 msgid "Could not clear Hardcover link"
 msgstr "Prepojenie s Hardcover sa nepodarilo zrušiť"
 
-#: lib/bookshelf_widget.lua:23229
+#: lib/bookshelf_widget.lua:23219
 msgid "Use Hardcover image"
 msgstr "Použiť obrázok z Hardcover"
 
-#: lib/bookshelf_widget.lua:23239
+#: lib/bookshelf_widget.lua:23229
 msgid "Could not update"
 msgstr "Nepodarilo sa aktualizovať"
 
-#: lib/bookshelf_widget.lua:23256
+#: lib/bookshelf_widget.lua:23246
 msgid "Use Hardcover description"
 msgstr "Použiť popis z Hardcover"
 
-#: lib/bookshelf_widget.lua:23274
+#: lib/bookshelf_widget.lua:23264
 msgid "Linked: %1"
 msgstr "Prepojené: %1"
 
-#: lib/bookshelf_widget.lua:23275
+#: lib/bookshelf_widget.lua:23265
 msgid "Not linked to Hardcover"
 msgstr "Neprepojené s Hardcover"
 
-#: lib/bookshelf_widget.lua:23563
+#: lib/bookshelf_widget.lua:23553
 msgid "No books to select here."
 msgstr "Tu nie sú žiadne knihy na výber."
 
-#: lib/bookshelf_widget.lua:23575
+#: lib/bookshelf_widget.lua:23565
 msgid "Selected the first %1 books (the most one selection holds)."
 msgstr "Vybraných prvých %1 kníh (maximum, ktoré výber pojme)."
 
-#: lib/bookshelf_widget.lua:23580
+#: lib/bookshelf_widget.lua:23570
 msgid "Selected %1 books."
 msgstr "Vybraných %1 kníh."
 
-#: lib/bookshelf_widget.lua:23654 lib/bookshelf_widget.lua:23732
+#: lib/bookshelf_widget.lua:23644 lib/bookshelf_widget.lua:23722
 msgid "this folder"
 msgstr "tento priečinok"
 
-#: lib/bookshelf_widget.lua:23662
+#: lib/bookshelf_widget.lua:23652
 msgid "Already the start folder"
 msgstr "Už je to počiatočný priečinok"
 
-#: lib/bookshelf_widget.lua:23666
+#: lib/bookshelf_widget.lua:23656
 msgid "Start this shelf at \"%1\""
 msgstr "Spustiť túto policu na „%1“"
 
-#: lib/bookshelf_widget.lua:23676
+#: lib/bookshelf_widget.lua:23666
 msgid "Back to the top (now starts at \"%1\")"
 msgstr "Späť navrch (teraz začína na „%1“)"
 
-#: lib/bookshelf_widget.lua:23681
+#: lib/bookshelf_widget.lua:23671
 msgid "Back to the top of the catalog"
 msgstr "Späť navrch katalógu"
 
-#: lib/bookshelf_widget.lua:23733
+#: lib/bookshelf_widget.lua:23723
 msgid "this series"
 msgstr "táto séria"
 
-#: lib/bookshelf_widget.lua:23734
+#: lib/bookshelf_widget.lua:23724
 msgid "this author"
 msgstr "tento autor"
 
-#: lib/bookshelf_widget.lua:23735
+#: lib/bookshelf_widget.lua:23725
 msgid "this genre"
 msgstr "tento žáner"
 
-#: lib/bookshelf_widget.lua:23736
+#: lib/bookshelf_widget.lua:23726
 msgid "this collection"
 msgstr "táto zbierka"
 
-#: lib/bookshelf_widget.lua:23737
+#: lib/bookshelf_widget.lua:23727
 msgid "this format"
 msgstr "tento formát"
 
-#: lib/bookshelf_widget.lua:23738
+#: lib/bookshelf_widget.lua:23728
 msgid "this rating"
 msgstr "toto hodnotenie"
 
-#: lib/bookshelf_widget.lua:23739
+#: lib/bookshelf_widget.lua:23729
 msgid "this language"
 msgstr "tento jazyk"
 
-#: lib/bookshelf_widget.lua:23740
+#: lib/bookshelf_widget.lua:23730
 msgid "this group"
 msgstr "táto skupina"
 
-#: lib/bookshelf_widget.lua:23762
+#: lib/bookshelf_widget.lua:23752
 #, lua-format
 msgid ""
 "Pin %s to the shelf menu for quick access,\n"
@@ -5737,7 +5742,7 @@ msgstr ""
 "Pripnite %s do ponuky políc pre rýchly prístup,\n"
 "alebo odstráňte jej %d kníh z výberu."
 
-#: lib/bookshelf_widget.lua:23768
+#: lib/bookshelf_widget.lua:23758
 #, lua-format
 msgid ""
 "Pin %s to the shelf menu for quick access,\n"
@@ -5746,7 +5751,7 @@ msgstr ""
 "Pripnite %s do ponuky políc pre rýchly prístup,\n"
 "alebo pridajte ďalších %d / odstráňte už vybraných %d."
 
-#: lib/bookshelf_widget.lua:23772
+#: lib/bookshelf_widget.lua:23762
 #, lua-format
 msgid ""
 "Pin %s to the shelf menu for quick access,\n"
@@ -5755,94 +5760,94 @@ msgstr ""
 "Pripnite %s do ponuky políc pre rýchly prístup,\n"
 "alebo vyberte jej %d kníh na hromadné úpravy."
 
-#: lib/bookshelf_widget.lua:23849
+#: lib/bookshelf_widget.lua:23839
 msgid "Pin"
 msgstr "Pripnúť"
 
-#: lib/bookshelf_widget.lua:23867
+#: lib/bookshelf_widget.lua:23857
 #, lua-format
 msgid "Add %d more"
 msgstr "Pridať ďalších %d"
 
-#: lib/bookshelf_widget.lua:23868
+#: lib/bookshelf_widget.lua:23858
 #, lua-format
 msgid "Select %d"
 msgstr "Vybrať %d"
 
-#: lib/bookshelf_widget.lua:23877
+#: lib/bookshelf_widget.lua:23867
 #, lua-format
 msgid "Remove %d"
 msgstr "Odstrániť %d"
 
-#: lib/bookshelf_widget.lua:23897
+#: lib/bookshelf_widget.lua:23887
 msgid "Set folder image…"
 msgstr "Nastaviť obrázok priečinka…"
 
-#: lib/bookshelf_widget.lua:23904
+#: lib/bookshelf_widget.lua:23894
 msgid "Clear folder image"
 msgstr "Vymazať obrázok priečinka"
 
-#: lib/bookshelf_widget.lua:23919
+#: lib/bookshelf_widget.lua:23909
 msgid "Move folder…"
 msgstr "Presunúť priečinok…"
 
-#: lib/bookshelf_widget.lua:23925
+#: lib/bookshelf_widget.lua:23915
 msgid "Rename folder…"
 msgstr "Premenovať priečinok…"
 
-#: lib/bookshelf_widget.lua:23941 lib/bookshelf_widget.lua:23952
+#: lib/bookshelf_widget.lua:23931 lib/bookshelf_widget.lua:23942
 msgid "Set author image…"
 msgstr "Nastaviť obrázok autora…"
 
-#: lib/bookshelf_widget.lua:23942 lib/bookshelf_widget.lua:23953
+#: lib/bookshelf_widget.lua:23932 lib/bookshelf_widget.lua:23943
 msgid "Set series image…"
 msgstr "Nastaviť obrázok série…"
 
-#: lib/bookshelf_widget.lua:23943 lib/bookshelf_widget.lua:23954
+#: lib/bookshelf_widget.lua:23933 lib/bookshelf_widget.lua:23944
 msgid "Set genre image…"
 msgstr "Nastaviť obrázok žánru…"
 
-#: lib/bookshelf_widget.lua:23944 lib/bookshelf_widget.lua:23955
+#: lib/bookshelf_widget.lua:23934 lib/bookshelf_widget.lua:23945
 msgid "Set collection image…"
 msgstr "Nastaviť obrázok zbierky…"
 
-#: lib/bookshelf_widget.lua:23945 lib/bookshelf_widget.lua:23958
+#: lib/bookshelf_widget.lua:23935 lib/bookshelf_widget.lua:23948
 msgid "Clear author image"
 msgstr "Vymazať obrázok autora"
 
-#: lib/bookshelf_widget.lua:23946 lib/bookshelf_widget.lua:23959
+#: lib/bookshelf_widget.lua:23936 lib/bookshelf_widget.lua:23949
 msgid "Clear series image"
 msgstr "Vymazať obrázok série"
 
-#: lib/bookshelf_widget.lua:23947 lib/bookshelf_widget.lua:23960
+#: lib/bookshelf_widget.lua:23937 lib/bookshelf_widget.lua:23950
 msgid "Clear genre image"
 msgstr "Vymazať obrázok žánru"
 
-#: lib/bookshelf_widget.lua:23948 lib/bookshelf_widget.lua:23961
+#: lib/bookshelf_widget.lua:23938 lib/bookshelf_widget.lua:23951
 msgid "Clear collection image"
 msgstr "Vymazať obrázok zbierky"
 
-#: lib/bookshelf_widget.lua:24030
+#: lib/bookshelf_widget.lua:24020
 msgid "Choose folder image"
 msgstr "Vybrať obrázok priečinka"
 
-#: lib/bookshelf_widget.lua:24069
+#: lib/bookshelf_widget.lua:24059
 msgid "Choose image"
 msgstr "Vybrať obrázok"
 
-#: lib/bookshelf_widget.lua:24376 lib/bookshelf_widget.lua:24416
+#: lib/bookshelf_widget.lua:24366 lib/bookshelf_widget.lua:24406
 msgid "Add shelf"
 msgstr "Pridať policu"
 
-#: lib/bookshelf_widget.lua:24639
+#: lib/bookshelf_widget.lua:24629
 msgid "Search library"
 msgstr "Hľadať v knižnici"
 
-#: lib/bookshelf_widget.lua:24642
+#: lib/bookshelf_widget.lua:24632
 msgid "title, author, series, genre…"
 msgstr "názov, autor, séria, žáner…"
 
-#: lib/bookshelf_widget.lua:24642
+#: lib/bookshelf_widget.lua:24632
 msgid "title, author, series…"
 msgstr "názov, autor, séria…"
 
@@ -6989,6 +6994,27 @@ msgstr "Aktualizované pred %1m"
 #: micromodules/weather.lua:460 micromodules/weather.lua:546
 msgid "Updated %1h ago"
 msgstr "Aktualizované pred %1h"
+
+#~ msgid "Text below covers"
+#~ msgstr "Text pod obálkami"
+
+#~ msgid "Show text below groups"
+#~ msgstr "Zobraziť text pod skupinami"
+
+#~ msgid "Show text below covers"
+#~ msgstr "Zobraziť text pod obálkami"
+
+#~ msgid "A line of text under each cover, on the regular shelf and full screen shelves alike. Choose what it shows, or None to let covers use the full row. Text size follows the Cover labels setting under Text size."
+#~ msgstr "Riadok textu pod každou obálkou, rovnako na bežnej polici ako na policiach na celú obrazovku. Vyberte, čo sa má zobraziť, alebo Žiadne, aby obálky využili celý riadok. Veľkosť textu sa riadi nastavením Popisky obálok v časti Veľkosť textu."
+
+#~ msgid "A line of text under stacks and folders, chosen apart from the books' text. Author shows a series' author. Folder title styles that print the name below the tile keep that line for the name."
+#~ msgstr "Riadok textu pod stohmi a priečinkami, vybraný oddelene od textu kníh. Autor zobrazuje autora série. Štýly priečinkov, ktoré píšu názov pod dlaždicu, si tento riadok ponechávajú pre názov."
+
+#~ msgid "Full screen shelves font scale"
+#~ msgstr "Mierka písma políc na celú obrazovku"
+
+#~ msgid "Cover labels"
+#~ msgstr "Popisky obálok"
 
 #~ msgid "Shuffle all"
 #~ msgstr "Zamiešať všetko"

@@ -595,6 +595,35 @@ do
         eq(SD.anyExternalLabel(folders, nil), SD.needsExternalLabel(SD.resolve(nil)))
         eq(SD.anyExternalLabel(folders, "stack"), true)
     end
+
+    -- ── a series stack under "Show text below covers: Author" (issue 486) ─────
+    do -- a tile that names itself frees the line for the stack's author
+        local s = { series_name = "Discworld", stack_author = "Terry Pratchett" }
+        eq(SD.seriesLabel(SD.DIVIDER, s, "author"), "Terry Pratchett", "divider: the reporter's case")
+        eq(SD.seriesLabel(SD.RIBBON, s, "author"), "Terry Pratchett")
+        eq(SD.seriesLabel(SD.TEXT, s, "author"), "Terry Pratchett")
+        eq(SD.seriesLabel(SD.DIVIDER, s, "author", function(a) return "Pratchett, Terry" end),
+            "Pratchett, Terry", "the book labels' author formatting applies")
+    end
+    do -- a tile that does not name itself keeps the series name on the one line
+        local s = { series_name = "Discworld", stack_author = "Terry Pratchett" }
+        eq(SD.seriesLabel(SD.STACK, s, "author"), "Discworld")
+        eq(SD.seriesLabel(SD.COLLAGE, s, "author"), "Discworld")
+        eq(SD.seriesLabel(SD.NONE, s, "author"), "Discworld")
+    end
+    do -- other label modes are unchanged: the tile already says the series
+        local s = { series_name = "Discworld", stack_author = "Terry Pratchett" }
+        eq(SD.seriesLabel(SD.DIVIDER, s, "title"), nil)
+        eq(SD.seriesLabel(SD.DIVIDER, s, "series"), nil)
+        eq(SD.seriesLabel(SD.DIVIDER, s, "custom"), nil)
+        eq(SD.seriesLabel(SD.DIVIDER, s, "none"), nil)
+        eq(SD.seriesLabel(SD.DIVIDER, s, nil), nil)
+    end
+    do -- no member author: nothing to print, no empty plate
+        eq(SD.seriesLabel(SD.DIVIDER, { series_name = "X" }, "author"), nil)
+        eq(SD.seriesLabel(SD.DIVIDER, { series_name = "X", stack_author = "" }, "author"), nil)
+        eq(SD.seriesLabel(SD.DIVIDER, nil, "author"), nil)
+    end
     
     
     -- ── the layer body is never seen, except through a seam ────────────────────

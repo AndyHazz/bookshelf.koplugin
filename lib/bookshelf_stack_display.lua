@@ -231,6 +231,31 @@ function M.externalLabel(mode, name)
     return name
 end
 
+-- seriesLabel(mode, item, label_mode, format) -> the text below a SERIES
+-- stack, or nil.
+--
+-- The strip is one line. When the tile does not name itself (Book stack,
+-- Collage, None) that line is the series name, as externalLabel says, and the
+-- author has nowhere to go. When it does (Divider card, Ribbon, Text) the line
+-- is free, and "Show text below covers: Author" puts the stack's author there,
+-- as it does under a book beside it (issue 486). item.stack_author is the
+-- members' modal author (Repo's hydrateSeriesShape). Title and Series add
+-- nothing: the tile already shows the series name. `format`, when given, is
+-- the author-name formatting the book labels use.
+--
+-- Series only. An author stack is named after its author already; a genre,
+-- collection or language stack has no author of its own worth naming.
+function M.seriesLabel(mode, item, label_mode, format)
+    if type(item) ~= "table" then return nil end
+    local name = M.externalLabel(mode, item.series_name)
+    if name then return name end
+    if label_mode ~= "author" then return nil end
+    local a = item.stack_author
+    if type(a) ~= "string" or a == "" then return nil end
+    if format then a = format(a) or a end
+    return a
+end
+
 -- itemDrawsExternalLabel(item, mode) -> bool
 -- Whether the shelf prints a name BELOW this tile, with labels on and the
 -- folder display already resolved to `mode`. Mirrors what ShelfRow builds: a

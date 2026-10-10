@@ -361,6 +361,19 @@ function ShelfRow.new(opts)
         -- grid overflows its slot -- on the bottom row, over the footer.
         if plate_fill then title_block_h = title_block_h + 2 * PLATE_PAD_Y end
     end
+    -- Honour the "Author name formatting" setting so the expanded-shelf
+    -- author label matches the form used on the hero, the long-press menu,
+    -- and the Authors chip. Shared by a book's label and a series stack's.
+    local function _authorLabel(a)
+        local fmt = BookshelfSettings.read("author_format") or "auto"
+        if fmt ~= "auto" then
+            local ok_a, _AN = pcall(require, "lib/bookshelf_author_name")
+            if ok_a and _AN and _AN.formatted then
+                return _AN.formatted(a, fmt)
+            end
+        end
+        return a
+    end
     local function _labelFor(item)
         if custom_label then return custom_label(item) end
         local title_fallback = item.title or
@@ -368,17 +381,7 @@ function ShelfRow.new(opts)
         if label_mode == "author" then
             local a = item.author or item.authors
             if a and a ~= "" then
-                -- Honour the "Author name formatting" setting so the
-                -- expanded-shelf author label matches the form used on
-                -- the hero, the long-press menu, and the Authors chip.
-                local fmt = BookshelfSettings.read("author_format") or "auto"
-                if fmt ~= "auto" then
-                    local ok_a, _AN = pcall(require, "lib/bookshelf_author_name")
-                    if ok_a and _AN and _AN.formatted then
-                        return _AN.formatted(a, fmt)
-                    end
-                end
-                return a
+                return _authorLabel(a)
             end
         elseif label_mode == "series" then
             -- label carries the article-flipped form; series_name is raw.
@@ -837,7 +840,9 @@ function ShelfRow.new(opts)
                 finished_count   = series_finished,
                 finished_total   = series_finished_total,
                 show_count_badge = show_group_badge,
-            }, StackDisplay.externalLabel(group_mode, item.series_name))
+            -- The series name when the tile does not show it, else the
+            -- stack's author under "Show text below covers: Author" (486).
+            }, StackDisplay.seriesLabel(group_mode, item, label_mode, _authorLabel))
         elseif item then
             -- Single book record
             local book_bulk = opts.selection and item.filepath

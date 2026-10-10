@@ -5016,14 +5016,44 @@ end
 -- of a series"). Caching the shape (filepath list + sort metadata) and
 -- rebuilding Books on read keeps the cover_bb lifetime safe while still
 -- skipping the lfs walk + the sort/group pass.
+-- The author a series stack is shown under ("Show text below covers: Author",
+-- issue 486): the MODAL member author, first-seen winning a tie. Same rule the
+-- sort engine files the stack under (groupAuthor, issue 351), so the name
+-- under the tile is the one the shelf is ordered by, and a guest collaborator
+-- on one volume does not relabel the series. No "A & B": a member's `author` is
+-- already the book's FIRST author, which is what a book's own label shows.
+--
+-- From the cached members (books_meta), which carry the author for every
+-- member: the hydrated books[2..n] are bare filepath stubs. No per-tile read.
+local function _modalAuthor(members)
+    if type(members) ~= "table" then return nil end
+    local counts, order = {}, {}
+    for i = 1, #members do
+        local a = members[i] and members[i].author
+        if type(a) == "string" and a ~= "" then
+            if not counts[a] then counts[a] = 0; order[#order + 1] = a end
+            counts[a] = counts[a] + 1
+        end
+    end
+    local best, best_n = nil, 0
+    for i = 1, #order do
+        if counts[order[i]] > best_n then best, best_n = order[i], counts[order[i]] end
+    end
+    return best
+end
+
 local function hydrateSeriesShape(shape, filter, light_only)
     -- Filter the series's book list when a status filter is active.
     -- An empty result → caller drops this series from the visible list.
     local order = shape.filepaths
     local meta  = shape.books_meta
+    -- The members the stack shows, for its author: the filtered ones when a
+    -- filter is active, so the name matches the books behind the tile.
+    local shown = meta
     if _filterIsActive(filter) and meta then
         local filtered = _applyFilter(meta, filter)
         if #filtered == 0 then return nil end
+        shown = filtered
         order = {}
         for i = 1, #filtered do order[i] = filtered[i].filepath end
     end
@@ -5071,6 +5101,9 @@ local function hydrateSeriesShape(shape, filter, light_only)
         -- article-insensitive order. Same split folders use (label vs name).
         label        = _flipTrailingArticle(shape.series_name),
         books        = books,
+        -- Display only, and deliberately NOT `author`: the sort engine and
+        -- the "is this a book" checks read that field on a record.
+        stack_author = (not light_only) and _modalAuthor(shown) or nil,
         latest       = shape.latest,
         latest_added = shape.latest_added or 0,
     }

@@ -73,16 +73,19 @@ function CoverLabel.defaultLine()
     return { template = CoverLabel.DEFAULT_TEMPLATE }
 end
 
--- normalise(v) -> { template, bold, uppercase }, a fresh table.
+-- normalise(v, default_template) -> { template, bold, uppercase }, a fresh
+-- table. `default_template` is the books' %title unless given (the groups'
+-- line passes its own).
 --
 -- Only the fields a label honours are carried. The shared editor copies every
 -- field of the line it is given into its draft, and the draft is what Save
 -- writes back, so anything else stored here would ride along forever.
-function CoverLabel.normalise(v)
+function CoverLabel.normalise(v, default_template)
+    default_template = default_template or CoverLabel.DEFAULT_TEMPLATE
     if type(v) == "string" then v = { template = v } end
-    if type(v) ~= "table" then return CoverLabel.defaultLine() end
+    if type(v) ~= "table" then return { template = default_template } end
     local t = v.template
-    if type(t) ~= "string" then t = CoverLabel.DEFAULT_TEMPLATE end
+    if type(t) ~= "string" then t = default_template end
     return {
         template  = t,
         bold      = v.bold == true or nil,
@@ -102,6 +105,55 @@ function CoverLabel.save(line)
     local S = store()
     S.save(CoverLabel.LINE_SETTING, CoverLabel.normalise(line))
     S.save(CoverLabel.MODE_SETTING, "custom")
+    if S.flush then S.flush() end
+end
+
+-- ── Text below GROUPS (issue 486) ──────────────────────────────────────────
+--
+-- Group tiles (series, author, genre, collection, language stacks, folders)
+-- get their own choice, independent of the books': "I can imagine wanting
+-- title under covers and author under series groups". Cover display > Show
+-- text below groups: None (the default, and what every shelf did before), Author
+-- or Custom. No Title: the group's name is already on the tile (or, in the
+-- styles that leave it off, already printed below it, and it keeps that line).
+-- See StackDisplay.groupLabel for which tile gets what.
+CoverLabel.GROUP_MODE_SETTING     = "group_label"
+CoverLabel.GROUP_LINE_SETTING     = "group_label_custom"
+CoverLabel.GROUP_DEFAULT_TEMPLATE = "%author"
+
+-- groupMode() -> "author" / "custom", or nil for None.
+function CoverLabel.groupMode()
+    local v = store().read(CoverLabel.GROUP_MODE_SETTING)
+    if v == "author" or v == "custom" then return v end
+    return nil
+end
+
+function CoverLabel.saveGroupMode(mode)
+    local S = store()
+    if mode == "author" or mode == "custom" then
+        S.save(CoverLabel.GROUP_MODE_SETTING, mode)
+    else
+        S.save(CoverLabel.GROUP_MODE_SETTING, "none")
+    end
+    if S.flush then S.flush() end
+end
+
+function CoverLabel.groupDefaultLine()
+    return { template = CoverLabel.GROUP_DEFAULT_TEMPLATE }
+end
+
+function CoverLabel.groupLine()
+    return CoverLabel.normalise(store().read(CoverLabel.GROUP_LINE_SETTING),
+                                CoverLabel.GROUP_DEFAULT_TEMPLATE)
+end
+
+-- saveGroup(line) -- the groups' editor Save: the template, and Custom as the
+-- groups' mode. The books' mode is not touched.
+function CoverLabel.saveGroup(line)
+    local S = store()
+    S.save(CoverLabel.GROUP_LINE_SETTING,
+           CoverLabel.normalise(line, CoverLabel.GROUP_DEFAULT_TEMPLATE))
+    S.save(CoverLabel.GROUP_MODE_SETTING, "custom")
     if S.flush then S.flush() end
 end
 
@@ -257,6 +309,56 @@ function CoverLabel.resolver(line, now)
             end
             _cache[key] = text
             _cache_n = _cache_n + 1
+        end
+        return text
+    end
+end
+
+-- groupResolver(line) -> function(group) -> label text, for the groups'
+-- Custom line.
+--
+-- A group is expanded against the list view's projection of it
+-- (Lines.groupRecord: %title is the group's name, %author the author an
+-- author stack is named after or a series stack's members' modal author,
+-- %series a series stack's name, page count / rating / dates the group's
+-- own), so the tokens mean on a tile what they mean on a list row.
+--
+-- Its own cache, apart from the books': resolver() starts its cache again
+-- whenever the context changes, and a row asking for the two lines in turn
+-- would otherwise empty the books' cache on every row. Keyed by the group's
+-- kind, name, author and member count, under the same context.
+local _gcache, _gcache_ctx, _gcache_n = {}, nil, 0
+
+function CoverLabel.groupKey(g)
+    if type(g) ~= "table" then return nil end
+    local name = g.name or g.label or g.series_name or g.title
+    if type(name) ~= "string" or name == "" then return nil end
+    return table.concat({ tostring(g.kind), name, tostring(g.path),
+                          tostring(g.stack_author),
+                          tostring(type(g.books) == "table" and #g.books or "") }, "\1")
+end
+
+function CoverLabel.groupResolver(line, now)
+    line = CoverLabel.normalise(line, CoverLabel.GROUP_DEFAULT_TEMPLATE)
+    local ctx = CoverLabel.context(line, now)
+    if ctx ~= _gcache_ctx then
+        _gcache, _gcache_ctx, _gcache_n = {}, ctx, 0
+    end
+    local Lines
+    return function(g)
+        local key = CoverLabel.groupKey(g)
+        if key and _gcache[key] then return _gcache[key] end
+        if Lines == nil then
+            local ok, L = pcall(require, "lib/bookshelf_list_lines")
+            Lines = (ok and L and L.groupRecord) and L or false
+        end
+        local record = Lines and Lines.groupRecord(g) or g
+        local ok, text = pcall(CoverLabel.render, line, record)
+        if not ok or type(text) ~= "string" then text = "" end
+        if key then
+            if _gcache_n >= CoverLabel.CACHE_LIMIT then _gcache, _gcache_n = {}, 0 end
+            _gcache[key] = text
+            _gcache_n = _gcache_n + 1
         end
         return text
     end

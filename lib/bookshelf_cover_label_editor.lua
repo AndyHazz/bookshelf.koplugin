@@ -35,6 +35,14 @@
 -- the Custom row is how the reader chooses it. Cancel writes nothing, so a
 -- reader who was on Title and backs out is still on Title; the preview
 -- override is simply dropped.
+--
+-- ── GROUPS ─────────────────────────────────────────────────────────────────
+--
+-- The same editor edits the groups' Custom line (Show text below groups,
+-- issue 486) when opened with groups = true: its own stored line, default
+-- and Save (CoverLabel.groupLine / groupDefaultLine / saveGroup), and its own
+-- preview override on the shelf (_previewGroupLabel). Everything else is the
+-- books' editor, control for control.
 
 local UIManager  = require("ui/uimanager")
 local CoverLabel = require("lib/bookshelf_cover_label")
@@ -47,17 +55,41 @@ local PREVIEW_DELAY = 0.45
 
 local CoverLabelEditor = {}
 
--- The fields the preview hands the shelf: a COPY, never the editor's live
--- draft, so the override the widget holds cannot change under it.
-local function snapshot(draft)
-    return CoverLabel.normalise(draft)
-end
+-- The two lines this editor edits: the books' and the groups'.
+local BOOKS = {
+    title    = function() return _("Text below covers") end,
+    line     = function() return CoverLabel.line() end,
+    defaults = function() return CoverLabel.defaultLine() end,
+    save     = function(l) return CoverLabel.save(l) end,
+    preview  = "_previewCoverLabel",
+    template = CoverLabel.DEFAULT_TEMPLATE,
+}
+local GROUPS = {
+    title    = function() return _("Show text below groups") end,
+    line     = function() return CoverLabel.groupLine() end,
+    defaults = function() return CoverLabel.groupDefaultLine() end,
+    save     = function(l) return CoverLabel.saveGroup(l) end,
+    preview  = "_previewGroupLabel",
+    template = CoverLabel.GROUP_DEFAULT_TEMPLATE,
+}
+CoverLabelEditor._targets = { books = BOOKS, groups = GROUPS }
 
--- show(bw, settings_module, touchmenu_instance)
+-- show(bw, settings_module, touchmenu_instance, groups)
 --
 -- `bw` is the live BookshelfWidget and may be nil (no preview then, everything
--- else works).
-function CoverLabelEditor.show(bw, settings_module, touchmenu_instance)
+-- else works). `groups` true edits the groups' line instead of the books'.
+function CoverLabelEditor.show(bw, settings_module, touchmenu_instance, groups)
+    local target = groups and GROUPS or BOOKS
+    -- The fields the preview hands the shelf: a COPY, never the editor's live
+    -- draft, so the override the widget holds cannot change under it.
+    local function snapshot(draft)
+        return CoverLabel.normalise(draft, target.template)
+    end
+    local function preview(line)
+        local fn = bw and bw[target.preview]
+        if fn then fn(bw, line); return true end
+        return false
+    end
     local pending
     -- Whether the shelf is showing a draft. Cancel only has to rebuild when
     -- it is; backing straight out of the editor costs nothing.
@@ -70,25 +102,19 @@ function CoverLabelEditor.show(bw, settings_module, touchmenu_instance)
     end
     local function previewNow(draft)
         cancelPending()
-        if bw and bw._previewCoverLabel then
-            previewing = true
-            bw:_previewCoverLabel(snapshot(draft))
-        end
+        if preview(snapshot(draft)) then previewing = true end
     end
     local function previewSoon(draft)
         cancelPending()
         local line = snapshot(draft)
         pending = function()
             pending = nil
-            if bw and bw._previewCoverLabel then
-                previewing = true
-                bw:_previewCoverLabel(line)
-            end
+            if preview(line) then previewing = true end
         end
         UIManager:scheduleIn(PREVIEW_DELAY, pending)
     end
 
-    local line = CoverLabel.line()
+    local line = target.line()
     -- Keystrokes only ever change the template; the two buttons never do.
     local last_template = line.template
     local function onPreview(draft)
@@ -101,9 +127,9 @@ function CoverLabelEditor.show(bw, settings_module, touchmenu_instance)
     end
 
     Editor.edit{
-        title     = _("Text below covers"),
+        title     = target.title(),
         line      = line,
-        defaults  = CoverLabel.defaultLine(),
+        defaults  = target.defaults(),
         italic    = false,
         size      = false,
         font      = false,
@@ -115,15 +141,13 @@ function CoverLabelEditor.show(bw, settings_module, touchmenu_instance)
         on_preview = onPreview,
         on_save    = function(draft)
             cancelPending()
-            CoverLabel.save(draft)
+            target.save(draft)
             -- Drop the override and rebuild from what was just saved.
-            if bw and bw._previewCoverLabel then bw:_previewCoverLabel(nil) end
+            preview(nil)
         end,
         on_cancel  = function()
             cancelPending()
-            if previewing and bw and bw._previewCoverLabel then
-                bw:_previewCoverLabel(nil)
-            end
+            if previewing then preview(nil) end
         end,
     }
 end

@@ -44,6 +44,8 @@ end
 -- collaborators; everything else is arithmetic on self.
 local stored = {}
 local any_label = true
+local last_labels                -- the `labels` _noteGridLabels handed anyExternalLabel
+local group_mode = nil           -- what the shelf's _groupLabelMode answers
 local repo_has_books = nil     -- what Repo.allHasBooks answers; nil = nothing cached
 local repo_asked_path = false
 local env = {
@@ -51,7 +53,8 @@ local env = {
     BookshelfSettings = { read = function(k) return stored[k] end },
     require = function(name)
         if name == "lib/bookshelf_stack_display" then
-            return { anyExternalLabel = function(items, override) return any_label end,
+            return { anyExternalLabel = function(items, override, labels)
+                         last_labels = labels; return any_label end,
                      resolve = function(override) return override or "folder" end }
         elseif name == "lib/bookshelf_book_repository" then
             return { allHasBooks = function(path) repo_asked_path = path or "<root>"; return repo_has_books end }
@@ -68,6 +71,7 @@ local noteGridLabels  = bind(env, "_noteGridLabels")
 local function shelf()
     return { chip = "home", _drilldown_path = {},
              _groupDisplayMode = function() return nil end,
+             _groupLabelMode = function() return group_mode end,
              _gridDrawsLabels = gridDrawsLabels, _gridLabelsKey = gridLabelsKey,
              _noteGridLabels = noteGridLabels, _shelfLabelMode = shelfLabelMode }
 end
@@ -276,6 +280,33 @@ t.test("_rebuild notes the labels after the fetch and re-runs once when the layo
     assert(note_at and fetch_at and note_at > fetch_at, "the note must follow the fetch")
     assert(body:find("return self:_rebuild()", 1, true), "no re-run when the guess was wrong")
     assert(body:find("_grid_labels_retry", 1, true), "the re-run has no guard against looping")
+end)
+
+-- Show text below groups (issue 486): the groups can need the strip alone.
+t.test("books on None with groups on keeps the strip, for the groups", function()
+    local w = shelf()
+    stored.expanded_shelf_label = "none"
+    group_mode = nil
+    eq(shelfLabelMode(w), nil, "None and None: no strip, as before")
+    group_mode = "author"
+    eq(shelfLabelMode(w), "none", "the strip stays; ShelfRow prints no book label")
+    group_mode = nil
+end)
+
+t.test("the note knows which labels are on, and is keyed by them", function()
+    local w = shelf()
+    stored.expanded_shelf_label = "none"
+    group_mode = "author"
+    noteGridLabels(w, { { series_name = "S", books = {} } })
+    eq(last_labels and last_labels.books, false, "books on None were not passed on")
+    eq(last_labels and last_labels.groups, "author", "the groups' choice was not passed on")
+    local k1 = gridLabelsKey(w)
+    group_mode = nil
+    assert(gridLabelsKey(w) ~= k1, "the note must not outlive a change of the groups' choice")
+    stored.expanded_shelf_label = "title"
+    noteGridLabels(w, {})
+    eq(last_labels.books, true)
+    eq(last_labels.groups, nil, "None: the groups add nothing")
 end)
 
 t.done()

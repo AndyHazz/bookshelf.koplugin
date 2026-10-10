@@ -204,6 +204,28 @@ function ShelfRow.new(opts)
             return text
         end
     end
+    -- Text below GROUPS (issue 486): the reader's own choice for group tiles,
+    -- independent of the books' ("title under covers and author under series
+    -- groups"). "author" / "custom", or nil for None. The caller passes it
+    -- (false = None); any caller that doesn't gets the saved choice.
+    local group_text = opts.group_label_mode
+    if group_text == nil then
+        group_text = require("lib/bookshelf_cover_label").groupMode()
+    end
+    if group_text ~= "author" and group_text ~= "custom" then group_text = nil end
+    local group_custom
+    if group_text == "custom" then
+        local CL = CoverLabel or require("lib/bookshelf_cover_label")
+        local t0 = _gettime()
+        local resolve = CL.groupResolver(opts.group_label_line or CL.groupLine())
+        label_ms = label_ms + (_gettime() - t0) * 1000
+        group_custom = function(item)
+            local t1 = _gettime()
+            local text = resolve(item)
+            label_ms = label_ms + (_gettime() - t1) * 1000
+            return text
+        end
+    end
     -- Two flags driven by the same `opts.show_titles` input — kept
     -- separate so the geometry stays consistent while the rendering
     -- adapts:
@@ -212,6 +234,9 @@ function ShelfRow.new(opts)
     --   draw_label     — actually paint a TextWidget in the strip.
     local show_titles = opts.show_titles or false
     local draw_label  = show_titles and label_mode ~= "none"
+    -- The groups' text needs the strip as much as a book's label does: with
+    -- books on None and groups on Author, the strip is there for the groups.
+    local draw_group_label = show_titles and group_text ~= nil
 
     -- Gap between cover bottom and the label text. Bumped from
     -- padding.small to padding.default so the dangling bookmark
@@ -343,10 +368,13 @@ function ShelfRow.new(opts)
     local title_block_h = 0
     local title_face
     local title_bold
+    -- The groups' text has its own face: Bold is the one style its Custom
+    -- line carries, as the books' line carries theirs.
+    local group_face, group_bold
     -- Only reserve the strip when a label will actually be drawn. With
     -- label_mode = "none" the cover claims the full slot height — the
     -- stretch cap below keeps it from growing past ~5% of natural.
-    if draw_label then
+    if draw_label or draw_group_label then
         local face_size = math.floor(14 * label_scale / 100 + 0.5)
         -- Bold is the one style a Custom label carries: the strip's own face,
         -- asked for its bold (a real bold file when there is one, else the
@@ -354,6 +382,11 @@ function ShelfRow.new(opts)
         title_face, title_bold = BFont:getFace("infofont", face_size,
             (custom_label and opts.label_line and opts.label_line.bold)
                 and { bold = true } or nil)
+        if draw_group_label then
+            group_face, group_bold = BFont:getFace("infofont", face_size,
+                (group_custom and opts.group_label_line and opts.group_label_line.bold)
+                    and { bold = true } or nil)
+        end
         title_block_h = label_gap + math.floor(face_size * 1.3)
         -- The plate is taller than the text it wraps, and title_block_h is
         -- what the cover height is derived FROM (cover_h = slot_h - this), so
@@ -520,6 +553,13 @@ function ShelfRow.new(opts)
         return finished_count(item and item.books, false), nil
     end
 
+    -- _groupLabel(item, name) -> text, is_group_text: the line below a group
+    -- tile, its name or the groups' text (StackDisplay.groupLabel).
+    local function _groupLabel(item, name)
+        return StackDisplay.groupLabel(group_mode, item, name, group_text,
+                                       _authorLabel, group_custom)
+    end
+
     for i = 1, n_slots do
         -- Insert a gap spacer before every slot after the first.
         if i > 1 then
@@ -544,7 +584,7 @@ function ShelfRow.new(opts)
         -- Still gated on draw_label, i.e. on the reader's own "Show text below
         -- covers" preference: a group name is a label like any other and does
         -- not get to opt itself in.
-        local function wrap_for_title_alignment(widget, group_name)
+        local function wrap_for_title_alignment(widget, group_name, is_group_text)
             if not show_titles then return widget end
             -- Deliberately the BOOK path's geometry, element for element:
             -- cover, then a label_gap span, then the TextWidget, all inside a
@@ -557,15 +597,16 @@ function ShelfRow.new(opts)
             -- the strip is sized at, so centring pulls it up). Matching the
             -- book path exactly is the only version that cannot drift from it.
             local stack = VerticalGroup:new{ align = "center", widget }
-            if draw_label and type(group_name) == "string" and group_name ~= "" then
+            if (draw_label or draw_group_label)
+                    and type(group_name) == "string" and group_name ~= "" then
                 stack[#stack + 1] = VerticalSpan:new{ width = label_gap }
                 -- Single-line TextWidget for the same reason the book labels
                 -- use one: it ellipsises at max_width, where TextBoxWidget
                 -- would wrap to two lines and crowd the grid.
                 stack[#stack + 1] = plated(TextWidget:new{
                     text      = group_name,
-                    face      = title_face,
-                    bold      = title_bold,
+                    face      = is_group_text and group_face or title_face,
+                    bold      = is_group_text and group_bold or title_bold,
                     fgcolor   = label_ink,
                     max_width = plateTextWidth(slot_w),
                 })
@@ -656,7 +697,7 @@ function ShelfRow.new(opts)
                                    and partial_count(folder_k, folder_book_count)
                                    or nil,
                 finished_count   = folder_finished,
-            }, StackDisplay.externalLabel(group_mode, item.label))
+            }, _groupLabel(item, item.label))
         elseif item and item.kind == "opds_nav" then
             -- OPDS navigation entry (a subcatalog link, e.g. "Next page" or
             -- a browsable category): rendered as a folder-style tile via
@@ -751,7 +792,7 @@ function ShelfRow.new(opts)
                 finished_count   = author_finished,
                 finished_total   = author_finished_total,
                 show_count_badge = show_group_badge,
-            }, StackDisplay.externalLabel(group_mode, item.series_name))
+            }, _groupLabel(item, item.series_name))
         elseif item and item.kind == "genre" then
             -- Genre group (SeriesStack visual, genre name on the band)
             local genre_fp = item.books and item.books[1] and item.books[1].filepath
@@ -773,7 +814,7 @@ function ShelfRow.new(opts)
                 finished_count   = genre_finished,
                 finished_total   = genre_finished_total,
                 show_count_badge = show_group_badge,
-            }, StackDisplay.externalLabel(group_mode, item.series_name))
+            }, _groupLabel(item, item.series_name))
         elseif item and item.kind == "tag" then
             -- Tag / collection group (SeriesStack visual, collection
             -- name on the band)
@@ -796,7 +837,7 @@ function ShelfRow.new(opts)
                 finished_count   = tag_finished,
                 finished_total   = tag_finished_total,
                 show_count_badge = show_group_badge,
-            }, StackDisplay.externalLabel(group_mode, item.series_name))
+            }, _groupLabel(item, item.series_name))
         elseif item and item.kind == "language" then
             local lang_fp = item.books and item.books[1] and item.books[1].filepath
             local lang_k    = stack_sel_count(item.books)
@@ -817,7 +858,7 @@ function ShelfRow.new(opts)
                 finished_count   = lang_finished,
                 finished_total   = lang_finished_total,
                 show_count_badge = show_group_badge,
-            }, StackDisplay.externalLabel(group_mode, item.series_name))
+            }, _groupLabel(item, item.series_name))
         elseif item and item.books then
             -- SeriesGroup (has a .books array; legacy detection — kind
             -- not always set on series records).
@@ -840,9 +881,7 @@ function ShelfRow.new(opts)
                 finished_count   = series_finished,
                 finished_total   = series_finished_total,
                 show_count_badge = show_group_badge,
-            -- The series name when the tile does not show it, else the
-            -- stack's author under "Show text below covers: Author" (486).
-            }, StackDisplay.seriesLabel(group_mode, item, label_mode, _authorLabel))
+            }, _groupLabel(item, item.series_name))
         elseif item then
             -- Single book record
             local book_bulk = opts.selection and item.filepath
@@ -995,8 +1034,8 @@ function ShelfRow.new(opts)
     -- the gap recompute near slot_w finalisation) so the covers spread evenly
     -- across the full width. The CenterContainer is now only a safety net for
     -- the single-column case where there's no inter-cover gap to widen.
-    if custom_label then
-        local st = CoverLabel.takeStats()
+    if custom_label or group_custom then
+        local st = require("lib/bookshelf_cover_label").takeStats()
         logger.dbg(string.format(
             "[bookshelf perf] cover labels: %.2fms hit=%d miss=%d",
             label_ms, st.hits, st.misses))

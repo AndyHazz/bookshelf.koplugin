@@ -5333,14 +5333,43 @@ end
 function BookshelfWidget:_shelfLabelMode()
     local mode = BookshelfSettings.read("expanded_shelf_label")
     if self._cover_label_preview then mode = "custom" end
-    if mode == "none" then return nil end
-    if mode ~= "author" and mode ~= "series" and mode ~= "custom" then mode = "title" end
+    -- Books on None, groups on (Show text below groups, issue 486): the strip
+    -- is still there, for the groups. "none" says so to ShelfRow (no book
+    -- labels) while the layout, which only asks whether there IS a strip,
+    -- budgets one.
+    if mode == "none" and not self:_groupLabelMode() then return nil end
+    if mode ~= "author" and mode ~= "series" and mode ~= "custom" and mode ~= "none" then
+        mode = "title"
+    end
     -- A chip that prints no label budgets no strip (see _gridDrawsLabels):
     -- every tile reserves the strip so cover bottoms line up across a row that
     -- mixes books and folders, but a chip of divider-style folders alone was
     -- reserving a blank band under every row for nothing.
     if not self:_gridDrawsLabels() then return nil end
     return mode
+end
+
+-- _groupLabelMode() -> "author" / "custom", or nil for None: Cover display >
+-- Show text below groups (issue 486). While the groups' editor is open its
+-- draft outranks the saved choice, as the books' does.
+function BookshelfWidget:_groupLabelMode()
+    if self._group_label_preview then return "custom" end
+    return require("lib/bookshelf_cover_label").groupMode()
+end
+
+-- _groupLabelLine() -> the groups' Custom line in effect (the draft while its
+-- editor is open, else the saved one).
+function BookshelfWidget:_groupLabelLine()
+    if self._group_label_preview then return self._group_label_preview end
+    return require("lib/bookshelf_cover_label").groupLine()
+end
+
+-- _previewGroupLabel(line) -- the groups' editor preview: draw `line` under
+-- the group tiles, or drop the override when nil.
+function BookshelfWidget:_previewGroupLabel(line)
+    self._group_label_preview = line
+    self:_rebuild()
+    UIManager:setDirty(self, "ui")
 end
 
 -- _coverLabelLine() -> the Custom label in effect: the editor's draft while it
@@ -5374,6 +5403,11 @@ function BookshelfWidget:_gridLabelsKey()
         -- name below itself, and the library-wide one can change from the
         -- menu while the shelf shows another style, which notes nothing.
         .. "|" .. tostring(require("lib/bookshelf_stack_display").resolve(self:_groupDisplayMode()))
+        -- And the two label choices that decide it: books on None print
+        -- nothing, and a group's text can need the strip on its own.
+        .. "|" .. tostring(BookshelfSettings.read("expanded_shelf_label") == "none"
+                           and not self._cover_label_preview)
+        .. "|" .. tostring(self:_groupLabelMode())
 end
 
 -- _gridDrawsLabels() -> bool
@@ -5403,7 +5437,10 @@ end
 -- the footer.
 function BookshelfWidget:_noteGridLabels(items, windowed)
     local StackDisplay = require("lib/bookshelf_stack_display")
-    local v = StackDisplay.anyExternalLabel(items, self:_groupDisplayMode()) and true or false
+    local books_none = BookshelfSettings.read("expanded_shelf_label") == "none"
+                       and not self._cover_label_preview
+    local v = StackDisplay.anyExternalLabel(items, self:_groupDisplayMode(),
+        { books = not books_none, groups = self:_groupLabelMode() }) and true or false
     if not v and windowed then
         local path = self._drilldown_path or {}
         local tip  = path[#path]
@@ -6301,6 +6338,9 @@ function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD, n_rows)
         show_titles       = (label_mode ~= nil),
         label_mode        = label_mode,
         label_line        = (label_mode == "custom") and self:_coverLabelLine() or nil,
+        -- Text below groups (issue 486): false = None.
+        group_label_mode  = self:_groupLabelMode() or false,
+        group_label_line  = (self:_groupLabelMode() == "custom") and self:_groupLabelLine() or nil,
         in_series         = in_series,
         group_display     = self:_groupDisplayMode(),
     }

@@ -20,6 +20,7 @@ local function tr(s) if i18n and i18n.gettext then return i18n.gettext(s) end; r
 -- Shared wall-clock for [bookshelf perf] timestamps (and elapsed-time
 -- bookkeeping); see lib/bookshelf_gettime.lua for the fallback contract.
 local _gettime = require("lib/bookshelf_gettime")
+local HomeDir = require("lib/bookshelf_home_dir")
 
 -- ─── Module-local helpers ────────────────────────────────────────────────────
 
@@ -786,17 +787,16 @@ local function _hydrationStop(offset, limit, total, default_limit, who, light_on
     return math.min(offset + want, total)
 end
 
--- Resolve the user's library root from G_reader_settings. Returns the
--- configured home_dir, or nil when it is unset / empty. "/" is allowed:
+-- Resolve the user's library root. Returns the configured home_dir, else
+-- the device's own library folder as KOReader uses it (HomeDir.get), or nil
+-- when there is neither (desktop with no home set). "/" is allowed:
 -- some users (rooted devices, manual layouts) legitimately point home_dir
 -- at filesystem root. The pseudo-filesystem denylist below keeps walks
 -- under "/" off /proc and /sys so the legitimate case doesn't OOM-kill
 -- KOReader. Walk-based callers must still treat nil as "no library
 -- configured" and short-circuit to an empty result.
 local function _resolveLibraryRoot()
-    local home = G_reader_settings:readSetting("home_dir")
-    if not home or home == "" then return nil end
-    return home
+    return HomeDir.get()
 end
 
 -- Path-join that doesn't emit "//child" when parent is filesystem root.
@@ -3207,7 +3207,7 @@ local function _finishedCountWalked()
         _finished_count.expires_at = now + 60
         return stored
     end
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local n = 0
     for _i, c in ipairs(cachedWalk(home, depth) or {}) do
@@ -3575,7 +3575,7 @@ end
 -- metadata edits clear the whole cache (invalidateLightMeta).
 _batchInfoFor = function(fp)
     if type(fp) ~= "string" then return nil end
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local key   = (home or "/") .. ":" .. tostring(depth or 0)
     local entry = _light_meta_cache[key]
@@ -3604,7 +3604,7 @@ end
 -- it, never mutate it (see _resetLightMetaProgress for why).
 function Repo.lightMetaFor(filepath)
     if type(filepath) ~= "string" then return nil end
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local cache = _getLightMetaCache(home, depth)
     return cache and cache[filepath] or nil
@@ -3615,7 +3615,7 @@ end
 -- bookshelf_latest_walk_depth setting). For bulk operations that need only
 -- paths, not per-book metadata. Returns a shallow copy (safe to mutate).
 function Repo.getAllFilepaths()
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     -- cachedWalk yields candidate RECORDS ({ fp = "...", mtime = ... }), not
     -- bare paths (getLatest reads candidates[i].fp) -- pull the path strings.
@@ -3659,7 +3659,7 @@ end
 
 function Repo.getLatest(limit, offset, opts)
     local _t0 = _gettime()
-    local home       = G_reader_settings:readSetting("home_dir") or "/"
+    local home       = HomeDir.get() or "/"
     local depth      = BookshelfSettings.read("latest_walk_depth") or 3
     local candidates = cachedWalk(home, depth)
     -- "latest" chip is mtime-only by design (_SORT_VALID restricts it).
@@ -3949,7 +3949,7 @@ function Repo.getFolderBookPaths(path)
         for i = 1, #cached.paths do out[i] = cached.paths[i] end
         return out
     end
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local cands = cachedWalk(home, depth)
     -- Prefix match: a book at `<path>/...` is "under" path. Append "/"
@@ -4119,7 +4119,7 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
     local function _coverLightCache()
         if not _cover_light_asked then
             _cover_light_asked = true
-            local home_cl  = G_reader_settings:readSetting("home_dir") or "/"
+            local home_cl  = HomeDir.get() or "/"
             local depth_cl = BookshelfSettings.read("latest_walk_depth") or 3
             local ok_cl, map = pcall(_getLightMetaCache, home_cl, depth_cl)
             _cover_light = ok_cl and map or nil
@@ -4171,7 +4171,7 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
         -- every item outside the current page. When filter is active,
         -- collapse the shape list to filter-passing entries first so
         -- the slice maths against the visible total.
-        local home_lc  = G_reader_settings:readSetting("home_dir") or "/"
+        local home_lc  = HomeDir.get() or "/"
         local depth_lc = BookshelfSettings.read("latest_walk_depth") or 3
         local hit_light_cache = Filter.isActive(filter) and _getLightMetaCache(home_lc, depth_lc) or nil
         local shapes_for_slice, total = _filterAllShapes(entry.shapes, filter, hit_light_cache)
@@ -4315,7 +4315,7 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
         -- the cached range come back as O(1) lookups. Falls back to the
         -- per-book getBookInfo path for entries outside the cache (e.g.
         -- a folder drilldown into a path beyond bookshelf_latest_walk_depth).
-        local home_dir = G_reader_settings:readSetting("home_dir") or "/"
+        local home_dir = HomeDir.get() or "/"
         local depth    = BookshelfSettings.read("latest_walk_depth") or 3
         local light_cache = _getLightMetaCache(home_dir, depth)
         local _pf_t_cache = _gettime and _gettime() or 0
@@ -4486,7 +4486,7 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
                 folder_by_fp[e.fp] = e
             end
         end
-        local home  = G_reader_settings:readSetting("home_dir") or "/"
+        local home  = HomeDir.get() or "/"
         local depth = BookshelfSettings.read("latest_walk_depth") or 3
         local cands = cachedWalk(home, depth)
         for i = 1, #cands do
@@ -4571,7 +4571,7 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
                { shapes = shapes, expires_at = now + WALK_CACHE_TTL })
     -- Hydrate the requested page slice exactly as the HIT path does.
     -- Filter-aware: collapse to visible shapes first when active.
-    local miss_lc_home  = G_reader_settings:readSetting("home_dir") or "/"
+    local miss_lc_home  = HomeDir.get() or "/"
     local miss_lc_depth = BookshelfSettings.read("latest_walk_depth") or 3
     local miss_light_cache = Filter.isActive(filter) and _getLightMetaCache(miss_lc_home, miss_lc_depth) or nil
     local shapes_for_slice, total = _filterAllShapes(shapes, filter, miss_light_cache)
@@ -4653,7 +4653,7 @@ function Repo.getFavorites(limit, offset, opts)
         -- is disabled (issue #49) records come back nil and every title
         -- falls back to the filename basename, so the sort still runs
         -- deterministically rather than nil-derefing.
-        local home  = G_reader_settings:readSetting("home_dir") or "/"
+        local home  = HomeDir.get() or "/"
         local depth = BookshelfSettings.read("latest_walk_depth") or 3
         local light_cache = _getLightMetaCache(home, depth)
         local titles = {}
@@ -4806,7 +4806,7 @@ end
 
 function Repo.searchBooks(query, limit)
     if not query or query == "" then return {} end
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local cands = cachedWalk(home, depth)
     local words = {}
@@ -4918,7 +4918,7 @@ function Repo.getTags(limit, offset, sort_priority_override, filter, opts)
     -- upgrade since the caller never renders these records.
     local light_only = opts and opts.light_only
     local light_cache
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     -- Compile once before the loop (not per book) when filter is active,
     -- so every per-book test is an O(1) lookup on the compiled result.
@@ -5270,7 +5270,7 @@ local function _seriesReadout(group_shapes, standalone_shapes, filter,
 end
 
 function Repo.getSeriesGroups(limit, offset, sort_priority_override, filter, opts)
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local key   = (home or "/") .. ":" .. tostring(depth or 0)
     local now   = os.time()
@@ -5855,7 +5855,7 @@ end
 
 local function _buildGroups(group_kind, key_fn, multi, records)
     local _t0 = _gettime()
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     -- Read history → filepath read-time map so groups sort by recently-read.
     local rh        = getReadHistory()
@@ -6084,7 +6084,7 @@ end
 
 function Repo.getAuthors(limit, offset, sort_priority_override, filter, opts)
     local _t0 = _gettime()
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local key   = (home or "/") .. ":" .. tostring(depth or 0)
     local now   = os.time()
@@ -6293,7 +6293,7 @@ end
 
 function Repo.getGenres(limit, offset, sort_priority_override, filter, opts)
     local _t0 = _gettime()
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local key   = (home or "/") .. ":" .. tostring(depth or 0)
     local now   = os.time()
@@ -6344,7 +6344,7 @@ end
 -- path that ran _hydrateGroupShape on every group (one buildBookMeta +
 -- cover decompression per group, ALL of it discarded by the picker).
 function Repo.getGroupChoices(kind)
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local key   = (home or "/") .. ":" .. tostring(depth or 0)
 
@@ -6390,7 +6390,7 @@ end
 -- group cache uses (same key distinctFilterValues emits) so callers can cross-
 -- reference with filter selections. No hydration, no cover decompression.
 function Repo.getGroupFilepaths(kind)
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local key   = (home or "/") .. ":" .. tostring(depth or 0)
 
@@ -6447,7 +6447,7 @@ function Repo.filterValueCounts(dim, filter, source)
     local scoped = _sourceFilterCounts(dim, compiled, source)
     if scoped then return scoped end
 
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
 
     if dim == "collections" then
@@ -6518,7 +6518,7 @@ end
 -- folders drilldown writes (shape.path = raw lfs entry, no trailing slash).
 -- Sorted by lowercased full path so siblings naturally group under parents.
 function Repo.getFolderChoices()
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local cands = cachedWalk(home, depth)
     -- home == "/" is kept as literal so the loop's parent ~= home_norm check
@@ -6553,7 +6553,7 @@ end
 -- Depth arithmetic matches walkBooks: level-N dirs (N <= depth) can
 -- hold shelf-visible books.
 function Repo.getAllFolderChoices()
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local home_norm = home == "/" and "/" or home:gsub("/+$", "")
     local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
@@ -6754,7 +6754,7 @@ end
 
 function Repo.getFormats(limit, offset, sort_priority_override, filter, opts)
     local _t0 = _gettime()
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local key   = (home or "/") .. ":" .. tostring(depth or 0)
     local now   = os.time()
@@ -6796,7 +6796,7 @@ end
 -- Books without a language are filed as 'Unknown'
 function Repo.getLanguages(limit, offset, sort_priority_override, filter, opts)
     local _t0 = _gettime()
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local key   = (home or "/") .. ":" .. tostring(depth or 0)
     local now   = os.time()
@@ -6851,7 +6851,7 @@ local _STAR_REPEAT = {
 -- rating value or 'Unrated'. Books without a .sdr are treated as
 -- Unrated without a DocSettings open.
 local function _buildRatingGroups()
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local cands = cachedWalk(home, depth)
     local light_cache = _getLightMetaCache(home, depth)
@@ -6930,7 +6930,7 @@ end
 
 function Repo.getRatings(limit, offset, sort_priority_override, filter, opts)
     local _t0 = _gettime()
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local key   = (home or "/") .. ":" .. tostring(depth or 0)
     local now   = os.time()
@@ -6973,7 +6973,7 @@ function Repo.searchAll(query)
     if not query or query == "" then return empty end
     local q = query:lower()
 
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local key   = (home or "/") .. ":" .. tostring(depth or 0)
 
@@ -7048,7 +7048,7 @@ end
 -- kind is unrecognised, or no group matches the name even after warming.
 function Repo.findGroup(kind, name)
     if not name or name == "" then return nil end
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local key   = (home or "/") .. ":" .. tostring(depth or 0)
     local cache
@@ -7897,7 +7897,7 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
             -- renders these records, so skip the heavy _safeBuildBookMeta
             -- and serve light metadata. On a big chip this is the difference
             -- between thousands of DocSettings reads and one batched SELECT.
-            local home  = G_reader_settings:readSetting("home_dir") or "/"
+            local home  = HomeDir.get() or "/"
             local depth = BookshelfSettings.read("latest_walk_depth") or 3
             local light_cache = _getLightMetaCache(home, depth)
             for i = from, to do
@@ -7945,7 +7945,7 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
         -- fields (genre, author, tag) leave it unset and are unaffected.
         local _path_probe = {}
         local function loadCandidatesByPredicate(pred, walk_root, path_only)
-            local home  = G_reader_settings:readSetting("home_dir") or "/"
+            local home  = HomeDir.get() or "/"
             local depth = BookshelfSettings.read("latest_walk_depth") or 3
             -- walk_root lets a folder-scoped source (folder_flat, #76) walk
             -- its own subtree directly instead of the whole home tree --
@@ -8027,7 +8027,7 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
                     ko_dir = d:gsub("/+$", "") .. "/"
                 end
             end
-            local home  = G_reader_settings:readSetting("home_dir") or "/"
+            local home  = HomeDir.get() or "/"
             local depth = BookshelfSettings.read("latest_walk_depth") or 3
             local light_cache = _getLightMetaCache(home, depth)
             local read_time = {}
@@ -8038,7 +8038,7 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
             local paths = {}
             -- ...unless the home folder is in there too: some readers keep
             -- their books inside KOReader's folder (Android especially).
-            local home_prefix = (G_reader_settings:readSetting("home_dir") or "/"):gsub("/+$", "") .. "/"
+            local home_prefix = (HomeDir.get() or "/"):gsub("/+$", "") .. "/"
             -- A home of "/" (unset, or the filesystem root) contains
             -- everything, so it is no reason to keep KOReader's own files.
             local function kosOwn(fp)

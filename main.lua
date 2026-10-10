@@ -2378,7 +2378,7 @@ function Bookshelf:scanAllMetadata()
         })
         return
     end
-    local home = G_reader_settings:readSetting("home_dir") or "/"
+    local home = require("lib/bookshelf_home_dir").get() or "/"
     -- BIM:extractBooksInDirectory uses Trapper:confirm for four prompts
     -- in fixed order: Continue / Recursive / Refresh / Prune. We don't
     -- need to ask the user about the first two — they already chose

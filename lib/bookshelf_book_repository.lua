@@ -637,6 +637,69 @@ local function _bimGetBookInfo(bim, filepath, want_cover, what)
     return nil, res
 end
 
+-- ─── Covers supplied by a getBookInfo wrapper (issue 500) ───────────────────
+-- A user patch can wrap BIM:getBookInfo and hand back a cover the database
+-- does not have -- 2-fallbackcover.lua draws one for every book without an
+-- embedded cover, but only when the caller asks with get_cover=true. Most of
+-- our record builds ask with get_cover=false (the cover is already in the
+-- scaled cover cache, or comes from the batched rows), so they saw the
+-- database's "no cover", SpineWidget drew the placeholder, and a fallback
+-- cover only survived until its first draw had cached it.
+--
+-- So a book whose row is complete and coverless gets ONE get_cover=true read
+-- per session to ask the wrapper, remembered per file. Only when getBookInfo
+-- really is wrapped: an unpatched BIM pays nothing, and a library whose
+-- books all have covers pays nothing either.
+local _hook_cover_memo = {}
+local _hook_fn, _hook_fn_wrapped
+-- Set when a coverless book was built while getBookInfo was NOT wrapped. The
+-- fallback patch wraps it on KOReader's first UI tick, after our startup
+-- build, so the first screen after a launch would otherwise keep its
+-- placeholders until something rebuilt it. See Repo.coverHookArrived.
+local _hook_missed = false
+local function _getBookInfoIsWrapped(bim)
+    local fn = bim.getBookInfo
+    if fn ~= _hook_fn then
+        _hook_fn = fn
+        local ok, di = pcall(debug.getinfo, fn, "S")
+        local src = ok and di and di.source or ""
+        _hook_fn_wrapped = not src:find("bookinfomanager%.lua$")
+    end
+    return _hook_fn_wrapped
+end
+
+local function _hookedCoverFor(bim, filepath, info)
+    -- The fallback patch's own preconditions, so a "no" is final for the
+    -- session: anything that could change it changes these fields too.
+    if info.has_meta ~= "Y" or info.cover_fetched ~= "Y" or info.ignore_cover then
+        return false
+    end
+    if not _getBookInfoIsWrapped(bim) then
+        _hook_missed = true
+        return false
+    end
+    local memo = _hook_cover_memo[filepath]
+    if memo ~= nil then return memo end
+    local probe = _bimGetBookInfo(bim, filepath, true, "getBookInfo (cover hook probe)")
+    local yes = (probe and probe.has_cover == "Y" and probe.cover_bb ~= nil
+                 and not probe.ignore_cover) and true or false
+    -- Ours to free: the wrapper (or BIM) allocated it for this call alone.
+    if probe and probe.cover_bb then pcall(function() probe.cover_bb:free() end) end
+    _hook_cover_memo[filepath] = yes
+    return yes
+end
+
+-- Repo.coverHookArrived() -> true ONCE when coverless books were built before
+-- getBookInfo was wrapped and it is wrapped now: the caller should rebuild so
+-- they ask the wrapper. A function-identity compare when nothing is pending.
+function Repo.coverHookArrived()
+    if not _hook_missed then return false end
+    local bim = getBookInfoMgr()
+    if not (bim and _getBookInfoIsWrapped(bim)) then return false end
+    _hook_missed = false
+    return true
+end
+
 local _hardcover_cache
 local function getHardcover()
     if _hardcover_cache ~= nil then
@@ -1155,6 +1218,12 @@ function Repo.buildBookMeta(filepath, opts)
         end
         return cached
     end
+    -- A cover only a getBookInfo wrapper knows about (issue 500): see
+    -- _hookedCoverFor. A want_cover read already went through the wrapper.
+    local has_cover = info.has_cover
+    if has_cover ~= "Y" and not want_cover and _hookedCoverFor(bim, filepath, info) then
+        has_cover = "Y"
+    end
     -- Calibre is the PRIMARY source for textual metadata when a
     -- metadata.calibre file is available — it already has clean,
     -- user-curated title / authors / series / tags / description that
@@ -1227,7 +1296,7 @@ function Repo.buildBookMeta(filepath, opts)
         series_num  = series_num,
         -- BIM-only: covers and page count are not in metadata.calibre.
         cover_bb    = info.cover_bb,
-        has_cover   = info.has_cover and not info.ignore_cover,
+        has_cover   = has_cover and not info.ignore_cover,
         -- Original (pre-thumbnail) cover dimensions BIM records as "WxH",
         -- e.g. "1072x1448". Used by the Hardcover enricher to decide whether
         -- the embedded cover is lower resolution than Hardcover's.
@@ -2285,6 +2354,7 @@ function Repo.invalidateWalkCache()
     -- this repository has, so clear them here rather than let them grow
     -- for the life of the process.
     _meta_record_cache = {}
+    _hook_cover_memo   = {}
     -- Sidecar dirs may have appeared/vanished (sideload, new books), so the
     -- custom-metadata fast gate must re-list on the next derive.
     _invalidateCustomMetaGate()
@@ -3260,7 +3330,8 @@ local function _loadBatchBookInfoFromBim()
     -- buildBookMeta). Still no cover_* blob columns: their inline pages are
     -- what makes the per-book SELECT expensive in the first place.
     local sql = "SELECT directory, filename, title, authors, series, series_index, keywords, language, " ..
-                "pages, description, has_meta, has_cover, ignore_cover, ignore_meta, cover_sizetag " ..
+                "pages, description, has_meta, has_cover, ignore_cover, ignore_meta, cover_sizetag, " ..
+                "cover_fetched " ..
                 "FROM bookinfo WHERE in_progress=0;"
     local rows
     local ok, err = pcall(function() rows = conn:exec(sql) end)
@@ -3298,6 +3369,11 @@ local function _loadBatchBookInfoFromBim()
             ignore_cover = col(13, i),
             ignore_meta  = col(14, i),
             cover_sizetag = col(15, i),
+            -- Absent from rows a snapshot saved before it was selected (same
+            -- format version on purpose: a bump re-reads the whole table on the
+            -- launch path for everyone). nil reads as "not fetched", which only
+            -- skips the cover-hook probe, the behaviour before it existed.
+            cover_fetched = col(16, i),
         }
     end
     return map

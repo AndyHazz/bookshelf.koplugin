@@ -2968,6 +2968,14 @@ function BookshelfWidget:_kickOffMissingMetaExtraction(items, slot_w, slot_h, he
     -- already-extracted library. Queueing extraction a frame later changes
     -- nothing about the outcome; the turn no longer waits on it.
     local run = function()
+        -- A getBookInfo wrapper (a fallback-cover user patch) installed after
+        -- this screen was built: rebuild once so its covers are asked for
+        -- (issue 500). Runs after the paint, like the rest of this.
+        if Repo.coverHookArrived and Repo.coverHookArrived() then
+            Repo.invalidateBookCache("cover-hook")
+            self:_rebuild(); UIManager:setDirty(self, "ui")
+            return
+        end
         pcall(function()
             self:_kickOffMissingMetaExtractionNow(
                 items, slot_w, slot_h, hero_w, hero_h)

@@ -437,4 +437,22 @@ t.test("one shelf theme list for every menu: Default theme, a missing pack, mine
     eq(TP.ownChoice("s"), nil, "ownChoice is the shelf's own, not inherited")
 end)
 
+t.test("a sub-shelf wears its own theme, else follows its shelf of shelves, and says so", function()
+    local TP, d, _s, _po, _o, tabs = setup()
+    halloween(d); TP.invalidate()
+    tabs.top = { id = "top", label = "Fiction", theme = "plain" }
+    tabs.sub = { id = "sub", label = "Sci-fi", parent = "top" }
+    tabs.solo = { id = "solo", label = "Home" }
+    eq(TP.followOf("solo"), nil, "a top-level shelf follows a shelf of shelves")
+    local f = TP.followOf("sub")
+    eq(f and f.title, "Same as Fiction"); eq(f and f.shows, "plain")
+    eq(TP.shelfChoiceLabel("sub"), "Same as Fiction")
+    eq(TP.shelfChoiceLabel("solo"), "Default theme")
+    eq(TP.themeFor("sub"), "plain", "a sub-shelf with no theme does not wear its shelf of shelves'")
+    tabs.sub.theme = "Halloween"
+    eq(TP.themeFor("sub"), "Halloween", "a sub-shelf's own theme does not win")
+    eq(TP.themeFor("top"), "plain", "a sub-shelf's theme reached its shelf of shelves")
+    eq(TP.shelfChoiceLabel("sub"), "Halloween")
+end)
+
 t.done()

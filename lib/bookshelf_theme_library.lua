@@ -244,7 +244,12 @@ function TL.items(ctx)
     local out = {}
     for _i, c in ipairs(list) do
         local it = { value = c.value, same = c.same, missing = c.missing }
-        if c.same then
+        if c.same and ctx.follow then
+            -- A sub-shelf's: it follows its shelf of shelves, not the
+            -- default (TP.followOf).
+            it.title = ctx.follow.title
+            it.shows = ctx.follow.shows
+        elseif c.same then
             -- Reads as following, not as a second copy of the default's
             -- card (maintainer, 2026-10-08: "Same as library (My theme)"
             -- and "My theme" looked the same): the name says Default
@@ -476,6 +481,8 @@ TL.APPLY_DELAY = 0.15
 --                  titled "Default theme", what it sets (maintainer,
 --                  2026-10-09)
 --   opts.current   function() -> the choice in use (nil: Default theme)
+--   opts.follow    a sub-shelf's TP.followOf: its first card is "Same as
+--                  <its shelf of shelves>" rather than Default theme
 --   opts.choose    function(value): store it (cheap; the mark moves at once)
 --   opts.apply     function(): the shelf behind rebuilt for the choice; run
 --                  APPLY_DELAY after the last tap, then the whole screen is
@@ -497,7 +504,8 @@ function TL.show(opts)
     -- card, every page and every tap's relisting read this one.
     local scan = TL.scan()
     local function load()
-        self.items = TL.items{ shelf = opts.shelf, current = opts.current(), spines = spines, scan = scan }
+        self.items = TL.items{ shelf = opts.shelf, current = opts.current(), follow = opts.follow,
+                               spines = spines, scan = scan }
     end
     load()
     local modal

@@ -220,6 +220,11 @@ t.test("a pack or Plain the reader has edited says Edited first; Custom theme ne
     library = "Macabre"
     local shelf = TL.items{ shelf = "Home", current = nil }
     eq(shelf[1].summary:sub(1, #("Uses: Macabre" .. DOT .. "Edited")), "Uses: Macabre" .. DOT .. "Edited")
+    -- A sub-shelf's first card follows its shelf of shelves, not the default.
+    local sub = TL.items{ shelf = "Sci-fi", current = nil,
+                          follow = { title = "Same as Fiction", shows = "plain" } }
+    eq(sub[1].title, "Same as Fiction"); eq(sub[1].shows, "plain")
+    eq(sub[1].summary:sub(1, #"Uses: Plain"), "Uses: Plain")
     library = "mine"
     edits.Macabre, edits.Autumn, edits.plain, edits.mine = nil, nil, nil, nil
     eq(TL.summary("Macabre"):find("Edited", 1, true), nil, "a theme reset still says Edited")

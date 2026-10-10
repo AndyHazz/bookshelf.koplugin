@@ -44,13 +44,19 @@ t.test("page deal states are forgotten when the shelf's look changes", function(
     assert(body and body:find("TP.shelfKey()", 1, true), "_ornSig ignores the shelf's theme, so its pool")
 end)
 
-t.test("Shelf style has the shelf's Theme row, top-level shelves only, previewed live", function()
+t.test("Shelf style has the shelf's Theme row, sub-shelves too, previewed live", function()
     local ed = read("lib/bookshelf_chip_editor.lua")
     local pick = ed:match("\nfunction Editor:_pickGroupDisplay%(draft, on_change, chrome%)(.-)\nfunction Editor:")
     assert(pick, "_pickGroupDisplay moved")
     pick = pick:gsub("%-%-[^\n]*", "")
-    local row = pick:match("if draft%.parent == nil then(.-)\n        end\n")
-    assert(row and row:find('_("Theme: %1")', 1, true), "no Theme row, or not limited to top-level shelves")
+    -- Every shelf, a sub-shelf included (Reddit, after 5.4): no gate on
+    -- draft.parent, and a sub-shelf following its shelf of shelves says so.
+    local row = pick:match("\n        do\n(.-)\n        end\n")
+    assert(row and row:find('_("Theme: %1")', 1, true), "no Theme row")
+    assert(not pick:find("if draft.parent == nil then", 1, true), "the Theme row is still top-level shelves only")
+    assert(row:find("local follow = draft.parent ~= nil and TP.followOf(draft.id) or nil", 1, true)
+        and row:find("follow = follow,", 1, true),
+        "a sub-shelf's Theme row does not say it follows its shelf of shelves")
     -- Following the default reads "Theme: Default theme", as the Theme
     -- menu's shelf rows do; "library" is the Theme library's own name, and
     -- a bare "Default" was not enough (maintainer, 2026-10-09).
@@ -72,7 +78,7 @@ t.test("Shelf style has the shelf's Theme row, top-level shelves only, previewed
     assert(row:find("on_closed = show,", 1, true), "Shelf style does not come back after the picker")
     -- First, above Show as: the theme sits behind the layout style
     -- (maintainer, 2026-10-09).
-    local th = pick:find("if draft.parent == nil then", 1, true)
+    local th = pick:find("local follow = draft.parent", 1, true)
     local sa = pick:find('rows[#rows + 1] = header(_("Show as"))', 1, true)
     assert(th and sa and th < sa, "the Theme row is not above Show as")
     local tm = read("lib/bookshelf_theme_menu.lua")

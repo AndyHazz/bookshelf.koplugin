@@ -437,6 +437,31 @@ function M.ownChoice(id)
     return tab and normalise(tab.theme) or nil
 end
 
+-- followOf(id) -> what a sub-shelf with no theme of its own wears, for the
+-- pickers to name: { title = "Same as Fiction", shows = <its theme> }. Nil
+-- for a top-level shelf, which follows the Default theme. A sub-shelf may
+-- wear its own theme (Reddit, after 5.4; it wore its shelf of shelves' only,
+-- ruling 2026-10-05), and until it does it is that shelf's, so its pickers
+-- say "Same as", not "Default theme", which it may well not be.
+function M.followOf(id)
+    local tab = tabFor(id)
+    local pid = tab and tab.parent
+    if pid == nil then return nil end
+    local parent = tabFor(pid)
+    return { title = T(_("Same as %1"), (parent and parent.label) or pid),
+             shows = M.themeFor(pid) }
+end
+
+-- shelfChoiceLabel(id) -> how that shelf's own choice reads after "Theme:"
+-- or "This shelf:": its theme's name, else Same as its shelf of shelves,
+-- else Default theme.
+function M.shelfChoiceLabel(id)
+    local own = M.ownChoice(id)
+    if own ~= nil then return M.choiceLabel(own) end
+    local f = M.followOf(id)
+    return f and f.title or M.choiceLabel(nil)
+end
+
 -- themeFor(id) -> the theme that shelf shows: "mine", "plain" or a pack.
 function M.themeFor(id)
     return usable(M.shelfChoiceFor(id)) or M.libraryTheme()

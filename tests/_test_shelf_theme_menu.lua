@@ -89,6 +89,20 @@ local function build(packs, library, tabs, opts)
     }
     TP.editName = function() return TP.themeName(TP.shelfTheme()) end
     TP.choiceLabel = function(v) if v == nil then return "Default theme" end return TP.themeName(v) end
+    -- As bookshelf_theme_pack's (its own suite pins them): a sub-shelf with
+    -- no theme of its own follows its shelf of shelves.
+    TP.followOf = function(id)
+        local tb = tabs_by[id]
+        local p = tb and tb.parent and tabs_by[tb.parent]
+        if not p then return nil end
+        return { title = "Same as " .. p.label, shows = p.theme }
+    end
+    TP.shelfChoiceLabel = function(id)
+        local own = TP.ownChoice(id)
+        if own ~= nil then return TP.choiceLabel(own) end
+        local f = TP.followOf(id)
+        return f and f.title or TP.choiceLabel(nil)
+    end
     local env = setmetatable({
         Settings = {},
         MenuIcons = MI,
@@ -249,8 +263,14 @@ t.test("This shelf opens the shelf on screen's picker, named for its own choice;
     local row = TM.thisShelfRow(onShelf(self, "home"))
     eq(row.text_func(), "This shelf: Default theme"); eq(row.keep_menu_open, true)
     eq(TM.thisShelfRow(onShelf(self, "rec")).text_func(), "This shelf: Plain")
-    eq(TM.thisShelfRow(onShelf(self, "sub")).text_func(), "This shelf: Plain",
-        "a sub-shelf's row is not its shelf of shelves' choice")
+    -- A sub-shelf is This shelf's own (Reddit, after 5.4): with no theme of
+    -- its own it says whose it wears.
+    eq(TM.thisShelfRow(onShelf(self, "sub")).text_func(), "This shelf: Same as Recent",
+        "a sub-shelf's row does not say it follows its shelf of shelves")
+    by.sub.theme = "mine"
+    eq(TM.thisShelfRow(onShelf(self, "sub")).text_func(), "This shelf: Custom theme",
+        "a sub-shelf's row does not name its own theme")
+    by.sub.theme = nil
     onShelf(self, "home")
     eq(row.sub_item_table_func, nil, "a radio submenu again")
     row.callback({})
@@ -270,7 +290,12 @@ t.test("This shelf opens the shelf on screen's picker, named for its own choice;
     assert(seen.rebuilt and rowOf(seen.rebuilt, "This shelf: "), "the rebuild is not the Theme menu")
     eq(rowOf(seen.rebuilt, "This shelf: ").text_func(), "This shelf: Custom theme", "the row does not follow the choice")
     TM.thisShelfRow(onShelf(self, "sub")).callback({})
-    eq(seen.opened[2].shelf, "Recent", "a sub-shelf's row opened the sub-shelf's picker")
+    local o2 = seen.opened[2]
+    eq(o2.shelf, "Sub", "a sub-shelf's row did not open the sub-shelf's picker")
+    eq(o2.follow and o2.follow.title, "Same as Recent", "the picker's first card is not Same as its shelf of shelves")
+    o2.choose("mine")
+    eq(by.sub.theme, "mine", "the sub-shelf's choice was not written to it")
+    eq(by.rec.theme, "plain", "choosing a sub-shelf's theme changed its shelf of shelves")
     -- No shelf on screen: no This shelf row (it read "This shelf: Default
     -- theme" and opened the default's picker, review 2026-10-09).
     self._bw = nil
@@ -361,8 +386,11 @@ t.test("Other shelves: every shelf but the one on screen, counted by those with 
     eq(row.text_func(), "Other shelves: 1 with own theme")
     eq(texts(row.sub_item_table_func()), "Home: Default theme | Recent: Custom theme")
     onShelf(self, "sub")
-    eq(texts(row.sub_item_table_func()), "Home: Default theme | Recent: Custom theme",
-        "a sub-shelf on screen lists its shelf of shelves as another shelf")
+    -- A sub-shelf on screen is This shelf's (it may wear its own theme,
+    -- Reddit after 5.4), so its shelf of shelves is listed here.
+    eq(texts(row.sub_item_table_func()), "Home: Default theme | Manga: Ukiyo-e | Recent: Custom theme",
+        "a sub-shelf on screen does not list its shelf of shelves as another shelf")
+    onShelf(self, "manga")
     by.rec.theme = nil
     eq(row.text_func(), "Other shelves: all default")
     -- No shelf on screen: all of them.

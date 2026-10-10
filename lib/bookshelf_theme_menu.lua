@@ -103,14 +103,12 @@ function M.menuHelp()
             .. "long-press a shelf chip, then Shelf style."), mine)
 end
 
--- shelfOnScreen(S): the shelf whose theme the Theme menu is about:
--- the shelf on screen, or its shelf of shelves for a sub-shelf (which wears
--- that one's theme); nil without a shelf on screen.
+-- shelfOnScreen(S): the shelf whose theme the Theme menu is about: the
+-- shelf on screen, a sub-shelf included, since one may wear a theme of its
+-- own (Reddit, after 5.4); nil without a shelf on screen. Its shelf of
+-- shelves is then under Other shelves.
 function M.shelfOnScreen(S)
-    local chip = S._bw and S._bw.chip
-    if not chip then return nil end
-    local ok, TabModel = pcall(require, "lib/bookshelf_tab_model")
-    return (ok and TabModel and TabModel.rootOf) and TabModel.rootOf(chip) or chip
+    return S._bw and S._bw.chip or nil
 end
 
 -- thisShelfRow(S): the Theme menu's first row, "This shelf: Macabre": the
@@ -121,17 +119,16 @@ end
 -- the same picker and could not be told apart). It names the shelf's own
 -- choice as that shelf's row under Other shelves does, "Default theme" while
 -- it follows the default (maintainer, 2026-10-09: not a bare "Default"),
--- whose card is then the one marked. A sub-shelf wears its shelf of
--- shelves' theme, so the row is that shelf's. Only with a shelf on screen
--- (items).
+-- whose card is then the one marked. A sub-shelf with none of its own reads
+-- "Same as Fiction", its shelf of shelves (TP.shelfChoiceLabel). Only with a
+-- shelf on screen (items).
 function M.thisShelfRow(S)
     local function shelfOnScreen() return M.shelfOnScreen(S) end
     return {
         text_func = function()
             local id = shelfOnScreen()
             local TP = require("lib/bookshelf_theme_pack")
-            local own = id and TP.ownChoice(id)
-            return T(_("This shelf: %1"), TP.choiceLabel(own))
+            return T(_("This shelf: %1"), id and TP.shelfChoiceLabel(id) or TP.choiceLabel(nil))
         end,
         keep_menu_open = true,
         callback = function(touchmenu_instance)
@@ -255,6 +252,7 @@ function M.openLibrary(S, id, touchmenu_instance, after)
         opts.shelf = (tab and tab.label) or id
         opts.current = function() return TP.ownChoice(id) end
         opts.choose = function(value) M.setShelfTheme(id, value) end
+        opts.follow = TP.followOf(id)
     else
         opts.current = function() return TP.libraryChoice() end
         opts.choose = function(value) TP.setLibraryTheme(value) end

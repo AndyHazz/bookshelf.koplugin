@@ -1706,19 +1706,22 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         -- library, the one picker the
         -- Theme menu's This shelf and shelf rows open too
         -- (maintainer, 2026-10-07: readers who think "this shelf" start
-        -- here). Top-level shelves only: a sub-shelf wears its shelf of
-        -- shelves' theme (ruling, 2026-10-05). A pick is saved and shown on
-        -- the shelf behind (on_change); this dialog comes back, its row
-        -- updated, when the picker closes.
+        -- here). A sub-shelf too (Reddit, after 5.4; it wore its shelf of
+        -- shelves' theme only, ruling 2026-10-05): with none of its own it
+        -- reads "Theme: Same as Fiction" (TP.followOf). A pick is saved and
+        -- shown on the shelf behind (on_change); this dialog comes back, its
+        -- row updated, when the picker closes.
         -- Following the default reads "Theme: Default theme", as its row in
         -- the Theme menu does; never "library", the Theme library's own
         -- name, nor a bare "Default" (maintainer, 2026-10-09).
-        if draft.parent == nil then
+        do
             local TP = require("lib/bookshelf_theme_pack")
             local function cur() return draft.theme end
+            local follow = draft.parent ~= nil and TP.followOf(draft.id) or nil
             rows[#rows + 1] = {{
                 text_func = function()
                     local v = cur()
+                    if v == nil and follow then return T(_("Theme: %1"), follow.title) end
                     return T(_("Theme: %1"), TP.choiceLabel(v))
                 end,
                 callback = function()
@@ -1726,6 +1729,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                     require("lib/bookshelf_theme_library").show{
                         shelf = draft.label or "",
                         current = cur,
+                        follow = follow,
                         choose = function(value) draft.theme = value end,
                         apply = function() on_change(true) end,
                         on_closed = show,

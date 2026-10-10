@@ -206,15 +206,21 @@ end)
 
 t.test("a pack or Plain the reader has edited says Edited first; Custom theme never does", function()
     edits.Macabre = { keys = { wallpaper_default = "leaves.png" } }
-    eq(TL.summary("Macabre"), "Edited" .. DOT .. row(MI.WALLPAPER, MI.PLANK, orn(56), MI.DARK))
+    eq(TL.summary("Macabre"), "Edited" .. TL.ICON_SEP .. row(MI.WALLPAPER, MI.PLANK, orn(56), MI.DARK))
     edits.Autumn = { keys = { progress_fill = { hex = "#00AA00" } } }
-    eq(TL.summary("Autumn", false), "Edited" .. DOT .. orn(27) .. " (Spines shelves only)")
+    eq(TL.summary("Autumn", false), "Edited" .. TL.ICON_SEP .. orn(27) .. " (Spines shelves only)")
     edits.plain = { keys = {} }
-    eq(TL.summary("plain"), "Edited" .. DOT .. ic(MI.PLANK, "Oak"))
+    eq(TL.summary("plain"), "Edited" .. TL.ICON_SEP .. ic(MI.PLANK, "Oak"))
     edits.mine = { keys = {} }
     eq(TL.summary("mine"):find("Edited", 1, true), nil, "Custom theme says Edited")
     local items = TL.items{ current = "mine" }
     eq(items[3].summary:sub(1, 6), "Edited", "the card does not say Edited")
+    assert(not TL.summary("Macabre"):find(DOT, 1, true), "a dot between Edited and the icons")
+    -- Between two words the dot stays: "Uses: Macabre · Edited".
+    library = "Macabre"
+    local shelf = TL.items{ shelf = "Home", current = nil }
+    eq(shelf[1].summary:sub(1, #("Uses: Macabre" .. DOT .. "Edited")), "Uses: Macabre" .. DOT .. "Edited")
+    library = "mine"
     edits.Macabre, edits.Autumn, edits.plain, edits.mine = nil, nil, nil, nil
     eq(TL.summary("Macabre"):find("Edited", 1, true), nil, "a theme reset still says Edited")
 end)
@@ -247,7 +253,9 @@ t.test("a shelf's cards start with Default theme, which shows the default's them
     -- not "library", the picker's own name (maintainer, 2026-10-09).
     eq(items[1].same, true); eq(items[1].title, "Default theme")
     eq(items[1].shows, "Macabre")
-    eq(items[1].summary, "Uses: Macabre" .. DOT .. TL.summary("Macabre"))
+    -- A word before icons is set apart by their spacing, not a dot (a dot
+    -- against an icon sat oddly, maintainer 2026-10-10).
+    eq(items[1].summary, "Uses: Macabre" .. TL.ICON_SEP .. TL.summary("Macabre"))
     eq(items[1].description, "Candles and skulls.")
     eq(TL.isCurrent(items[1], nil), true); eq(TL.isCurrent(items[2], nil), false)
     eq(TL.isCurrent(items[1], "mine"), false, "a shelf on Custom theme read as following the default")

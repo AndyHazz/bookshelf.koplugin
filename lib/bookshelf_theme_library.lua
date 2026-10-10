@@ -78,7 +78,10 @@ end
 -- parts keep the names that tell something (the wallpaper, the plank). A part
 -- a theme does not have is left out, icon and all, never "None" (maintainer,
 -- 2026-10-09). Icon parts are set apart by space, not a dot: the icon itself
--- marks where each starts. Words in front (Edited, Uses:) keep the dot.
+-- marks where each starts. A word in front of icons (Edited, Uses: Custom
+-- theme) is set apart the same way: a dot against an icon sat oddly
+-- (maintainer, 2026-10-10). A dot only between two words ("Uses: Macabre
+-- · Edited").
 local function Icons() return require("lib/bookshelf_menu_icons") end
 local NB = "\xC2\xA0"
 local function ic(glyph, text) return text and (glyph .. NB .. text) or glyph end
@@ -149,8 +152,10 @@ function TL.summary(theme, spines, all)
         end
     end
     local out = #parts > 0 and table.concat(parts, TL.ICON_SEP) or nil
-    if edited then out = out and (_("Edited") .. TL.SEP .. out) or _("Edited") end
-    return out
+    if edited then out = out and (_("Edited") .. TL.ICON_SEP .. out) or _("Edited") end
+    -- Second value: the line starts with a word (Edited), so a word put in
+    -- front of it is set apart by a dot, not by the icons' spacing.
+    return out, edited and true or false
 end
 
 -- spinesShown() -> is the shelf on screen on Spines: true or false, nil
@@ -253,10 +258,11 @@ function TL.items(ctx)
             it.shows = c.value
         end
         if not it.missing then
-            it.summary = TL.summary(it.shows, ctx.spines, scan.all)
+            local word_first
+            it.summary, word_first = TL.summary(it.shows, ctx.spines, scan.all)
             if c.same then
                 local follows = T(_("Uses: %1"), tp.themeName(it.shows))
-                it.summary = it.summary and (follows .. TL.SEP .. it.summary) or follows
+                it.summary = it.summary and (follows .. (word_first and TL.SEP or TL.ICON_SEP) .. it.summary) or follows
             end
             local p = tp.packOf(it.shows)
             local m = p and tp.theme(p).manifest

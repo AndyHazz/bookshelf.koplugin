@@ -2314,12 +2314,12 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
 end
 
 -- _coverTextRow(draft, on_change, close, reshow, bw) -> Shelf style's
--- "Captions: Title" button, opening its picker (_pickCoverText). `close` takes
--- Shelf style down, `reshow` brings it back.
+-- "Cover captions: Title" button, opening its picker (_pickCoverText).
+-- `close` takes Shelf style down, `reshow` brings it back.
 function Editor:_coverTextRow(draft, on_change, close, reshow, bw)
     return {{
         text_func = function()
-            return T(_("Captions: %1"), Editor._coverTextLabel(draft, draft.cover_text))
+            return T(_("Cover captions: %1"), Editor._coverTextLabel(draft, draft.cover_text))
         end,
         callback = function()
             close()

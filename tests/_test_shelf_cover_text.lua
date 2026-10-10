@@ -79,12 +79,12 @@ t.test("the row names the choice: Default, or Same as for a sub-shelf", function
     local draft = { id = "series", label = "Series" }
     local row = Editor:_coverTextRow(draft, function() end, function() end, function() end)
     eq(#row, 1, "one button: text below groups is not per shelf")
-    eq(texts({ row }), "Captions: Default")
+    eq(texts({ row }), "Cover captions: Default")
     draft.cover_text = "series"
-    eq(texts({ row }), "Captions: Series")
+    eq(texts({ row }), "Cover captions: Series")
     local sub = { id = "sub", label = "Sub", parent = "series" }
     eq(texts({ Editor:_coverTextRow(sub, function() end, function() end, function() end) }),
-       "Captions: Same as Series")
+       "Cover captions: Same as Series")
 end)
 
 t.test("a pick is written to the shelf, shown, and hands back to Shelf style", function()

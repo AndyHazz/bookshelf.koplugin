@@ -31,15 +31,15 @@ A friendly home screen for KOReader. Browse your library by series, author, genr
    | Android | `<koreader-dir>/plugins/` |
 
 3. Restart KOReader.
-4. Open KOReader's menu and set **Start with -> Bookshelf**. Without this, KOReader opens its standard file browser on launch; you can still open Bookshelf manually from the menu.
+4. Open KOReader's menu and set **Start with > Bookshelf**. Without this, KOReader opens its standard file browser on launch; you can still open Bookshelf manually from the menu.
 
    > The **Start with** setting only appears in the menu of KOReader's **File Manager** screen, not while a book is open. If you can't find it, close the book first (or launch KOReader without one open), then open the menu from the file browser.
 
-> **Bookshelf needs KOReader's Cover browser plugin.** It is switched on in a stock KOReader, so this is usually nothing to do. You only need to check it if you have turned it off yourself, which some other plugins ask you to do. To look: open the KOReader menu, then **More tools -> Plugin management -> Built-in plugins**, and make sure **Cover browser** is ticked. Cover browser supplies the covers and metadata Bookshelf reads; without it, Bookshelf shows a one-time notice and steps aside to KOReader's standard file browser.
+> **Bookshelf needs KOReader's Cover browser plugin.** It is switched on in a stock KOReader, so this is usually nothing to do. You only need to check it if you have turned it off yourself, which some other plugins ask you to do. To look: open the KOReader menu, then **More tools > Plugin management > Built-in plugins**, and make sure **Cover browser** is ticked. Cover browser supplies the covers and metadata Bookshelf reads; without it, Bookshelf shows a one-time notice and steps aside to KOReader's standard file browser.
 
 Once it's running, the top menu has a **Bookshelf** section with everything else: shelf size, shelves, Hardcover, updates, and settings.
 
-> **"menu" below always means Bookshelf's own menu**: the **Bookshelf** tab in KOReader's top menu, marked with an open-book icon and usually second from the left. Not to be confused with the [start menu](#the-start-menu), the hamburger in the bottom-left corner of the shelf, which is a launcher you build yourself (you can add a **Bookshelf menu** shortcut to it: long-press any item -> **add new menu item** -> **Bookshelf action…** -> **Bookshelf menu**). Anywhere these instructions mean a different menu, they say so.
+> **"menu" below always means Bookshelf's own menu**: the **Bookshelf** tab in KOReader's top menu, marked with an open-book icon and usually second from the left. Not to be confused with the [start menu](#the-start-menu), the hamburger in the bottom-left corner of the shelf, which is a launcher you build yourself (you can add a **Bookshelf menu** shortcut to it: long-press any item > **add new menu item** > **Bookshelf action…** > **Bookshelf menu**). Anywhere these instructions mean a different menu, they say so.
 
 ---
 
@@ -58,12 +58,14 @@ A shelf can point at:
 - **Favorites** -- the built-in starred shelf.
 - An **OPDS catalogue** -- an online book catalogue browsed as a shelf, with downloads. See [OPDS catalogues](#opds-catalogues).
 - Your **Kindle library** -- on a Kindle, the books in the Kindle's own library. See [Kindle library](#kindle-library).
+- Your **Kobo library** -- on a Kobo, the books from the Kobo store. See [Kobo library](#kobo-library-beta).
+- A **shelf of shelves** -- a shelf that holds other shelves, each with all the options of any shelf.
 
 Each shelf remembers its own **filters** (reading status, genre, language, format, rating, collection, or folder -- see [Shelf sources, filters, and sorts](#shelf-sources-filters-and-sorts)), sort priority (up to three levels deep, e.g. *surname, then series, then series number*), label, icon, colour, and whether it's enabled.
 
 **To edit a shelf:** long-press it. The footer of the editor has **+ Add new shelf** if you'd like to start a fresh one.
 
-The same menu (**menu -> Edit shelves…**) also has **Shelf menu font size** for adjusting how big the shelves render across the top of the screen.
+The same menu (**menu > Edit shelves…**) also has **Shelf menu font size** for adjusting how big the shelves render across the top of the screen.
 
 When you have more shelves than fit across the screen, the bar splits into pages: tap the **>** / **<** chevrons at the end of the row, or swipe left/right on the bar, to move between them (the active shelf's page shows first). On e-ink the change plays as a wipe -- see [Animations](#animations).
 
@@ -71,9 +73,9 @@ When you have more shelves than fit across the screen, the bar splits into pages
 
 Tap the search icon at the right of the shelf menu. Search looks across authors, series, genres, collections, and book titles in one go, and groups the results by category. Tapping a result drills into it; back-swipe to return to whichever shelf you were on.
 
-Folder names aren't searched by default: in most libraries the folders mirror the author/series/genre stacks, so matching a folder just duplicates the metadata result of the same name. If you navigate by folder, turn on **Settings -> Library & search -> Include folder names in search results**.
+Folder names aren't searched by default: in most libraries the folders mirror the author/series/genre stacks, so matching a folder just duplicates the metadata result of the same name. If you navigate by folder, turn on **Settings > Library & search > Include folder names in search results**.
 
-Genres and tags are searched too, and matching genres are listed as results. If a common tag keeps crowding out the books you meant, turn off **Settings -> Library & search -> Include genres and tags in search results** and search matches only titles, authors and series.
+Genres and tags are searched too, and matching genres are listed as results. If a common tag keeps crowding out the books you meant, turn off **Settings > Library & search > Include genres and tags in search results** and search matches only titles, authors and series.
 
 On an [OPDS catalogue](#opds-catalogues) shelf, the same search icon searches the catalogue itself (when the catalogue supports search), so you can look up a title or author across the whole catalogue rather than just the page on screen.
 
@@ -92,7 +94,7 @@ The top panel card has eight sections you can show, hide, or restyle:
 - **Tags (interactive)** -- a strip of tappable pills for the book's author, series, genres, collections, and parent folder. Tap a pill to jump straight to that shelf. Off by default.
 - **Progress** -- bottom-anchored line with an inline progress bar.
 
-To edit them, open **menu -> Settings -> Edit top panel content** (see [Customising the top panel](#customising-the-top-panel) below).
+To edit them, open **menu > Settings > Edit top panel content** (see [Customising the top panel](#customising-the-top-panel) below).
 
 ### Micro-modules on the home screen
 
@@ -102,7 +104,7 @@ To edit them, open **menu -> Settings -> Edit top panel content** (see [Customis
 
 The home screen can show a grid of **micro-modules** -- small live panels like a clock, a quote from your highlights, your reading goal, the weather, or a launcher button. They're the same kinds of panels you can add to the [start menu](#micro-modules).
 
-Micro-modules can appear in three independent places, each its own on/off checkbox under **Bookshelf settings -> Micro modules**:
+Micro-modules can appear in three independent places, each its own on/off checkbox under **Bookshelf settings > Micro modules**:
 
 - **In the top panel** -- a **grid** entry at the right of the shelf menu swaps the book preview at the top of the screen for the grid (tap it to toggle between the two).
 - **Full-screen button** -- a grid button sits in the footer opposite the start menu; tapping it opens the modules full-screen as a dashboard, with the status line across the top. Close it with the **X**, a tap on empty space, or Back. The usual KOReader gestures (top-edge menu, edge swipes for brightness, corner actions) still work over it.
@@ -117,7 +119,7 @@ In either grid:
 - **Long-press the grid shelf** to reset the module grid to its defaults, or to remove micro-modules from the top panel.
 - On **physical-button (D-pad) devices**, move the cursor across the grid with the arrow keys, open a module with the centre key, and long-press to edit it.
 
-The grid packs square modules (clocks, launcher icons) tightly and lets text modules fill the rest of the row. Set the number of **columns and rows** under **menu -> Adjust shelf/top panel size**. Micro-modules have their own entry under **menu -> Settings -> Text size** so you can scale the grid independently of the book detail view.
+The grid packs square modules (clocks, launcher icons) tightly and lets text modules fill the rest of the row. Set the number of **columns and rows** under **menu > Adjust shelf/top panel size**. Micro-modules have their own entry under **menu > Settings > Text size** so you can scale the grid independently of the book detail view.
 
 ### The shelf grid (the books)
 
@@ -131,11 +133,11 @@ Each cover on the grid is either a book or a stack of books (for series, authors
 - **Swipe down** on the top panel for a bigger panel and one shelf row fewer; **swipe up** on it gives the row back.
 - **Swipe down** on the shelf area to refresh the library after adding new books over USB or Calibre.
 
-Every shelf shows a line of text under each cover -- the title by default. One setting drives it everywhere: **menu -> Settings -> Cover display -> Show text below covers** picks Title, Author, Series, or None (covers then use the full row). Its text size is **Cover labels** under **Settings -> Text size**. Books without covers already show their title and author on the placeholder itself, so those skip the extra label.
+Every shelf shows a line of text under each cover -- the title by default. One setting drives it everywhere: **menu > Settings > Cover display > Show text below covers** picks Title, Author, Series, Custom, or None (covers then use the full row). **Custom…** opens an editor that builds the line from [tokens](#tokens-placeholders), the same ones the top panel uses: `%book_pct · %size`, say, for how far you have read and the file size. Save in the editor makes Custom the choice; Cancel keeps the one you had. Its text size is **Cover labels** under **Settings > Text size**. Books without covers already show their title and author on the placeholder itself, so those skip the extra label.
 
 The full gesture reference is in [Gestures cheatsheet](#gestures-cheatsheet) below; physical-key devices have their own reference in [Keyboard and D-pad](#keyboard-and-d-pad).
 
-Any of Bookshelf's own gestures can be switched off, one by one or all together, under **menu -> Settings -> Behavior -> Bookshelf gestures**. A gesture switched off does nothing on the shelf, so an action you have given it in KOReader's gesture manager can run instead. Tapping a book and swiping between pages always work.
+Any of Bookshelf's own gestures can be switched off, one by one or all together, under **menu > Settings > Behavior > Bookshelf gestures**. A gesture switched off does nothing on the shelf, so an action you have given it in KOReader's gesture manager can run instead. Tapping a book and swiping between pages always work.
 
 ### List view
 
@@ -164,29 +166,31 @@ Each book is drawn from what Bookshelf already knows about it:
 
 Long-press a shelf and pick **Spines** under Show as, or hold the page range in the footer to cycle to it. The same dialog has the settings below it.
 
-Tap a spine and the book lifts off the shelf (and shows in the top panel); tap it again to open it, or tap empty space anywhere on the shelf to put it back.
+Tap a spine and the book lifts off the shelf (and shows in the top panel); tap it again to open it, or tap empty space anywhere on the shelf to put it back. A face-out book comes off in 3D, tipped forward and turned so you see its pages.
 
 **Face out.** Some books turn to show their cover, the way a shop dresses a shelf. Tick as many reasons as you like: unread books, unread books that are in no series, what you are currently reading, favourites, the first (or first unread) in each series, the newest few added, or the books in one collection you choose (a To read list, say). Or all books, or none.
 
 **Grouping.** On a grouped shelf (series, authors, genres) there are no folders to drill into -- the groups are flattened onto the shelf and each run gets a label at the shelf's edge. Everything is out where you can see it.
 
-**Spine text direction.** Which way a title runs down a spine: **Top to bottom** (the default, how British and American books are printed) or **Bottom to top** (Continental European). Set it once for the whole library under **menu -> Settings -> Library & search**.
+**Spine text direction.** Which way a title runs down a spine: **Top to bottom** (the default, how British and American books are printed) or **Bottom to top** (Continental European). Set it once for the whole library under **menu > Settings > Library & search**.
 
 **Ornaments.** Drop PNG or SVG files into the `koreader/settings/bookshelf/ornaments` folder (beside the wallpapers) and they turn up in the gaps, standing on the plank like the books. A potted plant and a cactus are seeded there to start you off; delete them if you would rather not see them and they stay deleted. Ornaments from before 5.3, in `koreader/icons/bookshelf.ornaments`, move here by themselves on the first start.
 
-A folder of ornaments inside `ornaments` is a **pack**, with a tab of its own. **menu > Wallpaper, ornaments and colours > Ornament collection** opens a browser of everything in the folder, with **All** and a tab per pack: tap an ornament to switch it off or on (the box in its corner is ticked while it is on), long-press it to switch it or delete it, and use **Select all** or **Select none** in the footer to switch every ornament on the tab. A theme pack switches its own ornaments on, and the other packs off, when you choose it as your Shelf theme. Switched-off ornaments are faded, and **Add ornaments…** on the All tab shows where the folder is on your device.
+A folder of ornaments inside `ornaments` is a **pack**, with a tab of its own. **menu > Theme > Ornaments** opens a browser of everything in the folder, with **All** and a tab per pack: tap an ornament to switch it off or on (the box in its corner is ticked while it is on), long-press it to switch it or delete it, and use **Select all** or **Select none** in the footer to switch every ornament on the tab. Switched-off ornaments are faded, and **Add ornaments…** on the All tab shows where the folder is on your device.
 
-**Theme packs.** A pack can also bring a wallpaper, planks and colours. Each is chosen where its kind is chosen: the pack's wallpaper appears in the wallpaper picker, its planks in the **Shelf plank** picker, and its colours as a **Color theme** at the top of Accent colours. A **theme pack** (one with a `theme/theme.json`), or any pack with ornaments in it, also appears in the Bookshelf menu's **Shelf theme** row (just above Wallpaper, ornaments and colours), under Auto, Light and Dark: choosing it uses all of its parts at once, and its ornaments in place of other packs'. **No theme pack** puts your own look back, and anything you changed in the meantime stays as you left it. A pack copied in shows there the next time you open the menu.
+Which ornaments a shelf deals depends on its [theme](#themes): Custom theme deals every ornament you have switched on, loose ones and packs alike; a pack deals only its own (a pack with none deals Custom theme's); Plain deals none. The browser switches pieces for the theme on screen, so on a pack's or Plain's shelf switching one on or off is an edit to that theme.
+
+**Theme packs.** A pack can also bring a wallpaper, planks and colours. Every pack is a theme in the [Theme library](#themes), and choosing it uses all of its parts at once. Its wallpaper and planks are also offered in the wallpaper and plank pickers, so you can use them in any theme, Custom theme included.
 
 Ready-made ornament packs, drawn to sit on the plank at the right size on colour and black and white screens, are in the [Ko-fi shop](https://ko-fi.com/andyhazz/shop). Unzip a pack's folder into `ornaments` and it gets its own tab. Packs need Bookshelf 5.2 or later.
 
-How often they appear is per shelf, next to **Author on spine** in the shelf's style dialog: **None**, **Rarely**, **Often** or **Always**. **Rarely** puts a piece at the end of one shelf in four, **Often** at the end of every other shelf and in one section gap in four, and **Always** at the end of every shelf and in every other section gap. The ends alternate, and the books always move over to make room.
+How often they appear is per shelf, next to **Author on spine** in the shelf's style dialog: **None**, **Rarely**, **Often** or **Always**. **Rarely** puts a piece at the end of one shelf in four, **Often** at the end of one shelf in two and in one section gap in four, and **Always** at the end of every shelf and in every other section gap. Which shelf and which end vary from shelf to shelf, so every page does not look the same, but stay put each time you come back; the books always move over to make room.
 
-Shape is up to you. A piece stands at 80% of the books' height and no wider than the books are tall; a wider one is scaled down to fit, never left out. Pieces come round in a fixed order, one of each before any repeats, so a shelf looks the same every time you come back to it, even after you add books. **Shuffle all** in an ornament's long-press menu, or a gesture set to **Bookshelf: shuffle ornaments**, picks a new order. Ornaments you add show up on their own within a few seconds while the shelf is open (the same check that finds new books, so with Wi-Fi on), and join the front of the order, so you see them straight away; to keep your shelf as it is instead, set **Wallpaper, ornaments and colors > New ornaments** to **Last**.
+Shape is up to you. A piece stands at 80% of the books' height and no wider than the books are tall; a wider one is scaled down to fit, never left out. Each shelf has its own order the pieces come round in, one of each before any repeats, so a shelf looks the same every time you come back to it, even after you add books. **Shuffle this shelf** in an ornament's long-press menu, or a gesture set to **Bookshelf: shuffle ornaments**, picks a new order for the shelf on screen. Ornaments you add show up on their own within a few seconds while the shelf is open (the same check that finds new books, so with Wi-Fi on), and join the front of the first spine shelf's order (and a random place in the others'), so you see them straight away; to keep your shelves as they are instead, set **menu > Theme > New ornaments go** to **last**.
 
-**Long-press an ornament** on the shelf to adjust it where it stands: its size (up to the whole row), the padding either side of it (below zero it tucks behind the books beside it), whether it is mirrored (always, or every other time it comes round), its anchor (**bottom** stands it on its shelf; **top** hangs it from the shelf above, the top of the drawing against its underside at any size, which is how to hang a bat), its height from that anchor (the arrows raise and lower it, in steps of the shelf's height, so a big piece moves as far as a small one; below the plank it dangles in front of its shelf, above the shelf above it goes behind it), and an action to run when you tap it: any action, or **Zoom**, which shows the ornament full screen with its name (and, for pieces that come with one, a note about it). **Swap** opens the ornament browser so you can choose what stands there instead: the two pieces trade places in the order. The shelf redraws under the menu as you go; tap a value to reset it. Your changes follow the ornament onto every shelf, and are kept in an `ornaments.json` in the ornaments folder.
+**Long-press an ornament** on the shelf to adjust it where it stands: its size (up to the whole row), the padding either side of it (below zero it tucks behind the books beside it), whether it is mirrored (always, or every other time it comes round), its anchor (**bottom** stands it on its shelf; **top** hangs it from the shelf above, the top of the drawing against its underside at any size, which is how to hang a bat), its height from that anchor (the arrows raise and lower it, in steps of the shelf's height, so a big piece moves as far as a small one; below the plank it dangles in front of its shelf, above the shelf above it goes behind it), and an action to run when you tap it: any action, or **Zoom**, which shows the ornament full screen with its name (and, for pieces that come with one, a note about it). **Swap** opens the ornament browser so you can choose what stands there instead: the two pieces trade places in this shelf's order. The shelf redraws under the menu as you go; tap a value to reset it. Your changes follow the ornament onto every shelf, and are kept in an `ornaments.json` in the ornaments folder.
 
-**For pack makers:** a pack can carry its own `ornaments.json`, keyed by file name, to arrive placed. Fields: `scale` (1 = the default size), `anchor` (`"bottom"`, the default, stands it on its shelf; `"top"` hangs it from the shelf above), `lift` (its height from the anchor, in the shelf's height: 0.1 a tenth of it up, -0.1 down), `pad` (in the books' height, each side, - tightens), `night` (`"invert"` to draw it in chalk in dark mode), `mirror` (`"off"`, `"always"` or `"alternate"`), `tap` (`"zoom"` to show the piece full screen when it is tapped), `info` (text shown under the piece in the zoom view, in a scrolling panel: a title, an artist, notes; without it the view shows the piece's name). A reader's own changes are kept separately and win.
+**For pack makers:** a pack can carry its own `ornaments.json`, keyed by file name, to arrive placed. Fields: `scale` (1 = the default size), `anchor` (`"bottom"`, the default, stands it on its shelf; `"top"` hangs it from the shelf above), `lift` (its height from the anchor, in the shelf's height: 0.1 a tenth of it up, -0.1 down), `pad` (in the books' height, each side, - tightens), `night` (`"invert"` to draw it in chalk in dark mode), `mirror` (`"off"`, `"always"` or `"alternate"`), `tap` (`"zoom"` to show the piece full screen when it is tapped), `info` (text shown under the piece in the zoom view, in a scrolling panel: a title, an artist, notes; without it the view shows the piece's name), `trim` (a transparent margin each side, such as a glow or a shadow, to tuck in behind the books, as a share of the piece's own width from 0 to 0.5, so it follows the piece when it is resized; it has no menu row). A reader's own changes are kept separately and win.
 
 ```json
 { "owl.png": { "scale": 1.2, "lift": -0.05 },
@@ -195,15 +199,24 @@ Shape is up to you. A piece stands at 80% of the books' height and no wider than
 
 For a PNG, the bottom edge of the image is the plank surface and the whole image is scaled to one fixed height against the books, so transparent space above the picture makes it stand smaller, and space at the sides keeps it off the books. `template.svg` carries the SVG conventions in its comments: the bottom of the viewBox is the plank surface, and the renderer is small, so bold solid shapes work and text, filters and masks do not.
 
-A pack's theme lives in a `theme` folder inside the pack: `wallpaper.png` (or `.jpg`), with optional `wallpaper.full.png` for full screen shelves, `wallpaper.dark.png` for dark mode and `wallpaper.full.dark.png` for both; a plank as `plank.<Name>.middle.png` (repeated along the shelf) with optional `plank.<Name>.left.png` and `plank.<Name>.right.png` for its ends, and as many named planks as you like; and `colours.json`, with `day` and `night` sets of the accent colours.
+A pack's theme lives in a `theme` folder inside the pack: `wallpaper.png` (or `.jpg`), with optional `wallpaper.full.png` for full screen shelves, `wallpaper.dark.png` for dark mode and `wallpaper.full.dark.png` for both; a plank as `plank.<Name>.middle.png` (repeated along the shelf) with optional `plank.<Name>.left.png` and `plank.<Name>.right.png` for its ends, and as many named planks as you like; and `colours.json`, with `day` and `night` sets of the colours.
 
-**Shelf plank** is in **menu > Wallpaper, ornaments and colours**, and in **Accent colours**. It opens the plank picker, each plank shown as the shelf draws it: **Plain color** (it opens the colour dialog as well, and the lit top surface and the shaded front edge are both tinted from that one colour), the built-in **Oak** (the default), then any planks your packs bring, with a tab per pack. The one in use is marked.
+A plank end PNG can carry a `tEXt` chunk with the keyword `bookshelf` and the text `plank_solid`: that end then replaces the middle across its whole width, with a hard inner edge, rather than being drawn over it.
+
+A `theme.json` in the `theme` folder makes the pack a theme pack, with a card of its own in the Theme library. Every field is optional: `name` and `description` (shown on the card), `shelf` (`"light"` or `"dark"`), `plank` (the name of the plank to use), `hero` (the file name, without extension, of the ornament the card shows; else its newest), `panel_shading` (`"transparent"`, `"low"`, `"moderate"`, `"heavy"` or `"solid"`, or a number from 0 to 1), `panel_blur` and `covers_panel` (`true` or `false`, for Blur wallpaper behind panels and Panel behind Covers shelves). Anything left out comes from the reader's Custom theme.
+
+```json
+{ "name": "Haunted", "description": "Bats, candles and a stone plank",
+  "shelf": "dark", "hero": "bat", "panel_shading": "low", "panel_blur": false }
+```
+
+**Plank** is in **menu > Theme**. It opens the plank picker, each plank shown as the shelf draws it: **Plain color** (it opens the colour dialog as well, and the lit top surface and the shaded front edge are both tinted from that one colour), the built-in **Oak** (the default), then any planks your packs bring, with a tab per pack. The one in use is marked.
 
 Spines are not available for OPDS catalogues, which have no local page counts or cover art to measure.
 
 ### Folder styles (how groups look)
 
-Anything that stands for several books -- a series, an author, a folder, a collection -- is drawn as a group tile, and you choose how those look. **menu -> Settings -> Cover display -> Default folder style** sets it for the whole library:
+Anything that stands for several books -- a series, an author, a folder, a collection -- is drawn as a group tile, and you choose how those look. **menu > Settings > Cover display > Default folder style** sets it for the whole library:
 
 - **Divider card** -- a cardboard tab with the group's name on it. The default.
 - **Ribbon** -- the first book's cover with the name on a band across the bottom.
@@ -212,7 +225,7 @@ Anything that stands for several books -- a series, an author, a folder, a colle
 - **Text** -- the name alone, no artwork.
 - **None** -- the first book's cover, unadorned.
 
-Individual shelves can differ. Long-press a shelf -> **Folder style** gives that one shelf its own look, and the list leads with **Default setting** to put it back to following the library. The picker stays open while you try styles and the shelf redraws behind it, so you can compare them rather than guessing. (OPDS catalogue shelves have no such row -- their category tiles are always text; see [OPDS catalogues](#opds-catalogues).)
+Individual shelves can differ. Long-press a shelf > **Folder style** gives that one shelf its own look, and the list leads with **Default setting** to put it back to following the library. The picker stays open while you try styles and the shelf redraws behind it, so you can compare them rather than guessing. (OPDS catalogue shelves have no such row -- their category tiles are always text; see [OPDS catalogues](#opds-catalogues).)
 
 You can also give a specific folder or stack a picture of your own -- see [Custom images for folders and stacks](#custom-images-for-folders-and-stacks).
 
@@ -242,15 +255,15 @@ Each item can be:
 
 **Building and editing it.** Long-press any item for **rename**, **change icon**, **move up / down**, **move into / out of a folder**, **show in** (home screen, reader, or both), **delete**, and **add new menu item**. Adding walks you through the categories above; the icon picker is a built-in glyph grid (no extra plugins needed). Folders open downward from the row you tapped, overlapping the menu so they read as connected.
 
-**Position.** Under **Bookshelf settings -> Start menu** you can put the button on the **left**, the **right**, or turn it **off**, and set a **Minimum start menu width** if the popup feels cramped. It works with touch and with physical-button (D-pad) devices.
+**Position.** Under **Bookshelf settings > Start menu** you can put the button on the **left**, the **right**, or turn it **off**, and set a **Minimum start menu width** if the popup feels cramped. It works with touch and with physical-button (D-pad) devices.
 
-**While reading.** Under **menu -> Settings -> Advanced -> While reading**, turn on **Show menu button** to keep a small launcher button in the reader's bottom corner. Tapping it opens the same start menu over your book, so you can jump to a shelf, a collection, or another plugin and tap straight back in. **Show micro-modules button** adds the full-screen grid button to the reader too. **Launcher button position and size…** opens a live canvas for placing them: pick the side, the screen edge they sit against, how far along it, and how big -- so they can hide in whichever corner your books' margins leave free. The start menu and module view open from wherever the buttons actually are. By default each menu item shows both on the home screen and while reading; use **show in** (above) to limit one to the reader or the home screen -- handy for keeping the reading menu short.
+**While reading.** Under **menu > Settings > Advanced > While reading**, turn on **Show menu button** to keep a small launcher button in the reader's bottom corner. Tapping it opens the same start menu over your book, so you can jump to a shelf, a collection, or another plugin and tap straight back in. **Show micro-modules button** adds the full-screen grid button to the reader too. **Launcher button position and size…** opens a live canvas for placing them: pick the side, the screen edge they sit against, how far along it, and how big -- so they can hide in whichever corner your books' margins leave free. The start menu and module view open from wherever the buttons actually are. By default each menu item shows both on the home screen and while reading; use **show in** (above) to limit one to the reader or the home screen -- handy for keeping the reading menu short.
 
-**By gesture (no button needed).** Prefer not to show a button? KOReader's **Gesture manager** (wrench -> Taps and gestures -> Gesture manager) lists Bookshelf's assignable actions, including **Bookshelf: open start menu**, **Bookshelf: open micro-modules**, and **Bookshelf: go to home screen** (drop whatever you're doing and land on your home shelf). Bind any of them to a gesture -- a corner tap, a swipe, a multiswipe -- and it works in the reader (or the library) whether or not the launcher buttons are shown. Because a bound gesture is a deliberate request, the start-menu and micro-module actions work even when those features are set to **Off**.
+**By gesture (no button needed).** Prefer not to show a button? KOReader's **Gesture manager** (wrench > Taps and gestures > Gesture manager) lists Bookshelf's assignable actions, including **Bookshelf: open start menu**, **Bookshelf: open micro-modules**, and **Bookshelf: go to home screen** (drop whatever you're doing and land on your home shelf). Bind any of them to a gesture -- a corner tap, a swipe, a multiswipe -- and it works in the reader (or the library) whether or not the launcher buttons are shown. Because a bound gesture is a deliberate request, the start-menu and micro-module actions work even when those features are set to **Off**.
 
 ### Micro-modules
 
-Micro-modules are small live panels. Add them to the start menu through **Add new menu item -> Bookshelf micro-module…**, or to the [home-screen grid](#micro-modules-on-the-home-screen). The ones that ship with Bookshelf:
+Micro-modules are small live panels. Add them to the start menu through **Add new menu item > Bookshelf micro-module…**, or to the [home-screen grid](#micro-modules-on-the-home-screen). The ones that ship with Bookshelf:
 
 - **Clock** -- digital (12- or 24-hour) or analogue.
 - **Battery** -- the battery level with KOReader's own battery icon and a level bar, plus the cover battery on devices that have one. Tap it for KOReader's battery statistics.
@@ -296,7 +309,7 @@ If another plugin adds its own entries to KOReader's file long-press menu (for e
 
 - **Cover** (last tab) -- pick the book's cover from a paginated grid of candidates: covers already stored for the book, an image from your device (**Choose from device**), or an **online search** (Google Books, Open Library, and Hardcover for a linked book). Each candidate shows its source and resolution. Tap one to set it as the cover -- the shelf updates and the chosen image is saved as KOReader's standard custom cover, so its file browser shows it too. The book's own embedded cover appears in the grid as well, so you can revert by tapping it; a cover you'd set yourself is preserved.
 
-**Text size.** The footer's **zoom** buttons resize the current tab's text, and each tab remembers its own size -- so you can enlarge a long Description or the Reviews without also inflating the Edit tab's buttons or the Tags pills. To resize the **tab labels** themselves (handy if Description/Reviews/Tags/Edit wrap onto a second row on a small screen), use **menu -> Settings -> Text size -> Modal tabs**. (That's five tabs -- Description, Reviews, Tags, Edit, Cover -- so this helps most on a small screen.)
+**Text size.** The footer's **zoom** buttons resize the current tab's text, and each tab remembers its own size -- so you can enlarge a long Description or the Reviews without also inflating the Edit tab's buttons or the Tags pills. To resize the **tab labels** themselves (handy if Description/Reviews/Tags/Edit wrap onto a second row on a small screen), use **menu > Settings > Text size > Modal tabs**. (That's five tabs -- Description, Reviews, Tags, Edit, Cover -- so this helps most on a small screen.)
 
 Long-pressing a series, author, genre, collection, format, rating, or folder stack instead opens a small group menu: **Pin to shelf menu** (the fastest way to turn a stack you've drilled into into a permanent shelf), **Set … image…** / **Clear … image** (see [Custom images](#custom-images-for-folders-and-stacks)), **Select N** to start a bulk selection of the group's books, and -- for real folders -- **Move folder…** and **Rename folder…**, which relocate or rename the folder on disk with every book's progress, bookmarks, and covers following along.
 
@@ -311,7 +324,7 @@ Collections are named lists of books, and Bookshelf uses KOReader's built-in col
 - **Favorites** -- the built-in starred shelf. Always present; can't be renamed or deleted.
 - **To Be Read** -- a reading pile for things you haven't started yet.
 
-Open **menu -> Settings -> Library & search -> Manage collections…** to add new collections, rename or delete existing ones, and **pin** any collection to your shelf menu as a dedicated shelf.
+Open **menu > Settings > Library & search > Manage collections…** to add new collections, rename or delete existing ones, and **pin** any collection to your shelf menu as a dedicated shelf.
 
 To put a book into a collection, open its popup (long-press the cover), go to the **Tags** tab and tap **Edit…** in the Collections section. Tick the collections you want, then Save. The Collections pills update immediately to reflect what's changed.
 
@@ -321,7 +334,7 @@ To put a book into a collection, open its popup (long-press the cover), go to th
 
 Bookshelf can browse online book catalogues (OPDS) as ordinary shelves -- Project Gutenberg, Standard Ebooks, Internet Archive, and any other catalogue you point it at -- so you can find and download books without leaving your home screen.
 
-**Setting up.** Add a shelf (long-press any shelf -> **+ Add new shelf**) and pick **OPDS catalog…** as its source. The picker lists the standard public catalogues out of the box, and it's also where you manage the list: **Add catalog…** sits in the footer, and a long-press on any catalogue offers **Edit** and **Delete**. A catalogue is just a name and a URL, plus an optional username and password for ones that need a login. If you also use KOReader's own OPDS plugin the two share one catalogue list, so anything added in either place appears in both -- but Bookshelf works fine with that plugin disabled.
+**Setting up.** Add a shelf (long-press any shelf > **+ Add new shelf**) and pick **OPDS catalog…** as its source. The picker lists the standard public catalogues out of the box, and it's also where you manage the list: **Add catalog…** sits in the footer, and a long-press on any catalogue offers **Edit** and **Delete**. A catalogue is just a name and a URL, plus an optional username and password for ones that need a login. If you also use KOReader's own OPDS plugin the two share one catalogue list, so anything added in either place appears in both -- but Bookshelf works fine with that plugin disabled.
 
 **Browsing.** A catalogue renders like any other shelf. Its categories appear as folder tiles -- tap to drill in, back-swipe to come back out -- and some catalogues offer extra filters (language, category) as tiles at the start of the shelf. Category tiles always use the plain text style, whatever folder style the rest of your shelves are set to: they're places to go rather than piles of books you own, and a catalogue's own artwork rides along on them where it sends any.
 
@@ -333,7 +346,7 @@ Covers download in the background as you browse, a few at a time, and appear as 
 
 To find the real end, tap the **last-page** chevron. It walks the whole category, counting as it goes, and lands you on the last page with books on it. It can run for a while on a big category, so it tells you where it's up to and a tap stops it -- and stopping keeps everything already loaded, landing you on the last page of that.
 
-**Offline, and coming back.** Everything a catalogue has shown you is kept on the device, so a catalogue you've browsed opens straight away and keeps working with no connection. By default it only goes back to the server when you ask it to, with a swipe down -- so paging deep into a category is work you keep. If you'd rather a catalogue went stale on its own, long-press its shelf and use **Catalog settings -> Refresh** to pick an age (five minutes through a week, or every time you open it). The same dialog has **Saves to** for where that catalogue's downloads land.
+**Offline, and coming back.** Everything a catalogue has shown you is kept on the device, so a catalogue you've browsed opens straight away and keeps working with no connection. By default it only goes back to the server when you ask it to, with a swipe down -- so paging deep into a category is work you keep. If you'd rather a catalogue went stale on its own, long-press its shelf and use **Catalog settings > Refresh** to pick an age (five minutes through a week, or every time you open it). The same dialog has **Saves to** for where that catalogue's downloads land.
 
 Where you were is remembered: restart KOReader inside a drilled category and you come back to it, on the page you left, provided it's still cached. If it isn't, you land on the catalogue's front page rather than on an empty shelf -- getting there would mean a download you didn't ask for.
 
@@ -345,7 +358,7 @@ Catalogues that only *lend* DRM-protected books (library loans) can't be used --
 
 On a Kindle, Bookshelf can show the books in your Kindle's own library as an ordinary shelf, alongside the books you side-load yourself. It needs the **Kindle Virtual Library** plugin ([kindle.koplugin](https://github.com/kaikozlov/kindle.koplugin)) installed: a Kindle book has to be converted before KOReader can read it, and that plugin is what does the converting. Without it the source isn't offered at all.
 
-**Setting up.** Add a shelf (long-press any shelf -> **+ Add new shelf**) and pick **Kindle Virtual Library** as its source. The option only appears on a Kindle that has the plugin installed, so it stays out of the way everywhere else.
+**Setting up.** Add a shelf (long-press any shelf > **+ Add new shelf**) and pick **Kindle Virtual Library** as its source. The option only appears on a Kindle that has the plugin installed, so it stays out of the way everywhere else.
 
 **What you get.** Your Kindle books with their own cover art, sorted however you like -- title, author, progress, when you last opened them, or anything else the sort picker offers. Titles that the Kindle derived from filenames (`01. The Colour of Magic - Terry Pratchett`) are tidied up, with a trailing or leading author name removed only where the Kindle's own records confirm that is who wrote it; an unrecognised name is left alone rather than guessed at. Series numbering is kept, so a numbered series still reads in order. A book with no cover art gets Bookshelf's own placeholder, showing title and author, rather than the blank "No image available" card the Kindle stores for it.
 
@@ -355,7 +368,7 @@ On a Kindle, Bookshelf can show the books in your Kindle's own library as an ord
 
 **Books that will not open.** Older MOBI and AZW purchases are protected in a way no KOReader plugin can undo, and `.azw3` files cannot be read by KOReader at all, protected or not. Both say so when you tap them, naming the format, rather than dropping you into the file browser. KFX books -- most of a modern Kindle library -- are unaffected.
 
-**Filters and sorts.** A Kindle shelf takes filters and sort priorities like any other, and its filter pickers describe *its* books: the genres, formats, languages and collections offered are the ones your Kindle library actually has, so nothing on the list matches nothing on the shelf. A new Kindle shelf starts with the formats KOReader cannot open already filtered out, so the shelf is not padded with books that can only refuse; if you would rather see them, clear that under the shelf's **Filters -> Format**.
+**Filters and sorts.** A Kindle shelf takes filters and sort priorities like any other, and its filter pickers describe *its* books: the genres, formats, languages and collections offered are the ones your Kindle library actually has, so nothing on the list matches nothing on the shelf. A new Kindle shelf starts with the formats KOReader cannot open already filtered out, so the shelf is not padded with books that can only refuse; if you would rather see them, clear that under the shelf's **Filters > Format**.
 
 **Counted with everything else.** Your Kindle books are part of your library, so they count towards the Shelf size module and the `%books_read` token, and a book you finished on the Kindle counts as finished.
 
@@ -369,7 +382,7 @@ On a Kindle, Bookshelf can show the books in your Kindle's own library as an ord
 
 ## Kobo library (beta)
 
-The Kobo equivalent of the Kindle shelf above: your Kobo's own virtual library, the books managed by the Kobo store, shown as an ordinary shelf. Add a shelf (long-press any shelf -> **+ Add new shelf**) and pick **Kobo library** as its source; like any other shelf you can then rename, move, hide or delete it.
+The Kobo equivalent of the Kindle shelf above: your Kobo's own virtual library, the books managed by the Kobo store, shown as an ordinary shelf. Add a shelf (long-press any shelf > **+ Add new shelf**) and pick **Kobo library** as its source; like any other shelf you can then rename, move, hide or delete it.
 
 It needs [OGKevin's kobo.koplugin](https://github.com/OGKevin/kobo.koplugin), which is what actually holds that library, and the source is only offered on a Kobo with that plugin working. If the plugin is missing or its internals have moved, the source is not offered and an existing Kobo shelf stays empty rather than erroring.
 
@@ -393,7 +406,7 @@ If you also use `hardcoverapp.koplugin`, Bookshelf can link books to Hardcover a
 
 When a book is linked, its popup's **Reviews** tab gains a **Hardcover** switch alongside your own review (and the rating row's "N reviews" opens the popup straight to Hardcover's). Reviews are filtered to spoiler-free ones, and cached, so they reopen offline once fetched.
 
-**Linking the whole library at once.** **Hardcover enrichment -> Auto-link all books** links every unlinked book in one pass, fetching each match's details (description, cover, rating) as it goes. You pick how to match:
+**Linking the whole library at once.** **Hardcover enrichment > Auto-link all books** links every unlinked book in one pass, fetching each match's details (description, cover, rating) as it goes. You pick how to match:
 
 - **Exact match** -- uses an embedded ISBN or Hardcover id. Fast, and only links books that carry one.
 - **Best guess** -- searches by title and author and picks the most confident match. Slower, but catches books with no embedded id.
@@ -407,7 +420,7 @@ It contacts Hardcover at about one book per second with cancellable progress, an
 - **Show Hardcover ratings** -- the rating row shows the cached public Hardcover rating instead of KOReader's local one (and turns the rating row on).
 - **Use Hardcover metadata** -- for linked books, shows Hardcover's title, author, series and genres in place of the book's own (a clean switch, no merging). This feeds sorting, search and series grouping for those books; non-linked books are untouched. **Hardcover genres used** caps how many of a book's genres become tag pills and genre stacks. Covers and descriptions stay under their per-book toggles. The metadata is always cached, so this only decides whether it's used.
 
-**Managing the cache.** **Hardcover enrichment -> Manage Hardcover data** holds **Refresh ratings only**, **Refresh linked book details**, **Clear cache (keeps links)**, and **Remove all Hardcover data** (unlinks everything and restores any covers Bookshelf installed).
+**Managing the cache.** **Hardcover enrichment > Manage Hardcover data** holds **Refresh ratings only**, **Refresh linked book details**, **Clear cache (keeps links)**, and **Remove all Hardcover data** (unlinks everything and restores any covers Bookshelf installed).
 
 The two refreshes differ in cost. **Refresh ratings only** fetches every linked book's rating in one batched request, so it takes seconds even on a large library, and ratings are the thing that actually drifts day to day. **Refresh linked book details** re-fetches the rarely-changing fields as well -- author, genres, series, description, page count -- one rate-limited request per book, so minutes rather than seconds, and cancellable. Reach for it after an upgrade asks for it, or when cached data looks stale.
 
@@ -419,7 +432,7 @@ Bookshelf does not rewrite EPUB files. Descriptions, ratings and the other cache
 
 **The footer counter** says what it can stand behind. A cover or list shelf pages by a fixed grid, so it reads "Page 3 of 27". A spine shelf fits a variable number of books to a row, so a page number there would be a guess -- it reads a book range instead, "9-16 of 247". Tapping it opens the go-to dialog, which asks for whichever of the two is on screen: a page number on a grid shelf, a book number on a spine shelf. The same dialog takes a letter to jump to, or any text to search for.
 
-Open **menu -> Adjust shelf/top panel size…** for a live overlay that resizes the grid without leaving the home screen. Two nudge rows:
+Open **menu > Adjust shelf/top panel size…** for a live overlay that resizes the grid without leaving the home screen. Two nudge rows:
 
 - **Columns** -- how many covers fit across, which also sets how large they render.
 - **Rows** -- how many rows of them the shelf gets.
@@ -432,14 +445,14 @@ The layout auto-fits your screen and orientation, so the same settings adapt bet
 
 ## Animations
 
-On e-ink, Bookshelf can play a brief page-wipe animation on transitions so they read as motion rather than an abrupt refresh. Two independent settings under **menu -> Settings -> Behavior** control them:
+On e-ink, Bookshelf can play a brief page-wipe animation on transitions so they read as motion rather than an abrupt refresh. Two independent settings under **menu > Settings > Behavior** control them:
 
 - **Page turn animation** -- shelf page turns (the new page sweeps in from the side) and shelf-bar paging (the shelf row wipes across as you move between pages).
 - **Start menu animation** -- the start menu reveals upward as it opens and wipes back down as it closes. It repaints a taller area than the page wipe and can look choppy on some panels, particularly while reading, so it's kept separate: keep one and turn the other off if you like.
 
 Each is set to **Off**, **Fast**, **Medium**, or **Slow** on its own -- slower is smoother but takes a little longer on older panels. The effect is e-ink only: on LCD/OLED screens the refreshes complete instantly, so nothing is shown and the setting has no visible effect there.
 
-A separate **Cover opening effect** toggle (under **Settings -> Cover display**) briefly flexes a book's cover open as it launches. It's purely cosmetic and on by default; turn it off for an instant, plain open.
+A separate **Cover opening effect** toggle (under **Settings > Cover display**) briefly flexes a book's cover open as it launches. It's purely cosmetic and on by default; turn it off for an instant, plain open.
 
 ---
 
@@ -449,13 +462,13 @@ Leaving a book drops you back to Bookshelf straight away, without waiting for th
 
 This works however you leave a book: the reader's top-menu **File browser** button, a **File browser** gesture, or the quick menu.
 
-It's on by default. Turn it off under **menu -> Settings -> Advanced -> Performance tweaks -> Instant book close** to close books fully before Bookshelf appears, as before. (Leaving a book you read in a different orientation to the shelf always closes fully, so the shelf returns to its own orientation.)
+It's on by default. Turn it off under **menu > Settings > Advanced > Performance tweaks > Instant book close** to close books fully before Bookshelf appears, as before. (Leaving a book you read in a different orientation to the shelf always closes fully, so the shelf returns to its own orientation.)
 
 ---
 
 ## Cover indicators
 
-Each cover can show small badges and bars at the corners. Configure them under **menu -> Settings -> Cover display**:
+Each cover can show small badges and bars at the corners. Configure them under **menu > Settings > Cover display**:
 
 - **Show reading bookmarks** -- a bookmark mark on books you're partway through.
 - **Show completed book badge** -- a check-mark pill at the bottom-left of finished books.
@@ -463,7 +476,7 @@ Each cover can show small badges and bars at the corners. Configure them under *
 - **Show page count** -- a page-count pill in the bottom-right ("123 p"). An EPUB you have never opened has no count until you run [Extract page counts](#page-counts).
 - **Show series #** -- a "#3" badge on covers in a series. Tri-state: Always, Within series folder (so mixed shelves stay clean), or Never.
 
-The colours of these elements are set separately under **menu -> Wallpaper, ornaments and colours -> Accent colours** (see below).
+The colours of these elements are set separately under **menu > Theme > Colors** (see [Colors](#colors) below).
 
 The same **Cover display** menu also has **True cover aspect ratio**. Off by default, Bookshelf fits every cover to a uniform book rectangle; turn this on to show each cover at its real shape instead. Covers keep the same width but vary in height -- on the shelf they sit along the bottom shelf line, in the top panel they align to the top -- so wide or square covers stop being cropped or stretched.
 
@@ -471,51 +484,73 @@ Two more rows in that menu change how a cover is drawn rather than how it is siz
 
 ---
 
-## Wallpaper, ornaments and colours
+## Themes, wallpaper and colours
 
-Everything that decides how the shelf looks now lives in one place: **menu -> Wallpaper, ornaments and colours**, one level up from Settings. It used to be split between a Colours menu and a separate Wallpaper menu, which put the theme, the background colour and the panel shading in three different places.
+Everything that decides how the shelf looks is in one menu, **menu > Theme**, named for the theme of the shelf on screen: **Theme (Custom theme)**, **Theme (Plain)**, **Theme (Macabre)**. Text size stays under Settings.
+
+### Themes
+
+A theme is a wallpaper, a plank, colours, light or dark, panel shading and ornaments, worn together. There are three kinds:
+
+- **Custom theme** -- your own settings. Choosing another theme never changes it, so it is always there to go back to.
+- **Plain** -- built in: no wallpaper, the Oak plank, the default colours and no ornaments.
+- **Packs** -- every ornament pack you have installed. A theme pack brings its own wallpaper, plank, colours and so on; anything a pack does not bring comes from Custom theme, so a pack of only ornaments brings just its ornaments.
+
+Your **Default theme** is what every shelf without a theme of its own wears, and any shelf can have its own. After updating from 5.3 your shelf looks the same: a pack you were using becomes your Default theme, and your own settings become Custom theme.
+
+The top of the Theme menu is for choosing:
+
+- **This shelf** -- the theme of the shelf on screen, or "Default theme" while it follows the default.
+- **Other shelves** -- a row for each of your other shelves with the theme it wears ("Home: Default theme", "Manga: Ukiyo-e"). Choosing one puts that shelf on screen, so you see the change as you make it.
+- **Default theme** -- the theme every shelf without its own wears.
+
+Each opens the **Theme library**: a card per theme, four to a page, with its name, icons for the parts it brings (and how many ornaments), any description the pack has, and one of its ornaments. Tap a card to choose it: the mark moves, the shelf behind changes, and the library stays open so you can compare; **Close** when you are done. In a shelf's library the first card is **Default theme**, which says which theme that is now. **Add theme pack…** in the footer says where a pack's folder goes; a pack copied in shows the next time you open it.
+
+You can also choose a shelf's theme where you set its style: long-press the shelf, then **Shelf style**, whose first row is **Theme**. A shelf inside a [shelf of shelves](#sources) wears the theme of the shelf it sits in.
+
+**Editing a theme.** The rest of the Theme menu edits the theme on screen, whatever it is: Custom theme, Plain or a pack. Your changes stay with that theme on every shelf that wears it, and its card in the Theme library says **Edited**. **Reset** in the Theme library's footer puts the marked theme back to its original, as a long-press on a pack's or Plain's card does for that card; Custom theme has no original to go back to. Bookshelf asks before it resets.
+
+- **Light or dark** -- **Auto (follow night mode)**, **Light** or **Dark**: light or dark colours for the shelf independently of KOReader's night mode, so you can keep the reader dark and the shelf light, or the other way round. A pack can set it in its `theme.json`.
+- **Wallpaper** -- the wallpaper and the panels over it (below).
+- **Plank** -- the plank the Spines style stands its books on (see [Spines](#spines)).
+- **Ornaments** -- how many of the ornaments the theme deals are on; it opens the ornament browser, where switching pieces on and off is an edit to the theme on screen (see [Spines](#spines)).
+- **Colors** -- the colour palette (below).
+- **New ornaments go** -- **first** or **last**: where ornaments you add join the order they come round in. This one belongs to your ornament collection rather than to a theme.
 
 ### Wallpaper
 
-- **Default wallpaper image** -- a picture behind the whole shelf, chosen in a picker that shows each one large, a page at a time, with **All**, **Yours** and a tab per pack that brings a wallpaper. Drop your own into `koreader/settings/bookshelf/wallpapers` (the picker's **None** page tells you the path) and they appear there. One is bundled: **Leafy wallpaper**.
-- **Wallpaper folder** -- a folder of your own to take pictures from as well, for wallpapers you already keep somewhere else. Its pictures are listed alongside the standard folder's, and nothing in it is changed. Long-press the row to stop using it.
-- **Full screen shelves image** -- a different picture for full screen shelves. That view is wall-to-wall covers and spines, where a backdrop that reads well behind the top panel is often too busy.
-- **Background colour** -- the page ground. Useful on its own with no wallpaper at all, and it is what shows through anywhere the picture is kept out.
+**Theme > Wallpaper** holds:
+
+- **Wallpaper** -- a picture behind the whole shelf, chosen in a picker that shows each one large, a page at a time, with **All**, **Yours** and a tab per pack that brings a wallpaper, and **No wallpaper** in the footer. Drop your own into `koreader/settings/bookshelf/wallpapers` and they appear there (the row's help, on a long-press, gives the full path). One is bundled: **Leafy wallpaper**.
+- **Full screen wallpaper** -- a different picture for full screen shelves, or **Same as wallpaper** (the default). That view is wall-to-wall covers and spines, where a backdrop that reads well behind the top panel is often too busy.
+- **Invert wallpaper when dark** -- shows the wallpaper as its negative when the shelf is dark, so a light picture turns dark. A pack's own dark wallpaper is always shown as drawn.
+- **Color behind wallpaper** -- the page ground. Useful on its own with no wallpaper at all, and it is what shows through anywhere the picture is kept out. Long-press to reset it.
 - **Panel shading** -- how much the top panel and the footer are shaded so their buttons stay legible over a picture: **Transparent**, **Low**, **Moderate**, **Heavy** (the default) or **Solid**. Transparent reads well over a plain texture and poorly over a busy photograph; Solid hides the picture behind those strips entirely.
+- **Blur wallpaper behind panels** -- blurs the picture behind the top panel and the footer before the shading goes over it, like frosted glass. Greyed out at Transparent and Solid, where there is nothing to blur.
+- **Panel behind Covers shelves** -- Covers shelves get one panel behind the top panel, the covers and the footer, as list shelves have, in place of a plate under each title.
 
-### Ornaments and planks
+Like everything else in the Theme menu, these are part of the theme. **Extra wallpaper folder**, under **menu > Settings**, is not: it is a folder of your own to take pictures from as well, for wallpapers you already keep somewhere else. Its pictures are listed alongside the standard folder's, and nothing in it is changed. Long-press the row to stop using it.
 
-**Ornament collection** opens the ornament browser, and **Shelf plank** the plank picker -- see [Spines](#spines).
+### Colors
 
-### Shelf theme
+The rest of the palette sits under **Theme > Colors**. **Reset to default colors** at the top puts the whole palette back, both sets. Bookshelf keeps **separate colours for a light shelf and a dark shelf**: **Colors for: Light** (or **Dark**) shows which set the rows below edit, and tapping it switches to the other set without touching the shelf or KOReader's night mode. Anything you leave unset uses a sensible default for that set.
 
-**Light**, **Dark**, or **Auto (follow device)** -- light or dark colours for the shelf independently of KOReader's night mode, so you can keep the reader dark and the shelf light, or the other way round.
+Each colour is chosen as a "% black on screen" value (so it reads the same way light or dark), and long-pressing a row resets just that colour. The pickers:
 
-It is a row of its own at the top of the Bookshelf menu. Below the three, **No theme pack** and each pack you have installed: choosing one uses its wallpaper, plank, colours and ornaments together, and No theme pack puts your own back. A pack with only ornaments is listed too, marked "(ornaments only)": it brings its ornaments and leaves the rest of your look as it is. **Add theme…** says where a theme pack's folder goes.
-
-**Themes for each shelf**, just above Add theme, lists your shelves with the theme each one wears. Open one for the same choices, for that shelf alone: **Same as library** (the default) follows the rows above, or pick light or dark and a pack of its own, and the whole look changes as you switch to that tab. Each shelf keeps its own ornaments in its own order, and a shelf with a pack deals only that pack's ornaments (and any loose ones).
-
-**Text ink** sets the colour of the shelf's own text: black by default in the light theme, white in the dark one. Covers, wallpaper and accent colours are unaffected.
-
-### Accent colours
-
-The rest of the palette sits under **Accent colours**, grouped by what it affects. At the top, **Color theme** is **Your own** or a pack's colours; while a pack's are in use the rows show them and cannot be changed, and choosing Your own brings yours back as they were. Bookshelf keeps **independent day-mode and night-mode palettes** -- the top row shows which one you're editing ("Editing day-mode colours" / "Editing night-mode colours") and tapping it flips night mode so you can set each theme. Anything you leave unset uses a sensible default for that mode.
-
-Each colour is chosen as a "% black on screen" value (so it reads the same way in both modes), and long-pressing a row resets just that colour. The pickers:
-
+- **Text ink** -- the shelf's own text: black by default on a light shelf, white on a dark one. Covers, wallpaper and the other colours are unaffected.
 - **Progress bar** / **Progress bar track** -- the filled and unfilled parts of the cover progress bar.
 - **Bookmark color** / **Finished bookmark color** -- the in-progress bookmark glyph and the finished-book check.
-- **Favorite star color** -- the star on favourited covers.
+- **Favorite star color** (or **Favorite heart color**) -- the mark on favourited covers.
 - **Badge foreground** / **Badge background** -- the text and fill of the "#N" series and "123 p" page-count pills.
+- **Micro-module background** / **Micro-module border** -- the card behind each micro-module and the line around it.
 - **Border color** -- one shared colour for cover frames, badge borders, the bookmark/star halos, the cardboard edge on folder and stack cards, and placeholder (no-image) covers.
+- **Selection outline color** / **Cover shadow color** -- the ring around the selected book, and the drop shadow behind covers.
 - **Folder overlay background** -- the cardboard fill behind folder and stack cards.
-- **Folder text color** -- the label text on those cards (the card outline follows Border colour).
-- **Shelf plank** -- the plank the Spines style stands its books on: plain colour, Oak or a pack's (see [Spines](#spines)).
-- **Shelf menu background** -- the solid bar behind the shelf menu. White by day and black at night unless you change it.
-- **Micro-module background** -- the card behind each micro-module.
-- **Reset to default colors** -- restore the whole palette for the current mode.
+- **Folder text color** -- the label text on those cards (the card outline follows Border color).
+- **Shelf menu background** -- the bar behind the shelf menu, white by day and black at night unless you change it. Its picker also has **Transparent**, for no bar at all.
+- **Selected shelf background** / **Selected shelf text** -- the selected shelf in the shelf menu.
 
-On colour e-ink panels (Kaleido), a separate **Color panel dithering** toggle under **Advanced -> Performance tweaks** keeps covers at full saturation when the shelf redraws; it's on by default, and the row only appears on colour devices.
+On colour e-ink panels (Kaleido), a separate **Color panel dithering** toggle under **Advanced > Performance tweaks** keeps covers at full saturation when the shelf redraws; it's on by default, and the row only appears on colour devices.
 
 ---
 
@@ -523,11 +558,11 @@ On colour e-ink panels (Kaleido), a separate **Color panel dithering** toggle un
 
 Bookshelf can replace the default folder cover (cardboard card with the first book peeking above) and the stack covers (Authors / Series / Genres / Collections) with your own images. Three ways to set one:
 
-- **Long-press the card** -> *Set folder image…* / *Set author image…* / etc. -> pick an image file. The image renders as that folder's or stack's cover with the cardboard tab + label staying on top so the group identity is still visible.
+- **Long-press the card** > *Set folder image…* / *Set author image…* / etc. > pick an image file. The image renders as that folder's or stack's cover with the cardboard tab + label staying on top so the group identity is still visible.
 - **Drop `cover.jpg`, `cover.png`, `folder.jpg`, or `folder.png` into a folder** and Bookshelf picks it up automatically. The hidden dot-file variants (`.cover.jpg`, `.cover.png`, `.folder.jpg`, `.folder.png`) work too, for keeping the image out of the visible file listing; a visible file wins if both are present. The image follows the folder when you move it.
 - **Drop named images into an image library** for authors, series, genres, and collections. The default location is `<your-library>/.bookshelf-images/` with subfolders `authors/`, `series/`, `genres/`, and `collections/`. Name each file after the exact stack name (e.g. `authors/Asimov, Isaac.jpg`) or use a slugified form as a fallback. The slug lowercases the name and turns runs of punctuation / whitespace into single dashes, preserving the original order -- so `Asimov, Isaac` matches `asimov-isaac.jpg`, and `Isaac Asimov` matches `isaac-asimov.jpg`. Extensions tried in order: `jpg`, `jpeg`, `png`, `gif`, `bmp`, `webp`, `tiff`.
 
-Pick a different image-library location under **menu -> Settings -> Library & search -> Image library**.
+Pick a different image-library location under **menu > Settings > Library & search > Image library**.
 
 Long-press an image-set folder or stack and tap *Clear … image* to revert to the cardboard default.
 
@@ -557,7 +592,7 @@ Two things worth knowing:
 
 ## Author names
 
-By default Bookshelf shows author names however each book stores them, so the same person can appear two ways (e.g. *Richard Osman* and *Osman, Richard*). Under **menu -> Settings -> Library & search -> Author name formatting** you can pick:
+By default Bookshelf shows author names however each book stores them, so the same person can appear two ways (e.g. *Richard Osman* and *Osman, Richard*). Under **menu > Settings > Library & search > Author name formatting** you can pick:
 
 - **Auto** -- leave names as stored (the original behaviour; first form found wins).
 - **First Last** -- always *Forename Surname*.
@@ -569,9 +604,9 @@ Whichever you choose, variant spellings of the same author are merged into one e
 
 ## Customising the top panel
 
-Open **menu -> Settings -> Edit top panel content** to toggle each of the book's sections on or off; tap a section's row to open its **line editor**. The status line (the strip of device and reading info at the very top) is configured the same way from its own **Status line** entry just above, and the top panel card's overall text size lives under **Settings -> Text size -> Top panel**.
+Open **menu > Settings > Edit top panel content** to toggle each of the book's sections on or off; tap a section's row to open its **line editor**. The status line (the strip of device and reading info at the very top) is configured the same way from its own **Status line** entry just above, and the top panel card's overall text size lives under **Settings > Text size > Top panel**.
 
-**Show status line.** Bookshelf can put this same line across the top of the reader, so it does not change as you move between the shelf and a book. The switch lives under **menu -> Settings -> Advanced -> While reading**, alongside the other things Bookshelf can draw into the reader; the line itself is still edited here, and the reader follows. It is drawn by the same code that draws it on the shelf, so the two are identical by construction. This works on its own; if you also use [Bookends](https://github.com/AndyHazz/bookends.koplugin), its top row and any top-anchored progress bar move down to make space.
+**Show status line.** Bookshelf can put this same line across the top of the reader, so it does not change as you move between the shelf and a book. The switch lives under **menu > Settings > Advanced > While reading**, alongside the other things Bookshelf can draw into the reader; the line itself is still edited here, and the reader follows. It is drawn by the same code that draws it on the shelf, so the two are identical by construction. This works on its own; if you also use [Bookends](https://github.com/AndyHazz/bookends.koplugin), its top row and any top-anchored progress bar move down to make space.
 
 The **Tags** section is an interactive pill strip rather than a line of text, so instead of the line editor its row opens a small submenu: turn the line on or off, choose which pill categories to show (**Author**, **Series**, **Collections**, **Genres**, **Folder**), and set the **Font size** and **Alignment**. Turning off Author and Series, for instance, leaves a line of just the real tags. The **Rating** section is interactive too and is a simple on/off toggle.
 
@@ -613,13 +648,13 @@ Bookshelf ships three open-licensed fonts (see `fonts/CREDITS.md`):
 - **Inter ExtraBold** (OFL) -- default top panel title.
 - **Caveat** (OFL) -- default top panel author.
 
-Set the interface font under **Bookshelf settings -> Bookshelf UI font** (defaults to *Follow KOReader UI font* for existing users). It is used across the shelf, and for the description and reviews in the book popup too. The fonts are also copied into your font folder so they're selectable in the top panel card's font picker after a restart. Existing users can adopt the new detail look via **Reset book detail area to defaults**.
+Set the interface font under **Bookshelf settings > Bookshelf UI font** (defaults to *Follow KOReader UI font* for existing users). It is used across the shelf, and for the description and reviews in the book popup too. The fonts are also copied into your font folder so they're selectable in the top panel card's font picker after a restart. Existing users can adopt the new detail look via **Reset book detail area to defaults**.
 
 ---
 
 ## Updates
 
-Open **menu -> Updates** to keep Bookshelf current. Once any check has found a newer release, the menu entry itself reads **Update available** so you don't have to open it to find out.
+Open **menu > Updates** to keep Bookshelf current. Once any check has found a newer release, the menu entry itself reads **Update available** so you don't have to open it to find out.
 
 - **Check for updates** -- the installed version is shown in brackets. Tap to check GitHub for a newer release, read its notes, and choose **Update and restart**.
 - **View changelog** -- browse this and past releases' notes, newest first. Notes are cached, so anything fetched once stays readable offline; **Refresh** pulls the latest.
@@ -644,7 +679,7 @@ After adding new books over USB, Calibre, Syncthing, or KOReader's network downl
 
 Reflowable formats like EPUB have no fixed page count until something lays them out, so a book you have never opened usually has none. That matters in a few places: spine widths, page count badges, the Pages sort, and the page tokens.
 
-**menu -> Settings -> Library & search -> Extract page counts…** fills them in. It opens with a dialog:
+**menu > Settings > Library & search > Extract page counts…** fills them in. It opens with a dialog:
 
 - **Use page counts from, in this order** -- tick the sources to try. The first one that has an answer for a book wins:
   1. **Publisher page numbers** -- the printed page numbers some books carry.
@@ -702,7 +737,7 @@ Everything beyond this point is the full feature reference. Expand any section y
 | **Swipe north** (up) | Top panel, after a swipe south there | Give one shelf row back; the panel shrinks |
 | **Swipe north** (up) | Anywhere else | Full screen: collapse the top panel to a thin status strip; expand the grid |
 | **Swipe south** (down) | Top panel | Bigger top panel, one shelf row fewer |
-| **Swipe south** (down) | Anywhere, in full screen | Restore the top panel (turn off **Settings -> Behavior -> Bookshelf gestures -> Swipe down leaves full screen shelves** to stay in full screen; the currently reading button still brings the panel back) |
+| **Swipe south** (down) | Anywhere, in full screen | Restore the top panel (turn off **Settings > Behavior > Bookshelf gestures > Swipe down leaves full screen shelves** to stay in full screen; the currently reading button still brings the panel back) |
 | **Swipe south** (down) | Shelf area | Refresh the library walk |
 | **Back** (physical key) | Drilled into a stack | Pop one drill level back out to the parent shelf |
 
@@ -737,7 +772,7 @@ The chords are KOReader's own (they match `FocusManager`'s hold gestures), so th
 
 Within the top panel card the cover is a single focus target: the rating stars, description and tag pills alongside it are not separately focusable, so use the context-menu chord to reach them.
 
-**Back in the reader.** Pressing Back after opening a book is KOReader's setting, not Bookshelf's: it defaults to walking your position history *inside* the book, which is empty in a freshly opened one, so it falls through to "Exit KOReader?". If you would rather Back returned you to the shelf, set **menu -> Navigation -> Back in reader -> Go to file browser**. Bookshelf picks that up and shows the shelf, the same as the Home action does.
+**Back in the reader.** Pressing Back after opening a book is KOReader's setting, not Bookshelf's: it defaults to walking your position history *inside* the book, which is empty in a freshly opened one, so it falls through to "Exit KOReader?". If you would rather Back returned you to the shelf, set **menu > Navigation > Back in reader > Go to file browser**. Bookshelf picks that up and shows the shelf, the same as the Home action does.
 
 </details>
 
@@ -755,14 +790,16 @@ Everything in the shelf editor applies as you choose it, with the shelf redrawin
 - **Home (folders)** -- your library as a folder tree.
 - **Home (flat)** -- every book in one list, no folders.
 - **Recent** -- books you've opened, newest-read first.
-- **Latest added** -- new files on disk, newest-added first (scan depth set under Settings -> Advanced -> Performance tweaks -> "Latest" walk depth).
+- **Latest added** -- new files on disk, newest-added first (scan depth set under Settings > Advanced > Performance tweaks > "Latest" walk depth).
 - **Favorites**
 - **Series**, **Authors**, **Genres**, **Collections**, **Formats**, **Ratings**, **Languages** -- a stack of all the values; drill into one to see its books.
 - **Specific** series / author / genre / collection / format / rating / language / folder / reading status -- a shelf scoped to a single chosen value.
 - **Folder (flattened)** -- a single folder shown as every book beneath it in one list, no sub-folder cards (vs. the plain folder source, which keeps the sub-folder tree).
 - **OPDS catalog** -- an online catalogue browsed as a shelf (see [OPDS catalogues](#opds-catalogues)). The feed's own order is authoritative, so these shelves have no sort priority, and the local filters don't apply -- some catalogues offer their own filters as tiles instead.
 - **Kindle Virtual Library** -- on a Kindle, the books in the Kindle's own library, shown as a sortable shelf with their own covers. Needs the Kindle Virtual Library plugin, and is offered only where it is installed. See [Kindle library](#kindle-library).
-- **Shelf of shelves** -- a shelf that holds other shelves. It starts empty apart from a **+ Add shelf** tile; each shelf you add there has every option a top-level shelf has (its own source, filters, sort, style and so on), and can itself be a shelf of shelves. Tap a tile to open that shelf, long-press it to edit it; the breadcrumb, Back and a swipe back on page 1 climb out again. A shelf inside one wears the theme of the shelf it sits in, and deleting a shelf of shelves deletes the shelves inside it.
+- **Kobo library** -- on a Kobo, the books managed by the Kobo store. Needs kobo.koplugin, and is offered only where it works. See [Kobo library](#kobo-library-beta).
+- **Shelf of shelves** -- a shelf that holds other shelves. It starts empty apart from a **+ Add shelf** tile; each shelf you add there has every option a top-level shelf has (its own source, filters, sort, style and so on), and can itself be a shelf of shelves. Tap a tile to open that shelf, long-press it to edit it; the breadcrumb, Back and a swipe back on page 1 climb out again. A shelf inside one wears the theme of the shelf it sits in, and deleting a shelf of shelves deletes the shelves inside it. On Spines it shows the books of all the shelves inside it, a labelled run for each.
+- Sources added by **other plugins** are listed too; see [For plugin authors](#for-plugin-authors).
 
 
 
@@ -805,7 +842,7 @@ Defaults adjust to the source (e.g. Recent defaults to *Last opened*; Latest add
 
 The book detail card has **eight editable sections**: Status, Rating, Title, Author, Metadata, Description, Tags (interactive), and Progress. The Tags section shows tappable pills rather than a text template, so it has no line editor; toggle it on or off like the others.
 
-Open **menu -> Settings -> Edit top panel content** to toggle each section on or off. Tap a section's row (when its toggle is on) to open the **line editor**.
+Open **menu > Settings > Edit top panel content** to toggle each section on or off. Tap a section's row (when its toggle is on) to open the **line editor**.
 
 Edits live-update the top panel behind the editor on every keystroke; only the right column of the card is rebuilt, so the cover stays untouched.
 
@@ -989,7 +1026,9 @@ Until 5.3 these files sat loose in `koreader/settings/` (`bookshelf.lua` and `bo
 
 | Key | Shape |
 |-----|-------|
-| `tabs` | Ordered list of shelf records (id, label, icon, source, filter, sort_priority, enabled). |
+| `tabs` | Ordered list of shelf records (id, label, icon, source, filter, sort_priority, enabled, and `theme` for a shelf with its own theme, `parent` for a shelf inside a shelf of shelves). |
+| `library_theme` | The Default theme: absent for Custom theme, `"plain"`, or a pack's folder name. |
+| `theme_edits` | Your changes to Plain and to each pack, keyed `"plain"` or by pack folder name. **Reset** in the Theme library clears that theme's. |
 | `hero_regions` | Per-section overrides (sparse). One entry per section (status / rating / title / author / metadata / description / tags / progress) with any subset of template, font_face, font_size, bold, uppercase, alignment, disabled, bar_style, bar_height. The interactive **tags** section also takes per-category toggles (show_author / show_series / show_collections / show_genres / show_folder) plus font_size and alignment. |
 | `font_scale` | Global zoom for top panel text (50-200%). |
 | `chip_font_scale` | Shelf menu font size (50-300%). |
@@ -1020,10 +1059,10 @@ Until 5.3 these files sat loose in `koreader/settings/` (`bookshelf.lua` and `bo
 | `micromodule_<key>_*` | Per-micro-module settings (e.g. `micromodule_clock_format`, `micromodule_random_unread_source`). Each module owns its own keys. |
 | `wallpaper_folder` | Extra folder the wallpaper list also reads from. |
 | `ornaments_off` / `ornament_packs_off` | Ornaments and packs switched off in the ornament browser, keyed by path within the ornaments folder / by pack folder name. |
-| `ornament_deck` | The order ornaments come round in, by path within the ornaments folder. **Swap** and **Shuffle all** change it. |
+| `ornament_decks` | Each shelf's order the ornaments come round in, keyed by shelf id, by path within the ornaments folder. **Swap** and **Shuffle this shelf** change the shelf's own. |
 | `ornament_new_at` | `"start"` (default) or `"end"`: where ornaments you add join that order. |
 | `search_include_genres` | Include genres and tags in search. Default on. |
-| `migrated` | One-shot flag; presence indicates v1 -> v2 migration has run. |
+| `migrated` | One-shot flag; presence indicates v1 > v2 migration has run. |
 
 </details>
 

@@ -190,5 +190,33 @@ test("uiFontCss: no font on disk gives no rules, so MuPDF keeps its own", functi
     package.loaded["libs/libkoreader-lfs"].attributes = function() return "file" end
 end)
 
+-- A family with no italic file (CJK fonts ship none): the derived -Italic name
+-- must not reach Font:getFace, which logs an ERROR for a missing file on every
+-- call before the fallback to regular.
+test("chosen font with no italic file: never asks Font for the missing sibling", function()
+    local real_attr = package.loaded["libs/libkoreader-lfs"].attributes
+    package.loaded["libs/libkoreader-lfs"].attributes = function(p)
+        if p == "/f/Han-Italic.otf" or p == "/f/Han-Bold.otf" then return nil end
+        return "file"
+    end
+    local asked = {}
+    local real_get = package.loaded["ui/font"].getFace
+    package.loaded["ui/font"].getFace = function(self, arg, size)
+        asked[arg] = true
+        return real_get(self, arg, size)
+    end
+    settings.bookshelf_ui_font = "/f/Han-Regular.otf"
+    local face, bold = BFont:getFace("infofont", 16, { italic = true })
+    eq(last.arg, "/f/Han-Regular.otf", "no italic file -> regular")
+    eq(bold, false)
+    face, bold = BFont:getFace("infofont", 16, { bold = true })
+    eq(last.arg, "/f/Han-Regular.otf", "no bold file -> regular")
+    eq(bold, true, "faux-bold the regular")
+    eq(asked["/f/Han-Italic.otf"], nil, "missing italic must not be loaded")
+    eq(asked["/f/Han-Bold.otf"], nil, "missing bold must not be loaded")
+    package.loaded["ui/font"].getFace = real_get
+    package.loaded["libs/libkoreader-lfs"].attributes = real_attr
+end)
+
 io.write(("bookshelf_fonts: %d passed, %d failed\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

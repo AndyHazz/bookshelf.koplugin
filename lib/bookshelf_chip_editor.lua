@@ -2326,10 +2326,13 @@ function Editor:_coverTextRow(draft, on_change, close, reshow, bw)
     return { btn(false), btn(true) }
 end
 
--- The choices, in the order the global Cover display menu lists them.
-local COVER_TEXT_MODES = {
-    books  = { "title", "author", "series", "none", "custom" },
-    groups = { "none", "author", "custom" },
+-- The choices, laid out as a grid rather than a column of one per row (on
+-- the PW5 the column was seven rows for one question, maintainer
+-- 2026-10-10): what it follows and None, the line's contents, then Custom.
+-- "follow" is unset.
+local COVER_TEXT_LAYOUT = {
+    books  = { { "follow", "none" }, { "title", "author", "series" }, { "custom" } },
+    groups = { { "follow", "none" }, { "author", "custom" } },
 }
 
 -- _coverTextLabel(draft, which, value) -> how a choice reads: its name, or
@@ -2370,37 +2373,42 @@ function Editor:_pickCoverText(draft, groups, on_change, back, bw)
     end
     local cur = draft[which.mode]
     local rows = {}
-    -- Unset first: following is what every shelf starts on.
-    rows[#rows + 1] = { Kit.radioRow{ label = Editor._coverTextLabel(draft, which, nil),
-                                      active = cur == nil, on_pick = set(nil) } }
-    for _i, v in ipairs(groups and COVER_TEXT_MODES.groups or COVER_TEXT_MODES.books) do
-        if v == "custom" then
-            rows[#rows + 1] = {{
-                text = (cur == "custom" and "\xE2\x9C\x93 " or "  ") .. _("Custom\xE2\x80\xA6"),
-                callback = function()
-                    UIManager:close(d)
-                    -- Starts from the shelf's own line, else the one it shows
-                    -- now, so Custom changes nothing until it is edited.
-                    local line = draft[which.line]
-                    if line == nil then
-                        line = groups and CL.groupLineFor(draft.id) or CL.lineFor(draft.id)
-                    end
-                    require("lib/bookshelf_cover_label_editor").showForShelf(bw, {
-                        groups = groups,
-                        line   = line,
-                        save   = function(l)
-                            draft[which.line] = CL.normalise(l, which.template)
-                            draft[which.mode] = "custom"
-                            on_change()
-                        end,
-                        on_closed = back,
-                    })
-                end,
-            }}
-        else
-            rows[#rows + 1] = { Kit.radioRow{ label = Editor._coverTextLabel(draft, which, v),
-                                              active = cur == v, on_pick = set(v) } }
+    local function customBtn()
+        return {
+            text = (cur == "custom" and "\xE2\x9C\x93 " or "") .. _("Custom\xE2\x80\xA6"),
+            callback = function()
+                UIManager:close(d)
+                -- Starts from the shelf's own line, else the one it shows
+                -- now, so Custom changes nothing until it is edited.
+                local line = draft[which.line]
+                if line == nil then
+                    line = groups and CL.groupLineFor(draft.id) or CL.lineFor(draft.id)
+                end
+                require("lib/bookshelf_cover_label_editor").showForShelf(bw, {
+                    groups = groups,
+                    line   = line,
+                    save   = function(l)
+                        draft[which.line] = CL.normalise(l, which.template)
+                        draft[which.mode] = "custom"
+                        on_change()
+                    end,
+                    on_closed = back,
+                })
+            end,
+        }
+    end
+    for _i, layout_row in ipairs(groups and COVER_TEXT_LAYOUT.groups or COVER_TEXT_LAYOUT.books) do
+        local row = {}
+        for _j, v in ipairs(layout_row) do
+            if v == "custom" then
+                row[#row + 1] = customBtn()
+            else
+                local value = (v ~= "follow") and v or nil
+                row[#row + 1] = Kit.radioRow{ label = Editor._coverTextLabel(draft, which, value),
+                                              active = cur == value, on_pick = set(value) }
+            end
         end
+        rows[#rows + 1] = row
     end
     rows[#rows + 1] = {{
         text = _("Back"),

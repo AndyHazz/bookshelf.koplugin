@@ -97,6 +97,8 @@ t.test("a pick is written to the shelf, shown, and hands back to Shelf style", f
     local d = shown[#shown]
     eq(d.title, "Show text below groups")
     eq(texts(d.buttons), "Default | None | Author | Custom… | Back")
+    -- A grid, not a column: two pairs and Back (PW5, 2026-10-10).
+    eq(#d.buttons, 3, "the groups' picker is not two rows and Back")
     find(d.buttons, "Author").callback()
     eq(draft.group_text, "author"); eq(changes, 1); eq(backs, 1)
     -- Default clears it: the shelf follows again.
@@ -104,7 +106,10 @@ t.test("a pick is written to the shelf, shown, and hands back to Shelf style", f
     find(shown[#shown].buttons, "Default").callback()
     eq(draft.group_text, nil, "Default did not clear the shelf's own choice")
     row[1].callback()                      -- Book text
-    eq(texts(shown[#shown].buttons), "Default | Title | Author | Series | None | Custom… | Back")
+    eq(texts(shown[#shown].buttons), "Default | None | Title | Author | Series | Custom… | Back")
+    local shape = {}
+    for i, r in ipairs(shown[#shown].buttons) do shape[i] = #r end
+    eq(table.concat(shape, ","), "2,3,1,1", "the books' picker is not laid out as a grid")
     find(shown[#shown].buttons, "Back").callback()
     eq(draft.cover_text, nil, "Back changed the choice")
 end)

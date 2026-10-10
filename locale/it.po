@@ -1087,7 +1087,7 @@ msgstr "Testo sotto le copertine"
 
 #: lib/bookshelf_cover_label_editor.lua:68 lib/bookshelf_settings.lua:824
 msgid "Show text below groups"
-msgstr ""
+msgstr "Mostra testo sotto i gruppi"
 
 #: lib/bookshelf_cover_sources.lua:189
 msgid "Google Books"
@@ -2659,7 +2659,7 @@ msgstr "Una riga di testo sotto ogni copertina, sia sullo scaffale normale sia s
 
 #: lib/bookshelf_settings.lua:826
 msgid "A line of text under stacks and folders, chosen apart from the books' text. Author shows a series' author. Folder title styles that print the name below the tile keep that line for the name."
-msgstr ""
+msgstr "Una riga di testo sotto pile e cartelle, scelta a parte rispetto al testo dei libri. Autore mostra l'autore di una serie. Gli stili cartella che scrivono il nome sotto il riquadro riservano quella riga al nome."
 
 #: lib/bookshelf_settings.lua:839
 msgid "True cover aspect ratio"
@@ -5024,7 +5024,7 @@ msgstr "Niente in %s · Trascina verso il basso per aggiornare"
 #: lib/bookshelf_widget.lua:2172
 #, lua-format
 msgid "No books in %s yet · Go back and long-press its tile to edit its source or filter"
-msgstr ""
+msgstr "Ancora nessun libro in %s · Torna indietro e tieni premuto il suo riquadro per modificarne la sorgente o il filtro"
 
 #: lib/bookshelf_widget.lua:2179
 #, lua-format
@@ -5039,7 +5039,7 @@ msgstr "Nessun libro in %s ancora"
 #: lib/bookshelf_widget.lua:2194
 #, lua-format
 msgid "Nothing in %s yet · Go back and long-press its tile to edit its filter"
-msgstr ""
+msgstr "Ancora niente in %s · Torna indietro e tieni premuto il suo riquadro per modificarne il filtro"
 
 #: lib/bookshelf_widget.lua:2198
 #, lua-format

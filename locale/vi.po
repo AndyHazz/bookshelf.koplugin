@@ -419,7 +419,7 @@ msgstr "Genre"
 #: lib/bookshelf_settings.lua:563 lib/bookshelf_settings.lua:706
 #: lib/bookshelf_sort_engine.lua:556
 msgid "Author"
-msgstr "Author"
+msgstr "Tác giả"
 
 #: lib/bookshelf_chip_editor.lua:398 lib/bookshelf_filter.lua:31
 msgid "Status"
@@ -1085,7 +1085,7 @@ msgstr "Chữ dưới bìa"
 
 #: lib/bookshelf_cover_label_editor.lua:68 lib/bookshelf_settings.lua:824
 msgid "Show text below groups"
-msgstr ""
+msgstr "Hiển thị văn bản dưới các nhóm"
 
 #: lib/bookshelf_cover_sources.lua:189
 msgid "Google Books"
@@ -2649,7 +2649,7 @@ msgstr "Tùy chỉnh…"
 
 #: lib/bookshelf_settings.lua:802
 msgid "Show text below covers"
-msgstr "Hiển thị văn bản dưới đây bao gồm"
+msgstr "Hiển thị văn bản dưới bìa"
 
 #: lib/bookshelf_settings.lua:804
 msgid "A line of text under each cover, on the regular shelf and full screen shelves alike. Choose what it shows, or None to let covers use the full row. Text size follows the Cover labels setting under Text size."
@@ -2657,7 +2657,7 @@ msgstr "Một dòng chữ dưới mỗi bìa sách, trên kệ thường cũng n
 
 #: lib/bookshelf_settings.lua:826
 msgid "A line of text under stacks and folders, chosen apart from the books' text. Author shows a series' author. Folder title styles that print the name below the tile keep that line for the name."
-msgstr ""
+msgstr "Một dòng văn bản dưới chồng sách và thư mục, được chọn riêng với văn bản của sách. Author hiển thị tác giả của một bộ sách. Các kiểu thư mục ghi tên bên dưới ô sẽ giữ dòng đó cho tên."
 
 #: lib/bookshelf_settings.lua:839
 msgid "True cover aspect ratio"
@@ -5022,7 +5022,7 @@ msgstr "Chưa có gì trong %s · Kéo xuống để làm mới"
 #: lib/bookshelf_widget.lua:2172
 #, lua-format
 msgid "No books in %s yet · Go back and long-press its tile to edit its source or filter"
-msgstr ""
+msgstr "Chưa có sách nào trong %s · Quay lại và nhấn giữ ô của kệ để chỉnh sửa nguồn hoặc bộ lọc"
 
 #: lib/bookshelf_widget.lua:2179
 #, lua-format
@@ -5037,7 +5037,7 @@ msgstr "Chưa có sách nào trong %s"
 #: lib/bookshelf_widget.lua:2194
 #, lua-format
 msgid "Nothing in %s yet · Go back and long-press its tile to edit its filter"
-msgstr ""
+msgstr "Chưa có gì trong %s · Quay lại và nhấn giữ ô của kệ để chỉnh sửa bộ lọc"
 
 #: lib/bookshelf_widget.lua:2198
 #, lua-format

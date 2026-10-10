@@ -1087,7 +1087,7 @@ msgstr "カバーの下のテキスト"
 
 #: lib/bookshelf_cover_label_editor.lua:68 lib/bookshelf_settings.lua:824
 msgid "Show text below groups"
-msgstr ""
+msgstr "グループの下にテキストを表示"
 
 #: lib/bookshelf_cover_sources.lua:189
 msgid "Google Books"
@@ -2660,7 +2660,7 @@ msgstr "通常のシェルフと全画面シェルフの両方で、各カバー
 
 #: lib/bookshelf_settings.lua:826
 msgid "A line of text under stacks and folders, chosen apart from the books' text. Author shows a series' author. Folder title styles that print the name below the tile keep that line for the name."
-msgstr ""
+msgstr "スタックとフォルダーの下に表示する1行のテキストで、書籍のテキストとは別に選択します。「著者」はシリーズの著者を表示します。タイルの下に名前を表示するフォルダーのタイトルスタイルでは、この行は名前用に使われます。"
 
 #: lib/bookshelf_settings.lua:839
 msgid "True cover aspect ratio"
@@ -5025,7 +5025,7 @@ msgstr "%sに何もありません · 下に引っ張って更新"
 #: lib/bookshelf_widget.lua:2172
 #, lua-format
 msgid "No books in %s yet · Go back and long-press its tile to edit its source or filter"
-msgstr ""
+msgstr "%sに書籍はまだありません · 戻ってタイルを長押ししてソースまたはフィルターを編集"
 
 #: lib/bookshelf_widget.lua:2179
 #, lua-format
@@ -5040,7 +5040,7 @@ msgstr "%sに書籍はまだありません"
 #: lib/bookshelf_widget.lua:2194
 #, lua-format
 msgid "Nothing in %s yet · Go back and long-press its tile to edit its filter"
-msgstr ""
+msgstr "%sにまだ何もありません · 戻ってタイルを長押ししてフィルターを編集"
 
 #: lib/bookshelf_widget.lua:2198
 #, lua-format

@@ -1091,7 +1091,7 @@ msgstr "Szöveg a borítók alatt"
 
 #: lib/bookshelf_cover_label_editor.lua:68 lib/bookshelf_settings.lua:824
 msgid "Show text below groups"
-msgstr ""
+msgstr "Szöveg megjelenítése a csoportok alatt"
 
 #: lib/bookshelf_cover_sources.lua:189
 msgid "Google Books"
@@ -2663,7 +2663,7 @@ msgstr "Egy sornyi szöveg minden borító alatt, a normál polcon és a teljes 
 
 #: lib/bookshelf_settings.lua:826
 msgid "A line of text under stacks and folders, chosen apart from the books' text. Author shows a series' author. Folder title styles that print the name below the tile keep that line for the name."
-msgstr ""
+msgstr "Egy sornyi szöveg a halmok és mappák alatt, a könyvek szövegétől külön kiválasztva. A Szerző egy sorozat szerzőjét mutatja. Azok a mappastílusok, amelyek a nevet a csempe alá írják, ezt a sort a névnek tartják fenn."
 
 #: lib/bookshelf_settings.lua:839
 msgid "True cover aspect ratio"
@@ -5028,7 +5028,7 @@ msgstr "Nincs semmi itt: %s · Húzd le a frissítéshez"
 #: lib/bookshelf_widget.lua:2172
 #, lua-format
 msgid "No books in %s yet · Go back and long-press its tile to edit its source or filter"
-msgstr ""
+msgstr "Még nincs könyv itt: %s · Menj vissza, és tartsd nyomva a csempéjét a forrás vagy szűrő szerkesztéséhez"
 
 #: lib/bookshelf_widget.lua:2179
 #, lua-format
@@ -5043,7 +5043,7 @@ msgstr "Még nincs könyv itt: %s"
 #: lib/bookshelf_widget.lua:2194
 #, lua-format
 msgid "Nothing in %s yet · Go back and long-press its tile to edit its filter"
-msgstr ""
+msgstr "Még nincs semmi itt: %s · Menj vissza, és tartsd nyomva a csempéjét a szűrő szerkesztéséhez"
 
 #: lib/bookshelf_widget.lua:2198
 #, lua-format

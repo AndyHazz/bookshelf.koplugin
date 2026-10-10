@@ -1090,7 +1090,7 @@ msgstr "封面下方文字"
 
 #: lib/bookshelf_cover_label_editor.lua:68 lib/bookshelf_settings.lua:824
 msgid "Show text below groups"
-msgstr ""
+msgstr "在群組下方顯示文字"
 
 #: lib/bookshelf_cover_sources.lua:189
 msgid "Google Books"
@@ -2662,7 +2662,7 @@ msgstr "在每個封面下方顯示一行文字，一般書架與全螢幕書架
 
 #: lib/bookshelf_settings.lua:826
 msgid "A line of text under stacks and folders, chosen apart from the books' text. Author shows a series' author. Folder title styles that print the name below the tile keep that line for the name."
-msgstr ""
+msgstr "書堆與資料夾下方的一行文字，與書籍的文字分開選擇。「作者」會顯示系列的作者。在方塊下方顯示名稱的資料夾標題樣式，會將這一行保留給名稱。"
 
 #: lib/bookshelf_settings.lua:839
 msgid "True cover aspect ratio"
@@ -5027,7 +5027,7 @@ msgstr "%s 中無項目 · 下拉即可重新整理"
 #: lib/bookshelf_widget.lua:2172
 #, lua-format
 msgid "No books in %s yet · Go back and long-press its tile to edit its source or filter"
-msgstr ""
+msgstr "%s 中尚無書籍 · 返回並長按其方塊即可編輯來源或篩選條件"
 
 #: lib/bookshelf_widget.lua:2179
 #, lua-format
@@ -5042,7 +5042,7 @@ msgstr "%s 中尚無書籍"
 #: lib/bookshelf_widget.lua:2194
 #, lua-format
 msgid "Nothing in %s yet · Go back and long-press its tile to edit its filter"
-msgstr ""
+msgstr "%s 中尚無項目 · 返回並長按其方塊即可編輯篩選條件"
 
 #: lib/bookshelf_widget.lua:2198
 #, lua-format

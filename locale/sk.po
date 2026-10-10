@@ -1089,7 +1089,7 @@ msgstr "Text pod obálkami"
 
 #: lib/bookshelf_cover_label_editor.lua:68 lib/bookshelf_settings.lua:824
 msgid "Show text below groups"
-msgstr ""
+msgstr "Zobraziť text pod skupinami"
 
 #: lib/bookshelf_cover_sources.lua:189
 msgid "Google Books"
@@ -2661,7 +2661,7 @@ msgstr "Riadok textu pod každou obálkou, rovnako na bežnej polici ako na poli
 
 #: lib/bookshelf_settings.lua:826
 msgid "A line of text under stacks and folders, chosen apart from the books' text. Author shows a series' author. Folder title styles that print the name below the tile keep that line for the name."
-msgstr ""
+msgstr "Riadok textu pod stohmi a priečinkami, vybraný oddelene od textu kníh. Autor zobrazuje autora série. Štýly priečinkov, ktoré píšu názov pod dlaždicu, si tento riadok ponechávajú pre názov."
 
 #: lib/bookshelf_settings.lua:839
 msgid "True cover aspect ratio"
@@ -5026,7 +5026,7 @@ msgstr "Nič v %s · Potiahnutím nadol obnovíte"
 #: lib/bookshelf_widget.lua:2172
 #, lua-format
 msgid "No books in %s yet · Go back and long-press its tile to edit its source or filter"
-msgstr ""
+msgstr "Zatiaľ žiadne knihy v %s · Vráťte sa späť a dlho stlačte jej dlaždicu, aby ste upravili jej zdroj alebo filter"
 
 #: lib/bookshelf_widget.lua:2179
 #, lua-format
@@ -5041,7 +5041,7 @@ msgstr "Zatiaľ žiadne knihy v %s"
 #: lib/bookshelf_widget.lua:2194
 #, lua-format
 msgid "Nothing in %s yet · Go back and long-press its tile to edit its filter"
-msgstr ""
+msgstr "Zatiaľ nič v %s · Vráťte sa späť a dlho stlačte jej dlaždicu, aby ste upravili jej filter"
 
 #: lib/bookshelf_widget.lua:2198
 #, lua-format

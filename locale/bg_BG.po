@@ -1091,7 +1091,7 @@ msgstr "Текст под кориците"
 
 #: lib/bookshelf_cover_label_editor.lua:68 lib/bookshelf_settings.lua:824
 msgid "Show text below groups"
-msgstr ""
+msgstr "Показване на текст под групите"
 
 #: lib/bookshelf_cover_sources.lua:189
 msgid "Google Books"
@@ -2663,7 +2663,7 @@ msgstr "Ред текст под всяка корица, както на оби
 
 #: lib/bookshelf_settings.lua:826
 msgid "A line of text under stacks and folders, chosen apart from the books' text. Author shows a series' author. Folder title styles that print the name below the tile keep that line for the name."
-msgstr ""
+msgstr "Ред текст под стековете и папките, избиран отделно от текста на книгите. Автор показва автора на поредицата. Стиловете на папките, които изписват името под плочката, запазват този ред за името."
 
 #: lib/bookshelf_settings.lua:839
 msgid "True cover aspect ratio"
@@ -5028,7 +5028,7 @@ msgstr "Няма нищо в %s · Дръпнете надолу за опрес
 #: lib/bookshelf_widget.lua:2172
 #, lua-format
 msgid "No books in %s yet · Go back and long-press its tile to edit its source or filter"
-msgstr ""
+msgstr "Все още няма книги в %s · Върнете се и задръжте върху плочката му, за да редактирате източника или филтъра"
 
 #: lib/bookshelf_widget.lua:2179
 #, lua-format
@@ -5043,7 +5043,7 @@ msgstr "Все още няма книги в %s"
 #: lib/bookshelf_widget.lua:2194
 #, lua-format
 msgid "Nothing in %s yet · Go back and long-press its tile to edit its filter"
-msgstr ""
+msgstr "Все още няма нищо в %s · Върнете се и задръжте върху плочката му, за да редактирате филтъра му"
 
 #: lib/bookshelf_widget.lua:2198
 #, lua-format

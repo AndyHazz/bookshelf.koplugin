@@ -1096,7 +1096,7 @@ msgstr "Текст под обложками"
 
 #: lib/bookshelf_cover_label_editor.lua:68 lib/bookshelf_settings.lua:824
 msgid "Show text below groups"
-msgstr ""
+msgstr "Показывать текст под группами"
 
 #: lib/bookshelf_cover_sources.lua:189
 msgid "Google Books"
@@ -2668,7 +2668,7 @@ msgstr "Строка текста под каждой обложкой — и н
 
 #: lib/bookshelf_settings.lua:826
 msgid "A line of text under stacks and folders, chosen apart from the books' text. Author shows a series' author. Folder title styles that print the name below the tile keep that line for the name."
-msgstr ""
+msgstr "Строка текста под стопками и папками, выбираемая отдельно от текста книг. «Автор» показывает автора серии. Стили папок, которые пишут название под плиткой, оставляют эту строку для названия."
 
 #: lib/bookshelf_settings.lua:839
 msgid "True cover aspect ratio"
@@ -5033,7 +5033,7 @@ msgstr "В %s ничего нет · Потяните вниз, чтобы об�
 #: lib/bookshelf_widget.lua:2172
 #, lua-format
 msgid "No books in %s yet · Go back and long-press its tile to edit its source or filter"
-msgstr ""
+msgstr "В %s пока нет книг · Вернитесь назад и зажмите плитку полки, чтобы изменить её источник или фильтр"
 
 #: lib/bookshelf_widget.lua:2179
 #, lua-format
@@ -5048,7 +5048,7 @@ msgstr "В %s пока нет книг"
 #: lib/bookshelf_widget.lua:2194
 #, lua-format
 msgid "Nothing in %s yet · Go back and long-press its tile to edit its filter"
-msgstr ""
+msgstr "В %s пока ничего нет · Вернитесь назад и зажмите плитку полки, чтобы изменить её фильтр"
 
 #: lib/bookshelf_widget.lua:2198
 #, lua-format

@@ -2957,9 +2957,22 @@ local BIM_POLL_TOTAL_BUDGET_S = 60
 --     max). Those will keep their filename fallback indefinitely; no point
 --     re-trying every render.
 --   * The item has no filepath (folder records, empty slots).
+--   * The book is in a format another plugin provides: it is queued for its
+--     metadata only, never for a cover (see maybe_queue).
 --
 -- Folder records carry their own first_book — we queue that too so a folder
 -- whose representative book isn't indexed yet gets a real cover next render.
+-- _allowCoverFetch(fp): the user asked for this book's metadata again (Refresh
+-- metadata), so the next kickoff may extract its cover even if it is in a
+-- plugin-provided format, whose covers are otherwise never fetched on the
+-- shelf's own initiative (see maybe_queue). One cover attempt, then the
+-- permission lapses.
+function BookshelfWidget:_allowCoverFetch(fp)
+    if not fp then return end
+    self._cover_requested = self._cover_requested or {}
+    self._cover_requested[fp] = true
+end
+
 function BookshelfWidget:_kickOffMissingMetaExtraction(items, slot_w, slot_h, hero_w, hero_h)
     -- Deferred until AFTER the repaint (tickAfterNext; nextTick still runs
     -- before the paint): the check loop below is a per-book BIM SQLite read,
@@ -3046,6 +3059,24 @@ function BookshelfWidget:_kickOffMissingMetaExtractionNow(items, slot_w, slot_h,
         -- answer, which is exactly when extraction cannot succeed either.
         local info, bim_err = Repo.bimGetBookInfo(BIM, fp, false)
         if bim_err then return end
+        -- A format another plugin provides (Repo.isPluginFormatFile) gets its
+        -- metadata here, once, and never a cover: its cover is whatever that
+        -- plugin does to produce one -- for Meguru's .meguru streams an HTTP
+        -- request per book -- and the shelf makes no network request the user
+        -- did not ask for. So no cover attempt and no resize; the metadata pass
+        -- carries no cover_specs. A cover BIM already holds (from browsing the
+        -- folder in the file browser's mosaic, say) still shows.
+        --
+        -- Refresh metadata IS the user asking, and it relies on this kickoff
+        -- to bring the cover back, so a refreshed book is let through once
+        -- (_allowCoverFetch); the pass ends when BIM records the attempt.
+        local requested = self._cover_requested and self._cover_requested[fp]
+        if requested and info and info.cover_fetched == "Y" then
+            self._cover_requested[fp] = nil
+            requested = nil
+        end
+        local text_only = not requested and Repo.isPluginFormatFile
+            and Repo.isPluginFormatFile(fp) or false
         local needs   = false
         local reason  = "?"
         local inprog  = tonumber(info and info.in_progress) or 0
@@ -3057,6 +3088,8 @@ function BookshelfWidget:_kickOffMissingMetaExtractionNow(items, slot_w, slot_h,
             reason = "no-meta"
         elseif info.has_meta == nil then
             reason = "no-meta-but-max-tries"
+        elseif text_only then
+            reason = "plugin-format-no-auto-cover"
         elseif info.cover_fetched == nil and inprog < max_tries then
             -- Metadata was extracted (e.g. by "Scan all library metadata")
             -- but no cover attempt has been made yet.
@@ -3087,7 +3120,7 @@ function BookshelfWidget:_kickOffMissingMetaExtractionNow(items, slot_w, slot_h,
         if needs then
             files[#files + 1] = {
                 filepath    = fp,
-                cover_specs = specs,
+                cover_specs = not text_only and specs or nil,
             }
         else
             memo[mkey] = true
@@ -20895,6 +20928,8 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         if ok_bim and BIM and BIM.deleteBookInfo then
             pcall(function() BIM:deleteBookInfo(book.filepath) end)
         end
+        -- Asked for: the cover comes back too, plugin format or not.
+        bw:_allowCoverFetch(book.filepath)
         pcall(function() require("lib/bookshelf_scaled_cover_cache"):drop(book.filepath) end)
         Repo.invalidateProgressCache(book.filepath)
         Repo.invalidateBookCache("refresh-metadata")

@@ -492,10 +492,33 @@ local SUPPORTED_EXT = {
     cbz=true, cbr=true, cbt=true,
 }
 
+-- Formats other plugins register document providers for
+-- See lib/bookshelf_plugin_formats for the rules.
+local _plugin_formats
+local function _pluginFormats()
+    if _plugin_formats == nil then
+        local ok, PF = pcall(require, "lib/bookshelf_plugin_formats")
+        _plugin_formats = ok and PF or false
+    end
+    return _plugin_formats or nil
+end
+local function _isPluginFormat(ext)
+    local PF = _pluginFormats()
+    return PF and PF.isPluginFormat(ext) or false
+end
+
+-- The plugin format set as a string, for the walk cache's validity check (see
+-- cachedWalk). "" when no plugin adds a format, or the module is unavailable.
+local function _pluginFormatsFingerprint()
+    local PF = _pluginFormats()
+    return PF and PF.fingerprint() or ""
+end
+
 -- _supportedExt(name): the supported book extension for a filename (lowercased,
 -- e.g. "epub" or the compound "fb2.zip"), or nil if not a book. Handles the
 -- ".zip" book forms KOReader registers (fb2.zip, html.zip, ...) without
--- treating a bare/unknown ".zip" archive as a book.
+-- treating a bare/unknown ".zip" archive as a book. Formats a plugin registers
+-- a document provider for count too.
 local function _supportedExt(name)
     if not name then return nil end
     local last = name:match("%.([^.]+)$")
@@ -504,9 +527,10 @@ local function _supportedExt(name)
     if last == "zip" then
         local compound = name:match("%.([^.]+%.[Zz][Ii][Pp])$")
         compound = compound and compound:lower()
-        return (compound and SUPPORTED_EXT[compound]) and compound or nil
+        if not compound then return nil end
+        return (SUPPORTED_EXT[compound] or _isPluginFormat(compound)) and compound or nil
     end
-    return SUPPORTED_EXT[last] and last or nil
+    return (SUPPORTED_EXT[last] or _isPluginFormat(last)) and last or nil
 end
 
 -- Public wrapper so other modules (file-ops' unbounded folder walk) can ask
@@ -514,6 +538,17 @@ end
 -- from it.
 function Repo.isBookFile(name)
     return _supportedExt(name) ~= nil
+end
+
+-- Repo.isPluginFormatFile(path): true when the file is a book only because a
+-- plugin registered its format -- not one of SUPPORTED_EXT's, even if a plugin
+-- also provides for that (Meguru registers .cbz as well as .meguru; a .cbz
+-- stays an ordinary book). Such a book's cover can be anything the plugin
+-- decides to do -- Meguru's is an HTTP request -- so the shelf never asks for
+-- one on its own (see the extraction kickoff in bookshelf_widget).
+function Repo.isPluginFormatFile(path)
+    local ext = _supportedExt(path)
+    return ext ~= nil and not SUPPORTED_EXT[ext]
 end
 
 -- _formatLabel(fp): uppercase format label for display/grouping. Collapses a
@@ -3044,7 +3079,10 @@ local function _loadWalkSnapshot(key)
     return t
 end
 
-local function _saveWalkSnapshot(key, list, dirs, listings)
+-- `formats` is the plugin format set the walk was taken with (see cachedWalk).
+-- A snapshot written before it existed has none, which reads as "" -- no plugin
+-- formats -- exactly what that version walked with, so no version bump.
+local function _saveWalkSnapshot(key, list, dirs, listings, formats)
     local p = _walkPersist()
     if not p then return end
     pcall(p.save, p, {
@@ -3053,6 +3091,7 @@ local function _saveWalkSnapshot(key, list, dirs, listings)
         list     = list,
         dirs     = dirs,
         listings = listings,
+        formats  = formats,
     })
 end
 
@@ -3067,23 +3106,36 @@ end
 local function cachedWalk(home, depth)
     local key = (home or "/") .. ":" .. tostring(depth or 0)
     local now = os.time()
+    local formats = _pluginFormatsFingerprint()
+    local formats_changed = false
     local entry = _walk_cache[key]
+    if entry and (entry.formats or "") ~= formats then
+        Repo.invalidateWalkCache()
+        entry, formats_changed = nil, true
+    end
     local from_snapshot = false
     if not entry then
         -- Nothing in memory: try the previous launch's walk. It is adopted
         -- only as a CANDIDATE -- _dirsChanged below is what accepts or
         -- rejects it, exactly as it does for an in-session entry.
         local snap = _loadWalkSnapshot(key)
+        if snap and (snap.formats or "") ~= formats then
+            -- Walked with another plugin format set: not a candidate, and
+            -- anything else persisted from that library (the finished count)
+            -- goes with it.
+            Repo.invalidateWalkCache()
+            snap, formats_changed = nil, true
+        end
         if snap then
             entry = { list = snap.list, dirs = snap.dirs,
-                      listings = snap.listings,
+                      listings = snap.listings, formats = formats,
                       expires_at = now + WALK_CACHE_TTL }
             from_snapshot = true
         end
     end
     local stale_reason
     if not entry then
-        stale_reason = "miss"
+        stale_reason = formats_changed and "formats" or "miss"
     elseif _dirsChanged(entry.dirs) then
         stale_reason = from_snapshot and "snapshot-dir-mtime" or "dir-mtime"
     end
@@ -3129,9 +3181,9 @@ local function cachedWalk(home, depth)
             end
         end
         entry = { list = fresh, dirs = dirs, listings = listings,
-                  expires_at = now + WALK_CACHE_TTL }
+                  formats = formats, expires_at = now + WALK_CACHE_TTL }
         _walk_cache[key] = entry
-        _saveWalkSnapshot(key, fresh, dirs, listings)
+        _saveWalkSnapshot(key, fresh, dirs, listings, formats)
         if files_changed and stale_reason ~= "miss" then
             -- Downstream caches were built against the previous book set
             -- and won't include newly-added (or still-include removed)

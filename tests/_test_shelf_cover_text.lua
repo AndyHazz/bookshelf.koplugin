@@ -88,7 +88,7 @@ t.test("the row names each choice: Default, or Same as for a sub-shelf", functio
 end)
 
 t.test("a pick is written to the shelf, shown, and hands back to Shelf style", function()
-    local draft = { id = "series", label = "Series" }
+    local draft = { id = "series", label = "Series", source = { kind = "series" } }
     local changes, backs = 0, 0
     shown = {}
     local row = Editor:_coverTextRow(draft, function() changes = changes + 1 end,
@@ -115,7 +115,8 @@ t.test("a pick is written to the shelf, shown, and hands back to Shelf style", f
 end)
 
 t.test("Custom… edits the shelf's own line; Save makes Custom its choice", function()
-    local draft = { id = "series", label = "Series", group_text_line = { template = "%series" } }
+    local draft = { id = "series", label = "Series", source = { kind = "series" },
+                    group_text_line = { template = "%series" } }
     local changes, backs = 0, 0
     local row = Editor:_coverTextRow(draft, function() changes = changes + 1 end,
         function() end, function() backs = backs + 1 end)
@@ -132,6 +133,27 @@ t.test("Custom… edits the shelf's own line; Save makes Custom its choice", fun
     eq(changes, 1)
     LE_SPEC.on_closed()
     eq(backs, 1, "Shelf style did not come back after the editor")
+end)
+
+t.test("Author below groups is offered only where a group has an author", function()
+    -- Only a Series shelf builds series stacks, whose author it prints
+    -- (StackDisplay.groupLabel); a genre tile has none (PW5, 2026-10-10).
+    local function groupsPicker(draft)
+        Editor:_coverTextRow(draft, function() end, function() end, function() end)[2].callback()
+        return texts(shown[#shown].buttons)
+    end
+    eq(groupsPicker({ id = "g", label = "Genres", source = { kind = "genres" } }),
+       "Default | None | Custom… | Back")
+    eq(groupsPicker({ id = "s", label = "Series", source = { kind = "series" } }),
+       "Default | None | Author | Custom… | Back")
+    eq(groupsPicker({ id = "r", label = "Reading", source = { kind = "shelves" } }),
+       "Default | None | Author | Custom… | Back", "a shelf of shelves cannot pass Author down")
+    eq(groupsPicker({ id = "g", label = "Genres", source = { kind = "genres" }, group_text = "author" }),
+       "Default | None | Author | Custom… | Back", "a shelf already on Author cannot see it")
+    -- The books' picker is not affected: every book has an author.
+    local d = { id = "g", label = "Genres", source = { kind = "genres" } }
+    Editor:_coverTextRow(d, function() end, function() end, function() end)[1].callback()
+    assert(texts(shown[#shown].buttons):find("Author", 1, true), "Author went from the books' picker")
 end)
 
 t.done()

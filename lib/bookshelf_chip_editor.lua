@@ -2397,10 +2397,21 @@ function Editor:_pickCoverText(draft, groups, on_change, back, bw)
             end,
         }
     end
+    -- Author below groups is a series stack's author (StackDisplay.groupLabel)
+    -- and only a Series shelf builds series stacks: on Genres, Authors, Tags or
+    -- folders it printed nothing (maintainer on the PW5, 2026-10-10: "if it
+    -- can't work, we probably shouldn't give the option"). A shelf of shelves
+    -- keeps it, for its sub-shelves to follow; a shelf already on it keeps
+    -- it, so the choice can be seen and changed.
+    local kind = draft.source and draft.source.kind
+    local offers_author = not groups or kind == "series" or kind == "shelves"
+                          or cur == "author"
     for _i, layout_row in ipairs(groups and COVER_TEXT_LAYOUT.groups or COVER_TEXT_LAYOUT.books) do
         local row = {}
         for _j, v in ipairs(layout_row) do
-            if v == "custom" then
+            if v == "author" and not offers_author then
+                -- left out (above)
+            elseif v == "custom" then
                 row[#row + 1] = customBtn()
             else
                 local value = (v ~= "follow") and v or nil

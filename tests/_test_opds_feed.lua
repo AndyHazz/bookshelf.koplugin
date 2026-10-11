@@ -1262,7 +1262,7 @@ do
 
     -- and fetch must actually send it as a header, not rely on user/password
     local src = io.open("lib/bookshelf_opds_feed.lua"):read("a")
-    local body = src:match("\nfunction M%.fetch%(url, username, password, opts%)\n(.-)\nend\n")
+    local body = src:match("\nfunction M%.fetch%(url, username, password, opts, redirect_depth%)\n(.-)\nend\n")
     ok(body ~= nil, "fetch could be located")
     if body then
         local code = body:gsub("%-%-[^\n]*", "")
@@ -1278,6 +1278,10 @@ do
            "and sets it before the request is built")
         ok(code:find("headers = headers", 1, true) ~= nil,
            "and that same table is the one the request sends")
+        -- luasocket's own redirect following would carry that header to
+        -- any host; tests/_test_opds_auth_redirects.lua drives the hops.
+        ok(code:find("redirect = false", 1, true) ~= nil,
+           "and luasocket does not follow redirects with it")
     end
 end
 

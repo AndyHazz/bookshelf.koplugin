@@ -52,6 +52,12 @@ local M = {}
 -- lowercases and overlays reqt.headers over its own defaults, so ours wins on
 -- the first request, and tredirect forwards that same table on to the second.
 --
+-- But tredirect forwards it to ANY host, so a catalog (or anything able to
+-- answer for it) could send the password on to a server of its choosing with
+-- one 302. A request carrying this header must therefore never use automatic
+-- redirects: pass redirect = false and follow each hop yourself, keeping the
+-- credentials only when redirectTarget says the target is the same origin.
+--
 -- url.unescape on the password is luasocket's own behaviour
 -- (`mime.b64(reqt.user .. ":" .. url.unescape(reqt.password))`), mirrored
 -- deliberately. It mangles a password containing a literal %, but this change
@@ -67,6 +73,51 @@ function M.basicAuthHeader(user, password)
     local ok_url, url = pcall(require, "socket.url")
     if not (ok and mime and ok_url and url) then return nil end
     return "Basic " .. mime.b64(user .. ":" .. url.unescape(password))
+end
+
+-- Hops a manually followed redirect chain may take before giving up.
+M.MAX_REDIRECTS = 5
+
+function M.isRedirect(code)
+    return code == 301 or code == 302 or code == 303
+        or code == 307 or code == 308
+end
+
+local DEFAULT_PORT = { http = 80, https = 443 }
+
+-- redirectTarget(source, location) -> target, keep_auth | nil
+-- Resolves a 3xx Location against the url that answered with it, and says
+-- whether credentials may go along. nil means do not follow at all: a
+-- non-http(s) scheme, an https -> http downgrade, credentials embedded in the
+-- target, control characters, or anything that does not parse.
+--
+-- keep_auth is true for the same origin (scheme, host, port; host case and
+-- default ports ignored), and for the one safe change of origin: the same
+-- host upgrading http on its default port to https on its default port. A
+-- catalog saved as http:// whose server now insists on https would otherwise
+-- start failing with "Authentication failed" the day this landed.
+function M.redirectTarget(source, location)
+    if type(source) ~= "string" or type(location) ~= "string"
+            or location == "" or location:find("[%z%c]") then
+        return nil
+    end
+    local ok, url = pcall(require, "socket.url")
+    if not (ok and url) then return nil end
+    local target = url.absolute(source, location)
+    local from, to = url.parse(source), url.parse(target)
+    if not (from and to and to.host and to.host ~= "") then return nil end
+    local from_scheme = (from.scheme or ""):lower()
+    local to_scheme = (to.scheme or ""):lower()
+    if to_scheme ~= "http" and to_scheme ~= "https" then return nil end
+    if from_scheme == "https" and to_scheme ~= "https" then return nil end
+    if to.userinfo or to.user or to.password then return nil end
+    local from_port = tonumber(from.port) or DEFAULT_PORT[from_scheme]
+    local to_port = tonumber(to.port) or DEFAULT_PORT[to_scheme]
+    local keep = (from.host or ""):lower() == to.host:lower() and (
+        (from_scheme == to_scheme and from_port == to_port)
+        or (from_scheme == "http" and to_scheme == "https"
+            and from_port == 80 and to_port == 443))
+    return target, keep
 end
 
 function M.shellQuote(s)

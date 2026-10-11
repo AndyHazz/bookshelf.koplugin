@@ -1128,7 +1128,12 @@ end
 -- 30-second wait for something that is not running reads as a hang. Both are
 -- taken together or not at all -- a block timeout longer than the total is a
 -- pair that cannot behave, so a partial override is ignored.
-function M.fetch(url, username, password, opts)
+--
+-- redirect_depth is internal: redirects are followed here, one hop per call,
+-- because luasocket's own following would carry the Authorization header to
+-- whatever host the Location names (see bookshelf_http.basicAuthHeader).
+function M.fetch(url, username, password, opts, redirect_depth)
+    local Http = require("lib/bookshelf_http")
     local http = require("socket.http")
     local ltn12 = require("ltn12")
     local socket = require("socket")
@@ -1148,7 +1153,7 @@ function M.fetch(url, username, password, opts)
             and opts.block_timeout <= opts.total_timeout then
         block, total = opts.block_timeout, opts.total_timeout
     end
-    local ok_req, code, status = pcall(function()
+    local ok_req, code, status, resp_headers = pcall(function()
         socketutil:set_timeout(block, total)
         local headers = { ["Accept-Encoding"] = "identity", ["Accept"] = M.ACCEPT_FEED }
         -- Set explicitly so it survives a redirect; see basicAuthHeader.
@@ -1156,17 +1161,28 @@ function M.fetch(url, username, password, opts)
         -- self-describing, and adjustheaders lets ours override anyway.
         local auth = M.basicAuthHeader(username, password)
         if auth then headers["Authorization"] = auth end
-        local c, _h, st = socket.skip(1, http.request{
+        local c, h, st = socket.skip(1, http.request{
             url = url,
             headers = headers,
             sink = ltn12.sink.table(sink),
+            redirect = false,
             user = username,
             password = password,
         })
-        return c, st
+        return c, st, h
     end)
     pcall(function() socketutil:reset_timeout() end)
     if not ok_req then return nil, "network unreachable" end
+    if Http.isRedirect(code) then
+        if (redirect_depth or 0) >= Http.MAX_REDIRECTS then
+            return nil, "too many redirects"
+        end
+        local target, keep = Http.redirectTarget(url,
+            type(resp_headers) == "table" and resp_headers.location)
+        if not target then return nil, "unsafe redirect" end
+        return M.fetch(target, keep and username or nil, keep and password or nil,
+            opts, (redirect_depth or 0) + 1)
+    end
     if code == 200 then
         local body = table.concat(sink)
         if body ~= "" then

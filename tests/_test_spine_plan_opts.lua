@@ -56,6 +56,7 @@ local shelf = {
     _chipListValue   = function(_s, key) return key == "spine_thickness_pct" and 120 or nil end,
     _layoutPrimitives = function() return 16, "second value" end,
     _rowGap          = function(_s, pad) return pad * 3 end,
+    _ornDrill        = function() return nil end,   -- the shelf's top level
 }
 
 t.test("it produces exactly the options the two passes must agree on", function()

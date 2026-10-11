@@ -28,6 +28,8 @@ local function stub(cursor, skip)
     self._nShelves = function() return 2 end
     self._ornSig = function() return "sig" end
     self._ornKey = method("_ornKey")
+    self._ornFirstState = method("_ornFirstState")
+    self._ornDrill = function(me) return me.drill end
     self._spinePageFirsts = function(s, build, _dims)
         if build then
             s.builds = s.builds + 1
@@ -41,6 +43,24 @@ t.test("the chip's first page starts from nothing, with no map build", function(
     local self = stub(1, 0)
     local st = method("_ornStartState")(self)
     eq(st.n, 0); eq(self.builds, 0)
+end)
+
+t.test("a drill-in's first page starts at its own place in the deck, the same every visit", function()
+    -- Spines on Auto's Level 2 showed every author the same pieces in the
+    -- same places (maintainer, 2026-10-11).
+    package.loaded["lib/bookshelf_ornaments"] = { hash = function(s)
+        local h = 0
+        for i = 1, #s do h = (h * 31 + s:byte(i)) % 2147483647 end
+        return h
+    end }
+    local a = stub(1, 0); a.drill = "author:Aeschylus::Aeschylus:1"
+    local b = stub(1, 0); b.drill = "author:Jane Austen::Jane Austen:1"
+    local na, nb = method("_ornStartState")(a).n, method("_ornStartState")(b).n
+    assert(na ~= 0 and nb ~= 0 and na ~= nb, "drill-ins start at the top of the deck, or at the same card")
+    local again = stub(1, 0); again.drill = a.drill
+    eq(method("_ornStartState")(again).n, na, "a drill-in deals differently on a second visit")
+    eq(a.builds, 0)
+    package.loaded["lib/bookshelf_ornaments"] = nil
 end)
 
 t.test("a known page's state is used without building the map", function()
@@ -119,6 +139,8 @@ t.test("a refetch of the same list keeps the page states; a changed list drops t
     self._ornKey = self._ornKey or method("_ornKey")
     self._spineSkip = function() return 0 end
     self._ornKey = method("_ornKey")
+    self._ornFirstState = method("_ornFirstState")
+    self._ornDrill = function(me) return me.drill end
     fetch(self, 400)
     local c = self._spine_fetch_cache
     c.page_orn, c.orn_sig, c.orn_epoch = { ["2:0"] = { n = 5, shelf = 2, bnd = 0, owed = {} },
@@ -158,6 +180,8 @@ local function anchorRun(before, after, cursor)
     self._spineSkip = function(s) return s._skip or 0 end
     self._setSpineCursor = function(s, c, k) s._cursor, s._skip = c, k or 0 end
     self._ornKey = method("_ornKey")
+    self._ornFirstState = method("_ornFirstState")
+    self._ornDrill = function(me) return me.drill end
     fetch(self, 400)
     local c = self._spine_fetch_cache
     c.page_orn, c.orn_sig = { [cursor .. ":0"] = { n = 5, shelf = 2, bnd = 0, owed = {} } }, "s"

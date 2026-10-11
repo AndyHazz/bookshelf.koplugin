@@ -6487,6 +6487,9 @@ function BookshelfWidget:_spinePlanBase(content_w, shelf_h, all_items)
         -- own (lib/bookshelf_ornament_deck). Here, so the render and the
         -- page map deal from the same one.
         orn_shelf       = self.chip,
+        -- Which drill-in this is (nil at the top level): its pieces stand in
+        -- their own places, not the shelf's top-level ones again.
+        orn_drill       = self:_ornDrill(),
         -- The strip above a row, which a hanging piece's room includes
         -- (plan's hang_room); the same gap _buildSpineRows' lift_headroom is
         -- measured from.
@@ -7017,6 +7020,9 @@ function BookshelfWidget:_spinePageFirsts(build, dims)
         -- each page balances its OWN two rows from the greedy fill when it
         -- renders, so the greedy boundaries are the ones the real pages follow.
         opts.balance       = false
+        -- Dealt from page 1's start, so every page's recorded state
+        -- continues the deal page 1 shows (a drill-in's own, _ornFirstState).
+        opts.orn_state     = self:_ornFirstState()
         local plan = SpineShelf.plan(items, opts)
         -- Every page's start in the ornament deck (see _ornStartState).
         if c then
@@ -7047,6 +7053,36 @@ end
 -- starts from nothing; a page reached by paging on starts where the one
 -- before ended (recorded by that page's render); anything else asks the page
 -- map, which records every page's start while it plans the whole chip.
+-- _ornDrill() -> which drill-in the shelf shows ("author:Aeschylus:1"), or
+-- nil at its top level. Every drill-in of a spine shelf (an author's books, a
+-- folder) dealt from the top of the shelf's deck with the shelf's own seed,
+-- so each showed the same pieces in the same places (maintainer, 2026-10-11,
+-- Auto with spines on Level 2). Mixed into the seed and the first card, so
+-- each drill-in has its own, the same every visit; the top level keeps its.
+function BookshelfWidget:_ornDrill()
+    local path = self._drilldown_path
+    local tip = path and path[#path]
+    if not tip then return nil end
+    local pay = tip.payload
+    return tostring(tip.kind) .. ":"
+        .. tostring(pay and (pay.path or pay.name or pay.series_name or pay.query) or "")
+        .. ":" .. tostring(tip.label or "") .. ":" .. tostring(#path)
+end
+
+-- _ornFirstState() -> the deal state page 1 starts from: the deck's top at
+-- the shelf's top level, a place of its own in a drill-in (_ornDrill). The
+-- page map's plan starts from it too, so later pages continue page 1's deal.
+function BookshelfWidget:_ornFirstState()
+    local Deck = require("lib/bookshelf_ornament_deck")
+    local st = Deck.newState()
+    local drill = self:_ornDrill()
+    if drill then
+        local ok, Orn = pcall(require, "lib/bookshelf_ornaments")
+        if ok and Orn and Orn.hash then st.n = Orn.hash(drill) % 9973 end
+    end
+    return st
+end
+
 function BookshelfWidget:_ornKey(cursor, skip)
     return tostring(cursor) .. ":" .. tostring(skip or 0)
 end
@@ -7088,7 +7124,7 @@ function BookshelfWidget:_ornStartState(dims)
         if keep then c.page_orn[key] = keep end
         c.orn_sig, c.orn_epoch = sig, Deck.epoch()
     end
-    if cur <= 1 and skip == 0 then return Deck.newState() end
+    if cur <= 1 and skip == 0 then return self:_ornFirstState() end
     if c.page_orn[key] then return Deck.copyState(c.page_orn[key]) end
     self:_spinePageFirsts(true, dims)
     c = self._spine_fetch_cache or c

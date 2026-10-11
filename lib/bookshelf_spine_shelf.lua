@@ -3610,11 +3610,12 @@ local function _optsKey(opts)
         -- only shapes rows: none of them is an entry input, and the
         -- pagination plan (n_rows = math.huge, balance = false) must share the
         -- slot with the page plans. orn_state in the key missed on every
-        -- render (PW5: every tap rebuilt every entry). orn_shelf only says
-        -- which deck the pieces come from, never an entry's look.
+        -- render (PW5: every tap rebuilt every entry). orn_shelf and orn_drill
+        -- only say which deck and seed the pieces come from, never an entry's
+        -- look.
         if k ~= "skip" and k ~= "n_rows" and k ~= "balance"
                 and k ~= "rows_per_page" and k ~= "page_index"
-                and k ~= "orn_state" and k ~= "orn_shelf" then
+                and k ~= "orn_state" and k ~= "orn_shelf" and k ~= "orn_drill" then
             local v = opts[k]
             if type(v) == "table" then
                 local sub = {}
@@ -4296,8 +4297,11 @@ function SpineShelf.plan(items, opts)
         dealer = Deck.dealer(Deck.copyState(opts.orn_state), cards),
         level = (#cards > 0) and orn_level or "off",
         -- The shelf's own seed: where the pieces stand varies page to page,
-        -- the same way every visit (lib/bookshelf_ornament_deck).
-        seed = orn.mod.hash(tostring(opts.orn_shelf or "")),
+        -- the same way every visit (lib/bookshelf_ornament_deck). A drill-in
+        -- adds its own (BookshelfWidget:_ornDrill), so its pieces stand
+        -- elsewhere than the shelf's top level and other drill-ins'.
+        seed = orn.mod.hash(tostring(opts.orn_shelf or "")
+                            .. (opts.orn_drill and ("|" .. opts.orn_drill) or "")),
         entries = entries, paginating = paginating, per_page = per_page,
         n_rows = opts.n_rows, content_w = content_w_books,
         size = size, space = space, pageKey = pageKey,

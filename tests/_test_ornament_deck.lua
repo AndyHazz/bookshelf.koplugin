@@ -300,8 +300,9 @@ end)
 
 t.test("the plan hands the deck the shelf's seed, and the hooks use it", function()
     local sp = io.open("lib/bookshelf_spine_shelf.lua"):read("*a")
-    assert(sp:find("seed = orn.mod.hash(tostring(opts.orn_shelf or \"\")),", 1, true),
-        "plan does not seed the deck per shelf")
+    assert(sp:find('seed = orn.mod.hash(tostring(opts.orn_shelf or "")\n'
+            .. '                            .. (opts.orn_drill and ("|" .. opts.orn_drill) or "")),', 1, true),
+        "plan does not seed the deck per shelf, and per drill-in")
     local dk = io.open("lib/bookshelf_ornament_deck.lua"):read("*a")
     assert(dk:find("M.shelfSlot(level, d.st.shelf, seed)", 1, true)
         and dk:find("M.side(level, d.st.shelf, seed)", 1, true), "the hooks ignore the seed")

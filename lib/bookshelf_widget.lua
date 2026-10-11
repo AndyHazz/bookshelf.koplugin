@@ -9681,8 +9681,10 @@ function BookshelfWidget:_paintOpeningEffect(fp)
     -- A selected book wears the thick ring (BorderOverlay) just outside the
     -- card, which visually cages the flex - the 3D lift can't extend past
     -- it. Erase the ring band in the same frame, so the cover pops free of
-    -- its highlight as it opens. Plain white restores the page background
-    -- (and inverts to the night background correctly). Band thickness
+    -- its highlight as it opens, with what is BEHIND it: the wallpaper (and
+    -- its panel shading) or the theme's ground, through Wallpaper.restore,
+    -- else plain white. White alone left a white frame around the opening
+    -- cover over a wallpaper (maintainer, 2026-10-11). Band thickness
     -- mirrors SELECTED_BORDER (= SHADOW_OFFSET, 4dp) plus rounding slack.
     local ringed = spine.is_selected or spine.is_bulk_selected
     -- The ring's own width (it follows the shadow, which no longer grows
@@ -9692,18 +9694,27 @@ function BookshelfWidget:_paintOpeningEffect(fp)
     if ringed and Screen.bb then
         local bb = Screen.bb
         local W = Blitbuffer.COLOR_WHITE
+        local ok_wp, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
+        -- ground(x, y, w, h): put back what lies behind that rect.
+        local function ground(x, y, w, h)
+            if w <= 0 or h <= 0 then return end
+            if ok_wp and Wallpaper and Wallpaper.restore
+                    and Wallpaper.restore(bb, x, y, w, h) then return end
+            bb:paintRect(x, y, w, h, W)
+        end
         -- Full-band erase; badge glyphs that overhang into the bands are
         -- REPAINTED after the flex (their widgets are stashed with painted
         -- rects), so nothing gets beheaded and no ring stub remains.
-        bb:paintRect(rect.x - ring_t, rect.y - ring_t, rect.w + 2 * ring_t, ring_t, W)
-        bb:paintRect(rect.x - ring_t, rect.y + rect.h, rect.w + 2 * ring_t, ring_t, W)
-        bb:paintRect(rect.x - ring_t, rect.y, ring_t, rect.h, W)
-        bb:paintRect(rect.x + rect.w, rect.y, ring_t, rect.h, W)
+        ground(rect.x - ring_t, rect.y - ring_t, rect.w + 2 * ring_t, ring_t)
+        ground(rect.x - ring_t, rect.y + rect.h, rect.w + 2 * ring_t, ring_t)
+        ground(rect.x - ring_t, rect.y, ring_t, rect.h)
+        ground(rect.x + rect.w, rect.y, ring_t, rect.h)
         -- The selected cover's corner MASK is painted BLACK to blend with
         -- the ring backdrop (RoundedCornerCard bg_color) - with the ring
         -- gone, those pixels read as square black corners on the flexed
-        -- cover. Convert the outside-arc corner pixels to page white with
-        -- the same monotonic arc scan the mask painter uses.
+        -- cover. Put the background back under the outside-arc corner pixels
+        -- (ground, above) with the same monotonic arc scan the mask painter
+        -- uses.
         --
         -- Skipped for a square-cornered cover: no mask ran, so there are no
         -- black pixels to undo, and the scan would white out the cover's own
@@ -9724,10 +9735,10 @@ function BookshelfWidget:_paintOpeningEffect(fp)
             if dx > 0 then
                 local y_top = rect.y + dy
                 local y_bot = rect.y + rect.h - 1 - dy
-                bb:paintRect(rect.x, y_top, dx, 1, W)
-                bb:paintRect(rect.x + rect.w - dx, y_top, dx, 1, W)
-                bb:paintRect(rect.x, y_bot, dx, 1, W)
-                bb:paintRect(rect.x + rect.w - dx, y_bot, dx, 1, W)
+                ground(rect.x, y_top, dx, 1)
+                ground(rect.x + rect.w - dx, y_top, dx, 1)
+                ground(rect.x, y_bot, dx, 1)
+                ground(rect.x + rect.w - dx, y_bot, dx, 1)
             end
         end
     end

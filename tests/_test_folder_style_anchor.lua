@@ -119,6 +119,7 @@ local env = {
     _ = function(s) return s end,
     -- Upvalues of the real module that the extracted function closes over.
     ViewMode = ViewMode,
+    TabModel = { isShelves = function() return false end },
     Screen = {
         getWidth     = function() return SCREEN_W end,
         getHeight    = function() return SCREEN_H end,

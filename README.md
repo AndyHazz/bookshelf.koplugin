@@ -141,7 +141,7 @@ Any of Bookshelf's own gestures can be switched off, one by one or all together,
 
 ### List view
 
-Any shelf can be a text list instead of covers. Long-press the shelf and pick **List** under Show as, or hold the page range in the footer to cycle whichever shelf you are looking at through covers, list and spines. Every shelf shows **Covers** until you change it; the third option, **Auto**, switches that shelf to a list whenever it is expanded or drilled into a folder or stack, and back to covers on the two rows under the top panel. The same dialog sets how many **rows** (1 to 12) and **columns** (1 to 3) the list uses, and pinching the shelf fits one more or one fewer row.
+Any shelf can be a text list instead of covers. Long-press the shelf and pick **List** under Show as, or hold the page range in the footer to cycle whichever shelf you are looking at through covers, list and spines. Every shelf shows **Covers** until you change it. **Auto** picks a style per level: **Level 1** is the shelf's top level and **Level 2** is everything you open from it (a folder, an author, a series). Tap either to step through Covers, List and Spines; they start as Covers then List. So an Authors shelf can list its authors and show each author's books as covers. A shelf of shelves has no Auto, since opening one of its shelves takes you to that shelf's own style. The same dialog sets how many **rows** (1 to 12) and **columns** (1 to 3) the list uses, and pinching the shelf fits one more or one fewer row.
 
 Search results keep their own view -- covers unless you say otherwise. Long-press the **Search results** pill (or hold the page number) while viewing results to pick Covers, List or Auto for them.
 

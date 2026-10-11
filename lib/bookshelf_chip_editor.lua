@@ -1658,9 +1658,6 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         local function header(text)
             return {{ text = text, enabled = false }}
         end
-        -- Same shape as a header, different job: a header names the question
-        -- below it, a note explains the answer above it.
-        local note = header
         local function radio(label, active, on_pick)
             return Kit.radioRow{ label = label, active = active,
                                  on_pick = on_pick }
@@ -1744,11 +1741,25 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         -- list when the shelf is expanded or inside folders and stacks
         -- (lib/bookshelf_view_mode.lua).
         local mode = ViewMode.chipOverride(draft[ViewMode.CHIP_KEY])
+        -- A shelf of shelves is never drilled into (opening a sub-shelf
+        -- switches to it), so Auto's levels would be one level: the same as
+        -- choosing that style. It is not offered there (maintainer,
+        -- 2026-10-11), and one stored before shows as the style it gives.
+        local is_shelves = TabModel.isShelves(draft)
+        if is_shelves and mode == ViewMode.AUTO then
+            mode = ViewMode.auto(draft, false)
+            if mode == ViewMode.COVERS then mode = nil end
+        end
         rows[#rows + 1] = header(_("Show as"))
-        rows[#rows + 1] = {
-            radio(_("Auto"), mode == ViewMode.AUTO, pick(function()
+        -- Appended, not listed with `cond and x or nil`: a nil FIRST entry
+        -- ends ipairs there, and the whole row would vanish.
+        local show_row = {}
+        if not is_shelves then
+            show_row[#show_row + 1] = radio(_("Auto"), mode == ViewMode.AUTO, pick(function()
                 draft[ViewMode.CHIP_KEY] = ViewMode.AUTO
-            end)),
+            end))
+        end
+        for _i, b in ipairs({
             -- Covers leads the three styles, on a maintainer ruling: it is
             -- the default, so it is what most chips are showing. Auto keeps
             -- the front because it is not a style at all -- it is the choice
@@ -1763,8 +1774,8 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             radio(_("List"), mode == ViewMode.LIST, pick(function()
                 draft[ViewMode.CHIP_KEY] = ViewMode.LIST
             end)),
-            -- Spines: books edge-on, a real bookcase. Never chosen by Auto;
-            -- an explicit pin only, like the others but purely for fun. Not
+            -- Spines: books edge-on, a real bookcase. A pin, or a level's
+            -- choice under Auto (5.4.3), never Auto's default. Not
             -- offered for OPDS catalogues -- remote records have nothing for
             -- the style to stand on, and the widget degrades a stored pin to
             -- covers there.
@@ -1772,7 +1783,8 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             radio(_("Spines"), mode == ViewMode.SPINES, pick(function()
                 draft[ViewMode.CHIP_KEY] = ViewMode.SPINES
             end)) or nil,
-        }
+        }) do show_row[#show_row + 1] = b end
+        rows[#rows + 1] = show_row
 
         -- Which density rows to offer. LIST numbers only: cover columns are
         -- deliberately absent -- "column numbers for cover view cannot be per
@@ -1789,15 +1801,23 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         -- written when nil meant Auto and were not revisited when the default
         -- flipped (cf885a1); the radios above were.
         local pin = ViewMode.chipPin(mode)
-        local show_covers = (pin ~= ViewMode.LIST and pin ~= ViewMode.SPINES)
-        local show_list   = (pin ~= ViewMode.COVERS and pin ~= ViewMode.SPINES)
-        local show_spines = (pin == ViewMode.SPINES)
-                            and not (chrome and chrome.is_opds)
-        -- Auto is the only mode whose name does not say what it does, and the
-        -- policy it encodes is invisible until you have watched the shelf
-        -- change under you. So it explains itself, and only while it is the
-        -- one selected.
-        local show_auto_note = (pin == ViewMode.AUTO)
+        local no_spines  = (chrome and chrome.is_opds) and true or false
+        -- The styles this shelf can show: its pin, or under Auto each level's
+        -- (ViewMode.auto). The density rows below follow them, so Auto set to
+        -- List then Covers offers list rows and folder tiles, and no spine rows.
+        local shows = {}
+        if pin == ViewMode.AUTO then
+            shows[ViewMode.auto(draft, false)] = true
+            shows[ViewMode.auto(draft, true)] = true
+        else
+            shows[pin] = true
+        end
+        local show_covers = shows[ViewMode.COVERS] == true
+        local show_list   = shows[ViewMode.LIST] == true
+        local show_spines = shows[ViewMode.SPINES] == true and not no_spines
+        -- Auto's levels, as buttons in the place of the note that used to
+        -- explain its fixed policy (maintainer, 2026-10-11).
+        local show_levels = (pin == ViewMode.AUTO)
         local bw = chrome and chrome.bw
 
         -- nudgeRow: [-]  Label: value  [+], writing draft[key].
@@ -1838,9 +1858,27 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         -- past that -- which at a large DPI is how this note would arrive.
         -- Two standalone sentences cannot truncate, and each stands alone for
         -- a translator rather than being half of one split mid-clause.
-        if show_auto_note then
-            rows[#rows + 1] = note(_("Auto shows covers by default,"))
-            rows[#rows + 1] = note(_("and a list in full screen or a folder."))
+        -- Auto's levels: "Level 1: Covers" | "Level 2: List", each tap the
+        -- next style (covers, list, spines; no spines for a catalogue), as
+        -- the sort levels' buttons step through their keys. Level 1 is the
+        -- shelf's top level, collapsed or expanded; Level 2 everything drilled
+        -- into below it. A level on its default stores nothing.
+        if show_levels then
+            local function levelBtn(level)
+                local key = ViewMode.LEVEL_KEYS[level]
+                local fmt = (level == 1) and _("Level 1: %1") or _("Level 2: %1")
+                return {
+                    text_func = function()
+                        return T(fmt, Editor._chipModeLabel(ViewMode.levelMode(draft[key], level)))
+                    end,
+                    callback = pick(function()
+                        local nxt = ViewMode.nextLevelMode(draft[key], level, no_spines)
+                        if nxt == ViewMode.LEVEL_DEFAULTS[level] then draft[key] = nil
+                        else draft[key] = nxt end
+                    end),
+                }
+            end
+            rows[#rows + 1] = { levelBtn(1), levelBtn(2) }
         end
 
         if show_list then

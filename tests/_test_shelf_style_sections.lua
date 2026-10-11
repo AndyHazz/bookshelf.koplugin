@@ -51,12 +51,14 @@ local function compile(code, env)
 end
 
 -- Evaluate the real lines for one stored chip value.
-local function sections(stored, is_opds)
+local function sections(stored, is_opds, levels)
     local env = { ViewMode = ViewMode }
-    local body = "local mode, chrome = ... ; " .. gates
-        .. " ; return show_covers, show_list, show_spines, show_auto_note"
+    local body = "local mode, chrome, draft = ... ; " .. gates
+        .. " ; return show_covers, show_list, show_spines, show_levels"
     local mode = ViewMode.chipOverride(stored)
-    local c, l, s, n = compile(body, env)(mode, { is_opds = is_opds })
+    local draft = { view_mode = stored }
+    for k, v in pairs(levels or {}) do draft[k] = v end
+    local c, l, s, n = compile(body, env)(mode, { is_opds = is_opds }, draft)
     return { covers = c and true or false, list = l and true or false,
              spines = s and true or false, auto_note = n and true or false }
 end
@@ -86,10 +88,35 @@ check("sections: Covers stored explicitly behaves the same as absence",
 check("sections: List offers list controls and no folder tiles",
       ViewMode.LIST, { covers = false, list = true, spines = false , auto_note = false })
 
--- Auto is genuinely both: covers collapsed, a list expanded or drilled in,
--- so both sets of controls apply to it.
+-- Auto by default is covers on top and a list inside, so both sets of
+-- controls apply, and its level buttons show (auto_note: the row that held
+-- the old explanation now holds them).
 check("sections: Auto offers both, because it uses both",
       ViewMode.AUTO, { covers = true, list = true, spines = false , auto_note = true })
+
+-- 5.4.3: the controls follow the styles Auto's levels choose.
+local function checkLevels(name, levels, want)
+    t.test(name, function()
+        local got = sections(ViewMode.AUTO, false, levels)
+        for _, k in ipairs({ "covers", "list", "spines", "auto_note" }) do
+            assert(got[k] == want[k], string.format(
+                "%s: expected %s=%s, got %s", name, k, tostring(want[k]), tostring(got[k])))
+        end
+    end)
+end
+checkLevels("sections: Auto with a list of authors and covers inside (the tutorial)",
+    { view_level1 = "list", view_level2 = "covers" },
+    { covers = true, list = true, spines = false, auto_note = true })
+checkLevels("sections: Auto all spines offers the spine block only",
+    { view_level1 = "spines", view_level2 = "spines" },
+    { covers = false, list = false, spines = true, auto_note = true })
+checkLevels("sections: Auto list on both levels offers no cover controls",
+    { view_level1 = "list", view_level2 = "list" },
+    { covers = false, list = true, spines = false, auto_note = true })
+t.test("sections: a catalogue's Auto never offers the spine block", function()
+    local got = sections(ViewMode.AUTO, true, { view_level2 = "spines" })
+    assert(got.spines == false)
+end)
 
 -- Spines: its own block only.
 check("sections: Spines offers only the spine block",

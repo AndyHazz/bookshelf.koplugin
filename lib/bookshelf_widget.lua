@@ -5589,6 +5589,13 @@ function BookshelfWidget:_viewMode()
         return ViewMode.COVERS
     end
     local chip_mode = self:_chipViewMode()
+    -- Auto: the style chosen for this drill level (ViewMode.auto). Resolved
+    -- before the catalogue check below, so a level set to Spines degrades to
+    -- covers there as a Spines pin does.
+    if chip_mode == ViewMode.AUTO then
+        local tab = require("lib/bookshelf_tab_model").getById(self.chip)
+        chip_mode = ViewMode.auto(tab, self:_isDrilledIn())
+    end
     -- Spines never apply to an OPDS catalogue: remote records have no local
     -- file, no page count and no stable identity, so the style has nothing
     -- to stand on (user ruling). A stored pin -- e.g. a chip re-pointed at a
@@ -5600,9 +5607,6 @@ function BookshelfWidget:_viewMode()
                 or require("lib/bookshelf_sources").isPaged(tab.source.kind)) then
             chip_mode = nil
         end
-    end
-    if chip_mode == ViewMode.AUTO then
-        return ViewMode.effective(self._expanded, self:_isDrilledIn())
     end
     if chip_mode then return chip_mode end
     -- Unset is COVERS: the shelf a user who never opened the Show as picker

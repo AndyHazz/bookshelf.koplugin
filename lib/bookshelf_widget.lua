@@ -12856,19 +12856,45 @@ function BookshelfWidget:_collapsedGridSplit(hide_chip_bar, n_shelves, slot_h_na
                     + n_shelves * row_gap
     local available   = self.height - chip_contrib - label_h - total_pad
     local hero_target = math.floor(available * HERO_MIN_FRAC)
-    local grid_title_block_h = 0
-    if self:_shelfLabelMode() then
-        local lscale = BookshelfSettings.read("expanded_shelf_font_scale") or 100
-        local lsize  = math.floor(14 * lscale / 100 + 0.5)
-        -- Size, as shelf_row's label_gap: it clears the reading ribbon.
-        grid_title_block_h = Size.padding.default + math.floor(lsize * 1.3)
-    end
-    local lo  = math.floor(slot_h_natural * SHELF_PACK_FLOOR) + grid_title_block_h
-    local hi  = math.floor(slot_h_natural * 1.0) + grid_title_block_h
+    local lscale = BookshelfSettings.read("expanded_shelf_font_scale") or 100
+    local lsize  = math.floor(14 * lscale / 100 + 0.5)
+    -- Size, as shelf_row's label_gap: it clears the reading ribbon.
+    local strip_h = Size.padding.default + math.floor(lsize * 1.3)
+    -- The HERO is sized as if this shelf had a caption strip whenever any
+    -- shelf shows captions, so it is one height on every shelf. It used to
+    -- follow this shelf's own strip: a shelf with no strip (every tile names
+    -- itself, e.g. Home holding only folders as divider cards) had shorter
+    -- rows, the hero absorbed the difference, and it grew ~54 px going there
+    -- from a shelf with captions (maintainer, tutorial clip and PW5,
+    -- 2026-10-11). A strip-less shelf's rows keep their own height and the
+    -- spare goes to the row gaps instead, as list mode's margins take its
+    -- leftover.
+    local own_strip = self:_shelfLabelMode() and strip_h or 0
+    local ref_strip = (own_strip > 0 or self:_anyShelfShowsCaptions()) and strip_h or 0
+    local lo  = math.floor(slot_h_natural * SHELF_PACK_FLOOR) + ref_strip
+    local hi  = math.floor(slot_h_natural * 1.0) + ref_strip
     local raw = math.floor((available - hero_target) / n_shelves)
-    local shelf_h = math.max(1, math.min(hi, math.max(lo, raw)))
-    local hero_h  = math.max(hero_target, available - n_shelves * shelf_h)
+    local ref_shelf_h = math.max(1, math.min(hi, math.max(lo, raw)))
+    local hero_h  = math.max(hero_target, available - n_shelves * ref_shelf_h)
+    local shelf_h = math.max(1, ref_shelf_h - (ref_strip - own_strip))
     return shelf_h, hero_h
+end
+
+-- _anyShelfShowsCaptions() -> does any shelf print a caption line under its
+-- tiles: the books' text (the default or a shelf's own) or Show author below
+-- series. Only whether such a strip can exist anywhere, which is what fixes
+-- the hero's height (_collapsedGridSplit); a reader with captions off on
+-- every shelf keeps the bigger hero everywhere.
+function BookshelfWidget:_anyShelfShowsCaptions()
+    local CL = require("lib/bookshelf_cover_label")
+    if CL.groupMode() then return true end
+    local ok, TabModel = pcall(require, "lib/bookshelf_tab_model")
+    local tabs = ok and TabModel and TabModel.load and TabModel.load() or {}
+    if #tabs == 0 then return CL.modeFor(self.chip) ~= "none" end
+    for _i, t in ipairs(tabs) do
+        if t.enabled ~= false and CL.modeFor(t.id) ~= "none" then return true end
+    end
+    return false
 end
 
 -- _collapsedSpineSplit(hide_chip_bar, n_shelves) — the collapsed split for

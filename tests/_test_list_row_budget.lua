@@ -925,7 +925,8 @@ local function heroPair(o)
         _gridCols      = function() return n_cols end,
         _bookGap       = function(_s, pad) return pad end,
         _coverAspect   = function() return aspect end,
-        _shelfLabelMode = function() return nil end,
+        _shelfLabelMode = function() return o.own_mode end,
+        _anyShelfShowsCaptions = function() return o.any_captions or false end,
         _listMinRowHeight = function() return row_h end,
     }
     local split = methodOf("_collapsedGridSplit", env)
@@ -936,9 +937,34 @@ local function heroPair(o)
     -- would answer with a list row count.
     env._asCoverGrid = function(fn) pinned = pinned + 1 return fn() end
     local hero = methodOf("_listCollapsedHeroHeight", env)(self, false)
-    local _shelf_h, grid_hero = split(self, false)
-    return hero, grid_hero, pinned
+    local shelf_h, grid_hero = split(self, false)
+    return hero, grid_hero, pinned, shelf_h
 end
+
+t.test("the hero is one height on every shelf whenever any shelf shows captions", function()
+    -- Home holding only folders as divider cards prints no caption strip,
+    -- Series does: the hero used to grow ~54 px on Home (tutorial clip and
+    -- PW5, 2026-10-11). Now the strip-less shelf's ROWS are a strip shorter
+    -- and its hero is the captioned shelf's.
+    for _i, base in ipairs({ {}, { n_shelves = 3 }, { height = 1248, n_shelves = 1, n_cols = 6 } }) do
+        local function with(extra)
+            local o = {}
+            for k, v in pairs(base) do o[k] = v end
+            for k, v in pairs(extra) do o[k] = v end
+            return o
+        end
+        local _h1, hero_cap, _p1, row_cap = heroPair(with{ own_mode = "title", any_captions = true })
+        local _h2, hero_none, _p2, row_none = heroPair(with{ own_mode = nil, any_captions = true })
+        assert(hero_cap == hero_none, string.format(
+            "hero %d with a caption strip, %d without: it jumps between shelves", hero_cap, hero_none))
+        local strip = 12 + math.floor(14 * 1.3)   -- Size.padding.default + the label line
+        assert(row_cap - row_none == strip, string.format(
+            "a strip-less row should be one strip (%d) shorter, got %d", strip, row_cap - row_none))
+        -- Captions off everywhere: the hero keeps the room no strip needs.
+        local _h3, hero_off = heroPair(with{ own_mode = nil, any_captions = false })
+        assert(hero_off >= hero_cap, "with no captions anywhere the hero must not lose the strip's room")
+    end
+end)
 
 t.test("the list hero is fetched from the grid, under the covers pin", function()
     local hero, grid_hero, pinned = heroPair()

@@ -468,12 +468,18 @@ t.test("an unreadable theme.json still makes a theme, by its folder name", funct
     eq(#list, 1); eq(list[1].pack, "Broken"); eq(list[1].name, "Broken")
 end)
 
-t.test("a theme/ without theme.json and no ornaments is not a theme", function()
+t.test("a theme/ without theme.json or ornaments is a theme only when it has a wallpaper", function()
     local TP, d = setup()
-    mkplank(d, "Planks", "Walnut"); touch(d .. "/Planks/theme/wallpaper.png")
+    -- Planks alone: not a theme (maintainer, 2026-10-04).
+    mkplank(d, "Planks", "Walnut")
     TP.invalidate()
     eq(TP.theme("Planks").manifest, nil)
     eq(#TP.allThemes(), 0)
+    -- A wallpaper makes it one (maintainer, 2026-10-11).
+    touch(d .. "/Planks/theme/wallpaper.png")
+    TP.invalidate()
+    eq(#TP.allThemes(), 1)
+    eq(TP.allThemes()[1].pack, "Planks")
 end)
 
 t.test("allThemes lists theme packs by name, switched-off ones too", function()

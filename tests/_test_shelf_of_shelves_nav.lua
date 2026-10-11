@@ -78,6 +78,7 @@ local env = setmetatable({
     BookshelfSettings = package.loaded["lib/bookshelf_settings_store"],
     UIManager = { setDirty = function() end },
     SELECT_ALL_LIMIT = 5000,
+    SPINE_ALL_LIMIT = 1000000,
 }, { __index = _G })
 
 local W = {}

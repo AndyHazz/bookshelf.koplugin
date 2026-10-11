@@ -3504,13 +3504,25 @@ end
 -- than quietly selecting a prefix.
 local SELECT_ALL_LIMIT = 5000
 
+-- A spine shelf's whole-list fetch (_spineCachedFetch, and each sub-shelf a
+-- spine shelf of shelves spills). Not a ceiling anyone should meet: spine
+-- shelves borrowed SELECT_ALL_LIMIT until 5.4.2, so Home on spines stopped at
+-- 5000 books (Reddit, 2026-10-11). Measured on the rig with 15,000 books: the
+-- fetch costs the same either way (the library walk comes before any cut),
+-- page turns are unchanged, and only the FIRST jump deep into the shelf grows
+-- with the count (the lazy page map lays out every page before it: 1.5s at
+-- 5000, 4.5s at 15,000 on the desktop).
+local SPINE_ALL_LIMIT = 1000000
+
 -- _fetchChipItems(n)
 -- Returns up to n items for the current chip (or the expanded-series flat
 -- list). Sets opts.lazy_cover=true on the Repo call so the HIT hydration
 -- path probes ScaledCoverCache per filepath and skips the BIM zstd decode
 -- for books already cached. SpineWidget reads from the cache directly when
 -- book.cover_bb arrives nil.
--- want_all: fetch the WHOLE view rather than the visible page. Several sources
+-- want_all: fetch the WHOLE view rather than the visible page, up to n (the
+-- caller's ceiling: SELECT_ALL_LIMIT for Select all, SPINE_ALL_LIMIT for a
+-- spine shelf). Several sources
 -- (Home / folder drills / OPDS / search) are window-fetched - they return one
 -- page plus a total, and the caller paginates on that - so their "all_items" is
 -- a single page. "Select all in this shelf" needs the real set, and reading the
@@ -3570,7 +3582,7 @@ function BookshelfWidget:_fetchChipItems(n, want_all)
         local book_fps = pay.book_fps or {}
         local total    = #folders + #authors + #series + #genres + #book_fps
         local offset   = math.max(0, (self._cursor or 1) - 1)
-        local stop     = math.min(offset + (want_all and SELECT_ALL_LIMIT
+        local stop     = math.min(offset + (want_all and n
                                               or self:_viewSize()), total)
         local ScaledCoverCache = require("lib/bookshelf_scaled_cover_cache")
         local function lazyMeta(fp)
@@ -3681,7 +3693,7 @@ function BookshelfWidget:_fetchChipItems(n, want_all)
     -- 0-based). Limit = view size for the current mode (8 standard
     -- collapsed, 12 expanded, etc) so a single fetch covers the page.
     local offset    = want_all and 0 or math.max(0, (self._cursor or 1) - 1)
-    local LIMIT     = want_all and SELECT_ALL_LIMIT or self:_viewSize()
+    local LIMIT     = want_all and n or self:_viewSize()
     local TabModel  = require("lib/bookshelf_tab_model")
     local tab       = TabModel.getById(self.chip)
     if not tip and TabModel.isShelves(tab) then
@@ -6815,7 +6827,8 @@ function BookshelfWidget:_spineCachedFetch(n)
         self._spine_fetch_live = true
         return c.items, nil
     end
-    local items, hint = self:_fetchChipItems(n, true)
+    -- The whole list, whatever n the page asked for: a spine page slices it.
+    local items, hint = self:_fetchChipItems(SPINE_ALL_LIMIT, true)
     items = items or {}
     if type(items) == "table" and items.opds_open_ended then
         -- A feed window does not replace the cache, so what is left in it is
@@ -24348,7 +24361,7 @@ function BookshelfWidget:_subShelfSpill(tab)
                 local label = c.label or ""
                 if c.icon and c.icon ~= "" then label = c.icon .. " " .. label end
                 local ok, items = pcall(Repo.getBySource, c.source, c.filter,
-                    c.sort_priority, 0, SELECT_ALL_LIMIT, { lazy_cover = true })
+                    c.sort_priority, 0, SPINE_ALL_LIMIT, { lazy_cover = true })
                 if ok and type(items) == "table" then
                     for _j, it in ipairs(items) do
                         if type(it) == "table" and type(it.books) == "table" and not it.filepath then

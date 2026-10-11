@@ -203,7 +203,7 @@ A pack's theme lives in a `theme` folder inside the pack: `wallpaper.png` (or `.
 
 A plank end PNG can carry a `tEXt` chunk with the keyword `bookshelf` and the text `plank_solid`: that end then replaces the middle across its whole width, with a hard inner edge, rather than being drawn over it.
 
-A `theme.json` in the `theme` folder makes the pack a theme pack, with a card of its own in the Theme library. Every field is optional: `name` and `description` (shown on the card), `shelf` (`"light"` or `"dark"`), `plank` (the name of the plank to use), `hero` (the file name, without extension, of the ornament the card shows; else its newest), `panel_shading` (`"transparent"`, `"low"`, `"moderate"`, `"heavy"` or `"solid"`, or a number from 0 to 1), `panel_blur` and `covers_panel` (`true` or `false`, for Blur wallpaper behind panels and Panel behind Covers shelves). Anything left out comes from the reader's Custom theme.
+A pack is a theme, with a card of its own in the Theme library, when it has an ornament, a wallpaper or a `theme.json`. So the simplest theme of your own is a folder in `koreader/settings/bookshelf/ornaments` with a `theme` folder inside it holding just `wallpaper.png`; the card is named after the folder. A `theme.json` in the `theme` folder gives it a name and more. Every field is optional: `name` and `description` (shown on the card), `shelf` (`"light"` or `"dark"`), `plank` (the name of the plank to use), `hero` (the file name, without extension, of the ornament the card shows; else its newest), `panel_shading` (`"transparent"`, `"low"`, `"moderate"`, `"heavy"` or `"solid"`, or a number from 0 to 1), `panel_blur` and `covers_panel` (`true` or `false`, for Blur wallpaper behind panels and Panel behind Covers shelves). Anything left out comes from the reader's Custom theme.
 
 ```json
 { "name": "Haunted", "description": "Bats, candles and a stone plank",
@@ -494,7 +494,7 @@ A theme is a wallpaper, a plank, colours, light or dark, panel shading and ornam
 
 - **Custom theme** -- your own settings. Choosing another theme never changes it, so it is always there to go back to.
 - **Plain** -- built in: no wallpaper, the Oak plank, the default colours and no ornaments.
-- **Packs** -- every ornament pack you have installed. A theme pack brings its own wallpaper, plank, colours and so on; anything a pack does not bring comes from Custom theme, so a pack of only ornaments brings just its ornaments.
+- **Packs** -- every ornament or theme pack you have installed, including one that is only a wallpaper. A theme pack brings its own wallpaper, plank, colours and so on; anything a pack does not bring comes from Custom theme, so a pack of only ornaments brings just its ornaments.
 
 Your **Default theme** is what every shelf without a theme of its own wears, and any shelf can have its own. After updating from 5.3 your shelf looks the same: a pack you were using becomes your Default theme, and your own settings become Custom theme.
 

@@ -313,15 +313,20 @@ t.test("allThemes is one alphabetical list by shown name, theme.json or not, any
     eq(table.concat(names, ","), "apple,Autumn,bats,Ukiyo-e")
 end)
 
-t.test("a pack with only planks is not a theme; with a theme.json it is", function()
+t.test("a pack with only planks or colours is not a theme; with a theme.json or a wallpaper it is", function()
     local TP, d = setup()
     halloween(d); touch(d .. "/Gallery/frame.png")
     mkplank(d, "Planks", "Walnut")                      -- planks only, no theme.json
+    mkcolours(d, "Tints")                               -- colours only
     mkplank(d, "Woods", "Oak"); mkmanifest(d, "Woods")  -- planks only, but a theme
+    -- A wallpaper alone is a whole look (maintainer, 2026-10-11): a reader's
+    -- own simple theme needs no theme.json and no ornament.
+    mkwall(d, "Seaside")
     TP.invalidate()
     local names = {}
     for i, th in ipairs(TP.allThemes()) do names[i] = th.pack end
-    eq(table.concat(names, ","), "Gallery,Halloween,Woods")
+    eq(table.concat(names, ","), "Gallery,Halloween,Seaside,Woods")
+    eq(TP.themeFor and TP.choiceLabel("Seaside"), "Seaside", "named for its folder")
 end)
 
 t.test("the reader's own pack wallpaper shows whatever the pack switch says", function()

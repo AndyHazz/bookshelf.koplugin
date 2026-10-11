@@ -652,8 +652,11 @@ end
 -- after Ukiyo-e). Case-insensitive, by byte, so the order is the same in
 -- every locale; a tie goes by folder. Switched-off packs too:
 -- the collection's switches shape the reader's own ornaments, not themes. A
--- pack with neither a theme.json nor an ornament (a pack of planks) is not a
--- theme: its planks are in the plank picker (maintainer, 2026-10-04).
+-- pack with a theme.json, an ornament or a wallpaper is a theme: a wallpaper
+-- is a whole look, so theme/wallpaper.png alone makes one (maintainer,
+-- 2026-10-11, readers making simple themes of their own). A pack of only
+-- planks or colours is not: its planks are in the plank picker (maintainer,
+-- 2026-10-04).
 -- scan (optional): { all, packs }, the ornament scan the caller holds (the
 -- Theme library takes one per open): listAll walks every folder each time
 -- it is asked, ~28ms on a PW5.
@@ -675,7 +678,7 @@ function M.allThemes(scan)
             end
         elseif m then
             out[#out + 1] = { pack = p, name = m.name or p, description = m.description }
-        elseif has_piece[p] then
+        elseif has_piece[p] or th.wallpaper then
             out[#out + 1] = { pack = p, name = p }
         end
     end

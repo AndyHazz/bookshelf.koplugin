@@ -4380,6 +4380,14 @@ function Settings:_librarySubItems()
             callback = function(touchmenu_instance)
                 self:_pickImageLibraryPath(touchmenu_instance)
             end,
+        },
+        {
+            text = _("Find author images online\xE2\x80\xA6"),
+            help_text = _("Looks up a photo of every author on your shelves that has no image yet, from Open Library, or Wikipedia when it has none, and saves it in the image library's authors folder. Images you already have are kept. To replace one author's image, long-press the author and choose Find author image online."),
+            keep_menu_open = true,
+            callback = function()
+                require("lib/bookshelf_author_images_flow").findAll(self._bw)
+            end,
             separator = true,  -- end the metadata band
         },
         -- ── search ──

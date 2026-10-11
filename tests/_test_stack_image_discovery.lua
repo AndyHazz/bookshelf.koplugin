@@ -9,6 +9,8 @@ local eq = dofile("tests/_helpers.lua").eq
 
 local FILES = {
     ["/lib/.bookshelf-images/genres"] = { "Fantasy.png", "science-fiction.JPG", "notes.txt" },
+    ["/lib/.bookshelf-images/authors"] = { "Osman, Richard.jpg", "ursula-k-le-guin.png",
+                                           "Terry Pratchett.jpg", "Pratchett, Terry.png" },
 }
 local stats, dirs_read = 0, 0
 package.loaded["libs/libkoreader-lfs"] = {
@@ -51,6 +53,25 @@ t.test("the folder is listed once, and a miss costs no stats", function()
     end
     eq(dirs_read, 1)
     assert(stats <= 2, "expected the folder check only, got " .. stats .. " stats")
+end)
+
+t.test("an author's file is found whichever way round the name is written", function()
+    IS.invalidateCache()
+    -- Saved as "Last, First", looked up as "First Last" (formatting changed).
+    eq(IS.resolveStackImage("author", "Richard Osman"), "/lib/.bookshelf-images/authors/Osman, Richard.jpg")
+    eq(IS.resolveStackImage("author", "Osman, Richard"), "/lib/.bookshelf-images/authors/Osman, Richard.jpg")
+    -- Slugged "first last", looked up as "Last, First".
+    eq(IS.resolveStackImage("author", "Le Guin, Ursula K."), "/lib/.bookshelf-images/authors/ursula-k-le-guin.png")
+    -- The name as given still wins over the other order.
+    eq(IS.resolveStackImage("author", "Terry Pratchett"), "/lib/.bookshelf-images/authors/Terry Pratchett.jpg")
+    eq(IS.resolveStackImage("author", "Pratchett, Terry"), "/lib/.bookshelf-images/authors/Pratchett, Terry.png")
+    eq(IS.resolveStackImage("author", "Isaac Asimov"), nil)
+end)
+
+t.test("only authors are tried the other way round", function()
+    IS.invalidateCache()
+    FILES["/lib/.bookshelf-images/series"] = { "Discworld, The.jpg" }
+    eq(IS.resolveStackImage("series", "The Discworld"), nil)
 end)
 
 t.done()

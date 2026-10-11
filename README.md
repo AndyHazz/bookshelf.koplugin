@@ -564,6 +564,8 @@ Bookshelf can replace the default folder cover (cardboard card with the first bo
 
 Pick a different image-library location under **menu > Settings > Library & search > Image library**.
 
+**Author photos can be found for you.** **menu > Settings > Library & search > Find author images online…** looks up a photo of every author on your shelves that has no image yet and saves it into the image library's `authors/` folder, as if you had put it there yourself. Photos come from [Open Library](https://openlibrary.org), or from the author's Wikipedia page when Open Library has none; where several people share a name, Open Library's pick is the one with the most books, and a Wikipedia page counts only when it describes a writer. Images you already have are kept, names like *Anonymous* and *Various* are skipped, and tapping the progress message pauses or stops it. Nothing is downloaded until you ask. To fetch (or replace) one author's photo, long-press the author and choose **Find author image online**. A wrong person is one long-press away from *Clear author image*, or delete the file. An author's image is found whichever way round the name is written, so switching **Author name formatting** between *First Last* and *Last, First* keeps it.
+
 Long-press an image-set folder or stack and tap *Clear … image* to revert to the cardboard default.
 
 ---

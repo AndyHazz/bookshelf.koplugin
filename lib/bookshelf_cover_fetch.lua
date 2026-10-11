@@ -168,7 +168,9 @@ end
 -- non-OPDS callers) leaves the request exactly as it was.
 --
 -- opts (OPTIONAL) = { block_timeout = n, total_timeout = n } overrides the
--- socketutil LARGE pair for this one request. The cover picker's download is a
+-- socketutil LARGE pair for this one request. opts.user_agent replaces the
+-- default User-Agent (author photos name the plugin's homepage, as Open
+-- Library and Wikimedia ask). The cover picker's download is a
 -- single, user-initiated, progress-backed fetch and keeps the generous default;
 -- the OPDS thumbnail fill is a serial batch on the main loop and asks for a
 -- much tighter budget so an unresponsive server cannot freeze the shelf.
@@ -233,7 +235,7 @@ function CoverFetch.download(url, dest_path, user, password, opts, redirect_dept
     local Http = require("lib/bookshelf_http")
     local ok_req2, code = pcall(function()
         socketutil:set_timeout(block_t, total_t)
-        local headers = { ["User-Agent"] = "KOReader-Bookshelf" }
+        local headers = { ["User-Agent"] = (opts and opts.user_agent) or "KOReader-Bookshelf" }
         -- Set explicitly, because luasocket LOSES IT ON A REDIRECT: it builds
         -- the header into a table adjustheaders creates, then rebuilds a 3xx
         -- follow-up from the ORIGINAL request's headers, passing neither user

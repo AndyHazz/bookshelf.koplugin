@@ -287,6 +287,26 @@ local function _autoDiscoverStackImage(kind, name)
     if slug ~= "" and slug ~= name then
         candidates[#candidates + 1] = slug
     end
+    -- An author's file may be named the other way round: saved as "Osman,
+    -- Richard.jpg" (by hand, or by Find author image online while the shelf
+    -- showed Last, First) and looked up as "Richard Osman" after Author name
+    -- formatting changed, or the reverse. Tried after the name as given, so
+    -- an exact file still wins. Lookups in the listing index, not stats.
+    if kind == "author" then
+        local ok_an, AuthorName = pcall(require, "lib/bookshelf_author_name")
+        if ok_an and AuthorName and AuthorName.formatted then
+            for _i, mode in ipairs({ "first_last", "last_first" }) do
+                local alt = AuthorName.formatted(name, mode)
+                if type(alt) == "string" and alt ~= "" and alt ~= name then
+                    candidates[#candidates + 1] = alt
+                    local alt_slug = _slug(alt)
+                    if alt_slug ~= "" and alt_slug ~= alt then
+                        candidates[#candidates + 1] = alt_slug
+                    end
+                end
+            end
+        end
+    end
     for _, stem in ipairs(candidates) do
         for _, ext in ipairs(LIBRARY_EXTS) do
             local real = index[(stem .. "." .. ext):lower()]

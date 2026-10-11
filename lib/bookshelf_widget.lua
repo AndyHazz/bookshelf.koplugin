@@ -24073,14 +24073,51 @@ function BookshelfWidget:_openGroupMenu(group, kind)
                 text = clear_labels[kind],
                 callback = function()
                     close_dialog()
-                    ImageSource.clearStackImage(kind, source_id)
-                    ImageSource.invalidateCache()
-                    bw_ref:_rebuild()
-                    UIManager:setDirty(bw_ref, "ui")
+                    local function done()
+                        ImageSource.invalidateCache()
+                        bw_ref:_rebuild()
+                        UIManager:setDirty(bw_ref, "ui")
+                    end
+                    if has_override then
+                        ImageSource.clearStackImage(kind, source_id)
+                        return done()
+                    end
+                    -- No image chosen by hand: what shows is a FILE in the
+                    -- image library (put there by the reader, or by Find
+                    -- author image online), and forgetting an override
+                    -- would leave it showing. Clearing it means removing
+                    -- the file, so say which one and ask.
+                    local file = ImageSource.resolveStackImage(kind, source_id)
+                    if not file then return done() end
+                    UIManager:show(require("ui/widget/confirmbox"):new{
+                        -- The last two parts (authors/Saki.jpg), as the
+                        -- Image library setting shows its folder: the whole
+                        -- path is mostly the storage's own prefix.
+                        text = T(_("Delete this image from the image library?\n\n%1"),
+                                 file:match("([^/]+/[^/]+)$") or file),
+                        ok_text = _("Delete"),
+                        ok_callback = function()
+                            os.remove(file)
+                            done()
+                        end,
+                    })
                 end,
             }
         end
         table.insert(buttons, row)
+        -- A photo from Open Library or Wikipedia, saved into the image
+        -- library (lib/bookshelf_author_images). Its own row: the one above
+        -- already holds two long labels. Not offered for "Anonymous" and the
+        -- like, which no one has a photo of.
+        if kind == "author"
+                and not require("lib/bookshelf_author_images").isPlaceholder(source_id) then
+            table.insert(buttons, {
+                { text = _("Find author image online"), callback = function()
+                    close_dialog()
+                    require("lib/bookshelf_author_images_flow").findOne(bw_ref, source_id)
+                end },
+            })
+        end
     end
 
     -- Page counts for just this stack's books (issue 459): the same dialog as

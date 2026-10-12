@@ -1912,6 +1912,14 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         end
 
         if show_spines then
+            rows[#rows + 1] = {{
+                text_func = function()
+                    return T(_("Series boxes: %1"), draft.series_boxes and _("On") or _("Off"))
+                end,
+                callback = pick(function()
+                    draft.series_boxes = not draft.series_boxes or nil
+                end),
+            }}
             -- The spine view's own density. Rows like the list's; height as
             -- a percentage of the row so a single-shelf chip can pull the
             -- books down to a size whose titles stay readable.

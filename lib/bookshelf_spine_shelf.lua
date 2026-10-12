@@ -3529,7 +3529,8 @@ function SpineShelf._flattenItems(items)
         local it = items[i]
         if it then
             n_items = n_items + 1
-            local members = it.books
+            local members = it._series_display_books or it.books
+            if it._series_box then members = nil end
             if members and #members > 0 then
                 run_n = run_n + 1
                 -- A group is its own run whatever stands next to it.
@@ -3804,6 +3805,9 @@ function SpineShelf.plan(items, opts)
         local it = items[i]
         ids[i] = tostring(it and (it.filepath or it.key or it.id or it.label) or "?")
                  .. ":" .. tostring(it and it.books and #it.books or 0)
+        if it and (it._series_box or it._series_display_books) then
+            ids[i] = ids[i] .. ":" .. require("lib/bookshelf_series_boxes").signature(it)
+        end
     end
     local cache_key = _optsKey(opts) .. "|n=" .. #flat .. "|" .. table.concat(ids, ",")
     local cached = _plan_cache
@@ -4085,7 +4089,7 @@ function SpineShelf.plan(items, opts)
         end
         -- A shelf of shelves' "+ Add shelf" takes a face-out cover's place
         -- and size, as a dashed outline (see the tile branch below).
-        if bk.add_subshelf then face_out = true end
+        if bk.add_subshelf or bk._series_box then face_out = true end
         if face_out and src.has_cover == nil and src.filepath
                 and ok_repo and Repo and Repo.buildBookMeta then
             -- Light page records carry no has_cover, and the cover tile
@@ -4149,6 +4153,12 @@ function SpineShelf.plan(items, opts)
             end
             w_dp = math.max(8, w_dp)
             w = Screen:scaleBySize(w_dp)
+        end
+        local series_box
+        if bk._series_box then
+            series_box = require("lib/bookshelf_series_boxes").geometry(bk,
+                { w = w, h = h, face_h = face_h, depth = depth }, opts)
+            w, h, face_h, depth = series_box.w, series_box.h, series_box.face_h, series_box.depth
         end
         local series_num = nil
         if src.series_num and tostring(src.series_num) ~= "" then
@@ -4224,6 +4234,7 @@ function SpineShelf.plan(items, opts)
             run_idx = f.run_idx, section_label = f.section_label,
             w = w, h = h, w_dp = w_dp, ref_w_dp = ref_w_dp,
             look = look, depth = depth, face_h = face_h, thick = true_thick,
+            series_box = series_box,
             face_out = face_out, favourite = fav, label = label,
             author = src.author or (src.authors and src.authors[1]) or nil,
             series_num = series_num, gap_before = gap_before,
@@ -4755,7 +4766,7 @@ function SpineShelf.rowWidget(opts)
                 cursor = cursor + gap_w
                 if gap_w > 0 then block_x0 = cursor end
             end
-            if (e.item and e.item.books) or e.section_label then
+            if not e.series_box and ((e.item and e.item.books) or e.section_label) then
                 -- Every GROUP gets a badge, single-member ones included --
                 -- on a grouping chip each item is a section, and an
                 -- unbadged lone book reads as a stray (user report: the
@@ -4807,7 +4818,12 @@ function SpineShelf.rowWidget(opts)
             end
             local tile
             local _tile_t0 = e.face_out and _gettime() or nil
-            if e.face_out and e.book and e.book.add_subshelf then
+            if e.series_box then
+                tile = require("lib/bookshelf_series_box_widget"):new{
+                    entry = e, width = e.w, height = stand_h, inset = inset,
+                    callbacks = opts.callbacks, book_look = SpineShelf.bookLook,
+                }
+            elseif e.face_out and e.book and e.book.add_subshelf then
                 -- A shelf of shelves' "+ Add shelf": a face-out cover's width,
                 -- drawn as a dashed outline over the panel shading
                 -- (bookshelf_add_tile). It is not a book, so it does not stand
@@ -5080,12 +5096,17 @@ function SpineShelf.rowWidget(opts)
             -- a selection flip does not rebuild it, so anything in here that
             -- depended on which book was selected had to be kept in step by
             -- hand, and twice was not.
-            recess_cols[#recess_cols + 1] = {
-                x = cursor, w = e.w,
-                h = (e._drawn_h or e.h or 0),
-                foot = (e.face_out and inset or 0),
-                fp = e.book and e.book.filepath or nil,
-            }
+            if e.series_box then
+                local columns = require("lib/bookshelf_series_boxes").shadowColumns(e.series_box, cursor, inset)
+                for _, col in ipairs(columns) do recess_cols[#recess_cols + 1] = col end
+            else
+                recess_cols[#recess_cols + 1] = {
+                    x = cursor, w = e.w,
+                    h = (e._drawn_h or e.h or 0),
+                    foot = (e.face_out and inset or 0),
+                    fp = e.book and e.book.filepath or nil,
+                }
+            end
             -- The opening pose draws the shelf as if this book were gone:
             -- it hides the widget and zeroes this column for one paint.
             if fx_here then

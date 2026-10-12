@@ -132,6 +132,7 @@ t.test("a refetch of the same list keeps the page states; a changed list drops t
     local list = { { filepath = "/a" }, { filepath = "/b" }, { filepath = "/c" } }
     local self = { chip = "all", _drilldown_path = nil, _cursor = 2 }
     self._fetchChipItems = function() local o = {} for i, x in ipairs(list) do o[i] = x end return o end
+    self._prepareSpineItems = function(_, items) return items end
     self._spineItemsSig = method("_spineItemsSig")
     self._anchorSpineCursor = method("_anchorSpineCursor")
     self._setSpineCursor = self._setSpineCursor or function(s, c, k) s._cursor, s._skip = c, k or 0 end
@@ -172,6 +173,7 @@ local function anchorRun(before, after, cursor)
     for i, n in ipairs(before) do list[i] = { filepath = "/" .. n } end
     local self = { chip = "all", _cursor = cursor }
     self._fetchChipItems = function() local o = {} for i, x in ipairs(list) do o[i] = x end return o end
+    self._prepareSpineItems = function(_, items) return items end
     self._spineItemsSig = method("_spineItemsSig")
     self._anchorSpineCursor = method("_anchorSpineCursor")
     self._setSpineCursor = self._setSpineCursor or function(s, c, k) s._cursor, s._skip = c, k or 0 end
@@ -220,6 +222,7 @@ t.test("a per-book change expires the fetch, and the same list keeps its page st
     local list = { { filepath = "/a" }, { filepath = "/b" } }
     local self = { chip = "all" }
     self._fetchChipItems = function() return { list[1], list[2] } end
+    self._prepareSpineItems = function(_, items) return items end
     self._spineItemsSig = method("_spineItemsSig")
     self._anchorSpineCursor = method("_anchorSpineCursor")
     self._setSpineCursor = self._setSpineCursor or function(s, c, k) s._cursor, s._skip = c, k or 0 end
@@ -243,6 +246,7 @@ t.test("an open-ended feed neither reads nor writes another chip's page states",
     local fetch = method("_spineCachedFetch")
     local self = { chip = "opds", _spine_fetch_cache = { key = "all|", items = {}, at = os.time(), page_orn = {} } }
     self._fetchChipItems = function() return { opds_open_ended = true } end
+    self._prepareSpineItems = function(_, items) return items end
     self._spineItemsSig = method("_spineItemsSig")
     self._anchorSpineCursor = method("_anchorSpineCursor")
     self._setSpineCursor = self._setSpineCursor or function(s, c, k) s._cursor, s._skip = c, k or 0 end

@@ -69,9 +69,21 @@ end)
 H.test("metadata-free folders, distinct sections and standalone books are not merged", function()
     local a,b=book(1),book(2)
     a.shelf_section,b.shelf_section="Fiction","Fiction"
-    local out=Boxes.prepare({a,b,book(1,"Saga","/one"),book(2,"Saga","/two")})
+    local one,two=book(1,"Saga","/one"),book(2,"Saga","/two")
+    local out=Boxes.prepare({a,b,one,two})
     H.eq(#out,4); H.eq(out[1],a); H.eq(out[2],b)
-    H.eq(#out[3].books,1); H.eq(#out[4].books,1)
+    -- one volume per section: each stays a plain book, not a box of one
+    H.eq(out[3],one); H.eq(out[4],two)
+end)
+
+H.test("a series with one volume on the shelf stays a book", function()
+    local lone=book(3,"Saga")
+    local out=Boxes.prepare({book(0),lone})
+    H.eq(#out,2); H.eq(out[2],lone); assert(not Boxes.isBox(out[2]))
+    local dup={series_name="Saga",books={lone,lone}}
+    H.eq(Boxes.prepare({dup})[1],lone)
+    local pair=Boxes.prepare({{series_name="Saga",books={book(1,"Saga"),book(2,"Saga")}}})[1]
+    assert(Boxes.isBox(pair))
 end)
 
 H.test("author shelves retain raw membership and compact only their display list", function()

@@ -56,6 +56,17 @@ function M.box(books, title, original, light_meta)
     return box
 end
 
+-- onlyBook(books) -> the book, when the list holds one distinct file; else nil.
+function M.onlyBook(books)
+    local first
+    for _, book in ipairs(books or {}) do
+        if not book.filepath then return nil end
+        if not first then first = book
+        elseif book.filepath ~= first.filepath then return nil end
+    end
+    return first
+end
+
 function M.prepare(items, light_meta)
     local out, groups = {}, {}
     for _, item in ipairs(items or {}) do
@@ -69,7 +80,9 @@ function M.prepare(items, light_meta)
             out[#out+1] = item
         elseif item.books then
             if name(item) and (not item.kind or item.kind == "series") then
-                out[#out+1] = M.box(item.books, name(item), item, light_meta)
+                -- One volume on the shelf is a book, not a box set.
+                local only = M.onlyBook(item.books)
+                out[#out+1] = only or M.box(item.books, name(item), item, light_meta)
             else
                 local group = copy(item)
                 group._series_display_books = M.prepare(item.books, light_meta)
@@ -90,7 +103,9 @@ function M.prepare(items, light_meta)
             out[#out+1] = item
         end
     end
-    for _, g in pairs(groups) do out[g.at] = M.box(g.books, g.title, g.original, light_meta) end
+    for _, g in pairs(groups) do
+        out[g.at] = M.onlyBook(g.books) or M.box(g.books, g.title, g.original, light_meta)
+    end
     return out
 end
 

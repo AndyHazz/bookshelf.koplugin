@@ -67,7 +67,10 @@ local HTML = "<!DOCTYPE html>" .. string.rep("h", 4000)
 local OL   = "https://openlibrary.org/search/authors.json"
 local WP   = "https://en.wikipedia.org/w/api.php"
 local function olPhoto(id) return "https://covers.openlibrary.org/a/olid/" .. id .. "-L.jpg?default=false" end
+local stubGetJSON = package.loaded["lib/bookshelf_http"].getJSON
 local function reset()
+    -- Some tests swap in their own getJSON; every test starts from the stub.
+    package.loaded["lib/bookshelf_http"].getJSON = stubGetJSON
     json, files, requests, resolved = {}, {}, {}, {}
     os.execute("rm -f '" .. DIR .. "'/* '" .. DIR .. "'/.[!.]* 2>/dev/null")
 end
@@ -239,6 +242,80 @@ t.test("missing(): only real authors with no image yet", function()
     resolved["Terry Pratchett"] = "/lib/.bookshelf-images/authors/Terry Pratchett.jpg"
     local todo = AI.missing({ "Terry Pratchett", "Anonymous", "Saki", "Various", "Naomi Novik" })
     eq(#todo, 2); eq(todo[1], "Saki"); eq(todo[2], "Naomi Novik")
+end)
+
+-- _compact: a stand-in decoder/encoder. A decoded "bb" remembers its size;
+-- writeToFile writes a JPEG of jpeg_bytes, or fails when jpeg_fail is set.
+local decoded, scaled_to, jpeg_bytes, jpeg_fail
+local function fakeBB(w, h, typ)
+    local bb = { w = w, h = h, typ = typ or 5 }
+    function bb:getWidth() return self.w end
+    function bb:getHeight() return self.h end
+    function bb:getType() return self.typ end
+    function bb:free() end
+    function bb:fill() end
+    function bb:pmulalphablitFrom() self.composited = true end
+    function bb:writeToFile(path)
+        if jpeg_fail then return false end
+        local f = io.open(path, "wb"); f:write("\xFF\xD8\xFF\xE0" .. string.rep("c", jpeg_bytes - 4)); f:close()
+        return true
+    end
+    return bb
+end
+local function withCodec(w, h)
+    decoded, scaled_to, jpeg_bytes, jpeg_fail = { w = w, h = h }, nil, 30000, false
+    package.loaded["ui/renderimage"] = {
+        renderImageFile = function() return fakeBB(decoded.w, decoded.h, 6) end,
+        scaleBlitBuffer = function(_s, _bb, nw, nh) scaled_to = { nw, nh }; return fakeBB(nw, nh, 6) end,
+    }
+    package.loaded["ffi/blitbuffer"] = {
+        TYPE_BBRGB32 = 6, TYPE_BBRGB24 = 5, COLOR_WHITE = 255,
+        new = function(w2, h2, typ) return fakeBB(w2, h2, typ) end,
+    }
+    package.loaded["device"] = { screen = { getWidth = function() return 1236 end,
+                                            getHeight = function() return 1648 end } }
+end
+local function size(p) local f = io.open(p, "rb"); local n = f:seek("end"); f:close(); return n end
+
+t.test("a PNG is saved as a smaller JPEG", function()
+    reset(); withCodec(500, 667)
+    json[OL] = { docs = { { key = "OL1A", name = "Mick Herron", work_count = 55 } } }
+    files[olPhoto("OL1A")] = "\x89PNG\r\n\x1A\n" .. string.rep("p", 445000)
+    eq(AI.fetch("Mick Herron", { dir = DIR }), DIR .. "/Mick Herron.jpg")
+    eq(size(DIR .. "/Mick Herron.jpg"), 30000)
+    eq(scaled_to, nil, "500 px is under the cap, so not resized")
+    eq(exists(DIR .. "/.Mick Herron.download.jpg"), false)
+end)
+
+t.test("a small JPEG is kept exactly as it came", function()
+    reset(); withCodec(500, 500)
+    json[OL] = { docs = { { key = "OL2A", name = "Ann Leckie", work_count = 26 } } }
+    files[olPhoto("OL2A")] = JPEG
+    eq(AI.fetch("Ann Leckie", { dir = DIR }), DIR .. "/Ann Leckie.jpg")
+    eq(size(DIR .. "/Ann Leckie.jpg"), #JPEG)
+end)
+
+t.test("a photo bigger than a tile is scaled to the cap", function()
+    reset(); withCodec(2000, 3000)
+    eq(AI.maxSide(), 824)
+    json[OL] = { docs = { { key = "OL3A", name = "Big Photo", work_count = 3 } } }
+    files[olPhoto("OL3A")] = "\xFF\xD8\xFF\xE0" .. string.rep("b", 900000)
+    eq(AI.fetch("Big Photo", { dir = DIR }), DIR .. "/Big Photo.jpg")
+    eq(scaled_to[1], 549); eq(scaled_to[2], 824)
+end)
+
+t.test("when the JPEG cannot be written the download is kept", function()
+    reset(); withCodec(500, 667); jpeg_fail = true
+    json[OL] = { docs = { { key = "OL1A", name = "Mick Herron", work_count = 55 } } }
+    files[olPhoto("OL1A")] = PNG
+    eq(AI.fetch("Mick Herron", { dir = DIR }), DIR .. "/Mick Herron.png")
+end)
+
+t.test("a JPEG that comes out bigger is not used", function()
+    reset(); withCodec(500, 667); jpeg_bytes = 5000
+    json[OL] = { docs = { { key = "OL1A", name = "Mick Herron", work_count = 55 } } }
+    files[olPhoto("OL1A")] = PNG   -- 4008 bytes
+    eq(AI.fetch("Mick Herron", { dir = DIR }), DIR .. "/Mick Herron.png")
 end)
 
 os.execute("rm -rf '" .. DIR .. "'")

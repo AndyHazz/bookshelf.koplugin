@@ -313,9 +313,73 @@ end
 -- new file, so a replaced photo is not shadowed by the old one.
 local OTHER_EXTS = { "jpg", "jpeg", "png", "gif", "bmp", "webp", "tiff", "tif" }
 
+-- A JPEG this size or smaller is kept as it came. Open Library's are 15-90 KB.
+M.KEEP_JPEG_BYTES = 150 * 1024
+M.JPEG_QUALITY = 85
+
+-- maxSide() -> the longest side worth keeping. The biggest an author tile is
+-- drawn is a two-column grid, about half the screen wide and (at 2:3) as tall
+-- as half the screen's long side; never below 600, for a reader whose library
+-- travels to a bigger screen. Both sources top out near 500 px, so this is a
+-- ceiling for an unusually large photo rather than something most hit.
+function M.maxSide()
+    local ok, Device = pcall(require, "device")
+    local screen = ok and Device and Device.screen
+    local w = screen and screen.getWidth and screen:getWidth() or 0
+    local h = screen and screen.getHeight and screen:getHeight() or 0
+    return math.max(600, math.ceil(math.max(w, h) / 2))
+end
+
+-- _compact(path, ext) -> path's new ext, rewriting the file in place as a
+-- JPEG when that is worth it: any PNG, WebP or GIF (a 500 px Wikipedia PNG
+-- portrait is 445 KB, the same picture as a JPEG 48 KB), a JPEG over
+-- KEEP_JPEG_BYTES, or anything larger than maxSide(). Keeps what it was given
+-- whenever decoding or encoding fails, or the JPEG would not be smaller.
+local function _compact(path, ext)
+    local bytes = _size(path)
+    local cap = M.maxSide()
+    local ok_r, RenderImage = pcall(require, "ui/renderimage")
+    if not (ok_r and RenderImage) then return ext end
+    local bb = RenderImage:renderImageFile(path, false)
+    if not bb then return ext end
+    local w, h = bb:getWidth(), bb:getHeight()
+    if ext == "jpg" and bytes <= M.KEEP_JPEG_BYTES and math.max(w, h) <= cap then
+        bb:free()
+        return ext
+    end
+    if math.max(w, h) > cap then
+        local f = cap / math.max(w, h)
+        bb = RenderImage:scaleBlitBuffer(bb, math.max(1, math.floor(w * f + 0.5)),
+                                         math.max(1, math.floor(h * f + 0.5)), true)
+        w, h = bb:getWidth(), bb:getHeight()
+    end
+    -- Onto white first. A JPEG has no alpha, and the encoder takes a 32-bit
+    -- buffer's fourth byte as padding: a transparent PNG would come out with
+    -- whatever the decoder left in the clear pixels (MuPDF premultiplies, so
+    -- black). Premultiplied blit where the build has one, to match.
+    local ok_b, Blitbuffer = pcall(require, "ffi/blitbuffer")
+    local out = bb
+    if ok_b and Blitbuffer and bb.getType and bb:getType() == Blitbuffer.TYPE_BBRGB32 then
+        out = Blitbuffer.new(w, h, Blitbuffer.TYPE_BBRGB24)
+        out:fill(Blitbuffer.COLOR_WHITE)
+        if out.pmulalphablitFrom then out:pmulalphablitFrom(bb, 0, 0, 0, 0, w, h)
+        else out:alphablitFrom(bb, 0, 0, 0, 0, w, h) end
+        bb:free()
+    end
+    local tmp = path .. ".jpg"
+    local ok_w = out:writeToFile(tmp, "jpg", M.JPEG_QUALITY)
+    out:free()
+    if ok_w and _sniff(tmp) == "jpg" and _size(tmp) >= MIN_BYTES and _size(tmp) < bytes then
+        if os.rename(tmp, path) then return "jpg" end
+    end
+    pcall(os.remove, tmp)
+    return ext
+end
+
 -- _save(url, dir, stem) -> path | nil. Downloads beside the destination,
--- checks what arrived, and only then replaces whatever was saved under the
--- stem before (in any extension, so the old one cannot shadow the new).
+-- checks what arrived, makes it compact (_compact), and only then replaces
+-- whatever was saved under the stem before (in any extension, so the old one
+-- cannot shadow the new).
 local function _save(url, dir, stem)
     local tmp = dir .. "/." .. stem .. ".download"
     local CoverFetch = require("lib/bookshelf_cover_fetch")
@@ -329,6 +393,9 @@ local function _save(url, dir, stem)
         pcall(os.remove, tmp)
         return nil
     end
+    -- Only what a tile needs, in the format that holds it smallest.
+    local ok_c, new_ext = pcall(_compact, tmp, ext)
+    if ok_c and new_ext then ext = new_ext end
     for _i, e in ipairs(OTHER_EXTS) do
         pcall(os.remove, dir .. "/" .. stem .. "." .. e)
     end

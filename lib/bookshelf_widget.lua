@@ -5986,9 +5986,26 @@ end
 -- left to carry.
 function BookshelfWidget:_chipListValue(key)
     local tab = require("lib/bookshelf_tab_model").getById(self.chip)
-    local own = tab and tab[key]
+    -- Level 2 of an Auto shelf listing on both levels has list numbers of
+    -- its own, and falls back to Level 1's while they are unset
+    -- (ViewMode.densityKeys).
+    local first, fallback = ViewMode.densityKeys(tab, key, self:_autoLevel())
+    local own = tab and tab[first]
     if type(own) == "number" then return own end
+    if fallback then
+        own = tab and tab[fallback]
+        if type(own) == "number" then return own end
+    end
     return BookshelfSettings.read(key)
+end
+
+-- _autoLevel() -> 2 when the shelf is showing an Auto chip's Level 2 (drilled
+-- into anything below its top level), else 1. The same test _viewMode makes,
+-- so the density follows the style: a search has no chip style (see
+-- _chipViewMode), so it is never Level 2.
+function BookshelfWidget:_autoLevel()
+    if self:_chipViewMode() == ViewMode.AUTO and self:_isDrilledIn() then return 2 end
+    return 1
 end
 
 -- _setChipListRows(n) — write the row count onto THIS chip.
@@ -6015,6 +6032,9 @@ function BookshelfWidget:_setChipDensity(key, n)
         BookshelfSettings.saveDeferred(key, n)
         return
     end
+    -- A pinch on Level 2 of a shelf listing on both levels sets Level 2's own
+    -- number, leaving Level 1's alone.
+    key = ViewMode.densityKeys(hit, key, self:_autoLevel())
     hit[key] = n
     TabModel.saveDeferred(tabs)
 end

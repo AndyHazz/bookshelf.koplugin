@@ -1827,9 +1827,12 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         -- one more of what the reader is looking at rather than jumping to a
         -- constant. Nudging below `lo` returns to Auto, which is the whole of
         -- the way back and costs no dialog row.
-        local function nudgeRow(label, key, lo, hi, live)
+        -- inherit_key: an unset value shows this key's instead (Level 2's list
+        -- numbers show Level 1's, which is what the shelf then uses).
+        local function nudgeRow(label, key, lo, hi, live, inherit_key)
             local function shown()
                 local v = draft[key]
+                if v == nil and inherit_key then v = draft[inherit_key] end
                 return label .. ": " .. (v and tostring(v) or _("Auto"))
             end
             local function step(delta)
@@ -1882,14 +1885,30 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         end
 
         if show_list then
-            rows[#rows + 1] = nudgeRow(_("List columns"), "list_columns", 1, 3,
-                bw and function() return bw:_listCols() end)
-            rows[#rows + 1] = nudgeRow(_("List rows"), "list_rows", 1, 12,
-                bw and function()
-                    local ok, plan = pcall(bw._listBandPlan, bw, false,
-                                           bw._chip_bar_hidden)
-                    return ok and plan and plan.rows or 4
-                end)
+            -- Auto listing on BOTH levels: a set per level, under headings
+            -- (ViewMode.listLevelsSplit). Level 2's keys carry the suffix and,
+            -- until set, show Level 1's numbers, which are what they follow. A
+            -- "Same as Level 1" label did not fit the button at PW5 size.
+            local split = ViewMode.listLevelsSplit(draft)
+            local function listRows(sfx, inherit)
+                rows[#rows + 1] = nudgeRow(_("List columns"), "list_columns" .. sfx, 1, 3,
+                    bw and function() return bw:_listCols() end,
+                    inherit and "list_columns" or nil)
+                rows[#rows + 1] = nudgeRow(_("List rows"), "list_rows" .. sfx, 1, 12,
+                    bw and function()
+                        local ok, plan = pcall(bw._listBandPlan, bw, false,
+                                               bw._chip_bar_hidden)
+                        return ok and plan and plan.rows or 4
+                    end, inherit and "list_rows" or nil)
+            end
+            if split then
+                rows[#rows + 1] = header(_("Level 1"))
+                listRows("")
+                rows[#rows + 1] = header(_("Level 2"))
+                listRows(ViewMode.LEVEL2_SUFFIX, true)
+            else
+                listRows("")
+            end
         end
 
         if show_spines then

@@ -1961,7 +1961,12 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                 favorites = _("Favorites"),
                 first     = _("First in series"),
                 first_unread = _("First unread in series"),
-                reading   = _("Currently reading"),
+                -- "Reading", as the book's long-press menu says it: the four
+                -- reading states share one row, where "Currently reading"
+                -- did not fit.
+                reading   = _("Reading"),
+                finished  = _("Finished"),
+                on_hold   = _("On hold"),
                 unread    = _("Unread"),
                 standalone = _("Unread standalone"),
                 collection = _("In a collection"),
@@ -2133,7 +2138,10 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                             -- because "first in series" and "first unread in
                             -- series" are the same question asked of a
                             -- shelf you have started or one you have not.
-                            { toggle("unread"), toggle("reading") },
+                            -- All four reading states on one row, in the order
+                            -- the book's long-press menu sets them (On hold and
+                            -- Finished joined in 5.4.4).
+                            { toggle("unread"), toggle("reading"), toggle("on_hold"), toggle("finished") },
                             { toggle("standalone"), toggle("favorites") },
                             { toggle("first"),  toggle("first_unread") },
                             -- How many count as "recently added", as a button

@@ -168,7 +168,7 @@ Long-press a shelf and pick **Spines** under Show as, or hold the page range in 
 
 Tap a spine and the book lifts off the shelf (and shows in the top panel); tap it again to open it, or tap empty space anywhere on the shelf to put it back. A face-out book comes off in 3D, tipped forward and turned so you see its pages.
 
-**Face out.** Some books turn to show their cover, the way a shop dresses a shelf. Tick as many reasons as you like: unread books, unread books that are in no series, what you are currently reading, favourites, the first (or first unread) in each series, the newest few added, or the books in one collection you choose (a To read list, say). Or all books, or none.
+**Face out.** Some books turn to show their cover, the way a shop dresses a shelf. Tick as many reasons as you like: unread books, unread books that are in no series, what you are currently reading, what you have finished or put on hold, favourites, the first (or first unread) in each series, the newest few added, or the books in one collection you choose (a To read list, say). Or all books, or none. A favourite keeps its heart in the top-right corner when it faces out, whatever the reason.
 
 **Grouping.** On a grouped shelf (series, authors, genres) there are no folders to drill into -- the groups are flattened onto the shelf and each run gets a label at the shelf's edge. Everything is out where you can see it.
 

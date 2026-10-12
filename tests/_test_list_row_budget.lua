@@ -1490,6 +1490,62 @@ t.test("boxHeight bills VISIBLE lines, not the whole description", function()
         "a short box must bill its actual lines, got " .. fn(short))
 end)
 
+t.test("boxHeight bills the glyph overhang the box's bitmap carries", function()
+    -- Issue 510: TextBoxWidget's bitmap is line_glyph_extra_height taller
+    -- than its lines when the glyphs outgrow the pitch (a bold name), and
+    -- getSize reports the bitmap. Billing lines alone let a wrapped cell
+    -- outgrow its slot and paint over the rule above it.
+    local body = row_src:match("\nlocal function boxHeight%b()\n(.-)\nend\n")
+    local compile = loadstring or load
+    local fn = assert(compile("return function(box)\n" .. body .. "\nend"))()
+    local box = { vertical_string_list = { 1, 2 }, lines_per_page = 2,
+                  line_height_px = 35, line_glyph_extra_height = 2 }
+    assert(fn(box) == 72, "expected 72, got " .. fn(box))
+end)
+
+t.test("fitBox: a wrapped box never outgrows its offer, and reports its bitmap", function()
+    -- The real fitBox and boxHeight, run against a TextBoxWidget stand-in
+    -- that sizes itself the way KOReader's does: lines_per_page from the
+    -- height it is given (at least one line), bitmap = height + overhang.
+    local compile = loadstring or load
+    local hb = row_src:match("\nlocal function boxHeight%b()\n(.-)\nend\n")
+    local fb = row_src:match("\nlocal function fitBox%(line, flat, w, offer%)\n(.-)\nend\n")
+    assert(fb, "fitBox is gone or was renamed")
+    local LH, EXTRA, LINES = 35, 2, 2
+    local function make(h)
+        h = math.max(h, LH)
+        local b = { vertical_string_list = {}, line_height_px = LH,
+                    line_glyph_extra_height = EXTRA, height = h,
+                    lines_per_page = math.floor(h / LH) }
+        for k = 1, LINES do b.vertical_string_list[k] = k end
+        b.free = function() end
+        return b
+    end
+    local env = { math = math }
+    local function load_in(code)
+        local f = assert(compile(code))
+        if setfenv then setfenv(f, env) end
+        return f
+    end
+    if not setfenv then
+        load_in = function(code) return assert(load(code, "fit", "t", env)) end
+    end
+    env.boxHeight = load_in("return function(box)\n" .. hb .. "\nend")()
+    env.wrapBox = function(_line, _flat, _w, h) return make(h) end
+    local fit = load_in("return function(line, flat, w, offer)\n" .. fb .. "\nend")()
+    for _i, offer in ipairs({ 70, 71, 72, 73, 74, 200 }) do
+        local box, used = fit({}, "x", 100, offer)
+        local bitmap = box.height + EXTRA
+        assert(used == bitmap, ("offer %d: used %d but the bitmap is %d"):format(offer, used, bitmap))
+        assert(used <= offer, ("offer %d: the box is %d tall"):format(offer, used))
+    end
+    -- Two lines no longer fit in 70 once the overhang is counted: one line.
+    local box = fit({}, "x", 100, 70)
+    assert(box.lines_per_page == 1, "70px holds one 35px line plus overhang")
+    box = fit({}, "x", 100, 72)
+    assert(box.lines_per_page == 2, "72px holds both lines and the overhang")
+end)
+
 t.test("the emptiness test and the wrap path read PLAIN text", function()
     -- lineText leaves the markup in for the renderer, so both readers that
     -- ask a QUESTION about the text have to strip it first. Miss the first and

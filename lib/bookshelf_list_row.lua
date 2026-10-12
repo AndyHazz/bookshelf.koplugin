@@ -1511,10 +1511,42 @@ local function boxLines(box)
     return math.max(1, math.min(total, shown))
 end
 
+--
+-- PLUS line_glyph_extra_height: when a face's glyphs are taller than its line
+-- pitch (a bold title, typically) TextBoxWidget makes its bitmap that much
+-- taller than its lines (textboxwidget.lua _renderText), and getSize reports
+-- the bitmap. Billing lines alone budgeted a wrapped shelf name 70px for a
+-- 72px box; the cell outgrew its slot, centring lifted it a pixel, and its
+-- white fill painted over the rule above (issue 510).
 local function boxHeight(box)
     local total = #(box.vertical_string_list or {})
     local shown = box.lines_per_page or total
     return math.max(1, math.min(total, shown)) * (box.line_height_px or 1)
+        + (box.line_glyph_extra_height or 0)
+end
+
+-- fitBox(line, flat, w, offer) -> a wrapped box no taller than `offer` (as far
+-- as one line allows). wrapBox's height is the LINES' height, and the glyph
+-- overhang above comes on top, so a box granted the whole offer can come out
+-- taller than it. Rebuilt with the overhang taken off first; then, as before,
+-- rebuilt to its own lines if it came in short. Returns the box and what it
+-- really occupies, which is what its getSize reports.
+local function fitBox(line, flat, w, offer)
+    local box = wrapBox(line, flat, w, offer)
+    local extra = box.line_glyph_extra_height or 0
+    if extra > 0 and boxHeight(box) > offer then
+        box:free()
+        box = wrapBox(line, flat, w, math.max(1, offer - extra))
+    end
+    -- Short: its bitmap (height plus overhang) is taller than its lines. Tested
+    -- on the bitmap, not `used < offer`, which misses lines that fill the
+    -- offer exactly while the overhang still hangs below it.
+    local used = boxHeight(box)
+    if (box.height or 0) + extra > used then
+        box:free()
+        box = wrapBox(line, flat, w, math.max(1, used - extra))
+    end
+    return box, used
 end
 
 function ListRow.packRow(record, L, group_templates, text_w)
@@ -1601,7 +1633,8 @@ function ListRow.packRow(record, L, group_templates, text_w)
                 -- if it comes in short -- the same two-step the plain wrapping
                 -- path below uses, and for the same reason.
                 flat = balancedFirstLine(i, line, flat, plan.box_w)
-                boxes[i] = wrapBox(line, flat, plan.box_w, offer)
+                local used
+                boxes[i], used = fitBox(line, flat, plan.box_w, offer)
                 -- elasticWrapPlan cleared this on `unit`, which is a TextWidget
                 -- probe carrying padding the box does not use, so an offer can
                 -- pass `>= unit * 2` and still buy only ONE line of the box's
@@ -1613,12 +1646,6 @@ function ListRow.packRow(record, L, group_templates, text_w)
                     boxes[i]:free()
                     boxes[i] = nil
                     return math.min(unit[i], offer)
-                end
-                local used = boxHeight(boxes[i])
-                if used < 1 then used = unit[i] end
-                if used < offer then
-                    boxes[i]:free()
-                    boxes[i] = wrapBox(line, flat, plan.box_w, used)
                 end
                 tails[i] = { text = after, box_w = plan.box_w, gap = gap }
                 return used
@@ -1635,13 +1662,8 @@ function ListRow.packRow(record, L, group_templates, text_w)
             -- and the box that answers is the box that gets drawn -- except
             -- when it comes in short, which is the only case that pays twice.
             flat = balancedFirstLine(i, line, flat, inner_w)
-            boxes[i] = wrapBox(line, flat, inner_w, offer)
-            local used = boxHeight(boxes[i])
-            if used < 1 then used = unit[i] end
-            if used < offer then
-                boxes[i]:free()
-                boxes[i] = wrapBox(line, flat, inner_w, used)
-            end
+            local used
+            boxes[i], used = fitBox(line, flat, inner_w, offer)
             return used
         end,
     }

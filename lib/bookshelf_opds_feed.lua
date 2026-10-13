@@ -113,7 +113,8 @@ local function streamOf(link, href)
     end
     if not count or count < 1 then return nil end
     return { href = href, count = math.floor(count),
-             last_read = last_read and last_read > 0 and math.floor(last_read) or nil }
+             -- Page 1 is where a stream starts anyway: no Resume for it.
+             last_read = last_read and last_read > 1 and math.floor(last_read) or nil }
 end
 M._streamOf = streamOf
 

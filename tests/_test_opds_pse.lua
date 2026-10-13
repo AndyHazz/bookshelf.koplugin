@@ -47,9 +47,10 @@ t.test("a stream link without a page count is ignored", function()
     eq(#res.records, 0)
 end)
 
-t.test("a lastRead of 0 is not a place to resume from", function()
-    local s = Feed._streamOf({ ["pse:count"] = "5", ["pse:lastRead"] = "0" }, "x")
-    eq(s.last_read, nil)
+t.test("a lastRead of 0 or 1 is not a place to resume from", function()
+    eq(Feed._streamOf({ ["pse:count"] = "5", ["pse:lastRead"] = "0" }, "x").last_read, nil)
+    eq(Feed._streamOf({ ["pse:count"] = "5", ["pse:lastRead"] = "1" }, "x").last_read, nil)
+    eq(Feed._streamOf({ ["pse:count"] = "5", ["pse:lastRead"] = "2" }, "x").last_read, 2)
 end)
 
 t.test("editions merged into one record keep the first stream", function()

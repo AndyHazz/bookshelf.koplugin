@@ -157,7 +157,7 @@ end
 local function offShelfWarning(dest_dir)
     local FileOps = require("lib/bookshelf_file_ops")
     local BookshelfSettings = require("lib/bookshelf_settings_store")
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = require("lib/bookshelf_home_dir").get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     if FileOps.isVisibleOnShelf(dest_dir, home, depth) then return nil end
     local dest_depth = FileOps.shelfDepth(dest_dir, home)

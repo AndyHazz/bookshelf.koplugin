@@ -131,8 +131,10 @@ t.test("the picker groups the reasons the way a reader thinks", function()
     assert(rows, "the picker's rows moved")
     local order = {}
     for name in rows:gmatch('toggle%("([%a_]+)"%)') do order[#order + 1] = name end
-    eq(table.concat(order, ","), "unread,reading,standalone,favorites,first,first_unread,recent,collection",
+    eq(table.concat(order, ","), "unread,reading,on_hold,finished,standalone,favorites,first,first_unread,recent,collection",
        "the picker's row order changed")
+    assert(rows:find('{ toggle("unread"), toggle("reading"), toggle("on_hold"), toggle("finished") }', 1, true),
+        "the four reading states should share a line, in the book menu's order")
     assert(rows:find('toggle("first"),  toggle("first_unread")', 1, true),
         "the two series reasons should share a line")
     local ed_labels = ed:match("local FACE_LABELS = (%b{})")

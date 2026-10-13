@@ -18,6 +18,9 @@
 --     expanded, or drilled into a folder / series / author / tag  ->  LIST
 --     collapsed at a chip's top level                             ->  COVERS
 --
+-- (That fixed policy is now Auto's DEFAULT per level and is still what search
+-- results' own Auto uses; a chip's Auto is chosen per level, see AUTO BY LEVEL.)
+--
 -- This replaces the three independent booleans (list_when_expanded /
 -- _collapsed / _in_folder) on the maintainer's ruling: "I think we can move
 -- the 'show as list ...' options from the main menu into the per chip
@@ -49,6 +52,88 @@ ViewMode.SPINES = "spines"
 function ViewMode.effective(expanded, in_folder)
     if expanded or in_folder then return ViewMode.LIST end
     return ViewMode.COVERS
+end
+
+-- ── AUTO BY LEVEL (5.4.3) ──────────────────────────────────────────────────
+--
+-- An Auto chip says which style each drill level wears: Level 1 its top level
+-- (collapsed OR expanded, maintainer 2026-10-11: levels are drill depth, not
+-- screen size), Level 2 everything drilled into below it (folders in folders,
+-- series inside an author). Each is covers, list or spines, cycled from two
+-- buttons in Shelf style as the sort levels are. Unset is today's Auto: covers
+-- on top, a list inside. Expanded at the top level now follows Level 1, so an
+-- untouched Auto shelf shows covers expanded where it showed a list.
+--
+-- A shelf of shelves has only Level 1: opening a sub-shelf switches to it
+-- (its own Show as and levels), so nothing in it is ever drilled into.
+ViewMode.LEVEL_KEYS     = { "view_level1", "view_level2" }
+ViewMode.LEVEL_DEFAULTS = { ViewMode.COVERS, ViewMode.LIST }
+ViewMode.LEVEL_CYCLE    = { ViewMode.COVERS, ViewMode.LIST, ViewMode.SPINES }
+
+-- levelMode(value, level) -> the style stored for that level, or its default
+-- for absence or anything this build does not know.
+function ViewMode.levelMode(value, level)
+    if value == ViewMode.COVERS or value == ViewMode.LIST or value == ViewMode.SPINES then
+        return value
+    end
+    return ViewMode.LEVEL_DEFAULTS[level] or ViewMode.COVERS
+end
+
+-- auto(tab, drilled) -> the style an Auto chip shows: Level 2's when drilled
+-- into anything, else Level 1's.
+function ViewMode.auto(tab, drilled)
+    tab = tab or {}
+    if drilled then return ViewMode.levelMode(tab[ViewMode.LEVEL_KEYS[2]], 2) end
+    return ViewMode.levelMode(tab[ViewMode.LEVEL_KEYS[1]], 1)
+end
+
+-- nextLevelMode(value, level, no_spines) -> the next style in the cycle from
+-- the one that level shows now; spines left out for a catalogue.
+function ViewMode.nextLevelMode(value, level, no_spines)
+    local cur = ViewMode.levelMode(value, level)
+    local cycle = ViewMode.LEVEL_CYCLE
+    for i, m in ipairs(cycle) do
+        if m == cur then
+            local nxt = cycle[i % #cycle + 1]
+            if no_spines and nxt == ViewMode.SPINES then nxt = cycle[(i + 1) % #cycle + 1] end
+            return nxt
+        end
+    end
+    return ViewMode.LEVEL_DEFAULTS[level]
+end
+
+-- ── LIST DENSITY BY LEVEL (5.4.4) ──────────────────────────────────────────
+--
+-- An Auto shelf showing a list on BOTH levels has two sets of list columns and
+-- rows, one per level (maintainer: a list of authors and the list of one
+-- author's books want different densities). Level 2's are the same keys with
+-- LEVEL2_SUFFIX, stored on the tab beside Level 1's. Unset, Level 2 follows
+-- Level 1, so a shelf set up before this looks as it did. Anywhere else (one
+-- level a list, or a List pin) there is one set, the plain keys, as before.
+ViewMode.LEVEL2_SUFFIX = "_l2"
+-- true: unset follows Level 1. list_rows_expanded is the zoom of an expanded
+-- list, tied to its own level's row count and cleared to mean "fill at the new
+-- height", so Level 2's never borrows Level 1's.
+ViewMode.LEVEL_LIST_KEYS = { list_columns = true, list_rows = true, list_rows_expanded = false }
+
+-- listLevelsSplit(tab) -> true when the tab is Auto with List on both levels.
+function ViewMode.listLevelsSplit(tab)
+    tab = tab or {}
+    return ViewMode.chipOverride(tab[ViewMode.CHIP_KEY]) == ViewMode.AUTO
+        and ViewMode.auto(tab, false) == ViewMode.LIST
+        and ViewMode.auto(tab, true) == ViewMode.LIST
+end
+
+-- densityKeys(tab, key, level) -> the key to read first, and the key to fall
+-- back to (nil when there is none). Level 2 of a split tab reads its own key
+-- and, for columns and rows, falls back to Level 1's; everything else is the
+-- plain key alone.
+function ViewMode.densityKeys(tab, key, level)
+    local inherits = ViewMode.LEVEL_LIST_KEYS[key]
+    if level == 2 and inherits ~= nil and ViewMode.listLevelsSplit(tab) then
+        return key .. ViewMode.LEVEL2_SUFFIX, inherits and key or nil
+    end
+    return key, nil
 end
 
 function ViewMode.isList(mode) return mode == ViewMode.LIST end

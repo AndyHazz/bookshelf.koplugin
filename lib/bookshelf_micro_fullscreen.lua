@@ -423,36 +423,20 @@ function MicroFullscreen:_build()
                 local c_top  = ((status_h > 0) and top or grid_top) - bleed
                 if c_top < 0 then c_top = 0 end
                 local c_h    = (py + ph) - c_top
+                -- A 1px gap across the panel where the footer begins, as on
+                -- the shelf's own full panel: the picture shows through, so
+                -- the footer reads as its own bar (maintainer, 2026-10-04, in
+                -- place of a hairline rule). Shelf context only: under the
+                -- reader there is no footer bar, just the launcher's glyphs.
+                local gap_y = (not launcher) and py or nil
+                -- Blurred under the tint (Theme > Wallpaper > Blur) only over the
+                -- picture: bg is the wallpaper itself, not the white fallback.
+                local frost = type(bg) == "table" and type(bg.bb) ~= "nil"
                 panel = Widget:new{ dimen = Geom:new{ w = sw, h = sh } }
                 function panel:paintTo(b)
-                    Wallpaper.scrim(b, px, c_top, pw, c_h, ground, strength, radius)
+                    Wallpaper.panel(b, px, c_top, pw, c_h, ground, strength, radius, frost)
+                    if gap_y and gap_y > c_top then Wallpaper.restoreBare(b, px, gap_y, pw, 1) end
                 end
-            end
-        end
-    end
-    -- A hairline along the top of the footer band, matched to the one under
-    -- the status line.
-    --
-    -- The single panel above is deliberate and stays, but it left the footer
-    -- with no edge of its own. On the shelf the footer is its OWN rounded
-    -- panel, so its top is a real boundary; here the glyphs sat in the same
-    -- unbroken surface as the grid, and with nothing to sit against they read
-    -- as misaligned rather than as a bar (maintainer). A rule restores the
-    -- boundary without splitting the panel back into two objects.
-    --
-    -- Same colour, thickness and horizontal extent as the status hairline
-    -- (HeroCard.buildStatusRow), so the view is bracketed by a matched pair.
-    --
-    -- Shelf context only. Under the reader there is no footer bar to define --
-    -- just the launcher's own glyphs, which the user can move to either edge.
-    local footer_rule
-    if not launcher then
-        local ry = fp_y or (sh - self.footer_h)
-        local rh = Size.line.medium
-        if ry > 0 and ry + rh <= sh then
-            footer_rule = Widget:new{ dimen = Geom:new{ w = sw, h = sh } }
-            function footer_rule:paintTo(b)
-                b:paintRect(margin, ry, content_w, rh, Blitbuffer.gray(0.4))
             end
         end
     end
@@ -462,7 +446,6 @@ function MicroFullscreen:_build()
         bg,
     }
     if panel then children[#children + 1] = panel end
-    if footer_rule then children[#children + 1] = footer_rule end
     children[#children + 1] =
         OffsetContainer:new{ x_off = margin, y_off = top, col }
     -- Read the CURRENT footer button dimen (refreshed when the bookshelf behind

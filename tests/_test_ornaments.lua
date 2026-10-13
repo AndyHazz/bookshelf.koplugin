@@ -934,7 +934,7 @@ t.test("shuffle is a KOReader action the shelf answers", function()
     assert(main:find('event    = "BookshelfShuffleOrnaments"', 1, true), "the action sends no event")
     local w = io.open("lib/bookshelf_widget.lua"):read("*a")
     local h = w:match("function BookshelfWidget:onBookshelfShuffleOrnaments%(%)(.-)\nend\n")
-    assert(h and h:find('require("lib/bookshelf_ornament_deck").shuffle()', 1, true), "the shelf does not shuffle the saved order")
+    assert(h and h:find('require("lib/bookshelf_ornament_deck").shuffle(self.chip)', 1, true), "the shelf does not shuffle its own deck")
     assert(h:find("self:_dropOrnPages(false)", 1, true), "the page map and page states survive a shuffle")
     assert(h:find("_rebuild()", 1, true), "the shelf is not rebuilt")
 end)
@@ -989,6 +989,23 @@ t.test("json: padding reaches the placement in px", function()
     eq(p.pad_px, -15, "5% of a 300px stand, tighter")
 end)
 
+t.test("json: trim tucks in a share of the DRAWN width, so it shrinks with the piece", function()
+    -- A pack's transparent side margin (a candle's glow) is a share of the
+    -- picture; a fixed pad in stand heights did not shrink with a smaller
+    -- piece and pushed the books into the drawing (PW5, Macabre candelabra
+    -- at 90% of its pack size).
+    local O = fresh()
+    local e = { name = "c.svg", aspect = 0.5, overhang = 0, trim = 0.2 }
+    local big = O.place(e, 1000, 300, {}, 1)          -- 240 tall, 120 wide
+    eq(big.w, 120); eq(big.pad_px, -24, "a fifth of 120 each side")
+    e.scale = 0.5                                     -- the reader's Size, 50%
+    local small = O.place(e, 1000, 300, {}, 1)
+    eq(small.w, 60); eq(small.pad_px, -12, "the tuck halves with the piece")
+    e.scale = 1; e.pad = 0.1                          -- padding still adds
+    eq(O.place(e, 1000, 300, {}, 1).pad_px, 30 - 24, "pad in stand heights, less the trim")
+    eq(O.place({ name = "n.svg", aspect = 1, overhang = 0 }, 400, 300, {}, 1).pad_px, 0, "no trim, no tuck")
+end)
+
 t.test("json: mirror always flips every deal; alternate every other one", function()
     local O = fresh()
     local al = { name = "al.svg", aspect = 1, overhang = 0, mirror = "always" }
@@ -1023,6 +1040,25 @@ t.test("menu fix: a height nudge moves a piece, it never changes its size", func
     eq(a.h, b.h, "lowering changed the size"); eq(b.h, c.h, "raising changed the size")
     eq(a.below, b.below, "lowering changed the file's overhang"); eq(c.below, b.below)
     eq(a.offset, -0.25); eq(c.offset, 0.6); eq(a.anchor, "bottom")
+end)
+
+t.test("a hanging piece keeps its pack size but never outgrows the gap it hangs in", function()
+    -- Maintainer: hanging art hangs on the wall and never overlaps the shelf
+    -- above or the plank below. The plan hands the clear gap in as
+    -- o.hang_room; a piece that fits keeps the size its pack gave it.
+    local O = fresh()
+    local top = { name = "s.svg", aspect = 0.5, overhang = 0, anchor = "top" }
+    local books = math.floor(300 * O.HEIGHT_FRAC)
+    eq(O.place(top, 1000, 300, { hang_room = 400 }, 1).h, books, "a piece that fits was resized")
+    eq(O.place(top, 1000, 300, { hang_room = 200 }, 1).h, 200, "a piece taller than the gap was not shrunk to it")
+    top.scale = 1.32
+    eq(O.place(top, 1000, 300, { hang_room = 200 }, 1).h, 200, "the pack's scale took it past the gap")
+    top.lift = -0.1
+    eq(O.place(top, 1000, 300, { hang_room = 200 }, 1).h, 170, "lowering it did not leave it room to the plank")
+    top.scale, top.lift = 0.5, 0
+    eq(O.place(top, 1000, 300, {}, 1).h, math.floor(300 * O.HEIGHT_FRAC * 0.5), "no gap given: the books' size")
+    local stand = { name = "b.svg", aspect = 0.5, overhang = 0 }
+    eq(O.place(stand, 1000, 300, { hang_room = 100 }, 1).h, books, "a standing piece was held to the gap")
 end)
 
 t.test("menu fix: a mirror change reaches a piece already dealt", function()
@@ -1115,6 +1151,55 @@ t.test("the menu shows and nudges the reader's own adjustment, not the pack's va
     assert(nud and nud:find("readerValue(entry, field)", 1, true), "a nudge starts from the pack's value")
     assert(src:find('readerValue(entry, "scale")', 1, true) and src:find('readerValue(entry, "pad")', 1, true)
            and src:find('readerValue(entry, "lift")', 1, true), "the labels show the pack's values")
+end)
+
+t.test("listFor: a theme deals its own pieces only, whatever the collection's switches; Plain none; mine the collection", function()
+    local Orn = fresh()
+    local mem = {}
+    Orn._store = { read = function(k) return mem[k] end, save = function(k, v) mem[k] = v end,
+                   generation = function() return 0 end, flush = function() end }
+    local all = { { name = "H/bat.png", pack = "H" }, { name = "H/cat.png", pack = "H" },
+                  { name = "G/frame.png", pack = "G" }, { name = "pot.svg" } }
+    Orn.listAll = function() return all, { "G", "H" } end
+    Orn.setOff("H/cat.png", true)
+    Orn.setPackOff("H", true)                    -- off in the collection, worn as a theme
+    local names = {}
+    for i, e in ipairs(Orn.listFor("H")) do names[i] = e.name end
+    -- No loose pot: themes do not mix (maintainer, 2026-10-07). The cat is
+    -- off in the collection, which is Custom theme's set: a pack's own set is
+    -- edited with the theme (editable themes, 2026-10-08).
+    eq(table.concat(names, ","), "H/bat.png,H/cat.png")
+    assert(Orn.listFor("H") == Orn.listFor("H"), "listFor handed out a new table")
+    eq(#Orn.listFor("plain"), 0, "Plain deals nothing")
+    assert(Orn.listFor(nil) == Orn.list() and Orn.listFor("mine") == Orn.list(), "the reader's pool changed")
+    names = {}
+    for i, e in ipairs(Orn.list()) do names[i] = e.name end
+    eq(table.concat(names, ","), "G/frame.png,pot.svg", "the reader's own: collection switches, loose pieces")
+end)
+
+t.test("a piece takes gestures only on its drawing, and never in the footer (start-menu taps)", function()
+    local O = fresh()
+    O.contentBox = function() return 0.25, 0.5, 0.75, 1.0 end   -- drawing: middle half, lower half
+    local p = { entry = { name = "c.png" }, w = 100, h = 200 }
+    local dim = { x = 10, y = 400, w = 100, h = 200 }
+    eq(O.hits(p, dim, { x = 60, y = 550 }), true, "a tap on the drawing missed")
+    eq(O.hits(p, dim, { x = 15, y = 550 }), false, "the transparent margin took the tap")
+    eq(O.hits(p, dim, { x = 60, y = 420 }), false, "the empty top took the tap")
+    local blocked = function(pos) return pos.y >= 580 end
+    eq(O.hits(p, dim, { x = 60, y = 590 }, blocked), false, "a tap in the footer band went to the piece")
+    p.mirror = true
+    O.contentBox = function() return 0.0, 0.0, 0.3, 1.0 end     -- drawing on the left, mirrored to the right
+    eq(O.hits(p, dim, { x = 100, y = 500 }), true, "mirroring was ignored")
+    eq(O.hits(p, dim, { x = 15, y = 500 }), false)
+    eq(O.hits(p, dim, nil), true, "no position: keep the old behaviour")
+    local src = io.open("lib/bookshelf_ornaments.lua"):read("*a")
+    for _i, ev in ipairs({ "HoldOrnament", "TapOrnament" }) do
+        local body = src:match("function M%.Ornament:on" .. ev .. "%(.-\nend")
+        assert(body and body:find("M.hits(self.placement, self.dimen, ges and ges.pos, M.handlers.blocked)", 1, true),
+            ev .. " still takes gestures on the piece's whole box")
+    end
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    assert(w:find("pos.y >= shelf.height - _footerReserveH()", 1, true), "the shelf does not block the footer band")
 end)
 
 t.done()

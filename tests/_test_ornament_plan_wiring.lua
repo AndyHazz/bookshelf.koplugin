@@ -59,9 +59,9 @@ t.test("the render hands each empty row its bare piece", function()
 end)
 
 t.test("plan and Swap reconcile the order with the pieces on disk", function()
-    assert(plan:find("Deck.sync(orn.mod.listAll())", 1, true), "plan deals from an unreconciled order")
+    assert(plan:find("Deck.sync(orn.mod.listAll(), opts.orn_shelf)", 1, true), "plan deals from an unreconciled order")
     local menu = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
-    assert(menu:find("Deck.sync(Orn.listAll())", 1, true), "Swap does not reconcile before swapping")
+    assert(menu:find("Deck.sync(Orn.listAll(), shelf)", 1, true), "Swap does not reconcile before swapping")
 end)
 
 t.test("page-relative options stay out of the entries cache key, the deal state included", function()

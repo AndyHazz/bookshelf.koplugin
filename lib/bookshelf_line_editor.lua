@@ -84,6 +84,19 @@ local function cycleNext(list, current)
     return list[1]
 end
 
+-- Bar style names as the Bar style button shows them: bookends' labels
+-- (bookends_line_editor.lua), so a style reads the same in both plugins.
+-- Looked up at call time so a language switch takes effect. An id with no
+-- label (the radial dials the editor does not offer, a style the painter
+-- gains later) shows as itself.
+local function barStyleLabel(id)
+    local labels = {
+        bordered = _("Bordered"), solid = _("Solid"), rounded = _("Rounded"),
+        metro = _("Metro"), wavy = _("Wave"), pacman = _("Pacman"),
+    }
+    return labels[id] or id
+end
+
 local ALIGN_CYCLE  = { "left", "center", "right" }
 -- Nerd Font / Symbols MDI glyphs for alignment. Same family as the
 -- battery / wifi / nightmode icons so the row reads coherently.
@@ -301,6 +314,13 @@ end
 --                 makes Default a no-op rather than a field-wiper when a
 --                 caller has nothing meaningful to restore to.
 --   uppercase     show the Aa/AA case toggle (default true).
+--   size, font, alignment
+--                 show the Size nudge, the Font picker and the alignment cycle
+--                 (each default true). A surface that draws the line in a face
+--                 and size it does not own -- the cover label -- turns them
+--                 off rather than offering controls it would ignore.
+--   token_filter  function(catalogue_entry) -> false to leave a token out of
+--                 the Tokens… picker. Optional; nil offers the whole catalogue.
 --   bar           show the %bar controls row (default false). Progress-shaped
 --                 regions only.
 --   bar_styles    function returning the cycle of bar style names. Required
@@ -390,7 +410,9 @@ function LineEditor.edit(spec)
                     if dialog then dialog:reinit() end
                 end,
             },
-            {
+        }
+        if spec.size ~= false then
+            style_row[#style_row + 1] = {
                 text_func = function() return _("Size") .. ": " .. (draft.font_size or "") end,
                 callback  = function()
                     if dialog then dialog:onCloseKeyboard() end
@@ -400,8 +422,10 @@ function LineEditor.edit(spec)
                         function(val) draft.font_size = val; applyLivePreview() end,
                         function() if dialog then dialog:reinit() end end)
                 end,
-            },
-            {
+            }
+        end
+        if spec.font ~= false then
+            style_row[#style_row + 1] = {
                 text_func = function() return draft.font_face and _("Font \xE2\x9C\x93") or _("Font\xE2\x80\xA6") end,
                 callback  = function()
                     if dialog then dialog:onCloseKeyboard() end
@@ -412,8 +436,8 @@ function LineEditor.edit(spec)
                             if dialog then dialog:reinit() end
                         end)
                 end,
-            },
-        }
+            }
+        end
         if spec.uppercase ~= false then
             style_row[#style_row + 1] = {
                 text_func = function() return draft.uppercase and "AA" or "Aa" end,
@@ -425,32 +449,34 @@ function LineEditor.edit(spec)
                 end,
             }
         end
-        style_row[#style_row + 1] = {
-            text_func = function() return ALIGN_LABELS[draft.alignment or "left"] or ALIGN_LABELS.left end,
-            -- Dead while the line carries %spacer or %bar, and saying so.
-            --
-            -- Either token makes the line exactly as wide as its box -- the
-            -- spacer pushes the two halves to the edges, the bar fills what is
-            -- left -- so there is no slack for an alignment to move anything
-            -- into. The setting was reported as "doesn't work", and it does
-            -- work; it was being tried on lines that had already given their
-            -- width away. Greying the control is the honest answer, and it
-            -- matches how the bar controls already behave when there is no
-            -- %bar to configure.
-            enabled_func = function() return not hasElasticToken(dialog) end,
-            -- Render with the Symbols Nerd Font face so the MDI alignment
-            -- codepoints resolve. Default button face would render them as
-            -- tofu (missing-glyph boxes). Size matches eyeballed alongside
-            -- the Latin text buttons in the same row.
-            font_face = "symbols",
-            font_size = 22,
-            callback  = function()
-                if dialog then dialog:onCloseKeyboard() end
-                draft.alignment = cycleNext(ALIGN_CYCLE, draft.alignment or "left")
-                applyLivePreview()
-                if dialog then dialog:reinit() end
-            end,
-        }
+        if spec.alignment ~= false then
+            style_row[#style_row + 1] = {
+                text_func = function() return ALIGN_LABELS[draft.alignment or "left"] or ALIGN_LABELS.left end,
+                -- Dead while the line carries %spacer or %bar, and saying so.
+                --
+                -- Either token makes the line exactly as wide as its box -- the
+                -- spacer pushes the two halves to the edges, the bar fills what is
+                -- left -- so there is no slack for an alignment to move anything
+                -- into. The setting was reported as "doesn't work", and it does
+                -- work; it was being tried on lines that had already given their
+                -- width away. Greying the control is the honest answer, and it
+                -- matches how the bar controls already behave when there is no
+                -- %bar to configure.
+                enabled_func = function() return not hasElasticToken(dialog) end,
+                -- Render with the Symbols Nerd Font face so the MDI alignment
+                -- codepoints resolve. Default button face would render them as
+                -- tofu (missing-glyph boxes). Size matches eyeballed alongside
+                -- the Latin text buttons in the same row.
+                font_face = "symbols",
+                font_size = 22,
+                callback  = function()
+                    if dialog then dialog:onCloseKeyboard() end
+                    draft.alignment = cycleNext(ALIGN_CYCLE, draft.alignment or "left")
+                    applyLivePreview()
+                    if dialog then dialog:reinit() end
+                end,
+            }
+        end
 
         rows[#rows + 1] = style_row
 
@@ -464,7 +490,7 @@ function LineEditor.edit(spec)
                 {
                     text_func = function()
                         if not hasBarToken(dialog) then return _("Bar style") end
-                        return _("Bar: ") .. (draft.bar_style or "bordered")
+                        return _("Bar: ") .. barStyleLabel(draft.bar_style or "bordered")
                     end,
                     enabled_func = function() return hasBarToken(dialog) end,
                     callback = function()
@@ -524,7 +550,7 @@ function LineEditor.edit(spec)
                 callback = function()
                     if dialog then dialog:onCloseKeyboard() end
                     if spec.settings_module and spec.settings_module._pickToken then
-                        spec.settings_module:_pickToken(dialog)
+                        spec.settings_module:_pickToken(dialog, spec.token_filter)
                     end
                 end,
             },
@@ -583,6 +609,7 @@ LineEditor.showSizeNudge  = showSizeNudge
 LineEditor.hideParentMenu = hideParentMenu
 LineEditor.guardStrayTaps = guardStrayTaps
 LineEditor.cycleNext      = cycleNext
+LineEditor.barStyleLabel  = barStyleLabel
 LineEditor.ALIGN_LABELS   = ALIGN_LABELS
 LineEditor.ALIGN_CYCLE    = ALIGN_CYCLE
 

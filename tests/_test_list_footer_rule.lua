@@ -18,6 +18,7 @@
 package.path = "./?.lua;./?/init.lua;" .. package.path
 local helpers = dofile("tests/_helpers.lua")
 local t = helpers.runner()
+local eq = helpers.eq
 local widget = io.open("lib/bookshelf_widget.lua"):read("*a")
 local micro  = io.open("lib/bookshelf_micro_fullscreen.lua"):read("*a")
 
@@ -27,34 +28,60 @@ local paint = widget:match("(vgroup%.paintTo = function%(slf, bb, x, y%).-\n    
 assert(paint, "the list-mode panel paint override moved")
 local code = paint:gsub("%-%-[^\n]*", "")
 
-t.test("the rule is painted, and only where the panel swallowed the footer", function()
-    assert(code:find("list_full", 1, true), "the rule belongs to the list-mode branch")
-    assert(code:find("paintRect", 1, true), "no rule is painted")
+t.test("a 1px gap, not a rule, where the panel swallowed the footer", function()
+    -- Maintainer, 2026-10-04: "instead of the hairline divider ... a 1px full
+    -- width gap that shows the background through".
+    assert(code:find("list_full", 1, true), "the gap belongs to the full-panel branch")
+    assert(not code:find("paintRect", 1, true), "the hairline rule is still painted")
+    assert(code:find("rule_y = fy", 1, true), "the gap's row must come straight from footerPanelRect")
+    local r = code:match("Wallpaper%.restoreBare%((.-)%)")
+    assert(r and r:find("rule_y", 1, true) and r:find("w2", 1, true) and r:find("1", 1, true),
+        "the gap is not the picture put back, one pixel high, across the panel")
+    assert(code:find("setPanel(px, py, w2, h2, ground, strength, radius, rule_y, frost)", 1, true),
+        "restore is not told about the gap, so a later repaint would tint it again")
 end)
 
-t.test("it sits on the footer panel's own top edge, from the same rect", function()
-    assert(code:find("footerPanelRect", 1, true), "geometry must come from footerPanelRect")
-    -- `.` spans newlines in a Lua pattern, so this reads a call that wraps.
-    local rule = code:match("paintRect%((.-)%)")
-    assert(rule, "could not read the rule's arguments")
-    assert(rule:find("rule_y", 1, true), "the rule must sit at the footer panel's top, not a re-derived y")
-    assert(code:find("rule_y = fy", 1, true),
-        "the rule's height must be taken straight from footerPanelRect")
-    -- Width is the CONTENT's, not the panel's. The panel bleeds past the
-    -- content on both sides, so a rule spanning it overhangs the chip bar
-    -- above and reads as a wider object than the bar it is aligning with
-    -- (maintainer: "not full width I think the same width as the shelf menu
-    -- bar"). content_w is what the chip strip and the micro module both use.
-    assert(rule:find("content_w", 1, true), "the rule must be the content's width, like the chip bar")
-    assert(not rule:find("rule_w", 1, true), "the panel's own width bleeds past the chip bar")
+-- The registered gap: a repaint over it puts the picture back untinted.
+t.test("restore leaves the panel's gap row untinted", function()
+    package.loaded["logger"] = package.loaded["logger"] or
+        { dbg = function() end, info = function() end, warn = function() end, err = function() end }
+    package.loaded["lib/bookshelf_wallpaper"] = nil
+    local W = dofile("lib/bookshelf_wallpaper.lua")
+    local tinted = {}
+    W.scrim = function(_bb, x, y, w, h) tinted[#tinted + 1] = { y = y, h = h } end
+    W._bg = { w = 100, h = 100, bb = {} }
+    local target = { getWidth = function() return 100 end, getHeight = function() return 100 end,
+                     blitFrom = function() end }
+    W.setPanel(0, 0, 100, 100, 0xFF, 0.85, 0, 50)
+    W.restore(target, 0, 40, 100, 20)          -- rows 40..59, across the gap at 50
+    local rows = {}
+    for _i, r in ipairs(tinted) do for y = r.y, r.y + r.h - 1 do rows[y] = true end end
+    assert(rows[49] and rows[51], "the panel either side of the gap was not tinted again")
+    assert(not rows[50], "the gap row was tinted")
 end)
 
-t.test("colour and thickness match the micro module's rule", function()
-    assert(code:find("Size.line.medium", 1, true), "thickness must match the micro module's")
-    assert(code:find("Blitbuffer.gray(0.4)", 1, true), "colour must match the micro module's")
+t.test("restoreBare puts the picture back without tinting it, whatever panel is registered", function()
+    package.loaded["lib/bookshelf_wallpaper"] = nil
+    local W = dofile("lib/bookshelf_wallpaper.lua")
+    local tinted, blits = 0, 0
+    W.scrim = function() tinted = tinted + 1 end
+    W._bg = { w = 100, h = 100, bb = {} }
+    local target = { getWidth = function() return 100 end, getHeight = function() return 100 end,
+                     blitFrom = function() blits = blits + 1 end }
+    W.setPanel(0, 0, 100, 100, 0xFF, 0.85, 0)
+    eq(W.restoreBare(target, 0, 50, 100, 1), true)
+    eq(blits, 1); eq(tinted, 0, "the bare row was tinted")
+    assert(W._panel, "restoreBare dropped the registered panel")
+end)
+
+t.test("the micro-module view: the same 1px gap in its panel, no hairline rule", function()
     local m = micro:gsub("%-%-[^\n]*", "")
-    assert(m:find("Size.line.medium", 1, true) and m:find("Blitbuffer.gray(0.4)", 1, true),
-        "the micro module's own rule changed; the pair is no longer matched")
+    assert(not m:find("footer_rule", 1, true), "the micro-module view still draws its footer rule")
+    local paint = m:match("function panel:paintTo%(b%)(.-)\n                end")
+    assert(paint, "the micro-module panel paint moved")
+    assert(paint:find("Wallpaper.panel(", 1, true), "the panel is no longer painted")
+    local r = paint:match("Wallpaper%.restoreBare%((.-)%)")
+    assert(r and r:find("gap_y", 1, true) and r:find("pw", 1, true), "no 1px gap across the panel")
 end)
 
 t.done()

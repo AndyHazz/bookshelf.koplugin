@@ -29,8 +29,11 @@ local function codepoint(g)
     return (b1 - 0xE0) * 0x1000 + (b2 - 0x80) * 0x40 + (b3 - 0x80)
 end
 
-local NAMES = { "RESET", "SHELF_SIZE", "SHELVES", "THEME", "APPEARANCE",
-                "HARDCOVER", "SETTINGS", "UPDATES" }
+local NAMES = { "RESET", "SHELF_SIZE", "SHELVES", "THEME",
+                "HARDCOVER", "SETTINGS", "UPDATES",
+                -- A theme's parts: the Theme menu's rows and the Theme
+                -- library's cards (ornaments: bookshelf_ornaments' cup).
+                "WALLPAPER", "PLANK", "COLORS", "LIGHT", "DARK", "LIGHT_DARK" }
 
 -- Which top-level rows carry an icon, and which deliberately do not. Pinned in
 -- BOTH directions: the plain pair is a decision, not an omission waiting to be
@@ -42,7 +45,6 @@ local WANTS_ICON = {
     bookshelf_shelf_size = true,
     bookshelf_shelf_tabs = true,
     bookshelf_theme      = true,
-    bookshelf_background = true,
     bookshelf_hardcover  = true,
     bookshelf_settings   = true,
     bookshelf_updates    = true,
@@ -101,6 +103,36 @@ t.test("the right top-level entries carry one, and the right ones do not", funct
     assert(seen >= 7, "only " .. seen .. " entries checked; the order list shrank")
 end)
 
+t.test("the Theme menu's editing rows wear the icons the Theme library's cards show", function()
+    -- Maintainer, 2026-10-09 (variant B): a card's parts are these icons, so
+    -- the row that edits a part wears the same one.
+    eq(codepoint(Icons.WALLPAPER), 0xE9E8); eq(codepoint(Icons.PLANK), 0xEE27)
+    eq(codepoint(Icons.COLORS), 0xEAD7); eq(codepoint(Icons.LIGHT), 0xECA7)
+    eq(codepoint(Icons.DARK), 0xE7DA); eq(codepoint(Icons.LIGHT_DARK), 0xEC0D)
+    local settings = io.open("lib/bookshelf_settings.lua"):read("*a")
+    local function body(sig)
+        local b = settings:match("\nfunction Settings:" .. sig .. "(.-)\nend\n")
+        assert(b, sig .. " moved")
+        return b
+    end
+    assert(body("_plankRow%(markDirty%)"):find("MenuIcons.label(MenuIcons.PLANK,", 1, true),
+        "the Plank row lost the plank icon")
+    assert(body("_wallpaperRow%(%)"):find("MenuIcons.label(MenuIcons.WALLPAPER,", 1, true),
+        "the Wallpaper row lost the wallpaper icon")
+    local ld = body("_lightDarkRow%(%)")
+    for _i, k in ipairs({ "LIGHT", "DARK", "LIGHT_DARK" }) do
+        assert(ld:find("MenuIcons." .. k .. "%f[^%w_]"), "Light or dark lost its " .. k .. " icon")
+    end
+    local menu = io.open("lib/bookshelf_theme_menu.lua"):read("*a")
+    assert(menu:find('require("lib/bookshelf_menu_icons").COLORS, _("Colors"))', 1, true),
+        "the Colors row lost the colours icon")
+    -- Declared above the first row that uses it: a local declared below a
+    -- function is a nil global inside it.
+    local decl = settings:find("\nlocal MenuIcons%s*=")
+    local first = settings:find("MenuIcons.", 1, true)
+    assert(decl and first and decl < first, "MenuIcons is used above its declaration")
+end)
+
 t.test("the glyphs live in the table and nowhere else", function()
     -- The strongest form of "it never enters a msgid": the bytes exist in one
     -- file, and that file has no gettext call in it at all. A glyph copied
@@ -139,19 +171,21 @@ t.test("the bundled font actually has them", function()
     eq(out, "ok", "codepoints missing from the bundled symbols face: " .. out)
 end)
 
-t.test("the theme is a top-level row, just above Wallpaper, with the image glyph", function()
-    -- Maintainer, 2026-10-02: light or dark and the theme packs moved out of
-    -- "Wallpaper, ornaments and colors" to a row of their own above it.
+t.test("the theme is a top-level row, after Edit shelves, with the image glyph", function()
+    -- Maintainer, 2026-10-02: the theme got a row of its own; 2026-10-09: it
+    -- is the ONE theme menu, its editing rows included, so the palette
+    -- glyph of the old editing menu went with it.
     eq(codepoint(Icons.THEME), 0xF03E, "not U+F03E (image)")
+    eq(Icons.APPEARANCE, nil, "the old editing menu's glyph is back, with nothing to carry it")
     local order = main:match("Bookshelf%.MENU_ORDER = {(.-)\n}")
     local keys = {}
     for key in order:gmatch('"([%w_]+)"') do keys[#keys + 1] = key end
     local at
     for i, k in ipairs(keys) do if k == "bookshelf_theme" then at = i end end
     assert(at, "no bookshelf_theme in MENU_ORDER")
-    eq(keys[at + 1], "bookshelf_background", "the theme row is not just above Wallpaper")
+    eq(keys[at - 1], "bookshelf_shelf_tabs", "the theme row is not just after Edit shelves")
     local row = main:match("(menu_items%.bookshelf_theme = {.-\n    }\n)")
-    assert(row and row:find("S:_shelfThemeSubItems()", 1, true), "the row does not open the Shelf theme menu")
+    assert(row and row:find("ThemeMenu.items(S)", 1, true), "the row does not open the Theme menu")
     assert(row:find("MenuIcons.THEME", 1, true), "the row's glyph is not THEME")
 end)
 

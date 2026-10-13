@@ -264,6 +264,34 @@ eq(Feed.summaryText("A plain description with no headings."),
    "A plain description with no headings.", "summaryText passes plain text through")
 eq(Feed.summaryText(nil), nil, "summaryText tolerates nil")
 
+-- Calibre-Web (issue 490): its content block opens with a metadata header --
+-- RATING / TAGS / SERIES and custom columns, one "LABEL: value<br />" line
+-- each -- before the blurb's <p>. The header is not the description. Matched
+-- by structure, not by the English labels (calibre translates them).
+local cw = '<div xmlns="http://www.w3.org/1999/xhtml">\n      RATING: \226\152\133\226\152\133<br />\n'
+        .. '    TAGS: Fiction, Science Fiction<br />\n    SERIES: Dune [1.00]<br />\n'
+        .. '        <p><p>A desert planet.</p></p>\n    </div>'
+local cws = Feed.summaryText(cw)
+eq(cws ~= nil and cws:find("TAGS:", 1, true) == nil and cws:find("RATING:", 1, true) == nil
+   and cws:find("SERIES:", 1, true) == nil, true, "summaryText drops the Calibre-Web header (#490)")
+eq(cws ~= nil and cws:find("A desert planet.", 1, true) ~= nil, true, "summaryText keeps the Calibre-Web blurb")
+eq(Feed.summaryText('<div>\n TAGS: Fiction<br />\n</div>'), nil,
+   "a Calibre-Web entry with no blurb gives no description")
+eq(Feed.summaryText("First line<br />Second line: more"), "First line<br />Second line: more",
+   "prose with line breaks is not mistaken for a header")
+eq(Feed.mapEntries({ feed = { entry = { {
+        title = "Dune", author = { name = "Frank Herbert" }, content = cw,
+        link = { { rel = "http://opds-spec.org/acquisition", href = "/d/1.epub", type = "application/epub+zip" } },
+    } } } }, "http://h/opds", "k").records[1].opds.summary:find("TAGS:", 1, true), nil,
+   "a mapped Calibre-Web record's summary carries no header")
+-- Books saved before the fix: the stored description is cleaned as it is read.
+do
+    local r = io.open("lib/bookshelf_book_repository.lua"):read("*a")
+    local body = r:match("\nlocal function _opdsDownloadDescription%(filepath%)\n(.-)\nend\n")
+    eq(body ~= nil and body:find("summaryText(", 1, true) ~= nil, true,
+       "a stored OPDS description is not cleaned when read (books downloaded before the fix)")
+end
+
 -- edition collapse: two entries, same title+author, different acquisitions
 -- (Gutenberg's shape: a with-images and a no-images edition of one work)
 local cat_edition = { feed = { entry = { {

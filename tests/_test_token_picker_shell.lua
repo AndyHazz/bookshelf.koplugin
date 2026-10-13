@@ -38,7 +38,7 @@ local modal    = strip("lib/bookshelf_library_modal.lua")
 
 -- Just the body of _pickToken, so a require elsewhere in the file (the
 -- fallback's own requires, say) cannot answer for it.
-local pick = settings:match("function Settings:_pickToken%(dialog%)(.-)\nend\n")
+local pick = settings:match("function Settings:_pickToken%(dialog, filter%)(.-)\nend\n")
 assert(pick, "Settings:_pickToken is gone or was renamed")
 
 t.test("the token picker opens bookshelf's own shell", function()

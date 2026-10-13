@@ -21,8 +21,11 @@ local function label(store, setting, fallback)
                       pathFor = function(n) return "/w/" .. n end },
         require = function(m)
             if m == "lib/bookshelf_theme_pack" then
+                -- The editing seam: the reader's own keys (a Custom theme shelf).
                 return { isPackName = function(n) return type(n) == "string" and n:sub(1, 11) == "theme-pack\1" end,
-                         variantName = function(n) return n end }
+                         variantName = function(n) return n end,
+                         partRead = function(k) return store[k] end,
+                         partEdited = function() return false end }
             end
             return require(m)
         end,

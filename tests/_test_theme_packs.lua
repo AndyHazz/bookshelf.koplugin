@@ -1,6 +1,6 @@
 -- tests/_test_theme_packs.lua
 -- Theme packs: the theme/ subfolder of an ornament pack (wallpaper variants,
--- plank design, colours.json) and the "which pack is borrowed" state.
+-- plank design, colours.json), and themes as layers: choosing, migration.
 -- Run from the plugin root: lua tests/_test_theme_packs.lua
 package.path = "./?.lua;./?/init.lua;" .. package.path
 package.loaded["logger"] = { dbg = function() end, info = function() end,
@@ -71,6 +71,8 @@ local function setup()
         isOff = function(r) return off[r] == true end,
         setPackOff = function(p, v) packs_off[p] = v and true or nil end,
         setOff = function(r, v) off[r] = v and true or nil end,
+        list = function() return {} end,
+        listFor = function() return {} end,
     }
     package.loaded["lib/bookshelf_theme_pack"] = nil
     local TP = dofile("lib/bookshelf_theme_pack.lua")
@@ -156,63 +158,85 @@ t.test("bad colours.json: good entries apply, bad ones are skipped", function()
     eq(TP.theme("B").colours, nil, "unparseable file: no colour theme, no error")
 end)
 
+local function mkwall(d, p) touch(d .. "/" .. p .. "/theme/wallpaper.png") end
+local function mkplank(d, p, n) touch(d .. "/" .. p .. "/theme/plank." .. n .. ".middle.png") end
+local function mkcolours(d, p) touch(d .. "/" .. p .. "/theme/colours.json", '{"day":{"text":"#112233"},"night":{}}') end
+local function mkmanifest(d, p, body) touch(d .. "/" .. p .. "/theme/theme.json", body or "{}") end
 
-t.test("stale pack falls back and the setting is cleared", function()
-    local TP, d, settings = setup()
+t.test("a gone pack: its wallpaper names nothing, its colours are not shown", function()
+    local TP, d = setup()
     touch(d .. "/A/theme/wallpaper.png")
     touch(d .. "/A/theme/colours.json", '{"day": {"text": "#101010"}}')
-    TP.setColoursPack("A")
+    TP.setLibraryTheme("A")
     local name = TP.wallpaperEntries()[1].name
     os.execute("rm -rf '" .. d .. "/A'")
     TP.invalidate()
     eq(TP.variantName(name, false, false), nil, "a gone pack's wallpaper names nothing")
-    eq(TP.activeColoursPack(), nil); eq(TP.colourOverride("ink_color", false), nil)
-    eq(settings[TP.COLOURS_SETTING], nil)
+    eq(TP.coloursSource(), "mine"); eq(TP.colour("ink_color"), nil)
+    eq(TP.libraryChoice(), "A", "the library keeps the name, for when the pack comes back")
 end)
 
-t.test("colour override: day as written, night pre-inverted, plank never", function()
+t.test("a pack's colours: day as written, night pre-inverted, plank never", function()
     local TP, d = setup()
     touch(d .. "/A/theme/colours.json",
         '{"day": {"text": "#101010"}, "night": {"text": "#F0F0F0", "plank": "#806040"}}')
-    TP.setColoursPack("A")
-    eq(TP.colourOverride("ink_color", false).hex, "#101010")
-    eq(TP.colourOverride("ink_color", true).hex:upper(), "#0F0F0F", "night slot is stored pre-inverted")
-    eq(TP.colourOverride("spine_plank_color", true).hex, "#806040", "plank is display space")
-    eq(TP.colourOverride("badge_bg", false), nil, "a colour the pack does not set")
-    TP.setColoursPack(nil)
-    eq(TP.colourOverride("ink_color", false), nil)
+    TP.setLibraryTheme("A")
+    eq(TP.colour("ink_color").hex, "#101010")
+    eq(TP.colour("ink_color_night").hex:upper(), "#0F0F0F", "night slot is stored pre-inverted")
+    eq(TP.colour("spine_plank_color_night").hex, "#806040", "plank is display space")
+    eq(TP.colour("badge_bg"), nil, "a colour the pack does not set")
+    TP.setLibraryTheme("mine")
+    eq(TP.colour("ink_color"), nil)
 end)
 
+t.test("a theme's colours show whatever the collection's switch says", function()
+    local TP, d, _s, packs_off = setup()
+    touch(d .. "/A/theme/colours.json", '{"day": {"text": "#101010"}}')
+    TP.setLibraryTheme("A")
+    packs_off["A"] = true
+    eq(TP.colour("ink_color").hex, "#101010",
+        "a pack switched off in the collection hid a chosen theme's colours")
+end)
 
-
-
-t.test("every colour read consults the borrowed theme; the menu reads the reader's own", function()
+t.test("every colour reader asks the one resolver, TP.colour", function()
     local cp = io.open("lib/bookshelf_cover_progress.lua"):read("*a")
-    assert(cp:find("local function _readOwnColor", 1, true), "no _readOwnColor")
-    assert(cp:find("TP.colourOverride, base_key", 1, true), "_readModeColor does not ask the theme")
-    local raw = cp:match("function M%.rawColors%(%).-\nend")
-    assert(raw and not raw:find("_readModeColor(", 1, true), "rawColors must read the reader's OWN colours")
+    local _n, defs = cp:gsub("\nlocal function _readModeColor%(", "")
+    eq(defs, 1, "not one colour reader for the paint and the rows")
+    -- ONE resolver for the paint and the rows (TP.colour): Plain's
+    -- defaults, the theme's colours, an edit, the reader's own.
+    local pr = cp:match("local function _partRead%(key%)\n(.-)\nend\n")
+    assert(pr and pr:find("TP.colour(key)", 1, true), "the palette does not ask the one resolver")
+    local pb = cp:match("function M%.pickedBarColors%(%).-\nend")
+    assert(pb and pb:find('_partRead("progress_fill" .. suffix)', 1, true), "the bars do not ask the one resolver")
     local cb = io.open("lib/bookshelf_chip_bar.lua"):read("*a")
-    assert(cb:find("TP.colourOverride, base_key", 1, true), "selected chip colours ignore the theme")
+    local rb = cb:match("local function _readBarColor%(.-\nend\n")
+    assert(rb and rb:find("TP.colour(k)", 1, true), "selected chip colours do not ask the one resolver")
     local w = io.open("lib/bookshelf_widget.lua"):read("*a")
     local pg = w:match("function BookshelfWidget:_pageGroundColor%(%).-\nend")
-    assert(pg and pg:find("colourOverride(", 1, true), "page ground ignores the theme")
+    assert(pg and pg:find("TP.colour(Wallpaper.BG_SETTING .. suffix)", 1, true), "the page ground does not ask the one resolver")
+    local ps = w:match("function BookshelfWidget:_pageColourStored%(%).-\nend")
+    assert(ps and ps:find("TP.colour(Wallpaper.BG_SETTING .. suffix)", 1, true), "the ground state does not ask the one resolver")
+    for _i, f in ipairs({ "lib/bookshelf_cover_progress.lua", "lib/bookshelf_chip_bar.lua", "lib/bookshelf_widget.lua",
+                          "lib/bookshelf_theme_pack.lua" }) do
+        local src = io.open(f):read("*a"):gsub("%-%-[^\n]*", "")
+        assert(not src:find("colourOverride", 1, true) and not src:find("defaultColours", 1, true),
+            f .. " still has the old colour override path")
+    end
 end)
 
-t.test("borrowed colours cost no file checks per read within the scan TTL", function()
+t.test("theme colours cost no file checks per read within the scan TTL", function()
     local TP, d = setup()
     touch(d .. "/A/theme/colours.json", '{"day": {"text": "#101010"}}')
-    TP.setColoursPack("A")
+    TP.setLibraryTheme("A")
     TP.SCAN_TTL = 15; TP._clock = function() return 5 end
-    TP.colourOverride("ink_color", false)
+    TP.colour("ink_color")
     local stats = 0
     local real = TP._lfs.attributes
     TP._lfs.attributes = function(...) stats = stats + 1; return real(...) end
-    for _i = 1, 20 do TP.colourOverride("ink_color", false) end
+    for _i = 1, 20 do TP.colour("ink_color") end
     TP._lfs.attributes = real
     eq(stats, 0, "twenty colour reads, no stat calls")
 end)
-
 
 t.test("the browser: a tap redraws only itself; the shelf waits for close", function()
     local b = io.open("lib/bookshelf_ornament_browser.lua"):read("*a")
@@ -227,11 +251,7 @@ t.test("the browser: a tap redraws only itself; the shelf waits for close", func
     local closed = b:match("local function closed%(%).-\n    end")
     assert(closed and closed:find("endDeferred", 1, true) and closed:find("on_change", 1, true),
         "closing must flush and rebuild the shelf once")
-    -- Only Apply pack theme changed the wallpaper or plank from here, and it
-    -- moved to the Shelf theme menu: switching ornaments needs no full repaint.
     assert(not closed:find('setDirty("all", "full")', 1, true), "closing still flashes the whole screen")
-    -- The plank picker: each tap repaints the shelf behind (the band under
-    -- the last row included), and closing after a change repaints fully.
     local pb = io.open("lib/bookshelf_plank_browser.lua"):read("*a")
     local closed_pb = pb:match("on_closed = function%(%).-\n        end,")
     assert(closed_pb and closed_pb:find('setDirty("all", "full")', 1, true),
@@ -241,14 +261,20 @@ t.test("the browser: a tap redraws only itself; the shelf waits for close", func
     assert(row and row:find('UIManager:setDirty(bw, "ui")', 1, true), "a plank tap does not repaint the shelf behind")
 end)
 
+t.test("Swap on a themed shelf never switches the theme's pack on in the collection", function()
+    local b = io.open("lib/bookshelf_ornament_browser.lua"):read("*a")
+    local pick = b:match("function Browser:_pick%(item%)(.-)\nend\n")
+    assert(pick and pick:find("not self.opts.pool", 1, true),
+        "a pick on a themed shelf flips a pack switch of the reader's own collection")
+end)
 
-
-
-t.test("plankRowLabel: Oak, a pack plank with its pack, nil for the colour", function()
+t.test("plankRowLabel: the reader's own plank: Oak, a pack plank with its pack, nil for the colour", function()
     local TP, d = setup()
     TP._plugin_root = "."
     touch(d .. "/Planks/theme/plank.Walnut.middle.png")
+    mkmanifest(d, "H"); mkplank(d, "H", "Ash")
     TP.invalidate()
+    TP.setLibraryTheme("H")                    -- a theme's plank does not change the row
     TP.choosePlank("oak"); eq(TP.plankRowLabel(), "Oak")
     TP.choosePlank("Planks/theme/plank.Walnut"); eq(TP.plankRowLabel(), "Walnut (Planks pack)")
     TP.choosePlank("colour"); eq(TP.plankRowLabel(), nil)
@@ -300,7 +326,7 @@ t.test("choosePlank: a pack plank, Oak or the colour; a design choice switches d
     eq(settings[TP.WOOD_SETTING], nil, "plank_wood is folded into the one choice")
 end)
 
-t.test("a chosen plank's pack switched off falls back, and comes back when it is on", function()
+t.test("a chosen pack plank shows whatever the collection's switch says; gone, it falls back", function()
     local TP, d, _s, packs_off = setup()
     TP._plugin_root = "."
     touch(d .. "/Planks/theme/plank.Walnut.middle.png")
@@ -308,13 +334,12 @@ t.test("a chosen plank's pack switched off falls back, and comes back when it is
     TP.choosePlank("Planks/theme/plank.Walnut")
     packs_off["Planks"] = true
     TP.forgetChoice()
+    eq(TP.plankChoice(), "Planks/theme/plank.Walnut", "a pack switch hid the reader's plank")
+    os.execute("rm -rf '" .. d .. "/Planks'"); TP.invalidate()
     eq(TP.plankChoice(), "oak")
-    packs_off["Planks"] = nil
-    TP.forgetChoice()
-    eq(TP.plankChoice(), "Planks/theme/plank.Walnut")
 end)
 
-t.test("plankOptions: the colour, Oak, then each pack's planks by pack", function()
+t.test("plankOptions: the colour, Oak, then each pack's planks by pack, with no off state", function()
     local TP, d, _s, packs_off = setup()
     TP._plugin_root = "."
     touch(d .. "/Planks/theme/plank.Walnut.middle.png"); touch(d .. "/Planks/theme/plank.Ash.middle.png")
@@ -324,7 +349,7 @@ t.test("plankOptions: the colour, Oak, then each pack's planks by pack", functio
     local o = TP.plankOptions()
     eq(o[1].kind, "colour"); eq(o[2].kind, "oak")
     eq(o[3].pack, "Japan"); eq(o[4].plank.name, "Ash"); eq(o[5].plank.name, "Walnut")
-    eq(o[4].pack_off, true, "a pack that is off is still listed, marked")
+    eq(o[4].pack_off, nil, "the picker shows no pack switch")
 end)
 
 t.test("activePlank is cached for the scan TTL; a choice is seen at once", function()
@@ -343,31 +368,18 @@ t.test("activePlank is cached for the scan TTL; a choice is seen at once", funct
     now = now + 16; TP.activePlank(); eq(calls >= 2, true, "and it expires")
 end)
 
-t.test("a pack that is off lends no colour theme; switched on it does again", function()
-    local TP, d, _s, packs_off = setup()
-    touch(d .. "/Japan/theme/colours.json", '{"day":{"text":"#112233"},"night":{}}')
-    TP.invalidate()
-    TP.setColoursPack("Japan")
-    packs_off["Japan"] = true
-    eq(TP.activeColoursPack(), nil)
-    packs_off["Japan"] = nil
-    eq(TP.activeColoursPack(), "Japan")
-    eq(TP.colourThemes()[1], "Japan")
-end)
-
-
 -- ── A pack's wallpaper is an ordinary choice ──────────────────────────────
-t.test("pack wallpapers are listed as ordinary choices, off packs marked", function()
+t.test("pack wallpapers are listed as ordinary choices", function()
     local TP, d, _s, packs_off = setup()
     touch(d .. "/Japan/theme/wallpaper.png"); touch(d .. "/Autumn/Owl.png")
     packs_off["Japan"] = true
     local e = TP.wallpaperEntries()
-    eq(#e, 1); eq(e[1].pack, "Japan"); eq(e[1].pack_off, true)
+    eq(#e, 1); eq(e[1].pack, "Japan"); eq(e[1].pack_off, nil)
     eq(TP.isPackName(e[1].name), true); eq(TP.isPackName("leaves.png"), false)
     eq(e[1].path, d .. "/Japan/theme/wallpaper.png")
 end)
 
-t.test("a pack wallpaper name resolves to its view's variant, and to nothing when its pack is off", function()
+t.test("a pack wallpaper name resolves to its view's variant, whatever its pack switch says", function()
     local TP, d, _s, packs_off = setup()
     for _, f in ipairs({ "wallpaper.png", "wallpaper.full.png", "wallpaper.dark.png" }) do
         touch(d .. "/Xmas/theme/" .. f)
@@ -382,55 +394,46 @@ t.test("a pack wallpaper name resolves to its view's variant, and to nothing whe
     eq(TP.wallpaperPath("..\1wallpaper.png"), nil)
     eq(TP.wallpaperPath("Xmas\1missing.png"), nil)
     packs_off["Xmas"] = true
-    eq(TP.variantName(base, false, false), nil)
+    eq(TP.variantName(base, false, false), base, "a pack switch hid the reader's own wallpaper")
     eq(TP.variantName("my.png", false, false), "my.png", "a reader's own name passes through")
 end)
 
-t.test("choosing a pack wallpaper remembers the reader's own; choosing their own forgets it", function()
+t.test("shownWallpaper: full screen None stays None; unset follows the wallpaper's own view", function()
     local TP, d, settings = setup()
-    touch(d .. "/Japan/theme/wallpaper.png")
-    settings["wallpaper_default"] = "leaves.png"
-    local base = TP.wallpaperEntries()[1].name
-    TP.chooseWallpaper("wallpaper_default", base)
-    eq(settings["wallpaper_default"], base); eq(settings["wallpaper_default_own"], "leaves.png")
-    TP.chooseWallpaper("wallpaper_default", base)
-    eq(settings["wallpaper_default_own"], "leaves.png", "choosing it again keeps the own one")
-    TP.chooseWallpaper("wallpaper_default", "sky.png")
-    eq(settings["wallpaper_default"], "sky.png"); eq(settings["wallpaper_default_own"], nil)
+    touch(d .. "/Japan/theme/wallpaper.png"); touch(d .. "/Japan/theme/wallpaper.full.png")
+    TP.invalidate()
+    local jp = TP.wallpaperEntries()[1].name
+    settings.wallpaper_default = jp
+    eq(TP.shownWallpaper(true, false), TP.NAME_PREFIX .. "Japan\1wallpaper.full.png")
+    settings.wallpaper_full = false
+    eq(TP.shownWallpaper(true, false), nil)
+    settings.wallpaper_full = "sky.png"
+    eq(TP.shownWallpaper(true, false), "sky.png")
+    eq(TP.shownWallpaper(false, false), jp)
 end)
 
-t.test("migrate: a borrowed wallpaper becomes the default choice, once", function()
-    local TP, d, settings = setup()
-    touch(d .. "/Japan/theme/wallpaper.png")
-    settings["wallpaper_default"] = "leaves.png"
-    settings["theme_wallpaper_pack"] = "Japan"
-    TP.migrate()
-    eq(TP.isPackName(settings["wallpaper_default"]), true)
-    eq(settings["wallpaper_default_own"], "leaves.png")
-    eq(settings["theme_wallpaper_pack"], nil)
-    TP.migrate()
-    eq(settings["wallpaper_default_own"], "leaves.png", "a second run changes nothing")
-end)
-
-t.test("the shelf maps a pack wallpaper to its variant and falls back to the reader's own", function()
+t.test("the shelf maps a pack wallpaper to its variant", function()
     local w = io.open("lib/bookshelf_widget.lua"):read("*a")
     local b = w:match("function BookshelfWidget:_wallpaperName%(%)(.-)\nend\n")
-    -- The mapping and fallbacks themselves are pinned by the shownWallpaper tests.
     assert(b and b:find("TP.shownWallpaper(full,", 1, true), "the shelf does not ask shownWallpaper")
-    assert(not b:find("TP.wallpaperName(", 1, true), "the borrowed-wallpaper path is still there")
     assert(w:find("TP.isDarkName(", 1, true), "_wallpaperWidget does not skip the invert for a dark variant")
-    assert(w:find('bookshelf_theme_pack").migrate()', 1, true), "the old borrowed wallpaper is not migrated")
+    -- Migrated ONCE, at plugin init: the shelf is only ever made by the
+    -- plugin (Bookshelf:show), after its init, and a menu can open before
+    -- the shelf does.
+    assert(not w:find('bookshelf_theme_pack").migrate()', 1, true), "the shelf migrates a second time")
+    local main = io.open("main.lua"):read("*a")
+    local init = main:match("\nfunction Bookshelf:init%(%)(.-)\nend\n")
+    local at = init and init:find('bookshelf_theme_pack").migrate()', 1, true)
+    assert(at, "the plugin does not migrate at init")
+    eq(init:find('require("lib/bookshelf_theme_pack")', 1, true), at - #'require("lib/',
+        "the plugin's init reads the themes before migrating them")
+    local _n, calls = main:gsub('bookshelf_theme_pack"%)%.migrate%(%)', "")
+    eq(calls, 1, "main.lua migrates in more than one place")
     local wp = io.open("lib/bookshelf_wallpaper.lua"):read("*a")
     assert(wp:find("wallpaperPath(", 1, true), "pathFor does not resolve theme names")
 end)
 
-local function mkwall(d, p) touch(d .. "/" .. p .. "/theme/wallpaper.png") end
-local function mkplank(d, p, n) touch(d .. "/" .. p .. "/theme/plank." .. n .. ".middle.png") end
-local function mkcolours(d, p) touch(d .. "/" .. p .. "/theme/colours.json", '{"day":{"text":"#112233"},"night":{}}') end
-
 -- ── Theme packs: the manifest ─────────────────────────────────────────────
-local function mkmanifest(d, p, body) touch(d .. "/" .. p .. "/theme/theme.json", body or "{}") end
-
 t.test("theme.json is read: name, description, shelf and plank", function()
     local TP, d = setup()
     mkmanifest(d, "Halloween", '{"name":"Halloween night","description":"Bats.","shelf":"dark","plank":"Ash"}')
@@ -454,42 +457,63 @@ t.test("non-string fields are ignored", function()
     eq(m.name, nil); eq(m.shelf, nil); eq(m.plank, nil)
 end)
 
-t.test("an unreadable theme.json still makes a theme pack, by its folder name", function()
+t.test("an unreadable theme.json still makes a theme, by its folder name", function()
     local TP, d = setup()
     mkmanifest(d, "Broken", '{"name": ')
     TP.invalidate()
     local m = TP.theme("Broken").manifest
     assert(m, "a typo hid the pack")
     eq(m.name, nil)
-    local list = TP.themePacks()
+    local list = TP.allThemes()
     eq(#list, 1); eq(list[1].pack, "Broken"); eq(list[1].name, "Broken")
 end)
 
-t.test("a theme/ without theme.json is not a theme pack", function()
+t.test("a theme/ without theme.json or ornaments is a theme only when it has a wallpaper", function()
     local TP, d = setup()
-    mkplank(d, "Planks", "Walnut"); touch(d .. "/Planks/theme/wallpaper.png")
+    -- Planks alone: not a theme (maintainer, 2026-10-04).
+    mkplank(d, "Planks", "Walnut")
     TP.invalidate()
     eq(TP.theme("Planks").manifest, nil)
-    eq(#TP.themePacks(), 0)
+    eq(#TP.allThemes(), 0)
+    -- A wallpaper makes it one (maintainer, 2026-10-11).
+    touch(d .. "/Planks/theme/wallpaper.png")
+    TP.invalidate()
+    eq(#TP.allThemes(), 1)
+    eq(TP.allThemes()[1].pack, "Planks")
 end)
 
-t.test("themePacks lists theme packs by name, switched-off ones too", function()
+t.test("allThemes lists theme packs by name, switched-off ones too", function()
     local TP, d, _s, packs_off = setup()
-    mkmanifest(d, "zz", '{"name":"Autumn"}'); mkmanifest(d, "Ukiyo-e"); touch(d .. "/Plain/x.png")
+    mkmanifest(d, "zz", '{"name":"Autumn"}'); mkmanifest(d, "Ukiyo-e")
     packs_off["Ukiyo-e"] = true
     TP.invalidate()
-    local list = TP.themePacks()
+    local list = TP.allThemes()
     eq(#list, 2)
     eq(list[1].pack, "zz"); eq(list[1].name, "Autumn")
     eq(list[2].pack, "Ukiyo-e"); eq(list[2].name, "Ukiyo-e")
 end)
 
+t.test("allThemes and the choices read a scan the caller holds instead of scanning again", function()
+    -- The Theme library takes one ornament scan per open (listAll walks
+    -- every folder, ~28ms on a PW5) and hands it down.
+    local TP, d = setup()
+    mkmanifest(d, "Real")
+    TP.invalidate()
+    local n = 0
+    local list0 = TP._orn.listAll
+    TP._orn.listAll = function() n = n + 1; return list0() end
+    local scan = { all = { { pack = "Held", name = "Held/a.png" } }, packs = { "Held" } }
+    local list = TP.allThemes(scan)
+    eq(n, 0, "allThemes scanned though handed a scan")
+    eq(#list, 1); eq(list[1].pack, "Held")
+    local ch = TP.choiceList(nil, true, scan)
+    eq(ch[#ch].value, "Held", "choiceList did not pass the scan on")
+    eq(n, 0, "the choices scanned though handed a scan")
+    eq(TP.allThemes()[1].pack, "Real", "without a scan, allThemes no longer scans")
+    eq(n, 1)
+end)
+
 t.test("rescan drops the theme folders' cache, not the ornaments list's", function()
-    -- Review: Orn.invalidate made the next listAll re-read every ornament file
-    -- and gave Orn.list() a new identity, which threw away every page's saved
-    -- ornament layout; listAll already sees a pack folder come or go (its key
-    -- is the folders' mtimes and names), and a new theme.json is in the theme
-    -- cache this drops.
     local TP = setup()
     local n = 0
     TP._orn.invalidate = function() n = n + 1 end
@@ -497,114 +521,6 @@ t.test("rescan drops the theme folders' cache, not the ornaments list's", functi
     TP.rescan()
     eq(n, 0, "the ornaments list was rescanned in full")
     eq(next(TP._cache), nil, "the theme folders were not rescanned")
-end)
-
--- ── Choosing a theme pack ──────────────────────────────────────────────────
--- A theme pack with a wallpaper, colours and one plank, plus an ordinary pack.
-local function halloween(d, manifest)
-    mkmanifest(d, "Halloween", manifest or '{"shelf":"dark"}')
-    mkwall(d, "Halloween"); mkcolours(d, "Halloween"); mkplank(d, "Halloween", "Ash")
-    touch(d .. "/Autumn/owl.png")
-end
-
-t.test("choosing a theme sets what it has, its pack on and every other pack off", function()
-    local TP, d, settings, packs_off = setup()
-    TP._plugin_root = "."
-    halloween(d); TP.invalidate()
-    packs_off["Halloween"] = true
-    eq(TP.chooseTheme("Halloween"), true)
-    eq(packs_off["Halloween"], nil, "the theme's own pack is not on")
-    eq(packs_off["Autumn"], true, "another pack's ornaments stay on")
-    eq(settings.wallpaper_default, "theme-pack\1Halloween\1wallpaper.png")
-    eq(TP.activeColoursPack(), "Halloween")
-    eq(TP.plankChoice(), "Halloween/theme/plank.Ash")
-    eq(settings.shelf_theme, "dark")
-    eq(TP.currentTheme(), "Halloween")
-end)
-
-t.test("a pack without theme.json is not chosen, and nothing changes", function()
-    local TP, d, settings, packs_off = setup()
-    mkplank(d, "Planks", "Walnut"); touch(d .. "/Autumn/owl.png"); TP.invalidate()
-    eq(TP.chooseTheme("Planks"), false)
-    eq(next(settings), nil, "a setting was written"); eq(next(packs_off), nil, "a pack was switched")
-    eq(TP.currentTheme(), nil)
-end)
-
-t.test("a theme that does not say light or dark leaves the reader's", function()
-    local TP, d, settings = setup()
-    mkmanifest(d, "Ukiyo-e"); mkwall(d, "Ukiyo-e"); TP.invalidate()
-    settings.shelf_theme = "light"
-    TP.chooseTheme("Ukiyo-e")
-    eq(settings.shelf_theme, "light")
-end)
-
-t.test("No theme pack restores exactly: unset stays unset, packs as they were", function()
-    local TP, d, settings, packs_off = setup()
-    TP._plugin_root = "."
-    halloween(d); touch(d .. "/Cacti/c.png"); TP.invalidate()
-    packs_off["Autumn"] = true
-    TP.chooseTheme("Halloween")
-    eq(packs_off["Cacti"], true)
-    TP.clearTheme()
-    eq(settings.wallpaper_default, nil); eq(settings.shelf_theme, nil)
-    eq(TP.activeColoursPack(), nil); eq(TP.plankChoice(), "oak")
-    eq(packs_off["Autumn"], true, "a pack the reader had off came on")
-    eq(packs_off["Cacti"], nil, "a pack the reader had on stayed off")
-    eq(packs_off["Halloween"], nil)
-    eq(TP.currentTheme(), nil)
-end)
-
-t.test("theme over theme: what the second does not have is the reader's own again", function()
-    local TP, d, settings = setup()
-    TP._plugin_root = "."
-    mkmanifest(d, "Ukiyo-e"); mkwall(d, "Ukiyo-e"); mkplank(d, "Ukiyo-e", "Hinoki")
-    mkmanifest(d, "Halloween"); mkwall(d, "Halloween")
-    TP.invalidate()
-    settings.wallpaper_default = "leaves.png"
-    TP.choosePlank("colour")
-    TP.chooseTheme("Ukiyo-e")
-    eq(TP.plankChoice(), "Ukiyo-e/theme/plank.Hinoki")
-    TP.chooseTheme("Halloween")
-    eq(TP.plankChoice(), "colour", "the first theme's plank stayed")
-    eq(settings.wallpaper_default, "theme-pack\1Halloween\1wallpaper.png")
-    TP.clearTheme()
-    eq(settings.wallpaper_default, "leaves.png", "No theme pack did not go back to the reader's own")
-end)
-
-t.test("a part the reader changes is theirs, through No theme pack", function()
-    local TP, d, settings, packs_off = setup()
-    TP._plugin_root = "."
-    halloween(d); TP.invalidate()
-    settings.wallpaper_default = "leaves.png"
-    TP.chooseTheme("Halloween")
-    TP.chooseWallpaper("wallpaper_default", "sea.png")
-    packs_off["Autumn"] = nil                      -- switched back on in the collection
-    eq(TP.currentTheme(), "Halloween", "a tweak ended the theme")
-    TP.clearTheme()
-    eq(settings.wallpaper_default, "sea.png", "the reader's wallpaper was undone")
-    eq(packs_off["Autumn"], nil, "the reader's pack switch was undone")
-    eq(TP.activeColoursPack(), nil, "what the theme set and nobody changed did not go back")
-end)
-
-t.test("a tweak is what the next theme puts back", function()
-    local TP, d, settings = setup()
-    mkmanifest(d, "Ukiyo-e"); mkwall(d, "Ukiyo-e"); mkmanifest(d, "Halloween"); mkwall(d, "Halloween")
-    TP.invalidate()
-    settings.wallpaper_default = "leaves.png"
-    TP.chooseTheme("Ukiyo-e")
-    TP.chooseWallpaper("wallpaper_default", "sea.png")
-    TP.chooseTheme("Halloween")
-    TP.clearTheme()
-    eq(settings.wallpaper_default, "sea.png")
-end)
-
-t.test("choosing the current theme again keeps the reader's own as before", function()
-    local TP, d, settings = setup()
-    halloween(d); TP.invalidate()
-    settings.wallpaper_default = "leaves.png"
-    TP.chooseTheme("Halloween"); TP.chooseTheme("Halloween")
-    TP.clearTheme()
-    eq(settings.wallpaper_default, "leaves.png")
 end)
 
 t.test("the theme's plank: the manifest's by name, else the first by name", function()
@@ -618,158 +534,216 @@ t.test("the theme's plank: the manifest's by name, else the first by name", func
     eq(TP.themePlank("Nope"), nil)
 end)
 
-t.test("Plank designs go back off when the theme switched them on", function()
-    local TP, d = setup()
+-- ── Choosing a theme writes one key ───────────────────────────────────────
+local function halloween(d, manifest)
+    mkmanifest(d, "Halloween", manifest or '{"shelf":"dark"}')
+    mkwall(d, "Halloween"); mkcolours(d, "Halloween"); mkplank(d, "Halloween", "Ash")
+    touch(d .. "/Autumn/owl.png")
+end
+
+t.test("choosing a theme writes library_theme and nothing else; the reader's own comes back exactly", function()
+    local TP, d, settings, packs_off = setup()
     TP._plugin_root = "."
     halloween(d); TP.invalidate()
-    TP.setDesignsOn(false)
-    TP.chooseTheme("Halloween")
-    eq(TP.designsOn(), true)
-    TP.clearTheme()
-    eq(TP.designsOn(), false)
-end)
-
-t.test("a theme pack deleted while chosen: no theme, and the next one works", function()
-    local TP, d, settings = setup()
-    halloween(d); mkmanifest(d, "Ukiyo-e"); mkwall(d, "Ukiyo-e"); TP.invalidate()
-    settings.wallpaper_default = "leaves.png"
-    TP.chooseTheme("Halloween")
-    os.execute("rm -rf '" .. d .. "/Halloween'"); TP.invalidate()
-    eq(TP.currentTheme(), nil)
-    eq(TP.chooseTheme("Ukiyo-e"), true)
-    eq(TP.currentTheme(), "Ukiyo-e")
-end)
-
-t.test("choosing a switched-off theme pack switches it on", function()
-    local TP, d, _s, packs_off = setup()
-    halloween(d); TP.invalidate()
-    TP.chooseTheme("Halloween")
-    packs_off["Halloween"] = true                  -- switched off in the collection
-    eq(TP.currentTheme(), "Halloween", "the row no longer names the chosen theme")
-    TP.chooseTheme("Halloween")
-    eq(packs_off["Halloween"], nil)
-end)
-
-t.test("a record from the old Apply is read as the theme, and packs are left alone", function()
-    local TP, d, settings, packs_off = setup()
-    mkmanifest(d, "Ukiyo-e"); mkwall(d, "Ukiyo-e"); touch(d .. "/Autumn/o.png"); TP.invalidate()
-    local name = "theme-pack\1Ukiyo-e\1wallpaper.png"
-    settings.wallpaper_default = name
-    settings[TP.APPLIED_SETTING] = { pack = "Ukiyo-e", before = { wallpaper_default = "leaves.png" },
-                                     applied = { wallpaper_default = name, wallpaper_default_own = "\0nil" },
-                                     switched_on = { ["Ukiyo-e"] = true } }
-    packs_off["Autumn"] = true
-    eq(TP.currentTheme(), "Ukiyo-e")
-    TP.clearTheme()
-    eq(settings.wallpaper_default, "leaves.png")
-    eq(packs_off["Autumn"], true); eq(packs_off["Ukiyo-e"], nil)
-end)
-
-t.test("shownWallpaper: a full screen pack pick over Same as default falls back to the default", function()
-    local TP, d, settings, packs_off = setup()
-    touch(d .. "/Japan/theme/wallpaper.png"); touch(d .. "/Japan/theme/wallpaper.full.png")
-    TP.invalidate()
-    settings.wallpaper_default = "leaves.png"
-    local jp = TP.wallpaperEntries()[1].name
-    TP.chooseWallpaper("wallpaper_full", jp)
-    eq(TP.shownWallpaper(true, false), "theme-pack\1Japan\1wallpaper.full.png", "the pack's full variant")
-    eq(TP.shownWallpaper(false, false), "leaves.png", "the default view is untouched")
-    packs_off["Japan"] = true
-    eq(TP.shownWallpaper(true, false), "leaves.png", "pack off: the default, not nothing")
-end)
-
-t.test("shownWallpaper: a pack default switched off shows the reader's own, in both views", function()
-    local TP, d, settings, packs_off = setup()
-    touch(d .. "/Japan/theme/wallpaper.png")
-    TP.invalidate()
-    settings.wallpaper_default = "leaves.png"
-    TP.chooseWallpaper("wallpaper_default", TP.wallpaperEntries()[1].name)
-    packs_off["Japan"] = true
-    eq(TP.shownWallpaper(false, false), "leaves.png"); eq(TP.shownWallpaper(true, false), "leaves.png")
-    settings.wallpaper_full = false
-    eq(TP.shownWallpaper(true, false), nil, "full screen None stays None")
-end)
-
--- ── Review fixes (2026-10-02) ──────────────────────────────────────────────
-t.test("No theme pack restores every pack the reader did not touch, per pack", function()
-    -- Review probe B: one switch in the collection released the whole packs
-    -- group, and No theme pack left the theme's other offs behind.
-    local TP, d, _s, packs_off = setup()
-    halloween(d); touch(d .. "/Cacti/c.png"); TP.invalidate()
-    packs_off["Halloween"] = true                  -- off before the theme
-    TP.chooseTheme("Halloween")
-    packs_off["Autumn"] = nil                      -- the reader switches Autumn back on
-    TP.clearTheme()
-    eq(packs_off["Autumn"], nil, "the reader's switch was undone")
-    eq(packs_off["Cacti"], nil, "a pack the theme switched off stayed off")
-    eq(packs_off["Halloween"], true, "the theme's pack stayed on (it was off before)")
-end)
-
-t.test("a theme pack switched off and chosen again: No theme pack still gives back the reader's packs", function()
-    -- Review probe A: every pack ended up off.
-    local TP, d, _s, packs_off = setup()
-    halloween(d); touch(d .. "/Cacti/c.png"); TP.invalidate()
-    TP.chooseTheme("Halloween")
+    settings.wallpaper_default = "leaves.png"; settings.shelf_theme = "light"
     packs_off["Halloween"] = true
-    TP.chooseTheme("Halloween")
-    TP.clearTheme()
-    eq(packs_off["Autumn"], nil); eq(packs_off["Cacti"], nil)
+    local before = {}
+    for k, v in pairs(settings) do before[k] = v end
+    TP.setLibraryTheme("Halloween")
+    eq(settings.library_theme, "Halloween")
+    for k, v in pairs(settings) do
+        if k ~= "library_theme" then eq(v, before[k], "choosing a theme wrote " .. k) end
+    end
+    eq(packs_off["Halloween"], true, "choosing a theme flipped a pack switch")
+    eq(packs_off["Autumn"], nil, "choosing a theme flipped a pack switch")
+    eq(TP.shownWallpaper(false, false), "theme-pack\1Halloween\1wallpaper.png")
+    eq(TP.shelfLook(), "dark")
+    TP.setLibraryTheme("mine")
+    eq(settings.library_theme, nil)
+    eq(TP.shownWallpaper(false, false), "leaves.png"); eq(TP.shelfLook(), "light")
 end)
 
-t.test("an unrelated pack deleted while a theme is on does not release the others", function()
-    local TP, d, _s, packs_off = setup()
-    halloween(d); touch(d .. "/Cacti/c.png"); TP.invalidate()
-    TP.chooseTheme("Halloween")
-    os.execute("rm -rf '" .. d .. "/Cacti'"); TP.invalidate()
-    TP.clearTheme()
-    eq(packs_off["Autumn"], nil, "Autumn stayed off")
+-- ── Migration: 5.3 and rc/5.4 to themes as layers ─────────────────────────
+-- A record as 5.3.x's chooseTheme left it ("\0nil" is a saved nil).
+local NIL = "\0nil"
+local function applied53(settings, pack, before, applied, packs_before, packs_applied)
+    settings.theme_applied = { pack = pack, before = before, applied = applied,
+                               packs_before = packs_before, packs_applied = packs_applied }
+end
+
+t.test("migrate: an untouched 5.3 theme becomes the library theme; the reader's own comes back", function()
+    local TP, d, settings, packs_off = setup()
+    halloween(d); touch(d .. "/Cats/c.png"); TP.invalidate()
+    local wall = "theme-pack\1Halloween\1wallpaper.png"
+    -- On screen, as 5.3 left it: Halloween's parts in the reader's keys,
+    -- every other pack off.
+    settings.wallpaper_default = wall; settings.theme_colours_pack = "Halloween"
+    settings.theme_plank_pack = "Halloween/theme/plank.Ash"; settings.shelf_theme = "dark"
+    packs_off.Autumn = true; packs_off.Cats = true
+    applied53(settings, "Halloween",
+        { wallpaper_default = "leaves.png", wallpaper_default_own = NIL, theme_colours_pack = NIL,
+          theme_plank_pack = false, plank_wood = NIL, plank_designs_off = NIL, shelf_theme = "auto" },
+        { wallpaper_default = wall, wallpaper_default_own = "leaves.png", theme_colours_pack = "Halloween",
+          theme_plank_pack = "Halloween/theme/plank.Ash", plank_wood = NIL, plank_designs_off = NIL,
+          shelf_theme = "dark" },
+        { Cats = true }, { Autumn = true, Cats = true })
+    settings.wallpaper_default_own = "leaves.png"
+    TP.migrate()
+    eq(settings.library_theme, "Halloween")
+    eq(settings.wallpaper_default, "leaves.png"); eq(settings.shelf_theme, "auto")
+    eq(settings.theme_plank_pack, false); eq(settings.theme_colours_pack, nil)
+    eq(settings.theme_applied, nil); eq(settings.wallpaper_default_own, nil)
+    eq(packs_off.Autumn, nil, "the reader's collection was not put back")
+    eq(packs_off.Cats, true, "a pack off before the theme came back on")
+    -- The screen is unchanged: the library wears Halloween.
+    eq(TP.shownWallpaper(false, false), wall); eq(TP.shelfLook(), "dark")
+    eq(settings.theme_model, TP.MIGRATION_VERSION)
 end)
 
-t.test("Plank designs switched off while a theme is on stay off after No theme pack", function()
-    -- Review probe C: held() looked at the group's first setting only.
-    local TP, d = setup()
-    TP._plugin_root = "."
+t.test("migrate: a 5.3 theme with changes on top keeps what is on screen as the reader's own", function()
+    local TP, d, settings, packs_off = setup()
     halloween(d); TP.invalidate()
-    TP.chooseTheme("Halloween")
-    TP.setDesignsOn(false)
-    TP.clearTheme()
-    eq(TP.designsOn(), false, "the reader's switch was undone")
+    local wall = "theme-pack\1Halloween\1wallpaper.png"
+    settings.wallpaper_default = "green.png"                 -- changed after the theme
+    settings.shelf_theme = "dark"
+    packs_off.Autumn = true
+    applied53(settings, "Halloween",
+        { wallpaper_default = "leaves.png", wallpaper_default_own = NIL, shelf_theme = "auto" },
+        { wallpaper_default = wall, wallpaper_default_own = "leaves.png", shelf_theme = "dark" },
+        {}, { Autumn = true })
+    TP.migrate()
+    eq(settings.library_theme, nil, "the library still wears the theme the reader changed")
+    eq(settings.wallpaper_default, "green.png"); eq(settings.shelf_theme, "dark")
+    eq(packs_off.Autumn, true, "the collection on screen was changed")
+    eq(settings.theme_applied, nil)
 end)
 
-t.test("reading the current theme does not list the ornaments folder", function()
-    -- Review: every menu row's mark asked currentTheme, and each answer was a
-    -- full listAll (every root, every pack folder).
-    local TP, d = setup()
+t.test("migrate: a pack switch changed on top counts as a change", function()
+    local TP, d, settings, packs_off = setup()
     halloween(d); TP.invalidate()
-    TP.chooseTheme("Halloween")
-    local real, n = TP._orn.listAll, 0
-    TP._orn.listAll = function(...) n = n + 1; return real(...) end
-    for _i = 1, 5 do TP.currentTheme() end
-    TP._orn.listAll = real
-    eq(n, 0, "currentTheme listed the folder")
+    settings.shelf_theme = "dark"
+    applied53(settings, "Halloween", { shelf_theme = "auto" }, { shelf_theme = "dark" }, {}, { Autumn = true })
+    -- packs_off.Autumn is nil: the reader switched Autumn back on.
+    TP.migrate()
+    eq(settings.library_theme, nil); eq(settings.shelf_theme, "dark")
 end)
 
-t.test("choosing and clearing a theme write the settings once each", function()
-    -- Review: each setPackOff and each part was its own full flush.
-    local TP, d = setup()
-    halloween(d); touch(d .. "/Cacti/c.png"); touch(d .. "/Woods/w.png"); TP.invalidate()
-    local O, flushes = TP._orn, 0
-    local store = TP._store
+t.test("migrate: a record whose pack has gone is dropped, the settings as shown", function()
+    local TP, _d, settings = setup()
+    settings.shelf_theme = "dark"
+    applied53(settings, "Gone", { shelf_theme = "auto" }, { shelf_theme = "dark" }, {}, {})
+    TP.migrate()
+    eq(settings.library_theme, nil); eq(settings.shelf_theme, "dark"); eq(settings.theme_applied, nil)
+end)
+
+t.test("migrate: a leftover Color theme is written into the colour keys as it showed", function()
+    local TP, d, settings = setup()
+    touch(d .. "/Japan/theme/colours.json",
+        '{"day": {"text": "#101010", "plank": "#806040"}, "night": {"text": "#F0F0F0", "plank": "#403020"}}')
+    TP.invalidate()
+    settings.theme_colours_pack = "Japan"
+    settings.badge_bg = { grey = 10 }                         -- not in the pack: stays
+    TP.migrate()
+    eq(settings.theme_colours_pack, nil)
+    eq(settings.ink_color.hex, "#101010")
+    eq(settings.ink_color_night.hex:upper(), "#0F0F0F", "the night slot is stored pre-inverted")
+    eq(settings.spine_plank_color_night.hex, "#403020", "the plank stays as it displays")
+    eq(settings.badge_bg.grey, 10)
+end)
+
+t.test("migrate: a Color theme whose pack was off showed nothing, and writes nothing", function()
+    local TP, d, settings, packs_off = setup()
+    touch(d .. "/Japan/theme/colours.json", '{"day": {"text": "#101010"}}'); TP.invalidate()
+    settings.theme_colours_pack = "Japan"; packs_off.Japan = true
+    TP.migrate()
+    eq(settings.theme_colours_pack, nil); eq(settings.ink_color, nil)
+end)
+
+t.test("migrate: wallpaper _own comes back only where the pack's picture was not showing", function()
+    local TP, d, settings, packs_off = setup()
+    touch(d .. "/Japan/theme/wallpaper.png"); touch(d .. "/Xmas/theme/wallpaper.png"); TP.invalidate()
+    -- Showing: the pack's picture stays the reader's choice.
+    settings.wallpaper_default = "theme-pack\1Japan\1wallpaper.png"
+    settings.wallpaper_default_own = "leaves.png"
+    -- Not showing (pack off): the reader's own from before comes back.
+    settings.wallpaper_full = "theme-pack\1Xmas\1wallpaper.png"
+    settings.wallpaper_full_own = "sky.png"
+    packs_off.Xmas = true
+    TP.migrate()
+    eq(settings.wallpaper_default, "theme-pack\1Japan\1wallpaper.png")
+    eq(settings.wallpaper_full, "sky.png")
+    eq(settings.wallpaper_default_own, nil); eq(settings.wallpaper_full_own, nil)
+end)
+
+t.test("migrate: a pack wallpaper whose pack has gone, with nothing before it, is cleared", function()
+    local TP, _d, settings = setup()
+    settings.wallpaper_default = "theme-pack\1Gone\1wallpaper.png"
+    TP.migrate()
+    eq(settings.wallpaper_default, nil)
+end)
+
+t.test("migrate: the 5.3 betas' borrowed wallpaper becomes the reader's choice", function()
+    local TP, d, settings = setup()
+    touch(d .. "/Japan/theme/wallpaper.png")
+    settings.wallpaper_default = "leaves.png"
+    settings.theme_wallpaper_pack = "Japan"
+    TP.migrate()
+    eq(settings.wallpaper_default, "theme-pack\1Japan\1wallpaper.png")
+    eq(settings.theme_wallpaper_pack, nil)
+end)
+
+t.test("migrate runs once: the version guards it, and a second run changes nothing", function()
+    local TP, d, settings = setup()
+    halloween(d); TP.invalidate()
+    TP.migrate()
+    eq(settings.theme_model, TP.MIGRATION_VERSION)
+    settings.theme_colours_pack = "Halloween"                -- would be migrated if it ran
+    TP.migrate()
+    eq(settings.theme_colours_pack, "Halloween", "a second start migrated again")
+    eq(settings.ink_color, nil)
+end)
+
+t.test("migrate 3: a reader at Transparent shading keeps the bar left out, as they saw it", function()
+    local TP, d, settings = setup()
+    settings.wallpaper_chrome_scrim = 0
+    TP.migrate()
+    eq(settings.chip_bar_transparent, true, "Transparent shading's reader got the bar back on upgrade")
+    local TP2, d2, settings2 = setup()
+    settings2.wallpaper_chrome_scrim = 0.85
+    TP2.migrate()
+    eq(settings2.chip_bar_transparent, nil, "shaded panels left the bar out")
+    local TP3, d3, settings3 = setup()
+    settings3.wallpaper_chrome_scrim = 0; settings3.chip_bar_transparent = false
+    TP3.migrate()
+    eq(settings3.chip_bar_transparent, false, "a reader's own choice for the bar was overridden")
+end)
+
+t.test("migrate is one flush, however much it moves", function()
+    local TP, d, settings, packs_off = setup()
+    halloween(d); touch(d .. "/Cats/c.png"); TP.invalidate()
+    settings.shelf_theme = "dark"; packs_off.Autumn = true; packs_off.Cats = true
+    applied53(settings, "Halloween", { shelf_theme = "auto" }, { shelf_theme = "dark" },
+        {}, { Autumn = true, Cats = true })
+    local O, flushes, store = TP._orn, 0, TP._store
     store.saveDeferred = store.save
     store.flush = function() flushes = flushes + 1 end
     O._defer = false
     O.beginDeferred = function() O._defer = true end
     O.endDeferred = function() O._defer = false; store.flush() end
-    TP.chooseTheme("Halloween")
-    eq(flushes, 1, "choosing flushed more than once")
+    TP.migrate()
+    eq(settings.library_theme, "Halloween")
+    -- The deferred batch, then the version key's own save.
+    eq(flushes, 2, "the migration flushed per setting")
     eq(O._defer, false, "left deferred")
-    flushes = 0
-    TP.clearTheme()
-    eq(flushes, 1, "clearing flushed more than once")
-    -- Already deferred (the collection open): no flush of its own.
-    O._defer = true; flushes = 0
-    TP.chooseTheme("Halloween")
-    eq(flushes, 0); eq(O._defer, true, "it ended someone else's deferral")
+end)
+
+t.test("migrate: a record for a pack folder named like a built-in is dropped, settings as shown", function()
+    local TP, d, settings = setup()
+    mkmanifest(d, "Plain"); mkwall(d, "Plain"); TP.invalidate()
+    settings.shelf_theme = "dark"
+    applied53(settings, "Plain", { shelf_theme = "auto" }, { shelf_theme = "dark" }, {}, {})
+    TP.migrate()
+    eq(settings.library_theme, nil); eq(settings.shelf_theme, "dark"); eq(settings.theme_applied, nil)
 end)
 
 t.done()

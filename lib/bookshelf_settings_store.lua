@@ -232,6 +232,11 @@ local _generation = 0
 
 function Store.generation() return _generation end
 
+-- bump(): a new generation with nothing written. For a change that lives in
+-- memory only (the shelf on screen wears another theme), so every cache keyed
+-- on the generation is rebuilt without a settings write.
+function Store.bump() _generation = _generation + 1 end
+
 function Store.read(key, default)
     local sub = subStoreFor(key)
     if sub then _open(); return sub.read(key, default) end

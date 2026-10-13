@@ -20,6 +20,7 @@ local function tr(s) if i18n and i18n.gettext then return i18n.gettext(s) end; r
 -- Shared wall-clock for [bookshelf perf] timestamps (and elapsed-time
 -- bookkeeping); see lib/bookshelf_gettime.lua for the fallback contract.
 local _gettime = require("lib/bookshelf_gettime")
+local HomeDir = require("lib/bookshelf_home_dir")
 
 -- ─── Module-local helpers ────────────────────────────────────────────────────
 
@@ -636,6 +637,69 @@ local function _bimGetBookInfo(bim, filepath, want_cover, what)
     return nil, res
 end
 
+-- ─── Covers supplied by a getBookInfo wrapper (issue 500) ───────────────────
+-- A user patch can wrap BIM:getBookInfo and hand back a cover the database
+-- does not have -- 2-fallbackcover.lua draws one for every book without an
+-- embedded cover, but only when the caller asks with get_cover=true. Most of
+-- our record builds ask with get_cover=false (the cover is already in the
+-- scaled cover cache, or comes from the batched rows), so they saw the
+-- database's "no cover", SpineWidget drew the placeholder, and a fallback
+-- cover only survived until its first draw had cached it.
+--
+-- So a book whose row is complete and coverless gets ONE get_cover=true read
+-- per session to ask the wrapper, remembered per file. Only when getBookInfo
+-- really is wrapped: an unpatched BIM pays nothing, and a library whose
+-- books all have covers pays nothing either.
+local _hook_cover_memo = {}
+local _hook_fn, _hook_fn_wrapped
+-- Set when a coverless book was built while getBookInfo was NOT wrapped. The
+-- fallback patch wraps it on KOReader's first UI tick, after our startup
+-- build, so the first screen after a launch would otherwise keep its
+-- placeholders until something rebuilt it. See Repo.coverHookArrived.
+local _hook_missed = false
+local function _getBookInfoIsWrapped(bim)
+    local fn = bim.getBookInfo
+    if fn ~= _hook_fn then
+        _hook_fn = fn
+        local ok, di = pcall(debug.getinfo, fn, "S")
+        local src = ok and di and di.source or ""
+        _hook_fn_wrapped = not src:find("bookinfomanager%.lua$")
+    end
+    return _hook_fn_wrapped
+end
+
+local function _hookedCoverFor(bim, filepath, info)
+    -- The fallback patch's own preconditions, so a "no" is final for the
+    -- session: anything that could change it changes these fields too.
+    if info.has_meta ~= "Y" or info.cover_fetched ~= "Y" or info.ignore_cover then
+        return false
+    end
+    if not _getBookInfoIsWrapped(bim) then
+        _hook_missed = true
+        return false
+    end
+    local memo = _hook_cover_memo[filepath]
+    if memo ~= nil then return memo end
+    local probe = _bimGetBookInfo(bim, filepath, true, "getBookInfo (cover hook probe)")
+    local yes = (probe and probe.has_cover == "Y" and probe.cover_bb ~= nil
+                 and not probe.ignore_cover) and true or false
+    -- Ours to free: the wrapper (or BIM) allocated it for this call alone.
+    if probe and probe.cover_bb then pcall(function() probe.cover_bb:free() end) end
+    _hook_cover_memo[filepath] = yes
+    return yes
+end
+
+-- Repo.coverHookArrived() -> true ONCE when coverless books were built before
+-- getBookInfo was wrapped and it is wrapped now: the caller should rebuild so
+-- they ask the wrapper. A function-identity compare when nothing is pending.
+function Repo.coverHookArrived()
+    if not _hook_missed then return false end
+    local bim = getBookInfoMgr()
+    if not (bim and _getBookInfoIsWrapped(bim)) then return false end
+    _hook_missed = false
+    return true
+end
+
 local _hardcover_cache
 local function getHardcover()
     if _hardcover_cache ~= nil then
@@ -666,6 +730,18 @@ end
 -- type() rather than truthiness because a require that FAILED leaves a sentinel
 -- number in package.loaded under LuaJIT, not nil -- the same trap as
 -- bookshelf_sort_engine's i18n guard.
+-- _isRemotePath(fp): not a file on the device -- an OPDS entry, or a record of
+-- a registered source that declared a remote_prefix (lib/bookshelf_sources).
+-- The OPDS prefix is tested first and inline, so the common case never leaves
+-- this function; the registry is only consulted once it has been loaded, which
+-- is also the only way a remote source can exist.
+local function _isRemotePath(fp)
+    if type(fp) ~= "string" then return false end
+    if fp:find("^OPDS://") then return true end
+    local Sources = package.loaded["lib/bookshelf_sources"]
+    return type(Sources) == "table" and Sources.isRemotePath(fp) or false
+end
+
 local function getKindleSource()
     local mod = package.loaded["lib/bookshelf_kindle_source"]
     return type(mod) == "table" and mod or nil
@@ -774,17 +850,16 @@ local function _hydrationStop(offset, limit, total, default_limit, who, light_on
     return math.min(offset + want, total)
 end
 
--- Resolve the user's library root from G_reader_settings. Returns the
--- configured home_dir, or nil when it is unset / empty. "/" is allowed:
+-- Resolve the user's library root. Returns the configured home_dir, else
+-- the device's own library folder as KOReader uses it (HomeDir.get), or nil
+-- when there is neither (desktop with no home set). "/" is allowed:
 -- some users (rooted devices, manual layouts) legitimately point home_dir
 -- at filesystem root. The pseudo-filesystem denylist below keeps walks
 -- under "/" off /proc and /sys so the legitimate case doesn't OOM-kill
 -- KOReader. Walk-based callers must still treat nil as "no library
 -- configured" and short-circuit to an empty result.
 local function _resolveLibraryRoot()
-    local home = G_reader_settings:readSetting("home_dir")
-    if not home or home == "" then return nil end
-    return home
+    return HomeDir.get()
 end
 
 -- Path-join that doesn't emit "//child" when parent is filesystem root.
@@ -970,6 +1045,12 @@ local function _opdsDownloadDescription(filepath)
     local map = BookshelfSettings.read(_opds_desc_key)
     if type(map) ~= "table" then return nil end
     local v = map[filepath]
+    -- Cleaned as it is read, so a book saved before the Calibre-Web header
+    -- was dropped at download (issue 490) loses it too.
+    if type(v) == "string" then
+        local ok_f, Feed = pcall(require, "lib/bookshelf_opds_feed")
+        if ok_f and Feed and Feed.summaryText then v = Feed.summaryText(v) end
+    end
     return (type(v) == "string" and v ~= "") and v or nil
 end
 
@@ -1041,7 +1122,7 @@ function Repo.buildBookMeta(filepath, opts)
     -- to whatever record they already hold (see BookshelfWidget:_hydrateBook
     -- and the "or <original record>" idiom at every buildBook/buildBookMeta
     -- call site).
-    if type(filepath) == "string" and filepath:find("^OPDS://") then
+    if _isRemotePath(filepath) then
         return nil
     end
     local want_cover = not opts or opts.want_cover ~= false
@@ -1137,6 +1218,12 @@ function Repo.buildBookMeta(filepath, opts)
         end
         return cached
     end
+    -- A cover only a getBookInfo wrapper knows about (issue 500): see
+    -- _hookedCoverFor. A want_cover read already went through the wrapper.
+    local has_cover = info.has_cover
+    if has_cover ~= "Y" and not want_cover and _hookedCoverFor(bim, filepath, info) then
+        has_cover = "Y"
+    end
     -- Calibre is the PRIMARY source for textual metadata when a
     -- metadata.calibre file is available — it already has clean,
     -- user-curated title / authors / series / tags / description that
@@ -1209,7 +1296,7 @@ function Repo.buildBookMeta(filepath, opts)
         series_num  = series_num,
         -- BIM-only: covers and page count are not in metadata.calibre.
         cover_bb    = info.cover_bb,
-        has_cover   = info.has_cover and not info.ignore_cover,
+        has_cover   = has_cover and not info.ignore_cover,
         -- Original (pre-thumbnail) cover dimensions BIM records as "WxH",
         -- e.g. "1072x1448". Used by the Hardcover enricher to decide whether
         -- the embedded cover is lower resolution than Hardcover's.
@@ -1294,7 +1381,7 @@ function Repo.getCoverBB(filepath)
     -- rebuild for a row that cannot exist. Same guard buildBookMeta carries.
     -- nil is the answer every caller already handles (_renderFallback / a
     -- failed-count bump in the prewarm loop).
-    if type(filepath) == "string" and filepath:find("^OPDS://") then return nil end
+    if _isRemotePath(filepath) then return nil end
     local bim = getBookInfoMgr()
     if not bim then return nil end
     local info = _bimGetBookInfo(bim, filepath, true, "getBookInfo (cover only)")
@@ -2031,6 +2118,21 @@ local _folder_cover_cache_order = {}  -- insertion order backing the SHAPE_CACHE
 PROGRESS_CACHE_TTL = 120  -- seconds
 _progress_cache    = {}   -- filepath → { pct, status, expires_at }
 
+-- Repo.dataGeneration() -> a number that changes whenever something a book's
+-- fields read as may have changed under a cache that is not this file's own:
+-- a progress / status / metadata edit (invalidateProgressCache), a library
+-- refresh (invalidateWalkCache), a metadata-source toggle (invalidateLightMeta)
+-- and a closed book's statistics (invalidateStatsCache).
+--
+-- For the cover labels (lib/bookshelf_cover_label.lua), which keep each book's
+-- expanded text between rebuilds and must not outlive the data it was expanded
+-- from. A counter rather than a hook list: the consumer compares one number,
+-- and a bump that over-invalidates (one book closed, every label re-expanded)
+-- costs one expansion per visible cover, once.
+local _data_generation = 0
+function Repo.dataGeneration() return _data_generation end
+local function _bumpDataGeneration() _data_generation = _data_generation + 1 end
+
 -- Forward declarations so invalidateWalkCache below resolves these to the
 -- module-local tables created later (Repo.folderHasBooks's memo at
 -- ~line 1206 and _normalizeGenre's memo at ~line 1994). Without these
@@ -2226,6 +2328,7 @@ function Repo.invalidateCalibreCache()
 end
 
 function Repo.invalidateWalkCache()
+    _bumpDataGeneration()
     Repo.invalidateCalibreCache()
     _finished_count.value = nil
     _dropFinishedCount()
@@ -2251,6 +2354,7 @@ function Repo.invalidateWalkCache()
     -- this repository has, so clear them here rather than let them grow
     -- for the life of the process.
     _meta_record_cache = {}
+    _hook_cover_memo   = {}
     -- Sidecar dirs may have appeared/vanished (sideload, new books), so the
     -- custom-metadata fast gate must re-list on the next derive.
     _invalidateCustomMetaGate()
@@ -2421,6 +2525,7 @@ local function _resetLightMetaProgress(rec)
 end
 
 function Repo.invalidateProgressCache(filepath)
+    _bumpDataGeneration()
     -- The Pages sort remembers the counts it looked up.
     if SortEngine.clearPageCountMemo then SortEngine.clearPageCountMemo() end
     -- A status change is exactly what makes the stored finished count wrong.
@@ -2433,19 +2538,15 @@ function Repo.invalidateProgressCache(filepath)
     -- Confirmed on a PW5: three books marked finished, identical sidecars, one
     -- tick on screen; all three appeared after a restart forced a fresh read.
     --
-    -- package.loaded rather than require: a source that was never used has no
-    -- cache to drop, and a non-Kindle device should not load the module to
-    -- find that out. isKindlePath answers from the existing cache only and
-    -- never builds one, so this cannot turn an invalidation into a catalogue
-    -- scan. Kobo needs none of this -- it holds no cache.
-    local KindleSource = package.loaded["lib/bookshelf_kindle_source"]
-    if type(KindleSource) == "table" and KindleSource.invalidate then
-        local mine = (filepath == nil)
-        if not mine and KindleSource.isKindlePath then
-            local ok, hit = pcall(KindleSource.isKindlePath, filepath)
-            mine = ok and hit or false
-        end
-        if mine then pcall(KindleSource.invalidate) end
+    -- Every registered source hears about it (lib/bookshelf_sources); the
+    -- Kindle one drops its catalogue cache when the file is one of its books.
+    -- package.loaded rather than require: with the registry never loaded, no
+    -- source has listed anything, so there is no cache to drop. The Kindle
+    -- spec answers from its existing cache only, so an invalidation never
+    -- turns into a catalogue scan.
+    local Sources = package.loaded["lib/bookshelf_sources"]
+    if type(Sources) == "table" and Sources.invalidate then
+        pcall(Sources.invalidate, filepath)
     end
     if filepath then
         _progress_cache[filepath] = nil
@@ -2508,6 +2609,7 @@ end
 -- title/author/series/genres -- must force a rebuild or the chips stay stale.
 -- The walk cache (file list) is untouched; only the per-file metadata refetches.
 function Repo.invalidateLightMeta()
+    _bumpDataGeneration()
     _light_meta_cache = {}
     -- Re-read sidecar directories on the next derive so a freshly-written
     -- custom_metadata.lua (e.g. a genre edit) is seen by the fast gate.
@@ -3104,9 +3206,9 @@ end
 -- only a backstop for a status changed behind our back (a sync from another
 -- device), which the old 60s in-memory TTL used to catch.
 -- Assigned further down, next to search, which shares this gate.
-local _kindleLibraryEnabled
+local _librarySourceBooks
 
--- _kindleStatusCounts(): status tally over the Kindle catalogue, plus the
+-- _librarySourceStatusCounts(): status tally over the Kindle catalogue, plus the
 -- number of books it holds. nil when there is no Kindle chip or the catalogue
 -- is unreadable, so a library without one is left exactly as it was.
 --
@@ -3114,12 +3216,9 @@ local _kindleLibraryEnabled
 -- disk walk nor a network call. Kindle books cannot collide with walked ones --
 -- a .kfx is not in SUPPORTED_EXT and they live outside home_dir -- so these
 -- tallies are additive, the same assumption searchBooks makes.
-local function _kindleStatusCounts()
-    if not _kindleLibraryEnabled() then return nil end
-    local ok, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
-    if not (ok and KindleSource and KindleSource.listBooks) then return nil end
-    local ok_list, books = pcall(KindleSource.listBooks)
-    if not (ok_list and type(books) == "table") then return nil end
+local function _librarySourceStatusCounts()
+    local books = _librarySourceBooks()
+    if not books then return nil end
     local counts = { unread = 0, reading = 0, on_hold = 0, finished = 0 }
     for _i, b in ipairs(books) do
         -- Both spellings, as countFinishedBooks does: normalisation lives
@@ -3181,7 +3280,7 @@ local function _finishedCountWalked()
         _finished_count.expires_at = now + 60
         return stored
     end
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local n = 0
     for _i, c in ipairs(cachedWalk(home, depth) or {}) do
@@ -3206,7 +3305,7 @@ end
 -- per call is free: it is a tally over an in-memory catalogue.
 function Repo.countFinishedBooks()
     local n = _finishedCountWalked()
-    local k = _kindleStatusCounts()
+    local k = _librarySourceStatusCounts()
     if k then n = n + k.finished end
     return n
 end
@@ -3234,7 +3333,8 @@ local function _loadBatchBookInfoFromBim()
     -- buildBookMeta). Still no cover_* blob columns: their inline pages are
     -- what makes the per-book SELECT expensive in the first place.
     local sql = "SELECT directory, filename, title, authors, series, series_index, keywords, language, " ..
-                "pages, description, has_meta, has_cover, ignore_cover, ignore_meta, cover_sizetag " ..
+                "pages, description, has_meta, has_cover, ignore_cover, ignore_meta, cover_sizetag, " ..
+                "cover_fetched " ..
                 "FROM bookinfo WHERE in_progress=0;"
     local rows
     local ok, err = pcall(function() rows = conn:exec(sql) end)
@@ -3272,6 +3372,11 @@ local function _loadBatchBookInfoFromBim()
             ignore_cover = col(13, i),
             ignore_meta  = col(14, i),
             cover_sizetag = col(15, i),
+            -- Absent from rows a snapshot saved before it was selected (same
+            -- format version on purpose: a bump re-reads the whole table on the
+            -- launch path for everyone). nil reads as "not fetched", which only
+            -- skips the cover-hook probe, the behaviour before it existed.
+            cover_fetched = col(16, i),
         }
     end
     return map
@@ -3549,7 +3654,7 @@ end
 -- metadata edits clear the whole cache (invalidateLightMeta).
 _batchInfoFor = function(fp)
     if type(fp) ~= "string" then return nil end
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local key   = (home or "/") .. ":" .. tostring(depth or 0)
     local entry = _light_meta_cache[key]
@@ -3578,7 +3683,7 @@ end
 -- it, never mutate it (see _resetLightMetaProgress for why).
 function Repo.lightMetaFor(filepath)
     if type(filepath) ~= "string" then return nil end
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local cache = _getLightMetaCache(home, depth)
     return cache and cache[filepath] or nil
@@ -3589,7 +3694,7 @@ end
 -- bookshelf_latest_walk_depth setting). For bulk operations that need only
 -- paths, not per-book metadata. Returns a shallow copy (safe to mutate).
 function Repo.getAllFilepaths()
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     -- cachedWalk yields candidate RECORDS ({ fp = "...", mtime = ... }), not
     -- bare paths (getLatest reads candidates[i].fp) -- pull the path strings.
@@ -3604,7 +3709,8 @@ function Repo.getAllFilepaths()
     return paths
 end
 
---- Filepaths of the Kindle catalogue, or {} where there is no Kindle library.
+--- Filepaths of every registered source whose books count as library books
+--- (the Kindle catalogue today), or {} where there is none.
 ---
 --- getAllFilepaths is the filesystem WALK, and a .kfx is neither in
 --- SUPPORTED_EXT nor under home_dir, so Kindle books are absent from it. A
@@ -3614,16 +3720,17 @@ end
 --- rather than folded into getAllFilepaths.
 ---
 --- Catalogue cache only: no disk walk, no network.
-function Repo.kindleFilepaths()
-    local ok, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
-    if not (ok and KindleSource and KindleSource.isAvailable
-            and KindleSource.isAvailable()) then return {} end
-    local ok_list, books = pcall(KindleSource.listBooks)
-    if not (ok_list and type(books) == "table") then return {} end
+function Repo.librarySourceFilepaths()
+    local Sources = require("lib/bookshelf_sources")
     local out = {}
-    for _i, b in ipairs(books) do
-        if type(b) == "table" and type(b.filepath) == "string" and b.filepath ~= "" then
-            out[#out + 1] = b.filepath
+    for _i, id in ipairs(Sources.ids()) do
+        local spec = Sources.get(id)
+        if spec.library then
+            for _j, b in ipairs(Sources.list(id) or {}) do
+                if type(b.filepath) == "string" and b.filepath ~= "" then
+                    out[#out + 1] = b.filepath
+                end
+            end
         end
     end
     return out
@@ -3631,7 +3738,7 @@ end
 
 function Repo.getLatest(limit, offset, opts)
     local _t0 = _gettime()
-    local home       = G_reader_settings:readSetting("home_dir") or "/"
+    local home       = HomeDir.get() or "/"
     local depth      = BookshelfSettings.read("latest_walk_depth") or 3
     local candidates = cachedWalk(home, depth)
     -- "latest" chip is mtime-only by design (_SORT_VALID restricts it).
@@ -3921,7 +4028,7 @@ function Repo.getFolderBookPaths(path)
         for i = 1, #cached.paths do out[i] = cached.paths[i] end
         return out
     end
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local cands = cachedWalk(home, depth)
     -- Prefix match: a book at `<path>/...` is "under" path. Append "/"
@@ -4091,7 +4198,7 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
     local function _coverLightCache()
         if not _cover_light_asked then
             _cover_light_asked = true
-            local home_cl  = G_reader_settings:readSetting("home_dir") or "/"
+            local home_cl  = HomeDir.get() or "/"
             local depth_cl = BookshelfSettings.read("latest_walk_depth") or 3
             local ok_cl, map = pcall(_getLightMetaCache, home_cl, depth_cl)
             _cover_light = ok_cl and map or nil
@@ -4143,7 +4250,7 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
         -- every item outside the current page. When filter is active,
         -- collapse the shape list to filter-passing entries first so
         -- the slice maths against the visible total.
-        local home_lc  = G_reader_settings:readSetting("home_dir") or "/"
+        local home_lc  = HomeDir.get() or "/"
         local depth_lc = BookshelfSettings.read("latest_walk_depth") or 3
         local hit_light_cache = Filter.isActive(filter) and _getLightMetaCache(home_lc, depth_lc) or nil
         local shapes_for_slice, total = _filterAllShapes(entry.shapes, filter, hit_light_cache)
@@ -4287,7 +4394,7 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
         -- the cached range come back as O(1) lookups. Falls back to the
         -- per-book getBookInfo path for entries outside the cache (e.g.
         -- a folder drilldown into a path beyond bookshelf_latest_walk_depth).
-        local home_dir = G_reader_settings:readSetting("home_dir") or "/"
+        local home_dir = HomeDir.get() or "/"
         local depth    = BookshelfSettings.read("latest_walk_depth") or 3
         local light_cache = _getLightMetaCache(home_dir, depth)
         local _pf_t_cache = _gettime and _gettime() or 0
@@ -4458,7 +4565,7 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
                 folder_by_fp[e.fp] = e
             end
         end
-        local home  = G_reader_settings:readSetting("home_dir") or "/"
+        local home  = HomeDir.get() or "/"
         local depth = BookshelfSettings.read("latest_walk_depth") or 3
         local cands = cachedWalk(home, depth)
         for i = 1, #cands do
@@ -4543,7 +4650,7 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
                { shapes = shapes, expires_at = now + WALK_CACHE_TTL })
     -- Hydrate the requested page slice exactly as the HIT path does.
     -- Filter-aware: collapse to visible shapes first when active.
-    local miss_lc_home  = G_reader_settings:readSetting("home_dir") or "/"
+    local miss_lc_home  = HomeDir.get() or "/"
     local miss_lc_depth = BookshelfSettings.read("latest_walk_depth") or 3
     local miss_light_cache = Filter.isActive(filter) and _getLightMetaCache(miss_lc_home, miss_lc_depth) or nil
     local shapes_for_slice, total = _filterAllShapes(shapes, filter, miss_light_cache)
@@ -4625,7 +4732,7 @@ function Repo.getFavorites(limit, offset, opts)
         -- is disabled (issue #49) records come back nil and every title
         -- falls back to the filename basename, so the sort still runs
         -- deterministically rather than nil-derefing.
-        local home  = G_reader_settings:readSetting("home_dir") or "/"
+        local home  = HomeDir.get() or "/"
         local depth = BookshelfSettings.read("latest_walk_depth") or 3
         local light_cache = _getLightMetaCache(home, depth)
         local titles = {}
@@ -4753,35 +4860,32 @@ local function _searchMatches(b, words, skip_genres)
     return true
 end
 
--- _kindleLibraryEnabled(): whether the Kindle library counts as part of the
--- user's shelf for whole-library questions -- search (issue #355), and the
--- shelf-wide tallies.
+-- _librarySourceBooks() -> records or nil: the books of every registered source
+-- that counts as part of the user's shelf for whole-library questions -- search
+-- (issue #355), and the shelf-wide tallies. The Kindle library today.
 --
 -- These cover the sources the user has actually put on their shelf, so having
--- made a Kindle chip is the opt-in. Having the plugin installed is not enough on
--- its own: someone may use its own Kindle Library view and not want Bookshelf
--- reaching into their Kindle books at all.
+-- made a shelf of the source is the opt-in (lib/bookshelf_sources libraryIds).
+-- Having the plugin installed is not enough on its own: someone may use its own
+-- Kindle Library view and not want Bookshelf reaching into their Kindle books.
 --
 -- Forward-declared above, because the tallies are defined earlier in the file.
-_kindleLibraryEnabled = function()
-    local ok, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
-    if not (ok and KindleSource and KindleSource.isAvailable) then return false end
-    local ok_avail, avail = pcall(KindleSource.isAvailable)
-    if not (ok_avail and avail) then return false end
+_librarySourceBooks = function()
     local ok_tabs, tabs = pcall(TabModel.load)
-    if not (ok_tabs and type(tabs) == "table") then return false end
-    for _i, t in ipairs(tabs) do
-        if type(t) == "table" and type(t.source) == "table"
-                and t.source.kind == "kindle" then
-            return true
-        end
+    if not (ok_tabs and type(tabs) == "table") then return nil end
+    local Sources = require("lib/bookshelf_sources")
+    local ids = Sources.libraryIds(tabs)
+    if #ids == 0 then return nil end
+    local out = {}
+    for _i, id in ipairs(ids) do
+        for _j, b in ipairs(Sources.list(id) or {}) do out[#out + 1] = b end
     end
-    return false
+    return out
 end
 
 function Repo.searchBooks(query, limit)
     if not query or query == "" then return {} end
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local cands = cachedWalk(home, depth)
     local words = {}
@@ -4809,18 +4913,11 @@ function Repo.searchBooks(query, limit)
     -- Kindle chip. Listed from the catalogue cache, so no disk walk and no
     -- network. Local results come first: the user's own files before the
     -- Kindle's.
-    if not (limit and #out >= limit) and _kindleLibraryEnabled() then
-        local ok, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
-        local ok_list, kindle_books = false, nil
-        if ok and KindleSource then
-            ok_list, kindle_books = pcall(KindleSource.listBooks)
-        end
-        if ok_list and type(kindle_books) == "table" then
-            for _i, b in ipairs(kindle_books) do
-                if _searchMatches(b, words, skip_genres) then
-                    out[#out + 1] = b
-                    if limit and #out >= limit then break end
-                end
+    if not (limit and #out >= limit) then
+        for _i, b in ipairs(_librarySourceBooks() or {}) do
+            if _searchMatches(b, words, skip_genres) then
+                out[#out + 1] = b
+                if limit and #out >= limit then break end
             end
         end
     end
@@ -4900,7 +4997,7 @@ function Repo.getTags(limit, offset, sort_priority_override, filter, opts)
     -- upgrade since the caller never renders these records.
     local light_only = opts and opts.light_only
     local light_cache
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     -- Compile once before the loop (not per book) when filter is active,
     -- so every per-book test is an O(1) lookup on the compiled result.
@@ -4998,14 +5095,44 @@ end
 -- of a series"). Caching the shape (filepath list + sort metadata) and
 -- rebuilding Books on read keeps the cover_bb lifetime safe while still
 -- skipping the lfs walk + the sort/group pass.
+-- The author a series stack is shown under ("Show text below covers: Author",
+-- issue 486): the MODAL member author, first-seen winning a tie. Same rule the
+-- sort engine files the stack under (groupAuthor, issue 351), so the name
+-- under the tile is the one the shelf is ordered by, and a guest collaborator
+-- on one volume does not relabel the series. No "A & B": a member's `author` is
+-- already the book's FIRST author, which is what a book's own label shows.
+--
+-- From the cached members (books_meta), which carry the author for every
+-- member: the hydrated books[2..n] are bare filepath stubs. No per-tile read.
+local function _modalAuthor(members)
+    if type(members) ~= "table" then return nil end
+    local counts, order = {}, {}
+    for i = 1, #members do
+        local a = members[i] and members[i].author
+        if type(a) == "string" and a ~= "" then
+            if not counts[a] then counts[a] = 0; order[#order + 1] = a end
+            counts[a] = counts[a] + 1
+        end
+    end
+    local best, best_n = nil, 0
+    for i = 1, #order do
+        if counts[order[i]] > best_n then best, best_n = order[i], counts[order[i]] end
+    end
+    return best
+end
+
 local function hydrateSeriesShape(shape, filter, light_only)
     -- Filter the series's book list when a status filter is active.
     -- An empty result → caller drops this series from the visible list.
     local order = shape.filepaths
     local meta  = shape.books_meta
+    -- The members the stack shows, for its author: the filtered ones when a
+    -- filter is active, so the name matches the books behind the tile.
+    local shown = meta
     if _filterIsActive(filter) and meta then
         local filtered = _applyFilter(meta, filter)
         if #filtered == 0 then return nil end
+        shown = filtered
         order = {}
         for i = 1, #filtered do order[i] = filtered[i].filepath end
     end
@@ -5053,6 +5180,9 @@ local function hydrateSeriesShape(shape, filter, light_only)
         -- article-insensitive order. Same split folders use (label vs name).
         label        = _flipTrailingArticle(shape.series_name),
         books        = books,
+        -- Display only, and deliberately NOT `author`: the sort engine and
+        -- the "is this a book" checks read that field on a record.
+        stack_author = (not light_only) and _modalAuthor(shown) or nil,
         latest       = shape.latest,
         latest_added = shape.latest_added or 0,
     }
@@ -5252,7 +5382,7 @@ local function _seriesReadout(group_shapes, standalone_shapes, filter,
 end
 
 function Repo.getSeriesGroups(limit, offset, sort_priority_override, filter, opts)
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local key   = (home or "/") .. ":" .. tostring(depth or 0)
     local now   = os.time()
@@ -5360,12 +5490,19 @@ function Repo.getSeriesGroups(limit, offset, sort_priority_override, filter, opt
                     author_sort = book.author_sort,
                 }
             end
-            local t = read_time[book.filepath] or c.mtime or 0
+            -- latest: the most recent READ TIME among the members, as on the
+            -- author, genre and rating shelves. Adding a book doesn't count
+            -- as reading it: only "Most recently added" (latest_added below)
+            -- brings a series forward for a new book (maintainer,
+            -- 2026-10-10). It took member file dates too, so a series read
+            -- months ago jumped to the front of "Most recently read" when a
+            -- new unread book joined it, and the list view's "last opened"
+            -- for the series showed that date.
+            local t = read_time[book.filepath] or 0
             if t > g.latest then g.latest = t end
             -- latest_added is the max member MTIME, kept separate from
-            -- `latest` above: that one folds in read time and drives "latest
-            -- activity", so reusing it here would make merely opening an old
-            -- book look like adding it. The sort engine's date_added
+            -- `latest` above: that one is read time only, so reusing it here
+            -- would make merely opening an old book look like adding it. The sort engine's date_added
             -- comparator reads this field on a group shape, and without it
             -- cmp's isMissing sends every series group to the END of a "Sort
             -- by date added" -- a freshly synced book in a series vanished off
@@ -5392,7 +5529,12 @@ function Repo.getSeriesGroups(limit, offset, sort_priority_override, filter, opt
                 -- standalone went to the end of the shelf.
                 author       = book.author,
                 author_sort  = book.author_sort,
-                latest       = read_time[book.filepath] or c.mtime or 0,
+                -- Read time only, as on the author and genre shelves: a book
+                -- never opened has none, so under "Most recently read" it
+                -- sorts after the read ones, by the next sort key. Its file
+                -- date put a newly added unread book first, ahead of
+                -- everything read (reported on Reddit, 2026-10-10).
+                latest       = read_time[book.filepath] or 0,
                 latest_added = c.mtime or 0,
                 -- Sort-only field (hydration replaces this shape with a real
                 -- Book record). 0, not 1: under a book-count sort a standalone
@@ -5576,6 +5718,25 @@ end
 -- drill the widget has to re-filter: a return from a book can rebuild its
 -- payload from the group's full membership (GitHub issue 479).
 function Repo.applyFilter(books, filter) return _applyFilter(books, filter) end
+
+-- Repo.filterMembers(books, filter) -> a group's members that pass a chip's
+-- filter, tested on their real records. A stack's members are { filepath }
+-- stubs apart from its lead book, and the filter reads genres, languages and
+-- the rest off the record: on the stubs every member but the lead failed, so
+-- a series opened on a genre-filtered shelf showed one book (GitHub issue
+-- 485). Each stub is looked up the way the group hydrators do (the shared
+-- light cache, else a per-book light build); the members themselves are
+-- what is returned.
+function Repo.filterMembers(books, filter)
+    if not books then return {} end
+    if not Filter.isActive(filter) then return books end
+    local compiled = Filter.compile(filter, Repo.filterOpts())
+    local function recordFor(b)
+        if type(b) ~= "table" or b.title ~= nil or type(b.filepath) ~= "string" then return b end
+        return Repo.lightMetaFor(b.filepath) or _buildBookMetaLight(b.filepath) or b
+    end
+    return Filter.keepMatching(books, recordFor, function(r) return _recordMatches(r, compiled) end)
+end
 
 -- _withinPriority(sk): returns the level-2+ slice of a sort_priority,
 -- or nil when the chip only has a single level (no within-group rule).
@@ -5806,7 +5967,7 @@ function Repo.countByStatus()
     -- getAllFilepaths is the WALKED library, which is not the whole shelf: the
     -- Kindle library is on it too, and a user with a Kindle chip was shown a
     -- "shelf size" that left out roughly a third of the books they can see.
-    local k_counts, k_total = _kindleStatusCounts()
+    local k_counts, k_total = _librarySourceStatusCounts()
     if k_counts then
         for status, n in pairs(k_counts) do
             counts[status] = (counts[status] or 0) + n
@@ -5818,7 +5979,7 @@ end
 
 local function _buildGroups(group_kind, key_fn, multi, records)
     local _t0 = _gettime()
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     -- Read history → filepath read-time map so groups sort by recently-read.
     local rh        = getReadHistory()
@@ -6047,7 +6208,7 @@ end
 
 function Repo.getAuthors(limit, offset, sort_priority_override, filter, opts)
     local _t0 = _gettime()
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local key   = (home or "/") .. ":" .. tostring(depth or 0)
     local now   = os.time()
@@ -6256,7 +6417,7 @@ end
 
 function Repo.getGenres(limit, offset, sort_priority_override, filter, opts)
     local _t0 = _gettime()
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local key   = (home or "/") .. ":" .. tostring(depth or 0)
     local now   = os.time()
@@ -6307,7 +6468,7 @@ end
 -- path that ran _hydrateGroupShape on every group (one buildBookMeta +
 -- cover decompression per group, ALL of it discarded by the picker).
 function Repo.getGroupChoices(kind)
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local key   = (home or "/") .. ":" .. tostring(depth or 0)
 
@@ -6353,7 +6514,7 @@ end
 -- group cache uses (same key distinctFilterValues emits) so callers can cross-
 -- reference with filter selections. No hydration, no cover decompression.
 function Repo.getGroupFilepaths(kind)
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local key   = (home or "/") .. ":" .. tostring(depth or 0)
 
@@ -6410,7 +6571,7 @@ function Repo.filterValueCounts(dim, filter, source)
     local scoped = _sourceFilterCounts(dim, compiled, source)
     if scoped then return scoped end
 
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
 
     if dim == "collections" then
@@ -6481,7 +6642,7 @@ end
 -- folders drilldown writes (shape.path = raw lfs entry, no trailing slash).
 -- Sorted by lowercased full path so siblings naturally group under parents.
 function Repo.getFolderChoices()
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local cands = cachedWalk(home, depth)
     -- home == "/" is kept as literal so the loop's parent ~= home_norm check
@@ -6516,7 +6677,7 @@ end
 -- Depth arithmetic matches walkBooks: level-N dirs (N <= depth) can
 -- hold shelf-visible books.
 function Repo.getAllFolderChoices()
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local home_norm = home == "/" and "/" or home:gsub("/+$", "")
     local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
@@ -6566,25 +6727,17 @@ end
 -- _sourceRecordsFor(source): the records a picker should describe, or nil to
 -- leave the caller on its existing path.
 --
--- The gate is availability ALONE, deliberately not _kindleLibraryEnabled():
+-- The gate is availability ALONE, deliberately not _librarySourceBooks():
 -- the user is editing a chip of this kind, which is a stronger opt-in than
 -- having one saved -- and a chip being created for the first time is not in
 -- TabModel yet, so the saved-chip gate would fail exactly when the picker is
 -- first opened.
 local function _sourceRecordsFor(source)
     local kind = (type(source) == "table") and source.kind or nil
-    local mod = (kind == "kindle" and "lib/bookshelf_kindle_source")
-             or (kind == "kobo"   and "lib/bookshelf_kobo_source")
-             or nil
-    if not mod then return nil end
-    local ok, Source = pcall(require, mod)
-    if not (ok and type(Source) == "table"
-            and Source.isAvailable and Source.listBooks) then return nil end
-    local ok_avail, avail = pcall(Source.isAvailable)
-    if not (ok_avail and avail) then return nil end
-    local ok_list, books = pcall(Source.listBooks)
-    if not (ok_list and type(books) == "table") then return nil end
-    return books
+    if not kind then return nil end
+    local Sources = require("lib/bookshelf_sources")
+    if not Sources.get(kind) then return nil end
+    return Sources.list(kind, source)
 end
 
 -- The group kind and key function each filter dimension corresponds to, so a
@@ -6725,7 +6878,7 @@ end
 
 function Repo.getFormats(limit, offset, sort_priority_override, filter, opts)
     local _t0 = _gettime()
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local key   = (home or "/") .. ":" .. tostring(depth or 0)
     local now   = os.time()
@@ -6767,7 +6920,7 @@ end
 -- Books without a language are filed as 'Unknown'
 function Repo.getLanguages(limit, offset, sort_priority_override, filter, opts)
     local _t0 = _gettime()
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local key   = (home or "/") .. ":" .. tostring(depth or 0)
     local now   = os.time()
@@ -6822,7 +6975,7 @@ local _STAR_REPEAT = {
 -- rating value or 'Unrated'. Books without a .sdr are treated as
 -- Unrated without a DocSettings open.
 local function _buildRatingGroups()
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local cands = cachedWalk(home, depth)
     local light_cache = _getLightMetaCache(home, depth)
@@ -6901,7 +7054,7 @@ end
 
 function Repo.getRatings(limit, offset, sort_priority_override, filter, opts)
     local _t0 = _gettime()
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local key   = (home or "/") .. ":" .. tostring(depth or 0)
     local now   = os.time()
@@ -6944,7 +7097,7 @@ function Repo.searchAll(query)
     if not query or query == "" then return empty end
     local q = query:lower()
 
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local key   = (home or "/") .. ":" .. tostring(depth or 0)
 
@@ -7019,7 +7172,7 @@ end
 -- kind is unrecognised, or no group matches the name even after warming.
 function Repo.findGroup(kind, name)
     if not name or name == "" then return nil end
-    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local key   = (home or "/") .. ":" .. tostring(depth or 0)
     local cache
@@ -7082,6 +7235,7 @@ local STATS_FIELDS = {
 }
 
 function Repo.invalidateStatsCache(filepath)
+    _bumpDataGeneration()
     if filepath then _stats_cache[filepath] = nil
     else _stats_cache = {} end
 end
@@ -7525,108 +7679,46 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
     -- and a SIGKILL Lua cannot catch. Nothing on the light_only path reads a
     -- cover, so skip the attachment entirely.
     local light_only = (opts and opts.light_only) or false
-    -- Kobo virtual library (OGKevin/kobo.koplugin): records come from the plugin
-    -- bridge, not the filesystem/BIM. Sort the full set with the SortEngine (the
-    -- Kobo chip's sort_priority) and paginate. Empty + cheap when the plugin is
-    -- unavailable, so this is inert on non-Kobo devices.
-    if kind == "kobo" then
-        local ok_kobo, KoboSource = pcall(require, "lib/bookshelf_kobo_source")
-        if not (ok_kobo and KoboSource and KoboSource.isAvailable()) then return {}, 0 end
-        local books = KoboSource.listBooks()
-        -- Same filter gap as the Kindle branch above, and fixed the same way:
-        -- a filter set on a Kobo chip did nothing at all.
-        if Filter.isActive(filter) then
-            local compiled = Filter.compile(filter, Repo.filterOpts())
-            -- Genres on these records come from Hardcover, and that enrichment
-            -- is normally applied to the VISIBLE SLICE only (below). A genre
-            -- filter has to see them BEFORE the slice exists, so enrich the
-            -- whole list first -- but only when the filter actually constrains
-            -- genres, so an unfiltered or rating-only chip still pays for one
-            -- page. Ratings and statuses need none of this: they are on the
-            -- record already, from the sidecar.
-            --
-            -- applyMetadata rather than enrichBook because it is what the light
-            -- record path uses for exactly this, so a device-library chip
-            -- filters on the same data a local one does. Cache-only, and
-            -- gated on the plugin being present and the setting being on.
-            if compiled.genres then
-                local Hardcover = getHardcover()
-                if Hardcover and Hardcover.applyMetadata then
-                    for i = 1, #books do pcall(Hardcover.applyMetadata, books[i]) end
-                end
-            end
-            local kept = {}
-            for i = 1, #(books or {}) do
-                if _recordMatches(books[i], compiled) then kept[#kept + 1] = books[i] end
-            end
-            books = kept
-        end
-        if sort_priority and #sort_priority > 0 then
-            local ok_sort = pcall(table.sort, books, SortEngine.chainedComparator(sort_priority))
-            if not ok_sort then table.sort(books, function(a, b)
-                return (a.title or "") < (b.title or "") end) end
-        end
-        local total = #books
-        local off, lim = offset or 0, limit or #books
-        local page = {}
-        for i = off + 1, math.min(off + lim, total) do
-            local rec = books[i]
-            -- Attach the cover eagerly for the VISIBLE slice only: BIM can't read
-            -- the DRM'd kepub, so there's no lazy ScaledCoverCache path -- the
-            -- plugin hands back a fresh (copied) blitbuffer the spine can free
-            -- after paint. nil (no extracted sidecar cover yet) -> placeholder.
-            -- Re-fetched each rebuild, so the freed bb is never reused.
-            if not light_only then
-                local bb, cw, ch = KoboSource.coverBB(rec.filepath)
-                if bb then
-                    rec.cover_bb, rec.cover_w, rec.cover_h = bb, cw, ch
-                    rec.has_cover = true
-                end
-            end
-            page[#page + 1] = rec
+    -- A registered source (lib/bookshelf_sources): the Kindle's own library,
+    -- the Kobo store's, or another plugin's (issue 452). Its records come from
+    -- the source, not the walk or BIM. Filter, sort and page the full set here,
+    -- the same way for every source, so a source only has to say what books it
+    -- holds. Empty and cheap when the source is unavailable.
+    local Sources = require("lib/bookshelf_sources")
+    local src_spec = Sources.get(kind)
+    if src_spec and src_spec.fetch then
+        -- Fetch mode: the source pages and orders itself (a server's catalogue),
+        -- so its order is kept and the shelf's filter and sort are not applied.
+        -- source.drill is the folder the reader has drilled into, if any.
+        local page, total = Sources.fetch(kind, source, source.drill, offset or 0, limit)
+        if not page then return {}, 0 end
+        -- A total the source does not know yet reads as "this page and one more
+        -- item", so the footer offers a next page until a page comes back short.
+        if not total then
+            total = (offset or 0) + #page + ((limit and #page >= limit) and 1 or 0)
         end
         return page, total
     end
-    -- Kindle library (issue #355): records come from Amazon's own catalogue via
-    -- lib/bookshelf_kindle_source, not from the filesystem/BIM. Sort the full set
-    -- with the SortEngine and paginate -- the point of the exercise, since the
-    -- Kindle plugin's own list has a single hardcoded title order.
-    --
-    -- Unlike the Kobo branch above there is no cover decoding here: a Kindle book
-    -- has a real cover jpg in Amazon's thumbnail cache, so the record carries
-    -- cover_image_path (a plain string every painter resolves independently) and
-    -- never a one-shot cover_bb. Inert on every non-Kindle device.
-    if kind == "kindle" then
-        local ok_k, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
-        if not (ok_k and KindleSource and KindleSource.isAvailable()) then return {}, 0 end
-        local ok_list, books = pcall(KindleSource.listBooks)
-        if not ok_list or type(books) ~= "table" then return {}, 0 end
-        -- Apply the chip's filter. These device-library branches used to skip
-        -- it entirely: they listed, sorted, sliced and returned, so a filter
-        -- set on a Kindle chip did nothing at all -- a rating filter excluding
-        -- 1-star books still showed them, and so did every other dimension.
-        --
+    if src_spec then
+        local books = Sources.list(kind, source)
+        if not books then return {}, 0 end
         -- Filtered BEFORE the sort and slice so `total` is the filtered count
-        -- and pagination matches what is on screen.
+        -- and pagination matches what is on screen. (These branches used to
+        -- skip the filter entirely, so a filter set on a Kindle or Kobo shelf
+        -- did nothing.)
         --
         -- _recordMatches rather than Filter.matches directly: it resolves
         -- status and rating from the sidecar only when the filter constrains
-        -- them, and derives `format` from the filepath, which these records
-        -- do not carry.
+        -- them, and derives `format` from the filepath when a record lacks it.
         if Filter.isActive(filter) then
             local compiled = Filter.compile(filter, Repo.filterOpts())
             -- Genres on these records come from Hardcover, and that enrichment
             -- is normally applied to the VISIBLE SLICE only (below). A genre
             -- filter has to see them BEFORE the slice exists, so enrich the
             -- whole list first -- but only when the filter actually constrains
-            -- genres, so an unfiltered or rating-only chip still pays for one
-            -- page. Ratings and statuses need none of this: they are on the
-            -- record already, from the sidecar.
-            --
-            -- applyMetadata rather than enrichBook because it is what the light
-            -- record path uses for exactly this, so a device-library chip
-            -- filters on the same data a local one does. Cache-only, and
-            -- gated on the plugin being present and the setting being on.
+            -- genres, so an unfiltered or rating-only shelf still pays for one
+            -- page. applyMetadata because it is what the light record path uses
+            -- for exactly this; cache-only, and gated on the plugin and setting.
             if compiled.genres then
                 local Hardcover = getHardcover()
                 if Hardcover and Hardcover.applyMetadata then
@@ -7649,10 +7741,25 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
         local page = {}
         for i = off + 1, math.min(off + lim, total) do
             local rec = books[i]
-            -- Same cover overrides every other shelf record gets from
-            -- buildBookMeta. Paid for the visible slice only, which is the same
-            -- order of cost as the normal path.
-            if not light_only then pcall(_applyCoverOverrides, rec) end
+            if not light_only then
+                if src_spec.cover then
+                    -- The source hands back a fresh blitbuffer the grid frees
+                    -- after paint (Kobo: BIM cannot read a DRM'd kepub). Asked
+                    -- again every rebuild, so a freed bb is never reused. nil
+                    -- leaves the placeholder.
+                    local ok_c, bb, cw, ch = Sources.call(src_spec, "cover", rec)
+                    if ok_c and bb then
+                        rec.cover_bb, rec.cover_w, rec.cover_h = bb, cw, ch
+                        rec.has_cover = true
+                    end
+                else
+                    -- A record with a cover file (Kindle: Amazon's thumbnail)
+                    -- carries cover_image_path, a plain string every painter
+                    -- resolves itself, and gets the same cover overrides every
+                    -- other shelf record gets from buildBookMeta.
+                    pcall(_applyCoverOverrides, rec)
+                end
+            end
             page[#page + 1] = rec
         end
         return page, total
@@ -7914,7 +8021,7 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
             -- renders these records, so skip the heavy _safeBuildBookMeta
             -- and serve light metadata. On a big chip this is the difference
             -- between thousands of DocSettings reads and one batched SELECT.
-            local home  = G_reader_settings:readSetting("home_dir") or "/"
+            local home  = HomeDir.get() or "/"
             local depth = BookshelfSettings.read("latest_walk_depth") or 3
             local light_cache = _getLightMetaCache(home, depth)
             for i = from, to do
@@ -7962,7 +8069,7 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
         -- fields (genre, author, tag) leave it unset and are unaffected.
         local _path_probe = {}
         local function loadCandidatesByPredicate(pred, walk_root, path_only)
-            local home  = G_reader_settings:readSetting("home_dir") or "/"
+            local home  = HomeDir.get() or "/"
             local depth = BookshelfSettings.read("latest_walk_depth") or 3
             -- walk_root lets a folder-scoped source (folder_flat, #76) walk
             -- its own subtree directly instead of the whole home tree --
@@ -8044,7 +8151,7 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
                     ko_dir = d:gsub("/+$", "") .. "/"
                 end
             end
-            local home  = G_reader_settings:readSetting("home_dir") or "/"
+            local home  = HomeDir.get() or "/"
             local depth = BookshelfSettings.read("latest_walk_depth") or 3
             local light_cache = _getLightMetaCache(home, depth)
             local read_time = {}
@@ -8055,7 +8162,7 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
             local paths = {}
             -- ...unless the home folder is in there too: some readers keep
             -- their books inside KOReader's folder (Android especially).
-            local home_prefix = (G_reader_settings:readSetting("home_dir") or "/"):gsub("/+$", "") .. "/"
+            local home_prefix = (HomeDir.get() or "/"):gsub("/+$", "") .. "/"
             -- A home of "/" (unset, or the filesystem root) contains
             -- everything, so it is no reason to keep KOReader's own files.
             local function kosOwn(fp)
@@ -8063,7 +8170,7 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
                        and (home_prefix == "/" or fp:sub(1, #home_prefix) ~= home_prefix)
             end
             for fp in pairs(set) do
-                if type(fp) == "string" and not fp:find("^OPDS://")
+                if type(fp) == "string" and not _isRemotePath(fp)
                         and _supportedExt(fp:match("([^/]+)$")) and not kosOwn(fp) then
                     paths[#paths + 1] = fp
                 end

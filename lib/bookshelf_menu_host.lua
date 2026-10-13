@@ -87,7 +87,7 @@ local function mapItems(host, src_items)
                         local sub = it.sub_item_table or it.sub_item_table_func()
                         -- guard nil/non-table result from sub_item_table_func
                         if type(sub) ~= "table" then return end
-                        host:_push(it.text or (it.text_func and it.text_func()) or "", sub)
+                        host:_push(it.text or (it.text_func and it.text_func()) or "", sub, it)
                     elseif it.callback then
                         it.callback(host._shim)
                         if host._refresh then host:_refresh() end
@@ -154,6 +154,14 @@ function MenuHost.show(opts)
         closeMenu   = function() MenuHost.close(host) end,
         -- safety net: the shim is not a widget; swallow events sent at it
         handleEvent = function() return false end,
+        -- The open level's own rows, which a caller that changes the SET of
+        -- rows rebuilds in place (Settings:_reopenSubMenu) as it does a
+        -- TouchMenu's item_table: the Theme menu after a Theme library closes
+        -- gains or loses its This shelf row with the shelf on screen.
+        liveItems = function()
+            local lvl = host._stack[#host._stack]
+            return lvl and lvl.src or nil
+        end,
         -- show_parent (the real Menu widget) is attached below, once built
     }
     function host:_current()
@@ -165,6 +173,13 @@ function MenuHost.show(opts)
         if not lvl then return end
         -- preserve the current page across switchItemTable (which resets to 1)
         local saved_page = self._menu.page
+        -- The title is the row that opened this level: renamed with it (a
+        -- choice made in a picker from here can change it, "Theme: %1").
+        local from = lvl.from
+        if from and from.text_func then
+            local ok, t = pcall(from.text_func)
+            if ok and type(t) == "string" then lvl.title = t end
+        end
         self._menu:switchItemTable(lvl.title,
             levelItems(self, lvl.src, #self._stack > 1))
         if saved_page and saved_page > 1
@@ -172,11 +187,11 @@ function MenuHost.show(opts)
             self._menu:onGotoPage(saved_page)
         end
     end
-    function host:_push(title, src)
+    function host:_push(title, src, from)
         -- save the current level's page before descending
         local lvl = self:_current()
         if lvl then lvl.page = self._menu.page end
-        self._stack[#self._stack + 1] = { title = title, src = src }
+        self._stack[#self._stack + 1] = { title = title, src = src, from = from }
         -- paths drives the return-arrow enabled state (menu.lua:1040)
         self._menu.paths[#self._menu.paths + 1] = { title = title }
         self._menu:switchItemTable(title, levelItems(self, src, true))

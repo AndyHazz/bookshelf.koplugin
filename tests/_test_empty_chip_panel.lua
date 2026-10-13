@@ -50,10 +50,16 @@ local function newEnv()
                 { "scrim", x = x, y = y, w = w, h = h,
                   ground = ground, strength = strength, radius = radius }
         end,
-        setPanel = function(x, y, w, h)
-            e.painted[#e.painted + 1] = { "setPanel", x = x, y = y, w = w, h = h }
+        setPanel = function(x, y, w, h, _c, _s, _r, _g, frost)
+            e.painted[#e.painted + 1] = { "setPanel", x = x, y = y, w = w, h = h, frost = frost }
         end,
     }
+    -- Wallpaper.panel: the blur (when asked for and on) then the scrim; the
+    -- frost flag recorded so the tests can see what the shelf asked for.
+    e.Wallpaper.panel = function(bb, x, y, w, h, ground, strength, radius, frost)
+        e.frost_asked = frost
+        return e.Wallpaper.scrim(bb, x, y, w, h, ground, strength, radius)
+    end
     e.pairs, e.ipairs, e.type, e.tostring, e.math = pairs, ipairs, type, tostring, math
     return e
 end
@@ -65,6 +71,7 @@ local function newSelf(plan)
         _topPanelPlan   = function() return plan[1], plan[2], plan[3], plan[4] end,
         footerPanelRect = function() return 10, 1500, 1000, 80 end,
         _isListMode     = function() return false end,
+        hasWallpaper    = function() return true end,
     }
 end
 
@@ -86,6 +93,8 @@ t.test("the panel is attached to the group, covering hero plus chip bar", functi
     eq(env.painted[1].w, 1208, "panel w = content + bleed on both sides")
     eq(env.painted[1].h, 608, "panel h = band + bleed on both sides")
     eq(env.painted[2][1], "setPanel", "restore() has to be told where the tint is")
+    eq(env.frost_asked, true, "over a picture the panel may be blurred (Panel shading > Blur)")
+    eq(env.painted[2].frost, true, "restore() has to know the panel is blurred, to blur a patch too")
     eq(painted_child, true, "the group's own children still paint, over the panel")
 end)
 

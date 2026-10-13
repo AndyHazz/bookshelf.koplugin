@@ -1239,7 +1239,10 @@ t.test("the scrim blends, except at full strength", function()
     local body = scrim_src:match("function M%.scrim%(bb.-\nend")
     assert(body:match("blendRectRGB32"),
         "the scrim no longer blends -- it is a solid fill again")
-    assert(body:match("alpha >= 255"),
+    -- The opaque decision is shared with the blur's dithered panel
+    -- (_scrimOpaque), so the two agree on when a panel is solid.
+    local opaque = scrim_src:match("function M%._scrimOpaque%(bb.-\nend")
+    assert(body:match("_scrimOpaque%(bb, alpha%)") and opaque and opaque:match("alpha >= 255"),
         "full strength should take the cheaper opaque path")
 end)
 
@@ -1799,7 +1802,10 @@ t.test("a wallpaper name that no longer resolves reads as none", function()
         type = type,
         -- A pack's wallpaper is named by its pack (5.3); these names are not.
         require = function(m)
-            if m == "lib/bookshelf_theme_pack" then return { isPackName = function() return false end } end
+            if m == "lib/bookshelf_theme_pack" then
+                return { isPackName = function() return false end, partEdited = function() return false end,
+                         partRead = function() return "screensavers:bg_ss27.png" end }
+            end
             return require(m)
         end,
     }
@@ -1810,6 +1816,39 @@ t.test("a wallpaper name that no longer resolves reads as none", function()
     env.Wallpaper.pathFor = function() return "/somewhere/bg_ss27.png" end
     eq(fn()("wallpaper_default", "NONE"), "screensavers:bg_ss27",
         "a resolvable name should still show, extension trimmed")
+end)
+
+local function twoSetup(keep)
+    local W = fresh()
+    installBlitbufferStub({})
+    W._lfs = lfs_shim
+    local d = scratch()
+    W._data_dir = d; W.ensureDir(); touch(W.dir(), "a.png"); touch(W.dir(), "b.png")
+    local renders = 0
+    W._render = function(_p, w, h) renders = renders + 1; return fakeBB(w, h) end
+    W._keep_two = function() return keep end
+    return W, d, function() return renders end
+end
+
+t.test("with shelf themes in use, switching back to the last wallpaper does not decode it again", function()
+    local W, d, renders = twoSetup(true)
+    W.bg("a.png", 100, 100, false); W.bg("b.png", 100, 100, false)
+    local back = W.bg("a.png", 100, 100, false)
+    assert(back, "no background")
+    eq(renders(), 2, "the previous wallpaper was decoded again")
+    W.bg("b.png", 100, 100, false)
+    eq(renders(), 2, "switching forward again decoded")
+    W.free()
+    eq(W._bg, nil); eq(W._bg2, nil, "free kept the second picture")
+    os.execute("rm -rf '" .. d .. "'"); package.loaded["ffi/blitbuffer"] = nil
+end)
+
+t.test("without shelf themes the cache keeps one picture, as before", function()
+    local W, d, renders = twoSetup(false)
+    W.bg("a.png", 100, 100, false); W.bg("b.png", 100, 100, false); W.bg("a.png", 100, 100, false)
+    eq(renders(), 3)
+    eq(W._bg2, nil, "a second picture was kept with no shelf themes")
+    os.execute("rm -rf '" .. d .. "'"); package.loaded["ffi/blitbuffer"] = nil
 end)
 
 t.done()

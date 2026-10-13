@@ -58,7 +58,7 @@ local Bookshelf = WidgetContainer:extend{
 -- action, which probes addToMainMenu and hosts these in this order.
 -- Display order, banded with separators (set on the last item of each band in
 -- addToMainMenu): actions (Open) | customise (Shelf size, Chips) | configure
--- (Hardcover, Settings) | meta (Updates, About). Wallpaper, ornaments and colors
+-- (Hardcover, Settings) | meta (Updates, About). The reader's own look
 -- joined the customise band in 5.1: it is what a reader changes to make the
 -- shelf look like theirs, and it was buried two levels down under Settings. The detail-view editor and
 -- collection manager moved under Settings in 4.0, and the selection-mode
@@ -71,7 +71,6 @@ Bookshelf.MENU_ORDER = {
     "bookshelf_shelf_size",
     "bookshelf_shelf_tabs",
     "bookshelf_theme",
-    "bookshelf_background",
     "bookshelf_hardcover",
     "bookshelf_settings",
     "bookshelf_updates",
@@ -269,6 +268,33 @@ local function _installCalibreNotice()
     end
 end
 
+-- The shelf source API for other plugins (issue 452). A plugin that wants a
+-- shelf of its own registers a source instead of replacing Bookshelf's
+-- functions:
+--
+--     local bs = self.ui.bookshelf
+--     if bs and bs.registerSource and (bs.SOURCE_API or 0) >= 1 then
+--         bs:registerSource("komga", { api = 1, label = ..., available = ..., list = ... })
+--     end
+--
+-- The spec is documented at the top of lib/bookshelf_sources.lua. The registry
+-- lives for the whole KOReader session, across the file browser and the reader,
+-- so registering once is enough; registering the same id again replaces it.
+-- Returns true, or false and the reason the spec was refused.
+Bookshelf.SOURCE_API = require("lib/bookshelf_sources").API
+function Bookshelf:registerSource(id, spec)
+    return require("lib/bookshelf_sources").register(id, spec)
+end
+function Bookshelf:unregisterSource(id)
+    require("lib/bookshelf_sources").unregister(id)
+end
+-- sourceChanged(id): a fetch-mode source has more to show (a page it was
+-- fetching in the background has landed); the shelf redraws if it is showing
+-- that source.
+function Bookshelf:sourceChanged(id)
+    require("lib/bookshelf_sources").changed(id)
+end
+
 function Bookshelf:init()
     _installBroadcastTag()
     -- The panel's night-mode inversion flag is kernel-side and outlives the
@@ -294,6 +320,10 @@ function Bookshelf:init()
     local Fonts = require("lib/bookshelf_fonts")
     Fonts.maybeSeedFreshInstall()
     Fonts.ensureInstalled()
+    -- Themes became layers over the reader's own look in 5.4: the old
+    -- applied-theme record is turned into the new keys, once, before any
+    -- menu or shelf reads them (bookshelf_theme_pack.migrate).
+    pcall(function() require("lib/bookshelf_theme_pack").migrate() end)
 
     -- Version marker, written every init. v5 is the FIRST build that
     -- writes it, which makes it the upgrade detector: settings present
@@ -756,39 +786,34 @@ function Bookshelf:buildMenuItems(menu_items)
         separator = true,
     }
 
-    -- Hardcover enrichment, promoted from Settings to the top level (below
-    -- Manage collections). Only shown while the Hardcover plugin is live
-    -- (installed and enabled); uninstalling/disabling it hides the menu and
-    -- reverts all Hardcover data to native. Defined conditionally rather than
     -- Everything that decides what the shelf LOOKS like, in one place and at
     -- the top level: the theme, the background (picture, colour, shading), the
     -- ornaments and the accent colours. They used to be split between
     -- Settings > Colors and Settings > Wallpaper and ornaments, which put the
     -- theme, the background colour and the panel shading in three different
     -- menus (maintainer). Text size stays under Settings on purpose.
-    -- The look as a whole, a row of its own above the parts (maintainer,
-    -- 2026-10-02): light or dark, and the installed theme packs, which choose
-    -- wallpaper, plank, colours and ornaments together.
+    -- The Theme menu, ONE row named for the theme of the shelf on screen,
+    -- "Theme (Macabre)" (maintainer, 2026-10-09, after Bookends' "Preset
+    -- (Name)"): This shelf, Other shelves (each other shelf's theme, a
+    -- level down) and Default theme first, then the rows that edit that
+    -- theme, all on one page (maintainer, 2026-10-09). It replaced a Theme
+    -- menu that chose themes and a My theme menu that edited them.
+    local ThemeMenu = require("lib/bookshelf_theme_menu")
     menu_items.bookshelf_theme = {
         text_func = function()
-            return MenuIcons.label(MenuIcons.THEME, S:_shelfThemeText())
+            return MenuIcons.label(MenuIcons.THEME, ThemeMenu.menuText())
         end,
-        help_text = S:_shelfThemeHelp(),
+        help_text = ThemeMenu.menuHelp(),
         sub_item_table_func = function()
             S._bw = _live_widget
-            return S:_shelfThemeSubItems()
+            return ThemeMenu.items(S)
         end,
     }
 
-    menu_items.bookshelf_background = {
-        text                = MenuIcons.label(MenuIcons.APPEARANCE,
-                                  _("Wallpaper, ornaments and colors")),
-        sub_item_table_func = function()
-            S._bw = _live_widget
-            return S:_backgroundSubItems()
-        end,
-    }
-
+    -- Hardcover enrichment, promoted from Settings to the top level (below
+    -- Manage collections). Only shown while the Hardcover plugin is live
+    -- (installed and enabled); uninstalling/disabling it hides the menu and
+    -- reverts all Hardcover data to native. Defined conditionally rather than
     -- greyed out -- the order list keeps its slot and KOMenu skips a missing key.
     do
         local ok_hc, HC = pcall(require, "lib/bookshelf_hardcover")
@@ -1165,6 +1190,13 @@ function Bookshelf:onBookshelfGoHome()
         -- one that will be re-shown, so reset it directly.
         if _live_widget._drilldown_path and #_live_widget._drilldown_path > 0 then
             _live_widget:_drillBackTo(0)
+        end
+        -- And out of any shelf of shelves, to the top-level shelf.
+        if _live_widget.chip then
+            local ok_tm, TabModel = pcall(require, "lib/bookshelf_tab_model")
+            if ok_tm and TabModel and TabModel.rootOf then
+                _live_widget.chip = TabModel.rootOf(_live_widget.chip)
+            end
         end
         _live_widget._pending_restore_drill = nil
         _live_widget._cursor = 1
@@ -2346,7 +2378,7 @@ function Bookshelf:scanAllMetadata()
         })
         return
     end
-    local home = G_reader_settings:readSetting("home_dir") or "/"
+    local home = require("lib/bookshelf_home_dir").get() or "/"
     -- BIM:extractBooksInDirectory uses Trapper:confirm for four prompts
     -- in fixed order: Continue / Recursive / Refresh / Prune. We don't
     -- need to ask the user about the first two — they already chose

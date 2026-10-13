@@ -363,21 +363,15 @@ local function _modeSuffix()
 end
 
 local function _readBarColor(base_key)
-    -- A pack's borrowed colours first (bookshelf_theme_pack), else the
-    -- reader's own, as everywhere else the shelf paints.
+    -- As everywhere else the shelf paints (bookshelf_theme_pack.colour: the
+    -- defaults on Plain, the theme's colours, the reader's edit or own).
+    -- Night overrides do NOT inherit the day value (same reasoning as
+    -- _readModeColor in bookshelf_cover_progress): inheriting a day colour
+    -- into night showed the inverted day appearance, not the night theme.
+    local k = base_key .. _modeSuffix()
     local ok_t, TP = pcall(require, "lib/bookshelf_theme_pack")
-    if ok_t and TP and TP.colourOverride then
-        local ok2, v = pcall(TP.colourOverride, base_key, _modeSuffix() ~= "")
-        if ok2 and v then return v end
-    end
-    local suffix = _modeSuffix()
-    if suffix ~= "" then
-        -- Night overrides do NOT inherit the day value (same reasoning as
-        -- _readModeColor in bookshelf_cover_progress): inheriting a day colour
-        -- into night showed the inverted day appearance, not the night theme.
-        return BookshelfSettings.read(base_key .. suffix)
-    end
-    return BookshelfSettings.read(base_key)
+    if ok_t and TP and TP.colour then return TP.colour(k) end
+    return BookshelfSettings.read(k)
 end
 
 -- Returns fill, ink (Blitbuffer colours) or nil when the chip should invert.
@@ -923,8 +917,9 @@ end
 -- chrome_bg is 0xFF in both modes and night inverts the frame, so this is a
 -- white bar by day and a black one at night, with no branch here.
 --
--- Skipped entirely at Transparent, which means "let the picture through": a
--- solid bar is exactly what that reader asked not to have.
+-- Skipped when Shelf menu background is Transparent (solid_ground false),
+-- which means "let the picture through": a solid bar is exactly what that
+-- reader asked not to have. Panel shading no longer decides it.
 -- Shared with the page wipe, which composes into its OWN buffer and paints
 -- self[1] directly rather than going through paintTo -- so a ground that
 -- lived only in paintTo vanished for the length of every swipe.

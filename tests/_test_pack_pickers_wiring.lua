@@ -14,13 +14,15 @@ t.test("the two wallpaper rows open the wallpaper picker", function()
     assert(not settings:find("_wallpaperSubItems", 1, true), "the old list menu is still there")
 end)
 
-t.test("the Shelf plank row opens the plank picker, in both menus", function()
+t.test("the Plank row opens the plank picker, and is in one place only", function()
     local row = settings:match("function Settings:_plankRow%(.-\nend\n")
     assert(row and row:find('bookshelf_plank_browser").show(', 1, true), "the plank row does not open the picker")
-    local bg = settings:match("function Settings:_backgroundSubItems%(%)(.-)\nend\n")
-    assert(bg and bg:find("self:_plankRow(", 1, true), "no plank row next to the wallpaper rows")
+    local tm = io.open("lib/bookshelf_theme_menu.lua"):read("*a")
+    local bg = tm:match("function M%.items%(S%)(.-)\nend\n")
+    assert(bg and bg:find("S:_plankRow(", 1, true), "no plank row next to the wallpaper rows")
     local colours = settings:match("function Settings:_colorsSubItems%(.-\nend\n")
-    assert(colours and colours:find("self:_plankRow(markDirty)", 1, true), "no plank row in Accent colors")
+    assert(colours and not colours:find("_plankRow", 1, true),
+        "the plank row is in Colors as well: it belongs in one place (maintainer, 2026-10-07)")
     assert(not settings:find("plank active - tap to deactivate", 1, true), "the deactivate row is still there")
 end)
 
@@ -61,21 +63,32 @@ t.test("the collection shows ornaments only, with no theme buttons", function()
     assert(not browser:find("_packAction", 1, true), "the whole-pack switch is still in the footer")
 end)
 
-t.test("Accent colors starts with a Color theme row; no override rows remain", function()
+t.test("Colors starts with Reset, then the Light | Dark slot switch; no Color theme row, nothing greyed by a pack", function()
     local body = settings:match("function Settings:_colorsSubItems%(.-\nend\n")
-    assert(body and body:find('_("Color theme: %1")', 1, true), "no Color theme row")
-    assert(body:find("table.insert(items, 1, theme_row)", 1, true), "the row is not first")
+    assert(body, "_colorsSubItems moved")
+    assert(not body:find('_("Color theme: %1")', 1, true), "the Color theme row is back")
+    assert(not body:find("activeColoursPack", 1, true), "the rows are still greyed by a pack's colors")
     assert(not settings:find("withOverride", 1, true), "withOverride is still used")
-    assert(not settings:find("active - tap to deactivate", 1, true), "an override row is still there")
-    local tp = io.open("lib/bookshelf_theme_pack.lua"):read("*a")
-    assert(not tp:find("function M.withOverride", 1, true), "withOverride still exists")
+    -- Reset first (maintainer, 2026-10-08), the slot switch right after it,
+    -- over the rows it switches.
+    local reset, first = body:match("local items = {%s*{(.-)\n        },%s*{(.-)\n        },")
+    assert(reset and reset:find('_("Reset to default colors")', 1, true), "Reset is not the first row")
+    assert(first and first:find('_("Colors for: %1")', 1, true), "the slot switch is not the second row")
+    assert(first:find("setEditSlot", 1, true), "the switch does not change the slot")
+    -- The old row broadcast ToggleNightMode: with a dark theme the light
+    -- colours could not be reached, and the whole menu inverted.
+    assert(not first:find("ToggleNightMode", 1, true) and not body:find("ToggleNightMode", 1, true),
+        "the slot switch toggles KOReader's night mode")
 end)
 
-t.test("a Color theme from an off pack is marked, and choosing it switches the pack on", function()
-    local body = settings:match("function Settings:_colorsSubItems%(.-\nend\n")
-    local row = body and body:match("local theme_row = {(.-)\n    }\n")
-    assert(row and row:find("isPackOff(p)", 1, true), "an off pack is not marked")
-    assert(row:find("setPackOff(p, false)", 1, true), "choosing it does not switch the pack on")
+t.test("pickers never switch a pack on or off, and show no off state", function()
+    for _i, f in ipairs({ "lib/bookshelf_plank_browser.lua", "lib/bookshelf_wallpaper_browser.lua" }) do
+        local src = io.open(f):read("*a"):gsub("%-%-[^\n]*", "")
+        assert(not src:find("setPackOff", 1, true), f .. " switches a pack")
+        assert(not src:find("pack_off", 1, true), f .. " still reads the pack switch")
+        assert(not src:find('_("Pack off")', 1, true) and not src:find('_("%1 (off)")', 1, true),
+            f .. " still shows an off state")
+    end
 end)
 
 t.test("the pickers put KOReader's menu away while open and bring it back once", function()
@@ -131,7 +144,7 @@ t.test("Select all and Select none switch every ornament on the tab", function()
         setPackOff = function(p, v) packs_off[p] = v and true or nil end,
     }
     local f = load("return function(self, on)\n" .. body .. "\nend", "setAll", "t",
-        { O = function() return Orn end, ipairs = ipairs })()
+        { O = function() return Orn end, SW = function() return Orn end, ipairs = ipairs })()
     local self = { items = { { entry = { name = "Autumn/a.png", pack = "Autumn" } },
                              { entry = { name = "Autumn/b.png", pack = "Autumn" } },
                              { entry = { name = "loose.png" } } },

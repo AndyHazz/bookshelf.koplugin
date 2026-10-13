@@ -53,6 +53,45 @@ t.test("narrow screen: ends never exceed half the screen", function()
     eq(l.left_w <= 50, true); eq(l.right_w <= 50, true)
 end)
 
+t.test("a solid end (plank_solid) is carried by the layout; plain ends are not", function()
+    local l = L(args{ left = { w = 200, h = 360, edge = 60, solid = true }, right = { w = 200, h = 360, edge = 60 } })
+    eq(l.left_solid, true); eq(l.right_solid, false)
+    eq(L(args()).left_solid, false, "no end image, no solid end")
+end)
+
+t.test("a solid end replaces the middle under it: no fade there, the middle cut to its inner edge", function()
+    -- Maintainer: the middle's fade under a fading end overlapped awkwardly.
+    assert(src:find('text:find("bookshelf:plank_solid", 1, true)', 1, true), "plank_solid not read from the PNG")
+    local taper = src:match("local function _taperBands%(.-\nend")
+    assert(taper and taper:find("l.left_solid", 1, true) and taper:find("l.right_solid", 1, true),
+        "the fade still runs under a solid end")
+    local strip = src:match("local function _designStrip%(.-\nend")
+    assert(strip and strip:find("cut(l.clip_x0, l.left_x + l.left_w)", 1, true)
+        and strip:find("cut(l.right_x, l.clip_x1)", 1, true), "the middle is not cut under a solid end")
+end)
+
+t.test("a SOLID end is composited over the strip, alpha included; a fading end keeps the middle's alpha", function()
+    -- Solid: alphablitFrom keeps the target's alpha, so an end's soft shadow
+    -- over the part the solid end cleared vanished. Fading (5.3's planks):
+    -- composited over, Hinoki's flat end shadow cut sharp at the plank end
+    -- (maintainer, 2026-10-08), so those keep the old blit.
+    local strip = src:match("local function _designStrip%(.-\nend\n")
+    assert(strip and strip:find("if cw > 0 and not solid then", 1, true), "fading ends are composited over again")
+    assert(strip:find("strip:alphablitFrom(e, dx, 0, sx, 0, cw, total)", 1, true), "fading ends lost the old blit")
+    assert(strip:find("d.alpha = math.floor(oa + 0.5)", 1, true), "a solid end's alpha is not combined into the strip")
+    assert(strip:find("place(design.left, l.left_x, l.left_w, l.left_solid)", 1, true)
+        and strip:find("place(design.right, l.right_x, l.right_w, l.right_solid)", 1, true), "the solid flag is not passed")
+end)
+
+t.test("hanging art keeps clear of what a design stands above the plank (designRise)", function()
+    -- Maintainer: a sofa's back behind the books is part of the shelf, and
+    -- art never overlaps the shelf.
+    assert(src:find("function SpineShelf.designRise(row_h)", 1, true), "no designRise")
+    assert(src:find('text:match("bookshelf:plank_top%s*=%s*([%d%.]+)")', 1, true), "plank_top not read")
+    local room = src:match("hang_room = math.max%(1,.-%),\n")
+    assert(room and room:find("SpineShelf.designRise(opts.row_h)", 1, true), "hang_room ignores designRise")
+end)
+
 t.test("slots render see-through over a plank design, and repainters redraw it", function()
     assert(src:find("function SpineShelf.seeThrough()", 1, true), "no seeThrough")
     local slot = src:match("function SpineBookSlot:paintTo%(.-\nend")
@@ -83,9 +122,15 @@ t.test("the plank design goes UNDER the recess, so the books' shadows fall on it
 end)
 
 
-t.test("the plank design runs edge to edge of the screen, not just the row", function()
+t.test("the plank design runs edge to edge of its target, not just the row", function()
+    -- Across the TARGET's width whenever it is wider than the row: the screen,
+    -- and the page wipe's screen-sized offscreen buffer, which a test of
+    -- bb == Screen.bb missed, so every wiped page turn cut off the end art
+    -- drawn beyond the plank ends (Night Sky's knobs, Cats' arms).
     local pd = src:match("function PlankDesign:paintTo%(.-\nend")
-    assert(pd and pd:find("Screen:getWidth()", 1, true), "design is clipped to the row's margins")
+    assert(pd and pd:find("bb:getWidth()", 1, true), "design is clipped to the row's margins")
+    assert(not pd:find("bb == Screen.bb", 1, true),
+        "only the framebuffer gets the full-width strip; the page wipe's buffer crops the ends")
 end)
 
 

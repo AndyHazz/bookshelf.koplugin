@@ -1892,6 +1892,11 @@ function SpineWidget:_renderShadowedCard(inner)
                 local center_shift =
                     math.floor((_badgeSize(_glyphSize(card_w)) - glyph_h) / 2)
                 local x_offset = _glyphLeftInset() - halo_w + center_shift
+                -- favorite_top_right (spine shelf face-outs): mirrored into
+                -- the top-right corner, the top-left holding the status glyphs.
+                if self.favorite_top_right then
+                    x_offset = card_w - x_offset - glyph_w - shadow_d
+                end
                 -- Zero-chrome wrapper purely so the painted rect gets
                 -- stamped (the halo/shadow group's synthetic dimen carries
                 -- no position): the opening effect repaints the glyph on

@@ -42,7 +42,7 @@ function Picker.show(opts)
     local UIManager = require("ui/uimanager")
     local FileOps = require("lib/bookshelf_file_ops")
     local Repo = require("lib/bookshelf_book_repository")
-    local home = G_reader_settings:readSetting("home_dir") or "/"
+    local home = require("lib/bookshelf_home_dir").get() or "/"
     local choices = Picker.buildChoices(Repo.getAllFolderChoices(), home, opts.exclude)
 
     local function cancel() if opts.on_cancel then opts.on_cancel() end end

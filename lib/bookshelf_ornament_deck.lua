@@ -8,17 +8,35 @@
 -- swaps two pieces or shuffles (maintainer, 2026-09-28; spec
 -- notes/specs/2026-09-28-stable-ornament-placement-design.md).
 --
--- Pure apart from the settings store, so the planning passes' agreement can
--- be tested by driving SpineLayout.fillRows with the hooks below.
+-- EVERY SHELF HAS ITS OWN DECK. One order for all of them made every spine
+-- tab open on the same pieces in the same places (Reddit, 2026-10-03), and a
+-- deck per shelf is also where a pack per shelf would go. A shelf's deck is
+-- shuffled when first dealt from; Swap, Earlier/Later and Shuffle change only
+-- the shelf they are used on. Switching a piece off is still for every shelf.
+--
+-- Pure apart from the settings store and the tab list, so the planning
+-- passes' agreement can be tested by driving SpineLayout.fillRows with the
+-- hooks below.
 local M = {}
 
+-- { [shelf id] = { piece names in order } }.
+M.DECKS_KEY = "ornament_decks"
+-- 5.3.0-5.3.1 kept ONE order here for every shelf. The first shelf to deal
+-- after the upgrade takes it as its own -- the one on screen, so what the
+-- reader was looking at stays put -- and the key goes.
 M.ORDER_KEY = "ornament_deck"
+-- A deck asked for without a shelf (nothing names one): kept apart from
+-- every real shelf's.
+M.NO_SHELF = "_"
 -- Where pieces new to the order go: "start" (the default: a reader who adds
 -- ornaments sees them first) or "end" (nothing already in the order moves, so
--- the shelf stays as it was). Maintainer, 2026-10-01.
+-- the shelf stays as it was). Maintainer, 2026-10-01. "start" means the front
+-- of the FIRST spine shelf's deck; every other shelf takes the piece at a
+-- random place, or they would all open on it (maintainer, 2026-10-03).
 M.NEW_AT_KEY = "ornament_new_at"
 M._store = nil   -- seam: { read = fn(k), save = fn(k, v) }
 M._rand  = nil   -- seam: fn(n) -> 1..n
+M._tabs  = nil   -- seam: fn() -> the tab list, in order (TabModel.load)
 
 local function store()
     if M._store then return M._store end
@@ -39,15 +57,56 @@ local _epoch, _gen = 0, 0
 function M.epoch() return _epoch end
 function M.generation() return _gen end
 
-local function readOrder()
-    local st = store()
-    local ok, v = pcall(function() return st and st.read(M.ORDER_KEY) end)
-    return (ok and type(v) == "table") and v or nil
+local function key(shelf) return shelf ~= nil and tostring(shelf) or M.NO_SHELF end
+
+local function tabs()
+    if M._tabs then return M._tabs() end
+    local ok, TabModel = pcall(require, "lib/bookshelf_tab_model")
+    if not ok or not TabModel then return nil end
+    local ok2, list = pcall(TabModel.load)
+    return ok2 and list or nil
 end
-local function saveOrder(list)
+
+-- firstShelf() -> the id of the first enabled spine tab, or nil.
+function M.firstShelf()
+    for _i, t in ipairs(tabs() or {}) do
+        if t.enabled ~= false and t.view_mode == "spines" then return t.id end
+    end
+    return nil
+end
+
+local function readDecks()
     local st = store()
-    if st then pcall(function() st.save(M.ORDER_KEY, list) end) end
+    local ok, v = pcall(function() return st and st.read(M.DECKS_KEY) end)
+    return (ok and type(v) == "table") and v or {}
+end
+local function saveDecks(decks)
+    local st = store()
+    if st then pcall(function() st.save(M.DECKS_KEY, decks) end) end
     _gen = _gen + 1
+end
+
+local function readOrder(shelf)
+    local decks = readDecks()
+    local k = key(shelf)
+    if type(decks[k]) == "table" then return decks[k] end
+    -- The one order 5.3.0-5.3.1 kept for every shelf: this shelf's now.
+    local st = store()
+    local ok, old = pcall(function() return st and st.read(M.ORDER_KEY) end)
+    if ok and type(old) == "table" and #old > 0 then
+        decks[k] = old
+        saveDecks(decks)
+        pcall(function()
+            if st.delete then st.delete(M.ORDER_KEY) else st.save(M.ORDER_KEY, nil) end
+        end)
+        return old
+    end
+    return nil
+end
+local function saveOrder(shelf, list)
+    local decks = readDecks()
+    decks[key(shelf)] = list
+    saveDecks(decks)
 end
 
 -- newAtStart() -> whether new pieces join the order at the front.
@@ -57,23 +116,31 @@ function M.newAtStart()
     return not (ok and v == "end")
 end
 
--- join(kept, new) -> kept with new added where the setting says.
-local function join(kept, new)
+-- join(kept, new, shelf) -> kept with new added where the setting says: the
+-- end; or the front of the first spine shelf's deck, and anywhere in the
+-- others'.
+local function join(kept, new, shelf)
     if #new == 0 then return kept end
     local out = {}
-    if M.newAtStart() then
+    for _i, n in ipairs(kept) do out[#out + 1] = n end
+    if not M.newAtStart() then
         for _i, n in ipairs(new) do out[#out + 1] = n end
-        for _i, n in ipairs(kept) do out[#out + 1] = n end
-    else
-        for _i, n in ipairs(kept) do out[#out + 1] = n end
-        for _i, n in ipairs(new) do out[#out + 1] = n end
+        return out
     end
+    local first = M.firstShelf()
+    if first == nil or key(first) == key(shelf) then
+        local front = {}
+        for _i, n in ipairs(new) do front[#front + 1] = n end
+        for _i, n in ipairs(out) do front[#front + 1] = n end
+        return front
+    end
+    for _i, n in ipairs(new) do table.insert(out, rand(#out + 1), n) end
     return out
 end
 
-function M.names()
+function M.names(shelf)
     local out = {}
-    for i, n in ipairs(readOrder() or {}) do out[i] = n end
+    for i, n in ipairs(readOrder(shelf) or {}) do out[i] = n end
     return out
 end
 
@@ -87,14 +154,13 @@ local function shuffled(list)
     return o
 end
 
--- reconcile(all_names): the saved order, kept to the pieces that exist, with
--- any new ones joined first or last (see NEW_AT_KEY; last keeps every other
--- position). No saved order yet: a shuffle of all_names. Saved only when it
--- changed.
-function M.reconcile(all_names)
-    local saved = readOrder()
+-- reconcile(all_names, shelf): the shelf's saved order, kept to the pieces
+-- that exist, with any new ones joined (see NEW_AT_KEY). No saved order yet:
+-- a shuffle of all_names. Saved only when it changed.
+function M.reconcile(all_names, shelf)
+    local saved = readOrder(shelf)
     if not saved then
-        saveOrder(shuffled(all_names))
+        saveOrder(shelf, shuffled(all_names))
         return
     end
     local exists, out, seen, changed = {}, {}, {}, false
@@ -107,27 +173,51 @@ function M.reconcile(all_names)
     for _i, n in ipairs(all_names) do
         if not seen[n] then new[#new + 1] = n; seen[n] = true; changed = true end
     end
-    if changed then saveOrder(join(out, new)) end
+    if changed then saveOrder(shelf, join(out, new, shelf)) end
 end
 
--- sync(all): reconcile the saved order with every piece on disk (switched
--- off or not), once per scan: `all` is the scan's own table (Orn.listAll),
--- which stays the same table while nothing on disk changed.
-M._synced_for = nil
-function M.sync(all)
-    if all == nil or all == M._synced_for then return end
-    M._synced_for = all
+-- prune(): drop the decks of shelves that no longer exist. Only with a tab
+-- list to go by; the Kobo shelf is not in it but keeps its deck.
+function M.prune()
+    local list = tabs()
+    if not list then return end
+    local live = { kobo = true, [M.NO_SHELF] = true }
+    for _i, t in ipairs(list) do if t.id ~= nil then live[tostring(t.id)] = true end end
+    local decks, gone = readDecks(), false
+    for k in pairs(decks) do
+        if not live[k] then decks[k] = nil; gone = true end
+    end
+    if gone then saveDecks(decks) end
+end
+
+-- sync(all, shelf): reconcile the shelf's saved order with every piece on
+-- disk (switched off or not), once per scan per shelf: `all` is the scan's
+-- own table (Orn.listAll), which stays the same table while nothing on disk
+-- changed. The first sync of a scan also prunes.
+M._synced_for = {}
+M._pruned_for = nil
+function M.sync(all, shelf)
+    if all == nil then return end
+    if M._pruned_for ~= all then
+        M._pruned_for = all
+        M._synced_for = {}
+        M.prune()
+    end
+    local k = key(shelf)
+    if M._synced_for[k] == all then return end
+    M._synced_for[k] = all
     local names = {}
     for i, e in ipairs(all) do names[i] = e.name end
-    M.reconcile(names)
+    M.reconcile(names, shelf)
 end
 
--- order(pool) -> the pool's entries in saved order. pool is the ENABLED
--- pieces; switched-off ones stay in the saved order (not in the result), so
--- switching one back on returns it to its place. Pieces in the pool that the
--- order has not met yet are joined in first, by the same rule as reconcile.
-function M.order(pool)
-    local saved = readOrder()
+-- order(pool, shelf) -> the pool's entries in the shelf's saved order. pool
+-- is the ENABLED pieces; switched-off ones stay in the saved order (not in
+-- the result), so switching one back on returns it to its place. Pieces in
+-- the pool that the order has not met yet are joined in by the same rule as
+-- reconcile.
+function M.order(pool, shelf)
+    local saved = readOrder(shelf)
     local known = {}
     for _i, n in ipairs(saved or {}) do known[n] = true end
     local missing = (saved == nil)
@@ -139,9 +229,9 @@ function M.order(pool)
             if not seen[e.name] then new[#new + 1] = e.name; seen[e.name] = true end
         end
         local list
-        if saved then list = join(kept, new) else list = shuffled(new) end
-        saveOrder(list)
-        saved = readOrder() or list
+        if saved then list = join(kept, new, shelf) else list = shuffled(new) end
+        saveOrder(shelf, list)
+        saved = readOrder(shelf) or list
     end
     local by = {}
     for _i, e in ipairs(pool) do by[e.name] = e end
@@ -150,24 +240,25 @@ function M.order(pool)
     return out
 end
 
--- shuffle(names): a new saved order (all known names when nil). Also what
--- clears every swap.
-function M.shuffle(names)
-    saveOrder(shuffled(names or M.names()))
+-- shuffle(shelf): a new saved order for that shelf's deck. Also what clears
+-- its swaps.
+function M.shuffle(shelf)
+    saveOrder(shelf, shuffled(M.names(shelf)))
     _epoch = _epoch + 1
 end
 
--- swap(a, b) -> true when the two exchanged places in the saved order.
-function M.swap(a, b)
+-- swap(a, b, shelf) -> true when the two exchanged places in the shelf's
+-- saved order.
+function M.swap(a, b, shelf)
     if a == b then return false end
-    local list = M.names()
+    local list = M.names(shelf)
     local ia, ib
     for i, n in ipairs(list) do
         if n == a then ia = i elseif n == b then ib = i end
     end
     if not (ia and ib) then return false end
     list[ia], list[ib] = list[ib], list[ia]
-    saveOrder(list)
+    saveOrder(shelf, list)
     return true
 end
 
@@ -181,16 +272,16 @@ function M.position(name, on)
     return nil
 end
 
--- move(name, delta, on) -> true when the piece traded places with the piece
--- `delta` (-1 earlier, +1 later) away among the ones that are on: the long-
--- press menu's Earlier and Later, a gentler Swap. Wraps past either end: the
--- deck deals round in a loop, so the first and last are neighbours
+-- move(name, delta, on, shelf) -> true when the piece traded places with the
+-- piece `delta` (-1 earlier, +1 later) away among the ones that are on: the
+-- long-press menu's Earlier and Later, a gentler Swap. Wraps past either end:
+-- the deck deals round in a loop, so the first and last are neighbours
 -- (maintainer).
-function M.move(name, delta, on)
+function M.move(name, delta, on, shelf)
     local i = M.position(name, on)
     if not i or #on < 2 then return false end
     local j = ((i - 1 + delta) % #on) + 1
-    return M.swap(name, on[j])
+    return M.swap(name, on[j], shelf)
 end
 
 -- ── Patterns ────────────────────────────────────────────────────────────
@@ -212,9 +303,33 @@ function M.levelOf(freq)
     return "always"
 end
 
-function M.shelfSlot(level, s)
+-- ── Seeded placement ────────────────────────────────────────────────────
+-- Most readers have two rows a page, and the fixed patterns put the pieces
+-- in the same places on every page: Always on row 1's right end and row 2's
+-- left, Often always on the lower row (maintainer, 2026-10-05). With a seed
+-- -- the shelf's own, from its id (SpineShelf.plan) -- the row a window's
+-- piece takes and the side each piece stands on are pseudo-random, but a
+-- fixed function of (seed, count), so both planning passes and every visit
+-- agree. No seed: the fixed patterns, as before.
+--
+-- mix(seed, n) -> 1 .. 2^31-2. Arithmetic only (Lua 5.1 on the device has
+-- no bit operators in the language), and every product under 2^53 so a
+-- double holds it exactly: MINSTD steps (x * 48271 mod 2^31-1).
+local function mix(seed, n)
+    local x = ((math.floor(tonumber(seed) or 0) % 2147483646) + n * 7919) % 2147483646 + 1
+    for _i = 1, 4 do x = (x * 48271) % 2147483647 end
+    return x
+end
+
+function M.shelfSlot(level, s, seed)
     local k = SHELF_EVERY[level]
-    return k ~= nil and s >= 1 and s % k == 0
+    if k == nil or s < 1 then return false end
+    if k == 1 then return true end
+    if seed == nil then return s % k == 0 end
+    -- one piece per window of k shelves, at a seeded place in the window
+    local w = math.floor((s - 1) / k)
+    local pick = math.floor(mix(seed, w) / 7) % k
+    return (s - 1) % k == pick
 end
 
 function M.gapSlot(level, b)
@@ -222,9 +337,29 @@ function M.gapSlot(level, b)
     return k ~= nil and b >= 1 and b % k == 0
 end
 
--- side(level, s): the shelf-end pieces alternate ends, counted by piece.
-function M.side(level, s)
+-- side(level, s[, seed]): which end the piece at shelf s stands on. No
+-- seed: they alternate, counted by piece. Seeded: pseudo-random per piece,
+-- never the same end three times running (a memoised run per seed, so it
+-- stays a fixed function of the count).
+local _sides = {}
+local function seededSide(seed, nth)
+    local seq = _sides[seed]
+    if not seq then seq = {}; _sides[seed] = seq end
+    for i = #seq + 1, nth do
+        local v = (math.floor(mix(seed, 100000 + i) / 13) % 2 == 1) and "right" or "left"
+        if i >= 3 and seq[i - 1] == v and seq[i - 2] == v then
+            v = (v == "right") and "left" or "right"
+        end
+        seq[i] = v
+    end
+    return seq[nth]
+end
+
+function M.side(level, s, seed)
     local k = SHELF_EVERY[level] or 1
+    if seed ~= nil and s >= 1 then
+        return seededSide(seed, math.floor((s - 1) / k) + 1)
+    end
     local nth = math.floor(s / k)
     return (nth % 2 == 1) and "right" or "left"
 end
@@ -275,6 +410,7 @@ end
 -- books' group gaps as they are placed.
 function M.fillHooks(env)
     local d, level, es = env.dealer, env.level, env.entries
+    local seed = env.seed
     local per_page = math.max(1, tonumber(env.per_page) or 1)
     local h = { row_orn = {}, row_deal = {}, page_orn = {}, dealer = d }
     local started, dealing = 0, true
@@ -297,12 +433,12 @@ function M.fillHooks(env)
         end
         if not allowed(r) then return end
         d.st.shelf = d.st.shelf + 1
-        if M.shelfSlot(level, d.st.shelf) then
+        if M.shelfSlot(level, d.st.shelf, seed) then
             local e, no = d:take()
             if e then
                 local pl = env.size("rowend", e, no)
                 if pl then
-                    pl.side = M.side(level, d.st.shelf); h.row_orn[r] = pl
+                    pl.side = M.side(level, d.st.shelf, seed); h.row_orn[r] = pl
                     h.row_deal[r] = { e, no }
                 end
             end
@@ -419,11 +555,11 @@ function M.fillHooks(env)
         local out = {}
         for r = from, to do
             d.st.shelf = d.st.shelf + 1
-            if M.shelfSlot(level, d.st.shelf) then
+            if M.shelfSlot(level, d.st.shelf, seed) then
                 local e, no = d:take()
                 if e then
                     local pl = env.size("bare", e, no)
-                    if pl then pl.side = M.side(level, d.st.shelf); out[r] = pl end
+                    if pl then pl.side = M.side(level, d.st.shelf, seed); out[r] = pl end
                 end
             end
         end

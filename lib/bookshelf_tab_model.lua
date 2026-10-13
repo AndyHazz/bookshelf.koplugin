@@ -171,7 +171,8 @@ end
 
 -- saveDeferred(tabs): the same write with no flush, for a hot path.
 --
--- One caller: the pinch, which writes a row count onto the chip it is aimed at
+-- Two callers: the shelf editor (each change as it is made; it flushes as it
+-- closes) and the pinch, which writes a row count onto the chip it is aimed at
 -- and must not stop for a settings flush -- hundreds of milliseconds on Kindle
 -- flash, landing between the gesture and the repaint. The in-memory value
 -- updates immediately, so the rebuild that follows sees the new count;
@@ -181,12 +182,41 @@ function TabModel.saveDeferred(tabs)
     BookshelfSettings.saveDeferred(STORAGE_KEY, tabs)
 end
 
+-- flush(): write what saveDeferred holds. The shelf editor saves each change
+-- in memory as it is made and flushes once, as it closes.
+function TabModel.flush()
+    BookshelfSettings.flush()
+end
+
 -- insertAfter(tabs, anchor_id, new_tab): splice `new_tab` into `tabs`
 -- immediately after the entry whose id matches `anchor_id`. Appends to
 -- the end when no anchor is found (anchor_id nil, anchor doesn't exist,
 -- or new chip created from a context with no active chip). Mutates
 -- `tabs` in place; caller still owns persistence via TabModel.save.
 function TabModel.insertAfter(tabs, anchor_id, new_tab)
+    -- A top-level shelf made from inside a shelf of shelves (a stack pinned
+    -- while in a sub-shelf) goes after that whole tree, beside the top-level
+    -- shelf it was made under, so the stored list keeps its tree order.
+    if anchor_id and not new_tab.parent then
+        local by_id = {}
+        for _i, t in ipairs(tabs) do by_id[t.id] = t end
+        local root, hops = by_id[anchor_id], 0
+        while root and root.parent and by_id[root.parent] and hops < 32 do
+            root = by_id[root.parent]
+            hops = hops + 1
+        end
+        if root then
+            local inside = TabModel.descendantIds(root.id, tabs)
+            local at
+            for i, t in ipairs(tabs) do
+                if t.id == root.id or inside[t.id] then at = i end
+            end
+            if at then
+                table.insert(tabs, at + 1, new_tab)
+                return
+            end
+        end
+    end
     if anchor_id then
         for i, t in ipairs(tabs) do
             if t.id == anchor_id then
@@ -198,66 +228,166 @@ function TabModel.insertAfter(tabs, anchor_id, new_tab)
     tabs[#tabs + 1] = new_tab
 end
 
--- In-memory override used by the editor to drive live preview without
--- persisting to disk on every keystroke. setOverride(tab_id, tab) makes
--- getById(tab_id) / getActive() return the override in place of the
--- persisted record. clearOverride() restores normal lookup. Override
--- is cleared on every editor close (Save / Cancel / X).
-local _override = nil  -- { id = <string>, tab = <tab record> }
-
-function TabModel.setOverride(tab_id, tab)
-    _override = { id = tab_id, tab = tab }
-end
-
-function TabModel.clearOverride()
-    _override = nil
-end
-
--- getById(id): find a tab by id from the current loaded list. Consults the
--- in-memory override first so live preview during edits doesn't require
--- hitting disk.
--- Synthetic tab for the Kobo virtual library (kobo.koplugin). NOT part of
--- DEFAULTS / the persisted, editable set -- it only exists when the kobo plugin
--- is present (the widget injects the chip on bookshelf_kobo_source.isAvailable()),
--- so non-Kobo users never see it. source.kind == "kobo" routes Repo.getBySource
--- to the kobo source. Sort priority is read from a dedicated setting so the chip
--- can be made sortable without touching the persisted tab list.
-function TabModel.koboTab()
-    local sp = { { key = "title", reverse = false } }
-    local ok, Store = pcall(require, "lib/bookshelf_settings_store")
-    if ok and Store then
-        local saved = Store.read("kobo_sort_priority")
-        if type(saved) == "table" and #saved > 0 then sp = saved end
-    end
-    return {
-        id = "kobo", label = tr("Kobo"),
-        source = { kind = "kobo" }, filter = {},
-        sort_priority = sp, enabled = true, synthetic = true,
-    }
-end
-
+-- getById(id): find a tab by id from the current loaded list.
 function TabModel.getById(id)
-    if _override and _override.id == id then return _override.tab end
-    if id == "kobo" then return TabModel.koboTab() end
     for _i, t in ipairs(TabModel.load()) do
         if t.id == id then return t end
     end
     return nil
 end
 
--- getActive(): list of enabled tabs in their stored order. If an override
--- is set, the matching tab is substituted in-place so position is preserved
--- and live label/icon edits surface immediately.
+-- getActive(): list of enabled tabs in their stored order.
+--
+-- Top-level shelves only: a sub-shelf (see "Shelf of shelves" below) lives
+-- inside its parent's shelf, never in the chip strip.
 function TabModel.getActive()
     local out = {}
     for _i, t in ipairs(TabModel.load()) do
-        if _override and _override.id == t.id then
-            if _override.tab.enabled ~= false then out[#out + 1] = _override.tab end
-        elseif t.enabled ~= false then
+        if t.enabled ~= false and not t.parent then
             out[#out + 1] = t
         end
     end
     return out
+end
+
+-- ── Shelf of shelves (5.4) ─────────────────────────────────────────────────
+-- A shelf whose source is { kind = "shelves" } holds other shelves. Each one
+-- is an ordinary tab record in the same flat list, with `parent` naming the
+-- shelf it sits in -- so every per-shelf setting (style, filters, sort, rows,
+-- theme, ornaments) works on it unchanged, keyed by its id like any other.
+-- A sub-shelf can itself hold shelves, to any depth. Order among siblings is
+-- their order in the list.
+TabModel.SHELVES_KIND = "shelves"
+-- A cycle cannot be built from the UI, but a hand-edited settings file could
+-- hold one; every walk up the chain stops here rather than spinning.
+local MAX_DEPTH = 32
+
+function TabModel.isShelves(tab)
+    return type(tab) == "table" and type(tab.source) == "table"
+        and tab.source.kind == TabModel.SHELVES_KIND
+end
+
+-- childrenOf(id[, tabs]) -> the shelves inside `id`, in their stored order.
+function TabModel.childrenOf(id, tabs)
+    local out = {}
+    if id == nil then return out end
+    for _i, t in ipairs(tabs or TabModel.load()) do
+        if t.parent == id then out[#out + 1] = t end
+    end
+    return out
+end
+
+-- ancestorsOf(id) -> the shelves above `id`, outermost first (empty for a
+-- top-level shelf). A parent that no longer exists ends the chain.
+function TabModel.ancestorsOf(id)
+    local chain, seen = {}, { [id or false] = true }
+    local t = TabModel.getById(id)
+    while t and t.parent and #chain < MAX_DEPTH and not seen[t.parent] do
+        local p = TabModel.getById(t.parent)
+        if not p then break end
+        seen[t.parent] = true
+        table.insert(chain, 1, p)
+        t = p
+    end
+    return chain
+end
+
+-- rootOf(id) -> the top-level shelf `id` sits under (itself when top level).
+function TabModel.rootOf(id)
+    local chain = TabModel.ancestorsOf(id)
+    return chain[1] and chain[1].id or id
+end
+
+-- descendantIds(id[, tabs]) -> set of every shelf below `id`, any depth.
+function TabModel.descendantIds(id, tabs)
+    tabs = tabs or TabModel.load()
+    local set, frontier = {}, { id }
+    while #frontier > 0 do
+        local next_f = {}
+        for _i, pid in ipairs(frontier) do
+            for _j, t in ipairs(tabs) do
+                if t.parent == pid and not set[t.id] and t.id ~= id then
+                    set[t.id] = true
+                    next_f[#next_f + 1] = t.id
+                end
+            end
+        end
+        frontier = next_f
+    end
+    return set
+end
+
+-- removeTree(tabs, id): remove `id` and every shelf inside it, in place.
+-- Deleting a shelf of shelves takes its shelves with it; leaving them would
+-- strand records nothing can reach or edit.
+function TabModel.removeTree(tabs, id)
+    local doomed = TabModel.descendantIds(id, tabs)
+    doomed[id] = true
+    for i = #tabs, 1, -1 do
+        if doomed[tabs[i].id] then table.remove(tabs, i) end
+    end
+end
+
+-- isSibling(a, b) -> true when two records sit at the same level (same
+-- parent, or both top level): the set the editor's move arrows walk.
+function TabModel.isSibling(a, b)
+    return type(a) == "table" and type(b) == "table" and a.parent == b.parent
+end
+
+-- newId(tabs) -> the first free custom_N id.
+function TabModel.newId(tabs)
+    tabs = tabs or TabModel.load()
+    local taken = {}
+    for _i, t in ipairs(tabs) do taken[t.id] = true end
+    local n = 1
+    while taken["custom_" .. n] do n = n + 1 end
+    return "custom_" .. n
+end
+
+-- newTab(tabs, label) -> a shelf being created: no source yet (nothing on it
+-- while the reader picks one, rather than a placeholder Home showing every
+-- book behind the editor), and `pending` until the editor saves it. Leaving
+-- the editor any other way removes it (bookshelf_chip_editor).
+TabModel.NO_SOURCE = "none"
+function TabModel.newTab(tabs, label)
+    return {
+        id            = TabModel.newId(tabs),
+        label         = label,
+        source        = { kind = TabModel.NO_SOURCE },
+        filter        = {},
+        sort_priority = { { key = "title", reverse = false } },
+        enabled       = true,
+        pending       = true,
+    }
+end
+
+-- prunePending() -> true when it removed anything: shelves still pending
+-- (and anything inside them) from a session that stopped mid-creation.
+-- Called once at start-up; never while an editor may hold one.
+function TabModel.prunePending()
+    local tabs = TabModel.load()
+    local doomed = {}
+    for _i, t in ipairs(tabs) do
+        if t.pending then doomed[#doomed + 1] = t.id end
+    end
+    if #doomed == 0 then return false end
+    for _i, id in ipairs(doomed) do TabModel.removeTree(tabs, id) end
+    TabModel.save(tabs)
+    return true
+end
+
+-- insertChild(tabs, parent_id, new_tab): append `new_tab` as the last shelf
+-- inside `parent_id`, placed after the parent's last descendant in the flat
+-- list so the stored list still reads in tree order.
+function TabModel.insertChild(tabs, parent_id, new_tab)
+    new_tab.parent = parent_id
+    local inside = TabModel.descendantIds(parent_id, tabs)
+    local at
+    for i, t in ipairs(tabs) do
+        if t.id == parent_id or inside[t.id] then at = i end
+    end
+    if at then table.insert(tabs, at + 1, new_tab)
+    else tabs[#tabs + 1] = new_tab end
 end
 
 return TabModel

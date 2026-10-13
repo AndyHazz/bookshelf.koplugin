@@ -641,7 +641,7 @@ SortEngine.KEYS = {
                             end },
     -- Favourites (KOReader's default "favorites" collection) ahead of the
     -- rest; ties fall to the next level, e.g. Reading 1st then Last opened.
-    favorites_first = { label = tr("Favorites first"), short = tr("Favs 1st"),
+    favorites_first = { label = tr("Favorites first"), short = tr("Favorite 1st"),
                         comparator = function(a, b)
                             return cmp(isFavourite(a) and 1 or 2, isFavourite(b) and 1 or 2)
                         end },

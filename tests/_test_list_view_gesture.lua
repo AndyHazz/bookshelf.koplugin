@@ -51,6 +51,16 @@ local function viewMode(opts)
     local env = {
         ViewMode = ViewMode,
         _covers_pin = opts.pin or 0,
+        -- The chip's record, for an Auto chip's levels and a Spines pin's
+        -- catalogue check.
+        require = function(m)
+            if m == "lib/bookshelf_tab_model" then
+                return { getById = function() return opts.tab or { source = { kind = "all" } } end }
+            elseif m == "lib/bookshelf_sources" then
+                return { isPaged = function() return false end }
+            end
+            error("unexpected require " .. m)
+        end,
         -- The ONE settings key the resolver may read is the search view --
         -- and only on the search branch (asserted per test below). Any other
         -- key is the old three-global model growing back.
@@ -84,16 +94,34 @@ t.test("UNSET is covers everywhere: the pre-list-view shelf", function()
     assert(settings_reads == 0, "the chip path must not read settings")
 end)
 
-t.test("a chip set to Auto gets the policy: covers collapsed, list expanded or drilled",
-function()
-    -- The policy the maintainer named: "auto: list when expanded or lists
-    -- inside folders". Nothing configurable inside it -- but it must now be
-    -- CHOSEN, stored on the chip like the other two modes.
+t.test("a chip set to Auto shows Level 1 at its top level and Level 2 drilled in", function()
+    -- 5.4.3: Auto is chosen per drill level, Level 1 covers and Level 2 list
+    -- by default. Expanded at the top level follows Level 1 (maintainer,
+    -- 2026-10-11: levels are drill depth), where the old fixed policy listed.
     local M = ViewMode.AUTO
     assert(viewMode{ expanded = false, chip_mode = M } == "covers")
-    assert(viewMode{ expanded = true, chip_mode = M } == "list")
+    assert(viewMode{ expanded = true, chip_mode = M } == "covers", "expanded follows Level 1")
     assert(viewMode{ expanded = false, in_folder = true, chip_mode = M } == "list")
     assert(viewMode{ expanded = true,  in_folder = true, chip_mode = M } == "list")
+    -- The tutorial's author shelf: a list of authors, their books as covers.
+    local tab = { source = { kind = "authors" }, view_level1 = "list", view_level2 = "covers" }
+    assert(viewMode{ chip_mode = M, tab = tab } == "list")
+    assert(viewMode{ chip_mode = M, tab = tab, expanded = true } == "list")
+    assert(viewMode{ chip_mode = M, tab = tab, in_folder = true } == "covers")
+    -- A level may be Spines, and a catalogue degrades it to covers as a pin.
+    assert(viewMode{ chip_mode = M, in_folder = true,
+                     tab = { source = { kind = "all" }, view_level2 = "spines" } } == "spines")
+    assert(viewMode{ chip_mode = M,
+                     tab = { source = { kind = "opds" }, view_level1 = "spines" } } == "covers")
+end)
+
+t.test("a level's button steps covers > list > spines > covers, no spines for a catalogue", function()
+    local n = ViewMode.nextLevelMode
+    assert(n(nil, 1) == "list", "Level 1 starts on covers")
+    assert(n(nil, 2) == "spines", "Level 2 starts on list")
+    assert(n("spines", 1) == "covers")
+    assert(n("list", 2, true) == "covers", "a catalogue skips spines")
+    assert(ViewMode.levelMode("nonsense", 2) == "list", "an unknown value is the level's default")
 end)
 
 t.test("search results have their own mode, covers by default", function()
@@ -357,8 +385,12 @@ local function chipValue(self_tbl, chip_own, default)
         end,
         BookshelfSettings = { read = function() return default end },
         type = type,
+        ViewMode = ViewMode,
     }
     local f = methodWithArgs("_chipListValue", env)
+    -- Level 1: the per-level split has its own suite
+    -- (_test_list_density_levels.lua).
+    self_tbl._autoLevel = self_tbl._autoLevel or function() return 1 end
     return f(self_tbl, "list_columns")
 end
 

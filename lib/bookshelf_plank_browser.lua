@@ -1,9 +1,10 @@
 --[[
 The plank picker: the plank the Spines style stands its books on. The plain
 colour, the built-in Oak, then each pack's planks, one per row and each shown
-as the shelf paints it. Opened from the "Shelf plank" row (Accent colors, and
-Wallpaper, ornaments and colors); a tap uses that plank and closes. On the
-ornament collection's screen (LibraryModal), like the wallpaper picker.
+as the shelf paints it. Opened from the reader's own "Plank" row; a tap uses
+that plank. It never switches a pack on or off: the collection's pack switches
+shape ornaments only. On the ornament collection's screen (LibraryModal), like
+the wallpaper picker.
 
 The plain colour opens the plank colour dialog as well, so the colour can be
 changed there and then.
@@ -146,22 +147,16 @@ local function renderCell(o, dimen)
     local name = nameOf(o)
     if o.kind == "pack" then name = T(_("%1 (%2 pack)"), name, o.pack) end
     -- The title row, aligned left: the radio mark (filled for the plank in
-    -- use), the name, and why it would not show when its pack is off.
+    -- use) and the name.
     local HorizontalGroup = require("ui/widget/horizontalgroup")
     local HorizontalSpan  = require("ui/widget/horizontalspan")
     local LeftContainer   = require("ui/widget/container/leftcontainer")
     local Marks           = require("lib/bookshelf_marks")
     local radio = Marks.Radio:new{ checked = PB.inUse(o) }
     local gap = Space.padding.default
-    local status = o.pack_off and TextWidget:new{ text = _("Pack off"), face = Font:getFace("cfont", 14),
-                                                   max_width = math.floor(inner_w / 3) } or nil
-    local name_w = inner_w - radio:getSize().w - gap - (status and (status:getSize().w + gap) or 0)
+    local name_w = inner_w - radio:getSize().w - gap
     local row = HorizontalGroup:new{ align = "center", radio, HorizontalSpan:new{ width = gap },
         TextWidget:new{ text = name, face = Font:getFace("cfont", 18), bold = true, max_width = math.max(1, name_w) } }
-    if status then
-        row[#row + 1] = HorizontalSpan:new{ width = gap }
-        row[#row + 1] = status
-    end
     local lines = LeftContainer:new{ dimen = Geom:new{ w = inner_w, h = row:getSize().h }, row }
     local box_h = math.max(1, inner_h - lines:getSize().h - Space.padding.small)
     -- A row the height of a four-row shelf: the plank as most shelves show
@@ -204,7 +199,6 @@ function PB.show(opts)
     local LibraryModal = require("lib/bookshelf_library_modal")
     local UIManager    = require("ui/uimanager")
     local Screen       = require("device").screen
-    local T            = require("ffi/util").template
     local self = { chip = opts.chip or PB.ALL }
     local function items() return PB.entries(self.chip) end
     self.items = items()
@@ -220,14 +214,13 @@ function PB.show(opts)
         for _i, o in ipairs(TP().plankOptions()) do
             if o.kind == "pack" and not seen[o.pack] then
                 seen[o.pack] = true
-                out[#out + 1] = { key = o.pack, label = o.pack_off and T(_("%1 (off)"), o.pack) or o.pack,
-                                  is_active = self.chip == o.pack }
+                out[#out + 1] = { key = o.pack, label = o.pack, is_active = self.chip == o.pack }
             end
         end
         return out
     end
     local config = {
-        title = _("Shelf plank"),
+        title = _("Plank"),
         no_search = true,
         grid_cols = function() return 1 end,
         -- Short, so the shelf shows around it and a tap can be seen there.
@@ -246,17 +239,10 @@ function PB.show(opts)
         cell_renderer = renderCell,
         -- A tap uses the plank at once, on the shelf behind, and the picker
         -- stays open for the next (Close, or a tap outside it, when done).
-        -- on_change(full): full when the tap also switched a pack on, whose
-        -- ornaments then join the shelf. The plain colour closes the picker
-        -- for its colour dialog.
+        -- The plain colour closes the picker for its colour dialog.
         on_cell_tap = function(o)
             if o.kind == "hint" then return end
             local before = TP().plankChoice()
-            local full = false
-            if o.pack_off and o.pack then
-                require("lib/bookshelf_ornaments").setPackOff(o.pack, false)
-                full = true
-            end
             TP().choosePlank(PB.choiceOf(o))
             self.changed = true
             if o.kind == "colour" then
@@ -264,7 +250,7 @@ function PB.show(opts)
                 -- tab when it closes (reopen); the menu stays away meanwhile.
                 self.reopening = true
                 close()
-                if opts.on_change then pcall(opts.on_change, full) end
+                if opts.on_change then pcall(opts.on_change) end
                 local function reopen()
                     local again = {}
                     for k, v in pairs(opts) do again[k] = v end
@@ -274,8 +260,7 @@ function PB.show(opts)
                 if opts.pick_colour then opts.pick_colour(before, reopen) else reopen() end
                 return
             end
-            if full then self.items = items() end   -- "Pack off" goes
-            if opts.on_change then pcall(opts.on_change, full) end
+            if opts.on_change then pcall(opts.on_change) end
             if modal then modal:refresh() end
         end,
         item_count = function() return #self.items end,

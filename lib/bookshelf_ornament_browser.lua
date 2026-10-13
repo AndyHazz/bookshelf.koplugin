@@ -41,6 +41,11 @@ local Browser = {}
 local ALL = "__all"
 
 local function O() return require("lib/bookshelf_ornaments") end
+-- The switches this browser reads and writes: the collection's, or the set
+-- of the theme on screen, a pack or Plain, which the reader is editing
+-- (bookshelf_theme_pack.switches, the one seam). Asked each time: the
+-- browser can outlive a change of shelf.
+local function SW() return require("lib/bookshelf_theme_pack").switches() end
 
 -- An ornament's PICTURE is faded while it will not be placed, whether switched
 -- off itself or through its pack: the grid reads as "what the shelf uses".
@@ -67,6 +72,40 @@ function Cropped:paintTo(bb, x, y)
     pcall(function() bb:alphablitFrom(img, x, y, self.src_x, self.src_y, self.w, self.h) end)
 end
 
+-- preview(e, box_w, box_h) -> the ornament's picture as large as fits
+-- box_w x box_h, the transparent room its file carries for the shelf cropped
+-- off. Rendered at paint by the ornaments' own renderer (cached; drawn for
+-- night mode as the shelf draws it). The collection's cards and the Theme
+-- library's heroes (bookshelf_theme_library) both show pieces this way.
+-- A piece seen for the first time is decoded once, not twice: contentBox
+-- holds its decode, and the render the paint will ask for is made from it
+-- here (bookshelf_ornaments ONE DECODE PER PREVIEW).
+function Browser.preview(e, box_w, box_h)
+    local aspect = (e.aspect and e.aspect > 0) and e.aspect or 1
+    local Orn = O()
+    local l, t, r, b = Orn.contentBox(e, true)
+    if not l then l, t, r, b = 0, 0, 1, 1 end
+    local cut_aspect = aspect * (r - l) / (b - t)
+    local cw, ch = box_w, math.floor(box_w / cut_aspect)
+    if ch > box_h then ch = box_h; cw = math.floor(box_h * cut_aspect) end
+    cw, ch = math.max(1, cw), math.max(1, ch)
+    local preview = Cropped:new{
+        placement = { entry = e, w = math.max(1, math.floor(cw / (r - l) + 0.5)),
+                      h = math.max(1, math.floor(ch / (b - t) + 0.5)) },
+        night = Screen.night_mode and true or false,
+        src_x = 0, src_y = 0, w = cw, h = ch,
+    }
+    preview.src_x = math.floor(l * preview.placement.w + 0.5)
+    preview.src_y = math.floor(t * preview.placement.h + 0.5)
+    -- Cropped:paintTo asks for exactly this render; made now from the held
+    -- decode, the paint finds it cached.
+    if Orn.holds(e) then
+        Orn.render(e, preview.placement.w, preview.placement.h, preview.night)
+        Orn.releaseHeld()
+    end
+    return preview
+end
+
 function Browser._renderCell(item, dimen)
     local e = item.entry
     local border = Size.border.default
@@ -85,21 +124,7 @@ function Browser._renderCell(item, dimen)
     local box_h = math.max(1, dimen.h - 2 * (border + pad) - text_h - Space.padding.small)
     -- Preview the picture, not the file: the transparent room an ornament
     -- carries for the shelf is cropped off, and what is left fits the box.
-    local aspect = (e.aspect and e.aspect > 0) and e.aspect or 1
-    local l, t, r, b = O().contentBox(e)
-    if not l then l, t, r, b = 0, 0, 1, 1 end
-    local cut_aspect = aspect * (r - l) / (b - t)
-    local cw, ch = inner_w, math.floor(inner_w / cut_aspect)
-    if ch > box_h then ch = box_h; cw = math.floor(box_h * cut_aspect) end
-    cw, ch = math.max(1, cw), math.max(1, ch)
-    local preview = Cropped:new{
-        placement = { entry = e, w = math.max(1, math.floor(cw / (r - l) + 0.5)),
-                      h = math.max(1, math.floor(ch / (b - t) + 0.5)) },
-        night = Screen.night_mode and true or false,
-        src_x = 0, src_y = 0, w = cw, h = ch,
-    }
-    preview.src_x = math.floor(l * preview.placement.w + 0.5)
-    preview.src_y = math.floor(t * preview.placement.h + 0.5)
+    local preview = Browser.preview(e, inner_w, box_h)
     if item.off or item.pack_off then preview = Faded:new{ child = preview } end
     local inner_h = dimen.h - 2 * (border + pad)
     local body = VerticalGroup:new{
@@ -130,15 +155,17 @@ function Browser._renderCell(item, dimen)
 end
 
 function Browser:_items()
-    local Orn = O()
+    local Orn, sw = O(), SW()
     local all = Orn.listAll()
     local out = {}
     for _i, e in ipairs(all) do
-        local keep = self.chip == ALL
-                     or (e.pack ~= nil and e.pack == self.chip)
+        -- opts.pool: the pieces a shelf deals from (Swap on a shelf that
+        -- wears a pack offers only those).
+        local keep = (self.chip == ALL or (e.pack ~= nil and e.pack == self.chip))
+                     and (not self.opts.pool or self.opts.pool(e))
         if keep then
-            out[#out + 1] = { entry = e, off = Orn.isOff(e.name),
-                              pack_off = Orn.isPackOff(e.pack) }
+            out[#out + 1] = { entry = e, off = sw.isOff(e.name),
+                              pack_off = sw.isPackOff(e.pack) }
         end
     end
     return out
@@ -147,16 +174,21 @@ end
 -- _toggle(item): switch an ornament on or off. (Planks are chosen in the
 -- plank picker, wallpapers in the wallpaper picker.)
 function Browser:_toggle(item)
-    O().setOff(item.entry.name, not item.off)
+    SW().setOff(item.entry.name, not item.off)
     self:_changed()
 end
 
 -- _pick(item): pick mode (the long-press menu's Swap). The chosen piece
 -- takes the slot; a switched-off one, or one in a switched-off pack, is
--- switched on, or the swap would put nothing there.
+-- switched on, or the swap would put nothing there. Not the pack on a
+-- themed shelf (opts.pool): a theme deals its pieces whatever the
+-- collection's pack switches say, which shape the reader's own ornaments.
 function Browser:_pick(item)
-    if item.off then O().setOff(item.entry.name, false) end
-    if item.pack_off and item.entry.pack then O().setPackOff(item.entry.pack, false) end
+    local sw = SW()
+    if item.off then sw.setOff(item.entry.name, false) end
+    if item.pack_off and item.entry.pack and not self.opts.pool then
+        sw.setPackOff(item.entry.pack, false)
+    end
     self.opts.pick(item.entry)
     self._dirty = true
     self._close()
@@ -182,7 +214,7 @@ function Browser:_changed(rescan)
 end
 
 function Browser:_chips()
-    local Orn = O()
+    local Orn, sw = O(), SW()
     local all, packs = Orn.listAll()
     -- All, then one per pack. No tab for the loose ornaments on their own:
     -- All already shows them, and a tab is for something you switch as one
@@ -194,7 +226,7 @@ function Browser:_chips()
     for _i, pack in ipairs(packs) do
         if has[pack] then chips[#chips + 1] = {
             key = pack,
-            label = Orn.isPackOff(pack) and T(_("%1 (off)"), pack) or pack,
+            label = sw.isPackOff(pack) and T(_("%1 (off)"), pack) or pack,
             is_active = self.chip == pack,
         } end
     end
@@ -279,12 +311,12 @@ end
 -- also switches on a pack a theme had switched off, or its ornaments would be
 -- on and still not show.
 function Browser:_setAll(on)
-    local Orn = O()
+    local sw = SW()
     for _i, item in ipairs(self.items or {}) do
         local e = item.entry
         if e then
-            Orn.setOff(e.name, not on)
-            if on and e.pack and Orn.isPackOff(e.pack) then Orn.setPackOff(e.pack, false) end
+            sw.setOff(e.name, not on)
+            if on and e.pack and sw.isPackOff(e.pack) then sw.setPackOff(e.pack, false) end
         end
     end
     self:_changed()
@@ -292,8 +324,7 @@ end
 
 -- _footerRows() -> the footer, one row: Select all, Select none and Apply
 -- (Add ornaments first on the All tab; Cancel alone when picking a
--- replacement). A pack's theme is chosen in the Shelf theme menu, not here
--- (bookshelf_theme_pack.chooseTheme).
+-- replacement). A theme is chosen in the Theme menu, not here.
 function Browser:_footerRows()
     local close = { key = "close", label = self.opts.pick and _("Cancel") or _("Apply"), on_tap = self._close }
     -- Choosing a replacement: nothing to switch here, only a way out.

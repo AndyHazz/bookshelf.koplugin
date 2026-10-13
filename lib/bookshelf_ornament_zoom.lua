@@ -7,8 +7,8 @@ artist and notes in the Ukiyo-e pack.
 
 Built the way the full-screen micro-module view is (bookshelf_micro_fullscreen):
 the shelf's wallpaper as the ground (white without one), and the panel painted
-as the shelf paints its own panels (Wallpaper.scrim in the palette's panel
-colour at the reader's panel strength), with the palette's ink for the text.
+as the shelf paints its own panels (Wallpaper.panel in the palette's panel
+colour at the reader's panel strength, blurred behind when that option is on), with the palette's ink for the text.
 Colours are paint-space, so night mode needs nothing of its own. Back, or a tap
 anywhere outside the text, closes it; a tap or swipe on the text scrolls it.
 ]]
@@ -196,10 +196,10 @@ function Zoom:_build()
     end
 
     -- The ground: the shelf's wallpaper, or the page.
-    local bg
+    local bg, on_wall = nil, false
     if bw and bw._wallpaperWidget then
         local ok, wp = pcall(function() return bw:_wallpaperWidget() end)
-        if ok and wp then bg = wp end
+        if ok and wp then bg, on_wall = wp, true end
     end
     if not bg then
         bg = FrameContainer:new{
@@ -215,7 +215,12 @@ function Zoom:_build()
         local radius = Space.radius and Space.radius.window or 7
         function panel:paintTo(b)
             pcall(function()
-                require("lib/bookshelf_wallpaper").scrim(b, px, py, pw, ph, ground, strength, radius)
+                -- Wallpaper.panel, as the shelf's own panels: the picture behind
+                -- it blurred when "Blur wallpaper behind panels" is on (and
+                -- dithered on greyscale e-ink), then the tint; plain scrim
+                -- otherwise (maintainer: the zoom's description panel should
+                -- follow the blur preference too).
+                require("lib/bookshelf_wallpaper").panel(b, px, py, pw, ph, ground, strength, radius, on_wall)
             end)
         end
     end

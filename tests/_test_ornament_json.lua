@@ -132,6 +132,16 @@ t.test("bad values are skipped and clamped, the rest applies", function()
     eq(e.pad, -0.05, "negative padding tightens")
 end)
 
+t.test("trim is read from a pack's file and clamped to half the piece", function()
+    local O, new = setup()
+    svg(new .. "/Autumn/owl.svg"); svg(new .. "/Autumn/bat.svg"); svg(new .. "/Autumn/fox.svg")
+    write(new .. "/Autumn/ornaments.json",
+          '{ "owl.svg": { "trim": 0.12 }, "bat.svg": { "trim": 3 }, "fox.svg": { "trim": "lots" } }')
+    eq(byName(O)["Autumn/owl.svg"].trim, 0.12)
+    eq(byName(O)["Autumn/bat.svg"].trim, 0.5, "no more than half each side")
+    eq(byName(O)["Autumn/fox.svg"].trim, 0, "a non-number is ignored")
+end)
+
 t.test("an edited file is seen without a restart", function()
     local O, new = setup()
     O.SCAN_TTL = 0
@@ -310,18 +320,19 @@ t.test("an edit reaches the list() entry the shelf draws, while list() is still 
     eq(O.list()[1].lift, 0.2, "the entry the shelf draws did not get the edit")
 end)
 
-t.test("menu: Swap, Shuffle all and a Switch off/on toggle share a row; the toggle keeps the menu open", function()
+t.test("menu: Swap, Shuffle this shelf and a Switch off/on toggle share a row; the toggle keeps the menu open", function()
     local src = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
     local row = src:match('\n        {\n            { text = _%("Swap"%).-\n        },\n')
     assert(row, "no Swap row")
-    assert(row:find('_("Shuffle all")', 1, true), "Shuffle all is not on the Swap row")
+    assert(row:find('_("Shuffle this shelf")', 1, true), "Shuffle this shelf is not on the Swap row")
     assert(row:find('_("Switch on")', 1, true) and row:find('_("Switch off")', 1, true),
         "the Switch off/on toggle is not on the Swap row")
-    local toggle = row:match("text_func = function%(%)%s*return Orn%.isOff%(entry%.name%).-end },")
+    -- Through the seam (SW: the set of the theme on screen, or the collection's).
+    local toggle = row:match("text_func = function%(%)%s*return SW%(%)%.isOff%(entry%.name%).-end },")
     assert(toggle, "the toggle's label does not follow the piece's state")
     assert(not toggle:find("closeAnd", 1, true), "switching off closes the menu")
-    assert(toggle:find("Orn.setOff(entry.name, not Orn.isOff(entry.name))", 1, true), "the toggle does not toggle")
-    assert(src:find("Deck.swap(entry.name, chosen.name)", 1, true), "Swap does not trade places")
+    assert(toggle:find("sw.setOff(entry.name, not sw.isOff(entry.name))", 1, true), "the toggle does not toggle")
+    assert(src:find("Deck.swap(entry.name, chosen.name, shelf)", 1, true), "Swap does not trade places on this shelf")
     assert(src:find("bw:onBookshelfShuffleOrnaments()", 1, true), "Shuffle all is not the shuffle action")
 end)
 
@@ -434,14 +445,14 @@ t.test("menu: the piece's place in the order, with Earlier and Later, and Shuffl
     assert(src:find('local CHEV_LEFT  = "\\xEE\\xA1\\x80"', 1, true) and src:find('local CHEV_RIGHT = "\\xEE\\xA1\\x81"', 1, true),
         "not the shelf editor's left / right chevrons")
     assert(src:find('_("Place: %1 of %2")', 1, true), "the place in the order is not shown")
-    assert(src:find("Deck.move(entry.name, delta, onNames())", 1, true)
+    assert(src:find("Deck.move(entry.name, delta, onNames(), shelf)", 1, true)
            and src:find("placeGlyph(CHEV_LEFT, -1)", 1, true)
            and src:find("placeGlyph(CHEV_RIGHT, 1)", 1, true)
            and src:find("enabled_func", 1, true)
            and src:find("return i ~= nil and #on > 1", 1, true),
         "Earlier / Later do not move the piece")
-    local shuffle = src:match('{ text = _%("Shuffle all"%)(.-)end },')
-    assert(shuffle and shuffle:find("ConfirmBox", 1, true), "Shuffle all does not ask first")
+    local shuffle = src:match('{ text = _%("Shuffle this shelf"%)(.-)end },')
+    assert(shuffle and shuffle:find("ConfirmBox", 1, true), "Shuffle this shelf does not ask first")
 end)
 
 t.test("the menu never moves past the screen's edge, however tall it is", function()
@@ -479,7 +490,7 @@ t.test("the collection: one icon on its menu row and in the long-press menu's he
     local st = io.open("lib/bookshelf_settings.lua"):read("*a")
     local row = st:match("function Settings:_ornamentsRow%(%)(.-)\nend\n")
     assert(row, "no ornaments row")
-    assert(row:find('_("Ornament collection: %1/%2 enabled")', 1, true), "the row is not the collection with its count")
+    assert(row:find('_("Ornaments: %1 of %2 on")', 1, true), "the row is not the collection with its count")
     assert(row:find("#O.listAll()", 1, true), "the count has no total")
     assert(row:find("COLLECTION_ICON", 1, true), "the row has no icon")
     local orn = io.open("lib/bookshelf_ornaments.lua"):read("*a")

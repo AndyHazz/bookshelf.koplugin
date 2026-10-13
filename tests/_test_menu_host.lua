@@ -196,4 +196,56 @@ t.test("hold_callback_func wins over hold_callback", function()
     assert(which == "func", "hold_callback_func result must take precedence")
 end)
 
+t.test("a level's title follows the row that opened it when the level is refreshed", function()
+    -- Theme > Default theme: Macabre chosen in the Theme library: the level's title
+    -- was "Theme: Custom theme" until the menu was closed and opened again.
+    local Menu = package.loaded["ui/widget/menu"]
+    Menu.new = function(_c, o)
+        o.paths = {}
+        o.switchItemTable = function(self, title) self.title = title end
+        return o
+    end
+    local theme = "Custom theme"
+    local src = { { text_func = function() return "Theme: " .. theme end,
+                    sub_item_table = { { text = "Library", callback = function() end } } } }
+    local host = Host.show{ title = "Bookshelf", item_table = src }
+    map(host, src)[1].callback()
+    assert(host._menu.title == "Theme: Custom theme", "pushed under " .. tostring(host._menu.title))
+    theme = "Macabre"
+    host._shim.updateItems()
+    assert(host._menu.title == "Theme: Macabre", "the title stayed " .. tostring(host._menu.title))
+    Menu.new = nil
+end)
+
+t.test("a level's rows can be rebuilt in place, as a TouchMenu's item_table is", function()
+    -- The Theme menu's rows are built again after a Theme library closes
+    -- (Settings:_reopenSubMenu); from the start menu's route the shim hands
+    -- over the open level's rows to rebuild.
+    local Menu = package.loaded["ui/widget/menu"]
+    Menu.new = function(_c, o)
+        o.paths = {}
+        o.switchItemTable = function(self, title, items) self.title = title; self.items = items end
+        return o
+    end
+    local sub = { { text = "This shelf: Macabre" }, { text = "Default theme: Custom theme" } }
+    local src = { { text = "Theme (Macabre)", sub_item_table = sub } }
+    local host = Host.show{ title = "Bookshelf", item_table = src }
+    assert(host._shim.liveItems() == src, "the root level's rows are not handed over")
+    map(host, src)[1].callback()
+    assert(host._shim.liveItems() == sub, "the open level's rows are not handed over")
+    -- What Settings:_reopenSubMenu does with them.
+    local src_settings = io.open("lib/bookshelf_settings.lua"):read("*a")
+    local body = src_settings:match("\nfunction Settings:_reopenSubMenu%(touchmenu_instance, build%)\n(.-)\nend\n")
+    assert(body and body:find("touchmenu_instance.liveItems()", 1, true),
+        "_reopenSubMenu does not rebuild a MenuHost level")
+    local live = host._shim.liveItems()
+    for i = #live, 1, -1 do live[i] = nil end
+    live[1] = { text = "Theme library" }
+    host._shim.updateItems()
+    local n = 0
+    for _i, r in ipairs(host._menu.items) do if not r.text:find("Back", 1, true) then n = n + 1 end end
+    assert(n == 1, "the rebuilt level shows " .. n .. " rows")
+    Menu.new = nil
+end)
+
 t.done()

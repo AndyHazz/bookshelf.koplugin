@@ -62,7 +62,7 @@ local function drill(opts)
         _drilldown_path = { { kind = "folder", payload = { path = opts.path or "/books/scifi" } } },
     }
     local f = compile("local self, n, want_all = ... ; " .. body, env)
-    f(self_tbl, 400, opts.want_all)
+    f(self_tbl, opts.n or 400, opts.want_all)
     return got
 end
 
@@ -108,10 +108,23 @@ t.test("the drilled path is the one fetched, and the cursor pages it", function(
 end)
 
 t.test("select-all widens the window and still inherits the filter", function()
+    -- As Select all calls it: _fetchChipItems(SELECT_ALL_LIMIT, true).
     local got = drill{ tab = { source = { kind = "all" }, filter = FILTER },
-                       cursor = 9, want_all = true }
+                       cursor = 9, want_all = true, n = 5000 }
     assert(got.offset == 0 and got.limit == 5000)
     assert(got.filter == FILTER, "selecting all must not select filtered-out books")
+end)
+
+t.test("the whole-list window is the caller's: a spine shelf is not held to Select all's 5000", function()
+    -- Spine shelves borrowed SELECT_ALL_LIMIT until 5.4.2, so Home on spines
+    -- stopped at 5000 books; _spineCachedFetch now passes SPINE_ALL_LIMIT.
+    local got = drill{ tab = { source = { kind = "all" } }, want_all = true, n = 1000000 }
+    assert(got.offset == 0 and got.limit == 1000000, "limit " .. tostring(got.limit))
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    assert(w:find("self:_fetchChipItems(SPINE_ALL_LIMIT, true)", 1, true),
+        "the spine fetch no longer asks for its own whole-list limit")
+    assert(w:find("c.sort_priority, 0, SPINE_ALL_LIMIT,", 1, true),
+        "a spine shelf of shelves' spill is still held to Select all's limit")
 end)
 
 t.done()

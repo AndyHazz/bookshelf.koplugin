@@ -104,6 +104,22 @@ if [ -f tools/check_token_parity.sh ]; then
     fi
 fi
 
+# Same idea for the progress-bar painter copied out of bookends: the copied
+# regions of lib/bookshelf_bar_paint.lua (and the pacman sprite file) must
+# match bookends' source line for line.
+if [ -f tools/check_bar_parity.sh ]; then
+    bar_out=$(sh tools/check_bar_parity.sh 2>&1)
+    bar_code=$?
+    if [ "$bar_code" -ne 0 ]; then
+        printf "FAIL  %s\n" "bar painter parity vs bookends"
+        printf '%s\n' "$bar_out" | sed 's/^/      /'
+        fail_total=$((fail_total + 1))
+    else
+        printf "ok    %-32s %s\n" "bar painter parity vs bookends" \
+            "$(printf '%s\n' "$bar_out" | grep -c '^ok') regions identical"
+    fi
+fi
+
 echo "------------------------------------------------------------"
 echo "ran $run_total suites, $fail_total failed, $skip_total skipped"
 [ "$fail_total" -eq 0 ] || exit 1

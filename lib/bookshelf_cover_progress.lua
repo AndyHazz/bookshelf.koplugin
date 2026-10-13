@@ -782,7 +782,10 @@ function M.theme()
     -- night, which reads as day and night swapped over (issue 426). The
     -- setting stays as the fallback for anything with no screen to read.
     local inverting = require("lib/bookshelf_night_mode_sync").active(Screen)
-    local want = BookshelfSettings.read(M.THEME_SETTING)
+    -- The shelf on screen may wear its own theme (bookshelf_theme_pack).
+    local ok_t, TP = pcall(require, "lib/bookshelf_theme_pack")
+    local want = (ok_t and TP and TP.shelfLook) and TP.shelfLook()
+                 or BookshelfSettings.read(M.THEME_SETTING)
     local dark
     if want == "dark" then
         dark = true
@@ -801,8 +804,24 @@ local function _modeSuffix()
     return dark and "_night" or ""
 end
 
-local function _readOwnColor(base_key, default_day, default_night)
-    local suffix = _modeSuffix()
+-- _partRead(key): a colour as the shelf on screen paints it, which the
+-- colour rows also show and edit: the defaults on an unedited Plain, the
+-- reader's edit to the theme on screen, else its own (a pack's
+-- colours.json), else the reader's own (bookshelf_theme_pack.colour, the
+-- one resolver, memoised per settings generation).
+local function _partRead(key)
+    local ok, TP = pcall(require, "lib/bookshelf_theme_pack")
+    if ok and TP and TP.colour then return TP.colour(key) end
+    return BookshelfSettings.read(key)
+end
+
+-- _readModeColor(base_key, default_day, default_night, suffix): what the
+-- shelf PAINTS for a colour, and what its row shows and edits: one resolver
+-- (_partRead). suffix (optional): the slot to read, "" or "_night"; default
+-- the one the shelf on screen paints from. The colour menu passes its own
+-- (editSuffix).
+local function _readModeColor(base_key, default_day, default_night, suffix)
+    suffix = suffix or _modeSuffix()
     if suffix ~= "" then
         -- Night mode: explicit override wins, otherwise fall through to
         -- the dedicated night default. Crucially we do NOT fall back to
@@ -811,26 +830,13 @@ local function _readOwnColor(base_key, default_day, default_night)
         -- showing the inverted day appearance instead of the intended
         -- night palette. Users who want matching colors can set the
         -- night override explicitly.
-        local night = BookshelfSettings.read(base_key .. suffix)
+        local night = _partRead(base_key .. suffix)
         if night then return night end
         return default_night or default_day
     end
-    return BookshelfSettings.read(base_key) or default_day
+    return _partRead(base_key) or default_day
 end
 
--- _readModeColor: what the shelf PAINTS -- a pack's borrowed colour for this
--- slot when its colours are switched on (bookshelf_theme_pack), else the
--- reader's own. The menus read _readOwnColor: they show the reader's own
--- values, greyed while a theme lends its colours.
-local function _readModeColor(base_key, default_day, default_night)
-    local ok, TP = pcall(require, "lib/bookshelf_theme_pack")
-    if ok and TP and TP.colourOverride then
-        local ok2, v = pcall(TP.colourOverride, base_key, _modeSuffix() ~= "")
-        if ok2 and v then return v end
-    end
-    return _readOwnColor(base_key, default_day, default_night)
-end
-M._readOwnColor = _readOwnColor
 
 -- ink() -> the themed text colour, or nil to leave a widget's own default.
 --
@@ -997,9 +1003,10 @@ end
 -- in night mode they painted the day colour for an inverting frame and it
 -- displayed as its opposite.
 function M.pickedBarColors()
+    -- Plain paints the defaults: nothing picked (TP.colour reads nil).
     local suffix = _modeSuffix()
-    local picked_fill  = BookshelfSettings.read("progress_fill" .. suffix)
-    local picked_track = BookshelfSettings.read("progress_track" .. suffix)
+    local picked_fill  = _partRead("progress_fill" .. suffix)
+    local picked_track = _partRead("progress_track" .. suffix)
     if type(picked_fill) == "nil" and type(picked_track) == "nil" then return nil end
     local colors = M.resolvedColors()
     return {
@@ -1016,9 +1023,15 @@ end
 function M.rawColors()
     local gen      = BookshelfSettings.generation()
     local is_night = require("lib/bookshelf_night_mode_sync").active(Screen)
+    -- The slot the colour menu edits (Colors for: Light | Dark), which is
+    -- part of the key: switching it changes nothing else.
+    local sfx = M.editSuffix()
+    is_night = tostring(is_night) .. sfx
     if _raw_cache and _raw_gen == gen and _raw_night == is_night then
         return _raw_cache
     end
+    -- The slot the colour menu edits.
+    local function _readOwnColor(k, d, n) return _readModeColor(k, d, n, sfx) end
     _raw_cache = {
         fill              = _readOwnColor("progress_fill",  DEFAULT_FILL, NIGHT_DEFAULT_FILL),
         track             = _readOwnColor("progress_track", DEFAULT_TRACK, NIGHT_DEFAULT_TRACK),
@@ -1071,6 +1084,20 @@ end
 -- Exposed for the settings menu's pickColor helper so it writes the
 -- same suffixed key resolvedColors reads from. Returns "" or "_night".
 function M.modeSuffix()
+    return _modeSuffix()
+end
+
+-- The colour menu's slot (Colors for: Light | Dark): which of the reader's
+-- two colour sets the menu shows and edits. nil follows the shelf on screen
+-- (modeSuffix); "light" or "dark" is the reader's switch, which changes only
+-- what the menu edits -- never KOReader's night mode, nor what the shelf
+-- paints (maintainer, 2026-10-07). The menu sets it back to nil each time it
+-- opens.
+M._edit_slot = nil
+function M.setEditSlot(slot) M._edit_slot = slot end
+function M.editSuffix()
+    if M._edit_slot == "dark" then return "_night" end
+    if M._edit_slot == "light" then return "" end
     return _modeSuffix()
 end
 

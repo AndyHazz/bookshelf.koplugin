@@ -478,6 +478,8 @@ package.loaded["ffi/blitbuffer"] = {
 }
 package.loaded["lib/bookshelf_cover_progress"] = {
     modeSuffix   = function() return "" end,     -- day mode: unsuffixed keys
+    editSuffix   = function() return "" end,     -- the menu edits the day slot
+    setEditSlot  = function() end,
     rawColors    = function() return {} end,     -- nothing preset
     favoriteIcon = function() return "heart" end, -- one row's label depends on it
 }
@@ -518,7 +520,7 @@ local function openChipColourDialog(row_label)
     return dialog, bw, row, tm
 end
 
-for _, row_label in ipairs({ "Selected shelf fill", "Selected shelf text" }) do
+for _, row_label in ipairs({ "Selected shelf background", "Selected shelf text" }) do
     t.test(row_label .. ": nudging recolours the strip, never rebuilds the shelf",
     function()
         local dialog, bw = openChipColourDialog(row_label)
@@ -585,7 +587,7 @@ t.test("a colour nudge with no live chip bar falls back to a shelf rebuild", fun
     Settings._bw, Settings._plugin = bw, makePlugin()
     local row
     for _, item in ipairs(Settings:_colorsSubItems()) do
-        if item.text_func and item.text_func():find("Selected shelf fill", 1, true) then
+        if item.text_func and item.text_func():find("Selected shelf background", 1, true) then
             row = item
         end
     end
@@ -634,9 +636,36 @@ t.test("Reset clears the night variant of every colour key too", function()
     -- Day and night colours are stored under separate keys (base and
     -- base .. "_night"), so a reset that only clears one leaves the other mode
     -- looking untouched.
+    -- Through the editing seam (TP.partClear: Custom theme's keys, or the edits
+    -- to the theme on screen), which clears both slots of each.
     local body = src:match("Reset to default colors.-markDirty%(%)")
-    assert(body and body:find('BookshelfSettings.delete(k .. "_night")', 1, true),
+    assert(body and body:find("partClear(keys)", 1, true), "reset does not go through the seam")
+    local tp = io.open("lib/bookshelf_theme_pack.lua"):read("*a")
+    local clear = tp:match("\nfunction M%.partClear%(keys%)\n(.-)\nend\n")
+    assert(clear and clear:find('save(k .. "_night", nil)', 1, true)
+        and clear:find('e.keys[k .. "_night"] = M.UNSET', 1, true),
         "reset must delete the _night variant alongside each base key")
+end)
+
+-- ── The Colors list's shape (maintainer, 2026-10-08, 2026-10-09) ─────────
+-- Reset was a third page of its own, so the page arrows jumped. Reset is the
+-- first row now, set apart; 20 rows, two pages of ten. Transparent shelf menu
+-- was a row (beside Panel shading, then in Colors, a third page again); it
+-- is now a choice in Shelf menu background's picker (2026-10-09).
+t.test("Colors: Reset first and set apart, twenty rows, the shelf menu rows together", function()
+    resetStore()
+    Settings._bw, Settings._plugin = makeBwWithChipBar(), makePlugin()
+    local items = Settings:_colorsSubItems()
+    local function label(it) return it.text or (it.text_func and it.text_func()) or "" end
+    assert(label(items[1]):find("Reset to default colors", 1, true), "Reset is not the first row")
+    eq(items[1].separator, true, "Reset is not set apart")
+    eq(#items, 20, "Colors no longer fits two pages of ten")
+    for _i, it in ipairs(items) do
+        assert(not label(it):find("Transparent shelf menu", 1, true), "Transparent is a row again")
+    end
+    local n = #items
+    assert(label(items[n - 2]):find("Shelf menu background", 1, true) and label(items[n - 1]):find("Selected shelf background", 1, true)
+        and label(items[n]):find("Selected shelf text", 1, true), "the shelf menu's colour rows are not together at the end")
 end)
 
 -- ── The Text size band ─────────────────────────────────────────────────────
@@ -664,7 +693,7 @@ t.test("Text size lists every scale key exactly once, on its own picker", functi
     -- "Shelf menu" / "List text" are adjacent on purpose: they are the same band
     -- shape on two keys, and a user tuning one should see the other.
     eq(keys, {
-        "Cover labels", "Cover badges", "Stack & folder labels",
+        "Cover captions", "Cover badges", "Stack & folder labels",
         "Shelf menu", "List text",
         "\xEE\x9E\xBD  Top panel", "\xEE\xB1\xAF  Micro-modules",
         "Start menu", "Modal tabs",

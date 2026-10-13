@@ -101,14 +101,22 @@ end
 -- nullTile: a labelled white tile used as the "No background" sentinel.
 -- Rendered at grid position [0,0] of the palette when null_tile is set.
 -- With image_path (a plank design), the tile shows that wood, its label on a
--- white strip along the bottom.
-local function nullTile(label, selected, side, on_tap, image_path)
+-- white strip along the bottom. fit (a word, no picture: Shelf menu
+-- background's Transparent): as wide as its label, never narrower than
+-- square, so the word is not cut to "Transpa..." (maintainer, 2026-10-09).
+local function nullTile(label, selected, side, on_tap, image_path, fit)
     local nt_face, nt_bold = BFont:getFace("ffont", 12)
+    local w = side
+    if fit and not image_path then
+        local probe = TextWidget:new{ text = label, face = nt_face, bold = nt_bold }
+        w = math.max(side, probe:getSize().w + 2 * Space.padding.default)
+        probe:free()
+    end
     local tw = TextWidget:new{
         text      = label,
         face      = nt_face,
         bold      = nt_bold,
-        max_width = side - 2 * Space.padding.small,
+        max_width = w - 2 * Space.padding.small,
     }
     local wood = image_path and woodSwatch(image_path, side)
     local inner
@@ -135,12 +143,12 @@ local function nullTile(label, selected, side, on_tap, image_path)
         radius     = 0,
         background = Blitbuffer.COLOR_WHITE,
         inner or CenterContainer:new{
-            dimen = Geom:new{ w = side, h = side },
+            dimen = Geom:new{ w = w, h = side },
             tw,
         },
     }
     local container = InputContainer:new{
-        dimen = Geom:new{ w = side, h = side },
+        dimen = Geom:new{ w = w, h = side },
         frame,
     }
     container.ges_events = {
@@ -204,6 +212,10 @@ local ColorPaletteWidget = FocusManager:extend{
     is_always_active = true,
     title            = nil,
     selected_hex     = nil,
+    -- hex_text: what the hex field starts with when no swatch is the choice
+    -- (an untouched colour: the row shows its default or the theme's, so
+    -- the field does too rather than opening empty). Marks nothing.
+    hex_text         = nil,
     apply_callback   = nil,
     default_callback = nil,
     revert_callback  = nil,
@@ -343,7 +355,7 @@ function ColorPaletteWidget:update()
     }
     -- Strip any leading # from the seed value — the # is rendered as a
     -- separate static label so the user only edits the six hex digits.
-    local initial_text = self.selected_hex or ""
+    local initial_text = self.selected_hex or self.hex_text or ""
     if initial_text:sub(1, 1) == "#" then initial_text = initial_text:sub(2) end
     -- InputText draws its own border (Size.border.inputtext, 2px) and
     -- handles its own focus highlight, so wrap it directly in the row
@@ -370,7 +382,7 @@ function ColorPaletteWidget:update()
     -- _updatePreview (which only re-paints the swatch's bounds), so the
     -- whole picker doesn't rebuild while the user is typing.
     local preview_side = Screen:scaleBySize(36)
-    local preview_hex = self.selected_hex or "#FFFFFF"
+    local preview_hex = self.selected_hex or self.hex_text or "#FFFFFF"
     if #preview_hex ~= 7 then preview_hex = "#FFFFFF" end
     self.preview_swatch = Swatch:new{
         hex      = preview_hex,
@@ -385,7 +397,7 @@ function ColorPaletteWidget:update()
     }
     if self.special_tile then
         local st = self.special_tile
-        hex_row[#hex_row + 1] = nullTile(st.label, st.selected, side, function() st.on_tap() end, st.image)
+        hex_row[#hex_row + 1] = nullTile(st.label, st.selected, side, function() st.on_tap() end, st.image, true)
         hex_row[#hex_row + 1] = HorizontalSpan:new{ width = Space.padding.large }
         hex_row[#hex_row + 1] = TextWidget:new{ text = _("or"), face = hex_face,
                                                 fgcolor = Blitbuffer.COLOR_BLACK }
@@ -549,7 +561,7 @@ end
 -- before the hex field ("[tile] or # RRGGBB") that is not a colour: the
 -- plank's built-in wood. Tapping
 -- it runs on_tap and closes; it shows selected while `selected` is true.
-local function showColorPicker(bookshelf, title, current_hex, default_hex, on_apply, on_default, on_revert, touchmenu_instance, null_tile_label, white_hex, special_tile)
+local function showColorPicker(bookshelf, title, current_hex, default_hex, on_apply, on_default, on_revert, touchmenu_instance, null_tile_label, white_hex, special_tile, hex_text)
     local restoreMenu = bookshelf:hideMenu(touchmenu_instance)
 
     local closed = false
@@ -563,6 +575,7 @@ local function showColorPicker(bookshelf, title, current_hex, default_hex, on_ap
     widget = ColorPaletteWidget:new{
         title            = title or _("Pick a color"),
         selected_hex     = current_hex,
+        hex_text         = hex_text,
         apply_callback   = on_apply,
         default_callback = function()
             UIManager:close(widget, "ui")
@@ -607,8 +620,8 @@ end
 
 local M = {}
 function M.attach(Bookshelf)
-    function Bookshelf:showColorPicker(title, current_hex, default_hex, on_apply, on_default, on_revert, touchmenu_instance, null_tile_label, white_hex, special_tile)
-        showColorPicker(self, title, current_hex, default_hex, on_apply, on_default, on_revert, touchmenu_instance, null_tile_label, white_hex, special_tile)
+    function Bookshelf:showColorPicker(title, current_hex, default_hex, on_apply, on_default, on_revert, touchmenu_instance, null_tile_label, white_hex, special_tile, hex_text)
+        showColorPicker(self, title, current_hex, default_hex, on_apply, on_default, on_revert, touchmenu_instance, null_tile_label, white_hex, special_tile, hex_text)
     end
 end
 return M

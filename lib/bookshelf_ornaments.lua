@@ -45,6 +45,7 @@ M.TEMPLATE_NAME = "template.svg"
 -- in a piece's long-press menu that opens it (maintainer).
 M.COLLECTION_ICON = "\xEF\x83\xB4"
 M.HEIGHT_FRAC   = 0.8    -- height as a fraction of the books' stand height
+M.HANG_CLAMP    = true   -- keep hanging (anchor top) pieces inside their gap (sizeFor)
 -- THE ROW END, where width is the scarce thing and height is not.
 --
 -- The slot used to be a stand-height SQUARE. Anything wider than that was
@@ -551,11 +552,23 @@ end
 -- While the ornaments browser is open (beginDeferred .. endDeferred), switches
 -- are written in memory only and flushed once at the end: a save flushes the
 -- whole settings file, and a reader tapping through a pack paid that per tap.
+-- The Theme library defers the same way. Not flushed when no setting moved
+-- (the store's generation), so a look with no change writes nothing.
 M._defer = false
-function M.beginDeferred() M._defer = true end
+local function generation(st)
+    if not (st and st.generation) then return nil end
+    local ok, g = pcall(st.generation)
+    return ok and g or nil
+end
+function M.beginDeferred()
+    M._defer = true
+    M._defer_gen = generation(store())
+end
 function M.endDeferred()
     M._defer = false
     local st = store()
+    local g = generation(st)
+    if g ~= nil and g == M._defer_gen then return end
     if st and st.flush then pcall(st.flush) end
 end
 
@@ -664,7 +677,7 @@ end
 --
 -- Units hold at any DPI and shelf size: scale against the default size, lift
 -- in the piece's own height (+ up), pad in the books' stand height (each
--- side, - tightens it against the books).
+-- side, - tightens it against the books), trim in the piece's own width.
 M.JSON_NAME = "ornaments.json"
 M.FIELDS = {
     -- 5%, not half: a reader may want a piece small (maintainer). Not zero,
@@ -681,6 +694,12 @@ M.FIELDS = {
     -- ornament ... the % height doesn't act usefully").
     lift   = { kind = "number", min = -1, max = 1.5, default = 0 },
     pad    = { kind = "number", min = -1,  max = 2, default = 0 },
+    -- A pack's transparent side margin (a glow, a shadow) to tuck in behind
+    -- the books each side, as a share of the piece's own width, so it shrinks
+    -- and grows with the piece. Pad is in stand heights and does not: a pad
+    -- that tucked a candle's glow in at the pack's size cut into the candle
+    -- once the piece was made smaller. Pack makers only; no menu row.
+    trim   = { kind = "number", min = 0,   max = 0.5, default = 0 },
     night  = { kind = "enum", values = { invert = true, off = true } },
     mirror = { kind = "enum", values = { off = true, always = true, alternate = true }, default = "off" },
     -- A stored action ({ action, plugin, internal, label }), or "zoom": the
@@ -782,6 +801,7 @@ local function applyLayers(e, layers)
     e.anchor = get("anchor") or "bottom"
     e.lift   = get("lift") or 0
     e.pad    = get("pad") or 0
+    e.trim   = get("trim") or 0
     local night = get("night")
     if night ~= nil then e.night_invert = (night == "invert") end
     e.mirror = get("mirror") or "off"
@@ -1109,6 +1129,55 @@ function M.list()
     return out
 end
 
+-- listFor(sp) -> the pieces a shelf deals from. sp is what
+-- bookshelf_theme_pack.ornamentsFor answers for the shelf: "mine" (or nil)
+-- deals what the collection has on (M.list, loose pieces included); "plain"
+-- deals nothing; a pack deals its OWN pieces only, every one -- even when
+-- that pack or piece is off in the collection, whose switches shape the
+-- reader's own ornaments only. Themes do not mix: no loose pieces on a
+-- themed shelf (maintainer, 2026-10-07), unless the reader edits the
+-- theme's set (a table, below). The same table while nothing changed: the
+-- deck and the plan key on it.
+M._list_for = {}
+M._none = {}
+function M.listFor(sp)
+    if sp == nil or sp == "mine" then return M.list() end
+    if sp == "plain" then return M._none end
+    -- A theme whose ornaments the reader has edited
+    -- (bookshelf_theme_pack.editPoolOf): its switched-on set, from any pack
+    -- or loose (spec, 2026-10-08). Its own switches only. The key changes
+    -- with the set, so an edit is a new list.
+    if type(sp) == "table" then
+        local all = M.listAll()
+        local key = tostring(all) .. "|" .. tostring(sp.key)
+        -- One slot per theme, not per edit: an edit replaces the list.
+        local slot = "\1" .. tostring(sp.slot or sp.key)
+        local hit = M._list_for[slot]
+        if hit and hit.key == key and hit.on == sp.on then return hit.v end
+        local on = type(sp.on) == "table" and sp.on or {}
+        local out = {}
+        for _i, e in ipairs(all) do
+            if on[e.name] then out[#out + 1] = e end
+        end
+        table.sort(out, function(a, b) return a.name < b.name end)
+        M._list_for[slot] = { key = key, on = sp.on, v = out }
+        return out
+    end
+    -- The collection's off switches no longer reach a pack's shelf: 5.3's
+    -- were moved into the packs' edits (bookshelf_theme_pack migration 5).
+    local all = M.listAll()
+    local key = tostring(all)
+    local hit = M._list_for[sp]
+    if hit and hit.key == key then return hit.v end
+    local out = {}
+    for _i, e in ipairs(all) do
+        if e.pack == sp then out[#out + 1] = e end
+    end
+    table.sort(out, function(a, b) return a.name < b.name end)
+    M._list_for[sp] = { key = key, v = out }
+    return out
+end
+
 -- delete(entry) -> true on success. Removes the file and forgets its state.
 function M.delete(entry)
     if not (entry and entry.path) then return false end
@@ -1117,6 +1186,7 @@ function M.delete(entry)
     local set = readSet(M.OFF_KEY)
     if set[entry.name] then set[entry.name] = nil; saveSet(M.OFF_KEY, set) end
     M._all_cache, M._all_key, M._list_cache, M._list_key = nil, nil, nil, nil
+    M._list_for = {}
     return true
 end
 
@@ -1281,6 +1351,22 @@ function M.sizeFor(entry, cap_px, stand_h, o)
     if o.max_room then cap = math.min(cap, o.max_room) end
     cap = math.max(1, cap)
     local height = math.floor((stand_h or 0) * M.HEIGHT_FRAC * scale)
+    -- A hanging piece (anchor top) keeps the size its pack gave it, but its
+    -- DRAWING (the file's top room skipped, as ornamentY does) must fit in
+    -- o.hang_room, the clear gap from the shelf above as drawn to the plank
+    -- below, less however far its lift lowers it: art hangs on the wall and
+    -- never overlaps either shelf (maintainer, 2026-10-05). Filling the gap
+    -- times the pack's scale instead made a 1.32 pack's pieces 132% of it.
+    if M.HANG_CLAMP and o.hang_room and entry.anchor == "top" then
+        local frac = 1
+        if entry.path then
+            local _l, t, _r, b = M.contentBox(entry)
+            if t and b and b > t then frac = b - t end
+        end
+        local down = math.max(0, -(entry.lift or 0)) * (stand_h or 0)
+        local room = math.max(1, o.hang_room - down)
+        if height * frac > room then height = math.floor(room / frac) end
+    end
     local width  = math.floor(height * aspect)
     if width > cap then
         width  = cap
@@ -1333,7 +1419,9 @@ function M.place(entry, cap_px, stand_h, o, deal_no)
         mirror = mirror,
         -- Extra room each side, in px (negative: tighter, even behind the
         -- books beside it); the shelf adds it to its own pad (SpineShelf.ornPad).
-        pad_px = math.floor((entry.pad or 0) * (stand_h or 0) + 0.5),
+        -- The trim is a share of the width as placed (pack scale, the
+        -- reader's size and any cap already in it), so it follows the drawing.
+        pad_px = math.floor((entry.pad or 0) * (stand_h or 0) - (entry.trim or 0) * width + 0.5),
     }
 end
 
@@ -1417,6 +1505,67 @@ local function defaultRender(path, w, h)
     if bb then M.unpremultiply(bb) end
     return bb
 end
+-- ONE DECODE PER PREVIEW. A preview (bookshelf_ornament_browser.preview,
+-- the collection's cards and the Theme library's heroes) needs the piece's
+-- content box before it knows the size to render at, and both came from
+-- decoding the file: the 96px probe, then the render, ~145ms each for a PNG
+-- on a PW5 (measured 2026-10-08), since MuPDF decodes a PNG at its own size
+-- whatever size is asked and scales after. contentBox(entry, true) decodes a
+-- PNG once at its own size and holds it; the probe and the next render of
+-- that piece are scaled from it with the scaler the decoder's own scaling
+-- uses (mupdf.renderImage is fz_scale_pixmap over the full-size pixmap, as
+-- mupdf.scaleBlitBuffer is), so both come out as they did. Held for that
+-- one render only: a full-size decode is big (up to the 8 MP cap).
+M._held = nil          -- { path, bb }: premultiplied, as MuPDF decodes
+M._decodeFull = nil    -- seam: function(path) -> bb at the file's own size
+M._scale = nil         -- seam: function(bb, w, h) -> a new bb at w x h
+
+-- canHold(path): a PNG, through the default decoder (a test's M._render
+-- stands for both decodes, so it keeps them apart). An SVG is rasterised at
+-- the size asked, so it has no full-size decode to share.
+local function canHold(path)
+    if not (type(path) == "string" and path:lower():match("%.png$")) then return false end
+    return M._decodeFull ~= nil or M._render == nil
+end
+
+local function decodeFull(path)
+    if M._decodeFull then return M._decodeFull(path) end
+    return require("ui/renderimage"):renderImageFile(path, false)
+end
+
+local function scaledCopy(bb, w, h)
+    if M._scale then return M._scale(bb, w, h) end
+    if bb:getWidth() == w and bb:getHeight() == h then return bb:copy() end
+    return require("ffi/mupdf").scaleBlitBuffer(bb, w, h)
+end
+
+-- releaseHeld(): free the held decode (preview, once its render is made).
+function M.releaseHeld()
+    local held = M._held
+    M._held = nil
+    if held and held.bb and held.bb.free then pcall(function() held.bb:free() end) end
+end
+
+-- holds(entry) -> a full-size decode of that piece is held for its render.
+function M.holds(entry)
+    return M._held ~= nil and type(entry) == "table" and M._held.path == entry.path
+end
+
+-- fromHeld(path, w, h) -> the render scaled from the held decode, which goes
+-- (one render each), or nil when none is held for that path.
+local function fromHeld(path, w, h)
+    local held = M._held
+    if not (held and held.path == path) then return nil end
+    M._held = nil
+    local ok, bb = pcall(function()
+        local out = scaledCopy(held.bb, w, h)
+        if out then M.unpremultiply(out) end
+        return out
+    end)
+    if held.bb.free then pcall(function() held.bb:free() end) end
+    return ok and bb or nil
+end
+
 -- render(entry, w, h, inverting) -> a bitmap ready to blit, or nil.
 --
 -- Two axes, as everywhere else on the shelf. `inverting` is the FRAME: the
@@ -1468,7 +1617,8 @@ function M.render(entry, w, h, inverting, mirror)
                 .. (mirror and "|m" or "")
     local bb = M._cache[key]
     if bb then return bb end
-    local ok, res = pcall(M._render or defaultRender, entry.path, w, h)
+    local ok, res = true, fromHeld(entry.path, w, h)
+    if not res then ok, res = pcall(M._render or defaultRender, entry.path, w, h) end
     if not ok or not res then
         logger.dbg("[bookshelf] ornament render failed:", entry.path)
         return nil
@@ -1511,9 +1661,11 @@ end
 -- its height against the books, side padding keeps it off them), which is
 -- right on the shelf and wasted space in the browser's preview. Found from a
 -- small render, so it is cheap, and remembered per file for the session.
+-- hold: a PNG is decoded once at its own size and the probe scaled from it,
+-- the decode held for the render that follows (ONE DECODE PER PREVIEW).
 M.CONTENT_PROBE = 96
 M._content = {}
-function M.contentBox(entry)
+function M.contentBox(entry, hold)
     local key = entry.path .. "|" .. tostring(entry.aspect)
     local hit = M._content[key]
     if hit ~= nil then
@@ -1524,7 +1676,17 @@ function M.contentBox(entry)
     local aspect = (entry.aspect and entry.aspect > 0) and entry.aspect or 1
     local h = M.CONTENT_PROBE
     local w = math.max(1, math.floor(h * aspect + 0.5))
-    local ok, bb = pcall(M._render or defaultRender, entry.path, w, h)
+    local ok, bb
+    if hold and canHold(entry.path) then
+        M.releaseHeld()
+        local okf, full = pcall(decodeFull, entry.path)
+        if okf and full then
+            M._held = { path = entry.path, bb = full }
+            -- Premultiplied, as the probe never was: only its alpha is read.
+            ok, bb = pcall(scaledCopy, full, w, h)
+        end
+    end
+    if not (ok and bb) then ok, bb = pcall(M._render or defaultRender, entry.path, w, h) end
     if ok and bb then
         pcall(function()
             local bw, bh = bb:getWidth(), bb:getHeight()
@@ -1575,15 +1737,33 @@ function M.Ornament:init()
     end
 end
 
-function M.Ornament:onHoldOrnament()
+-- hits(p, dimen, pos, blocked) -> does a gesture at pos land on the piece?
+-- Only on its DRAWING (contentBox: the file's transparent room and soft glow
+-- don't count), and never where the shelf says a control lives (blocked(pos):
+-- the footer). Before this a piece's whole box took gestures, so one in the
+-- bottom-left slot ate taps on the start-menu button (maintainer, PW5).
+function M.hits(p, dimen, pos, blocked)
+    if not (pos and dimen and dimen.x and dimen.y) then return true end
+    if blocked and blocked(pos) then return false end
+    local l, t, r, b = M.contentBox(p.entry)
+    if not (l and t and r and b) then return true end
+    if p.mirror then l, r = 1 - r, 1 - l end
+    local w, h = dimen.w or p.w, dimen.h or p.h
+    local fx, fy = (pos.x - dimen.x) / math.max(1, w), (pos.y - dimen.y) / math.max(1, h)
+    return fx >= l and fx <= r and fy >= t and fy <= b
+end
+
+function M.Ornament:onHoldOrnament(_arg, ges)
     local h = M.handlers.hold
     if not h then return false end
+    if not M.hits(self.placement, self.dimen, ges and ges.pos, M.handlers.blocked) then return false end
     return h(self.placement.entry, self.placement, self.dimen) and true or false
 end
 
-function M.Ornament:onTapOrnament()
+function M.Ornament:onTapOrnament(_arg, ges)
     local h = M.handlers.tap
     if not (h and self.placement.entry.tap) then return false end
+    if not M.hits(self.placement, self.dimen, ges and ges.pos, M.handlers.blocked) then return false end
     return h(self.placement.entry) and true or false
 end
 
@@ -1625,8 +1805,11 @@ end
 
 -- shadowFor(pl, night) -> the silhouette of a placement's picture, cached per
 -- file, size, flip and night (a nudge redraws the menu; the picture's size
--- does not change with it).
+-- does not change with it). The long-press menu's picture and the Theme
+-- library's heroes cast one: SHADOW_CACHE holds a page of heroes (four) and
+-- the menu's with room to spare, so neither evicts the other on a repaint.
 M.SHADOW_ALPHA = 0.35
+M.SHADOW_CACHE = 8
 M._shadows, M._shadow_order = {}, {}
 function M.shadowFor(pl, night)
     local key = table.concat({ pl.entry.path or pl.entry.name, pl.w, pl.h,
@@ -1638,7 +1821,7 @@ function M.shadowFor(pl, night)
     if not ok or not sh then return nil end
     M._shadows[key] = sh
     M._shadow_order[#M._shadow_order + 1] = key
-    while #M._shadow_order > 4 do
+    while #M._shadow_order > M.SHADOW_CACHE do
         local old = table.remove(M._shadow_order, 1)
         local ob = M._shadows[old]
         M._shadows[old] = nil

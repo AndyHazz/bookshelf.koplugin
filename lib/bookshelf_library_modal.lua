@@ -103,9 +103,14 @@ function LibraryModal:init()
     -- off to the footer (+ New tag / Cancel / Save) when Down is pressed at
     -- the bottom of the grid -- see onGridFocusDown/Up. Only registered when
     -- the caller provides a cell_renderer (grid mode).
+    -- config.focus_on_key (optional): function() -> the cell the focus
+    -- should show on: the ring stays hidden until the first key press, which
+    -- shows it there (when on the page shown, else on the page's first cell)
+    -- rather than moving it. For a picker that marks its choice with a frame
+    -- of its own, where a ring seeded on another cell looked like that mark.
     if Device:hasDPad() and self.config.cell_renderer then
         local total = self.config.item_count and self.config.item_count() or 0
-        if total > 0 then self._dpad_idx = 1 end
+        if total > 0 and not self.config.focus_on_key then self._dpad_idx = 1 end
         self._focus_zone = "grid"  -- or "footer", see onGridFocusUp/Down
         self.key_events = self.key_events or {}
         self.key_events.GridFocusUp    = { { "Up" } }
@@ -142,7 +147,19 @@ end
 -- covers the modal area. The closing widget gets unmarked again by
 -- UIManager:close itself a few lines later (self._dirty[w] = nil during
 -- removal), so we don't paint a corpse.
+--
+-- Close the keyboard too. InputText:onCloseWidget frees its keyboard but never
+-- takes it off the window stack (stock InputDialog closes it itself), so any
+-- path that closed the modal with the keyboard up - a cell tap or Close after
+-- typing in the search box - left a modal VirtualKeyboard on top. It swallowed
+-- every tap and KOReader looked frozen until restarted (the same bug bookends
+-- fixed in its own copy, 5.30.0). Doing it here covers every close path at
+-- once: cell and footer taps, the title's X, Back.
 function LibraryModal:onCloseWidget()
+    local input = self._search_input
+    if input and input.isKeyboardVisible and input:isKeyboardVisible() then
+        input:onCloseKeyboard()
+    end
     UIManager:setDirty("all", "ui")
     -- config.on_closed: the caller's once-per-close hook, however the modal
     -- was closed (a footer button, the title's X, Back).
@@ -161,6 +178,23 @@ function LibraryModal:getFocusableWidgetXY() end
 
 function LibraryModal:onClose()
     UIManager:close(self)
+    return true
+end
+
+-- _revealFocus() -> true when the focus ring was hidden (config.focus_on_key)
+-- and this key press showed it instead of moving it.
+function LibraryModal:_revealFocus()
+    if self._dpad_idx ~= nil or not self.config.focus_on_key then return false end
+    local total = self.config.item_count and self.config.item_count() or 0
+    if total == 0 then return false end
+    local per = self.config.cells_per_page and self.config.cells_per_page(self.content_w) or 1
+    local first = ((self.page or 1) - 1) * per + 1
+    local last = math.min(total, first + per - 1)
+    local want = self.config.focus_on_key()
+    if not (want and want >= first and want <= last) then want = first end
+    self._dpad_idx = want
+    self._focus_zone = "grid"
+    self:refresh()
     return true
 end
 
@@ -204,6 +238,7 @@ end
 -- book-detail popup's own tabs/pills/buttons chain together (see
 -- [[project_dpad_focus_navigation]]).
 function LibraryModal:onGridFocusLeft()
+    if self:_revealFocus() then return true end
     if self._focus_zone == "footer" then
         self._footer_col = self:_clampFooterCol(self._footer_row or 1, (self._footer_col or 1) - 1)
         self:refresh()
@@ -214,6 +249,7 @@ function LibraryModal:onGridFocusLeft()
 end
 
 function LibraryModal:onGridFocusRight()
+    if self:_revealFocus() then return true end
     if self._focus_zone == "footer" then
         self._footer_col = self:_clampFooterCol(self._footer_row or 1, (self._footer_col or 1) + 1)
         self:refresh()
@@ -224,6 +260,7 @@ function LibraryModal:onGridFocusRight()
 end
 
 function LibraryModal:onGridFocusUp()
+    if self:_revealFocus() then return true end
     if self._focus_zone == "footer" then
         if (self._footer_row or 1) <= 1 then
             self._focus_zone = "grid"  -- back to wherever _dpad_idx last was
@@ -239,6 +276,7 @@ function LibraryModal:onGridFocusUp()
 end
 
 function LibraryModal:onGridFocusDown()
+    if self:_revealFocus() then return true end
     if self._focus_zone == "footer" then
         local rows = self._footer_layout and #self._footer_layout or 0
         if (self._footer_row or 1) < rows then
@@ -263,6 +301,7 @@ function LibraryModal:onGridFocusDown()
 end
 
 function LibraryModal:onGridPress()
+    if self:_revealFocus() then return true end
     if self._focus_zone == "footer" then
         local row = self._footer_layout and self._footer_layout[self._footer_row or 1]
         local btn = row and row[self._footer_col or 1]
@@ -1233,6 +1272,10 @@ function LibraryModal:refresh()
     -- card and below the last card is the refresh() inter-section gap.
     local area_height = rows_per_page * intrinsic_card_h
         + (rows_per_page - 1) * MARGIN
+    -- config.area_height(content_w): the caller's own height for the cards'
+    -- area, when its cards are not 64dp rows (the Theme library: a page of
+    -- cards of its own height, the modal no taller than they need).
+    if self.config.area_height then area_height = self.config.area_height(cw) end
 
     -- Frame's padding_left/right are 0 so the title bar separator runs edge-
     -- to-edge. Each non-title section is padded with HorizontalSpan(MARGIN)

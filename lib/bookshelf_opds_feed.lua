@@ -438,10 +438,37 @@ end
 -- only the text under the Summary heading (up to the end of its paragraph).
 -- Anything without that shape -- a plain OPDS 2.0 description, a Calibre blurb
 -- -- has no "Summary:…</p>" to match and is returned verbatim.
+--
+-- Calibre-Web (issue 490) opens its content block with a metadata header --
+-- RATING, TAGS, SERIES and any custom columns, one "LABEL: value<br />" line
+-- each -- before the blurb's <p>. That header is not the description: it is
+-- dropped, by its STRUCTURE (header lines straight after the opening div,
+-- then the paragraph) rather than by the English labels, which calibre's own
+-- server translates. No paragraph after it: no description, so the book's
+-- own is used.
+local function _calibreHeader(raw)
+    local rest = raw:match("^%s*<div[^>]*>(.*)$")
+    if not rest then return nil end
+    local n = 0
+    while true do
+        local tail = rest:match("^%s*[^<>:\n]+:[^<\n]*<br%s*/?>(.*)$")
+        if not tail then break end
+        rest, n = tail, n + 1
+    end
+    if n == 0 then return nil end
+    local p = rest:match("^%s*(<p.*)$")
+    if p then return p end
+    if rest:match("^%s*</div>%s*$") or rest:match("^%s*$") then return false end
+    return nil
+end
+
 function M.summaryText(raw)
     if type(raw) ~= "string" then return raw end
     local s = raw:match("Summary:%s*(.-)%s*</p>")
     if s and s ~= "" then return s end
+    local cw = _calibreHeader(raw)
+    if cw == false then return nil end
+    if cw then return cw end
     return raw
 end
 

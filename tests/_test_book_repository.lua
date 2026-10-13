@@ -3734,6 +3734,76 @@ test("getSeriesGroups: other dimensions still filter standalones under 'both' (#
     _G._test_docsettings_data = nil
 end)
 
+-- Issue 486: "Show text below covers: Author" names a series stack's author,
+-- so the hydrated stack carries one. Taken from the cached members, which
+-- know every member's author: books[2..n] are bare filepath stubs, so reading
+-- them (or books[1] alone) would answer the first volume's author.
+local function seriesAuthorFixture()
+    Repo.invalidateWalkCache()
+    package.loaded["readhistory"].hist = {}
+    _G._test_bim_data = {
+        -- Long Earth: a guest first author on volume 1, then two by Baxter.
+        ["/lib/le1.epub"] = { title = "LE1", series = "Long Earth #1", authors = "Terry Pratchett" },
+        ["/lib/le2.epub"] = { title = "LE2", series = "Long Earth #2", authors = "Stephen Baxter" },
+        ["/lib/le3.epub"] = { title = "LE3", series = "Long Earth #3", authors = "Stephen Baxter" },
+        -- A tie: the first-seen member's author wins, never pairs() order.
+        ["/lib/t1.epub"]  = { title = "T1", series = "Tied #1", authors = "Ann Leckie" },
+        ["/lib/t2.epub"]  = { title = "T2", series = "Tied #2", authors = "Iain M. Banks" },
+        -- No author anywhere: nothing to name.
+        ["/lib/n1.epub"]  = { title = "N1", series = "Nobody #1" },
+        ["/lib/n2.epub"]  = { title = "N2", series = "Nobody #2" },
+    }
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/lib")
+            and { ".", "..", "le1.epub", "le2.epub", "le3.epub", "t1.epub", "t2.epub",
+                  "n1.epub", "n2.epub" }
+            or {}
+        local i = 0
+        return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == "mode" then return "file" end
+        if key == "modification" then return 0 end
+    end
+end
+
+local function bySeries(items)
+    local out = {}
+    for _i, it in ipairs(items) do if it.series_name then out[it.series_name] = it end end
+    return out
+end
+
+test("getSeriesGroups: a stack carries its members' modal author (#486)", function()
+    seriesAuthorFixture()
+    local items = Repo.getSeriesGroups(10)
+    local g = bySeries(items)
+    assert(g["Long Earth"], "Long Earth stack missing")
+    assert(g["Long Earth"].stack_author == "Stephen Baxter",
+        "expected the modal member author, got " .. tostring(g["Long Earth"].stack_author))
+    assert(g["Tied"].stack_author == "Ann Leckie",
+        "a tie goes to the first-seen member, got " .. tostring(g["Tied"].stack_author))
+    assert(g["Nobody"].stack_author == nil, "no member author, no stack author")
+    -- Not `author`: the sort engine and the book checks read that field.
+    assert(g["Long Earth"].author == nil, "the stack must not pose as a book")
+    -- The cache HIT path hydrates the same way.
+    local g2 = bySeries(Repo.getSeriesGroups(10))
+    assert(g2["Long Earth"].stack_author == "Stephen Baxter", "cache hit lost the author")
+end)
+
+test("getSeriesGroups: a filtered stack names the author of the books it shows (#486)", function()
+    seriesAuthorFixture()
+    _G._test_docsettings_data = {
+        ["/lib/le1.epub"] = { summary = { status = "complete" } },
+    }
+    local items = Repo.getSeriesGroups(10, 0, nil, { statuses = { finished = true } })
+    local g = bySeries(items)
+    assert(g["Long Earth"], "the finished volume's stack is missing")
+    assert(g["Long Earth"].stack_author == "Terry Pratchett",
+        "expected the shown member's author, got " .. tostring(g["Long Earth"].stack_author))
+    _G._test_docsettings_data = nil
+end)
+
 test("getFolderBookPaths: finds books nested deeper than the home walk depth (#202)", function()
     -- Novels/Genre/Subgenre/Author/Book.epub sits 4 dirs below home; the
     -- home-rooted walk (depth 3) never reaches it, so the status-filter
@@ -5217,22 +5287,78 @@ test("getBySource(kindle): a rating-only filter does NOT pay for enrichment", fu
     assert(calls == 0, "a rating filter must not enrich the whole list, got " .. calls .. " calls")
 end)
 
-test("kindleFilepaths: lists the catalogue, and is EMPTY without a Kindle library", function()
+test("getBySource: a plugin's registered source is filtered, sorted and paged (issue 452)", function()
+    local Sources = require("lib/bookshelf_sources")
+    Sources.register("demo", {
+        api = 1,
+        label = function() return "Demo" end,
+        available = function() return true end,
+        list = function()
+            return {
+                { title = "Cherry", filepath = "demo://c", rating = 5 },
+                { title = "Apple",  filepath = "demo://a", rating = 5 },
+                { title = "Banana", filepath = "demo://b", rating = 2 },
+            }
+        end,
+    })
+    local list, total = Repo.getBySource({ kind = "demo" }, { ratings = { ["5"] = true } },
+        { { key = "title", reverse = false } }, 0, 1)
+    Sources.unregister("demo")
+    assert(total == 2, "the rating filter keeps two, got " .. tostring(total))
+    assert(#list == 1 and list[1].title == "Apple", "sorted by title and paged to one")
+    assert(list[1].source_kind == "demo", "records are stamped with their source")
+end)
+
+test("getBySource: an unregistered or failing source is an empty shelf, not an error", function()
+    local Sources = require("lib/bookshelf_sources")
+    Sources.register("flaky", {
+        label = function() return "Flaky" end,
+        available = function() return true end,
+        list = function() error("server unreachable") end,
+    })
+    local list, total = Repo.getBySource({ kind = "flaky" }, nil, nil, 0, 10)
+    Sources.unregister("flaky")
+    assert(#list == 0 and total == 0, "a throwing list must read as empty")
+end)
+
+test("getBySource: a fetch-mode source keeps its own order and pages itself", function()
+    local Sources = require("lib/bookshelf_sources")
+    local asked
+    Sources.register("pager", {
+        label = function() return "Pager" end,
+        available = function() return true end,
+        fetch = function(src, drill, off, lim)
+            asked = { drill = src.drill, off = off, lim = lim }
+            local out = {}
+            for i = 1, lim do out[i] = { title = "Z" .. (off + i), filepath = "pager://" .. (off + i) } end
+            return out, nil   -- the server does not know its total yet
+        end,
+        remote_prefix = "pager://",
+    })
+    local list, total = Repo.getBySource({ kind = "pager", drill = { series = 3 } },
+        { ratings = { ["5"] = true } }, { { key = "title", reverse = false } }, 10, 5)
+    Sources.unregister("pager")
+    assert(asked.drill.series == 3 and asked.off == 10 and asked.lim == 5, "drill/offset/limit reach fetch")
+    assert(#list == 5 and list[1].title == "Z11", "server order and paging, no local filter or sort")
+    assert(total == 16, "an unknown total offers one more page: got " .. tostring(total))
+end)
+
+test("librarySourceFilepaths: lists the catalogue, and is EMPTY without a Kindle library", function()
     package.loaded["lib/bookshelf_kindle_source"] = nil
-    assert(#Repo.kindleFilepaths() == 0, "no Kindle source must yield no paths")
+    assert(#Repo.librarySourceFilepaths() == 0, "no Kindle source must yield no paths")
 
     package.loaded["lib/bookshelf_kindle_source"] = {
         isAvailable = function() return false end,
         listBooks = function() error("must not be called when unavailable") end,
     }
-    assert(#Repo.kindleFilepaths() == 0, "an unavailable source must yield no paths")
+    assert(#Repo.librarySourceFilepaths() == 0, "an unavailable source must yield no paths")
 
     stub_kindle_source({
         { title = "A", filepath = "/k/a.kfx" },
         { title = "B", filepath = "/k/b.kfx" },
         { title = "No path" },
     })
-    local paths = Repo.kindleFilepaths()
+    local paths = Repo.librarySourceFilepaths()
     table.sort(paths)
     assert(#paths == 2 and paths[1] == "/k/a.kfx" and paths[2] == "/k/b.kfx",
         "expected the two real paths, got " .. table.concat(paths, ","))

@@ -89,7 +89,8 @@ t.test("four stops, in the maintainer's words, and no hidden Default", function(
     local words = {}
     for i, stop in ipairs(STOPS) do words[i] = stop.word end
     eq(table.concat(words, ","), "None,Rarely,Often,Always")
-    assert(not editor:find('return _("Default")', 1, true),
+    local orn = editor:match("local ORN_STOPS = {(.-)\n            }")
+    assert(orn and not orn:find('_("Default")', 1, true),
         "a Default stop stores a value the reader cannot see")
 end)
 
@@ -143,9 +144,14 @@ t.test("the author switch is a tick, the same mark the face-out picker uses", fu
         "the Yes/No row helper is dead once nothing calls it")
 end)
 
-t.test("the live preview carries the pin, like the other spine pins", function()
-    assert(editor:find("override.ornament_frequency  = draft.ornament_frequency", 1, true),
-        "a pinned frequency must preview on the shelf behind the dialog")
+t.test("the pin reaches the shelf behind as it is picked, like the other spine pins", function()
+    -- pick() hands every Shelf style change to on_change, which commits the
+    -- whole working copy (see _test_chip_editor_live_apply).
+    assert(editor:find("draft.ornament_frequency = ORN_STOPS[(ornAt() % #ORN_STOPS) + 1].value", 1, true)
+        and editor:find("callback = pick(function()\n                      draft.ornament_frequency", 1, true),
+        "the ornament dial is not a pick() that reaches the shelf")
+    assert(editor:find("save_tabs[i] = Editor._deepCopy(draft)", 1, true),
+        "a change is not written onto the saved shelf whole")
 end)
 
 t.done()

@@ -67,6 +67,9 @@ M.STEPS = {
 }
 
 local function O() return require("lib/bookshelf_ornaments") end
+-- A piece on or off as the shelf on screen's theme has it: that theme's set,
+-- or the collection's (bookshelf_theme_pack.switches, the one seam).
+local function SW() return require("lib/bookshelf_theme_pack").switches() end
 local Deck = require("lib/bookshelf_ornament_deck")
 
 local function pct(v) return string.format("%+d%%", math.floor((v or 0) * 100 + 0.5)) end
@@ -182,7 +185,7 @@ function M.show(entry, bw, piece)
         }
         local text_w = math.max(1, avail - pic.dimen.w - gap - manage:getSize().w)
         local sub = entry.pack or ""
-        if Orn.isOff(entry.name) then
+        if SW().isOff(entry.name) then
             sub = (sub ~= "" and (sub .. " \xC2\xB7 ") or "") .. _("switched off")   -- U+00B7 middle dot
         end
         local lines = VerticalGroup:new{ align = "left",
@@ -262,16 +265,21 @@ function M.show(entry, bw, piece)
         }
     end
 
-    -- The pieces that are on, in the saved order: what "place" counts and
-    -- what Earlier / Later step through.
+    -- The pieces that are on, in this shelf's saved order: what "place"
+    -- counts and what Earlier / Later step through. Every shelf has its own
+    -- deck, and the one held is the one on screen.
+    local shelf = bw and bw.chip
     local function onNames()
-        Deck.sync(Orn.listAll())
+        Deck.sync(Orn.listAll(), shelf)
         local names = {}
-        for i, e in ipairs(Deck.order(Orn.list())) do names[i] = e.name end
+        -- The shelf's own pool: what it deals (its theme's pieces, even if
+        -- that pack is off in the collection; else the reader's own).
+        local TP = require("lib/bookshelf_theme_pack")
+        for i, e in ipairs(Deck.order(Orn.listFor(TP.ornamentsFor(shelf)), shelf)) do names[i] = e.name end
         return names
     end
     local function step(delta)
-        if Deck.move(entry.name, delta, onNames()) then redraw() end
+        if Deck.move(entry.name, delta, onNames(), shelf) then redraw() end
     end
     -- placeGlyph(glyph, delta): a move chevron. Unlike the shelf editor's it
     -- wraps round past either end (the deck is a loop), so it is greyed out
@@ -349,20 +357,28 @@ function M.show(entry, bw, piece)
                 -- place in the order, and this one takes the chosen piece's.
                 require("lib/bookshelf_ornament_browser").show(function()
                     if bw and bw._rebuild then bw:_rebuild(); UIManager:setDirty(bw, "ui") end
-                end, { pick = function(chosen)
+                end, { pool = (function()
+                    -- Only the pieces this shelf deals from: a shelf that
+                    -- wears a theme deals that pack's pieces alone.
+                    -- A theme whose set is edited may switch on any piece:
+                    -- all of them.
+                    local sp = require("lib/bookshelf_theme_pack").ornamentsFor(shelf)
+                    if sp == "mine" or type(sp) == "table" then return nil end
+                    return function(e) return e.pack ~= nil and e.pack == sp end
+                end)(), pick = function(chosen)
                     -- A piece never in the order yet (it was off) joins it first.
-                    Deck.sync(Orn.listAll())
-                    Deck.swap(entry.name, chosen.name)
+                    Deck.sync(Orn.listAll(), shelf)
+                    Deck.swap(entry.name, chosen.name, shelf)
                 end })
             end) },
-            -- A new order for every piece on every shelf (the "Bookshelf:
-            -- shuffle ornaments" action), which also clears every swap.
+            -- A new order for this shelf's deck (the "Bookshelf: shuffle
+            -- ornaments" action), which also clears its swaps.
             -- Asks first: an arrangement may have had a lot of care put into it
             -- (maintainer).
-            { text = _("Shuffle all"), callback = function()
+            { text = _("Shuffle this shelf"), callback = function()
                 local ConfirmBox = require("ui/widget/confirmbox")
                 UIManager:show(ConfirmBox:new{
-                    text = _("Shuffle every ornament into a new order? Your swaps and moves are lost."),
+                    text = _("Shuffle this shelf's ornaments into a new order? Its swaps and moves are lost."),
                     ok_text = _("Shuffle"),
                     ok_callback = function()
                         UIManager:close(dialog)
@@ -373,9 +389,10 @@ function M.show(entry, bw, piece)
             -- Out of the deck and back, with the menu still open: a piece
             -- switched off keeps its place in the saved order, so switching
             -- it back on puts it where it stood (maintainer).
-            { text_func = function() return Orn.isOff(entry.name) and _("Switch on") or _("Switch off") end,
+            { text_func = function() return SW().isOff(entry.name) and _("Switch on") or _("Switch off") end,
               callback = function()
-                Orn.setOff(entry.name, not Orn.isOff(entry.name))
+                local sw = SW()
+                sw.setOff(entry.name, not sw.isOff(entry.name))
                 redraw()
             end },
         },

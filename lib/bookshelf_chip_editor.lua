@@ -2,13 +2,13 @@
 -- Per-tab editor modal.
 --   editTab(tab_id, opts)  -- open the editor for one tab directly.
 --
--- opts.on_change is called after Save, and also immediately after each
--- Move-left / Move-right tap (those persist without going through Save).
+-- Every change applies as it is made: it is saved (in memory, flushed when
+-- the editor closes) and the shelf behind rebuilds, once per run of taps.
+-- The editor closes with Close; there is no Save and no Cancel.
+-- opts.on_change(info) is that rebuild (info.source_changed when the source
+-- moved), and also runs at once after each Move-left / Move-right tap.
 -- opts.bw is the BookshelfWidget instance; when present the dialog anchors
 -- just below the chip strip so the strip stays visible.
---
--- Pattern mirrors bookshelf_hero_line_editor.lua: in-memory `draft` for
--- live edits; settings only flush on Save; Cancel discards the draft.
 
 local ButtonDialog   = require("ui/widget/buttondialog")
 local ConfirmBox     = require("ui/widget/confirmbox")
@@ -24,10 +24,6 @@ local Filter   = require("lib/bookshelf_filter")
 local logger   = require("logger")
 local _        = require("lib/bookshelf_i18n").gettext
 local T        = require("ffi/util").template
-
--- Shared wall-clock for [bookshelf perf] timestamps (and elapsed-time
--- bookkeeping); see lib/bookshelf_gettime.lua for the fallback contract.
-local _gettime = require("lib/bookshelf_gettime")
 
 local Editor = {}
 
@@ -235,12 +231,18 @@ local SOURCE_SORT_DEFAULTS = {
     -- until books are actually fetched. Empty list means "no sort levels",
     -- not "fall through to an engine default" -- see _applySourceDefaults.
     opds          = {},
-    -- Kindle library: title, not filename. The catalogue's titles are what the
-    -- shelf shows, while the source files are named things like
-    -- "01. The Colour of Magic - Terry Pratchett_127FE891….kfx", so a filename
-    -- sort would look arbitrary next to the titles on screen.
-    kindle        = { { key = "title",            reverse = false } },
+    -- Shelf of shelves: its shelves stand in the order they were added (and
+    -- moved), like chips in the strip. No sort levels, as for OPDS.
+    shelves       = {},
 }
+-- A registered source (lib/bookshelf_sources) brings its own default. The
+-- Kindle's is title rather than filename: its files are named things like
+-- "01. The Colour of Magic - Terry Pratchett_127FE891….kfx", so a filename sort
+-- would look arbitrary next to the titles on screen.
+setmetatable(SOURCE_SORT_DEFAULTS, { __index = function(_t, kind)
+    local spec = require("lib/bookshelf_sources").get(kind)
+    return spec and type(spec.sort_default) == "table" and spec.sort_default or nil
+end })
 
 -- _resolveOpdsTitle(id): the configured title for an OPDS server key, or nil
 -- if bookshelf_opds_source can't be loaded or the server has since been
@@ -254,46 +256,6 @@ local function _resolveOpdsTitle(id)
     local ok2, server = pcall(OpdsSource.getServer, id)
     if ok2 and server and server.title then return server.title end
     return nil
-end
-
--- The formats a new Kindle chip should start out showing: those holding at
--- least one book KOReader can actually open.
---
--- Derived from the catalogue rather than hardcoded, because openability is a
--- per-BOOK question and not a per-format one -- bookshelf_kindle_source weighs
--- DRM and the file's own magic bytes as well as the extension. A format earns
--- its place if any book in it is openable, which in practice keeps KFX (always
--- converted before KOReader sees it) and EPUB, and drops AZW3, which KOReader
--- registers no provider for.
---
--- Worth knowing where this stops: a format holding both openable and DRM-locked
--- books stays, and the locked ones stay with it. The Format dimension is an
--- include list of formats, so it cannot say "the unlocked ones" -- only a
--- per-book test could. The chip's Filters show exactly what was chosen and the
--- user can change it.
-local function _kindleOpenableFormats()
-    local ok, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
-    if not (ok and type(KindleSource) == "table" and KindleSource.listBooks) then
-        return nil
-    end
-    local ok_list, books = pcall(KindleSource.listBooks)
-    if not (ok_list and type(books) == "table") then return nil end
-    local allowed, openable, blocked = {}, false, false
-    for _i, b in ipairs(books) do
-        local fmt = b.format
-        if fmt and fmt ~= "" then
-            if b.kindle_blocked then
-                blocked = true
-            else
-                allowed[fmt] = true
-                openable = true
-            end
-        end
-    end
-    -- Nothing is blocked: leave the chip unfiltered rather than pinning it to
-    -- the formats owned today, which would hide one bought later.
-    if not (openable and blocked) then return nil end
-    return allowed
 end
 
 -- Editor.sourceSortDefaults(kind) -> a fresh { {key, reverse}, ... }, or nil.
@@ -320,17 +282,11 @@ local function _applySourceDefaults(draft)
     if copy then
         draft.sort_priority = copy
     end
-    -- A new Kindle chip starts with the formats KOReader cannot open filtered
-    -- out, so the shelf is not padded with books that can only refuse. Applied
-    -- only to a chip carrying no filter of its own, so re-picking the source
-    -- never discards one the user set.
-    if kind == "kindle" and not Filter.isActive(draft.filter) then
-        local formats = _kindleOpenableFormats()
-        if formats then
-            draft.filter = draft.filter or {}
-            draft.filter.formats = formats
-        end
-    end
+    -- A registered source can have the last word on a new shelf's defaults
+    -- (the Kindle's filters out formats KOReader cannot open).
+    local Sources = require("lib/bookshelf_sources")
+    local src_spec = kind and Sources.get(kind)
+    if src_spec and src_spec.new_shelf then Sources.call(src_spec, "new_shelf", draft) end
     -- QoL: if the chip's label is still the default "New shelf" (i.e.
     -- the user hasn't customised it), rename it to match the picked
     -- source — e.g. picking "Genres" sets the label to "Genres",
@@ -447,10 +403,18 @@ SOURCE_LABEL = {
     -- generic fallback. Once an id is present _resolveSourceLabel takes
     -- the "OPDS: <title>" branch instead of this one.
     opds          = function() return _("OPDS catalog")       end,
-    -- The Kindle's own library (issue #355). Only offered on a Kindle with
-    -- kindle.koplugin installed; see the picker row's availability gate.
-    kindle        = function() return _("Kindle Virtual Library") end,
+    -- A shelf holding other shelves (5.4), each with its own source.
+    shelves       = function() return _("Shelf of shelves") end,
+    -- A shelf being created, before a source is picked (TabModel.newTab).
+    none          = function() return _("(none)") end,
 }
+-- A registered source (lib/bookshelf_sources: the Kindle's own library, a
+-- plugin's) names itself.
+setmetatable(SOURCE_LABEL, { __index = function(_t, kind)
+    local Sources = require("lib/bookshelf_sources")
+    if not Sources.get(kind) then return nil end
+    return function() return Sources.label(kind) or kind end
+end })
 
 -- _resolveSourceLabel(source): display string for "Source: <label>".
 -- For built-in kinds returns just the label ("Recently read"). For
@@ -496,28 +460,42 @@ local function _resolveSortLabel(level_index, key, source_kind)
 end
 
 -- editTab(tab_id, opts) -- modal editor for one tab.
--- opts = { on_change = function() end, bw = <BookshelfWidget> }
--- on_change fires after Save, and after each Move-left / Move-right tap.
+-- opts = { on_change = function(info) end, bw = <BookshelfWidget>,
+--          pick_source_first = bool, on_discard = function() end }
+-- _deepCopy(v) / _sameValue(a, b): for the plain values a shelf record holds
+-- (strings, numbers, booleans and tables of them).
+function Editor._deepCopy(v)
+    if type(v) ~= "table" then return v end
+    local out = {}
+    for k, x in pairs(v) do out[k] = Editor._deepCopy(x) end
+    return out
+end
+
+function Editor._sameValue(a, b)
+    if type(a) ~= "table" or type(b) ~= "table" then return a == b end
+    for k, x in pairs(a) do if not Editor._sameValue(x, b[k]) then return false end end
+    for k in pairs(b) do if a[k] == nil then return false end end
+    return true
+end
+
 function Editor:editTab(tab_id, opts)
     opts = opts or {}
-    local tabs = TabModel.load()
-    local idx, target
-    for i, t in ipairs(tabs) do
-        if t.id == tab_id then idx = i; target = t; break end
+    local target
+    for _i, t in ipairs(TabModel.load()) do
+        if t.id == tab_id then target = t; break end
     end
     if not target then return end
 
-    -- In-memory draft. All sub-modals mutate this; settings only writes on Save.
-    -- Cancel discards the draft without saving.
-    local draft = {}
-    for k, v in pairs(target) do
-        if type(v) == "table" then
-            local copy = {} for kk, vv in pairs(v) do copy[kk] = vv end
-            draft[k] = copy
-        else
-            draft[k] = v
-        end
-    end
+    -- The shelf being edited, as a working copy. Every change lands on the
+    -- saved shelf as it is made (commit, below): there is no Save and no
+    -- Cancel any more, only Close (maintainer, after the 5.4 tutorial: "make
+    -- that all apply on selection and change Save to Close"). A copy rather
+    -- than the stored record itself so a change can still be refused before it
+    -- lands (a shelf of shelves' source, sourceChosen) and so the pickers,
+    -- which edit it in place, never leave half a change in the settings table.
+    -- Deep: a registered source's editor buttons edit tables inside
+    -- draft.source.
+    local draft = Editor._deepCopy(target)
     -- Ensure required nested tables exist even if a legacy schema is missing them.
     draft.filter        = draft.filter        or {}
     draft.sort_priority = draft.sort_priority or {}
@@ -526,147 +504,154 @@ function Editor:editTab(tab_id, opts)
     -- One-time schema migration: tab.icon used to be a separate field.
     -- Now label may contain inline nerd-font glyphs. If the persisted tab
     -- still has an icon field, fold it into the front of the label so the
-    -- editor presents one unified string. Save clears tab.icon to lock the
-    -- migration in (chip strip falls back on the legacy field meanwhile).
+    -- editor presents one unified string. The first change written locks the
+    -- migration in (the chip strip falls back on the legacy field meanwhile).
     if draft.icon and draft.icon ~= "" then
         draft.label = draft.icon .. " " .. (draft.label or "")
         draft.icon  = nil
     end
 
-    -- Two-flag dirty tracking:
-    --   data_dirty   - source / filter / sort changes (book lists need
-    --                  refetching; book cache must invalidate on close).
-    --   visual_dirty - label / icon changes (chip strip repaints but the
-    --                  underlying book lists are unaffected; cache stays
-    --                  valid).
-    -- Neither Save nor Cancel invalidates the book cache: the per-source
-    -- result cache is keyed on (source, filter, sort_priority), so an edit to
-    -- any of those is a NEW key and misses on its own (see Save's comment).
-    -- This header used to say both invalidated when data_dirty; they never
-    -- did, and trusting it is how an arrangement shipped that only a swipe
-    -- down would show. on_change fires when either flag is set. "Open, close
-    -- untouched" is near-instant (both false).
-    local data_dirty   = false
-    local visual_dirty = false
-    local function is_dirty() return data_dirty or visual_dirty end
-    -- A confirmed arrangement of the collection, from the sort picker's "Edit
-    -- collection order". Not draft state: it is written to KOReader the moment
-    -- it is confirmed (and drops the book cache itself), so backing out of
-    -- this editor does not undo it -- which means every way out, Cancel
-    -- included, has to repaint the shelf to show it. Not part of is_dirty()
-    -- either, because that also gates writing the TAB, which did not change.
-    local arranged = false
-    local function repaintOnCancel() return visual_dirty or arranged end
+    -- What the saved shelf holds: the working copy as last committed, which a
+    -- refused change goes back to.
+    local committed = Editor._deepCopy(draft)
 
-    -- applyLivePreview(affects_data):
-    --   affects_data = false (label / icon): live-preview the change by
-    --     pushing a "visual-only" override (persisted data fields + draft's
-    --     label/icon) into TabModel and firing on_change. The chip strip
-    --     repaints immediately; the underlying book listing is unaffected
-    --     so the rebuild stays cheap (cache reuse).
-    --   affects_data = true (source / filter / sort): defer entirely.
-    --     Just mark data_dirty and return -- no override, no on_change,
-    --     no shelf rebuild. The editor's own rebuild() refreshes the
-    --     button labels via draft. The shelf only re-sorts on Save.
-    --
-    -- This avoids the bookends-pattern trap where every sort pick triggers
-    -- a 4-9 second rebuild on the genres tab. Visual previews stay live
-    -- because they're cheap; data previews are too expensive to be live.
-    -- The shelf's preview rebuild is DEFERRED and coalesced. It used to run
-    -- inside the tap: applyLivePreview set the override and called
-    -- opts.on_change at once, a full _rebuild of the shelf underneath - several
-    -- hundred milliseconds on a Kindle in spine mode - before the picker could
-    -- close and reopen, and taps in that window were dropped ("there's a lag
-    -- after tapping one where tapping another does nothing"). Lua has one
-    -- thread, so the work cannot move off it; it can move AFTER the tap. The
-    -- override is still set immediately (the picker reads the draft, not the
-    -- shelf), the rebuild is armed for PREVIEW_DEBOUNCE_S after the LAST
-    -- change, and Save, Cancel and the X close drop a pending one first,
-    -- since each does its own rebuild or repaint.
+    -- A shelf being created (TabModel.newTab) has no source until one is
+    -- picked, and stays `pending` until then. Closing the editor while it
+    -- still has none removes it and hands back to opts.on_discard (the shelf
+    -- the reader came from); once it has one it is an ordinary shelf.
+    local is_new = target.pending == true
+    local function hasSource()
+        return draft.source ~= nil and draft.source.kind ~= TabModel.NO_SOURCE
+    end
+    local dialog   -- the editor window, built below; discardNew closes it
+    local closed = false   -- once, whichever way the editor is left
+
+    -- THE SHELF BEHIND follows every change, on a rebuild DEFERRED and
+    -- coalesced. A rebuild inside the tap (several hundred milliseconds on a
+    -- Kindle in spine mode) held the picker up, and taps in that window were
+    -- dropped ("there's a lag after tapping one where tapping another does
+    -- nothing"). Lua has one thread, so the work cannot move off it; it can
+    -- move AFTER the tap: armed for PREVIEW_DEBOUNCE_S after the LAST change,
+    -- run at once by the close paths (finish) if it is still owed. A source,
+    -- filter or sort change is one change and one rebuild: those pickers hand
+    -- back when the reader leaves them, not per tap inside them.
     local PREVIEW_DEBOUNCE_S = 0.4
+    local owed, owed_info = false, {}
     local function firePreview()
-        if opts.on_change then opts.on_change() end
+        if not owed then return end
+        owed = false
+        local info = owed_info
+        owed_info = {}
+        if opts.on_change then opts.on_change(info) end
     end
     local function schedulePreview()
+        owed = true
         UIManager:unschedule(firePreview)
         UIManager:scheduleIn(PREVIEW_DEBOUNCE_S, firePreview)
     end
-    local function cancelPreview()
+    -- A close path: the rebuild still owed, now. Or not at all (drop).
+    local function settlePreview(drop)
         UIManager:unschedule(firePreview)
+        if drop then owed = false; owed_info = {} else firePreview() end
     end
-    -- A confirmed arrangement (see `arranged` above). The order is written the
-    -- moment the arrange window closes, so the shelf behind shows it then --
-    -- through the debounced preview, so the confirm tap is not held up by a
-    -- shelf rebuild -- rather than only once the whole editor is closed
-    -- (maintainer, on the PW5). `arranged` stays set as well: a close inside
-    -- the debounce window cancels the preview, and the close paths repaint
-    -- in its place.
-    --
-    -- Declared HERE, below schedulePreview, and not beside `arranged`: a
-    -- local function resolves the names in its body where it is written, so
-    -- above this point schedulePreview would be a nil global at the moment of
-    -- the confirm.
-    local function onArranged()
-        arranged = true
-        schedulePreview()
+
+    -- dropShelves(tabs): delete this shelf's shelves from `tabs`, in place.
+    local function dropShelves(tabs)
+        for _i, kid in ipairs(TabModel.childrenOf(tab_id, tabs)) do
+            TabModel.removeTree(tabs, kid.id)
+        end
     end
-    local function applyLivePreview(affects_data)
-        if affects_data then
-            data_dirty = true
-            return
-        end
-        visual_dirty = true
-        -- Build a visual-only override: persisted record + draft's
-        -- label/icon. Reading TabModel.load() bypasses the override
-        -- lookup so we get the unmodified persisted state and don't
-        -- leak any pending data changes from draft into the preview.
-        local persisted
-        for _i,t in ipairs(TabModel.load()) do
-            if t.id == tab_id then persisted = t; break end
-        end
-        if not persisted then return end
-        local override = {}
-        for k, v in pairs(persisted) do
-            if type(v) == "table" then
-                local copy = {} for kk, vv in pairs(v) do copy[kk] = vv end
-                override[k] = copy
-            else
-                override[k] = v
+
+    -- commit([drop_shelves]): write the working copy onto the saved shelf and
+    -- arm the rebuild. In memory only (saveDeferred): a tap on a nudge must
+    -- not wait for a settings flush, hundreds of milliseconds on a Kindle. The
+    -- editor flushes once, as it closes (finish), which is the action
+    -- boundary. A source change (or a source's own list / sort choice) tells
+    -- the shelf, so a folder drilled into under the old one is left.
+    local function commit(drop_shelves)
+        if draft.pending and hasSource() then draft.pending = nil end
+        local save_tabs = TabModel.load()
+        for i, t in ipairs(save_tabs) do
+            if t.id == tab_id then
+                if not Editor._sameValue(t.source, draft.source) then
+                    owed_info.source_changed = true
+                end
+                save_tabs[i] = Editor._deepCopy(draft)
+                break
             end
         end
-        override.label = draft.label
-        override.icon  = draft.icon
-        -- Folder style is visual too, and it is the one the reader is most
-        -- likely to be choosing WHILE looking at the shelf - the preview is the
-        -- whole point of the picker. Without this the override carried the
-        -- persisted style and the shelf never moved until Save.
-        --
-        -- Assigning nil removes the key rather than clearing it to a value,
-        -- which is exactly right here: no key means the tile resolves against
-        -- the library default, which is what an unpinned chip is.
-        override.group_display = draft.group_display
-        -- The view-mode pin, for the same reason and with the same nil
-        -- semantics: it is the most visual setting in the picker (it swaps the
-        -- entire shelf between a grid and a list), so the preview is worthless
-        -- without it, and no key means "follow the global settings".
-        override[ViewMode.CHIP_KEY] = draft[ViewMode.CHIP_KEY]
-        -- The density pins, with the same nil semantics as everything else
-        -- here: no key means "follow the library". list_rows is also what the
-        -- pinch writes, so a chip picked up by gesture and a chip set from
-        -- this dialog end up in the same place.
-        override.list_rows    = draft.list_rows
-        override.list_columns = draft.list_columns
-        -- The spine pins, same nil-means-default semantics. spine_face_out
-        -- is the one tri-state: nil = the default (yes), false = no.
-        override.spine_rows          = draft.spine_rows
-        override.spine_thickness_pct = draft.spine_thickness_pct
-        override.spine_face_out      = draft.spine_face_out
-        override.spine_show_author   = draft.spine_show_author
-        -- Same nil-means-default semantics. There is no library setting
-        -- behind this one, so absent means Orn.FREQ_DEFAULT.
-        override.ornament_frequency  = draft.ornament_frequency
-        TabModel.setOverride(tab_id, override)
+        if drop_shelves then dropShelves(save_tabs) end
+        TabModel.saveDeferred(save_tabs)
+        committed = Editor._deepCopy(draft)
         schedulePreview()
+    end
+    -- revert(): put the working copy back to what is saved, in place (the
+    -- pickers hold it by reference).
+    local function revert()
+        for k in pairs(draft) do draft[k] = nil end
+        for k, v in pairs(Editor._deepCopy(committed)) do draft[k] = v end
+    end
+
+    local function discardNew()
+        closed = true
+        settlePreview(true)
+        local tabs = TabModel.load()
+        TabModel.removeTree(tabs, tab_id)
+        TabModel.save(tabs)
+        if dialog then UIManager:close(dialog) end
+        if opts.on_discard then opts.on_discard()
+        elseif opts.on_change then opts.on_change() end
+    end
+
+    -- finish(): Close, the title bar X, a tap outside and Back all end here.
+    -- Everything is saved already; what is left is the flush, and the shelf's
+    -- rebuild if the last change has not had it yet. A new shelf that never
+    -- got a source is not kept (see is_new).
+    local function finish()
+        if closed then return end
+        if is_new and not hasSource() then return discardNew() end
+        closed = true
+        UIManager:close(dialog)
+        TabModel.flush()
+        settlePreview()
+    end
+
+    -- A confirmed arrangement of the collection, from the sort picker's "Edit
+    -- collection order". Not shelf state: it is written to KOReader the moment
+    -- it is confirmed (and drops the book cache itself), so all the editor owes
+    -- it is the shelf's rebuild, the same deferred one any change gets
+    -- (maintainer, on the PW5: the shelf behind shows it when the arrange
+    -- window closes, not only once the editor is closed).
+    --
+    -- Declared below schedulePreview: a local function resolves the names in
+    -- its body where it is written, so above that point schedulePreview would
+    -- be a nil global at the moment of the confirm.
+    local function onArranged()
+        schedulePreview()
+    end
+
+    -- sourceChosen(): the source picker has handed back. Nothing picked is
+    -- nothing to do. A shelf of shelves given another source would keep its
+    -- shelves but never show them again -- nothing else lists a sub-shelf, so
+    -- they could be neither reached nor deleted -- so that change ASKS first,
+    -- and deletes them with it; refused, the shelf keeps its source. Anything
+    -- else applies at once: one change, one fetch.
+    local rebuild   -- the dialog's own redraw, defined below
+    local function sourceChosen()
+        if Editor._sameValue(draft.source, committed.source) then rebuild(); return end
+        if draft.source.kind ~= TabModel.SHELVES_KIND
+                and #TabModel.childrenOf(tab_id) > 0 then
+            UIManager:show(ConfirmBox:new{
+                text        = _("Changing this shelf's source deletes the shelves inside it. This cannot be undone."),
+                ok_text     = _("Change"),
+                ok_callback = function() commit(true); rebuild() end,
+                -- Cancel, a tap outside, Back.
+                cancel_callback = function() revert(); rebuild() end,
+            })
+            return
+        end
+        commit()
+        rebuild()
     end
 
     -- Lazy-loaded widget constructors (avoids polluting the module-level scope).
@@ -689,14 +674,15 @@ function Editor:editTab(tab_id, opts)
     local sh       = Screen:getHeight()
     local dialog_w = math.floor(math.min(sw, sh) * 0.85)
 
-    local dialog
+    -- `dialog` is declared above, with discardNew, which closes it.
     local frame
     local current_bt   -- the ButtonTable on screen; rebuilt on every edit
 
     -- rebuild() -- swap frame[1] in-place so the button labels and enabled
     -- states refresh without touching the MovableContainer. The anchor-based
     -- positioning set on first paint is therefore preserved across rebuilds.
-    local function rebuild()
+    -- Declared above, with sourceChosen, which calls it.
+    rebuild = function()
         -- Reload tabs for the move buttons so enabled state is always current.
         local current_tabs = TabModel.load()
         local current_idx = 0
@@ -706,13 +692,19 @@ function Editor:editTab(tab_id, opts)
         -- A chevron is "at the edge" only if there's no ENABLED neighbour
         -- in that direction. Hidden tabs don't count toward visible order
         -- so they shouldn't gate the move buttons.
+        -- A sub-shelf moves among the shelves of its own shelf of shelves,
+        -- and a top-level shelf among the top-level ones.
+        local me = current_tabs[current_idx]
+        local function neighbour(t)
+            return t.enabled ~= false and TabModel.isSibling(t, me)
+        end
         local at_left = true
         for i = current_idx - 1, 1, -1 do
-            if current_tabs[i].enabled ~= false then at_left = false; break end
+            if neighbour(current_tabs[i]) then at_left = false; break end
         end
         local at_right = true
         for i = current_idx + 1, #current_tabs do
-            if current_tabs[i].enabled ~= false then at_right = false; break end
+            if neighbour(current_tabs[i]) then at_right = false; break end
         end
 
         -- Bookends-style nudge chevrons (mdi-chevron-left / right from the
@@ -783,9 +775,11 @@ function Editor:editTab(tab_id, opts)
                 text             = _("OK"),
                 is_enter_default = true,
                 callback         = function()
+                    -- Applied on OK, not per keystroke: a text field is the
+                    -- one control here with a commit of its own.
                     draft.label = label_dialog:getInputText()
                     UIManager:close(label_dialog)
-                    applyLivePreview(false)  -- label is visual-only
+                    commit()
                     rebuild()
                 end,
             }
@@ -833,8 +827,10 @@ function Editor:editTab(tab_id, opts)
             -- tab past any hidden ones between it and the next visible
             -- chip in the strip. If no enabled neighbour exists, no-op.
             local target = mi + delta
+            local me = move_tabs[mi]
             while target >= 1 and target <= #move_tabs do
-                if move_tabs[target].enabled ~= false then break end
+                local t = move_tabs[target]
+                if t.enabled ~= false and TabModel.isSibling(t, me) then break end
                 target = target + delta
             end
             if target >= 1 and target <= #move_tabs then
@@ -854,28 +850,62 @@ function Editor:editTab(tab_id, opts)
         -- row collapses to a single disabled row naming the constraint
         -- rather than offering pickers that would silently do nothing.
         local sort_row
-        if draft.source and draft.source.kind == "opds" then
+        -- A fetch-mode registered source (lib/bookshelf_sources) orders itself
+        -- the same way.
+        local is_paged_src = draft.source
+            and require("lib/bookshelf_sources").isPaged(draft.source.kind) or false
+        -- ...unless it offers editor buttons of its own (its list, sort and
+        -- filters: SOURCE_API.md "Editor rows"), which take that row's place.
+        -- A button edits draft.source and calls done(), which saves it; the
+        -- shelf fetches again, draft.source being part of its cache key.
+        local src_rows
+        if is_paged_src then
+            local Sources = require("lib/bookshelf_sources")
+            local spec_rows = Sources.editorRows(draft.source.kind, draft)
+            for _r, row in ipairs(spec_rows or {}) do
+                local out = {}
+                for _b, b in ipairs(row) do
+                    out[#out + 1] = {
+                        text_func = function() return Sources.buttonText(b, draft) end,
+                        callback = function()
+                            local done = function() commit(); rebuild() end
+                            local ok, err = pcall(b.callback, draft, done)
+                            if not ok then logger.warn("[bookshelf] source: editor button failed:", tostring(err)) end
+                        end,
+                    }
+                end
+                src_rows = src_rows or {}
+                src_rows[#src_rows + 1] = out
+            end
+        end
+        if draft.source and (draft.source.kind == "opds" or is_paged_src) then
             sort_row = {
                 { text = _("Server order"), enabled = false },
+            }
+        elseif draft.source and draft.source.kind == "shelves" then
+            -- Its shelves stand in your order; the arrows in each one's
+            -- editor move it.
+            sort_row = {
+                { text = _("Shelves stand in the order you arrange them"), enabled = false },
             }
         else
             sort_row = {
                 {
                     text_func = function() return _sortButtonText(draft, 1) end,
                     callback = function()
-                        Editor:_pickSortLevel(draft, 1, function() applyLivePreview(true); rebuild() end, onArranged)
+                        Editor:_pickSortLevel(draft, 1, function() commit(); rebuild() end, onArranged)
                     end,
                 },
                 {
                     text_func = function() return _sortButtonText(draft, 2) end,
                     callback = function()
-                        Editor:_pickSortLevel(draft, 2, function() applyLivePreview(true); rebuild() end, onArranged)
+                        Editor:_pickSortLevel(draft, 2, function() commit(); rebuild() end, onArranged)
                     end,
                 },
                 {
                     text_func = function() return _sortButtonText(draft, 3) end,
                     callback = function()
-                        Editor:_pickSortLevel(draft, 3, function() applyLivePreview(true); rebuild() end, onArranged)
+                        Editor:_pickSortLevel(draft, 3, function() commit(); rebuild() end, onArranged)
                     end,
                 },
             }
@@ -887,6 +917,9 @@ function Editor:editTab(tab_id, opts)
         -- Filters cell for OPDS sources. OPDS filtering is the feed's own facets
         -- (Language / Category), shown as folder tiles at the top of the shelf.
         local is_opds_src = draft.source and draft.source.kind == "opds"
+        -- A shelf of shelves shows shelves, each with filters of its own, so
+        -- it has none to offer.
+        local is_shelves_src = draft.source and draft.source.kind == "shelves"
         -- Source gets a row to itself: it is the one choice that changes what
         -- every other control on this dialog means, and sharing a row made it
         -- read as a peer of the things it governs.
@@ -899,7 +932,7 @@ function Editor:editTab(tab_id, opts)
                     return _("Source / grouping: ") .. _resolveSourceLabel(draft.source)
                 end,
                 callback = function()
-                    Editor:_pickSource(draft, function() applyLivePreview(true); rebuild() end)
+                    Editor:_pickSource(draft, sourceChosen)
                 end,
             },
         }
@@ -907,13 +940,30 @@ function Editor:editTab(tab_id, opts)
         -- SHOWS (filters, or a catalog's own settings) and how its group tiles
         -- LOOK.
         local shelf_row = {}
-        if not is_opds_src then
+        if is_shelves_src then
+            -- No filters (see is_shelves_src). In their place, whether the
+            -- "+ Add shelf" tile shows: wanted while the shelves are being
+            -- set up, clutter once they are (maintainer).
+            shelf_row[#shelf_row + 1] = {
+                text_func = function()
+                    return (draft.hide_add_tile and "  " or "\xE2\x9C\x93 ")
+                        .. _("Show + Add shelf")
+                end,
+                callback = function()
+                    draft.hide_add_tile = (not draft.hide_add_tile) or nil
+                    commit()
+                    rebuild()
+                end,
+            }
+        elseif is_paged_src then   -- luacheck: ignore 542
+            -- A fetch-mode source filters on its own side; no local Filters.
+        elseif not is_opds_src then
             shelf_row[#shelf_row + 1] = {
                 text_func = function()
                     return _("Filters: ") .. Filter.summary(draft.filter or {})
                 end,
                 callback = function()
-                    Editor:_openFilters(draft, function() applyLivePreview(true); rebuild() end)
+                    Editor:_openFilters(draft, function() commit(); rebuild() end)
                 end,
             }
         else
@@ -926,14 +976,8 @@ function Editor:editTab(tab_id, opts)
             shelf_row[#shelf_row + 1] = {
                 text_func = function() return _("Catalog settings") end,
                 callback = function()
-                    -- Mark dirty via applyLivePreview(true): Save only writes
-                    -- when a dirty flag is set, so a settings-only edit would
-                    -- otherwise be silently discarded. `true` (data, not
-                    -- visual) is right even though nothing about the shelf
-                    -- listing changes - it skips the pointless live rebuild
-                    -- a visual preview would trigger.
                     Editor:_openCatalogSettings(draft, function()
-                        applyLivePreview(true)
+                        commit()
                         rebuild()
                     end)
                 end,
@@ -971,8 +1015,14 @@ function Editor:editTab(tab_id, opts)
                     .. (mode or SD.chipLabelFor(draft.group_display))
             end,
             callback = function()
-                Editor:_pickGroupDisplay(draft, function()
-                    applyLivePreview()
+                -- now: the shelf behind rebuilt at once, not on the
+                -- debounce; the Theme library debounces its taps itself and
+                -- refreshes the whole screen as it applies, so a rebuild left
+                -- for later was a flash that showed nothing, then a second
+                -- one with the theme (maintainer on the PW5, 2026-10-09).
+                Editor:_pickGroupDisplay(draft, function(now)
+                    commit()
+                    if now then settlePreview() end
                     rebuild()
                 end, {
                     -- Stand the editor down while the picker is up: it sits
@@ -986,7 +1036,7 @@ function Editor:editTab(tab_id, opts)
                     -- the screen: a tap in the middle opened the source menu.
                     show = function() UIManager:show(dialog, "ui") end,
                     -- A catalogue gets Default and List only; see above.
-                    is_opds = is_opds_src,
+                    is_opds = is_opds_src or is_paged_src,
                     -- The live shelf, so the density nudges can seed from the
                     -- numbers actually on screen instead of from a constant.
                     bw = opts.bw,
@@ -1036,7 +1086,9 @@ function Editor:editTab(tab_id, opts)
             -- when earlier ones tie) -- or, for an OPDS source, the single
             -- disabled "Server order" row computed above.
             sort_row,
-            -- Row 2: actions [delete] [Cancel] [Save] [add].
+            -- Row 2: actions [delete] [Close] [add]. One Close, not Cancel
+            -- and Save: every change has already been applied and saved, so
+            -- there is nothing left to keep or throw away (maintainer, 2026-10-08).
             -- Delete (U+E8BF, mdi-delete) is enabled only for custom tabs;
             -- built-ins are hidden via the bookshelf menu's checkbox.
             -- Add (U+F055, fa-plus-circle) creates a new custom_N tab.
@@ -1050,8 +1102,11 @@ function Editor:editTab(tab_id, opts)
                     font_bold      = false,
                     bordersize     = 0,
                     callback   = function()
+                        local has_shelves = #TabModel.childrenOf(tab_id) > 0
                         UIManager:show(ConfirmBox:new{
-                            text       = _("Delete this shelf? This cannot be undone."),
+                            text       = has_shelves
+                                and _("Delete this shelf and the shelves inside it? This cannot be undone.")
+                                or _("Delete this shelf? This cannot be undone."),
                             ok_text    = _("Delete"),
                             ok_callback = function()
                                 -- Deleting a tab changes the list of tabs,
@@ -1059,96 +1114,40 @@ function Editor:editTab(tab_id, opts)
                                 -- for other tabs stay valid; the deleted
                                 -- tab's cache entries are harmless orphans
                                 -- (never read again). No invalidateBookCache.
-                                TabModel.clearOverride()
+                                closed = true
+                                settlePreview(true)
                                 local del_tabs = TabModel.load()
-                                for di = #del_tabs, 1, -1 do
-                                    if del_tabs[di].id == tab_id then
-                                        table.remove(del_tabs, di)
-                                        break
-                                    end
+                                -- Where the shelf on screen goes if it was
+                                -- this one or inside it: up to this one's
+                                -- shelf of shelves, read before the delete.
+                                local parent_id
+                                for _i, t in ipairs(del_tabs) do
+                                    if t.id == tab_id then parent_id = t.parent; break end
                                 end
+                                local gone = TabModel.descendantIds(tab_id, del_tabs)
+                                gone[tab_id] = true
+                                TabModel.removeTree(del_tabs, tab_id)
                                 TabModel.save(del_tabs)
                                 UIManager:close(dialog)
-                                if opts.on_change then opts.on_change() end
+                                local bw = opts.bw
+                                if bw and gone[bw.chip] and parent_id and bw._openShelf then
+                                    bw:_openShelf(parent_id)
+                                elseif opts.on_change then
+                                    opts.on_change()
+                                end
                             end,
                         })
                     end,
                 },
                 {
-                    text       = _("Cancel"),
-                    id         = "close",
-                    bordersize = 0,
-                    callback   = function()
-                        local _t0 = _gettime()
-                        -- Drop the visual-preview override and let the
-                        -- persisted state surface. Data changes were never
-                        -- previewed (just held in draft), so the cache is
-                        -- still valid -- no invalidation needed. Only rebuild
-                        -- if visual_dirty (to undo the icon/label preview);
-                        -- data-only cancel is instant.
-                        cancelPreview()
-                        TabModel.clearOverride()
-                        local _t1 = _gettime()
-                        UIManager:close(dialog)
-                        local _t2 = _gettime()
-                        if repaintOnCancel() and opts.on_change then opts.on_change() end
-                        local _t3 = _gettime()
-                        logger.dbg(string.format(
-                            "[bookshelf perf] editor-cancel: data_dirty=%s visual_dirty=%s clearOverride=%.0fms close=%.0fms on_change=%.0fms TOTAL=%.0fms",
-                            tostring(data_dirty), tostring(visual_dirty),
-                            (_t1 - _t0) * 1000, (_t2 - _t1) * 1000,
-                            (_t3 - _t2) * 1000, (_t3 - _t0) * 1000))
-                    end,
-                },
-                {
-                    text             = _("Save"),
+                    -- "Close" either way, a new shelf included: one still
+                    -- without a source is removed as the editor closes, which
+                    -- the note above the source row says while it is that.
+                    text             = _("Close"),
+                    id               = "close",
                     is_enter_default = true,
                     bordersize       = 0,
-                    callback         = function()
-                        local _t0 = _gettime()
-                        -- Clear the live-preview override BEFORE writing the
-                        -- persisted record, so the subsequent on_change reads
-                        -- the saved tab via the normal path, not the override.
-                        cancelPreview()
-                        TabModel.clearOverride()
-                        local _t1 = _gettime()
-                        -- Re-load to get the latest order (may have changed via
-                        -- move buttons), find the tab by id, and update it in place.
-                        -- Only persist if anything changed. Save-with-no-edits
-                        -- skips the settings flush + cache invalidation.
-                        if is_dirty() then
-                            local save_tabs = TabModel.load()
-                            for si, t in ipairs(save_tabs) do
-                                if t.id == tab_id then
-                                    save_tabs[si] = draft
-                                    break
-                                end
-                            end
-                            TabModel.save(save_tabs)
-                        end
-                        local _t2 = _gettime()
-                        -- No cache invalidation needed. The _bySource_cache
-                        -- is keyed on (source, filter, sort_priority), so
-                        -- editing those produces a new key -- the next
-                        -- render of THIS tab cache-misses and builds fresh
-                        -- against the new settings. Other tabs keep their
-                        -- warm cache entries (different keys, untouched).
-                        -- Group caches (_authors_cache etc.) are keyed on
-                        -- (home, depth) which doesn't change when a tab is
-                        -- edited; they reflect the whole library's group
-                        -- memberships regardless of tab preferences.
-                        local _t3 = _gettime()
-                        UIManager:close(dialog)
-                        local _t4 = _gettime()
-                        if (is_dirty() or arranged) and opts.on_change then opts.on_change() end
-                        local _t5 = _gettime()
-                        logger.dbg(string.format(
-                            "[bookshelf perf] editor-save: data_dirty=%s visual_dirty=%s clearOverride=%.0fms TabModel.save=%.0fms invalidate=%.0fms close=%.0fms on_change=%.0fms TOTAL=%.0fms",
-                            tostring(data_dirty), tostring(visual_dirty),
-                            (_t1 - _t0) * 1000, (_t2 - _t1) * 1000,
-                            (_t3 - _t2) * 1000, (_t4 - _t3) * 1000,
-                            (_t5 - _t4) * 1000, (_t5 - _t0) * 1000))
-                    end,
+                    callback         = function() finish() end,
                 },
                 {
                     -- Add button placed last in the row to balance the
@@ -1158,50 +1157,33 @@ function Editor:editTab(tab_id, opts)
                     font_bold      = false,
                     font_size  = CHEV_SIZE,
                     bordersize = 0,
+                    -- Not from a new shelf that has no source yet: it would
+                    -- only make a second empty one beside it.
+                    enabled_func = function() return hasSource() end,
                     callback   = function()
-                        -- Persist any pending edits before spawning the
-                        -- new tab so the user's current work isn't lost.
-                        TabModel.clearOverride()
-                        if is_dirty() then
-                            local save_tabs = TabModel.load()
-                            for si, t in ipairs(save_tabs) do
-                                if t.id == tab_id then save_tabs[si] = draft; break end
-                            end
-                            TabModel.save(save_tabs)
-                            -- Same reasoning as the Save path: the
-                            -- _bySource_cache is keyed on (source, filter,
-                            -- sort_priority), so a render with new settings
-                            -- naturally cache-misses; other tabs keep
-                            -- their warm entries. No invalidate needed.
+                        -- This shelf's changes are saved already; leave its
+                        -- editor (the new shelf's selection rebuilds the
+                        -- shelf, so no rebuild is owed here).
+                        closed = true
+                        settlePreview(true)
+                        TabModel.flush()
+                        -- Inside a shelf of shelves, the new shelf joins this
+                        -- one's siblings: the widget makes it, opens it and
+                        -- puts its editor up.
+                        if draft.parent and opts.bw and opts.bw._addSubShelf then
+                            UIManager:close(dialog)
+                            opts.bw:_addSubShelf(draft.parent)
+                            return
                         end
-                        -- Generate unique custom_N id and append the new tab.
+                        -- A new shelf (TabModel.newTab: no source yet, pending
+                        -- until it has one), spliced right after the chip being
+                        -- edited rather than at the end of the strip. Matches
+                        -- the Pin-from-stack flow and keeps newly created
+                        -- chips visually adjacent to their origin.
                         local fresh = TabModel.load()
-                        local n = 1
-                        while true do
-                            local cand = "custom_" .. n
-                            local taken = false
-                            for _i,t in ipairs(fresh) do
-                                if t.id == cand then taken = true; break end
-                            end
-                            if not taken then break end
-                            n = n + 1
-                        end
-                        local new_id = "custom_" .. n
-                        -- Splice the new chip right after the chip
-                        -- the user is currently editing rather than
-                        -- appending to the end of the strip. Matches
-                        -- the Pin-from-stack flow and keeps newly
-                        -- created chips visually adjacent to their
-                        -- origin.
-                        TabModel.insertAfter(fresh, tab_id, {
-                            id            = new_id,
-                            label         = _("New shelf"),
-                            icon          = nil,
-                            source        = { kind = "all" },
-                            filter        = {},
-                            sort_priority = { { key = "title", reverse = false } },
-                            enabled       = true,
-                        })
+                        local new_tab = TabModel.newTab(fresh, _("New shelf"))
+                        local new_id = new_tab.id
+                        TabModel.insertAfter(fresh, tab_id, new_tab)
                         TabModel.save(fresh)
                         UIManager:close(dialog)
                         -- Auto-select the new tab so the user lands on it after
@@ -1218,11 +1200,27 @@ function Editor:editTab(tab_id, opts)
                         local new_opts = {}
                         for k, v in pairs(opts) do new_opts[k] = v end
                         new_opts.pick_source_first = true
+                        -- Backing out of it lands back on this shelf.
+                        new_opts.on_discard = function()
+                            if opts.bw and opts.bw._selectChip then
+                                opts.bw:_selectChip(tab_id)
+                            elseif opts.on_change then
+                                opts.on_change()
+                            end
+                        end
                         Editor:editTab(new_id, new_opts)
                     end,
                 },
             },
         }
+
+        -- A new shelf without a source yet: say what keeps it, above the
+        -- source row, since Close reads the same as on any other shelf.
+        if is_new and not hasSource() then
+            table.insert(buttons, 2, {
+                { text = _("Choose a source to keep this new shelf."), enabled = false },
+            })
+        end
 
         -- Strip empty rows. The conditional delete row's IIFE returns {}
         -- for built-in tabs; ButtonTable renders a zero-cell row as a
@@ -1230,7 +1228,9 @@ function Editor:editTab(tab_id, opts)
         -- row borders. Filtering keeps the dialog cleanly grid-shaped.
         local non_empty_buttons = {}
         for _i,row in ipairs(buttons) do
-            if #row > 0 then non_empty_buttons[#non_empty_buttons + 1] = row end
+            if row == sort_row and src_rows then
+                for _r, r in ipairs(src_rows) do non_empty_buttons[#non_empty_buttons + 1] = r end
+            elseif #row > 0 then non_empty_buttons[#non_empty_buttons + 1] = row end
         end
         local button_table = ButtonTable:new{
             width   = dialog_w - 2 * Space.padding.default,
@@ -1258,14 +1258,8 @@ function Editor:editTab(tab_id, opts)
             width             = dialog_w,
             title             = title_text,
             with_bottom_line  = false,
-            close_callback    = function()
-                -- X-button close == Cancel: drop visual preview, no cache
-                -- invalidation, repaint only if a visual preview was active.
-                cancelPreview()
-                TabModel.clearOverride()
-                UIManager:close(dialog)
-                if repaintOnCancel() and opts.on_change then opts.on_change() end
-            end,
+            -- The X is Close.
+            close_callback    = function() finish() end,
         }
 
         frame[1] = VerticalGroup:new{
@@ -1322,17 +1316,16 @@ function Editor:editTab(tab_id, opts)
         dialog.key_events.Close = { { Device.input.group.Back } }
     end
 
-    dialog.onTapClose = function(self_d, arg, ges_ev)
+    -- A tap outside and Back are Close too. Back used to close the window
+    -- and nothing else, which kept a half-made new shelf.
+    dialog.onTapClose = function(_self_d, _arg, ges_ev)
         if not frame.dimen or ges_ev.pos:notIntersectWith(frame.dimen) then
-            -- Tap-outside-close == Cancel.
-            TabModel.clearOverride()
-            UIManager:close(self_d)
-            if repaintOnCancel() and opts.on_change then opts.on_change() end
+            finish()
         end
         return true
     end
-    dialog.onClose = function(self_d)
-        UIManager:close(self_d)
+    dialog.onClose = function()
+        finish()
         return true
     end
     dialog.onCloseWidget = function()
@@ -1381,7 +1374,14 @@ function Editor:editTab(tab_id, opts)
     -- returns to the editor rather than to nothing, and the placeholder source
     -- stands as the fallback exactly as it did before.
     if opts.pick_source_first then
-        Editor:_pickSource(draft, function() applyLivePreview(true); rebuild() end)
+        Editor:_pickSource(draft, function()
+            -- Backing out of the very first pick of a shelf being created,
+            -- with nothing picked, is backing out of creating it.
+            if is_new and not hasSource() then
+                return discardNew()
+            end
+            sourceChosen()
+        end)
     end
 end
 
@@ -1406,9 +1406,8 @@ end
 -- editor already uses; the fuller wording is the sub-dialog's title, so the
 -- menu stays narrow enough not to wrap on a small screen.
 --
--- Every pick marks the draft dirty via on_close (the caller passes
--- applyLivePreview(true) + rebuild) because Save only writes when a dirty
--- flag is set -- a settings-only edit would otherwise be discarded silently.
+-- Every pick hands back through on_close, which saves it (the caller passes
+-- commit + rebuild), and the menu reopens on its new value.
 function Editor:_openCatalogSettings(draft, on_close)
     local UIManager    = require("ui/uimanager")
     local ButtonDialog = require("ui/widget/buttondialog")
@@ -1659,9 +1658,6 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         local function header(text)
             return {{ text = text, enabled = false }}
         end
-        -- Same shape as a header, different job: a header names the question
-        -- below it, a note explains the answer above it.
-        local note = header
         local function radio(label, active, on_pick)
             return Kit.radioRow{ label = label, active = active,
                                  on_pick = on_pick }
@@ -1702,6 +1698,42 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         --     lands on "Auto" instead, so the way back to automatic still
         --     exists but costs no dialog height.
 
+        -- Theme: first, above Show as: the theme sits behind the layout
+        -- style (maintainer, 2026-10-09). The shelf's own, in the Theme
+        -- library, the one picker the
+        -- Theme menu's This shelf and shelf rows open too
+        -- (maintainer, 2026-10-07: readers who think "this shelf" start
+        -- here). A sub-shelf too (Reddit, after 5.4; it wore its shelf of
+        -- shelves' theme only, ruling 2026-10-05): with none of its own it
+        -- reads "Theme: Same as Fiction" (TP.followOf). A pick is saved and
+        -- shown on the shelf behind (on_change); this dialog comes back, its
+        -- row updated, when the picker closes.
+        -- Following the default reads "Theme: Default theme", as its row in
+        -- the Theme menu does; never "library", the Theme library's own
+        -- name, nor a bare "Default" (maintainer, 2026-10-09).
+        do
+            local TP = require("lib/bookshelf_theme_pack")
+            local function cur() return draft.theme end
+            local follow = draft.parent ~= nil and TP.followOf(draft.id) or nil
+            rows[#rows + 1] = {{
+                text_func = function()
+                    local v = cur()
+                    if v == nil and follow then return T(_("Theme: %1"), follow.title) end
+                    return T(_("Theme: %1"), TP.choiceLabel(v))
+                end,
+                callback = function()
+                    UIManager:close(d)
+                    require("lib/bookshelf_theme_library").show{
+                        shelf = draft.label or "",
+                        current = cur,
+                        follow = follow,
+                        choose = function(value) draft.theme = value end,
+                        apply = function() on_change(true) end,
+                        on_closed = show,
+                    }
+                end,
+            }}
+        end
         -- Show as: Auto / List / Covers, three across. COVERS is the default
         -- (unset), so a chip that has never seen this picker looks exactly as
         -- it did before list view existed; Auto is now an explicit choice
@@ -1709,11 +1741,25 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         -- list when the shelf is expanded or inside folders and stacks
         -- (lib/bookshelf_view_mode.lua).
         local mode = ViewMode.chipOverride(draft[ViewMode.CHIP_KEY])
+        -- A shelf of shelves is never drilled into (opening a sub-shelf
+        -- switches to it), so Auto's levels would be one level: the same as
+        -- choosing that style. It is not offered there (maintainer,
+        -- 2026-10-11), and one stored before shows as the style it gives.
+        local is_shelves = TabModel.isShelves(draft)
+        if is_shelves and mode == ViewMode.AUTO then
+            mode = ViewMode.auto(draft, false)
+            if mode == ViewMode.COVERS then mode = nil end
+        end
         rows[#rows + 1] = header(_("Show as"))
-        rows[#rows + 1] = {
-            radio(_("Auto"), mode == ViewMode.AUTO, pick(function()
+        -- Appended, not listed with `cond and x or nil`: a nil FIRST entry
+        -- ends ipairs there, and the whole row would vanish.
+        local show_row = {}
+        if not is_shelves then
+            show_row[#show_row + 1] = radio(_("Auto"), mode == ViewMode.AUTO, pick(function()
                 draft[ViewMode.CHIP_KEY] = ViewMode.AUTO
-            end)),
+            end))
+        end
+        for _i, b in ipairs({
             -- Covers leads the three styles, on a maintainer ruling: it is
             -- the default, so it is what most chips are showing. Auto keeps
             -- the front because it is not a style at all -- it is the choice
@@ -1728,8 +1774,8 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             radio(_("List"), mode == ViewMode.LIST, pick(function()
                 draft[ViewMode.CHIP_KEY] = ViewMode.LIST
             end)),
-            -- Spines: books edge-on, a real bookcase. Never chosen by Auto;
-            -- an explicit pin only, like the others but purely for fun. Not
+            -- Spines: books edge-on, a real bookcase. A pin, or a level's
+            -- choice under Auto (5.4.3), never Auto's default. Not
             -- offered for OPDS catalogues -- remote records have nothing for
             -- the style to stand on, and the widget degrades a stored pin to
             -- covers there.
@@ -1737,7 +1783,8 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             radio(_("Spines"), mode == ViewMode.SPINES, pick(function()
                 draft[ViewMode.CHIP_KEY] = ViewMode.SPINES
             end)) or nil,
-        }
+        }) do show_row[#show_row + 1] = b end
+        rows[#rows + 1] = show_row
 
         -- Which density rows to offer. LIST numbers only: cover columns are
         -- deliberately absent -- "column numbers for cover view cannot be per
@@ -1754,15 +1801,23 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         -- written when nil meant Auto and were not revisited when the default
         -- flipped (cf885a1); the radios above were.
         local pin = ViewMode.chipPin(mode)
-        local show_covers = (pin ~= ViewMode.LIST and pin ~= ViewMode.SPINES)
-        local show_list   = (pin ~= ViewMode.COVERS and pin ~= ViewMode.SPINES)
-        local show_spines = (pin == ViewMode.SPINES)
-                            and not (chrome and chrome.is_opds)
-        -- Auto is the only mode whose name does not say what it does, and the
-        -- policy it encodes is invisible until you have watched the shelf
-        -- change under you. So it explains itself, and only while it is the
-        -- one selected.
-        local show_auto_note = (pin == ViewMode.AUTO)
+        local no_spines  = (chrome and chrome.is_opds) and true or false
+        -- The styles this shelf can show: its pin, or under Auto each level's
+        -- (ViewMode.auto). The density rows below follow them, so Auto set to
+        -- List then Covers offers list rows and folder tiles, and no spine rows.
+        local shows = {}
+        if pin == ViewMode.AUTO then
+            shows[ViewMode.auto(draft, false)] = true
+            shows[ViewMode.auto(draft, true)] = true
+        else
+            shows[pin] = true
+        end
+        local show_covers = shows[ViewMode.COVERS] == true
+        local show_list   = shows[ViewMode.LIST] == true
+        local show_spines = shows[ViewMode.SPINES] == true and not no_spines
+        -- Auto's levels, as buttons in the place of the note that used to
+        -- explain its fixed policy (maintainer, 2026-10-11).
+        local show_levels = (pin == ViewMode.AUTO)
         local bw = chrome and chrome.bw
 
         -- nudgeRow: [-]  Label: value  [+], writing draft[key].
@@ -1772,9 +1827,12 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         -- one more of what the reader is looking at rather than jumping to a
         -- constant. Nudging below `lo` returns to Auto, which is the whole of
         -- the way back and costs no dialog row.
-        local function nudgeRow(label, key, lo, hi, live)
+        -- inherit_key: an unset value shows this key's instead (Level 2's list
+        -- numbers show Level 1's, which is what the shelf then uses).
+        local function nudgeRow(label, key, lo, hi, live, inherit_key)
             local function shown()
                 local v = draft[key]
+                if v == nil and inherit_key then v = draft[inherit_key] end
                 return label .. ": " .. (v and tostring(v) or _("Auto"))
             end
             local function step(delta)
@@ -1803,20 +1861,54 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         -- past that -- which at a large DPI is how this note would arrive.
         -- Two standalone sentences cannot truncate, and each stands alone for
         -- a translator rather than being half of one split mid-clause.
-        if show_auto_note then
-            rows[#rows + 1] = note(_("Auto shows covers by default,"))
-            rows[#rows + 1] = note(_("and a list in full screen or a folder."))
+        -- Auto's levels: "Level 1: Covers" | "Level 2: List", each tap the
+        -- next style (covers, list, spines; no spines for a catalogue), as
+        -- the sort levels' buttons step through their keys. Level 1 is the
+        -- shelf's top level, collapsed or expanded; Level 2 everything drilled
+        -- into below it. A level on its default stores nothing.
+        if show_levels then
+            local function levelBtn(level)
+                local key = ViewMode.LEVEL_KEYS[level]
+                local fmt = (level == 1) and _("Level 1: %1") or _("Level 2: %1")
+                return {
+                    text_func = function()
+                        return T(fmt, Editor._chipModeLabel(ViewMode.levelMode(draft[key], level)))
+                    end,
+                    callback = pick(function()
+                        local nxt = ViewMode.nextLevelMode(draft[key], level, no_spines)
+                        if nxt == ViewMode.LEVEL_DEFAULTS[level] then draft[key] = nil
+                        else draft[key] = nxt end
+                    end),
+                }
+            end
+            rows[#rows + 1] = { levelBtn(1), levelBtn(2) }
         end
 
         if show_list then
-            rows[#rows + 1] = nudgeRow(_("List columns"), "list_columns", 1, 3,
-                bw and function() return bw:_listCols() end)
-            rows[#rows + 1] = nudgeRow(_("List rows"), "list_rows", 1, 12,
-                bw and function()
-                    local ok, plan = pcall(bw._listBandPlan, bw, false,
-                                           bw._chip_bar_hidden)
-                    return ok and plan and plan.rows or 4
-                end)
+            -- Auto listing on BOTH levels: a set per level, under headings
+            -- (ViewMode.listLevelsSplit). Level 2's keys carry the suffix and,
+            -- until set, show Level 1's numbers, which are what they follow. A
+            -- "Same as Level 1" label did not fit the button at PW5 size.
+            local split = ViewMode.listLevelsSplit(draft)
+            local function listRows(sfx, inherit)
+                rows[#rows + 1] = nudgeRow(_("List columns"), "list_columns" .. sfx, 1, 3,
+                    bw and function() return bw:_listCols() end,
+                    inherit and "list_columns" or nil)
+                rows[#rows + 1] = nudgeRow(_("List rows"), "list_rows" .. sfx, 1, 12,
+                    bw and function()
+                        local ok, plan = pcall(bw._listBandPlan, bw, false,
+                                               bw._chip_bar_hidden)
+                        return ok and plan and plan.rows or 4
+                    end, inherit and "list_rows" or nil)
+            end
+            if split then
+                rows[#rows + 1] = header(_("Level 1"))
+                listRows("")
+                rows[#rows + 1] = header(_("Level 2"))
+                listRows(ViewMode.LEVEL2_SUFFIX, true)
+            else
+                listRows("")
+            end
         end
 
         if show_spines then
@@ -1869,7 +1961,12 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                 favorites = _("Favorites"),
                 first     = _("First in series"),
                 first_unread = _("First unread in series"),
-                reading   = _("Currently reading"),
+                -- "Reading", as the book's long-press menu says it: the four
+                -- reading states share one row, where "Currently reading"
+                -- did not fit.
+                reading   = _("Reading"),
+                finished  = _("Finished"),
+                on_hold   = _("On hold"),
                 unread    = _("Unread"),
                 standalone = _("Unread standalone"),
                 collection = _("In a collection"),
@@ -1935,8 +2032,8 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                     -- refresh. The shape is fixed so a label always has a
                     -- button to land in: two reasons per row, the recent-count
                     -- button present but disabled while Recent is off, All and
-                    -- None as a pair, Done. The shelf underneath follows on its
-                    -- own deferred rebuild (applyLivePreview).
+                    -- None as a pair, Back. The shelf underneath follows on
+                    -- the editor's own deferred rebuild (on_change, a commit).
                     local sub
                     local showFace
                     local TICK, BLANK = "\xE2\x9C\x93 ", "\xE2\x80\x83 "
@@ -2041,7 +2138,10 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                             -- because "first in series" and "first unread in
                             -- series" are the same question asked of a
                             -- shelf you have started or one you have not.
-                            { toggle("unread"), toggle("reading") },
+                            -- All four reading states on one row, in the order
+                            -- the book's long-press menu sets them (On hold and
+                            -- Finished joined in 5.4.4).
+                            { toggle("unread"), toggle("reading"), toggle("on_hold"), toggle("finished") },
                             { toggle("standalone"), toggle("favorites") },
                             { toggle("first"),  toggle("first_unread") },
                             -- How many count as "recently added", as a button
@@ -2074,10 +2174,9 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                                     draft.spine_face_out = false
                                     changed()
                                 end } },
-                            -- Done, not Cancel: every tick is already in the
-                            -- draft, and the editor's own Cancel is what
-                            -- discards it.
-                            { { text = _("Done"),
+                            -- Back, not Cancel: every tick is already saved.
+                            -- Back to Shelf style, which this was opened from.
+                            { { text = _("Back"),
                                 callback = function()
                                     UIManager:close(sub)
                                     show()
@@ -2206,8 +2305,11 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         -- chip pinned to List -- "folder tiles option has no purpose in the
         -- list style menu": a list's group rows draw a deck of member covers,
         -- not these cards.
+        -- Book text (below) shares this row (maintainer on the PW5,
+        -- 2026-10-10): both are how the covers are drawn.
+        local tiles_row
         if not (chrome and chrome.is_opds) and show_covers then
-            rows[#rows + 1] = {{
+            tiles_row = {{
                 text_func = function()
                     local cur = StackDisplay.pinned(draft.group_display)
                                 or StackDisplay.FOLLOW_DEFAULT
@@ -2232,13 +2334,31 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                     draft.group_display = opts_list[1].value
                 end),
             }}
+            rows[#rows + 1] = tiles_row
         end
-        -- OK, not Close and not Apply. Every pick has already been applied, so
-        -- Apply would name work that has happened and Save would promise
-        -- persistence this does not do - the editor's own Save is what writes
-        -- the draft. OK means "done choosing", which is what the button is.
+        -- Text below covers, this shelf's own (Reddit, after 5.4: "I only
+        -- want the series name in a shelf that lists my series"). Opens a
+        -- short picker, since Custom opens the line editor and a cycle stop
+        -- cannot. Unset follows Cover display's choice, or a sub-shelf's
+        -- shelf of shelves' (CoverLabel.modeFor), and reads "Default" or
+        -- "Same as Fiction" accordingly. Covers only: a list or spine shelf
+        -- has no label strip. Text below GROUPS stays library-wide: the only
+        -- group text with anything to print is a series stack's author.
+        if show_covers then
+            local text_row = self:_coverTextRow(draft, function()
+                if on_change then on_change() end
+            end, function() UIManager:close(d) end, show, bw)
+            if tiles_row then
+                tiles_row[#tiles_row + 1] = text_row[1]
+            else
+                rows[#rows + 1] = text_row
+            end
+        end
+        -- Close: every pick has already been applied and saved, so there is
+        -- nothing to confirm. It was OK while the editor's own Save did the
+        -- saving; the maintainer wanted every change applied on selection.
         rows[#rows + 1] = {{
-            text = _("OK"),
+            text = _("Close"),
             callback = function()
                 UIManager:close(d)
                 restoreChrome()
@@ -2256,6 +2376,113 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         UIManager:show(d)
     end
     show()
+end
+
+-- _coverTextRow(draft, on_change, close, reshow, bw) -> Shelf style's
+-- "Cover captions: Title" button, opening its picker (_pickCoverText).
+-- `close` takes Shelf style down, `reshow` brings it back.
+function Editor:_coverTextRow(draft, on_change, close, reshow, bw)
+    return {{
+        text_func = function()
+            return T(_("Cover captions: %1"), Editor._coverTextLabel(draft, draft.cover_text))
+        end,
+        callback = function()
+            close()
+            Editor:_pickCoverText(draft, on_change, reshow, bw)
+        end,
+    }}
+end
+
+-- The choices, laid out as a grid rather than a column of one per row (on
+-- the PW5 the column was seven rows for one question, maintainer
+-- 2026-10-10): what it follows and None, the line's contents, then Custom.
+-- "follow" is unset.
+local COVER_TEXT_LAYOUT = { { "follow", "none" }, { "title", "author", "series" }, { "custom" } }
+
+-- _coverTextLabel(draft, value) -> how a choice reads: its name, or for
+-- unset what it follows, "Default" (Cover display's) or "Same as Fiction"
+-- (a sub-shelf's shelf of shelves).
+function Editor._coverTextLabel(draft, value)
+    if value == "title"  then return _("Title") end
+    if value == "author" then return _("Author") end
+    if value == "series" then return _("Series") end
+    if value == "custom" then return _("Custom") end
+    if value == "none"   then return _("None") end
+    if draft.parent ~= nil then
+        local parent = TabModel.getById(draft.parent)
+        return T(_("Same as %1"), (parent and parent.label) or draft.parent)
+    end
+    return _("Default")
+end
+
+-- _pickCoverText(draft, on_change, back, bw): the shelf's own text below
+-- covers. A pick is written to the draft, shown on the shelf, and hands back
+-- to Shelf style: one question, one answer, and no close-and-reopen of this
+-- picker per tap, which flashes the whole screen on a Kindle (see the Face
+-- out picker). Custom... opens the line editor on the shelf's own line
+-- (CoverLabelEditor.showForShelf), and its Save is what makes Custom the
+-- choice, as in Cover display. Back returns unchanged.
+function Editor:_pickCoverText(draft, on_change, back, bw)
+    local CL = require("lib/bookshelf_cover_label")
+    local Kit = require("lib/bookshelf_module_kit")
+    local d
+    local function set(v)
+        return function()
+            draft.cover_text = v
+            on_change()
+            UIManager:close(d)
+            back()
+        end
+    end
+    local cur = draft.cover_text
+    local function customBtn()
+        return {
+            text = (cur == "custom" and "\xE2\x9C\x93 " or "") .. _("Custom\xE2\x80\xA6"),
+            callback = function()
+                UIManager:close(d)
+                -- Starts from the shelf's own line, else the one it shows
+                -- now, so Custom changes nothing until it is edited.
+                require("lib/bookshelf_cover_label_editor").showForShelf(bw, {
+                    line = draft.cover_text_line or CL.lineFor(draft.id),
+                    save = function(l)
+                        draft.cover_text_line = CL.normalise(l)
+                        draft.cover_text = "custom"
+                        on_change()
+                    end,
+                    on_closed = back,
+                })
+            end,
+        }
+    end
+    local rows = {}
+    for _i, layout_row in ipairs(COVER_TEXT_LAYOUT) do
+        local row = {}
+        for _j, v in ipairs(layout_row) do
+            if v == "custom" then
+                row[#row + 1] = customBtn()
+            else
+                local value = (v ~= "follow") and v or nil
+                row[#row + 1] = Kit.radioRow{ label = Editor._coverTextLabel(draft, value),
+                                              active = cur == value, on_pick = set(value) }
+            end
+        end
+        rows[#rows + 1] = row
+    end
+    rows[#rows + 1] = {{
+        text = _("Back"),
+        callback = function()
+            UIManager:close(d)
+            back()
+        end,
+    }}
+    d = ButtonDialog:new{
+        title       = _("Cover captions"),
+        title_align = "center",
+        buttons     = rows,
+        anchor      = _highAnchor(function() return d end),
+        tap_close_callback = back,
+    }
+    UIManager:show(d)
 end
 
 -- _pickOpdsOption(draft, field, options, title, on_close) - one radio list for
@@ -2305,8 +2532,8 @@ end
 -- downloads (issue #319). Reuses the move flow's folder picker so the choices
 -- match "Move to folder…" exactly (searchable library folders, New folder,
 -- Browse device). A "Follow KOReader" row clears the per-chip choice, which is
--- also the unset default. Writes the draft only; the editor's own Save
--- persists it with the rest of the chip.
+-- also the unset default. on_close saves the pick with the rest of the
+-- shelf.
 function Editor:_pickDownloadDir(draft, on_close)
     local UIManager = require("ui/uimanager")
     local ButtonDialog = require("ui/widget/buttondialog")
@@ -2681,7 +2908,7 @@ function Editor:_pickSource(draft, on_close)
             local PathChooser = require("ui/widget/pathchooser")
             local confirmed = false
             UIManager:show(PathChooser:new{
-                path             = G_reader_settings:readSetting("home_dir") or "/",
+                path             = require("lib/bookshelf_home_dir").get() or "/",
                 select_directory = true,
                 select_file      = false,
                 show_files       = false,
@@ -2805,7 +3032,13 @@ function Editor:_pickSource(draft, on_close)
         -- route into the catalogue picker (which now hosts add/edit/delete),
         -- so it must stay discoverable rather than being gated on
         -- OpdsSource.isAvailable().
+        --
+        -- Shelf of shelves (5.4) shares it: its tiles are shelves of their
+        -- own, each with every option a top-level shelf has. A row of its
+        -- own (and a heading) made the picker two rows taller, and it already
+        -- scrolls on a small screen (maintainer).
         {
+            btn("shelves", _("Shelf of shelves")),
             specific_btn("opds", _("OPDS catalog\xE2\x80\xA6"),
                 function() open_opds_picker() end),
         },
@@ -2815,14 +3048,33 @@ function Editor:_pickSource(draft, on_close)
         },
     }
 
-    -- Kindle library row (issue #355). Unlike the OPDS row above this one is
-    -- gated: it needs a Kindle whose catalogue we can read AND
-    -- kindle.koplugin installed to open the books. Everyone else must never see
-    -- a source they cannot use, so the row is inserted only when both hold --
-    -- above Cancel, so it reads as the last real source.
-    local ok_kindle, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
-    if ok_kindle and KindleSource and KindleSource.isAvailable() then
-        table.insert(rows, #rows, { btn("kindle", _("Kindle Virtual Library")) })
+    -- Registered sources (lib/bookshelf_sources): the Kindle's own library, and
+    -- any plugin's (issue 452). Unlike the OPDS row above these are gated on
+    -- the source being available -- the Kindle one needs a readable catalogue
+    -- AND kindle.koplugin to open the books -- so nobody sees a source they
+    -- cannot use. Above Cancel, so they read as the last real sources.
+    local Sources = require("lib/bookshelf_sources")
+    for _i, id in ipairs(Sources.pickerIds()) do
+        local spec = Sources.get(id)
+        local on_tap
+        if spec.pick then
+            -- The source asks its own question (which server, which library)
+            -- and fills draft.source; done() carries on as a plain pick would.
+            on_tap = function()
+                UIManager:close(d)
+                local prev = draft.source
+                draft.source = { kind = id }
+                local ok = Sources.call(spec, "pick", draft, function(accepted)
+                    if accepted == false then draft.source = prev; on_close() return end
+                    if type(draft.source) ~= "table" then draft.source = { kind = id } end
+                    draft.source.kind = id
+                    _applySourceDefaults(draft)
+                    on_close()
+                end)
+                if not ok then draft.source = prev; on_close() end
+            end
+        end
+        table.insert(rows, #rows, { btn(id, Sources.label(id) or id, on_tap) })
     end
     d = ButtonDialog:new{
         title   = _("Shelf source or grouping"),
@@ -2897,7 +3149,9 @@ function Editor:_openFilters(draft, on_close)
             draft.filter = {}
             reopen()
         end },
-        { text = _("Done"), callback = function() UIManager:close(d); on_close() end },
+        -- Close: the filters apply as the reader leaves this list (on_close
+        -- saves them and rebuilds the shelf once), not per tap inside it.
+        { text = _("Close"), callback = function() UIManager:close(d); on_close() end },
     }
     -- A bold "Filters" heading plus a body-size help paragraph below it.
     local help_widget = _helpParagraph(_("Pick filters to narrow the shelf. Several picks in the same row match any of them, so picking two genres shows books in either. Picks in different rows must all match, so adding a 5-star rating then limits those to 5-star books only. Numbers below filter choices show how many books currently match based on other selected filters."))
@@ -3074,7 +3328,8 @@ function Editor:_pickMultiFilter(draft, dim_key, on_close)
                         end,
                     },
                     {
-                        label  = _("Done"),
+                        -- Back to the Filters list, which this was opened from.
+                        label  = _("Back"),
                         on_tap = function()
                             UIManager:close(modal)
                             on_close()
@@ -3086,9 +3341,9 @@ function Editor:_pickMultiFilter(draft, dim_key, on_close)
         -- LibraryModal has no separate cancel/close hook beyond footer
         -- actions. Hardware-back closes the modal widget and returns to
         -- whatever was below it (the _openFilters ButtonDialog), which is
-        -- acceptable -- the user isn't stranded. A dedicated "Close" action
-        -- calling on_close() would duplicate Done's effect, so a single
-        -- Done footer action is kept (matches pickById's Close pattern).
+        -- acceptable -- the user isn't stranded. A second action calling
+        -- on_close() would duplicate Back's effect, so a single Back footer
+        -- action is kept.
         UIManager:show(modal)
         return
     end
@@ -3132,7 +3387,7 @@ function Editor:_pickMultiFilter(draft, dim_key, on_close)
     if #values == 0 then
         rows[#rows + 1] = { { text = _("(none in library)"), callback = function() end } }
     end
-    rows[#rows + 1] = { { text = _("Done"), callback = function() UIManager:close(d); on_close() end } }
+    rows[#rows + 1] = { { text = _("Back"), callback = function() UIManager:close(d); on_close() end } }
 
     d = ButtonDialog:new{
         title   = title,
@@ -3159,7 +3414,7 @@ function Editor:_pickFolderFilter(draft, on_close)
     local function add_via_chooser(set)
         local confirmed = false
         UIManager:show(PathChooser:new{
-            path             = G_reader_settings:readSetting("home_dir") or "/",
+            path             = require("lib/bookshelf_home_dir").get() or "/",
             select_directory = true,
             select_file      = false,
             show_files       = false,
@@ -3195,7 +3450,7 @@ function Editor:_pickFolderFilter(draft, on_close)
         { text = _("Add folder to include"), callback = function() UIManager:close(d); add_via_chooser(folders.include) end },
         { text = _("Add folder to exclude"), callback = function() UIManager:close(d); add_via_chooser(folders.exclude) end },
     }
-    rows[#rows + 1] = { { text = _("Done"), callback = function() UIManager:close(d); on_close() end } }
+    rows[#rows + 1] = { { text = _("Back"), callback = function() UIManager:close(d); on_close() end } }
 
     d = ButtonDialog:new{
         title   = _("Folder filter"),

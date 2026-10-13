@@ -1268,6 +1268,8 @@ function SpineWidget:_renderShadowedCard(inner)
     elseif self.flat_thumb then
         -- No shadow, and _cardDimensions already gave the reserved pixels back
         -- to the card.
+    elseif self._unframed_placeholder then
+        -- A patch's placeholder drawn with no card: nothing to cast a shadow.
     elseif self.flat_card then
         -- A button does not cast a shadow. Suppressed here rather than by
         -- skipping the wrapper, so selection borders, badges and glyphs all
@@ -2642,9 +2644,18 @@ function SpineWidget:_renderFallback()
     if Placeholders.any() then
         local iw = math.max(1, card_w - border * 2)
         local ih = math.max(1, card_h - border * 2)
-        local custom = Placeholders.widgetFor(self.book, iw, ih,
+        local custom, opts = Placeholders.widgetFor(self.book, iw, ih,
             { bare = self.bare_placeholder == true, flat = self.flat_thumb == true })
-        if custom then
+        if custom and opts.frame == false then
+            -- The patch's widget alone on the page: no border, background
+            -- or shadow, but the same size, so badges and taps still land.
+            local bare = CenterContainer:new{
+                dimen = Geom:new{ w = card_w, h = card_h }, custom }
+            self._cover_card = bare
+            self._custom_placeholder = true
+            self._unframed_placeholder = true
+            return (self:_renderShadowedCard(bare))
+        elseif custom then
             local framed = ColorSafeFrame:new{
                 bordersize = border,
                 color      = colors.border,

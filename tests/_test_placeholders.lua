@@ -44,6 +44,16 @@ t.test("an erroring or nil provider falls through to the next", function()
     for _i, id in ipairs({ "a", "b", "c" }) do P.register(id, nil) end
 end)
 
+t.test("a provider's opts come back with its widget, and default to a table", function()
+    P.register("a", function() return { tag = "a" }, { frame = false } end)
+    local _w, opts = P.widgetFor({}, 10, 10)
+    eq(opts.frame, false)
+    P.register("a", function() return { tag = "a" } end)
+    _w, opts = P.widgetFor({}, 10, 10)
+    eq(type(opts), "table"); eq(opts.frame, nil)
+    P.register("a", nil)
+end)
+
 t.test("bad registrations are refused", function()
     eq(P.register(nil, function() end), false)
     eq(P.register("x", "not a function"), false)

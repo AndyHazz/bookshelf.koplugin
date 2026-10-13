@@ -5,11 +5,13 @@
 -- card's frame in the cover grid, list rows, the top panel and face-out
 -- spines. Taps, selection and layout stay bookshelf's.
 --
--- A provider is function(book, w, h, ctx) -> widget or nil:
+-- A provider is function(book, w, h, ctx) -> widget [, opts] or nil:
 --   book  the book's record (title, authors, genres, description, filepath, ...)
 --   w, h  the space inside the card's border, in pixels; the widget must fit
 --   ctx   { bare = true when the caller wants no lettering (list rows),
 --           flat = true for a thumbnail without rounded corners or shadow }
+--   opts  optional: { frame = false } draws the widget on its own, with no
+--         card border, background or shadow behind it
 -- nil (or an error, which is logged) leaves the book to the next provider,
 -- then to bookshelf's own card. Providers are asked in order of their ids.
 --
@@ -49,7 +51,8 @@ function M.any()
     return next(registry()) ~= nil
 end
 
--- widgetFor(book, w, h, ctx) -> the first provider's widget, or nil.
+-- widgetFor(book, w, h, ctx) -> the first provider's widget and its opts
+-- (always a table), or nil.
 function M.widgetFor(book, w, h, ctx)
     local reg = registry()
     if next(reg) == nil then return nil end
@@ -59,14 +62,14 @@ function M.widgetFor(book, w, h, ctx)
     end
     table.sort(ids)
     for _i, id in ipairs(ids) do
-        local ok, widget = pcall(reg[id], book, w, h, ctx or {})
+        local ok, widget, opts = pcall(reg[id], book, w, h, ctx or {})
         if not ok then
             local ok_l, logger = pcall(require, "logger")
             if ok_l and logger then
                 logger.warn("[bookshelf] placeholder provider", id, "failed:", widget)
             end
         elseif type(widget) == "table" then
-            return widget
+            return widget, type(opts) == "table" and opts or {}
         end
     end
     return nil

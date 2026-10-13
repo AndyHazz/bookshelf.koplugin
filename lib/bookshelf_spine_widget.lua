@@ -1148,7 +1148,8 @@ function SpineWidget:init()
         -- redundant title/author label below it -- the fallback already shows
         -- both, larger and centred, on the card itself.
         self[1] = self:_renderFallback()
-        self.is_fallback = true
+        -- A patch's placeholder carries no title, so its label stays.
+        self.is_fallback = not self._custom_placeholder
     end
     self.ges_events = {
         Tap  = { GestureRange:new{ ges = "tap",  range = self.dimen } },
@@ -2635,6 +2636,27 @@ function SpineWidget:_renderFallback()
         }
         self._cover_card = plain
         return (self:_renderShadowedCard(plain))
+    end
+    -- A patch's own placeholder, drawn inside the same frame (PR 515).
+    local Placeholders = require("lib/bookshelf_placeholders")
+    if Placeholders.any() then
+        local iw = math.max(1, card_w - border * 2)
+        local ih = math.max(1, card_h - border * 2)
+        local custom = Placeholders.widgetFor(self.book, iw, ih,
+            { bare = self.bare_placeholder == true, flat = self.flat_thumb == true })
+        if custom then
+            local framed = ColorSafeFrame:new{
+                bordersize = border,
+                color      = colors.border,
+                radius     = self:_squareCorners() and 0 or CARD_RADIUS,
+                padding    = 0,
+                background = outer_bg,
+                CenterContainer:new{ dimen = Geom:new{ w = iw, h = ih }, custom },
+            }
+            self._cover_card = framed
+            self._custom_placeholder = true
+            return (self:_renderShadowedCard(framed))
+        end
     end
     if self.bare_placeholder then return bareCard() end
 

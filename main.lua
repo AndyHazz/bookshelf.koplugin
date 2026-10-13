@@ -2412,10 +2412,14 @@ function Bookshelf:scanAllMetadata()
             -- 3: Refresh, 4: Prune — pass through to the user.
             return original_confirm(self, text, cancel_text, ok_text)
         end
+        -- KOReader's scanner passes ngettext a nil count when not
+        -- refreshing, which throws in French and other languages.
+        local unguard = require("lib/bookshelf_plural_guard").guard(require("gettext"))
         local ok, err = pcall(BIM.extractBooksInDirectory, BIM, home, {
             max_cover_w = hero_w,
             max_cover_h = hero_h,
         })
+        unguard()
         Trapper.confirm = original_confirm
         if not ok then error(err) end
         local Repo = require("lib/bookshelf_book_repository")

@@ -18697,20 +18697,19 @@ function BookshelfWidget:_showRemoteBookInfo(book, opts)
     end
     -- Page streaming (OPDS-PSE): read a comic or manga a page at a time
     -- without downloading it, through the stock OPDS plugin's own viewer, with
-    -- its wording (and so its translations) but not its media-player glyphs,
-    -- which read oddly beside Download.
+    -- its buttons and wording (and so its translations).
     local stream = book.opds and type(book.opds.stream) == "table" and book.opds.stream or nil
     if stream and not BookshelfWidget._opdsPse() then stream = nil end
     if stream then
         buttons[#buttons + 1] = {
-            { text = _("Page stream"),
+            { text = "\u{23EE} " .. _("Page stream"),
               callback = function() self:_opdsStream(book, "start", dialog) end },
-            { text = _("Stream from page") .. "\u{2026}",
+            { text = _("Stream from page") .. " \u{23E9}",
               callback = function() self:_opdsStream(book, "ask", dialog) end },
         }
         if stream.last_read then
             buttons[#buttons + 1] = { {
-                text = _("Resume stream from page") .. " " .. stream.last_read,
+                text = "\u{25B6} " .. _("Resume stream from page") .. " " .. stream.last_read,
                 callback = function() self:_opdsStream(book, "resume", dialog) end,
             } }
         end

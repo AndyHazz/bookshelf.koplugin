@@ -68,4 +68,13 @@ t.test("the fallback card asks the providers before drawing its own", function()
     assert(ask and bare and ask < bare, "providers must be asked before the bare card")
 end)
 
+t.test("an unframed placeholder gets no glyphs or badges over it", function()
+    local src = io.open("lib/bookshelf_spine_widget.lua"):read("*a")
+    local body = src:match("\nfunction SpineWidget:_renderShadowedCard%(inner%)\n(.-)\nend\n")
+    assert(body, "could not find SpineWidget:_renderShadowedCard")
+    local early = body:find("if self._unframed_placeholder then", 1, true)
+    local glyphs = body:find("-- 2. In-progress glyph", 1, true)
+    assert(early and glyphs and early < glyphs, "the unframed path must return before any overlay")
+end)
+
 t.done()

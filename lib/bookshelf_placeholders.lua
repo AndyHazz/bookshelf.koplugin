@@ -11,7 +11,8 @@
 --   ctx   { bare = true when the caller wants no lettering (list rows),
 --           flat = true for a thumbnail without rounded corners or shadow }
 --   opts  optional: { frame = false } draws the widget on its own, with no
---         card border, background or shadow behind it
+--         card border, background or shadow behind it, and none of
+--         bookshelf's status glyphs, badges or progress over it
 -- nil (or an error, which is logged) leaves the book to the next provider,
 -- then to bookshelf's own card. Providers are asked in order of their ids.
 --

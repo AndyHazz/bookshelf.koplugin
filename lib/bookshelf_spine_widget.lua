@@ -1253,6 +1253,26 @@ function SpineWidget:_renderShadowedCard(inner)
 
     local children = {}
 
+    -- A patch's placeholder drawn with no card owns its whole look: none of
+    -- the status glyphs, badges, progress or page count go over it. The
+    -- selection border and the bulk-select flag stay, because they say what
+    -- an action will act on.
+    if self._unframed_placeholder then
+        local layers = { inner }
+        if self.is_selected then
+            table.insert(layers, 1, BorderOverlay:new{
+                width = card_w, height = card_h, thickness = SELECTED_BORDER, radius = 0 })
+        end
+        if self.is_bulk_selected then
+            layers[#layers + 1] = CornerFlag:new{
+                width = card_w, height = card_h, inset = self.bulk_flag_inset or 0 }
+        end
+        return OverlapGroup:new{
+            dimen = Geom:new{ w = self.width, h = self.height },
+            unpack(layers),
+        }, card_w, card_h
+    end
+
     -- 1. Shadow OR selection-border backdrop (z-order: bottom). FADED
     --    on-hold covers (borderless — see _wrapCoverInCard) also drop the
     --    shadow so they sit flat against the page; same gate as the fade.
@@ -1268,8 +1288,6 @@ function SpineWidget:_renderShadowedCard(inner)
     elseif self.flat_thumb then
         -- No shadow, and _cardDimensions already gave the reserved pixels back
         -- to the card.
-    elseif self._unframed_placeholder then
-        -- A patch's placeholder drawn with no card: nothing to cast a shadow.
     elseif self.flat_card then
         -- A button does not cast a shadow. Suppressed here rather than by
         -- skipping the wrapper, so selection borders, badges and glyphs all

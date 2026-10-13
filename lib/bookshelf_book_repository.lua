@@ -7473,8 +7473,9 @@ local function opdsLoneChildBook(win)
             book = e
         end
     end
-    if not (book and book.opds and type(book.opds.acquisitions) == "table"
-            and #book.opds.acquisitions > 0) then
+    local o = book and book.opds
+    if not (o and ((type(o.acquisitions) == "table" and #o.acquisitions > 0)
+            or type(o.stream) == "table")) then
         return nil
     end
     return book

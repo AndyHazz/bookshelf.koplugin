@@ -37,6 +37,7 @@ local Screen          = require("device").screen
 local logger          = require("logger")
 local BFont           = require("lib/bookshelf_fonts")
 local SpineWidget     = require("lib/bookshelf_spine_widget")
+local AO3Icons        = require("lib/bookshelf_ao3_icons")
 local Lines           = require("lib/bookshelf_list_lines")
 local ListGroup       = require("lib/bookshelf_list_group")
 local CoverProgress   = require("lib/bookshelf_cover_progress")
@@ -2159,38 +2160,57 @@ function ListRow.new(opts)
         -- count" -- and it is what makes a group's text start at the row's
         -- left edge rather than indented to line up with book thumbnails.
         if cover_w > 0 and not group_templates then
-            spine_widget = SpineWidget:new{
-                book   = coverBookFor(item),
-                width  = cover_w,
-                height = cover_h,
-                -- No title/author on the no-cover placeholder: at thumbnail
-                -- size that text would be an unreadable duplicate of the
-                -- title column two pixels to its right. The grid keeps its
-                -- lettered placeholder; only this caller opts out.
-                bare_placeholder = true,
-                -- Read-status cues only: the pause badge, the recessed fade
-                -- and the completed bookmark / tickbox, all following the
-                -- SAME settings the grid reads (issue #365). No new toggle,
-                -- because the favourite badge already behaves this way --
-                -- it is gated on show_fav_badge alone, which is why it has
-                -- always shown up here and the status cues never did. That
-                -- asymmetry was an accident of which flag each one hung off,
-                -- not a decision. show_progress stays off: the top-edge bar
-                -- and the page-count pill are illegible at thumbnail size,
-                -- and the row's own token lines already carry both.
-                show_status = true,
-                -- Square corners, no drop shadow, and no shadow reservation
-                -- eating the row's height. A table cell is not a card: the
-                -- radius and the shadow are what make a grid tile read as an
-                -- object lying on the page, and at 30x45 they would be most of
-                -- what you can see. Declared here rather than inferred from
-                -- the size in SpineWidget -- the grid and the hero want their
-                -- chrome at every size they render at.
-                flat_thumb = true,
-            }
-            group[#group + 1] = ListRow.topCell(spine_widget, cover_w,
-                                               content_h)
-            group[#group + 1] = HorizontalSpan:new{ width = gap }
+            -- AO3 symbols: an opt-in swap (menu > Settings > List view,
+            -- "AO3 symbols for books without a cover", off by default) for
+            -- what fills the cell when a book has no cover of its own --
+            -- the AO3 badge panel (rating, archive warnings, category,
+            -- completion; matched against the book's tags/genres) instead
+            -- of the plain lettered placeholder below. A book with no
+            -- matching tags still gets that placeholder either way.
+            local ao3_panel
+            if AO3Icons.listBadgesEnabled() and not item.has_cover then
+                if next(AO3Icons.iconsFor(item)) then
+                    ao3_panel = AO3Icons.newWidget(item, cover_w, content_h)
+                end
+            end
+            if ao3_panel then
+                group[#group + 1] = ListRow.topCell(ao3_panel, cover_w,
+                                                   content_h)
+                group[#group + 1] = HorizontalSpan:new{ width = gap }
+            else
+                spine_widget = SpineWidget:new{
+                    book   = coverBookFor(item),
+                    width  = cover_w,
+                    height = cover_h,
+                    -- No title/author on the no-cover placeholder: at thumbnail
+                    -- size that text would be an unreadable duplicate of the
+                    -- title column two pixels to its right. The grid keeps its
+                    -- lettered placeholder; only this caller opts out.
+                    bare_placeholder = true,
+                    -- Read-status cues only: the pause badge, the recessed fade
+                    -- and the completed bookmark / tickbox, all following the
+                    -- SAME settings the grid reads (issue #365). No new toggle,
+                    -- because the favourite badge already behaves this way --
+                    -- it is gated on show_fav_badge alone, which is why it has
+                    -- always shown up here and the status cues never did. That
+                    -- asymmetry was an accident of which flag each one hung off,
+                    -- not a decision. show_progress stays off: the top-edge bar
+                    -- and the page-count pill are illegible at thumbnail size,
+                    -- and the row's own token lines already carry both.
+                    show_status = true,
+                    -- Square corners, no drop shadow, and no shadow reservation
+                    -- eating the row's height. A table cell is not a card: the
+                    -- radius and the shadow are what make a grid tile read as an
+                    -- object lying on the page, and at 30x45 they would be most of
+                    -- what you can see. Declared here rather than inferred from
+                    -- the size in SpineWidget -- the grid and the hero want their
+                    -- chrome at every size they render at.
+                    flat_thumb = true,
+                }
+                group[#group + 1] = ListRow.topCell(spine_widget, cover_w,
+                                                   content_h)
+                group[#group + 1] = HorizontalSpan:new{ width = gap }
+            end
         end
         -- A little breathing room where the tramline used to be, so the text
         -- does not start hard against the cover.

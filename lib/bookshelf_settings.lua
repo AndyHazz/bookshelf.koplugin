@@ -1327,6 +1327,7 @@ end
 function Settings:_listViewSubItems()
     local ViewMode = require("lib/bookshelf_view_mode")
     local Lines    = require("lib/bookshelf_list_lines")
+    local AO3Icons = require("lib/bookshelf_ao3_icons")
     -- Every change in this menu moves what a row CONTAINS -- lines added,
     -- deleted, reordered, a preset applied, a toggle flipped -- but no longer
     -- what a row is TALL. That comes from the row count now, so there is
@@ -1346,7 +1347,64 @@ function Settings:_listViewSubItems()
     -- a list row always has its cover cell now, and the denser text-only
     -- table went with the toggle. One less setting, one less way for a chip
     -- override and a global to disagree.
+    --
+    -- The two AO3 toggles below are a DIFFERENT thing: not a way to turn a
+    -- cover cell off, but a way to choose what fills it (or the top panel's
+    -- own cover slot) when a book HAS no cover of its own. Independent of
+    -- each other -- a reader can have one surface showing badges and not
+    -- the other -- and independent of anything above; see
+    -- lib/bookshelf_ao3_icons.lua for the matching and layout logic both
+    -- read through.
     local items = {
+        {
+            text = _("AO3 symbols for books without a cover"),
+            help_text = _("A book with no cover of its own normally gets a "
+                .. "plain lettered placeholder in its list row. Switching "
+                .. "this on shows the AO3 symbols panel there instead -- "
+                .. "rating, archive warnings, category and completion, "
+                .. "matched against the book's tags/genres -- for any book "
+                .. "with enough metadata to draw at least one. A book with "
+                .. "none still gets the plain placeholder either way. Off "
+                .. "by default."),
+            checked_func = function()
+                return AO3Icons.listBadgesEnabled()
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                BookshelfSettings.save("list_ao3_badges",
+                    not AO3Icons.listBadgesEnabled())
+                BookshelfSettings.flush()
+                markDirty()
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+            end,
+        },
+        {
+            text = _("AO3 symbols in the top panel"),
+            help_text = _("Independent of the toggle above: a coverless "
+                .. "book shown in the top panel normally gets a plain "
+                .. "lettered placeholder there too. Switching this on "
+                .. "instead shows the same small AO3 symbols marker, "
+                .. "anchored in the cover slot's top-left corner (level "
+                .. "with the rating stars / title) rather than filling it, "
+                .. "with the freed width going to the title and summary. "
+                .. "Off by default."),
+            checked_func = function()
+                return AO3Icons.heroBadgesEnabled()
+            end,
+            keep_menu_open = true,
+            separator = true,
+            callback = function(touchmenu_instance)
+                BookshelfSettings.save("hero_ao3_badges",
+                    not AO3Icons.heroBadgesEnabled())
+                BookshelfSettings.flush()
+                markDirty()
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+            end,
+        },
         -- Discovery, now that the density and mode controls live per chip:
         -- this menu is the only place a reader who has not found the chip
         -- long-press will look. Disabled rows rather than help_text on some

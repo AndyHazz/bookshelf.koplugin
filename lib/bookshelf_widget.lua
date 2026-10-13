@@ -4993,7 +4993,21 @@ function BookshelfWidget:_buildHero(content_w, hero_cover_w, hero_cover_h, hero_
         local Regions = require("lib/bookshelf_hero_regions")
         local regions = Regions.read()
         if current and regions.tags and not regions.tags.disabled then
-            local pill_w = math.max(1, content_w - hero_cover_w - PAD)
+            -- The top panel's own cover-slot choice for `current`: the
+            -- usual cover-sized box, or the small AO3 corner marker that
+            -- gives most of that width back to the text column -- see
+            -- bookshelf_hero_card.lua's own comment on why. The tag pills
+            -- live in that same text column, so their width has to agree
+            -- with whichever slot the top panel actually builds.
+            -- AO3Icons.heroUsesCorner is the SAME test the top panel itself
+            -- makes (lib/bookshelf_ao3_icons.lua), so the two can never
+            -- disagree about which book gets the small slot.
+            local slot_w = hero_cover_w
+            local ok_ao3, AO3Icons = pcall(require, "lib/bookshelf_ao3_icons")
+            if ok_ao3 and AO3Icons.heroUsesCorner(current) then
+                slot_w = (AO3Icons.heroSlotSize())
+            end
+            local pill_w = math.max(1, content_w - slot_w - PAD)
             local bw = self
             tags_builder = function(book)
                 if not book or not book.filepath then return nil end

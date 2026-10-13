@@ -21,6 +21,7 @@ local TextBoxWidget   = require("ui/widget/textboxwidget")
 local TextWidget      = require("lib/bookshelf_colour_text")
 local Geom            = require("ui/geometry")
 local GestureRange    = require("ui/gesturerange")
+local Widget          = require("ui/widget/widget")
 local Size            = require("ui/size")
 local Space           = require("lib/bookshelf_space")
 local Font            = require("ui/font")
@@ -68,6 +69,7 @@ local function textBoxClass()
     return _over_ground and TransparentTextBox or TextBoxWidget
 end
 local SpineWidget     = require("lib/bookshelf_spine_widget")
+local AO3Icons        = require("lib/bookshelf_ao3_icons")
 local Tokens          = require("lib/bookshelf_tokens")
 local Regions         = require("lib/bookshelf_hero_regions")
 local HeroBar         = require("lib/bookshelf_hero_bar")
@@ -1270,7 +1272,20 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
             BottomContainer:new{ dimen = rd, right_bottom },
         },
     }
-    return column
+    -- Combined height of the status strip (job row / status line + hairline
+    -- + gap), or 0 when it's empty/disabled -- i.e. how far down "rating"
+    -- sits from the top of right_top. :getSize() rather than :dimen, since
+    -- nothing here has painted yet on a fresh build. Used by _renderFull to
+    -- line the AO3 corner marker up with rating/title instead of the status
+    -- strip above them -- see its own comment.
+    local status_h = 0
+    if self._status_strip_widgets then
+        for _, w in ipairs(self._status_strip_widgets) do
+            local sz = w:getSize()
+            if sz and sz.h then status_h = status_h + sz.h end
+        end
+    end
+    return column, status_h
 end
 
 function HeroCard:_renderFull()
@@ -1302,6 +1317,24 @@ function HeroCard:_renderFull()
     -- bookshelf_spine_widget's SHADOW_OFFSET.
     local SHADOW_OFFSET = Space.px(4)
 
+    -- A coverless book with AO3 metadata: the badge grid takes the cover
+    -- slot's TOP-LEFT corner instead of SpineWidget's lettered placeholder
+    -- card filling it. Gated on its OWN toggle (menu > Settings > List
+    -- view: "AO3 symbols in the top panel"), independent of the list row's
+    -- own toggle -- see bookshelf_ao3_icons.lua's heroBadgesEnabled().
+    --
+    -- The icons stay at their native 25x25 resolution rather than stretch
+    -- to fill a cover-sized box (tried, and upscaled the source PNGs past
+    -- crispness). Instead the SLOT shrinks to just bigger than the grid's
+    -- own footprint (AO3Icons.heroSlotSize()) -- the width this reclaims
+    -- goes to the text column below (right_w), which is the point: a book
+    -- with no cover and only a small badge marker should read as "mostly
+    -- text, with a small marker", not as a big empty image box.
+    local ao3_slot_w, ao3_slot_h
+    if AO3Icons.heroUsesCorner(self.book) then
+        ao3_slot_w, ao3_slot_h = AO3Icons.heroSlotSize()
+    end
+
     -- True-aspect: render the hero cover at the book's OWN aspect, TOP-anchored
     -- within the fixed-height region, WITHOUT shrinking ordinary covers.
     --   * A cover that fits the region at full width keeps full width; if it's
@@ -1311,7 +1344,7 @@ function HeroCard:_renderFull()
     --     so it (and only it) is narrowed just enough to fit the height,
     --     undistorted. Ordinary 2:3 covers stay full-size, matching the shelf.
     -- Off = the historical full-height 2:3 box.
-    local sw_w = self.cover_w - 2 * SHADOW_OFFSET
+    local sw_w = ao3_slot_w or (self.cover_w - 2 * SHADOW_OFFSET)
     local sw_h = cover_h - 2 * SHADOW_OFFSET
     -- Register the hero region's height with the hero tier, so shelf tiles
     -- know what height to stash pre-decoded copies at (first-preview warm).
@@ -1320,7 +1353,9 @@ function HeroCard:_renderFull()
     pcall(function()
         require("lib/bookshelf_hero_tier").target_h = sw_h
     end)
-    if BookshelfSettings.isTrue("true_cover_aspect") then
+    -- True-aspect measures an actual cover image; skipped for the AO3 slot,
+    -- which was never sized off one and has no image to measure.
+    if not ao3_slot_w and BookshelfSettings.isTrue("true_cover_aspect") then
         local fit_h = SpineWidget.trueAspectBoxHeight(sw_w, self.book)
         if fit_h <= sw_h then
             sw_h = fit_h                                            -- fits: keep width, top-anchor
@@ -1333,45 +1368,6 @@ function HeroCard:_renderFull()
     -- shrinks, so recompute the right column from it rather than the full
     -- reserved cover_w -- the text gains the freed width instead of a gap (and
     -- right_w only ever grows, so the #87 max_width<=0 guard is never at risk).
-
-    local _perf_cover_t0 = _gettime()
-    local cover = SpineWidget:new{
-        book        = self.book,
-        width       = sw_w,
-        height      = sw_h,
-        on_tap      = self.on_tap,
-        on_hold     = self.on_hold,
-        on_double_tap = self.on_double_tap,
-        is_selected      = self.is_selected,
-        is_bulk_selected = self.is_bulk_selected,
-        suppress_favorite_badge = true,
-        -- Cache the scaled hero cover in ScaledCoverCache (issue #103).
-        -- Previously skipped to avoid pinning one oversized entry, but the
-        -- cost of NOT caching is far worse: the hero is rebuilt on every
-        -- show / chip-switch / book-close, and each rebuild re-acquires the
-        -- source cover via a BIM getBookInfo read. On Kobo the bookinfo_cache
-        -- is non-WAL, so that SELECT blocks on any concurrent cover-extraction
-        -- writer (coverbrowser, our own kickoff, the stale-sweep) for up to
-        -- BIM's 5s busy_timeout -- producing the multi-second hero stalls in
-        -- the report. Caching lets repeat renders paint from the in-memory
-        -- scaled bb (paired with _buildHero's record memo, which skips the
-        -- read entirely). One hero-sized entry is bounded by the cache's byte
-        -- budget and evicted LRU like any other, so the displacement worry
-        -- is negligible against eliminating the per-cycle blocking read.
-    }
-    -- Kept for the spine shelf's opening feedback: a book opened from a
-    -- bare spine flexes the HERO cover (the legible copy of the artwork)
-    -- when the hero is showing it -- see _paintSpineOpeningEffect.
-    self._cover_spine = cover
-    local cover_widget = FrameContainer:new{
-        bordersize   = 0,
-        padding      = 0,
-        padding_top  = SHADOW_OFFSET,
-        padding_left = SHADOW_OFFSET,
-        cover,
-    }
-    local _perf_cover_ms = (_gettime() - _perf_cover_t0) * 1000
-
     local text_padding = self.pad or Space.padding.fullscreen
     -- #87 belt-and-braces: floor at 1 so a too-wide cover (from any caller)
     -- can never hand the right-column TextWidgets a max_width <= 0, which
@@ -1385,11 +1381,107 @@ function HeroCard:_renderFull()
     -- full-screen status line all end (maintainer, 2026-10-04).
     local right_w = math.max(1, self.width - (sw_w + SHADOW_OFFSET) - text_padding)
 
+    -- Built BEFORE the cover (the right column never depended on the cover
+    -- widget itself, only on right_w/cover_h) so the AO3 slot can read back
+    -- how tall the status strip came out: status_h is 0 whenever status is
+    -- empty/disabled, and otherwise lets the grid be pushed down to start
+    -- level with rating / title (the SECOND tier of the column) instead of
+    -- sitting in line with the status strip above them.
     local regions = Regions.read()
     local _perf_right_t0 = _gettime()
-    local right = self:_buildRightColumn(
+    local right, status_h = self:_buildRightColumn(
         self.book, regions, self.device_state,
         Geom:new{ w = right_w, h = cover_h })
+    local _perf_right_ms = (_gettime() - _perf_right_t0) * 1000
+
+    local _perf_cover_t0 = _gettime()
+    local cover
+    if ao3_slot_w then
+        local grid_widget = AO3Icons.newCornerWidget(
+            self.book, sw_w, sw_h, status_h)
+        -- Wrapped in a plain InputContainer (the bookshelf_chip_button.lua
+        -- pattern for an ad hoc tappable widget) rather than built as a
+        -- SpineWidget: the grid has no cover art or lettering of its own to
+        -- decode, select or flex-animate, only tap / hold / double-tap need
+        -- to keep working so the slot still opens the book. SpineWidget-only
+        -- extras that would have decorated a placeholder here -- the
+        -- selection ring, the opening flex when launched from a bare spine
+        -- -- do not apply to this grid; self._cover_spine below stays
+        -- harmlessly nil-shaped for them (see _paintSpineOpeningEffect's own
+        -- nil guards).
+        cover = InputContainer:new{
+            dimen = Geom:new{ w = sw_w, h = sw_h },
+            grid_widget or Widget:new{ dimen = Geom:new{ w = sw_w, h = sw_h } },
+        }
+        local book = self.book
+        local on_tap, on_hold, on_double_tap =
+            self.on_tap, self.on_hold, self.on_double_tap
+        cover.onTap = function(_, ges)
+            if not on_tap then return false end
+            -- Let a tap in KOReader's own top-strip menu zone fall through,
+            -- same exemption SpineWidget:onTap makes.
+            if ges and ges.pos and ges.pos.y < Screen:scaleBySize(60) then
+                return false
+            end
+            on_tap(book)
+            return true
+        end
+        cover.onHold = function()
+            if not on_hold then return false end
+            on_hold(book)
+            return true
+        end
+        cover.onDoubleTap = function(_, ges)
+            if not on_double_tap then return false end
+            if ges and ges.pos and ges.pos.y < Screen:scaleBySize(60) then
+                return false
+            end
+            on_double_tap(book)
+            return true
+        end
+        cover.ges_events = {
+            Tap  = { GestureRange:new{ ges = "tap",  range = cover.dimen } },
+            Hold = { GestureRange:new{ ges = "hold", range = cover.dimen } },
+            DoubleTap = {
+                GestureRange:new{ ges = "double_tap", range = cover.dimen } },
+        }
+    else
+        cover = SpineWidget:new{
+            book        = self.book,
+            width       = sw_w,
+            height      = sw_h,
+            on_tap      = self.on_tap,
+            on_hold     = self.on_hold,
+            on_double_tap = self.on_double_tap,
+            is_selected      = self.is_selected,
+            is_bulk_selected = self.is_bulk_selected,
+            suppress_favorite_badge = true,
+            -- Cache the scaled hero cover in ScaledCoverCache (issue #103).
+            -- Previously skipped to avoid pinning one oversized entry, but the
+            -- cost of NOT caching is far worse: the hero is rebuilt on every
+            -- show / chip-switch / book-close, and each rebuild re-acquires the
+            -- source cover via a BIM getBookInfo read. On Kobo the bookinfo_cache
+            -- is non-WAL, so that SELECT blocks on any concurrent cover-extraction
+            -- writer (coverbrowser, our own kickoff, the stale-sweep) for up to
+            -- BIM's 5s busy_timeout -- producing the multi-second hero stalls in
+            -- the report. Caching lets repeat renders paint from the in-memory
+            -- scaled bb (paired with _buildHero's record memo, which skips the
+            -- read entirely). One hero-sized entry is bounded by the cache's byte
+            -- budget and evicted LRU like any other, so the displacement worry
+            -- is negligible against eliminating the per-cycle blocking read.
+        }
+    end
+    -- Kept for the spine shelf's opening feedback: a book opened from a
+    -- bare spine flexes the HERO cover (the legible copy of the artwork)
+    -- when the hero is showing it -- see _paintSpineOpeningEffect.
+    self._cover_spine = cover
+    local cover_widget = FrameContainer:new{
+        bordersize   = 0,
+        padding      = 0,
+        padding_top  = SHADOW_OFFSET,
+        padding_left = SHADOW_OFFSET,
+        cover,
+    }
     -- The hero dominates every in-session interaction (70-256ms on the fast
     -- tap path against 12-46ms of shelf repaint), and the caller's `card=`
     -- phase lumped these two together. They have completely different causes:
@@ -1397,7 +1489,7 @@ function HeroCard:_renderFull()
     -- bitmap is smaller than the hero slot), the right column is text shaping.
     logger.dbg(string.format(
         "[bookshelf perf] HeroCard: cover=%.0fms right=%.0fms w=%d",
-        _perf_cover_ms, (_gettime() - _perf_right_t0) * 1000, right_w))
+        (_gettime() - _perf_cover_t0) * 1000, _perf_right_ms, right_w))
 
     -- Stash the outer HorizontalGroup + right slot index so the live
     -- preview path can swap [3] without rebuilding the cover.

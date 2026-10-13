@@ -149,6 +149,8 @@ Rows are built from the same editable lines as the top panel card: up to six per
 
 Series, authors and folders draw as a fan of their members' covers; OPDS subcatalogues become full-width buttons. The list's text size lives under **Settings > Text size**.
 
+**AO3 symbols.** A coverless book normally gets a plain lettered placeholder wherever its cover would be -- a list row, or the top panel. Two independent toggles under **menu > Settings > List view** (off by default, one for each surface) swap that placeholder for an AO3 symbols panel instead: rating, archive warnings, category and completion, matched against the book's tags/genres and drawn with the official [AO3 symbols key](https://archiveofourown.org/help/symbols_key). A book with none of these still gets the plain placeholder either way. In a list row the panel sits centred in the cover cell at its usual size; in the top panel it anchors to the cover slot's top-left corner, levelled with the rating stars and title, and the width it frees up goes to them.
+
 ### Spines
 
 The third style. Books stand edge-on on a wooden plank, the way they do on a real shelf, so a lot of them fit at once and the shelf reads as an object rather than a grid.

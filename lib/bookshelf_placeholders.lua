@@ -16,16 +16,21 @@
 -- nil (or an error, which is logged) leaves the book to the next provider,
 -- then to bookshelf's own card. Providers are asked in order of their ids.
 --
--- The registry lives in package.loaded under a fixed name rather than in
--- this module, so a user patch can register before bookshelf has loaded,
--- with no require:
+-- From a user patch (koreader/patches/2-<name>.lua), KOReader's own helper
+-- hands over the plugin when it loads:
 --
---     local reg = package.loaded["bookshelf.placeholders"] or {}
---     package.loaded["bookshelf.placeholders"] = reg
---     reg["my-patch"] = function(book, w, h, ctx) ... end
+--     local userpatch = require("userpatch")
+--     userpatch.registerPatchPluginFunc("bookshelf", function(Bookshelf)
+--         if not Bookshelf.registerPlaceholder then return end  -- older bookshelf
+--         Bookshelf:registerPlaceholder("my-patch", function(book, w, h, ctx)
+--             ...
+--         end)
+--     end)
 --
--- A plugin with the bookshelf instance can call ui.bookshelf:registerPlaceholder
--- (id, fn) instead. Setting an id again replaces it; nil removes it.
+-- A plugin with the bookshelf instance calls ui.bookshelf:registerPlaceholder
+-- the same way. Registering an id again replaces it; nil removes it. The
+-- registry itself is kept in package.loaded under M.KEY, so it outlives this
+-- module being reloaded and a registration made early is not lost.
 local M = {}
 
 M.API = 1

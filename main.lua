@@ -288,6 +288,12 @@ end
 function Bookshelf:unregisterSource(id)
     require("lib/bookshelf_sources").unregister(id)
 end
+-- Buttons on an OPDS book's details window from other plugins (PR 496). The
+-- contract is at the top of lib/bookshelf_record_actions.lua.
+Bookshelf.RECORD_ACTIONS_API = require("lib/bookshelf_record_actions").API
+function Bookshelf:registerRecordActions(id, fn)
+    return require("lib/bookshelf_record_actions").register(id, fn)
+end
 -- sourceChanged(id): a fetch-mode source has more to show (a page it was
 -- fetching in the background has landed); the shelf redraws if it is showing
 -- that source.

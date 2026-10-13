@@ -18584,6 +18584,69 @@ function BookshelfWidget:_remoteDescriptionArgs(book)
     }
 end
 
+-- The stock OPDS plugin's page streamer, or nil when that plugin is not
+-- there. Its folder is on package.path once KOReader has loaded it; a build
+-- that has it disabled still ships the file, so that is tried as well.
+function BookshelfWidget._opdsPse()
+    local _opds_pse = BookshelfWidget._opds_pse_mod
+    if _opds_pse == nil then
+        local ok, m = pcall(require, "opdspse")
+        if not (ok and type(m) == "table") then
+            local f = loadfile("plugins/opds.koplugin/opdspse.lua")
+            ok, m = pcall(function() return f and f() end)
+        end
+        _opds_pse = (ok and type(m) == "table" and type(m.streamPages) == "function") and m or false
+        BookshelfWidget._opds_pse_mod = _opds_pse
+    end
+    return _opds_pse or nil
+end
+
+-- The catalog a record came from, for registerRecordActions: its title and
+-- URL, and its login only when every link the record carries is on the
+-- catalog's own origin, so a feed naming another host never gets it.
+function BookshelfWidget:_opdsRecordServer(book)
+    local key = book and type(book.filepath) == "string"
+        and book.filepath:match("^OPDS://([^/]+)/") or nil
+    local server = key and require("lib/bookshelf_opds_source").getServer(key) or nil
+    if type(server) ~= "table" then return nil end
+    local OpdsFeed = require("lib/bookshelf_opds_feed")
+    local hrefs = {}
+    local o = book.opds or {}
+    for _i, a in ipairs(type(o.acquisitions) == "table" and o.acquisitions or {}) do
+        hrefs[#hrefs + 1] = a.href
+    end
+    if type(o.stream) == "table" then hrefs[#hrefs + 1] = o.stream.href end
+    local same = #hrefs > 0
+    for _i, h in ipairs(hrefs) do
+        if not (type(h) == "string" and OpdsFeed.sameOrigin(server.url, h)) then same = false end
+    end
+    return { title = server.title, url = server.url,
+             username = same and server.username or nil,
+             password = same and server.password or nil }
+end
+
+-- Stream a record's pages. mode: "start" (page 1, or where Kavita says the
+-- reader got to), "ask" (prompt for a page) or "resume" (the feed's lastRead).
+-- Credentials go only to the catalog's own origin, as a download's do.
+function BookshelfWidget:_opdsStream(book, mode, dialog)
+    local stream = book and book.opds and book.opds.stream
+    local PSE = BookshelfWidget._opdsPse()
+    if type(stream) ~= "table" or not PSE then return end
+    local OpdsSource = require("lib/bookshelf_opds_source")
+    local OpdsFeed   = require("lib/bookshelf_opds_feed")
+    local key = type(book.filepath) == "string"
+        and book.filepath:match("^OPDS://([^/]+)/") or nil
+    local server = key and OpdsSource.getServer(key) or nil
+    local same_origin = (server and OpdsFeed.sameOrigin(server.url, stream.href)) or false
+    local user     = same_origin and server.username or nil
+    local password = same_origin and server.password or nil
+    require("lib/bookshelf_cover_fetch").runWhenOnline(function()
+        if dialog then UIManager:close(dialog) end
+        PSE:streamPages(stream.href, stream.count, mode == "ask", user, password,
+            mode == "resume" and stream.last_read or nil)
+    end)
+end
+
 -- opts.no_cover_fetch: set on the ONE re-show the on-open cover fetch triggers,
 -- so the reopened dialog can't start another (and can't loop against a server
 -- that answers with something undecodable).
@@ -18665,7 +18728,33 @@ function BookshelfWidget:_showRemoteBookInfo(book, opts)
             buttons[#buttons + 1] = downloadRow(acq)
         end
     end
-    if #usable == 0 then
+    -- Page streaming (OPDS-PSE): read a comic or manga a page at a time
+    -- without downloading it, through the stock OPDS plugin's own viewer, with
+    -- its buttons and wording (and so its translations).
+    local stream = book.opds and type(book.opds.stream) == "table" and book.opds.stream or nil
+    if stream and not BookshelfWidget._opdsPse() then stream = nil end
+    if stream then
+        buttons[#buttons + 1] = {
+            { text = "\u{23EE} " .. _("Page stream"),
+              callback = function() self:_opdsStream(book, "start", dialog) end },
+            { text = _("Stream from page") .. " \u{23E9}",
+              callback = function() self:_opdsStream(book, "ask", dialog) end },
+        }
+        if stream.last_read then
+            buttons[#buttons + 1] = { {
+                text = "\u{25B6} " .. _("Resume stream from page") .. " " .. stream.last_read,
+                callback = function() self:_opdsStream(book, "resume", dialog) end,
+            } }
+        end
+    end
+    -- Buttons other plugins add for this record (registerRecordActions).
+    local RecordActions = require("lib/bookshelf_record_actions")
+    local plugin_buttons = RecordActions.buttonsFor(book, {
+        server = self:_opdsRecordServer(book),
+        close = function() if dialog then UIManager:close(dialog) end end,
+    })
+    for _i, b in ipairs(plugin_buttons) do buttons[#buttons + 1] = { b } end
+    if #usable == 0 and not stream and #plugin_buttons == 0 then
         -- Note row in the established disabled-button style: the record is real
         -- and its blurb is worth reading, there is just nothing here this
         -- device can open.

@@ -6481,5 +6481,45 @@ test("invalidateWalkCache clears _meta_record_cache; invalidateBookCache keeps i
 end)
 
 -- ============================================================================
+-- Formats registered by other plugins' document providers
+-- ============================================================================
+
+test("isBookFile: a plugin-registered extension is a book, core rules unchanged", function()
+    local PF = require("lib/bookshelf_plugin_formats")
+    local saved = package.loaded["document/documentregistry"]
+    package.loaded["document/documentregistry"] = {
+        image_ext = { png = true },
+        providers = {
+            { extension = "epub",    provider = { provider = "crengine" } },
+            { extension = "zip",     provider = { provider = "mupdf" } },
+            { extension = "meguru",  provider = { provider = "meguru" } },
+            { extension = "foo.zip", provider = { provider = "someplugin" } },
+            { extension = "png",     provider = { provider = "someplugin" } },
+        },
+    }
+    PF._reset()
+    assert(Repo.isBookFile("/books/Vol 1.meguru"), ".meguru should be a book")
+    assert(Repo.isBookFile("/books/VOL 1.MEGURU"), "extension match is case-insensitive")
+    assert(Repo.isBookFile("/books/x.foo.zip"), "plugin compound .zip form")
+    assert(not Repo.isBookFile("/books/x.zip"), "bare .zip is still not a book")
+    assert(not Repo.isBookFile("/books/cover.png"), "images stay excluded")
+    assert(not Repo.isBookFile("/books/notes.xml"), "core-only formats stay curated")
+    assert(Repo.isBookFile("/books/a.epub"))
+    -- Plugin-format files are the ones the shelf never fetches a cover for.
+    assert(Repo.isPluginFormatFile("/books/Vol 1.meguru"), ".meguru is a plugin format")
+    assert(Repo.isPluginFormatFile("/books/x.foo.zip"), "so is a plugin's compound form")
+    assert(not Repo.isPluginFormatFile("/books/a.epub"), "a core format is not")
+    assert(not Repo.isPluginFormatFile("/books/notes.xml"), "nor is a file that is not a book")
+    package.loaded["document/documentregistry"].providers[6] =
+        { extension = "cbz", provider = { provider = "meguru" } }
+    PF._reset()
+    assert(not Repo.isPluginFormatFile("/books/c.cbz"),
+        "a core format a plugin ALSO provides keeps its covers")
+    package.loaded["document/documentregistry"] = saved
+    PF._reset()
+    assert(not Repo.isBookFile("/books/Vol 1.meguru"), "gone once no plugin provides it")
+end)
+
+-- ============================================================================
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

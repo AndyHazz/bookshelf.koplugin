@@ -5028,7 +5028,7 @@ function BookshelfWidget:_buildHero(content_w, hero_cover_w, hero_cover_h, hero_
         if current and regions.tags and not regions.tags.disabled then
             local pill_w = math.max(1, content_w - hero_cover_w - PAD)
             local bw = self
-            tags_builder = function(book)
+            tags_builder = function(book, extra_w)
                 if not book or not book.filepath then return nil end
                 -- Read the tags-region config fresh each call (not captured)
                 -- so a live in-place hero refresh after a settings change
@@ -5062,7 +5062,7 @@ function BookshelfWidget:_buildHero(content_w, hero_cover_w, hero_cover_h, hero_
                     local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
                     ink = ok and CP and CP.ink and CP.ink() or nil
                 end
-                return bw:_buildPillGroup(pill_specs, pill_w, max_rows, pill_size,
+                return bw:_buildPillGroup(pill_specs, pill_w + (tonumber(extra_w) or 0), max_rows, pill_size,
                     tcfg.alignment or "left", nil,
                     -- +N opens the combined book-detail popup (pills + description).
                     function() bw:_showBookDetail(book, { active = "tags" }) end,

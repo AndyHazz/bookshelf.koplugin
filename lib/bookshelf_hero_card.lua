@@ -1019,7 +1019,9 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
     -- text.
     local tags_n = 0  -- right_bottom elements the tags block contributes (for progressive-hide)
     if regions.tags and not regions.tags.disabled and self.tags_builder then
-        local ok, widget = pcall(self.tags_builder, book)
+        -- What the cover column gave up (a narrowed true-aspect cover, a
+        -- small patch placeholder) widens the pill row with the text.
+        local ok, widget = pcall(self.tags_builder, book, self._cover_shrink or 0)
         if ok and widget then
             local sz = widget:getSize()
             if sz and sz.h and sz.h > 0 then
@@ -1335,30 +1337,48 @@ function HeroCard:_renderFull()
     -- right_w only ever grows, so the #87 max_width<=0 guard is never at risk).
 
     local _perf_cover_t0 = _gettime()
-    local cover = SpineWidget:new{
-        book        = self.book,
-        width       = sw_w,
-        height      = sw_h,
-        on_tap      = self.on_tap,
-        on_hold     = self.on_hold,
-        on_double_tap = self.on_double_tap,
-        is_selected      = self.is_selected,
-        is_bulk_selected = self.is_bulk_selected,
-        suppress_favorite_badge = true,
-        -- Cache the scaled hero cover in ScaledCoverCache (issue #103).
-        -- Previously skipped to avoid pinning one oversized entry, but the
-        -- cost of NOT caching is far worse: the hero is rebuilt on every
-        -- show / chip-switch / book-close, and each rebuild re-acquires the
-        -- source cover via a BIM getBookInfo read. On Kobo the bookinfo_cache
-        -- is non-WAL, so that SELECT blocks on any concurrent cover-extraction
-        -- writer (coverbrowser, our own kickoff, the stale-sweep) for up to
-        -- BIM's 5s busy_timeout -- producing the multi-second hero stalls in
-        -- the report. Caching lets repeat renders paint from the in-memory
-        -- scaled bb (paired with _buildHero's record memo, which skips the
-        -- read entirely). One hero-sized entry is bounded by the cache's byte
-        -- budget and evicted LRU like any other, so the displacement worry
-        -- is negligible against eliminating the per-cycle blocking read.
-    }
+    local function buildCover()
+        return SpineWidget:new{
+            book        = self.book,
+            width       = sw_w,
+            height      = sw_h,
+            on_tap      = self.on_tap,
+            on_hold     = self.on_hold,
+            on_double_tap = self.on_double_tap,
+            is_selected      = self.is_selected,
+            is_bulk_selected = self.is_bulk_selected,
+            suppress_favorite_badge = true,
+            -- Tells a patch's placeholder it is in the top panel (ctx.panel).
+            panel_placeholder = true,
+            -- Cache the scaled hero cover in ScaledCoverCache (issue #103).
+            -- Previously skipped to avoid pinning one oversized entry, but the
+            -- cost of NOT caching is far worse: the hero is rebuilt on every
+            -- show / chip-switch / book-close, and each rebuild re-acquires the
+            -- source cover via a BIM getBookInfo read. On Kobo the bookinfo_cache
+            -- is non-WAL, so that SELECT blocks on any concurrent cover-extraction
+            -- writer (coverbrowser, our own kickoff, the stale-sweep) for up to
+            -- BIM's 5s busy_timeout -- producing the multi-second hero stalls in
+            -- the report. Caching lets repeat renders paint from the in-memory
+            -- scaled bb (paired with _buildHero's record memo, which skips the
+            -- read entirely). One hero-sized entry is bounded by the cache's byte
+            -- budget and evicted LRU like any other, so the displacement worry
+            -- is negligible against eliminating the per-cycle blocking read.
+        }
+    end
+    local cover = buildCover()
+    -- A patch's unframed placeholder (lib/bookshelf_placeholders.lua) smaller
+    -- than the slot: the slot shrinks to it, top-anchored like a true-aspect
+    -- cover, and the text column takes the width it leaves (PR 515: a small
+    -- symbols panel sat alone in a full cover column).
+    local ps, offer = cover._placeholder_size, cover._placeholder_offer
+    if cover._unframed_placeholder and ps and offer
+            and (ps.w < offer.w or ps.h < offer.h) then
+        sw_w = math.max(1, sw_w - math.max(0, offer.w - ps.w))
+        sw_h = math.max(1, sw_h - math.max(0, offer.h - ps.h))
+        pcall(function() cover:free() end)
+        cover = buildCover()
+    end
+    self._cover_shrink = math.max(0, (self.cover_w - 2 * SHADOW_OFFSET) - sw_w)
     -- Kept for the spine shelf's opening feedback: a book opened from a
     -- bare spine flexes the HERO cover (the legible copy of the artwork)
     -- when the hero is showing it -- see _paintSpineOpeningEffect.

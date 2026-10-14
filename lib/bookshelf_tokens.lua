@@ -1554,4 +1554,84 @@ function Tokens.isEmpty(s)
     return InlineStyle.strip(s):match("^%s*$") ~= nil
 end
 
+-- ── Tokens from a user patch or another plugin (PR 515) ──────────────────
+--
+-- Tokens.register(id, defs) -> true, or false and the reason.
+--
+-- defs maps a token name (without the %) to function(book, state) -> string,
+-- or to { expand = function, description = "..." } to list it in the token
+-- picker as well, under the id. The new %name works wherever the built-in
+-- tokens do: list lines, cover labels, the top panel, [if:name] conditions.
+-- An expander that errors renders as empty and is logged once.
+--
+-- A name a built-in token already uses is refused, so a patch cannot change
+-- what an existing template says. Registering an id again replaces its
+-- tokens; defs = nil removes them.
+--
+--     userpatch.registerPatchPluginFunc("bookshelf", function(Bookshelf)
+--         if not Bookshelf.registerTokens then return end  -- older bookshelf
+--         Bookshelf:registerTokens("ao3", {
+--             chapters = function(book) return ... end,
+--         })
+--     end)
+Tokens.API = 1
+local _builtin = {}
+for name in pairs(Tokens.expanders) do _builtin[name] = true end
+local _owned = {}   -- id -> { name = true, ... }
+
+local function _unregister(id)
+    for name in pairs(_owned[id] or {}) do Tokens.expanders[name] = nil end
+    _owned[id] = nil
+    for i = #Tokens.CATALOGUE, 1, -1 do
+        if Tokens.CATALOGUE[i].owner == id then table.remove(Tokens.CATALOGUE, i) end
+    end
+    _token_names_cache = nil
+end
+
+function Tokens.register(id, defs)
+    if type(id) ~= "string" or id == "" then return false, "id must be a string" end
+    if defs ~= nil and type(defs) ~= "table" then return false, "tokens must be a table" end
+    for name, def in pairs(defs or {}) do
+        if type(name) ~= "string" or not name:match("^[%a_][%w_]*$") then
+            return false, "bad token name: " .. tostring(name)
+        end
+        if _builtin[name] then return false, "%" .. name .. " is a built-in token" end
+        for other, names in pairs(_owned) do
+            if other ~= id and names[name] then
+                return false, "%" .. name .. " is already registered by " .. other
+            end
+        end
+        local fn = type(def) == "table" and def.expand or def
+        if type(fn) ~= "function" then return false, "%" .. name .. " needs a function" end
+    end
+    _unregister(id)
+    if not defs then return true end
+    local names, listed = {}, {}
+    for name, def in pairs(defs) do
+        local fn = type(def) == "table" and def.expand or def
+        local warned = false
+        Tokens.expanders[name] = function(book, state)
+            local ok, v = pcall(fn, book, state)
+            if ok then return v ~= nil and tostring(v) or "" end
+            if not warned then
+                warned = true
+                pcall(function()
+                    require("logger").warn("bookshelf: token %" .. name .. " from " .. id .. " failed:", v)
+                end)
+            end
+            return ""
+        end
+        names[name] = true
+        if type(def) == "table" and type(def.description) == "string" then
+            listed[#listed + 1] = { category = id, token = "%" .. name,
+                                    description = def.description, owner = id }
+        end
+    end
+    table.sort(listed, function(a, b) return a.token < b.token end)
+    for _i, entry in ipairs(listed) do Tokens.CATALOGUE[#Tokens.CATALOGUE + 1] = entry end
+    _owned[id] = names
+    _token_names_cache = nil
+    return true
+end
+
 return Tokens

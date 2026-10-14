@@ -1148,7 +1148,8 @@ function SpineWidget:init()
         -- redundant title/author label below it -- the fallback already shows
         -- both, larger and centred, on the card itself.
         self[1] = self:_renderFallback()
-        self.is_fallback = true
+        -- A patch's placeholder carries no title, so its label stays.
+        self.is_fallback = not self._custom_placeholder
     end
     self.ges_events = {
         Tap  = { GestureRange:new{ ges = "tap",  range = self.dimen } },
@@ -1251,6 +1252,26 @@ function SpineWidget:_renderShadowedCard(inner)
     local list_badges    = self.show_status and not self.show_progress
 
     local children = {}
+
+    -- A patch's placeholder drawn with no card owns its whole look: none of
+    -- the status glyphs, badges, progress or page count go over it. The
+    -- selection border and the bulk-select flag stay, because they say what
+    -- an action will act on.
+    if self._unframed_placeholder then
+        local layers = { inner }
+        if self.is_selected then
+            table.insert(layers, 1, BorderOverlay:new{
+                width = card_w, height = card_h, thickness = SELECTED_BORDER, radius = 0 })
+        end
+        if self.is_bulk_selected then
+            layers[#layers + 1] = CornerFlag:new{
+                width = card_w, height = card_h, inset = self.bulk_flag_inset or 0 }
+        end
+        return OverlapGroup:new{
+            dimen = Geom:new{ w = self.width, h = self.height },
+            unpack(layers),
+        }, card_w, card_h
+    end
 
     -- 1. Shadow OR selection-border backdrop (z-order: bottom). FADED
     --    on-hold covers (borderless — see _wrapCoverInCard) also drop the
@@ -2635,6 +2656,42 @@ function SpineWidget:_renderFallback()
         }
         self._cover_card = plain
         return (self:_renderShadowedCard(plain))
+    end
+    -- A patch's own placeholder, drawn inside the same frame (PR 515).
+    local Placeholders = require("lib/bookshelf_placeholders")
+    if Placeholders.any() then
+        local iw = math.max(1, card_w - border * 2)
+        local ih = math.max(1, card_h - border * 2)
+        local custom, opts = Placeholders.widgetFor(self.book, iw, ih,
+            { bare = self.bare_placeholder == true, flat = self.flat_thumb == true,
+              panel = self.panel_placeholder == true })
+        if custom and opts.frame == false then
+            -- The patch's widget alone on the page: no border, background
+            -- or shadow, but the same size, so badges and taps still land.
+            local bare = CenterContainer:new{
+                dimen = Geom:new{ w = card_w, h = card_h }, custom }
+            self._cover_card = bare
+            self._custom_placeholder = true
+            self._unframed_placeholder = true
+            -- What it was offered and what it took, so the top panel can
+            -- give the text the width the widget left (HeroCard:_renderFull).
+            self._placeholder_offer = { w = iw, h = ih }
+            local ok_s, size = pcall(custom.getSize, custom)
+            if ok_s and size then self._placeholder_size = { w = size.w, h = size.h } end
+            return (self:_renderShadowedCard(bare))
+        elseif custom then
+            local framed = ColorSafeFrame:new{
+                bordersize = border,
+                color      = colors.border,
+                radius     = self:_squareCorners() and 0 or CARD_RADIUS,
+                padding    = 0,
+                background = outer_bg,
+                CenterContainer:new{ dimen = Geom:new{ w = iw, h = ih }, custom },
+            }
+            self._cover_card = framed
+            self._custom_placeholder = true
+            return (self:_renderShadowedCard(framed))
+        end
     end
     if self.bare_placeholder then return bareCard() end
 

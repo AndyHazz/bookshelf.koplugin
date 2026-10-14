@@ -294,6 +294,20 @@ Bookshelf.RECORD_ACTIONS_API = require("lib/bookshelf_record_actions").API
 function Bookshelf:registerRecordActions(id, fn)
     return require("lib/bookshelf_record_actions").register(id, fn)
 end
+-- Tokens a user patch or plugin adds to every template (PR 515); the spec is
+-- at Tokens.register in lib/bookshelf_tokens.lua.
+Bookshelf.TOKENS_API = require("lib/bookshelf_tokens").API
+function Bookshelf:registerTokens(id, defs)
+    return require("lib/bookshelf_tokens").register(id, defs)
+end
+-- Placeholders for books without a cover (PR 515): a provider returns a
+-- widget to draw in the card instead of bookshelf's lettering. The contract,
+-- and how a user patch registers without this instance, are at the top of
+-- lib/bookshelf_placeholders.lua.
+Bookshelf.PLACEHOLDER_API = require("lib/bookshelf_placeholders").API
+function Bookshelf:registerPlaceholder(id, fn)
+    return require("lib/bookshelf_placeholders").register(id, fn)
+end
 -- sourceChanged(id): a fetch-mode source has more to show (a page it was
 -- fetching in the background has landed); the shelf redraws if it is showing
 -- that source.

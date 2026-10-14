@@ -160,6 +160,17 @@ function Settings:_pickTokenViaLibraryModal(LibraryModal, dialog, filter)
         { key = "Style",    label = _("Style") },
     }
     local catalogue = _pickerCatalogue(filter)
+    -- Tokens a patch or plugin registered sit under its id (Tokens.register).
+    do
+        local known = {}
+        for _i, c in ipairs(CHIPS) do known[c.key] = true end
+        for _i, t in ipairs(catalogue) do
+            if t.owner and not known[t.category] then
+                known[t.category] = true
+                CHIPS[#CHIPS + 1] = { key = t.category, label = t.category }
+            end
+        end
+    end
     if catalogue ~= Tokens.CATALOGUE then
         local present = {}
         for _i, t in ipairs(catalogue) do present[t.category] = true end

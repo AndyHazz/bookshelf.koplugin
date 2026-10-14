@@ -728,6 +728,14 @@ function Hardcover.linkBook(filepath, hc_book)
         return false, "Missing Hardcover book id"
     end
     local links = _readLinks()
+    -- A re-link (Select edition, Manual link) keeps the reader's cover and
+    -- description choices. The payload is a fresh record, and dropping them
+    -- left autoDecideFlags to decide again, undoing a choice made by hand.
+    local old = links[filepath]
+    if type(old) == "table" then
+        payload.use_cover = old.use_cover
+        payload.use_description = old.use_description
+    end
     links[filepath] = payload
     _saveLinks(links)
     pcall(_mirrorExternalLink, filepath, payload)

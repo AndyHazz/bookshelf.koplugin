@@ -161,6 +161,19 @@ test("linkBook stores a Bookshelf-owned link", function()
     assert(link.title == "A Book", "missing title")
 end)
 
+test("re-linking keeps the cover and description choices", function()
+    reset()
+    assert(Hardcover.linkBook("/books/a.epub", { id = 123, title = "A Book" }))
+    assert(Hardcover.markUseCover("/books/a.epub", true))
+    assert(Hardcover.setUseDescription("/books/a.epub", false))
+    -- Select edition / Manual link: a fresh record for the same file.
+    assert(Hardcover.linkBook("/books/a.epub", { id = 777, title = "Other Edition" }))
+    local link = Hardcover.getLink("/books/a.epub")
+    assert(link.book_id == 777, "the re-link did not take")
+    assert(link.use_cover == true, "the re-link dropped use_cover")
+    assert(link.use_description == false, "the re-link dropped use_description")
+end)
+
 test("enrichBook shows Hardcover cover/description only on an explicit flag", function()
     reset()
     -- /books/a.epub is linked via reset() (book_id 123, edition 456). Mutate

@@ -1346,6 +1346,8 @@ function HeroCard:_renderFull()
             is_selected      = self.is_selected,
             is_bulk_selected = self.is_bulk_selected,
             suppress_favorite_badge = true,
+            -- Tells a patch's placeholder it is in the top panel (ctx.panel).
+            panel_placeholder = true,
             -- Cache the scaled hero cover in ScaledCoverCache (issue #103).
             -- Previously skipped to avoid pinning one oversized entry, but the
             -- cost of NOT caching is far worse: the hero is rebuilt on every

@@ -9,7 +9,8 @@
 --   book  the book's record (title, authors, genres, description, filepath, ...)
 --   w, h  the space inside the card's border, in pixels; the widget must fit
 --   ctx   { bare = true when the caller wants no lettering (list rows),
---           flat = true for a thumbnail without rounded corners or shadow }
+--           flat = true for a thumbnail without rounded corners or shadow,
+--           panel = true in the top panel, the one large cover on screen }
 --   opts  optional: { frame = false } draws the widget on its own, with no
 --         card border, background or shadow behind it, and none of
 --         bookshelf's status glyphs, badges or progress over it

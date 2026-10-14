@@ -2663,7 +2663,8 @@ function SpineWidget:_renderFallback()
         local iw = math.max(1, card_w - border * 2)
         local ih = math.max(1, card_h - border * 2)
         local custom, opts = Placeholders.widgetFor(self.book, iw, ih,
-            { bare = self.bare_placeholder == true, flat = self.flat_thumb == true })
+            { bare = self.bare_placeholder == true, flat = self.flat_thumb == true,
+              panel = self.panel_placeholder == true })
         if custom and opts.frame == false then
             -- The patch's widget alone on the page: no border, background
             -- or shadow, but the same size, so badges and taps still land.

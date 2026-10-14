@@ -1019,7 +1019,9 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
     -- text.
     local tags_n = 0  -- right_bottom elements the tags block contributes (for progressive-hide)
     if regions.tags and not regions.tags.disabled and self.tags_builder then
-        local ok, widget = pcall(self.tags_builder, book)
+        -- What the cover column gave up (a narrowed true-aspect cover, a
+        -- small patch placeholder) widens the pill row with the text.
+        local ok, widget = pcall(self.tags_builder, book, self._cover_shrink or 0)
         if ok and widget then
             local sz = widget:getSize()
             if sz and sz.h and sz.h > 0 then
@@ -1376,6 +1378,7 @@ function HeroCard:_renderFull()
         pcall(function() cover:free() end)
         cover = buildCover()
     end
+    self._cover_shrink = math.max(0, (self.cover_w - 2 * SHADOW_OFFSET) - sw_w)
     -- Kept for the spine shelf's opening feedback: a book opened from a
     -- bare spine flexes the HERO cover (the legible copy of the artwork)
     -- when the hero is showing it -- see _paintSpineOpeningEffect.

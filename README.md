@@ -172,6 +172,10 @@ Tap a spine and the book lifts off the shelf (and shows in the top panel); tap i
 
 **Grouping.** On a grouped shelf (series, authors, genres) there are no folders to drill into -- the groups are flattened onto the shelf and each run gets a label at the shelf's edge. Everything is out where you can see it.
 
+**Series boxes (optional).** Long-press the shelf's chip, open **Shelf style**, choose **Spines**, and turn **Series boxes** on. Books sharing series metadata then occupy one face-out slipcase, alongside standalone books. This is off by default and applies only to that shelf's Spines view; covers, lists, and online catalogues are unchanged. A box stays where its first member appeared in the shelf's sort order, with the lowest numbered volume on its front. Separate folder sections keep separate boxes, and filters determine which books belong to each box.
+
+Tap a box to browse its volumes; Back returns to the shelf and position you left. The sleeve and illustrative bindings use colours sampled from the covers, not invented spine artwork. Thickness grows with the number of volumes up to a cap, with at most six visible bindings. The corner badge shows finished/available volumes. When every volume in the box is finished, it follows the same completion-mark and fade preferences as ordinary books.
+
 **Spine text direction.** Which way a title runs down a spine: **Top to bottom** (the default, how British and American books are printed) or **Bottom to top** (Continental European). Set it once for the whole library under **menu > Settings > Library & search**.
 
 **Ornaments.** Drop PNG or SVG files into the `koreader/settings/bookshelf/ornaments` folder (beside the wallpapers) and they turn up in the gaps, standing on the plank like the books. A potted plant and a cactus are seeded there to start you off; delete them if you would rather not see them and they stay deleted. Ornaments from before 5.3, in `koreader/icons/bookshelf.ornaments`, move here by themselves on the first start.

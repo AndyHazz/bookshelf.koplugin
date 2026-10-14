@@ -31,6 +31,7 @@ local function widget()
     -- The list's signature (the ornament page states ride on it); not what
     -- this suite is about.
     function w:_spineItemsSig(items) return tostring(#items) end
+    function w:_prepareSpineItems(items) return items end
     return w
 end
 local function drill(w, kind, name)

@@ -778,6 +778,11 @@ function BookshelfWidget:_serializeDrillPath()
                 or e.kind == "format" or e.kind == "rating"
                 or e.kind == "language" then
             out[#out + 1] = { kind = e.kind, label = e.label, whole = e.whole or nil }
+            if e.kind == "series" and e.payload and e.payload._series_box then
+                local files = {}
+                for _, book in ipairs(e.payload.books or {}) do files[#files + 1] = book.filepath end
+                out[#out].series_box_files = files
+            end
         elseif e.kind == "opds_nav" then
             -- A drilled subcatalog, by identity: the pair that addresses its
             -- window, so the restore can ask whether it has anything cached
@@ -904,6 +909,9 @@ function BookshelfWidget:_restoreDrillPath(saved)
                 or e.kind == "genre" or e.kind == "format"
                 or e.kind == "rating" or e.kind == "language" then
             local g = Repo.findGroup(e.kind, e.label)
+            if g and e.kind == "series" and type(e.series_box_files) == "table" then
+                g = require("lib/bookshelf_series_boxes").restore(g, e.series_box_files, e.label, Repo.lightMetaFor)
+            end
             if g then
                 self._drilldown_path[#self._drilldown_path + 1] = {
                     kind = e.kind, label = e.label, payload = g, whole = e.whole,
@@ -3700,8 +3708,8 @@ function BookshelfWidget:_fetchChipItems(n, want_all)
         local total = #books
         -- Cursor-based: offset is 0-based, cursor is 1-based. Clamp upstream
         -- in _rebuild keeps cursor within range; defensive guard here too.
-        local offset = math.max(0, (self._cursor or 1) - 1)
-        local stop = math.min(offset + self:_viewSize(), total)
+        local offset = want_all and 0 or math.max(0, (self._cursor or 1) - 1)
+        local stop = math.min(offset + (want_all and n or self:_viewSize()), total)
         local ScaledCoverCache = require("lib/bookshelf_scaled_cover_cache")
         local fresh = {}
         for i = offset + 1, stop do
@@ -3711,10 +3719,17 @@ function BookshelfWidget:_fetchChipItems(n, want_all)
                 -- Covers already in ScaledCoverCache skip the BIM zstd
                 -- decode; SpineWidget repaints from the cache by filepath.
                 local meta_opts
-                if ScaledCoverCache:has(b.filepath) then
+                if Repo.spine_light then
+                    -- Whole physical shelves need metadata, never one cover
+                    -- decode per member. Hydrate only the visible box fronts.
+                    nb = require("lib/bookshelf_series_boxes").copy(
+                        Repo.lightMetaFor(b.filepath) or Repo.buildBookMeta(b.filepath, { want_cover = false }) or b)
+                elseif ScaledCoverCache:has(b.filepath) then
                     meta_opts = { want_cover = false }
                 end
-                nb = Repo.buildBookMeta(b.filepath, meta_opts) or b
+                if not Repo.spine_light then
+                    nb = Repo.buildBookMeta(b.filepath, meta_opts) or b
+                end
             end
             fresh[#fresh + 1] = nb
         end
@@ -6858,6 +6873,22 @@ function BookshelfWidget:_spineShowAuthor()
     return BookshelfSettings.nilOrTrue("spine_show_author")
 end
 
+-- Opt-in presentation only: an opened series still shows its individual books.
+function BookshelfWidget:_seriesBoxesEnabled()
+    local tab = require("lib/bookshelf_tab_model").getById(self.chip)
+    local path = self._drilldown_path or {}
+    local tip = path[#path]
+    return tab and tab.series_boxes == true and self:_isSpineMode()
+        and not (tab.source and tab.source.kind == "single_series")
+        and not (tip and (tip.kind == "series" or tip.kind == "search" or tip.kind == "opds_nav"))
+        and not self:_opdsEffectiveTab()
+end
+
+function BookshelfWidget:_prepareSpineItems(items, total)
+    if not self:_seriesBoxesEnabled() or (total and total > #items) then return items end
+    return require("lib/bookshelf_series_boxes").prepare(items, Repo.lightMetaFor)
+end
+
 -- _spineCachedFetch(n) — spine mode's page-turn fetch. The grid refetches
 -- the library on every turn (its freshness contract), which on device flash
 -- is most of the turn's latency. A spine page paints no covers and slices
@@ -6897,6 +6928,12 @@ function BookshelfWidget:_spineCachedFetch(n)
         self._spine_fetch_live = false
         return items, hint
     end
+    -- Compact before pagination, never independently in each page window.
+    if hint and hint > #items then
+        self._spine_fetch_live = false
+        return items, hint
+    end
+    items = self:_prepareSpineItems(items, hint)
     -- The ornament deal states (see _ornStartState) depend only on the list:
     -- a refetch that brings back the same list keeps them, or every page
     -- turn after the TTL would rebuild the whole page map to find its start.
@@ -6942,7 +6979,7 @@ function BookshelfWidget:_anchorSpineCursor(old, new)
     local cur, skip = self._cursor or 1, self:_spineSkip()
     if cur <= 1 and skip == 0 then return end
     local function id(it)
-        return type(it) == "table" and (it.filepath or it.path or it.name or it.text) or it
+        return type(it) == "table" and (it._series_box_key or it.filepath or it.path or it.name or it.text) or it
     end
     local at = {}
     for j = 1, #new do
@@ -6978,6 +7015,9 @@ function BookshelfWidget:_spineItemsSig(items)
         local id = type(it) == "table" and (it.filepath or it.path or it.name or it.text) or it
         local n = type(it) == "table" and it.books and #it.books or 0
         parts[i] = tostring(id) .. "#" .. n
+        if type(it) == "table" and (it._series_box or it._series_display_books) then
+            parts[i] = parts[i] .. ":" .. require("lib/bookshelf_series_boxes").signature(it)
+        end
     end
     return table.concat(parts, "\0")
 end
@@ -7006,7 +7046,8 @@ function BookshelfWidget:_spineUpdateBookCounts(all_items, total_hint)
     for i = 1, #all_items do
         local it = all_items[i]
         if it then
-            local n = (it.books and #it.books > 0) and #it.books or 1
+            local members = it._series_display_books or it.books
+            local n = (not it._series_box and members and #members > 0) and #members or 1
             total = total + n
             if i < (self._cursor or 1) then before = before + n end
         end
@@ -8307,6 +8348,8 @@ function BookshelfWidget:_jumpToLetterPrefix(prefix)
     local _t0 = _gettime()
 
     local items, sort_key, fetched_via = self:_jumpScanList()
+    local boxed = self:_seriesBoxesEnabled()
+    if boxed then items = self:_spineCachedFetch(SPINE_ALL_LIMIT) end
     local _t_fetch = _gettime()
     if not items or #items == 0 then
         logger.dbg(string.format(
@@ -8320,7 +8363,7 @@ function BookshelfWidget:_jumpToLetterPrefix(prefix)
     do
         local sample = {}
         for i = 1, math.min(5, #items) do
-            sample[i] = string.format("%q", SortEngine.sortKeyValue(items[i], sort_key) or "?")
+            sample[i] = string.format("%q", SortEngine.sortKeyValue(items[i]._series_sort_book or items[i], sort_key) or "?")
         end
         logger.dbg(string.format(
             "[bookshelf jump] chip=%s sort_key=%s via=%s items=%d fetch=%.0fms head=[%s]",
@@ -8331,11 +8374,12 @@ function BookshelfWidget:_jumpToLetterPrefix(prefix)
     -- Find first item whose canonical sort-key value (the SAME derivation the
     -- chip's sort uses, via SortEngine.sortKeyValue) starts with the prefix.
     for i, item in ipairs(items) do
-        local v = SortEngine.sortKeyValue(item, sort_key)
+        local v = SortEngine.sortKeyValue(item._series_sort_book or item, sort_key)
         if v and v:sub(1, #p) == p then
             local view  = self:_viewSize()
             local page0 = math.floor((i - 1) / view)
             self._cursor = page0 * view + 1
+            if boxed then self._cursor = i end
             self:_clampCursor()
             self:_syncPageFromCursor()
             self:_swapShelvesInPlace()

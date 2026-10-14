@@ -1961,6 +1961,47 @@ function SpineWidget:_glyphWidth(glyph_h)
     return glyph_h
 end
 
+-- Status decoration for a completed series box. Reuse the cover's
+-- actual status compositor, without decoding a cover or borrowing its status.
+function SpineWidget.finishedDecoration(card_w)
+    local proxy = SpineWidget:extend{
+        width = card_w, height = card_w,
+        book = { status = "finished" },
+        show_progress = false, show_status = true, flat_thumb = true,
+        suppress_favorite_badge = true, suppress_number_badges = true,
+    }
+    local indicators = proxy:_statusIndicators()
+    -- OverlapGroup measures all children at init, including this blank card.
+    -- A bare Widget has no size, even if its parent has an explicit dimen.
+    local layer = proxy:_renderShadowedCard(Widget:new{dimen = Geom:new{w = card_w, h = card_w}})
+    -- Flat/status-only composition: the empty card, then one glyph frame.
+    -- Discard its cover-relative padding; the caller positions the mark.
+    local mark = layer[2] and layer[2][1]
+    local size
+    if mark then
+        local measured = mark:getSize()
+        size = { w = measured.w, h = measured.h }
+        if indicators.glyph == "complete_bookmark" then
+            -- Halo groups declare nominal font-size bounds, but their framed
+            -- children include the real line height and shadow offsets.
+            for _, child in ipairs(mark) do
+                local actual = child:getSize()
+                size.w, size.h = math.max(size.w, actual.w), math.max(size.h, actual.h)
+            end
+        elseif indicators.glyph == "complete_tickbox" then
+            local check = mark[1][1][2]
+            mark._bs_recolour = function(self, roles)
+                self.background, self.color, check.fgcolor = roles.bg, roles.border, roles.fg
+            end
+            CoverProgress.registerRecolour(mark, function(c)
+                return { bg = c.badge_bg, border = c.border, fg = c.badge_fg }
+            end)
+        end
+    end
+    local fade = indicators.on_hold_fade and ON_HOLD_FADE or nil
+    return mark, size, fade
+end
+
 -- Computed card dimensions taking the in-progress glyph's dangle into
 -- account. Both _renderCover and _renderFallback must use this when
 -- sizing their inner card widget so the card doesn't overlap the

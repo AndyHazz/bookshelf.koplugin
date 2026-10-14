@@ -6900,3 +6900,11 @@ msgstr ""
 #: micromodules/weather.lua:460 micromodules/weather.lua:546
 msgid "Updated %1h ago"
 msgstr ""
+
+#: lib/bookshelf_chip_editor.lua
+msgid "Series boxes: %1"
+msgstr ""
+
+#: lib/bookshelf_chip_editor.lua
+msgid "On"
+msgstr ""

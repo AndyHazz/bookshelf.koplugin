@@ -1,0 +1,204 @@
+-- Adapted from OrbitUI's series-box implementation (AGPL-3.0).
+-- View-only series grouping. Keep original members for drill, bulk actions and
+-- metadata; only the physical bookshelf's display list is compacted.
+local M = {}
+
+local function copy(t)
+    local out = {}
+    for k, v in pairs(t or {}) do if k ~= "cover_bb" then out[k] = v end end
+    return out
+end
+M.copy = copy
+
+local function memberMeta(book, light_meta)
+    local member = copy(book)
+    for k, v in pairs(light_meta and light_meta(book.filepath) or {}) do
+        if k ~= "cover_bb" and member[k] == nil then member[k] = v end
+    end
+    return member
+end
+
+local function name(book)
+    local value = book and (book.series_name or book.series)
+    return type(value) == "string" and value:match("%S") and value or nil
+end
+
+function M.isBox(item)
+    return type(item) == "table" and item._series_box == true
+end
+
+function M.box(books, title, original, light_meta)
+    local members, seen = {}, {}
+    for _, book in ipairs(books) do
+        if book.filepath and not seen[book.filepath] then
+            local member = memberMeta(book, light_meta)
+            members[#members+1], seen[book.filepath] = member, true
+        end
+    end
+    if #members == 0 then return original end
+    local cmp = require("lib/bookshelf_sort_engine").chainedComparator{
+        {key="series_index"}, {key="filename"},
+    }
+    table.sort(members, cmp)
+    local box = copy(original)
+    box.filepath, box.path, box.shelf_section, box.shelf_section_path = nil, nil, nil, nil
+    box.kind, box.series_name, box.label, box.name = "series", title, title, title
+    box.title, box.display_title = title, title
+    box.books, box.first_book, box.book_count = members, members[1], #members
+    box.books_meta = nil
+    box.author, box.authors = members[1].author, members[1].authors
+    box._series_box = true
+    box._series_box_key = (original and original.shelf_section_path or "") .. "\0" .. title
+    box._series_display_books = nil
+    box._series_sort_book = copy(original or members[1])
+    -- A box has no reading status of its own, nor a borrowed cover buffer.
+    box.status, box._status, box.percent_finished, box.series_num = nil, nil, nil, nil
+    return box
+end
+
+-- onlyBook(books) -> the book, when the list holds one distinct file; else nil.
+function M.onlyBook(books)
+    local first
+    for _, book in ipairs(books or {}) do
+        if not book.filepath then return nil end
+        if not first then first = book
+        elseif book.filepath ~= first.filepath then return nil end
+    end
+    return first
+end
+
+function M.prepare(items, light_meta)
+    local out, groups = {}, {}
+    for _, item in ipairs(items or {}) do
+        -- Native author/tag groups can contain only file identifiers. Resolve
+        -- series membership from the light cache, never by decoding covers.
+        if item.filepath and not item.books and not item.is_remote and not name(item) and light_meta then
+            local meta = memberMeta(item, light_meta)
+            if name(meta) then item = meta end
+        end
+        if M.isBox(item) then
+            out[#out+1] = item
+        elseif item.books then
+            if name(item) and (not item.kind or item.kind == "series") then
+                -- One volume on the shelf is a book, not a box set.
+                local only = M.onlyBook(item.books)
+                out[#out+1] = only or M.box(item.books, name(item), item, light_meta)
+            else
+                local group = copy(item)
+                group._series_display_books = M.prepare(item.books, light_meta)
+                out[#out+1] = group
+            end
+        elseif item.filepath and name(item) and not item.is_remote then
+            -- Distinct physical sections may contain different editions of
+            -- a series: do not silently merge those collections together.
+            local key = (item.shelf_section_path or "") .. "\0" .. name(item)
+            local g = groups[key]
+            if not g then
+                g = {books={}, title=name(item), original=item, at=#out+1}
+                groups[key] = g
+                out[g.at] = g
+            end
+            g.books[#g.books+1] = item
+        else
+            out[#out+1] = item
+        end
+    end
+    for _, g in pairs(groups) do
+        out[g.at] = M.onlyBook(g.books) or M.box(g.books, g.title, g.original, light_meta)
+    end
+    return out
+end
+
+function M.displayCount(item)
+    if M.isBox(item) then return 1 end
+    local books = item._series_display_books or item.books
+    return books and #books > 0 and #books or 1
+end
+
+-- Page maps and entry caches must notice a different compacted membership,
+-- even when a parent group's total number of books has not changed.
+function M.signature(item)
+    local parts = { item._series_box_key or "group" }
+    for _, child in ipairs(item._series_display_books or item.books or {}) do
+        parts[#parts+1] = M.isBox(child) and M.signature(child) or child.filepath or "?"
+    end
+    return table.concat(parts, "\0")
+end
+
+-- A restored box must not widen a folder/filter-local series to the whole
+-- library. Persist file identifiers only, then intersect fresh membership.
+function M.restore(group, files, title, light_meta)
+    local allowed, books = {}, {}
+    for _, fp in ipairs(files) do allowed[fp] = true end
+    for _, book in ipairs(group.books or {}) do
+        if allowed[book.filepath] then books[#books+1] = book end
+    end
+    if #books == 0 then return nil end
+    return M.box(books, title, group, light_meta)
+end
+
+-- A member's spine width in px at full height, the way plan sizes a spine.
+local function spinePx(member, auto_thick)
+    local SpineLayout = require("lib/bookshelf_spine_layout")
+    local pages
+    local ok, SpineShelf = pcall(require, "lib/bookshelf_spine_shelf")
+    if ok and SpineShelf and member.filepath then
+        local pp, _ps, _known, psrc = SpineShelf.cachedProgress(member.filepath)
+        if pp and psrc ~= "render" then pages = pp end
+    end
+    pages = pages or member.page_count or member.pages
+    local Screen = require("device").screen
+    return Screen:scaleBySize(SpineLayout.spineWidthDp(pages) * auto_thick)
+end
+
+-- The most spines a box shows; the read count says how many more it holds.
+M.MAX_SPINES = 8
+
+-- geometry(book, base, opts) -> the box's shape, or nil for anything else.
+--
+-- A box stands at the front of the plank like a spine, as tall as the books
+-- around it: a lid (the depth band above the front), then a front holding up
+-- to MAX_SPINES of its books spine-out, then a strip with the series name.
+-- The spines are the members' own, scaled to the opening, so a box is as
+-- wide as what it holds and never wider than the row.
+function M.geometry(book, base, opts)
+    if not M.isBox(book) then return nil end
+    opts = opts or {}
+    local Screen = require("device").screen
+    local SpineLayout = require("lib/bookshelf_spine_layout")
+    local SpineShelf = require("lib/bookshelf_spine_shelf")
+    local px_per_dp = Screen:scaleBySize(100) / 100
+    local auto_thick = SpineLayout.autoThickness(
+        opts.row_h and px_per_dp > 0 and (opts.row_h / px_per_dp) or nil)
+    local count = #book.books
+    local border = math.max(2, Screen:scaleBySize(2))
+    local face_h = base.face_h or base.h
+    local lid = math.max(1, base.h - face_h)
+    local max_w = math.max(2, (opts.content_w or base.w * 3) - 2 * (opts.end_margin or 0))
+    -- The name is set at the size of the shelf's spine titles.
+    local label_size = SpineShelf.titleSize(base.ref_w_dp)
+    local strip_h = SpineShelf.textHeight(label_size) + 2 * math.max(1, Screen:scaleBySize(2))
+    local inner_h = math.max(1, face_h - 2 * border - strip_h)
+    local pad = math.max(1, Screen:scaleBySize(3))
+    local scale = inner_h / base.h
+    local spines, used = {}, 2 * border
+    for i = 1, math.min(count, M.MAX_SPINES) do
+        local w = math.max(Screen:scaleBySize(6),
+                           math.floor(spinePx(book.books[i], auto_thick) * scale + .5))
+        if used + w > max_w then break end
+        spines[#spines + 1] = { member = i, w = w }
+        used = used + w
+    end
+    return { w = used, h = base.h, face_h = face_h, lid = lid, depth = lid,
+             border = border, strip_h = strip_h, inner_h = inner_h,
+             label_size = label_size, pad = pad, spines = spines, count = count }
+end
+
+-- shadowColumns(p, x, inset) -> the columns the row's recess shadow follows:
+-- one, the box's own footprint, measured from the row's baseline.
+function M.shadowColumns(p, x, _inset)
+    -- Stands at the front edge like a spine, so no face-out inset.
+    return { { x = x, w = p.w, h = p.h, foot = 0 } }
+end
+
+return M

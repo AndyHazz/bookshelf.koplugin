@@ -395,6 +395,11 @@ function ListRow.lineStyles(lines, scale_pct)
         -- language and an unclosed or nested tag means here what it means to
         -- the single-line path.
         --
+        -- Which [b] and [i]: the ones in force where the line STARTS
+        -- (InlineStyle.leadStyle). Taking any run's made "[b]%title[/b]
+        -- [i]%authors[/i]" wrap bold italic, and a description followed by a
+        -- bold percentage wrap bold (issue 510).
+        --
         -- Only a tag that adds something the line's own controls did not
         -- counts: with no tags at all the box must keep the face lineFace
         -- resolved, not a re-resolution of the same request through a
@@ -408,9 +413,10 @@ function ListRow.lineStyles(lines, scale_pct)
         local tpl_font = ListRow.templateFont(type(line) == "table"
                                               and line.template)
         local tag_bold, tag_italic = false, false
-        for _j, style in ipairs(styles or {}) do
-            if style.bold   and not (base and base.bold)   then tag_bold   = true end
-            if style.italic and not (base and base.italic) then tag_italic = true end
+        local lead = base and InlineStyle.leadStyle(line.template, base)
+        if lead then
+            tag_bold   = lead.bold   == true and not base.bold
+            tag_italic = lead.italic == true and not base.italic
         end
         if tpl_font or tag_bold or tag_italic then
             box_face, box_bold = ListRow.runFace(line, {

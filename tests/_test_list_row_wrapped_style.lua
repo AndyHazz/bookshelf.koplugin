@@ -96,11 +96,32 @@ t.test("a wrapped line keeps an [i] the way it keeps a [font=]", function()
         "an italic line renders upright as soon as it wraps: " .. tostring(s.face))
 end)
 
-t.test("a tag anywhere claims the box, not just one wrapping the line", function()
-    -- Same rule as templateFont's, and for the same reason: a paragraph has
-    -- one face, so the choice is the first tag or nothing.
+t.test("bold and italic come from where the line starts (issue 510)", function()
+    -- They used to come from ANY run, so a tag past the start claimed the
+    -- whole paragraph.
     local s = boxStyle({ template = "%title [b]%series[/b]" })
-    assert(s.bold == true, "a tag past the start of the line was dropped")
+    assert(s.bold ~= true, "a bold run past the start made the wrapped line bold")
+end)
+
+t.test("issue 510 line 1: bold title, italic authors, wraps bold only", function()
+    local s = boxStyle({ template =
+        "[b]%title[/b] [if:series_num>0] #%series_num[/if] %spacer [size=-2] [i]%authors[/i][/size]" })
+    assert(s.bold == true, "the bold title lost its weight on wrapping")
+    eq(s.face, "face<nil>", "the authors' italic reached the wrapped title")
+end)
+
+t.test("issue 510 line 2: a description wraps plain", function()
+    local s = boxStyle({ template =
+        "%description %spacer [size=-3][b][i][if:status!=finished] [if:book_pct]%book_pct[/if][else][if:book_read_time]%book_read_time[/if][/if][/b][/i]" })
+    assert(s.bold ~= true, "the trailing bold reached the description")
+    eq(s.face, "line-face", "the trailing italic reached the description")
+end)
+
+t.test("a leading conditional or spacer does not decide the style", function()
+    local s = boxStyle({ template = "[if:series]  [/if][b]%title[/b]" })
+    assert(s.bold == true, "brackets and spaces at the start decided the style")
+    s = boxStyle({ template = "%spacer [i]%title[/i]" })
+    eq(s.face, "face<nil+i>", "a leading %spacer decided the style")
 end)
 
 t.test("an untagged line is untouched", function()

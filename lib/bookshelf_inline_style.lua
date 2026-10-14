@@ -222,4 +222,26 @@ function InlineStyle.styles(text, base)
     return out
 end
 
+-- InlineStyle.leadStyle(text, base) -> the style of the first run that shows
+-- something, or nil when the string carries none of our markup.
+--
+-- What a WRAPPED line renders in. A paragraph is one face, so it has to pick
+-- one of the line's styles, and the one it starts with is the one a reader
+-- predicts: "[b]%title[/b] [i]%authors[/i]" wraps bold, "%description
+-- [b]%book_pct[/b]" wraps plain (issue 510; it used to take bold if ANY run
+-- was bold and italic if any was italic, so both lines wrapped bold italic).
+--
+-- Read off the template, like styles(). A run that is only whitespace, a
+-- %spacer, or a conditional's brackets ([if:...], [else], [/if]) shows
+-- nothing by itself, so it does not decide.
+function InlineStyle.leadStyle(text, base)
+    local runs = InlineStyle.parse(text, base)
+    if not runs then return nil end
+    for _i, run in ipairs(runs) do
+        local shown = run.text:gsub("%[/?%a+[^%]]*%]", ""):gsub("%%spacer", "")
+        if shown:find("%S") then return run end
+    end
+    return runs[1]
+end
+
 return InlineStyle

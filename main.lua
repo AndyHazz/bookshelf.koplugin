@@ -292,6 +292,12 @@ end
 -- widget to draw in the card instead of bookshelf's lettering. The contract,
 -- and how a user patch registers without this instance, are at the top of
 -- lib/bookshelf_placeholders.lua.
+-- Tokens a user patch or plugin adds to every template (PR 515); the spec is
+-- at Tokens.register in lib/bookshelf_tokens.lua.
+Bookshelf.TOKENS_API = require("lib/bookshelf_tokens").API
+function Bookshelf:registerTokens(id, defs)
+    return require("lib/bookshelf_tokens").register(id, defs)
+end
 Bookshelf.PLACEHOLDER_API = require("lib/bookshelf_placeholders").API
 function Bookshelf:registerPlaceholder(id, fn)
     return require("lib/bookshelf_placeholders").register(id, fn)

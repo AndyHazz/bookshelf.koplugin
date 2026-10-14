@@ -2124,7 +2124,7 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
     if tilt then
         -- Sized above with the face, from the same tip angles.
         edge_h = tilt_edge
-    elseif spine_h >= Screen:scaleBySize(60) then
+    elseif spine_h >= Screen:scaleBySize(60) and not e.no_top_edge then
         -- The spine-out book's depth into the shelf is its COVER WIDTH
         -- (height over aspect), foreshortened by the camera's pitch (see
         -- VIEW_SIN) -- not a fraction of its height, which made every spine
@@ -2139,12 +2139,18 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
                                 edge = edge_h }
     local body_top = top + edge_h
     local body_h = spine_h - edge_h
-    for i = 0, spine_w - 1 do
-        bb:paintRectRGB32(x + i, body_top, 1, body_h,
-                          _tintColor(e.look, _rampF(i, spine_w), night))
+    -- A series box paints its spines in two passes with its art between
+    -- them: the body (marks = false), then the lettering (body = false),
+    -- so the art tints the spines without fading what is written on them.
+    if e.body ~= false then
+        for i = 0, spine_w - 1 do
+            bb:paintRectRGB32(x + i, body_top, 1, body_h,
+                              _tintColor(e.look, _rampF(i, spine_w), night))
+        end
+        _paintBorderRGB32(bb, x, body_top, spine_w, spine_h - edge_h, hairline,
+                          _boardColor(e.look, night))
     end
-    _paintBorderRGB32(bb, x, body_top, spine_w, spine_h - edge_h, hairline,
-                      _boardColor(e.look, night))
+    if e.marks == false then return end
     -- The FOOT NICK -- a pixel square off each bottom corner, the softening
     -- where a book meets the shelf -- is not cut here. It takes the colour of
     -- the shelf directly BELOW the foot (maintainer's rule: "with or without
@@ -2307,8 +2313,7 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
     -- Thin spines still shrink below the cap as before.
     local run = bottom - cur_top
     if run > 0 and e.label and e.label ~= "" then
-        local tcap  = math.max(8, math.min(18,
-                          math.floor((e.ref_w_dp or 22) * 0.5)))
+        local tcap  = SpineShelf.titleSize(e.ref_w_dp)
         local tsize = math.max(8, math.min(tcap, math.floor(w_dp * 0.5)))
         local author = (self.show_author ~= false) and e.author or nil
         _paintRotatedTitle(bb, x, cur_top, run, spine_w, e.label, tsize,
@@ -2745,13 +2750,8 @@ end
 -- clear it by luck, and the balanced gap split trimmed the last gap under it
 -- (maintainer: "at least 1px separation"). The text height is measured once
 -- per face size, since it depends on the font, not on the row.
-function SpineShelf.badgeDrop(row_h)
-    local scale = 100
-    pcall(function()
-        local BookshelfSettings = require("lib/bookshelf_settings_store")
-        scale = BookshelfSettings.read("stack_label_font_scale", 100) or 100
-    end)
-    local size = math.max(8, math.floor(14 * scale / 100 + 0.5))
+-- A face's text height, measured once per size.
+function SpineShelf.textHeight(size)
     SpineShelf._badge_text_h = SpineShelf._badge_text_h or {}
     local text_h = SpineShelf._badge_text_h[size]
     if not text_h then
@@ -2764,6 +2764,22 @@ function SpineShelf.badgeDrop(row_h)
         if not ok or not text_h then text_h = math.floor(size * 1.9) end
         SpineShelf._badge_text_h[size] = text_h
     end
+    return text_h
+end
+
+-- The title face an average book's spine gets on this shelf (the cap thicker
+-- spines stop at); a series box's name strip uses it too.
+function SpineShelf.titleSize(ref_w_dp)
+    return math.max(8, math.min(18, math.floor((ref_w_dp or 22) * 0.5)))
+end
+
+function SpineShelf.badgeDrop(row_h)
+    local scale = 100
+    pcall(function()
+        local BookshelfSettings = require("lib/bookshelf_settings_store")
+        scale = BookshelfSettings.read("stack_label_font_scale", 100) or 100
+    end)
+    local text_h = SpineShelf.textHeight(math.max(8, math.floor(14 * scale / 100 + 0.5)))
     local pad_y = Space.px(2)
     local drop  = text_h + 2 * pad_y - SpineShelf.plankFace(row_h) - 2
     return math.max(0, drop)
@@ -4157,7 +4173,8 @@ function SpineShelf.plan(items, opts)
         local series_box
         if bk._series_box then
             series_box = require("lib/bookshelf_series_boxes").geometry(bk,
-                { w = w, h = h, face_h = face_h, depth = depth }, opts)
+                { w = w, h = h, face_h = face_h, depth = depth, aspect = aspect,
+                  ref_w_dp = ref_w_dp }, opts)
             w, h, face_h, depth = series_box.w, series_box.h, series_box.face_h, series_box.depth
         end
         local series_num = nil
@@ -6052,6 +6069,7 @@ function SpineShelf.drainRenderStats()
     return n, ms, samples
 end
 
-SpineShelf._SpineBookSlot = SpineBookSlot  -- for tests
+SpineShelf._SpineBookSlot = SpineBookSlot  -- for tests and series boxes
+SpineShelf.boardColor = _boardColor
 
 return SpineShelf

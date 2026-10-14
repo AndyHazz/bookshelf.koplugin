@@ -29,6 +29,11 @@ local env = {
     TextWidget = { new = function(_s, o) return { getSize = function() return { w = 10, h = text_h } end, free = function() end } end },
     SpineShelf = { plankFace = function(h) return 12 end },
 }
+-- The text metric badgeDrop measures with, extracted the same way, so the
+-- real measuring code runs against the stubbed TextWidget.
+local th_body = src:match("\nfunction SpineShelf%.textHeight%(size%)\n(.-)\nend\n")
+assert(th_body, "SpineShelf.textHeight is missing")
+env.SpineShelf.textHeight = compile("return function(size)\n" .. th_body .. "\nend", env, "textHeight")()
 local badgeDrop = compile("return function(row_h)\n" .. body .. "\nend", env, "badgeDrop")()
 
 t.test("the drop is the badge's height past the plank face, less the 2px it starts above the face bottom", function()

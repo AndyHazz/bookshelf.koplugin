@@ -137,73 +137,68 @@ function M.restore(group, files, title, light_meta)
     return M.box(books, title, group, light_meta)
 end
 
+-- A member's spine width in px at full height, the way plan sizes a spine.
+local function spinePx(member, auto_thick)
+    local SpineLayout = require("lib/bookshelf_spine_layout")
+    local pages
+    local ok, SpineShelf = pcall(require, "lib/bookshelf_spine_shelf")
+    if ok and SpineShelf and member.filepath then
+        local pp, _ps, _known, psrc = SpineShelf.cachedProgress(member.filepath)
+        if pp and psrc ~= "render" then pages = pp end
+    end
+    pages = pages or member.page_count or member.pages
+    local Screen = require("device").screen
+    return Screen:scaleBySize(SpineLayout.spineWidthDp(pages) * auto_thick)
+end
+
+-- The most spines a box shows; the read count says how many more it holds.
+M.MAX_SPINES = 8
+
+-- geometry(book, base, opts) -> the box's shape, or nil for anything else.
+--
+-- A box stands at the front of the plank like a spine, as tall as the books
+-- around it: a lid (the depth band above the front), then a front holding up
+-- to MAX_SPINES of its books spine-out, then a strip with the series name.
+-- The spines are the members' own, scaled to the opening, so a box is as
+-- wide as what it holds and never wider than the row.
 function M.geometry(book, base, opts)
     if not M.isBox(book) then return nil end
-    local count = math.max(1, #book.books)
-    local ratio = math.min(.45, .20 + .05 * (count - 1))
-    local cover_w = base.w
-    local side = math.max(1, math.floor(cover_w * ratio + .5))
-    local max_w = math.max(2, (opts.content_w or (cover_w + side))
-        - 2 * (opts.end_margin or 0))
-    if cover_w + side > max_w then
-        cover_w = math.max(1, math.floor(max_w / (1 + ratio)))
-        side = math.max(1, math.min(max_w-cover_w, math.floor(cover_w*ratio+.5)))
+    opts = opts or {}
+    local Screen = require("device").screen
+    local SpineLayout = require("lib/bookshelf_spine_layout")
+    local SpineShelf = require("lib/bookshelf_spine_shelf")
+    local px_per_dp = Screen:scaleBySize(100) / 100
+    local auto_thick = SpineLayout.autoThickness(
+        opts.row_h and px_per_dp > 0 and (opts.row_h / px_per_dp) or nil)
+    local count = #book.books
+    local border = math.max(2, Screen:scaleBySize(2))
+    local face_h = base.face_h or base.h
+    local lid = math.max(1, base.h - face_h)
+    local max_w = math.max(2, (opts.content_w or base.w * 3) - 2 * (opts.end_margin or 0))
+    -- The name is set at the size of the shelf's spine titles.
+    local label_size = SpineShelf.titleSize(base.ref_w_dp)
+    local strip_h = SpineShelf.textHeight(label_size) + 2 * math.max(1, Screen:scaleBySize(2))
+    local inner_h = math.max(1, face_h - 2 * border - strip_h)
+    local pad = math.max(1, Screen:scaleBySize(3))
+    local scale = inner_h / base.h
+    local spines, used = {}, 2 * border
+    for i = 1, math.min(count, M.MAX_SPINES) do
+        local w = math.max(Screen:scaleBySize(6),
+                           math.floor(spinePx(book.books[i], auto_thick) * scale + .5))
+        if used + w > max_w then break end
+        spines[#spines + 1] = { member = i, w = w }
+        used = used + w
     end
-    local scale = cover_w / base.w
-    local face_h = math.max(1, math.floor((base.face_h or base.h) * scale))
-    return {w=cover_w+side, cover_w=cover_w, side=side, count=count,
-        face_h=face_h, depth=base.depth, h=face_h+base.depth}
+    return { w = used, h = base.h, face_h = face_h, lid = lid, depth = lid,
+             border = border, strip_h = strip_h, inner_h = inner_h,
+             label_size = label_size, pad = pad, spines = spines, count = count }
 end
 
--- A bounded set of illustrative bindings, not miniature cover bitmaps. Reduce
--- their number on tiny faces rather than drawing subpixel stripes.
-function M.spineSlots(shape, stroke)
-    local slots = {}
-    local gap = math.max(1, stroke)
-    local room = shape.side - 2 * stroke
-    local count = math.min(6, shape.count, math.floor((room + gap) / (3 + gap)))
-    if count < 1 then return slots end
-    local usable = room - (count - 1) * gap
-    for i = 1, count do
-        local start = math.floor((i - 1) * usable / count)
-        local finish = math.floor(i * usable / count)
-        slots[i] = { x = stroke + start + (i - 1) * gap, w = finish - start, member = i }
-    end
-    return slots
-end
-
--- Recess heights are measured from the row's baseline, not the book's foot.
--- Describe the painted silhouette as joined strips so native shadows follow
--- both sloping edges instead of leaving a rectangular stamp below the side.
-function M.shadowColumns(p, x, inset)
-    local cols = {}
-    inset = inset or 0
-    local function add(first, last, h, foot)
-        if last <= first then return end
-        local prev = cols[#cols]
-        if prev and prev.h == h and prev.foot == foot then
-            prev.w = prev.w + last-first
-        else
-            cols[#cols+1] = {x=x+first, w=last-first, h=h, foot=foot}
-        end
-    end
-    local dx = 0
-    while dx < p.cover_w do
-        local rise = math.min(p.depth, math.floor(dx*p.depth/p.side))
-        local next_dx = rise < p.depth
-            and math.min(p.cover_w, math.ceil((rise+1)*p.side/p.depth)) or p.cover_w
-        add(dx, next_dx, p.face_h+inset+rise, inset)
-        dx = next_dx
-    end
-    dx = 0
-    while dx < p.side do
-        local rise = math.floor((dx+1)*p.depth/p.side)
-        local next_dx = p.depth > 0
-            and math.min(p.side, math.ceil((rise+1)*p.side/p.depth)-1) or p.side
-        add(p.cover_w+dx, p.cover_w+next_dx, p.h+inset, inset+rise)
-        dx = next_dx
-    end
-    return cols
+-- shadowColumns(p, x, inset) -> the columns the row's recess shadow follows:
+-- one, the box's own footprint, measured from the row's baseline.
+function M.shadowColumns(p, x, _inset)
+    -- Stands at the front edge like a spine, so no face-out inset.
+    return { { x = x, w = p.w, h = p.h, foot = 0 } }
 end
 
 return M

@@ -3,9 +3,10 @@
 -- A series on a spine shelf as one box set, standing at the front of the
 -- plank like a spine. The shelf's one camera (straight on, a little above)
 -- holds: all its depth is in the lid, the band above the front, as a spine's
--- page block is. The front is a board frame holding up to MAX_SPINES of the
--- members spine-out, with the first cover printed across them, and a strip
--- below with the series name.
+-- page block is. The front is a board frame holding as many of the members
+-- spine-out as fit in a face-out cover's width, with the first cover printed
+-- across them, and a strip below with the series name. A box that holds more
+-- than it shows carries a read/total badge along its top.
 local InputContainer = require("ui/widget/container/inputcontainer")
 local Geom = require("ui/geometry")
 local GestureRange = require("ui/gesturerange")
@@ -83,9 +84,9 @@ function Box:init()
             suppress_number_badges = true,
         }
     end
-    -- The read count, only when the box holds more than it shows: the spines
-    -- carry each book's own status mark already.
-    local count_w = 0
+    -- The read count, only when the box holds more than it shows (the spines
+    -- carry each book's own status mark already): a badge in the shelf's
+    -- section-label style, centred along the top of the box.
     local font = BFont.getUIFontFace() or "cfont"
     if #entry.book.books > #shape.spines then
         local Repo = require("lib/bookshelf_book_repository")
@@ -94,13 +95,17 @@ function Box:init()
             local _, status = Repo.readProgress(member.filepath)
             if status == "finished" then done = done + 1 end
         end
+        local scale = 100
+        pcall(function()
+            scale = require("lib/bookshelf_settings_store").read("stack_label_font_scale", 100) or 100
+        end)
         self.count = TextWidget:new{ text = string.format("%d/%d", done, #entry.book.books),
-            face = BFont:getFace(font, shape.label_size), padding = 0 }
-        count_w = self.count:getSize().w + 2 * shape.pad
+            face = BFont:getFace(font, math.max(8, math.floor(14 * scale / 100 + 0.5))),
+            padding = 0 }
     end
     -- The name at the spine-title size, smaller on a narrow box rather than
     -- cut short (a two-book box is narrower than most series names).
-    local room = math.max(1, shape.w - 2 * shape.border - 2 * shape.pad - count_w)
+    local room = math.max(1, shape.w - 2 * shape.border - 2 * shape.pad)
     local name = entry.book.series_name or ""
     local size = shape.label_size
     local floor = math.min(size, NAME_MIN_SIZE)
@@ -193,23 +198,30 @@ function Box:paintTo(bb, x, y)
         bb:paintRectRGB32(sx + slot.width - seam, iy, seam, p.inner_h, ink_dark)
         sx = sx + slot.width
     end
-    -- Name strip across the foot of the front: the name centred on the box,
-    -- the read count tucked in at the right end.
+    -- Name strip across the foot of the front, the name centred on it.
     local stripy = iy + p.inner_h
     bb:paintRectRGB32(x + B, stripy, p.w - 2*B, p.strip_h, lit(.7))
-    local ink = night and BB.ColorRGB32(30,28,24,255) or BB.ColorRGB32(246,239,219,255)
     local sz = self.name:getSize()
-    self.name.fgcolor = ink
-    local nx = x + math.floor((p.w - sz.w)/2)
-    local cxr = x + p.w - B
+    self.name.fgcolor = night and BB.ColorRGB32(30,28,24,255) or BB.ColorRGB32(246,239,219,255)
+    self.name:paintTo(bb, x + math.max(B + p.pad, math.floor((p.w - sz.w)/2)),
+        stripy + math.floor((p.strip_h - sz.h)/2))
+    -- The count badge, the section labels' colours, padding and corners,
+    -- centred along the top of the box.
     if self.count then
-        local cs = self.count:getSize()
-        self.count.fgcolor = ink
-        cxr = cxr - 2*p.pad - cs.w
-        self.count:paintTo(bb, cxr, stripy + math.floor((p.strip_h - cs.h)/2))
+        local ok_sd, StackDisplay = pcall(require, "lib/bookshelf_stack_display")
+        if ok_sd and StackDisplay and StackDisplay.ribbonColors then
+            local fill, fg = StackDisplay.ribbonColors()
+            local Space = require("lib/bookshelf_space")
+            local pad_x, pad_y = Space.px(5), Space.px(2)
+            local cs = self.count:getSize()
+            local bw = math.min(p.w, cs.w + 2 * pad_x)
+            local bh = cs.h + 2 * pad_y
+            local bx = x + math.floor((p.w - bw) / 2)
+            bb:paintRoundedRect(bx, top, bw, bh, fill, Screen:scaleBySize(2))
+            self.count.fgcolor = fg
+            self.count:paintTo(bb, bx + math.floor((bw - cs.w) / 2), top + pad_y)
+        end
     end
-    if nx + sz.w > cxr - p.pad then nx = cxr - p.pad - sz.w end
-    self.name:paintTo(bb, math.max(x + B + p.pad, nx), stripy + math.floor((p.strip_h - sz.h)/2))
 end
 
 return Box

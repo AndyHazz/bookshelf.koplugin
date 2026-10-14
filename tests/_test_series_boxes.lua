@@ -176,16 +176,21 @@ local function surface(x0,y0,w,h)
 end
 local BASE={w=160,face_h=240,depth=8,h=248,ref_w_dp=22}
 
-H.test("a box holds up to eight spines, as wide as they are, and keeps the true count", function()
+H.test("a box is no wider than a face-out cover, and keeps the true count", function()
     for _,n in ipairs({2,3,8,9,40}) do
         local box=Boxes.box(members(n,"Saga"),"Saga")
         local g=Boxes.geometry(box,BASE,{content_w=2000})
-        H.eq(#g.spines,math.min(n,Boxes.MAX_SPINES)); H.eq(g.count,n)
+        assert(g.w<=BASE.w, "box wider than a face-out cover")
+        assert(#g.spines>=1 and #g.spines<=n); H.eq(g.count,n)
         local sum=2*g.border
         for i,sp in ipairs(g.spines) do H.eq(sp.member,i); sum=sum+sp.w end
         H.eq(g.w,sum); H.eq(g.h,BASE.h); H.eq(g.face_h,BASE.face_h)
         H.eq(g.inner_h+g.strip_h+2*g.border,g.face_h)
     end
+    -- A long series fills the cover's width and stops there.
+    local long=Boxes.geometry(Boxes.box(members(40,"Saga"),"Saga"),BASE,{content_w=2000})
+    assert(#long.spines<40, "forty spines fitted a cover's width")
+    assert(long.w+long.spines[1].w>BASE.w, "the box stopped short of the cover's width")
     H.eq(Boxes.geometry(book(1),BASE,{content_w=2000}),nil)
 end)
 

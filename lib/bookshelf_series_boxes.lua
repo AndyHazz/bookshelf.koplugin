@@ -151,16 +151,14 @@ local function spinePx(member, auto_thick)
     return Screen:scaleBySize(SpineLayout.spineWidthDp(pages) * auto_thick)
 end
 
--- The most spines a box shows; the read count says how many more it holds.
-M.MAX_SPINES = 8
-
 -- geometry(book, base, opts) -> the box's shape, or nil for anything else.
 --
 -- A box stands at the front of the plank like a spine, as tall as the books
--- around it: a lid (the depth band above the front), then a front holding up
--- to MAX_SPINES of its books spine-out, then a strip with the series name.
--- The spines are the members' own, scaled to the opening, so a box is as
--- wide as what it holds and never wider than the row.
+-- around it: a lid (the depth band above the front), then a front holding its
+-- books spine-out, then a strip with the series name. The spines are the
+-- members' own widths, scaled to the opening, and the box is never wider than
+-- a face-out cover (base.w) or the row: a series with more than fit shows the
+-- first ones, and the box's count badge says how many it holds.
 function M.geometry(book, base, opts)
     if not M.isBox(book) then return nil end
     opts = opts or {}
@@ -174,7 +172,8 @@ function M.geometry(book, base, opts)
     local border = math.max(2, Screen:scaleBySize(2))
     local face_h = base.face_h or base.h
     local lid = math.max(1, base.h - face_h)
-    local max_w = math.max(2, (opts.content_w or base.w * 3) - 2 * (opts.end_margin or 0))
+    local row_w = math.max(2, (opts.content_w or base.w) - 2 * (opts.end_margin or 0))
+    local max_w = math.min(row_w, math.max(2, base.w))
     -- The name is set at the size of the shelf's spine titles.
     local label_size = SpineShelf.titleSize(base.ref_w_dp)
     local strip_h = SpineShelf.textHeight(label_size) + 2 * math.max(1, Screen:scaleBySize(2))
@@ -182,7 +181,7 @@ function M.geometry(book, base, opts)
     local pad = math.max(1, Screen:scaleBySize(3))
     local scale = inner_h / base.h
     local spines, used = {}, 2 * border
-    for i = 1, math.min(count, M.MAX_SPINES) do
+    for i = 1, count do
         local w = math.max(Screen:scaleBySize(6),
                            math.floor(spinePx(book.books[i], auto_thick) * scale + .5))
         if used + w > max_w then break end

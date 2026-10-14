@@ -2209,6 +2209,8 @@ end
 -- actually performs the exit) still have to see the event.
 function Bookshelf:onExit()
     require("lib/bookshelf_reader_park").noteExit()
+    -- A scan stopped by a clean exit did not crash on its book (issue 518).
+    pcall(function() require("lib/bookshelf_render_guard").clear() end)
 end
 Bookshelf.onRestart = Bookshelf.onExit
 
@@ -2793,6 +2795,15 @@ function Bookshelf:scanPageCounts(opts)
         local processed = 0
         local failed = {}
         local _gettime = require("lib/bookshelf_gettime")
+        -- A book that took KOReader down with it last time is not rendered
+        -- again while the file is unchanged (issue 518): it is reported as
+        -- not counted instead, after the other sources have had their try.
+        local Guard = require("lib/bookshelf_render_guard")
+        local crashed = Guard.takeCrashed(BookshelfSettings)
+        if crashed then
+            logger.warn("bookshelf: page count render skips a book that stopped KOReader last time:", crashed)
+        end
+        local skip_list = BookshelfSettings.read(Guard.SETTING)
         -- Every subprocess below is a fork of this one, so it needs room.
         -- The passes above hand their C allocations back only on a full
         -- collect; without this the first fork on a large library can fail
@@ -2812,72 +2823,81 @@ function Bookshelf:scanPageCounts(opts)
                 report.cancelled = true
                 break
             end
-            Progress.update{
-                title  = scanTitle(i, #todo),
-                fraction = renderFraction((i - 1) / #todo),
-                force  = true,
-            }
-            -- Up to one retry per book: Trapper answers a fork that never
-            -- started exactly as it answers a dismissal, and a fork can fail
-            -- once on a device short of memory and then start.
-            local completed, pages_s
-            local elapsed = 0
-            -- At info level, before the fork: a scan that stalls on one book
-            -- leaves that book as the last line of crash.log (issue 459's
-            -- log named nothing).
-            logger.info(string.format("bookshelf: page count render %d/%d: %s", i, #todo, fp))
-            for attempt = 1, 2 do
-                local t0 = _gettime()
-                job.in_run = true
-                completed, pages_s = Trapper:dismissableRunInSubprocess(
-                function()
-                    local ok_pc, pc = pcall(function()
-                        local DocumentRegistry = require("document/documentregistry")
-                        local doc = DocumentRegistry:openDocument(fp)
-                        if not doc then return nil end
-                        -- The reader's own layout, not crengine's defaults:
-                        -- the count is shown as the book's page count. Its
-                        -- settings go in before the load, as the reader's do.
-                        local ok_l, Layout = pcall(require, "lib/bookshelf_reader_layout")
-                        if ok_l then pcall(Layout.beforeLoad, doc) end
-                        if doc.loadDocument then doc:loadDocument() end
-                        if ok_l then pcall(Layout.afterLoad, doc) end
-                        if doc.render then doc:render() end
-                        local n = doc:getPageCount()
-                        pcall(function() doc:close() end)
-                        return n
-                    end)
-                    return tostring(ok_pc and pc or "")
-                end,
-                job, true)
-                job.in_run = false
-                elapsed = _gettime() - t0
-                if completed or job.stopped or elapsed > 1.0 then break end
-            end
-            if not completed then
-                report.cancelled = true
-                -- Only Stop dismisses the job, so an incomplete run without
-                -- it is the fork failing (issue 388), not the reader.
-                if not job.stopped then report.could_not_start = true end
-                break
-            end
-            processed = i
-            logger.info(string.format("bookshelf: page count render %d/%d took %.1fs", i, #todo, elapsed))
-            local pages = tonumber(pages_s)
-            if pages and pages > 0 then
-                -- A render count is layout-derived, not publisher truth:
-                -- it stays out of sidecars (persist() only writes those
-                -- for publisher counts).
-                persist(fp, pages, "user")
-                report.rendered[#report.rendered + 1] =
-                    { name = nameFor(fp), pages = pages }
-            else
+            if Guard.skipped(BookshelfSettings, fp, skip_list) then
                 failed[#failed + 1] = fp
+                processed = i
+            else
+                Progress.update{
+                    title  = scanTitle(i, #todo),
+                    fraction = renderFraction((i - 1) / #todo),
+                    force  = true,
+                }
+                -- Up to one retry per book: Trapper answers a fork that never
+                -- started exactly as it answers a dismissal, and a fork can fail
+                -- once on a device short of memory and then start.
+                local completed, pages_s
+                local elapsed = 0
+                -- At info level, before the fork: a scan that stalls on one book
+                -- leaves that book as the last line of crash.log (issue 459's
+                -- log named nothing).
+                logger.info(string.format("bookshelf: page count render %d/%d: %s", i, #todo, fp))
+                Guard.mark(fp)
+                for attempt = 1, 2 do
+                    local t0 = _gettime()
+                    job.in_run = true
+                    completed, pages_s = Trapper:dismissableRunInSubprocess(
+                    function()
+                        -- This child, not KOReader, is what runs out of memory.
+                        pcall(function() require("lib/bookshelf_render_guard").childLimits() end)
+                        local ok_pc, pc = pcall(function()
+                            local DocumentRegistry = require("document/documentregistry")
+                            local doc = DocumentRegistry:openDocument(fp)
+                            if not doc then return nil end
+                            -- The reader's own layout, not crengine's defaults:
+                            -- the count is shown as the book's page count. Its
+                            -- settings go in before the load, as the reader's do.
+                            local ok_l, Layout = pcall(require, "lib/bookshelf_reader_layout")
+                            if ok_l then pcall(Layout.beforeLoad, doc) end
+                            if doc.loadDocument then doc:loadDocument() end
+                            if ok_l then pcall(Layout.afterLoad, doc) end
+                            if doc.render then doc:render() end
+                            local n = doc:getPageCount()
+                            pcall(function() doc:close() end)
+                            return n
+                        end)
+                        return tostring(ok_pc and pc or "")
+                    end,
+                    job, true)
+                    job.in_run = false
+                    elapsed = _gettime() - t0
+                    if completed or job.stopped or elapsed > 1.0 then break end
+                end
+                if not completed then
+                    report.cancelled = true
+                    -- Only Stop dismisses the job, so an incomplete run without
+                    -- it is the fork failing (issue 388), not the reader.
+                    if not job.stopped then report.could_not_start = true end
+                    break
+                end
+                processed = i
+                logger.info(string.format("bookshelf: page count render %d/%d took %.1fs", i, #todo, elapsed))
+                local pages = tonumber(pages_s)
+                if pages and pages > 0 then
+                    -- A render count is layout-derived, not publisher truth:
+                    -- it stays out of sidecars (persist() only writes those
+                    -- for publisher counts).
+                    persist(fp, pages, "user")
+                    report.rendered[#report.rendered + 1] =
+                        { name = nameFor(fp), pages = pages }
+                else
+                    failed[#failed + 1] = fp
+                end
+                -- Flush every few books: a mid-scan crash or battery death
+                -- should not cost the finished work.
+                if #report.rendered % 10 == 0 then SpineShelf.flushPersist() end
             end
-            -- Flush every few books: a mid-scan crash or battery death
-            -- should not cost the finished work.
-            if #report.rendered % 10 == 0 then SpineShelf.flushPersist() end
         end
+        Guard.clear()
         report.remaining = #todo - processed
         -- A book the render could not lay out may still have a file name
         -- to go by; only what that leaves is reported as failed.
@@ -2888,6 +2908,7 @@ function Bookshelf:scanPageCounts(opts)
         finish()
     end, debug.traceback)
     if not ok_run then
+        pcall(function() require("lib/bookshelf_render_guard").clear() end)
         require("logger").warn("bookshelf: page count scan failed:", err_run)
         Progress.finish()
     end

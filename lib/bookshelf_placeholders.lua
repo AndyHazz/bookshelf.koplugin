@@ -13,6 +13,10 @@
 --   opts  optional: { frame = false } draws the widget on its own, with no
 --         card border, background or shadow behind it, and none of
 --         bookshelf's status glyphs, badges or progress over it
+-- The widget is centred in the space. Return it at its own size rather than
+-- filling w x h: with { frame = false }, the top panel then shrinks the cover
+-- column to the widget, top-anchored, and gives the width it leaves to the
+-- text beside it.
 -- nil (or an error, which is logged) leaves the book to the next provider,
 -- then to bookshelf's own card. Providers are asked in order of their ids.
 --

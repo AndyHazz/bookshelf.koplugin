@@ -2672,6 +2672,11 @@ function SpineWidget:_renderFallback()
             self._cover_card = bare
             self._custom_placeholder = true
             self._unframed_placeholder = true
+            -- What it was offered and what it took, so the top panel can
+            -- give the text the width the widget left (HeroCard:_renderFull).
+            self._placeholder_offer = { w = iw, h = ih }
+            local ok_s, size = pcall(custom.getSize, custom)
+            if ok_s and size then self._placeholder_size = { w = size.w, h = size.h } end
             return (self:_renderShadowedCard(bare))
         elseif custom then
             local framed = ColorSafeFrame:new{

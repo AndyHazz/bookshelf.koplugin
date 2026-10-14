@@ -121,25 +121,32 @@ return {
         local SpineWidget = require("lib/bookshelf_spine_widget")
         -- Covers share the width, in the shelf's 2:3, and stop short of the
         -- height the host offers (a hero cell, or the start menu's ceiling).
+        -- The status marks hang past the cover (the favourite above, the
+        -- bookmarks and tick below), and the card clips to what render
+        -- returns, so each cover keeps that much room above and below.
+        local FrameContainer = require("ui/widget/container/framecontainer")
         local gap = sc(10)
         local slots = math.max(n, #books)
         local w = math.floor((ctx.width - gap * (slots - 1)) / slots)
+        local m = SpineWidget.badgeOverhang(w)
         local h = math.floor(w * 3 / 2)
         local cap = ctx.height or ctx.max_height
-        if cap and cap > 0 and h > cap then
-            h = cap
+        if cap and cap > 0 and h + 2 * m > cap then
+            h = cap - 2 * m
             w = math.floor(h * 2 / 3)
+            m = SpineWidget.badgeOverhang(w)
         end
         w, h = math.max(1, w), math.max(1, h)
         local group, regions = HorizontalGroup:new{ align = "top" }, {}
         for i, book in ipairs(books) do
             if i > 1 then group[#group + 1] = HorizontalSpan:new{ width = gap } end
-            group[#group + 1] = SpineWidget:new{
-                book = book, width = w, height = h,
-                show_status = true,
+            group[#group + 1] = FrameContainer:new{
+                bordersize = 0, margin = 0, padding = 0,
+                padding_top = m, padding_bottom = m,
+                SpineWidget:new{ book = book, width = w, height = h, show_status = true },
             }
             regions[#regions + 1] = { id = book.filepath,
-                x = (i - 1) * (w + gap), y = 0, w = w, h = h }
+                x = (i - 1) * (w + gap), y = m, w = w, h = h }
         end
         if ctx.set_tap_regions then ctx.set_tap_regions(regions) end
         return group

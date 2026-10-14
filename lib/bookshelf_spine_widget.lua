@@ -3224,4 +3224,12 @@ function SpineWidget.repaintOverhangGlyphs(spine, bb)
     end
 end
 
+-- badgeOverhang(card_w) -> how far the status glyphs (favourite above, the
+-- bookmarks and tick below) can reach past a card of that width, at the
+-- reader's Cover badge size. For a caller drawing a cover with no room around
+-- it, such as a micro-module card that clips to what it returns.
+function SpineWidget.badgeOverhang(card_w)
+    return math.ceil(CoverProgress.badgeSize(_glyphSize(card_w)) * 0.6)
+end
+
 return SpineWidget

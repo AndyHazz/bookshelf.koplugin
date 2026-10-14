@@ -517,6 +517,12 @@ function BulkActions.show(opts)
                                     require("lib/bookshelf_scaled_cover_cache"):drop(fp)
                                 end)
                                 refresh_paths[#refresh_paths + 1] = fp
+                                -- A refresh is the user asking, so the
+                                -- cover may be fetched even for a
+                                -- plugin-provided format.
+                                if bw._allowCoverFetch then
+                                    bw:_allowCoverFetch(fp)
+                                end
                             end
                         end, fp) and ok
                     end

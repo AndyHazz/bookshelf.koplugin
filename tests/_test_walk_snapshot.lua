@@ -265,4 +265,96 @@ t.test("invalidateWalkCache drops the snapshot as well as the memory", function(
     assert(disk.data == nil, "the snapshot is still on disk")
 end)
 
+-- ── plugin formats: the walk is only valid for the format set it saw ─────────
+-- Enabling or disabling a plugin changes which files are books without
+-- touching a directory, so mtimes alone cannot invalidate the walk. These
+-- drive the real lib/bookshelf_plugin_formats against a fake DocumentRegistry.
+
+local PF = require("lib/bookshelf_plugin_formats")
+
+local function setPluginFormats(on)
+    if on then
+        package.loaded["document/documentregistry"] = {
+            image_ext = {},
+            providers = {
+                { extension = "epub",   provider = { provider = "crengine" } },
+                { extension = "meguru", provider = { provider = "meguru" } },
+            },
+        }
+    else
+        package.loaded["document/documentregistry"] = nil
+    end
+    PF._reset()
+end
+
+local function setupWithStub()
+    setup()
+    tree["/home"] = { ".", "..", "a.epub", "sub", "c.meguru" }
+    mtimes["/home/c.meguru"] = 300
+    _G._test_bim_data["/home/c.meguru"] = { title = "C" }
+end
+
+t.test("enabling a plugin format makes the restart walk again and list its files", function()
+    setupWithStub()
+    setPluginFormats(false)
+    local n = #freshRepo().getLatest(10)
+    assert(n == 2, "without the plugin, .meguru is not a book: got " .. n)
+    setPluginFormats(true)
+    dir_reads = 0
+    local out = freshRepo().getLatest(10)
+    assert(dir_reads > 0, "a snapshot from before the plugin was enabled was accepted")
+    assert(#out == 3, "the plugin's book is still hidden: got " .. #out)
+    assert(disk.data.formats == "meguru", "the snapshot does not record its format set")
+    setPluginFormats(false)
+end)
+
+t.test("disabling it drops its files on the next launch, though no directory changed", function()
+    setupWithStub()
+    setPluginFormats(true)
+    assert(#freshRepo().getLatest(10) == 3, "fixture: the plugin's book should be listed")
+    setPluginFormats(false)
+    dir_reads = 0
+    local out = freshRepo().getLatest(10)
+    assert(dir_reads > 0, "a snapshot with a disabled plugin's books was accepted")
+    assert(#out == 2, "a disabled plugin's book stayed on the shelf: got " .. #out)
+end)
+
+t.test("an unchanged format set still reuses the snapshot", function()
+    setupWithStub()
+    setPluginFormats(true)
+    freshRepo().getLatest(10)
+    dir_reads = 0
+    local out = freshRepo().getLatest(10)
+    assert(dir_reads == 0, "walked again with nothing changed: " .. dir_reads .. " dirs")
+    assert(#out == 3)
+    setPluginFormats(false)
+end)
+
+t.test("a snapshot from before format sets were recorded is accepted when there are none", function()
+    setup()
+    setPluginFormats(false)
+    freshRepo().getLatest(10)
+    disk.data.formats = nil   -- written by the previous Bookshelf version
+    dir_reads = 0
+    freshRepo().getLatest(10)
+    assert(dir_reads == 0, "an upgrade without plugin formats paid for a walk")
+end)
+
+t.test("a format registered after this session's first walk is picked up, groups included", function()
+    setupWithStub()
+    setPluginFormats(false)
+    local Repo = freshRepo()
+    assert(#Repo.getLatest(10) == 2)
+    local groups_before = Repo.getFormats(20, 0)
+    -- The plugin registers its provider later in the same session.
+    setPluginFormats(true)
+    local out = Repo.getLatest(10)
+    assert(#out == 3, "the late-registered format's book is missing: got " .. #out)
+    local groups_after = Repo.getFormats(20, 0)
+    assert(#groups_after == #groups_before + 1,
+        "the Formats grouping kept describing the old book set: "
+        .. #groups_before .. " -> " .. #groups_after)
+    setPluginFormats(false)
+end)
+
 t.done()

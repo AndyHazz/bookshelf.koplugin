@@ -93,6 +93,31 @@ local SKIP_ACQ_REL = {
     ["http://opds-spec.org/acquisition/sample"]  = true,
     ["http://opds-spec.org/acquisition/preview"] = true,
 }
+-- OPDS Page Streaming Extension (https://vaemendis.net/opds-pse/): a comic
+-- or manga served one page image at a time, as Komga, Kavita and Suwayomi do.
+-- Its link carries the page count as a namespaced attribute; the prefix is
+-- whatever the feed declared, so it is matched by suffix, as the stock
+-- browser does. A chapter can be stream-only (Suwayomi), so a stream link
+-- alone makes an entry a book.
+local STREAM_REL = "http://vaemendis.net/opds-pse/stream"
+M.STREAM_REL = STREAM_REL
+
+-- streamOf(link, href) -> { href, count, last_read } or nil without a count.
+local function streamOf(link, href)
+    local count, last_read
+    for k, v in pairs(link) do
+        if type(k) == "string" then
+            if k:sub(-6) == ":count" then count = tonumber(v)
+            elseif k:sub(-9) == ":lastRead" then last_read = tonumber(v) end
+        end
+    end
+    if not count or count < 1 then return nil end
+    return { href = href, count = math.floor(count),
+             -- Page 1 is where a stream starts anyway: no Resume for it.
+             last_read = last_read and last_read > 1 and math.floor(last_read) or nil }
+end
+M._streamOf = streamOf
+
 local CATALOG_TYPE    = "application/atom%+xml"
 local OSD_TYPE        = "application/opensearchdescription%+xml"
 -- OPDS 2.0's canonical MIME type: fetch()'s Accept-header preference, the
@@ -623,10 +648,13 @@ function M.mapEntries(catalog, feed_url, server_key)
     for idx, entry in ipairs(entry_list) do
         local title = entryTitle(entry)
         local acquisitions, thumb, image, nav_url, tiny_icon = {}, nil, nil, nil, nil
+        local stream
         for _j, link in ipairs(entry.link or {}) do
             local rel, ltype, href = relOf(link.rel), link.type, link.href
             if href then
-                if rel and not SKIP_ACQ_REL[rel] and rel:match(ACQUISITION_REL)
+                if rel == STREAM_REL then
+                    stream = stream or streamOf(link, M.absolute(feed_url, href))
+                elseif rel and not SKIP_ACQ_REL[rel] and rel:match(ACQUISITION_REL)
                         and SUPPORTED_TYPE[ltype] then
                     acquisitions[#acquisitions + 1] = {
                         type = ltype, href = M.absolute(feed_url, href),
@@ -645,7 +673,7 @@ function M.mapEntries(catalog, feed_url, server_key)
             end
         end
 
-        if #acquisitions > 0 then
+        if #acquisitions > 0 or stream then
             local author = entryAuthor(entry)
             local merge_key = (title and author) and (title .. "\0" .. author) or nil
             local existing = merge_key and book_by_key[merge_key]
@@ -654,6 +682,7 @@ function M.mapEntries(catalog, feed_url, server_key)
             if existing then
                 local acq = existing.opds.acquisitions
                 for _k, a in ipairs(acquisitions) do acq[#acq + 1] = a end
+                existing.opds.stream = existing.opds.stream or stream
                 -- Fullest edition wins the summary; strict > keeps the earlier
                 -- entry on a tie. Compared against the count of the entry that
                 -- SUPPLIED the current summary, not the running total.
@@ -692,6 +721,7 @@ function M.mapEntries(catalog, feed_url, server_key)
                     attr          = { mode = "file", size = 0, modification = 0 },
                     opds = {
                         acquisitions  = acquisitions,
+                        stream        = stream,
                         thumbnail_url = thumb,
                         image_url     = image,
                         summary       = summary,

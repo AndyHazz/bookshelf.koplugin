@@ -773,5 +773,56 @@ test("series_or_title: series and standalones share one alphabet (issue 437)", f
     assert(SortEngine.sortKeyValue({ title = "X", series_name = "Court" }, "series_or_title") == "court")
 end)
 
+-- favorites_first reads KOReader's default collection through
+-- package.loaded["readcollection"]; stub it for these tests only.
+local function withFavourites(paths, fn)
+    local fav = {}
+    for _i, p in ipairs(paths) do fav[p] = { file = p } end
+    local saved = package.loaded["readcollection"]
+    package.loaded["readcollection"] = { coll = { favorites = fav } }
+    local ok, err = pcall(fn)
+    package.loaded["readcollection"] = saved
+    if not ok then error(err, 0) end
+end
+
+test("registry: favorites_first is a key and offered in ORDER", function()
+    assert(SortEngine.KEYS.favorites_first, "missing key")
+    local found = false
+    for _i, k in ipairs(SortEngine.ORDER) do
+        if k == "favorites_first" then found = true end
+    end
+    assert(found, "favorites_first not in ORDER")
+end)
+
+test("sort: favorites_first puts favourites first, the next level orders each group", function()
+    withFavourites({ "/b/fav_unread.epub", "/b/fav_reading.epub" }, function()
+        local books = {
+            { id = 1, filepath = "/b/plain_unread.epub",  read_status = "unread",  last_opened = 50 },
+            { id = 2, filepath = "/b/fav_unread.epub",    read_status = "unread",  last_opened = 10 },
+            { id = 3, filepath = "/b/plain_reading.epub", read_status = "reading", last_opened = 40 },
+            { id = 4, filepath = "/b/fav_reading.epub",   read_status = "reading", last_opened = 30 },
+        }
+        SortEngine.sort(books, {
+            { key = "favorites_first",    reverse = false },
+            { key = "read_status_active", reverse = false },
+        })
+        -- favourites (reading 4, then unread 2), then the rest (reading 3, then unread 1)
+        assert(eq(ids(books), { 4, 2, 3, 1 }), table.concat(ids(books), ","))
+    end)
+end)
+
+test("sort: favorites_first without ReadCollection ties, so the next level decides", function()
+    local saved = package.loaded["readcollection"]
+    package.loaded["readcollection"] = nil
+    local books = {
+        { id = 1, filepath = "/b/a.epub", title = "B" },
+        { id = 2, filepath = "/b/b.epub", title = "A" },
+        { id = 3,                         title = "C" },
+    }
+    SortEngine.sort(books, { { key = "favorites_first", reverse = false } })
+    package.loaded["readcollection"] = saved
+    assert(eq(ids(books), { 2, 1, 3 }), table.concat(ids(books), ","))
+end)
+
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

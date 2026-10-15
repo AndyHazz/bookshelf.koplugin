@@ -222,9 +222,9 @@ function Box:paintTo(bb, x, y)
     self.name.fgcolor = night and BB.ColorRGB32(30,28,24,255) or BB.ColorRGB32(246,239,219,255)
     self.name:paintTo(bb, x + math.max(B + p.pad, math.floor((p.w - sz.w)/2)),
         stripy + math.floor((p.strip_h - sz.h)/2))
-    -- The count, printed on the top of the box: no badge behind it, the
-    -- glyphs painted through their own mask in a light tint of the cover,
-    -- squashed as the lid foreshortens it.
+    -- The count, printed on the top of the box at its bottom-right corner: no
+    -- badge behind it, the glyphs painted through their own mask a shade
+    -- lighter than the lid, squashed as the lid foreshortens it.
     if self.count then
         pcall(function()
             local cs = self.count:getSize()
@@ -246,9 +246,10 @@ function Box:paintTo(bb, x, y)
             end
             local r, g, b = t(l.r), t(l.g), t(l.b)
             if night then r, g, b = 255 - r, 255 - g, 255 - b end
-            local cx = x + math.floor((p.w - cs.w) / 2)
-            bb:colorblitFrom(sq, cx, top + math.max(1, math.floor(p.lid / 3)), 0, 0,
-                             cs.w, sq_h, BB.ColorRGB32(r, g, b, 255))
+            -- In the lid's bottom-right corner, clear of the front's edge.
+            local cx = x + math.max(0, p.w - cs.w - B - p.pad)
+            local cy = math.max(top + 1, front_y - sq_h - math.max(1, Screen:scaleBySize(2)))
+            bb:colorblitFrom(sq, cx, cy, 0, 0, cs.w, sq_h, BB.ColorRGB32(r, g, b, 255))
             sq:free()
         end)
     end

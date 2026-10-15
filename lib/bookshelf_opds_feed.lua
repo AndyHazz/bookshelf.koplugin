@@ -1194,7 +1194,7 @@ function M.fetch(url, username, password, opts, redirect_depth)
         local c, h, st = socket.skip(1, http.request{
             url = url,
             headers = headers,
-            sink = ltn12.sink.table(sink),
+            sink = Http.cappedSink(sink),
             redirect = false,
             user = username,
             password = password,

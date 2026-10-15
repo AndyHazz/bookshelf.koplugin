@@ -221,4 +221,34 @@ t.test("REAL shell does not expand $(...) in the composed URL argument", functio
         .. " but got " .. tostring(got))
 end)
 
+-- A body held in memory stops at MAX_BODY: a server that keeps sending must
+-- not fill the reader's memory (security review, 5.5).
+t.test("cappedSink keeps what fits and aborts past the cap", function()
+    local got = {}
+    local sink = HTTP.cappedSink(got, 10)
+    assert(sink("12345") == 1)
+    assert(sink("67890") == 1, "exactly the cap still fits")
+    local r, err = sink("x")
+    assert(r == nil and err == "response too large", tostring(err))
+    assert(table.concat(got) == "1234567890", "nothing past the cap kept")
+    assert(sink(nil) == 1, "end of body is fine")
+end)
+
+t.test("getJSON's LuaSocket leg uses the capped sink", function()
+    local saved = HTTP.MAX_BODY
+    HTTP.MAX_BODY = 4
+    http_state.body = '{"ok":true}'
+    local real = package.loaded["socket.http"]
+    local aborted
+    package.loaded["socket.http"] = { request = function(req)
+        local r, err = req.sink(http_state.body)
+        aborted = (r == nil) and err
+        return 1, http_state.code, {}, "HTTP/1.1"
+    end }
+    HTTP.getJSON("https://api.example/big")
+    package.loaded["socket.http"] = real
+    HTTP.MAX_BODY = saved
+    assert(aborted == "response too large", tostring(aborted))
+end)
+
 t.done()

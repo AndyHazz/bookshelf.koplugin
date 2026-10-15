@@ -78,6 +78,27 @@ end
 -- Hops a manually followed redirect chain may take before giving up.
 M.MAX_REDIRECTS = 5
 
+-- A response body held in memory (a feed, JSON, a cover) stops here: a server
+-- that keeps sending, broken or hostile, would otherwise fill the reader's
+-- memory. Far above any real one (a few hundred kB; a big unpaged calibre feed
+-- a few MB).
+M.MAX_BODY = 16 * 1024 * 1024
+
+-- cappedSink(t, max) -> an ltn12 sink like ltn12.sink.table(t) that aborts
+-- the transfer, "response too large", once more than max bytes have come.
+function M.cappedSink(t, max)
+    max = max or M.MAX_BODY
+    local n = 0
+    return function(chunk, err)
+        if chunk then
+            n = n + #chunk
+            if n > max then return nil, "response too large" end
+            t[#t + 1] = chunk
+        end
+        return 1
+    end
+end
+
 function M.isRedirect(code)
     return code == 301 or code == 302 or code == 303
         or code == 307 or code == 308
@@ -145,7 +166,7 @@ function M.getJSON(url, opts)
                 url = url,
                 method = "GET",
                 headers = headers,
-                sink = ltn12.sink.table(body),
+                sink = M.cappedSink(body),
                 redirect = true,
             }))
             socketutil:reset_timeout()

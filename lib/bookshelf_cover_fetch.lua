@@ -101,7 +101,7 @@ local function _requestString(url, accept)
                 ["User-Agent"] = "KOReader-Bookshelf",
                 ["Accept"] = accept or "*/*",
             },
-            sink = ltn12.sink.table(chunks),
+            sink = require("lib/bookshelf_http").cappedSink(chunks),
             redirect = true,
         }))
         socketutil:reset_timeout()

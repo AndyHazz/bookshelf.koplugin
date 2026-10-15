@@ -254,10 +254,10 @@ function Box:_initSlipcase()
         suppress_number_badges = true,
     }
     local font = BFont.getUIFontFace() or "cfont"
-    -- In the name's face: both are printed on the box.
+    -- The bundled bold, at the name's size: both are printed on the box.
     self.count = TextWidget:new{ text = string.format(COUNT_FORMAT,
         finishedCount(entry.book.books), #entry.book.books),
-        face = BFont:getFace(font, shape.label_size), padding = 0 }
+        face = countFace(shape.label_size, font), padding = 0 }
     local room = math.max(1, self.art_w - 2 * shape.pad)
     if shape.name_lines then
         -- Two lines, broken where the geometry chose (the box was sized to

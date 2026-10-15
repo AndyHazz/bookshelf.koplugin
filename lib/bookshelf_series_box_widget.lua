@@ -174,7 +174,7 @@ end
 -- from the front's edges and rounded, and the series name printed below.
 local STICKER_INSET_DP = 4
 local STICKER_RADIUS_DP = 5
-local STICKER_EDGE_PX = 1      -- the sticker's white edge, a hairline
+local STICKER_EDGE_PX = 1      -- the sticker's light edge, a hairline
 
 -- cornerCut(r, dy) -> how many pixels row dy (0 at the corner's edge) of an
 -- r-pixel rounded corner lies outside the quarter circle.
@@ -310,6 +310,12 @@ function Box:_paintSlipcase(bb, x, y)
         bb:paintRectRGB32(wx, wall_y + ch, p.wall, front_y - wall_y - ch, lit(1.25))
         bb:paintRectRGB32(cut_x, wall_y, p.wall - ch, rim, lit(1.6))
     end
+    -- A seam on each wall's inside edge, as between the spines, so the books
+    -- stand a little apart from the boards rather than on them.
+    local seam = math.max(1, Screen:scaleBySize(1))
+    local seam_ink = night and BB.ColorRGB32(255,255,255,255) or BB.ColorRGB32(0,0,0,255)
+    bb:paintRectRGB32(x + p.wall - seam, wall_y, seam, front_y - wall_y, seam_ink)
+    bb:paintRectRGB32(x + p.w - p.wall, wall_y, seam, front_y - wall_y, seam_ink)
     -- The front: a plain board, the first cover on it as a sticker, and the
     -- series name printed on the board below.
     bb:paintRectRGB32(x, front_y, p.w, p.front_h, board)
@@ -318,7 +324,7 @@ function Box:_paintSlipcase(bb, x, y)
     local sx, sy = x + I + self.st_dx, front_y + I + self.st_dy
     local SW, SH = self.st_w, self.st_h
     -- The cover is the sticker: its corners rounded, a notch cut round the
-    -- read count, and a white edge all the way round, the board outside it.
+    -- read count, and a light edge all the way round, the board outside it.
     local R = math.max(2, Screen:scaleBySize(STICKER_RADIUS_DP))
     local E = STICKER_EDGE_PX
     local cs = self.count:getSize()
@@ -342,9 +348,10 @@ function Box:_paintSlipcase(bb, x, y)
         fit:free()
         inner:free()
     end)
-    -- Row by row: board outside the sticker's outline, white between it and
-    -- the outline drawn E inside it, the cover within that.
-    local edge = night and BB.ColorRGB32(0,0,0,255) or BB.ColorRGB32(255,255,255,255)
+    -- Row by row: board outside the sticker's outline, the edge between it
+    -- and the outline drawn E inside it, the cover within that.
+    -- A lighter shade of the box, the tone its rim catches the light in.
+    local edge = lit(1.6)
     local ir = math.max(1, R - E)
     for row = 0, SH - 1 do
         local l, r_ = stickerSpan(SW, SH, R, nw, nh, row)

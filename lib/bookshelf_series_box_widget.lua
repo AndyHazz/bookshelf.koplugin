@@ -156,6 +156,31 @@ end
 -- cover, hides the rest of them. The read count is a section label on the
 -- front, and says how many the series holds when it holds more than fit.
 local CONTACT_SHADOW = 0.35   -- the shadow's strength at the rim
+-- The front is a plain board with the first cover on it as a sticker, inset
+-- from the front's edges and rounded, and the series name printed below.
+local STICKER_INSET_DP = 4
+local STICKER_RADIUS_DP = 5
+
+-- roundCorners(bb, x, y, w, h, r, top, bottom, ink) -- round off a rect's
+-- corners by painting `ink` (what is behind it) over the part of each corner
+-- square outside the quarter circle. Rows, not pixels: a corner is r rows.
+local function roundCorners(bb, x, y, w, h, r, top, bottom, ink)
+    if r < 1 then return end
+    for dy = 0, r - 1 do
+        local dist = r - dy - 0.5
+        local cut = math.floor(r - math.sqrt(math.max(0, r * r - dist * dist)) + 0.5)
+        if cut > 0 then
+            if top then
+                bb:paintRectRGB32(x, y + dy, cut, 1, ink)
+                bb:paintRectRGB32(x + w - cut, y + dy, cut, 1, ink)
+            end
+            if bottom then
+                bb:paintRectRGB32(x, y + h - 1 - dy, cut, 1, ink)
+                bb:paintRectRGB32(x + w - cut, y + h - 1 - dy, cut, 1, ink)
+            end
+        end
+    end
+end
 
 function Box:_initSlipcase()
     local entry, shape = self.entry, self.entry.series_box
@@ -183,8 +208,9 @@ function Box:_initSlipcase()
     -- part showing (the title panel most covers carry at the foot is hidden
     -- behind the name strip anyway).
     local B = shape.border
-    self.art_w = math.max(1, shape.w - 2 * B)
-    self.art_h = math.max(1, shape.front_h - 2 * B - shape.strip_h)
+    self.inset = math.max(2, Screen:scaleBySize(STICKER_INSET_DP))
+    self.art_w = math.max(1, shape.w - 2 * self.inset)
+    self.art_h = math.max(1, shape.front_h - 2 * self.inset - shape.strip_h)
     local aspect = (self.first_look and self.first_look.aspect) or 1.5
     self.art_full_h = math.max(self.art_h, math.floor(self.art_w * aspect))
     self.art_cover = require("lib/bookshelf_spine_widget"):new{
@@ -200,7 +226,7 @@ function Box:_initSlipcase()
     local label_face = BFont:getFace(font, math.max(8, math.floor(14 * scale / 100 + 0.5)))
     self.count = TextWidget:new{ text = string.format("%d/%d",
         finishedCount(entry.book.books), #entry.book.books), face = label_face, padding = 0 }
-    local room = math.max(1, shape.w - 2 * B - 2 * shape.pad)
+    local room = math.max(1, self.art_w - 2 * shape.pad)
     if shape.name_lines then
         -- Two lines, broken where the geometry chose (the box was sized to
         -- the longer one).
@@ -258,19 +284,25 @@ function Box:_paintSlipcase(bb, x, y)
         bb:paintRectRGB32(wx, wall_y + ch, p.wall, front_y - wall_y - ch, lit(1.25))
         bb:paintRectRGB32(cut_x, wall_y, p.wall - ch, rim, lit(1.6))
     end
-    -- The front: board, the printed cover, the name strip.
+    -- The front: a plain board, the first cover on it as a sticker, and the
+    -- series name printed on the board below.
     bb:paintRectRGB32(x, front_y, p.w, p.front_h, board)
     bb:paintRectRGB32(x, front_y, p.w, math.max(1, math.floor(B/2)), lit(1.6))
+    local I = self.inset
+    local sx, sy = x + I, front_y + I
     pcall(function()
         local tmp = BB.new(self.art_w, self.art_full_h, bb:getType())
         tmp:paintRectRGB32(0, 0, self.art_w, self.art_full_h, BB.ColorRGB32(255,255,255,255))
         self.art_cover:paintTo(tmp, 0, 0)
         local oy = math.max(0, math.floor((self.art_full_h - self.art_h) * 0.25))
-        bb:blitFrom(tmp, x + B, front_y + B, 0, oy, self.art_w, self.art_h)
+        bb:blitFrom(tmp, sx, sy, 0, oy, self.art_w, self.art_h)
         tmp:free()
     end)
-    local stripy = front_y + B + self.art_h
-    bb:paintRectRGB32(x + B, stripy, p.w - 2*B, p.strip_h, lit(.7))
+    -- The cover is the sticker: all four corners rounded, the board around
+    -- it. The name is printed on the box itself, below.
+    roundCorners(bb, sx, sy, self.art_w, self.art_h,
+        math.max(2, Screen:scaleBySize(STICKER_RADIUS_DP)), true, true, board)
+    local stripy = front_y + p.front_h - p.strip_h
     local name_ink = night and BB.ColorRGB32(30,28,24,255) or BB.ColorRGB32(246,239,219,255)
     local lines = self.name_lines or { self.name }
     local total = 0
@@ -279,7 +311,7 @@ function Box:_paintSlipcase(bb, x, y)
     for _, ln in ipairs(lines) do
         local sz = ln:getSize()
         ln.fgcolor = name_ink
-        ln:paintTo(bb, x + math.max(B + p.pad, math.floor((p.w - sz.w)/2)), ly)
+        ln:paintTo(bb, sx + math.max(p.pad, math.floor((self.art_w - sz.w)/2)), ly)
         ly = ly + sz.h
     end
     -- The read count, a section label on the front's top-right corner.
@@ -289,9 +321,9 @@ function Box:_paintSlipcase(bb, x, y)
         local Space = require("lib/bookshelf_space")
         local pad_x, pad_y = Space.px(5), Space.px(2)
         local cs = self.count:getSize()
-        local bw, bh = math.min(p.w - 2*B, cs.w + 2 * pad_x), cs.h + 2 * pad_y
-        local bx = x + p.w - B - p.pad - bw
-        local by = front_y + B + p.pad
+        local bw, bh = math.min(self.art_w, cs.w + 2 * pad_x), cs.h + 2 * pad_y
+        local bx = sx + self.art_w - p.pad - bw
+        local by = sy + p.pad
         bb:paintRoundedRect(bx, by, bw, bh, fill, Screen:scaleBySize(2))
         self.count.fgcolor = fg
         self.count:paintTo(bb, bx + math.floor((bw - cs.w) / 2), by + pad_y)

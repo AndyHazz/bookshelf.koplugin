@@ -169,6 +169,11 @@ function Box:_initSlipcase()
         for k, v in pairs(meta or {}) do if k ~= "cover_bb" then first[k] = v end end
     end
     self.first_look = SpineShelf.bookLook(first)
+    -- The box is as deep as its books, so its side walls show above the rim
+    -- by the band a book's page top takes (its depth, foreshortened), and
+    -- then run back behind the books.
+    self.wall_top = require("lib/bookshelf_spine_layout").topEdgeHeight(shape.h,
+        (self.first_look and self.first_look.aspect) or nil, Screen:scaleBySize(5))
     local Slot = SpineShelf._SpineBookSlot
     self.slots = {}
     for _, sp in ipairs(shape.spines) do
@@ -234,13 +239,15 @@ function Box:_paintSlipcase(bb, x, y)
                         CONTACT_SHADOW * (1 - (k - 1) / fade), night)
         end
     end)
-    -- The side boards, the full height either side of the books, their tops
-    -- catching the light like the front's rim.
+    -- The side walls' tops, running back from the rim as far as the books'
+    -- page tops do, then hidden behind the books: the box is shorter than
+    -- what it holds. Lit like the lid, since they face up.
     local board = SpineShelf.boardColor(l, night)
     local rim = math.max(1, math.floor(B/2))
+    local wall_y = math.max(top, front_y - self.wall_top)
     for _, wx in ipairs({ x, x + p.w - p.wall }) do
-        bb:paintRectRGB32(wx, top, p.wall, p.h, board)
-        bb:paintRectRGB32(wx, top, p.wall, rim, lit(1.6))
+        bb:paintRectRGB32(wx, wall_y, p.wall, front_y - wall_y, lit(1.25))
+        bb:paintRectRGB32(wx, wall_y, p.wall, rim, lit(1.6))
     end
     -- The front: board, the printed cover, the name strip.
     bb:paintRectRGB32(x, front_y, p.w, p.front_h, board)

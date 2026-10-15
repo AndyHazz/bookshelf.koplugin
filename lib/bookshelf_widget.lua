@@ -20360,13 +20360,15 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
     -- data pills but styled as a link -- no border, underlined label --
     -- so it reads as an action rather than another tag.
     local function _buildPill(label_text, on_tap_cb, extra_pad, on_hold_cb, link_style)
-        local label_w = TextWidget_:new{
+        -- Upper-case label: centre its capitals, not its line box
+        -- (lib/bookshelf_cap_centre), as the shelf chips do.
+        local label_w = require("lib/bookshelf_cap_centre").centre(TextWidget_:new{
             text = TextSegments.upper(label_text or ""),
             face = pill_face,
             bold = pill_bold,
             fgcolor = ink,  -- nil: TextWidget's own black
             max_width = pill_label_max,
-        }
+        })
         -- Explicit white bg so the tap-feedback inversion has something to
         -- invert to black (without this, the frame's transparent fill
         -- can't be flipped). Matches KOReader's Button feedback pattern.

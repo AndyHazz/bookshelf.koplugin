@@ -196,6 +196,10 @@ end
 
 -- The most books a slipcase shows; its count label says how many it holds.
 M.SLIPCASE_SPINES = 8
+-- The narrowest a slipcase goes, as a share of a face-out cover's width, and
+-- whether it also widens to fit its series name.
+M.SLIPCASE_MIN_SHARE = 0.5
+M.SLIPCASE_NAME_FIT = true
 
 -- slipcaseGeometry(book, base, opts) -> the face-out box set's shape.
 --
@@ -234,7 +238,52 @@ function M.slipcaseGeometry(book, base, opts)
         nat[i] = math.max(1, spinePx(book.books[i], auto_thick))
         sum = sum + nat[i]
     end
-    local w = math.min(max_w, sum + 2 * wall)
+    -- Never so thin the series cannot be told: at least SLIPCASE_MIN_SHARE of
+    -- a cover's width, and (SLIPCASE_NAME_FIT) wide enough for the name at
+    -- the spine-title size, within the cover's width. A name that will not
+    -- go on one line at that width wraps to two, broken where the longer
+    -- line is shortest, so a long name asks for half its width, not all.
+    local pad = math.max(1, Screen:scaleBySize(3))
+    local base_w = math.max(sum + 2 * wall, math.floor(max_w * M.SLIPCASE_MIN_SHARE))
+    local want = base_w
+    local name_lines
+    if M.SLIPCASE_NAME_FIT then
+        pcall(function()
+            local BFont = require("lib/bookshelf_fonts")
+            local TW = require("lib/bookshelf_colour_text")
+            local face = BFont:getFace(BFont.getUIFontFace() or "cfont", label_size)
+            local function width(t)
+                local tw = TW:new{ text = t, face = face, padding = 0 }
+                local wd = tw:getSize().w
+                if tw.free then tw:free() end
+                return wd
+            end
+            local name = book.series_name or ""
+            local frame = 2 * border + 2 * pad
+            local one = width(name) + frame
+            if one <= base_w then return end
+            -- The best break into two lines, by word.
+            local words = {}
+            for word in name:gmatch("%S+") do words[#words + 1] = word end
+            local best, best_w
+            for k = 1, #words - 1 do
+                local a = table.concat(words, " ", 1, k)
+                local b = table.concat(words, " ", k + 1)
+                local lw = math.max(width(a), width(b)) + frame
+                if not best_w or lw < best_w then best, best_w = { a, b }, lw end
+            end
+            if best and best_w < one then
+                want = math.max(base_w, best_w)
+                name_lines = best
+            else
+                want = math.max(base_w, one)
+            end
+        end)
+    end
+    local w = math.min(max_w, want)
+    if name_lines then
+        strip_h = 2 * SpineShelf.textHeight(label_size) + 2 * math.max(1, Screen:scaleBySize(2))
+    end
     local inner_w = w - 2 * wall
     local spines, x = {}, 0
     for i = 1, n do
@@ -251,7 +300,7 @@ function M.slipcaseGeometry(book, base, opts)
     return { style = "slipcase", w = w, h = h, face_h = base.face_h or h, wall_top = wall_top,
              depth = base.depth, lid = 0, border = border, wall = wall, strip_h = strip_h,
              label_size = label_size, rise = rise, front_h = h - rise,
-             pad = math.max(1, Screen:scaleBySize(3)), spines = spines,
+             pad = pad, spines = spines, name_lines = name_lines,
              count = count }
 end
 

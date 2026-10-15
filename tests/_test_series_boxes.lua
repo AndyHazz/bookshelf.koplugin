@@ -288,6 +288,25 @@ H.test("a slipcase is as wide as its books, up to a face-out cover", function()
     assert(many.w<=BASE.w, "a slipcase ran past a cover's width")
     local more=Boxes.geometry(Boxes.box(members(20,"Saga"),"Saga"),BASE,SLIP)
     assert(more.w<=BASE.w and more.w>=two.w)
+    -- Never thinner than the share of a cover, and wide enough for its name
+    -- within the cover's width.
+    assert(two.w>=math.floor(BASE.w*Boxes.SLIPCASE_MIN_SHARE), "a slipcase went below its minimum")
+    -- A long two-word name wraps to two lines rather than widening the box
+    -- to fit it on one; the box fits the longer line.
+    local name="Twelvechar Lettersmore"
+    local named=Boxes.geometry(Boxes.box(members(2,name),name),BASE,SLIP)
+    if Boxes.SLIPCASE_NAME_FIT then
+        local size=math.floor(BASE.ref_w_dp*0.5)
+        assert(named.name_lines, "a name too long for one line did not wrap")
+        H.eq(named.name_lines[1],"Twelvechar"); H.eq(named.name_lines[2],"Lettersmore")
+        assert(named.w>=#"Lettersmore"*size, "the slipcase is narrower than its longer line")
+        assert(named.w<#name*size, "the box widened for the whole name on one line")
+        local one=Boxes.geometry(Boxes.box(members(2,"Saga"),"Saga"),BASE,SLIP)
+        H.eq(one.name_lines,nil,"a short name wrapped")
+        assert(named.strip_h>one.strip_h, "a two-line name kept a one-line strip")
+    end
+    local huge=("Long "):rep(20)
+    H.eq(Boxes.geometry(Boxes.box(members(2,huge),huge),BASE,SLIP).w,BASE.w,"a long name widened it past a cover")
 end)
 
 H.test("a slipcase of more than eight is filled with eight; its label says how many", function()

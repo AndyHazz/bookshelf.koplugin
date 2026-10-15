@@ -200,8 +200,17 @@ function Box:_initSlipcase()
     local label_face = BFont:getFace(font, math.max(8, math.floor(14 * scale / 100 + 0.5)))
     self.count = TextWidget:new{ text = string.format("%d/%d",
         finishedCount(entry.book.books), #entry.book.books), face = label_face, padding = 0 }
-    self.name = fitName(entry.book.series_name or "", shape.label_size,
-        math.max(1, shape.w - 2 * B - 2 * shape.pad), font)
+    local room = math.max(1, shape.w - 2 * B - 2 * shape.pad)
+    if shape.name_lines then
+        -- Two lines, broken where the geometry chose (the box was sized to
+        -- the longer one).
+        self.name_lines = {}
+        for i, line in ipairs(shape.name_lines) do
+            self.name_lines[i] = fitName(line, shape.label_size, room, font)
+        end
+    else
+        self.name = fitName(entry.book.series_name or "", shape.label_size, room, font)
+    end
 end
 
 function Box:_paintSlipcase(bb, x, y)
@@ -262,10 +271,17 @@ function Box:_paintSlipcase(bb, x, y)
     end)
     local stripy = front_y + B + self.art_h
     bb:paintRectRGB32(x + B, stripy, p.w - 2*B, p.strip_h, lit(.7))
-    local sz = self.name:getSize()
-    self.name.fgcolor = night and BB.ColorRGB32(30,28,24,255) or BB.ColorRGB32(246,239,219,255)
-    self.name:paintTo(bb, x + math.max(B + p.pad, math.floor((p.w - sz.w)/2)),
-        stripy + math.floor((p.strip_h - sz.h)/2))
+    local name_ink = night and BB.ColorRGB32(30,28,24,255) or BB.ColorRGB32(246,239,219,255)
+    local lines = self.name_lines or { self.name }
+    local total = 0
+    for _, ln in ipairs(lines) do total = total + ln:getSize().h end
+    local ly = stripy + math.floor((p.strip_h - total) / 2)
+    for _, ln in ipairs(lines) do
+        local sz = ln:getSize()
+        ln.fgcolor = name_ink
+        ln:paintTo(bb, x + math.max(B + p.pad, math.floor((p.w - sz.w)/2)), ly)
+        ly = ly + sz.h
+    end
     -- The read count, a section label on the front's top-right corner.
     local ok_sd, StackDisplay = pcall(require, "lib/bookshelf_stack_display")
     if ok_sd and StackDisplay and StackDisplay.ribbonColors then

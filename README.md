@@ -831,6 +831,7 @@ Up to three levels per shelf. Available sort keys:
 - **Series, else title** -- a series sorts under its name and a standalone book under its title, so both share one alphabetical order, with series books kept in order
 - **Last opened** (most-recent-first by default)
 - **Date added** (most-recent-first by default)
+- **Added or opened** (whichever is later, most recent first: new books and the book you just opened both go to the front)
 - **Percent read** (most progress first by default)
 - **Rating** (highest first by default; unrated last)
 - **Unread/Reading/Finished** or **Reading/Unread/Finished** (status orderings)

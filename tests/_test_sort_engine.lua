@@ -824,5 +824,37 @@ test("sort: favorites_first without ReadCollection ties, so the next level decid
     assert(eq(ids(books), { 2, 1, 3 }), table.concat(ids(books), ","))
 end)
 
+-- Issue 519: "Added or opened" orders by the later of the two, the way a
+-- Kindle's home does: a new book goes to the front, so does one just opened,
+-- and the next new book pushes that one back.
+test("added_or_opened: the later of added and opened decides", function()
+    assert(SortEngine.KEYS.added_or_opened, "missing key")
+    local found = false
+    for _i, k in ipairs(SortEngine.ORDER) do if k == "added_or_opened" then found = true end end
+    assert(found, "not offered in ORDER")
+    local books = {
+        { id = 1, title = "Old, just opened", date_added = 100, last_opened = 900 },
+        { id = 2, title = "New, unopened",    date_added = 800 },
+        { id = 3, title = "Old, opened long ago", date_added = 100, last_opened = 200 },
+        { id = 4, title = "Newest, unopened", date_added = 1000 },
+    }
+    SortEngine.sort(books, { { key = "added_or_opened", reverse = true } })
+    assert(eq(ids(books), { 4, 1, 2, 3 }), table.concat(ids(books), ","))
+end)
+
+test("added_or_opened: every record shape; nothing known sorts last", function()
+    local books = {
+        { id = 1, title = "a", attr = { modification = 300 } },        -- lfs entry
+        { id = 2, title = "b", _last_read = 500 },                      -- lfs + history
+        { id = 3, title = "c", latest = 100, latest_added = 400 },      -- group
+        { id = 4, title = "d" },                                        -- nothing known
+    }
+    SortEngine.sort(books, { { key = "added_or_opened", reverse = true } })
+    assert(eq(ids(books), { 2, 3, 1, 4 }), table.concat(ids(books), ","))
+    SortEngine.sort(books, { { key = "added_or_opened", reverse = false } })
+    assert(eq(ids(books), { 1, 3, 2, 4 }), "ascending keeps the unknown last: "
+        .. table.concat(ids(books), ","))
+end)
+
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

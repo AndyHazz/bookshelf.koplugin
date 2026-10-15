@@ -129,6 +129,7 @@ local DEFAULT_REVERSE = {
     book_count   = true,
     last_opened  = true,
     date_added   = true,
+    added_or_opened = true,
     -- "Progress" sort defaults to highest-progress-first: a user picking
     -- "Sort by progress" usually wants to see books they're furthest
     -- through (or finished) at the top. Ascending (unread first) is the
@@ -3545,7 +3546,8 @@ function Editor:_pickSortLevel(draft, level_index, on_close, on_arranged)
         -- different option to switch. Compacts the picker to 3 rows.
         rows = {
             { key_btn("series_name"), key_btn("author_surname"), key_btn("book_count") },
-            { key_btn("last_opened"), key_btn("date_added")    },
+            { key_btn("last_opened"), key_btn("date_added"),
+              key_btn("added_or_opened") },
             close_row,
         }
     else
@@ -3561,7 +3563,8 @@ function Editor:_pickSortLevel(draft, level_index, on_close, on_arranged)
             -- so the one-tap combined option sits beside the pair it merges.
             { key_btn("series_name"),    key_btn("series_index"),
               key_btn("series_combined") },
-            { key_btn("last_opened"),    key_btn("date_added")        },
+            { key_btn("last_opened"),    key_btn("date_added"),
+              key_btn("added_or_opened") },
             { key_btn("percent_read"),   key_btn("rating")            },
             { key_btn("read_status"),    key_btn("read_status_active"),
               key_btn("favorites_first") },

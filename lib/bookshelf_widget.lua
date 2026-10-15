@@ -24798,6 +24798,7 @@ function BookshelfWidget:_applyWithinGroupSort(group)
         if k == "page_count"  then w_pages  = true end
         if k == "last_opened" then w_opened = true end
         if k == "date_added"  then w_added  = true end
+        if k == "added_or_opened" then w_opened = true; w_added = true end
     end
     if w_progress or w_rating or w_pages or w_added then
         local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")

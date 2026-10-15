@@ -2502,6 +2502,7 @@ end
 -- touched by reading, so chips sorted on them keep their cache.
 local READ_STATE_SORT_TOKENS = {
     "s:last_opened:", "s:percent_read:", "s:read_status", "s:rating:",
+    "s:added_or_opened:",
 }
 function Repo.invalidateReadStateCache()
     for k in pairs(_bySource_cache) do
@@ -4425,7 +4426,7 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
         if k == "series_or_title" then needs.series = true; needs.title = true end
         if k == "percent_read" then needs.percent  = true end
         if k == "read_status" or k == "read_status_active" then needs.status = true end
-        if k == "last_opened"  then needs.last_opened = true end
+        if k == "last_opened" or k == "added_or_opened" then needs.last_opened = true end
         -- rating / page_count are NOT on the light shelf record (rating is
         -- never set by buildBookMeta; page_count is nil for EPUBs), so a sort
         -- by either is a no-op unless we hydrate them from the sidecar here.

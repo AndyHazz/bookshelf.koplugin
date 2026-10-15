@@ -24754,6 +24754,10 @@ end
 -- the rest) to match the new filepath order.
 function BookshelfWidget:_applyWithinGroupSort(group)
     if not group then return end
+    -- A box set keeps the order it holds its books in, series number first
+    -- (Boxes.box), as its spines show them: the shelf's later sort levels
+    -- reorder an ordinary series stack, not a box.
+    if group._series_box then return end
     local TabModel = require("lib/bookshelf_tab_model")
     local tab = TabModel.getById(self.chip)
     local sp  = tab and tab.sort_priority

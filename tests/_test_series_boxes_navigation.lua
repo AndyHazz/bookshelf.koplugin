@@ -228,4 +228,22 @@ t.test("inside a drilled box set every book faces out; elsewhere the shelf's cho
     tab.spine_face_out=nil
 end)
 
+t.test("an opened box keeps its series order whatever the shelf's later sort levels", function()
+    local within=method("_applyWithinGroupSort",env)
+    tab.sort_priority={{key="series"},{key="title",reverse=true}}
+    local bks={book(1,"Saga","Alpha"),book(2,"Saga","Beta"),book(3,"Saga","Gamma")}
+    for _,b in ipairs(bks) do metas[b.filepath]=b end
+    local box=Boxes.box(bks,"Saga")
+    local before={}
+    for i,b in ipairs(box.books) do before[i]=b.filepath end
+    within({chip="x"},box)
+    for i,b in ipairs(box.books) do eq(b.filepath,before[i],"a box was re-sorted by the shelf") end
+    -- The same books as an ordinary series stack do follow the shelf.
+    local stack={kind="series",series_name="Saga",books={bks[1],bks[2],bks[3]}}
+    within({chip="x"},stack)
+    eq(stack.books[1].title,"Gamma","the shelf's later levels no longer sort a series stack")
+    for _,b in ipairs(bks) do metas[b.filepath]=nil end
+    tab.sort_priority=nil
+end)
+
 t.done()

@@ -238,7 +238,12 @@ function M.slipcaseGeometry(book, base, opts)
         spines[i] = { member = i, x = x, w = sw }
         x = x + sw
     end
-    return { style = "covers", w = w, h = h, face_h = base.face_h or h,
+    -- The box is as deep as its books, so its side walls show above the rim
+    -- by the band a book's page top takes (its depth, foreshortened), and
+    -- then run back behind the books.
+    local wall_top = math.min(rise, SpineLayout.topEdgeHeight(h, base.aspect,
+        Screen:scaleBySize(5)))
+    return { style = "covers", w = w, h = h, face_h = base.face_h or h, wall_top = wall_top,
              depth = base.depth, lid = 0, border = border, wall = wall, strip_h = strip_h,
              label_size = label_size, rise = rise, front_h = h - rise,
              pad = math.max(1, Screen:scaleBySize(3)), spines = spines,
@@ -249,6 +254,15 @@ end
 -- one, the box's own footprint, measured from the row's baseline.
 function M.shadowColumns(p, x, _inset)
     -- Stands at the front edge like a spine, so no face-out inset.
+    if p.style == "covers" and p.wall and p.wall_top then
+        -- The slipcase's outline: its books the full height in the middle,
+        -- its side walls only as high as their tops. One rectangle cast the
+        -- books' shadow from the box's outer edge, a wall's width off them.
+        local wall_h = p.front_h + p.wall_top
+        return { { x = x, w = p.wall, h = wall_h, foot = 0 },
+                 { x = x + p.wall, w = p.w - 2 * p.wall, h = p.h, foot = 0 },
+                 { x = x + p.w - p.wall, w = p.wall, h = wall_h, foot = 0 } }
+    end
     return { { x = x, w = p.w, h = p.h, foot = 0 } }
 end
 

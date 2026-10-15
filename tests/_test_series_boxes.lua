@@ -288,6 +288,19 @@ H.test("a slipcase of more than eight is filled with eight; its label says how m
     H.eq(w.plus,nil); H.eq(w.count.text,"0/20"); H.eq(#w.slots,8)
 end)
 
+H.test("a slipcase casts its shadow from its books and walls, not one rectangle", function()
+    local box=Boxes.box(members(5,"Saga"),"Saga")
+    local g=Boxes.geometry(box,BASE,SLIP)
+    assert(g.wall_top>0 and g.wall_top<=g.rise, "the walls do not stop below the books' tops")
+    local cols=Boxes.shadowColumns(g,100,5)
+    H.eq(#cols,3)
+    H.eq(cols[1].x,100); H.eq(cols[1].w,g.wall); H.eq(cols[1].h,g.front_h+g.wall_top)
+    H.eq(cols[2].x,100+g.wall); H.eq(cols[2].w,g.w-2*g.wall); H.eq(cols[2].h,g.h)
+    H.eq(cols[3].x,100+g.w-g.wall); H.eq(cols[3].h,g.front_h+g.wall_top)
+    -- The spine-out box still casts one.
+    H.eq(#Boxes.shadowColumns(Boxes.geometry(box,BASE,{content_w=2000}),100,5),1)
+end)
+
 H.test("a slipcase paints inside its own rectangle, its books under the front", function()
     for _,n in ipairs({2,8,12}) do
         local box=Boxes.box(members(n,"Saga"),"Saga")

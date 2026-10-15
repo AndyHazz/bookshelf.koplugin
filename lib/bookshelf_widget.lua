@@ -9736,15 +9736,6 @@ function BookshelfWidget:_refreshSpineInPlace(fp)
     return replaced
 end
 
--- _refreshOpeningFrame(x, y, w, h) -- push a spine shelf's opening frame (the
--- tipping spine or face-out) to the panel. "partial", not "ui": the book
--- leaves the place it stood, and the fast waveform left a grey ghost of the
--- standing cover there on the PW5, which read as a shadow cut off on the
--- wall (maintainer's photo). The frame is shown once, as the book opens.
-local function _refreshOpeningFrame(x, y, w, h)
-    Screen:refreshPartial(x, y, w, h)
-end
-
 -- _paintOpeningEffect(fp) — transient "book opening" feedback painted
 -- straight onto the framebuffer: the tapped cover squeezes ~5% toward its
 -- left edge (the spine), revealing page-white along the right and thin
@@ -9795,7 +9786,7 @@ function BookshelfWidget:_paintOpeningEffect(fp)
         if ok_ss and SpineShelf and SpineShelf.paintFaceOutTilt then
             local rx, ry, rw2, rh2 = SpineShelf.paintFaceOutTilt(spine)
             if rx then
-                pcall(function() _refreshOpeningFrame(rx, ry, rw2, rh2) end)
+                pcall(function() Screen:refreshUI(rx, ry, rw2, rh2) end)
             end
         end
         return
@@ -10007,7 +9998,7 @@ function BookshelfWidget:_paintSpineOpeningEffect(fp)
     end
     if ux0 then
         pcall(function()
-            _refreshOpeningFrame(ux0, uy0, ux1 - ux0, uy1 - uy0)
+            Screen:refreshUI(ux0, uy0, ux1 - ux0, uy1 - uy0)
         end)
     end
 end

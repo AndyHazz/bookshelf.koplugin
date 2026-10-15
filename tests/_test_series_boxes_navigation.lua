@@ -215,4 +215,17 @@ t.test("the editor toggle changes only its own draft and uses the existing live-
     toggle(a); eq(a.series_boxes,nil)
 end)
 
+t.test("inside a drilled box set every book faces out; elsewhere the shelf's choice holds", function()
+    local fenv=setmetatable({BookshelfSettings={read=function() return nil end},
+        _faceOutModes=function() return {none=true,all=true,favorites=true} end},{__index=env})
+    local faceOut=method("_spineFaceOut",fenv)
+    tab.spine_face_out="none"
+    local box=Boxes.box({book(1,"Saga"),book(2,"Saga")},"Saga")
+    eq(faceOut({_drilldown_path={{kind="series",payload=box,label="Saga"}}}),"all")
+    eq(faceOut({_drilldown_path={{kind="series",payload={series_name="Saga"},label="Saga"}}}),"none",
+        "a series stack opened (not a box) changed the face-out choice")
+    eq(faceOut({_drilldown_path={}}),"none")
+    tab.spine_face_out=nil
+end)
+
 t.done()

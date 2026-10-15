@@ -6851,6 +6851,13 @@ end
 -- "Is it set?" cannot be a truthiness test: `false` IS a setting (none), and
 -- treating it as unset sends the shelf to the global default instead.
 function BookshelfWidget:_spineFaceOut()
+    -- Inside a box set every book stands face-out: opening the box is asking
+    -- to see the covers it held spine-out. Whatever the shelf's own choice.
+    local path = self._drilldown_path or {}
+    local tip = path[#path]
+    if tip and tip.kind == "series" and tip.payload and tip.payload._series_box then
+        return "all"
+    end
     local function isSet(v)
         local t = type(v)
         if t == "table" or t == "boolean" then return true end

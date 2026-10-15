@@ -45,15 +45,47 @@ local NAME_MIN_SIZE = 8
 
 local Box = InputContainer:extend{}
 
-local function memberEntry(member, w, h, SpineShelf)
+-- memberEntry(member, w, h, SpineShelf, titles, top_edge) -> the entry a
+-- member's spine slot paints from.
+local function memberEntry(member, w, h, SpineShelf, titles, top_edge)
     local look = SpineShelf.bookLook(member)
     return { book = member, item = member, w = w, h = h, look = look,
              w_dp = math.floor(w / (Screen:scaleBySize(100) / 100) + .5),
-             label = SPINE_TITLES
+             label = titles
                  and (member.display_title or member.title or member.label) or "",
              author = member.author or (member.authors and member.authors[1]) or nil,
              series_num = member.series_num and tostring(member.series_num) or nil,
-             face_out = false, favourite = false, no_top_edge = true }
+             face_out = false, favourite = false, no_top_edge = not top_edge }
+end
+
+-- fitName(name, size, room, font) -> the series name at the spine-title size,
+-- smaller on a narrow box rather than cut short, cut only at NAME_MIN_SIZE.
+local function fitName(name, size, room, font)
+    local floor = math.min(size, NAME_MIN_SIZE)
+    local tw
+    while true do
+        tw = TextWidget:new{ text = name, face = BFont:getFace(font, size), padding = 0 }
+        if tw:getSize().w <= room or size <= floor then break end
+        tw:free()
+        size = size - 1
+    end
+    if tw:getSize().w > room then
+        tw:free()
+        tw = TextWidget:new{ text = name, face = BFont:getFace(font, size),
+            max_width = room, padding = 0 }
+    end
+    return tw
+end
+
+-- finishedCount(books) -> how many of them are marked finished.
+local function finishedCount(books)
+    local Repo = require("lib/bookshelf_book_repository")
+    local done = 0
+    for _, member in ipairs(books) do
+        local _, status = Repo.readProgress(member.filepath)
+        if status == "finished" then done = done + 1 end
+    end
+    return done
 end
 
 function Box:init()
@@ -66,6 +98,7 @@ function Box:init()
     local entry, shape = self.entry, self.entry.series_box
     self.book = entry.book
     self.shape = shape
+    if shape.style == "covers" then return self:_initSlipcase() end
     local SpineShelf = require("lib/bookshelf_spine_shelf")
     -- At the front edge of the plank, like a spine, not set back an inset
     -- like a face-out: the box holds its books spine-out.
@@ -83,7 +116,7 @@ function Box:init()
     local run_w = 0
     for _, sp in ipairs(shape.spines) do
         local m = entry.book.books[sp.member]
-        local e = memberEntry(m, sp.w, shape.inner_h, SpineShelf)
+        local e = memberEntry(m, sp.w, shape.inner_h, SpineShelf, SPINE_TITLES, false)
         self.slots[#self.slots + 1] = Slot:new{ book = m, entry = e, width = sp.w,
             height = shape.inner_h, show_author = false }
         run_w = run_w + sp.w
@@ -104,12 +137,7 @@ function Box:init()
     -- The read count, read/total, printed on the top of every box: see paintTo.
     local font = BFont.getUIFontFace() or "cfont"
     do
-        local Repo = require("lib/bookshelf_book_repository")
-        local done = 0
-        for _, member in ipairs(entry.book.books) do
-            local _, status = Repo.readProgress(member.filepath)
-            if status == "finished" then done = done + 1 end
-        end
+        local done = finishedCount(entry.book.books)
         local scale = 100
         pcall(function()
             scale = require("lib/bookshelf_settings_store").read("stack_label_font_scale", 100) or 100
@@ -118,22 +146,144 @@ function Box:init()
             face = countFace(math.max(8, math.floor(14 * scale / 100 + 0.5)), font),
             padding = 0 }
     end
-    -- The name at the spine-title size, smaller on a narrow box rather than
-    -- cut short (a two-book box is narrower than most series names).
-    local room = math.max(1, shape.w - 2 * shape.border - 2 * shape.pad)
-    local name = entry.book.series_name or ""
-    local size = shape.label_size
-    local floor = math.min(size, NAME_MIN_SIZE)
-    while true do
-        self.name = TextWidget:new{ text = name, face = BFont:getFace(font, size), padding = 0 }
-        if self.name:getSize().w <= room or size <= floor then break end
-        self.name:free()
-        size = size - 1
+    self.name = fitName(entry.book.series_name or "", shape.label_size,
+        math.max(1, shape.w - 2 * shape.border - 2 * shape.pad), font)
+end
+
+-- ── The face-out box set: an open-topped slipcase ──────────────────────────
+-- The books stand in it spine-out, titles off, their heads above the rim so
+-- each one's page top and status mark show; the front, printed with the first
+-- cover, hides the rest of them. A "+" stands in the last place when the
+-- series has more than fit. The read count is a section label on the front.
+
+function Box:_initSlipcase()
+    local entry, shape = self.entry, self.entry.series_box
+    local SpineShelf = require("lib/bookshelf_spine_shelf")
+    self.top = self.height - shape.h
+    entry._drawn_h = shape.h
+    local first = Boxes.copy(entry.book.first_book)
+    if first.filepath and first.has_cover == nil then
+        local Repo = require("lib/bookshelf_book_repository")
+        local meta = Repo.buildBookMeta(first.filepath, {want_cover=false})
+        for k, v in pairs(meta or {}) do if k ~= "cover_bb" then first[k] = v end end
     end
-    if self.name:getSize().w > room then
-        self.name:free()
-        self.name = TextWidget:new{ text = name, face = BFont:getFace(font, size),
-            max_width = room, padding = 0 }
+    self.first_look = SpineShelf.bookLook(first)
+    local Slot = SpineShelf._SpineBookSlot
+    self.slots = {}
+    for _, sp in ipairs(shape.spines) do
+        if sp.member then
+            local m = entry.book.books[sp.member]
+            local e = memberEntry(m, sp.w, shape.h, SpineShelf, false, true)
+            self.slots[#self.slots + 1] = { slot = Slot:new{ book = m, entry = e,
+                width = sp.w, height = shape.h, show_author = false }, x = sp.x }
+        end
+    end
+    -- The front's picture: the first cover at the front's width, its upper
+    -- part showing (the title panel most covers carry at the foot is hidden
+    -- behind the name strip anyway).
+    local B = shape.border
+    self.art_w = math.max(1, shape.w - 2 * B)
+    self.art_h = math.max(1, shape.front_h - 2 * B - shape.strip_h)
+    local aspect = (self.first_look and self.first_look.aspect) or 1.5
+    self.art_full_h = math.max(self.art_h, math.floor(self.art_w * aspect))
+    self.art_cover = require("lib/bookshelf_spine_widget"):new{
+        book = first, width = self.art_w, height = self.art_full_h, flat_thumb = true,
+        show_progress = false, show_status = false, suppress_favorite_badge = true,
+        suppress_number_badges = true,
+    }
+    local font = BFont.getUIFontFace() or "cfont"
+    local scale = 100
+    pcall(function()
+        scale = require("lib/bookshelf_settings_store").read("stack_label_font_scale", 100) or 100
+    end)
+    local label_face = BFont:getFace(font, math.max(8, math.floor(14 * scale / 100 + 0.5)))
+    self.count = TextWidget:new{ text = string.format("%d/%d",
+        finishedCount(entry.book.books), #entry.book.books), face = label_face, padding = 0 }
+    if shape.more then
+        -- As big as the rise allows, but never wider than its place.
+        local place_w = shape.spines[#shape.spines].w
+        local size = math.max(6, math.floor(shape.rise * 0.45))
+        while true do
+            self.plus = TextWidget:new{ text = "+", face = BFont:getFace(font, size,
+                { bold = true }), padding = 0 }
+            if self.plus:getSize().w <= place_w or size <= 6 then break end
+            self.plus:free()
+            size = size - 1
+        end
+    end
+    self.name = fitName(entry.book.series_name or "", shape.label_size,
+        math.max(1, shape.w - 2 * B - 2 * shape.pad), font)
+end
+
+function Box:_paintSlipcase(bb, x, y)
+    local p = self.shape
+    local SpineShelf = require("lib/bookshelf_spine_shelf")
+    local night = require("lib/bookshelf_night_mode_sync").active()
+    local top = y + self.top
+    local B = p.border
+    local l = self.first_look or {r=60, g=60, b=60}
+    local function lit(f)
+        local r, g, b = math.min(255, l.r*.45*f), math.min(255, l.g*.45*f), math.min(255, l.b*.45*f)
+        if night then r, g, b = 255-r, 255-g, 255-b end
+        return BB.ColorRGB32(math.floor(r+.5), math.floor(g+.5), math.floor(b+.5), 255)
+    end
+    local ix = x + p.wall
+    local front_y = top + p.rise
+    -- The books, whole: the front goes over their lower part.
+    for _, s in ipairs(self.slots) do
+        s.slot.entry.body, s.slot.entry.marks = nil, nil
+        s.slot:_renderIntoAt(bb, ix + s.x, top, night)
+    end
+    -- The "+" in the last place: the inside of the box, a plus where a book's
+    -- head would be.
+    if self.plus then
+        local sp = p.spines[#p.spines]
+        local sx = ix + sp.x
+        local inside_top = top
+        bb:paintRectRGB32(sx, inside_top, sp.w, front_y - inside_top, lit(.35))
+        local ps = self.plus:getSize()
+        self.plus.fgcolor = night and BB.ColorRGB32(30,28,24,255) or BB.ColorRGB32(246,239,219,255)
+        self.plus:paintTo(bb, sx + math.floor((sp.w - ps.w) / 2),
+            inside_top + math.floor((front_y - inside_top - ps.h) / 2))
+    end
+    -- The side boards, the full height either side of the books, their tops
+    -- catching the light like the front's rim.
+    local board = SpineShelf.boardColor(l, night)
+    local rim = math.max(1, math.floor(B/2))
+    for _, wx in ipairs({ x, x + p.w - p.wall }) do
+        bb:paintRectRGB32(wx, top, p.wall, p.h, board)
+        bb:paintRectRGB32(wx, top, p.wall, rim, lit(1.6))
+    end
+    -- The front: board, the printed cover, the name strip.
+    bb:paintRectRGB32(x, front_y, p.w, p.front_h, board)
+    bb:paintRectRGB32(x, front_y, p.w, math.max(1, math.floor(B/2)), lit(1.6))
+    pcall(function()
+        local tmp = BB.new(self.art_w, self.art_full_h, bb:getType())
+        tmp:paintRectRGB32(0, 0, self.art_w, self.art_full_h, BB.ColorRGB32(255,255,255,255))
+        self.art_cover:paintTo(tmp, 0, 0)
+        local oy = math.max(0, math.floor((self.art_full_h - self.art_h) * 0.25))
+        bb:blitFrom(tmp, x + B, front_y + B, 0, oy, self.art_w, self.art_h)
+        tmp:free()
+    end)
+    local stripy = front_y + B + self.art_h
+    bb:paintRectRGB32(x + B, stripy, p.w - 2*B, p.strip_h, lit(.7))
+    local sz = self.name:getSize()
+    self.name.fgcolor = night and BB.ColorRGB32(30,28,24,255) or BB.ColorRGB32(246,239,219,255)
+    self.name:paintTo(bb, x + math.max(B + p.pad, math.floor((p.w - sz.w)/2)),
+        stripy + math.floor((p.strip_h - sz.h)/2))
+    -- The read count, a section label on the front's top-right corner.
+    local ok_sd, StackDisplay = pcall(require, "lib/bookshelf_stack_display")
+    if ok_sd and StackDisplay and StackDisplay.ribbonColors then
+        local fill, fg = StackDisplay.ribbonColors()
+        local Space = require("lib/bookshelf_space")
+        local pad_x, pad_y = Space.px(5), Space.px(2)
+        local cs = self.count:getSize()
+        local bw, bh = math.min(p.w - 2*B, cs.w + 2 * pad_x), cs.h + 2 * pad_y
+        local bx = x + p.w - B - p.pad - bw
+        local by = front_y + B + p.pad
+        bb:paintRoundedRect(bx, by, bw, bh, fill, Screen:scaleBySize(2))
+        self.count.fgcolor = fg
+        self.count:paintTo(bb, bx + math.floor((bw - cs.w) / 2), by + pad_y)
     end
 end
 
@@ -153,6 +303,7 @@ end
 
 function Box:paintTo(bb, x, y)
     self.dimen.x, self.dimen.y = x, y
+    if self.shape.style == "covers" then return self:_paintSlipcase(bb, x, y) end
     local p = self.shape
     local SpineShelf = require("lib/bookshelf_spine_shelf")
     local night = require("lib/bookshelf_night_mode_sync").active()

@@ -162,6 +162,7 @@ end
 function M.geometry(book, base, opts)
     if not M.isBox(book) then return nil end
     opts = opts or {}
+    if opts.series_box_style == "covers" then return M.slipcaseGeometry(book, base, opts) end
     local Screen = require("device").screen
     local SpineLayout = require("lib/bookshelf_spine_layout")
     local SpineShelf = require("lib/bookshelf_spine_shelf")
@@ -191,6 +192,62 @@ function M.geometry(book, base, opts)
     return { w = used, h = base.h, face_h = face_h, lid = lid, depth = lid,
              border = border, strip_h = strip_h, inner_h = inner_h,
              label_size = label_size, pad = pad, spines = spines, count = count }
+end
+
+-- The most spines a slipcase shows; past it the last place is a "+".
+M.SLIPCASE_SPINES = 8
+
+-- slipcaseGeometry(book, base, opts) -> the face-out box set's shape.
+--
+-- A face-out cover's footprint (base.w by base.h): an open-topped slipcase
+-- with the books standing in it spine-out, their heads above its rim, so
+-- each one's top and status mark show. The front, printed with the first
+-- cover, is shorter than the books by `rise`; the name strip runs along its
+-- foot as on the spine-out box. Up to SLIPCASE_SPINES places share the
+-- inside width in proportion to the books' own spine widths; a series with
+-- more shows one fewer book and a "+" in the last place.
+function M.slipcaseGeometry(book, base, opts)
+    local Screen = require("device").screen
+    local SpineLayout = require("lib/bookshelf_spine_layout")
+    local SpineShelf = require("lib/bookshelf_spine_shelf")
+    local px_per_dp = Screen:scaleBySize(100) / 100
+    local auto_thick = SpineLayout.autoThickness(
+        opts.row_h and px_per_dp > 0 and (opts.row_h / px_per_dp) or nil)
+    local count = #book.books
+    local border = math.max(2, Screen:scaleBySize(2))
+    local w = math.max(2, math.min(base.w,
+        (opts.content_w or base.w) - 2 * (opts.end_margin or 0)))
+    local h = base.h
+    local label_size = SpineShelf.titleSize(base.ref_w_dp)
+    local strip_h = SpineShelf.textHeight(label_size) + 2 * math.max(1, Screen:scaleBySize(2))
+    local rise = math.max(Screen:scaleBySize(48), math.floor(h * 0.27))
+    local more = count > M.SLIPCASE_SPINES
+    local n = math.min(count, more and M.SLIPCASE_SPINES - 1 or M.SLIPCASE_SPINES)
+    local places = n + (more and 1 or 0)
+    -- The side boards stand the full height either side of the books, a
+    -- little thicker than the front's frame so they read as walls.
+    local wall = 2 * border
+    local inner_w = w - 2 * wall
+    -- Natural widths, then shared out to fill the inside exactly; the "+"
+    -- place takes an average book's share.
+    local nat, sum = {}, 0
+    for i = 1, n do
+        nat[i] = math.max(1, spinePx(book.books[i], auto_thick))
+        sum = sum + nat[i]
+    end
+    if more then nat[n + 1] = sum / math.max(1, n); sum = sum + nat[n + 1] end
+    local spines, x = {}, 0
+    for i = 1, places do
+        local sw = (i == places) and (inner_w - x)
+                   or math.max(1, math.floor(inner_w * nat[i] / sum + 0.5))
+        spines[i] = { member = (i <= n) and i or nil, plus = (i > n) or nil, x = x, w = sw }
+        x = x + sw
+    end
+    return { style = "covers", w = w, h = h, face_h = base.face_h or h,
+             depth = base.depth, lid = 0, border = border, wall = wall, strip_h = strip_h,
+             label_size = label_size, rise = rise, front_h = h - rise,
+             pad = math.max(1, Screen:scaleBySize(3)), spines = spines,
+             count = count, more = more }
 end
 
 -- shadowColumns(p, x, inset) -> the columns the row's recess shadow follows:

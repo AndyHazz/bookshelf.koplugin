@@ -1913,11 +1913,18 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
 
         if show_spines then
             rows[#rows + 1] = {{
+                -- Off, then the spine-out box (true), then the face-out
+                -- slipcase ("covers").
                 text_func = function()
-                    return T(_("Series boxes: %1"), draft.series_boxes and _("On") or _("Off"))
+                    local v = draft.series_boxes
+                    return T(_("Series boxes: %1"), v == "covers" and _("Covers")
+                        or v and _("Spines") or _("Off"))
                 end,
                 callback = pick(function()
-                    draft.series_boxes = not draft.series_boxes or nil
+                    local v = draft.series_boxes
+                    if v == "covers" then draft.series_boxes = nil
+                    elseif v then draft.series_boxes = "covers"
+                    else draft.series_boxes = true end
                 end),
             }}
             -- The spine view's own density. Rows like the list's; height as

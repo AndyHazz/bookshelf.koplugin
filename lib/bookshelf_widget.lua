@@ -6551,6 +6551,7 @@ function BookshelfWidget:_spinePlanBase(content_w, shelf_h, all_items)
         face_out        = self:_spineFaceOut(),
         face_recent_set = self:_spineFaceRecent(all_items),
         thickness_pct   = self:_chipListValue("spine_thickness_pct"),
+        series_box_style = self:_seriesBoxStyle(),
         -- Whose ornament deck the pieces are dealt from: every shelf has its
         -- own (lib/bookshelf_ornament_deck). Here, so the render and the
         -- page map deal from the same one.
@@ -6878,10 +6879,18 @@ function BookshelfWidget:_seriesBoxesEnabled()
     local tab = require("lib/bookshelf_tab_model").getById(self.chip)
     local path = self._drilldown_path or {}
     local tip = path[#path]
-    return tab and tab.series_boxes == true and self:_isSpineMode()
+    return tab and (tab.series_boxes == true or tab.series_boxes == "covers")
+        and self:_isSpineMode()
         and not (tab.source and tab.source.kind == "single_series")
         and not (tip and (tip.kind == "series" or tip.kind == "search" or tip.kind == "opds_nav"))
         and not self:_opdsEffectiveTab()
+end
+
+-- _seriesBoxStyle() -> "covers" for the face-out slipcase, else nil (the
+-- spine-out box). Stored on the shelf as series_boxes: true or "covers".
+function BookshelfWidget:_seriesBoxStyle()
+    local tab = require("lib/bookshelf_tab_model").getById(self.chip)
+    return (tab and tab.series_boxes == "covers") and "covers" or nil
 end
 
 function BookshelfWidget:_prepareSpineItems(items, total)

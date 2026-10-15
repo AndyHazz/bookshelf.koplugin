@@ -5,8 +5,8 @@
 -- holds: all its depth is in the lid, the band above the front, as a spine's
 -- page block is. The front is a board frame holding as many of the members
 -- spine-out as fit in a face-out cover's width, with the first cover printed
--- across them, and a strip below with the series name. A box that holds more
--- than it shows carries a read/total badge along its top.
+-- across them, and a strip below with the series name. Its read/total count
+-- is printed on the lid.
 local InputContainer = require("ui/widget/container/inputcontainer")
 local Geom = require("ui/geometry")
 local GestureRange = require("ui/gesturerange")
@@ -28,7 +28,7 @@ local SPINE_TITLES = true
 -- as if seen on the lid.
 local COUNT_FONT = "Inter ExtraBold"
 local COUNT_SQUASH = 0.7
-local COUNT_TINT = 0.22  -- how far from the lid's colour toward white: a watermark
+local COUNT_TINT = 0.4   -- how far from the lid's colour toward white: a watermark
 
 -- The bundled file itself, through KOReader's Font as the top panel's title
 -- does: BFont:getFace takes a face KEY (cfont, ...) and maps it to the UI
@@ -101,11 +101,9 @@ function Box:init()
             suppress_number_badges = true,
         }
     end
-    -- The read count, only when the box holds more than it shows (the spines
-    -- carry each book's own status mark already), printed along the top of
-    -- the box: see paintTo.
+    -- The read count, read/total, printed on the top of every box: see paintTo.
     local font = BFont.getUIFontFace() or "cfont"
-    if #entry.book.books > #shape.spines then
+    do
         local Repo = require("lib/bookshelf_book_repository")
         local done = 0
         for _, member in ipairs(entry.book.books) do

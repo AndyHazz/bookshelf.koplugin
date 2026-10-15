@@ -158,7 +158,7 @@ end
 -- books spine-out, then a strip with the series name. The spines are the
 -- members' own widths, scaled to the opening, and the box is never wider than
 -- a face-out cover (base.w) or the row: a series with more than fit shows the
--- first ones, and the box's count badge says how many it holds.
+-- first ones, and the read count on its lid says how many it holds.
 function M.geometry(book, base, opts)
     if not M.isBox(book) then return nil end
     opts = opts or {}

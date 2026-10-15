@@ -232,10 +232,10 @@ H.test("the name shrinks on a narrow box before it is cut, and never below the f
     assert(long:getSize().w<=lshape.w-2*lshape.border-2*lshape.pad,"the name runs past the box")
 end)
 
-H.test("the read count shows only when the box holds more than it shows", function()
+H.test("every box carries its read count, whether or not all its books show", function()
     local few=Boxes.box(members(3,"Saga"),"Saga")
     local w=BoxWidget:new{entry={book=few,series_box=Boxes.geometry(few,BASE,{content_w=2000})},width=200,height=300}
-    H.eq(w.count,nil)
+    H.eq(w.count.text,"0/3")
     local many=Boxes.box(members(12,"Saga"),"Saga")
     finished[many.books[1].filepath]=true; finished[many.books[2].filepath]=true
     w=BoxWidget:new{entry={book=many,series_box=Boxes.geometry(many,BASE,{content_w=2000})},width=400,height=300}

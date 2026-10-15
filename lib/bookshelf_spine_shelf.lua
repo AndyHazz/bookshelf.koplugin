@@ -4987,6 +4987,10 @@ function SpineShelf.rowWidget(opts)
                                          -- when that was what it meant.
                                          plank_surf = surf,
                                          lift = tilt_lift,
+                                         -- How far a selection has already
+                                         -- raised it: `below` is measured
+                                         -- from the STANDING foot.
+                                         raised = lift,
                                          -- the true thickness (the pose)
                                          thick = e.thick }
                     fx_here = cover.faceout_fx
@@ -5946,17 +5950,22 @@ function SpineShelf.paintFaceOutTilt(tile)
         col.h = saved_h
         if not ok_r then error(err_r, 0) end
         -- 3. The contact shadow on the plank surface, under the footprint.
+        -- From where the book STANDS: a selected one is already raised, and
+        -- `below` is measured from the standing foot, so measuring from the
+        -- raised one put the shadow's top on the wall, its darkest edge a
+        -- hard line where the lifted foot had been.
         do
             local pb = fx.plank_b or Screen:scaleBySize(6)
             local pf = fx.plank_face or pb
             local ps = fx.plank_surf or (3 * pb)
-            local surf_top = rect.y + rect.h + (fx.below or 0) - (ps + pf)
+            local foot = rect.y + rect.h + (fx.raised or 0)
+            local surf_top = foot + (fx.below or 0) - (ps + pf)
             local bl, br = P(0, 0, 0), P(W, 0, 0)
             local bbl, bbr = P(0, 0, -T), P(W, 0, -T)
             local xl = math.floor(math.min(bl, bbl)) - 2
             local xr = math.ceil(math.max(br, bbr)) + 2
             local mid, hw = (xl + xr) / 2, math.max(1, (xr - xl) / 2)
-            local y_top, y_bot = surf_top + 1, rect.y + rect.h + math.floor(pf * 0.6)
+            local y_top, y_bot = surf_top + 1, foot + math.floor(pf * 0.6)
             local rows = math.max(1, y_bot - y_top)
             for yy = y_top, y_bot - 1, 2 do
                 local fy = 1 - ((yy - y_top) / rows) ^ 1.5

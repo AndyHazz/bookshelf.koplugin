@@ -1638,7 +1638,10 @@ function SpineWidget:_renderShadowedCard(inner)
                     -- single glyph). A HAIR SPACE (\xe2\x80\x8a) separates the
                     -- number and unit so the digit and letter don't collide at
                     -- smallinfofont(12) (same reason as the series pill above).
-                    text = T(_("%1\xe2\x80\x8ap"), tostring(self.book.page_count)),
+                    -- "Page count as a number only" drops the unit (issue 499).
+                    text = BookshelfSettings.read("progress_page_count_bare") == true
+                        and tostring(self.book.page_count)
+                        or T(_("%1\xe2\x80\x8ap"), tostring(self.book.page_count)),
                     face = pc_face,
                     bold = pc_bold,
                     fgcolor = colors.badge_fg,

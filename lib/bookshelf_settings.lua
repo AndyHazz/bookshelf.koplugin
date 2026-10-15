@@ -950,7 +950,16 @@ function Settings:_coverDisplaySubItems()
         -- Page count: defaults off so existing users aren't surprised
         -- by an extra element appearing on every cover after upgrade.
         toggleRow("progress_page_count_enabled",
-                  _("Show page count"), true, true),
+                  _("Show page count"), false, true),
+        -- Issue 499: "123" rather than "123 p" in the badge.
+        (function()
+            local row = toggleRow("progress_page_count_bare",
+                                  _("Page count as a number only"), true, true)
+            row.enabled_func = function()
+                return BookshelfSettings.read("progress_page_count_enabled") == true
+            end
+            return row
+        end)(),
         -- ── reading-status treatments ──
         -- Completed book badge: three-state. "bookmark" (default;
         -- pre-v2.1 dangling outlined check), "tickbox" (v2.1 square

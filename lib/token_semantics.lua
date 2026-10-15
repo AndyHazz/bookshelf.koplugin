@@ -344,6 +344,42 @@ local HTML_NAMED_ENTITIES = {
     { "&amp;",    "&"            }, -- must be last
 }
 
+-- The rest of the named entities a description may carry: HTML's Latin-1
+-- letters and signs (&aacute;, &ntilde;, &ccedil; ...) and the few beyond it
+-- seen in EPUBs. By codepoint, decoded in one pass before the table above. A
+-- book that wrote "&aacute;" showed it literally in the top panel while the
+-- book-detail view, which renders the HTML, showed the letter (Reddit).
+local LATIN_ENTITIES = {
+    iexcl=161, cent=162, pound=163, curren=164, yen=165, brvbar=166, sect=167,
+    uml=168, ordf=170, laquo=171, ["not"]=172, shy=173, macr=175, deg=176,
+    plusmn=177, sup2=178, sup3=179, acute=180, micro=181, para=182, middot=183,
+    cedil=184, sup1=185, ordm=186, raquo=187, frac14=188, frac12=189, frac34=190,
+    iquest=191, Agrave=192, Aacute=193, Acirc=194, Atilde=195, Auml=196,
+    Aring=197, AElig=198, Ccedil=199, Egrave=200, Eacute=201, Ecirc=202,
+    Euml=203, Igrave=204, Iacute=205, Icirc=206, Iuml=207, ETH=208, Ntilde=209,
+    Ograve=210, Oacute=211, Ocirc=212, Otilde=213, Ouml=214, times=215,
+    Oslash=216, Ugrave=217, Uacute=218, Ucirc=219, Uuml=220, Yacute=221,
+    THORN=222, szlig=223, agrave=224, aacute=225, acirc=226, atilde=227,
+    auml=228, aring=229, aelig=230, ccedil=231, egrave=232, eacute=233,
+    ecirc=234, euml=235, igrave=236, iacute=237, icirc=238, iuml=239, eth=240,
+    ntilde=241, ograve=242, oacute=243, ocirc=244, otilde=245, ouml=246,
+    divide=247, oslash=248, ugrave=249, uacute=250, ucirc=251, uuml=252,
+    yacute=253, thorn=254, yuml=255, OElig=338, oelig=339, Scaron=352,
+    scaron=353, Yuml=376, fnof=402, circ=710, tilde=732, ensp=8194, emsp=8195,
+    thinsp=8201, lsaquo=8249, rsaquo=8250, bull=8226, prime=8242, Prime=8243,
+    dagger=8224, Dagger=8225, permil=8240, euro=8364,
+}
+
+-- latinEntity(name) -> the letter, or nil to leave "&name;" for the table
+-- above (or as written). HTML names are case-sensitive (Aacute is the capital,
+-- aacute the small letter), and a correctly written capital matches exactly;
+-- a mis-cased name ("AAcute", "AACUTE", the one in the Reddit report) is read
+-- as the small letter, which is what the book's own HTML view showed.
+local function latinEntity(name)
+    local cp = LATIN_ENTITIES[name] or LATIN_ENTITIES[name:lower()]
+    return cp and codepointToUtf8(cp) or nil
+end
+
 function Semantics.cleanDescription(raw)
     if not raw or raw == "" then return "" end
     local text = raw
@@ -356,7 +392,9 @@ function Semantics.cleanDescription(raw)
     text = text:gsub("</%s*[dD][iI][vV]%s*>", "\n\n")
     -- Generic strip for everything else (<p>, <span>, <i>, <b>, …).
     text = text:gsub("<[^>]+>", "")
-    -- Named entities first.
+    -- Named entities first: the letters and signs, then the table (which
+    -- ends with &amp;).
+    text = text:gsub("&(%a%w*);", function(name) return latinEntity(name) end)
     for _i, pair in ipairs(HTML_NAMED_ENTITIES) do
         text = text:gsub(pair[1], pair[2])
     end

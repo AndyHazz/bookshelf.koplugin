@@ -254,4 +254,12 @@ return {
       expect = "Upper", why = "publishers uppercase tags" },
     { fn = "cleanDescription", args = {""},  n = 1, expect = "" },
     { fn = "cleanDescription", args = {nil}, n = 1, expect = "" },
+    { fn = "cleanDescription", args = {"P&aacute;nfilo, &Aacute;frica, &ntilde;, &ccedil;"}, n = 1,
+      expect = "P\xC3\xA1nfilo, \xC3\x81frica, \xC3\xB1, \xC3\xA7",
+      why = "Latin-1 named entities decode, capitals and small letters apart (Reddit)" },
+    { fn = "cleanDescription", args = {"P&AAcute;nfilo"}, n = 1, expect = "P\xC3\xA1nfilo",
+      why = "a mis-cased name reads as the small letter, as the HTML view showed it" },
+    { fn = "cleanDescription", args = {"&nosuch; &amp;eacute; &euro;5"}, n = 1,
+      expect = "&nosuch; &eacute; \xE2\x82\xAC5",
+      why = "unknown names stay as written; &amp; still decodes last, once" },
 }

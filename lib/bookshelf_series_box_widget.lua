@@ -23,6 +23,11 @@ local Boxes = require("lib/bookshelf_series_boxes")
 local ART_ZOOM = 1.6
 local ART_MIX = 0.4
 local SPINE_TITLES = true
+-- The read count printed on the top of the box: the bundled bold, in a tint
+-- of the cover, squashed to COUNT_SQUASH of its height as if seen on the lid.
+local COUNT_FONT = "Inter ExtraBold"
+local COUNT_SQUASH = 0.7
+local COUNT_TINT = 0.6   -- how far toward white the cover's colour goes
 -- The name shrinks this far below the spine-title size before it is cut.
 local NAME_MIN_SIZE = 8
 
@@ -85,8 +90,8 @@ function Box:init()
         }
     end
     -- The read count, only when the box holds more than it shows (the spines
-    -- carry each book's own status mark already): a badge in the shelf's
-    -- section-label style, centred along the top of the box.
+    -- carry each book's own status mark already), printed along the top of
+    -- the box: see paintTo.
     local font = BFont.getUIFontFace() or "cfont"
     if #entry.book.books > #shape.spines then
         local Repo = require("lib/bookshelf_book_repository")
@@ -100,7 +105,8 @@ function Box:init()
             scale = require("lib/bookshelf_settings_store").read("stack_label_font_scale", 100) or 100
         end)
         self.count = TextWidget:new{ text = string.format("%d/%d", done, #entry.book.books),
-            face = BFont:getFace(font, math.max(8, math.floor(14 * scale / 100 + 0.5))),
+            face = BFont:getFace(BFont.bundledFaceId(COUNT_FONT) or font,
+                                 math.max(8, math.floor(14 * scale / 100 + 0.5))),
             padding = 0 }
     end
     -- The name at the spine-title size, smaller on a narrow box rather than
@@ -205,22 +211,31 @@ function Box:paintTo(bb, x, y)
     self.name.fgcolor = night and BB.ColorRGB32(30,28,24,255) or BB.ColorRGB32(246,239,219,255)
     self.name:paintTo(bb, x + math.max(B + p.pad, math.floor((p.w - sz.w)/2)),
         stripy + math.floor((p.strip_h - sz.h)/2))
-    -- The count badge, the section labels' colours, padding and corners,
-    -- centred along the top of the box.
+    -- The count, printed on the top of the box: no badge behind it, the
+    -- glyphs painted through their own mask in a light tint of the cover,
+    -- squashed as the lid foreshortens it.
     if self.count then
-        local ok_sd, StackDisplay = pcall(require, "lib/bookshelf_stack_display")
-        if ok_sd and StackDisplay and StackDisplay.ribbonColors then
-            local fill, fg = StackDisplay.ribbonColors()
-            local Space = require("lib/bookshelf_space")
-            local pad_x, pad_y = Space.px(5), Space.px(2)
+        pcall(function()
             local cs = self.count:getSize()
-            local bw = math.min(p.w, cs.w + 2 * pad_x)
-            local bh = cs.h + 2 * pad_y
-            local bx = x + math.floor((p.w - bw) / 2)
-            bb:paintRoundedRect(bx, top, bw, bh, fill, Screen:scaleBySize(2))
-            self.count.fgcolor = fg
-            self.count:paintTo(bb, bx + math.floor((bw - cs.w) / 2), top + pad_y)
-        end
+            local sq_h = math.max(1, math.floor(cs.h * COUNT_SQUASH + 0.5))
+            local m = BB.new(cs.w, cs.h, BB.TYPE_BB8)
+            m:fill(BB.COLOR_WHITE)
+            self.count.fgcolor = BB.COLOR_BLACK
+            self.count:paintTo(m, 0, 0)
+            -- Black text on white, inverted: the coverage colorblitFrom wants
+            -- (see lib/bookshelf_transparent_text.lua).
+            m:invertRect(0, 0, cs.w, cs.h)
+            local sq = m:scale(cs.w, sq_h)
+            m:free()
+            local l = self.first_look or {r=60, g=60, b=60}
+            local function t(c) return math.floor(c + (255 - c) * COUNT_TINT + 0.5) end
+            local r, g, b = t(l.r), t(l.g), t(l.b)
+            if night then r, g, b = 255 - r, 255 - g, 255 - b end
+            local cx = x + math.floor((p.w - cs.w) / 2)
+            bb:colorblitFrom(sq, cx, top + math.max(1, math.floor(p.lid / 3)), 0, 0,
+                             cs.w, sq_h, BB.ColorRGB32(r, g, b, 255))
+            sq:free()
+        end)
     end
 end
 

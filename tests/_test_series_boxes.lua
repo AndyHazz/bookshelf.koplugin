@@ -137,7 +137,7 @@ end
 function Text:paintTo(bb,x,y) bb:paintRect(x,y,self.dimen.w,self.dimen.h,"text:"..self.text) end
 package.loaded["lib/bookshelf_colour_text"]=Text
 package.loaded["lib/bookshelf_fonts"]={getFace=function(_,_,size) return {size=size} end,
-    getUIFontFace=function() return "cfont" end}
+    getUIFontFace=function() return "cfont" end, bundledFaceId=function() return "Inter-ExtraBold.ttf" end}
 package.loaded["lib/bookshelf_night_mode_sync"]={active=function() return false end}
 local finished={}
 package.loaded["lib/bookshelf_book_repository"]={

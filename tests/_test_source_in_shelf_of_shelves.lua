@@ -124,4 +124,31 @@ t.test("a folder on the sub-shelf itself drills without reopening it", function(
     eq(table.concat(calls, ","), "drill:source_nav")
 end)
 
+-- Issue 511: news from a source redraws a Spines shelf with what is new. Its
+-- 30 s whole-list fetch is keyed on the chip and drill tip, which news does
+-- not change, so the listener expires it (keeping the entry: a same-list
+-- refetch keeps its ornament deal). The listener body, run for real.
+t.test("sourceChanged expires the spine shelf's fetch cache before redrawing", function()
+    local cb = src:match('onChanged%("widget", (function%(id%).-\n    end)%)')
+    assert(cb, "could not find the sourceChanged listener in init - moved?")
+    local ticks, order = {}, {}
+    local e = env()
+    e.UIManager = { nextTick = function(_self, f) ticks[#ticks + 1] = f end,
+                    setDirty = function() end }
+    local bw = { chip = "kom", _drilldown_path = {},
+                 _spine_fetch_cache = { key = "kom|", at = os.time(), items = {} },
+                 _currentRegisteredSource = function() return { kind = "komga" } end,
+                 _shelvesHoldSource = function() return false end }
+    bw._rebuild = function(self)
+        order[#order + 1] = "rebuild:at=" .. tostring(self._spine_fetch_cache.at)
+    end
+    e.self = bw
+    local listener = compile("return " .. cb, e, "listener")()
+    listener("komga")
+    eq(#ticks, 1)
+    ticks[1]()
+    eq(order[1], "rebuild:at=0", "expired before the rebuild reads it")
+    eq(bw._spine_fetch_cache.key, "kom|", "the entry itself is kept")
+end)
+
 t.done()

@@ -240,6 +240,11 @@ function BookshelfWidget:init()
         if not ((src and (id == nil or src.kind == id)) or self:_shelvesHoldSource(id)) then return end
         UIManager:nextTick(function()
             if self._closed then return end
+            -- Spines view keeps its whole-list fetch for 30 s, keyed on the
+            -- chip and drill tip, neither of which a source's new records
+            -- change (issue 511). Expire it rather than drop it: a refetch
+            -- that brings back the same list keeps its ornament deal.
+            if self._spine_fetch_cache then self._spine_fetch_cache.at = 0 end
             self:_rebuild(); UIManager:setDirty(self, "ui")
         end)
     end)

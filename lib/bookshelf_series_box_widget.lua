@@ -170,9 +170,10 @@ function Box:paintTo(bb, x, y)
     local ch = math.max(2, Screen:scaleBySize(1))
     local front_y = top + p.lid
     -- Lid: the top face, a touch lighter than the boards (it faces the
-    -- light), chamfered top-left like a face-out's page block.
+    -- light), its two top corners chamfered like a face-out's page block.
     bb:paintRectRGB32(x, top + ch, ch, p.lid - ch, lit(1.25))
-    bb:paintRectRGB32(x + ch, top, p.w - ch, p.lid, lit(1.25))
+    bb:paintRectRGB32(x + ch, top, p.w - 2*ch, p.lid, lit(1.25))
+    bb:paintRectRGB32(x + p.w - ch, top + ch, ch, p.lid - ch, lit(1.25))
     bb:paintRectRGB32(x, front_y - math.max(1, math.floor(B/2)), p.w, math.max(1, math.floor(B/2)), lit(1.6))
     -- Front: the frame, then the opening and the spines.
     bb:paintRectRGB32(x, front_y, p.w, p.face_h, board)

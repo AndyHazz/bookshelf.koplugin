@@ -35,11 +35,18 @@ local COUNT_TINT = 0.4   -- how far from the lid's colour toward white: a waterm
 -- The bundled file itself, through KOReader's Font as the top panel's title
 -- does: BFont:getFace takes a face KEY (cfont, ...) and maps it to the UI
 -- font, so a file name handed to it came out in the UI font's regular.
+-- Without the bundled file (removed, or not yet copied into the fonts dir)
+-- it is the bookshelf UI font in bold. KOReader logs an error for a font it
+-- cannot open, so a miss is remembered and not asked again every paint.
+local _count_font_missing = false
 local function countFace(size, fallback)
-    local ok, face = pcall(function()
-        return require("ui/font"):getFace(BFont.bundledFaceId(COUNT_FONT), size)
-    end)
-    if ok and face then return face end
+    if not _count_font_missing then
+        local ok, face = pcall(function()
+            return require("ui/font"):getFace(BFont.bundledFaceId(COUNT_FONT), size)
+        end)
+        if ok and face then return face end
+        _count_font_missing = true
+    end
     return (BFont:getFace(fallback, size, { bold = true }))
 end
 -- The name shrinks this far below the spine-title size before it is cut.
@@ -167,10 +174,8 @@ end
 -- from the front's edges and rounded, and the series name printed below.
 local STICKER_INSET_DP = 4
 local STICKER_RADIUS_DP = 5
+local STICKER_EDGE_PX = 1      -- the sticker's white edge, a hairline
 
--- roundCorners(bb, x, y, w, h, r, top, bottom, ink) -- round off a rect's
--- corners by painting `ink` (what is behind it) over the part of each corner
--- square outside the quarter circle. Rows, not pixels: a corner is r rows.
 -- cornerCut(r, dy) -> how many pixels row dy (0 at the corner's edge) of an
 -- r-pixel rounded corner lies outside the quarter circle.
 local function cornerCut(r, dy)
@@ -178,35 +183,24 @@ local function cornerCut(r, dy)
     return math.floor(r - math.sqrt(math.max(0, r * r - dist * dist)) + 0.5)
 end
 
--- roundCorner(bb, x, y, w, h, r, corner, ink) -- round one corner ("tl",
--- "tr", "bl", "br") of the rect, painting `ink` outside the quarter circle.
-local function roundCorner(bb, x, y, w, h, r, corner, ink)
-    for dy = 0, r - 1 do
-        local cut = cornerCut(r, dy)
-        if cut > 0 then
-            local ry = (corner == "tl" or corner == "tr") and (y + dy) or (y + h - 1 - dy)
-            local rx = (corner == "tl" or corner == "bl") and x or (x + w - cut)
-            bb:paintRectRGB32(rx, ry, cut, 1, ink)
-        end
+-- stickerSpan(w, h, r, nw, nh, row) -> left, right: the columns [left, right)
+-- that row of a w x h sticker covers. Its four corners are rounded by r and
+-- an nw x nh notch is cut from its top-right corner, the notch's inner
+-- corner rounded too, and the sticker's corners either side of it.
+local function stickerSpan(w, h, r, nw, nh, row)
+    local left, right = 0, w
+    if row < r then left = cornerCut(r, row) end
+    if h - 1 - row < r then left = math.max(left, cornerCut(r, h - 1 - row)) end
+    if nw > 0 and row < nh then
+        right = w - nw
+        if row < r then right = right - cornerCut(r, row) end
+        if nh - 1 - row < r then right = right + cornerCut(r, nh - 1 - row) end
+    else
+        local below = row - (nw > 0 and nh or 0)
+        if below < r then right = w - cornerCut(r, below) end
+        if h - 1 - row < r then right = math.min(right, w - cornerCut(r, h - 1 - row)) end
     end
-end
-
-local function roundCorners(bb, x, y, w, h, r, top, bottom, ink)
-    if r < 1 then return end
-    for dy = 0, r - 1 do
-        local dist = r - dy - 0.5
-        local cut = math.floor(r - math.sqrt(math.max(0, r * r - dist * dist)) + 0.5)
-        if cut > 0 then
-            if top then
-                bb:paintRectRGB32(x, y + dy, cut, 1, ink)
-                bb:paintRectRGB32(x + w - cut, y + dy, cut, 1, ink)
-            end
-            if bottom then
-                bb:paintRectRGB32(x, y + h - 1 - dy, cut, 1, ink)
-                bb:paintRectRGB32(x + w - cut, y + h - 1 - dy, cut, 1, ink)
-            end
-        end
-    end
+    return left, math.max(left, right)
 end
 
 function Box:_initSlipcase()
@@ -323,6 +317,14 @@ function Box:_paintSlipcase(bb, x, y)
     local I = self.inset
     local sx, sy = x + I + self.st_dx, front_y + I + self.st_dy
     local SW, SH = self.st_w, self.st_h
+    -- The cover is the sticker: its corners rounded, a notch cut round the
+    -- read count, and a white edge all the way round, the board outside it.
+    local R = math.max(2, Screen:scaleBySize(STICKER_RADIUS_DP))
+    local E = STICKER_EDGE_PX
+    local cs = self.count:getSize()
+    local g = math.max(2, Screen:scaleBySize(3))
+    local nw = math.max(0, math.min(SW - 2 * R, cs.w + 2 * g))
+    local nh = math.max(0, math.min(SH - 2 * R, cs.h + g))
     pcall(function()
         local c = self.art_crop
         local FH = self.st_full_h
@@ -330,42 +332,38 @@ function Box:_paintSlipcase(bb, x, y)
         local tmp = BB.new(tw_, th_, bb:getType())
         tmp:paintRectRGB32(0, 0, tw_, th_, BB.ColorRGB32(255,255,255,255))
         self.art_cover:paintTo(tmp, 0, 0)
-        -- Off with the tile's frame, then to the space's shape.
+        -- Off with the tile's frame, then to the space inside the edge.
         local inner = BB.new(SW, FH, bb:getType())
         inner:blitFrom(tmp, 0, 0, c, c, SW, FH)
         tmp:free()
-        local fit = (FH == SH) and inner or inner:scale(SW, SH)
-        bb:blitFrom(fit, sx, sy, 0, 0, SW, SH)
-        if fit ~= inner then fit:free() end
+        local iw, ih = math.max(1, SW - 2 * E), math.max(1, SH - 2 * E)
+        local fit = inner:scale(iw, ih)
+        bb:blitFrom(fit, sx + E, sy + E, 0, 0, iw, ih)
+        fit:free()
         inner:free()
     end)
-    -- The cover is the sticker: all four corners rounded, the board around
-    -- it. The name is printed on the box itself, below.
-    local R = math.max(2, Screen:scaleBySize(STICKER_RADIUS_DP))
-    roundCorner(bb, sx, sy, SW, SH, R, "tl", board)
-    roundCorner(bb, sx, sy, SW, SH, R, "bl", board)
-    roundCorner(bb, sx, sy, SW, SH, R, "br", board)
-    -- The read count, printed on the box like the name, in its top-right
-    -- corner; the sticker curves round it: a notch of board cut from the
-    -- sticker's corner, its inner corner rounded, the sticker's corners
-    -- either side of it rounded too.
-    do
-        local cs = self.count:getSize()
-        local g = math.max(2, Screen:scaleBySize(3))
-        local nw = math.min(SW - 2 * R, cs.w + 2 * g)
-        local nh = math.min(SH - 2 * R, cs.h + g)
-        local nx, ny = sx + SW - nw, sy
-        if nw > 0 and nh > 0 then
-            -- the board through the notch, its bottom-left corner rounded
-            for row = 0, nh - 1 do
-                local from_bottom = nh - 1 - row
-                local cut = (from_bottom < R) and cornerCut(R, from_bottom) or 0
-                bb:paintRectRGB32(nx + cut, ny + row, nw - cut, 1, board)
-            end
-            -- the sticker's corners either side of the notch
-            roundCorner(bb, sx, sy, nx - sx, SH, R, "tr", board)
-            roundCorner(bb, sx, ny + nh, SW, SH - nh, R, "tr", board)
+    -- Row by row: board outside the sticker's outline, white between it and
+    -- the outline drawn E inside it, the cover within that.
+    local edge = night and BB.ColorRGB32(0,0,0,255) or BB.ColorRGB32(255,255,255,255)
+    local ir = math.max(1, R - E)
+    for row = 0, SH - 1 do
+        local l, r_ = stickerSpan(SW, SH, R, nw, nh, row)
+        local yy = sy + row
+        if l > 0 then bb:paintRectRGB32(sx, yy, l, 1, board) end
+        if r_ < SW then bb:paintRectRGB32(sx + r_, yy, SW - r_, 1, board) end
+        local irow = row - E
+        if irow < 0 or irow >= SH - 2 * E then
+            if r_ > l then bb:paintRectRGB32(sx + l, yy, r_ - l, 1, edge) end
+        else
+            local il, ir_ = stickerSpan(SW - 2 * E, SH - 2 * E, ir, nw, nh, irow)
+            il, ir_ = il + E, ir_ + E
+            if il > l then bb:paintRectRGB32(sx + l, yy, il - l, 1, edge) end
+            if r_ > ir_ then bb:paintRectRGB32(sx + ir_, yy, r_ - ir_, 1, edge) end
         end
+    end
+    -- The read count, printed on the box in the notch.
+    do
+        local nx, ny = sx + SW - nw, sy
         self.count.fgcolor = name_ink_for(night)
         -- Never past the box's own edges, however narrow the sticker.
         local cx = nx + math.floor((nw - cs.w + g) / 2)

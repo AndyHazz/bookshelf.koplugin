@@ -303,7 +303,9 @@ function CoverApply.resetWorkingCache()
     local dir = _cacheDir()
     if lfs.attributes(dir, "mode") ~= "directory" then return end
     local function _rmrf(path)
-        local mode = lfs.attributes(path, "mode")
+        -- symlinkattributes: a link is removed, never followed into what it
+        -- points at.
+        local mode = (lfs.symlinkattributes or lfs.attributes)(path, "mode")
         if mode == "directory" then
             local ok_iter, iter, dobj = pcall(lfs.dir, path)
             if ok_iter then

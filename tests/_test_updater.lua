@@ -29,7 +29,9 @@ package.loaded["ffi/archiver"] = {
                 local i = 0
                 return function()
                     i = i + 1
-                    return arc_entries[i] and { path = arc_entries[i] } or nil
+                    local e = arc_entries[i]
+                    if type(e) == "table" then return e end
+                    return e and { path = e } or nil
                 end
             end
             function r:extractToPath(src, dst)
@@ -83,6 +85,21 @@ t.test("strips the single top-level dir from every entry", function()
     assert(last_reader.extracted[1].dst == "/plugins/bookshelf.koplugin/main.lua")
     assert(last_reader.extracted[2].dst == "/plugins/bookshelf.koplugin/lib/bookshelf_widget.lua")
     assert(last_reader.closed, "archive closed on success")
+end)
+
+t.test("a link in the zip is not extracted; files and folders are", function()
+    open_ok, extract_fail_at = true, nil
+    arc_entries = {
+        { path = "root/lib/", mode = "directory" },
+        { path = "root/evil", mode = "link" },
+        { path = "root/main.lua", mode = "file" },
+        { path = "root/dev", mode = "other" },
+    }
+    local ok, err = Updater._unpackStripRoot("/tmp/x.zip", "/plugins/x")
+    assert(ok == true, tostring(err))
+    assert(#last_reader.extracted == 2, "only the folder and the file: " .. #last_reader.extracted)
+    assert(last_reader.extracted[1].src == "root/lib/")
+    assert(last_reader.extracted[2].src == "root/main.lua")
 end)
 
 t.test("unopenable archive fails cleanly with the reader's error", function()

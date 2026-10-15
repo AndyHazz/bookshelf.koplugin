@@ -126,7 +126,10 @@ local function _materialise(url, book_fp, label, seq)
     if type(url) ~= "string" or url == "" then return nil end
     local ext = url:match("%.([pP][nN][gG])[%?%#]?$") and "png" or "jpg"
     local dir = CoverFetch.onlineDir(book_fp)
-    local dest = dir .. "/" .. CoverApply.safeKey(label) .. "_" .. tostring(seq) .. "." .. ext
+    -- seq is a Wikidata id from the response for that source: keep it to a
+    -- plain name so nothing in it can climb out of the cache folder.
+    local dest = dir .. "/" .. CoverApply.safeKey(label) .. "_"
+        .. tostring(seq):gsub("[^%w_-]", "_") .. "." .. ext
     local ok = CoverFetch.download(url, dest)
     if not ok then return nil end
     local w, h = _fastDims(dest)

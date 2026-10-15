@@ -40,7 +40,11 @@ local function unpackStripRoot(zip_path, dest)
     local extract_err
     for entry in arc:iterate() do
         local rel = entry.path and entry.path:match("^[^/]+/(.+)$")
-        if rel and rel ~= "" then
+        -- Files and folders only. libarchive is told to refuse "..", but not
+        -- links: a link in the zip, then a file written through it, would
+        -- land outside the plugin folder. A release zip never holds one.
+        local plain = entry.mode == nil or entry.mode == "file" or entry.mode == "directory"
+        if rel and rel ~= "" and plain then
             if not arc:extractToPath(entry.path, dest .. "/" .. rel) then
                 extract_err = arc.err or "extract failed"
                 break

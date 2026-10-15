@@ -350,8 +350,15 @@ function Box:_paintSlipcase(bb, x, y)
     end)
     -- Row by row: board outside the sticker's outline, the edge between it
     -- and the outline drawn E inside it, the cover within that.
-    -- A lighter shade of the box, the tone its rim catches the light in.
-    local edge = lit(1.6)
+    -- Halfway between the box and white, as it shows: in night mode the
+    -- board is stored inverted, so halfway toward 0 there.
+    local edge
+    pcall(function()
+        local c = board.getColorRGB32 and board:getColorRGB32() or board
+        local function half(v) return math.floor((night and v or (v + 255)) / 2 + 0.5) end
+        edge = BB.ColorRGB32(half(c.r), half(c.g), half(c.b), 255)
+    end)
+    edge = edge or lit(1.6)
     local ir = math.max(1, R - E)
     for row = 0, SH - 1 do
         local l, r_ = stickerSpan(SW, SH, R, nw, nh, row)

@@ -27,6 +27,8 @@ local SPINE_TITLES = true
 -- bold, a shade lighter than the lid, squashed to COUNT_SQUASH of its height
 -- as if seen on the lid.
 local COUNT_FONT = "Inter ExtraBold"
+-- read/total, a hairline space either side of the slash.
+local COUNT_FORMAT = "%d\xE2\x80\x8A/\xE2\x80\x8A%d"
 local COUNT_SQUASH = 0.7
 local COUNT_TINT = 0.4   -- how far from the lid's colour toward white: a watermark
 
@@ -142,7 +144,7 @@ function Box:init()
         pcall(function()
             scale = require("lib/bookshelf_settings_store").read("stack_label_font_scale", 100) or 100
         end)
-        self.count = TextWidget:new{ text = string.format("%d/%d", done, #entry.book.books),
+        self.count = TextWidget:new{ text = string.format(COUNT_FORMAT, done, #entry.book.books),
             face = countFace(math.max(8, math.floor(14 * scale / 100 + 0.5)), font),
             padding = 0 }
     end
@@ -229,22 +231,21 @@ function Box:_initSlipcase()
                 width = sp.w, height = shape.h, show_author = false }, x = sp.x }
         end
     end
-    -- The front's picture: the first cover, whole, scaled into the space
-    -- above the name at its own proportions and centred there, so the
-    -- sticker is the cover's shape and the board shows round it.
+    -- The front's picture: the first cover as a sticker in the space above
+    -- the name.
     local B = shape.border
     self.inset = math.max(2, Screen:scaleBySize(STICKER_INSET_DP))
     self.art_w = math.max(1, shape.w - 2 * self.inset)
     self.art_h = math.max(1, shape.front_h - 2 * self.inset - shape.strip_h)
+    -- Across the box's full width at the cover's proportions; a cover taller
+    -- than the space is cropped evenly top and bottom (the name is printed
+    -- below, not over it), a shorter one sits centred in it whole.
     local aspect = (self.first_look and self.first_look.aspect) or 1.5
-    local st_h = self.art_h
-    local st_w = math.floor(st_h / aspect + 0.5)
-    if st_w > self.art_w then
-        st_w = self.art_w
-        st_h = math.max(1, math.floor(st_w * aspect + 0.5))
-    end
-    self.st_w, self.st_h = math.max(1, st_w), math.max(1, st_h)
-    self.st_dx = math.floor((self.art_w - self.st_w) / 2)
+    self.st_w = self.art_w
+    self.st_full_h = math.max(1, math.floor(self.st_w * aspect + 0.5))
+    self.st_h = math.min(self.art_h, self.st_full_h)
+    self.st_oy = math.floor((self.st_full_h - self.st_h) / 2)
+    self.st_dx = 0
     self.st_dy = math.floor((self.art_h - self.st_h) / 2)
     -- Drawn a little larger than the sticker and cropped inside: the cover
     -- tile carries a hairline frame, which showed as a black line down each
@@ -252,13 +253,13 @@ function Box:_initSlipcase()
     self.art_crop = math.max(2, Screen:scaleBySize(2))
     self.art_cover = require("lib/bookshelf_spine_widget"):new{
         book = first, width = self.st_w + 2 * self.art_crop,
-        height = self.st_h + 2 * self.art_crop, flat_thumb = true,
+        height = self.st_full_h + 2 * self.art_crop, flat_thumb = true,
         show_progress = false, show_status = false, suppress_favorite_badge = true,
         suppress_number_badges = true,
     }
     local font = BFont.getUIFontFace() or "cfont"
     -- In the name's face: both are printed on the box.
-    self.count = TextWidget:new{ text = string.format("%d/%d",
+    self.count = TextWidget:new{ text = string.format(COUNT_FORMAT,
         finishedCount(entry.book.books), #entry.book.books),
         face = BFont:getFace(font, shape.label_size), padding = 0 }
     local room = math.max(1, self.art_w - 2 * shape.pad)
@@ -328,11 +329,11 @@ function Box:_paintSlipcase(bb, x, y)
     local SW, SH = self.st_w, self.st_h
     pcall(function()
         local c = self.art_crop
-        local tw_, th_ = SW + 2 * c, SH + 2 * c
+        local tw_, th_ = SW + 2 * c, self.st_full_h + 2 * c
         local tmp = BB.new(tw_, th_, bb:getType())
         tmp:paintRectRGB32(0, 0, tw_, th_, BB.ColorRGB32(255,255,255,255))
         self.art_cover:paintTo(tmp, 0, 0)
-        bb:blitFrom(tmp, sx, sy, c, c, SW, SH)
+        bb:blitFrom(tmp, sx, sy, c, c + self.st_oy, SW, SH)
         tmp:free()
     end)
     -- The cover is the sticker: all four corners rounded, the board around
@@ -363,8 +364,12 @@ function Box:_paintSlipcase(bb, x, y)
             roundCorner(bb, sx, ny + nh, SW, SH - nh, R, "tr", board)
         end
         self.count.fgcolor = name_ink_for(night)
-        self.count:paintTo(bb, nx + math.floor((nw - cs.w + g) / 2),
-            ny + math.max(0, math.floor((nh - cs.h) / 2)))
+        -- Never past the box's own edges, however narrow the sticker.
+        local cx = nx + math.floor((nw - cs.w + g) / 2)
+        cx = math.max(x, math.min(cx, x + p.w - cs.w))
+        if cs.w <= p.w then
+            self.count:paintTo(bb, cx, ny + math.max(0, math.floor((nh - cs.h) / 2)))
+        end
     end
     local stripy = front_y + p.front_h - p.strip_h
     local name_ink = name_ink_for(night)

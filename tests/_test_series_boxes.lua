@@ -130,7 +130,8 @@ end
 local Text=W:extend{}
 function Text:init()
     local size=self.face.size or 12
-    local w=#self.text*size
+    -- Characters, not bytes: a hairline space is three bytes.
+    local w=#(self.text:gsub("[\128-\191]",""))*size
     if self.max_width and w>self.max_width then w=self.max_width; self.cut=true end
     self.dimen={w=math.max(1,w),h=size}
 end
@@ -235,11 +236,11 @@ end)
 H.test("every box carries its read count, whether or not all its books show", function()
     local few=Boxes.box(members(3,"Saga"),"Saga")
     local w=BoxWidget:new{entry={book=few,series_box=Boxes.geometry(few,BASE,{content_w=2000})},width=200,height=300}
-    H.eq(w.count.text,"0/3")
+    H.eq(w.count.text,"0\xE2\x80\x8A/\xE2\x80\x8A3")
     local many=Boxes.box(members(12,"Saga"),"Saga")
     finished[many.books[1].filepath]=true; finished[many.books[2].filepath]=true
     w=BoxWidget:new{entry={book=many,series_box=Boxes.geometry(many,BASE,{content_w=2000})},width=400,height=300}
-    H.eq(w.count.text,"2/12")
+    H.eq(w.count.text,"2\xE2\x80\x8A/\xE2\x80\x8A12")
 end)
 
 H.test("a box paints inside its own rectangle, spines in two passes around the art", function()
@@ -316,7 +317,7 @@ H.test("a slipcase of more than eight is filled with eight; its label says how m
     H.eq(#g.spines,Boxes.SLIPCASE_SPINES); H.eq(g.count,20)
     for i=1,8 do H.eq(g.spines[i].member,i) end
     local w=BoxWidget:new{entry={book=box,series_box=g},width=g.w,height=300}
-    H.eq(w.plus,nil); H.eq(w.count.text,"0/20"); H.eq(#w.slots,8)
+    H.eq(w.plus,nil); H.eq(w.count.text,"0\xE2\x80\x8A/\xE2\x80\x8A20"); H.eq(#w.slots,8)
 end)
 
 H.test("a slipcase casts its shadow from its books and walls, not one rectangle", function()

@@ -162,7 +162,7 @@ end
 function M.geometry(book, base, opts)
     if not M.isBox(book) then return nil end
     opts = opts or {}
-    if opts.series_box_style == "covers" then return M.slipcaseGeometry(book, base, opts) end
+    if opts.series_box_style == "slipcase" then return M.slipcaseGeometry(book, base, opts) end
     local Screen = require("device").screen
     local SpineLayout = require("lib/bookshelf_spine_layout")
     local SpineShelf = require("lib/bookshelf_spine_shelf")
@@ -199,12 +199,13 @@ M.SLIPCASE_SPINES = 8
 
 -- slipcaseGeometry(book, base, opts) -> the face-out box set's shape.
 --
--- A face-out cover's footprint (base.w by base.h): an open-topped slipcase
--- with the books standing in it spine-out, their heads above its rim, so
--- each one's top and status mark show. The front, printed with the first
--- cover, is shorter than the books by `rise`; the name strip runs along its
--- foot as on the spine-out box. Up to SLIPCASE_SPINES books share the inside
--- width in proportion to their own spine widths, so the box is always full.
+-- A face-out cover's height (base.h), and as wide as its books, up to a
+-- face-out cover's width (base.w): an open-topped slipcase with the books
+-- standing in it spine-out, their heads above its rim, so each one's top and
+-- status mark show. The front, printed with the first cover, is shorter than
+-- the books by `rise`; the name strip runs along its foot as on the
+-- spine-out box. Up to SLIPCASE_SPINES books, at their own spine widths, or
+-- sharing the cover's width in proportion to them when they would not fit.
 function M.slipcaseGeometry(book, base, opts)
     local Screen = require("device").screen
     local SpineLayout = require("lib/bookshelf_spine_layout")
@@ -214,7 +215,7 @@ function M.slipcaseGeometry(book, base, opts)
         opts.row_h and px_per_dp > 0 and (opts.row_h / px_per_dp) or nil)
     local count = #book.books
     local border = math.max(2, Screen:scaleBySize(2))
-    local w = math.max(2, math.min(base.w,
+    local max_w = math.max(2, math.min(base.w,
         (opts.content_w or base.w) - 2 * (opts.end_margin or 0)))
     local h = base.h
     local label_size = SpineShelf.titleSize(base.ref_w_dp)
@@ -224,13 +225,17 @@ function M.slipcaseGeometry(book, base, opts)
     -- The side boards stand the full height either side of the books, a
     -- little thicker than the front's frame so they read as walls.
     local wall = 2 * border
-    local inner_w = w - 2 * wall
-    -- Natural widths, then shared out to fill the inside exactly.
+    -- The books at their own widths, and the box as wide as they are: a
+    -- two-book series is a narrow slipcase, not two doorstops filling a
+    -- cover's width. Only past a face-out cover's width are they squeezed
+    -- to share it.
     local nat, sum = {}, 0
     for i = 1, n do
         nat[i] = math.max(1, spinePx(book.books[i], auto_thick))
         sum = sum + nat[i]
     end
+    local w = math.min(max_w, sum + 2 * wall)
+    local inner_w = w - 2 * wall
     local spines, x = {}, 0
     for i = 1, n do
         local sw = (i == n) and (inner_w - x)
@@ -243,7 +248,7 @@ function M.slipcaseGeometry(book, base, opts)
     -- then run back behind the books.
     local wall_top = math.min(rise, SpineLayout.topEdgeHeight(h, base.aspect,
         Screen:scaleBySize(5)))
-    return { style = "covers", w = w, h = h, face_h = base.face_h or h, wall_top = wall_top,
+    return { style = "slipcase", w = w, h = h, face_h = base.face_h or h, wall_top = wall_top,
              depth = base.depth, lid = 0, border = border, wall = wall, strip_h = strip_h,
              label_size = label_size, rise = rise, front_h = h - rise,
              pad = math.max(1, Screen:scaleBySize(3)), spines = spines,
@@ -254,7 +259,7 @@ end
 -- one, the box's own footprint, measured from the row's baseline.
 function M.shadowColumns(p, x, _inset)
     -- Stands at the front edge like a spine, so no face-out inset.
-    if p.style == "covers" and p.wall and p.wall_top then
+    if p.style == "slipcase" and p.wall and p.wall_top then
         -- The slipcase's outline: its books the full height in the middle,
         -- its side walls only as high as their tops. One rectangle cast the
         -- books' shadow from the box's outer edge, a wall's width off them.

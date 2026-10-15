@@ -1914,16 +1914,16 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         if show_spines then
             rows[#rows + 1] = {{
                 -- Off, then the spine-out box (true), then the face-out
-                -- slipcase ("covers").
+                -- slipcase ("slipcase").
                 text_func = function()
                     local v = draft.series_boxes
-                    return T(_("Series boxes: %1"), v == "covers" and _("Covers")
+                    return T(_("Series boxes: %1"), v == "slipcase" and _("Slipcase")
                         or v and _("Spines") or _("Off"))
                 end,
                 callback = pick(function()
                     local v = draft.series_boxes
-                    if v == "covers" then draft.series_boxes = nil
-                    elseif v then draft.series_boxes = "covers"
+                    if v == "slipcase" then draft.series_boxes = nil
+                    elseif v then draft.series_boxes = "slipcase"
                     else draft.series_boxes = true end
                 end),
             }}

@@ -57,7 +57,7 @@ local shelf = {
     _layoutPrimitives = function() return 16, "second value" end,
     _rowGap          = function(_s, pad) return pad * 3 end,
     _ornDrill        = function() return nil end,   -- the shelf's top level
-    _seriesBoxStyle  = function() return "covers" end,
+    _seriesBoxStyle  = function() return "slipcase" end,
 }
 
 t.test("it produces exactly the options the two passes must agree on", function()

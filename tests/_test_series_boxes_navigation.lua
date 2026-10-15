@@ -211,7 +211,7 @@ t.test("the editor toggle changes only its own draft and uses the existing live-
     eq(before,"Series boxes: Off"); eq(after,"Series boxes: Spines")
     eq(a.series_boxes,true); eq(b.series_boxes,nil)
     before,after=toggle(a)
-    eq(after,"Series boxes: Covers"); eq(a.series_boxes,"covers")
+    eq(after,"Series boxes: Slipcase"); eq(a.series_boxes,"slipcase")
     toggle(a); eq(a.series_boxes,nil)
 end)
 

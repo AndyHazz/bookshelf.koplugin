@@ -262,20 +262,32 @@ H.test("a box paints inside its own rectangle, spines in two passes around the a
     end
 end)
 
--- ── The face-out slipcase ("covers") ───────────────────────────────────────
-local SLIP={series_box_style="covers",content_w=2000}
+-- ── The face-out slipcase ────────────────────────────────────────────────────
+local SLIP={series_box_style="slipcase",content_w=2000}
 
 H.test("a slipcase takes a face-out cover's footprint, its places filling the inside", function()
     for _,n in ipairs({1,3,8}) do
         local box=Boxes.box(members(n,"Saga"),"Saga")
         local g=Boxes.geometry(box,BASE,SLIP)
-        H.eq(g.style,"covers"); H.eq(g.w,BASE.w); H.eq(g.h,BASE.h); H.eq(g.count,n)
+        H.eq(g.style,"slipcase"); H.eq(g.h,BASE.h); H.eq(g.count,n)
         H.eq(#g.spines,n)
         local sum=0
         for i,sp in ipairs(g.spines) do H.eq(sp.member,i); H.eq(sp.x,sum); sum=sum+sp.w end
         H.eq(sum,g.w-2*g.wall,"the places do not fill the inside")
         assert(g.rise>0 and g.front_h+g.rise==g.h)
     end
+end)
+
+H.test("a slipcase is as wide as its books, up to a face-out cover", function()
+    local two=Boxes.geometry(Boxes.box(members(2,"Saga"),"Saga"),BASE,SLIP)
+    assert(two.w<BASE.w, "a two-book slipcase still filled a cover's width")
+    local sum=0
+    for _,sp in ipairs(two.spines) do sum=sum+sp.w end
+    H.eq(two.w,sum+2*two.wall,"the box is not as wide as its books")
+    local many=Boxes.geometry(Boxes.box(members(8,"Saga"),"Saga"),BASE,SLIP)
+    assert(many.w<=BASE.w, "a slipcase ran past a cover's width")
+    local more=Boxes.geometry(Boxes.box(members(20,"Saga"),"Saga"),BASE,SLIP)
+    assert(more.w<=BASE.w and more.w>=two.w)
 end)
 
 H.test("a slipcase of more than eight is filled with eight; its label says how many", function()

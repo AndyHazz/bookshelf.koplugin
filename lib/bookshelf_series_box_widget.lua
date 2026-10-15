@@ -98,7 +98,7 @@ function Box:init()
     local entry, shape = self.entry, self.entry.series_box
     self.book = entry.book
     self.shape = shape
-    if shape.style == "covers" then return self:_initSlipcase() end
+    if shape.style == "slipcase" then return self:_initSlipcase() end
     local SpineShelf = require("lib/bookshelf_spine_shelf")
     -- At the front edge of the plank, like a spine, not set back an inset
     -- like a face-out: the box holds its books spine-out.
@@ -298,7 +298,7 @@ end
 
 function Box:paintTo(bb, x, y)
     self.dimen.x, self.dimen.y = x, y
-    if self.shape.style == "covers" then return self:_paintSlipcase(bb, x, y) end
+    if self.shape.style == "slipcase" then return self:_paintSlipcase(bb, x, y) end
     local p = self.shape
     local SpineShelf = require("lib/bookshelf_spine_shelf")
     local night = require("lib/bookshelf_night_mode_sync").active()

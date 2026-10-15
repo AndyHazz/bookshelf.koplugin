@@ -6886,18 +6886,18 @@ function BookshelfWidget:_seriesBoxesEnabled()
     local tab = require("lib/bookshelf_tab_model").getById(self.chip)
     local path = self._drilldown_path or {}
     local tip = path[#path]
-    return tab and (tab.series_boxes == true or tab.series_boxes == "covers")
+    return tab and (tab.series_boxes == true or tab.series_boxes == "slipcase")
         and self:_isSpineMode()
         and not (tab.source and tab.source.kind == "single_series")
         and not (tip and (tip.kind == "series" or tip.kind == "search" or tip.kind == "opds_nav"))
         and not self:_opdsEffectiveTab()
 end
 
--- _seriesBoxStyle() -> "covers" for the face-out slipcase, else nil (the
--- spine-out box). Stored on the shelf as series_boxes: true or "covers".
+-- _seriesBoxStyle() -> "slipcase" for the face-out slipcase, else nil (the
+-- spine-out box). Stored on the shelf as series_boxes: true or "slipcase".
 function BookshelfWidget:_seriesBoxStyle()
     local tab = require("lib/bookshelf_tab_model").getById(self.chip)
-    return (tab and tab.series_boxes == "covers") and "covers" or nil
+    return (tab and tab.series_boxes == "slipcase") and "slipcase" or nil
 end
 
 function BookshelfWidget:_prepareSpineItems(items, total)

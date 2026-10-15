@@ -34,6 +34,7 @@ local InputContainer = require("ui/widget/container/inputcontainer")
 local HorizontalGroup= require("ui/widget/horizontalgroup")
 local HorizontalSpan = require("ui/widget/horizontalspan")
 local TextWidget     = require("lib/bookshelf_colour_text")
+local CapCentre = require("lib/bookshelf_cap_centre")
 local CenterContainer= require("ui/widget/container/centercontainer")
 local OverlapGroup   = require("ui/widget/overlapgroup")
 local Widget         = require("ui/widget/widget")
@@ -243,13 +244,16 @@ local function _buildLabelContent(label, size, max_w, ink, inverted)
         else
             one_face, one_bold = _iconFace(size)
         end
-        return TextWidget:new{
+        local one = TextWidget:new{
             text      = segments[1].text,
             face      = one_face,
             bold      = one_bold,
             fgcolor   = ink,
             max_width = _maxWidthOrNil(max_w),
         }
+        -- Capitals centred, not the line box (lib/bookshelf_cap_centre).
+        if segments[1].class == "text" then CapCentre.centre(one) end
+        return one
     end
     -- Mixed: HorizontalGroup. Icons (class != "text") render at their
     -- natural width — truncating mid-glyph reads badly. Text segments
@@ -294,6 +298,7 @@ local function _buildLabelContent(label, size, max_w, ink, inverted)
             fgcolor   = ink,
             max_width = is_text and _maxWidthOrNil(text_budget) or nil,
         }
+        if is_text then CapCentre.centre(hg[#hg]) end
         end
     end
     return hg
@@ -763,12 +768,12 @@ local function arrowPillFrame(label, h, chained, glyph)
             fgcolor = Blitbuffer.COLOR_BLACK,
         }
         local lbl_face, lbl_bold = BFont:getFace("infofont", _scaled(16), { bold = true })
-        local text_tw = TextWidget:new{
+        local text_tw = CapCentre.centre(TextWidget:new{
             text    = _chipCase(label),
             face    = lbl_face,
             bold    = lbl_bold,
             fgcolor = Blitbuffer.COLOR_BLACK,
-        }
+        })
         local gap = Space.padding.default
         content_widget = HorizontalGroup:new{
             align = "center",
@@ -797,6 +802,7 @@ local function arrowPillFrame(label, h, chained, glyph)
             bold    = bold,
             fgcolor = Blitbuffer.COLOR_BLACK,
         }
+        if not glyph then CapCentre.centre(content_widget) end
         end
         content_w = content_widget:getSize().w
         content_h = content_widget:getSize().h

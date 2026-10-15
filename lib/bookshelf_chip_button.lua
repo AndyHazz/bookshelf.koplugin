@@ -76,10 +76,10 @@ function ChipButton.build(opts)
     end
     local label_widget
     if opts.text then
-        label_widget = TextWidget:new{
+        label_widget = require("lib/bookshelf_cap_centre").centre(TextWidget:new{
             text = opts.text, face = opts.face, bold = opts.bold or false,
             fgcolor = Blitbuffer.COLOR_BLACK,
-        }
+        })
     end
     local content = {}
     local function addPart(w)

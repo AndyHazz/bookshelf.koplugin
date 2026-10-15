@@ -194,7 +194,7 @@ function M.geometry(book, base, opts)
              label_size = label_size, pad = pad, spines = spines, count = count }
 end
 
--- The most spines a slipcase shows; past it the last place is a "+".
+-- The most books a slipcase shows; its count label says how many it holds.
 M.SLIPCASE_SPINES = 8
 
 -- slipcaseGeometry(book, base, opts) -> the face-out box set's shape.
@@ -203,9 +203,8 @@ M.SLIPCASE_SPINES = 8
 -- with the books standing in it spine-out, their heads above its rim, so
 -- each one's top and status mark show. The front, printed with the first
 -- cover, is shorter than the books by `rise`; the name strip runs along its
--- foot as on the spine-out box. Up to SLIPCASE_SPINES places share the
--- inside width in proportion to the books' own spine widths; a series with
--- more shows one fewer book and a "+" in the last place.
+-- foot as on the spine-out box. Up to SLIPCASE_SPINES books share the inside
+-- width in proportion to their own spine widths, so the box is always full.
 function M.slipcaseGeometry(book, base, opts)
     local Screen = require("device").screen
     local SpineLayout = require("lib/bookshelf_spine_layout")
@@ -221,33 +220,29 @@ function M.slipcaseGeometry(book, base, opts)
     local label_size = SpineShelf.titleSize(base.ref_w_dp)
     local strip_h = SpineShelf.textHeight(label_size) + 2 * math.max(1, Screen:scaleBySize(2))
     local rise = math.max(Screen:scaleBySize(48), math.floor(h * 0.27))
-    local more = count > M.SLIPCASE_SPINES
-    local n = math.min(count, more and M.SLIPCASE_SPINES - 1 or M.SLIPCASE_SPINES)
-    local places = n + (more and 1 or 0)
+    local n = math.min(count, M.SLIPCASE_SPINES)
     -- The side boards stand the full height either side of the books, a
     -- little thicker than the front's frame so they read as walls.
     local wall = 2 * border
     local inner_w = w - 2 * wall
-    -- Natural widths, then shared out to fill the inside exactly; the "+"
-    -- place takes an average book's share.
+    -- Natural widths, then shared out to fill the inside exactly.
     local nat, sum = {}, 0
     for i = 1, n do
         nat[i] = math.max(1, spinePx(book.books[i], auto_thick))
         sum = sum + nat[i]
     end
-    if more then nat[n + 1] = sum / math.max(1, n); sum = sum + nat[n + 1] end
     local spines, x = {}, 0
-    for i = 1, places do
-        local sw = (i == places) and (inner_w - x)
+    for i = 1, n do
+        local sw = (i == n) and (inner_w - x)
                    or math.max(1, math.floor(inner_w * nat[i] / sum + 0.5))
-        spines[i] = { member = (i <= n) and i or nil, plus = (i > n) or nil, x = x, w = sw }
+        spines[i] = { member = i, x = x, w = sw }
         x = x + sw
     end
     return { style = "covers", w = w, h = h, face_h = base.face_h or h,
              depth = base.depth, lid = 0, border = border, wall = wall, strip_h = strip_h,
              label_size = label_size, rise = rise, front_h = h - rise,
              pad = math.max(1, Screen:scaleBySize(3)), spines = spines,
-             count = count, more = more }
+             count = count }
 end
 
 -- shadowColumns(p, x, inset) -> the columns the row's recess shadow follows:

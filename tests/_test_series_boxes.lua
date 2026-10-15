@@ -270,7 +270,7 @@ H.test("a slipcase takes a face-out cover's footprint, its places filling the in
         local box=Boxes.box(members(n,"Saga"),"Saga")
         local g=Boxes.geometry(box,BASE,SLIP)
         H.eq(g.style,"covers"); H.eq(g.w,BASE.w); H.eq(g.h,BASE.h); H.eq(g.count,n)
-        H.eq(#g.spines,n); H.eq(g.more,false)
+        H.eq(#g.spines,n)
         local sum=0
         for i,sp in ipairs(g.spines) do H.eq(sp.member,i); H.eq(sp.x,sum); sum=sum+sp.w end
         H.eq(sum,g.w-2*g.wall,"the places do not fill the inside")
@@ -278,18 +278,14 @@ H.test("a slipcase takes a face-out cover's footprint, its places filling the in
     end
 end)
 
-H.test("a slipcase of more than eight shows seven and a plus in the eighth place", function()
+H.test("a slipcase of more than eight is filled with eight; its label says how many", function()
     for k in pairs(finished) do finished[k]=nil end
     local box=Boxes.box(members(20,"Saga"),"Saga")
     local g=Boxes.geometry(box,BASE,SLIP)
-    H.eq(#g.spines,Boxes.SLIPCASE_SPINES); H.eq(g.more,true); H.eq(g.count,20)
-    for i=1,7 do H.eq(g.spines[i].member,i) end
-    H.eq(g.spines[8].member,nil); H.eq(g.spines[8].plus,true)
+    H.eq(#g.spines,Boxes.SLIPCASE_SPINES); H.eq(g.count,20)
+    for i=1,8 do H.eq(g.spines[i].member,i) end
     local w=BoxWidget:new{entry={book=box,series_box=g},width=g.w,height=300}
-    assert(w.plus,"no plus"); H.eq(w.count.text,"0/20"); H.eq(#w.slots,7)
-    local few=Boxes.box(members(8,"Saga"),"Saga")
-    w=BoxWidget:new{entry={book=few,series_box=Boxes.geometry(few,BASE,SLIP)},width=BASE.w,height=300}
-    H.eq(w.plus,nil); H.eq(#w.slots,8)
+    H.eq(w.plus,nil); H.eq(w.count.text,"0/20"); H.eq(#w.slots,8)
 end)
 
 H.test("a slipcase paints inside its own rectangle, its books under the front", function()
@@ -300,7 +296,7 @@ H.test("a slipcase paints inside its own rectangle, its books under the front", 
         painted_slots={}
         local bb=surface(20,10,g.w,320)
         w:paintTo(bb,20,10)
-        H.eq(#painted_slots,math.min(n,n>8 and 7 or 8))
+        H.eq(#painted_slots,math.min(n,8))
         for _,sl in ipairs(painted_slots) do
             H.eq(sl.y,10+320-g.h,"a book does not stand at the box's top")
             H.eq(sl.body,nil,"a slipcase book is painted in one pass")

@@ -153,8 +153,9 @@ end
 -- ── The face-out box set: an open-topped slipcase ──────────────────────────
 -- The books stand in it spine-out, titles off, their heads above the rim so
 -- each one's page top and status mark show; the front, printed with the first
--- cover, hides the rest of them. A "+" stands in the last place when the
--- series has more than fit. The read count is a section label on the front.
+-- cover, hides the rest of them. The read count is a section label on the
+-- front, and says how many the series holds when it holds more than fit.
+local CONTACT_SHADOW = 0.35   -- the shadow's strength at the rim
 
 function Box:_initSlipcase()
     local entry, shape = self.entry, self.entry.series_box
@@ -199,18 +200,6 @@ function Box:_initSlipcase()
     local label_face = BFont:getFace(font, math.max(8, math.floor(14 * scale / 100 + 0.5)))
     self.count = TextWidget:new{ text = string.format("%d/%d",
         finishedCount(entry.book.books), #entry.book.books), face = label_face, padding = 0 }
-    if shape.more then
-        -- As big as the rise allows, but never wider than its place.
-        local place_w = shape.spines[#shape.spines].w
-        local size = math.max(6, math.floor(shape.rise * 0.45))
-        while true do
-            self.plus = TextWidget:new{ text = "+", face = BFont:getFace(font, size,
-                { bold = true }), padding = 0 }
-            if self.plus:getSize().w <= place_w or size <= 6 then break end
-            self.plus:free()
-            size = size - 1
-        end
-    end
     self.name = fitName(entry.book.series_name or "", shape.label_size,
         math.max(1, shape.w - 2 * B - 2 * shape.pad), font)
 end
@@ -234,18 +223,17 @@ function Box:_paintSlipcase(bb, x, y)
         s.slot.entry.body, s.slot.entry.marks = nil, nil
         s.slot:_renderIntoAt(bb, ix + s.x, top, night)
     end
-    -- The "+" in the last place: the inside of the box, a plus where a book's
-    -- head would be.
-    if self.plus then
-        local sp = p.spines[#p.spines]
-        local sx = ix + sp.x
-        local inside_top = top
-        bb:paintRectRGB32(sx, inside_top, sp.w, front_y - inside_top, lit(.35))
-        local ps = self.plus:getSize()
-        self.plus.fgcolor = night and BB.ColorRGB32(30,28,24,255) or BB.ColorRGB32(246,239,219,255)
-        self.plus:paintTo(bb, sx + math.floor((sp.w - ps.w) / 2),
-            inside_top + math.floor((front_y - inside_top - ps.h) / 2))
-    end
+    -- A contact shadow on the books just above the rim, where the front
+    -- stands in front of them: darkest at the rim, gone a few pixels up.
+    pcall(function()
+        local W = require("lib/bookshelf_wallpaper")
+        local fade = math.max(2, Screen:scaleBySize(6))
+        local inner_w = p.w - 2 * p.wall
+        for k = 1, fade do
+            W.shadeRect(bb, ix, front_y - k, inner_w, 1,
+                        CONTACT_SHADOW * (1 - (k - 1) / fade), night)
+        end
+    end)
     -- The side boards, the full height either side of the books, their tops
     -- catching the light like the front's rim.
     local board = SpineShelf.boardColor(l, night)

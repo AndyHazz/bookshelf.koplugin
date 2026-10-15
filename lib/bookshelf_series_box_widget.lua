@@ -240,9 +240,14 @@ function Box:_paintSlipcase(bb, x, y)
     local board = SpineShelf.boardColor(l, night)
     local rim = math.max(1, math.floor(B/2))
     local wall_y = math.max(top, front_y - p.wall_top)
-    for _, wx in ipairs({ x, x + p.w - p.wall }) do
-        bb:paintRectRGB32(wx, wall_y, p.wall, front_y - wall_y, lit(1.25))
-        bb:paintRectRGB32(wx, wall_y, p.wall, rim, lit(1.6))
+    -- The back corners rounded off, the outer one of each wall, as the
+    -- spine-out box's lid is.
+    local ch = math.min(p.wall - 1, math.max(2, Screen:scaleBySize(1)))
+    for i, wx in ipairs({ x, x + p.w - p.wall }) do
+        local cut_x = (i == 1) and (wx + ch) or wx
+        bb:paintRectRGB32(cut_x, wall_y, p.wall - ch, ch, lit(1.25))
+        bb:paintRectRGB32(wx, wall_y + ch, p.wall, front_y - wall_y - ch, lit(1.25))
+        bb:paintRectRGB32(cut_x, wall_y, p.wall - ch, rim, lit(1.6))
     end
     -- The front: board, the printed cover, the name strip.
     bb:paintRectRGB32(x, front_y, p.w, p.front_h, board)

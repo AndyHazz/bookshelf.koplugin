@@ -2124,7 +2124,7 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
     if tilt then
         -- Sized above with the face, from the same tip angles.
         edge_h = tilt_edge
-    elseif spine_h >= Screen:scaleBySize(60) and not e.no_top_edge then
+    elseif spine_h >= Screen:scaleBySize(60) then
         -- The spine-out book's depth into the shelf is its COVER WIDTH
         -- (height over aspect), foreshortened by the camera's pitch (see
         -- VIEW_SIN) -- not a fraction of its height, which made every spine
@@ -2139,18 +2139,12 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
                                 edge = edge_h }
     local body_top = top + edge_h
     local body_h = spine_h - edge_h
-    -- A series box paints its spines in two passes with its art between
-    -- them: the body (marks = false), then the lettering (body = false),
-    -- so the art tints the spines without fading what is written on them.
-    if e.body ~= false then
-        for i = 0, spine_w - 1 do
-            bb:paintRectRGB32(x + i, body_top, 1, body_h,
-                              _tintColor(e.look, _rampF(i, spine_w), night))
-        end
-        _paintBorderRGB32(bb, x, body_top, spine_w, spine_h - edge_h, hairline,
-                          _boardColor(e.look, night))
+    for i = 0, spine_w - 1 do
+        bb:paintRectRGB32(x + i, body_top, 1, body_h,
+                          _tintColor(e.look, _rampF(i, spine_w), night))
     end
-    if e.marks == false then return end
+    _paintBorderRGB32(bb, x, body_top, spine_w, spine_h - edge_h, hairline,
+                      _boardColor(e.look, night))
     -- The FOOT NICK -- a pixel square off each bottom corner, the softening
     -- where a book meets the shelf -- is not cut here. It takes the colour of
     -- the shelf directly BELOW the foot (maintainer's rule: "with or without

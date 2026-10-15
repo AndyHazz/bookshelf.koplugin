@@ -31,7 +31,7 @@ local function fnBody(name)
 end
 
 local SHARED = { "content_w", "row_h", "gap", "group_gap", "face_out",
-                 "face_recent_set", "thickness_pct", "hang_gap", "series_box_style" }
+                 "face_recent_set", "thickness_pct", "hang_gap" }
 
 -- ── the helper, run for real ───────────────────────────────────────────────
 
@@ -57,7 +57,6 @@ local shelf = {
     _layoutPrimitives = function() return 16, "second value" end,
     _rowGap          = function(_s, pad) return pad * 3 end,
     _ornDrill        = function() return nil end,   -- the shelf's top level
-    _seriesBoxStyle  = function() return "slipcase" end,
 }
 
 t.test("it produces exactly the options the two passes must agree on", function()

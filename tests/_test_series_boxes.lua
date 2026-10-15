@@ -106,7 +106,7 @@ H.test("boxes flatten to a single drillable item with unchanged item indices", f
     H.eq(#flat[1].book.books,80); H.eq(Boxes.displayCount(items[1]),1)
 end)
 
--- ── The printed box: geometry, widget, row ────────────────────────────────
+-- ── The slipcase: geometry, widget, row ───────────────────────────────────
 -- Stubs for what the box reaches for. The spine layout is the real one (pure
 -- maths); the spine shelf answers only the four things a box asks of it, and
 -- its spine slot records where it is painted.
@@ -149,7 +149,7 @@ package.loaded["lib/bookshelf_spine_widget"]=W
 local painted_slots
 local Slot=W:extend{}
 function Slot:_renderIntoAt(bb,x,y)
-    painted_slots[#painted_slots+1]={x=x,y=y,w=self.width,h=self.height,body=self.entry.body}
+    painted_slots[#painted_slots+1]={x=x,y=y,w=self.width,h=self.height}
     bb:paintRect(x,y,self.width,self.height,"spine")
 end
 package.loaded["lib/bookshelf_spine_shelf"]={
@@ -177,34 +177,6 @@ local function surface(x0,y0,w,h)
 end
 local BASE={w=160,face_h=240,depth=8,h=248,ref_w_dp=22}
 
-H.test("a box is no wider than a face-out cover, and keeps the true count", function()
-    for _,n in ipairs({2,3,8,9,40}) do
-        local box=Boxes.box(members(n,"Saga"),"Saga")
-        local g=Boxes.geometry(box,BASE,{content_w=2000})
-        assert(g.w<=BASE.w, "box wider than a face-out cover")
-        assert(#g.spines>=1 and #g.spines<=n); H.eq(g.count,n)
-        local sum=2*g.border
-        for i,sp in ipairs(g.spines) do H.eq(sp.member,i); sum=sum+sp.w end
-        H.eq(g.w,sum); H.eq(g.h,BASE.h); H.eq(g.face_h,BASE.face_h)
-        H.eq(g.inner_h+g.strip_h+2*g.border,g.face_h)
-    end
-    -- A long series fills the cover's width and stops there.
-    local long=Boxes.geometry(Boxes.box(members(40,"Saga"),"Saga"),BASE,{content_w=2000})
-    assert(#long.spines<40, "forty spines fitted a cover's width")
-    assert(long.w+long.spines[1].w>BASE.w, "the box stopped short of the cover's width")
-    H.eq(Boxes.geometry(book(1),BASE,{content_w=2000}),nil)
-end)
-
-H.test("a box never runs past the row, dropping spines rather than squeezing them", function()
-    local box=Boxes.box(members(8,"Saga"),"Saga")
-    local wide=Boxes.geometry(box,BASE,{content_w=2000})
-    for _,cw in ipairs({60,120,200,400}) do
-        local g=Boxes.geometry(box,BASE,{content_w=cw})
-        assert(g.w<=cw,"box wider than the row at "..cw)
-        for i,sp in ipairs(g.spines) do H.eq(sp.w,wide.spines[i].w) end
-    end
-end)
-
 H.test("tap and double-tap open the series, hold uses its menu, never opens a book", function()
     local box=Boxes.box(members(4,"Saga"),"Saga")
     local shape=Boxes.geometry(box,BASE,{content_w=800})
@@ -217,22 +189,6 @@ H.test("tap and double-tap open the series, hold uses its menu, never opens a bo
     H.eq(taps,2); H.eq(holds,1)
 end)
 
-H.test("the name shrinks on a narrow box before it is cut, and never below the floor", function()
-    local function nameOn(n, name)
-        local box=Boxes.box(members(n,name),name)
-        local shape=Boxes.geometry(box,BASE,{content_w=2000})
-        local w=BoxWidget:new{entry={book=box,series_box=shape},width=shape.w,height=300}
-        return w.name, shape
-    end
-    local short,shape=nameOn(8,"Saga")
-    H.eq(short.face.size,shape.label_size,"a name that fits keeps the spine-title size")
-    H.eq(short.cut,nil)
-    local long,lshape=nameOn(2,"A Rather Long Series Name")
-    assert(long.face.size<lshape.label_size,"a narrow box kept the full size")
-    assert(long.face.size>=8,"the name went below the floor")
-    assert(long:getSize().w<=lshape.w-2*lshape.border-2*lshape.pad,"the name runs past the box")
-end)
-
 H.test("every box carries its read count, whether or not all its books show", function()
     local few=Boxes.box(members(3,"Saga"),"Saga")
     local w=BoxWidget:new{entry={book=few,series_box=Boxes.geometry(few,BASE,{content_w=2000})},width=200,height=300}
@@ -243,28 +199,8 @@ H.test("every box carries its read count, whether or not all its books show", fu
     H.eq(w.count.text,"2\xE2\x80\x8A/\xE2\x80\x8A12")
 end)
 
-H.test("a box paints inside its own rectangle, spines in two passes around the art", function()
-    for _,n in ipairs({2,5,12}) do
-        local box=Boxes.box(members(n,"Saga"),"Saga")
-        local shape=Boxes.geometry(box,BASE,{content_w=900})
-        local height=300
-        local w=BoxWidget:new{entry={book=box,series_box=shape},width=shape.w,height=height}
-        painted_slots={}
-        local bb=surface(20,10,shape.w,height)
-        w:paintTo(bb,20,10)
-        H.eq(#painted_slots,2*#shape.spines)
-        for i,sl in ipairs(painted_slots) do
-            H.eq(sl.body,i<=#shape.spines, "bodies first, then the lettering")
-        end
-        local art
-        for _,r in ipairs(bb.rects) do if r.what=="art" then art=r end end
-        assert(art, "no art over the spines")
-        H.eq(art.y,painted_slots[1].y)
-    end
-end)
-
 -- ── The face-out slipcase ────────────────────────────────────────────────────
-local SLIP={series_box_style="slipcase",content_w=2000}
+local SLIP={content_w=2000}
 
 H.test("a slipcase takes a face-out cover's footprint, its places filling the inside", function()
     for _,n in ipairs({1,3,8}) do
@@ -329,8 +265,6 @@ H.test("a slipcase casts its shadow from its books and walls, not one rectangle"
     H.eq(cols[1].x,100); H.eq(cols[1].w,g.wall); H.eq(cols[1].h,g.front_h+g.wall_top)
     H.eq(cols[2].x,100+g.wall); H.eq(cols[2].w,g.w-2*g.wall); H.eq(cols[2].h,g.h)
     H.eq(cols[3].x,100+g.w-g.wall); H.eq(cols[3].h,g.front_h+g.wall_top)
-    -- The spine-out box still casts one.
-    H.eq(#Boxes.shadowColumns(Boxes.geometry(box,BASE,{content_w=2000}),100,5),1)
 end)
 
 H.test("a slipcase paints inside its own rectangle, its books under the front", function()
@@ -344,7 +278,6 @@ H.test("a slipcase paints inside its own rectangle, its books under the front", 
         H.eq(#painted_slots,math.min(n,8))
         for _,sl in ipairs(painted_slots) do
             H.eq(sl.y,10+320-g.h,"a book does not stand at the box's top")
-            H.eq(sl.body,nil,"a slipcase book is painted in one pass")
         end
     end
 end)
@@ -432,7 +365,7 @@ H.test("native row construction routes taps and projected shadows through the se
     local tile=out[#out][2]
     H.eq(tile.book,box); H.eq(tile:onTap(),true); H.eq(taps,1)
     out[2]:paintTo({},0,0)
-    assert(columns and #columns==1, "a standing box casts one footprint")
+    assert(columns and #columns==3, "a slipcase casts its books and two walls")
     local lead=math.floor((800-shape.w)/2)
     local expected=Boxes.shadowColumns(shape,lead,5)
     H.eq(#columns,#expected)

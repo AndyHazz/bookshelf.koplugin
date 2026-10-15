@@ -151,49 +151,6 @@ local function spinePx(member, auto_thick)
     return Screen:scaleBySize(SpineLayout.spineWidthDp(pages) * auto_thick)
 end
 
--- geometry(book, base, opts) -> the box's shape, or nil for anything else.
---
--- A box stands at the front of the plank like a spine, as tall as the books
--- around it: a lid (the depth band above the front), then a front holding its
--- books spine-out, then a strip with the series name. The spines are the
--- members' own widths, scaled to the opening, and the box is never wider than
--- a face-out cover (base.w) or the row: a series with more than fit shows the
--- first ones, and the read count on its lid says how many it holds.
-function M.geometry(book, base, opts)
-    if not M.isBox(book) then return nil end
-    opts = opts or {}
-    if opts.series_box_style == "slipcase" then return M.slipcaseGeometry(book, base, opts) end
-    local Screen = require("device").screen
-    local SpineLayout = require("lib/bookshelf_spine_layout")
-    local SpineShelf = require("lib/bookshelf_spine_shelf")
-    local px_per_dp = Screen:scaleBySize(100) / 100
-    local auto_thick = SpineLayout.autoThickness(
-        opts.row_h and px_per_dp > 0 and (opts.row_h / px_per_dp) or nil)
-    local count = #book.books
-    local border = math.max(2, Screen:scaleBySize(2))
-    local face_h = base.face_h or base.h
-    local lid = math.max(1, base.h - face_h)
-    local row_w = math.max(2, (opts.content_w or base.w) - 2 * (opts.end_margin or 0))
-    local max_w = math.min(row_w, math.max(2, base.w))
-    -- The name is set at the size of the shelf's spine titles.
-    local label_size = SpineShelf.titleSize(base.ref_w_dp)
-    local strip_h = SpineShelf.textHeight(label_size) + 2 * math.max(1, Screen:scaleBySize(2))
-    local inner_h = math.max(1, face_h - 2 * border - strip_h)
-    local pad = math.max(1, Screen:scaleBySize(3))
-    local scale = inner_h / base.h
-    local spines, used = {}, 2 * border
-    for i = 1, count do
-        local w = math.max(Screen:scaleBySize(6),
-                           math.floor(spinePx(book.books[i], auto_thick) * scale + .5))
-        if used + w > max_w then break end
-        spines[#spines + 1] = { member = i, w = w }
-        used = used + w
-    end
-    return { w = used, h = base.h, face_h = face_h, lid = lid, depth = lid,
-             border = border, strip_h = strip_h, inner_h = inner_h,
-             label_size = label_size, pad = pad, spines = spines, count = count }
-end
-
 -- The most books a slipcase shows; its count label says how many it holds.
 M.SLIPCASE_SPINES = 8
 -- The narrowest a slipcase goes, as a share of a face-out cover's width, and
@@ -304,20 +261,23 @@ function M.slipcaseGeometry(book, base, opts)
              count = count }
 end
 
+-- geometry(book, base, opts) -> the box's shape, or nil for anything else.
+function M.geometry(book, base, opts)
+    if not M.isBox(book) then return nil end
+    return M.slipcaseGeometry(book, base, opts or {})
+end
+
 -- shadowColumns(p, x, inset) -> the columns the row's recess shadow follows:
 -- one, the box's own footprint, measured from the row's baseline.
 function M.shadowColumns(p, x, _inset)
-    -- Stands at the front edge like a spine, so no face-out inset.
-    if p.style == "slipcase" and p.wall and p.wall_top then
-        -- The slipcase's outline: its books the full height in the middle,
-        -- its side walls only as high as their tops. One rectangle cast the
-        -- books' shadow from the box's outer edge, a wall's width off them.
-        local wall_h = p.front_h + p.wall_top
-        return { { x = x, w = p.wall, h = wall_h, foot = 0 },
-                 { x = x + p.wall, w = p.w - 2 * p.wall, h = p.h, foot = 0 },
-                 { x = x + p.w - p.wall, w = p.wall, h = wall_h, foot = 0 } }
-    end
-    return { { x = x, w = p.w, h = p.h, foot = 0 } }
+    -- Stands at the front edge like a spine, so no face-out inset. The
+    -- slipcase's outline: its books the full height in the middle, its side
+    -- walls only as high as their tops. One rectangle cast the books' shadow
+    -- from the box's outer edge, a wall's width off them.
+    local wall_h = p.front_h + p.wall_top
+    return { { x = x, w = p.wall, h = wall_h, foot = 0 },
+             { x = x + p.wall, w = p.w - 2 * p.wall, h = p.h, foot = 0 },
+             { x = x + p.w - p.wall, w = p.wall, h = wall_h, foot = 0 } }
 end
 
 return M

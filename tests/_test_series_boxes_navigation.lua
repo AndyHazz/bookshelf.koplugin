@@ -206,12 +206,9 @@ t.test("the editor toggle changes only its own draft and uses the existing live-
         eq(changes,1)
         return old,rows[1][1].text_func()
     end
-    -- Off, then the spine-out box (true), then the face-out slipcase.
     local before,after=toggle(a)
-    eq(before,"Series boxes: Off"); eq(after,"Series boxes: Spines")
+    eq(before,"Series boxes: Off"); eq(after,"Series boxes: On")
     eq(a.series_boxes,true); eq(b.series_boxes,nil)
-    before,after=toggle(a)
-    eq(after,"Series boxes: Slipcase"); eq(a.series_boxes,"slipcase")
     toggle(a); eq(a.series_boxes,nil)
 end)
 

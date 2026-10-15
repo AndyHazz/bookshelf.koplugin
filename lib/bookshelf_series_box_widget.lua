@@ -229,22 +229,30 @@ function Box:_initSlipcase()
                 width = sp.w, height = shape.h, show_author = false }, x = sp.x }
         end
     end
-    -- The front's picture: the first cover at the front's width, its upper
-    -- part showing (the title panel most covers carry at the foot is hidden
-    -- behind the name strip anyway).
+    -- The front's picture: the first cover, whole, scaled into the space
+    -- above the name at its own proportions and centred there, so the
+    -- sticker is the cover's shape and the board shows round it.
     local B = shape.border
     self.inset = math.max(2, Screen:scaleBySize(STICKER_INSET_DP))
     self.art_w = math.max(1, shape.w - 2 * self.inset)
     self.art_h = math.max(1, shape.front_h - 2 * self.inset - shape.strip_h)
     local aspect = (self.first_look and self.first_look.aspect) or 1.5
-    self.art_full_h = math.max(self.art_h, math.floor(self.art_w * aspect))
+    local st_h = self.art_h
+    local st_w = math.floor(st_h / aspect + 0.5)
+    if st_w > self.art_w then
+        st_w = self.art_w
+        st_h = math.max(1, math.floor(st_w * aspect + 0.5))
+    end
+    self.st_w, self.st_h = math.max(1, st_w), math.max(1, st_h)
+    self.st_dx = math.floor((self.art_w - self.st_w) / 2)
+    self.st_dy = math.floor((self.art_h - self.st_h) / 2)
     -- Drawn a little larger than the sticker and cropped inside: the cover
     -- tile carries a hairline frame, which showed as a black line down each
     -- side of the sticker.
     self.art_crop = math.max(2, Screen:scaleBySize(2))
     self.art_cover = require("lib/bookshelf_spine_widget"):new{
-        book = first, width = self.art_w + 2 * self.art_crop,
-        height = self.art_full_h + 2 * self.art_crop, flat_thumb = true,
+        book = first, width = self.st_w + 2 * self.art_crop,
+        height = self.st_h + 2 * self.art_crop, flat_thumb = true,
         show_progress = false, show_status = false, suppress_favorite_badge = true,
         suppress_number_badges = true,
     }
@@ -316,23 +324,23 @@ function Box:_paintSlipcase(bb, x, y)
     bb:paintRectRGB32(x, front_y, p.w, p.front_h, board)
     bb:paintRectRGB32(x, front_y, p.w, math.max(1, math.floor(B/2)), lit(1.6))
     local I = self.inset
-    local sx, sy = x + I, front_y + I
+    local sx, sy = x + I + self.st_dx, front_y + I + self.st_dy
+    local SW, SH = self.st_w, self.st_h
     pcall(function()
         local c = self.art_crop
-        local tw_, th_ = self.art_w + 2 * c, self.art_full_h + 2 * c
+        local tw_, th_ = SW + 2 * c, SH + 2 * c
         local tmp = BB.new(tw_, th_, bb:getType())
         tmp:paintRectRGB32(0, 0, tw_, th_, BB.ColorRGB32(255,255,255,255))
         self.art_cover:paintTo(tmp, 0, 0)
-        local oy = math.max(0, math.floor((self.art_full_h - self.art_h) * 0.25))
-        bb:blitFrom(tmp, sx, sy, c, c + oy, self.art_w, self.art_h)
+        bb:blitFrom(tmp, sx, sy, c, c, SW, SH)
         tmp:free()
     end)
     -- The cover is the sticker: all four corners rounded, the board around
     -- it. The name is printed on the box itself, below.
     local R = math.max(2, Screen:scaleBySize(STICKER_RADIUS_DP))
-    roundCorner(bb, sx, sy, self.art_w, self.art_h, R, "tl", board)
-    roundCorner(bb, sx, sy, self.art_w, self.art_h, R, "bl", board)
-    roundCorner(bb, sx, sy, self.art_w, self.art_h, R, "br", board)
+    roundCorner(bb, sx, sy, SW, SH, R, "tl", board)
+    roundCorner(bb, sx, sy, SW, SH, R, "bl", board)
+    roundCorner(bb, sx, sy, SW, SH, R, "br", board)
     -- The read count, printed on the box like the name, in its top-right
     -- corner; the sticker curves round it: a notch of board cut from the
     -- sticker's corner, its inner corner rounded, the sticker's corners
@@ -340,9 +348,9 @@ function Box:_paintSlipcase(bb, x, y)
     do
         local cs = self.count:getSize()
         local g = math.max(2, Screen:scaleBySize(3))
-        local nw = math.min(self.art_w - 2 * R, cs.w + 2 * g)
-        local nh = math.min(self.art_h - 2 * R, cs.h + g)
-        local nx, ny = sx + self.art_w - nw, sy
+        local nw = math.min(SW - 2 * R, cs.w + 2 * g)
+        local nh = math.min(SH - 2 * R, cs.h + g)
+        local nx, ny = sx + SW - nw, sy
         if nw > 0 and nh > 0 then
             -- the board through the notch, its bottom-left corner rounded
             for row = 0, nh - 1 do
@@ -351,8 +359,8 @@ function Box:_paintSlipcase(bb, x, y)
                 bb:paintRectRGB32(nx + cut, ny + row, nw - cut, 1, board)
             end
             -- the sticker's corners either side of the notch
-            roundCorner(bb, sx, sy, nx - sx, self.art_h, R, "tr", board)
-            roundCorner(bb, sx, ny + nh, self.art_w, self.art_h - nh, R, "tr", board)
+            roundCorner(bb, sx, sy, nx - sx, SH, R, "tr", board)
+            roundCorner(bb, sx, ny + nh, SW, SH - nh, R, "tr", board)
         end
         self.count.fgcolor = name_ink_for(night)
         self.count:paintTo(bb, nx + math.floor((nw - cs.w + g) / 2),

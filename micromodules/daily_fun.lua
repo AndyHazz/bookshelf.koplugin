@@ -136,7 +136,15 @@ local function fetchFun(callback)
     end)
 end
 
-local function prefetchIfNeeded()
+-- implicit: called from render, not a tap.
+local function prefetchIfNeeded(implicit)
+    if implicit then
+        -- A render-triggered fetch must never prompt for Wi-Fi or power the
+        -- radio: drawing the home screen is not a request to go online (see
+        -- weather.lua). Only when a connection is already up; taps still prompt.
+        local ok_nm, NetworkMgr = pcall(require, "ui/network/manager")
+        if not (ok_nm and NetworkMgr and NetworkMgr:isConnected()) then return end
+    end
     local Store = require("lib/bookshelf_settings_store")
     local items = Store.read(KEY_DATA) or {}
     if type(items) ~= "table" or items.type then items = {} end
@@ -146,7 +154,7 @@ local function prefetchIfNeeded()
     fetchFun(function(res)
         if res then
             local UIManager = require("ui/uimanager")
-            UIManager:scheduleIn(0.5, function() prefetchIfNeeded() end)
+            UIManager:scheduleIn(0.5, function() prefetchIfNeeded(implicit) end)
         end
     end)
 end
@@ -157,6 +165,10 @@ local function cycleView(ctx)
         if _error_msg then
             _error_msg = nil
             _is_fetching_screen = false
+            prefetchIfNeeded()
+        elseif not _implicit_fetch_pending then
+            -- Nothing asked for yet (offline: render does not go online). A
+            -- tap is a request to go online, so it may prompt.
             prefetchIfNeeded()
         end
         return
@@ -365,7 +377,10 @@ return {
             _answer_revealed = false
             _is_fetching_screen = true
             local face_q = Fonts:getFace("cfont", sc(16))
-            local fetch_text = _error_msg or _("Fetching fun...")
+            local ok_nm0, NM0 = pcall(require, "ui/network/manager")
+            local fetch_text = _error_msg
+                or ((_implicit_fetch_pending or is_preview or (ok_nm0 and NM0 and NM0:isConnected()))
+                    and _("Fetching fun...") or _("Tap to fetch \xE2\x96\xB6"))
             local text_w = TextWidget:new{
                 text = fetch_text,
                 face = face_q,
@@ -382,7 +397,7 @@ return {
             }
             if not _error_msg and not _implicit_fetch_pending and not is_preview then
                 UIManager:scheduleIn(0.1, function()
-                    prefetchIfNeeded()
+                    prefetchIfNeeded(true)
                 end)
             end
             group[#group + 1] = fetch_msg
@@ -391,7 +406,7 @@ return {
         _is_fetching_screen = false
         
         if not is_preview then
-            prefetchIfNeeded()
+            prefetchIfNeeded(true)
         end
 
         group[#group + 1] = VerticalSpan:new{ width = sc(4) }

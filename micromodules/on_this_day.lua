@@ -81,6 +81,11 @@ local _implicit_fetch_pending = false
 
 local function maybeScheduleImplicitFetch()
     if _implicit_fetch_pending then return end
+    -- A render-triggered fetch must never prompt for Wi-Fi or power the
+    -- radio: drawing the home screen is not a request to go online (see
+    -- weather.lua). Only when a connection is already up; taps still prompt.
+    local ok_nm, NetworkMgr = pcall(require, "ui/network/manager")
+    if not (ok_nm and NetworkMgr and NetworkMgr:isConnected()) then return end
     _implicit_fetch_pending = true
     local UIManager = require("ui/uimanager")
     UIManager:scheduleIn(0.1, function()
@@ -179,8 +184,10 @@ return {
                 face = face_h, bold = bold_h,
                 fgcolor = GRAY, max_width = mw,
             }
+            -- Offline nothing is fetched until a tap asks (on_tap).
             group[#group + 1] = TextWidget:new{
-                text = _("Fetching..."),
+                text = (_implicit_fetch_pending or is_preview) and _("Fetching...")
+                    or _("Tap to fetch \xE2\x96\xB6"),
                 face = Fonts:getFace("cfont", sc(16)),
                 fgcolor = BLACK, max_width = mw,
             }
@@ -321,6 +328,13 @@ return {
         local data = Store.read(KEY_DATA)
         if data and #data > 0 then
             cycleView()
+        elseif not _implicit_fetch_pending then
+            -- Nothing yet: a tap is a request to go online, so it may prompt.
+            _implicit_fetch_pending = true
+            fetchOTD(true, function(result)
+                _implicit_fetch_pending = false
+                if _async_refresh then _async_refresh() end
+            end)
         end
     end,
 }

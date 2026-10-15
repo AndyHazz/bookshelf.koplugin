@@ -236,7 +236,34 @@ local _view_mode = "question" -- "question" | "answer"
 local _is_fetching_screen = false
 local _error_msg = nil
 
+-- Fetch a question and redraw the card with it, or with why not.
+local function fetchAndRefresh()
+    fetchTrivia(function(res, code)
+        if res then
+            _is_fetching_screen = false
+            _error_msg = nil
+            if _async_refresh then _async_refresh() end
+        else
+            if code == 5 then _error_msg = _("Rate limit \xE2\x96\xB6")
+            elseif code == 1 then _error_msg = _("No questions \xE2\x96\xB6")
+            else _error_msg = _("Failed. Retry \xE2\x96\xB6") end
+
+            _is_fetching_screen = false
+            _implicit_fetch_pending = false
+            if _async_refresh then _async_refresh() end
+        end
+    end)
+end
+
 local function cycleView(ctx)
+    -- Waiting with nothing asked for yet (offline: render does not go online)
+    -- or after a failure: a tap is a request to go online, so it may prompt.
+    if _is_fetching_screen and not _implicit_fetch_pending
+            and (not _error_msg or _error_msg == _("Failed. Retry \xE2\x96\xB6")) then
+        _error_msg = nil
+        fetchAndRefresh()
+        return
+    end
     if _error_msg then
         if _error_msg == _("No questions \xE2\x96\xB6") or _error_msg == _("Rate limit \xE2\x96\xB6") then
             local UIManager = require("ui/uimanager")
@@ -544,7 +571,10 @@ return {
             _is_fetching_screen = true
             _view_mode = "question"
             local face_q = Fonts:getFace("cfont", sc(16))
-            local fetch_text = _error_msg or _("Fetching question...")
+            local ok_nm0, NM0 = pcall(require, "ui/network/manager")
+            local fetch_text = _error_msg
+                or ((_implicit_fetch_pending or is_preview or (ok_nm0 and NM0 and NM0:isConnected()))
+                    and _("Fetching question...") or _("Tap to fetch \xE2\x96\xB6"))
             local text_w = TextWidget:new{
                 text = fetch_text,
                 face = face_q,
@@ -559,24 +589,13 @@ return {
                     text_w
                 }
             }
-            if not _error_msg and not _implicit_fetch_pending and not is_preview then
-                UIManager:scheduleIn(0.1, function()
-                    fetchTrivia(function(res, code)
-                        if res then
-                            _is_fetching_screen = false
-                            _error_msg = nil
-                            if _async_refresh then _async_refresh() end
-                        else
-                            if code == 5 then _error_msg = _("Rate limit \xE2\x96\xB6")
-                            elseif code == 1 then _error_msg = _("No questions \xE2\x96\xB6")
-                            else _error_msg = _("Failed. Retry \xE2\x96\xB6") end
-
-                            _is_fetching_screen = false
-                            _implicit_fetch_pending = false
-                            if _async_refresh then _async_refresh() end
-                        end
-                    end)
-                end)
+            -- A render-triggered fetch must never prompt for Wi-Fi or power the
+            -- radio: drawing the home screen is not a request to go online (see
+            -- weather.lua). Only when a connection is already up; taps still prompt.
+            local ok_nm, NetworkMgr = pcall(require, "ui/network/manager")
+            local online = ok_nm and NetworkMgr and NetworkMgr:isConnected()
+            if online and not _error_msg and not _implicit_fetch_pending and not is_preview then
+                UIManager:scheduleIn(0.1, fetchAndRefresh)
             end
             group[#group + 1] = fetch_msg
             return group

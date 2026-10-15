@@ -23,11 +23,23 @@ local Boxes = require("lib/bookshelf_series_boxes")
 local ART_ZOOM = 1.6
 local ART_MIX = 0.4
 local SPINE_TITLES = true
--- The read count printed on the top of the box: the bundled bold, in a tint
--- of the cover, squashed to COUNT_SQUASH of its height as if seen on the lid.
+-- The read count printed on the top of the box like a watermark: the bundled
+-- bold, a shade lighter than the lid, squashed to COUNT_SQUASH of its height
+-- as if seen on the lid.
 local COUNT_FONT = "Inter ExtraBold"
 local COUNT_SQUASH = 0.7
-local COUNT_TINT = 0.6   -- how far toward white the cover's colour goes
+local COUNT_TINT = 0.22  -- how far from the lid's colour toward white: a watermark
+
+-- The bundled file itself, through KOReader's Font as the top panel's title
+-- does: BFont:getFace takes a face KEY (cfont, ...) and maps it to the UI
+-- font, so a file name handed to it came out in the UI font's regular.
+local function countFace(size, fallback)
+    local ok, face = pcall(function()
+        return require("ui/font"):getFace(BFont.bundledFaceId(COUNT_FONT), size)
+    end)
+    if ok and face then return face end
+    return (BFont:getFace(fallback, size, { bold = true }))
+end
 -- The name shrinks this far below the spine-title size before it is cut.
 local NAME_MIN_SIZE = 8
 
@@ -105,8 +117,7 @@ function Box:init()
             scale = require("lib/bookshelf_settings_store").read("stack_label_font_scale", 100) or 100
         end)
         self.count = TextWidget:new{ text = string.format("%d/%d", done, #entry.book.books),
-            face = BFont:getFace(BFont.bundledFaceId(COUNT_FONT) or font,
-                                 math.max(8, math.floor(14 * scale / 100 + 0.5))),
+            face = countFace(math.max(8, math.floor(14 * scale / 100 + 0.5)), font),
             padding = 0 }
     end
     -- The name at the spine-title size, smaller on a narrow box rather than
@@ -227,8 +238,12 @@ function Box:paintTo(bb, x, y)
             m:invertRect(0, 0, cs.w, cs.h)
             local sq = m:scale(cs.w, sq_h)
             m:free()
+            -- The lid's own colour (lit(1.25) below), lifted a little.
             local l = self.first_look or {r=60, g=60, b=60}
-            local function t(c) return math.floor(c + (255 - c) * COUNT_TINT + 0.5) end
+            local function t(c)
+                local lid = math.min(255, c * .45 * 1.25)
+                return math.floor(lid + (255 - lid) * COUNT_TINT + 0.5)
+            end
             local r, g, b = t(l.r), t(l.g), t(l.b)
             if night then r, g, b = 255 - r, 255 - g, 255 - b end
             local cx = x + math.floor((p.w - cs.w) / 2)

@@ -237,16 +237,12 @@ function Box:_initSlipcase()
     self.inset = math.max(2, Screen:scaleBySize(STICKER_INSET_DP))
     self.art_w = math.max(1, shape.w - 2 * self.inset)
     self.art_h = math.max(1, shape.front_h - 2 * self.inset - shape.strip_h)
-    -- Across the box's full width at the cover's proportions; a cover taller
-    -- than the space is cropped evenly top and bottom (the name is printed
-    -- below, not over it), a shorter one sits centred in it whole.
+    -- The whole cover, stretched or squashed to fill the space above the
+    -- name exactly: drawn at its own proportions, then scaled to the space.
     local aspect = (self.first_look and self.first_look.aspect) or 1.5
-    self.st_w = self.art_w
+    self.st_w, self.st_h = self.art_w, self.art_h
     self.st_full_h = math.max(1, math.floor(self.st_w * aspect + 0.5))
-    self.st_h = math.min(self.art_h, self.st_full_h)
-    self.st_oy = math.floor((self.st_full_h - self.st_h) / 2)
-    self.st_dx = 0
-    self.st_dy = math.floor((self.art_h - self.st_h) / 2)
+    self.st_dx, self.st_dy = 0, 0
     -- Drawn a little larger than the sticker and cropped inside: the cover
     -- tile carries a hairline frame, which showed as a black line down each
     -- side of the sticker.
@@ -329,12 +325,19 @@ function Box:_paintSlipcase(bb, x, y)
     local SW, SH = self.st_w, self.st_h
     pcall(function()
         local c = self.art_crop
-        local tw_, th_ = SW + 2 * c, self.st_full_h + 2 * c
+        local FH = self.st_full_h
+        local tw_, th_ = SW + 2 * c, FH + 2 * c
         local tmp = BB.new(tw_, th_, bb:getType())
         tmp:paintRectRGB32(0, 0, tw_, th_, BB.ColorRGB32(255,255,255,255))
         self.art_cover:paintTo(tmp, 0, 0)
-        bb:blitFrom(tmp, sx, sy, c, c + self.st_oy, SW, SH)
+        -- Off with the tile's frame, then to the space's shape.
+        local inner = BB.new(SW, FH, bb:getType())
+        inner:blitFrom(tmp, 0, 0, c, c, SW, FH)
         tmp:free()
+        local fit = (FH == SH) and inner or inner:scale(SW, SH)
+        bb:blitFrom(fit, sx, sy, 0, 0, SW, SH)
+        if fit ~= inner then fit:free() end
+        inner:free()
     end)
     -- The cover is the sticker: all four corners rounded, the board around
     -- it. The name is printed on the box itself, below.

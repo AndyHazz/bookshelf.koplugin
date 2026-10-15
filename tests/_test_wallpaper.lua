@@ -1133,6 +1133,46 @@ t.test("without the C blitter, a translucent scrim falls back to an opaque fill"
     package.loaded["ffi/blitbuffer"] = nil
 end)
 
+t.test("software night mode blends the inverted tint through C, not a solid fill", function()
+    -- Night mode on a device without hardware inversion (every PocketBook)
+    -- sets the buffer's invert flag; the C blitter ignores it, so the panels
+    -- went solid there. With the flag off for the blend and the colour
+    -- inverted, the stored pixels get exactly the blend the screen should show.
+    local W = fresh()
+    package.loaded["ffi/blitbuffer"] = {
+        ColorRGB32 = function(r, g, b, a) return { r = r, g = g, b = b, a = a,
+            getR = function() return r end, getG = function() return g end,
+            getB = function() return b end } end }
+    local calls, inverse = {}, 1
+    local bb = {
+        getInverse     = function() return inverse end,
+        setInverse     = function(_, v) inverse = v end,
+        canUseCbb      = function() return inverse == 0 end,
+        paintRect      = function() calls[#calls + 1] = { op = "paint" } end,
+        blendRectRGB32 = function(_, _x, _y, _w, _h, c)
+            calls[#calls + 1] = { op = "blend", c = c, inv = inverse } end,
+    }
+    local colour = { getColorRGB32 = function(self) return self end,
+                     getR = function() return 200 end, getG = function() return 100 end,
+                     getB = function() return 40 end }
+    eq(W.scrim(bb, 0, 0, 10, 10, colour, 0.6), true)
+    assert(#calls > 0, "nothing was painted at all")
+    for _, c in ipairs(calls) do
+        eq(c.op, "blend", "the panel was painted solid")
+        eq(c.inv, 0, "the C blend ran with the invert flag still set")
+        eq(c.c.r, 55); eq(c.c.g, 155); eq(c.c.b, 215)
+        eq(c.c.a, math.floor(255 * 0.6 + 0.5))
+    end
+    eq(inverse, 1, "the invert flag was not put back")
+    -- C blitter off for another reason: still the solid fallback.
+    calls, inverse = {}, 1
+    bb.canUseCbb = function() return false end
+    eq(W.scrim(bb, 0, 0, 10, 10, colour, 0.6), true)
+    for _, c in ipairs(calls) do eq(c.op, "paint") end
+    eq(inverse, 1)
+    package.loaded["ffi/blitbuffer"] = nil
+end)
+
 -- ── shade, and the direct form the recess painter uses ──────────────────
 t.test("shadeRect darkens by day and lightens at night, with no wrapping", function()
     -- The recess painter issues ~2000 of these per paint of a spine page,

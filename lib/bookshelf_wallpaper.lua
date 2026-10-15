@@ -365,6 +365,10 @@ function M.scrim(bb, x, y, w, h, colour, strength, radius)
         local tint, alpha = M._scrimTint(Blitbuffer, colour, strength)
         local opaque = M._scrimOpaque(bb, alpha)
         local spans = _roundedSpans(x, y, w, h, radius)
+        if opaque and alpha < 255
+                and M._blendThroughInverse(bb, spans, tint, alpha, Blitbuffer) then
+            return
+        end
         for _i, s in ipairs(spans) do
             if opaque then
                 bb:paintRect(s.x, s.y, s.w, s.h, colour)
@@ -384,6 +388,35 @@ function M._scrimTint(Blitbuffer, colour, strength)
     local alpha = math.floor(255 * strength + 0.5)
     if alpha > 255 then alpha = 255 end
     return Blitbuffer.ColorRGB32(c:getR(), c:getG(), c:getB(), alpha), alpha
+end
+
+-- _blendThroughInverse(bb, spans, tint, alpha, Blitbuffer) -> true when the
+-- spans were blended. Night mode on a device that cannot invert in hardware
+-- (every PocketBook, the MediaTek Kobos) sets the buffer's invert flag, which
+-- the C blitter does not honour, so the panels went solid there (a PocketBook
+-- Era Color on Reddit). The flag only means the buffer holds 255 - shown, and
+-- blending those stored pixels with the inverted colour is the same blend:
+-- s' = s(1-a) + (255-c)a = 255 - (v(1-a) + ca). So the flag comes off for the
+-- C blend and goes straight back on. false, with nothing painted, when the
+-- buffer is not inverted or the C blitter is off for another reason.
+function M._blendThroughInverse(bb, spans, tint, alpha, Blitbuffer)
+    if type(bb.getInverse) ~= "function" or type(bb.setInverse) ~= "function"
+            or not bb.blendRectRGB32 or bb:getInverse() ~= 1 then
+        return false
+    end
+    bb:setInverse(0)
+    local done = false
+    pcall(function()
+        if type(bb.canUseCbb) == "function" and not bb:canUseCbb() then return end
+        local inv = Blitbuffer.ColorRGB32(255 - tint:getR(), 255 - tint:getG(),
+                                          255 - tint:getB(), alpha)
+        for _i, s in ipairs(spans) do
+            bb:blendRectRGB32(s.x, s.y, s.w, s.h, inv)
+        end
+        done = true
+    end)
+    bb:setInverse(1)
+    return done
 end
 
 -- _scrimOpaque(bb, alpha) -> true when scrim paints the colour SOLID on bb.

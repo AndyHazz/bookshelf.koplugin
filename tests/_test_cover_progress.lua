@@ -523,5 +523,15 @@ test("inverting a stored value keeps its shape", function()
     eq(Color.invertValue(nil), nil)
 end)
 
+-- Page badge > Percent read: decide hands the percentage over for a book being
+-- read or on hold only; a finished or unread book has none to show.
+test("badge_pct: reading and on hold carry it; finished and unread do not", function()
+    setAll(true)
+    eq(CP.decide(book("reading", 0.42)).badge_pct, 0.42)
+    eq(CP.decide(book("abandoned", 0.3)).badge_pct, 0.3)
+    eq(CP.decide(book("complete", 1)).badge_pct, nil)
+    eq(CP.decide(book("new", nil)).badge_pct, nil)
+end)
+
 print(string.format("%d passed, %d failed", pass, fail))
 if fail > 0 then os.exit(1) end

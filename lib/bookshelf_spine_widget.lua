@@ -1605,7 +1605,35 @@ function SpineWidget:_renderShadowedCard(inner)
     -- _badge_pages: the printed count when the badge is set to prefer it
     -- (bookshelf_cover_progress.decide); false = none, so the reading count.
     local badge_pages = self.book and (self.book._badge_pages or self.book.page_count)
-    local want_page_count = indicators.page_count and badge_pages
+    -- What the badge says (Page count > Show): the pages, the percentage read
+    -- (progress_page_count_percent "only"), or both ("both"). Only a book
+    -- being read or on hold has a percentage (decide's badge_pct); the others
+    -- show their pages under "both" and no badge under "only".
+    local badge_text
+    if indicators.page_count then
+        local pages_txt = badge_pages and (BookshelfSettings.read("progress_page_count_bare") == true
+            and tostring(badge_pages)
+            -- Page-count label, translatable (#245). Number-first: a
+            -- total-page COUNT ("123 pages"), so the number leads and a
+            -- compact unit follows (fr "123 p", de "123 S", hu "123 o",
+            -- ja/zh a single glyph). A HAIR SPACE (\xe2\x80\x8a) keeps the
+            -- digit and letter apart at smallinfofont(12).
+            or T(_("%1\xe2\x80\x8ap"), tostring(badge_pages)))
+        local p = tonumber(indicators.badge_pct)
+        -- Rounded as the %book_pct token rounds it, so badge and hero agree.
+        local pct_txt = p and string.format("%d%%", math.floor(p * 100 + 0.5)) or nil
+        local mode = BookshelfSettings.read("progress_page_count_percent")
+        if mode == "only" then
+            badge_text = pct_txt
+        elseif mode == "both" then
+            badge_text = (pct_txt and pages_txt)
+                and (pct_txt .. "\xe2\x80\x89\xc2\xb7\xe2\x80\x89" .. pages_txt)
+                or pct_txt or pages_txt
+        else
+            badge_text = pages_txt
+        end
+    end
+    local want_page_count = badge_text ~= nil
     if indicators.bar or want_page_count then
         local colors = CoverProgress.resolvedColors()
         local bar_h   = _barHeight()
@@ -1634,17 +1662,7 @@ function SpineWidget:_renderShadowedCard(inner)
                 padding_top    = 0,
                 padding_bottom = 0,
                 TextWidget:new{
-                    -- Page-count label, translatable (#245). Number-first: this
-                    -- is a total-page COUNT ("123 pages"), so the number leads
-                    -- and a compact unit follows -- reads correctly across
-                    -- locales (fr "123 p", de "123 S", hu "123 o", ja/zh use a
-                    -- single glyph). A HAIR SPACE (\xe2\x80\x8a) separates the
-                    -- number and unit so the digit and letter don't collide at
-                    -- smallinfofont(12) (same reason as the series pill above).
-                    -- "Page count as a number only" drops the unit (issue 499).
-                    text = BookshelfSettings.read("progress_page_count_bare") == true
-                        and tostring(badge_pages)
-                        or T(_("%1\xe2\x80\x8ap"), tostring(badge_pages)),
+                    text = badge_text,
                     face = pc_face,
                     bold = pc_bold,
                     fgcolor = colors.badge_fg,
@@ -1714,7 +1732,7 @@ function SpineWidget:_renderShadowedCard(inner)
     --     render on. The hero card, folder cards and series stacks reuse
     --     SpineWidget with it off, and their card_w is the SLOT rather than the
     --     painted cover, so a right-anchored badge would hang off the artwork.
-    local pill_owns_corner = indicators.page_count and self.book and self.book.page_count
+    local pill_owns_corner = want_page_count
     if self.show_progress and self.book and self.book.downloaded
             and not pill_owns_corner
             and not self.is_bulk_selected then

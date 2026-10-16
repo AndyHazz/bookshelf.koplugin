@@ -682,18 +682,42 @@ end
 --   progress_page_count_enabled  true = shown (off by default)
 --   progress_page_count_bare     true = "220", not "220 p" (issue 499)
 --   progress_page_count_source   nil = reading settings, "printed" = printed first
+--   progress_page_count_percent  nil = pages, "only" = percent read, "both"
+local function _pageBadgeMode()
+    if BookshelfSettings.read("progress_page_count_enabled") ~= true then return "off" end
+    local p = BookshelfSettings.read("progress_page_count_percent")
+    if p == "only" or p == "both" then return p end
+    return "pages"
+end
+
 function Settings._pageCountSummary()
-    if BookshelfSettings.read("progress_page_count_enabled") ~= true then return _("Off") end
-    local src = BookshelfSettings.read("progress_page_count_source") == "printed"
-        and _("Printed") or _("As you read")
-    if BookshelfSettings.read("progress_page_count_bare") == true then
-        return src .. ", " .. _("number only")
-    end
-    return src
+    local mode = _pageBadgeMode()
+    if mode == "off" then return _("Off") end
+    if mode == "only" then return _("Percent read") end
+    if mode == "both" then return _("Percent read and pages") end
+    return _("Pages")
 end
 
 function Settings:_pageCountSubItems(markDirty)
-    local function on() return BookshelfSettings.read("progress_page_count_enabled") == true end
+    -- The pages part is shown: Number only and the Count rows apply.
+    local function pagesShown() local m = _pageBadgeMode(); return m == "pages" or m == "both" end
+    local function show(mode, label, help)
+        return {
+            text = label, help_text = help, radio = true, keep_menu_open = true,
+            checked_func = function() return _pageBadgeMode() == mode end,
+            callback = function(touchmenu_instance)
+                BookshelfSettings.save("progress_page_count_enabled", mode ~= "off")
+                if mode ~= "off" then
+                    BookshelfSettings.save("progress_page_count_percent",
+                        (mode == "only" or mode == "both") and mode or nil)
+                end
+                markDirty()
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+            end,
+        }
+    end
     local function flip(key)
         return function(touchmenu_instance)
             BookshelfSettings.save(key, not (BookshelfSettings.read(key) == true))
@@ -711,7 +735,7 @@ function Settings:_pageCountSubItems(markDirty)
                 and _("Publisher page numbers, Hardcover editions, the Calibre page column or a count in the file name, where a book has one. Otherwise the count at your reading settings.")
                 or _("The pages you turn at your font and margins: KOReader's count once a book has been opened, and before that whatever Extract page counts found."),
             radio = true,
-            enabled_func = on,
+            enabled_func = pagesShown,
             keep_menu_open = true,
             checked_func = function()
                 local v = BookshelfSettings.read("progress_page_count_source")
@@ -728,17 +752,21 @@ function Settings:_pageCountSubItems(markDirty)
     end
     local plugin = self._plugin
     return {
-        {
-            text = _("Show page count"),
-            checked_func = on,
-            keep_menu_open = true,
-            callback = flip("progress_page_count_enabled"),
-        },
+        show("off", _("Off")),
+        show("pages", _("Pages")),
+        show("only", _("Percent read"),
+            _("How far through you are, for books you are reading or have on hold. Other books show no badge.")),
+        (function()
+            local row = show("both", _("Percent read and pages"),
+                _("Both, for books you are reading or have on hold; the pages alone for the rest."))
+            row.separator = true
+            return row
+        end)(),
         {
             text = _("Number only"),
             help_text = _("Show \"220\" rather than \"220 p\"."),
             checked_func = function() return BookshelfSettings.read("progress_page_count_bare") == true end,
-            enabled_func = on,
+            enabled_func = pagesShown,
             keep_menu_open = true,
             callback = flip("progress_page_count_bare"),
             separator = true,
@@ -1037,7 +1065,7 @@ function Settings:_coverDisplaySubItems()
         -- rows, which the long menu split across its pages).
         {
             text_func = function()
-                return _("Page count") .. ": " .. Settings._pageCountSummary()
+                return _("Page badge") .. ": " .. Settings._pageCountSummary()
             end,
             sub_item_table_func = function()
                 return self:_pageCountSubItems(markDirty)

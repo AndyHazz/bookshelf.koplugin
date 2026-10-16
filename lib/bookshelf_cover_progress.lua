@@ -191,6 +191,7 @@ function M.decide(book)
             on_hold      = badge or nil,
             on_hold_fade = fade or nil,
             page_count   = want_page_count,
+            badge_pct    = pct,
         }
     elseif status == "reading" then
         return {
@@ -198,6 +199,9 @@ function M.decide(book)
             bar_pct    = pct or 0,
             glyph      = want_bookmark and "in_progress" or nil,
             page_count = want_page_count,
+            -- The percentage the badge can show (Page count > Show); only a
+            -- book being read or on hold has one worth showing.
+            badge_pct  = pct,
         }
     elseif status == "complete" or status == "finished" then
         local glyph_kind = nil

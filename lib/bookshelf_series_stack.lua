@@ -23,6 +23,7 @@ local GestureRange   = require("ui/gesturerange")
 local SpineWidget    = require("lib/bookshelf_spine_widget")
 local BookshelfSettings = require("lib/bookshelf_settings_store")
 local FolderCard     = require("lib/bookshelf_folder_card")
+local Space          = require("lib/bookshelf_space")
 local CountBadge     = require("lib/bookshelf_count_badge")
 local ImageSource    = require("lib/bookshelf_image_source")
 
@@ -168,7 +169,33 @@ function SeriesStack:init()
     if custom_image_path then
         local slot_w = self.width - FolderCard.SHADOW_OFFSET
         local slot_h = self.height - FolderCard.SHADOW_OFFSET
-        local bb = ImageSource.loadImage(custom_image_path, slot_w, slot_h)
+        local bb
+        if stack_kind == "author" then
+            -- An author's photo sits in a frame of the folder card's own
+            -- colour, inset, top-aligned and rounded, at its own shape
+            -- (ImageSource.loadImageFramed), built at the card's box so the
+            -- card does not stretch it again.
+            local fw, fh = art_w - FolderCard.SHADOW_OFFSET, art_h - FolderCard.SHADOW_OFFSET
+            local fill = FolderCard.fillColor and FolderCard.fillColor()
+            local night = require("lib/bookshelf_night_mode_sync").active()
+            -- The bitmap is drawn as a picture, which night mode shows
+            -- inverted back; the card's fill is already the colour SHOWN,
+            -- so it goes in inverted to come out the same.
+            if fill and night then fill = fill:invert() end
+            bb = ImageSource.loadImageFramed(custom_image_path, fw, fh, {
+                inset  = Space.px(4),
+                radius = Space.px(5),
+                color  = fill,
+                -- An FFI colour raises on a field it lacks, so the key is
+                -- read from its RGB32 form, which every colour type has.
+                key    = (night and "n" or "d") .. (fill and fill.getColorRGB32 and (function()
+                    local c = fill:getColorRGB32()
+                    return string.format("%d,%d,%d", c.r, c.g, c.b)
+                end)() or ""),
+            })
+        else
+            bb = ImageSource.loadImage(custom_image_path, slot_w, slot_h)
+        end
         if bb then
             book_widget = SpineWidget:new{
                 force_shadow     = (display_mode == StackDisplay.STACK) or nil,

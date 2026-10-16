@@ -429,4 +429,12 @@ end
 -- badge) with the slot's shadow allocation.
 FolderCard.SHADOW_OFFSET = SHADOW_OFFSET
 
+-- fillColor() -> the card's fill as it is SHOWN now (theme override, or the
+-- manilla / grey default, pre-inverted in night mode): what an author photo's
+-- frame is painted in (bookshelf_series_stack), so frame and card match.
+function FolderCard.fillColor()
+    local fill = _cardColors()
+    return fill
+end
+
 return FolderCard

@@ -11,8 +11,9 @@
 --                        Never replaces an image the reader already has.
 --
 -- Both wait for Wi-Fi the KOReader way (runWhenOnline asks; nothing connects
--- by itself) and run under Trapper so the progress message can be tapped to
--- stop. The shelf repaints once at the end, not per author.
+-- by itself). findAll's pass shows its progress in the status line, with Stop
+-- (see run); findOne's single lookup keeps Trapper's message. The shelf
+-- repaints once at the end, not per author.
 
 local ConfirmBox  = require("ui/widget/confirmbox")
 local InfoMessage = require("ui/widget/infomessage")
@@ -74,7 +75,44 @@ function M.findOne(bw, name)
     end)
 end
 
+-- liveShelf(bw) -> the shelf showing now, for the progress line. The one the
+-- pass started from may have been replaced (a book opened and closed); the
+-- host's current one is found the way KOReader keeps it.
+local function liveShelf(bw)
+    for _i, mod in ipairs({ "apps/filemanager/filemanager", "apps/reader/readerui" }) do
+        local ok, C = pcall(require, mod)
+        local inst = ok and type(C) == "table" and C.instance
+        local w = inst and inst.bookshelf and inst.bookshelf._widget
+        if w and UIManager:isWidgetShown(w) then return w end
+    end
+    return bw
+end
+
+-- holdAwake(on): a pass over a few hundred authors runs for minutes, and the
+-- device must not suspend in the middle of one (as Extract page counts holds
+-- it, main.lua). The flag's earlier value comes back afterwards.
+local _held_prev
+local function holdAwake(on)
+    local ok_ps, PluginShare = pcall(require, "pluginshare")
+    if on and _held_prev == nil then
+        _held_prev = (ok_ps and PluginShare.pause_auto_suspend) and true or false
+        if ok_ps then PluginShare.pause_auto_suspend = true end
+        pcall(function() UIManager:preventStandby() end)
+    elseif not on and _held_prev ~= nil then
+        if ok_ps then PluginShare.pause_auto_suspend = _held_prev end
+        _held_prev = nil
+        pcall(function() UIManager:allowStandby() end)
+    end
+end
+
 -- run(bw, names) -- the bulk pass itself, once confirmed.
+--
+-- Progress goes in the shelf's status line with its Stop button, as Extract
+-- page counts' does (lib/bookshelf_scan_progress): nothing covers the shelf,
+-- and only Stop stops the pass. Each author is looked up in a forked child
+-- (Trapper:dismissableRunInSubprocess), so the shelf keeps answering taps
+-- through the seconds a lookup takes; the child saves the photo itself and
+-- answers with one line.
 function M.run(bw, names)
     local AI = require("lib/bookshelf_author_images")
     -- findAll hands over missing() already, which drops these; a caller that
@@ -85,37 +123,61 @@ function M.run(bw, names)
     end
     names = real
     if #names == 0 then return end
-    _online(function(Trapper)
-        local found, asked, unreachable_run = 0, 0, 0
-        local stopped, offline = false, false
-        for i, name in ipairs(names) do
-            -- fast_refresh: the message is only rewritten in place, so a long
-            -- library is not a full-screen refresh per author.
-            if not Trapper:info(T(_("Finding author images: %1 of %2\n%3"),
-                    i, #names, name), i > 1) then
-                stopped = true
-                break
+    local Progress = require("lib/bookshelf_scan_progress")
+    if Progress.active() then
+        UIManager:show(InfoMessage:new{
+            text = _("Another job is running. Try again when it has finished."), timeout = 3 })
+        return
+    end
+    require("lib/bookshelf_cover_fetch").runWhenOnline(function()
+        local Trapper = require("ui/trapper")
+        Trapper:wrap(function()
+            local found, asked, unreachable_run = 0, 0, 0
+            local stopped, offline = false, false
+            local function title(i)
+                return T(_("Finding author images: %1 of %2"), i, #names)
             end
-            local path, why = AI.fetch(name)
-            asked = asked + 1
-            if path then found = found + 1 end
-            if why == "unreachable" then
-                unreachable_run = unreachable_run + 1
-                if unreachable_run >= M.MAX_UNREACHABLE then offline = true; break end
-            else
-                unreachable_run = 0
+            holdAwake(true)
+            local job = Progress.begin{ title = title(1), shelf = function() return liveShelf(bw) end }
+            local ok_run, err_run = xpcall(function()
+                for i, name in ipairs(names) do
+                    if job.stopped then stopped = true; break end
+                    Progress.update{ title = title(i), fraction = (i - 1) / #names }
+                    job.in_run = true
+                    local completed, out = Trapper:dismissableRunInSubprocess(function()
+                        local path, why = require("lib/bookshelf_author_images").fetch(name)
+                        return (path and "found" or "missed") .. "\n" .. tostring(why or "")
+                    end, job, true)
+                    job.in_run = false
+                    -- Stopped, or the fork could not start: the pass ends.
+                    if not completed then stopped = true; break end
+                    local what, why = tostring(out or ""):match("^(%a+)\n(.*)$")
+                    asked = asked + 1
+                    if what == "found" then found = found + 1 end
+                    if why == "unreachable" then
+                        unreachable_run = unreachable_run + 1
+                        if unreachable_run >= M.MAX_UNREACHABLE then offline = true; break end
+                    else
+                        unreachable_run = 0
+                    end
+                    if why == "no library" then break end
+                end
+            end, debug.traceback)
+            -- Whatever happened, the status line lets go of the job.
+            Progress.finish()
+            holdAwake(false)
+            if not ok_run then
+                require("logger").warn("[bookshelf] author images pass failed:", tostring(err_run))
             end
-            if why == "no library" then break end
-        end
-        Trapper:clear()
-        if found > 0 then _repaint(bw) end
-        local text = T(_("Found images for %1 of %2 authors."), found, asked)
-        if offline then
-            text = text .. "\n\n" .. _("Couldn't reach Open Library or Wikipedia.")
-        elseif stopped and asked < #names then
-            text = text .. "\n\n" .. T(_("Stopped before %1 more."), #names - asked)
-        end
-        UIManager:show(InfoMessage:new{ text = text })
+            if found > 0 then _repaint(bw) end
+            local text = T(_("Found images for %1 of %2 authors."), found, asked)
+            if offline then
+                text = text .. "\n\n" .. _("Couldn't reach Open Library or Wikipedia.")
+            elseif stopped and asked < #names then
+                text = text .. "\n\n" .. T(_("Stopped before %1 more."), #names - asked)
+            end
+            UIManager:show(InfoMessage:new{ text = text })
+        end)
     end)
 end
 
@@ -139,7 +201,7 @@ function M.findAll(bw)
         and T(_("Look for a photo of %1, the one author with no image yet?"), todo[1])
         or T(_("Look for photos of the %1 authors with no image yet?"), #todo)
     UIManager:show(ConfirmBox:new{
-        text = ask .. "\n\n" .. _("Photos come from Open Library, or Wikipedia when it has none, and are saved in your image library. Images you already have are kept. Tap the progress message to stop."),
+        text = ask .. "\n\n" .. _("Photos come from Open Library, or Wikipedia when it has none, and are saved in your image library. Images you already have are kept. Progress shows in the status line, with Stop."),
         ok_text = _("Find images"),
         ok_callback = function() M.run(bw, todo) end,
     })

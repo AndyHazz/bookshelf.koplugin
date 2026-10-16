@@ -10,6 +10,8 @@ local shown, infos, dismiss_at, results, fetched, repaints
 package.loaded["ui/uimanager"] = {
     show = function(_s, w) shown[#shown + 1] = w end,
     setDirty = function() end,
+    isWidgetShown = function() return true end,
+    preventStandby = function() end, allowStandby = function() end,
 }
 package.loaded["ui/widget/infomessage"] = { new = function(_s, o) return o end }
 package.loaded["ui/widget/confirmbox"] = { new = function(_s, o) o.confirm = true; return o end }
@@ -18,13 +20,29 @@ package.loaded["ffi/util"] = { template = function(s, ...)
     return (s:gsub("%%(%d)", function(i) return tostring(a[tonumber(i)]) end))
 end }
 package.loaded["lib/bookshelf_i18n"] = { gettext = function(s) return s end }
+-- The bulk pass runs each lookup through dismissableRunInSubprocess (run in
+-- place here) and reports in the status line (Progress, stubbed): each
+-- update is one author, and Stop at the dismiss_at'th sets job.stopped.
+local finished
 package.loaded["ui/trapper"] = {
     wrap = function(_s, fn) fn() end,
-    info = function(_s, text)
-        infos[#infos + 1] = text
-        return not (dismiss_at and #infos >= dismiss_at)
-    end,
+    info = function(_s, text) infos[#infos + 1] = text; return true end,
     clear = function() end,
+    -- Stop while a lookup runs aborts the child: it comes back incomplete.
+    dismissableRunInSubprocess = function(_s, task, j, _simple)
+        if j and j.stopped then return false end
+        return true, task()
+    end,
+}
+local job
+package.loaded["lib/bookshelf_scan_progress"] = {
+    active = function() return false end,
+    begin = function(o) job = { stopped = false, title = o.title }; finished = false; return job end,
+    update = function(o)
+        infos[#infos + 1] = o.title
+        if dismiss_at and #infos >= dismiss_at then job.stopped = true end
+    end,
+    finish = function() finished = true end,
 }
 package.loaded["lib/bookshelf_cover_fetch"] = { runWhenOnline = function(fn) fn() end }
 local overrides, cleared = {}, {}
@@ -81,7 +99,7 @@ t.test("one unreachable author among answered ones does not stop it", function()
     eq(#fetched, 5)
 end)
 
-t.test("tapping to stop says how many were left", function()
+t.test("Stop in the status line says how many were left", function()
     reset()
     dismiss_at = 3
     results = { A = "ok", B = "ok" }
@@ -110,6 +128,14 @@ t.test("one author: a miss says so and changes nothing", function()
     Flow.findOne(bw, "Emily Tesh")
     eq(#cleared, 0); eq(repaints, 0)
     eq(summary(), "No photo found for Emily Tesh.")
+end)
+
+t.test("the bulk pass shows in the status line and always lets go of it", function()
+    reset()
+    results = { A = "ok" }
+    Flow.run(bw, { "A", "B" })
+    eq(infos[1], "Finding author images: 1 of 2"); eq(infos[2], "Finding author images: 2 of 2")
+    eq(finished, true, "the status line still shows the job")
 end)
 
 t.done()

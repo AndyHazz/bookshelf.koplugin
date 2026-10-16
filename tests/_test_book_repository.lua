@@ -6520,6 +6520,45 @@ test("isBookFile: a plugin-registered extension is a book, core rules unchanged"
     assert(not Repo.isBookFile("/books/Vol 1.meguru"), "gone once no plugin provides it")
 end)
 
+-- Issue 524: a sidecar with progress but no summary.status is a book being
+-- read, as KOReader counts it; bookshelf drew it as unread, with no bar. A
+-- "new" status (bookshelf's Mark as unread) and no sidecar stay unread.
+test("readProgress: progress without a status reads as reading (issue 524)", function()
+    _G._test_docsettings_data = {
+        ["/books/nostatus.epub"] = { percent_finished = 0.12 },
+        ["/books/marked_new.epub"] = { summary = { status = "new" } },
+        ["/books/rated_only.epub"] = { summary = { rating = 4 } },
+        ["/books/finished.epub"] = { percent_finished = 1, summary = { status = "complete" } },
+    }
+    Repo.invalidateProgressCache()
+    local pct, status = Repo.readProgress("/books/nostatus.epub")
+    assert(pct == 0.12 and status == "reading", tostring(pct) .. " " .. tostring(status))
+    local _p2, s2 = Repo.readProgress("/books/marked_new.epub")
+    assert(s2 == "new", "Mark as unread stays unread: " .. tostring(s2))
+    local _p3, s3 = Repo.readProgress("/books/rated_only.epub")
+    assert(s3 == nil, "rated, never opened: no progress, no status: " .. tostring(s3))
+    local _p4, s4 = Repo.readProgress("/books/finished.epub")
+    assert(s4 == "finished", tostring(s4))
+    _G._test_docsettings_data = nil
+    Repo.invalidateProgressCache()
+end)
+
+-- Page count > Printed page counts first reads only layout-free counts.
+test("printedPageCount: stable numbers or a p(N) name, never the render", function()
+    _G._test_docsettings_data = {
+        ["/books/stable.epub"] = { pagemap_doc_pages = 406, stats = { pages = 1272 } },
+        ["/books/rendered.epub"] = { stats = { pages = 512 } },
+    }
+    Repo.invalidateProgressCache()
+    assert(Repo.printedPageCount("/books/stable.epub") == 406)
+    assert(Repo.printedPageCount("/books/rendered.epub") == nil,
+        "KOReader's count at the reader's layout is not printed")
+    assert(Repo.printedPageCount("/books/Title p(320).epub") == 320)
+    assert(Repo.printedPageCount(nil) == nil)
+    _G._test_docsettings_data = nil
+    Repo.invalidateProgressCache()
+end)
+
 -- ============================================================================
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

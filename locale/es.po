@@ -3,7 +3,7 @@
 msgid ""
 msgstr ""
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-16 20:43+0100\n"
+"POT-Creation-Date: 2026-10-17 00:17+0100\n"
 "Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -147,14 +147,14 @@ msgstr "Leyendo"
 #: lib/bookshelf_bulk_actions.lua:113 lib/bookshelf_chip_editor.lua:1978
 #: lib/bookshelf_filter.lua:250 lib/bookshelf_filter.lua:282
 #: lib/bookshelf_tokens.lua:262 lib/bookshelf_widget.lua:21229
-#: micromodules/random_unread.lua:235 micromodules/shelf_size.lua:20
+#: micromodules/random_unread.lua:253 micromodules/shelf_size.lua:20
 msgid "On hold"
 msgstr "En espera"
 
 #: lib/bookshelf_bulk_actions.lua:114 lib/bookshelf_chip_editor.lua:1977
 #: lib/bookshelf_filter.lua:250 lib/bookshelf_filter.lua:283
 #: lib/bookshelf_tokens.lua:263 lib/bookshelf_widget.lua:21229
-#: micromodules/random_unread.lua:236 micromodules/shelf_size.lua:21
+#: micromodules/random_unread.lua:254 micromodules/shelf_size.lua:21
 msgid "Finished"
 msgstr "Terminado"
 
@@ -712,7 +712,7 @@ msgstr "Primero sin leer de la serie"
 
 #: lib/bookshelf_chip_editor.lua:1979 lib/bookshelf_filter.lua:249
 #: lib/bookshelf_filter.lua:280 lib/bookshelf_tokens.lua:260
-#: micromodules/random_unread.lua:233 micromodules/shelf_size.lua:19
+#: micromodules/random_unread.lua:251 micromodules/shelf_size.lua:19
 msgid "Unread"
 msgstr "Sin leer"
 
@@ -720,7 +720,7 @@ msgstr "Sin leer"
 msgid "Unread standalone"
 msgstr "Independiente sin leer"
 
-#: lib/bookshelf_chip_editor.lua:1982 micromodules/random_unread.lua:232
+#: lib/bookshelf_chip_editor.lua:1982 micromodules/random_unread.lua:250
 msgid "All books"
 msgstr "Todos los libros"
 
@@ -5105,7 +5105,7 @@ msgstr "No se pudo obtener la última versión."
 msgid "Latest release has no downloadable zip."
 msgstr "La última versión no tiene un zip descargable."
 
-#: lib/bookshelf_wallpaper.lua:996
+#: lib/bookshelf_wallpaper.lua:1058
 msgid "wallpapers"
 msgstr "fondos de pantalla"
 
@@ -6614,43 +6614,55 @@ msgstr "Todavía no hay citas"
 msgid "No bookmark list for this book"
 msgstr "No hay lista de marcadores para este libro"
 
-#: micromodules/random_unread.lua:214
+#: micromodules/random_unread.lua:232
 msgid "At least one status must stay selected"
 msgstr "Debe quedar seleccionado al menos un estado"
 
-#: micromodules/random_unread.lua:228 micromodules/random_unread.lua:244
+#: micromodules/random_unread.lua:246 micromodules/random_unread.lua:267
 msgid "Random book"
 msgstr "Libro aleatorio"
 
-#: micromodules/random_unread.lua:232
+#: micromodules/random_unread.lua:250
 msgid "Current shelf"
 msgstr "Estantería actual"
 
-#: micromodules/random_unread.lua:234
+#: micromodules/random_unread.lua:252
 msgid "In progress"
 msgstr "En curso"
 
-#: micromodules/random_unread.lua:245 micromodules/shelf_size.lua:129
+#: micromodules/random_unread.lua:257
+msgid "On tap"
+msgstr "Al tocar"
+
+#: micromodules/random_unread.lua:258
+msgid "Show book in top panel"
+msgstr "Mostrar libro en el panel superior"
+
+#: micromodules/random_unread.lua:259
+msgid "Open book directly"
+msgstr "Abrir libro directamente"
+
+#: micromodules/random_unread.lua:268 micromodules/shelf_size.lua:129
 msgid "From your library. Works offline."
 msgstr "De tu biblioteca. Funciona sin conexión."
 
-#: micromodules/random_unread.lua:288
+#: micromodules/random_unread.lua:311
 msgid "Picking a book…"
 msgstr "Eligiendo un libro…"
 
-#: micromodules/random_unread.lua:314
+#: micromodules/random_unread.lua:337
 msgid "Nothing unread here"
 msgstr "No hay nada sin leer aquí"
 
-#: micromodules/random_unread.lua:315
+#: micromodules/random_unread.lua:338
 msgid "Nothing to pick from here"
 msgstr "No hay nada que elegir aquí"
 
-#: micromodules/random_unread.lua:351
+#: micromodules/random_unread.lua:374
 msgid "Try something new:"
 msgstr "Prueba algo nuevo:"
 
-#: micromodules/random_unread.lua:352
+#: micromodules/random_unread.lua:375
 msgid "Why not this one:"
 msgstr "¿Por qué no este:"
 

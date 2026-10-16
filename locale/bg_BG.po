@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: bookends\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-16 20:43+0100\n"
+"POT-Creation-Date: 2026-10-17 00:17+0100\n"
 "PO-Revision-Date: 2026-06-25 00:02+0000\n"
 "Language-Team: Bulgarian\n"
 "Language: bg_BG\n"
@@ -151,14 +151,14 @@ msgstr "Чета"
 #: lib/bookshelf_bulk_actions.lua:113 lib/bookshelf_chip_editor.lua:1978
 #: lib/bookshelf_filter.lua:250 lib/bookshelf_filter.lua:282
 #: lib/bookshelf_tokens.lua:262 lib/bookshelf_widget.lua:21229
-#: micromodules/random_unread.lua:235 micromodules/shelf_size.lua:20
+#: micromodules/random_unread.lua:253 micromodules/shelf_size.lua:20
 msgid "On hold"
 msgstr "Изчакват"
 
 #: lib/bookshelf_bulk_actions.lua:114 lib/bookshelf_chip_editor.lua:1977
 #: lib/bookshelf_filter.lua:250 lib/bookshelf_filter.lua:283
 #: lib/bookshelf_tokens.lua:263 lib/bookshelf_widget.lua:21229
-#: micromodules/random_unread.lua:236 micromodules/shelf_size.lua:21
+#: micromodules/random_unread.lua:254 micromodules/shelf_size.lua:21
 msgid "Finished"
 msgstr "Завършени"
 
@@ -716,7 +716,7 @@ msgstr "Първите непрочетени в поредица"
 
 #: lib/bookshelf_chip_editor.lua:1979 lib/bookshelf_filter.lua:249
 #: lib/bookshelf_filter.lua:280 lib/bookshelf_tokens.lua:260
-#: micromodules/random_unread.lua:233 micromodules/shelf_size.lua:19
+#: micromodules/random_unread.lua:251 micromodules/shelf_size.lua:19
 msgid "Unread"
 msgstr "Непрочетени"
 
@@ -724,7 +724,7 @@ msgstr "Непрочетени"
 msgid "Unread standalone"
 msgstr "Непрочетени самостоятелни"
 
-#: lib/bookshelf_chip_editor.lua:1982 micromodules/random_unread.lua:232
+#: lib/bookshelf_chip_editor.lua:1982 micromodules/random_unread.lua:250
 msgid "All books"
 msgstr "Всички книги"
 
@@ -5109,7 +5109,7 @@ msgstr "Последната версия не можа да бъде изтег
 msgid "Latest release has no downloadable zip."
 msgstr "Последната версия няма zip файл за изтегляне."
 
-#: lib/bookshelf_wallpaper.lua:996
+#: lib/bookshelf_wallpaper.lua:1058
 msgid "wallpapers"
 msgstr "тапети"
 
@@ -5985,7 +5985,10 @@ msgid ""
 "Delete this image from the image library?\n"
 "\n"
 "%1"
-msgstr "Да се изтрие ли това изображение от библиотеката с изображения?\n\n%1"
+msgstr ""
+"Да се изтрие ли това изображение от библиотеката с изображения?\n"
+"\n"
+"%1"
 
 #: lib/bookshelf_widget.lua:24299
 msgid "Find author image online"
@@ -6615,43 +6618,55 @@ msgstr "Все още няма цитати"
 msgid "No bookmark list for this book"
 msgstr "Няма списък с отметки за тази книга"
 
-#: micromodules/random_unread.lua:214
+#: micromodules/random_unread.lua:232
 msgid "At least one status must stay selected"
 msgstr "Поне един статус трябва да остане избран"
 
-#: micromodules/random_unread.lua:228 micromodules/random_unread.lua:244
+#: micromodules/random_unread.lua:246 micromodules/random_unread.lua:267
 msgid "Random book"
 msgstr "Произволна книга"
 
-#: micromodules/random_unread.lua:232
+#: micromodules/random_unread.lua:250
 msgid "Current shelf"
 msgstr "Текущ рафт"
 
-#: micromodules/random_unread.lua:234
+#: micromodules/random_unread.lua:252
 msgid "In progress"
 msgstr "В процес на четене"
 
-#: micromodules/random_unread.lua:245 micromodules/shelf_size.lua:129
+#: micromodules/random_unread.lua:257
+msgid "On tap"
+msgstr "При докосване"
+
+#: micromodules/random_unread.lua:258
+msgid "Show book in top panel"
+msgstr "Показване на книгата в горния панел"
+
+#: micromodules/random_unread.lua:259
+msgid "Open book directly"
+msgstr "Директно отваряне на книгата"
+
+#: micromodules/random_unread.lua:268 micromodules/shelf_size.lua:129
 msgid "From your library. Works offline."
 msgstr "От вашата библиотека. Работи офлайн."
 
-#: micromodules/random_unread.lua:288
+#: micromodules/random_unread.lua:311
 msgid "Picking a book…"
 msgstr "Избиране на книга…"
 
-#: micromodules/random_unread.lua:314
+#: micromodules/random_unread.lua:337
 msgid "Nothing unread here"
 msgstr "Тук няма непрочетени книги"
 
-#: micromodules/random_unread.lua:315
+#: micromodules/random_unread.lua:338
 msgid "Nothing to pick from here"
 msgstr "Тук няма от какво да се избере"
 
-#: micromodules/random_unread.lua:351
+#: micromodules/random_unread.lua:374
 msgid "Try something new:"
 msgstr "Опитай нещо ново:"
 
-#: micromodules/random_unread.lua:352
+#: micromodules/random_unread.lua:375
 msgid "Why not this one:"
 msgstr "Защо не тази:"
 

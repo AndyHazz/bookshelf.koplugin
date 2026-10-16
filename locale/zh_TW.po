@@ -3,7 +3,7 @@
 msgid ""
 msgstr ""
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-16 20:43+0100\n"
+"POT-Creation-Date: 2026-10-17 00:17+0100\n"
 "Last-Translator: edison4uk (via Gemini, issue #308)\n"
 "Language-Team: Traditional Chinese\n"
 "Language: zh_TW\n"
@@ -150,14 +150,14 @@ msgstr "閱讀中"
 #: lib/bookshelf_bulk_actions.lua:113 lib/bookshelf_chip_editor.lua:1978
 #: lib/bookshelf_filter.lua:250 lib/bookshelf_filter.lua:282
 #: lib/bookshelf_tokens.lua:262 lib/bookshelf_widget.lua:21229
-#: micromodules/random_unread.lua:235 micromodules/shelf_size.lua:20
+#: micromodules/random_unread.lua:253 micromodules/shelf_size.lua:20
 msgid "On hold"
 msgstr "暫緩閱讀"
 
 #: lib/bookshelf_bulk_actions.lua:114 lib/bookshelf_chip_editor.lua:1977
 #: lib/bookshelf_filter.lua:250 lib/bookshelf_filter.lua:283
 #: lib/bookshelf_tokens.lua:263 lib/bookshelf_widget.lua:21229
-#: micromodules/random_unread.lua:236 micromodules/shelf_size.lua:21
+#: micromodules/random_unread.lua:254 micromodules/shelf_size.lua:21
 msgid "Finished"
 msgstr "已讀完"
 
@@ -715,7 +715,7 @@ msgstr "系列首本未讀"
 
 #: lib/bookshelf_chip_editor.lua:1979 lib/bookshelf_filter.lua:249
 #: lib/bookshelf_filter.lua:280 lib/bookshelf_tokens.lua:260
-#: micromodules/random_unread.lua:233 micromodules/shelf_size.lua:19
+#: micromodules/random_unread.lua:251 micromodules/shelf_size.lua:19
 msgid "Unread"
 msgstr "未讀"
 
@@ -723,7 +723,7 @@ msgstr "未讀"
 msgid "Unread standalone"
 msgstr "未讀獨立書籍"
 
-#: lib/bookshelf_chip_editor.lua:1982 micromodules/random_unread.lua:232
+#: lib/bookshelf_chip_editor.lua:1982 micromodules/random_unread.lua:250
 msgid "All books"
 msgstr "所有書籍"
 
@@ -5108,7 +5108,7 @@ msgstr "無法取得最新發布版本。"
 msgid "Latest release has no downloadable zip."
 msgstr "最新發布版本不包含可下載的 zip 檔案。"
 
-#: lib/bookshelf_wallpaper.lua:996
+#: lib/bookshelf_wallpaper.lua:1058
 msgid "wallpapers"
 msgstr "桌布"
 
@@ -5984,7 +5984,10 @@ msgid ""
 "Delete this image from the image library?\n"
 "\n"
 "%1"
-msgstr "確定要從圖片庫刪除此圖片？\n\n%1"
+msgstr ""
+"確定要從圖片庫刪除此圖片？\n"
+"\n"
+"%1"
 
 #: lib/bookshelf_widget.lua:24299
 msgid "Find author image online"
@@ -6614,43 +6617,55 @@ msgstr "尚無金句"
 msgid "No bookmark list for this book"
 msgstr "本書無書籤清單"
 
-#: micromodules/random_unread.lua:214
+#: micromodules/random_unread.lua:232
 msgid "At least one status must stay selected"
 msgstr "必須至少保留選取一個狀態"
 
-#: micromodules/random_unread.lua:228 micromodules/random_unread.lua:244
+#: micromodules/random_unread.lua:246 micromodules/random_unread.lua:267
 msgid "Random book"
 msgstr "隨機選書"
 
-#: micromodules/random_unread.lua:232
+#: micromodules/random_unread.lua:250
 msgid "Current shelf"
 msgstr "目前書架"
 
-#: micromodules/random_unread.lua:234
+#: micromodules/random_unread.lua:252
 msgid "In progress"
 msgstr "閱讀中"
 
-#: micromodules/random_unread.lua:245 micromodules/shelf_size.lua:129
+#: micromodules/random_unread.lua:257
+msgid "On tap"
+msgstr "點擊時"
+
+#: micromodules/random_unread.lua:258
+msgid "Show book in top panel"
+msgstr "在頂部面板顯示書籍"
+
+#: micromodules/random_unread.lua:259
+msgid "Open book directly"
+msgstr "直接開啟書籍"
+
+#: micromodules/random_unread.lua:268 micromodules/shelf_size.lua:129
 msgid "From your library. Works offline."
 msgstr "來自您的藏書庫。可離線運作。"
 
-#: micromodules/random_unread.lua:288
+#: micromodules/random_unread.lua:311
 msgid "Picking a book…"
 msgstr "正在挑選書籍…"
 
-#: micromodules/random_unread.lua:314
+#: micromodules/random_unread.lua:337
 msgid "Nothing unread here"
 msgstr "此處無未讀書籍"
 
-#: micromodules/random_unread.lua:315
+#: micromodules/random_unread.lua:338
 msgid "Nothing to pick from here"
 msgstr "此處無可挑選的書籍"
 
-#: micromodules/random_unread.lua:351
+#: micromodules/random_unread.lua:374
 msgid "Try something new:"
 msgstr "嘗試讀讀看這本："
 
-#: micromodules/random_unread.lua:352
+#: micromodules/random_unread.lua:375
 msgid "Why not this one:"
 msgstr "不妨看看這一本："
 

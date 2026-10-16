@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-16 20:43+0100\n"
+"POT-Creation-Date: 2026-10-17 00:17+0100\n"
 "PO-Revision-Date: 2026-06-14 12:00+0100\n"
 "Last-Translator: \n"
 "Language-Team: Hungarian\n"
@@ -151,14 +151,14 @@ msgstr "Olvasás alatt"
 #: lib/bookshelf_bulk_actions.lua:113 lib/bookshelf_chip_editor.lua:1978
 #: lib/bookshelf_filter.lua:250 lib/bookshelf_filter.lua:282
 #: lib/bookshelf_tokens.lua:262 lib/bookshelf_widget.lua:21229
-#: micromodules/random_unread.lua:235 micromodules/shelf_size.lua:20
+#: micromodules/random_unread.lua:253 micromodules/shelf_size.lua:20
 msgid "On hold"
 msgstr "Felfüggesztve"
 
 #: lib/bookshelf_bulk_actions.lua:114 lib/bookshelf_chip_editor.lua:1977
 #: lib/bookshelf_filter.lua:250 lib/bookshelf_filter.lua:283
 #: lib/bookshelf_tokens.lua:263 lib/bookshelf_widget.lua:21229
-#: micromodules/random_unread.lua:236 micromodules/shelf_size.lua:21
+#: micromodules/random_unread.lua:254 micromodules/shelf_size.lua:21
 msgid "Finished"
 msgstr "Elolvasva"
 
@@ -716,7 +716,7 @@ msgstr "Sorozat első olvasatlan kötete"
 
 #: lib/bookshelf_chip_editor.lua:1979 lib/bookshelf_filter.lua:249
 #: lib/bookshelf_filter.lua:280 lib/bookshelf_tokens.lua:260
-#: micromodules/random_unread.lua:233 micromodules/shelf_size.lua:19
+#: micromodules/random_unread.lua:251 micromodules/shelf_size.lua:19
 msgid "Unread"
 msgstr "Olvasatlan"
 
@@ -724,7 +724,7 @@ msgstr "Olvasatlan"
 msgid "Unread standalone"
 msgstr "Olvasatlan önálló"
 
-#: lib/bookshelf_chip_editor.lua:1982 micromodules/random_unread.lua:232
+#: lib/bookshelf_chip_editor.lua:1982 micromodules/random_unread.lua:250
 msgid "All books"
 msgstr "Minden könyv"
 
@@ -5109,7 +5109,7 @@ msgstr "Nem sikerült lekérni a legújabb kiadást."
 msgid "Latest release has no downloadable zip."
 msgstr "A legújabb kiadáshoz nincs letölthető zip fájl."
 
-#: lib/bookshelf_wallpaper.lua:996
+#: lib/bookshelf_wallpaper.lua:1058
 msgid "wallpapers"
 msgstr "háttérképek"
 
@@ -5985,7 +5985,10 @@ msgid ""
 "Delete this image from the image library?\n"
 "\n"
 "%1"
-msgstr "Törlöd ezt a képet a képkönyvtárból?\n\n%1"
+msgstr ""
+"Törlöd ezt a képet a képkönyvtárból?\n"
+"\n"
+"%1"
 
 #: lib/bookshelf_widget.lua:24299
 msgid "Find author image online"
@@ -6615,43 +6618,55 @@ msgstr "Még nincsenek idézetek"
 msgid "No bookmark list for this book"
 msgstr "Nincs könyvjelzőlista ehhez a könyvhöz"
 
-#: micromodules/random_unread.lua:214
+#: micromodules/random_unread.lua:232
 msgid "At least one status must stay selected"
 msgstr "Legalább egy állapotnak kiválasztva kell maradnia"
 
-#: micromodules/random_unread.lua:228 micromodules/random_unread.lua:244
+#: micromodules/random_unread.lua:246 micromodules/random_unread.lua:267
 msgid "Random book"
 msgstr "Véletlen könyv"
 
-#: micromodules/random_unread.lua:232
+#: micromodules/random_unread.lua:250
 msgid "Current shelf"
 msgstr "Jelenlegi polc"
 
-#: micromodules/random_unread.lua:234
+#: micromodules/random_unread.lua:252
 msgid "In progress"
 msgstr "Folyamatban"
 
-#: micromodules/random_unread.lua:245 micromodules/shelf_size.lua:129
+#: micromodules/random_unread.lua:257
+msgid "On tap"
+msgstr "Koppintáskor"
+
+#: micromodules/random_unread.lua:258
+msgid "Show book in top panel"
+msgstr "Könyv megjelenítése a felső panelen"
+
+#: micromodules/random_unread.lua:259
+msgid "Open book directly"
+msgstr "Könyv megnyitása közvetlenül"
+
+#: micromodules/random_unread.lua:268 micromodules/shelf_size.lua:129
 msgid "From your library. Works offline."
 msgstr "A könyvtáradból. Offline is működik."
 
-#: micromodules/random_unread.lua:288
+#: micromodules/random_unread.lua:311
 msgid "Picking a book…"
 msgstr "Könyv kiválasztása…"
 
-#: micromodules/random_unread.lua:314
+#: micromodules/random_unread.lua:337
 msgid "Nothing unread here"
 msgstr "Itt nincs olvasatlan könyv"
 
-#: micromodules/random_unread.lua:315
+#: micromodules/random_unread.lua:338
 msgid "Nothing to pick from here"
 msgstr "Itt nincs miből választani"
 
-#: micromodules/random_unread.lua:351
+#: micromodules/random_unread.lua:374
 msgid "Try something new:"
 msgstr "Próbálj ki valami újat:"
 
-#: micromodules/random_unread.lua:352
+#: micromodules/random_unread.lua:375
 msgid "Why not this one:"
 msgstr "Mit szólnál ehhez:"
 

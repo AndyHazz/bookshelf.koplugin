@@ -16,7 +16,9 @@ chip vs whole library) and which reading statuses are eligible. Stored via
 the bookshelf settings store under micromodule_random_unread_* keys (the
 module-settings convention; see the README).
 
-Tap behaviour (keep_open module): the tap does NOT open the book. It loads
+Tap behaviour, a setting (micromodule_random_unread_tap): "Open book
+directly" opens the candidate. "Show book in top panel" (the default, a
+keep_open tap) does NOT open the book. It loads
 the displayed candidate into the bookshelf's HERO slot behind the still-open
 menu, then re-rolls, so repeated taps cycle fresh candidates through the
 hero. The hero load rides the widget's existing preview mechanism
@@ -83,6 +85,13 @@ math.randomseed(os.time())
 --   statuses: set keyed on the repo's normalised status vocabulary
 --             (unread / reading / on_hold / finished); default unread-only.
 local SRC_KEY = "micromodule_random_unread_source"
+-- What a tap does: "preview" (default) loads the book into the top panel and
+-- keeps the menu open to roll another; "open" opens it straight away.
+local TAP_KEY = "micromodule_random_unread_tap"
+local function readTap()
+    local Store = require("lib/bookshelf_settings_store")
+    return Store.read(TAP_KEY) == "open" and "open" or "preview"
+end
 local ST_KEY  = "micromodule_random_unread_statuses"
 
 local function readSource()
@@ -200,6 +209,15 @@ local function showSettings(ctx)
             end,
         }
     end
+    local function tapBtn(label, mode)
+        return Kit.radioRow{
+            label = label, active = readTap() == mode,
+            on_pick = function()
+                Store.save(TAP_KEY, mode ~= "preview" and mode or nil)
+                applyAndReopen()
+            end,
+        }
+    end
     local function statusBtn(label, key)
         local on = readStatuses()[key] == true
         return {
@@ -230,6 +248,8 @@ local function showSettings(ctx)
         width_factor = 0.65,
         buttons      = {
             { srcBtn(_("Current shelf"), "chip"), srcBtn(_("All books"), "all") },
+            { tapBtn(_("Show book in top panel"), "preview") },
+            { tapBtn(_("Open book directly"), "open") },
             { statusBtn(_("Unread"), "unread") },
             { statusBtn(_("In progress"), "reading") },
             { statusBtn(_("On hold"), "on_hold") },
@@ -380,10 +400,11 @@ return {
         return group
     end,
     show_settings = showSettings,
-    -- keep_open: the menu stays up while the hero changes underneath it,
-    -- and the _reload that follows re-renders this module with the fresh
-    -- roll — each tap cycles a new candidate into view.
-    keep_open = true,
+    -- keep_open: under "Show book in top panel" the menu stays up while the
+    -- hero changes underneath it, and the _reload that follows re-renders
+    -- this module with the fresh roll -- each tap cycles a new candidate into
+    -- view. "Open book directly" needs the menu out of the way first.
+    keep_open = function() return readTap() == "preview" end,
     on_tap = function(ctx)
         local b = _pick_cache and _pick_cache.book
         if not (b and b.filepath) then return end
@@ -391,6 +412,17 @@ return {
         local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
         if ok_lfs and lfs.attributes(b.filepath, "mode") ~= "file" then return end
         local bw = ctx and ctx.bw
+        if readTap() == "open" then
+            -- As Recently read opens one: not the book already open, through
+            -- the shelf's own open when there is a shelf.
+            invalidate(b.filepath)
+            local R = require("apps/reader/readerui")
+            if R.instance and R.instance.document and R.instance.document.file == b.filepath then
+                return
+            end
+            if bw and bw._openBook then bw:_openBook(b) else R:showReader(b.filepath) end
+            return
+        end
         if bw and bw._previewBook then
             -- Load the displayed candidate into the hero via the widget's
             -- preview path (covers the in-place hero swap + scoped repaint;

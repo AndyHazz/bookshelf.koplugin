@@ -675,6 +675,92 @@ end
 -- Progress indicators menu
 -- ---------------------------------------------------------------------------
 
+-- Page count on covers. The count's source is a separate question from the
+-- Extract page counts dialog's (which sources a scan COLLECTS): a book can
+-- have both a printed count and one at the reader's own layout, and this says
+-- which a badge shows. Worded as that dialog words its sources.
+--   progress_page_count_enabled  true = shown (off by default)
+--   progress_page_count_bare     true = "220", not "220 p" (issue 499)
+--   progress_page_count_source   nil = reading settings, "printed" = printed first
+function Settings._pageCountSummary()
+    if BookshelfSettings.read("progress_page_count_enabled") ~= true then return _("Off") end
+    local src = BookshelfSettings.read("progress_page_count_source") == "printed"
+        and _("Printed") or _("As you read")
+    if BookshelfSettings.read("progress_page_count_bare") == true then
+        return src .. ", " .. _("number only")
+    end
+    return src
+end
+
+function Settings:_pageCountSubItems(markDirty)
+    local function on() return BookshelfSettings.read("progress_page_count_enabled") == true end
+    local function flip(key)
+        return function(touchmenu_instance)
+            BookshelfSettings.save(key, not (BookshelfSettings.read(key) == true))
+            markDirty()
+            if touchmenu_instance and touchmenu_instance.updateItems then
+                touchmenu_instance:updateItems()
+            end
+        end
+    end
+    local function source(value)
+        return {
+            text = value == "printed" and _("Count: printed pages first")
+                or _("Count: your reading settings"),
+            help_text = value == "printed"
+                and _("Publisher page numbers, Hardcover editions, the Calibre page column or a count in the file name, where a book has one. Otherwise the count at your reading settings.")
+                or _("The pages you turn at your font and margins: KOReader's count once a book has been opened, and before that whatever Extract page counts found."),
+            radio = true,
+            enabled_func = on,
+            keep_menu_open = true,
+            checked_func = function()
+                local v = BookshelfSettings.read("progress_page_count_source")
+                return (v == "printed") == (value == "printed")
+            end,
+            callback = function(touchmenu_instance)
+                BookshelfSettings.save("progress_page_count_source", value)
+                markDirty()
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+            end,
+        }
+    end
+    local plugin = self._plugin
+    return {
+        {
+            text = _("Show page count"),
+            checked_func = on,
+            keep_menu_open = true,
+            callback = flip("progress_page_count_enabled"),
+        },
+        {
+            text = _("Number only"),
+            help_text = _("Show \"220\" rather than \"220 p\"."),
+            checked_func = function() return BookshelfSettings.read("progress_page_count_bare") == true end,
+            enabled_func = on,
+            keep_menu_open = true,
+            callback = flip("progress_page_count_bare"),
+            separator = true,
+        },
+        source(nil),
+        source("printed"),
+        {
+            text = _("Extract page counts\xE2\x80\xA6"),
+            help_text = _("Find page counts for books that do not have one yet."),
+            separator = true,
+            callback = function(touchmenu_instance)
+                if touchmenu_instance then UIManager:close(touchmenu_instance) end
+                UIManager:nextTick(function()
+                    require("lib/bookshelf_page_count_dialog").show(
+                        function(opts) plugin:scanPageCounts(opts) end,
+                        function() markDirty() end)
+                end)
+            end,
+        },
+    }
+end
+
 function Settings:_coverDisplaySubItems()
     local function markDirty()
         if self._bw and self._bw._rebuild then
@@ -947,19 +1033,16 @@ function Settings:_coverDisplaySubItems()
                   _("Show progress bars"), false),
         toggleRow("progress_bookmark_enabled",
                   _("Show reading bookmarks"), false),
-        -- Page count: defaults off so existing users aren't surprised
-        -- by an extra element appearing on every cover after upgrade.
-        toggleRow("progress_page_count_enabled",
-                  _("Show page count"), false, true),
-        -- Issue 499: "123" rather than "123 p" in the badge.
-        (function()
-            local row = toggleRow("progress_page_count_bare",
-                                  _("Page count as a number only"), true, true)
-            row.enabled_func = function()
-                return BookshelfSettings.read("progress_page_count_enabled") == true
-            end
-            return row
-        end)(),
+        -- Page count on covers: one row opening its own menu (it was two
+        -- rows, which the long menu split across its pages).
+        {
+            text_func = function()
+                return _("Page count") .. ": " .. Settings._pageCountSummary()
+            end,
+            sub_item_table_func = function()
+                return self:_pageCountSubItems(markDirty)
+            end,
+        },
         -- ── reading-status treatments ──
         -- Completed book badge: three-state. "bookmark" (default;
         -- pre-v2.1 dangling outlined check), "tickbox" (v2.1 square

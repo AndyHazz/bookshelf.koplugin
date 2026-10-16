@@ -125,6 +125,20 @@ function M.decide(book)
             book.page_count = pages
         end
     end
+    -- Page count > Printed page counts first: the badge's own count, kept off
+    -- book.page_count, which the hero, tokens and sorting read as the reading
+    -- count. No printed count: the badge keeps the reading one.
+    -- Cleared under the other setting, so a record cached across the switch
+    -- does not keep showing the printed count.
+    if want_page_count and book.filepath
+            and BookshelfSettings.read("progress_page_count_source") == "printed" then
+        if book._badge_pages == nil then
+            if not _Repo then _Repo = require("lib/bookshelf_book_repository") end
+            book._badge_pages = _Repo.printedPageCount and _Repo.printedPageCount(book.filepath) or false
+        end
+    else
+        book._badge_pages = nil
+    end
     local want_bar      = _toggle("progress_bar_enabled")
     local want_bookmark = _toggle("progress_bookmark_enabled")
     -- Completed-badge style is tri-state: "none" / "bookmark" (the pre-v2.1

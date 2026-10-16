@@ -1602,7 +1602,10 @@ function SpineWidget:_renderShadowedCard(inner)
     --    of the in-progress / completed glyph that anchors bottom-left.
     --    The progress bar (when enabled) takes the remaining width to
     --    the LEFT of the badge. Either indicator can show alone.
-    local want_page_count = indicators.page_count and self.book and self.book.page_count
+    -- _badge_pages: the printed count when the badge is set to prefer it
+    -- (bookshelf_cover_progress.decide); false = none, so the reading count.
+    local badge_pages = self.book and (self.book._badge_pages or self.book.page_count)
+    local want_page_count = indicators.page_count and badge_pages
     if indicators.bar or want_page_count then
         local colors = CoverProgress.resolvedColors()
         local bar_h   = _barHeight()
@@ -1640,8 +1643,8 @@ function SpineWidget:_renderShadowedCard(inner)
                     -- smallinfofont(12) (same reason as the series pill above).
                     -- "Page count as a number only" drops the unit (issue 499).
                     text = BookshelfSettings.read("progress_page_count_bare") == true
-                        and tostring(self.book.page_count)
-                        or T(_("%1\xe2\x80\x8ap"), tostring(self.book.page_count)),
+                        and tostring(badge_pages)
+                        or T(_("%1\xe2\x80\x8ap"), tostring(badge_pages)),
                     face = pc_face,
                     bold = pc_bold,
                     fgcolor = colors.badge_fg,

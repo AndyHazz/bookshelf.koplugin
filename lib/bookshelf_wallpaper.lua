@@ -369,6 +369,12 @@ function M.scrim(bb, x, y, w, h, colour, strength, radius)
                 and M._blendThroughInverse(bb, spans, tint, alpha, Blitbuffer) then
             return
         end
+        -- No C blitter at all (KOReader switches it off on 24-bit PocketBooks,
+        -- the Era Color among them): blend in bookshelf's own byte loop rather
+        -- than fall back to solid (issue 520).
+        if opaque and alpha < 255 and M._lutBlend(bb, spans, tint, alpha, Blitbuffer) then
+            return
+        end
         for _i, s in ipairs(spans) do
             if opaque then
                 bb:paintRect(s.x, s.y, s.w, s.h, colour)
@@ -417,6 +423,62 @@ function M._blendThroughInverse(bb, spans, tint, alpha, Blitbuffer)
     end)
     bb:setInverse(1)
     return done
+end
+
+-- _lutBlend(bb, spans, tint, alpha, Blitbuffer) -> true when the spans were
+-- blended. For a buffer the C blitter will not take: KOReader turns it off on
+-- 24-bit PocketBooks (device.lua, canUseCBB = no), and its Lua fallback is a
+-- function call per pixel, which is why the panels were drawn solid there --
+-- in day and night mode alike (issue 520, an Era Color). A tint over a
+-- rectangle is the same blend for every byte of a channel, so each channel
+-- gets a 256-entry table and the loop is one lookup per byte. Rotation only
+-- moves the rectangle (getPhysicalRect); an inverted buffer (night mode
+-- without hardware inversion) holds 255 - shown, and blending those bytes with
+-- the inverted colour is the same blend (see _blendThroughInverse). BB8,
+-- RGB24 and RGB32 only; false, with nothing painted, for anything else.
+local _ffi_ok, _ffi = pcall(require, "ffi")
+local function _lut(c, a)
+    local t, na = {}, 255 - a
+    for v = 0, 255 do t[v] = math.floor((v * na + c * a) / 255 + 0.5) end
+    return t
+end
+function M._lutBlend(bb, spans, tint, alpha, Blitbuffer)
+    if not (_ffi_ok and bb and bb.data and bb.getType and bb.getPhysicalRect) then return false end
+    local typ = bb:getType()
+    local bpp = (typ == Blitbuffer.TYPE_BB8 and 1) or (typ == Blitbuffer.TYPE_BBRGB24 and 3)
+             or (typ == Blitbuffer.TYPE_BBRGB32 and 4) or nil
+    if not bpp then return false end
+    local ok = pcall(function()
+        local inv = bb.getInverse and bb:getInverse() == 1
+        local r, g, b = tint:getR(), tint:getG(), tint:getB()
+        if inv then r, g, b = 255 - r, 255 - g, 255 - b end
+        local lr, lg, lb, ly
+        if bpp == 1 then
+            local grey = tint:getColor8().a
+            ly = _lut(inv and 255 - grey or grey, alpha)
+        else
+            lr, lg, lb = _lut(r, alpha), _lut(g, alpha), _lut(b, alpha)
+        end
+        local data = _ffi.cast("uint8_t*", bb.data)
+        local stride = tonumber(bb.stride)
+        for _i, sp in ipairs(spans) do
+            local x, y, w, h = bb:getBoundedRect(sp.x, sp.y, sp.w, sp.h)
+            if w > 0 and h > 0 then
+                local px, py, pw, ph = bb:getPhysicalRect(x, y, w, h)
+                for row = py, py + ph - 1 do
+                    local p = data + row * stride + px * bpp
+                    if bpp == 1 then
+                        for i = 0, pw - 1 do p[i] = ly[p[i]] end
+                    else
+                        for i = 0, (pw - 1) * bpp, bpp do
+                            p[i] = lr[p[i]]; p[i + 1] = lg[p[i + 1]]; p[i + 2] = lb[p[i + 2]]
+                        end
+                    end
+                end
+            end
+        end
+    end)
+    return ok
 end
 
 -- _scrimOpaque(bb, alpha) -> true when scrim paints the colour SOLID on bb.

@@ -1173,6 +1173,57 @@ t.test("software night mode blends the inverted tint through C, not a solid fill
     package.loaded["ffi/blitbuffer"] = nil
 end)
 
+-- Issue 520: KOReader turns the C blitter off on 24-bit PocketBooks (the Era
+-- Color), and every panel was then painted solid, by day as well as at night.
+-- _lutBlend blends the bytes itself. Needs LuaJIT's ffi for a real buffer.
+t.test("without the C blitter, the panel is blended byte by byte, not painted solid", function()
+    local ok_ffi, ffi = pcall(require, "ffi")
+    if not ok_ffi then return end   -- plain Lua: the luajit run covers it
+    local W = fresh()
+    local TYPE_BB8, TYPE_RGB24 = 1, 4
+    package.loaded["ffi/blitbuffer"] = {
+        TYPE_BB8 = TYPE_BB8, TYPE_BBRGB24 = TYPE_RGB24, TYPE_BBRGB32 = 5,
+        ColorRGB32 = function(r, g, b, a) return { getR = function() return r end,
+            getG = function() return g end, getB = function() return b end,
+            getColor8 = function() return { a = math.floor((r + g + b) / 3) } end } end }
+    local function buffer(typ, w, h, fill, inverse)
+        local bpp = typ == TYPE_BB8 and 1 or 3
+        local data = ffi.new("uint8_t[?]", w * h * bpp, fill)
+        return {
+            data = data, stride = w * bpp, painted = 0,
+            getType = function() return typ end,
+            getInverse = function() return inverse and 1 or 0 end,
+            canUseCbb = function() return false end,
+            blendRectRGB32 = function() error("C blend called with no C blitter") end,
+            paintRect = function(self) self.painted = self.painted + 1 end,
+            getBoundedRect = function(_, x, y, bw, bh) return x, y, bw, bh end,
+            getPhysicalRect = function(_, x, y, bw, bh) return x, y, bw, bh end,
+        }, data, bpp
+    end
+    local colour = { getColorRGB32 = function(self) return self end,
+                     getR = function() return 200 end, getG = function() return 100 end,
+                     getB = function() return 40 end }
+    -- RGB24, day: grey 0x40 under a 0.35 tint of (200, 100, 40).
+    local bb, data = buffer(TYPE_RGB24, 8, 4, 0x40)
+    eq(W.scrim(bb, 2, 1, 4, 2, colour, 0.35), true)
+    eq(bb.painted, 0, "the panel was painted solid")
+    local a = math.floor(255 * 0.35 + 0.5)
+    local function want(v, c) return math.floor((v * (255 - a) + c * a) / 255 + 0.5) end
+    local p = (1 * 8 + 2) * 3
+    eq(data[p], want(0x40, 200)); eq(data[p + 1], want(0x40, 100)); eq(data[p + 2], want(0x40, 40))
+    eq(data[0], 0x40, "outside the panel was touched")
+    eq(data[(1 * 8 + 6) * 3], 0x40, "the row past the panel was touched")
+    -- Night, software inversion: the buffer holds 255 - shown.
+    local nb, ndata = buffer(TYPE_RGB24, 8, 4, 255 - 0x40, true)
+    W.scrim(nb, 2, 1, 4, 2, colour, 0.35)
+    eq(255 - ndata[p], want(0x40, 200), "the night blend shows a different colour")
+    -- Greyscale buffer: one byte a pixel, the tint's grey.
+    local gb, gdata = buffer(TYPE_BB8, 8, 4, 0x40)
+    W.scrim(gb, 2, 1, 4, 2, colour, 0.35)
+    eq(gdata[1 * 8 + 2], want(0x40, math.floor((200 + 100 + 40) / 3)))
+    package.loaded["ffi/blitbuffer"] = nil
+end)
+
 -- ── shade, and the direct form the recess painter uses ──────────────────
 t.test("shadeRect darkens by day and lightens at night, with no wrapping", function()
     -- The recess painter issues ~2000 of these per paint of a spine page,

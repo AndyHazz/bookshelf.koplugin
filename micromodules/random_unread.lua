@@ -248,12 +248,15 @@ local function showSettings(ctx)
         width_factor = 0.65,
         buttons      = {
             { srcBtn(_("Current shelf"), "chip"), srcBtn(_("All books"), "all") },
-            { tapBtn(_("Show book in top panel"), "preview") },
-            { tapBtn(_("Open book directly"), "open") },
             { statusBtn(_("Unread"), "unread") },
             { statusBtn(_("In progress"), "reading") },
             { statusBtn(_("On hold"), "on_hold") },
             { statusBtn(_("Finished"), "finished") },
+            -- Last, under a heading row (as Reading goal's settings carry
+            -- them), so the statuses above do not read as part of it.
+            { { text = _("On tap"), enabled = false } },
+            { tapBtn(_("Show book in top panel"), "preview") },
+            { tapBtn(_("Open book directly"), "open") },
         },
     }
     UIManager:show(dialog)

@@ -33,6 +33,16 @@ skip_reason() {
         # SQLite does. Run it with:
         #   /usr/lib/koreader/luajit tests/_test_book_facts_db.lua
         _test_book_facts_db.lua)  echo "needs KOReader luajit for sqlite";;
+        # Slow, not broken: these fake the filesystem with one shell process
+        # per call (thousands of them; ~80s a run between them, most of the
+        # whole suite's time). Skipped by default so the gate stays quick;
+        # CI runs every file directly, and a release runs them with
+        #   BOOKSHELF_SLOW_TESTS=1 sh tests/run.sh
+        _test_editable_themes.lua|_test_colour_resolver.lua|_test_shelf_themes.lua|\
+        _test_panel_parts.lua|_test_quote_files.lua|_test_theme_packs.lua|\
+        _test_ornament_json.lua)
+            if [ "${BOOKSHELF_SLOW_TESTS:-}" = "1" ]; then echo ""
+            else echo "slow (shell-faked filesystem): BOOKSHELF_SLOW_TESTS=1 runs it"; fi;;
         *)                        echo "";;
     esac
 }

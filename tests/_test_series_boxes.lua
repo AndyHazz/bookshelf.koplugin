@@ -160,6 +160,8 @@ package.loaded["lib/bookshelf_spine_shelf"]={
     boardColor=function() return "board" end,
     _SpineBookSlot=Slot,
 }
+-- No series images unless a test sets one.
+package.loaded["lib/bookshelf_image_source"]={resolveStackImage=function() return nil end}
 local BoxWidget=require("lib/bookshelf_series_box_widget")
 
 -- A drawing surface that fails on any paint outside the box's rectangle.
@@ -201,6 +203,30 @@ end)
 
 -- ── The face-out slipcase ────────────────────────────────────────────────────
 local SLIP={content_w=2000}
+
+-- A series' own image (set from its menu, or in the image library's series/
+-- folder) is the slipcase's front, in place of the first cover (5.5 report:
+-- "I've set several and they're all still showing one of the book covers").
+H.test("a series with its own image puts it on the slipcase, the rest keep the first cover", function()
+    local saved=package.loaded["lib/bookshelf_image_source"]
+    local asked={}
+    package.loaded["lib/bookshelf_image_source"]={
+        resolveStackImage=function(kind,name) asked[#asked+1]=kind..":"..name
+            return name=="Saga" and "/lib/series/Saga.jpg" or nil end,
+        imageSizeTag=function() return "600x1200" end,
+    }
+    local saga=Boxes.box(members(3,"Saga"),"Saga")
+    local w=BoxWidget:new{entry={book=saga,series_box=Boxes.geometry(saga,BASE,SLIP)},width=200,height=300}
+    H.eq(w.custom_path,"/lib/series/Saga.jpg")
+    H.eq(asked[1],"series:Saga","looked up as anything but a series")
+    H.eq(w.st_full_h,math.floor(w.st_w*2+0.5),"the sticker did not take the image's own shape")
+    local other=Boxes.box(members(3,"Other"),"Other")
+    w=BoxWidget:new{entry={book=other,series_box=Boxes.geometry(other,BASE,SLIP)},width=200,height=300}
+    H.eq(w.custom_path,nil)
+    H.eq(w.st_full_h,math.floor(w.st_w*1.5+0.5),"without an image, the first cover's shape")
+    package.loaded["lib/bookshelf_image_source"]=saved
+end)
+
 
 H.test("a slipcase takes a face-out cover's footprint, its places filling the inside", function()
     for _,n in ipairs({1,3,8}) do

@@ -169,9 +169,28 @@ function Box:_initSlipcase()
     self.inset = math.max(2, Screen:scaleBySize(STICKER_INSET_DP))
     self.art_w = math.max(1, shape.w - 2 * self.inset)
     self.art_h = math.max(1, shape.front_h - 2 * self.inset - shape.strip_h)
+    -- The series' own image, when it has one (set from its long-press menu,
+    -- or found in the image library's series/ folder), in place of the first
+    -- cover: the box set's front, as on its stack in covers view.
+    -- A lookup that fails leaves the first cover, never a broken box.
+    local ok_is, ImageSource = pcall(require, "lib/bookshelf_image_source")
+    local sname = entry.book.series_name
+    self.custom_path = nil
+    if ok_is and ImageSource and type(sname) == "string" and sname ~= "" then
+        local ok_r, path = pcall(ImageSource.resolveStackImage, "series", sname)
+        if ok_r then self.custom_path = path end
+    end
+    local custom_aspect
+    if self.custom_path then
+        local tag = ImageSource.imageSizeTag and ImageSource.imageSizeTag(self.custom_path)
+        local iw, ih
+        if tag then iw, ih = tag:match("^(%d+)x(%d+)$") end
+        iw, ih = tonumber(iw), tonumber(ih)
+        if iw and ih and iw > 0 then custom_aspect = ih / iw end
+    end
     -- The whole cover, stretched or squashed to fill the space above the
     -- name exactly: drawn at its own proportions, then scaled to the space.
-    local aspect = (self.first_look and self.first_look.aspect) or 1.5
+    local aspect = custom_aspect or (self.first_look and self.first_look.aspect) or 1.5
     self.st_w, self.st_h = self.art_w, self.art_h
     self.st_full_h = math.max(1, math.floor(self.st_w * aspect + 0.5))
     self.st_dx, self.st_dy = 0, 0
@@ -271,6 +290,17 @@ function Box:_paintSlipcase(bb, x, y)
     pcall(function()
         local c = self.art_crop
         local FH = self.st_full_h
+        local iw, ih = math.max(1, SW - 2 * E), math.max(1, SH - 2 * E)
+        -- The series' own image: no tile frame to crop. Cache-owned, so it is
+        -- scaled from and never freed here.
+        local custom = self.custom_path
+            and require("lib/bookshelf_image_source").loadImage(self.custom_path, SW, FH)
+        if custom then
+            local fit = custom:scale(iw, ih)
+            bb:blitFrom(fit, sx + E, sy + E, 0, 0, iw, ih)
+            fit:free()
+            return
+        end
         local tw_, th_ = SW + 2 * c, FH + 2 * c
         local tmp = BB.new(tw_, th_, bb:getType())
         tmp:paintRectRGB32(0, 0, tw_, th_, BB.ColorRGB32(255,255,255,255))
@@ -279,7 +309,6 @@ function Box:_paintSlipcase(bb, x, y)
         local inner = BB.new(SW, FH, bb:getType())
         inner:blitFrom(tmp, 0, 0, c, c, SW, FH)
         tmp:free()
-        local iw, ih = math.max(1, SW - 2 * E), math.max(1, SH - 2 * E)
         local fit = inner:scale(iw, ih)
         bb:blitFrom(fit, sx + E, sy + E, 0, 0, iw, ih)
         fit:free()

@@ -254,7 +254,13 @@ local function fakeBB(w, h, typ)
     function bb:getType() return self.typ end
     function bb:free() end
     function bb:fill() end
-    function bb:pmulalphablitFrom() self.composited = true end
+    -- As KOReader's C blitter: no alpha blit INTO RGB24. The real one aborts
+    -- the process (it killed KOReader on the PW5); this one fails the test.
+    function bb:pmulalphablitFrom()
+        assert(self.typ ~= 5, "alpha blit into an RGB24 buffer: KOReader's C blitter aborts on it")
+        self.composited = true
+    end
+    function bb:blitFrom() end
     function bb:writeToFile(path)
         if jpeg_fail then return false end
         local f = io.open(path, "wb"); f:write("\xFF\xD8\xFF\xE0" .. string.rep("c", jpeg_bytes - 4)); f:close()

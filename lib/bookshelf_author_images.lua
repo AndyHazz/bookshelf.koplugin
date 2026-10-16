@@ -357,14 +357,23 @@ local function _compact(path, ext)
     -- buffer's fourth byte as padding: a transparent PNG would come out with
     -- whatever the decoder left in the clear pixels (MuPDF premultiplies, so
     -- black). Premultiplied blit where the build has one, to match.
+    --
+    -- The blend goes onto RGB32, never RGB24: KOReader's C blitter has no
+    -- alpha blit into RGB24 and ABORTS the process on one ("incompatible bb
+    -- (dst: BBRGB24, src: BBRGB32)"), which no pcall catches. That killed
+    -- KOReader on the PW5 at the first transparent Wikipedia PNG of a bulk
+    -- pass. A plain blit then makes the RGB24 copy the encoder is given.
     local ok_b, Blitbuffer = pcall(require, "ffi/blitbuffer")
     local out = bb
     if ok_b and Blitbuffer and bb.getType and bb:getType() == Blitbuffer.TYPE_BBRGB32 then
-        out = Blitbuffer.new(w, h, Blitbuffer.TYPE_BBRGB24)
-        out:fill(Blitbuffer.COLOR_WHITE)
-        if out.pmulalphablitFrom then out:pmulalphablitFrom(bb, 0, 0, 0, 0, w, h)
-        else out:alphablitFrom(bb, 0, 0, 0, 0, w, h) end
+        local flat = Blitbuffer.new(w, h, Blitbuffer.TYPE_BBRGB32)
+        flat:fill(Blitbuffer.COLOR_WHITE)
+        if flat.pmulalphablitFrom then flat:pmulalphablitFrom(bb, 0, 0, 0, 0, w, h)
+        else flat:alphablitFrom(bb, 0, 0, 0, 0, w, h) end
         bb:free()
+        out = Blitbuffer.new(w, h, Blitbuffer.TYPE_BBRGB24)
+        out:blitFrom(flat, 0, 0, 0, 0, w, h)
+        flat:free()
     end
     local tmp = path .. ".jpg"
     local ok_w = out:writeToFile(tmp, "jpg", M.JPEG_QUALITY)
@@ -375,6 +384,10 @@ local function _compact(path, ext)
     pcall(os.remove, tmp)
     return ext
 end
+
+-- For tests and the rig: the flattening above is the one step a device has
+-- crashed in (see its RGB32 note).
+M._compact = _compact
 
 -- _save(url, dir, stem) -> path | nil. Downloads beside the destination,
 -- checks what arrived, makes it compact (_compact), and only then replaces

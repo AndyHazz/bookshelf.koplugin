@@ -1833,6 +1833,12 @@ function Settings:_wallpaperMenu()
     -- (2026-10-09), and here because they only matter over a wallpaper.
     items[#items].separator = true
     for _i, row in ipairs(self:_panelRows()) do items[#items + 1] = row end
+    -- Last, under its own rule: the one row here that is NOT part of the
+    -- theme, a folder of the reader's own to take pictures from, the same
+    -- for every theme (README says so). In Settings it pushed Library &
+    -- search onto a second menu page.
+    items[#items].separator = true
+    items[#items + 1] = self:_wallpaperFolderRow()
     return items
 end
 
@@ -3180,11 +3186,9 @@ function Settings:_settingsSubItems()
         keep_menu_open = true,
         callback = function(touchmenu_instance) self:_pickBookshelfUIFont(touchmenu_instance) end,
     }
-    -- An extra folder to take wallpapers from: a device preference no theme
-    -- changes. The panel rows (shading, blur, Covers panel) were here from
-    -- 2026-10-07 and went back to the theme's Wallpaper menu on 2026-10-09
-    -- (maintainer: "Yes make those part of the theme").
-    items[#items + 1] = self:_wallpaperFolderRow()
+    -- The extra wallpaper folder went to Theme > Wallpaper (2026-10-16): as a
+    -- twelfth row here it pushed Library & search onto a second page of
+    -- KOReader's 10-row menu.
     items[#items].separator = true  -- end appearance band
 
     -- ── surfaces band: micro-module placement + the start menu ──

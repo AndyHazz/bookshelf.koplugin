@@ -83,7 +83,7 @@ t.test("Settings no longer carries Colors or Wallpaper", function()
         .. "would eventually hold everything")
 end)
 
-t.test("the extra wallpaper folder is in Settings' appearance band; the panel rows are not", function()
+t.test("the extra wallpaper folder is last in Theme > Wallpaper; the panel rows are not in Settings", function()
     -- The row order of the Theme menu is pinned by its behaviour in
     -- _test_shelf_theme_menu.lua.
     local body = menu:match("function M%.items%(S%)(.-)\nend\n")
@@ -101,11 +101,14 @@ t.test("the extra wallpaper folder is in Settings' appearance band; the panel ro
                              "Panel shading", "Blur wallpaper behind panels", "Panel behind Covers shelves" }) do
         assert(not code:find(name, 1, true), "Settings still lists " .. name)
     end
-    local font = sub:find("Bookshelf UI font: %1", 1, true)
-    local folder = sub:find("self:_wallpaperFolderRow()", 1, true)
-    local band = sub:find("-- end appearance band", 1, true)
-    assert(font and folder and band and font < folder and folder < band,
-        "the extra wallpaper folder belongs at the end of Settings' appearance band")
+    -- Twelve rows put Library & search on page 2 of KOReader's 10-row menu.
+    assert(not code:find("_wallpaperFolderRow", 1, true),
+        "the extra wallpaper folder is back in Settings")
+    local wp = settings:match("function Settings:_wallpaperMenu%(%)(.-)\nend\n")
+    local panels = wp and wp:find("self:_panelRows()", 1, true)
+    local folder = wp and wp:find("self:_wallpaperFolderRow()", 1, true)
+    assert(panels and folder and panels < folder,
+        "the extra wallpaper folder belongs last in Theme > Wallpaper, after the panel rows")
 end)
 
 t.test("Wallpaper is a submenu named for the picture: the picture, full screen, invert, the colour behind", function()

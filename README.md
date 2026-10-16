@@ -533,7 +533,7 @@ You can also choose a shelf's theme where you set its style: long-press the shel
 - **Blur wallpaper behind panels** -- blurs the picture behind the top panel and the footer before the shading goes over it, like frosted glass. Greyed out at Transparent and Solid, where there is nothing to blur.
 - **Panel behind Covers shelves** -- Covers shelves get one panel behind the top panel, the covers and the footer, as list shelves have, in place of a plate under each title.
 
-Like everything else in the Theme menu, these are part of the theme. **Extra wallpaper folder**, under **menu > Settings**, is not: it is a folder of your own to take pictures from as well, for wallpapers you already keep somewhere else. Its pictures are listed alongside the standard folder's, and nothing in it is changed. Long-press the row to stop using it.
+Like everything else in the Theme menu, these are part of the theme. **Extra wallpaper folder**, the last row of the same menu, is not: it is a folder of your own to take pictures from as well, for wallpapers you already keep somewhere else. Its pictures are listed alongside the standard folder's, and nothing in it is changed. Long-press the row to stop using it.
 
 ### Colors
 

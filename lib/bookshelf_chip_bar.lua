@@ -2042,9 +2042,16 @@ end
 
 function ChipBar:focusCrumb(depth)
     if not self._breadcrumb_zones then return end
+    local prev_depth = self.focused_depth
     self.focused_depth = depth
     self:_initBreadcrumb()
     if not self.show_parent or not self.dimen then return end
+    -- As focusCursor (issue #124): unchanged focus, no refresh. Every page
+    -- turn clears the d-pad focus (_clearDpadFocus), so on a breadcrumb strip
+    -- (a shelf inside a Shelf of shelves) this sent a full-screen refresh
+    -- right behind the page wipe, every turn; on the PW5 the shelf and the
+    -- footer showed white before they painted in (maintainer, By author).
+    if prev_depth == depth then return end
     UIManager:setDirty(self.show_parent, "ui")
 end
 

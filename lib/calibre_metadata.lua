@@ -173,7 +173,19 @@ local function _calibreMetadataFor(filepath, enabled)
         return _calibre_state.map[_normPath(filepath)]
     end
     _calibre_state.last_check = now
-    local home = G_reader_settings:readSetting("home_dir") or "/"
+    -- An unset home_dir is KOReader's device default, not "/": a fresh install
+    -- only saves the setting once the reader picks a folder, and until then
+    -- KOReader shows Device.home_dir (/mnt/onboard on a Kobo) as home. Read as
+    -- "/", a Kobo with metadata.calibre at /mnt/onboard looked for it at the
+    -- filesystem root and never found it (bookshelf issue 517). Two fixed
+    -- probes, never a walk, so desktop's $HOME is as safe a fallback here as
+    -- anywhere.
+    local home = G_reader_settings:readSetting("home_dir")
+    if type(home) ~= "string" or home == "" then
+        local ok_d, Device = pcall(require, "device")
+        home = ok_d and type(Device) == "table" and type(Device.home_dir) == "string"
+               and Device.home_dir ~= "" and Device.home_dir or "/"
+    end
     local lfs  = require("libs/libkoreader-lfs")
     -- Home first, then the folder above it: Calibre sends metadata.calibre to
     -- the root of the device, and a home set to a Books folder under that

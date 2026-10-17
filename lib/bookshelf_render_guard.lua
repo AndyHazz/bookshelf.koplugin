@@ -21,10 +21,17 @@
 --                  not counted) for as long as the file stays the same size.
 local M = {}
 
-M.SETTING = "page_count_skip"   -- { [filepath] = size in bytes }
+-- Test branch fix-518b: its own list, so the books an earlier scan skipped
+-- are tried once more under the smaller share below. A book that still takes
+-- the device down is skipped again on the next run, as before.
+M.SETTING = "page_count_skip_518b"   -- { [filepath] = size in bytes }
 -- How much of the memory the device has free a child may take. The rest is
--- KOReader's and the system's.
-M.AVAILABLE_SHARE = 0.75
+-- KOReader's and the system's. Test branch fix-518b: 0.5, down from 0.75. On a
+-- 512 MB Kobo with no swap, three quarters of what is free let a heavy book
+-- push the whole system into a freeze before the child's allocation was
+-- refused (issue 518's crash.log: a hang mid-render, no OOM, no slowdown
+-- before it); half should leave the system room to refuse it cleanly.
+M.AVAILABLE_SHARE = 0.5
 
 local function readFile(path)
     local f = io.open(path, "r")

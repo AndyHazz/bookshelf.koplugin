@@ -2614,8 +2614,11 @@ function ShelfBadges:drawAt(bb, x, y)
                     -- shallower than the label.
                     local fh = SpineShelf.plankFace(h)
                     local by = y + h - fh - 2
-                    bb:paintRoundedRect(bx, by, bw, badge_h, fill,
-                                        Screen:scaleBySize(2))
+                    -- Through the RGB32-aware dispatch: plain
+                    -- paintRoundedRect fills with getColor8(), so a chosen
+                    -- Folder overlay colour came out as its grey (issue 525).
+                    CoverProgress.paintRoundedRect(bb, bx, by, bw, badge_h, fill,
+                                                   Screen:scaleBySize(2))
                     -- Where it stands ON SCREEN, for a tap (BadgeOverlay):
                     -- only the screen's own buffer, never a wipe's scratch.
                     if rawequal(bb, Screen.bb) then

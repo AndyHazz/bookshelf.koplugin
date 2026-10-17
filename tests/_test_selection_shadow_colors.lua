@@ -24,6 +24,7 @@ local eq = helpers.eq
 local src = io.open("lib/bookshelf_cover_progress.lua"):read("a")
 local settings_src = io.open("lib/bookshelf_settings.lua"):read("a")
 local spine_src = io.open("lib/bookshelf_spine_widget.lua"):read("a")
+local shelf_src = io.open("lib/bookshelf_spine_shelf.lua"):read("a")
 
 local function default(name)
     return src:match(name .. "%s*=%s*{ hex = \"(#%x+)\" }")
@@ -107,6 +108,13 @@ t.test("both painters keep true colour instead of grey luminance", function()
         "the ring does not use the RGB32-aware dispatch")
     assert(spine_src:match("CoverProgress%.paintRoundedRect%(bb, x, y, self%.width"),
         "the shadow does not use the RGB32-aware dispatch")
+end)
+
+t.test("section badges keep the Folder overlay colour (issue 525)", function()
+    assert(not shelf_src:match("bb:paintRoundedRect%(bx, by"),
+        "the badge still paints through the grey-flattening call")
+    assert(shelf_src:match("CoverProgress%.paintRoundedRect%(bb, bx, by"),
+        "the badge does not use the RGB32-aware dispatch")
 end)
 
 t.test("the corner mask follows the ring's colour", function()

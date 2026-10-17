@@ -965,6 +965,12 @@ function M.resolvedColors()
                                             or DEFAULT_PAGE_BG),
         ink               = _paint(ink_raw),
         border            = _paint(border_raw),
+        -- The theme's own border, whatever the setting says: a face-out on
+        -- the spine shelf frames in this (SpineWidget:_frameColor), because a
+        -- chosen colour there sets the cover apart from the page block and
+        -- boards it belongs to (maintainer ruling).
+        border_default    = _paint(is_night and NIGHT_DEFAULT_BORDER
+                                            or DEFAULT_BORDER),
         -- The ring a selected / current-book cover sits on, and the drop
         -- shadow behind every card. Distinct from `shadow` below, which is the
         -- offset shadow on GLYPHS and stays hard-coded for the reason given

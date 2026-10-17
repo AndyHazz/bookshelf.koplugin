@@ -2572,6 +2572,19 @@ end
 -- the RoundedCornerCard shell with selection / shadow chrome. Extracted
 -- from _renderCover so the cache-hit and bb-rendering paths share the
 -- same trailing wrap.
+-- _frameColor(colors) -> the colour of the cover's own frame. The user's
+-- Border color everywhere but a face-out on the spine shelf, which keeps the
+-- theme's default: there the cover is the front board of a book drawn with
+-- its page block and boards, and a chosen colour (white, on a pastel theme)
+-- outlined it as a separate card stood in front of the book (maintainer
+-- ruling). Badges and glyph halos keep the setting.
+function SpineWidget:_frameColor(colors)
+    if self.spine_face_out and colors.border_default then
+        return colors.border_default
+    end
+    return colors.border
+end
+
 function SpineWidget:_wrapCoverInCard(cover_inner, card_w, card_h, border)
     -- Faded on-hold books are fully recessed: faded toward the page
     -- background, no border, and no drop shadow (the shadow is skipped in
@@ -2591,6 +2604,10 @@ function SpineWidget:_wrapCoverInCard(cover_inner, card_w, card_h, border)
         radius      = self:_squareCorners() and 0 or CARD_RADIUS,
         border_size = border,
     }
+    if self.spine_face_out then
+        local ok_cp, c = pcall(CoverProgress.resolvedColors)
+        if ok_cp and c then cover_args.border_color = self:_frameColor(c) end
+    end
     if on_hold_fade then
         -- Paint the border in PAGE WHITE rather than removing it. Two
         -- subtleties make this the right move (issue #121 follow-ups):
@@ -2710,7 +2727,7 @@ function SpineWidget:_renderFallback()
     local function bareCard()
         local plain = ColorSafeFrame:new{
             bordersize = border,
-            color      = colors.border,
+            color      = self:_frameColor(colors),
             radius     = self:_squareCorners() and 0 or CARD_RADIUS,
             padding    = 0,
             background = outer_bg,
@@ -2747,7 +2764,7 @@ function SpineWidget:_renderFallback()
         elseif custom then
             local framed = ColorSafeFrame:new{
                 bordersize = border,
-                color      = colors.border,
+                color      = self:_frameColor(colors),
                 radius     = self:_squareCorners() and 0 or CARD_RADIUS,
                 padding    = 0,
                 background = outer_bg,
@@ -3009,7 +3026,7 @@ function SpineWidget:_renderFallback()
     if self.flat_card then outer_bg = inner_bg end
     local inner_frame = ColorSafeFrame:new{
         bordersize = self.flat_card and 0 or Size.border.thin,
-        color      = colors.border,
+        color      = self:_frameColor(colors),
         background = inner_bg,
         padding    = content_pad,
         CenterContainer:new{
@@ -3027,7 +3044,7 @@ function SpineWidget:_renderFallback()
     -- is enlarged for the progress bar (asymmetric insets).
     local card = ColorSafeFrame:new{
         bordersize = border,
-        color      = colors.border,
+        color      = self:_frameColor(colors),
         radius     = self:_squareCorners() and 0 or CARD_RADIUS,
         padding    = 0,
         background = outer_bg,

@@ -113,40 +113,87 @@ local function unreadOnly(statuses)
         and not (statuses.reading or statuses.on_hold or statuses.finished)
 end
 
+-- shelfSource(tab, chip, statuses) -> the source to fetch for one shelf, or
+-- false when it cannot hold a candidate.
+local function shelfSource(tab, chip, statuses)
+    local src = (tab and tab.source) or { kind = chip }
+    if GROUP_KINDS[src.kind] then
+        src = { kind = "library" }
+    elseif src.kind == "folder" then
+        -- folder + status filter returns folder cards; folder_flat gives
+        -- the books-only descent we want.
+        src = { kind = "folder_flat", id = src.id }
+    end
+    -- A chip whose own status filter shares no status with the
+    -- configured set cannot contain a candidate; don't waste a fetch
+    -- learning that. (Both sets use the repo's normalised vocabulary.)
+    local tf = tab and tab.filter and tab.filter.statuses
+    if tf and next(tf) ~= nil then
+        local overlap = false
+        for k in pairs(statuses) do
+            if tf[k] then overlap = true; break end
+        end
+        if not overlap then return false end
+    end
+    return src
+end
+
+-- shelfSources(tab, chip, statuses) -> the sources behind the current shelf.
+-- A shelf of shelves has no books of its own (its source is the "shelves"
+-- kind), so it stands for every shelf inside it, at any depth, the way its
+-- spine view spills them (issue 528). One that resolves to the whole library
+-- makes the rest redundant.
+local function shelfSources(tab, chip, statuses)
+    local TabModel = require("lib/bookshelf_tab_model")
+    if not TabModel.isShelves(tab) then
+        local src = shelfSource(tab, chip, statuses)
+        return src and { src } or {}
+    end
+    local out = {}
+    local function walk(t, depth)
+        if depth > 8 then return false end
+        for _i, c in ipairs(TabModel.childrenOf(t.id)) do
+            if TabModel.isShelves(c) then
+                if walk(c, depth + 1) then return true end
+            else
+                local src = shelfSource(c, c.id, statuses)
+                if src and src.kind == "library" then
+                    out = { src }
+                    return true
+                end
+                if src then out[#out + 1] = src end
+            end
+        end
+        return false
+    end
+    walk(tab, 0)
+    return out
+end
+
 local function pickUnread()
     local Store    = require("lib/bookshelf_settings_store")
     local TabModel = require("lib/bookshelf_tab_model")
     local Repo     = require("lib/bookshelf_book_repository")
     local statuses = readStatuses()
-    local src
+    local sources
     if readSource() == "all" then
-        src = { kind = "library" } -- whole library, regardless of chip
+        sources = { { kind = "library" } } -- whole library, regardless of chip
     else
         local chip = Store.read("active_chip") or "recent"
-        local tab  = TabModel.getById(chip)
-        src = (tab and tab.source) or { kind = chip }
-        if GROUP_KINDS[src.kind] then
-            src = { kind = "library" }
-        elseif src.kind == "folder" then
-            -- folder + status filter returns folder cards; folder_flat gives
-            -- the books-only descent we want.
-            src = { kind = "folder_flat", id = src.id }
-        end
-        -- A chip whose own status filter shares no status with the
-        -- configured set cannot contain a candidate; don't waste a fetch
-        -- learning that. (Both sets use the repo's normalised vocabulary.)
-        local tf = tab and tab.filter and tab.filter.statuses
-        if tf and next(tf) ~= nil then
-            local overlap = false
-            for k in pairs(statuses) do
-                if tf[k] then overlap = true; break end
+        sources = shelfSources(TabModel.getById(chip), chip, statuses)
+    end
+    local books, seen = {}, {}
+    for _i, src in ipairs(sources) do
+        local got = Repo.getBySource(src, { statuses = statuses },
+            nil, 0, FETCH_CAP, { light_only = true })
+        for _j, bk in ipairs(got or {}) do
+            if type(bk) == "table" and bk.filepath and not seen[bk.filepath] then
+                seen[bk.filepath] = true
+                books[#books + 1] = bk
             end
-            if not overlap then return false end
         end
     end
-    local books = Repo.getBySource(src, { statuses = statuses },
-        nil, 0, FETCH_CAP, { light_only = true })
-    if not books or #books == 0 then return false end
+    if #books == 0 then return false end
     if _exclude_fp and #books > 1 then
         local filtered = {}
         for _i, bk in ipairs(books) do

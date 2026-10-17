@@ -56,7 +56,8 @@ t.test("a second copy is reported where the reader will look", function()
     assert(body, "Updater.otherCopies missing")
     -- Both lookup paths, because the install dir is searched first and is a
     -- different place from the data dir on desktop and Android.
-    assert(body:find('"plugins"', 1, true) and body:find("getDataDir()", 1, true),
+    assert(body:find('"plugins"', 1, true) and body:find("getDataDir()", 1, true)
+           and body:find("extra_plugin_paths", 1, true),
         "otherCopies does not search both of KOReader's lookup paths")
     assert(body:find('entry:sub(-9) == ".koplugin"', 1, true),
         "otherCopies does not match what KOReader actually loads")
@@ -82,7 +83,7 @@ end)
 --
 -- on a device with exactly one, to a reader who had installed once and
 -- updated through the plugin for a year (Reddit, 2026-09-20).
-local function harness(tree, datadir, mine)
+local function harness(tree, datadir, mine, extra_plugin_paths)
     -- tree: { [path] = { mode =, dev =, ino = } }. Two paths sharing a
     -- dev/ino pair are the same directory, which is the whole point.
     local lfs = {
@@ -107,7 +108,12 @@ local function harness(tree, datadir, mine)
     assert(body and ident, "otherCopies or _identity moved")
     local env = {
         type = type, tostring = tostring, pcall = pcall, pairs = pairs,
-        table = table, string = string,
+        ipairs = ipairs, table = table, string = string,
+        G_reader_settings = extra_plugin_paths ~= nil and {
+            readSetting = function(_s, k)
+                if k == "extra_plugin_paths" then return extra_plugin_paths end
+            end,
+        } or nil,
         require = function(name)
             if name == "libs/libkoreader-lfs" then return lfs end
             if name == "datastorage" then
@@ -187,6 +193,44 @@ t.test("a symlinked install is itself, not a second copy", function()
     }
     local out = harness(tree, D, "/home/dev/src/bookshelf.koplugin")
     eq(#out, 1, "one entry expected: the two paths are one install")
+end)
+
+t.test("a folder added to extra_plugin_paths is searched too", function()
+    -- KOReader loads every folder that setting lists; a copy in one of them
+    -- runs, so About has to say so.
+    local D = "/sdcard/koreader"
+    local X = "/sdcard/Download/myplugins"
+    local tree = {
+        ["plugins"]                          = { mode = "directory", dev = 8, ino = 100 },
+        [D .. "/plugins"]                    = { mode = "directory", dev = 8, ino = 101 },
+        [X]                                  = { mode = "directory", dev = 8, ino = 102 },
+        [D .. "/plugins/bookshelf.koplugin"] = { mode = "directory", dev = 8, ino = 200 },
+        [X .. "/bookshelf.koplugin"]         = { mode = "directory", dev = 8, ino = 201 },
+    }
+    local out = harness(tree, D, D .. "/plugins/bookshelf.koplugin",
+                        { D .. "/plugins", X })
+    eq(#out, 1, "the copy in the extra folder went unreported")
+    eq(out[1], X .. "/bookshelf.koplugin")
+    -- The setting as a bare string, which KOReader also accepts.
+    out = harness(tree, D, D .. "/plugins/bookshelf.koplugin", X)
+    eq(#out, 1, "a string setting went unread")
+    eq(out[1], X .. "/bookshelf.koplugin")
+end)
+
+t.test("a data dir dropped from the setting is not searched", function()
+    -- Once extra_plugin_paths is set KOReader reads only it: a copy left in a
+    -- data dir the reader took out of the list is not loaded, so not reported.
+    local D = "/home/reader/.config/koreader"
+    local X = "/opt/ko-plugins"
+    local tree = {
+        ["plugins"]                          = { mode = "directory", dev = 8, ino = 100 },
+        [D .. "/plugins"]                    = { mode = "directory", dev = 8, ino = 101 },
+        [X]                                  = { mode = "directory", dev = 8, ino = 102 },
+        [X .. "/bookshelf.koplugin"]         = { mode = "directory", dev = 8, ino = 200 },
+        [D .. "/plugins/bookshelf.koplugin"] = { mode = "directory", dev = 8, ino = 201 },
+    }
+    local out = harness(tree, D, X .. "/bookshelf.koplugin", { X })
+    eq(#out, 0, "reported a copy KOReader does not load: " .. table.concat(out, ", "))
 end)
 
 t.test("no inodes, no crash: the old path comparison stands in", function()

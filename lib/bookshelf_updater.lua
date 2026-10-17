@@ -131,7 +131,22 @@ function Updater.otherCopies()
         local mine = Updater.pluginDir()
         local mine_id = _identity(lfs, mine)
         local seen = {}
-        local roots = { "plugins", DataStorage:getDataDir() .. "/plugins" }
+        -- KOReader's own list (PluginLoader:_discover): "plugins", then the
+        -- extra_plugin_paths setting, which it seeds with <data dir>/plugins
+        -- on first run and reads from then on -- so a folder a reader added
+        -- there is loaded too, and one they removed is not. Only with the
+        -- setting absent is it the data dir.
+        local roots = { "plugins" }
+        local extra = G_reader_settings and G_reader_settings.readSetting
+                      and G_reader_settings:readSetting("extra_plugin_paths")
+        if type(extra) == "string" then extra = { extra } end
+        if type(extra) == "table" then
+            for _i, p in ipairs(extra) do
+                if type(p) == "string" then roots[#roots + 1] = p end
+            end
+        else
+            roots[#roots + 1] = DataStorage:getDataDir() .. "/plugins"
+        end
         for _i = 1, #roots do
             local root = roots[_i]
             local root_id = _identity(lfs, root)

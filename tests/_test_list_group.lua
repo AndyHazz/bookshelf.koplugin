@@ -170,6 +170,27 @@ t.test("a count switched off costs no folder walk", function()
     eq(walks, 0, "the recursive walk must not run for a count nobody asked for")
 end)
 
+t.test("a shelf of shelves' tile counts the books it brings (issue 527)", function()
+    reset()
+    STORE["stack_count_badge_mode"]   = "all"
+    STORE["stack_count_badge_format"] = "finished_total"
+    PROGRESS["/x/1.epub"] = { status = "finished" }
+    local tile = { kind = "folder", label = "Favs", subshelf_id = "s1",
+                   member_fps = { "/x/1.epub", "/x/2.epub", "/x/3.epub" } }
+    eq(Group.countText(tile, nil), "1 of 3 finished")
+    eq(walks, 0, "a sub-shelf tile has no path to walk")
+end)
+
+t.test("a sub-shelf tile follows the folder setting", function()
+    reset()
+    local tile = { kind = "folder", label = "Favs", subshelf_id = "s1",
+                   member_fps = { "/x/1.epub" } }
+    STORE["stack_count_badge_mode"] = "groups"
+    assert(Group.countText(tile, nil) == nil, "groups-only must leave it uncounted")
+    STORE["stack_count_badge_mode"] = "folders"
+    eq(Group.countText(tile, nil), "1 book")
+end)
+
 t.test("one book is not '1 books'", function()
     reset()
     STORE["stack_count_badge_mode"] = "all"

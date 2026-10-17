@@ -24642,6 +24642,52 @@ function BookshelfWidget:_subShelfCoverFps(tab, n, depth)
     return out
 end
 
+-- _subShelfMemberFps(tab) -> the distinct local books a shelf's tile counts,
+-- for the stack count badge (issue 527): its books with its own filters, a
+-- grouped shelf's groups flattened, a shelf of shelves summing its shelves.
+-- An OPDS shelf counts nothing -- its cached window is a slice of the catalog,
+-- not its size -- and remote records are skipped the same way.
+function BookshelfWidget:_subShelfMemberFps(tab)
+    local TabModel = require("lib/bookshelf_tab_model")
+    local out, seen = {}, {}
+    local function add(fp)
+        if type(fp) == "string" and not seen[fp] and not fp:match("^%a+://") then
+            seen[fp] = true
+            out[#out + 1] = fp
+        end
+    end
+    local function walk(t, depth)
+        if not t or depth > 8 then return end
+        if TabModel.isShelves(t) then
+            for _i, c in ipairs(TabModel.childrenOf(t.id)) do walk(c, depth + 1) end
+            return
+        end
+        if type(t.source) ~= "table" or t.source.kind == "opds" then return end
+        -- Light records under the shelf's own sort: order is irrelevant to a
+        -- count, but that is the list the repo has cached, and without the
+        -- sort the fetch missed it on every build (a 79-book favourites shelf
+        -- measured 270 ms each time against 0.2 ms).
+        local ok, items = pcall(Repo.getBySource, t.source, t.filter,
+            t.sort_priority, 0, SPINE_ALL_LIMIT, { light_only = true })
+        if not ok or type(items) ~= "table" then return end
+        for _i, it in ipairs(items) do
+            if type(it) == "table" then
+                if type(it.books) == "table" and not it.filepath then
+                    for _j, b in ipairs(it.books) do add(b.filepath) end
+                elseif it.kind == "folder" and it.path then
+                    -- Home and folder shelves hand back their subfolders as
+                    -- cards; the count is what is inside them.
+                    for _j, fp in ipairs(Repo.getFolderBookPaths(it.path) or {}) do add(fp) end
+                else
+                    add(it.filepath)
+                end
+            end
+        end
+    end
+    walk(tab, 0)
+    return out
+end
+
 -- _subShelfSpill(tab) -> a shelf of shelves as a spine shelf shows it: the
 -- books of every shelf inside it, each shelf in its own order and with its
 -- own filters, as a run labelled with its name (the section tag every spine
@@ -24712,6 +24758,10 @@ function BookshelfWidget:_subShelfItems(tab, offset, limit)
     -- The "+" tile can be hidden once the shelves are set up (shelf editor).
     local total = #children + (tab.hide_add_tile and 0 or 1)
     local ScaledCoverCache = require("lib/bookshelf_scaled_cover_cache")
+    -- A tile is folder-shaped, so it counts under the badge's folder setting;
+    -- the full fetch is only paid when that would show it.
+    local mode = BookshelfSettings.read("stack_count_badge_mode")
+    local want_count = (mode == "folders" or mode == "all")
     local out = {}
     for i = offset + 1, math.min(offset + limit, total) do
         local c = children[i]
@@ -24730,6 +24780,7 @@ function BookshelfWidget:_subShelfItems(tab, offset, limit)
                 subshelf_id = c.id,
                 first_book  = first,
                 cover_fps   = fps,
+                member_fps  = want_count and self:_subShelfMemberFps(c) or nil,
             }
         else
             out[#out + 1] = {

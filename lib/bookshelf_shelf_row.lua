@@ -642,6 +642,10 @@ function ShelfRow.new(opts)
             local folder_fpaths
             if need_lookup then
                 folder_fpaths = Repo.getFolderBookPaths(item.path) or {}
+            elseif item.member_fps then
+                -- A shelf of shelves' tile: no path to walk, so it brings
+                -- its shelf's books with it (_subShelfItems, issue 527).
+                folder_fpaths = item.member_fps
             end
             local folder_book_count
             if show_folder_badge and folder_fpaths then

@@ -97,7 +97,9 @@ end
 -- carries its members inline.
 local function memberPaths(item)
     if item.kind == "folder" then
-        if not item.path then return nil end
+        -- A shelf of shelves' tile has no path; it brings its shelf's books
+        -- with it (BookshelfWidget:_subShelfItems, issue 527).
+        if not item.path then return item.member_fps end
         return Repo.getFolderBookPaths(item.path)
     end
     if item.books then

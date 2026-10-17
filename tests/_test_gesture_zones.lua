@@ -324,6 +324,51 @@ t.test("reader child modules' zones are walked too", function()
     assert(fired)
 end)
 
+print("--- tryReaderPluginZones ---")
+
+t.test("a LiveLight zone on the parked reader fires", function()
+    local ev = { pos = { x = 5, y = 5 } }
+    local fired = false
+    local rui = {
+        _ordered_touch_zones = {
+            fakeZone("livelight_pan", { x = 0, y = 0, w = 10, h = 10 }, { ev },
+                function() fired = true; return true end),
+        },
+    }
+    assert(Zones.tryReaderPluginZones(ev, rui) == true)
+    assert(fired)
+end)
+
+t.test("a LiveLight zone that passes the gesture on falls through", function()
+    local ev = { pos = { x = 5, y = 5 } }
+    local rui = {
+        _ordered_touch_zones = {
+            fakeZone("livelight_pan", { x = 0, y = 0, w = 10, h = 10 }, { ev },
+                function() return false end),
+        },
+    }
+    assert(Zones.tryReaderPluginZones(ev, rui) == false)
+end)
+
+t.test("menu and page-turn zones are not plugin zones", function()
+    local ev = { pos = { x = 5, y = 5 } }
+    local fired = false
+    local rui = {
+        _ordered_touch_zones = {
+            fakeZone("readermenu_pan", { x = 0, y = 0, w = 10, h = 10 }, { ev },
+                function() fired = true; return true end),
+            fakeZone("paging_pan", { x = 0, y = 0, w = 10, h = 10 }, { ev },
+                function() fired = true; return true end),
+        },
+    }
+    assert(Zones.tryReaderPluginZones(ev, rui) == false)
+    assert(not fired)
+end)
+
+t.test("nil rui returns false for plugin zones", function()
+    assert(Zones.tryReaderPluginZones({}, nil) == false)
+end)
+
 print("--- forwardToReader ---")
 
 t.test("forwards a plain event to the reader host", function()

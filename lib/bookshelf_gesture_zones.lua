@@ -101,6 +101,24 @@ function GestureZones.tryReaderZones(ev, rui)
     end, nil)
 end
 
+-- tryReaderPluginZones(ev, rui) -> boolean
+-- Hot parking: zones other plugins registered on the reader that are safe
+-- on the home screen. Their file-manager twins ("filemanager_<id>") already
+-- pass tryFMZones, so without this they only work once the parked book has
+-- gone. Tried BEFORE matchesReaderMenuZone: LiveLight's edge slides start
+-- anywhere along the edge, including the top strip the menu zones cover,
+-- and its zones are ordered ahead of the menu's (in FM mode too).
+local READER_PLUGIN_PREFIXES = { "^livelight_" }
+function GestureZones.tryReaderPluginZones(ev, rui)
+    if not rui then return false end
+    return _tryHostZones(ev, rui, function(id)
+        for _i, prefix in ipairs(READER_PLUGIN_PREFIXES) do
+            if id:find(prefix) then return true end
+        end
+        return false
+    end, nil)
+end
+
 -- matchesReaderMenuZone(ev, rui) -> boolean
 -- Probe only: would this gesture hit one of the reader's stock menu-open
 -- zones? No handler is fired. Used by the parked shelf to detect a

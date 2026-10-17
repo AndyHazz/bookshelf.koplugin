@@ -682,6 +682,7 @@ function BookshelfWidget:handleEvent(event)
         local Park = require("lib/bookshelf_reader_park")
         if Park.isParked() then
             local rui = require("apps/reader/readerui").instance
+            if GestureZones.tryReaderPluginZones(ev, rui) then return true end
             if GestureZones.matchesReaderMenuZone(ev, rui) then
                 Park.finishToMenu()
                 return true

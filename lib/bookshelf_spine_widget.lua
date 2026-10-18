@@ -1084,7 +1084,8 @@ end
 --                             surrounding books are mixed and the number
 --                             reads as noise.
 --   "never" / false        -> suppress everywhere
--- Default is "always", matching the original boolean-true behaviour.
+-- Unset reads as "always" (the original boolean-true behaviour); fresh
+-- installs are seeded with "in_series" (BFont.maybeSeedFreshInstall).
 local function _showSeriesNum(in_series)
     local v = BookshelfSettings.read("show_series_num")
     if v == nil or v == true or v == "always" then return true end
@@ -1795,7 +1796,7 @@ function SpineWidget:_renderShadowedCard(inner)
     --    user got here from), gated by:
     --      * self.show_progress -- grid-only surface (hero / folder /
     --        series stacks reuse SpineWidget but opt out).
-    --      * Setting bookshelf_show_series_num (default ON).
+    --      * Setting bookshelf_show_series_num (fresh installs: within a series).
     if self.show_progress and _showSeriesNum(self.in_series)
             and not self.suppress_number_badges
             and self.book and self.book.series_num then

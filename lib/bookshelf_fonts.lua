@@ -459,6 +459,11 @@ function M.maybeSeedFreshInstall()
         -- installs only -- existing users keep their placement (unset -> "hero"
         -- via Store.microPlacement, the prior behaviour).
         Settings.save("micro_modules_placement", "fullscreen")
+        -- Series numbers only inside a series (drilled series stack or a
+        -- single-series shelf): on mixed shelves the "#N" badges in every
+        -- corner read as noise. New installs only -- existing users keep
+        -- theirs (unset -> "always").
+        Settings.save("show_series_num", "in_series")
         local ok, Regions = pcall(require, "lib/bookshelf_hero_regions")
         if ok and Regions and Regions.applyFreshInstallDefaults then
             Regions.applyFreshInstallDefaults()

@@ -1193,7 +1193,7 @@ function Settings:_coverDisplaySubItems()
             }
         end)(),
         -- ── decorations ──
-        -- Show series #: three-state. "always" (default), "in_series"
+        -- Show series #: three-state. "always" (unset; fresh installs get "in_series"), "in_series"
         -- (only inside a single-series view), or "never". Legacy boolean
         -- values are still honoured: true reads as "always", false as
         -- "never", so existing user settings keep working without a

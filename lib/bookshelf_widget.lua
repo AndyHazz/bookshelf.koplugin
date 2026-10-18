@@ -8502,6 +8502,29 @@ local function _pageAnimSteps()
     return PageWipe.resolveSteps()
 end
 
+-- _pageTurnFlashDue() -> true when this page turn should be a full refresh.
+--
+-- "Full refresh on page turns" (issue 529): the shelf follows KOReader's own
+-- Full refresh rate. KOReader counts only "partial" refreshes towards its
+-- flash and the shelf's page turns are "ui", so with the rate at Every page
+-- the shelf still ghosted. The shelf keeps its own count against the same
+-- rate (UIManager.FULL_REFRESH_COUNT, which already reads the night-mode
+-- rate when night mode is on). Never, or the reader's chapter-boundary
+-- mode (-1), means never here. Off by default: a flash costs time.
+function BookshelfWidget._pageTurnFlashDue()
+    if not BookshelfSettings.isTrue("shelf_full_refresh") then return false end
+    if not (Device.hasEinkScreen and Device:hasEinkScreen()) then return false end
+    local rate = tonumber(UIManager.FULL_REFRESH_COUNT) or 0
+    if rate <= 0 then return false end
+    local n = (BookshelfWidget._turns_since_flash or 0) + 1
+    if n >= rate then
+        BookshelfWidget._turns_since_flash = 0
+        return true
+    end
+    BookshelfWidget._turns_since_flash = n
+    return false
+end
+
 -- _swapShelvesInPlace — pagination fast-path. Rebuilds only the shelf rows
 -- + footer, leaving hero + chips intact. Avoids redundant work (the chips
 -- never change with self.page; the hero only changes with _preview_book)
@@ -8814,6 +8837,11 @@ function BookshelfWidget:_swapShelvesInPlace()
     -- Consume the flag on any real page-turn (whether or not we skipped),
     -- so only the immediate post-refresh turn is affected.
     if _wipe_dir then self._full_refresh_pending = nil end
+    -- A turn due a full refresh skips the wipe: the flash would repaint
+    -- the region it had just animated.
+    local flash = _wipe_dir and BookshelfWidget._pageTurnFlashDue() or false
+    if flash then anim_steps = nil end
+    local refresh_mode = flash and "full" or "ui"
     local wiped = false
     if anim_steps then
         local ry = BookshelfWidget._rowsRegionTop(shelf_top, d)
@@ -8869,15 +8897,15 @@ function BookshelfWidget:_swapShelvesInPlace()
             if footer_rect and footer_band and footer_band.y > ry then
                 -- Rows band + only the changed part of the footer. The
                 -- widget repaint covers both; the flash covers just these.
-                UIManager:setDirty(self, "ui", Geom:new{
+                UIManager:setDirty(self, refresh_mode, Geom:new{
                     x = 0, y = ry, w = self.width, h = footer_band.y - ry })
                 UIManager:setDirty(nil, "ui", footer_rect)
             else
-                UIManager:setDirty(self, "ui", Geom:new{
+                UIManager:setDirty(self, refresh_mode, Geom:new{
                     x = 0, y = ry, w = self.width, h = self.height - ry })
             end
         else
-            UIManager:setDirty(self, "ui")
+            UIManager:setDirty(self, refresh_mode)
         end
     end
     -- Pagination via _swapShelvesInPlace bypasses _rebuild's persist hook;

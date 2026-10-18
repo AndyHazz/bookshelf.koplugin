@@ -265,6 +265,52 @@ local FILL_TARGET    = 0.90
 -- because one build runs synchronously start to finish (no interleaving).
 local _build_surface = "hero"
 
+-- Fitted sizes, remembered per card and layout and kept across restarts. The
+-- search below renders a card up to a dozen times to find its size (measured
+-- on a PW5: each of 7 full-screen cards rendered 10 to 12 times, most of a
+-- 0.5s open). A card whose cell, base scale and multiplier are unchanged is
+-- rendered ONCE at the remembered size, and the result kept only if it comes
+-- out exactly the size it did last time. Anything that changes what a card
+-- draws -- a longer quote, a font, a theme, the card's own settings -- changes
+-- that size, and the card is searched afresh. Layout changes change the key.
+local FIT_MEMO_KEY = "module_fit_memo"
+local FIT_MEMO_CAP = 200
+local _fit_memo, _fit_memo_n
+
+local function _fitMemo()
+    if not _fit_memo then
+        local saved = BookshelfSettings.read(FIT_MEMO_KEY)
+        _fit_memo, _fit_memo_n = {}, 0
+        if type(saved) == "table" then
+            for k, v in pairs(saved) do
+                if type(v) == "table" and tonumber(v.s) and tonumber(v.h) and tonumber(v.w) then
+                    _fit_memo[k] = v
+                    _fit_memo_n = _fit_memo_n + 1
+                end
+            end
+        end
+    end
+    return _fit_memo
+end
+
+local function _fitMemoStore(key, rec)
+    local memo = _fitMemo()
+    if not memo[key] then
+        _fit_memo_n = _fit_memo_n + 1
+        -- Keys pile up as layouts come and go; past the cap start over rather
+        -- than track ages. A dropped entry costs one search, nothing more.
+        if _fit_memo_n > FIT_MEMO_CAP then
+            _fit_memo, _fit_memo_n = {}, 1
+            memo = _fit_memo
+        end
+    end
+    memo[key] = rec
+    BookshelfSettings.save(FIT_MEMO_KEY, memo)
+end
+
+-- Test seam: forget the in-memory copy so the next read comes from settings.
+function HeroModules._resetFitMemo() _fit_memo, _fit_memo_n = nil, nil end
+
 local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, user_mult, bw)
     local base  = base_scale or 100
     -- Absolute size range for any cell, independent of the (now fixed) base:
@@ -308,6 +354,19 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, 
         if pending_regions then widget._tap_regions = pending_regions end
         local sz = widget.getSize and widget:getSize()
         return widget, (sz and sz.h) or 0, (sz and sz.w) or 0
+    end
+
+    user_mult = user_mult or 100
+    local memo_key = entry and entry.id and table.concat({
+        _build_surface, tostring(def.key), tostring(entry.id),
+        inner_w, inner_h, base, user_mult }, "|")
+    if memo_key then
+        local m = _fitMemo()[memo_key]
+        if m then
+            local mw, mh, mwid = renderAt(m.s, m.c or nil)
+            if mw and mh == m.h and mwid == m.w then return mw end
+            if mw and mw.free then pcall(function() mw:free() end) end
+        end
     end
 
     local widget, h, w = renderAt(base)
@@ -388,7 +447,7 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, 
     -- fitted scale. Default 100 = unchanged (the auto-fit result). Lower renders
     -- below the cell fill (smaller text, more whitespace — the requested "make
     -- them smaller"); higher grows past it (ClipContainer backstops overflow).
-    user_mult = user_mult or 100
+    local final_scale, final_clamp = result_scale, result_clamped
     if result and result_scale and user_mult ~= 100 then
         local adj = math.max(10, math.floor(result_scale * user_mult / 100 + 0.5))
         if adj ~= result_scale then
@@ -402,17 +461,26 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, 
             -- with no ellipsis protection at all, unlike the 100% path).
             -- Re-check at the FINAL size instead of only inheriting whatever
             -- the pre-multiplier stage decided.
+            local rw_clamp = result_clamped
             if rw and rh and rh > inner_h and not result_clamped then
                 local cw = renderAt(adj, true)
                 if cw then
                     if rw.free then pcall(function() rw:free() end) end
-                    rw = cw
+                    rw, rw_clamp = cw, true
                 end
             end
             if rw then
                 if result.free then pcall(function() result:free() end) end
                 result = rw
+                final_scale, final_clamp = adj, rw_clamp
             end
+        end
+    end
+    if memo_key and result and final_scale then
+        local ok, sz = pcall(function() return result:getSize() end)
+        if ok and sz and sz.h and sz.w then
+            _fitMemoStore(memo_key, { s = final_scale, c = final_clamp or nil,
+                                      h = sz.h, w = sz.w })
         end
     end
     return result

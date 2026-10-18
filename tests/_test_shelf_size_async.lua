@@ -14,6 +14,7 @@ local t = dofile("tests/_helpers.lua").runner()
 local tasks = {}
 package.loaded["ui/uimanager"] = {
     nextTick   = function(_, fn) tasks[#tasks + 1] = fn end,
+    tickAfterNext = function(_, fn) tasks[#tasks + 1] = fn end,
     scheduleIn = function(_, _s, fn) tasks[#tasks + 1] = fn end,
 }
 local function runTasks()

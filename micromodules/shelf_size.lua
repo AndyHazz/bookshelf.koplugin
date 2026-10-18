@@ -168,8 +168,9 @@ local function finish(key, total, counts)
     end
 end
 
--- The count runs from the next tick on, never inside render: even making the
--- stepper walks the library, which is the slow half on a cold start.
+-- The count runs after the next paint, never inside render: even making the
+-- stepper walks the library, which is the slow half on a cold start. (A
+-- nextTick task would run ahead of the repaint the opening tap has queued.)
 startCount = function(key)
     if _job then return end
     _job = { key = key }
@@ -188,7 +189,7 @@ startCount = function(key)
         _job = nil
         finish(job.key, total, counts)
     end
-    UIManager:nextTick(tick)
+    UIManager:tickAfterNext(tick)
 end
 
 -- getCounts(refresh, preview) -> total, counts (both nil before any tally)
@@ -200,7 +201,11 @@ local function getCounts(refresh, preview)
     if not preview then
         local key = currentKey()
         if _key ~= key then
-            if refresh then _waiters[#_waiters + 1] = refresh end
+            if refresh then
+            local queued = false
+            for _i, w in ipairs(_waiters) do if w == refresh then queued = true break end end
+            if not queued then _waiters[#_waiters + 1] = refresh end
+        end
             startCount(key)
         end
     end

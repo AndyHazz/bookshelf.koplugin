@@ -12,6 +12,12 @@ Each goal can be independently activated/deactivated. Tap cycles through
 the active goals (keep_open = true); small dot indicators (● ○) show
 position. Time data comes from statistics.sqlite3, book counts come from
 ReadHistory + Repo.readProgress. Everything is TTL-cached at 30 s.
+
+Render never waits for those reads. Cold, they cost 630ms on a PW5 inside the
+first full-screen micro-modules open. The card draws the last figures it has
+(saved across restarts, a period that has since rolled over reading 0), the
+queries run after the screen has painted, and the card redraws itself through
+ctx.refresh when a number moved.
 ]]
 local _ = require("lib/bookshelf_i18n").gettext
 local T = require("ffi/util").template
@@ -266,16 +272,10 @@ local function queryTimeData()
     return res
 end
 
-local function queryAllData()
+local function computeAllData()
     local now = os.time()
-    if _data_cache and (now - _data_cache.at) < DATA_TTL then
-        return _data_cache.data or nil
-    end
     local time_data = queryTimeData()
-    if not time_data then
-        _data_cache = { at = now, data = false }
-        return nil
-    end
+    if not time_data then return false end
 
     -- Book counts for monthly / yearly
     local t = os.date("*t", now)
@@ -286,14 +286,99 @@ local function queryAllData()
     local month_books, year_books = countFinishedBooks(t, year_start)
     year_books  = year_books + readOtherBooks(t.year)
 
-    local data = {
+    return {
         today_secs  = time_data.today_secs,
         week_secs   = time_data.week_secs,
         month_books = month_books,
         year_books  = year_books,
     }
-    _data_cache = { at = now, data = data }
-    return data
+end
+
+-- The figures last computed, for drawing while fresh ones are worked out, and
+-- the cards to redraw when they land.
+local SAVED_KEY = "reading_goal_last"
+local _compute = computeAllData   -- swapped by tests
+local _last_data
+local _pending = false
+local _waiters = {}
+
+-- Period stamps, so saved figures from an earlier day / week / month / year
+-- read 0 for the period that has rolled over rather than yesterday's total.
+local function periodStamps(now)
+    local t = os.date("*t", now)
+    local day_start = os.time{ year = t.year, month = t.month, day = t.day,
+                               hour = 0, min = 0, sec = 0 }
+    return {
+        day   = os.date("%Y-%m-%d", now),
+        week  = os.date("%Y-%m-%d", day_start - ((t.wday + 5) % 7) * 86400),
+        month = os.date("%Y-%m", now),
+        year  = os.date("%Y", now),
+    }
+end
+
+local function savedData()
+    local saved = store().read(SAVED_KEY)
+    if type(saved) ~= "table" or type(saved.data) ~= "table" then return nil end
+    local d, at, now = saved.data, saved.stamps or {}, periodStamps(os.time())
+    return {
+        today_secs  = (at.day   == now.day)   and tonumber(d.today_secs)  or 0,
+        week_secs   = (at.week  == now.week)  and tonumber(d.week_secs)   or 0,
+        month_books = (at.month == now.month) and tonumber(d.month_books) or 0,
+        year_books  = (at.year  == now.year)  and tonumber(d.year_books)  or 0,
+    }
+end
+
+local function sameData(a, b)
+    if type(a) ~= "table" or type(b) ~= "table" then return a == b end
+    return a.today_secs == b.today_secs and a.week_secs == b.week_secs
+        and a.month_books == b.month_books and a.year_books == b.year_books
+end
+
+local function refreshData()
+    if _pending then return end
+    _pending = true
+    -- After the next paint, not before it: a nextTick task runs ahead of the
+    -- repaint the tap that opened the view has queued.
+    require("ui/uimanager"):tickAfterNext(function()
+        _pending = false
+        local ok, data = pcall(_compute)
+        if not ok then data = false end
+        local moved = not sameData(data, _last_data)
+        _data_cache = { at = os.time(), data = data }
+        _last_data = data
+        if data then
+            store().save(SAVED_KEY, { data = data, stamps = periodStamps(os.time()) })
+        end
+        local waiting = _waiters
+        _waiters = {}
+        if moved then
+            for _i, refresh in ipairs(waiting) do pcall(refresh) end
+        end
+    end)
+end
+
+-- queryAllData(refresh, preview) -> data, or nil when the stats are unavailable.
+-- Fresh figures (under DATA_TTL old) are returned as they are. Otherwise the
+-- last known ones are, while a refresh runs after the next paint and redraws
+-- this card through `refresh`. The picker preview never starts one.
+local function queryAllData(refresh, preview)
+    local now = os.time()
+    if _data_cache and (now - _data_cache.at) < DATA_TTL then
+        return _data_cache.data or nil
+    end
+    if _last_data == nil then
+        _last_data = savedData() or {
+            today_secs = 0, week_secs = 0, month_books = 0, year_books = 0 }
+    end
+    if not preview then
+        if refresh then
+            local queued = false
+            for _i, w in ipairs(_waiters) do if w == refresh then queued = true break end end
+            if not queued then _waiters[#_waiters + 1] = refresh end
+        end
+        refreshData()
+    end
+    return _last_data or nil
 end
 
 -- ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -612,7 +697,7 @@ return {
             return math.max(1, math.floor(n * (scale_pct or 100) / 100 + 0.5))
         end
 
-        local data = queryAllData()
+        local data = queryAllData(ctx.refresh, preview)
         if not data then
             return TextWidget:new{
                 text = _("Stats unavailable"),
@@ -658,5 +743,9 @@ return {
     show_settings = showSettings,
 
     -- The counting and the other-books rule, for tests/_test_reading_goal_count.
-    _test = { countFinished = countFinished, dateYM = dateYM, readOtherBooks = readOtherBooks },
+    -- The deferred refresh, for tests/_test_reading_goal_deferred.
+    _test = { countFinished = countFinished, dateYM = dateYM, readOtherBooks = readOtherBooks,
+              queryAllData = function(...) return queryAllData(...) end,
+              setCompute = function(fn) _compute = fn end,
+              forget = function() _data_cache, _last_data = nil, nil end },
 }

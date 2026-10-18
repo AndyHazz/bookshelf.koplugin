@@ -7,9 +7,14 @@ on hold / finished). Counts come from Repo.countByStatus(), which walks the
 library once and classifies each book by its sidecar status (books that have
 never been opened cost nothing beyond the walk), then adds the Kindle library
 where the user has put one on their shelf. That walk + status read is
-not free on a large library, so the result is memoised per menu-open via the
-loader's menu_generation counter — render runs on every focus-step rebuild,
-but the tally is computed at most once per time the menu is opened. No on_tap.
+not free on a large library: cold, it froze the first full-screen open for 3
+seconds on a PW5. So render never waits for it. It draws the last tally it
+has (kept across restarts, dashes on a first ever run), counts in small steps
+between UI ticks, then redraws just this card through ctx.refresh if the
+numbers moved. A tally is current for one menu open (the loader's
+menu_generation) and one state of the library (Repo.dataGeneration, bumped
+when a book's status or the library changes), so the full-screen view, which
+never opens the menu, still recounts after a book is finished. No on_tap.
 ]]
 local _ = require("lib/bookshelf_i18n").gettext
 
@@ -34,8 +39,7 @@ local FIT_FLOOR_PCT = 60
 
 -- Memo for the fitted sizes. render() runs on every focus-step rebuild, and the
 -- probing below is the expensive part, so the decision is cached per
--- (width, scale, tally) and dropped whenever the tally changes -- which is once
--- per menu open, the same generation counter getCounts() keys off.
+-- (width, scale, tally) and dropped whenever the tally changes.
 local _fit_memo, _fit_gen = {}, nil
 
 -- Returns head_size, count_size, cols: the largest sizes at which all
@@ -104,26 +108,108 @@ local function _fitStatusRow(mw, scale_pct, counts, gen)
     return hs, cs, cols
 end
 
--- Per-menu-open memo: the walk + status reads are the expensive part, so cache
--- the tally against the loader's generation counter (bumped once per open).
-local _gen, _total, _counts
+-- The last finished tally, the key it was counted under (nil for one loaded
+-- from settings: shown, but recounted), the count in progress, and the cards
+-- waiting to be redrawn when it lands.
+local _key, _total, _counts
+local _job
+local _waiters = {}
+local STEP_BOOKS = 25        -- books classified per tick
+local STEP_GAP_S = 0.02      -- breathing room for input between ticks
+local SAVED_KEY  = "shelf_size_tally"
 
-local function getCounts()
+local function currentKey()
     local Modules = require("lib/bookshelf_start_menu_modules")
-    local gen = Modules.menu_generation
-    if _gen ~= gen or not _counts then
-        local Repo = require("lib/bookshelf_book_repository")
-        local ok, total, counts = pcall(Repo.countByStatus)
-        if ok then
-            _gen, _total, _counts = gen, total, counts
-        else
-            _total, _counts = 0, { reading = 0, unread = 0, on_hold = 0, finished = 0 }
+    local Repo = require("lib/bookshelf_book_repository")
+    local data = Repo.dataGeneration and Repo.dataGeneration() or 0
+    return tostring(Modules.menu_generation) .. ":" .. tostring(data)
+end
+
+local function loadSaved()
+    local ok, Store = pcall(require, "lib/bookshelf_settings_store")
+    local saved = ok and Store.read(SAVED_KEY)
+    if type(saved) == "table" and type(saved.counts) == "table"
+            and tonumber(saved.total) then
+        _total, _counts = tonumber(saved.total), saved.counts
+    end
+end
+
+local function sameTally(total, counts)
+    if total ~= _total or type(_counts) ~= "table" then return false end
+    for _i, st in ipairs(STATUS_ROWS) do
+        if (counts[st.id] or 0) ~= (_counts[st.id] or 0) then return false end
+    end
+    return true
+end
+
+local startCount
+
+local function finish(key, total, counts)
+    local moved = not sameTally(total, counts)
+    _key, _total, _counts = key, total, counts
+    if moved then
+        local ok, Store = pcall(require, "lib/bookshelf_settings_store")
+        if ok then Store.save(SAVED_KEY, { total = total, counts = counts }) end
+    end
+    -- The library changed while this count ran: count again, and keep the
+    -- waiting cards for that one rather than leave them on old numbers.
+    local now = currentKey()
+    if now ~= key then
+        if moved then
+            for _i, refresh in ipairs(_waiters) do pcall(refresh) end
+        end
+        startCount(now)
+        return
+    end
+    local waiting = _waiters
+    _waiters = {}
+    if moved then
+        for _i, refresh in ipairs(waiting) do pcall(refresh) end
+    end
+end
+
+-- The count runs from the next tick on, never inside render: even making the
+-- stepper walks the library, which is the slow half on a cold start.
+startCount = function(key)
+    if _job then return end
+    _job = { key = key }
+    local UIManager = require("ui/uimanager")
+    local function tick()
+        local job = _job
+        if not job then return end
+        local ok, done, total, counts = pcall(function()
+            if not job.step then
+                job.step = require("lib/bookshelf_book_repository").countByStatusStepper()
+            end
+            return job.step(STEP_BOOKS)
+        end)
+        if not ok then _job = nil; return end
+        if not done then UIManager:scheduleIn(STEP_GAP_S, tick); return end
+        _job = nil
+        finish(job.key, total, counts)
+    end
+    UIManager:nextTick(tick)
+end
+
+-- getCounts(refresh, preview) -> total, counts (both nil before any tally)
+-- Never blocks on the count. A stale or missing tally starts one in the
+-- background (not for the picker's preview) and queues `refresh` to redraw
+-- the card when it lands.
+local function getCounts(refresh, preview)
+    if _counts == nil then loadSaved() end
+    if not preview then
+        local key = currentKey()
+        if _key ~= key then
+            if refresh then _waiters[#_waiters + 1] = refresh end
+            startCount(key)
         end
     end
     return _total, _counts
 end
 
 return {
+    -- Tests drive the background count through this; not part of the spec.
+    _getCounts = getCounts,
     key   = "shelf_size", -- stable id stored in user menus; never change it
     title = _("Shelf size"),
     summary = _("From your library. Works offline."),
@@ -146,7 +232,11 @@ return {
         local function sc(n) return math.max(1, math.floor(n * (scale_pct or 100) / 100 + 0.5)) end
         local BLACK = SM.COLOR_PRIMARY
 
-        local total, counts = getCounts()
+        local total, counts = getCounts(ctx.refresh, ctx.preview)
+        -- Before the first tally ever lands there is nothing to show yet.
+        local DASH = "-"
+        local function num(v) return v and tostring(v) or DASH end
+        local fit_counts = counts or {}
 
         -- Header: the big total with a smaller "Books" label after it, same
         -- weight and baseline-aligned. HorizontalGroup aligns box edges, not
@@ -154,7 +244,7 @@ return {
         -- difference in baseline offsets to land both baselines on one line.
         local big_face, big_bold = Fonts:getFace("cfont", sc(40), {bold=true})
         local books_face, books_bold = Fonts:getFace("cfont", sc(20), {bold=true})
-        local big_tw = TextWidget:new{ text = tostring(total), face = big_face,
+        local big_tw = TextWidget:new{ text = num(total), face = big_face,
             bold = big_bold, fgcolor = BLACK }
         local books_tw = TextWidget:new{ text = _("Books"), face = books_face,
             bold = books_bold, fgcolor = SM.COLOR_MUTED }
@@ -183,7 +273,7 @@ return {
         -- screen. The panel now caps a row via ctx.max_height and paginates
         -- around it, so the gate is gone and every surface fits alike.)
         local head_size, count_size, status_cols =
-            _fitStatusRow(mw, scale_pct, counts, require("lib/bookshelf_start_menu_modules").menu_generation)
+            _fitStatusRow(mw, scale_pct, fit_counts, tostring(total) .. ":" .. tostring(_key))
         local head_face  = Fonts:getFace("cfont", head_size)
         local count_face, count_bold = Fonts:getFace("cfont", count_size, {bold=true})
         local col_w      = math.floor(mw / status_cols)
@@ -193,7 +283,7 @@ return {
                 TextWidget:new{ text = st.label, face = head_face, fgcolor = SM.COLOR_MUTED,
                     max_width = col_w },
                 VerticalSpan:new{ width = sc(2) },
-                TextWidget:new{ text = tostring(counts[st.id] or 0),
+                TextWidget:new{ text = counts and tostring(counts[st.id] or 0) or DASH,
                     face = count_face, bold = count_bold, fgcolor = BLACK,
                     max_width = col_w },
             }

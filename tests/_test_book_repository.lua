@@ -2582,6 +2582,34 @@ test("countByStatus: no Kindle chip leaves the tally exactly as it was", functio
     assert(counts.unread == 0, "the Kindle unread must not leak in, got " .. tostring(counts.unread))
 end)
 
+test("countByStatusStepper: counts a few books per step, same answer as countByStatus", function()
+    -- The Shelf size module runs the count in steps between UI ticks: a cold
+    -- count read every sidecar in one go and froze a first full-screen open
+    -- for 3 seconds on a PW5.
+    _setupWalk({ "a.epub", "b.epub", "c.epub", "d.epub", "e.epub" },
+               { ["a.epub"] = "complete", ["c.epub"] = "reading" }, true)
+    _fakeKindleSource({ { filepath = "/k/a.kfx", title = "A", _status = "finished" } })
+    local step = Repo.countByStatusStepper()
+    local steps, done, total, counts = 0, false, nil, nil
+    while not done do
+        steps = steps + 1
+        done, total, counts = step(2)
+        assert(steps < 10, "the stepper never finished")
+    end
+    -- A finished stepper answers again without counting anything twice.
+    local again, total2, counts2 = step(2)
+    local full_total, full_counts = Repo.countByStatus()
+    _teardownWalk()
+    assert(steps == 3, "5 books at 2 a step is 3 steps, got " .. steps)
+    assert(total == 6, "5 walked + 1 Kindle, got " .. tostring(total))
+    assert(counts.finished == 2 and counts.reading == 1 and counts.unread == 3,
+        "got finished=" .. tostring(counts.finished) .. " reading=" .. tostring(counts.reading)
+        .. " unread=" .. tostring(counts.unread))
+    assert(again and total2 == 6 and counts2.finished == 2, "a second call re-counted")
+    assert(full_total == total and full_counts.unread == counts.unread,
+        "countByStatus and the stepper disagree")
+end)
+
 test("countByStatus: an unreadable Kindle library leaves the tally alone", function()
     -- A chip carried over from another device, on hardware with no catalogue.
     _setupWalk({ "done.epub" }, { ["done.epub"] = "complete" }, true)

@@ -6037,24 +6037,45 @@ end
 -- bookshelf states. Built on _statusForFp, so unopened books (no sidecar)
 -- cost nothing beyond the walk, and opened ones hit the progress cache.
 function Repo.countByStatus()
+    local _done, total, counts = Repo.countByStatusStepper()(nil)
+    return total, counts
+end
+
+-- Repo.countByStatusStepper() -> step(n) -> done, total, counts
+-- The same tally in pieces: each step(n) classifies up to n more books (nil:
+-- all of them) and returns done=false until the last, then true with the
+-- totals. A cold tally reads every opened book's sidecar, which froze the
+-- first full-screen micro-modules open for 3 seconds on a PW5; the Shelf
+-- size module runs these steps between UI ticks instead. No UIManager here:
+-- the caller owns the scheduling. A finished stepper keeps returning its
+-- answer.
+function Repo.countByStatusStepper()
     local counts = { unread = 0, reading = 0, on_hold = 0, finished = 0 }
     local paths = Repo.getAllFilepaths()
-    for _i, fp in ipairs(paths) do
-        local s = _statusForFp(fp)
-        counts[s] = (counts[s] or 0) + 1
-    end
-    local total = #paths
-    -- getAllFilepaths is the WALKED library, which is not the whole shelf: the
-    -- Kindle library is on it too, and a user with a Kindle chip was shown a
-    -- "shelf size" that left out roughly a third of the books they can see.
-    local k_counts, k_total = _librarySourceStatusCounts()
-    if k_counts then
-        for status, n in pairs(k_counts) do
-            counts[status] = (counts[status] or 0) + n
+    local i, total = 0, nil
+    return function(n)
+        if total then return true, total, counts end
+        local stop = n and math.min(#paths, i + n) or #paths
+        for j = i + 1, stop do
+            local s = _statusForFp(paths[j])
+            counts[s] = (counts[s] or 0) + 1
         end
-        total = total + k_total
+        i = stop
+        if i < #paths then return false end
+        total = #paths
+        -- getAllFilepaths is the WALKED library, which is not the whole shelf:
+        -- the Kindle library is on it too, and a user with a Kindle chip was
+        -- shown a "shelf size" that left out roughly a third of the books
+        -- they can see.
+        local k_counts, k_total = _librarySourceStatusCounts()
+        if k_counts then
+            for status, c in pairs(k_counts) do
+                counts[status] = (counts[status] or 0) + c
+            end
+            total = total + k_total
+        end
+        return true, total, counts
     end
-    return total, counts
 end
 
 local function _buildGroups(group_kind, key_fn, multi, records)

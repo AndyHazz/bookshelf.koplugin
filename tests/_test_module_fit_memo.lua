@@ -27,6 +27,10 @@ local function load_fit()
             save = function(k, v) store[k] = v end,
         },
         require = function(name)
+            if name == "lib/bookshelf_module_cache" then
+                return { read = function(k) return store[k] end,
+                         save = function(k, v) store[k] = v end }
+            end
             if name == "lib/bookshelf_module_kit" then
                 return { shape = function() return "wide" end,
                          entryConfig = function() return nil end }

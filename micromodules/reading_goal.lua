@@ -317,7 +317,7 @@ local function periodStamps(now)
 end
 
 local function savedData()
-    local saved = store().read(SAVED_KEY)
+    local saved = require("lib/bookshelf_module_cache").read(SAVED_KEY)
     if type(saved) ~= "table" or type(saved.data) ~= "table" then return nil end
     local d, at, now = saved.data, saved.stamps or {}, periodStamps(os.time())
     return {
@@ -346,8 +346,11 @@ local function refreshData()
         local moved = not sameData(data, _last_data)
         _data_cache = { at = os.time(), data = data }
         _last_data = data
-        if data then
-            store().save(SAVED_KEY, { data = data, stamps = periodStamps(os.time()) })
+        -- Saved only when a figure moved, and to the cache file: this runs on
+        -- every refresh, and the settings file is rewritten whole on a save.
+        if data and moved then
+            require("lib/bookshelf_module_cache").save(SAVED_KEY,
+                { data = data, stamps = periodStamps(os.time()) })
         end
         local waiting = _waiters
         _waiters = {}

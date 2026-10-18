@@ -273,13 +273,14 @@ local _build_surface = "hero"
 -- out exactly the size it did last time. Anything that changes what a card
 -- draws -- a longer quote, a font, a theme, the card's own settings -- changes
 -- that size, and the card is searched afresh. Layout changes change the key.
+-- Kept in lib/bookshelf_module_cache, not the settings file.
 local FIT_MEMO_KEY = "module_fit_memo"
 local FIT_MEMO_CAP = 200
 local _fit_memo, _fit_memo_n
 
 local function _fitMemo()
     if not _fit_memo then
-        local saved = BookshelfSettings.read(FIT_MEMO_KEY)
+        local saved = require("lib/bookshelf_module_cache").read(FIT_MEMO_KEY)
         _fit_memo, _fit_memo_n = {}, 0
         if type(saved) == "table" then
             for k, v in pairs(saved) do
@@ -305,7 +306,8 @@ local function _fitMemoStore(key, rec)
         end
     end
     memo[key] = rec
-    BookshelfSettings.save(FIT_MEMO_KEY, memo)
+    -- The cache file, coalesced: never a settings write inside a paint.
+    require("lib/bookshelf_module_cache").save(FIT_MEMO_KEY, memo)
 end
 
 -- Test seam: forget the in-memory copy so the next read comes from settings.

@@ -32,6 +32,7 @@ package.loaded["lib/bookshelf_settings_store"] = {
     read = function(k) return store[k] end,
     save = function(k, v) store[k] = v end,
 }
+package.loaded["lib/bookshelf_module_cache"] = package.loaded["lib/bookshelf_settings_store"]
 package.loaded["lib/bookshelf_start_menu_modules"] = { menu_generation = 1 }
 package.loaded["lib/bookshelf_i18n"] = { gettext = function(s) return s end }
 

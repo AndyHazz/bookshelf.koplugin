@@ -126,8 +126,7 @@ local function currentKey()
 end
 
 local function loadSaved()
-    local ok, Store = pcall(require, "lib/bookshelf_settings_store")
-    local saved = ok and Store.read(SAVED_KEY)
+    local saved = require("lib/bookshelf_module_cache").read(SAVED_KEY)
     if type(saved) == "table" and type(saved.counts) == "table"
             and tonumber(saved.total) then
         _total, _counts = tonumber(saved.total), saved.counts
@@ -148,8 +147,7 @@ local function finish(key, total, counts)
     local moved = not sameTally(total, counts)
     _key, _total, _counts = key, total, counts
     if moved then
-        local ok, Store = pcall(require, "lib/bookshelf_settings_store")
-        if ok then Store.save(SAVED_KEY, { total = total, counts = counts }) end
+        require("lib/bookshelf_module_cache").save(SAVED_KEY, { total = total, counts = counts })
     end
     -- The library changed while this count ran: count again, and keep the
     -- waiting cards for that one rather than leave them on old numbers.

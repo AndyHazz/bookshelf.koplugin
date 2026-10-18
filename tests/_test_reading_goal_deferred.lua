@@ -13,6 +13,10 @@ package.loaded["lib/bookshelf_settings_store"] = {
     read = function(k, d) if saved[k] == nil then return d end return saved[k] end,
     save = function(k, v) saved[k] = v end,
 }
+package.loaded["lib/bookshelf_module_cache"] = {
+    read = function(k) return saved[k] end,
+    save = function(k, v) saved[k] = v end,
+}
 package.loaded["lib/bookshelf_i18n"] = { gettext = function(s) return s end }
 package.loaded["ffi/util"] = { template = function(s) return s end }
 _G.G_reader_settings = { readSetting = function() return nil end }

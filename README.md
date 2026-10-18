@@ -52,7 +52,7 @@ More detail, and what to do if it doesn't appear: [Install Bookshelf](https://an
 
 ## Theme packs
 
-Ready-made looks for your shelf, with framed art, wallpapers, ornaments and new planks, are in the [Ko-fi shop](https://ko-fi.com/andyhazz/shop). Bookshelf itself is free and always will be; packs, or [a tip](https://ko-fi.com/andyhazz), are how you can support it.
+Ready-made looks for your shelf, with framed art, wallpapers, ornaments and new planks, are in the [Ko-fi shop](https://ko-fi.com/andyhazz/shop). Bookshelf itself is free and always will be; packs, or [a tip](https://ko-fi.com/andyhazz/tip), are how you can support it.
 
 ## For plugin authors
 
@@ -66,4 +66,4 @@ Found a bug or have an idea? [Open an issue](https://github.com/AndyHazz/bookshe
 
 AGPL-3.0, see [LICENSE](LICENSE). The user guide is CC BY 4.0.
 
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/O5O5FDLVJ)
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/andyhazz/tip)

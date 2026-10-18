@@ -8504,11 +8504,11 @@ end
 
 -- _pageTurnFlashDue() -> true when this page turn should be a full refresh.
 --
--- "Full refresh on page turns" (issue 529): the shelf follows KOReader's own
--- Full refresh rate. KOReader counts only "partial" refreshes towards its
--- flash and the shelf's page turns are "ui", so with the rate at Every page
--- the shelf still ghosted. The shelf keeps its own count against the same
--- rate (UIManager.FULL_REFRESH_COUNT, which already reads the night-mode
+-- "Use E-ink refresh rate for shelf pages" (issue 529): the shelf follows
+-- KOReader's own Full refresh rate. KOReader counts only "partial" refreshes
+-- towards its flash and the shelf's page turns are "ui", so with the rate at
+-- Every page the shelf still ghosted. The shelf keeps its own count against
+-- the same rate (UIManager.FULL_REFRESH_COUNT, which already reads the night-mode
 -- rate when night mode is on). Never, or the reader's chapter-boundary
 -- mode (-1), means never here. Off by default: a flash costs time.
 function BookshelfWidget._pageTurnFlashDue()

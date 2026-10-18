@@ -538,25 +538,24 @@ function MicroFullscreen:handleEvent(event)
         end
 
         -- KOReader-native gestures (top-edge menu tap/swipe, edge
-        -- brightness/warmth swipes, corner taps): same filtered FM touch-zone
-        -- walk as BookshelfWidget:handleEvent.
+        -- brightness/warmth swipes, corner taps): the same zone walks as
+        -- BookshelfWidget:handleEvent, including its hot-parking branch --
+        -- a closed book leaves the reader parked and no FileManager at all.
+        local GestureZones = require("lib/bookshelf_gesture_zones")
         local fm = require("apps/filemanager/filemanager").instance
-        if fm and ev then
-            local user_gestures = (fm.gestures and fm.gestures.gestures) or {}
-            local zone_lists = { fm._ordered_touch_zones }
-            for _i, child in ipairs(fm) do
-                if child ~= fm.file_chooser and type(child) == "table"
-                   and child._ordered_touch_zones then
-                    zone_lists[#zone_lists + 1] = child._ordered_touch_zones
-                end
-            end
-            for _i, zones in ipairs(zone_lists) do
-                for _j, tzone in ipairs(zones) do
-                    local id = tzone.def and tzone.def.id
-                    local allowed = id and (id:find("^filemanager_") or user_gestures[id])
-                    if allowed and tzone.gs_range:match(ev) and tzone.handler(ev) then
+        if ev then
+            if fm then
+                if GestureZones.tryFMZones(ev, fm) then return true end
+            else
+                local Park = require("lib/bookshelf_reader_park")
+                if Park.isParked() then
+                    local rui = require("apps/reader/readerui").instance
+                    if GestureZones.tryReaderPluginZones(ev, rui) then return true end
+                    if GestureZones.matchesReaderMenuZone(ev, rui) then
+                        Park.finishToMenu()
                         return true
                     end
+                    if GestureZones.tryReaderZones(ev, rui) then return true end
                 end
             end
         end
@@ -568,17 +567,23 @@ function MicroFullscreen:handleEvent(event)
 
     -- Non-gesture events. Our own key / lifecycle handlers run first.
     if InputContainer.handleEvent(self, event) then return true end
-    -- A gesture zone fired above (brightness/warmth/night mode) emits its action
-    -- as a SEPARATE Dispatcher event via UIManager:sendEvent, which only reaches
-    -- the topmost widget (us). Forward it to FM so its DeviceListener acts on it
-    -- -- without this the swipe is recognised but nothing happens. Mirrors
-    -- BookshelfWidget:handleEvent's second forward, incl. its exclusions.
-    local NEVER_FORWARD = { onCloseWidget = true, onFlushSettings = true,
-                            onShow = true, onClose = true }
-    if NEVER_FORWARD[event.handler] then return end
-    if event._bookshelf_from_broadcast then return end
-    local fm = require("apps/filemanager/filemanager").instance
-    if fm then return fm:handleEvent(event) end
+    -- A gesture zone fired above (brightness/warmth/night mode), or an Action
+    -- card, emits its action as a SEPARATE Dispatcher event via
+    -- UIManager:sendEvent, which only reaches the topmost widget (us). Forward
+    -- it to whichever host is live, exactly as BookshelfWidget:handleEvent
+    -- does: FM, or the parked reader once a book has been opened and closed.
+    -- This used to know FM only, so every card went dead after the first book
+    -- (#533).
+    local GestureZones = require("lib/bookshelf_gesture_zones")
+    if require("apps/filemanager/filemanager").instance then
+        return GestureZones.forwardToFM(event, self)
+    end
+    local Park = require("lib/bookshelf_reader_park")
+    if Park.isParked() then
+        local rui = require("apps/reader/readerui").instance
+        return GestureZones.forwardToReader(event, self, rui)
+    end
+    return false
 end
 
 -- Re-layout on screen resize / rotation (desktop window resize), the same way

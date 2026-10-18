@@ -2402,8 +2402,17 @@ function Settings:_pickColor(raw_key, field, default_pct, title,
         --
         -- Through the same derivation the ROW used to print, or the dialog
         -- opens on a different number from the one that was tapped.
-        local current = _rawToScreenPct(raw) or default_pct
-        self:showNudgeDialog(title, current, 0, 100, default_pct, "%",
+        --
+        -- Nothing stored: open on what the shelf PAINTS, as the palette does
+        -- (its hex field above), not on the caller's default_pct. Those
+        -- numbers had drifted from the painted defaults (track 25 vs white,
+        -- module background 0 vs 0xEE), and the Default button offered the
+        -- wrong one too. default_pct stays only for the colours rawColors()
+        -- leaves nil on purpose (unset has its own meaning there) and for
+        -- keys it doesn't carry (wallpaper_bg).
+        local shown_default = _rawToScreenPct(CoverProgress.rawColors()[field]) or default_pct
+        local current = _rawToScreenPct(raw) or shown_default
+        self:showNudgeDialog(title, current, 0, 100, shown_default, "%",
             function(val)
                 TP.partSave(key, { grey = _screenPctToByte(val) })
                 -- A nudge picks a grey, so the wood goes off -- except when the

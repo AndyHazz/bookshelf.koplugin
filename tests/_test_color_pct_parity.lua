@@ -160,4 +160,22 @@ t.test("an untouched colour's hex field opens on the colour its row shows", func
     assert(pal:find("local is_selected = (hex == self.selected_hex)", 1, true))
 end)
 
+t.test("an untouched colour's % dialog opens on what is painted, not on the row's number", function()
+    -- The palette got this right (above) and the greyscale dialog did not: it
+    -- opened on the default_pct each row passes in, and several of those had
+    -- drifted from the painted defaults. Progress bar track: dialog 25%, shelf
+    -- white (DEFAULT_TRACK grey 0xFF). Micro-module background: dialog 0%,
+    -- shelf 0xEE. Its "Default N%" button said the same wrong number.
+    local picker = src:match("function Settings:_pickColor%(raw_key, field, default_pct, title,(.-)\nend\n")
+    assert(picker:find("local shown_default = _rawToScreenPct(CoverProgress.rawColors()[field]) or default_pct", 1, true),
+        "the % dialog's default is not derived from the painted colour")
+    assert(picker:find("local current = _rawToScreenPct(raw) or shown_default", 1, true),
+        "an untouched colour still opens on the row's hardcoded number")
+    assert(picker:find("self:showNudgeDialog(title, current, 0, 100, shown_default,", 1, true),
+        "the dialog's Default button still offers the hardcoded number")
+    -- The values that had drifted, through the same derivation:
+    eq(pct({ grey = 0xFF }, false), 0, "the track paints white: 0% black, not 25")
+    eq(pct({ grey = 0xEE }, false), 7, "the module background paints 0xEE: 7%, not 0")
+end)
+
 t.done()

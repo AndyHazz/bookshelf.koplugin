@@ -6522,7 +6522,7 @@ end
 -- the chip's WHOLE list for both, never the page being drawn.
 function BookshelfWidget:_spinePlanBase(content_w, shelf_h, all_items)
     local SpineShelf = require("lib/bookshelf_spine_shelf")
-    return {
+    local opts = {
         -- The row keeps exposed plank at both ends; the fill budget shrinks
         -- by the two margins so books never reach the shelf's edges.
         content_w       = content_w - 2 * SpineShelf.endMargin(shelf_h),
@@ -6544,6 +6544,7 @@ function BookshelfWidget:_spinePlanBase(content_w, shelf_h, all_items)
         -- measured from.
         hang_gap        = self:_rowGap((self:_layoutPrimitives())),
     }
+    return require("lib/bookshelf_book_binding").applyOptions(opts, self.chip, self._drilldown_path)
 end
 
 -- _rowsRegionTop(shelf_top, d) -> where a page turn's repaint starts: the
@@ -24169,6 +24170,28 @@ function BookshelfWidget:_openGroupMenu(group, kind)
                 end,
             })
         end
+    end
+
+    if kind == "series" and self:_isSpineMode() then
+        local Binding = require("lib/bookshelf_book_binding")
+        buttons[#buttons + 1] = {{
+            text_func = function()
+                local value = Binding.series(source_id)
+                return T(_("Book binding: %1"), value and Binding.label(value) or _("Follow shelf"))
+            end,
+            callback = function()
+                local value = Binding.series(source_id)
+                local next_value
+                if value == nil then next_value = "hardcover"
+                elseif value == "hardcover" then next_value = "paperback" end
+                if Binding.setSeries(source_id, next_value) then
+                    bw_ref:_rebuild()
+                    UIManager:setDirty(bw_ref, "ui")
+                    Focus.reinit(dialog)
+                    UIManager:setDirty(dialog, "ui")
+                end
+            end,
+        }}
     end
 
     -- Custom-image row (#70). Folders take a filesystem path and may

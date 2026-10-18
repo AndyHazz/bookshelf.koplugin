@@ -7,6 +7,7 @@
 --   filter        table — { status? = "unread"|"reading"|"on_hold"|"finished" }
 --   sort_priority list of { key, reverse } — driven through bookshelf_sort_engine
 --   enabled       bool — when false, hidden from the chip strip
+--   book_binding  "paperback"|nil — physical books; nil keeps Hardcover
 --
 -- Built-in defaults match the v1.1 chip set so existing users see no change
 -- after migration. The legacy `bookshelf_chips_disabled` setting (set of chip

@@ -201,10 +201,17 @@ t.test("the editor toggle changes only its own draft and uses the existing live-
         compile(body,{rows=rows,draft=draft,_=function(s) return s end,
             T=function(s,v) return (s:gsub("%%1",v)) end,
             pick=function(fn) return function() fn(); changes=changes+1 end end})()
-        local old=rows[1][1].text_func()
-        rows[1][1].callback()
+        local button
+        for _,row in ipairs(rows) do
+            for _,cell in ipairs(row) do
+                if cell.text_func():match("^Series boxes:") then button=cell; break end
+            end
+        end
+        assert(button,"series-box toggle missing")
+        local old=button.text_func()
+        button.callback()
         eq(changes,1)
-        return old,rows[1][1].text_func()
+        return old,button.text_func()
     end
     local before,after=toggle(a)
     eq(before,"Series boxes: Off"); eq(after,"Series boxes: On")

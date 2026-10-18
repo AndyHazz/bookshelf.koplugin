@@ -7083,3 +7083,19 @@ msgstr ""
 #: micromodules/weather.lua:460 micromodules/weather.lua:546
 msgid "Updated %1h ago"
 msgstr ""
+
+#: lib/bookshelf_book_binding.lua
+msgid "Paperback"
+msgstr ""
+
+#: lib/bookshelf_book_binding.lua
+msgid "Hardback"
+msgstr ""
+
+#: lib/bookshelf_chip_editor.lua lib/bookshelf_widget.lua
+msgid "Book binding: %1"
+msgstr ""
+
+#: lib/bookshelf_widget.lua
+msgid "Follow shelf"
+msgstr ""

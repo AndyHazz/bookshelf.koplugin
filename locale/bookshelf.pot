@@ -7092,12 +7092,8 @@ msgstr ""
 msgid "Hardback"
 msgstr ""
 
-#: lib/bookshelf_chip_editor.lua
+#: lib/bookshelf_chip_editor.lua lib/bookshelf_widget.lua
 msgid "Book binding: %1"
-msgstr ""
-
-#: lib/bookshelf_widget.lua
-msgid "Book binding"
 msgstr ""
 
 #: lib/bookshelf_widget.lua

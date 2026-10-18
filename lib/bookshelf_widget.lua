@@ -23980,28 +23980,6 @@ function BookshelfWidget:_openOpdsNavMenu(rec)
     UIManager:show(dialog)
 end
 
-function BookshelfWidget:_pickSeriesBinding(name)
-    local Binding = require("lib/bookshelf_book_binding")
-    local Host = require("lib/bookshelf_menu_host")
-    local items, host = {}, nil
-    for _i, choice in ipairs({ "shelf", "hardcover", "paperback" }) do
-        local value = Binding.normalize(choice)
-        items[#items + 1] = {
-            text = value and Binding.label(value) or _("Follow shelf"),
-            radio = true,
-            checked_func = function() return Binding.series(name) == value end,
-            callback = function()
-                Host.close(host)
-                if Binding.setSeries(name, value) then
-                    self:_rebuild()
-                    UIManager:setDirty(self, "ui")
-                end
-            end,
-        }
-    end
-    host = Host.show{ title = _("Book binding") .. ": " .. name, item_table = items }
-end
-
 function BookshelfWidget:_openGroupMenu(group, kind)
     -- Dialog shows in BOTH selection-on and selection-off modes so the
     -- user gets visible feedback on every long-press. The dialog's
@@ -24191,14 +24169,24 @@ function BookshelfWidget:_openGroupMenu(group, kind)
         end
     end
 
-    if kind == "series" then
+    if kind == "series" and self:_isSpineMode() then
         local Binding = require("lib/bookshelf_book_binding")
-        local value = Binding.series(source_id)
         buttons[#buttons + 1] = {{
-            text = _("Book binding") .. ": " .. (value and Binding.label(value) or _("Follow shelf")),
+            text_func = function()
+                local value = Binding.series(source_id)
+                return T(_("Book binding: %1"), value and Binding.label(value) or _("Follow shelf"))
+            end,
             callback = function()
-                close_dialog()
-                bw_ref:_pickSeriesBinding(source_id)
+                local value = Binding.series(source_id)
+                local next_value
+                if value == nil then next_value = "hardcover"
+                elseif value == "hardcover" then next_value = "paperback" end
+                if Binding.setSeries(source_id, next_value) then
+                    bw_ref:_rebuild()
+                    UIManager:setDirty(bw_ref, "ui")
+                    Focus.reinit(dialog)
+                    UIManager:setDirty(dialog, "ui")
+                end
             end,
         }}
     end

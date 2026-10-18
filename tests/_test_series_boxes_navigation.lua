@@ -203,7 +203,9 @@ t.test("the editor toggle changes only its own draft and uses the existing live-
             pick=function(fn) return function() fn(); changes=changes+1 end end})()
         local button
         for _,row in ipairs(rows) do
-            if row[1].text_func():match("^Series boxes:") then button=row[1]; break end
+            for _,cell in ipairs(row) do
+                if cell.text_func():match("^Series boxes:") then button=cell; break end
+            end
         end
         assert(button,"series-box toggle missing")
         local old=button.text_func()

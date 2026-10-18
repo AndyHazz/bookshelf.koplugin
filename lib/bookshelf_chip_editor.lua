@@ -1922,8 +1922,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                     if draft.book_binding == "paperback" then draft.book_binding = nil
                     else draft.book_binding = "paperback" end
                 end),
-            }}
-            rows[#rows + 1] = {{
+            }, {
                 text_func = function()
                     return T(_("Series boxes: %1"), draft.series_boxes and _("On") or _("Off"))
                 end,

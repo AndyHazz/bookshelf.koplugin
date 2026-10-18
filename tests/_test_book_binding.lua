@@ -55,34 +55,126 @@ t.test("drilled and pinned series supply identity for light members, not author 
     eq(M.resolve({}, {series_name="Saga"}, M.applyOptions({}, "plain")), "paperback")
 end)
 
-t.test("series picker saves, rebuilds immediately, and can return to Follow shelf", function()
+local function groupMenu(mode, kind)
     local src = F.source("lib/bookshelf_widget.lua")
-    local body = assert(src:match("function BookshelfWidget:_pickSeriesBinding%(name%)\n(.-)\nend"))
-    local menu, closed, rebuilds, dirty = nil, 0, 0, 0
-    local host = { show=function(opts) menu=opts; return opts end,
-        close=function(w) eq(w,menu); closed=closed+1 end }
-    local fn = F.compile("return function(self, name)\n"..body.."\nend", {
-        require=function(name) if name=="lib/bookshelf_menu_host" then return host end; return require(name) end,
-        _=function(s) return s end, UIManager={setDirty=function() dirty=dirty+1 end},
-    })()
-    local w={_rebuild=function() rebuilds=rebuilds+1; Shelf.dropPlanCache() end}
-    fn(w,"Saga"); eq(#menu.item_table,3); eq(menu.item_table[3].checked_func(),true)
-    menu.item_table[2].callback(); eq(M.series("Saga"),"hardcover")
-    fn(w,"Saga"); menu.item_table[1].callback(); eq(M.series("Saga"),nil)
-    eq(closed,2); eq(rebuilds,2); eq(dirty,2)
+    local state = {shown=0, closed=0, rebuilds=0, reinits=0, refocuses=0, dirty={}}
+    local function labels(dialog)
+        dialog.labels = {}
+        for _, row in ipairs(dialog.buttons) do
+            for _, b in ipairs(row) do dialog.labels[b] = b.text_func and b.text_func() or b.text end
+        end
+    end
+    local mocks = {
+        ["ui/widget/buttondialog"] = {new=function(_, opts)
+            opts.title_group_width = 600
+            opts.layout = {}
+            function opts:addWidget(w) self.prompt = w end
+            function opts:reinit()
+                eq(self.layout, nil, "focus layout was not reset")
+                self.layout = {}; labels(self); state.reinits = state.reinits + 1
+            end
+            function opts:refocusWidget(next_tick)
+                eq(next_tick, true); state.refocuses = state.refocuses + 1
+            end
+            labels(opts)
+            return opts
+        end},
+        ["ui/font"] = {},
+        ["ui/widget/textboxwidget"] = {new=function(_, opts) return opts end},
+        ["lib/bookshelf_image_source"] = {
+            getStackImageOverride=function() end, resolveStackImage=function() end,
+            getFolderImageOverride=function() end, resolveFolderImage=function() end,
+        },
+        ["lib/bookshelf_author_images"] = {isPlaceholder=function() return true end},
+    }
+    local env = {
+        require=function(name) return mocks[name] or require(name) end,
+        _=function(s) return s end, T=function(s,v) return (s:gsub("%%1",v)) end,
+        GROUP_KINDS={series={source_id_field="series_name"}, author={source_id_field="series_name"},
+            folder={source_id_field="path"}},
+        ViewMode=require("lib/bookshelf_view_mode"), Focus=require("lib/bookshelf_focus"),
+        BFont={getFace=function() return {} end},
+        UIManager={
+            show=function(_, dialog) state.dialog=dialog; state.shown=state.shown+1 end,
+            close=function() state.closed=state.closed+1 end,
+            setDirty=function(_, w, refresh)
+                eq(refresh,"ui"); state.dirty[w]=(state.dirty[w] or 0)+1
+            end,
+        },
+    }
+    local function method(name, args)
+        local body = assert(src:match("function BookshelfWidget:"..name.."%([^\n]*%)\n(.-)\nend"))
+        return F.compile("return function(self"..args..")\n"..body.."\nend",env)()
+    end
+    local w = {
+        _selection={stackState=function() return "none" end, contains=function() return false end},
+        _resolveStackPaths=function() return {} end,
+        _viewMode=function() return mode end, _isSpineMode=method("_isSpineMode", ""),
+        _rebuild=function() state.rebuilds=state.rebuilds+1; Shelf.dropPlanCache() end,
+    }
+    method("_openGroupMenu", ", group, kind")(w, {series_name="Saga",path="/library"}, kind)
+    state.widget = w
+    for _, row in ipairs(state.dialog.buttons) do
+        for _, button in ipairs(row) do
+            if state.dialog.labels[button]:match("^Book binding:") then state.button=button end
+        end
+    end
+    return state
+end
+
+t.test("series binding cycles in place, persists each step and refreshes shelf and dialog", function()
+    M.setSeries("Saga",nil)
+    local flushes, other = F.flushes, M.series("Other")
+    local state = groupMenu("spines", "series")
+    local button, dialog = assert(state.button), state.dialog
+    local prompt = dialog.prompt
+    eq(dialog.labels[button],"Book binding: Follow shelf")
+    local values, names = {"hardcover","paperback",false}, {"Hardback","Paperback","Follow shelf"}
+    for i=1,6 do
+        local pick=(i-1)%3+1
+        button.callback()
+        eq(M.series("Saga"),values[pick] or nil)
+        eq(dialog.labels[button],"Book binding: "..names[pick])
+        eq(F.flushes,flushes+i)
+        eq(state.rebuilds,i); eq(state.reinits,i); eq(state.refocuses,i)
+        eq(state.dirty[state.widget],i); eq(state.dirty[dialog],i)
+    end
+    eq(state.shown,1); eq(state.closed,0); eq(dialog.prompt,prompt)
+    eq(M.series("Other"),other)
+    M.setSeries("Saga","paperback")
+    local reopened=groupMenu("spines","series")
+    eq(reopened.dialog.labels[reopened.button],"Book binding: Paperback")
+    reopened.button.callback(); eq(M.series("Saga"),nil)
 end)
 
-t.test("shelf style toggles only its own presentation pin and applies each pick", function()
+t.test("series binding is absent in covers/list views and on non-series groups", function()
+    local flushes=F.flushes
+    for _,mode in ipairs({"covers","list","spines"}) do
+        for _,kind in ipairs({"series","author","folder"}) do
+            local state=groupMenu(mode,kind)
+            eq(state.button~=nil,mode=="spines" and kind=="series")
+            eq(state.rebuilds,0); eq(state.reinits,0); eq(state.closed,0)
+        end
+    end
+    eq(F.flushes,flushes)
+end)
+
+t.test("binding and series boxes share a row, with independent live-applied toggles", function()
     local src=F.source("lib/bookshelf_chip_editor.lua")
-    local block=assert(src:match('if show_spines then\n(.-)\n            rows%[#rows %+ 1%] = {{\n                text_func = function%(%)\n                    return T%(_%("Series boxes:'))
+    local block=assert(src:match('if show_spines then\n(.-)\n%s*%-%- The spine view'))
     local draft, applied={id="soft"},0
-    local row=F.compile("local rows={}\n"..block.."\nreturn rows[1][1]", {
+    local rows=F.compile("local rows={}\n"..block.."\nreturn rows", {
         draft=draft, _=function(s) return s end, T=function(s,v) return s:gsub("%%1",v) end,
         pick=function(fn) return function() fn(); applied=applied+1 end end,
     })()
-    eq(row.text_func(),"Book binding: Hardback")
-    row.callback(); eq(draft.book_binding,"paperback")
-    row.callback(); eq(draft.book_binding,nil); eq(applied,2)
+    eq(#rows,1); eq(#rows[1],2)
+    local binding, boxes=rows[1][1],rows[1][2]
+    eq(binding.text_func(),"Book binding: Hardback")
+    eq(boxes.text_func(),"Series boxes: Off")
+    binding.callback(); eq(draft.book_binding,"paperback"); eq(draft.series_boxes,nil)
+    boxes.callback(); eq(draft.series_boxes,true); eq(draft.book_binding,"paperback")
+    binding.callback(); eq(draft.book_binding,nil); eq(draft.series_boxes,true)
+    boxes.callback(); eq(draft.series_boxes,nil); eq(applied,4)
 end)
 
 t.test("warm planning caches follow shelf and series changes without changing geometry", function()

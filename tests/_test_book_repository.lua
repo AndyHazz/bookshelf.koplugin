@@ -6350,6 +6350,55 @@ test("getFolderSections: a one-book folder folds into its parent's run", functio
     assert(out[2].shelf_section == "Banks", "got " .. tostring(out[2].shelf_section))
 end)
 
+test("getFolderSections: status and Opened sorts order books inside a section", function()
+    -- #534: the light records carry no sidecar status and no history time, so
+    -- "Reading 1st" or "Opened" on a spine Home shelf compared nil with nil and
+    -- left each folder's books in walk order.
+    Repo.invalidateWalkCache()
+    Repo.invalidateProgressCache()
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files
+        if path == "/lib" then files = { ".", "..", "Mix" }
+        elseif path == "/lib/Mix" then
+            files = { ".", "..", "a.epub", "b.epub", "c.epub" }
+        else files = {} end
+        local i = 0
+        return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(fp, key)
+        if key == "modification" then return 100
+        elseif key == "mode" then return fp == "/lib/Mix" and "directory" or "file" end
+    end
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 3 }
+    _G._test_bim_data = {
+        ["/lib/Mix/a.epub"] = { title = "A" },
+        ["/lib/Mix/b.epub"] = { title = "B" },
+        ["/lib/Mix/c.epub"] = { title = "C" },
+    }
+    _G._test_docsettings_data = {
+        ["/lib/Mix/a.epub"] = { summary = { status = "complete" }, percent_finished = 1 },
+        ["/lib/Mix/c.epub"] = { summary = { status = "reading" }, percent_finished = 0.4 },
+    }
+    local out = Repo.getFolderSections(20, 0, { { key = "read_status_active" } })
+    local order = {}
+    for i = 1, #out do order[i] = out[i].filepath:match("([^/]+)$") end
+    assert(table.concat(order, ",") == "c.epub,b.epub,a.epub",
+        "Reading 1st: reading, unread, finished; got " .. table.concat(order, ","))
+
+    package.loaded["readhistory"].hist = {
+        { file = "/lib/Mix/a.epub", time = 300 },
+        { file = "/lib/Mix/c.epub", time = 200 },
+    }
+    out = Repo.getFolderSections(20, 0, { { key = "last_opened", reverse = true } })
+    order = {}
+    for i = 1, #out do order[i] = out[i].filepath:match("([^/]+)$") end
+    assert(order[1] == "a.epub" and order[2] == "c.epub",
+        "Opened, newest first; got " .. table.concat(order, ","))
+    package.loaded["readhistory"].hist = {}
+    _G._test_docsettings_data = nil
+    Repo.invalidateProgressCache()
+end)
+
 test("allHasBooks: the whole cached set of a path, nil when nothing is cached", function()
     -- The shelf asks this after a windowed fetch whose page showed folders
     -- only: does the SET hold a book anywhere, so the label strip is decided

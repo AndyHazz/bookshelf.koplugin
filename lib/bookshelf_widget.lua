@@ -6547,7 +6547,7 @@ end
 -- the chip's WHOLE list for both, never the page being drawn.
 function BookshelfWidget:_spinePlanBase(content_w, shelf_h, all_items)
     local SpineShelf = require("lib/bookshelf_spine_shelf")
-    return {
+    local opts = {
         -- The row keeps exposed plank at both ends; the fill budget shrinks
         -- by the two margins so books never reach the shelf's edges.
         content_w       = content_w - 2 * SpineShelf.endMargin(shelf_h),
@@ -6569,6 +6569,7 @@ function BookshelfWidget:_spinePlanBase(content_w, shelf_h, all_items)
         -- measured from.
         hang_gap        = self:_rowGap((self:_layoutPrimitives())),
     }
+    return require("lib/bookshelf_book_binding").applyOptions(opts, self.chip, self._drilldown_path)
 end
 
 -- _rowsRegionTop(shelf_top, d) -> where a page turn's repaint starts: the
@@ -23979,6 +23980,28 @@ function BookshelfWidget:_openOpdsNavMenu(rec)
     UIManager:show(dialog)
 end
 
+function BookshelfWidget:_pickSeriesBinding(name)
+    local Binding = require("lib/bookshelf_book_binding")
+    local Host = require("lib/bookshelf_menu_host")
+    local items, host = {}, nil
+    for _i, choice in ipairs({ "shelf", "hardcover", "paperback" }) do
+        local value = Binding.normalize(choice)
+        items[#items + 1] = {
+            text = value and Binding.label(value) or _("Follow shelf"),
+            radio = true,
+            checked_func = function() return Binding.series(name) == value end,
+            callback = function()
+                Host.close(host)
+                if Binding.setSeries(name, value) then
+                    self:_rebuild()
+                    UIManager:setDirty(self, "ui")
+                end
+            end,
+        }
+    end
+    host = Host.show{ title = _("Book binding") .. ": " .. name, item_table = items }
+end
+
 function BookshelfWidget:_openGroupMenu(group, kind)
     -- Dialog shows in BOTH selection-on and selection-off modes so the
     -- user gets visible feedback on every long-press. The dialog's
@@ -24166,6 +24189,18 @@ function BookshelfWidget:_openGroupMenu(group, kind)
                 end,
             })
         end
+    end
+
+    if kind == "series" then
+        local Binding = require("lib/bookshelf_book_binding")
+        local value = Binding.series(source_id)
+        buttons[#buttons + 1] = {{
+            text = _("Book binding") .. ": " .. (value and Binding.label(value) or _("Follow shelf")),
+            callback = function()
+                close_dialog()
+                bw_ref:_pickSeriesBinding(source_id)
+            end,
+        }}
     end
 
     -- Custom-image row (#70). Folders take a filesystem path and may

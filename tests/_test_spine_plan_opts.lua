@@ -31,7 +31,7 @@ local function fnBody(name)
 end
 
 local SHARED = { "content_w", "row_h", "gap", "group_gap", "face_out",
-                 "face_recent_set", "thickness_pct", "hang_gap" }
+                 "face_recent_set", "thickness_pct", "hang_gap", "book_binding", "series_bindings" }
 
 -- ── the helper, run for real ───────────────────────────────────────────────
 
@@ -42,6 +42,13 @@ local SpineShelf = { BOOK_GAP_DP = 0, GROUP_GAP_DP = 12,
 local base = assert(load("return function(self, " .. args .. ")\n" .. body .. "\nend",
     "_spinePlanBase", "t", {
         require = function(name)
+            if name == "lib/bookshelf_book_binding" then
+                return { applyOptions = function(opts)
+                    opts.book_binding = "hardcover"
+                    opts.series_bindings = {}
+                    return opts
+                end }
+            end
             assert(name == "lib/bookshelf_spine_shelf", "unexpected require " .. name)
             return SpineShelf
         end,

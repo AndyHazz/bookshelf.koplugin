@@ -319,6 +319,7 @@ H.test("the native planner paginates boxes as single slots and resumes inside co
     }
     local plan_body=assert(shelf_source:match("function SpineShelf%.plan%(items, opts%)\n(.-)\nend"))
     local pe={SpineShelf=shelf,SpineLayout=SL,Screen=package.loaded.device.screen,
+        BookBinding=require("lib/bookshelf_book_binding"),
         Space=package.loaded["lib/bookshelf_space"],_gettime=function() return 0 end,
         _optsKey=function(o) return tostring(o.content_w)..":"..o.row_h end,
         _isFavourite=function() return false end,_flushLooks=function() end,

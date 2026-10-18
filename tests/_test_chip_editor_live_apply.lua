@@ -132,11 +132,13 @@ t.test("every field reaches the saved shelf, as a copy", function()
     local e = harness({ shelf("home", "all") }, "home")
     e.draft.theme = "Ukiyo-e"; e.draft.ornament_frequency = 2
     e.draft.spine_face_out = "all"; e.draft.hide_add_tile = true; e.draft.label = "Mine"
+    e.draft.book_binding = "paperback"
     e.draft.filter = { genres = { Horror = true } }
     e.api.commit()
     local s = e.savedTab()
     eq(s.theme, "Ukiyo-e"); eq(s.ornament_frequency, 2); eq(s.spine_face_out, "all")
     eq(s.hide_add_tile, true); eq(s.label, "Mine"); eq(s.filter.genres.Horror, true)
+    eq(s.book_binding, "paperback")
     e.draft.filter.genres.Fantasy = true
     eq(e.savedTab().filter.genres.Fantasy, nil, "the saved shelf shares a table with the working copy")
 end)

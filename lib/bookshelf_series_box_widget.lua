@@ -159,6 +159,7 @@ function Box:_initSlipcase()
         if sp.member then
             local m = entry.book.books[sp.member]
             local e = memberEntry(m, sp.w, shape.h, SpineShelf)
+            e.binding = entry.binding
             self.slots[#self.slots + 1] = { slot = Slot:new{ book = m, entry = e,
                 width = sp.w, height = shape.h, show_author = false }, x = sp.x }
         end

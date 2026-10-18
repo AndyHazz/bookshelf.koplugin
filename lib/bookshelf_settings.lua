@@ -5874,6 +5874,9 @@ function Settings:_about()
     -- the clipboard receive on tap.
     local GITHUB_URL_DISPLAY = "github.com/AndyHazz/bookshelf.koplugin"
     local GITHUB_URL         = "https://github.com/AndyHazz/bookshelf.koplugin"
+    -- The user guide, first: it answers more questions than the repo does.
+    local DOCS_URL_DISPLAY   = "andyhazz.github.io/bookshelf-docs"
+    local DOCS_URL           = "https://andyhazz.github.io/bookshelf-docs/"
 
     local Device           = require("device")
     local Screen           = Device.screen
@@ -5924,6 +5927,11 @@ function Settings:_about()
                 height       = logo_h,
                 scale_factor = 0,
                 alpha        = true,
+                -- Invert with the rest of the screen in night mode. The
+                -- default keeps an image's own colours, which left a white
+                -- box with the black logo in it on the dark frame; the logo
+                -- is line art, so inverted it reads white on dark.
+                original_in_nightmode = false,
             }
             column[#column + 1] = VerticalSpan:new{ width = Space.padding.default }
         end
@@ -5980,29 +5988,34 @@ function Settings:_about()
     -- clipboard path is the user-meaningful one (paste into a Send-to-
     -- Kindle-style helper, or just read the URL clearly).
     local Button = require("ui/widget/button")
-    local function open_github()
+    local function open_link(url)
         local ok = false
         if Device.openLink then
-            local _ok, ret = pcall(function() return Device:openLink(GITHUB_URL) end)
+            local _ok, ret = pcall(function() return Device:openLink(url) end)
             if _ok and ret then ok = true end
         end
         if not ok and Device.input and Device.input.setClipboardText then
-            pcall(function() Device.input.setClipboardText(GITHUB_URL) end)
+            pcall(function() Device.input.setClipboardText(url) end)
             local Notification = require("ui/widget/notification")
             UIManager:show(Notification:new{
                 text = _("Link copied to clipboard"),
             })
         end
     end
-    column[#column + 1] = Button:new{
-        text       = GITHUB_URL_DISPLAY,
-        bordersize = 0,
-        padding    = 0,
-        margin     = 0,
-        text_font_face = "cfont",
-        text_font_size = 14,
-        callback   = open_github,
-    }
+    local function linkButton(display, url)
+        return Button:new{
+            text       = display,
+            bordersize = 0,
+            padding    = 0,
+            margin     = 0,
+            text_font_face = "cfont",
+            text_font_size = 14,
+            callback   = function() open_link(url) end,
+        }
+    end
+    column[#column + 1] = linkButton(DOCS_URL_DISPLAY, DOCS_URL)
+    column[#column + 1] = VerticalSpan:new{ width = Space.padding.default }
+    column[#column + 1] = linkButton(GITHUB_URL_DISPLAY, GITHUB_URL)
 
     -- Frame styling matches the other Bookshelf modals (chip editor,
     -- hero line editor): default Size.border.window thickness (thicker

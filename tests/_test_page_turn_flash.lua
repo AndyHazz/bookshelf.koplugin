@@ -1,5 +1,5 @@
 -- tests/_test_page_turn_flash.lua
--- Issue 529: "Full refresh on page turns" makes the shelf follow KOReader's
+-- Issue 529: "Use E-ink refresh rate for shelf pages" makes the shelf follow KOReader's
 -- own Full refresh rate. Shelf page turns refresh in "ui" mode, which
 -- KOReader never promotes to a flash, so "Every page" in KOReader still left
 -- the shelf ghosting. The shelf now counts its own turns against that rate.

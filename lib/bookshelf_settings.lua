@@ -3938,6 +3938,25 @@ function Settings:_performanceSubItems()
             end,
         },
         {
+            -- Issue 529: shelf page turns refresh in "ui" mode, which KOReader
+            -- never promotes to a flash, so "Full refresh rate: Every page"
+            -- left the shelf ghosting. Off by default: a flash costs time.
+            text = _("Use E-ink refresh rate for shelf pages"),
+            help_text = _("Flash the shelf clean on page turns as often as "
+                .. "KOReader's own Full refresh rate (Screen > E-ink settings) "
+                .. "does for book pages, to clear ghosting. A page that "
+                .. "flashes skips its animation and takes a little longer. "
+                .. "E-ink only."),
+            checked_func = function()
+                return BookshelfSettings.isTrue("shelf_full_refresh")
+            end,
+            keep_menu_open = true,
+            callback = function()
+                BookshelfSettings.save("shelf_full_refresh",
+                    not BookshelfSettings.isTrue("shelf_full_refresh"))
+            end,
+        },
+        {
             text = _("Pre-warm shelf cache"),
             help_text = _("Warms each shelf's data in the background shortly"
                 .. " after launch so switching shelves is instant. On a large"
@@ -4235,24 +4254,6 @@ function Settings:_behaviourSubItems()
         .. "refresh, so it does nothing on LCD screens). Fast / Medium "
         .. "/ Slow trade snappiness for smoothness. Slow looks "
         .. "smoothest but takes longer on older panels."))
-    -- Issue 529: shelf page turns refresh in "ui" mode, which KOReader never
-    -- promotes to a flash, so "Full refresh rate: Every page" left ghosting.
-    items[#items + 1] = {
-        text = _("Full refresh on page turns"),
-        help_text = _("Flash the shelf clean on page turns as often as "
-            .. "KOReader's own Full refresh rate (Screen > E-ink settings) "
-            .. "does for book pages, to clear ghosting. A page that "
-            .. "flashes skips its animation and takes a little longer. "
-            .. "E-ink only."),
-        checked_func = function()
-            return BookshelfSettings.isTrue("shelf_full_refresh")
-        end,
-        keep_menu_open = true,
-        callback = function()
-            BookshelfSettings.save("shelf_full_refresh",
-                not BookshelfSettings.isTrue("shelf_full_refresh"))
-        end,
-    }
     items[#items + 1] = animRow(_("Start menu animation"), "start_menu_animation",
         _("Animate the start menu opening and closing. Separate from "
         .. "the page-turn wipe, so you can keep one and turn off the "

@@ -10,11 +10,11 @@
 A friendly home screen for KOReader. Browse your library by series, author, genre, collection, or anything you like; pick a book, glance at its cover, blurb, rating and progress, and start reading. Shelves draw three ways: a grid of covers, a list, or spines standing edge-on like a real bookcase.
 
 <p align="center">
-  <img src="assets/screenshot-home.png" width="19%" alt="Bookshelf home screen" />
-  <img src="assets/screenshot-series.png" width="19%" alt="A shelf grouped by series" />
-  <img src="assets/screenshot-shelf-editor.png" width="19%" alt="The shelf editor" />
-  <img src="assets/screenshot-hero-editor.png" width="19%" alt="The top panel line editor" />
-  <img src="assets/screenshot-search.png" width="19%" alt="Library search results" />
+  <img src="assets/screenshot-shelf-spines.png" width="19%" alt="Home as spines, dressed in the Autumn theme pack" />
+  <img src="assets/screenshot-shelf-list.png" width="19%" alt="Recent books as a list" />
+  <img src="assets/screenshot-shelf-stacks.png" width="19%" alt="Series as stacks of covers" />
+  <img src="assets/screenshot-shelf-covers.png" width="19%" alt="Inside the Fiction genre: a grid of covers" />
+  <img src="assets/screenshot-fullscreen-covers.png" width="19%" alt="A full-screen grid of covers" />
 </p>
 
 <p align="center"><b><a href="https://andyhazz.github.io/bookshelf-docs/">Read the user guide</a></b>: installing, every feature, every setting, with videos.</p>

@@ -125,4 +125,47 @@ t.test("a card with no id is never remembered", function()
     assert(def.renders > 1, "an id-less card should search every time")
 end)
 
+-- A card that only grows: a quote whose height is lines * scale/10, so the
+-- grow loop climbs the 1.15 ladder until the fill target stops it.
+local function freshFit(lines_n, w, h)
+    for k in pairs(store) do store[k] = nil end
+    local fit = load_fit()
+    local def = card({ n = lines_n })
+    local wd = fit(def, w, h, 100, nil, { id = "fresh" }, 100, nil)
+    return wd:getSize().h, def.renders
+end
+
+t.test("a changed card starts from its old size and lands where a full search does", function()
+    for _, case in ipairs({ { 2, 3 }, { 3, 2 }, { 2, 4 }, { 4, 3 }, { 3, 9 } }) do
+        local before, after = case[1], case[2]
+        local want_h, full_renders = freshFit(after, 300, 120)
+        for k in pairs(store) do store[k] = nil end
+        local fit = load_fit()
+        local lines = { n = before }
+        local def = card(lines)
+        fit(def, 300, 120, 100, nil, entry, 100, nil)
+        lines.n = after
+        def.renders = 0
+        local got = fit(def, 300, 120, 100, nil, entry, 100, nil):getSize().h
+        assert(got == want_h, string.format("%d->%d lines: got h=%d, a full search gives %d",
+            before, after, got, want_h))
+        assert(def.renders <= full_renders + 1, string.format(
+            "%d->%d lines took %d renders, a full search %d", before, after, def.renders, full_renders))
+    end
+end)
+
+t.test("a small change takes fewer renders than a full search", function()
+    local _h, full_renders = freshFit(3, 300, 120)
+    for k in pairs(store) do store[k] = nil end
+    local fit = load_fit()
+    local lines = { n = 3 }
+    local def = card(lines)
+    fit(def, 300, 120, 100, nil, entry, 100, nil)
+    lines.n = 3.2   -- a slightly longer quote
+    def.renders = 0
+    fit(def, 300, 120, 100, nil, entry, 100, nil)
+    assert(def.renders < full_renders, string.format("took %d renders, a full search %d",
+        def.renders, full_renders))
+end)
+
 t.done()

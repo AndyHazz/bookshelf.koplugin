@@ -362,16 +362,62 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, 
     local memo_key = entry and entry.id and table.concat({
         _build_surface, tostring(def.key), tostring(entry.id),
         inner_w, inner_h, base, user_mult }, "|")
+    local function free(x) if x and x.free then pcall(function() x:free() end) end end
+    -- Where the search starts: the grid scale, or after a memo miss the size
+    -- this card fitted at last time (m.r, before the multiplier), which is
+    -- usually a step or two from the answer. A day's new quote searched from
+    -- 100% every restart: 14 renders, 320ms of a 760ms open on a PW5.
+    local start, start_rung = base, 1
+    local widget, h, w
     if memo_key then
         local m = _fitMemo()[memo_key]
         if m then
             local mw, mh, mwid = renderAt(m.s, m.c or nil)
             if mw and mh == m.h and mwid == m.w then return mw end
-            if mw and mw.free then pcall(function() mw:free() end) end
+            -- Only a size a search from the grid scale can reach: a rung of
+            -- the 1.15 ladder it climbs (GROW_MAX_ITERS rungs at most), never
+            -- one beyond. Anything else gives a card a size that depends on
+            -- its history, so it searches in full.
+            local ladder, cur = { base }, base
+            for _i = 1, GROW_MAX_ITERS do
+                local nxt = math.min(grow_cap, math.floor(cur * 1.15 + 0.5))
+                if nxt <= cur then break end
+                ladder[#ladder + 1], cur = nxt, nxt
+            end
+            local r, rung = tonumber(m.r), nil
+            for i = 2, #ladder do if ladder[i] == r then rung = i end end
+            if rung then
+                if r == m.s and not m.c then
+                    widget, h, w = mw, mh, mwid
+                else
+                    free(mw)
+                    widget, h, w = renderAt(r)
+                end
+                start = r
+                if widget and (h > inner_h or w > inner_w) then
+                    -- Grew past its old size: the full search from the grid scale.
+                    free(widget); widget, start, rung = nil, base, 1
+                end
+                -- Fits but fuller than the fill target: step back down the
+                -- same 1.15 ladder the grow loop climbs, so the answer is the
+                -- one a search from the grid scale would have reached.
+                while widget and rung > 1 and h > FILL_TARGET * inner_h do
+                    rung = rung - 1
+                    free(widget)
+                    start = ladder[rung]
+                    widget, h, w = renderAt(start)
+                end
+                start_rung = rung
+            else
+                free(mw)
+            end
         end
     end
 
-    local widget, h, w = renderAt(base)
+    if not widget then
+        start, start_rung = base, 1
+        widget, h, w = renderAt(base)
+    end
     if not widget then return nil end  -- render error: caller draws the fallback
 
     local result, result_scale, result_clamped
@@ -382,9 +428,11 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, 
         -- (TextBoxWidget reports the full inner_w), so the slack to reclaim is
         -- always vertical. Well-filled cards (height-aware clock/quote that
         -- already reach the target, dense text) don't grow.
-        if base < grow_cap and h <= FILL_TARGET * inner_h then
-            local best, cur = widget, base
-            for _i = 1, GROW_MAX_ITERS do
+        if start < grow_cap and h <= FILL_TARGET * inner_h then
+            local best, cur = widget, start
+            -- Rungs already climbed count against the limit, so a search that
+            -- started part way up stops at the same top rung.
+            for _i = 1, GROW_MAX_ITERS - (start_rung - 1) do
                 local nxt = math.min(grow_cap, math.floor(cur * 1.15 + 0.5))
                 if nxt <= cur then break end
                 local gw, gh, gwid = renderAt(nxt)
@@ -402,7 +450,7 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, 
             end
             result, result_scale = best, cur
         else
-            result, result_scale = widget, base
+            result, result_scale = widget, start
         end
     else
         -- Overflows the grid scale: shrink. `best` keeps the latest (smallest)
@@ -410,7 +458,7 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, 
         -- widget, never nil; ClipContainer backstops any residual overflow. Step
         -- by scale/sqrt(overflow) — a text block's height grows ~with font area,
         -- so sqrt undoes most of the overshoot in one step.
-        local best, best_scale, prev_h, scale = widget, base, h, base
+        local best, best_scale, prev_h, scale = widget, start, h, start
         for _i = 1, FIT_MAX_ITERS do
             if scale <= floor then break end
             local ratio = math.max(h / inner_h, w / inner_w)
@@ -481,8 +529,8 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, 
     if memo_key and result and final_scale then
         local ok, sz = pcall(function() return result:getSize() end)
         if ok and sz and sz.h and sz.w then
-            _fitMemoStore(memo_key, { s = final_scale, c = final_clamp or nil,
-                                      h = sz.h, w = sz.w })
+            _fitMemoStore(memo_key, { s = final_scale, r = result_scale,
+                                      c = final_clamp or nil, h = sz.h, w = sz.w })
         end
     end
     return result

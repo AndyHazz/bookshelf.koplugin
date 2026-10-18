@@ -18,6 +18,10 @@ local logger = require("logger")
 local M = {}
 local registry = {}
 local scanned = false
+-- Which file each registered key came from, and which files have been run,
+-- so the lazy path below and the full scan never dofile one twice.
+local file_of = {}
+local loaded_files = {}
 
 -- Shared card-surface grey: the start menu's module rows, the module
 -- picker's preview cards and every module's opaque TextBoxWidget bgcolor
@@ -139,6 +143,9 @@ local function userModulesDir()
 end
 
 local function loadSpec(dir, fname, origin)
+    local fkey = tostring(origin) .. "|" .. dir .. "/" .. fname
+    if loaded_files[fkey] then return end
+    loaded_files[fkey] = true
     local ok, spec = pcall(dofile, dir .. "/" .. fname)
     if not ok then
         logger.warn("[bookshelf] micro-module failed to load, skipping:",
@@ -192,6 +199,7 @@ local function loadSpec(dir, fname, origin)
         return
     end
     registry[spec.key] = spec
+    if origin then file_of[spec.key] = { fname = fname, origin = origin } end
 end
 
 local function scanDir(dir, origin)
@@ -226,18 +234,88 @@ local function scan()
     -- modules. Either dir may be absent - scanDir tolerates that.
     scanDir(userModulesDir(), "user")
     scanDir(modulesDir(), "bundled")
+    M._saveIndex()
+end
+
+-- ── Lazy loading ────────────────────────────────────────────────────────────
+-- The full scan runs every module file in both dirs. Cold on a PW5 that was
+-- 124ms of a full-screen open showing 7 of 17 modules. M.get(key) first tries
+-- the index the last full scan left (key -> file, in the module cache): it
+-- runs just that file. The index is trusted only while the two dirs hold
+-- exactly the files they held then (names listed, which is cheap next to
+-- running them), so a module added, removed or overriding a bundled one sends
+-- the next lookup through the full scan, which rewrites the index. A key the
+-- index names but its file no longer defines does the same.
+local INDEX_KEY = "module_index"
+local _index_checked, _index
+
+local function dirSignature()
+    local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
+    if not ok_lfs then return nil end
+    local parts = {}
+    for _i, d in ipairs({ { userModulesDir(), "user" }, { modulesDir(), "bundled" } }) do
+        local dir, origin = d[1], d[2]
+        local names = {}
+        if dir and lfs.attributes(dir, "mode") == "directory" then
+            for fname in lfs.dir(dir) do
+                if fname:sub(-4) == ".lua" then names[#names + 1] = fname end
+            end
+        end
+        table.sort(names)
+        parts[#parts + 1] = origin .. ":" .. table.concat(names, ",")
+    end
+    return table.concat(parts, ";")
+end
+
+function M._saveIndex()
+    local sig = dirSignature()
+    if not sig then return end
+    local keys = {}
+    for k, f in pairs(file_of) do keys[k] = { f.fname, f.origin } end
+    pcall(function()
+        require("lib/bookshelf_module_cache").save(INDEX_KEY, { sig = sig, keys = keys })
+    end)
+end
+
+local function trustedIndex()
+    if _index_checked then return _index end
+    _index_checked = true
+    local ok, idx = pcall(function()
+        return require("lib/bookshelf_module_cache").read(INDEX_KEY)
+    end)
+    if ok and type(idx) == "table" and type(idx.keys) == "table"
+            and idx.sig ~= nil and idx.sig == dirSignature() then
+        _index = idx
+    end
+    return _index
+end
+
+local function loadIndexed(key)
+    if scanned then return false end
+    local ok_any, any = pcall(function()
+        return require("lib/bookshelf_settings_store").microAnyEnabled()
+    end)
+    if ok_any and any == false then return false end
+    local idx = trustedIndex()
+    local e = idx and idx.keys[key]
+    if type(e) ~= "table" then return false end
+    local dir = (e[2] == "user") and userModulesDir() or modulesDir()
+    if not dir then return false end
+    loadSpec(dir, e[1], e[2])
+    return registry[key] ~= nil
 end
 
 -- Additive registration for callers that build specs in code (kept for
 -- API stability; file-based modules in micromodules/ are preferred).
 function M.register(key, def) registry[key] = def end
 function M.get(key)
+    if registry[key] then return registry[key] end
+    if loadIndexed(key) then return registry[key] end
     scan()
     return registry[key]
 end
 function M.title(key)
-    scan()
-    local d = registry[key]
+    local d = M.get(key)
     return d and d.title
 end
 function M.keys()
@@ -248,5 +326,11 @@ function M.keys()
     return out
 end
 
-M._test = { scanDir = scanDir, registry = registry }
+M._test = { scanDir = scanDir, registry = registry,
+            reset = function()
+                for k in pairs(registry) do registry[k] = nil end
+                for k in pairs(file_of) do file_of[k] = nil end
+                for k in pairs(loaded_files) do loaded_files[k] = nil end
+                scanned, _index_checked, _index = false, false, nil
+            end }
 return M

@@ -688,7 +688,7 @@ function ReviewsModal:handleEvent(event)
         return InputContainer.handleEvent(self, event)
     end
     if InputContainer.handleEvent(self, event) then return true end
-    return GestureZones.forwardToFM(event, self)
+    return GestureZones.forwardToLive(event, self)
 end
 
 -- Build a FRESH footer ButtonTable (zoom -/+, Close, optional Refresh) from the
@@ -1263,8 +1263,9 @@ end
 -- Two tiers: bookshelf's own footer corner buttons (start menu,
 -- micro-modules grid -- plain child Buttons of BookshelfWidget, not FM
 -- zones, so hit-tested against their already-stored dimens directly), then
--- any FileManager-registered system zone (brightness, KOReader menu,
--- third-party corner gestures, user-configured Gestures-plugin bindings).
+-- any system zone on the live host (brightness, KOReader menu, third-party
+-- corner gestures, user-configured Gestures-plugin bindings): FileManager,
+-- or the parked reader while a closed book is still parked.
 -- See docs/superpowers/specs/2026-07-02-book-detail-gesture-passthrough-design.md.
 function ReviewsModal:_tryPassthrough(ev)
     if self.bw and ev and ev.pos then
@@ -1277,8 +1278,7 @@ function ReviewsModal:_tryPassthrough(ev)
             return true
         end
     end
-    local fm = require("apps/filemanager/filemanager").instance
-    return fm ~= nil and GestureZones.tryFMZones(ev, fm)
+    return GestureZones.tryLiveZones(ev)
 end
 
 -- #171: any multiswipe closes, mirroring KOReader's fullscreen widgets where

@@ -102,7 +102,9 @@ end)
 t.test("KOReader's own gestures pass through the zoom view", function()
     -- Side swipes for brightness, the top swipe for KOReader's menu, the
     -- diagonal refresh: the full-screen view swallowed them (maintainer).
-    local P = dofile("lib/bookshelf_gesture_passthrough.lua")
+    -- Handed to whichever host is live (GestureZones.tryLiveZones), so they
+    -- also work while a closed book is still parked.
+    local P = dofile("lib/bookshelf_gesture_zones.lua")
     local fired = {}
     local zone = function(id) return {
         def = { id = id },
@@ -111,15 +113,18 @@ t.test("KOReader's own gestures pass through the zoom view", function()
     } end
     local fm = { _ordered_touch_zones = { zone("filemanager_swipe"), zone("my_custom") },
                  gestures = { gestures = {} } }
-    eq(P.gesture({ ges = "swipe" }, fm), true, "a KOReader zone did not take the swipe")
+    local prev = package.loaded["apps/filemanager/filemanager"]
+    package.loaded["apps/filemanager/filemanager"] = { instance = fm }
+    eq(P.tryLiveZones({ ges = "swipe" }), true, "a KOReader zone did not take the swipe")
     eq(fired[1], "filemanager_swipe")
     fired = {}
     fm._ordered_touch_zones = { zone("my_custom") }
-    eq(P.gesture({ ges = "swipe" }, fm), false, "a zone the reader did not set up fired")
+    eq(P.tryLiveZones({ ges = "swipe" }), false, "a zone the reader did not set up fired")
     fm.gestures.gestures = { my_custom = true }
-    eq(P.gesture({ ges = "swipe" }, fm), true, "the reader's own gesture did not fire")
+    eq(P.tryLiveZones({ ges = "swipe" }), true, "the reader's own gesture did not fire")
+    package.loaded["apps/filemanager/filemanager"] = prev
     local z = io.open("lib/bookshelf_ornament_zoom.lua"):read("*a")
-    assert(z:find("Passthrough.gesture(", 1, true) and z:find("Passthrough.event(", 1, true),
+    assert(z:find("GestureZones.tryLiveZones(", 1, true) and z:find("GestureZones.forwardToLive(", 1, true),
         "the zoom view does not pass gestures and their actions through")
 end)
 

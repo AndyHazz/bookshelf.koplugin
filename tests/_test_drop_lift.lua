@@ -89,7 +89,7 @@ t.test("handleEvent offers a tap to _dropLift after our widgets and KOReader's z
     local he = src:match("function BookshelfWidget:handleEvent%(event%)(.-)\nend\n")
     assert(he, "handleEvent moved")
     local kids = he:find("InputContainer.handleEvent(self, event)", 1, true)
-    local fmz = he:find("GestureZones.tryFMZones(ev, fm)", 1, true)
+    local fmz = he:find("GestureZones.tryLiveZones(ev)", 1, true)
     local drop = he:find("self:_dropLiftOnTap(ev)", 1, true)
     assert(kids and fmz and drop and kids < fmz and fmz < drop, "the drop runs before something that should come first")
     local tap = src:match("function BookshelfWidget:_dropLiftOnTap%(ev%)(.-)\nend\n")

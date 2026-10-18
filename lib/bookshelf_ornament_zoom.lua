@@ -240,7 +240,7 @@ end
 -- The text scrolls under a tap or a swipe on it; KOReader's own gestures
 -- (edge swipes for brightness, the top swipe for its menu, the diagonal
 -- refresh, corner taps) pass through to it; any other tap closes.
-local Passthrough = require("lib/bookshelf_gesture_passthrough")
+local GestureZones = require("lib/bookshelf_gesture_zones")
 function Zoom:handleEvent(event)
     if event.handler == "onGesture" then
         if Device.screen_saver_lock then return false end
@@ -250,12 +250,12 @@ function Zoom:handleEvent(event)
             if body:handleEvent(event) then return true end
         end
         if InputContainer.handleEvent(self, event) then return true end
-        if Passthrough.gesture(ev) then return true end
+        if GestureZones.tryLiveZones(ev) then return true end
         if ev and ev.ges == "tap" then return self:onTapClose() end
         return false
     end
     if InputContainer.handleEvent(self, event) then return true end
-    return Passthrough.event(event)
+    return GestureZones.forwardToLive(event, self)
 end
 
 function Zoom:paintTo(bb, x, y)

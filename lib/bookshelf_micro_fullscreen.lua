@@ -538,27 +538,9 @@ function MicroFullscreen:handleEvent(event)
         end
 
         -- KOReader-native gestures (top-edge menu tap/swipe, edge
-        -- brightness/warmth swipes, corner taps): the same zone walks as
-        -- BookshelfWidget:handleEvent, including its hot-parking branch --
-        -- a closed book leaves the reader parked and no FileManager at all.
-        local GestureZones = require("lib/bookshelf_gesture_zones")
-        local fm = require("apps/filemanager/filemanager").instance
-        if ev then
-            if fm then
-                if GestureZones.tryFMZones(ev, fm) then return true end
-            else
-                local Park = require("lib/bookshelf_reader_park")
-                if Park.isParked() then
-                    local rui = require("apps/reader/readerui").instance
-                    if GestureZones.tryReaderPluginZones(ev, rui) then return true end
-                    if GestureZones.matchesReaderMenuZone(ev, rui) then
-                        Park.finishToMenu()
-                        return true
-                    end
-                    if GestureZones.tryReaderZones(ev, rui) then return true end
-                end
-            end
-        end
+        -- brightness/warmth swipes, corner taps): the same zone walk as
+        -- BookshelfWidget:handleEvent, on FileManager or the parked reader.
+        if require("lib/bookshelf_gesture_zones").tryLiveZones(ev) then return true end
 
         -- Fallback: a tap on empty space dismisses the overlay.
         if ev and ev.ges == "tap" then return self:onTapClose() end
@@ -574,16 +556,7 @@ function MicroFullscreen:handleEvent(event)
     -- does: FM, or the parked reader once a book has been opened and closed.
     -- This used to know FM only, so every card went dead after the first book
     -- (#533).
-    local GestureZones = require("lib/bookshelf_gesture_zones")
-    if require("apps/filemanager/filemanager").instance then
-        return GestureZones.forwardToFM(event, self)
-    end
-    local Park = require("lib/bookshelf_reader_park")
-    if Park.isParked() then
-        local rui = require("apps/reader/readerui").instance
-        return GestureZones.forwardToReader(event, self, rui)
-    end
-    return false
+    return require("lib/bookshelf_gesture_zones").forwardToLive(event, self)
 end
 
 -- Re-layout on screen resize / rotation (desktop window resize), the same way

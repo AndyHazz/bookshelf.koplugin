@@ -249,4 +249,50 @@ function GestureZones.forwardToReader(event, self_widget, rui)
     return _forwardToHost(rui, event, self_widget)
 end
 
+-- The host KOReader is running under our view right now: FileManager, or the
+-- reader parked beneath the shelf after a book was closed with instant close
+-- on (KOReader has no FileManager then). Every full-screen view of ours asks
+-- this; the ones that asked FileManager alone went deaf while a book was
+-- parked (#533). Required lazily: the park module pulls in UIManager.
+local function _liveHost()
+    local ok_fm, FM = pcall(require, "apps/filemanager/filemanager")
+    local fm = ok_fm and FM and FM.instance
+    if fm then return fm, false end
+    local ok_p, Park = pcall(require, "lib/bookshelf_reader_park")
+    if ok_p and Park and Park.isParked and Park.isParked() then
+        local ok_r, RUI = pcall(require, "apps/reader/readerui")
+        local rui = ok_r and RUI and RUI.instance
+        if rui then return rui, true, Park end
+    end
+    return nil
+end
+
+-- tryLiveZones(ev) -> boolean
+-- KOReader's own gestures under one of our full-screen views (edge swipes for
+-- brightness and warmth, the top tap or swipe for the menu, corner taps, the
+-- reader's own Gestures bindings), handed to whichever host is live. While a
+-- book is parked, a menu-intent gesture finishes the close and opens the
+-- real FileManager menu, so book actions never show on the home screen.
+function GestureZones.tryLiveZones(ev)
+    if not ev then return false end
+    local host, parked, Park = _liveHost()
+    if not host then return false end
+    if not parked then return GestureZones.tryFMZones(ev, host) end
+    if GestureZones.tryReaderPluginZones(ev, host) then return true end
+    if GestureZones.matchesReaderMenuZone(ev, host) then
+        Park.finishToMenu()
+        return true
+    end
+    return GestureZones.tryReaderZones(ev, host)
+end
+
+-- forwardToLive(event, self_widget) -> boolean
+-- A zone's action (or an Action card's) arrives as a separate Dispatcher
+-- event that only reaches the top widget; hand it to the live host, with
+-- the guards of forwardToFM / forwardToReader.
+function GestureZones.forwardToLive(event, self_widget)
+    local host = _liveHost()
+    return _forwardToHost(host, event, self_widget)
+end
+
 return GestureZones

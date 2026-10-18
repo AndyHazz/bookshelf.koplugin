@@ -413,4 +413,84 @@ t.test("onExit reaches the reader with onClose intact", function()
     assert(saw_real_onclose, "intentional exit must run the real onClose")
 end)
 
+print("--- live host (FileManager, or the parked reader) ---")
+
+-- Installs the three modules _liveHost reads; returns a restore function.
+local function liveHosts(fm, rui, parked, on_finish)
+    local keys = { "apps/filemanager/filemanager", "apps/reader/readerui",
+                   "lib/bookshelf_reader_park" }
+    local saved = {}
+    for _, k in ipairs(keys) do saved[k] = package.loaded[k] end
+    package.loaded["apps/filemanager/filemanager"] = { instance = fm }
+    package.loaded["apps/reader/readerui"] = { instance = rui }
+    package.loaded["lib/bookshelf_reader_park"] = {
+        isParked = function() return parked end,
+        finishToMenu = function() if on_finish then on_finish() end; return true end,
+    }
+    return function() for _, k in ipairs(keys) do package.loaded[k] = saved[k] end end
+end
+
+t.test("tryLiveZones walks FileManager's zones when it exists", function()
+    local ev = { pos = { x = 1, y = 1 } }
+    local fired = false
+    local fm = { _ordered_touch_zones = {
+        fakeZone("filemanager_tap", {}, { ev }, function() fired = true; return true end) } }
+    local restore = liveHosts(fm, nil, false)
+    assert(Zones.tryLiveZones(ev) == true and fired)
+    restore()
+end)
+
+t.test("tryLiveZones reaches the parked reader's user gestures with no FileManager", function()
+    local ev = { pos = { x = 1, y = 1 } }
+    local fired = false
+    local rui = { gestures = { gestures = { corner_tap = true } },
+                  _ordered_touch_zones = {
+                      fakeZone("corner_tap", {}, { ev }, function() fired = true; return true end) } }
+    local restore = liveHosts(nil, rui, true)
+    assert(Zones.tryLiveZones(ev) == true, "the parked reader's gesture did not fire")
+    assert(fired)
+    restore()
+end)
+
+t.test("tryLiveZones turns a parked menu gesture into the real FileManager menu", function()
+    local ev = { pos = { x = 1, y = 1 } }
+    local menu_fired, finished = false, false
+    local rui = { _ordered_touch_zones = {
+        fakeZone("readermenu_tap", {}, { ev }, function() menu_fired = true; return true end) } }
+    local restore = liveHosts(nil, rui, true, function() finished = true end)
+    assert(Zones.tryLiveZones(ev) == true)
+    assert(finished, "the close was not finished to the FileManager menu")
+    assert(not menu_fired, "the book's own menu opened on the home screen")
+    restore()
+end)
+
+t.test("tryLiveZones is false with no live host", function()
+    local restore = liveHosts(nil, { _ordered_touch_zones = {} }, false)
+    assert(Zones.tryLiveZones({ pos = {} }) == false)
+    restore()
+end)
+
+t.test("forwardToLive hands an action to the parked reader, guarded", function()
+    local got = {}
+    local rui = { handleEvent = function(_s, ev) got[#got + 1] = ev.handler; return true end }
+    local restore = liveHosts(nil, rui, true)
+    assert(Zones.forwardToLive({ handler = "onIncreaseFlIntensity", args = {} }, {}) == true)
+    assert(Zones.forwardToLive({ handler = "onClose", args = {} }, {}) == false)
+    eq(table.concat(got, ","), "onIncreaseFlIntensity")
+    restore()
+end)
+
+t.test("forwardToLive prefers FileManager, and ignores a reader that is not parked", function()
+    local fm_got, rui_got = 0, 0
+    local fm  = { handleEvent = function() fm_got = fm_got + 1; return true end }
+    local rui = { handleEvent = function() rui_got = rui_got + 1; return true end }
+    local restore = liveHosts(fm, rui, false)
+    Zones.forwardToLive({ handler = "onShowQuickMenu", args = {} }, {})
+    eq(fm_got, 1); eq(rui_got, 0)
+    package.loaded["apps/filemanager/filemanager"] = { instance = nil }
+    assert(Zones.forwardToLive({ handler = "onShowQuickMenu", args = {} }, {}) == false)
+    eq(rui_got, 0)
+    restore()
+end)
+
 t.done()

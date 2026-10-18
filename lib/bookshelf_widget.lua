@@ -664,46 +664,21 @@ function BookshelfWidget:handleEvent(event)
         -- would strip that priority.
         if InputContainer.handleEvent(self, event) then return true end
 
-        local fm = require("apps/filemanager/filemanager").instance
+        -- KOReader's zones on whichever host is live: FileManager, or the
+        -- reader parked beneath the shelf (hot parking: no FileManager exists
+        -- then, and a menu-intent gesture finishes the close and opens the
+        -- real FM menu; see GestureZones.tryLiveZones).
         local ev = event.args[1]
+        if GestureZones.tryLiveZones(ev) then return true end
         -- A tap nothing took (empty shelf, the wall between rows, a gap
         -- between spines) drops a lifted book back onto the shelf. Last, so
         -- KOReader's corner taps and the reader's own zones keep theirs.
-        if fm then
-            if GestureZones.tryFMZones(ev, fm) then return true end
-            return self:_dropLiftOnTap(ev)
-        end
-        -- Hot parking: no FileManager exists while a reader is parked
-        -- beneath the shelf. A menu-intent gesture (the reader's top-strip
-        -- menu zones) converts on the spot: finish the deferred close and
-        -- open the real FM menu, so the user never sees book actions on
-        -- the home screen. Everything else forwards to the reader host's
-        -- allowlisted zones (user gestures; page-turn zones excluded).
-        local Park = require("lib/bookshelf_reader_park")
-        if Park.isParked() then
-            local rui = require("apps/reader/readerui").instance
-            if GestureZones.tryReaderPluginZones(ev, rui) then return true end
-            if GestureZones.matchesReaderMenuZone(ev, rui) then
-                Park.finishToMenu()
-                return true
-            end
-            if GestureZones.tryReaderZones(ev, rui) then return true end
-            return self:_dropLiftOnTap(ev)
-        end
         return self:_dropLiftOnTap(ev)
     end
 
     if InputContainer.handleEvent(self, event) then return true end
-    if require("apps/filemanager/filemanager").instance then
-        return GestureZones.forwardToFM(event, self)
-    end
-    -- Parked reader hosts Dispatcher actions when there's no FM (see above).
-    local Park = require("lib/bookshelf_reader_park")
-    if Park.isParked() then
-        local rui = require("apps/reader/readerui").instance
-        return GestureZones.forwardToReader(event, self, rui)
-    end
-    return false
+    -- Dispatcher actions go to FM, or the parked reader when there's no FM.
+    return GestureZones.forwardToLive(event, self)
 end
 
 -- ─── _rebuild ─────────────────────────────────────────────────────────────────

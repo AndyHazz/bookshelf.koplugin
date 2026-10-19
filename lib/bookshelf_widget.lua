@@ -15349,6 +15349,16 @@ function BookshelfWidget:onBSDrillBack()
     return false
 end
 
+-- KOReader's "Folder up" gesture action. Sent on to the file browser it
+-- climbs to the folder above the library just the same (unless Lock home
+-- folder is on), so on the shelf it is Back: one level out of a drilldown,
+-- and no further than the base shelf (issue 542).
+function BookshelfWidget:onFolderUp()
+    local n = self:_navDepth()
+    if n > 0 then self:_navBackTo(n - 1) end
+    return true
+end
+
 function BookshelfWidget:onBookshelfNextChip()
     if self._chip_bar_hidden then return true end
     local key = self:_chipNeighbour(1)

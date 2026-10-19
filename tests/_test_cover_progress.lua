@@ -543,12 +543,14 @@ test("badge mode: heart by default, star, or rating; favourites keep heart in ra
     S.fav_icon = nil
 end)
 
-test("rating stars: full, half from .5, empty; five glyphs", function()
+test("rating stars: full, half from .5, never an empty star on a cover", function()
     local F, H, E = CP.RATING_GLYPH_FULL, CP.RATING_GLYPH_HALF, CP.RATING_GLYPH_EMPTY
-    eq(CP.ratingStars(4), F .. F .. F .. F .. E)
-    eq(CP.ratingStars(3.5), F .. F .. F .. H .. E)
-    eq(CP.ratingStars(3.4), F .. F .. F .. E .. E)
+    eq(CP.ratingStars(4), F .. F .. F .. F)
+    eq(CP.ratingStars(3.5), F .. F .. F .. H)
+    eq(CP.ratingStars(3.4), F .. F .. F)
     eq(CP.ratingStars(5), F .. F .. F .. F .. F)
+    eq(CP.ratingStars(1), F)
+    assert(not CP.ratingStars(2.5):find(E, 1, true), "an empty star on a cover")
     eq(CP.ratingLabel(4), "4")
     eq(CP.ratingLabel(3.87), "3.9")
     -- Every rating glyph is Private Use Area (the symbols face holds nothing

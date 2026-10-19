@@ -89,15 +89,13 @@ function M.coverRating(fp, book)
     return ok3 and r or nil
 end
 
--- ratingStars(r) -> five glyphs, full / half / empty, the way the top
--- panel draws a Hardcover rating (a half from .5 up).
+-- ratingStars(r) -> the filled stars for a cover's corner: one per whole
+-- star and a half from .5 up, with no empty ones (maintainer: on a cover the
+-- outline stars read as clutter). The top panel keeps its full five.
 function M.ratingStars(r)
     local whole, out = math.floor(r), {}
-    for i = 1, 5 do
-        if i <= whole then out[i] = M.RATING_GLYPH_FULL
-        elseif i == whole + 1 and r - whole >= 0.5 then out[i] = M.RATING_GLYPH_HALF
-        else out[i] = M.RATING_GLYPH_EMPTY end
-    end
+    for i = 1, math.min(5, whole) do out[i] = M.RATING_GLYPH_FULL end
+    if whole < 5 and r - whole >= 0.5 then out[#out + 1] = M.RATING_GLYPH_HALF end
     return table.concat(out)
 end
 

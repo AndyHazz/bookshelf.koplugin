@@ -551,8 +551,6 @@ test("rating stars: full, half from .5, never an empty star on a cover", functio
     eq(CP.ratingStars(5), F .. F .. F .. F .. F)
     eq(CP.ratingStars(1), F)
     assert(not CP.ratingStars(2.5):find(E, 1, true), "an empty star on a cover")
-    eq(CP.ratingLabel(4), "4")
-    eq(CP.ratingLabel(3.87), "3.9")
     -- Every rating glyph is Private Use Area (the symbols face holds nothing
     -- else, and a codepoint outside it has crashed the plugin).
     for _, g in ipairs({ F, H, E }) do

@@ -99,11 +99,6 @@ function M.ratingStars(r)
     return table.concat(out)
 end
 
--- ratingLabel(r) -> "4", or "3.9" for a fractional average.
-function M.ratingLabel(r)
-    if r == math.floor(r) then return tostring(math.floor(r)) end
-    return string.format("%.1f", r)
-end
 
 -- Cover-badge font scale. Single source of truth for the page-count
 -- pill, series-number pill, ×N count badge, and completed-tickbox

@@ -2006,66 +2006,66 @@ function SpineWidget:_glyphWidth(glyph_h)
     return glyph_h
 end
 
--- _ratingBadge(rating, card_w, glyph_h, halo_w, shadow_d, colors)
+-- _ratingBadge(rating, card_w, glyph_h, halo_w, shadow_d, colors, series_left)
 --   -> widget, width (issue 538)
--- Five stars across the corner when they fit the cover's width, otherwise
--- one star and the number beside it. Each part is a single halo-and-shadow
--- run, like the favourite's glyph, in the favourite star's colour. The number
--- is in the UI font: the symbols face holds the Private Use Area only, and a
--- digit drawn with it has crashed the plugin before.
--- series_left: the series number pill's left edge, when the cover has one;
--- the row of stars must end before it.
+-- The book's stars across the corner, filled ones only, in the favourite
+-- star's colour with the favourite glyph's halo and shadow. As one run where
+-- they fit; where they do not (a narrow cover, a series number's pill on the
+-- right), each star is drawn on its own and they overlap, closing up until the
+-- row fits, then shrinking to no less than 60%. Never a number: a lone star
+-- with a digit in it read as a one-star rating beside real ones (maintainer).
+-- series_left: that pill's left edge; the row must end before it.
 function SpineWidget:_ratingBadge(rating, card_w, glyph_h, halo_w, shadow_d, colors, series_left)
-    local function outlined(text, size, face, w)
+    local function outlined(text, size, w)
         local g = CoverProgress.buildHaloShadowedGlyphWidget(
             text, size, halo_w, shadow_d, shadow_d,
-            colors.border, colors.favorite_star, colors.shadow, face, w)
+            colors.border, colors.favorite_star, colors.shadow, "symbols", w)
         CoverProgress.registerRecolour(g, function(c)
             return { halo = c.border, shadow = c.shadow, centre = c.favorite_star }
         end)
         return g
     end
-    local function textW(text, size, face)
-        local tw = CoverProgress.buildGlyphWidget(text, size, colors.favorite_star, face)
+    local function textW(text, size)
+        local tw = CoverProgress.buildGlyphWidget(text, size, colors.favorite_star, "symbols")
         local w = tw:getSize().w
         if tw.free then tw:free() end
         return w
     end
     local stars = CoverProgress.ratingStars(rating)
-    local row_w = textW(stars, glyph_h, "symbols")
     local room  = (series_left and (series_left - Space.px(2)) or (card_w - _glyphLeftInset()))
                   - _glyphLeftInset()
-    if row_w + 2 * halo_w + shadow_d <= room then
-        local g = outlined(stars, glyph_h, "symbols", row_w)
-        return g, row_w + 2 * halo_w + shadow_d
+    local chrome = 2 * halo_w + shadow_d
+    local row_w = textW(stars, glyph_h)
+    if row_w + chrome <= room then
+        return outlined(stars, glyph_h, row_w), row_w + chrome
     end
-    -- Compact: one larger star with the number centred inside it
-    -- (maintainer). The number is in the UI font, in the outline's colour so
-    -- it reads on the star's fill.
-    local label   = CoverProgress.ratingLabel(rating)
-    local big     = math.max(glyph_h, math.floor(glyph_h * 1.45 + 0.5))
-    local star_w  = textW(CoverProgress.RATING_GLYPH_FULL, big, "symbols")
-    local star    = outlined(CoverProgress.RATING_GLYPH_FULL, big, "symbols", star_w)
-    local star_h  = CoverProgress.glyphRenderedH(CoverProgress.RATING_GLYPH_FULL, big, "symbols")
-    -- Smaller for "3.9" than for "4", so the label stays inside the star.
-    local num_sz  = math.max(7, math.floor(big * (#label > 1 and 0.30 or 0.40) + 0.5))
-    local TextWidget = require("lib/bookshelf_colour_text")
-    local num_face, num_bold = BFont:getFace("cfont", num_sz, { bold = true })
-    local number  = TextWidget:new{ text = label, face = num_face, bold = num_bold,
-                                    fgcolor = colors.border }
-    local group   = OverlapGroup:new{
-        dimen = Geom:new{ w = star:getSize().w, h = star:getSize().h },
-        star,
-        FrameContainer:new{
-            bordersize = 0, padding = 0,
-            padding_left = halo_w, padding_top = halo_w,
-            CenterContainer:new{
-                dimen = Geom:new{ w = star_w, h = star_h },
-                number,
-            },
-        },
+    -- One widget per star (each glyph is three UTF-8 bytes, all PUA).
+    local glyphs = {}
+    for g in stars:gmatch("[\xE0-\xEF][\x80-\xBF][\x80-\xBF]") do glyphs[#glyphs + 1] = g end
+    local n = #glyphs
+    local MIN_STEP = 0.45   -- of a star's width: closer and they merge into a blob
+    local size = glyph_h
+    local gw   = textW(CoverProgress.RATING_GLYPH_FULL, size)
+    local tight = (n - 1) * gw * MIN_STEP + gw + chrome
+    if tight > room then
+        size = math.max(math.floor(glyph_h * 0.6 + 0.5), math.floor(glyph_h * room / tight))
+        gw   = textW(CoverProgress.RATING_GLYPH_FULL, size)
+    end
+    local step = gw
+    if n > 1 then
+        step = math.max(gw * MIN_STEP, math.min(gw, (room - gw - chrome) / (n - 1)))
+    end
+    local width = math.floor((n - 1) * step + 0.5) + gw + chrome
+    local first = outlined(glyphs[1], size, gw)
+    local group = OverlapGroup:new{
+        dimen = Geom:new{ w = width, h = first:getSize().h },
     }
-    return group, group:getSize().w
+    for i = 1, n do
+        local w = (i == 1) and first or outlined(glyphs[i], size, gw)
+        w.overlap_offset = { math.floor((i - 1) * step + 0.5), 0 }
+        group[#group + 1] = w
+    end
+    return group, width
 end
 
 -- Status decoration for a completed series box. Reuse the cover's

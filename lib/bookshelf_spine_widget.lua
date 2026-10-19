@@ -2039,18 +2039,35 @@ function SpineWidget:_ratingBadge(rating, card_w, glyph_h, halo_w, shadow_d, col
         local g = outlined(stars, glyph_h, "symbols", row_w)
         return g, row_w + 2 * halo_w + shadow_d
     end
+    -- Compact: one larger star with the number inside it (maintainer). The
+    -- number is in the UI font, in the outline's colour so it reads on the
+    -- star's fill.
     local label   = CoverProgress.ratingLabel(rating)
-    local num_sz  = math.max(8, math.floor(glyph_h * 0.8 + 0.5))
-    local num_w   = textW(label, num_sz, "cfont")
-    local HorizontalGroup = require("ui/widget/horizontalgroup")
-    local HorizontalSpan  = require("ui/widget/horizontalspan")
-    -- The star's own measured width, not the square: the glyph draws wider
-    -- than its em, and the number crowded its tip.
-    local star_w  = textW(CoverProgress.RATING_GLYPH_FULL, glyph_h, "symbols")
-    local star    = outlined(CoverProgress.RATING_GLYPH_FULL, glyph_h, "symbols", star_w)
-    local number  = outlined(label, num_sz, "cfont", num_w)
-    local group   = HorizontalGroup:new{ align = "center", star,
-                                         HorizontalSpan:new{ width = Space.px(1) }, number }
+    local big     = math.max(glyph_h, math.floor(glyph_h * 1.45 + 0.5))
+    local star_w  = textW(CoverProgress.RATING_GLYPH_FULL, big, "symbols")
+    local star    = outlined(CoverProgress.RATING_GLYPH_FULL, big, "symbols", star_w)
+    local star_h  = CoverProgress.glyphRenderedH(CoverProgress.RATING_GLYPH_FULL, big, "symbols")
+    -- Smaller for "3.9" than for "4", so the label stays inside the star.
+    local num_sz  = math.max(7, math.floor(big * (#label > 1 and 0.30 or 0.40) + 0.5))
+    local TextWidget = require("lib/bookshelf_colour_text")
+    local num_face, num_bold = BFont:getFace("cfont", num_sz, { bold = true })
+    local number  = TextWidget:new{ text = label, face = num_face, bold = num_bold,
+                                    fgcolor = colors.border }
+    -- A star's ink sits low in its box: its middle is a little below the
+    -- box's centre, so the number drops by the same amount.
+    local drop    = math.floor(star_h * 0.06 + 0.5)
+    local group   = OverlapGroup:new{
+        dimen = Geom:new{ w = star:getSize().w, h = star:getSize().h },
+        star,
+        FrameContainer:new{
+            bordersize = 0, padding = 0,
+            padding_left = halo_w, padding_top = halo_w + drop,
+            CenterContainer:new{
+                dimen = Geom:new{ w = star_w, h = star_h },
+                number,
+            },
+        },
+    }
     return group, group:getSize().w
 end
 

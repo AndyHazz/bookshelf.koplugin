@@ -2039,9 +2039,9 @@ function SpineWidget:_ratingBadge(rating, card_w, glyph_h, halo_w, shadow_d, col
         local g = outlined(stars, glyph_h, "symbols", row_w)
         return g, row_w + 2 * halo_w + shadow_d
     end
-    -- Compact: one larger star with the number inside it (maintainer). The
-    -- number is in the UI font, in the outline's colour so it reads on the
-    -- star's fill.
+    -- Compact: one larger star with the number centred inside it
+    -- (maintainer). The number is in the UI font, in the outline's colour so
+    -- it reads on the star's fill.
     local label   = CoverProgress.ratingLabel(rating)
     local big     = math.max(glyph_h, math.floor(glyph_h * 1.45 + 0.5))
     local star_w  = textW(CoverProgress.RATING_GLYPH_FULL, big, "symbols")
@@ -2053,15 +2053,12 @@ function SpineWidget:_ratingBadge(rating, card_w, glyph_h, halo_w, shadow_d, col
     local num_face, num_bold = BFont:getFace("cfont", num_sz, { bold = true })
     local number  = TextWidget:new{ text = label, face = num_face, bold = num_bold,
                                     fgcolor = colors.border }
-    -- A star's ink sits low in its box: its middle is a little below the
-    -- box's centre, so the number drops by the same amount.
-    local drop    = math.floor(star_h * 0.06 + 0.5)
     local group   = OverlapGroup:new{
         dimen = Geom:new{ w = star:getSize().w, h = star:getSize().h },
         star,
         FrameContainer:new{
             bordersize = 0, padding = 0,
-            padding_left = halo_w, padding_top = halo_w + drop,
+            padding_left = halo_w, padding_top = halo_w,
             CenterContainer:new{
                 dimen = Geom:new{ w = star_w, h = star_h },
                 number,

@@ -948,6 +948,42 @@ test("buildBook: forwards want_cover to BIM so callers can skip the decode", fun
     assert(seen[2] == false, "want_cover=false should reach BIM, got " .. tostring(seen[2]))
 end)
 
+test("page counts follow KOReader's Use stable page numbers for the book (#539)", function()
+    -- A book with a publisher page list: 569 printed pages, on printed page
+    -- 21, 718 screens at the reader's font, 4% in. KOReader keeps the
+    -- printed count in the sidecar either way; whether the reader USES it is
+    -- pagemap_use_page_labels. Bookshelf showed 21 / 569 while the reader,
+    -- with stable page numbers off, showed 718.
+    local function sidecar(use)
+        return { percent_finished = 0.04, pagemap_doc_pages = 569,
+                 pagemap_current_page_label = "21", stats = { pages = 718 },
+                 pagemap_use_page_labels = use,
+                 summary = { status = "reading" } }
+    end
+    local cases = {
+        { use = false, pages = 718, num = 29, src = "render" },
+        { use = true,  pages = 569, num = 21, src = "stable" },
+        { use = nil,   pages = 569, num = 21, src = "stable" },  -- never opened since: unchanged
+    }
+    for _, c in ipairs(cases) do
+        local fp = "/lib/victorious-" .. tostring(c.use) .. ".epub"
+        _G._test_docsettings_data = { [fp] = sidecar(c.use) }
+        _G._test_bim_data = { [fp] = { title = "Victorious" } }
+        Repo.invalidateProgressCache(fp)
+        local _pct, _st, _r, pages, num, src = Repo.readProgress(fp)
+        assert(pages == c.pages and num == c.num and src == c.src, string.format(
+            "readProgress use=%s: got %s / %s (%s), want %s / %s (%s)", tostring(c.use),
+            tostring(num), tostring(pages), tostring(src), c.num, c.pages, c.src))
+        Repo.invalidateProgressCache(fp)
+        local book = Repo.buildBook(fp)
+        assert(book.page_count == c.pages and book.page_num == c.num, string.format(
+            "buildBook use=%s: got %s / %s, want %s / %s", tostring(c.use),
+            tostring(book.page_num), tostring(book.page_count), c.num, c.pages))
+    end
+    _G._test_docsettings_data = nil
+    _G._test_bim_data = {}
+end)
+
 test("buildBook: splits newline-separated authors and trims whitespace", function()
     -- BIM stores multiple authors newline-separated (see splitAuthors / #74).
     _G._test_bim_data = {

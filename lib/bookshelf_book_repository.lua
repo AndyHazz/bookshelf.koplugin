@@ -1719,6 +1719,20 @@ function Repo.pageCountFor(filepath, known)
 end
 
 
+-- _stablePagesOn(ds) -> false when the reader turned KOReader's Use stable
+-- page numbers off for this book, true otherwise.
+--
+-- KOReader writes pagemap_doc_pages (and the current label) whenever a book
+-- has a publisher page list, used or not; whether the reader USES those
+-- numbers is pagemap_use_page_labels, which it saves on every open of such a
+-- book. Issue 539: with it off the reader counted 718 pages while the top
+-- panel said 21 / 569. Unset (a book not opened since) keeps the stable
+-- numbers, as before.
+local function _stablePagesOn(ds)
+    local ok, use = pcall(ds.readSetting, ds, "pagemap_use_page_labels")
+    return not (ok and use == false)
+end
+
 -- opts is forwarded verbatim to buildBookMeta; opts.want_cover=false skips
 -- BIM's zstd decode and Blitbuffer allocation for callers that never look at
 -- the cover. The in-reader status line rebuilds this record far more often
@@ -1786,8 +1800,9 @@ function Repo.buildBook(filepath, opts)
     -- below, which must match what readProgress would compute for this
     -- file - readProgress never sees BIM's count.
     local ds_page_count, ds_page_src
+    local stable_on = _stablePagesOn(ds)
     do
-        local stable_pages = ds:readSetting("pagemap_doc_pages")
+        local stable_pages = stable_on and ds:readSetting("pagemap_doc_pages")
         if stable_pages then
             ds_page_count = tonumber(stable_pages)
             if ds_page_count then ds_page_src = "stable" end
@@ -1830,7 +1845,7 @@ function Repo.buildBook(filepath, opts)
     -- won; readProgress had always preferred the label, so the shelf row and
     -- the hero disagreed about the same book the moment %page_num started
     -- rendering on rows.
-    if not book.page_num then
+    if not book.page_num and stable_on then
         local label = ds:readSetting("pagemap_current_page_label")
         if label then
             local n = tonumber(label)
@@ -2704,8 +2719,9 @@ function Repo.readProgress(filepath)
             rating = tonumber(summary.rating)
             _finished_on[filepath] = summary.modified or false
         end
+        local stable_on = _stablePagesOn(ds)
         local ok_pm, stable_pages = pcall(ds.readSetting, ds, "pagemap_doc_pages")
-        if ok_pm and stable_pages then
+        if stable_on and ok_pm and stable_pages then
             page_count = tonumber(stable_pages)
             if page_count then page_src = "stable" end
         end
@@ -2724,7 +2740,7 @@ function Repo.readProgress(filepath)
         -- resolver at all before, so it rendered empty everywhere except the
         -- hero, which builds its one book the expensive way.
         local ok_lbl, label = pcall(ds.readSetting, ds, "pagemap_current_page_label")
-        if ok_lbl and label then page_num = tonumber(label) end
+        if stable_on and ok_lbl and label then page_num = tonumber(label) end
         if not page_num then
             local ok_lp, last_page = pcall(ds.readSetting, ds, "last_page")
             if ok_lp then page_num = tonumber(last_page) end

@@ -157,6 +157,29 @@ test("facts: clearing page counts leaves the looks alone", function()
     end
 end)
 
+test("facts: clearing looks leaves page counts and status alone (#537)", function()
+    fresh()
+    Facts.put("/b/a.epub", { p = 300, psrc = "ncx", r = 90, g = 90, b = 90, a = 1.5, s = "reading", sk = true })
+    Facts.put("/b/b.epub", { p = 400, psrc = "render", r = 4, g = 5, b = 6 })
+    Facts.put("/b/c.epub", { p = 500, psrc = "ncx" })
+    Facts.flush()
+    -- One look still only in memory, written after the last flush.
+    Facts.put("/b/d.epub", { r = 7, g = 8, b = 9 })
+    local n = Facts.clearLooks()
+    assert(n == 3, "expected 3 looks cleared, got " .. tostring(n))
+    for pass = 1, 2 do
+        if pass == 2 then Facts.forgetMemo() end
+        for _, fp in ipairs({ "/b/a.epub", "/b/b.epub", "/b/d.epub" }) do
+            local e = Facts.get(fp)
+            assert(not (e and e.r), fp .. " kept its look (pass " .. pass .. ")")
+        end
+        local a = Facts.get("/b/a.epub")
+        assert(a and a.p == 300 and a.psrc == "ncx", "the page count went with the look")
+        assert(a.s == "reading", "the cached status went with the look")
+        assert(Facts.get("/b/c.epub").p == 500, "a book with no look lost its count")
+    end
+end)
+
 test("facts: clearing counts on an empty store is a no-op, not an error", function()
     fresh()
     assert(Facts.clearPageCounts() == 0, "nothing to clear")

@@ -795,6 +795,23 @@ function SpineShelf.dropLook(fp)
     end
 end
 
+-- forgetLooks() -> number of saved looks cleared
+-- Every spine samples its cover again: the saved colours, the session's copy
+-- of them, every cached render and the plan all go. Run by Clear cover cache
+-- (issue 537: spines saved grey beside colour covers, with no way to redo
+-- them short of changing each book's status).
+function SpineShelf.forgetLooks()
+    _look_cache, _look_count = {}, 0
+    local F = _facts()
+    local n = F and F.clearLooks and F.clearLooks() or 0
+    for i = #_render_order, 1, -1 do
+        _renderCacheDrop(_render_order[i])
+        _render_order[i] = nil
+    end
+    _plan_cache = nil
+    return n
+end
+
 -- ── Favourites ──────────────────────────────────────────────────────────────
 
 local function _isFavourite(fp)

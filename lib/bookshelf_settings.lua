@@ -4008,6 +4008,13 @@ function Settings:_performanceSubItems()
             callback = function()
                 local ScaledCoverCache = require("lib/bookshelf_scaled_cover_cache")
                 ScaledCoverCache:clear()
+                -- Spine colours are sampled from the covers and saved, so a
+                -- fresh cover needs a fresh colour too (issue 537).
+                pcall(function() require("lib/bookshelf_spine_shelf").forgetLooks() end)
+                if self._bw and self._bw._rebuild then
+                    self._bw:_rebuild()
+                    UIManager:setDirty("all", "full")
+                end
                 UIManager:show(Notification:new{
                     text    = _("Cover cache cleared"),
                     timeout = 2,

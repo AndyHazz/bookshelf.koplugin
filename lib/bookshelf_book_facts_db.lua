@@ -339,6 +339,27 @@ function M.clearPageCounts()
     return n
 end
 
+-- clearLooks() -> number of books cleared
+-- Forget every sampled spine colour, so each spine samples its cover again on
+-- its next paint. Counts and status stay, like clearPageCounts keeps the
+-- looks. Issue 537: a reader's spines were saved grey while their covers were
+-- in colour, and a look is otherwise only dropped one book at a time.
+function M.clearLooks()
+    M.flush()
+    local n = with(function(db)
+        local st = db:prepare("SELECT COUNT(*) FROM book_facts WHERE r IS NOT NULL")
+        st:reset()
+        local row = st:step()
+        local count = row and tonumber(row[1]) or 0
+        db:exec("UPDATE book_facts SET r=NULL, g=NULL, b=NULL, aspect=NULL WHERE r IS NOT NULL;")
+        return count
+    end, 0)
+    for _fp, e in pairs(_memo) do
+        if type(e) == "table" then e.r, e.g, e.b, e.a = nil, nil, nil, nil end
+    end
+    return n
+end
+
 function M.countRows()
     return with(function(db)
         local st = db:prepare("SELECT COUNT(*) FROM book_facts")

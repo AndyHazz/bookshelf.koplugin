@@ -2539,11 +2539,33 @@ local READ_STATE_SORT_TOKENS = {
     "s:last_opened:", "s:percent_read:", "s:read_status", "s:rating:",
     "s:added_or_opened:",
 }
+-- The same sorts by key, for caches that spell the priority differently.
+local READ_STATE_SORT_KEYS = {
+    last_opened = true, percent_read = true, read_status = true,
+    read_status_active = true, rating = true, added_or_opened = true,
+    percent_natural = true,
+}
 function Repo.invalidateReadStateCache()
     for k in pairs(_bySource_cache) do
         for _i, tok in ipairs(READ_STATE_SORT_TOKENS) do
             if k:find(tok, 1, true) then
                 _bySource_cache[k] = nil
+                break
+            end
+        end
+    end
+    -- And getAll's own listings, the Home (folders) and folder shelves (issue
+    -- 519): their cache key spells the priority as "<key>[R]" joined by
+    -- commas, not the "s:<key>:" tokens above, so it is matched by sort key.
+    -- Missed before, a Home shelf sorted by Added or opened kept the book just
+    -- closed where it was until a refresh, the file poll or a restart.
+    for k in pairs(_all_cache) do
+        local a = k:find("\0", 1, true)
+        local b = a and k:find("\0", a + 1, true)
+        local prio = (a and b) and k:sub(a + 1, b - 1) or ""
+        for part in prio:gmatch("[^,]+") do
+            if READ_STATE_SORT_KEYS[(part:gsub("R$", ""))] then
+                _all_cache[k] = nil
                 break
             end
         end

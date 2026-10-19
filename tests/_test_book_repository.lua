@@ -984,6 +984,62 @@ test("page counts follow KOReader's Use stable page numbers for the book (#539)"
     _G._test_bim_data = {}
 end)
 
+test("Home (folders) re-sorts by Added or opened after a book is closed (#519)", function()
+    -- getAll keeps its sorted listing in its own cache. Closing a book only
+    -- ran invalidateReadStateCache, which cleared the predicate path's cache
+    -- and not this one, so a Home shelf sorted by Added or opened (or Last
+    -- opened, progress, status, rating) kept the opened book where it was
+    -- until a refresh, the file poll or a restart.
+    Repo.invalidateWalkCache()
+    Repo.invalidateProgressCache()
+    local lfs_stub = package.loaded["libs/libkoreader-lfs"]
+    local prev = { dir = lfs_stub.dir, attributes = lfs_stub.attributes }
+    local mtimes = { ["/lib/new.epub"] = 2000, ["/lib/old.epub"] = 1000 }
+    lfs_stub.dir = function(path)
+        local entries = { ".", ".." }
+        if path == "/lib" then entries[3], entries[4] = "new.epub", "old.epub" end
+        local i = 0
+        return function() i = i + 1; return entries[i] end
+    end
+    lfs_stub.attributes = function(fp, key)
+        if fp == "/lib" then
+            local a = { mode = "directory", modification = 0 }
+            if key then return a[key] end
+            return a
+        end
+        if not mtimes[fp] then return nil end
+        local a = { mode = "file", modification = mtimes[fp], access = mtimes[fp], size = 1 }
+        if key then return a[key] end
+        return a
+    end
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    _G._test_bim_data = { ["/lib/new.epub"] = { title = "New" }, ["/lib/old.epub"] = { title = "Old" } }
+    package.loaded["readhistory"].hist = {}
+    local prio = { { key = "added_or_opened", reverse = true } }
+    local function first()
+        local out = Repo.getAll("/lib", 10, 0, prio)
+        return out[1] and out[1].filepath
+    end
+    assert(first() == "/lib/new.epub", "the newest file should lead, got " .. tostring(first()))
+    -- Open the old book now, then what Bookshelf:onCloseDocument runs.
+    package.loaded["readhistory"].hist = { { file = "/lib/old.epub", time = 3000 } }
+    Repo.invalidateProgressCache("/lib/old.epub")
+    Repo.invalidateReadStateCache()
+    assert(first() == "/lib/old.epub", "the book just opened did not move to the front, got "
+        .. tostring(first()))
+    -- A sort reading did not change keeps its cached listing.
+    local by_title = { { key = "title", reverse = false } }
+    local a1 = Repo.getAll("/lib", 10, 0, by_title)
+    Repo.invalidateReadStateCache()
+    local a2 = Repo.getAll("/lib", 10, 0, by_title)
+    assert(a1[1].filepath == a2[1].filepath, "title order changed")
+    package.loaded["readhistory"].hist = {}
+    lfs_stub.dir, lfs_stub.attributes = prev.dir, prev.attributes
+    _G._test_settings = {}
+    _G._test_bim_data = {}
+    Repo.invalidateWalkCache()
+end)
+
 test("buildBook: splits newline-separated authors and trims whitespace", function()
     -- BIM stores multiple authors newline-separated (see splitAuthors / #74).
     _G._test_bim_data = {

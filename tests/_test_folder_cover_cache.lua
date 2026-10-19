@@ -137,9 +137,15 @@ t.test("reading a book drops the read-state orders and keeps the rest", function
             ["/lib/A\0s:title:f;l:4"]       = { "x" },
             ["/lib/B\0s:last_opened:r;l:4"] = { "y" },
         },
+        -- getAll's listings (issue 519): "<path>\0<key>[R],...\0..." keys.
+        _all_cache = {
+            ["/lib\0added_or_openedR\0\0\0sig"] = { shapes = {} },
+            ["/lib\0titleR\0\0\0sig"]           = { shapes = {} },
+        },
         pairs = pairs, ipairs = ipairs,
         READ_STATE_SORT_TOKENS = { "s:last_opened:", "s:percent_read:",
                                    "s:read_status", "s:rating:" },
+        READ_STATE_SORT_KEYS = { last_opened = true, added_or_opened = true },
     }
     local fn = assert(load(extract("Repo.invalidateReadStateCache", "%(%)"),
         "invalidateReadStateCache", "t", env))
@@ -148,6 +154,10 @@ t.test("reading a book drops the read-state orders and keeps the rest", function
         "a filename/title order cannot change because a book was read")
     eq(env._folder_cover_cache["/lib/B\0s:last_opened:r;l:4"], nil,
         "a last-opened order must be dropped when read state moves")
+    eq(env._all_cache["/lib\0added_or_openedR\0\0\0sig"], nil,
+        "a Home listing sorted by Added or opened must be dropped (#519)")
+    assert(env._all_cache["/lib\0titleR\0\0\0sig"],
+        "a Home listing sorted by title cannot change because a book was read")
 end)
 
 t.test("both walk-invalidation sites clear the memo", function()

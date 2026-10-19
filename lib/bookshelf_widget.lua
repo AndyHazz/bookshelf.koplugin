@@ -15376,6 +15376,14 @@ function BookshelfWidget:onBookshelfPrevChipPage()
     return self:_flipChipPage(-1)
 end
 
+-- The library refresh as a system action (issue 541): the same refresh as
+-- the swipe down, with or without that swipe switched on.
+function BookshelfWidget:onBookshelfRefreshLibrary()
+    self:_clearDpadFocus()
+    self:_refreshLibrary()
+    return true
+end
+
 function BookshelfWidget:onBookshelfToggleHero()
     -- Collapse/restore the hero in both modes (in micro mode this hides /
     -- shows the module grid).

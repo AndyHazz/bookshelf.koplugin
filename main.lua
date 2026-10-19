@@ -1128,6 +1128,16 @@ function Bookshelf:onDispatcherRegisterActions()
         title    = _("Bookshelf: full screen shelves on or off"),
         general  = true,
     })
+    -- The swipe down on the shelf, assignable (issue 541): a reader who turns
+    -- that swipe off under Bookshelf gestures, because KOReader's multiswipes
+    -- kept setting it off, can still refresh from another gesture or a quick
+    -- menu.
+    Dispatcher:registerAction("bookshelf_refresh_library", {
+        category = "none",
+        event    = "BookshelfRefreshLibrary",
+        title    = _("Bookshelf: refresh the library"),
+        general  = true,
+    })
     Dispatcher:registerAction("bookshelf_toggle_selection_mode", {
         category  = "none",
         event     = "BookshelfToggleSelectionMode",

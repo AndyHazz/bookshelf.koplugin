@@ -533,5 +533,32 @@ test("badge_pct: reading and on hold carry it; finished and unread do not", func
     eq(CP.decide(book("new", nil)).badge_pct, nil)
 end)
 
+-- Issue 538: the corner badge can show a book's star rating instead of the
+-- favourite mark.
+test("badge mode: heart by default, star, or rating; favourites keep heart in rating mode", function()
+    S.fav_icon = nil;      eq(CP.badgeMode(), "heart"); eq(CP.favoriteIcon(), "heart")
+    S.fav_icon = "star";   eq(CP.badgeMode(), "star");  eq(CP.favoriteIcon(), "star")
+    S.fav_icon = "rating"; eq(CP.badgeMode(), "rating"); eq(CP.favoriteIcon(), "heart")
+    S.fav_icon = "bogus";  eq(CP.badgeMode(), "heart")
+    S.fav_icon = nil
+end)
+
+test("rating stars: full, half from .5, empty; five glyphs", function()
+    local F, H, E = CP.RATING_GLYPH_FULL, CP.RATING_GLYPH_HALF, CP.RATING_GLYPH_EMPTY
+    eq(CP.ratingStars(4), F .. F .. F .. F .. E)
+    eq(CP.ratingStars(3.5), F .. F .. F .. H .. E)
+    eq(CP.ratingStars(3.4), F .. F .. F .. E .. E)
+    eq(CP.ratingStars(5), F .. F .. F .. F .. F)
+    eq(CP.ratingLabel(4), "4")
+    eq(CP.ratingLabel(3.87), "3.9")
+    -- Every rating glyph is Private Use Area (the symbols face holds nothing
+    -- else, and a codepoint outside it has crashed the plugin).
+    for _, g in ipairs({ F, H, E }) do
+        local b1, b2, b3 = g:byte(1, 3)
+        local cp = ((b1 % 16) * 4096) + ((b2 % 64) * 64) + (b3 % 64)
+        assert(#g == 3 and cp >= 0xE000 and cp <= 0xF8FF, "glyph outside the PUA")
+    end
+end)
+
 print(string.format("%d passed, %d failed", pass, fail))
 if fail > 0 then os.exit(1) end

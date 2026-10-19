@@ -1797,6 +1797,9 @@ function SpineWidget:_renderShadowedCard(inner)
     --      * self.show_progress -- grid-only surface (hero / folder /
     --        series stacks reuse SpineWidget but opt out).
     --      * Setting bookshelf_show_series_num (fresh installs: within a series).
+    -- Where the series number's pill starts, when there is one: the star
+    -- rating's row must end before it (issue 538).
+    local series_left
     if self.show_progress and _showSeriesNum(self.in_series)
             and not self.suppress_number_badges
             and self.book and self.book.series_num then
@@ -1843,6 +1846,7 @@ function SpineWidget:_renderShadowedCard(inner)
                                   cover_right_x - math.floor(badge_w / 2)))
         badge.overlap_offset = { badge_x, -SHADOW_OFFSET }
         children[#children + 1] = badge
+        series_left = badge_x
     end
 
     -- Favourites star (top-left): same halo'd-glyph treatment as the
@@ -1866,11 +1870,20 @@ function SpineWidget:_renderShadowedCard(inner)
             and (not self.suppress_favorite_badge)
             and fp
             and BookshelfSettings.nilOrTrue("show_fav_badge") then
-        local rc_ok, rc = pcall(require, "readcollection")
-        local in_fav = rc_ok and rc and rc.coll
-                       and rc.coll.favorites
-                       and rc.coll.favorites[fp] ~= nil
-        if in_fav then
+        -- The corner shows a favourite's heart or star, or (issue 538) the
+        -- book's star rating, for any book that has one.
+        local badge_mode = CoverProgress.badgeMode()
+        local rating = badge_mode == "rating" and CoverProgress.coverRating(fp, self.book) or nil
+        local show_badge
+        if badge_mode == "rating" then
+            show_badge = rating ~= nil
+        else
+            local rc_ok, rc = pcall(require, "readcollection")
+            show_badge = rc_ok and rc and rc.coll
+                         and rc.coll.favorites
+                         and rc.coll.favorites[fp] ~= nil
+        end
+        if show_badge then
             -- 70% of bookmark size: the star glyph is intrinsically wider
             -- than the bookmark at the same point size, so the star reads
             -- as bigger when nominal sizes match. 70% brings the optical
@@ -1884,7 +1897,8 @@ function SpineWidget:_renderShadowedCard(inner)
                 local colors  = CoverProgress.resolvedColors()
                 -- Heart (default) or star, each with its own tunable colour;
                 -- switching the icon also switches the colour that's read.
-                local fav_icon  = CoverProgress.favoriteIcon()
+                -- The rating draws in the star's colour and measures like it.
+                local fav_icon  = badge_mode == "rating" and "star" or badge_mode
                 local fav_glyph = fav_icon == "star"
                     and CoverProgress.FAV_GLYPH_STAR or CoverProgress.FAV_GLYPH_HEART
                 local fav_color = fav_icon == "star"
@@ -1902,15 +1916,21 @@ function SpineWidget:_renderShadowedCard(inner)
                 -- the OverlapGroup's synthetic dimen under-reports that).
                 local widget_h = CoverProgress.glyphRenderedH(
                     fav_glyph, glyph_h, "symbols")
-                local outlined = CoverProgress.buildHaloShadowedGlyphWidget(
-                    fav_glyph,
-                    glyph_h,
-                    halo_w,
-                    shadow_d, shadow_d,  -- down-right
-                    colors.border,          -- halo (shared "Border color")
-                    fav_color,              -- centre fill (per-icon, user-tunable)
-                    colors.shadow,          -- shadow (always dark on screen)
-                    "symbols")
+                local outlined
+                if rating then
+                    outlined, glyph_w = self:_ratingBadge(rating, card_w, glyph_h,
+                                                          halo_w, shadow_d, colors, series_left)
+                else
+                    outlined = CoverProgress.buildHaloShadowedGlyphWidget(
+                        fav_glyph,
+                        glyph_h,
+                        halo_w,
+                        shadow_d, shadow_d,  -- down-right
+                        colors.border,          -- halo (shared "Border color")
+                        fav_color,              -- centre fill (per-icon, user-tunable)
+                        colors.shadow,          -- shadow (always dark on screen)
+                        "symbols")
+                end
                 -- The centre is per-icon, so the pick re-derives it rather
                 -- than capturing the colour this build happened to use.
                 CoverProgress.registerRecolour(outlined, function(c)
@@ -1984,6 +2004,54 @@ end
 -- glyph_w ≈ glyph_h. Used only to suppress the glyph on very narrow cards.
 function SpineWidget:_glyphWidth(glyph_h)
     return glyph_h
+end
+
+-- _ratingBadge(rating, card_w, glyph_h, halo_w, shadow_d, colors)
+--   -> widget, width (issue 538)
+-- Five stars across the corner when they fit the cover's width, otherwise
+-- one star and the number beside it. Each part is a single halo-and-shadow
+-- run, like the favourite's glyph, in the favourite star's colour. The number
+-- is in the UI font: the symbols face holds the Private Use Area only, and a
+-- digit drawn with it has crashed the plugin before.
+-- series_left: the series number pill's left edge, when the cover has one;
+-- the row of stars must end before it.
+function SpineWidget:_ratingBadge(rating, card_w, glyph_h, halo_w, shadow_d, colors, series_left)
+    local function outlined(text, size, face, w)
+        local g = CoverProgress.buildHaloShadowedGlyphWidget(
+            text, size, halo_w, shadow_d, shadow_d,
+            colors.border, colors.favorite_star, colors.shadow, face, w)
+        CoverProgress.registerRecolour(g, function(c)
+            return { halo = c.border, shadow = c.shadow, centre = c.favorite_star }
+        end)
+        return g
+    end
+    local function textW(text, size, face)
+        local tw = CoverProgress.buildGlyphWidget(text, size, colors.favorite_star, face)
+        local w = tw:getSize().w
+        if tw.free then tw:free() end
+        return w
+    end
+    local stars = CoverProgress.ratingStars(rating)
+    local row_w = textW(stars, glyph_h, "symbols")
+    local room  = (series_left and (series_left - Space.px(2)) or (card_w - _glyphLeftInset()))
+                  - _glyphLeftInset()
+    if row_w + 2 * halo_w + shadow_d <= room then
+        local g = outlined(stars, glyph_h, "symbols", row_w)
+        return g, row_w + 2 * halo_w + shadow_d
+    end
+    local label   = CoverProgress.ratingLabel(rating)
+    local num_sz  = math.max(8, math.floor(glyph_h * 0.8 + 0.5))
+    local num_w   = textW(label, num_sz, "cfont")
+    local HorizontalGroup = require("ui/widget/horizontalgroup")
+    local HorizontalSpan  = require("ui/widget/horizontalspan")
+    -- The star's own measured width, not the square: the glyph draws wider
+    -- than its em, and the number crowded its tip.
+    local star_w  = textW(CoverProgress.RATING_GLYPH_FULL, glyph_h, "symbols")
+    local star    = outlined(CoverProgress.RATING_GLYPH_FULL, glyph_h, "symbols", star_w)
+    local number  = outlined(label, num_sz, "cfont", num_w)
+    local group   = HorizontalGroup:new{ align = "center", star,
+                                         HorizontalSpan:new{ width = Space.px(1) }, number }
+    return group, group:getSize().w
 end
 
 -- Status decoration for a completed series box. Reuse the cover's

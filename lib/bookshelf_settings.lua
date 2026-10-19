@@ -1250,12 +1250,13 @@ function Settings:_coverDisplaySubItems()
         -- explicitly turn it off keep it off.
         toggleRow("show_fav_badge",
                   _("Show favorites icon"), false, false),
-        -- Favourite icon glyph: heart (default; reads distinctly from the
-        -- rating stars) or star. The chosen icon also selects which colour
-        -- the Colors -> Favourite entry edits.
+        -- The cover's corner badge: a favourite's heart (default; reads
+        -- distinctly from the rating stars) or star, or the book's star
+        -- rating on every rated book (issue 538). The choice also selects
+        -- which colour the Colors -> Favourite entry edits.
         (function()
             local function readIcon()
-                return require("lib/bookshelf_cover_progress").favoriteIcon()
+                return require("lib/bookshelf_cover_progress").badgeMode()
             end
             local function setIcon(icon, touchmenu_instance)
                 BookshelfSettings.save("fav_icon", icon)
@@ -1264,7 +1265,8 @@ function Settings:_coverDisplaySubItems()
                     touchmenu_instance:updateItems()
                 end
             end
-            local labels = { heart = _("Heart"), star = _("Star") }
+            local labels = { heart = _("Heart (favorite)"), star = _("Star (favorite)"),
+                             rating = _("Stars (rating)") }
             local function optionRow(icon, label)
                 return {
                     text           = label,
@@ -1278,12 +1280,13 @@ function Settings:_coverDisplaySubItems()
             end
             return {
                 text_func = function()
-                    return _("Favorite icon") .. ": " .. labels[readIcon()]
+                    return T(_("Favorite icon or star rating: %1"), labels[readIcon()])
                 end,
                 sub_item_table_func = function()
                     return {
-                        optionRow("heart", labels.heart),
-                        optionRow("star",  labels.star),
+                        optionRow("heart",  labels.heart),
+                        optionRow("star",   labels.star),
+                        optionRow("rating", labels.rating),
                     }
                 end,
                 separator = true,  -- end the decorations band
@@ -2745,17 +2748,18 @@ function Settings:_colorsSubItems()
             end,
         },
         {
-            -- Edits the colour for whichever favourite icon is active, so
-            -- switching Heart/Star in Cover display points this entry (label,
-            -- value, picker, reset) at that icon's own colour key.
+            -- Edits the colour for whichever corner badge is active, so
+            -- switching Heart/Star/Stars in Cover display points this entry
+            -- (label, value, picker, reset) at that badge's own colour key;
+            -- the rating stars share the favourite star's.
             text_func = function()
-                local is_heart = require("lib/bookshelf_cover_progress").favoriteIcon() == "heart"
+                local is_heart = require("lib/bookshelf_cover_progress").badgeMode() == "heart"
                 local label   = is_heart and _("Favorite heart color") or _("Favorite star color")
                 return label .. ": " .. valueLabel(is_heart and "favorite_heart" or "favorite_star")
             end,
             keep_menu_open = true,
             callback = function(touchmenu_instance)
-                local is_heart = require("lib/bookshelf_cover_progress").favoriteIcon() == "heart"
+                local is_heart = require("lib/bookshelf_cover_progress").badgeMode() == "heart"
                 if is_heart then
                     pickColor("favorite_heart_color", "favorite_heart", 15,
                         { _("Favorite heart color"), _("Favorite heart color (% black)") }, touchmenu_instance)
@@ -2765,7 +2769,7 @@ function Settings:_colorsSubItems()
                 end
             end,
             hold_callback = function(touchmenu_instance)
-                local is_heart = require("lib/bookshelf_cover_progress").favoriteIcon() == "heart"
+                local is_heart = require("lib/bookshelf_cover_progress").badgeMode() == "heart"
                 deleteModeKey(is_heart and "favorite_heart_color" or "favorite_star_color")
                 markDirty()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
@@ -3633,6 +3637,25 @@ function Settings:_hardcoverSubItems()
                     touchmenu_instance:updateItems()
                 end
                 markDirty("hardcover-rating-toggle")
+            end,
+        },
+        {
+            -- One stand-in for every place a rating is used (issue 538): the
+            -- cover's star rating, the Rating sort and the Ratings shelf.
+            -- Never the book menu's own stars, which stay the reader's.
+            text = _("Use Hardcover rating if no user rating"),
+            help_text = _("Books you have not rated yourself use their Hardcover rating instead: in star ratings on covers, the Rating sort and the Ratings shelf. Only for books linked to Hardcover, from ratings already fetched."),
+            checked_func = function()
+                return BookshelfSettings.isTrue("hardcover_rating_fallback")
+            end,
+            keep_menu_open = true,
+            callback = function()
+                BookshelfSettings.save("hardcover_rating_fallback",
+                    not BookshelfSettings.isTrue("hardcover_rating_fallback"))
+                -- Sorts and the Ratings shelf cache what they read.
+                local Repo = require("lib/bookshelf_book_repository")
+                if Repo.invalidateWalkCache then Repo.invalidateWalkCache() end
+                markDirty("hardcover-rating-fallback")
             end,
         },
         {

@@ -482,6 +482,7 @@ package.loaded["lib/bookshelf_cover_progress"] = {
     setEditSlot  = function() end,
     rawColors    = function() return {} end,     -- nothing preset
     favoriteIcon = function() return "heart" end, -- one row's label depends on it
+    badgeMode    = function() return "heart" end, -- and the Favorite color row
 }
 
 -- A bw with a live chip bar: records recolour() calls and reports a screen rect

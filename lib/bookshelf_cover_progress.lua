@@ -52,8 +52,59 @@ M.FAV_GLYPH_HEART = "\u{f004}"  -- nf-fa-heart
 M.GLYPH_DOWNLOADED = "\u{f058}"  -- nf-fa-check_circle
 
 -- favoriteIcon(): "heart" (default) or "star", from the fav_icon setting.
+-- What marks a FAVOURITE wherever one is marked (the %fav token, a spine).
+-- With the corner badge showing ratings instead it answers heart: a spine or
+-- a token line has no room for a rating, and a lone star there would read as
+-- one.
 function M.favoriteIcon()
     return BookshelfSettings.read("fav_icon") == "star" and "star" or "heart"
+end
+
+-- badgeMode(): what the corner badge on a cover shows -- "heart" or "star"
+-- for a favourite, or "rating" for the book's star rating (issue 538).
+function M.badgeMode()
+    local v = BookshelfSettings.read("fav_icon")
+    if v == "star" or v == "rating" then return v end
+    return "heart"
+end
+
+-- Rating stars (nerdfont "symbols" face, Private Use Area like the rest).
+M.RATING_GLYPH_FULL  = "\u{f005}"  -- nf-fa-star
+M.RATING_GLYPH_HALF  = "\u{f123}"  -- nf-fa-star_half_empty
+M.RATING_GLYPH_EMPTY = "\u{f006}"  -- nf-fa-star_o
+
+-- coverRating(fp, book) -> the rating a cover's badge shows, or nil: the
+-- book's effective rating (Repo.effectiveRating), the same one the Rating
+-- sort and the Ratings shelf use. Nothing is fetched here.
+function M.coverRating(fp, book)
+    if not fp then return nil end
+    local ok, Repo = pcall(require, "lib/bookshelf_book_repository")
+    if not (ok and Repo and Repo.readProgress and Repo.effectiveRating) then return nil end
+    local own = tonumber(book and book.rating)
+    if not (own and own > 0) then
+        local ok2, _p, _s, rr = pcall(Repo.readProgress, fp)
+        own = ok2 and rr or nil
+    end
+    local ok3, r = pcall(Repo.effectiveRating, fp, own)
+    return ok3 and r or nil
+end
+
+-- ratingStars(r) -> five glyphs, full / half / empty, the way the top
+-- panel draws a Hardcover rating (a half from .5 up).
+function M.ratingStars(r)
+    local whole, out = math.floor(r), {}
+    for i = 1, 5 do
+        if i <= whole then out[i] = M.RATING_GLYPH_FULL
+        elseif i == whole + 1 and r - whole >= 0.5 then out[i] = M.RATING_GLYPH_HALF
+        else out[i] = M.RATING_GLYPH_EMPTY end
+    end
+    return table.concat(out)
+end
+
+-- ratingLabel(r) -> "4", or "3.9" for a fractional average.
+function M.ratingLabel(r)
+    if r == math.floor(r) then return tostring(math.floor(r)) end
+    return string.format("%.1f", r)
 end
 
 -- Cover-badge font scale. Single source of truth for the page-count
@@ -533,10 +584,13 @@ end
 -- centre fill. The shadow lands at offset (shadow_x, shadow_y) relative
 -- to the centre glyph; for it to peek out from behind the halo, pick
 -- shadow_x / shadow_y > halo_w (otherwise the halo covers it entirely).
+-- box_w (optional): the glyphs' own width when it is not `size` -- a run of
+-- glyphs (the rating stars) or text (the rating's number). Defaults to the
+-- square a single glyph fills.
 function M.buildHaloShadowedGlyphWidget(glyph_char, size, halo_w,
                                         shadow_x, shadow_y,
                                         halo_color, centre_color, shadow_color,
-                                        face_name)
+                                        face_name, box_w)
     halo_w       = halo_w or 1
     shadow_x     = shadow_x or 2
     shadow_y     = shadow_y or 2
@@ -547,9 +601,10 @@ function M.buildHaloShadowedGlyphWidget(glyph_char, size, halo_w,
     -- origin) and the shadow's extent (size + halo_w + max(0, shadow_x/y)
     -- from origin). Negative shadow offsets are clamped to 0 so the box
     -- doesn't shift the centre off-origin.
-    local halo_extent_x = size + 2 * halo_w
+    local w_in = box_w or size
+    local halo_extent_x = w_in + 2 * halo_w
     local halo_extent_y = size + 2 * halo_w
-    local shadow_extent_x = halo_w + math.max(0, shadow_x) + size
+    local shadow_extent_x = halo_w + math.max(0, shadow_x) + w_in
     local shadow_extent_y = halo_w + math.max(0, shadow_y) + size
     local widget_w = math.max(halo_extent_x, shadow_extent_x)
     local widget_h = math.max(halo_extent_y, shadow_extent_y)

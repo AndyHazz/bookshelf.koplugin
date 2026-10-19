@@ -1040,6 +1040,30 @@ test("Home (folders) re-sorts by Added or opened after a book is closed (#519)",
     Repo.invalidateWalkCache()
 end)
 
+test("effective rating: your own first, a Hardcover stand-in only when switched on (#538)", function()
+    local prev_hc = package.loaded["lib/bookshelf_hardcover"]
+    package.loaded["lib/bookshelf_hardcover"] = {
+        isAvailable = function() return true end,
+        getLink = function(fp) return fp == "/lib/linked.epub" and { book_id = 7 } or nil end,
+        getCachedRating = function(id) return id == 7 and 3.87 or nil end,
+    }
+    _G._test_settings = {}
+    assert(Repo.effectiveRating("/lib/linked.epub", 2) == 2, "your own rating must win")
+    assert(Repo.effectiveRating("/lib/linked.epub", nil) == nil, "the stand-in is off by default")
+    assert(Repo.effectiveRating("/lib/linked.epub", 0) == nil, "0 is no rating, not a rating")
+    _G._test_settings = { bookshelf_hardcover_rating_fallback = true }
+    assert(Repo.effectiveRating("/lib/linked.epub", nil) == 3.87, "the Hardcover average did not stand in")
+    assert(Repo.effectiveRating("/lib/linked.epub", 0) == 3.87, "0 should take the stand-in too")
+    assert(Repo.effectiveRating("/lib/other.epub", nil) == nil, "an unlinked book has no rating")
+    assert(Repo.effectiveRatingStars("/lib/linked.epub", nil) == 4, "3.87 rounds to 4 stars")
+    assert(Repo.effectiveRatingStars("/lib/linked.epub", 5) == 5)
+    package.loaded["lib/bookshelf_hardcover"].isAvailable = function() return false end
+    assert(Repo.effectiveRating("/lib/linked.epub", nil) == nil,
+        "with the Hardcover plugin gone nothing stands in")
+    package.loaded["lib/bookshelf_hardcover"] = prev_hc
+    _G._test_settings = {}
+end)
+
 test("buildBook: splits newline-separated authors and trims whitespace", function()
     -- BIM stores multiple authors newline-separated (see splitAuthors / #74).
     _G._test_bim_data = {
@@ -2709,6 +2733,36 @@ test("countByStatus: an unreadable Kindle library leaves the tally alone", funct
     local total = Repo.countByStatus()
     _teardownWalk()
     assert(total == 1, "unavailable source must contribute nothing, got " .. tostring(total))
+end)
+
+test("Ratings shelf: a linked book you have not rated files under its Hardcover stars (#538)", function()
+    local prev_hc = package.loaded["lib/bookshelf_hardcover"]
+    package.loaded["lib/bookshelf_hardcover"] = {
+        isAvailable = function() return true end,
+        getLink = function(fp) return fp == "/lib/linked.epub" and { book_id = 7 } or nil end,
+        getCachedRating = function(id) return id == 7 and 3.87 or nil end,
+    }
+    local function groupOf(fp)
+        Repo.invalidateWalkCache()
+        local groups = Repo.getRatings(20, 0)
+        for _i, g in ipairs(groups) do
+            for _j, b in ipairs(g.books_meta or g.books or {}) do
+                if b.filepath == fp then return g.series_name end
+            end
+        end
+    end
+    _setupWalk({ "linked.epub", "plain.epub" }, {}, false)
+    _G._test_settings.bookshelf_hardcover_rating_fallback = nil
+    local off = groupOf("/lib/linked.epub")
+    _G._test_settings.bookshelf_hardcover_rating_fallback = true
+    local on = groupOf("/lib/linked.epub")
+    local plain = groupOf("/lib/plain.epub")
+    _teardownWalk()
+    package.loaded["lib/bookshelf_hardcover"] = prev_hc
+    local four = ("\xE2\x98\x85"):rep(4)
+    assert(off == "Unrated", "with the stand-in off it is Unrated, got " .. tostring(off))
+    assert(on == four, "with it on it files under 4 stars, got " .. tostring(on))
+    assert(plain == "Unrated", "an unlinked book stays Unrated, got " .. tostring(plain))
 end)
 
 test("countFinishedBooks: a book finished on the Kindle counts as finished", function()

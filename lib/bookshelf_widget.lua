@@ -109,10 +109,11 @@ local SHELF_HEIGHT_FRAC = {
 -- to the hero. 1.0 = no shrink-to-cram (covers keep natural width, fill the row).
 local SHELF_PACK_FLOOR = 1.0
 -- Hero cover never wider than this fraction of content_w, so the title/details
--- column keeps the rest. Back to half (it was 0.58): a panel grown by the swipe
--- down (issue 465) had its cover fill most of it and squeeze the details into
--- a narrow column (maintainer).
-local HERO_COVER_MAX_FRAC = 0.50
+-- column keeps the rest. 5.3.0 made it half, for a panel grown by the swipe
+-- down (issue 465), but at half any tall panel (one cover row, or the swipe)
+-- left the cover short of its height with an empty band underneath (Reddit
+-- report, 2026-10-19). Every panel follows the same rule (maintainer).
+local HERO_COVER_MAX_FRAC = 0.58
 
 -- _footerReserveH() — vertical space the screen-anchored pagination footer
 -- occupies. _rebuild reserves exactly this at the bottom of the layout

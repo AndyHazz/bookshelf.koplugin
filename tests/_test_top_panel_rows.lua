@@ -95,11 +95,13 @@ t.test("the swipes are wired on the top panel only, and down stays clear of KORe
     assert(src:find('Gestures.on("top_panel_rows")', 1, true), "no switch to turn the gesture off")
 end)
 
--- The swipe makes the whole panel bigger; the cover grows with it, but never
--- past half the panel's width (maintainer), and a spine shelf with its own
--- row count loses a row too, instead of the same rows getting shorter.
-t.test("the top panel's cover is at most half the panel's width", function()
-    assert(src:find("local HERO_COVER_MAX_FRAC = 0.50", 1, true), "the cover may take more than half the panel")
+-- The swipe makes the whole panel bigger; the cover grows with it, under the
+-- same 58% width cap as any tall panel (maintainer: no gap under the cover),
+-- and a spine shelf with its own row count loses a row too, instead of the
+-- same rows getting shorter.
+t.test("the top panel's cover has one width cap, swipe or not", function()
+    assert(src:find("local HERO_COVER_MAX_FRAC = 0.58", 1, true), "the cover's cap changed")
+    assert(not src:find("HERO_COVER_MAX_FRAC_GROWN", 1, true), "a grown panel still has its own cap")
 end)
 
 t.test("a spine shelf with its own row count gives a row to the panel too", function()

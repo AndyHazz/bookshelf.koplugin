@@ -367,6 +367,27 @@ function M.navRows(boxes, page)
     return rows
 end
 
+--- Upgrade path: snap the old row-packed layout onto the grid. `legacy` is the
+--- old layout in reading order, { id, page, px_w, px_h } per module (pixel
+--- sizes from the previous packer). Each size rounds to the nearest whole
+--- cells (at least 1x1, at most the grid), then everything flows in order with
+--- its old page as the earliest it may land on, so page order survives and
+--- nothing is dropped.
+function M.snapLegacy(legacy, dims)
+    local g = dims.gap
+    local boxes = {}
+    for _i, l in ipairs(legacy) do
+        boxes[#boxes + 1] = {
+            id   = l.id,
+            page = math.max(1, l.page or 1),
+            col  = 1, row = 1,
+            w    = math.floor((l.px_w + g) / (dims.cell_w + g) + 0.5),
+            h    = math.floor((l.px_h + g) / (dims.cell_h + g) + 0.5),
+        }
+    end
+    return M.flow(boxes, dims, 1)
+end
+
 -- ── Stored positions ─────────────────────────────────────────────────────────
 -- Entries carry their position as entry[key] = { page, col, row, w, h }, with
 -- key "at" (portrait) or "at_land" (landscape).

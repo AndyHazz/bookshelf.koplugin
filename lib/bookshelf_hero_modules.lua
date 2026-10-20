@@ -878,102 +878,17 @@ function HeroModules._flexMinWidth(content_w, gap)
     return math.min(floor_w, half)
 end
 
--- Build the hero micro-module grid sized to content_w × hero_h.
-function HeroModules.build(bw, content_w, hero_h, PAD, opts)
-    opts = opts or {}
-    _build_surface = opts.surface or "hero"
-    -- Point the whole module system at the card colour BEFORE anything
-    -- renders: the modules read it at render time, and the text they draw
-    -- paints it as its own background. See Modules.setCardBg.
-    if Modules.setCardBg then Modules.setCardBg(_moduleCardBg()) end
-    -- ...and the ink that has to read on it. A card colour without a matching
-    -- ink is half a theme: the cards went dark and their text stayed black
-    -- (maintainer).
-    if Modules.setInk then
-        local ok_cp, CP = pcall(require, "lib/bookshelf_cover_progress")
-        local ink, muted
-        if ok_cp and CP and CP.ink then ink = CP.ink() end
-        if ink then
-            local ok_l, lum = pcall(function() return ink:getColor8().a end)
-            if ok_l and type(lum) == "number" then
-                -- A third of the way from the ink toward the card, which is
-                -- what the light theme's 0x55 is between black and 0xEE.
-                local card = (lum > 128) and 0x11 or 0xEE
-                local m = math.floor(lum + (card - lum) / 3 + 0.5)
-                muted = Blitbuffer.Color8(m)
-            end
-        end
-        Modules.setInk(ink, muted)
-    end
-    -- Arm the light-touch home-screen crash marker before building the grid
-    -- (issue #163). If a module hard-crashes during the hero paint, the sentinel
-    -- file survives and the next launch comes up with the cover hero instead of
-    -- re-crashing. The widget's paintTo removes it once the paint returns.
-    pcall(Breaker.armFile, Breaker.heroMarkerPath())
-    -- opts.items: an explicit module list. The full-screen overlay passes ALL
-    -- modules so they reflow across the screen, bypassing the hero's per-page
-    -- assignment + in-grid chevrons. Default = the stored model (hero paging).
-    local all_items = opts.items or HeroModel.load()
-    if #all_items == 0 then
-        return HeroModules._emptyState(bw, content_w, hero_h)
-    end
-    -- User-controlled pagination: each module carries an optional page number
-    -- (entry.page, default 1, up to MAX_PAGES) set from its long-press menu. The
-    -- grid shows the current page's modules, navigated by the in-grid chevrons /
-    -- hero swipe. Only the current page is packed and built, so off-page modules
-    -- never render or fetch. Within a page the grid still fills the hero (and so
-    -- shrinks if you crowd one page — the cue to spread modules across pages).
-    local MAX_PAGES = 4
-    local CHEV_W    = Screen:scaleBySize(24)
-    local function pageOf(it)
-        local p = tonumber(it.page) or 1
-        return math.max(1, math.min(p, MAX_PAGES))
-    end
-    local items, has_prev, has_next
-    if opts.items then
-        -- Reflow mode (full-screen overlay): all modules at once, no per-page
-        -- assignment and no in-grid chevrons. (Footer paging for overflow is a
-        -- follow-up; today they all share one screen-filling grid.)
-        items = all_items
-        has_prev, has_next = false, false
-        bw._hero_page_list = { 1 }
-        bw._hero_pages     = 1
-    else
-        -- The navigable pages are only those that actually hold a module — empty
-        -- pages (gaps in the user's assignments) are skipped entirely, so paging
-        -- never lands on a blank grid. Kept sorted ascending.
-        local used = {}
-        for _i, it in ipairs(all_items) do used[pageOf(it)] = true end
-        local pages = {}
-        for p = 1, MAX_PAGES do if used[p] then pages[#pages + 1] = p end end
-        -- Resolve the current page to a real one: keep it if it still holds
-        -- modules, else snap to the nearest used page at or below it.
-        local want = bw._hero_page or pages[1]
-        local page, idx = pages[1], 1
-        for i, p in ipairs(pages) do
-            if p == want then page, idx = p, i; break end
-            if p < want then page, idx = p, i end -- track nearest-below
-        end
-        bw._hero_page      = page
-        bw._hero_page_list = pages   -- absolute page numbers, used pages only
-        bw._hero_pages     = #pages  -- count of NAVIGABLE pages
-        items = {}
-        for _i, it in ipairs(all_items) do
-            if pageOf(it) == page then items[#items + 1] = it end
-        end
-        if #items == 0 then
-            return HeroModules._emptyState(bw, content_w, hero_h)
-        end
-        has_prev = idx > 1
-        has_next = idx < #pages
-    end
+-- The aspect-aware row packer the grid replaced, kept for one job: the
+-- one-time migration snaps each module from the size this produced (see
+-- Grid.snapLegacy). Returns { rows = { { {entry=, w=px}, ... }, ... }, cell_h }.
+-- row_avail(r, rows), when given, narrows row r (the old in-grid chevrons).
+function HeroModules._legacyPack(items, content_w, hero_h, gap, row_avail)
     -- Aspect-aware row packing. Modules opt into a square aspect (def.aspect ==
     -- "square": the clock face, action icons) so they pack as squares instead of
     -- stretching into wide rectangles. The rest are "flex" and fill the leftover
     -- width. Square modules compress to fit MORE per row down to a square (never
     -- narrower); they only expand past square to fill a row that would otherwise
     -- gap, and flex modules in a row absorb the slack so squares stay square.
-    local gap = PAD
     -- A flex card's minimum width: ~2 comfortable text columns on a portrait
     -- screen, so a third module wraps to the next row instead of squeezing three
     -- narrow, overflowing cells onto one row (#180 follow-up). Seeds the row
@@ -1109,6 +1024,116 @@ function HeroModules.build(bw, content_w, hero_h, PAD, opts)
         return widths
     end
 
+    local out = {}
+    for r, row in ipairs(rows_list) do
+        local avail  = row_avail and row_avail(r, rows) or content_w
+        local widths = rowWidths(row, avail)
+        local cells  = {}
+        for c, entry in ipairs(row) do cells[c] = { entry = entry, w = widths[c] } end
+        out[r] = cells
+    end
+    return { rows = out, cell_h = cell_h }
+end
+
+-- Build the hero micro-module grid sized to content_w × hero_h.
+function HeroModules.build(bw, content_w, hero_h, PAD, opts)
+    opts = opts or {}
+    _build_surface = opts.surface or "hero"
+    -- Point the whole module system at the card colour BEFORE anything
+    -- renders: the modules read it at render time, and the text they draw
+    -- paints it as its own background. See Modules.setCardBg.
+    if Modules.setCardBg then Modules.setCardBg(_moduleCardBg()) end
+    -- ...and the ink that has to read on it. A card colour without a matching
+    -- ink is half a theme: the cards went dark and their text stayed black
+    -- (maintainer).
+    if Modules.setInk then
+        local ok_cp, CP = pcall(require, "lib/bookshelf_cover_progress")
+        local ink, muted
+        if ok_cp and CP and CP.ink then ink = CP.ink() end
+        if ink then
+            local ok_l, lum = pcall(function() return ink:getColor8().a end)
+            if ok_l and type(lum) == "number" then
+                -- A third of the way from the ink toward the card, which is
+                -- what the light theme's 0x55 is between black and 0xEE.
+                local card = (lum > 128) and 0x11 or 0xEE
+                local m = math.floor(lum + (card - lum) / 3 + 0.5)
+                muted = Blitbuffer.Color8(m)
+            end
+        end
+        Modules.setInk(ink, muted)
+    end
+    -- Arm the light-touch home-screen crash marker before building the grid
+    -- (issue #163). If a module hard-crashes during the hero paint, the sentinel
+    -- file survives and the next launch comes up with the cover hero instead of
+    -- re-crashing. The widget's paintTo removes it once the paint returns.
+    pcall(Breaker.armFile, Breaker.heroMarkerPath())
+    -- opts.items: an explicit module list. The full-screen overlay passes ALL
+    -- modules so they reflow across the screen, bypassing the hero's per-page
+    -- assignment + in-grid chevrons. Default = the stored model (hero paging).
+    local all_items = opts.items or HeroModel.load()
+    if #all_items == 0 then
+        return HeroModules._emptyState(bw, content_w, hero_h)
+    end
+    -- User-controlled pagination: each module carries an optional page number
+    -- (entry.page, default 1, up to MAX_PAGES) set from its long-press menu. The
+    -- grid shows the current page's modules, navigated by the in-grid chevrons /
+    -- hero swipe. Only the current page is packed and built, so off-page modules
+    -- never render or fetch. Within a page the grid still fills the hero (and so
+    -- shrinks if you crowd one page — the cue to spread modules across pages).
+    local MAX_PAGES = 4
+    local CHEV_W    = Screen:scaleBySize(24)
+    local function pageOf(it)
+        local p = tonumber(it.page) or 1
+        return math.max(1, math.min(p, MAX_PAGES))
+    end
+    local items, has_prev, has_next
+    if opts.items then
+        -- Reflow mode (full-screen overlay): all modules at once, no per-page
+        -- assignment and no in-grid chevrons. (Footer paging for overflow is a
+        -- follow-up; today they all share one screen-filling grid.)
+        items = all_items
+        has_prev, has_next = false, false
+        bw._hero_page_list = { 1 }
+        bw._hero_pages     = 1
+    else
+        -- The navigable pages are only those that actually hold a module — empty
+        -- pages (gaps in the user's assignments) are skipped entirely, so paging
+        -- never lands on a blank grid. Kept sorted ascending.
+        local used = {}
+        for _i, it in ipairs(all_items) do used[pageOf(it)] = true end
+        local pages = {}
+        for p = 1, MAX_PAGES do if used[p] then pages[#pages + 1] = p end end
+        -- Resolve the current page to a real one: keep it if it still holds
+        -- modules, else snap to the nearest used page at or below it.
+        local want = bw._hero_page or pages[1]
+        local page, idx = pages[1], 1
+        for i, p in ipairs(pages) do
+            if p == want then page, idx = p, i; break end
+            if p < want then page, idx = p, i end -- track nearest-below
+        end
+        bw._hero_page      = page
+        bw._hero_page_list = pages   -- absolute page numbers, used pages only
+        bw._hero_pages     = #pages  -- count of NAVIGABLE pages
+        items = {}
+        for _i, it in ipairs(all_items) do
+            if pageOf(it) == page then items[#items + 1] = it end
+        end
+        if #items == 0 then
+            return HeroModules._emptyState(bw, content_w, hero_h)
+        end
+        has_prev = idx > 1
+        has_next = idx < #pages
+    end
+    local gap = PAD
+    local packed = HeroModules._legacyPack(items, content_w, hero_h, gap, function(r, nrows)
+        local reserved = ((has_prev and r == 1) and (CHEV_W + gap) or 0)
+                       + ((has_next and r == nrows) and (CHEV_W + gap) or 0)
+        return content_w - reserved
+    end)
+    local rows_list = packed.rows
+    local rows      = #rows_list
+    local cell_h    = packed.cell_h
+
     -- Single size mechanism: every cell starts at 100% and _renderFitted grows
     -- it to fill or shrinks it to fit, per cell (see that function).
     local scale_pct = 100
@@ -1139,7 +1164,8 @@ function HeroModules.build(bw, content_w, hero_h, PAD, opts)
         local reserved  = (lead_chev and (CHEV_W + gap) or 0)
                         + (tail_chev and (CHEV_W + gap) or 0)
         local mod_area  = content_w - reserved
-        local widths    = rowWidths(row, mod_area)
+        local widths    = {}
+        for c, cell in ipairs(row) do widths[c] = cell.w end
         local row_used  = gap * (#row - 1)
         for _i, w in ipairs(widths) do row_used = row_used + w end
         -- Centre an under-full module run (a capped all-square row) within the
@@ -1151,7 +1177,8 @@ function HeroModules.build(bw, content_w, hero_h, PAD, opts)
             hg[#hg + 1] = HorizontalSpan:new{ width = gap }
         end
         if side > 0 then hg[#hg + 1] = HorizontalSpan:new{ width = side } end
-        for c, entry in ipairs(row) do
+        for c, cell in ipairs(row) do
+            local entry = cell.entry
             if c > 1 then hg[#hg + 1] = HorizontalSpan:new{ width = gap } end
             local cell_w = widths[c]
             local focused = opts.focused_id ~= nil and entry.id == opts.focused_id

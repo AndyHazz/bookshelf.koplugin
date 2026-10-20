@@ -17,6 +17,7 @@ nextId) and a module-only sanitize live here.
 ]]
 local BookshelfSettings = require("lib/bookshelf_settings_store")
 local SMModel           = require("lib/bookshelf_start_menu_model")
+local Grid              = require("lib/bookshelf_module_grid")
 local logger            = require("logger")
 
 local M = {}
@@ -24,6 +25,9 @@ local M = {}
 local STORAGE_KEY = "hero_module_items"
 local SEEDED_KEY  = "hero_modules_seeded"
 local NEXT_ID_KEY = "hero_module_next_id"
+-- Set once this surface's layout is on the grid (by the one-time upgrade from
+-- the old row packer, or by a fresh install seeding positioned DEFAULTS).
+M.MIGRATED_KEY = "module_grid_migrated_hero"
 
 function M.nextId()
     local n = BookshelfSettings.read(NEXT_ID_KEY, 1)
@@ -43,8 +47,10 @@ end
 -- chooser (long-press > add); all shipped micro-modules are built-in.
 function M.DEFAULTS()
     return {
-        { id = "hm_clock",  type = "module", module = "analogue_clock" },
-        { id = "hm_quote",  type = "module", module = "quote_of_day"   },
+        { id = "hm_clock", type = "module", module = "analogue_clock",
+          at = { page = 1, col = 1, row = 1, w = 2, h = 2 } },
+        { id = "hm_quote", type = "module", module = "quote_of_day",
+          at = { page = 1, col = 3, row = 1, w = 3, h = 2 } },
     }
 end
 
@@ -57,7 +63,9 @@ function M.sanitize(items)
     for _i, it in ipairs(items) do
         if type(it) == "table" and type(it.id) == "string"
                 and it.type == "module" and type(it.module) == "string" then
-            out[#out + 1] = it
+            local e, cleaned = Grid.cleanPositions(it)
+            if cleaned then changed = true end
+            out[#out + 1] = e
         else
             changed = true
             logger.warn("[bookshelf] hero modules: dropping malformed entry",
@@ -78,6 +86,7 @@ function M.load()
     local defaults = M.DEFAULTS()
     BookshelfSettings.save(STORAGE_KEY, defaults)
     BookshelfSettings.save(SEEDED_KEY, true)
+    BookshelfSettings.save(M.MIGRATED_KEY, true)
     -- A new install's clock starts without the date (maintainer, v5.3). Set
     -- here rather than by changing the module's default, which would also
     -- take the date away from every reader who never touched the toggle.

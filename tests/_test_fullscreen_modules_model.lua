@@ -117,4 +117,35 @@ t.test("nextId is namespaced + monotonic", function()
     assert(a ~= b, "nextId not unique")
 end)
 
+t.test("grid: DEFAULTS carry valid positions and pass sanitize unchanged", function()
+    local Grid = dofile("lib/bookshelf_module_grid.lua")
+    local d = FSModel.DEFAULTS()
+    for _i, it in ipairs(d) do assert(Grid.validAt(it.at), it.id .. " has no valid at") end
+    local s, changed = FSModel.sanitize(d)
+    assert(#s == #d and not changed, "sanitize changed the defaults")
+end)
+
+t.test("grid: a malformed position is stripped and reported", function()
+    local s, changed = FSModel.sanitize({
+        { id = "a", type = "module", module = "x", at = { page = 0, col = 1, row = 1, w = 1, h = 1 } },
+        { id = "b", type = "module", module = "y", at_land = "nope", label = "kept" },
+    })
+    assert(changed == true, "changed not reported")
+    assert(s[1].at == nil and s[2].at_land == nil, "bad position kept")
+    assert(s[2].label == "kept", "per-instance config lost")
+end)
+
+t.test("grid: a valid position survives sanitize", function()
+    local s, changed = FSModel.sanitize({
+        { id = "a", type = "module", module = "x", at = { page = 2, col = 1, row = 3, w = 2, h = 1 } },
+    })
+    assert(not changed and s[1].at.page == 2)
+end)
+
+t.test("grid: a fresh seed marks the surface migrated", function()
+    kv = {}
+    FSModel.load()
+    assert(kv.module_grid_migrated_fullscreen == true, "fresh install would run the legacy migration")
+end)
+
 t.done()

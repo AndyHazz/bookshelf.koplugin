@@ -191,6 +191,13 @@ local function placeFrom(out, b, dims, p)
     end
 end
 
+--- A new box of w x h for `id`, at the first free spot on start_page or any
+--- later page (unbounded). Doesn't add it to `boxes`.
+function M.placeNew(boxes, dims, id, w, h, start_page)
+    local b = clampSize({ id = id, w = w, h = h }, dims)
+    return placeFrom(boxes, b, dims, math.max(1, start_page or 1))
+end
+
 --- Place every box, in input order, at the first free spot starting on
 --- max(start_page, box.page). Sizes clamp to the grid; pages are unbounded.
 function M.flow(boxes, dims, start_page)
@@ -401,6 +408,19 @@ function M.validAt(at)
         if type(v) ~= "number" or v < 1 or v ~= math.floor(v) then return false end
     end
     return true
+end
+
+--- Sanitiser helper for the models: the entry with any malformed "at" /
+--- "at_land" dropped (a shallow copy when something was), plus whether it was.
+function M.cleanPositions(entry)
+    local bad = {}
+    for _i, k in ipairs({ "at", "at_land" }) do
+        if entry[k] ~= nil and not M.validAt(entry[k]) then bad[k] = true end
+    end
+    if not next(bad) then return entry, false end
+    local e = {}
+    for k, v in pairs(entry) do if not bad[k] then e[k] = v end end
+    return e, true
 end
 
 --- Boxes for the items that have a valid position under `key`, plus the items

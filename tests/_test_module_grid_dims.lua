@@ -1,0 +1,60 @@
+-- Headless tests for lib/bookshelf_module_grid.lua: grid dimensions and the
+-- pixel <-> cell geometry the renderer and the layout editor share.
+package.path = "./?.lua;./?/init.lua;" .. package.path
+
+local Grid = dofile("lib/bookshelf_module_grid.lua")
+local t = dofile("tests/_helpers.lua").runner()
+
+t.test("fullscreen portrait is 4 columns, rows for squarest cells (PW5)", function()
+    local d = Grid.dims("fullscreen", 1180, 1450, 20, {})
+    assert(d.cols == 4 and d.rows == 5, d.cols .. "x" .. d.rows)
+    assert(d.cell_w == math.floor((1180 - 3 * 20) / 4), "cell_w " .. d.cell_w)
+    assert(d.gap == 20)
+end)
+
+t.test("tall phone-shaped panel gets more rows", function()
+    local d = Grid.dims("fullscreen", 780, 1450, 16, {})
+    assert(d.cols == 4 and d.rows == 7, d.cols .. "x" .. d.rows)
+end)
+
+t.test("squarer panel gets 4 rows", function()
+    local d = Grid.dims("fullscreen", 720, 760, 16, {})
+    assert(d.cols == 4 and d.rows == 4, d.cols .. "x" .. d.rows)
+end)
+
+t.test("landscape fullscreen keeps cells near the portrait size", function()
+    local d = Grid.dims("fullscreen", 1590, 1030, 20, { landscape = true, short_side = 1236 })
+    assert(d.cols >= 5 and d.rows == 3, d.cols .. "x" .. d.rows)
+end)
+
+t.test("panel aims for 2 rows of square cells", function()
+    local d = Grid.dims("panel", 1180, 500, 20, { min_row_h = 110 })
+    assert(d.rows == 2 and d.cols == 5, d.cols .. "x" .. d.rows)
+end)
+
+t.test("short panel drops to 1 row", function()
+    local d = Grid.dims("panel", 1180, 200, 20, { min_row_h = 110 })
+    assert(d.rows == 1, "rows " .. d.rows)
+end)
+
+t.test("rect spans cells and the gaps between them", function()
+    local d = { cols = 4, rows = 5, cell_w = 100, cell_h = 90, gap = 10 }
+    local x, y, w, h = Grid.rect(d, { col = 2, row = 3, w = 2, h = 2 })
+    assert(x == 110 and y == 200 and w == 210 and h == 190,
+        table.concat({ x, y, w, h }, ","))
+end)
+
+t.test("cellAt maps points, gaps return nil", function()
+    local d = { cols = 4, rows = 5, cell_w = 100, cell_h = 90, gap = 10 }
+    local c, r = Grid.cellAt(d, 115, 205)
+    assert(c == 2 and r == 3, tostring(c) .. "," .. tostring(r))
+    assert(Grid.cellAt(d, 105, 5) == nil, "gap column should miss")
+    assert(Grid.cellAt(d, 9999, 5) == nil, "outside should miss")
+end)
+
+t.test("toolbar floats away from the selection", function()
+    assert(Grid.toolbarSide(100, 300, 1600) == "bottom")
+    assert(Grid.toolbarSide(1100, 300, 1600) == "top")
+end)
+
+t.done()

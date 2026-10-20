@@ -5168,6 +5168,8 @@ function BookshelfWidget:_microHeroOpts()
         focusable  = dpad or nil,
         focused_id = (dpad and self._focus_zone == "hero")
                      and self._hero_cell_cursor or nil,
+        -- The layout editor's working copy while it is open on the panel.
+        edit       = self._module_edit,
     }
 end
 

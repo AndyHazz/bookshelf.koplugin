@@ -230,13 +230,38 @@ function HeroModules._tap(bw, entry, refresh, tapped_region)
     if keep then ctx.menu:_reload() end
 end
 
+-- Long-press a module: edit the layout with it selected. The host is the
+-- full-screen view when it's open, else the top panel. pcall: in the reader
+-- overlay bw is a minimal context shim, so an edit path that reaches for a
+-- widget-only method must fail safe, not crash the reader.
 function HeroModules._hold(bw, entry)
     if not Gestures.on("module_hold") then return end
-    local ok, Edit = pcall(require, "lib/bookshelf_hero_modules_edit")
-    -- pcall the show too: in the reader overlay bw is a minimal context shim, so
-    -- an edit path that reaches for a widget-only method must fail safe, not
-    -- crash the reader.
-    if ok and Edit then pcall(Edit.show, bw, entry) end
+    pcall(function()
+        local Editor = require("lib/bookshelf_module_grid_editor")
+        local host = bw._micro_fullscreen or HeroModules.heroEditHost(bw)
+        Editor.open{ bw = bw, host = host, select_id = entry and entry.id }
+    end)
+end
+
+-- The top panel as a layout-editor host (see bookshelf_module_grid_editor):
+-- the editor's working copy is handed to the panel's build through
+-- bw._module_edit and the panel is swapped in place.
+function HeroModules.heroEditHost(bw)
+    local host = {}
+    function host.model() return HeroModel end
+    function host.render(_self, edit)
+        bw._module_edit = edit
+        if not (bw._swapMicroHeroInPlace and bw:_swapMicroHeroInPlace()) then
+            if bw._rebuild then bw:_rebuild() end
+            UIManager:setDirty(bw, "ui")
+        end
+    end
+    function host.footerRect()
+        if not bw.footerPanelRect then return nil end
+        local ok, x, y, w, h = pcall(function() return bw:footerPanelRect() end)
+        if ok and x then return Geom:new{ x = x, y = y, w = w, h = h } end
+    end
+    return host
 end
 
 -- Render a module to fit the cell: parent-enforced auto-fit. A module is asked

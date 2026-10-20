@@ -133,4 +133,22 @@ t.test("spill past four pages still renders", function()
     assert(#Grid.pages(boxes) == 8, "pages " .. #Grid.pages(boxes))
 end)
 
+t.test("a first landscape seed before any portrait layout migrates from the old one", function()
+    local items = {
+        { id = "a", type = "module", module = "x", size = 2 },
+        { id = "b", type = "module", module = "y" },
+    }
+    local function legacy()
+        return {
+            { id = "a", page = 1, row = 1, px_w = 600, px_h = 300 },
+            { id = "b", page = 1, row = 1, px_w = 300, px_h = 300 },
+        }
+    end
+    Layout.resolveFor(items, DL, { landscape = true, migrated = false,
+        legacy = legacy, size_for = size_for })
+    assert(items[1].at_land.w == 4 and items[2].at_land.w == 2,
+        "widths " .. items[1].at_land.w .. "," .. items[2].at_land.w)
+    assert(items[1].at_land.h == 3, "a single old row fills the height")
+end)
+
 t.done()

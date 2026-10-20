@@ -41,8 +41,15 @@ function M.resolveFor(items, dims, opts)
 
     if #items > 0 and #boxes == 0 and opts.landscape then
         -- Landscape seed: the portrait layout in reading order (then anything
-        -- portrait hasn't placed either), flowed onto the landscape grid.
+        -- portrait hasn't placed either), flowed onto the landscape grid. A
+        -- device that has only shown landscape since the upgrade has no
+        -- portrait layout yet: seed from the old packer's layout instead.
         local pboxes, punplaced = Grid.boxesFrom(items, "at")
+        if #pboxes == 0 and not opts.migrated and opts.legacy then
+            boxes = Grid.snapLegacy(opts.legacy(), dims)
+            Grid.writeBack(items, boxes, key)
+            return Grid.resolve(boxes, dims), true
+        end
         local seq = Grid.readingOrder(pboxes)
         for _i, it in ipairs(punplaced) do
             local w, h = size_for(it)

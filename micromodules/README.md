@@ -21,6 +21,8 @@ return {
     show_settings = function(ctx) ... end, -- optional settings dialog
     -- Hero-grid hints (all optional) -- see "Hero-grid hints" below:
     aspect       = "square",          -- pack as a square (clocks, icon cards)
+    min_w        = 2,                 -- smallest size in grid cells (width)
+    min_h        = 1,                 -- smallest size in grid cells (height)
     network      = { "api.example.com" }, -- data-source domains; flags network-required
     hero_only    = true,              -- hide from the start-menu picker
     tap_feedback = true,              -- instant pressed border on tap (launchers)
@@ -245,11 +247,15 @@ blocking one will freeze the UI.
 These tune how a module behaves in the home-screen hero grid. All are optional;
 omit them and you get the sensible default (a flex/text card offered everywhere).
 
-- `aspect = "square"` — pack this card as a square (the grid fits more per row
-  and centres your content) instead of letting it stretch across the row. Use it
-  for clocks and icon/launcher cards; leave it off for text cards, which should
-  fill the row width. The 6th `render` arg `shape` reports the resulting cell
-  aspect (see **Aspect** above).
+- `aspect = "square"` — the card starts as a single square cell when it is
+  added (clocks, icon/launcher cards); other cards start two cells wide. Users
+  resize either freely afterwards. `ctx.shape` reports the cell's actual aspect
+  (see **Aspect** above).
+- `min_w` / `min_h` — the smallest size, in grid cells, the layout editor lets
+  your card be sized to (whole numbers, 1 or more). Use them when the card has
+  nothing useful to show below that size. The grid clamps them to its own size,
+  so a hint bigger than a small screen's grid still loads. Leave them off and
+  the card accepts any size.
 - `network = { "host", ... }` — the data-source domains your module fetches from.
   Declaring it marks the module network-required: the Add picker shows a
   "Network required / Data provided by: …" panel for it instead of live-rendering

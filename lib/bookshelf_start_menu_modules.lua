@@ -184,6 +184,17 @@ local function loadSpec(dir, fname, origin)
             .. " (aspect must be a string when present), skipping:", fname)
         return
     end
+    -- Optional grid size hints (whole cells): the smallest the layout editor
+    -- lets the module be sized to. The grid clamps them to its own size.
+    for _i, f in ipairs({ "min_w", "min_h" }) do
+        local v = spec[f]
+        if v ~= nil and (type(v) ~= "number" or v < 1 or v ~= math.floor(v)) then
+            logger.warn("[bookshelf] micro-module spec invalid"
+                .. " (" .. f .. " must be a whole number of cells, 1 or more),"
+                .. " skipping:", fname)
+            return
+        end
+    end
     if registry[spec.key] then
         if origin == "bundled" then
             -- The user dir is scanned first, so a bundled key already present

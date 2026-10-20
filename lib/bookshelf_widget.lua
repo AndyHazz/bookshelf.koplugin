@@ -5226,7 +5226,10 @@ function BookshelfWidget:_buildMicroHero(content_w, hero_h, PAD)
     -- so adding a second page never resizes the cells above it.
     local dots_h = Screen:scaleBySize(12)
     local function dotsFor()
+        -- The panel's own grid, kept apart from the shared bw._module_grid
+        -- (which the full-screen view also writes): the layout editor reads it.
         local info = self._module_grid
+        if info and info.surface == "hero" then self._hero_grid_info = info end
         local count = (info and info.pages) and #info.pages or 1
         return HeroModules.pageDots(count, HeroModules.pageIndex(info), content_w, dots_h)
     end

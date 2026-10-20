@@ -188,4 +188,38 @@ t.test("No room names the module in the way", function()
     assert(notes[1] == "No room to move reading_goal", tostring(notes[1]))
 end)
 
+local function labels(rows)
+    local out = {}
+    for _i, row in ipairs(rows) do
+        for _j, b in ipairs(row) do out[#out + 1] = b.text end
+    end
+    return "|" .. table.concat(out, "|") .. "|"
+end
+
+t.test("keys-only actions with a selection cover the whole toolbar and footer", function()
+    local items = mockup()
+    items[#items + 1] = { id = "p2", type = "module", module = "x", at = at(2, 1, 1, 1, 1) }
+    local s = session(items, { selected_id = "clock" })
+    local l = labels(s:keyActions{ has_settings = true, on_done = function() end })
+    for _i, want in ipairs({ "Settings", "Remove", "Narrower", "Wider", "Shorter", "Taller",
+                              "Page 2", "New page", "Add", "Done" }) do
+        assert(l:find("|" .. want .. "|", 1, true), want .. " missing from " .. l)
+    end
+end)
+
+t.test("keys-only actions without a selection offer Add, pages and Done", function()
+    local items = mockup()
+    items[#items + 1] = { id = "p2", type = "module", module = "x", at = at(2, 1, 1, 1, 1) }
+    local s = session(items)
+    local done = false
+    local rows = s:keyActions{ on_done = function() done = true end }
+    local l = labels(rows)
+    assert(l:find("|Add|", 1, true) and l:find("|Page 2|", 1, true) and l:find("|Done|", 1, true), l)
+    assert(not l:find("Remove", 1, true), "Remove offered with nothing selected")
+    for _i, row in ipairs(rows) do
+        for _j, b in ipairs(row) do if b.text == "Page 2" then b.callback() end end
+    end
+    assert(s.page == 2, "page " .. s.page)
+end)
+
 t.done()

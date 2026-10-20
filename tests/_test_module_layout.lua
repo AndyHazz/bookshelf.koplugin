@@ -151,4 +151,17 @@ t.test("a first landscape seed before any portrait layout migrates from the old 
     assert(items[1].at_land.h == 3, "a single old row fills the height")
 end)
 
+t.test("the default top panel seeds into landscape on one page", function()
+    -- hero DEFAULTS: clock 2x2 at col 1, quote asks for w = 8 from col 3.
+    local items = {
+        { id = "hm_clock", type = "module", module = "analogue_clock", at = at(1, 1, 1, 2, 2) },
+        { id = "hm_quote", type = "module", module = "quote_of_day",   at = at(1, 3, 1, 8, 2) },
+    }
+    local P7 = { cols = 7, rows = 2, cell_w = 100, cell_h = 100, gap = 10 }
+    local boxes = Layout.resolveFor(items, P7, { landscape = true, migrated = true, size_for = size_for })
+    for _i, b in ipairs(boxes) do assert(b.page == 1, b.id .. " on page " .. b.page) end
+    assert(items[2].at_land.page == 1 and items[2].at_land.w == 5, "quote seeded as " ..
+        items[2].at_land.page .. ":" .. items[2].at_land.w)
+end)
+
 t.done()

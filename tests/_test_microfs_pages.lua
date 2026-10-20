@@ -98,7 +98,10 @@ local function view()
     local v = setmetatable({
         _page = 1,
         _grid_rect = { x = 50, y = 100, w = 1100, h = 1300 },
-        bw = { _module_grid = { pages = { 1, 2, 3 }, page = 1 } },
+        _grid_info = { surface = "fullscreen", pages = { 1, 2, 3 }, page = 1 },
+        -- The shared field can hold the TOP PANEL's grid (a background shelf
+        -- rebuild while this view is open); the view must not read it.
+        bw = { _module_grid = { surface = "hero", pages = { 1 }, page = 1 } },
     }, { __index = MicroFS })
     v.rebuilt, v.closed = 0, 0
     function v:rebuildGrid() self.rebuilt = self.rebuilt + 1 end
@@ -150,9 +153,23 @@ end)
 t.test("the view is an editor host", function()
     local v = view()
     assert(type(v.model) == "function" and type(v.render) == "function"
-        and type(v.footerRect) == "function")
+        and type(v.footerRect) == "function" and type(v.gridInfo) == "function")
+    assert(v:gridInfo() == v._grid_info, "gridInfo must be the view's own grid")
     v:render({ page = 2 })
     assert(v._edit and v._edit.page == 2 and v.rebuilt == 1)
+end)
+
+t.test("an editor that fails to open doesn't take the view down", function()
+    local Editor = package.loaded["lib/bookshelf_module_grid_editor"]
+    local real = Editor.open
+    Editor.open = function() error("boom") end
+    local v = view()
+    v._pencil_rect = { x = 1100, y = 1600, w = 80, h = 60 }
+    local ok = pcall(function()
+        v:handleEvent(gesture({ ges = "tap", pos = { x = 1120, y = 1620 } }))
+    end)
+    Editor.open = real
+    assert(ok, "the error escaped the view")
 end)
 
 t.done()

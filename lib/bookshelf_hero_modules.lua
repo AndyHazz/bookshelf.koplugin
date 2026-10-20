@@ -249,6 +249,7 @@ end
 function HeroModules.heroEditHost(bw)
     local host = {}
     function host.model() return HeroModel end
+    function host.gridInfo() return bw._hero_grid_info end
     function host.render(_self, edit)
         bw._module_edit = edit
         if not (bw._swapMicroHeroInPlace and bw:_swapMicroHeroInPlace()) then

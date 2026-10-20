@@ -354,8 +354,15 @@ function MicroFullscreen:_build()
     end
     -- The page the grid settled on (it snaps a stale page to a real one), and
     -- where the grid sits, for the page swipe.
+    -- Keep this view's own copy: bw._module_grid is shared with the top panel,
+    -- whose rebuilds (a file poll, a cover load) can overwrite it while this
+    -- view is open.
     local info = self.bw and self.bw._module_grid
-    if info and info.surface == "fullscreen" then self._page = info.page end
+    if info and info.surface == "fullscreen" then
+        self._grid_info = info
+        self._page = info.page
+    end
+    info = self._grid_info
     self._grid_rect = Geom:new{ x = margin, y = grid_top, w = content_w, h = grid_h }
 
     local col = VerticalGroup:new{ align = "left" }
@@ -556,7 +563,10 @@ function MicroFullscreen:handleEvent(event)
         if ev and ev.ges == "tap" and _tapInRect(ev, self._pencil_rect) then
             local ok, Editor = pcall(require, "lib/bookshelf_module_grid_editor")
             if ok and Editor then
-                Editor.open{ bw = self.bw, host = self }
+                -- pcall: in the reader the view runs on a context shim, and an
+                -- editor that fails to open must not take the reader down.
+                local ok_open, err = pcall(Editor.open, { bw = self.bw, host = self })
+                if not ok_open then logger.warn("[bookshelf] layout editor failed to open:", err) end
             end
             return true
         end
@@ -565,7 +575,7 @@ function MicroFullscreen:handleEvent(event)
             local Grid = require("lib/bookshelf_module_grid")
             local i = Grid.dotAt(self._dots.rects, self._dots.spacing,
                 ev.pos.x - self._dots.dimen.x)
-            local info = self.bw and self.bw._module_grid
+            local info = self._grid_info
             local p = i and info and info.pages and info.pages[i]
             if p and p ~= self._page then
                 self._page = p
@@ -614,7 +624,7 @@ end
 
 -- Step through the pages that hold modules; no-op at either end.
 function MicroFullscreen:_turnPage(delta)
-    local info = self.bw and self.bw._module_grid
+    local info = self._grid_info
     local pages = info and info.pages or { 1 }
     local idx = 1
     for i, p in ipairs(pages) do if p == self._page then idx = i end end
@@ -636,6 +646,9 @@ function MicroFullscreen:render(edit)
 end
 function MicroFullscreen:footerRect()
     return self._footer_rect
+end
+function MicroFullscreen:gridInfo()
+    return self._grid_info
 end
 
 -- Rebuild the overlay's grid in place after a module add/edit/remove, so it

@@ -10,6 +10,7 @@ the shelf's footer. All state and actions live in a ModuleGridSession; this
 file draws it and routes taps and keys to it.
 
 Host contract (HeroModules.heroEditHost, MicroFullscreen):
+  host:gridInfo()    the host's own last-built grid (dims, boxes, page, ...)
   host:model()       the surface's model (load / save / nextId)
   host:render(edit)  rebuild the grid from edit (nil = from the store)
   host:footerRect()  Geom of the footer band the edit footer covers
@@ -47,11 +48,17 @@ local Editor = InputContainer:extend{
 --- Open the editor over the host's current grid, with select_id selected.
 --- Returns the editor, or nil when the host has no grid to edit.
 function Editor.open(o)
-    local bw = o.bw
-    if not (bw and o.host and bw._module_grid) then return nil end
+    local bw, host = o.bw, o.host
+    -- The host's OWN grid: bw._module_grid is shared by both surfaces and the
+    -- other one's rebuild can overwrite it.
+    local info = bw and host and host.gridInfo and host:gridInfo()
+    if not info then return nil end
     if bw._module_editor then return bw._module_editor end
-    local ed = Editor:new{ bw = bw, host = o.host, select_id = o.select_id }
+    local ed = Editor:new{ bw = bw, host = host, info = info, select_id = o.select_id }
     UIManager:show(ed)
+    -- Registered only once it is up: a failed open must not leave a dead
+    -- editor that every later long-press would return.
+    bw._module_editor = ed
     return ed
 end
 
@@ -61,7 +68,7 @@ function Editor:init()
     self.dimen = Geom:new{ x = 0, y = 0, w = sw, h = sh }
     self.margin = Screen:scaleBySize(12)
     local bw, host = self.bw, self.host
-    local info = bw._module_grid
+    local info = self.info
     local HeroModules = require("lib/bookshelf_hero_modules")
     local editor = self
     -- The session re-renders through this: the host redraws its grid, then
@@ -101,8 +108,6 @@ function Editor:init()
             return (def and def.min_w) or 1, (def and def.min_h) or 1
         end,
     }
-    bw._module_editor = self
-
     if Device:hasKeys() then
         self.key_events = { Done = { { Device.input.group.Back } } }
     end
@@ -209,8 +214,8 @@ function Editor:_buildFooter(rect_w)
             end)
         end
     end
-    if s.selected_id and #pages < 4 then
-        local nxt = pages[#pages] + 1
+    local nxt = s.selected_id and s:newPage()
+    if nxt then
         row[#row + 1] = button(_("New page"), function() s:moveToPage(nxt) end)
     end
     row[#row + 1] = button("+ " .. _("Add"), function() s:add() end)
@@ -244,7 +249,7 @@ end
 
 -- Screen rect of the selected module, or nil.
 function Editor:_selectionRect()
-    local info = self.bw._module_grid
+    local info = self.host:gridInfo()
     local s = self.session
     local box = s.selected_id and s:box(s.selected_id)
     if not (info and info.container and info.container.dimen and box and box.page == s.page) then
@@ -308,7 +313,7 @@ end
 function Editor:onEdTap(_arg, ges)
     local pos = ges and ges.pos
     if inRect(pos, self._bar_rect) or inRect(pos, self._footer_rect) then return true end
-    local info = self.bw._module_grid
+    local info = self.host:gridInfo()
     local d = info and info.container and info.container.dimen
     if not (pos and d and d.x) then return true end
     local col, row = Grid.nearestCell(info.dims, pos.x - d.x - info.ox, pos.y - d.y - info.oy)
@@ -348,25 +353,27 @@ function Editor:onEdDown()  return self:_nav("down") end
 function Editor:onEdLeft()  return self:_nav("left") end
 function Editor:onEdRight() return self:_nav("right") end
 
--- Keys-only: Press opens the toolbar's actions as a dialog, which brings its
--- own focus handling.
+-- Keys-only: Press opens everything the toolbar and edit footer offer as a
+-- dialog (which brings its own focus handling). It closes after each action
+-- so the result isn't hidden under it; Press again for the next one.
 function Editor:onEdPress()
     local s = self.session
-    if not s.selected_id then return self:_nav("down") end
-    local dialog
-    local function act(fn) return fn end
-    local rows = {
-        { { text = "\xE2\x86\x90", callback = act(function() s:moveBy(-1, 0) end) },
-          { text = "\xE2\x86\x92", callback = act(function() s:moveBy(1, 0) end) },
-          { text = "\xE2\x86\x91", callback = act(function() s:moveBy(0, -1) end) },
-          { text = "\xE2\x86\x93", callback = act(function() s:moveBy(0, 1) end) } },
-        { { text = _("Narrower"), callback = act(function() s:resize("w", -1) end) },
-          { text = _("Wider"),    callback = act(function() s:resize("w", 1) end) },
-          { text = _("Shorter"),  callback = act(function() s:resize("h", -1) end) },
-          { text = _("Taller"),   callback = act(function() s:resize("h", 1) end) } },
-        { { text = _("Remove"), callback = function() UIManager:close(dialog); s:remove() end },
-          { text = _("Close"),  callback = function() UIManager:close(dialog) end } },
+    local entry = s.selected_id and s:item(s.selected_id)
+    local def = entry and Modules.get(entry.module)
+    local rows = s:keyActions{
+        has_settings = def and type(def.show_settings) == "function",
+        on_done = function() self:onDone() end,
     }
+    local dialog
+    for _i, row in ipairs(rows) do
+        for _j, b in ipairs(row) do
+            local fn = b.callback
+            b.callback = function()
+                UIManager:close(dialog)
+                fn()
+            end
+        end
+    end
     dialog = ButtonDialog:new{ buttons = rows }
     UIManager:show(dialog)
     return true
@@ -384,8 +391,16 @@ function Editor:onDone()
     return true
 end
 
+-- Closed by anything other than Done (another widget closing the stack, the
+-- shelf going away): still keep the edits and take the host out of edit mode,
+-- or it would go on drawing the working copy with edit decorations.
 function Editor:onCloseWidget()
     if self.bw and self.bw._module_editor == self then self.bw._module_editor = nil end
+    if self._closed then return end
+    self._closed = true
+    pcall(function() self.session:commit() end)
+    pcall(BookshelfSettings.flush)
+    pcall(function() self.host:render(nil) end)
 end
 
 return Editor

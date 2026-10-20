@@ -50,7 +50,9 @@ function M.resolveFor(items, dims, opts)
             Grid.writeBack(items, boxes, key)
             return Grid.resolve(boxes, dims), true
         end
-        local seq = Grid.readingOrder(pboxes)
+        -- Shrink portrait boxes to this grid's edges first (as drawing them
+        -- would), so a module sized to "the rest of the row" stays on its row.
+        local seq = Grid.readingOrder((Grid.resolve(pboxes, dims)))
         for _i, it in ipairs(punplaced) do
             local w, h = size_for(it)
             seq[#seq + 1] = { id = it.id, page = 1, col = 1, row = 1, w = w, h = h }

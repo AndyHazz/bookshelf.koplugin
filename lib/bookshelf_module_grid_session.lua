@@ -145,8 +145,11 @@ function Session:moveToPage(p)
     local id = self.selected_id
     if not id then return false end
     local pages = Grid.pages(self.boxes)
-    local last = pages[#pages] or 1
-    if p < 1 or p > MAX_PAGES or p > last + 1 then return self:_refuse() end
+    local exists = false
+    for _i, q in ipairs(pages) do if q == p then exists = true end end
+    if p < 1 or (not exists and (p > MAX_PAGES or p ~= self:newPage())) then
+        return self:_refuse()
+    end
     local boxes = Grid.toPage(self.boxes, id, p, self.dims)
     if not boxes then return self:_refuse() end
     self.boxes = boxes
@@ -199,12 +202,70 @@ function Session:add()
         for p = self.page, MAX_PAGES do
             if tryPage(p) then return end
         end
-        for p = 1, self.page - 1 do
+        for p = 1, math.min(self.page - 1, MAX_PAGES) do
             if tryPage(p) then return end
         end
         self:_refuse()
     end)
     return true
+end
+
+--- The first page (up to the cap) holding no module, for "New page"; nil
+--- when every page up to the cap is in use.
+function Session:newPage()
+    local used = {}
+    for _i, b in ipairs(self.boxes) do used[b.page] = true end
+    for p = 1, MAX_PAGES do
+        if not used[p] then return p end
+    end
+end
+
+local function label(fmt, n)
+    return (fmt:gsub("%%1", tostring(n)))
+end
+
+--- Everything the toolbar and edit footer offer, as rows of
+--- { text, callback } for a keys-only device (shown as a dialog).
+--- opts.has_settings: the selected module has settings; opts.on_done: Done.
+function Session:keyActions(opts)
+    opts = opts or {}
+    local rows = {}
+    local function row(list) if #list > 0 then rows[#rows + 1] = list end end
+    local function b(text, fn) return { text = text, callback = fn } end
+    if self.selected_id then
+        row{
+            b("\xE2\x86\x90", function() self:moveBy(-1, 0) end),
+            b("\xE2\x86\x92", function() self:moveBy(1, 0) end),
+            b("\xE2\x86\x91", function() self:moveBy(0, -1) end),
+            b("\xE2\x86\x93", function() self:moveBy(0, 1) end),
+        }
+        row{
+            b(_("Narrower"), function() self:resize("w", -1) end),
+            b(_("Wider"),    function() self:resize("w", 1) end),
+            b(_("Shorter"),  function() self:resize("h", -1) end),
+            b(_("Taller"),   function() self:resize("h", 1) end),
+        }
+        local r = {}
+        if opts.has_settings then r[#r + 1] = b(_("Settings"), function() self:settings() end) end
+        r[#r + 1] = b(_("Remove"), function() self:remove() end)
+        row(r)
+    end
+    local pages = {}
+    for _i, p in ipairs(self:pageList()) do
+        if p ~= self.page then
+            pages[#pages + 1] = b(label(_("Page %1"), p), function()
+                if self.selected_id then self:moveToPage(p) else self:goPage(p) end
+            end)
+        end
+    end
+    local np = self.selected_id and self:newPage()
+    if np then pages[#pages + 1] = b(_("New page"), function() self:moveToPage(np) end) end
+    row(pages)
+    row{
+        b(_("Add"), function() self:add() end),
+        b(_("Done"), function() if opts.on_done then opts.on_done() end end),
+    }
+    return rows
 end
 
 --- Save the working copy: positions written back onto the items, one save.

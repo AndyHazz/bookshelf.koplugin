@@ -243,4 +243,9 @@ t.test("resolve shrinks a box hanging off the edge instead of moving it", functi
     assert(at(out[1], 1, 3, 1, 2, 2), show(out[1]))
 end)
 
+t.test("a refusal names the module that's in the way", function()
+    local out, why, blocker = Grid.resize(L(), "clock", "w", 1, D)
+    assert(out == nil and why == "no_room" and blocker == "goal", tostring(blocker))
+end)
+
 t.done()

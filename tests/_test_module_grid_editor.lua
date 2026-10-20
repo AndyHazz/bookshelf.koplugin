@@ -53,6 +53,7 @@ local function session(items, opts)
         open_settings = opts.open_settings or function() host.log[#host.log + 1] = "settings" end,
         size_for = function() return 1, 1 end,
         min_for = opts.min_for,
+        title_for = function(entry) return entry.module end,
     }
     return s, host, notes
 end
@@ -179,6 +180,12 @@ t.test("tapping an empty cell near the edge moves a big module so it still fits"
     assert(s:moveToCell(1, 5), "should move, not refuse")
     local b = boxOf(s, "clock")
     assert(b.row == 4 and b.col == 1, "clock at c" .. b.col .. " r" .. b.row)
+end)
+
+t.test("No room names the module in the way", function()
+    local s, _host, notes = session(mockup(), { selected_id = "clock" })
+    s:resize("w", 1)
+    assert(notes[1] == "No room to move reading_goal", tostring(notes[1]))
 end)
 
 t.done()

@@ -105,6 +105,23 @@ function M.cellAt(dims, dx, dy)
     return col, row
 end
 
+--- Like cellAt, but a point in a gap between cells snaps to the nearer cell
+--- (a finger aimed at a module often lands in the gap beside it). nil only
+--- outside the grid.
+function M.nearestCell(dims, dx, dy)
+    local g = dims.gap
+    local gw = dims.cols * dims.cell_w + (dims.cols - 1) * g
+    local gh = dims.rows * dims.cell_h + (dims.rows - 1) * g
+    if dx < 0 or dy < 0 or dx >= gw or dy >= gh then return nil end
+    local function axis(v, cell, n)
+        local pitch = cell + g
+        local i = math.floor(v / pitch) + 1
+        if v - (i - 1) * pitch > cell + g / 2 then i = i + 1 end
+        return math.min(i, n)
+    end
+    return axis(dx, dims.cell_w, dims.cols), axis(dy, dims.cell_h, dims.rows)
+end
+
 --- Where the editor's floating toolbar goes: the half of the screen the
 --- selected module's centre is NOT in.
 function M.toolbarSide(sel_y, sel_h, screen_h)
@@ -285,7 +302,8 @@ local function rehome(out, b, vacated, dims)
 end
 
 -- The collision rule shared by every edit: put `id` at `target`, re-home only
--- what it now overlaps, refuse when anything can't be re-homed.
+-- what it now overlaps, refuse when anything can't be re-homed (naming the
+-- first module that couldn't be: nil, "no_room", blocker_id).
 local function apply(boxes, id, target, dims)
     local old = find(boxes, id)
     if not old then return nil, "no_room" end
@@ -304,7 +322,7 @@ local function apply(boxes, id, target, dims)
     end
     for _i, b in ipairs(displaced) do
         local placed = rehome(out, b, old, dims)
-        if not placed then return nil, "no_room" end
+        if not placed then return nil, "no_room", b.id end
         out[#out + 1] = placed
     end
     return out

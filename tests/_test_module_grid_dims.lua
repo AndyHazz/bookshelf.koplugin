@@ -72,4 +72,13 @@ t.test("dotAt finds the nearest dot's page index within its slot", function()
     assert(Grid.dotAt(r, 30, 10) == nil, "far left should miss")
 end)
 
+t.test("nearestCell snaps a tap in a gap to the closest cell", function()
+    local d = { cols = 4, rows = 5, cell_w = 100, cell_h = 90, gap = 10 }
+    local c, r = Grid.nearestCell(d, 108, 5)       -- in the gap, nearer column 2
+    assert(c == 2 and r == 1, c .. "," .. r)
+    c, r = Grid.nearestCell(d, 101, 95)            -- gap corner, nearer column 1 row 1
+    assert(c == 1 and r == 1, c .. "," .. r)
+    assert(Grid.nearestCell(d, 9999, 5) == nil, "far outside should miss")
+end)
+
 t.done()

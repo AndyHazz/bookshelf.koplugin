@@ -20,6 +20,7 @@ Session.new{
   open_settings(entry),    -- the module's own settings
   size_for(entry) -> w, h  -- size for a newly added module
   min_for(entry) -> w, h   -- the module's minimum size (default 1, 1)
+  title_for(entry)         -- the module's name, for messages
 }
 ]]
 local Grid = require("lib/bookshelf_module_grid")
@@ -51,6 +52,7 @@ function Session.new(o)
     s.open_settings = o.open_settings
     s.size_for      = o.size_for or function() return 1, 1 end
     s.min_for       = o.min_for or function() return 1, 1 end
+    s.title_for     = o.title_for or function(entry) return entry.module end
     return s
 end
 
@@ -63,14 +65,21 @@ function Session:_render()
     if self.host and self.host.render then self.host:render(self:edit()) end
 end
 
-function Session:_refuse()
-    self.notify(_("No room"))
+-- "No room", or "No room to move <module>" when we know what's in the way.
+function Session:_refuse(blocker_id)
+    local entry = blocker_id and self:item(blocker_id)
+    if entry then
+        local title = tostring(self.title_for(entry))
+        self.notify((_("No room to move %1"):gsub("%%1", function() return title end)))
+    else
+        self.notify(_("No room"))
+    end
     return false
 end
 
 -- Take a Grid result: adopt it and re-render, or refuse.
-function Session:_adopt(boxes)
-    if not boxes then return self:_refuse() end
+function Session:_adopt(boxes, _why, blocker_id)
+    if not boxes then return self:_refuse(blocker_id) end
     self.boxes = boxes
     self:_render()
     return true

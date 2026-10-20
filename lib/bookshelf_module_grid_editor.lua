@@ -92,6 +92,10 @@ function Editor:init()
             end
         end,
         size_for = function(entry) return HeroModules._sizeFor(entry, info.dims) end,
+        title_for = function(entry)
+            local def = Modules.get(entry.module)
+            return (def and def.title) or entry.module
+        end,
         min_for = function(entry)
             local def = entry and Modules.get(entry.module)
             return (def and def.min_w) or 1, (def and def.min_h) or 1
@@ -298,7 +302,7 @@ function Editor:onEdTap(_arg, ges)
     local info = self.bw._module_grid
     local d = info and info.container and info.container.dimen
     if not (pos and d and d.x) then return true end
-    local col, row = Grid.cellAt(info.dims, pos.x - d.x - info.ox, pos.y - d.y - info.oy)
+    local col, row = Grid.nearestCell(info.dims, pos.x - d.x - info.ox, pos.y - d.y - info.oy)
     if not col then return true end
     local b = self:_boxAt(col, row)
     if b then

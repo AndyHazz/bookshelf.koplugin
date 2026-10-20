@@ -113,8 +113,13 @@ function Session:moveBy(dc, dr)
     return self:_adopt(Grid.move(self.boxes, self.selected_id, dc, dr, self.dims))
 end
 
+--- Move the selection to a tapped cell: its top-left goes there, pulled back
+--- just enough to keep the whole module on the grid (it still covers the cell).
 function Session:moveToCell(col, row)
-    if not self.selected_id then return false end
+    local b = self.selected_id and self:box(self.selected_id)
+    if not b then return false end
+    col = math.max(1, math.min(col, self.dims.cols - b.w + 1))
+    row = math.max(1, math.min(row, self.dims.rows - b.h + 1))
     return self:_adopt(Grid.moveTo(self.boxes, self.selected_id, col, row, self.dims))
 end
 

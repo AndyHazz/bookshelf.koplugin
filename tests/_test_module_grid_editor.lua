@@ -170,4 +170,15 @@ t.test("pageList includes the current page even when empty", function()
     assert(#p == 2 and p[2] == 2, table.concat(p, ","))
 end)
 
+t.test("tapping an empty cell near the edge moves a big module so it still fits", function()
+    -- clock is 2x2; tapping the bottom row puts its bottom edge there.
+    local items = mockup()
+    table.remove(items, 5)                   -- no quote
+    items[4].at = at(1, 1, 3, 4, 1)          -- rings one row tall
+    local s = session(items, { selected_id = "clock" })
+    assert(s:moveToCell(1, 5), "should move, not refuse")
+    local b = boxOf(s, "clock")
+    assert(b.row == 4 and b.col == 1, "clock at c" .. b.col .. " r" .. b.row)
+end)
+
 t.done()

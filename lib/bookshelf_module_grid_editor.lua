@@ -193,17 +193,17 @@ function Editor:_buildFooter(rect_w)
     local s = self.session
     local row = { button("\xE2\x9C\x93 " .. _("Done"), function() self:onDone() end) }
     local pages = s:pageList()
-    if #pages > 1 or s.selected_id then
+    if #pages > 1 then
         for _i, p in ipairs(pages) do
             local label = (p == s.page) and "\xE2\x97\x8F" or "\xE2\x97\x8B"
             row[#row + 1] = button(label, function()
                 if s.selected_id then s:moveToPage(p) else s:goPage(p) end
             end)
         end
-        if s.selected_id and #pages < 4 then
-            local nxt = pages[#pages] + 1
-            row[#row + 1] = button(_("New page"), function() s:moveToPage(nxt) end)
-        end
+    end
+    if s.selected_id and #pages < 4 then
+        local nxt = pages[#pages] + 1
+        row[#row + 1] = button(_("New page"), function() s:moveToPage(nxt) end)
     end
     row[#row + 1] = button("+ " .. _("Add"), function() s:add() end)
     return FrameContainer:new{

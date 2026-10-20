@@ -45,12 +45,16 @@ end
 -- clock, and gives a new install something to read on first launch
 -- (maintainer, aiming at the first impression). Users add more from the
 -- chooser (long-press > add); all shipped micro-modules are built-in.
+--
+-- Positions: the clock as a 2x2 square at the left, the quote taking the rest
+-- of the panel. The panel's column count depends on its width, so the quote
+-- asks for more than any panel has and shrinks to the edge (Grid.resolve).
 function M.DEFAULTS()
     return {
         { id = "hm_clock", type = "module", module = "analogue_clock",
           at = { page = 1, col = 1, row = 1, w = 2, h = 2 } },
         { id = "hm_quote", type = "module", module = "quote_of_day",
-          at = { page = 1, col = 3, row = 1, w = 3, h = 2 } },
+          at = { page = 1, col = 3, row = 1, w = 8, h = 2 } },
     }
 end
 

@@ -1,0 +1,42 @@
+--[[
+Absolute-position container for the micro-module grid.
+
+Children are the module cells; pos[i] = { x, y } is child i's offset from the
+grid's top-left. The cell grid has gaps and multi-row cells, which nested
+row/column groups can't express, so each cell is simply painted where the grid
+says. Indexing is plain array slots, so HeroModules._swapCell can replace a
+cell in place (self[i] = new) and it keeps its slot's offset.
+
+Optional hooks (used by the layout editor):
+  under(bb, x, y)  painted before the cells (dashed outlines of empty cells)
+  over(bb, x, y)   painted after them (dimming, the selection outline)
+
+paintTo records the grid's screen position in self.dimen, which is where the
+layout editor reads it to hit-test taps.
+]]
+local WidgetContainer = require("ui/widget/container/widgetcontainer")
+
+local GridContainer = WidgetContainer:extend{
+    pos = nil,
+}
+
+function GridContainer:getSize()
+    return self.dimen
+end
+
+-- Cells are laid out by the grid, nothing to recompute; kept so callers that
+-- reset a group after swapping a child (HeroModules._swapCell) work unchanged.
+function GridContainer:resetLayout() end
+
+function GridContainer:paintTo(bb, x, y)
+    self.dimen.x, self.dimen.y = x, y
+    if self.under then self.under(bb, x, y) end
+    local pos = self.pos or {}
+    for i, w in ipairs(self) do
+        local p = pos[i]
+        if p then w:paintTo(bb, x + p.x, y + p.y) end
+    end
+    if self.over then self.over(bb, x, y) end
+end
+
+return GridContainer

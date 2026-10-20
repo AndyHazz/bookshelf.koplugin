@@ -91,7 +91,8 @@ t.test("migration runs once and clears legacy fields", function()
         { migrated = false, legacy = legacy, size_for = size_for })
     assert(changed == true)
     assert(items[1].at.w == 4 and items[1].at.page == 1, "a not snapped")
-    assert(items[2].at.w == 2 and items[2].at.h == 2 and items[2].at.page == 2, "b not snapped")
+    -- b was alone on its old page, so it filled it, and still does.
+    assert(items[2].at.w == 4 and items[2].at.h == 5 and items[2].at.page == 2, "b not snapped")
     assert(items[1].size == nil and items[1].page == nil and items[2].page == nil,
         "legacy fields not cleared")
     assert(#boxes == 2)

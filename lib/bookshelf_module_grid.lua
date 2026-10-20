@@ -111,6 +111,27 @@ function M.toolbarSide(sel_y, sel_h, screen_h)
     return (sel_y + sel_h / 2 < screen_h / 2) and "bottom" or "top"
 end
 
+--- Page-indicator dots: `count` squares of `size` px, `spacing` px apart
+--- centre to centre, centred in a w x h band. Returns { x, y, w, h } each.
+function M.dotRects(count, w, h, size, spacing)
+    local out = {}
+    local first = w / 2 - (count - 1) * spacing / 2
+    local y = math.floor((h - size) / 2)
+    for i = 1, count do
+        local cx = first + (i - 1) * spacing
+        out[i] = { x = math.floor(cx - size / 2), y = y, w = size, h = size }
+    end
+    return out
+end
+
+--- Index of the dot whose slot (spacing wide, centred on it) holds x, or nil.
+function M.dotAt(rects, spacing, x)
+    for i, r in ipairs(rects) do
+        if math.abs(r.x + r.w / 2 - x) <= spacing / 2 then return i end
+    end
+    return nil
+end
+
 -- ── Boxes ────────────────────────────────────────────────────────────────────
 -- Every function below is pure: inputs are never mutated, results are fresh
 -- arrays of fresh box tables.
@@ -216,6 +237,10 @@ function M.resolve(boxes, dims)
     local out, pending, moved = {}, {}, {}
     for _i, b in ipairs(M.readingOrder(boxes)) do
         clampSize(b, dims)
+        -- A box that starts on the grid but hangs off its right or bottom edge
+        -- shrinks to the edge rather than moving page.
+        if b.col <= dims.cols then b.w = math.min(b.w, dims.cols - b.col + 1) end
+        if b.row <= dims.rows then b.h = math.min(b.h, dims.rows - b.row + 1) end
         if fits(b, dims) and not clashes(out, b) then
             out[#out + 1] = b
         else
@@ -375,22 +400,55 @@ function M.navRows(boxes, page)
 end
 
 --- Upgrade path: snap the old row-packed layout onto the grid. `legacy` is the
---- old layout in reading order, { id, page, px_w, px_h } per module (pixel
---- sizes from the previous packer). Each size rounds to the nearest whole
---- cells (at least 1x1, at most the grid), then everything flows in order with
---- its old page as the earliest it may land on, so page order survives and
---- nothing is dropped.
+--- old layout in reading order, { id, page, row, px_w, px_h } per module, row
+--- being the module's row on its old page. The old packer gave every row on a
+--- page the same height and filled each row's width exactly, so each old row
+--- shares the grid's columns out by width (largest remainders, at least one
+--- cell each) and gets an equal share of the grid's rows. Everything then
+--- flows in order with its old page as the earliest it may land on, so a page
+--- that fit one screen still fits one page, page order survives, and nothing
+--- is dropped (a row with more modules than columns spills on).
 function M.snapLegacy(legacy, dims)
-    local g = dims.gap
-    local boxes = {}
+    local pages, by_page = {}, {}
     for _i, l in ipairs(legacy) do
-        boxes[#boxes + 1] = {
-            id   = l.id,
-            page = math.max(1, l.page or 1),
-            col  = 1, row = 1,
-            w    = math.floor((l.px_w + g) / (dims.cell_w + g) + 0.5),
-            h    = math.floor((l.px_h + g) / (dims.cell_h + g) + 0.5),
-        }
+        local p = math.max(1, l.page or 1)
+        if not by_page[p] then by_page[p] = { rows = {}, order = {} }; pages[#pages + 1] = p end
+        local pg = by_page[p]
+        local r = l.row or 1
+        if not pg.rows[r] then pg.rows[r] = {}; pg.order[#pg.order + 1] = r end
+        local row = pg.rows[r]
+        row[#row + 1] = l
+    end
+    table.sort(pages)
+    local boxes = {}
+    for _i, p in ipairs(pages) do
+        local pg = by_page[p]
+        table.sort(pg.order)
+        local h = math.max(1, math.floor(dims.rows / #pg.order))
+        for _j, r in ipairs(pg.order) do
+            local row = pg.rows[r]
+            local total = 0
+            for _k, l in ipairs(row) do total = total + math.max(0, l.px_w or 0) end
+            local ws, rems, used = {}, {}, 0
+            for k, l in ipairs(row) do
+                local ideal = (total > 0) and (math.max(0, l.px_w or 0) / total * dims.cols)
+                    or (dims.cols / #row)
+                ws[k] = math.max(1, math.floor(ideal))
+                rems[k] = ideal - math.floor(ideal)
+                used = used + ws[k]
+            end
+            while used < dims.cols do
+                local best
+                for k = 1, #row do
+                    if not best or rems[k] > rems[best] then best = k end
+                end
+                ws[best], rems[best] = ws[best] + 1, -1
+                used = used + 1
+            end
+            for k, l in ipairs(row) do
+                boxes[#boxes + 1] = { id = l.id, page = p, col = 1, row = 1, w = ws[k], h = h }
+            end
+        end
     end
     return M.flow(boxes, dims, 1)
 end

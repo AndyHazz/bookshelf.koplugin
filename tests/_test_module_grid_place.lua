@@ -237,4 +237,10 @@ t.test("boxesFrom and writeBack round-trip", function()
     assert(items[1].at.col == 2, "untouched item changed")
 end)
 
+t.test("resolve shrinks a box hanging off the edge instead of moving it", function()
+    local out, moved = Grid.resolve({ { id = "q", page = 1, col = 3, row = 1, w = 8, h = 2 } }, D)
+    assert(#moved == 0, "moved")
+    assert(at(out[1], 1, 3, 1, 2, 2), show(out[1]))
+end)
+
 t.done()

@@ -140,10 +140,13 @@ function Editor:_buildToolbar()
     local id = s.selected_id
     local entry = id and s:item(id)
     local box = id and s:box(id)
+    -- Nothing selected: no toolbar at all (the hint lives in the footer), so
+    -- the whole grid stays tappable.
+    if not (entry and box) then return nil end
     local face = Font:getFace("cfont", 18)
     local rows
     local title
-    if entry and box then
+    do
         local def = Modules.get(entry.module)
         title = T(_("%1 · %2 × %3"), (def and def.title) or entry.module, box.w, box.h)
         local top = {}
@@ -167,8 +170,6 @@ function Editor:_buildToolbar()
                 button(_("Taller"),   function() s:resize("h", 1) end),
             },
         }
-    else
-        title = _("Tap a module to select it")
     end
     local vg = VerticalGroup:new{
         align = "center",
@@ -196,6 +197,9 @@ end
 function Editor:_buildFooter(rect_w)
     local s = self.session
     local row = { button("\xE2\x9C\x93 " .. _("Done"), function() self:onDone() end) }
+    if not s.selected_id and #s:pageList() <= 1 then
+        row[#row + 1] = button(_("Tap a module to select it"), nil, false)
+    end
     local pages = s:pageList()
     if #pages > 1 then
         for _i, p in ipairs(pages) do
@@ -228,8 +232,9 @@ end
 function Editor:_buildBands()
     local old1, old2 = self[1], self[2]
     local fr = self:_footerRect()
-    self[1] = self:_buildToolbar()
-    self[2] = self:_buildFooter(fr.w)
+    -- [1] the footer (always), [2] the toolbar (only with a selection).
+    self[1] = self:_buildFooter(fr.w)
+    self[2] = self:_buildToolbar()
     for _i, w in ipairs({ old1, old2 }) do
         if w and w.free then
             UIManager:nextTick(function() pcall(function() w:free() end) end)
@@ -259,13 +264,17 @@ function Editor:paintTo(bb, x, y)
         return
     end
     local fr = self:_footerRect()
-    local footer = self[2]
+    local footer = self[1]
     local fh = footer:getSize().h
     local fy = math.max(fr.y, fr.y + fr.h - fh)
     footer:paintTo(bb, fr.x, fy)
     self._footer_rect = Geom:new{ x = fr.x, y = fy, w = fr.w, h = fh }
 
-    local bar = self[1]
+    local bar = self[2]
+    if not bar then
+        self._bar_rect = nil
+        return
+    end
     local bh = bar:getSize().h
     local sel = self:_selectionRect()
     local side = sel and Grid.toolbarSide(sel.y, sel.h, self._built_h) or "bottom"

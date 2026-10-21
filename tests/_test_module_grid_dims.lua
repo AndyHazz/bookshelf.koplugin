@@ -5,26 +5,26 @@ package.path = "./?.lua;./?/init.lua;" .. package.path
 local Grid = dofile("lib/bookshelf_module_grid.lua")
 local t = dofile("tests/_helpers.lua").runner()
 
-t.test("fullscreen portrait is 4 columns, rows for squarest cells (PW5)", function()
+t.test("fullscreen portrait is 6 columns, rows for squarest cells (PW5)", function()
     local d = Grid.dims("fullscreen", 1180, 1450, 20, {})
-    assert(d.cols == 4 and d.rows == 5, d.cols .. "x" .. d.rows)
-    assert(d.cell_w == math.floor((1180 - 3 * 20) / 4), "cell_w " .. d.cell_w)
+    assert(d.cols == 6 and d.rows == 7, d.cols .. "x" .. d.rows)
+    assert(d.cell_w == math.floor((1180 - 5 * 20) / 6), "cell_w " .. d.cell_w)
     assert(d.gap == 20)
 end)
 
 t.test("tall phone-shaped panel gets more rows", function()
     local d = Grid.dims("fullscreen", 780, 1450, 16, {})
-    assert(d.cols == 4 and d.rows == 7, d.cols .. "x" .. d.rows)
+    assert(d.cols == 6 and d.rows == 11, d.cols .. "x" .. d.rows)
 end)
 
-t.test("squarer panel gets 4 rows", function()
+t.test("squarer panel gets 6 rows", function()
     local d = Grid.dims("fullscreen", 720, 760, 16, {})
-    assert(d.cols == 4 and d.rows == 4, d.cols .. "x" .. d.rows)
+    assert(d.cols == 6 and d.rows == 6, d.cols .. "x" .. d.rows)
 end)
 
 t.test("landscape fullscreen keeps cells near the portrait size", function()
     local d = Grid.dims("fullscreen", 1590, 1030, 20, { landscape = true, short_side = 1236 })
-    assert(d.cols >= 5 and d.rows == 3, d.cols .. "x" .. d.rows)
+    assert(d.cols == 8 and d.rows == 5, d.cols .. "x" .. d.rows)
 end)
 
 t.test("panel aims for 2 rows of square cells", function()
@@ -79,6 +79,18 @@ t.test("nearestCell snaps a tap in a gap to the closest cell", function()
     c, r = Grid.nearestCell(d, 101, 95)            -- gap corner, nearer column 1 row 1
     assert(c == 1 and r == 1, c .. "," .. r)
     assert(Grid.nearestCell(d, 9999, 5) == nil, "far outside should miss")
+end)
+
+t.test("a new module's size follows the grid", function()
+    local fs  = { cols = 6, rows = 7 }
+    local pan = { cols = 7, rows = 2 }
+    local old = { cols = 4, rows = 2 }
+    local w, h = Grid.defaultSize(fs, true);   assert(w == 2 and h == 2, "fs square " .. w .. "x" .. h)
+    w, h = Grid.defaultSize(fs, false);        assert(w == 3 and h == 2, "fs card " .. w .. "x" .. h)
+    w, h = Grid.defaultSize(pan, false);       assert(w == 3 and h == 2, "panel card " .. w .. "x" .. h)
+    w, h = Grid.defaultSize(old, true);        assert(w == 1 and h == 1, "small grid square " .. w .. "x" .. h)
+    w, h = Grid.defaultSize({ cols = 6, rows = 1 }, true)
+    assert(h == 1, "never taller than the grid")
 end)
 
 t.done()

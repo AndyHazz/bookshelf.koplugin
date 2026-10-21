@@ -1080,7 +1080,7 @@ function HeroModules.build(bw, content_w, hero_h, PAD, opts)
         return HeroModules._emptyState(bw, content_w, hero_h)
     end
 
-    -- The cell grid. Full-screen: 4 columns in portrait with rows for the
+    -- The cell grid. Full-screen: 6 columns in portrait with rows for the
     -- squarest cells, cell size kept in landscape. Top panel: its own smaller
     -- grid, two rows wherever the panel is tall enough.
     local gap = PAD
@@ -1215,17 +1215,12 @@ function HeroModules.pageIndex(info)
     return 1
 end
 
--- Size for a module placed fresh (added, or with no position yet): squares
--- (the clock face, action icons) 1x1, everything else two cells wide, both
--- raised to the module's declared min_w / min_h.
+-- Size for a module placed fresh (added, or with no position yet): in
+-- proportion to the grid (Grid.defaultSize), squares (the clock face, action
+-- icons) as squares, both raised to the module's declared min_w / min_h.
 function HeroModules._sizeFor(entry, dims)
     local def = Modules.get(entry.module)
-    local w, h
-    if def and def.aspect == "square" then
-        w, h = 1, 1
-    else
-        w, h = math.min(2, dims.cols), 1
-    end
+    local w, h = Grid.defaultSize(dims, def ~= nil and def.aspect == "square")
     if def and type(def.min_w) == "number" then w = math.max(w, def.min_w) end
     if def and type(def.min_h) == "number" then h = math.max(h, def.min_h) end
     return math.min(w, dims.cols), math.min(h, dims.rows)

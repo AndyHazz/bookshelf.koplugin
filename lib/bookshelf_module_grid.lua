@@ -17,6 +17,10 @@ lets the whole placement model be tested under a standalone interpreter.
 local M = {}
 
 local MAX_ROWS = 12
+-- Full-screen columns in portrait. Six gives halves, thirds and 2x3 cards to
+-- arrange with while a 1x1 cell stays big enough to read (about 160px on a
+-- PW5); rows then follow the screen's shape.
+local FULLSCREEN_COLS = 6
 
 -- How far a cell is from square: 0 for a perfect square, growing either way.
 local function skew(w, h)
@@ -53,7 +57,7 @@ function M.squareCols(avail_w, avail_h, rows, gap, lo, hi)
 end
 
 --- Grid dimensions for a surface.
----   kind "fullscreen": portrait is always 4 columns with rows for the
+---   kind "fullscreen": portrait is always 6 columns with rows for the
 ---     squarest cells; landscape picks both counts so cells stay close to the
 ---     portrait cell size (opts.short_side = the screen's short side).
 ---   kind "panel" (top panel): 2 rows when the height allows two of at least
@@ -67,11 +71,11 @@ function M.dims(kind, avail_w, avail_h, gap, opts)
         rows = (avail_h >= 2 * min_row_h + gap) and 2 or 1
         cols = M.squareCols(avail_w, avail_h, rows, gap, 2, 8)
     elseif opts.landscape and opts.short_side then
-        local target = (opts.short_side - 2 * gap) / 4
+        local target = (opts.short_side - 2 * gap) / FULLSCREEN_COLS
         cols = math.max(1, math.floor(avail_w / target + 0.5))
         rows = math.max(1, math.floor(avail_h / target + 0.5))
     else
-        cols = 4
+        cols = FULLSCREEN_COLS
         rows = M.squareRows(avail_w, avail_h, cols, gap)
     end
     return {
@@ -120,6 +124,16 @@ function M.nearestCell(dims, dx, dy)
         return math.min(i, n)
     end
     return axis(dx, dims.cell_w, dims.cols), axis(dy, dims.cell_h, dims.rows)
+end
+
+--- Size for a newly placed module, in proportion to the grid: on a fine grid
+--- (5+ columns) a square card starts 2x2 and any other card half the width by
+--- two rows; on a coarse one 1x1 and half the width by one row. Never larger
+--- than the grid.
+function M.defaultSize(dims, square)
+    local unit = (dims.cols >= 5) and 2 or 1
+    local w = square and unit or math.max(unit, math.floor(dims.cols / 2))
+    return math.min(w, dims.cols), math.min(unit, dims.rows)
 end
 
 --- Where the editor's floating toolbar goes: the half of the screen the

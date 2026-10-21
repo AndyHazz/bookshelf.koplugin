@@ -41,22 +41,23 @@ end
 -- with the three that only make sense given room -- reading stats, the
 -- library count, and goal progress.
 --
--- Laid out on the 4-column full-screen grid: clock and stats as 2x2 squares,
--- goal and shelf size as half-width rows under them, and the quote across the
--- full width -- it is the one module here that is mostly text. Rows 1-4 only,
--- so it fits the shortest grid a portrait panel gets.
+-- Laid out on the 6-column full-screen grid: clock and stats as 3x3 squares
+-- side by side, goal and shelf size as half-width cards under them, and the
+-- quote across the full width -- it is the one module here that is mostly
+-- text. The quote asks for two rows from row 6; on the shortest portrait grid
+-- (6 rows, squat screens) it shrinks to one (Grid.resolve).
 function M.DEFAULTS()
     return {
         { id = "fsm_clock", type = "module", module = "analogue_clock",
-          at = { page = 1, col = 1, row = 1, w = 2, h = 2 } },
+          at = { page = 1, col = 1, row = 1, w = 3, h = 3 } },
         { id = "fsm_stats", type = "module", module = "stats",
-          at = { page = 1, col = 3, row = 1, w = 2, h = 2 } },
+          at = { page = 1, col = 4, row = 1, w = 3, h = 3 } },
         { id = "fsm_quote", type = "module", module = "quote_of_day",
-          at = { page = 1, col = 1, row = 4, w = 4, h = 1 } },
+          at = { page = 1, col = 1, row = 6, w = 6, h = 2 } },
         { id = "fsm_shelf", type = "module", module = "shelf_size",
-          at = { page = 1, col = 3, row = 3, w = 2, h = 1 } },
+          at = { page = 1, col = 4, row = 4, w = 3, h = 2 } },
         { id = "fsm_goal",  type = "module", module = "reading_goal",
-          at = { page = 1, col = 1, row = 3, w = 2, h = 1 } },
+          at = { page = 1, col = 1, row = 4, w = 3, h = 2 } },
     }
 end
 

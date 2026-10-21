@@ -36,6 +36,19 @@ test("the cap is what is mapped plus a share of what is free", function()
     eq(G.addressLimit(100, nil), nil)
 end)
 
+test("the child may take half of what is free (issue 518)", function()
+    -- Three quarters let a heavy book freeze a 512 MB Kobo before the child's
+    -- allocation was refused; half lets it fail cleanly.
+    eq(G.addressLimit(100, 1000), 600)
+end)
+
+test("a book the old skip list held gets one more try", function()
+    local s = store()
+    s.save("page_count_skip", { ["/b/a.epub"] = -1 })
+    assert(not G.skipped(s, "/b/a.epub"),
+        "books skipped under the old, larger share should be retried once")
+end)
+
 test("no crash: nothing is taken and nothing is skipped", function()
     local s = store()
     eq(G.takeCrashed(s), nil)

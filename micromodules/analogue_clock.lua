@@ -42,6 +42,15 @@ end
 --- the content grows past the cell and ClipContainer cuts the date through the
 --- middle. Exposed for tests because it decides whether a visible line is
 --- dropped, and getting it wrong loses the date in cells that could hold it.
+--- Does this cell lay out face and date side by side? Only a cell that is
+--- clearly wider than tall (a 2x1 on the grid): there the date goes beside a
+--- full-height face instead of squeezing a small face above it. Callers with
+--- no height (start menu, picker) keep the stacked layout.
+local function sideBySide(width, avail_h)
+    if not (width and avail_h and avail_h > 0) then return false end
+    return width >= avail_h * 1.5
+end
+
 local function dateFits(avail_h, pad, date_h, min_diam)
     if not (avail_h and pad and date_h and min_diam) then return true end
     return (avail_h - 3 * pad - date_h) >= min_diam
@@ -256,6 +265,52 @@ return {
         -- sit tight top/bottom). Padding is uniform: top, clock-to-date, bottom.
         local size = preview and "small" or readSize()
         local show_date = readShowDate()
+
+        -- Wide cell: face on the left at full height, the date beside it on
+        -- two lines (weekday, then day and month), sized to the space left.
+        if show_date and not preview and sideBySide(mw, avail_h) then
+            local HorizontalGroup = require("ui/widget/horizontalgroup")
+            local HorizontalSpan  = require("ui/widget/horizontalspan")
+            local LocalDate       = require("lib/bookshelf_localdate")
+            local pad  = px(8)
+            local diam = math.max(px(40), math.min(avail_h - 2 * pad, math.floor(mw / 2) - pad))
+            local scale = math.max(50,
+                math.floor(diam / math.max(1, Screen:scaleBySize(84)) * 100 + 0.5))
+            local text_w = mw - diam - 3 * pad
+            local lines = { LocalDate.localize(os.date("%A", now)),
+                            LocalDate.localize(os.date("%d %B", now)) }
+            -- As big as a fifth of the face, then down until the longer line fits.
+            local size_px = math.max(date_px, math.floor(diam * 0.2))
+            local face = Fonts:getFace("cfont", size_px, { italic = true })
+            local widest = 0
+            for _i, l in ipairs(lines) do
+                local probe = TextWidget:new{ text = l, face = face }
+                widest = math.max(widest, probe:getSize().w)
+                probe:free()
+            end
+            if widest > text_w and widest > 0 then
+                size_px = math.max(8, math.floor(size_px * text_w / widest))
+                face = Fonts:getFace("cfont", size_px, { italic = true })
+            end
+            local dates = VerticalGroup:new{ align = "left" }
+            for _i, l in ipairs(lines) do
+                dates[#dates + 1] = TextWidget:new{
+                    text = l, face = face, fgcolor = SM.COLOR_PRIMARY,
+                    max_width = math.max(1, text_w),
+                }
+            end
+            local row = HorizontalGroup:new{
+                align = "center",
+                buildFace(diam, now, scale),
+                HorizontalSpan:new{ width = pad },
+                dates,
+            }
+            return CenterContainer:new{
+                dimen = Geom:new{ w = mw, h = diam + 2 * pad },
+                row,
+            }
+        end
+
         local pad, diam, face_scale
         if avail_h and avail_h > 0 and not preview then
             -- Height-aware (hero grid): fill the cell.

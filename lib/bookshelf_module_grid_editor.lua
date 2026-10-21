@@ -160,14 +160,13 @@ function Editor:_buildToolbar()
     do
         local def = Modules.get(entry.module)
         title = T(_("%1 · %2 × %3"), (def and def.title) or entry.module, box.w, box.h)
-        local top = {}
+        local bottom = {}
         if def and type(def.show_settings) == "function" then
-            top[#top + 1] = button(_("Settings"), function() s:settings() end)
+            bottom[#bottom + 1] = button(_("Settings"), function() s:settings() end)
         end
-        top[#top + 1] = button(_("Remove"), function() s:remove() end)
-        top[#top + 1] = button("\xE2\x9C\x95", function() s:select(nil) end)
+        bottom[#bottom + 1] = button(_("Remove"), function() s:remove() end)
+        bottom[#bottom + 1] = button(_("Close"), function() s:select(nil) end)
         rows = {
-            top,
             -- Size on the left, position on the right; each row one axis.
             {
                 button(_("Narrower"), function() s:resize("w", -1) end),
@@ -181,6 +180,7 @@ function Editor:_buildToolbar()
                 chevron(Session.CHEV_UP,    function() s:moveBy(0, -1) end),
                 chevron(Session.CHEV_DOWN,  function() s:moveBy(0, 1) end),
             },
+            bottom,
         }
     end
     local vg = VerticalGroup:new{

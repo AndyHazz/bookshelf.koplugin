@@ -316,14 +316,28 @@ function Editor:_boxAt(col, row)
     end
 end
 
-function Editor:onEdTap(_arg, ges)
-    local pos = ges and ges.pos
-    if inRect(pos, self._bar_rect) or inRect(pos, self._footer_rect) then return true end
+-- The grid cell under a screen point (gaps snap to the nearer cell), or nil
+-- when the point is off the grid.
+function Editor:_cellAt(p)
     local info = self.host:gridInfo()
     local d = info and info.container and info.container.dimen
-    if not (pos and d and d.x) then return true end
-    local col, row = Grid.nearestCell(info.dims, pos.x - d.x - info.ox, pos.y - d.y - info.oy)
-    if not col then return true end
+    if not (p and d and d.x) then return nil end
+    return Grid.nearestCell(info.dims, p.x - d.x - info.ox, p.y - d.y - info.oy)
+end
+
+-- Off the grid and off our own bands: KOReader's gesture zones get it (the
+-- top-edge menu, brightness and warmth swipes, corner taps), as they do in
+-- the normal full-screen view. Swallowed either way.
+local function passThrough(ges)
+    pcall(function() require("lib/bookshelf_gesture_zones").tryLiveZones(ges) end)
+    return true
+end
+
+function Editor:onEdTap(_arg, ges)
+    local p = ges and ges.pos
+    if inRect(p, self._bar_rect) or inRect(p, self._footer_rect) then return true end
+    local col, row = self:_cellAt(p)
+    if not col then return passThrough(ges) end
     local b = self:_boxAt(col, row)
     if b then
         self.session:select(b.id)
@@ -333,17 +347,60 @@ function Editor:onEdTap(_arg, ges)
     return true
 end
 
-function Editor:onEdHold() return true end
+-- Long-press: on a module, select it; on an empty cell, add a module there.
+function Editor:onEdHold(_arg, ges)
+    local p = ges and ges.pos
+    if inRect(p, self._bar_rect) or inRect(p, self._footer_rect) then return true end
+    local col, row = self:_cellAt(p)
+    if not col then return passThrough(ges) end
+    local b = self:_boxAt(col, row)
+    if b then
+        self.session:select(b.id)
+    else
+        self.session:add(col, row)
+    end
+    return true
+end
 
+local SWIPE_MOVE = { east = { 1, 0 }, west = { -1, 0 }, north = { 0, -1 }, south = { 0, 1 } }
+
+-- Swipe a module to move it a cell that way (as the chevrons do); a sideways
+-- swipe over an empty cell turns the page; one that starts off the grid is
+-- KOReader's.
 function Editor:onEdSwipe(_arg, ges)
+    local p = ges and ges.pos
     local dir = ges and ges.direction
+    if inRect(p, self._bar_rect) or inRect(p, self._footer_rect) then return true end
+    local col, row = self:_cellAt(p)
+    if not col then return passThrough(ges) end
     local s = self.session
+    local b = self:_boxAt(col, row)
+    local mv = SWIPE_MOVE[dir]
+    if b and mv then
+        local newly = s.selected_id ~= b.id
+        s.selected_id = b.id
+        -- A refused move (No room) still leaves the swiped module selected.
+        if not s:moveBy(mv[1], mv[2]) and newly then s:_render() end
+        return true
+    end
     local pages = s:pageList()
     local idx = 1
-    for i, p in ipairs(pages) do if p == s.page then idx = i end end
+    for i, pg in ipairs(pages) do if pg == s.page then idx = i end end
     if dir == "west" and pages[idx + 1] then s:goPage(pages[idx + 1])
     elseif dir == "east" and pages[idx - 1] then s:goPage(pages[idx - 1]) end
     return true
+end
+
+-- Events a gesture zone emits (brightness, warmth, night mode, the menu) arrive
+-- here, the topmost widget: hand on what we don't handle ourselves, as the
+-- full-screen view does.
+function Editor:handleEvent(event)
+    if InputContainer.handleEvent(self, event) then return true end
+    if event.handler == "onGesture" then return false end
+    local ok, r = pcall(function()
+        return require("lib/bookshelf_gesture_zones").forwardToLive(event, self)
+    end)
+    return ok and r or false
 end
 
 function Editor:_nav(dir)

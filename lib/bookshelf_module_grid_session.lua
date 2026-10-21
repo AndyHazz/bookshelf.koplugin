@@ -191,15 +191,32 @@ function Session:remove()
     return true
 end
 
---- Pick a module and place it at the first free spot on the current page,
+--- Pick a module and place it: at (col, row) when given (a long-pressed empty
+--- cell) and it fits there, else at the first free spot on the current page,
 --- then the following pages up to the cap. It becomes the selection.
-function Session:add()
+function Session:add(col, row)
     if not self.add_picker then return false end
     self.add_picker(function(entry)
         if not entry then return end
         local w, h = self.size_for(entry)
         w = math.min(w, self.dims.cols)
         h = math.min(h, self.dims.rows)
+        if col and row then
+            local c = math.max(1, math.min(col, self.dims.cols - w + 1))
+            local r = math.max(1, math.min(row, self.dims.rows - h + 1))
+            local probe = { id = entry.id, page = self.page, col = c, row = r, w = w, h = h }
+            local clash = false
+            for _i, b in ipairs(self.boxes) do
+                if Grid.overlaps(b, probe) then clash = true; break end
+            end
+            if not clash then
+                self.items[#self.items + 1] = entry
+                self.boxes[#self.boxes + 1] = probe
+                self.selected_id = entry.id
+                self:_render()
+                return
+            end
+        end
         local function tryPage(p)
             local c, r = Grid.firstFree(self.boxes, self.dims, p, w, h)
             if not c then return false end

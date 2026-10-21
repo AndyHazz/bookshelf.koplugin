@@ -87,6 +87,12 @@ package.loaded["lib/bookshelf_hero_modules"] = {
     navMove = function() return nil end,
 }
 
+local zone_calls, forwarded = 0, 0
+package.loaded["lib/bookshelf_gesture_zones"] = {
+    tryLiveZones = function() zone_calls = zone_calls + 1; return true end,
+    forwardToLive = function() forwarded = forwarded + 1; return true end,
+}
+
 local Editor = require("lib/bookshelf_module_grid_editor")
 local t = dofile("tests/_helpers.lua").runner()
 
@@ -144,6 +150,67 @@ t.test("no grid on the host means no editor", function()
     local bw = {}
     local h = host(nil)
     assert(Editor.open{ bw = bw, host = h } == nil)
+end)
+
+-- A 4x5 grid of 100px cells, 10px gaps, drawn at (0, 0): cell (c, r) spans
+-- x = (c-1)*110 .. +100, y = (r-1)*110 .. +100.
+local function openOn(boxes)
+    local i = info()
+    i.boxes = boxes
+    i.container = { dimen = { x = 0, y = 0 } }
+    local h = host(i)
+    local items = {}
+    for _k, b in ipairs(boxes) do
+        items[#items + 1] = { id = b.id, type = "module", module = "x",
+            at = { page = 1, col = b.col, row = b.row, w = b.w, h = b.h } }
+    end
+    function h:model()
+        return { load = function() return items end, save = function() end }
+    end
+    return Editor.open{ bw = {}, host = h }, h
+end
+
+local function pos(x, y) return { x = x, y = y } end
+
+t.test("swiping a module moves it one cell that way", function()
+    local ed = openOn({ { id = "a", page = 1, col = 1, row = 1, w = 1, h = 1 } })
+    ed:onEdSwipe(nil, { ges = "swipe", direction = "east", pos = pos(50, 50) })
+    local b = ed.session:box("a")
+    assert(ed.session.selected_id == "a", "the swiped module should be selected")
+    assert(b.col == 2 and b.row == 1, "a at " .. b.col .. "," .. b.row)
+    ed:onEdSwipe(nil, { ges = "swipe", direction = "south", pos = pos(160, 50) })
+    b = ed.session:box("a")
+    assert(b.col == 2 and b.row == 2, "a at " .. b.col .. "," .. b.row)
+end)
+
+t.test("a swipe that starts outside the grid goes to KOReader's gesture zones", function()
+    local ed = openOn({ { id = "a", page = 1, col = 1, row = 1, w = 1, h = 1 } })
+    zone_calls = 0
+    ed:onEdSwipe(nil, { ges = "swipe", direction = "north", pos = pos(1000, 300) })
+    assert(zone_calls == 1, "edge swipe not passed through")
+    assert(ed.session:box("a").col == 1, "an edge swipe moved a module")
+end)
+
+t.test("a tap outside the grid, toolbar and footer goes to the gesture zones", function()
+    local ed = openOn({ { id = "a", page = 1, col = 1, row = 1, w = 1, h = 1 } })
+    zone_calls = 0
+    ed:onEdTap(nil, { ges = "tap", pos = pos(1000, 5) })
+    assert(zone_calls == 1, "top-edge tap not passed through")
+end)
+
+t.test("long-pressing an empty cell adds a module there", function()
+    local ed = openOn({ { id = "a", page = 1, col = 1, row = 1, w = 1, h = 1 } })
+    local got
+    function ed.session:add(c, r) got = { c, r } end
+    ed:onEdHold(nil, { ges = "hold", pos = pos(250, 360) })
+    assert(got and got[1] == 3 and got[2] == 4, "add not called for cell 3,4")
+end)
+
+t.test("Dispatcher events from a gesture zone reach KOReader", function()
+    local ed = openOn({ { id = "a", page = 1, col = 1, row = 1, w = 1, h = 1 } })
+    forwarded = 0
+    ed:handleEvent({ handler = "onIncreaseFlIntensity", args = {} })
+    assert(forwarded == 1, "brightness action not forwarded")
 end)
 
 t.done()

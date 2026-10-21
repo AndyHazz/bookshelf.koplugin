@@ -1185,10 +1185,12 @@ end
 -- Page-indicator dots for a w x h band: the current page filled, the rest
 -- outlined; blank when there is only one page. Records its screen rect and
 -- the dot rects so a host can map a tap to a page (Grid.dotAt).
-function HeroModules.pageDots(count, current, w, h)
+-- size / spacing (px) default to the top panel's small strip; the full-screen
+-- footer passes bigger ones.
+function HeroModules.pageDots(count, current, w, h, size, spacing)
     local Widget = require("ui/widget/widget")
-    local size    = Screen:scaleBySize(6)
-    local spacing = Screen:scaleBySize(18)
+    size    = size or Screen:scaleBySize(8)
+    spacing = spacing or Screen:scaleBySize(22)
     local dots = Widget:new{ dimen = Geom:new{ w = w, h = h } }
     dots.rects   = (count > 1) and Grid.dotRects(count, w, h, size, spacing) or {}
     dots.spacing = spacing
@@ -1318,8 +1320,10 @@ function HeroModules._editDecorations(container, dims, boxes, page, edit, ox, oy
                 local x, y, w, h = Grid.rect(dims, b)
                 x, y = x0 + ox + x, y0 + oy + y
                 if b.id == edit.selected_id then
+                    -- Rounded like the card it surrounds (_makeCell's radius),
+                    -- grown by the outline's own width.
                     bb:paintBorder(x - thick, y - thick, w + 2 * thick, h + 2 * thick,
-                        thick, Blitbuffer.COLOR_BLACK)
+                        thick, Blitbuffer.COLOR_BLACK, Space.px(4) + thick)
                 elseif edit.selected_id then
                     bb:lightenRect(x, y, w, h, 0.5)
                 end

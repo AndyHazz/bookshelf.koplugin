@@ -1,19 +1,15 @@
 -- tests/_test_last_books_fit.lua
--- Recently read's "Fit" count: as many covers as the cell holds at full
+-- Recently read's (and the Shelf module's) "Fit" count: as many covers as the cell holds at full
 -- height (2:3 covers, a gap between, room for the status marks above and
 -- below), so a 1x1 shows one readable cover and a 6x1 a full row rather than
 -- three of whatever size the width allowed.
 package.path = "./?.lua;./?/init.lua;" .. package.path
 local t   = dofile("tests/_helpers.lua").runner()
-local src = io.open("micromodules/last_books.lua"):read("*a")
-local body = src:match("\nlocal function fitCount%(width, height, gap, overhang%)\n(.-)\nend\n")
-
-local function fit(w, h, gap, m)
-    assert(body, "could not find fitCount in last_books - renamed?")
-    local f = load("local width, height, gap, overhang = ...\n" .. body, "fitCount", "t",
-        { math = math })
-    return f(w, h, gap, m)
-end
+-- The count is Kit.coverFit, shared with the Shelf module.
+package.loaded["lib/bookshelf_fonts"] = { getFace = function() return {} end }
+package.loaded["lib/bookshelf_start_menu_modules"] = { COLOR_PRIMARY = 0, COLOR_MUTED = 1 }
+local Kit = dofile("lib/bookshelf_module_kit.lua")
+local function fit(w, h, gap, m) return Kit.coverFit(w, h, gap, m) end
 
 t.test("a 1x1 cell holds one cover", function()
     assert(fit(160, 175, 10, 8) == 1, tostring(fit(160, 175, 10, 8)))

@@ -1097,7 +1097,9 @@ function HeroModules.build(bw, content_w, hero_h, PAD, opts)
     -- The cell grid. Full-screen: 6 columns in portrait with rows for the
     -- squarest cells, cell size kept in landscape. Top panel: its own smaller
     -- grid, two rows wherever the panel is tall enough.
-    local gap = PAD
+    -- Half the margin between cards: the full margin read as a lot of air
+    -- between modules once cells could be small (maintainer).
+    local gap = math.max(1, math.floor(PAD / 2))
     local sw, sh = Screen:getWidth(), Screen:getHeight()
     local landscape = sw > sh
     local dims
@@ -1113,8 +1115,9 @@ function HeroModules.build(bw, content_w, hero_h, PAD, opts)
     if edit then
         boxes = edit.boxes
     else
+        -- The old packer laid out with the full PAD; migration replays it so.
         boxes = HeroModules._storedLayout(bw, Model, items, dims, landscape, surface,
-            content_w, hero_h, gap)
+            content_w, hero_h, PAD)
     end
 
     -- Pages: those holding a module (plus the editor's current page, which may

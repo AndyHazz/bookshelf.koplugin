@@ -123,6 +123,8 @@ function Editor:init()
             EdTap   = { GestureRange:new{ ges = "tap",   range = self.dimen } },
             EdHold  = { GestureRange:new{ ges = "hold",  range = self.dimen } },
             EdSwipe = { GestureRange:new{ ges = "swipe", range = self.dimen } },
+            EdPinch  = { GestureRange:new{ ges = "pinch",  range = self.dimen } },
+            EdSpread = { GestureRange:new{ ges = "spread", range = self.dimen } },
         }
     end
     -- Draw the grid in edit mode, then the bands over it.
@@ -391,6 +393,22 @@ function Editor:onEdSwipe(_arg, ges)
     elseif dir == "east" and pages[idx - 1] then s:goPage(pages[idx - 1]) end
     return true
 end
+
+-- Two fingers on a module: spread to grow it, pinch to shrink it, along the
+-- direction the fingers moved (diagonal: both ways). Like a swipe, it acts on
+-- the module under the fingers without opening the toolbar.
+local PINCH_AXES = { horizontal = { "w" }, vertical = { "h" }, diagonal = { "w", "h" } }
+
+function Editor:_pinch(ges, delta)
+    local col, row = self:_cellAt(ges and ges.pos)
+    local b = col and self:_boxAt(col, row)
+    local axes = PINCH_AXES[ges and ges.direction]
+    if not (b and axes) then return true end
+    for _i, axis in ipairs(axes) do self.session:resizeId(b.id, axis, delta) end
+    return true
+end
+function Editor:onEdSpread(_arg, ges) return self:_pinch(ges, 1) end
+function Editor:onEdPinch(_arg, ges)  return self:_pinch(ges, -1) end
 
 -- Events a gesture zone emits (brightness, warmth, night mode, the menu) arrive
 -- here, the topmost widget: hand on what we don't handle ourselves, as the

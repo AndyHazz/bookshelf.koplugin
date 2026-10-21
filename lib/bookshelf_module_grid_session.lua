@@ -146,8 +146,14 @@ function Session:moveToCell(col, row)
 end
 
 function Session:resize(axis, delta)
-    local id = self.selected_id
-    if not id then return false end
+    if not self.selected_id then return false end
+    return self:resizeId(self.selected_id, axis, delta)
+end
+
+--- Resize any module a cell, leaving the selection as it is (a pinch or
+--- spread resizes the module under the fingers without opening its toolbar).
+function Session:resizeId(id, axis, delta)
+    if not self:box(id) then return false end
     local min_w, min_h = self.min_for(self:item(id))
     local function mins_for(other)
         local it = self:item(other)

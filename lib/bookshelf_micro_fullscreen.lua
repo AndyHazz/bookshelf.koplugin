@@ -505,7 +505,9 @@ function MicroFullscreen:_build()
         local band = self._footer_rect
             or Geom:new{ x = 0, y = sh - self.footer_h, w = sw, h = self.footer_h }
         local dw = math.floor(band.w / 2)
-        local dots = HeroModules.pageDots(#pages, HeroModules.pageIndex(info), dw, band.h)
+        -- Footer-sized: big enough to see and to tap one.
+        local dots = HeroModules.pageDots(#pages, HeroModules.pageIndex(info), dw, band.h,
+            Screen:scaleBySize(12), Screen:scaleBySize(40))
         children[#children + 1] = OffsetContainer:new{
             x_off = band.x + math.floor((band.w - dw) / 2), y_off = band.y, dots }
         self._dots = dots

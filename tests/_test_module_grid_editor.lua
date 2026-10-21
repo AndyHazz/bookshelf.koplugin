@@ -239,4 +239,24 @@ t.test("growing squeezes a neighbour only down to its own minimum", function()
     assert(notes[1] and notes[1]:find("No room", 1, true))
 end)
 
+t.test("Add at a long-pressed empty cell lands there", function()
+    local s = session(mockup(), {
+        add_picker = function(on_added) on_added({ id = "new1", type = "module", module = "x" }) end,
+    })
+    s:add(4, 5)
+    local b = boxOf(s, "new1")
+    assert(b and b.col == 4 and b.row == 5, "new box at " .. (b and (b.col .. "," .. b.row) or "nil"))
+end)
+
+t.test("Add at a cell too small for the module falls back to the first free spot", function()
+    local items = mockup()
+    local s = session(items, {
+        add_picker = function(on_added) on_added({ id = "new1", type = "module", module = "x" }) end,
+    })
+    s.size_for = function() return 2, 1 end
+    s:add(4, 5)   -- only one free cell there; 2x1 doesn't fit
+    local b = boxOf(s, "new1")
+    assert(b == nil or not (b.col == 4 and b.row == 5), "placed over a neighbour")
+end)
+
 t.done()

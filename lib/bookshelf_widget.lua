@@ -5224,7 +5224,7 @@ function BookshelfWidget:_buildMicroHero(content_w, hero_h, PAD)
                                                content_w, true, true)
     -- A page-dots band is ALWAYS reserved under the grid, one page or many,
     -- so adding a second page never resizes the cells above it.
-    local dots_h = Screen:scaleBySize(12)
+    local dots_h = Screen:scaleBySize(16)
     local function dotsFor()
         -- The panel's own grid, kept apart from the shared bw._module_grid
         -- (which the full-screen view also writes): the layout editor reads it.

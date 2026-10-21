@@ -52,9 +52,11 @@ t.test("two old rows split the grid's rows between them", function()
     }, D)
     for _i, b in ipairs(out) do
         assert(b.page == 1, b.id .. " spilled to page " .. b.page)
-        assert(b.h == 2, b.id .. " h " .. b.h)
     end
-    assert(find(out, "rand").row == 3, "row 2 should start under row 1")
+    -- 5 grid rows over 2 old rows: 3 and 2.
+    assert(find(out, "clock").h == 3 and find(out, "rand").h == 2,
+        "heights " .. find(out, "clock").h .. "/" .. find(out, "rand").h)
+    assert(find(out, "rand").row == 4, "row 2 should start under row 1")
 end)
 
 t.test("a single old row fills the grid's height", function()
@@ -86,6 +88,29 @@ t.test("tiny cards never snap below one cell", function()
         { id = "t", page = 1, row = 1, px_w = 900, px_h = 2 },
     }, D)
     assert(find(out, "s").w >= 1 and find(out, "s").h >= 1)
+end)
+
+t.test("old rows share out ALL the grid's rows, not just a whole multiple", function()
+    -- The PW5's real full-screen layout: four old rows onto a 6x7 grid.
+    local D7 = { cols = 6, rows = 7, cell_w = 160, cell_h = 160, gap = 30 }
+    local legacy = {
+        { id = "clock", page = 1, row = 1, px_w = 300, px_h = 300 },
+        { id = "stats", page = 1, row = 1, px_w = 600, px_h = 300 },
+        { id = "quote", page = 1, row = 2, px_w = 900, px_h = 300 },
+        { id = "batt",  page = 1, row = 3, px_w = 450, px_h = 300 },
+        { id = "otd",   page = 1, row = 3, px_w = 450, px_h = 300 },
+        { id = "shelf", page = 1, row = 4, px_w = 450, px_h = 300 },
+        { id = "goal",  page = 1, row = 4, px_w = 450, px_h = 300 },
+    }
+    local out = Grid.snapLegacy(legacy, D7)
+    local bottom = 0
+    for _i, b in ipairs(out) do
+        assert(b.page == 1, b.id .. " spilled")
+        bottom = math.max(bottom, b.row + b.h - 1)
+    end
+    assert(bottom == 7, "layout ends at row " .. bottom .. " of 7")
+    assert(find(out, "clock").h == 2 and find(out, "shelf").h == 1,
+        "heights " .. find(out, "clock").h .. "/" .. find(out, "shelf").h)
 end)
 
 t.done()

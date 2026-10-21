@@ -64,4 +64,28 @@ t.test("missing geometry keeps the date, so a caller without a height is unaffec
     assert(fits(400, nil, DATE_H, MIN_DIAM) == true, "no pad must not suppress the date")
 end)
 
+-- sideBySide(width, avail_h): a wide cell puts the date BESIDE the face
+-- rather than under it, so a 2x1 clock is a full-height face with the date
+-- next to it, not a small face with a squeezed line underneath.
+local side_body = src:match("\nlocal function sideBySide%(width, avail_h%)\n(.-)\nend\n")
+
+local function side(w, h)
+    assert(side_body, "could not find sideBySide in analogue_clock - renamed?")
+    local fn = compile("local width, avail_h = ...\n" .. side_body, {}, "sideBySide")
+    return fn(w, h)
+end
+
+t.test("a wide cell (2x1) puts the date beside the face", function()
+    assert(side(560, 260) == true)
+end)
+
+t.test("a square or tall cell keeps the date underneath", function()
+    assert(side(260, 260) == false)
+    assert(side(260, 560) == false)
+end)
+
+t.test("no height (start menu, picker) keeps today's stacked layout", function()
+    assert(side(560, nil) == false)
+end)
+
 t.done()

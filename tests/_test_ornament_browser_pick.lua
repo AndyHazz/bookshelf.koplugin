@@ -104,4 +104,17 @@ t.test("the long-press menu's Swap hands the browser the shelf's pool", function
         "Swap offers pieces this shelf never deals")
 end)
 
+t.test("opening shows a message at once and builds the browser after it", function()
+    -- Decoding a page of pieces takes seconds on a PW5; with nothing on screen
+    -- meanwhile, choosing the Ornament module felt like a crash (maintainer).
+    local show = src:match("\nfunction Browser%.show%(on_change, opts%)\n(.-)\nend\n")
+    assert(show, "Browser.show not found")
+    local msg = show:find('_("Loading ornaments', 1, true)
+    local paint = show:find("forceRePaint", 1, true)
+    local later = show:find("nextTick", 1, true)
+    local build = show:find("Browser._open", 1, true)
+    assert(msg and paint and later and build, "no loading message before the build")
+    assert(msg < paint and paint < later and later < build, "the message must paint before the build starts")
+end)
+
 t.done()

@@ -339,7 +339,25 @@ end
 -- anything changed, so the caller can redraw the shelf. opts.pick(entry)
 -- turns it into a chooser (the long-press menu's Swap): tapping a piece
 -- picks it and closes.
+--
+-- Building the first page decodes a picture per piece, which takes seconds on
+-- an e-reader with a big pack; with nothing on screen meanwhile it looks like
+-- a crash. So a message goes up and is painted first, and the browser is
+-- built on the next tick behind it.
 function Browser.show(on_change, opts)
+    local msg = InfoMessage:new{ text = _("Loading ornaments\xE2\x80\xA6") }
+    UIManager:show(msg)
+    UIManager:forceRePaint()
+    UIManager:nextTick(function()
+        local ok, err = pcall(Browser._open, on_change, opts)
+        UIManager:close(msg)
+        if not ok then
+            require("logger").warn("[bookshelf] ornament browser failed to open:", err)
+        end
+    end)
+end
+
+function Browser._open(on_change, opts)
     local self = setmetatable({ chip = ALL, on_change = on_change, opts = opts or {} },
                               { __index = Browser })
     O().beginDeferred()

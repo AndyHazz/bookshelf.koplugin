@@ -504,12 +504,19 @@ function MicroFullscreen:_build()
     if pages and #pages > 1 and not self._edit then
         local band = self._footer_rect
             or Geom:new{ x = 0, y = sh - self.footer_h, w = sw, h = self.footer_h }
+        -- On the same line as the close X and the pencil: those centre in the
+        -- button's visible height, which leaves out the tap extension below it.
+        local dy, dh = band.y, band.h
+        if close_dimen and close_dimen.h then
+            local hit_ext = (self.bw and self.bw.FOOTER_HIT_EXTENSION) or Screen:scaleBySize(12)
+            dy, dh = close_dimen.y, math.max(1, close_dimen.h - hit_ext)
+        end
         local dw = math.floor(band.w / 2)
         -- Footer-sized: big enough to see and to tap one.
-        local dots = HeroModules.pageDots(#pages, HeroModules.pageIndex(info), dw, band.h,
-            Screen:scaleBySize(12), Screen:scaleBySize(40))
+        local dots = HeroModules.pageDots(#pages, HeroModules.pageIndex(info), dw, dh,
+            Screen:scaleBySize(16), Screen:scaleBySize(44))
         children[#children + 1] = OffsetContainer:new{
-            x_off = band.x + math.floor((band.w - dw) / 2), y_off = band.y, dots }
+            x_off = band.x + math.floor((band.w - dw) / 2), y_off = dy, dots }
         self._dots = dots
     end
     self[1] = children

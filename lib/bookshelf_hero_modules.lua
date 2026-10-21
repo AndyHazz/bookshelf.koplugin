@@ -1196,26 +1196,33 @@ function HeroModules.build(bw, content_w, hero_h, PAD, opts)
     return container
 end
 
--- Page-indicator dots for a w x h band: the current page filled, the rest
--- outlined; blank when there is only one page. Records its screen rect and
--- the dot rects so a host can map a tap to a page (Grid.dotAt).
+-- Page-indicator dots for a w x h band: every page a ring, the current one
+-- with a filled circle inset inside its ring; blank when there is only one
+-- page. Records its screen rect and the dot rects so a host can map a tap to
+-- a page (Grid.dotAt).
 -- size / spacing (px) default to the top panel's small strip; the full-screen
 -- footer passes bigger ones.
 function HeroModules.pageDots(count, current, w, h, size, spacing)
     local Widget = require("ui/widget/widget")
-    size    = size or Screen:scaleBySize(8)
-    spacing = spacing or Screen:scaleBySize(22)
+    size    = size or Screen:scaleBySize(10)
+    spacing = spacing or Screen:scaleBySize(24)
     local dots = Widget:new{ dimen = Geom:new{ w = w, h = h } }
     dots.rects   = (count > 1) and Grid.dotRects(count, w, h, size, spacing) or {}
     dots.spacing = spacing
+    local ring  = math.max(1, math.floor(size / 8 + 0.5))
+    local inset = ring + math.max(1, math.floor(size / 10 + 0.5))
+    local ink   = Modules.COLOR_PRIMARY or Blitbuffer.COLOR_BLACK
     function dots:paintTo(bb, x, y)
         self.dimen.x, self.dimen.y = x, y
-        local r = math.floor(size / 2)
         for i, d in ipairs(self.rects) do
+            local dx, dy = x + d.x, y + d.y
+            bb:paintBorder(dx, dy, d.w, d.h, ring, ink, math.floor(d.w / 2))
             if i == current then
-                bb:paintRoundedRect(x + d.x, y + d.y, d.w, d.h, Blitbuffer.COLOR_BLACK, r)
-            else
-                bb:paintBorder(x + d.x, y + d.y, d.w, d.h, 1, Blitbuffer.COLOR_DARK_GRAY, r)
+                local inner = d.w - 2 * inset
+                if inner > 0 then
+                    bb:paintRoundedRect(dx + inset, dy + inset, inner, inner, ink,
+                        math.floor(inner / 2))
+                end
             end
         end
     end

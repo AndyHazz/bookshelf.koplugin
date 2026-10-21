@@ -31,6 +31,12 @@ local MAX_PAGES = 4
 local Session = {}
 Session.__index = Session
 
+-- The move chevrons the shelf and ornament editors use (symbols font).
+Session.CHEV_LEFT  = "\xEE\xA1\x80"  -- U+E840 mdi-chevron-left
+Session.CHEV_RIGHT = "\xEE\xA1\x81"  -- U+E841 mdi-chevron-right
+Session.CHEV_UP    = "\xEE\xA1\x82"  -- U+E842 mdi-chevron-up
+Session.CHEV_DOWN  = "\xEE\xA0\xBF"  -- U+E83F mdi-chevron-down
+
 local function deepCopy(v)
     if type(v) ~= "table" then return v end
     local out = {}
@@ -136,7 +142,12 @@ function Session:resize(axis, delta)
     local id = self.selected_id
     if not id then return false end
     local min_w, min_h = self.min_for(self:item(id))
-    return self:_adopt(Grid.resize(self.boxes, id, axis, delta, self.dims, min_w, min_h))
+    local function mins_for(other)
+        local it = self:item(other)
+        if not it then return 1, 1 end
+        return self.min_for(it)
+    end
+    return self:_adopt(Grid.resize(self.boxes, id, axis, delta, self.dims, min_w, min_h, mins_for))
 end
 
 --- Move the selection to page p: any existing page, or the next new one as
@@ -233,11 +244,16 @@ function Session:keyActions(opts)
     local function row(list) if #list > 0 then rows[#rows + 1] = list end end
     local function b(text, fn) return { text = text, callback = fn } end
     if self.selected_id then
+        local function chev(glyph, fn)
+            local btn = b(glyph, fn)
+            btn.font_face, btn.font_size, btn.font_bold = "symbols", 28, false
+            return btn
+        end
         row{
-            b("\xE2\x86\x90", function() self:moveBy(-1, 0) end),
-            b("\xE2\x86\x92", function() self:moveBy(1, 0) end),
-            b("\xE2\x86\x91", function() self:moveBy(0, -1) end),
-            b("\xE2\x86\x93", function() self:moveBy(0, 1) end),
+            chev(Session.CHEV_LEFT,  function() self:moveBy(-1, 0) end),
+            chev(Session.CHEV_RIGHT, function() self:moveBy(1, 0) end),
+            chev(Session.CHEV_UP,    function() self:moveBy(0, -1) end),
+            chev(Session.CHEV_DOWN,  function() self:moveBy(0, 1) end),
         }
         row{
             b(_("Narrower"), function() self:resize("w", -1) end),

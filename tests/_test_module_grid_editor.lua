@@ -222,4 +222,21 @@ t.test("keys-only actions without a selection offer Add, pages and Done", functi
     assert(s.page == 2, "page " .. s.page)
 end)
 
+t.test("growing squeezes a neighbour only down to its own minimum", function()
+    local items = {
+        { id = "clock", type = "module", module = "analogue_clock", at = at(1, 1, 1, 2, 2) },
+        { id = "quote", type = "module", module = "quote_of_day",   at = at(1, 3, 1, 2, 2) },
+    }
+    for r = 3, 5 do for c = 1, 4 do
+        items[#items + 1] = { id = "f" .. c .. r, type = "module", module = "x", at = at(1, c, r, 1, 1) }
+    end end
+    local s, _host, notes = session(items, { selected_id = "clock",
+        min_for = function(entry)
+            if entry.module == "quote_of_day" then return 2, 1 end
+            return 1, 1
+        end })
+    assert(s:resize("w", 1) == false, "quote squeezed below its minimum")
+    assert(notes[1] and notes[1]:find("No room", 1, true))
+end)
+
 t.done()

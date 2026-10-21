@@ -248,4 +248,79 @@ t.test("a refusal names the module that's in the way", function()
     assert(out == nil and why == "no_room" and blocker == "goal", tostring(blocker))
 end)
 
+-- ── Swapping with a same-size group ──────────────────────────────────────────
+
+local function B(id, c, r, w, h) return { id = id, page = 1, col = c, row = r, w = w, h = h } end
+
+t.test("moving onto a same-size group swaps with the whole group", function()
+    local bs = { B("clock", 1, 1, 2, 2), B("a", 3, 1, 2, 1), B("b", 3, 2, 2, 1), B("z", 1, 3, 4, 1) }
+    local out = assert(Grid.move(bs, "clock", 1, 0, D))
+    assert(at(find(out, "clock"), 1, 3, 1, 2, 2), show(find(out, "clock")))
+    assert(at(find(out, "a"), 1, 1, 1, 2, 1) and at(find(out, "b"), 1, 1, 2, 2, 1),
+        show(find(out, "a")) .. " / " .. show(find(out, "b")))
+    assert(same(find(out, "z"), B("z", 1, 3, 4, 1)), "z moved")
+end)
+
+t.test("a same-size group below swaps on a move down", function()
+    local bs = { B("clock", 1, 1, 2, 2), B("c", 1, 3, 2, 1), B("d", 1, 4, 2, 1) }
+    local out = assert(Grid.move(bs, "clock", 0, 1, D))
+    assert(at(find(out, "clock"), 1, 1, 3, 2, 2), show(find(out, "clock")))
+    assert(at(find(out, "c"), 1, 1, 1) and at(find(out, "d"), 1, 1, 2),
+        show(find(out, "c")) .. " / " .. show(find(out, "d")))
+end)
+
+t.test("a group that sticks out of the swap block doesn't swap", function()
+    -- b reaches below the clock's height, so the block isn't clock-sized.
+    local bs = { B("clock", 1, 1, 2, 2), B("a", 3, 1, 2, 1), B("b", 3, 2, 2, 2), B("z", 1, 5, 4, 1) }
+    local out = Grid.move(bs, "clock", 1, 0, D)
+    if out then
+        assert(not at(find(out, "clock"), 1, 3, 1), "clock jumped two columns")
+    end
+end)
+
+-- ── Growing by squeezing neighbours ──────────────────────────────────────────
+
+local function fillRows(bs, from_row)
+    for r = from_row, 5 do
+        for c = 1, 4 do bs[#bs + 1] = B("f" .. c .. r, c, r, 1, 1) end
+    end
+    return bs
+end
+
+t.test("wider squeezes the neighbour in that row", function()
+    local bs = fillRows({ B("clock", 1, 1, 2, 2), B("quote", 3, 1, 2, 2) }, 3)
+    local out = assert(Grid.resize(bs, "clock", "w", 1, D))
+    assert(find(out, "clock").w == 3, show(find(out, "clock")))
+    assert(at(find(out, "quote"), 1, 4, 1, 1, 2), show(find(out, "quote")))
+end)
+
+t.test("a neighbour already at one cell can't be squeezed", function()
+    local bs = fillRows({ B("clock", 1, 1, 3, 2), B("quote", 4, 1, 1, 2) }, 3)
+    local out, why = Grid.resize(bs, "clock", "w", 1, D)
+    assert(out == nil and why == "no_room")
+end)
+
+t.test("squeezing respects the neighbour's minimum", function()
+    local bs = fillRows({ B("clock", 1, 1, 2, 2), B("quote", 3, 1, 2, 2) }, 3)
+    local function mins(id) if id == "quote" then return 2, 1 end return 1, 1 end
+    local out, why = Grid.resize(bs, "clock", "w", 1, D, 1, 1, mins)
+    assert(out == nil and why == "no_room", "squeezed below its minimum")
+end)
+
+t.test("taller squeezes the modules below in that column", function()
+    local bs = { B("clock", 1, 1, 2, 2), B("p", 1, 3, 1, 2), B("q", 2, 3, 1, 2),
+                 B("r", 3, 1, 2, 5), B("s", 1, 5, 2, 1) }
+    local out = assert(Grid.resize(bs, "clock", "h", 1, D))
+    assert(find(out, "clock").h == 3, show(find(out, "clock")))
+    assert(at(find(out, "p"), 1, 1, 4, 1, 1) and at(find(out, "q"), 1, 2, 4, 1, 1),
+        show(find(out, "p")) .. " / " .. show(find(out, "q")))
+end)
+
+t.test("wider at the right edge squeezes the neighbour on the left", function()
+    local bs = fillRows({ B("w", 1, 1, 2, 2), B("e", 3, 1, 2, 2) }, 3)
+    local out = assert(Grid.resize(bs, "e", "w", 1, D))
+    assert(at(find(out, "e"), 1, 2, 1, 3, 2), show(find(out, "e")))
+    assert(at(find(out, "w"), 1, 1, 1, 1, 2), show(find(out, "w")))
+end)
+
 t.done()

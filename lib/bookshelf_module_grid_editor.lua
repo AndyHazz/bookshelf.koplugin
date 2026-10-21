@@ -135,6 +135,12 @@ local function button(text, callback, enabled)
     return { text = text, callback = callback, enabled = enabled ~= false }
 end
 
+-- A move chevron, in the symbols font at the size the other editors use.
+local function chevron(glyph, callback)
+    return { text = glyph, callback = callback,
+             font_face = "symbols", font_size = 28, font_bold = false }
+end
+
 function Editor:_toolbarWidth()
     return self._built_w - 2 * self.margin
 end
@@ -163,10 +169,10 @@ function Editor:_buildToolbar()
         rows = {
             top,
             {
-                button("\xE2\x86\x90", function() s:moveBy(-1, 0) end),
-                button("\xE2\x86\x92", function() s:moveBy(1, 0) end),
-                button("\xE2\x86\x91", function() s:moveBy(0, -1) end),
-                button("\xE2\x86\x93", function() s:moveBy(0, 1) end),
+                chevron(Session.CHEV_LEFT,  function() s:moveBy(-1, 0) end),
+                chevron(Session.CHEV_RIGHT, function() s:moveBy(1, 0) end),
+                chevron(Session.CHEV_UP,    function() s:moveBy(0, -1) end),
+                chevron(Session.CHEV_DOWN,  function() s:moveBy(0, 1) end),
             },
             {
                 button(_("Narrower"), function() s:resize("w", -1) end),

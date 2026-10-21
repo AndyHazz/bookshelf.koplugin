@@ -315,6 +315,48 @@ local function rehome(out, b, vacated, dims)
     return best
 end
 
+-- Swap the box `id` (now at `old`) with whatever fills `block`, a rectangle
+-- the mover's size: valid only when every module touching the block lies
+-- wholly inside it and there is at least one (two stacked 2x1 cards beside a
+-- 2x2 clock swap with it as a pair). nil otherwise.
+local function swapBlock(boxes, id, old, block)
+    if block.w ~= old.w or block.h ~= old.h or not fits(block, { cols = math.huge, rows = math.huge })
+            or M.overlaps(block, old) then
+        return nil
+    end
+    local dc, dr = old.col - block.col, old.row - block.row
+    local out, moved = {}, 0
+    for _i, b in ipairs(M.readingOrder(boxes)) do
+        if b.id == id then
+            b.page, b.col, b.row = block.page, block.col, block.row
+        elseif M.overlaps(b, block) then
+            if b.col < block.col or b.row < block.row
+                    or b.col + b.w > block.col + block.w
+                    or b.row + b.h > block.row + block.h then
+                return nil
+            end
+            b.page, b.col, b.row = old.page, b.col + dc, b.row + dr
+            moved = moved + 1
+        end
+        out[#out + 1] = b
+    end
+    if moved == 0 then return nil end
+    return out
+end
+
+-- A move whose target lands on a block of modules that is exactly the mover's
+-- size: swap with the whole block (see swapBlock).
+local function groupSwap(boxes, id, old, target, displaced)
+    if #displaced == 0 or target.w ~= old.w or target.h ~= old.h then return nil end
+    local c1, r1, c2, r2 = math.huge, math.huge, -math.huge, -math.huge
+    for _i, b in ipairs(displaced) do
+        c1, r1 = math.min(c1, b.col), math.min(r1, b.row)
+        c2, r2 = math.max(c2, b.col + b.w - 1), math.max(r2, b.row + b.h - 1)
+    end
+    return swapBlock(boxes, id, old,
+        { page = target.page, col = c1, row = r1, w = c2 - c1 + 1, h = r2 - r1 + 1 })
+end
+
 -- The collision rule shared by every edit: put `id` at `target`, re-home only
 -- what it now overlaps, refuse when anything can't be re-homed (naming the
 -- first module that couldn't be: nil, "no_room", blocker_id).
@@ -334,6 +376,8 @@ local function apply(boxes, id, target, dims)
             out[#out + 1] = b
         end
     end
+    local swapped = groupSwap(boxes, id, old, target, displaced)
+    if swapped then return swapped end
     for _i, b in ipairs(displaced) do
         local placed = rehome(out, b, old, dims)
         if not placed then return nil, "no_room", b.id end
@@ -345,6 +389,13 @@ end
 function M.move(boxes, id, dc, dr, dims)
     local b = find(boxes, id)
     if not b then return nil, "no_room" end
+    -- An arrow press next to a same-size block (one module, or several that
+    -- fill it exactly) swaps with that block in one press.
+    local block = { page = b.page, col = b.col + dc * b.w, row = b.row + dr * b.h, w = b.w, h = b.h }
+    if fits(block, dims) then
+        local swapped = swapBlock(boxes, id, copyBox(b), block)
+        if swapped then return swapped end
+    end
     local t = copyBox(b)
     t.col, t.row = b.col + dc, b.row + dr
     return apply(boxes, id, t, dims)
@@ -358,10 +409,44 @@ function M.moveTo(boxes, id, col, row, dims)
     return apply(boxes, id, t, dims)
 end
 
+-- Growing into neighbours: make every module the grown box now overlaps
+-- narrower (or shorter) on the side facing it, so nothing has to move. nil
+-- when any of them would go below its minimum (mins_for(id) -> w, h).
+local function squeeze(boxes, id, t, axis, dims, mins_for)
+    local pos, size = (axis == "w") and "col" or "row", (axis == "w") and "w" or "h"
+    local limit = (axis == "w") and dims.cols or dims.rows
+    local out = {}
+    for _i, b in ipairs(boxes) do
+        local nb = copyBox(b)
+        if b.id == id then
+            nb = copyBox(t)
+            nb.id = id
+        elseif M.overlaps(b, t) then
+            local t1, t2 = t[pos], t[pos] + t[size] - 1
+            local cut
+            if b[pos] >= t1 then
+                cut = t2 - b[pos] + 1          -- b is after t: take its near cells
+                nb[pos] = b[pos] + cut
+            else
+                cut = b[pos] + b[size] - t1    -- b is before t: take its far cells
+            end
+            nb[size] = b[size] - cut
+            local mw, mh = 1, 1
+            if mins_for then mw, mh = mins_for(b.id) end
+            local min = math.min(((axis == "w") and mw or mh) or 1, limit)
+            if nb[size] < math.max(1, min) then return nil end
+        end
+        out[#out + 1] = nb
+    end
+    return out
+end
+
 --- Grow (+1) or shrink (-1) one axis ("w" or "h") by a cell. Growth goes
 --- right/down, or left/up when already at that edge; shrinking takes the cell
---- off the side growth would add to. min_w/min_h clamp to the grid.
-function M.resize(boxes, id, axis, delta, dims, min_w, min_h)
+--- off the side growth would add to. min_w/min_h clamp to the grid. Growing
+--- first squeezes the neighbours it runs into (mins_for(id) -> their minimum
+--- w, h), and only moves them aside when they can't give up a cell.
+function M.resize(boxes, id, axis, delta, dims, min_w, min_h, mins_for)
     local b = find(boxes, id)
     if not b then return nil, "no_room" end
     local t = copyBox(b)
@@ -386,6 +471,10 @@ function M.resize(boxes, id, axis, delta, dims, min_w, min_h)
         if t[size] - 1 < math.max(1, min) then return nil, "no_room" end
         t[size] = t[size] - 1
         if at_far_edge then t[pos] = t[pos] + 1 end
+    end
+    if delta > 0 then
+        local squeezed = squeeze(boxes, id, t, axis, dims, mins_for)
+        if squeezed then return squeezed end
     end
     return apply(boxes, id, t, dims)
 end

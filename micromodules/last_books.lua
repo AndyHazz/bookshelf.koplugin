@@ -168,7 +168,8 @@ return {
             group[#group + 1] = FrameContainer:new{
                 bordersize = 0, margin = 0, padding = 0,
                 padding_top = m, padding_bottom = m,
-                SpineWidget:new{ book = book, width = w, height = h, show_status = true },
+                SpineWidget:new{ book = book, width = w, height = h, show_status = true,
+                                 room_below = true },
             }
             regions[#regions + 1] = { id = book.filepath,
                 x = (i - 1) * (w + gap), y = m, w = w, h = h }

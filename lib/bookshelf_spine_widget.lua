@@ -978,6 +978,10 @@ local SpineWidget = InputContainer:extend{
     -- list row gives a cover -- and the row's own token lines already say
     -- what the bar and the page count would. show_progress implies this.
     show_status         = false,
+    -- With show_status: the caller leaves room below the cover for the
+    -- overhang (Recently read pads for it), so the bookmarks keep their full
+    -- dangle instead of the list rows' lift (_listBadgeClearance).
+    room_below          = false,
     -- ShelfRow's expanded mode renders book titles BELOW each cover.
     -- The bookmark glyph at the bottom-left would clash with the title
     -- if it dangled; lift it fully inside the cover when titles are
@@ -1367,7 +1371,7 @@ function SpineWidget:_renderShadowedCard(inner)
                 + GLYPH_DANGLE_GROWTH_SHARE * (widget_h - base_widget_h)
             local y_offset = card_h
                 + math.floor(dangle_h * (1 - lift) + 0.5) - widget_h
-            if list_badges then
+            if list_badges and not self.room_below then
                 y_offset = y_offset - self:_listBadgeClearance(widget_h)
             end
             local glyph_frame
@@ -1485,7 +1489,7 @@ function SpineWidget:_renderShadowedCard(inner)
                 + GLYPH_DANGLE_GROWTH_SHARE * (widget_h - base_widget_h)
             local y_offset = card_h
                 + math.floor(dangle_h * (1 - lift) + 0.5) - widget_h
-            if list_badges then
+            if list_badges and not self.room_below then
                 y_offset = y_offset - self:_listBadgeClearance(widget_h)
             end
             local glyph_frame

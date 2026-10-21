@@ -58,6 +58,8 @@ end
 
 return {
     key   = "clock", -- stable id stored in user menus; never change it
+    -- Text: unreadable one grid column wide (truncates or breaks words).
+    min_w = 2,
     title = _("Clock"),
     summary = _("Device clock. Works offline."),
     -- Time-sensitive: the hero grid re-renders this cell each minute so the

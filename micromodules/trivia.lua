@@ -309,6 +309,8 @@ end
 -- ─── Spec ───────────────────────────────────────────────────────────────────
 return {
     key   = "trivia",
+    -- Text: unreadable one grid column wide (truncates or breaks words).
+    min_w = 2,
     title = _("Trivia"),
     summary = _("Open Trivia DB. Needs internet."),
     -- Data sources (shown in the picker; presence flags it as network-required

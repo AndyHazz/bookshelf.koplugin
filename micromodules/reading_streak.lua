@@ -337,6 +337,8 @@ end
 
 return {
     key   = "reading_streak",
+    -- Text: unreadable one grid column wide (truncates or breaks words).
+    min_w = 2,
     title = _("Reading streak"),
     summary = _("From KOReader statistics. Works offline."),
     -- Test hook: the week-consecutiveness rule (incl. the Monday-1-Jan year

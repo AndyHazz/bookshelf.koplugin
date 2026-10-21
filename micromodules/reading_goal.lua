@@ -684,6 +684,8 @@ end
 
 return {
     key   = "reading_goal",
+    -- Text: unreadable one grid column wide (truncates or breaks words).
+    min_w = 2,
     title = _("Reading goals"),
     summary = _("From your reading stats. Works offline."),
     keep_open = true,  -- tap cycles goals without closing menu

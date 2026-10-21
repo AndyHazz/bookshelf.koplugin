@@ -235,6 +235,8 @@ end
 
 return {
     key   = "quote_of_day", -- stable id stored in user menus; never change it
+    -- Text: unreadable one grid column wide (truncates or breaks words).
+    min_w = 2,
     title = _("Quote of the day"),
     summary = _("From your highlights. Works offline."),
     -- preview (3rd) / avail_h (4th): the Add-picker renders a preview=true

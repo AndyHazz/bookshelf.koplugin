@@ -78,6 +78,8 @@ return {
     _fmtDate   = fmtDate,
     _daysUntil = daysUntil,
     key     = "countdown",
+    -- Text: unreadable one grid column wide (truncates or breaks words).
+    min_w = 2,
     title   = _("Countdown"),
     summary = _("From a date you set. Works offline."),
 

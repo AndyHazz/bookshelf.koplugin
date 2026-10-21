@@ -114,6 +114,8 @@ end
 -- ─── Spec ───────────────────────────────────────────────────────────────────
 return {
     key   = "otd",
+    -- Text: unreadable one grid column wide (truncates or breaks words).
+    min_w = 2,
     title = _("On This Day"),
     summary = _("From Wikipedia. Needs internet."),
     network = { "en.wikipedia.org" },

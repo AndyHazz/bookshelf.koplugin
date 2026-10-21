@@ -214,6 +214,8 @@ return {
     -- Tests drive the background count through this; not part of the spec.
     _getCounts = getCounts,
     key   = "shelf_size", -- stable id stored in user menus; never change it
+    -- Text: unreadable one grid column wide (truncates or breaks words).
+    min_w = 2,
     title = _("Shelf size"),
     summary = _("From your library. Works offline."),
     -- No height input is needed: the status table's wrap decision is purely

@@ -102,7 +102,7 @@ local function _fitStatusRow(mw, scale_pct, counts, gen)
     local cols = n
     if widest > usable then
         cols = 2
-        _, hs, cs = widestAt(100)
+        local _w; _w, hs, cs = widestAt(100)
     end
     _fit_memo[key] = { hs, cs, cols }
     return hs, cs, cols

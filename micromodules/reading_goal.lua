@@ -663,6 +663,16 @@ local function computeGoal(goal, data, t)
     return header_text, big_text, suffix, pct, context_text
 end
 
+--- How many goals to show at once, and side by side or stacked. Two side by
+--- side in a wide cell; two stacked when one block takes under 65% of the
+--- height; else one (a tap cycles). No height (the start menu): one.
+local function arrangement(shape, n_active, block_h, avail_h)
+    if not (avail_h and avail_h > 0) or n_active < 2 then return 1, false end
+    if shape == "wide" then return 2, true end
+    if block_h and block_h < 0.65 * avail_h then return 2, false end
+    return 1, false
+end
+
 -- Build one goal's widget block: header, big progress number + baseline-aligned
 -- suffix, a full-width progress bar, and a context line. `sc` is the caller's
 -- font-scale helper; `mw` the inner width. Returned widget owns a fresh tree.
@@ -720,12 +730,13 @@ return {
         -- goal per view (the start menu passes no avail_h; a short cell stays
         -- single). The gate only gets easier as the scale drops, so per_view
         -- stays stable (never flips 2->1) across the host's fit iterations.
-        local per_view = 1
+        local per_view, side = 1, false
         if avail_h and avail_h > 0 and not preview and #getActiveList() >= 2 then
             local probe = buildGoalBlock(getCurrentView(), mw, scale_pct, data, t)
             local h1 = probe:getSize().h
             if probe.free then probe:free() end
-            if h1 < 0.65 * avail_h then per_view = 2 end
+            local Kit = require("lib/bookshelf_module_kit")
+            per_view, side = arrangement(Kit.shape(mw, avail_h), #getActiveList(), h1, avail_h)
         end
         _last_per_view = per_view  -- on_tap's cycleView steps by this
 
@@ -733,6 +744,19 @@ return {
         if #goals <= 1 then
             -- One goal: lays itself out sideways in a strip (Kit.isStrip).
             return buildGoalBlock(goals[1] or getCurrentView(), mw, scale_pct, data, t, avail_h)
+        end
+        if side then
+            -- Side by side, each in half the width.
+            local HorizontalGroup = require("ui/widget/horizontalgroup")
+            local HorizontalSpan  = require("ui/widget/horizontalspan")
+            local hgap = sc(20)
+            local half = math.floor((mw - hgap) / 2)
+            local row = HorizontalGroup:new{ align = "top" }
+            for i, g in ipairs(goals) do
+                if i > 1 then row[#row + 1] = HorizontalSpan:new{ width = hgap } end
+                row[#row + 1] = buildGoalBlock(g, half, scale_pct, data, t)
+            end
+            return row
         end
         local container = VerticalGroup:new{ align = "left" }
         for i, g in ipairs(goals) do

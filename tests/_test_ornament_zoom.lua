@@ -23,9 +23,13 @@ end)
 
 t.test("the menu's tap row names Zoom, and the chooser offers it", function()
     assert(menu:find('tap.zoom and _("Zoom")', 1, true), "the tap row does not say Zoom")
-    local choose = menu:match("function M%.chooseTap%(entry, done%)(.-)\nend")
-    assert(choose and choose:find('readerSet(entry, "tap", "zoom")', 1, true),
+    -- set(value) stores the choice: the piece's own file by default (a shelf
+    -- ornament), or a module card's config (the Ornament module).
+    local choose = menu:match("function M%.chooseTap%(entry, done, set%)(.-)\nend")
+    assert(choose and choose:find('set("zoom")', 1, true),
         "the chooser does not offer Zoom")
+    assert(choose:find('readerSet(entry, "tap", v)', 1, true),
+        "a shelf ornament's tap no longer goes to its own file")
 end)
 
 -- The view's pure parts, loaded with the UI stubbed out.

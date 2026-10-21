@@ -47,4 +47,16 @@ t.test("non-string input passes through", function()
     assert(LD.localize(42) == 42)
 end)
 
+t.test("fitted picks the longest date form that fits", function()
+    package.preload["datetime"] = function() error("not in harness") end
+    local LD = dofile("lib/bookshelf_localdate.lua")
+    package.preload["datetime"] = nil
+    local now = os.time({ year = 2026, month = 10, day = 21, hour = 12 })
+    local function measure(str) return #str * 10 end   -- 10px a character
+    assert(LD.fitted(now, measure, 1000) == "Wednesday 21 October")
+    assert(LD.fitted(now, measure, 120) == "Wed 21 Oct")
+    assert(LD.fitted(now, measure, 60) == "21 Oct")
+    assert(LD.fitted(now, measure, 10) == "21/10", "the shortest when nothing fits")
+end)
+
 t.done()

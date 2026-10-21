@@ -356,7 +356,7 @@ function Browser.show(on_change, opts)
         if self.on_change then pcall(self.on_change) end
     end
     local config = {
-        title = self.opts.pick and _("Swap for") or _("Ornament collection"),
+        title = self.opts.title or (self.opts.pick and _("Swap for") or _("Ornament collection")),
         no_search = true,
         grid_cols = cols,
         cells_per_page = function() return cols() * 3 end,

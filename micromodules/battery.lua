@@ -50,6 +50,61 @@ local function read()
     return s
 end
 
+--- How the card lays itself out for its cell: "upright" (a battery standing up,
+--- the percentage under it) in square and tall cells, "sideways" (a battery on
+--- its side, the figures beside it) in a strip, and "card" (heading, figure,
+--- bar) in between, or with no height to go by (start menu, picker).
+local function shapeOf(width, avail_h)
+    if not (width and avail_h and avail_h > 0) then return "card" end
+    if avail_h >= width * 0.9 then return "upright" end
+    if width >= avail_h * 2.4 then return "sideways" end
+    return "card"
+end
+
+-- A drawn battery w x h: a rounded outline, the terminal nub on top (upright)
+-- or at the right (sideways), and the charge filled from the bottom or the
+-- left, inset from the outline.
+local function meter(w, h, fraction, upright)
+    local Widget = require("ui/widget/widget")
+    local Geom   = require("ui/geometry")
+    local Kit    = require("lib/bookshelf_module_kit")
+    local Color  = require("lib/bookshelf_color")
+    local ink = Kit.COLOR_PRIMARY or require("ffi/blitbuffer").COLOR_BLACK
+    local Meter = Widget:extend{}
+    function Meter:getSize() return Geom:new{ w = w, h = h } end
+    function Meter:paintTo(bb, x, y)
+        self.dimen = Geom:new{ x = x, y = y, w = w, h = h }
+        local t = math.max(2, math.floor(math.min(w, h) / 14))
+        local gap = t
+        local bx, by, bw, bh, nx, ny, nw, nh
+        if upright then
+            nh = math.max(t * 2, math.floor(h * 0.06))
+            nw = math.floor(w * 0.4)
+            nx, ny = x + math.floor((w - nw) / 2), y
+            bx, by, bw, bh = x, y + nh, w, h - nh
+        else
+            nw = math.max(t * 2, math.floor(w * 0.06))
+            nh = math.floor(h * 0.4)
+            nx, ny = x + w - nw, y + math.floor((h - nh) / 2)
+            bx, by, bw, bh = x, y, w - nw, h
+        end
+        bb:paintBorder(bx, by, bw, bh, t, ink, t * 2)
+        Color.paintRect(bb, nx, ny, nw, nh, ink)
+        local ix, iy = bx + t + gap, by + t + gap
+        local iw, ih = bw - 2 * (t + gap), bh - 2 * (t + gap)
+        if iw > 0 and ih > 0 then
+            if upright then
+                local fh = math.floor(ih * fraction + 0.5)
+                if fh > 0 then Color.paintRect(bb, ix, iy + ih - fh, iw, fh, ink) end
+            else
+                local fw = math.floor(iw * fraction + 0.5)
+                if fw > 0 then Color.paintRect(bb, ix, iy, fw, ih, ink) end
+            end
+        end
+    end
+    return Meter:new{}
+end
+
 -- lines(s) -> value, suffix, sub for the card; pure, so the test can pin the
 -- wording without a device.
 local function lines(s)
@@ -85,6 +140,63 @@ return {
             }
         end
         local value, suffix, sub = lines(s)
+        local shape = shapeOf(mw, ctx.height)
+        if shape ~= "card" then
+            local TextWidget      = require("lib/bookshelf_colour_text")
+            local VerticalGroup   = require("ui/widget/verticalgroup")
+            local VerticalSpan    = require("ui/widget/verticalspan")
+            local HorizontalGroup = require("ui/widget/horizontalgroup")
+            local HorizontalSpan  = require("ui/widget/horizontalspan")
+            local sc = Kit.sc(ctx.scale)
+            local avail_h = ctx.height
+            if shape == "upright" then
+                -- The battery takes about two thirds of the height, at 1:2;
+                -- the percentage (with the charging state) sits under it.
+                -- The drawn battery says what it is, so the label is just the
+                -- percentage, shrunk rather than cut to fit a narrow cell.
+                local text = s.cap .. "%"
+                if s.charging and s.symbol and s.symbol ~= "" then
+                    text = s.symbol .. " " .. text   -- keep the charging bolt
+                end
+                local size = 22
+                local face, bold = Kit.face(size, ctx.scale, { bold = true })
+                local probe = TextWidget:new{ text = text, face = face, bold = bold }
+                local tw = probe:getSize().w
+                probe:free()
+                if tw > mw and tw > 0 then
+                    face, bold = Kit.face(math.max(8, math.floor(size * mw / tw)), ctx.scale, { bold = true })
+                end
+                local label = TextWidget:new{ text = text, face = face, bold = bold,
+                    fgcolor = Kit.COLOR_PRIMARY, max_width = mw }
+                local mh = math.max(sc(30), math.floor(avail_h * 0.66) - label:getSize().h)
+                local mwid = math.min(math.floor(mh / 2), math.floor(mw * 0.6))
+                mh = mwid * 2
+                return VerticalGroup:new{
+                    align = "center",
+                    meter(mwid, mh, s.cap / 100, true),
+                    VerticalSpan:new{ width = sc(8) },
+                    label,
+                }
+            end
+            -- Sideways: the battery at half the height, 2:1, then the figure
+            -- and what it means beside it.
+            local bh = math.max(sc(20), math.floor(avail_h * 0.5))
+            local bwid = bh * 2
+            local face, bold = Kit.face(26, ctx.scale, { bold = true })
+            local texts = VerticalGroup:new{
+                align = "left",
+                TextWidget:new{ text = value, face = face, bold = bold,
+                    fgcolor = Kit.COLOR_PRIMARY },
+                TextWidget:new{ text = sub or (suffix:gsub("^%s+", "")),
+                    face = Kit.face(14, ctx.scale), fgcolor = Kit.COLOR_MUTED },
+            }
+            return HorizontalGroup:new{
+                align = "center",
+                meter(bwid, bh, s.cap / 100, false),
+                HorizontalSpan:new{ width = sc(16) },
+                texts,
+            }
+        end
         return Kit.valueCard{
             width = mw, scale_pct = ctx.scale,
             heading = _("Battery"),
@@ -98,5 +210,5 @@ return {
         local ok, Dispatcher = pcall(require, "dispatcher")
         if ok then Dispatcher:execute({ battery_statistics = true }) end
     end,
-    _test = { read = read, lines = lines },
+    _test = { read = read, lines = lines, shapeOf = shapeOf },
 }

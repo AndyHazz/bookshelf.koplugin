@@ -711,12 +711,23 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
     -- and stricter -- the card cannot end up a different colour from the text
     -- drawn on it, which is the pairing the whole setting exists to keep.
     local card_bg = Modules.CARD_BG or _moduleCardBg()
-    local clip = ClipContainer:new{
-        w = inner_w,
-        h = inner_h,
-        bg = card_bg,
-        content,
-    }
+    -- A bare module (an ornament) has no card: nothing is filled behind it,
+    -- so the wallpaper shows round its drawing. It sizes itself to the cell,
+    -- so it is centred as it is rather than clipped through the offscreen
+    -- buffer, which would fill the cell first.
+    local bare = def and def.bare
+    if bare then card_bg = nil end
+    local clip
+    if bare then
+        clip = CenterContainer:new{ dimen = Geom:new{ w = inner_w, h = inner_h }, content }
+    else
+        clip = ClipContainer:new{
+            w = inner_w,
+            h = inner_h,
+            bg = card_bg,
+            content,
+        }
+    end
     -- Hairline, where this used to be borderless. It costs nothing on a plain
     -- page and it keeps a card's edge readable when its fill happens to match
     -- what is behind it -- a wallpaper, or another card.
@@ -727,7 +738,7 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
     -- which reads as the grid having less air on the right than on the left,
     -- because the row is left-aligned and the overflow all lands at the far
     -- end. Eating the padding keeps the outer dimen at cell_w/cell_h exactly.
-    local card_border = Screen:scaleBySize(1)
+    local card_border = bare and 0 or Screen:scaleBySize(1)
     local frame = FrameContainer:new{
         background  = card_bg,
         bordersize  = card_border,

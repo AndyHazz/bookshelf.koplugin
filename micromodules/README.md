@@ -251,6 +251,9 @@ omit them and you get the sensible default (a flex/text card offered everywhere)
   added (clocks, icon/launcher cards); other cards start two cells wide. Users
   resize either freely afterwards. `ctx.shape` reports the cell's actual aspect
   (see **Aspect** above).
+- `bare = true` — draw without the card (no fill, no border), straight onto
+  the wallpaper or page, as the Ornament module does. Your render must then
+  fit its cell itself: it is centred, not clipped.
 - `min_w` / `min_h` — the smallest size, in grid cells, the layout editor lets
   your card be sized to (whole numbers, 1 or more). Use them when the card has
   nothing useful to show below that size. The grid clamps them to its own size,

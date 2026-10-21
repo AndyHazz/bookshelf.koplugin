@@ -184,6 +184,11 @@ local function loadSpec(dir, fname, origin)
             .. " (aspect must be a string when present), skipping:", fname)
         return
     end
+    if spec.bare ~= nil and type(spec.bare) ~= "boolean" then
+        logger.warn("[bookshelf] micro-module spec invalid"
+            .. " (bare must be a boolean when present), skipping:", fname)
+        return
+    end
     -- Optional grid size hints (whole cells): the smallest the layout editor
     -- lets the module be sized to. The grid clamps them to its own size.
     for _i, f in ipairs({ "min_w", "min_h" }) do

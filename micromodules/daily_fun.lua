@@ -305,6 +305,8 @@ end
 
 return {
     key   = "daily_fun",
+    -- Text: unreadable one grid column wide (truncates or breaks words).
+    min_w = 2,
     title = _("Daily Fun"),
     summary = _("Jokes, facts & riddles. Needs internet."),
     network = { "v2.jokeapi.dev", "uselessfacts.jsph.pl", "riddles-api.vercel.app" },

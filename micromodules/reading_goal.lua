@@ -666,7 +666,7 @@ end
 -- Build one goal's widget block: header, big progress number + baseline-aligned
 -- suffix, a full-width progress bar, and a context line. `sc` is the caller's
 -- font-scale helper; `mw` the inner width. Returned widget owns a fresh tree.
-local function buildGoalBlock(goal, mw, scale_pct, data, t)
+local function buildGoalBlock(goal, mw, scale_pct, data, t, height)
     local Kit = require("lib/bookshelf_module_kit")
     local sc = Kit.sc(scale_pct)
     local header_text, big_text, suffix, pct, context_text = computeGoal(goal, data, t)
@@ -676,14 +676,16 @@ local function buildGoalBlock(goal, mw, scale_pct, data, t)
     local bar = Kit.progressBar{ width = mw, height = sc(6), fraction = pct }
 
     return Kit.valueCard{
-        width = mw, scale_pct = scale_pct,
+        width = mw, scale_pct = scale_pct, height = height,
         heading = header_text, value = big_text, suffix = suffix,
-        bar = bar, context = context_text,
+        bar = bar, bar_fraction = pct, context = context_text,
     }
 end
 
 return {
     key   = "reading_goal",
+    -- Text: unreadable one grid column wide (truncates or breaks words).
+    min_w = 2,
     title = _("Reading goals"),
     summary = _("From your reading stats. Works offline."),
     keep_open = true,  -- tap cycles goals without closing menu
@@ -729,7 +731,8 @@ return {
 
         local goals = getViewGoals(per_view)
         if #goals <= 1 then
-            return buildGoalBlock(goals[1] or getCurrentView(), mw, scale_pct, data, t)
+            -- One goal: lays itself out sideways in a strip (Kit.isStrip).
+            return buildGoalBlock(goals[1] or getCurrentView(), mw, scale_pct, data, t, avail_h)
         end
         local container = VerticalGroup:new{ align = "left" }
         for i, g in ipairs(goals) do

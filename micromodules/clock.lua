@@ -18,6 +18,14 @@ local _ = require("lib/bookshelf_i18n").gettext
 
 local FMT_KEY = "micromodule_clock_format" -- "follow" (default) | "12" | "24"
 
+--- Does a cell put the date beside the time? Only a clearly wide one (3x1,
+--- 6x1 on the grid): the time string is wide itself, so a 2x1 still stacks.
+--- No height (start menu, picker): stacked, as always.
+local function sideBySide(width, avail_h)
+    if not (width and avail_h and avail_h > 0) then return false end
+    return width >= avail_h * 2.5
+end
+
 local function readFormat()
     local Store = require("lib/bookshelf_settings_store")
     local v = Store.read(FMT_KEY, "follow")
@@ -58,6 +66,8 @@ end
 
 return {
     key   = "clock", -- stable id stored in user menus; never change it
+    -- Text: unreadable one grid column wide (truncates or breaks words).
+    min_w = 2,
     title = _("Clock"),
     summary = _("Device clock. Works offline."),
     -- Time-sensitive: the hero grid re-renders this cell each minute so the
@@ -105,6 +115,47 @@ return {
                 math.floor(time_size * mw / natural_w))
             face_t, bold_t = Fonts:getFace("cfont", time_size, {bold=true})
         end
+        local LocalDate = require("lib/bookshelf_localdate")
+        local date_face = Fonts:getFace("cfont", sc(14), {italic=true})
+        local function measure(face)
+            return function(str)
+                local p = TextWidget:new{ text = str, face = face }
+                local w = p:getSize().w
+                p:free()
+                return w
+            end
+        end
+        local time_w = TextWidget:new{ text = time_str, face = face_t, bold = bold_t,
+            fgcolor = SM.COLOR_PRIMARY }
+        if sideBySide(mw, ctx.height) then
+            -- Wide: the time, then weekday over day and month beside it, the
+            -- date as tall as a third of the time so the pair reads as one.
+            local HorizontalGroup = require("ui/widget/horizontalgroup")
+            local HorizontalSpan  = require("ui/widget/horizontalspan")
+            local gap = sc(16)
+            local side_w = math.max(1, mw - time_w:getSize().w - gap)
+            local side_face = Fonts:getFace("cfont", math.max(sc(14), math.floor(time_size / 3)),
+                {italic=true})
+            local lines = { LocalDate.localize(os.date("%A", now)),
+                            LocalDate.localize(os.date("%d %B", now)) }
+            local m = measure(side_face)
+            if math.max(m(lines[1]), m(lines[2])) > side_w then
+                lines = { LocalDate.localize(os.date("%a", now)),
+                          LocalDate.localize(os.date("%d %b", now)) }
+            end
+            local dates = VerticalGroup:new{ align = "left" }
+            for _i, l in ipairs(lines) do
+                dates[#dates + 1] = TextWidget:new{ text = l, face = side_face,
+                    fgcolor = SM.COLOR_PRIMARY, max_width = side_w }
+            end
+            return HorizontalGroup:new{
+                align = "center",
+                time_w,
+                HorizontalSpan:new{ width = gap },
+                dates,
+            }
+        end
+        time_w:free()
         return VerticalGroup:new{
             align = "left",
             TextWidget:new{
@@ -115,8 +166,9 @@ return {
                 max_width = mw,
             },
             TextWidget:new{
-                text = require("lib/bookshelf_localdate").localize(os.date("%A %d %B", now)),
-                face = Fonts:getFace("cfont", sc(14), {italic=true}),
+                -- The longest date form that fits rather than a truncated one.
+                text = LocalDate.fitted(now, measure(date_face), mw),
+                face = date_face,
                 fgcolor = SM.COLOR_PRIMARY,
                 max_width = mw,
             },

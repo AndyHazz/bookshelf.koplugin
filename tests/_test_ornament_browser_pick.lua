@@ -17,8 +17,8 @@ t.test("the browser has a pick mode", function()
 end)
 
 t.test("the browser's title is the collection, as its settings row", function()
-    assert(src:find('title = self.opts.pick and _("Swap for") or _("Ornament collection"),', 1, true),
-        "the browser is not titled Ornament collection")
+    assert(src:find('title = self.opts.title or (self.opts.pick and _("Swap for") or _("Ornament collection")),', 1, true),
+        "the browser is not titled Ornament collection (or the caller's title)")
 end)
 
 local function method(text, name)

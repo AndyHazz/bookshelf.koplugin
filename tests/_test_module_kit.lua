@@ -159,4 +159,12 @@ t.test("hitRegion fails closed on malformed input", function()
         "junk entries are skipped; later valid regions still match")
 end)
 
+t.test("isStrip: a cell clearly wider than tall lays a value card out sideways", function()
+    assert(Kit.isStrip(560, 175) == true, "3x1")
+    assert(Kit.isStrip(1158, 175) == true, "6x1")
+    assert(Kit.isStrip(361, 175) == false, "2x1 stays stacked")
+    assert(Kit.isStrip(361, 387) == false, "2x2 stays stacked")
+    assert(Kit.isStrip(560, nil) == false, "no height (start menu) stays stacked")
+end)
+
 t.done()

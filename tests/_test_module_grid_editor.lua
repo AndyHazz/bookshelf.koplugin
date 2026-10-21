@@ -259,4 +259,11 @@ t.test("Add at a cell too small for the module falls back to the first free spot
     assert(b == nil or not (b.col == 4 and b.row == 5), "placed over a neighbour")
 end)
 
+t.test("moveIdBy moves a module without selecting it", function()
+    local s, host = session(mockup(), { selected_id = "clock" })
+    assert(s:moveIdBy("goal", 0, 1))
+    assert(boxOf(s, "goal").row == 2 and s.selected_id == "clock")
+    assert(host.renders == 1)
+end)
+
 t.done()

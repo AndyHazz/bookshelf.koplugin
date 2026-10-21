@@ -330,6 +330,8 @@ end
 
 return {
     key   = "weather", -- stable id stored in user menus; never change it
+    -- Text: unreadable one grid column wide (truncates or breaks words).
+    min_w = 2,
     title = _("Weather"),
     summary = _("Open-Meteo. Needs internet."),
     -- Test hook: the locale-proof percent-encoding is pure; the registry

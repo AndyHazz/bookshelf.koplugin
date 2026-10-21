@@ -168,17 +168,18 @@ function Editor:_buildToolbar()
         top[#top + 1] = button("\xE2\x9C\x95", function() s:select(nil) end)
         rows = {
             top,
-            {
-                chevron(Session.CHEV_LEFT,  function() s:moveBy(-1, 0) end),
-                chevron(Session.CHEV_RIGHT, function() s:moveBy(1, 0) end),
-                chevron(Session.CHEV_UP,    function() s:moveBy(0, -1) end),
-                chevron(Session.CHEV_DOWN,  function() s:moveBy(0, 1) end),
-            },
+            -- Size on the left, position on the right; each row one axis.
             {
                 button(_("Narrower"), function() s:resize("w", -1) end),
                 button(_("Wider"),    function() s:resize("w", 1) end),
+                chevron(Session.CHEV_LEFT,  function() s:moveBy(-1, 0) end),
+                chevron(Session.CHEV_RIGHT, function() s:moveBy(1, 0) end),
+            },
+            {
                 button(_("Shorter"),  function() s:resize("h", -1) end),
                 button(_("Taller"),   function() s:resize("h", 1) end),
+                chevron(Session.CHEV_UP,    function() s:moveBy(0, -1) end),
+                chevron(Session.CHEV_DOWN,  function() s:moveBy(0, 1) end),
             },
         }
     end

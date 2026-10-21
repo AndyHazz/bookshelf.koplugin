@@ -266,17 +266,18 @@ function Session:keyActions(opts)
             btn.font_face, btn.font_size, btn.font_bold = "symbols", 28, false
             return btn
         end
-        row{
-            chev(Session.CHEV_LEFT,  function() self:moveBy(-1, 0) end),
-            chev(Session.CHEV_RIGHT, function() self:moveBy(1, 0) end),
-            chev(Session.CHEV_UP,    function() self:moveBy(0, -1) end),
-            chev(Session.CHEV_DOWN,  function() self:moveBy(0, 1) end),
-        }
+        -- As the toolbar: size on the left, position on the right.
         row{
             b(_("Narrower"), function() self:resize("w", -1) end),
             b(_("Wider"),    function() self:resize("w", 1) end),
+            chev(Session.CHEV_LEFT,  function() self:moveBy(-1, 0) end),
+            chev(Session.CHEV_RIGHT, function() self:moveBy(1, 0) end),
+        }
+        row{
             b(_("Shorter"),  function() self:resize("h", -1) end),
             b(_("Taller"),   function() self:resize("h", 1) end),
+            chev(Session.CHEV_UP,    function() self:moveBy(0, -1) end),
+            chev(Session.CHEV_DOWN,  function() self:moveBy(0, 1) end),
         }
         local r = {}
         if opts.has_settings then r[#r + 1] = b(_("Settings"), function() self:settings() end) end

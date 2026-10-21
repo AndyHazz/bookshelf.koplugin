@@ -1,0 +1,287 @@
+--[[
+The layout editor's state and actions, kept free of widgets so it can be
+tested headless. The editor widget (bookshelf_module_grid_editor) draws it
+and routes taps and keys here.
+
+A session edits a WORKING COPY: the items (deep-copied from the host's model)
+and the boxes of the orientation being edited. Every successful action asks
+the host to re-render from that copy (host:render(session:edit())); nothing
+reaches the store until commit(), which writes the positions back onto the
+items and saves once. A refused action (no room, past the page cap, below a
+module's minimum) shows "No room" and changes nothing.
+
+Session.new{
+  host,          -- :render(edit) and :model() (load / save / nextId)
+  items, boxes,  -- the surface's entries and the boxes for this orientation
+  dims, key,     -- grid dimensions; "at" or "at_land"
+  page, selected_id,
+  notify(text),            -- show a short message
+  add_picker(on_added),    -- let the user choose a module; on_added(entry)
+  open_settings(entry),    -- the module's own settings
+  size_for(entry) -> w, h  -- size for a newly added module
+  min_for(entry) -> w, h   -- the module's minimum size (default 1, 1)
+  title_for(entry)         -- the module's name, for messages
+}
+]]
+local Grid = require("lib/bookshelf_module_grid")
+local _    = require("lib/bookshelf_i18n").gettext
+
+local MAX_PAGES = 4
+
+local Session = {}
+Session.__index = Session
+
+local function deepCopy(v)
+    if type(v) ~= "table" then return v end
+    local out = {}
+    for k, x in pairs(v) do out[k] = deepCopy(x) end
+    return out
+end
+
+function Session.new(o)
+    local s = setmetatable({}, Session)
+    s.host          = o.host
+    s.items         = deepCopy(o.items or {})
+    s.boxes         = deepCopy(o.boxes or {})
+    s.dims          = o.dims
+    s.key           = o.key or "at"
+    s.page          = o.page or 1
+    s.selected_id   = o.selected_id
+    s.notify        = o.notify or function() end
+    s.add_picker    = o.add_picker
+    s.open_settings = o.open_settings
+    s.size_for      = o.size_for or function() return 1, 1 end
+    s.min_for       = o.min_for or function() return 1, 1 end
+    s.title_for     = o.title_for or function(entry) return entry.module end
+    return s
+end
+
+function Session:edit()
+    return { items = self.items, boxes = self.boxes, page = self.page,
+             selected_id = self.selected_id }
+end
+
+function Session:_render()
+    if self.host and self.host.render then self.host:render(self:edit()) end
+end
+
+-- "No room", or "No room to move <module>" when we know what's in the way.
+function Session:_refuse(blocker_id)
+    local entry = blocker_id and self:item(blocker_id)
+    if entry then
+        local title = tostring(self.title_for(entry))
+        self.notify((_("No room to move %1"):gsub("%%1", function() return title end)))
+    else
+        self.notify(_("No room"))
+    end
+    return false
+end
+
+-- Take a Grid result: adopt it and re-render, or refuse.
+function Session:_adopt(boxes, _why, blocker_id)
+    if not boxes then return self:_refuse(blocker_id) end
+    self.boxes = boxes
+    self:_render()
+    return true
+end
+
+function Session:item(id)
+    for i, it in ipairs(self.items) do
+        if it.id == id then return it, i end
+    end
+end
+
+function Session:box(id)
+    for _i, b in ipairs(self.boxes) do
+        if b.id == id then return b end
+    end
+end
+
+--- Pages to show in the footer: those with a module, plus the current one.
+function Session:pageList()
+    return Grid.pages(self.boxes, self.page)
+end
+
+function Session:select(id)
+    if self.selected_id == id then return false end
+    self.selected_id = id
+    self:_render()
+    return true
+end
+
+function Session:goPage(p)
+    if p == self.page or p < 1 then return false end
+    self.page = p
+    self.selected_id = nil
+    self:_render()
+    return true
+end
+
+function Session:moveBy(dc, dr)
+    if not self.selected_id then return false end
+    return self:_adopt(Grid.move(self.boxes, self.selected_id, dc, dr, self.dims))
+end
+
+--- Move the selection to a tapped cell: its top-left goes there, pulled back
+--- just enough to keep the whole module on the grid (it still covers the cell).
+function Session:moveToCell(col, row)
+    local b = self.selected_id and self:box(self.selected_id)
+    if not b then return false end
+    col = math.max(1, math.min(col, self.dims.cols - b.w + 1))
+    row = math.max(1, math.min(row, self.dims.rows - b.h + 1))
+    return self:_adopt(Grid.moveTo(self.boxes, self.selected_id, col, row, self.dims))
+end
+
+function Session:resize(axis, delta)
+    local id = self.selected_id
+    if not id then return false end
+    local min_w, min_h = self.min_for(self:item(id))
+    return self:_adopt(Grid.resize(self.boxes, id, axis, delta, self.dims, min_w, min_h))
+end
+
+--- Move the selection to page p: any existing page, or the next new one as
+--- long as that stays within the page cap. The editor follows it there.
+function Session:moveToPage(p)
+    local id = self.selected_id
+    if not id then return false end
+    local pages = Grid.pages(self.boxes)
+    local exists = false
+    for _i, q in ipairs(pages) do if q == p then exists = true end end
+    if p < 1 or (not exists and (p > MAX_PAGES or p ~= self:newPage())) then
+        return self:_refuse()
+    end
+    local boxes = Grid.toPage(self.boxes, id, p, self.dims)
+    if not boxes then return self:_refuse() end
+    self.boxes = boxes
+    self.page = p
+    self:_render()
+    return true
+end
+
+function Session:remove()
+    local id = self.selected_id
+    if not id then return false end
+    local _it, i = self:item(id)
+    if i then table.remove(self.items, i) end
+    for j, b in ipairs(self.boxes) do
+        if b.id == id then table.remove(self.boxes, j); break end
+    end
+    self.selected_id = nil
+    -- Leave a page that just emptied for the nearest one still in use.
+    local pages = Grid.pages(self.boxes)
+    local here = false
+    for _j, p in ipairs(pages) do if p == self.page then here = true end end
+    if not here and #pages > 0 then
+        local pick = pages[1]
+        for _j, p in ipairs(pages) do if p < self.page then pick = p end end
+        self.page = pick
+    end
+    self:_render()
+    return true
+end
+
+--- Pick a module and place it at the first free spot on the current page,
+--- then the following pages up to the cap. It becomes the selection.
+function Session:add()
+    if not self.add_picker then return false end
+    self.add_picker(function(entry)
+        if not entry then return end
+        local w, h = self.size_for(entry)
+        w = math.min(w, self.dims.cols)
+        h = math.min(h, self.dims.rows)
+        local function tryPage(p)
+            local c, r = Grid.firstFree(self.boxes, self.dims, p, w, h)
+            if not c then return false end
+            self.items[#self.items + 1] = entry
+            self.boxes[#self.boxes + 1] = { id = entry.id, page = p, col = c, row = r, w = w, h = h }
+            self.page = p
+            self.selected_id = entry.id
+            self:_render()
+            return true
+        end
+        for p = self.page, MAX_PAGES do
+            if tryPage(p) then return end
+        end
+        for p = 1, math.min(self.page - 1, MAX_PAGES) do
+            if tryPage(p) then return end
+        end
+        self:_refuse()
+    end)
+    return true
+end
+
+--- The first page (up to the cap) holding no module, for "New page"; nil
+--- when every page up to the cap is in use.
+function Session:newPage()
+    local used = {}
+    for _i, b in ipairs(self.boxes) do used[b.page] = true end
+    for p = 1, MAX_PAGES do
+        if not used[p] then return p end
+    end
+end
+
+local function label(fmt, n)
+    return (fmt:gsub("%%1", tostring(n)))
+end
+
+--- Everything the toolbar and edit footer offer, as rows of
+--- { text, callback } for a keys-only device (shown as a dialog).
+--- opts.has_settings: the selected module has settings; opts.on_done: Done.
+function Session:keyActions(opts)
+    opts = opts or {}
+    local rows = {}
+    local function row(list) if #list > 0 then rows[#rows + 1] = list end end
+    local function b(text, fn) return { text = text, callback = fn } end
+    if self.selected_id then
+        row{
+            b("\xE2\x86\x90", function() self:moveBy(-1, 0) end),
+            b("\xE2\x86\x92", function() self:moveBy(1, 0) end),
+            b("\xE2\x86\x91", function() self:moveBy(0, -1) end),
+            b("\xE2\x86\x93", function() self:moveBy(0, 1) end),
+        }
+        row{
+            b(_("Narrower"), function() self:resize("w", -1) end),
+            b(_("Wider"),    function() self:resize("w", 1) end),
+            b(_("Shorter"),  function() self:resize("h", -1) end),
+            b(_("Taller"),   function() self:resize("h", 1) end),
+        }
+        local r = {}
+        if opts.has_settings then r[#r + 1] = b(_("Settings"), function() self:settings() end) end
+        r[#r + 1] = b(_("Remove"), function() self:remove() end)
+        row(r)
+    end
+    local pages = {}
+    for _i, p in ipairs(self:pageList()) do
+        if p ~= self.page then
+            pages[#pages + 1] = b(label(_("Page %1"), p), function()
+                if self.selected_id then self:moveToPage(p) else self:goPage(p) end
+            end)
+        end
+    end
+    local np = self.selected_id and self:newPage()
+    if np then pages[#pages + 1] = b(_("New page"), function() self:moveToPage(np) end) end
+    row(pages)
+    row{
+        b(_("Add"), function() self:add() end),
+        b(_("Done"), function() if opts.on_done then opts.on_done() end end),
+    }
+    return rows
+end
+
+--- Save the working copy: positions written back onto the items, one save.
+function Session:commit()
+    Grid.writeBack(self.items, self.boxes, self.key)
+    self.host:model().save(self.items)
+end
+
+--- Open the selected module's settings. Commits first, so the module's own
+--- save (which reloads the stored list) sees the positions edited so far.
+function Session:settings()
+    local id = self.selected_id
+    if not id or not self.open_settings then return false end
+    self:commit()
+    self.open_settings(self:item(id))
+    return true
+end
+
+return Session

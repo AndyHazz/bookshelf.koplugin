@@ -35,6 +35,15 @@ put("bad_keepopen.lua", [[return { key = "badkeep", title = "Bad keep_open",
 put("fn_keepopen.lua", [[return { key = "fnkeep", title = "Function keep_open",
     render = function() end, on_tap = function() end,
     keep_open = function() return true end }]])
+-- Grid size hints: optional, positive whole numbers of cells.
+put("min_ok.lua", [[return { key = "minok", title = "Min ok",
+    render = function() end, min_w = 2, min_h = 1 }]])
+put("min_zero.lua", [[return { key = "minzero", title = "Min zero",
+    render = function() end, min_w = 0 }]])
+put("min_str.lua", [[return { key = "minstr", title = "Min string",
+    render = function() end, min_w = "2" }]])
+put("min_frac.lua", [[return { key = "minfrac", title = "Min fraction",
+    render = function() end, min_h = 1.5 }]])
 names[#names + 1] = "README.md" -- non-lua entries must be ignored
 put("README.md", "not a module")
 
@@ -74,9 +83,13 @@ t.test("scan registers valid specs and skips broken/invalid ones", function()
     assert(reg["fnkeep"] ~= nil
         and type(reg["fnkeep"].keep_open) == "function",
         "function keep_open must register")
+    assert(reg["minok"] and reg["minok"].min_w == 2, "whole-number size hints must register")
+    assert(reg["minzero"] == nil, "min_w 0 must be skipped")
+    assert(reg["minstr"] == nil, "a string min_w must be skipped")
+    assert(reg["minfrac"] == nil, "a fractional min_h must be skipped")
     local n = 0
     for _k in pairs(reg) do n = n + 1 end
-    assert(n == 3, "exactly three modules must have registered, got " .. n)
+    assert(n == 4, "exactly four modules must have registered, got " .. n)
 end)
 
 t.test("menu-open generation hook", function()

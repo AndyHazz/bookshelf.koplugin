@@ -16,6 +16,7 @@ hero list.
 ]]
 local BookshelfSettings = require("lib/bookshelf_settings_store")
 local SMModel           = require("lib/bookshelf_start_menu_model")
+local Grid              = require("lib/bookshelf_module_grid")
 local logger            = require("logger")
 
 local M = {}
@@ -23,6 +24,9 @@ local M = {}
 local STORAGE_KEY = "fullscreen_module_items"
 local SEEDED_KEY  = "fullscreen_modules_seeded"
 local NEXT_ID_KEY = "fullscreen_module_next_id"
+-- Set once this surface's layout is on the grid (by the one-time upgrade from
+-- the old row packer, or by a fresh install seeding positioned DEFAULTS).
+M.MIGRATED_KEY = "module_grid_migrated_fullscreen"
 
 function M.nextId()
     local n = BookshelfSettings.read(NEXT_ID_KEY, 1)
@@ -37,15 +41,23 @@ end
 -- with the three that only make sense given room -- reading stats, the
 -- library count, and goal progress.
 --
--- The quote keeps size = 1 so it spans the row rather than sitting in a
--- narrow cell; it is the one module here that is mostly text.
+-- Laid out on the 6-column full-screen grid: clock and stats as 3x3 squares
+-- side by side, goal and shelf size as half-width cards under them, and the
+-- quote across the full width -- it is the one module here that is mostly
+-- text. The quote asks for two rows from row 6; on the shortest portrait grid
+-- (6 rows, squat screens) it shrinks to one (Grid.resolve).
 function M.DEFAULTS()
     return {
-        { id = "fsm_clock", type = "module", module = "analogue_clock" },
-        { id = "fsm_stats", type = "module", module = "stats"          },
-        { id = "fsm_quote", type = "module", module = "quote_of_day", size = 1 },
-        { id = "fsm_shelf", type = "module", module = "shelf_size"     },
-        { id = "fsm_goal",  type = "module", module = "reading_goal"   },
+        { id = "fsm_clock", type = "module", module = "analogue_clock",
+          at = { page = 1, col = 1, row = 1, w = 3, h = 3 } },
+        { id = "fsm_stats", type = "module", module = "stats",
+          at = { page = 1, col = 4, row = 1, w = 3, h = 3 } },
+        { id = "fsm_quote", type = "module", module = "quote_of_day",
+          at = { page = 1, col = 1, row = 6, w = 6, h = 2 } },
+        { id = "fsm_shelf", type = "module", module = "shelf_size",
+          at = { page = 1, col = 4, row = 4, w = 3, h = 2 } },
+        { id = "fsm_goal",  type = "module", module = "reading_goal",
+          at = { page = 1, col = 1, row = 4, w = 3, h = 2 } },
     }
 end
 
@@ -72,6 +84,9 @@ function M.sanitize(items)
                 and it.type == "module" and type(it.module) == "string" then
             local e, stripped = stripPage(it)
             if stripped then changed = true end
+            local cleaned
+            e, cleaned = Grid.cleanPositions(e)
+            if cleaned then changed = true end
             out[#out + 1] = e
         else
             changed = true
@@ -112,6 +127,7 @@ function M.load()
     local seed = M.DEFAULTS()
     BookshelfSettings.save(STORAGE_KEY, seed)
     BookshelfSettings.save(SEEDED_KEY, true)
+    BookshelfSettings.save(M.MIGRATED_KEY, true)
     return seed
 end
 

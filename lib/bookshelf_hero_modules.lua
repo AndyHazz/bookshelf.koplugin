@@ -28,15 +28,14 @@ local Device          = require("device")
 local FrameContainer  = require("ui/widget/container/framecontainer")
 local Geom            = require("ui/geometry")
 local GestureRange    = require("ui/gesturerange")
-local HorizontalGroup = require("ui/widget/horizontalgroup")
-local HorizontalSpan  = require("ui/widget/horizontalspan")
 local InputContainer  = require("ui/widget/container/inputcontainer")
 local TextWidget      = require("lib/bookshelf_colour_text")
 local UIManager       = require("ui/uimanager")
-local VerticalGroup   = require("ui/widget/verticalgroup")
-local VerticalSpan    = require("ui/widget/verticalspan")
 local Modules         = require("lib/bookshelf_start_menu_modules")
 local HeroModel       = require("lib/bookshelf_hero_modules_model")
+local Grid            = require("lib/bookshelf_module_grid")
+local GridContainer   = require("lib/bookshelf_grid_container")
+local Layout          = require("lib/bookshelf_module_layout")
 local BFont           = require("lib/bookshelf_fonts")
 local Breaker         = require("lib/bookshelf_module_breaker")
 local BookshelfSettings = require("lib/bookshelf_settings_store")
@@ -231,13 +230,39 @@ function HeroModules._tap(bw, entry, refresh, tapped_region)
     if keep then ctx.menu:_reload() end
 end
 
+-- Long-press a module: edit the layout with it selected. The host is the
+-- full-screen view when it's open, else the top panel. pcall: in the reader
+-- overlay bw is a minimal context shim, so an edit path that reaches for a
+-- widget-only method must fail safe, not crash the reader.
 function HeroModules._hold(bw, entry)
     if not Gestures.on("module_hold") then return end
-    local ok, Edit = pcall(require, "lib/bookshelf_hero_modules_edit")
-    -- pcall the show too: in the reader overlay bw is a minimal context shim, so
-    -- an edit path that reaches for a widget-only method must fail safe, not
-    -- crash the reader.
-    if ok and Edit then pcall(Edit.show, bw, entry) end
+    pcall(function()
+        local Editor = require("lib/bookshelf_module_grid_editor")
+        local host = bw._micro_fullscreen or HeroModules.heroEditHost(bw)
+        Editor.open{ bw = bw, host = host, select_id = entry and entry.id }
+    end)
+end
+
+-- The top panel as a layout-editor host (see bookshelf_module_grid_editor):
+-- the editor's working copy is handed to the panel's build through
+-- bw._module_edit and the panel is swapped in place.
+function HeroModules.heroEditHost(bw)
+    local host = {}
+    function host.model() return HeroModel end
+    function host.gridInfo() return bw._hero_grid_info end
+    function host.render(_self, edit)
+        bw._module_edit = edit
+        if not (bw._swapMicroHeroInPlace and bw:_swapMicroHeroInPlace()) then
+            if bw._rebuild then bw:_rebuild() end
+            UIManager:setDirty(bw, "ui")
+        end
+    end
+    function host.footerRect()
+        if not bw.footerPanelRect then return nil end
+        local ok, x, y, w, h = pcall(function() return bw:footerPanelRect() end)
+        if ok and x then return Geom:new{ x = x, y = y, w = w, h = h } end
+    end
+    return host
 end
 
 -- Render a module to fit the cell: parent-enforced auto-fit. A module is asked
@@ -813,30 +838,6 @@ function HeroModules._emptyState(bw, content_w, hero_h)
     return cell
 end
 
--- A thin in-grid pager cell: a vertically-centred chevron in a w×h slot that
--- pages the module grid on tap. "prev" sits before the first module of the
--- first row, "next" after the last module of the last row.
-function HeroModules._chevronCell(bw, dir, w, h)
-    local glyph = (dir == "prev") and "\xE2\x9D\xAE" or "\xE2\x9D\xAF" -- ❮ / ❯
-    local txt = TextWidget:new{
-        text    = glyph,
-        face    = BFont:getFace("cfont", 22),
-        fgcolor = Modules.COLOR_MUTED or Blitbuffer.COLOR_GRAY_5,
-    }
-    local cell = InputContainer:new{
-        dimen = Geom:new{ w = w, h = h },
-        CenterContainer:new{ dimen = Geom:new{ w = w, h = h }, txt },
-    }
-    if Device:isTouchDevice() then
-        cell.ges_events = { Tap = { GestureRange:new{ ges = "tap", range = cell.dimen } } }
-    end
-    function cell:onTap()
-        HeroModules._gotoPage(bw, dir == "prev" and -1 or 1)
-        return true
-    end
-    return cell
-end
-
 -- Change the current module page by delta (clamped), then re-render the hero.
 -- No-op at the ends. Scoped to the hero region when the widget exposes a
 -- hero-only rebuild; otherwise a full rebuild.
@@ -878,102 +879,17 @@ function HeroModules._flexMinWidth(content_w, gap)
     return math.min(floor_w, half)
 end
 
--- Build the hero micro-module grid sized to content_w × hero_h.
-function HeroModules.build(bw, content_w, hero_h, PAD, opts)
-    opts = opts or {}
-    _build_surface = opts.surface or "hero"
-    -- Point the whole module system at the card colour BEFORE anything
-    -- renders: the modules read it at render time, and the text they draw
-    -- paints it as its own background. See Modules.setCardBg.
-    if Modules.setCardBg then Modules.setCardBg(_moduleCardBg()) end
-    -- ...and the ink that has to read on it. A card colour without a matching
-    -- ink is half a theme: the cards went dark and their text stayed black
-    -- (maintainer).
-    if Modules.setInk then
-        local ok_cp, CP = pcall(require, "lib/bookshelf_cover_progress")
-        local ink, muted
-        if ok_cp and CP and CP.ink then ink = CP.ink() end
-        if ink then
-            local ok_l, lum = pcall(function() return ink:getColor8().a end)
-            if ok_l and type(lum) == "number" then
-                -- A third of the way from the ink toward the card, which is
-                -- what the light theme's 0x55 is between black and 0xEE.
-                local card = (lum > 128) and 0x11 or 0xEE
-                local m = math.floor(lum + (card - lum) / 3 + 0.5)
-                muted = Blitbuffer.Color8(m)
-            end
-        end
-        Modules.setInk(ink, muted)
-    end
-    -- Arm the light-touch home-screen crash marker before building the grid
-    -- (issue #163). If a module hard-crashes during the hero paint, the sentinel
-    -- file survives and the next launch comes up with the cover hero instead of
-    -- re-crashing. The widget's paintTo removes it once the paint returns.
-    pcall(Breaker.armFile, Breaker.heroMarkerPath())
-    -- opts.items: an explicit module list. The full-screen overlay passes ALL
-    -- modules so they reflow across the screen, bypassing the hero's per-page
-    -- assignment + in-grid chevrons. Default = the stored model (hero paging).
-    local all_items = opts.items or HeroModel.load()
-    if #all_items == 0 then
-        return HeroModules._emptyState(bw, content_w, hero_h)
-    end
-    -- User-controlled pagination: each module carries an optional page number
-    -- (entry.page, default 1, up to MAX_PAGES) set from its long-press menu. The
-    -- grid shows the current page's modules, navigated by the in-grid chevrons /
-    -- hero swipe. Only the current page is packed and built, so off-page modules
-    -- never render or fetch. Within a page the grid still fills the hero (and so
-    -- shrinks if you crowd one page — the cue to spread modules across pages).
-    local MAX_PAGES = 4
-    local CHEV_W    = Screen:scaleBySize(24)
-    local function pageOf(it)
-        local p = tonumber(it.page) or 1
-        return math.max(1, math.min(p, MAX_PAGES))
-    end
-    local items, has_prev, has_next
-    if opts.items then
-        -- Reflow mode (full-screen overlay): all modules at once, no per-page
-        -- assignment and no in-grid chevrons. (Footer paging for overflow is a
-        -- follow-up; today they all share one screen-filling grid.)
-        items = all_items
-        has_prev, has_next = false, false
-        bw._hero_page_list = { 1 }
-        bw._hero_pages     = 1
-    else
-        -- The navigable pages are only those that actually hold a module — empty
-        -- pages (gaps in the user's assignments) are skipped entirely, so paging
-        -- never lands on a blank grid. Kept sorted ascending.
-        local used = {}
-        for _i, it in ipairs(all_items) do used[pageOf(it)] = true end
-        local pages = {}
-        for p = 1, MAX_PAGES do if used[p] then pages[#pages + 1] = p end end
-        -- Resolve the current page to a real one: keep it if it still holds
-        -- modules, else snap to the nearest used page at or below it.
-        local want = bw._hero_page or pages[1]
-        local page, idx = pages[1], 1
-        for i, p in ipairs(pages) do
-            if p == want then page, idx = p, i; break end
-            if p < want then page, idx = p, i end -- track nearest-below
-        end
-        bw._hero_page      = page
-        bw._hero_page_list = pages   -- absolute page numbers, used pages only
-        bw._hero_pages     = #pages  -- count of NAVIGABLE pages
-        items = {}
-        for _i, it in ipairs(all_items) do
-            if pageOf(it) == page then items[#items + 1] = it end
-        end
-        if #items == 0 then
-            return HeroModules._emptyState(bw, content_w, hero_h)
-        end
-        has_prev = idx > 1
-        has_next = idx < #pages
-    end
+-- The aspect-aware row packer the grid replaced, kept for one job: the
+-- one-time migration snaps each module from the size this produced (see
+-- Grid.snapLegacy). Returns { rows = { { {entry=, w=px}, ... }, ... }, cell_h }.
+-- row_avail(r, rows), when given, narrows row r (the old in-grid chevrons).
+function HeroModules._legacyPack(items, content_w, hero_h, gap, row_avail)
     -- Aspect-aware row packing. Modules opt into a square aspect (def.aspect ==
     -- "square": the clock face, action icons) so they pack as squares instead of
     -- stretching into wide rectangles. The rest are "flex" and fill the leftover
     -- width. Square modules compress to fit MORE per row down to a square (never
     -- narrower); they only expand past square to fill a row that would otherwise
     -- gap, and flex modules in a row absorb the slack so squares stay square.
-    local gap = PAD
     -- A flex card's minimum width: ~2 comfortable text columns on a portrait
     -- screen, so a third module wraps to the next row instead of squeezing three
     -- narrow, overflowing cells onto one row (#180 follow-up). Seeds the row
@@ -1109,75 +1025,307 @@ function HeroModules.build(bw, content_w, hero_h, PAD, opts)
         return widths
     end
 
-    -- Single size mechanism: every cell starts at 100% and _renderFitted grows
-    -- it to fill or shrinks it to fit, per cell (see that function).
-    local scale_pct = 100
+    local out = {}
+    for r, row in ipairs(rows_list) do
+        local avail  = row_avail and row_avail(r, rows) or content_w
+        local widths = rowWidths(row, avail)
+        local cells  = {}
+        for c, entry in ipairs(row) do cells[c] = { entry = entry, w = widths[c] } end
+        out[r] = cells
+    end
+    return { rows = out, cell_h = cell_h }
+end
+
+-- Build the hero micro-module grid sized to content_w × hero_h.
+function HeroModules.build(bw, content_w, hero_h, PAD, opts)
+    opts = opts or {}
+    _build_surface = opts.surface or "hero"
+    -- Point the whole module system at the card colour BEFORE anything
+    -- renders: the modules read it at render time, and the text they draw
+    -- paints it as its own background. See Modules.setCardBg.
+    if Modules.setCardBg then Modules.setCardBg(_moduleCardBg()) end
+    -- ...and the ink that has to read on it. A card colour without a matching
+    -- ink is half a theme: the cards went dark and their text stayed black
+    -- (maintainer).
+    if Modules.setInk then
+        local ok_cp, CP = pcall(require, "lib/bookshelf_cover_progress")
+        local ink, muted
+        if ok_cp and CP and CP.ink then ink = CP.ink() end
+        if ink then
+            local ok_l, lum = pcall(function() return ink:getColor8().a end)
+            if ok_l and type(lum) == "number" then
+                -- A third of the way from the ink toward the card, which is
+                -- what the light theme's 0x55 is between black and 0xEE.
+                local card = (lum > 128) and 0x11 or 0xEE
+                local m = math.floor(lum + (card - lum) / 3 + 0.5)
+                muted = Blitbuffer.Color8(m)
+            end
+        end
+        Modules.setInk(ink, muted)
+    end
+    -- Arm the light-touch home-screen crash marker before building the grid
+    -- (issue #163). If a module hard-crashes during the hero paint, the sentinel
+    -- file survives and the next launch comes up with the cover hero instead of
+    -- re-crashing. The widget's paintTo removes it once the paint returns.
+    pcall(Breaker.armFile, Breaker.heroMarkerPath())
+    local surface = (opts.surface == "fullscreen") and "fullscreen" or "hero"
+    local Model = (surface == "fullscreen")
+        and require("lib/bookshelf_fullscreen_modules_model") or HeroModel
+    local edit = opts.edit
+    -- opts.items: the full-screen overlay passes its own list (it checks the
+    -- d-pad cursor against it). The editor passes its working copy via edit.
+    local items = (edit and edit.items) or opts.items or Model.load()
+    if #items == 0 and not edit then
+        bw._module_grid = nil
+        return HeroModules._emptyState(bw, content_w, hero_h)
+    end
+
+    -- The cell grid. Full-screen: 6 columns in portrait with rows for the
+    -- squarest cells, cell size kept in landscape. Top panel: its own smaller
+    -- grid, two rows wherever the panel is tall enough.
+    local gap = PAD
+    local sw, sh = Screen:getWidth(), Screen:getHeight()
+    local landscape = sw > sh
+    local dims
+    if surface == "fullscreen" then
+        dims = Grid.dims("fullscreen", content_w, hero_h, gap,
+            { landscape = landscape, short_side = math.min(sw, sh) })
+    else
+        dims = Grid.dims("panel", content_w, hero_h, gap,
+            { min_row_h = Screen:scaleBySize(70) })
+    end
+
+    local boxes
+    if edit then
+        boxes = edit.boxes
+    else
+        boxes = HeroModules._storedLayout(bw, Model, items, dims, landscape, surface,
+            content_w, hero_h, gap)
+    end
+
+    -- Pages: those holding a module (plus the editor's current page, which may
+    -- be empty while you move things onto it). Resolve the current page to a
+    -- real one: keep it, else the nearest used page below it, else the first.
+    local pages = Grid.pages(boxes, edit and edit.page or nil)
+    if #pages == 0 then pages = { 1 } end
+    local want
+    if edit then
+        want = edit.page
+    elseif surface == "fullscreen" then
+        want = opts.page
+    else
+        want = bw._hero_page
+    end
+    want = want or pages[1]
+    local page = pages[1]
+    for _i, p in ipairs(pages) do
+        if p == want then page = p; break end
+        if p < want then page = p end
+    end
+    if surface == "hero" and not edit then
+        bw._hero_page      = page
+        bw._hero_page_list = pages
+        bw._hero_pages     = #pages
+    end
 
     -- Record each cell so it can be re-rendered in place later: _hero_cells
     -- (keyed by entry id) backs the per-module scoped refresh (tap reload +
     -- async); _hero_clock_cells is the subset wanting the minute heartbeat. A
-    -- record locates the cell by its parent row + index so it can be swapped
-    -- without rebuilding the grid (which would re-roll random_unread etc.).
-    -- Only the current page's cells are recorded, so the heartbeat / refresh
-    -- only ever touch on-screen modules.
+    -- record locates the cell by its slot in the grid container so it can be
+    -- swapped without rebuilding the grid (which would re-roll random_unread
+    -- etc.). Only the current page's cells are recorded, so the heartbeat /
+    -- refresh only ever touch on-screen modules.
     bw._hero_cells = {}
     bw._hero_clock_cells = {}
-    -- Row/col map of entry ids for d-pad navigation (HeroModules.navMove). Only
-    -- the module cells are recorded; chevrons are edge actions, not focus stops.
-    bw._hero_grid_rows = {}
+    -- Row/col map of entry ids for d-pad navigation (HeroModules.navMove).
+    bw._hero_grid_rows = Grid.navRows(boxes, page)
 
-    local vg = VerticalGroup:new{ align = "center" }
-    for r, row in ipairs(rows_list) do
-        local nav_row = {}
-        bw._hero_grid_rows[#bw._hero_grid_rows + 1] = nav_row
-        -- Chevrons sit IN the grid: prev before the first module of the first
-        -- row, next after the last module of the last row, each vertically
-        -- centred in its row. They take a thin slot, so that row's modules
-        -- distribute within the reduced width (no re-pack, just a touch narrower).
-        local lead_chev = has_prev and r == 1
-        local tail_chev = has_next and r == rows
-        local reserved  = (lead_chev and (CHEV_W + gap) or 0)
-                        + (tail_chev and (CHEV_W + gap) or 0)
-        local mod_area  = content_w - reserved
-        local widths    = rowWidths(row, mod_area)
-        local row_used  = gap * (#row - 1)
-        for _i, w in ipairs(widths) do row_used = row_used + w end
-        -- Centre an under-full module run (a capped all-square row) within the
-        -- module area so the cells sit in the middle; the grid stays content_w.
-        local side = math.max(0, math.floor((mod_area - row_used) / 2))
-        local hg = HorizontalGroup:new{ align = "center" }
-        if lead_chev then
-            hg[#hg + 1] = HeroModules._chevronCell(bw, "prev", CHEV_W, cell_h)
-            hg[#hg + 1] = HorizontalSpan:new{ width = gap }
-        end
-        if side > 0 then hg[#hg + 1] = HorizontalSpan:new{ width = side } end
-        for c, entry in ipairs(row) do
-            if c > 1 then hg[#hg + 1] = HorizontalSpan:new{ width = gap } end
-            local cell_w = widths[c]
+    -- The grid's pixel size can come out a few px under the area (cells are
+    -- whole pixels): centre it horizontally, top-align it.
+    local grid_w = dims.cols * dims.cell_w + (dims.cols - 1) * gap
+    local ox = math.max(0, math.floor((content_w - grid_w) / 2))
+    local oy = 0
+    local container = GridContainer:new{
+        dimen = Geom:new{ w = content_w, h = hero_h },
+        pos = {},
+    }
+    local by_id = {}
+    for _i, it in ipairs(items) do by_id[it.id] = it end
+    local scale_pct = 100
+    for _i, b in ipairs(boxes) do
+        local entry = (b.page == page) and by_id[b.id]
+        if entry then
+            local x, y, w, h = Grid.rect(dims, b)
             local focused = opts.focused_id ~= nil and entry.id == opts.focused_id
-            hg[#hg + 1] = HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct,
+            container[#container + 1] = HeroModules._makeCell(bw, entry, w, h, scale_pct,
                 opts.focusable, focused)
-            if entry.id then nav_row[#nav_row + 1] = entry.id end
+            container.pos[#container] = { x = ox + x, y = oy + y }
             local rec = {
-                group = hg, idx = #hg, entry = entry,
-                w = cell_w, h = cell_h, scale = scale_pct,
+                group = container, idx = #container, entry = entry,
+                w = w, h = h, scale = scale_pct,
                 focusable = opts.focusable,
             }
-            if entry.id then bw._hero_cells[entry.id] = rec end
+            bw._hero_cells[entry.id] = rec
             local def = Modules.get(entry.module)
             if def and def.wants_minute_tick then
                 bw._hero_clock_cells[#bw._hero_clock_cells + 1] = rec
             end
         end
-        if side > 0 then hg[#hg + 1] = HorizontalSpan:new{ width = side } end
-        if tail_chev then
-            hg[#hg + 1] = HorizontalSpan:new{ width = gap }
-            hg[#hg + 1] = HeroModules._chevronCell(bw, "next", CHEV_W, cell_h)
-        end
-        vg[#vg + 1] = hg
-        if r < rows then vg[#vg + 1] = VerticalSpan:new{ width = gap } end
     end
-    return vg
+    if edit then HeroModules._editDecorations(container, dims, boxes, page, edit, ox, oy) end
+
+    bw._module_grid = {
+        surface = surface, dims = dims, pages = pages, page = page,
+        container = container, landscape = landscape, ox = ox, oy = oy,
+        boxes = boxes, key = Layout.key(landscape),
+    }
+    return container
+end
+
+-- Page-indicator dots for a w x h band: the current page filled, the rest
+-- outlined; blank when there is only one page. Records its screen rect and
+-- the dot rects so a host can map a tap to a page (Grid.dotAt).
+function HeroModules.pageDots(count, current, w, h)
+    local Widget = require("ui/widget/widget")
+    local size    = Screen:scaleBySize(6)
+    local spacing = Screen:scaleBySize(18)
+    local dots = Widget:new{ dimen = Geom:new{ w = w, h = h } }
+    dots.rects   = (count > 1) and Grid.dotRects(count, w, h, size, spacing) or {}
+    dots.spacing = spacing
+    function dots:paintTo(bb, x, y)
+        self.dimen.x, self.dimen.y = x, y
+        local r = math.floor(size / 2)
+        for i, d in ipairs(self.rects) do
+            if i == current then
+                bb:paintRoundedRect(x + d.x, y + d.y, d.w, d.h, Blitbuffer.COLOR_BLACK, r)
+            else
+                bb:paintBorder(x + d.x, y + d.y, d.w, d.h, 1, Blitbuffer.COLOR_DARK_GRAY, r)
+            end
+        end
+    end
+    return dots
+end
+
+-- The current page's position in the page list (for pageDots).
+function HeroModules.pageIndex(info)
+    if not info then return 1 end
+    for i, p in ipairs(info.pages or {}) do
+        if p == info.page then return i end
+    end
+    return 1
+end
+
+-- Size for a module placed fresh (added, or with no position yet): in
+-- proportion to the grid (Grid.defaultSize), squares (the clock face, action
+-- icons) as squares, both raised to the module's declared min_w / min_h.
+function HeroModules._sizeFor(entry, dims)
+    local def = Modules.get(entry.module)
+    local w, h = Grid.defaultSize(dims, def ~= nil and def.aspect == "square")
+    if def and type(def.min_w) == "number" then w = math.max(w, def.min_w) end
+    if def and type(def.min_h) == "number" then h = math.max(h, def.min_h) end
+    return math.min(w, dims.cols), math.min(h, dims.rows)
+end
+
+-- The stored layout for this build, resolved onto `dims`. Placement work that
+-- belongs in the store (a new module, the one-time upgrade, the first
+-- landscape seed) is saved on the next tick -- never inside the build, which
+-- runs on the paint path. Overflow onto a smaller grid is render-only.
+function HeroModules._storedLayout(bw, Model, items, dims, landscape, surface,
+                                   content_w, hero_h, gap)
+    local migrated = BookshelfSettings.isTrue(Model.MIGRATED_KEY)
+    local function legacy()
+        -- The old layout, page by page as the old packer drew it (the top
+        -- panel had per-module pages; the full-screen view was one page).
+        local by_page, order = {}, {}
+        for _i, it in ipairs(items) do
+            local p = (surface == "hero") and math.max(1, math.min(tonumber(it.page) or 1, 4)) or 1
+            if not by_page[p] then by_page[p] = {}; order[#order + 1] = p end
+            local list = by_page[p]
+            list[#list + 1] = it
+        end
+        table.sort(order)
+        local out = {}
+        for _i, p in ipairs(order) do
+            local packed = HeroModules._legacyPack(by_page[p], content_w, hero_h, gap)
+            for r, row in ipairs(packed.rows) do
+                for _c, cell in ipairs(row) do
+                    out[#out + 1] = { id = cell.entry.id, page = p, row = r,
+                        px_w = cell.w, px_h = packed.cell_h }
+                end
+            end
+        end
+        return out
+    end
+    local boxes, changed = Layout.resolveFor(items, dims, {
+        landscape = landscape,
+        migrated  = migrated,
+        legacy    = legacy,
+        size_for  = function(it) return HeroModules._sizeFor(it, dims) end,
+        page      = (surface == "hero") and bw._hero_page or nil,
+    })
+    if changed then
+        UIManager:nextTick(function()
+            Model.save(items)
+            if not landscape and not migrated then
+                BookshelfSettings.save(Model.MIGRATED_KEY, true)
+            end
+        end)
+    end
+    return boxes
+end
+
+-- Edit-mode drawing on top of the real-size grid: dashed outlines on empty
+-- cells (under the cells), the other modules lightened and a thick outline
+-- round the selected one (over them).
+function HeroModules._editDecorations(container, dims, boxes, page, edit, ox, oy)
+    local taken = {}
+    for _i, b in ipairs(boxes) do
+        if b.page == page then
+            for r = b.row, b.row + b.h - 1 do
+                for c = b.col, b.col + b.w - 1 do taken[r * 1000 + c] = true end
+            end
+        end
+    end
+    local dash = Screen:scaleBySize(6)
+    local line = math.max(1, Screen:scaleBySize(1))
+    local ink  = Blitbuffer.COLOR_DARK_GRAY
+    local function dashedRect(bb, x, y, w, h)
+        for i = 0, w - 1, dash * 2 do
+            local len = math.min(dash, w - i)
+            bb:paintRect(x + i, y, len, line, ink)
+            bb:paintRect(x + i, y + h - line, len, line, ink)
+        end
+        for i = 0, h - 1, dash * 2 do
+            local len = math.min(dash, h - i)
+            bb:paintRect(x, y + i, line, len, ink)
+            bb:paintRect(x + w - line, y + i, line, len, ink)
+        end
+    end
+    function container.under(bb, x0, y0)
+        for r = 1, dims.rows do
+            for c = 1, dims.cols do
+                if not taken[r * 1000 + c] then
+                    local x, y, w, h = Grid.rect(dims, { col = c, row = r, w = 1, h = 1 })
+                    dashedRect(bb, x0 + ox + x, y0 + oy + y, w, h)
+                end
+            end
+        end
+    end
+    local thick = Screen:scaleBySize(4)
+    function container.over(bb, x0, y0)
+        for _i, b in ipairs(boxes) do
+            if b.page == page then
+                local x, y, w, h = Grid.rect(dims, b)
+                x, y = x0 + ox + x, y0 + oy + y
+                if b.id == edit.selected_id then
+                    bb:paintBorder(x - thick, y - thick, w + 2 * thick, h + 2 * thick,
+                        thick, Blitbuffer.COLOR_BLACK)
+                elseif edit.selected_id then
+                    bb:lightenRect(x, y, w, h, 0.5)
+                end
+            end
+        end
+    end
 end
 
 -- Re-render just the time-sensitive (clock) cells in place and scope the

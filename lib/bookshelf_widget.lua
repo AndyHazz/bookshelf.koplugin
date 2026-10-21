@@ -5168,6 +5168,8 @@ function BookshelfWidget:_microHeroOpts()
         focusable  = dpad or nil,
         focused_id = (dpad and self._focus_zone == "hero")
                      and self._hero_cell_cursor or nil,
+        -- The layout editor's working copy while it is open on the panel.
+        edit       = self._module_edit,
     }
 end
 
@@ -5220,22 +5222,35 @@ function BookshelfWidget:_buildMicroHero(content_w, hero_h, PAD)
     -- just spanning the full width like the status text already does.
     local status_row = HeroCard.buildStatusRow(current, self:_buildDeviceState(),
                                                content_w, true, true)
+    -- A page-dots band is ALWAYS reserved under the grid, one page or many,
+    -- so adding a second page never resizes the cells above it.
+    local dots_h = Screen:scaleBySize(12)
+    local function dotsFor()
+        -- The panel's own grid, kept apart from the shared bw._module_grid
+        -- (which the full-screen view also writes): the layout editor reads it.
+        local info = self._module_grid
+        if info and info.surface == "hero" then self._hero_grid_info = info end
+        local count = (info and info.pages) and #info.pages or 1
+        return HeroModules.pageDots(count, HeroModules.pageIndex(info), content_w, dots_h)
+    end
     if not status_row then
         self._hero_status_strip = nil
-        return HeroModules.build(self, content_w, hero_h, PAD, mopts)
+        local grid = HeroModules.build(self, content_w, math.max(1, hero_h - dots_h), PAD, mopts)
+        return VerticalGroup:new{ align = "left", grid, dotsFor() }
     end
     local VerticalSpan = require("ui/widget/verticalspan")
     -- Tight gap under the status line (half the hero PAD); a full PAD read as
     -- slightly too much space above the grid.
     local gap     = math.max(1, math.floor((PAD or 0) / 2))
     local status_h = status_row:getSize().h
-    local grid_h  = math.max(1, hero_h - status_h - gap)
+    local grid_h  = math.max(1, hero_h - status_h - gap - dots_h)
     local grid    = HeroModules.build(self, content_w, grid_h, PAD, mopts)
     local vg = VerticalGroup:new{
         align = "left",
         status_row,
         VerticalSpan:new{ width = gap },
         grid,
+        dotsFor(),
     }
     -- Pin the whole strip to hero_h.
     --
@@ -5249,7 +5264,7 @@ function BookshelfWidget:_buildMicroHero(content_w, hero_h, PAD)
     -- caches its offsets on the first getSize, so measuring vg and then adding
     -- to it would leave the cached offsets a child short.
     local ok_g, gh = pcall(function() return grid:getSize().h end)
-    local slack = ok_g and gh and (hero_h - status_h - gap - gh) or 0
+    local slack = ok_g and gh and (hero_h - status_h - gap - gh - dots_h) or 0
     if slack and slack > 0 then
         vg[#vg + 1] = VerticalSpan:new{ width = slack }
     end

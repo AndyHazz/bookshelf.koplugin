@@ -45,7 +45,7 @@ end)
 
 t.test("the quote spans, because it is the one that is mostly text", function()
     for _, it in ipairs(FS) do
-        if it.module == "quote_of_day" then eq(it.size, 1, "quote should span") end
+        if it.module == "quote_of_day" then eq(it.at and it.at.w, 6, "quote should span the grid") end
     end
 end)
 

@@ -4,7 +4,8 @@ Micro-module: the covers of the books you read last, tap one to open it
 
 Books come from KOReader's own reading history (history.lua, what the Recent
 shelf shows), newest first, skipping files that are gone. How many is set per
-card (long-press > Module settings), three by default.
+card in its settings: Fit (the default) shows as many as the cell holds at
+full height, or pick a number.
 
 Covers are the shelf's own SpineWidget, as list rows draw their thumbnails: it
 fetches and caches the scaled cover itself, so nothing here holds a bitmap
@@ -16,8 +17,21 @@ left in the user micromodules folder cannot override this one.
 ]]
 local _ = require("lib/bookshelf_i18n").gettext
 
-local DEFAULT_COUNT = 3
-local COUNTS = { 2, 3, 4, 5 }
+-- "fit": as many as the cell holds at full height (the default); or a fixed
+-- number. With no height to fit (the start menu), "fit" shows three.
+local DEFAULT_COUNT = "fit"
+local COUNTS = { "fit", 2, 3, 4, 5 }
+
+--- How many 2:3 covers a width x height cell holds side by side at full
+--- height, with `gap` between them and `overhang` px kept above and below for
+--- the status marks. At least one, at most twelve.
+local function fitCount(width, height, gap, overhang)
+    local h = height - 2 * overhang
+    local w = math.floor(h * 2 / 3)
+    if w < 1 then return 1 end
+    local n = math.floor((width + gap) / (w + gap))
+    return math.max(1, math.min(n, 12))
+end
 
 -- The records for the newest history entries, rebuilt only when the history
 -- changes (its newest entry or its length): render runs on every paint, and a
@@ -52,8 +66,8 @@ local function recentBooks(n)
 end
 
 local function countOf(ctx)
-    local n = ctx and ctx.config and tonumber(ctx.config:get("count", DEFAULT_COUNT))
-    return n or DEFAULT_COUNT
+    local v = ctx and ctx.config and ctx.config:get("count", DEFAULT_COUNT)
+    return tonumber(v) or "fit"
 end
 
 local function openBook(ctx, book)
@@ -80,7 +94,7 @@ local function showSettings(ctx)
     local row = {}
     for _i, n in ipairs(COUNTS) do
         row[#row + 1] = Kit.radioRow{
-            label = tostring(n), active = n == cur,
+            label = (n == "fit") and _("Fit") or tostring(n), active = n == cur,
             on_pick = function()
                 UIManager:close(dialog)
                 ctx.config:set("count", n)
@@ -102,8 +116,21 @@ return {
 
     render = function(ctx)
         local Kit = require("lib/bookshelf_module_kit")
+        local SpineWidget = require("lib/bookshelf_spine_widget")
         local sc = Kit.sc(ctx.scale)
+        local gap = sc(10)
         local n = countOf(ctx)
+        if n == "fit" then
+            local cap = ctx.height
+            if cap and cap > 0 then
+                -- The status-mark overhang depends on the cover width; take it
+                -- for a full-height cover, which is what Fit draws.
+                local m = SpineWidget.badgeOverhang(math.floor(cap * 2 / 3))
+                n = fitCount(ctx.width, cap, gap, m)
+            else
+                n = 3
+            end
+        end
         -- History is local, so the picker's preview shows the real covers.
         local books = recentBooks(n)
         if #books == 0 then
@@ -118,14 +145,12 @@ return {
         end
         local HorizontalGroup = require("ui/widget/horizontalgroup")
         local HorizontalSpan  = require("ui/widget/horizontalspan")
-        local SpineWidget = require("lib/bookshelf_spine_widget")
         -- Covers share the width, in the shelf's 2:3, and stop short of the
         -- height the host offers (a hero cell, or the start menu's ceiling).
         -- The status marks hang past the cover (the favourite above, the
         -- bookmarks and tick below), and the card clips to what render
         -- returns, so each cover keeps that much room above and below.
         local FrameContainer = require("ui/widget/container/framecontainer")
-        local gap = sc(10)
         local slots = math.max(n, #books)
         local w = math.floor((ctx.width - gap * (slots - 1)) / slots)
         local m = SpineWidget.badgeOverhang(w)

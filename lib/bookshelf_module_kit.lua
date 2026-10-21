@@ -150,12 +150,22 @@ function Kit.fitText(o)
     return TextBoxWidget:new(args)
 end
 
+-- isStrip(width, height) -> true for a cell clearly wider than tall (a 3x1 or
+-- 6x1 on the grid), where a card reads better laid out sideways. No height
+-- (the start menu, the picker): false, the stacked layout as always.
+function Kit.isStrip(width, height)
+    if not (width and height and height > 0) then return false end
+    return width >= height * 2.4
+end
+
 -- valueCard{...} -> VerticalGroup. The shared "heading + big value + suffix +
 -- bar + sub + context" card (reading_goal / reading_stats, and a good default
 -- for any stat module). All fields optional except width/scale_pct.
 --   heading - small muted bold line               value  - big primary value
 --   suffix  - baseline-aligned small primary       bar    - optional full-width widget
 --   sub     - optional muted small line            context- optional small primary line
+--   height  - the cell height, when the host has one: in a strip (isStrip) the
+--             value goes on the left and the rest in a column beside it.
 function Kit.valueCard(o)
     local TextWidget      = require("lib/bookshelf_colour_text")
     local VerticalGroup   = require("ui/widget/verticalgroup")
@@ -163,6 +173,40 @@ function Kit.valueCard(o)
     local HorizontalGroup = require("ui/widget/horizontalgroup")
     local sc = Kit.sc(o.scale_pct)
     local mw = math.max(50, o.width or 50)
+    if o.value and Kit.isStrip(mw, o.height) then
+        local HorizontalSpan = require("ui/widget/horizontalspan")
+        local fbig, bbig = Kit.face(26, o.scale_pct, { bold = true })
+        local left = VerticalGroup:new{ align = "left",
+            TextWidget:new{ text = o.value, face = fbig, bold = bbig,
+                fgcolor = Kit.COLOR_PRIMARY } }
+        if o.suffix then
+            left[#left + 1] = TextWidget:new{ text = (o.suffix:gsub("^%s+", "")),
+                face = Kit.face(14, o.scale_pct), fgcolor = Kit.COLOR_PRIMARY }
+        end
+        local gap = sc(16)
+        local rw = math.max(10, mw - left:getSize().w - gap)
+        local right = VerticalGroup:new{ align = "left" }
+        if o.heading then
+            local f, b = Kit.face(15, o.scale_pct, { bold = true })
+            right[#right + 1] = TextWidget:new{ text = o.heading, face = f, bold = b,
+                fgcolor = Kit.COLOR_MUTED, max_width = rw }
+        end
+        if o.sub then
+            right[#right + 1] = TextWidget:new{ text = o.sub, face = Kit.face(13, o.scale_pct),
+                fgcolor = Kit.COLOR_MUTED, max_width = rw }
+        end
+        if o.context then
+            right[#right + 1] = TextWidget:new{ text = o.context,
+                face = Kit.face(13, o.scale_pct, { italic = true }),
+                fgcolor = Kit.COLOR_PRIMARY, max_width = rw }
+        end
+        if o.bar_fraction then
+            right[#right + 1] = VerticalSpan:new{ width = sc(6) }
+            right[#right + 1] = Kit.progressBar{ width = rw, height = sc(6), fraction = o.bar_fraction }
+        end
+        return HorizontalGroup:new{ align = "center", left,
+            HorizontalSpan:new{ width = gap }, right }
+    end
     local g = VerticalGroup:new{ align = "left" }
     if o.heading then
         local f, b = Kit.face(15, o.scale_pct, { bold = true })

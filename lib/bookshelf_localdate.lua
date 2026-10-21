@@ -50,5 +50,20 @@ function M.localize(str)
     if not map then buildMap() end
     return (str:gsub("%a+", function(word) return map[word] end))
 end
+-- Longest first: weekday and month in full, then abbreviated, then without
+-- the weekday, then numeric.
+M.DATE_FORMS = { "%A %d %B", "%a %d %b", "%d %b", "%d/%m" }
+
+--- The longest of DATE_FORMS for `now`, localized, that `measure(str) -> px`
+--- says fits in max_w; the shortest when none does. Shortening the format
+--- reads better than truncating it, so callers shrink the font only after.
+function M.fitted(now, measure, max_w)
+    local last
+    for _i, fmt in ipairs(M.DATE_FORMS) do
+        last = M.localize(os.date(fmt, now))
+        if measure(last) <= max_w then return last end
+    end
+    return last
+end
 
 return M

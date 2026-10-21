@@ -610,6 +610,9 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
     -- cells get more breathing room, small cells stay tight. Floored at 6px.
     local card_pad = Space.px(math.max(6, math.floor(8 * (scale_pct or 100) / 100 + 0.5)))
     local def      = Modules.get(entry.module)
+    -- A bare module (an ornament) has no card to keep its drawing off the edge
+    -- of, so it takes the whole cell.
+    if def and def.bare then card_pad = 0 end
     -- Only an action card (def.tap_feedback) gets the on-tap pressed border, so
     -- only it reserves the thin ring: at rest the ring is an empty margin (no
     -- border drawn); on tap the border flips on and the margin off, so the
@@ -632,7 +635,7 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
     -- left/right. Square modules (clock/action) are icon-centred already and use
     -- the full cell. The ClipContainer below stays at inner_w, so the narrower
     -- render is centred horizontally — giving the L/R margin. Tunable.
-    local is_sq      = def and def.aspect == "square"
+    local is_sq      = def and (def.aspect == "square" or def.bare)
     local base_inset = Space.px(10)
     local text_w     = is_sq and inner_w or math.max(50, inner_w - 2 * base_inset)
 

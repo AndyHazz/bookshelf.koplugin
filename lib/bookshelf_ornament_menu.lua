@@ -425,8 +425,12 @@ function M.show(entry, bw, piece)
     return dialog
 end
 
--- chooseTap(entry, done): the Action module's chooser, plus "no action".
-function M.chooseTap(entry, done)
+-- chooseTap(entry, done, set): the Action module's chooser, plus "no action"
+-- and Zoom. set(value) stores the choice (an action table, "zoom", or nil):
+-- by default on the piece's own file; the Ornament module stores it on its
+-- card instead.
+function M.chooseTap(entry, done, set)
+    set = set or function(v) O().readerSet(entry, "tap", v) end
     local UIManager    = require("ui/uimanager")
     local ButtonDialog = require("ui/widget/buttondialog")
     local Chooser      = require("lib/bookshelf_action_chooser")
@@ -435,7 +439,7 @@ function M.chooseTap(entry, done)
         return function() UIManager:close(d); if fn then fn() end end
     end
     local rows = Chooser.actionRows(close, function(fields)
-        O().readerSet(entry, "tap", {
+        set({
             action = fields.action, plugin = fields.plugin,
             internal = fields.internal, label = fields.label,
         })
@@ -444,14 +448,14 @@ function M.chooseTap(entry, done)
     table.insert(rows, 1, {{
         text = _("No action"),
         callback = close(function()
-            O().readerSet(entry, "tap", nil)
+            set(nil)
             if done then done() end
         end),
     }, {
         -- The piece full screen, with its info (or its name) under it.
         text = _("Zoom"),
         callback = close(function()
-            O().readerSet(entry, "tap", "zoom")
+            set("zoom")
             if done then done() end
         end),
     }})

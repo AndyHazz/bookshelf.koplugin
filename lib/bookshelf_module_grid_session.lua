@@ -125,7 +125,14 @@ end
 
 function Session:moveBy(dc, dr)
     if not self.selected_id then return false end
-    return self:_adopt(Grid.move(self.boxes, self.selected_id, dc, dr, self.dims))
+    return self:moveIdBy(self.selected_id, dc, dr)
+end
+
+--- Move any module a cell, leaving the selection as it is (a swipe moves the
+--- module under the finger without opening its toolbar).
+function Session:moveIdBy(id, dc, dr)
+    if not self:box(id) then return false end
+    return self:_adopt(Grid.move(self.boxes, id, dc, dr, self.dims))
 end
 
 --- Move the selection to a tapped cell: its top-left goes there, pulled back

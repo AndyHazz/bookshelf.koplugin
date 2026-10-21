@@ -365,7 +365,8 @@ end
 
 local SWIPE_MOVE = { east = { 1, 0 }, west = { -1, 0 }, north = { 0, -1 }, south = { 0, 1 } }
 
--- Swipe a module to move it a cell that way (as the chevrons do); a sideways
+-- Swipe a module to move it a cell that way (as the chevrons do, without
+-- selecting it); a sideways
 -- swipe over an empty cell turns the page; one that starts off the grid is
 -- KOReader's.
 function Editor:onEdSwipe(_arg, ges)
@@ -378,10 +379,9 @@ function Editor:onEdSwipe(_arg, ges)
     local b = self:_boxAt(col, row)
     local mv = SWIPE_MOVE[dir]
     if b and mv then
-        local newly = s.selected_id ~= b.id
-        s.selected_id = b.id
-        -- A refused move (No room) still leaves the swiped module selected.
-        if not s:moveBy(mv[1], mv[2]) and newly then s:_render() end
+        -- Moves the module under the finger without selecting it: the
+        -- toolbar opens on a tap only.
+        s:moveIdBy(b.id, mv[1], mv[2])
         return true
     end
     local pages = s:pageList()

@@ -44,6 +44,11 @@ put("min_str.lua", [[return { key = "minstr", title = "Min string",
     render = function() end, min_w = "2" }]])
 put("min_frac.lua", [[return { key = "minfrac", title = "Min fraction",
     render = function() end, min_h = 1.5 }]])
+-- bare: draw without the card (an ornament over the wallpaper); a boolean.
+put("bare_ok.lua", [[return { key = "bareok", title = "Bare ok",
+    render = function() end, bare = true }]])
+put("bare_bad.lua", [[return { key = "barebad", title = "Bare bad",
+    render = function() end, bare = "yes" }]])
 names[#names + 1] = "README.md" -- non-lua entries must be ignored
 put("README.md", "not a module")
 
@@ -87,9 +92,11 @@ t.test("scan registers valid specs and skips broken/invalid ones", function()
     assert(reg["minzero"] == nil, "min_w 0 must be skipped")
     assert(reg["minstr"] == nil, "a string min_w must be skipped")
     assert(reg["minfrac"] == nil, "a fractional min_h must be skipped")
+    assert(reg["bareok"] and reg["bareok"].bare == true, "a boolean bare must register")
+    assert(reg["barebad"] == nil, "a non-boolean bare must be skipped")
     local n = 0
     for _k in pairs(reg) do n = n + 1 end
-    assert(n == 4, "exactly four modules must have registered, got " .. n)
+    assert(n == 5, "exactly five modules must have registered, got " .. n)
 end)
 
 t.test("menu-open generation hook", function()

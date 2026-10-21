@@ -266,4 +266,13 @@ t.test("moveIdBy moves a module without selecting it", function()
     assert(host.renders == 1)
 end)
 
+t.test("resizeId resizes a module without selecting it", function()
+    local items = {
+        { id = "a", type = "module", module = "x", at = at(1, 1, 1, 1, 1) },
+    }
+    local s = session(items)
+    assert(s:resizeId("a", "w", 1))
+    assert(boxOf(s, "a").w == 2 and s.selected_id == nil)
+end)
+
 t.done()

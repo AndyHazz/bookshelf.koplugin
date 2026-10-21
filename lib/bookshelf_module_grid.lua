@@ -436,7 +436,8 @@ end
 --- being the module's row on its old page. The old packer gave every row on a
 --- page the same height and filled each row's width exactly, so each old row
 --- shares the grid's columns out by width (largest remainders, at least one
---- cell each) and gets an equal share of the grid's rows. Everything then
+--- cell each) and gets an equal share of the grid's rows (the remainder going
+--- one apiece to the first rows). Everything then
 --- flows in order with its old page as the earliest it may land on, so a page
 --- that fit one screen still fits one page, page order survives, and nothing
 --- is dropped (a row with more modules than columns spills on).
@@ -456,8 +457,13 @@ function M.snapLegacy(legacy, dims)
     for _i, p in ipairs(pages) do
         local pg = by_page[p]
         table.sort(pg.order)
-        local h = math.max(1, math.floor(dims.rows / #pg.order))
-        for _j, r in ipairs(pg.order) do
+        -- Every grid row goes to some old row: an equal share each, and the
+        -- remainder one apiece to the first rows (7 rows over 4 old rows =
+        -- 2, 2, 2, 1), so the page is filled rather than bunched at the top.
+        local share = math.floor(dims.rows / #pg.order)
+        local extra = (share >= 1) and (dims.rows - share * #pg.order) or 0
+        for j, r in ipairs(pg.order) do
+            local h = math.max(1, share + ((j <= extra) and 1 or 0))
             local row = pg.rows[r]
             local total = 0
             for _k, l in ipairs(row) do total = total + math.max(0, l.px_w or 0) end

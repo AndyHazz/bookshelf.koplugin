@@ -52,13 +52,12 @@ end
 
 --- How the card lays itself out for its cell: "upright" (a battery standing up,
 --- the percentage under it) in square and tall cells, "sideways" (a battery on
---- its side, the figures beside it) in a strip, and "card" (heading, figure,
---- bar) in between, or with no height to go by (start menu, picker).
+--- its side, the figures beside it) in anything wider than tall, and "card"
+--- (heading, figure, bar) with no height to go by (start menu, picker).
 local function shapeOf(width, avail_h)
     if not (width and avail_h and avail_h > 0) then return "card" end
     if avail_h >= width * 0.9 then return "upright" end
-    if width >= avail_h * 2.4 then return "sideways" end
-    return "card"
+    return "sideways"
 end
 
 -- A drawn battery w x h: a rounded outline, the terminal nub on top (upright)
@@ -149,22 +148,25 @@ return {
             local HorizontalSpan  = require("ui/widget/horizontalspan")
             local sc = Kit.sc(ctx.scale)
             local avail_h = ctx.height
+            -- The drawn battery says what it is, so the figure is just the
+            -- percentage, with KOReader's bolt only while charging.
+            local pct = s.cap .. "%"
+            if s.charging and s.symbol and s.symbol ~= "" then pct = s.symbol .. " " .. pct end
             if shape == "upright" then
                 -- The battery takes about two thirds of the height, at 1:2;
                 -- the percentage (with the charging state) sits under it.
-                -- The drawn battery says what it is, so the label is just the
-                -- percentage, shrunk rather than cut to fit a narrow cell.
-                local text = s.cap .. "%"
-                if s.charging and s.symbol and s.symbol ~= "" then
-                    text = s.symbol .. " " .. text   -- keep the charging bolt
-                end
+                -- Shrunk rather than cut to fit a narrow cell.
+                local text = pct
                 local size = 22
                 local face, bold = Kit.face(size, ctx.scale, { bold = true })
                 local probe = TextWidget:new{ text = text, face = face, bold = bold }
                 local tw = probe:getSize().w
                 probe:free()
-                if tw > mw and tw > 0 then
-                    face, bold = Kit.face(math.max(8, math.floor(size * mw / tw)), ctx.scale, { bold = true })
+                -- Aim a little inside the width: the font's own rounding can
+                -- otherwise land a pixel over and the label ellipsizes ("90...").
+                local fit = math.floor(mw * 0.9)
+                if tw > fit and tw > 0 then
+                    face, bold = Kit.face(math.max(8, math.floor(size * fit / tw)), ctx.scale, { bold = true })
                 end
                 local label = TextWidget:new{ text = text, face = face, bold = bold,
                     fgcolor = Kit.COLOR_PRIMARY, max_width = mw }
@@ -181,11 +183,13 @@ return {
             -- Sideways: the battery at half the height, 2:1, then the figure
             -- and what it means beside it.
             local bh = math.max(sc(20), math.floor(avail_h * 0.5))
+            -- At most a third of the width, so the figures keep room beside it.
+            bh = math.min(bh, math.floor(mw / 6))
             local bwid = bh * 2
             local face, bold = Kit.face(26, ctx.scale, { bold = true })
             local texts = VerticalGroup:new{
                 align = "left",
-                TextWidget:new{ text = value, face = face, bold = bold,
+                TextWidget:new{ text = pct, face = face, bold = bold,
                     fgcolor = Kit.COLOR_PRIMARY },
                 TextWidget:new{ text = sub or (suffix:gsub("^%s+", "")),
                     face = Kit.face(14, ctx.scale), fgcolor = Kit.COLOR_MUTED },

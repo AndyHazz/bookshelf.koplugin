@@ -48,6 +48,9 @@ for _, name in ipairs({
     package.preload[name] = function() return make_widget_base() end
 end
 
+-- The pencil glyph is a text widget in the symbols font.
+package.preload["lib/bookshelf_colour_text"] = function() return make_widget_base() end
+package.preload["lib/bookshelf_fonts"] = function() return { getFace = function() return {} end } end
 package.preload["ui/geometry"] = function()
     local G = {}
     function G:new(t)
@@ -270,7 +273,7 @@ t.test("overlay glyphs land on the launcher's painted boxes (adjusted launcher)"
     local offs = overlayOffsets(ov)
     local bars_box, grid_box = union(bars), union(grid)
     assert(offsetPresent(offs, bars_box), string.format(
-        "hamburger must be repainted at %d,%d (the launcher's own position)",
+        "the pencil must take the hamburger's spot at %d,%d (the launcher's own position)",
         bars_box.x, bars_box.y))
     assert(offsetPresent(offs, grid_box), string.format(
         "close-X must replace the grid glyph at %d,%d", grid_box.x, grid_box.y))
@@ -289,7 +292,7 @@ t.test("overlay glyphs follow a right-side launcher", function()
     local offs = overlayOffsets(ov)
     local bars_box = union(bars)
     assert(bars_box.x > SW / 2, "reader side=right puts the hamburger on the right")
-    assert(offsetPresent(offs, bars_box), "hamburger repainted on the right")
+    assert(offsetPresent(offs, bars_box), "pencil painted at the hamburger's spot on the right")
     assert(offsetPresent(offs, union(grid)), "close-X repainted on the left")
 end)
 

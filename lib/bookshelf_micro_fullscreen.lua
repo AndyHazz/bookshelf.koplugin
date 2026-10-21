@@ -164,50 +164,36 @@ local function _closeGlyph(bw, button_dimen, reserve_ring, focused, exact)
 end
 
 -- The layout editor's pencil, painted over the footer's start-menu button
--- spot (or, with the start menu off, the corner opposite the close X): a
--- diagonal shaft with a short cap, in the same stroke weight as the X. Its tap
--- opens the layout editor (handleEvent, _pencil_rect).
+-- spot (or, with the start menu off, the corner opposite the close X): the
+-- same pen glyph as the plugin's other Edit buttons (the Hardcover row in the
+-- book modal), in the footer glyphs' ink. Its tap opens the layout editor
+-- (handleEvent, _pencil_rect).
 -- exact (optional): the launcher's real painted bars box (reader context), so
 -- the pencil lands where the launcher's own glyph is.
+local PENCIL = "\xEE\xAB\xAA" -- nf-md-pencil, U+EAEA
 local function _pencilGlyph(bw, button_dimen, exact)
-    local box, art
+    local box
     if exact and exact.w and exact.w > 0 then
         box = { x = exact.x, y = exact.y, w = exact.w, h = exact.h }
-        art = math.min(exact.w, exact.h)
     else
         if not (button_dimen and button_dimen.w and button_dimen.w > 0) then return nil end
         local hit_ext = (bw and bw.FOOTER_HIT_EXTENSION) or Screen:scaleBySize(12)
         box = { x = button_dimen.x, y = button_dimen.y, w = button_dimen.w,
                 h = math.max(0, button_dimen.h - hit_ext) }
-        art = Screen:scaleBySize(32)
     end
-    local stroke = (not exact and bw and bw.FOOTER_STROKE_W)
-        or math.max(1, math.floor(art / 14))
-    local span = math.max(stroke * 4, math.floor(art * 0.62))
-    local shaft = stroke * 2
-    local ink = _glyphInk(bw)
-    local Pencil = Widget:extend{}
-    function Pencil:getSize() return Geom:new{ w = span, h = span } end
-    function Pencil:paintTo(b, x, y)
-        -- Shaft from the tip (bottom left) up to the top right.
-        local last = span - shaft
-        for t = stroke, last do
-            b:paintRect(x + t, y + last - t, shaft, shaft, ink)
-        end
-        -- The tip: a short stub beyond the shaft.
-        b:paintRect(x, y + span - stroke, stroke, stroke, ink)
-        -- A cap across the shaft near the top.
-        local c = last - shaft - stroke
-        for t = 0, shaft + stroke do
-            b:paintRect(x + c + t, y + last - c - shaft - stroke + t, stroke, stroke, ink)
-        end
-    end
+    local TextWidget = require("lib/bookshelf_colour_text")
+    local BFont = require("lib/bookshelf_fonts")
+    local glyph = TextWidget:new{
+        text    = PENCIL,
+        face    = BFont:getFace("symbols", 26),
+        fgcolor = _glyphInk(bw),
+    }
     local frame = FrameContainer:new{
         background = _glyphBacking(bw),
         bordersize = 0, padding = 0, margin = 0,
         CenterContainer:new{
             dimen = Geom:new{ w = box.w, h = box.h },
-            Pencil:new{},
+            glyph,
         },
     }
     return OffsetContainer:new{ x_off = box.x, y_off = box.y, frame }

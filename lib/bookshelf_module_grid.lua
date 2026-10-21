@@ -471,24 +471,42 @@ function M.resize(boxes, id, axis, delta, dims, min_w, min_h, mins_for)
         min = math.min(min_h or 1, dims.rows)
     end
     local at_far_edge = (t[pos] + t[size] - 1 >= limit) and t[pos] > 1
-    if delta > 0 then
-        if t[pos] + t[size] - 1 < limit then
-            t[size] = t[size] + 1
-        elseif t[pos] > 1 then
-            t[pos], t[size] = t[pos] - 1, t[size] + 1
-        else
-            return nil, "no_room"
-        end
-    else
+    if delta < 0 then
         if t[size] - 1 < math.max(1, min) then return nil, "no_room" end
         t[size] = t[size] - 1
         if at_far_edge then t[pos] = t[pos] + 1 end
+        return apply(boxes, id, t, dims)
     end
-    if delta > 0 then
-        local squeezed = squeeze(boxes, id, t, axis, dims, mins_for)
+    -- Growing: the cell can come from either side (right/down first, then
+    -- left/up). Least disruption wins: free space on either side, then
+    -- squeezing the neighbours there, then moving them aside.
+    local sides = {}
+    if t[pos] + t[size] - 1 < limit then
+        local g = copyBox(t); g[size] = g[size] + 1; sides[#sides + 1] = g
+    end
+    if t[pos] > 1 then
+        local g = copyBox(t); g[pos], g[size] = g[pos] - 1, g[size] + 1; sides[#sides + 1] = g
+    end
+    if #sides == 0 then return nil, "no_room" end
+    for _i, g in ipairs(sides) do
+        g.id = id
+        if not clashes(boxes, g, id) then
+            local out = copyAll(boxes)
+            local nb = find(out, id)
+            nb[pos], nb[size] = g[pos], g[size]
+            return out
+        end
+    end
+    for _i, g in ipairs(sides) do
+        local squeezed = squeeze(boxes, id, g, axis, dims, mins_for)
         if squeezed then return squeezed end
     end
-    return apply(boxes, id, t, dims)
+    local out, why, blocker
+    for _i, g in ipairs(sides) do
+        out, why, blocker = apply(boxes, id, g, dims)
+        if out then return out end
+    end
+    return nil, why, blocker
 end
 
 --- Move a box to the first free spot on another page.

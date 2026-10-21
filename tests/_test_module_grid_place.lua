@@ -341,4 +341,26 @@ t.test("a block only partly filled is not swapped with", function()
     assert(find(out, "otd").col == 3, "otd jumped to " .. find(out, "otd").col)
 end)
 
+t.test("wider grows to the left when the right is blocked and the left is free", function()
+    -- A full page apart from the cell left of the ornament; its right
+    -- neighbour is a single cell, so it can't be squeezed.
+    local bs = {}
+    for r = 1, 5 do for c = 1, 4 do
+        if not (r == 1 and (c == 2 or c == 3)) then bs[#bs + 1] = B("f" .. c .. r, c, r, 1, 1) end
+    end end
+    bs[#bs + 1] = B("orn", 3, 1, 1, 1)
+    local out = assert(Grid.resize(bs, "orn", "w", 1, D))
+    assert(at(find(out, "orn"), 1, 2, 1, 2, 1), show(find(out, "orn")))
+end)
+
+t.test("taller grows up when below is blocked and above is free", function()
+    local bs = {}
+    for r = 1, 5 do for c = 1, 4 do
+        if not (c == 1 and (r == 2 or r == 3)) then bs[#bs + 1] = B("f" .. c .. r, c, r, 1, 1) end
+    end end
+    bs[#bs + 1] = B("orn", 1, 3, 1, 1)
+    local out = assert(Grid.resize(bs, "orn", "h", 1, D))
+    assert(at(find(out, "orn"), 1, 1, 2, 1, 2), show(find(out, "orn")))
+end)
+
 t.done()

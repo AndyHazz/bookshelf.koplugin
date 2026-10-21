@@ -325,7 +325,7 @@ local function swapBlock(boxes, id, old, block)
         return nil
     end
     local dc, dr = old.col - block.col, old.row - block.row
-    local out, moved = {}, 0
+    local out, moved, area = {}, 0, 0
     for _i, b in ipairs(M.readingOrder(boxes)) do
         if b.id == id then
             b.page, b.col, b.row = block.page, block.col, block.row
@@ -337,10 +337,13 @@ local function swapBlock(boxes, id, old, block)
             end
             b.page, b.col, b.row = old.page, b.col + dc, b.row + dr
             moved = moved + 1
+            area = area + b.w * b.h
         end
         out[#out + 1] = b
     end
-    if moved == 0 then return nil end
+    -- Only a block the modules fill completely: one with a gap in it is not
+    -- the mover's equal, and the ordinary move (into the gap) is what's meant.
+    if moved == 0 or area ~= block.w * block.h then return nil end
     return out
 end
 
@@ -389,6 +392,15 @@ end
 function M.move(boxes, id, dc, dr, dims)
     local b = find(boxes, id)
     if not b then return nil, "no_room" end
+    -- A free cell that way: just step into it.
+    local step = copyBox(b)
+    step.col, step.row = b.col + dc, b.row + dr
+    if fits(step, dims) and not clashes(boxes, step, id) then
+        local out = copyAll(boxes)
+        local nb = find(out, id)
+        nb.col, nb.row = step.col, step.row
+        return out
+    end
     -- An arrow press next to a same-size block (one module, or several that
     -- fill it exactly) swaps with that block in one press.
     local block = { page = b.page, col = b.col + dc * b.w, row = b.row + dr * b.h, w = b.w, h = b.h }

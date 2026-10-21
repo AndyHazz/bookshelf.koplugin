@@ -323,4 +323,22 @@ t.test("wider at the right edge squeezes the neighbour on the left", function()
     assert(at(find(out, "w"), 1, 1, 1, 1, 2), show(find(out, "w")))
 end)
 
+t.test("a free cell next to it means a plain one-cell move, not a swap", function()
+    -- The PW5: quote 2x1 at cols 1-2, a gap at col 3, On this day 3x1 at 4-6.
+    local D6 = { cols = 6, rows = 7, cell_w = 100, cell_h = 100, gap = 10 }
+    local bs = { B("quote", 1, 4, 2, 1), B("otd", 4, 4, 3, 1) }
+    local out = assert(Grid.move(bs, "otd", -1, 0, D6))
+    assert(at(find(out, "otd"), 1, 3, 4, 3, 1), show(find(out, "otd")))
+    assert(at(find(out, "quote"), 1, 1, 4, 2, 1), "quote moved: " .. show(find(out, "quote")))
+end)
+
+t.test("a block only partly filled is not swapped with", function()
+    -- Left of otd: quote 2x1 plus one empty cell; the step left lands on the
+    -- quote, which moves aside under the usual rule rather than trading places.
+    local D6 = { cols = 6, rows = 7, cell_w = 100, cell_h = 100, gap = 10 }
+    local bs = { B("quote", 2, 4, 2, 1), B("otd", 4, 4, 3, 1) }
+    local out = assert(Grid.move(bs, "otd", -1, 0, D6))
+    assert(find(out, "otd").col == 3, "otd jumped to " .. find(out, "otd").col)
+end)
+
 t.done()

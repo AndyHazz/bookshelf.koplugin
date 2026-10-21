@@ -150,6 +150,18 @@ function Kit.fitText(o)
     return TextBoxWidget:new(args)
 end
 
+-- coverFit(width, height, gap, overhang) -> how many 2:3 covers a width x
+-- height box holds side by side at full height, with `gap` between them and
+-- `overhang` px kept above and below for the status marks. At least one, at
+-- most twelve. Recently read and the Shelf module size their rows by it.
+function Kit.coverFit(width, height, gap, overhang)
+    local h = height - 2 * (overhang or 0)
+    local w = math.floor(h * 2 / 3)
+    if w < 1 then return 1 end
+    local n = math.floor((width + (gap or 0)) / (w + (gap or 0)))
+    return math.max(1, math.min(n, 12))
+end
+
 -- isStrip(width, height) -> true for a cell clearly wider than tall (a 3x1 or
 -- 6x1 on the grid), where a card reads better laid out sideways. No height
 -- (the start menu, the picker): false, the stacked layout as always.

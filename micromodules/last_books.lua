@@ -22,17 +22,6 @@ local _ = require("lib/bookshelf_i18n").gettext
 local DEFAULT_COUNT = "fit"
 local COUNTS = { "fit", 2, 3, 4, 5 }
 
---- How many 2:3 covers a width x height cell holds side by side at full
---- height, with `gap` between them and `overhang` px kept above and below for
---- the status marks. At least one, at most twelve.
-local function fitCount(width, height, gap, overhang)
-    local h = height - 2 * overhang
-    local w = math.floor(h * 2 / 3)
-    if w < 1 then return 1 end
-    local n = math.floor((width + gap) / (w + gap))
-    return math.max(1, math.min(n, 12))
-end
-
 -- The records for the newest history entries, rebuilt only when the history
 -- changes (its newest entry or its length): render runs on every paint, and a
 -- record is a metadata read per book.
@@ -126,7 +115,7 @@ return {
                 -- The status-mark overhang depends on the cover width; take it
                 -- for a full-height cover, which is what Fit draws.
                 local m = SpineWidget.badgeOverhang(math.floor(cap * 2 / 3))
-                n = fitCount(ctx.width, cap, gap, m)
+                n = Kit.coverFit(ctx.width, cap, gap, m)
             else
                 n = 3
             end

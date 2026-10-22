@@ -280,10 +280,13 @@ t.test("cache: within the scan TTL the folder is not listed again", function()
     os.execute("rm -rf '" .. d .. "'")
 end)
 
--- The spine plan asks listAll() itself, twice a plan (the deck's sync, and a
--- themed shelf's pool), and listAll had no TTL of its own: a folder listing
--- per pack on every page turn (10-16% of a PW5 Genres turn, profiled).
-t.test("cache: listAll keeps its answer for the scan TTL too", function()
+-- The spine plan reaches listAll() itself, several times a plan (the deck's
+-- sync, a themed shelf's pool, the theme's hasPieces), and each call listed
+-- every pack's folder: 10-16% of a PW5 Genres turn, profiled. Inside the
+-- plan's window (allowRecent) the last scan stands for the scan TTL. Outside
+-- it listAll still looks every time: the browser and pack installs call it
+-- right after changing files.
+t.test("cache: listAll keeps its answer for the TTL only inside a plan's window", function()
     local O = fresh()
     local d = scratch()
     O._data_dir = d
@@ -297,15 +300,34 @@ t.test("cache: listAll keeps its answer for the scan TTL too", function()
     O.SCAN_TTL = 15
     eq(#O.listAll(), 2)
     local n1 = listings
+    O.listAll()
+    eq(listings, n1 + 1, "outside a plan, listAll looks every time")
+    O.allowRecent(true)
     O.listAll(); O.listAll()
-    eq(listings, n1, "listAll inside the TTL must not touch the folder")
+    eq(listings, n1 + 1, "inside the window, the last scan stands")
     O.invalidate()
     O.listAll()
-    eq(listings, n1 + 1, "invalidate() still forces a fresh look")
+    eq(listings, n1 + 2, "invalidate() still forces a fresh look")
     t = t + 15
+    O.allowRecent(true)
     O.listAll()
-    eq(listings, n1 + 2, "and so does the TTL running out")
+    eq(listings, n1 + 3, "and so does the TTL running out")
+    t = t + 3
+    O.listAll()
+    eq(listings, n1 + 4, "a window left open closes on its own")
+    O.allowRecent(true); O.allowRecent(false)
+    O.listAll()
+    eq(listings, n1 + 5, "closing the window ends it")
     os.execute("rm -rf '" .. d .. "'")
+end)
+
+t.test("the spine plan opens and closes the window", function()
+    local src = io.open("lib/bookshelf_spine_shelf.lua"):read("*a")
+    local body = src:match("\nfunction SpineShelf%.plan%(items, opts%)\n(.-)\nend\n")
+    assert(body, "plan not found")
+    local open_at = body:find("allowRecent(true)", 1, true)
+    local close_at = body:find("allowRecent(false)", 1, true)
+    assert(open_at and close_at and open_at < close_at, "the plan does not bracket itself")
 end)
 
 t.test("cache: a removal is noticed even when the mtime does not move", function()

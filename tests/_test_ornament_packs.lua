@@ -142,6 +142,55 @@ end)
 -- The browser previews the picture, not the file: an ornament's transparent
 -- room is there for the shelf, and wasted in a grid card (maintainer: "the
 -- PNGs look like they could fill the grid a little better").
+-- Where the drawing sits is the same answer every session for an unchanged
+-- file, and finding it costs a decode per piece: on a PW5 Genres shelf the
+-- first page turn of every session decoded each piece twice (this probe, then
+-- the paint), ~0.5 s. It is kept in a small cache file, keyed by the file's
+-- path, mtime and size, so an edited piece is looked at again.
+t.test("contentBox remembers its answer across sessions, per file version", function()
+    local O, d = setup()
+    local f = io.open(d .. "/y.png", "w"); f:write("x"); f:close()
+    local saved = {}
+    local store = {
+        read = function(k, def) local v = saved[k]; if v == nil then return def end; return v end,
+        saveDeferred = function(k, v) saved[k] = v end,
+        flush = function() end,
+    }
+    O._box_store = store
+    local renders = 0
+    O._render = function(_path, w, h)
+        renders = renders + 1
+        return { getWidth = function() return w end, getHeight = function() return h end,
+                 getPixel = function(_, x, y) return { alpha = (y >= h / 2) and 255 or 0 } end,
+                 free = function() end }
+    end
+    O.CONTENT_PROBE = 8
+    local _l, tp = O.contentBox({ path = d .. "/y.png", aspect = 1 })
+    eq(tp, 0.5); eq(renders, 1)
+    -- A new session: the module's own memo is empty, the cache file is not.
+    local O2 = dofile("lib/bookshelf_ornaments.lua")
+    O2._box_store = store; O2._lfs = lfs_shim
+    O2._render = function() error("probed again in a new session") end
+    O2.CONTENT_PROBE = 8
+    local _l2, tp2 = O2.contentBox({ path = d .. "/y.png", aspect = 1 })
+    eq(tp2, 0.5)
+    -- The file changes: probed again.
+    local mt = lfs_shim.attributes(d .. "/y.png", "modification")
+    local f2 = io.open(d .. "/y.png", "w"); f2:write("a bigger file now"); f2:close()
+    os.execute(dofile("tests/_helpers.lua").touchAtCmd(mt + 100, "'" .. d .. "/y.png'") .. " 2>/dev/null")
+    local O3 = dofile("lib/bookshelf_ornaments.lua")
+    O3._box_store = store; O3._lfs = lfs_shim
+    local probed = false
+    O3._render = function(_p, w, h)
+        probed = true
+        return { getWidth = function() return w end, getHeight = function() return h end,
+                 getPixel = function() return { alpha = 255 } end, free = function() end }
+    end
+    O3.CONTENT_PROBE = 8
+    O3.contentBox({ path = d .. "/y.png", aspect = 1 })
+    eq(probed, true)
+end)
+
 t.test("contentBox finds the opaque part of an ornament", function()
     local O, d = setup()
     local freed = 0

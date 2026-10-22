@@ -74,4 +74,26 @@ t.test("a folder shelf shows its books flattened, not its folder cards", functio
     assert(H.bookSource(c) == c, "other kinds pass through")
 end)
 
+-- A tall card always drew three or four rows of tiny covers (PW5: 27 covers
+-- in a 6x3 card): rows were "as many as fit at 100px". The card now has its
+-- own Rows; the rows set the cover size, the card's width how many fit.
+-- Auto: as many rows as fit at the main shelf's own cover height, so a card
+-- looks like the shelf it shows.
+t.test("rows: the card's own setting wins, 1 to 6", function()
+    assert(H.cardRows(2, 600, 8, 300) == 2)
+    assert(H.cardRows(9, 600, 8, 300) == 6, "clamped")
+    assert(H.cardRows(0, 600, 8, 300) == 1, "clamped")
+end)
+
+t.test("rows: Auto fits the main shelf's cover rows, at least one", function()
+    -- 600px body, rows of 290px + 8px gaps: two fit.
+    assert(H.cardRows(nil, 600, 8, 290) == 2)
+    assert(H.cardRows(nil, 200, 8, 290) == 1, "a short card still shows a row")
+    assert(H.cardRows(nil, 2000, 8, 290) == 6, "never more than six")
+end)
+
+t.test("rows: Auto without the shelf's size falls back to the old rule", function()
+    assert(H.cardRows(nil, 600, 8, nil, 100) == H.rowsFor(600, 100))
+end)
+
 t.done()

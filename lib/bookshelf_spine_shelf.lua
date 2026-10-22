@@ -3672,6 +3672,43 @@ function SpineShelf.dropPlanCache()
     _plan_cache = nil
 end
 
+-- _suffixEntries(pc, base, ids) -> entries | nil
+-- A page's items are the shelf's list FROM the page's first item, so each
+-- page that starts on a new item asked with a shorter list, missed the cache
+-- and rebuilt every entry (PW5, a Genres shelf of 111 genres: 1,800 entries,
+-- 1.1-1.4 s, on almost every turn). When the asked-for list is the tail of
+-- the cached one, under the same options, its entries are the cached ones
+-- from that item on, renumbered: item_idx and run_idx count from the start of
+-- the list asked for, and the first entry gets what a fresh build gives the
+-- first spine (no gap, no ornament seed: there is nothing before it).
+-- Copies, so the cached entries are never changed.
+local function _suffixEntries(pc, base, ids)
+    if not (pc and pc.base == base and pc.ids and pc.entries) then return nil end
+    local off = #pc.ids - #ids
+    if off <= 0 then return nil end
+    for i = 1, #ids do
+        if pc.ids[off + i] ~= ids[i] then return nil end
+    end
+    local src = pc.entries
+    local first
+    for j = 1, #src do
+        if src[j].item_idx > off then first = j; break end
+    end
+    if not first then return nil end
+    local run_off = (src[first].run_idx or 1) - 1
+    local out = {}
+    for j = first, #src do
+        local e = {}
+        for k, v in pairs(src[j]) do e[k] = v end
+        e.item_idx = e.item_idx - off
+        if e.run_idx then e.run_idx = e.run_idx - run_off end
+        out[#out + 1] = e
+    end
+    out[1].gap_before, out[1].gap_base, out[1].orn_seed = 0, 0, nil
+    return out
+end
+SpineShelf._suffixEntries = _suffixEntries
+
 local function _optsKey(opts)
     local parts = {}
     local keys = {}
@@ -3874,16 +3911,37 @@ function SpineShelf.plan(items, opts)
             ids[i] = ids[i] .. ":" .. require("lib/bookshelf_series_boxes").signature(it)
         end
     end
-    local cache_key = _optsKey(opts) .. "|n=" .. #flat .. "|" .. table.concat(ids, ",")
+    local base_key = _optsKey(opts)
+    local cache_key = base_key .. "|n=" .. #flat .. "|" .. table.concat(ids, ",")
     local cached = _plan_cache
                    and _plan_cache.key == cache_key
                    and _plan_cache.entries or nil
+    local derived = false
+    if not cached then
+        cached = _suffixEntries(_plan_cache, base_key, ids)
+        derived = cached ~= nil
+    end
     if _verbose then
+        -- On a miss against a filled slot, the first part of the key that
+        -- differs: what changed between two plans that should have shared.
+        local diff = ""
+        if _plan_cache and _plan_cache.key ~= cache_key then
+            local a, b = {}, {}
+            for part in _plan_cache.key:gmatch("[^|,]+") do a[#a + 1] = part end
+            for part in cache_key:gmatch("[^|,]+") do b[#b + 1] = part end
+            for i = 1, math.max(#a, #b) do
+                if a[i] ~= b[i] then
+                    diff = string.format(" first diff #%d: %s -> %s", i,
+                        tostring(a[i]):sub(1, 60), tostring(b[i]):sub(1, 60))
+                    break
+                end
+            end
+        end
         logger.dbg(string.format(
-            "[bookshelf perf] spine plan: entries %s (slot=%s key=%s)",
-            cached and "CACHED" or "built",
+            "[bookshelf perf] spine plan: entries %s (slot=%s key=%s)%s",
+            derived and "DERIVED" or (cached and "CACHED" or "built"),
             _plan_cache and "yes" or "empty",
-            tostring(_plan_cache and _plan_cache.key == cache_key)))
+            tostring(_plan_cache and _plan_cache.key == cache_key), diff))
     end
 
     -- One read for the whole page's facts (look, count, cached status), so
@@ -4335,7 +4393,7 @@ function SpineShelf.plan(items, opts)
     end
 
     if _n_hydrated == 0 then
-        _plan_cache = { key = cache_key, entries = entries }
+        _plan_cache = { key = cache_key, entries = entries, base = base_key, ids = ids }
     end
     end -- cached
     -- The page's slice. Entries carry no page-relative state: a row start

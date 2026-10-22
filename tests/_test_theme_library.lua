@@ -489,10 +489,10 @@ t.test("a card's hero is the ornaments' own cached render, through the collectio
         "the hero is not drawn as the collection draws a piece")
     assert(card:find("TL.hero(item.shows, all)", 1, true), "the card's hero is not its theme's")
     local ob = io.open("lib/bookshelf_ornament_browser.lua"):read("*a")
-    local prev = ob:match("\nfunction Browser%.preview%(e, box_w, box_h%)\n(.-)\nend\n")
+    local prev = ob:match("\nfunction Browser%.preview%(e, box_w, box_h, mirror%)\n(.-)\nend\n")
     assert(prev and prev:find("night = Screen.night_mode", 1, true), "the preview is not drawn for night mode")
     local crop = ob:match("\nfunction Cropped:paintTo%(bb, x, y%)\n(.-)\nend\n")
-    assert(crop and crop:find("O().render(p.entry, p.w, p.h, self.night)", 1, true),
+    assert(crop and crop:find("O().render(p.entry, p.w, p.h, self.night, p.mirror)", 1, true),
         "the preview does not use the ornaments' cached renderer")
 end)
 

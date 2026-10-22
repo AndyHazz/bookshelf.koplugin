@@ -71,17 +71,22 @@ t.test("Add picks a piece in the ornament browser", function()
     assert(got and got.ornament == "Autumn/leaf.png")
 end)
 
-t.test("a flipped card draws its piece mirrored", function()
-    previewed = nil
-    local ctx = ctxWith({ ornament = "cactus.svg", mirror = true })
-    ctx.width, ctx.height, ctx.scale = 200, 200, 100
-    M.render(ctx)
-    assert(previewed and previewed.e == PIECES[2] and previewed.mirror == true, "not mirrored")
-    previewed = nil
-    ctx = ctxWith({ ornament = "cactus.svg" })
-    ctx.width, ctx.height, ctx.scale = 200, 200, 100
-    M.render(ctx)
-    assert(previewed and not previewed.mirror, "mirrored without being asked")
+-- The piece keeps its own shelf mirror setting (Mirror: Always) on a card;
+-- the card has no flip of its own. "Alternate" is the first deal, unflipped.
+t.test("a card mirrors its piece as the shelf does", function()
+    local function drawn(mirror)
+        PIECES[2].mirror = mirror
+        previewed = nil
+        local ctx = ctxWith({ ornament = "cactus.svg", mirror = true })
+        ctx.width, ctx.height, ctx.scale = 200, 200, 100
+        M.render(ctx)
+        assert(previewed and previewed.e == PIECES[2], "piece not drawn")
+        return previewed.mirror
+    end
+    assert(drawn("always") == true, "Always not mirrored")
+    assert(not drawn("off"), "Off mirrored (or a card-level flip still read)")
+    assert(not drawn("alternate"), "Alternate's first deal mirrored")
+    PIECES[2].mirror = nil
 end)
 
 t.done()

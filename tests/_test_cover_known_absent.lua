@@ -81,4 +81,22 @@ t.test("a spine's colour for a known-coverless book is kept, not re-queried", fu
     assert(i < f:find("Repo.getCoverBB(fp)", 1, true), "it must ask before decoding")
 end)
 
+-- Once per BOOK, not per record. A shelf switch whose fetch cache had expired
+-- brought fresh light records (no has_cover, no mark), and the plan rebuilt
+-- every face-out book's full metadata again: custom-metadata sidecars and
+-- Hardcover data for ~1,800 books, the slow half of a bimodal switch on the
+-- PW5 (1.4 s or 4 s). The build is kept per path and dropped when the book's
+-- metadata changes (invalidateBook).
+t.test("the face-out enrichment is remembered per book", function()
+    assert(plan:find("local _meta_memo = {}", 1, true), "no per-book memo")
+    local enrich = plan:match("src%._cover_meta_tried = true\n(.-)\n        end\n        local w_dp")
+    assert(enrich and enrich:find("_meta_memo[src.filepath]", 1, true), "the enrichment ignores the memo")
+    local inv = plan:match("\nfunction SpineShelf%.invalidateBook%(fp%)\n(.-)\nend\n")
+    assert(inv and inv:find("_meta_memo[fp] = nil", 1, true), "a metadata change keeps the old build")
+    assert(plan:find("_meta_memo = {}", plan:find("function SpineShelf.forgetLooks", 1, true), true),
+        "Clear cover cache keeps the builds")
+    assert(plan:find("local _meta_memo = {}", 1, true) < plan:find("function SpineShelf.invalidateBook", 1, true),
+        "declared below invalidateBook, which then can't see it")
+end)
+
 t.done()

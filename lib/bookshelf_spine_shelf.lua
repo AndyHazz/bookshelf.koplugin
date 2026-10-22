@@ -791,6 +791,10 @@ end
 -- standing, so a book's changed status could keep its old spine until the next
 -- shelf rebuild.
 local _plan_cache = nil
+-- A face-out book's full metadata build, per path (see the plan's
+-- enrichment), so fresh light records after an expired fetch cache don't
+-- rebuild it for every face-out book. Dropped by invalidateBook.
+local _meta_memo = {}
 
 -- invalidateBook(fp) — one entry point for 'this book's metadata changed':
 -- drops the persisted look/progress, the hydration answers, and every
@@ -798,6 +802,7 @@ local _plan_cache = nil
 function SpineShelf.invalidateBook(fp)
     _plan_cache = nil
     if not fp then return end
+    _meta_memo[fp] = nil
     SpineShelf.dropLook(fp)
     _hydrate_cache[fp] = nil
     _progress_validated[fp] = nil
@@ -829,6 +834,7 @@ function SpineShelf.forgetLooks()
         _render_order[i] = nil
     end
     _plan_cache = nil
+    _meta_memo = {}
     return n
 end
 
@@ -4234,7 +4240,11 @@ function SpineShelf.plan(items, opts)
             -- rebuilt after its metadata changes starts without the mark.
             src._cover_meta_tried = true
             pcall(function()
-                local full = Repo.buildBookMeta(src.filepath, { want_cover = false })
+                local full = _meta_memo[src.filepath]
+                if not full then
+                    full = Repo.buildBookMeta(src.filepath, { want_cover = false })
+                    if full then _meta_memo[src.filepath] = full end
+                end
                 if full then
                     for k, v in pairs(full) do
                         if src[k] == nil then src[k] = v end

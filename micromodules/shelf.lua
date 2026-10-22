@@ -238,6 +238,33 @@ local function coverBody(ctx, tab, w, h, gap)
     return vg
 end
 
+-- PlankScope: paints its child with the card shelf's own plank held (a
+-- spine row also reads the plank while painting: the contact shade under a
+-- cover darkens the design). Build is held separately (spineBody).
+local PlankScope
+local function plankScope(design, child)
+    if design == nil then return child end
+    if not PlankScope then
+        local WidgetContainer = require("ui/widget/container/widgetcontainer")
+        PlankScope = WidgetContainer:extend{}
+        function PlankScope:paintTo(bb, x, y)
+            local SpineShelf = require("lib/bookshelf_spine_shelf")
+            SpineShelf.withPlank(self.design, function()
+                WidgetContainer.paintTo(self, bb, x, y)
+            end)
+        end
+    end
+    return PlankScope:new{ design = design, dimen = child:getSize(), child }
+end
+
+-- The card shelf's own plank, or nil to stand on the main shelf's.
+local function plankOf(tab)
+    if tab.plank == nil then return nil end
+    local ok, TP = pcall(require, "lib/bookshelf_theme_pack")
+    if not (ok and TP and TP.plankForChoice) then return nil end
+    return TP.plankForChoice(tab.plank)
+end
+
 -- Spines: standing on a plank, as many as the shelf's own spine sizes fit.
 local function spineBody(ctx, tab, w, h, gap)
     local Screen     = require("device").screen
@@ -262,20 +289,25 @@ local function spineBody(ctx, tab, w, h, gap)
         n_rows        = rows,
     }
     opts = require("lib/bookshelf_book_binding").applyOptions(opts, tab.id, nil)
-    local plan = SpineShelf.plan(books, opts)
+    local design = plankOf(tab)
     local callbacks = {
         on_book_tap  = function(book) openBook(ctx, book) end,
         on_book_open = function(book) openBook(ctx, book) end,
     }
-    local vg = VerticalGroup:new{ align = "left" }
-    for r = 1, rows do
-        local row = plan.rows and plan.rows[r]
-        if not row then break end
-        if r > 1 then vg[#vg + 1] = VerticalSpan:new{ width = gap } end
-        vg[#vg + 1] = SpineShelf.rowWidget{ plan = plan, row = row, width = w, height = row_h,
-            gap = opts.gap, callbacks = callbacks, row_index = r }
-    end
-    return vg
+    -- The plan and the rows read the plank (its drop and rise size them):
+    -- built with this shelf's own held, and painted with it (plankScope).
+    return SpineShelf.withPlank(design, function()
+        local plan = SpineShelf.plan(books, opts)
+        local vg = VerticalGroup:new{ align = "left" }
+        for r = 1, rows do
+            local row = plan.rows and plan.rows[r]
+            if not row then break end
+            if r > 1 then vg[#vg + 1] = VerticalSpan:new{ width = gap } end
+            vg[#vg + 1] = SpineShelf.rowWidget{ plan = plan, row = row, width = w, height = row_h,
+                gap = opts.gap, callbacks = callbacks, row_index = r }
+        end
+        return plankScope(design, vg)
+    end)
 end
 
 return {

@@ -851,6 +851,18 @@ function M.choosePlank(choice)
     M._plank_memo = nil
 end
 
+-- plankForChoice(choice) -> the design a plank choice draws ("colour",
+-- "oak" or a pack plank's id, as plankChoiceIn answers): a design, false
+-- for the plain colour, or nil when the choice is unset or its pack has gone
+-- (follow the main shelf). A card shelf's own plank. Designs switched off
+-- (Performance tweaks) draw the colour, as everywhere else.
+function M.plankForChoice(choice)
+    if choice == nil then return nil end
+    if choice == "colour" or not M.designsOn() then return false end
+    if choice == "oak" then return M.builtinPlank() end
+    return M._packPlank(choice)
+end
+
 -- plankRowLabel(): the plank of the theme being edited as the Plank row
 -- and Performance tweaks name it: "Oak", "Walnut (Planks pack)", "Walnut
 -- (missing)" for an edit to a theme naming a plank whose pack has gone, or

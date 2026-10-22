@@ -996,13 +996,21 @@ end
 -- or not, sorted by pack (loose ones first) then name; and the pack names.
 -- Both folders are read (see M.dir); a relative path present in both is the
 -- new folder's. Cached on the folders' own scan keys.
+-- allowRecent(on): the spine plan's window. The plan reaches listAll()
+-- several times a plan (the deck's sync, a themed shelf's pool, the theme's
+-- hasPieces), and a folder listing per pack on every page turn was 10-16% of
+-- a PW5 turn. Inside the window the last scan stands for the scan TTL, as
+-- list()'s does. Outside it listAll looks every time: the browser and pack
+-- installs call it straight after changing files. The window closes itself
+-- after two seconds, so a plan that fails part-way cannot leave it open.
+function M.allowRecent(on)
+    M._recent_until = on and (M._clock() + 2) or nil
+end
+
 function M.listAll()
-    -- The scan TTL applies here as well as in list(): the spine plan asks
-    -- listAll itself, twice a plan, and a folder listing per pack on every
-    -- page turn was 10-16% of a PW5 turn. invalidate() clears the cache, so
-    -- a change made from the device is seen at once.
     local now = M._clock()
-    if M._all_cache and M._all_at and M.SCAN_TTL > 0
+    if M._recent_until and now <= M._recent_until
+            and M._all_cache and M._all_at and M.SCAN_TTL > 0
             and (now - M._all_at) < M.SCAN_TTL then
         return M._all_cache, M._all_packs
     end
@@ -1675,12 +1683,61 @@ end
 -- the decode held for the render that follows (ONE DECODE PER PREVIEW).
 M.CONTENT_PROBE = 96
 M._content = {}
+-- The answer also outlives the session, in a small cache file keyed by the
+-- file's path, mtime and size (an edited piece is probed again): finding it
+-- is a decode per piece, and the first page of every session paid it for
+-- each piece on top of the paint's own decode (~0.5 s on a PW5 Genres turn).
+-- M._box_store: injectable; false switches it off.
+local function boxStore()
+    if M._box_store == nil then
+        local ok, store = pcall(function()
+            return require("lib/bookshelf_file_store").new(
+                require("lib/bookshelf_paths").cacheFile("ornament_boxes.lua"))
+        end)
+        M._box_store = ok and store or false
+    end
+    return M._box_store or nil
+end
+local _box_flush_armed = false
+local function boxFlushSoon(st)
+    if _box_flush_armed then return end
+    _box_flush_armed = true
+    local ok, UIManager = pcall(require, "ui/uimanager")
+    if ok and UIManager and UIManager.scheduleIn then
+        UIManager:scheduleIn(5, function()
+            _box_flush_armed = false
+            pcall(st.flush)
+        end)
+    else
+        _box_flush_armed = false
+        pcall(st.flush)
+    end
+end
 function M.contentBox(entry, hold)
     local key = entry.path .. "|" .. tostring(entry.aspect)
     local hit = M._content[key]
     if hit ~= nil then
         if hit == false then return nil end
         return hit[1], hit[2], hit[3], hit[4]
+    end
+    local st = boxStore()
+    local fkey
+    if st then
+        local fs = lfs()
+        local mt = fs and fs.attributes(entry.path, "modification")
+        if mt then
+            fkey = key .. "|" .. tostring(mt) .. "|" .. tostring(fs.attributes(entry.path, "size"))
+            local all = st.read("boxes", nil)
+            -- nil, not false, when there is no file yet: false is a kept
+            -- "no drawing found".
+            local kept = nil
+            if type(all) == "table" then kept = all[fkey] end
+            if kept ~= nil then
+                M._content[key] = kept
+                if kept == false then return nil end
+                return kept[1], kept[2], kept[3], kept[4]
+            end
+        end
     end
     local box = false
     local aspect = (entry.aspect and entry.aspect > 0) and entry.aspect or 1
@@ -1719,6 +1776,13 @@ function M.contentBox(entry, hold)
         if bb.free then pcall(function() bb:free() end) end
     end
     M._content[key] = box
+    if st and fkey then
+        local all = st.read("boxes", nil)
+        if type(all) ~= "table" then all = {} end
+        all[fkey] = box
+        st.saveDeferred("boxes", all)
+        boxFlushSoon(st)
+    end
     if not box then return nil end
     return box[1], box[2], box[3], box[4]
 end

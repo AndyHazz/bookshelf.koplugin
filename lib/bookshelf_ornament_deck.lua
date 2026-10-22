@@ -70,7 +70,9 @@ end
 -- firstShelf() -> the id of the first enabled spine tab, or nil.
 function M.firstShelf()
     for _i, t in ipairs(tabs() or {}) do
-        if t.enabled ~= false and t.view_mode == "spines" then return t.id end
+        -- A card's own shelf (TabModel.isCardOnly) is not one of the main
+        -- screen's.
+        if t.enabled ~= false and t.view_mode == "spines" and not t.card_only then return t.id end
     end
     return nil
 end

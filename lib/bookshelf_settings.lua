@@ -6298,8 +6298,9 @@ function Settings:_tabsMenuItems()
     for _i, tab in ipairs(tabs) do
         local tab_id = tab.id
         -- Sub-shelves live inside their shelf of shelves (long-press a tile
-        -- there to edit one), not in this list of the strip's shelves.
-        if not tab.parent then
+        -- there to edit one), not in this list of the strip's shelves; a
+        -- card's own shelf is edited from its card.
+        if not tab.parent and not TabModel.isCardOnly(tab) then
         items[#items + 1] = {
             keep_menu_open = true,
             text_func = function()

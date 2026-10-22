@@ -410,6 +410,15 @@ function M.get(key)
     scan()
     return registry[key]
 end
+
+-- notifyRemoved(entry): a card was removed. Its module's optional
+-- on_remove(entry) cleans up what the card owned (a Shelf card's own shelf).
+-- Errors are the module's own: they never stop the removal.
+function M.notifyRemoved(entry)
+    if type(entry) ~= "table" or type(entry.module) ~= "string" then return end
+    local def = M.get(entry.module)
+    if def and type(def.on_remove) == "function" then pcall(def.on_remove, entry) end
+end
 function M.title(key)
     local d = M.get(key)
     return d and d.title

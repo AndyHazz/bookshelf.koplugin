@@ -119,7 +119,62 @@ end
 
 -- Go to the shelf: close the full-screen view if it's open, then select it
 -- (a sub-shelf selects its parent, the shelf it lives under).
+-- ── The card's own shelf ────────────────────────────────────────────────────
+-- A shelf made for this card (TabModel.newCardShelf): edited in the normal
+-- shelf editor, shown here and nowhere on the main screen, removed with the
+-- card (on_remove) or when the card is pointed at another shelf.
+
+-- deleteCardShelf(id): remove a card's own shelf; never any other.
+local function deleteCardShelf(id)
+    local TabModel = require("lib/bookshelf_tab_model")
+    local tabs = TabModel.load()
+    for _i, t in ipairs(tabs) do
+        if t.id == id then
+            if not TabModel.isCardOnly(t) then return end
+            TabModel.removeTree(tabs, id)
+            TabModel.save(tabs)
+            return
+        end
+    end
+end
+
+-- editCardShelf(ctx, id, opts): the shelf editor for this card's shelf. Each
+-- change redraws the card (the reader is looking at it). opts.new: pick the
+-- source first, and opts.on_discard if the reader backs out of a new one.
+local function editCardShelf(ctx, id, opts)
+    opts = opts or {}
+    local function redraw()
+        if ctx and ctx.menu and ctx.menu._reload then ctx.menu:_reload() end
+    end
+    require("lib/bookshelf_chip_editor"):editTab(id, {
+        on_change = redraw,
+        pick_source_first = opts.new or nil,
+        on_discard = opts.on_discard,
+    })
+end
+
+-- newCardShelf(ctx): make this card a shelf of its own and open its editor.
+-- Backing out before choosing a source puts the card back as it was.
+local function newCardShelf(ctx)
+    local TabModel = require("lib/bookshelf_tab_model")
+    local cfg = ctx.config
+    local prev = cfg:get("tab_id")
+    local tabs = TabModel.load()
+    local nt = TabModel.newCardShelf(tabs)
+    tabs[#tabs + 1] = nt
+    TabModel.save(tabs)
+    cfg:set("tab_id", nt.id)
+    editCardShelf(ctx, nt.id, { new = true, on_discard = function()
+        if prev then cfg:set("tab_id", prev) else cfg:delete("tab_id") end
+    end })
+end
+
 local function openShelf(ctx, tab)
+    -- A card's own shelf is not on the main screen: its heading opens its
+    -- editor instead.
+    if tab and require("lib/bookshelf_tab_model").isCardOnly(tab) then
+        return editCardShelf(ctx, tab.id)
+    end
     local bw = ctx and ctx.bw
     if not (bw and tab) then return end
     if bw._micro_fullscreen and bw._micro_fullscreen.onTapClose then
@@ -131,8 +186,10 @@ end
 -- The shelves this card can show, as dialog rows; on_pick(tab).
 local function shelfRows(close, on_pick)
     local rows = {}
-    for _i, tab in ipairs(require("lib/bookshelf_tab_model").load() or {}) do
-        if isBookShelf(tab) then
+    local TabModel = require("lib/bookshelf_tab_model")
+    for _i, tab in ipairs(TabModel.load() or {}) do
+        -- Another card's own shelf belongs to that card.
+        if isBookShelf(tab) and not TabModel.isCardOnly(tab) then
             rows[#rows + 1] = {{ text = plainLabel(tab.label) or tab.id,
                 callback = close(function() on_pick(tab) end) }}
         end
@@ -158,11 +215,22 @@ local function showSettings(ctx)
     local dialog
     local function close(fn) return function() UIManager:close(dialog); if fn then fn() end end end
     local shown = cfg:get("heading", true) ~= false
+    local cur = tabFor(ctx)
+    local own = cur and require("lib/bookshelf_tab_model").isCardOnly(cur) and cur or nil
     dialog = ButtonDialog:new{
         title = _("Shelf"), title_align = "center", width_factor = 0.7,
         buttons = {
+            own and {{ text = _("Edit this card's shelf\xE2\x80\xA6"), callback = close(function()
+                editCardShelf(ctx, own.id)
+            end) }} or {{ text = _("New shelf for this card\xE2\x80\xA6"), callback = close(function()
+                newCardShelf(ctx)
+            end) }},
             {{ text = _("Change shelf\xE2\x80\xA6"), callback = close(function()
-                pickShelf(_("Choose a shelf"), function(tab) cfg:set("tab_id", tab.id) end)
+                pickShelf(_("Choose a shelf"), function(tab)
+                    cfg:set("tab_id", tab.id)
+                    -- The card's own shelf has no other use.
+                    if own then deleteCardShelf(own.id) end
+                end)
             end) }},
             {{ text = (tonumber(cfg:get("rows")) and T(_("Rows: %1"), cfg:get("rows")))
                        or _("Rows: Auto"),
@@ -370,6 +438,11 @@ return {
     end,
 
     show_settings = showSettings,
+
+    -- The card is going: so is its own shelf (never one it only points at).
+    on_remove = function(entry)
+        if entry and entry.tab_id then deleteCardShelf(entry.tab_id) end
+    end,
     _test = { isBookShelf = isBookShelf, headingText = headingText, rowsFor = rowsFor,
               cardRows = cardRows,
               booksOnly = booksOnly, plainLabel = plainLabel, bookSource = bookSource },

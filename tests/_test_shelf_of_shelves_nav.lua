@@ -315,7 +315,7 @@ end)
 
 t.test("sub-shelves stay out of the strip's shelf list in settings", function()
     local s = io.open("lib/bookshelf_settings.lua"):read("*a")
-    assert(s:find("        if not tab.parent then\n        items[#items + 1] = {", 1, true),
+    assert(s:find("        if not tab.parent and not TabModel.isCardOnly(tab) then\n        items[#items + 1] = {", 1, true),
         "the settings shelf list shows sub-shelves")
 end)
 

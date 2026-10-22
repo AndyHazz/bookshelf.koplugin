@@ -185,8 +185,13 @@ end
 function Session:remove()
     local id = self.selected_id
     if not id then return false end
-    local _it, i = self:item(id)
+    local it, i = self:item(id)
     if i then table.remove(self.items, i) end
+    -- What the card owned goes with it (a Shelf card's own shelf).
+    if it then
+        local ok, Modules = pcall(require, "lib/bookshelf_start_menu_modules")
+        if ok and Modules and Modules.notifyRemoved then Modules.notifyRemoved(it) end
+    end
     for j, b in ipairs(self.boxes) do
         if b.id == id then table.remove(self.boxes, j); break end
     end

@@ -4071,7 +4071,14 @@ function SpineShelf.plan(items, opts)
             local check_stable = thick.scan and opened and psrc ~= "stable"
                                  and not _stable_checked[src.filepath]
             if check_stable then _stable_checked[src.filepath] = true end
-            if (not (pages or thick.scan) or not known or check_stable) and src.filepath
+            -- Only while the status is unknown. A book with no count at all
+            -- used to read its sidecar on EVERY plan as well, though its
+            -- status was known and the sidecar unchanged (a known book with
+            -- no count has none in its sidecar: a count found there is
+            -- persisted with the status). 18% of a PW5 page turn. Closing the
+            -- book (dropLook) or a changed sidecar (cachedProgress) clears
+            -- known, so it is read again then.
+            if (not known or check_stable) and src.filepath
                     and ok_repo and Repo and Repo.readProgress then
                 local _tp = _gettime()
                 pcall(function()

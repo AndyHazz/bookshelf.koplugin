@@ -1029,7 +1029,20 @@ function BookshelfWidget:_syncShelfTheme()
     return changed
 end
 
+-- _ornScanWindow(): hold the ornament scan's window (Ornaments.allowRecent)
+-- open for this synchronous rebuild or page turn, closing it on the next
+-- tick. The plan, the theme's pool and the deck each reach listAll(), and
+-- outside the window every call lists each pack's folder again (PW5: ~230 ms
+-- of a shelf switch). Only once the ornaments module is loaded.
+function BookshelfWidget:_ornScanWindow()
+    local Orn = package.loaded["lib/bookshelf_ornaments"]
+    if not (Orn and Orn.allowRecent) then return end
+    if Orn.allowRecent(true) then return end    -- already held by an outer call
+    UIManager:nextTick(function() Orn.allowRecent(false) end)
+end
+
 function BookshelfWidget:_rebuild()
+    self:_ornScanWindow()
     self:_syncShelfTheme()
     -- The night state this tree is baked for, and so no night rebuild is
     -- pending any more (see _followScreenNight).
@@ -8579,6 +8592,7 @@ function BookshelfWidget:_reclaimAfterTurn()
 end
 
 function BookshelfWidget:_swapShelvesInPlace()
+    self:_ornScanWindow()
     local _perf_t0 = _gettime()
     -- Page-turn animation direction, set by the paginate handlers just before
     -- they call us (1 = next, -1 = prev); nil for every other caller (selection

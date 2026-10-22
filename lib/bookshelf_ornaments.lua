@@ -1003,8 +1003,12 @@ end
 -- list()'s does. Outside it listAll looks every time: the browser and pack
 -- installs call it straight after changing files. The window closes itself
 -- after two seconds, so a plan that fails part-way cannot leave it open.
+-- Returns whether a window was already open, so a caller inside another's
+-- window (the plan inside a rebuild) leaves it for its opener to close.
 function M.allowRecent(on)
+    local was = M._recent_until ~= nil and M._clock() <= M._recent_until
     M._recent_until = on and (M._clock() + 2) or nil
+    return was
 end
 
 function M.listAll()

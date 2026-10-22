@@ -365,9 +365,12 @@ function Edit.show(menu, entry)
     end
 
     local function doDelete()
+        -- What the card owned goes with it (on_remove; a module row's).
+        local _l, _i, gone = Model.findById(Model.load(), id)
         mutate(menu, function(items)
             return Model.removeById(items, id)
         end)
+        if gone and gone.type == "module" then Modules.notifyRemoved(gone) end
     end
     local delete_btn = { text = "\xEE\xA2\xBF", -- U+E8BF mdi-delete (matches chip editor)
         font_face = "symbols", font_size = 28, font_bold = false,

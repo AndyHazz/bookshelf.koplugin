@@ -3009,6 +3009,9 @@ local _design_memo, _design_gen = nil, nil
 -- show, or nil. Memoised per settings generation (the browser's switches all
 -- save a setting).
 function SpineShelf.activePlankDesign()
+    -- A card drawing its own shelf holds that shelf's plank (withPlank):
+    -- false is the plain colour.
+    if SpineShelf._design_override ~= nil then return SpineShelf._design_override or nil end
     local gen = BookshelfSettings.generation and BookshelfSettings.generation() or 0
     -- And the shelf's look: a shelf may wear its own theme's plank.
     local ok_t, TP = pcall(require, "lib/bookshelf_theme_pack")
@@ -3020,6 +3023,20 @@ function SpineShelf.activePlankDesign()
         _design_memo = TP.activePlank() or false
     end)
     return _design_memo or nil
+end
+
+-- withPlank(design, fn, ...) -> fn's results, with `design` (a plank design,
+-- false for the plain colour) as the active plank while fn runs. A card's
+-- shelf holds its own plank for its rows' build and paint; nil leaves the
+-- main shelf's. Restored even if fn fails.
+function SpineShelf.withPlank(design, fn, ...)
+    if design == nil then return fn(...) end
+    local prev = SpineShelf._design_override
+    SpineShelf._design_override = design
+    local res = { pcall(fn, ...) }
+    SpineShelf._design_override = prev
+    if not res[1] then error(res[2], 0) end
+    return select(2, (unpack or table.unpack)(res))
 end
 
 -- Rendered design strips, per (files, row width, plank height, frame).

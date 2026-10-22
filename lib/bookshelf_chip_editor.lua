@@ -696,8 +696,11 @@ function Editor:editTab(tab_id, opts)
         -- A sub-shelf moves among the shelves of its own shelf of shelves,
         -- and a top-level shelf among the top-level ones.
         local me = current_tabs[current_idx]
+        -- A card's own shelf has no place in the strip: it is no one's
+        -- neighbour, and has none itself (both arrows stay at the edge).
         local function neighbour(t)
             return t.enabled ~= false and TabModel.isSibling(t, me)
+                and not TabModel.isCardOnly(t) and not TabModel.isCardOnly(me)
         end
         local at_left = true
         for i = current_idx - 1, 1, -1 do
@@ -831,7 +834,8 @@ function Editor:editTab(tab_id, opts)
             local me = move_tabs[mi]
             while target >= 1 and target <= #move_tabs do
                 local t = move_tabs[target]
-                if t.enabled ~= false and TabModel.isSibling(t, me) then break end
+                if t.enabled ~= false and TabModel.isSibling(t, me)
+                        and not TabModel.isCardOnly(t) and not TabModel.isCardOnly(me) then break end
                 target = target + delta
             end
             if target >= 1 and target <= #move_tabs then
@@ -1930,6 +1934,22 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                     draft.series_boxes = not draft.series_boxes or nil
                 end),
             }}
+            -- A card's own shelf stands on a plank of its own (maintainer,
+            -- 5.6: card shelves only). Unset follows the main shelf's.
+            if draft.card_only then
+                rows[#rows + 1] = {{
+                    text_func = function()
+                        return T(_("Plank: %1"), Editor._plankLabel(draft.plank))
+                    end,
+                    callback = function()
+                        UIManager:close(d)
+                        Editor:_pickCardPlank(draft, function()
+                            if on_change then on_change() end
+                            show()
+                        end)
+                    end,
+                }}
+            end
             -- The spine view's own density. Rows like the list's; height as
             -- a percentage of the row so a single-shelf chip can pull the
             -- books down to a size whose titles stay readable.
@@ -2394,6 +2414,52 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         UIManager:show(d)
     end
     show()
+end
+
+-- _plankLabel(choice) -> a card shelf's plank as its row names it.
+function Editor._plankLabel(choice)
+    if choice == nil then return _("Same as main shelf") end
+    if choice == "colour" then return _("Plain color") end
+    if choice == "oak" then return _("Oak") end
+    local ok, TP = pcall(require, "lib/bookshelf_theme_pack")
+    local pl = ok and TP and TP._packPlank and TP._packPlank(choice)
+    if pl then return (pl.pack and pl.name) and T(_("%1 (%2 pack)"), pl.name, pl.pack) or (pl.name or choice) end
+    return choice
+end
+
+-- _pickCardPlank(draft, done): a card shelf's plank, from the same options
+-- as the plank picker (ThemePack.plankOptions), plus following the main
+-- shelf. done() after a pick or a close.
+function Editor:_pickCardPlank(draft, done)
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local Kit = require("lib/bookshelf_module_kit")
+    local PB = require("lib/bookshelf_plank_browser")
+    local TP = require("lib/bookshelf_theme_pack")
+    local dlg
+    local function choose(v)
+        return function()
+            draft.plank = v
+            UIManager:close(dlg)
+            done()
+        end
+    end
+    local rows = {
+        { Kit.radioRow{ label = Editor._plankLabel(nil), active = draft.plank == nil, on_pick = choose(nil) } },
+    }
+    for _i, o in ipairs(TP.plankOptions()) do
+        local v = PB.choiceOf(o)
+        if v ~= nil then
+            rows[#rows + 1] = { Kit.radioRow{ label = Editor._plankLabel(v),
+                active = draft.plank == v, on_pick = choose(v) } }
+        end
+    end
+    dlg = ButtonDialog:new{
+        title = _("Plank"), title_align = "center",
+        buttons = rows,
+        rows_per_page = 8,
+        tap_close_callback = done,
+    }
+    UIManager:show(dlg)
 end
 
 -- _coverTextRow(draft, on_change, close, reshow, bw) -> Shelf style's

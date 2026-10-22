@@ -13093,7 +13093,8 @@ function BookshelfWidget:_anyShelfShowsCaptions()
     local tabs = ok and TabModel and TabModel.load and TabModel.load() or {}
     if #tabs == 0 then return CL.modeFor(self.chip) ~= "none" end
     for _i, t in ipairs(tabs) do
-        if t.enabled ~= false and CL.modeFor(t.id) ~= "none" then return true end
+        if t.enabled ~= false and not TabModel.isCardOnly(t)
+                and CL.modeFor(t.id) ~= "none" then return true end
     end
     return false
 end

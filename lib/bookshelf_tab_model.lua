@@ -244,7 +244,7 @@ end
 function TabModel.getActive()
     local out = {}
     for _i, t in ipairs(TabModel.load()) do
-        if t.enabled ~= false and not t.parent then
+        if t.enabled ~= false and not t.parent and not t.card_only then
             out[#out + 1] = t
         end
     end
@@ -360,6 +360,25 @@ function TabModel.newTab(tabs, label)
         enabled       = true,
         pending       = true,
     }
+end
+
+-- ── Card shelves (5.6) ──────────────────────────────────────────────────────
+-- A shelf made for one Shelf card (micromodules/shelf.lua): an ordinary
+-- record with card_only = true, edited in the normal shelf editor, shown by
+-- its card and nowhere on the main screen. getActive (the chip bar, swiping,
+-- the theme menu) leaves it out; the few readers of the whole list that show
+-- shelves to the reader ask isCardOnly. Removed with its card.
+function TabModel.isCardOnly(t)
+    return type(t) == "table" and t.card_only == true
+end
+
+-- newCardShelf(tabs) -> a pending card shelf (see newTab); the caller adds it
+-- to the list and saves.
+function TabModel.newCardShelf(tabs)
+    local _ = require("lib/bookshelf_i18n").gettext
+    local t = TabModel.newTab(tabs, _("Card shelf"))
+    t.card_only = true
+    return t
 end
 
 -- prunePending() -> true when it removed anything: shelves still pending

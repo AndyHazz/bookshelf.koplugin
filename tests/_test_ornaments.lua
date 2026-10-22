@@ -280,6 +280,34 @@ t.test("cache: within the scan TTL the folder is not listed again", function()
     os.execute("rm -rf '" .. d .. "'")
 end)
 
+-- The spine plan asks listAll() itself, twice a plan (the deck's sync, and a
+-- themed shelf's pool), and listAll had no TTL of its own: a folder listing
+-- per pack on every page turn (10-16% of a PW5 Genres turn, profiled).
+t.test("cache: listAll keeps its answer for the scan TTL too", function()
+    local O = fresh()
+    local d = scratch()
+    O._data_dir = d
+    local listings = 0
+    O._lfs = setmetatable({
+        dir = function(...) listings = listings + 1; return lfs_shim.dir(...) end,
+    }, { __index = lfs_shim })
+    O.ensureTemplate()
+    local t = 1000
+    O._clock = function() return t end
+    O.SCAN_TTL = 15
+    eq(#O.listAll(), 2)
+    local n1 = listings
+    O.listAll(); O.listAll()
+    eq(listings, n1, "listAll inside the TTL must not touch the folder")
+    O.invalidate()
+    O.listAll()
+    eq(listings, n1 + 1, "invalidate() still forces a fresh look")
+    t = t + 15
+    O.listAll()
+    eq(listings, n1 + 2, "and so does the TTL running out")
+    os.execute("rm -rf '" .. d .. "'")
+end)
+
 t.test("cache: a removal is noticed even when the mtime does not move", function()
     local O = fresh()
     local d = scratch()

@@ -997,6 +997,16 @@ end
 -- Both folders are read (see M.dir); a relative path present in both is the
 -- new folder's. Cached on the folders' own scan keys.
 function M.listAll()
+    -- The scan TTL applies here as well as in list(): the spine plan asks
+    -- listAll itself, twice a plan, and a folder listing per pack on every
+    -- page turn was 10-16% of a PW5 turn. invalidate() clears the cache, so
+    -- a change made from the device is seen at once.
+    local now = M._clock()
+    if M._all_cache and M._all_at and M.SCAN_TTL > 0
+            and (now - M._all_at) < M.SCAN_TTL then
+        return M._all_cache, M._all_packs
+    end
+    M._all_at = now
     local fs = lfs()
     local roots = M.roots()
     if not fs or #roots == 0 then return {}, {} end

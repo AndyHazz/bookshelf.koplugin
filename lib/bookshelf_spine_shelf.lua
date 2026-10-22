@@ -3702,15 +3702,23 @@ local function _suffixEntries(pc, base, ids)
     end
     if not first then return nil end
     local run_off = (src[first].run_idx or 1) - 1
-    local out = {}
-    for j = first, #src do
-        local e = {}
-        for k, v in pairs(src[j]) do e[k] = v end
-        e.item_idx = e.item_idx - off
-        if e.run_idx then e.run_idx = e.run_idx - run_off end
-        out[#out + 1] = e
+    -- The first entry is a full copy: it CLEARS orn_seed, and a nil in a
+    -- proxy would fall through to the cached value. The rest are proxies
+    -- holding only what differs (a field-by-field copy of ~1,800 entries was
+    -- 15% of a PW5 page turn). Nothing walks an entry's fields with pairs.
+    local head = {}
+    for k, v in pairs(src[first]) do head[k] = v end
+    head.item_idx = head.item_idx - off
+    if head.run_idx then head.run_idx = head.run_idx - run_off end
+    head.gap_before, head.gap_base, head.orn_seed = 0, 0, nil
+    local out = { head }
+    for j = first + 1, #src do
+        local e = src[j]
+        out[#out + 1] = setmetatable({
+            item_idx = e.item_idx - off,
+            run_idx  = e.run_idx and (e.run_idx - run_off) or nil,
+        }, { __index = e })
     end
-    out[1].gap_before, out[1].gap_base, out[1].orn_seed = 0, 0, nil
     return out
 end
 SpineShelf._suffixEntries = _suffixEntries

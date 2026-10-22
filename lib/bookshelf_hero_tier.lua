@@ -14,7 +14,8 @@
 --
 -- Population: SpineWidget calls noteSource(fp, bb) whenever it holds a
 -- freshly decoded source cover for its own scaling -- adding one bb:scale
--- (a few ms) to work that already paid the ~37ms decode. Consumption:
+-- to work that already paid the ~37ms decode, while the budget has room.
+-- A full tier skips (no scale); a shelf switch empties it. Consumption:
 -- SpineWidget's decode fallback calls take(fp, ...) before Repo.getCoverBB;
 -- a hit TRANSFERS ownership to the caller (the entry leaves the tier), so
 -- the downstream scale-and-free flow needs no special casing. After the
@@ -109,6 +110,13 @@ function HeroTier:noteSource(fp, src_bb)
         -- identical to a fresh decode and still saves the decode.
         local h = math.min(sh, th)
         local w = math.max(1, math.floor(sw * h / sh + 0.5))
+        -- Full: skip, before paying for the scale. Scaling every decoded
+        -- cover and evicting the oldest cost a hero-size bb:scale per cover
+        -- per page turn on a face-out shelf (a page of 30+ covers against a
+        -- budget of a few), nearly all thrown away: 10-40% of the turn.
+        -- What is stashed stays until taken, or the shelf changes (clear).
+        local bpp = math.max(1, math.floor((tonumber(src_bb.stride) or sw) / sw + 0.5))
+        if self._bytes + w * h * bpp > self._budget then return end
         local copy = src_bb:scale(w, h)
         if not copy then return end
         self._cache[fp] = copy

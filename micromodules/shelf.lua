@@ -17,6 +17,7 @@ Drawn bare (no card): covers and planks stand on the wallpaper as they do on
 the shelf, and the shelf's own widgets take the taps.
 ]]
 local _ = require("lib/bookshelf_i18n").gettext
+local T = require("ffi/util").template
 
 -- Sources a card doesn't show: groups (stacks, not books), shelves of
 -- shelves, and online catalogues (a card never fetches on its own).
@@ -52,6 +53,30 @@ end
 --- each: at least one, at most four.
 local function rowsFor(avail_h, min_row_h)
     return math.max(1, math.min(4, math.floor((avail_h or 0) / math.max(1, min_row_h))))
+end
+
+--- The card's rows: its own Rows setting (1-6), else Auto: as many rows as
+--- fit at `auto_row_h` (the main shelf's cover row, so a card looks like the
+--- shelf it shows), else the old rule at `min_row_h`. The rows set the cover
+--- size; the card's width then decides how many books a row holds.
+local function cardRows(setting, avail_h, gap, auto_row_h, min_row_h)
+    local n = tonumber(setting)
+    if n then return math.max(1, math.min(6, math.floor(n))) end
+    if auto_row_h and auto_row_h > 0 then
+        local fit = math.floor(((avail_h or 0) + (gap or 0)) / (auto_row_h + (gap or 0)))
+        return math.max(1, math.min(6, fit))
+    end
+    return rowsFor(avail_h, min_row_h or 100)
+end
+
+-- The main shelf's cover row height (cover plus the marks hanging above and
+-- below it), or nil when the widget can't say.
+local function shelfCoverRowH(bw)
+    if not (bw and bw._currentSlotDims) then return nil end
+    local ok, cw, ch = pcall(bw._currentSlotDims, bw)
+    if not (ok and cw and ch) then return nil end
+    local SpineWidget = require("lib/bookshelf_spine_widget")
+    return ch + 2 * SpineWidget.badgeOverhang(cw)
 end
 
 -- The source to fetch a shelf's BOOKS from: a folder shelf's top level can be
@@ -139,6 +164,16 @@ local function showSettings(ctx)
             {{ text = _("Change shelf\xE2\x80\xA6"), callback = close(function()
                 pickShelf(_("Choose a shelf"), function(tab) cfg:set("tab_id", tab.id) end)
             end) }},
+            {{ text = (tonumber(cfg:get("rows")) and T(_("Rows: %1"), cfg:get("rows")))
+                       or _("Rows: Auto"),
+               callback = close(function()
+                -- Auto, 1 ... 6, Auto: the rows set the cover size.
+                local n = tonumber(cfg:get("rows"))
+                if not n then cfg:set("rows", 1)
+                elseif n >= 6 then cfg:delete("rows")
+                else cfg:set("rows", n + 1) end
+                showSettings(ctx)
+            end) }},
             {{ text = shown and _("Hide heading") or _("Show heading"), callback = close(function()
                 cfg:set("heading", not shown)
             end) }},
@@ -174,7 +209,8 @@ local function coverBody(ctx, tab, w, h, gap)
     local ShelfRow    = require("lib/bookshelf_shelf_row")
     local VerticalGroup = require("ui/widget/verticalgroup")
     local VerticalSpan  = require("ui/widget/verticalspan")
-    local rows  = rowsFor(h, Screen:scaleBySize(100))
+    local rows  = cardRows(ctx.config and ctx.config:get("rows"), h, gap,
+        shelfCoverRowH(ctx.bw), Screen:scaleBySize(100))
     local row_h = math.floor((h - gap * (rows - 1)) / rows)
     local m     = SpineWidget.badgeOverhang(math.floor(row_h * 2 / 3))
     local cgap  = Screen:scaleBySize(10)
@@ -209,7 +245,8 @@ local function spineBody(ctx, tab, w, h, gap)
     local SpineShelf = require("lib/bookshelf_spine_shelf")
     local VerticalGroup = require("ui/widget/verticalgroup")
     local VerticalSpan  = require("ui/widget/verticalspan")
-    local rows  = rowsFor(h, Screen:scaleBySize(130))
+    local rows  = cardRows(ctx.config and ctx.config:get("rows"), h, gap,
+        nil, Screen:scaleBySize(130))
     local row_h = math.floor((h - gap * (rows - 1)) / rows)
     local Repo  = require("lib/bookshelf_book_repository")
     local items = Repo.getBySource(bookSource(tab.source), tab.filter, tab.sort_priority, 0, 40 * rows,
@@ -302,5 +339,6 @@ return {
 
     show_settings = showSettings,
     _test = { isBookShelf = isBookShelf, headingText = headingText, rowsFor = rowsFor,
+              cardRows = cardRows,
               booksOnly = booksOnly, plainLabel = plainLabel, bookSource = bookSource },
 }

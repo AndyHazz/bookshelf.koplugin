@@ -399,3 +399,44 @@ never change it. For a module shipped in this repo,
 `tests/_test_start_menu_modules.lua` auto-checks the contract (including
 `summary`, the load-cleanly rule, and the no-`StartMenu._live` rule) on every
 file here — you do **not** add it to any list; the test covers it automatically.
+
+## Publishing a module pack (installs and updates on the device)
+
+The drop-in folder above works, but it needs a computer. To let readers install
+and update your modules from the device, ship them as a **module pack**: a
+small KOReader plugin with a `bookshelf_modules/` folder. KOReader's plugin
+stores (App Store, Storefront) already install and update plugins, so a pack
+published as one installs and updates with no help from Bookshelf, and
+Bookshelf never goes online for it.
+
+```
+readinglog.koplugin/
+  _meta.lua             -- name, fullname, description, version
+  main.lua              -- KOReader needs one; it can do nothing
+  bookshelf_modules/
+    rings.lua           -- module files, exactly as in the drop-in folder
+    week.lua
+```
+
+A `main.lua` that does nothing is enough:
+
+```lua
+local WidgetContainer = require("ui/widget/container/widgetcontainer")
+return WidgetContainer:extend{ name = "readinglog", is_doc_only = false }
+```
+
+Bookshelf looks for `bookshelf_modules/` in every plugin folder KOReader loads
+from (its own `plugins` folder and any `extra_plugin_paths`), and skips a pack
+switched off in KOReader's plugin manager. Module files there follow every rule
+in this guide; a pack can keep shared code in a subfolder and `dofile` it from
+its module files.
+
+**Precedence.** A module in the user drop-in folder wins over one of the same
+key in a pack, and a pack's wins over a bundled one. Keep your keys distinctive
+(`readinglog_rings`, not `rings`) so two packs never collide.
+
+**Getting listed.** Publish the pack as a GitHub repository whose release
+assets include the `.koplugin` zip:
+
+- App Store finds repositories tagged with the `koreader-plugin` topic.
+- Storefront lists plugins from its catalogue; ask its maintainer to add yours.

@@ -142,6 +142,74 @@ local function userModulesDir()
     return nil
 end
 
+-- ── Module packs ────────────────────────────────────────────────────────────
+-- A third-party pack ships as a small KOReader plugin: a .koplugin holding a
+-- bookshelf_modules/ folder of module files. App Store and Storefront install
+-- and update plugins, so a pack published that way installs and updates from
+-- the device, and Bookshelf itself never goes online for it.
+
+-- packDirs(lookup_paths, disabled) -> { { dir, origin = "plugin:<name>" } }:
+-- every <path>/<name>.koplugin/bookshelf_modules under the given plugin
+-- folders, leaving out plugins switched off in KOReader (disabled[name]).
+local function packDirs(lookup_paths, disabled)
+    local out = {}
+    local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
+    if not ok_lfs then return out end
+    disabled = disabled or {}
+    for _i, path in ipairs(lookup_paths or {}) do
+        if lfs.attributes(path, "mode") == "directory" then
+            for entry in lfs.dir(path) do
+                local name = entry:match("^(.+)%.koplugin$")
+                if name and not disabled[name] then
+                    local d = path .. "/" .. entry .. "/bookshelf_modules"
+                    if lfs.attributes(d, "mode") == "directory" then
+                        out[#out + 1] = { dir = d, origin = "plugin:" .. name }
+                    end
+                end
+            end
+        end
+    end
+    return out
+end
+
+-- The plugin folders KOReader loads from (PluginLoader:_discover): its own
+-- "plugins", and extra_plugin_paths, or the data dir's when that's unset.
+local function pluginLookupPaths()
+    local paths = { "plugins" }
+    local ok, extra = pcall(function()
+        return G_reader_settings and G_reader_settings:readSetting("extra_plugin_paths")
+    end)
+    extra = ok and extra or nil
+    if type(extra) == "string" then extra = { extra } end
+    if type(extra) == "table" then
+        for _i, p in ipairs(extra) do
+            if type(p) == "string" and p ~= "plugins" then paths[#paths + 1] = p end
+        end
+    else
+        local ok_ds, DataStorage = pcall(require, "datastorage")
+        if ok_ds and DataStorage and DataStorage.getDataDir and DataStorage:getDataDir() ~= "." then
+            paths[#paths + 1] = DataStorage:getDataDir() .. "/plugins"
+        end
+    end
+    return paths
+end
+
+local function installedPackDirs()
+    local ok, disabled = pcall(function()
+        return G_reader_settings and G_reader_settings:readSetting("plugins_disabled")
+    end)
+    return packDirs(pluginLookupPaths(), ok and type(disabled) == "table" and disabled or {})
+end
+
+-- Every folder modules load from, in precedence order (first registered key
+-- wins): the user's own, then plugin packs, then the bundled ones.
+local function moduleDirs()
+    local out = { { dir = userModulesDir(), origin = "user" } }
+    for _i, d in ipairs(installedPackDirs()) do out[#out + 1] = d end
+    out[#out + 1] = { dir = modulesDir(), origin = "bundled" }
+    return out
+end
+
 local function loadSpec(dir, fname, origin)
     local fkey = tostring(origin) .. "|" .. dir .. "/" .. fname
     if loaded_files[fkey] then return end
@@ -215,7 +283,7 @@ local function loadSpec(dir, fname, origin)
         return
     end
     registry[spec.key] = spec
-    if origin then file_of[spec.key] = { fname = fname, origin = origin } end
+    if origin then file_of[spec.key] = { fname = fname, origin = origin, dir = dir } end
 end
 
 local function scanDir(dir, origin)
@@ -248,8 +316,7 @@ local function scan()
     -- User dir FIRST so a user module overrides a bundled one of the same key
     -- (first-registered wins), and survives plugin updates; then the bundled
     -- modules. Either dir may be absent - scanDir tolerates that.
-    scanDir(userModulesDir(), "user")
-    scanDir(modulesDir(), "bundled")
+    for _i, d in ipairs(moduleDirs()) do scanDir(d.dir, d.origin) end
     M._saveIndex()
 end
 
@@ -269,8 +336,8 @@ local function dirSignature()
     local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
     if not ok_lfs then return nil end
     local parts = {}
-    for _i, d in ipairs({ { userModulesDir(), "user" }, { modulesDir(), "bundled" } }) do
-        local dir, origin = d[1], d[2]
+    for _i, d in ipairs(moduleDirs()) do
+        local dir, origin = d.dir, d.origin
         local names = {}
         if dir and lfs.attributes(dir, "mode") == "directory" then
             for fname in lfs.dir(dir) do
@@ -287,7 +354,7 @@ function M._saveIndex()
     local sig = dirSignature()
     if not sig then return end
     local keys = {}
-    for k, f in pairs(file_of) do keys[k] = { f.fname, f.origin } end
+    for k, f in pairs(file_of) do keys[k] = { f.fname, f.origin, f.dir } end
     pcall(function()
         require("lib/bookshelf_module_cache").save(INDEX_KEY, { sig = sig, keys = keys })
     end)
@@ -315,7 +382,7 @@ local function loadIndexed(key)
     local idx = trustedIndex()
     local e = idx and idx.keys[key]
     if type(e) ~= "table" then return false end
-    local dir = (e[2] == "user") and userModulesDir() or modulesDir()
+    local dir = e[3] or ((e[2] == "user") and userModulesDir() or modulesDir())
     if not dir then return false end
     loadSpec(dir, e[1], e[2])
     return registry[key] ~= nil
@@ -342,7 +409,7 @@ function M.keys()
     return out
 end
 
-M._test = { scanDir = scanDir, registry = registry,
+M._test = { scanDir = scanDir, registry = registry, packDirs = packDirs,
             reset = function()
                 for k in pairs(registry) do registry[k] = nil end
                 for k in pairs(file_of) do file_of[k] = nil end

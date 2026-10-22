@@ -49,6 +49,15 @@ put("bare_ok.lua", [[return { key = "bareok", title = "Bare ok",
     render = function() end, bare = true }]])
 put("bare_bad.lua", [[return { key = "barebad", title = "Bare bad",
     render = function() end, bare = "yes" }]])
+-- A module file is called with its own folder, so a pack can dofile its
+-- shared code: local MODULE_DIR = ...
+put("dirarg.lua", [[local dir = ...
+return { key = "dirarg", title = "Dir arg", render = function() end, _dir = dir }]])
+-- on_minute: the heartbeat hook; a function when present.
+put("minute_ok.lua", [[return { key = "minuteok", title = "Minute ok",
+    render = function() end, on_minute = function() end }]])
+put("minute_bad.lua", [[return { key = "minutebad", title = "Minute bad",
+    render = function() end, on_minute = 1 }]])
 names[#names + 1] = "README.md" -- non-lua entries must be ignored
 put("README.md", "not a module")
 
@@ -96,7 +105,13 @@ t.test("scan registers valid specs and skips broken/invalid ones", function()
     assert(reg["barebad"] == nil, "a non-boolean bare must be skipped")
     local n = 0
     for _k in pairs(reg) do n = n + 1 end
-    assert(n == 5, "exactly five modules must have registered, got " .. n)
+    assert(reg["dirarg"] and reg["dirarg"]._dir == tmpdir,
+        "a module file must receive its folder as ..., got "
+        .. tostring(reg["dirarg"] and reg["dirarg"]._dir))
+    assert(reg["minuteok"] and type(reg["minuteok"].on_minute) == "function",
+        "a function on_minute must register")
+    assert(reg["minutebad"] == nil, "a non-function on_minute must be skipped")
+    assert(n == 7, "exactly seven modules must have registered, got " .. n)
 end)
 
 t.test("menu-open generation hook", function()

@@ -1424,9 +1424,12 @@ local function tokenNamesByLengthDesc()
     return names
 end
 
+-- Day and month names through KOReader's translations, as the named date
+-- tokens do: os.date's come from the C locale, English on a Kindle whatever
+-- the interface language (issue 545).
 local function expandDatetimeBraces(format, state)
     return (format:gsub("%%datetime{(.-)}", function(spec)
-        return os.date(spec, timeNow(state))
+        return LocalDate.localize(os.date(spec, timeNow(state)))
     end))
 end
 

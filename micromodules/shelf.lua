@@ -30,15 +30,21 @@ local function isBookShelf(tab)
     return not GROUP_KINDS[tab.source.kind]
 end
 
+-- The heading: the custom text, else the shelf's label as it is -- icons and
+-- [icon=NAME] pictures included, drawn as the chip draws them.
 local function headingText(custom, tab)
     if type(custom) == "string" and custom ~= "" then return custom end
-    -- The label without its [icon=NAME] pictures (the chip bar draws those).
     local label = tab and tab.label
-    if type(label) == "string" then
-        label = label:gsub("%[icon=[^%]]*%]", ""):gsub("^%s+", ""):gsub("%s+$", "")
-        if label ~= "" then return label end
-    end
+    if type(label) == "string" and label ~= "" then return label end
     return _("Shelf")
+end
+
+-- A label for plain-text buttons (the shelf picker): [icon=NAME] pictures
+-- can't be drawn there, so they go; icon glyphs stay. nil if nothing's left.
+local function plainLabel(label)
+    if type(label) ~= "string" then return nil end
+    label = label:gsub("%[icon=[^%]]*%]", ""):gsub("^%s+", ""):gsub("%s+$", "")
+    return label ~= "" and label or nil
 end
 
 --- Rows of books a body `avail_h` tall holds at no less than `min_row_h`
@@ -92,7 +98,7 @@ local function shelfRows(close, on_pick)
     local rows = {}
     for _i, tab in ipairs(require("lib/bookshelf_tab_model").load() or {}) do
         if isBookShelf(tab) then
-            rows[#rows + 1] = {{ text = headingText(nil, tab),
+            rows[#rows + 1] = {{ text = plainLabel(tab.label) or tab.id,
                 callback = close(function() on_pick(tab) end) }}
         end
     end
@@ -249,12 +255,13 @@ return {
         local out = VerticalGroup:new{ align = "left" }
         local body_h = mh
         if ctx.config:get("heading", true) ~= false then
-            local TextWidget     = require("lib/bookshelf_colour_text")
             local InputContainer = require("ui/widget/container/inputcontainer")
             local GestureRange   = require("ui/gesturerange")
-            local f, b = Kit.face(16, 100, { bold = true })
-            local label = TextWidget:new{ text = headingText(ctx.config:get("heading_text"), tab),
-                face = f, bold = b, fgcolor = Kit.COLOR_PRIMARY, max_width = mw }
+            -- Drawn as the chip bar draws a label: text, icon glyphs and
+            -- [icon=NAME] pictures, in the label's own case.
+            local label = require("lib/bookshelf_chip_bar").buildLabel(
+                headingText(ctx.config:get("heading_text"), tab),
+                16, mw, Kit.COLOR_PRIMARY)   -- a font size: the face scales it
             local hd = InputContainer:new{ dimen = label:getSize(), label }
             hd.ges_events = { Tap = { GestureRange:new{ ges = "tap", range = function() return hd.dimen end } } }
             function hd:onTap() openShelf(ctx, tab); return true end
@@ -285,5 +292,5 @@ return {
 
     show_settings = showSettings,
     _test = { isBookShelf = isBookShelf, headingText = headingText, rowsFor = rowsFor,
-              booksOnly = booksOnly },
+              booksOnly = booksOnly, plainLabel = plainLabel },
 }

@@ -1154,6 +1154,7 @@ function HeroModules.build(bw, content_w, hero_h, PAD, opts)
     -- refresh only ever touch on-screen modules.
     bw._hero_cells = {}
     bw._hero_clock_cells = {}
+    bw._hero_minute_cells = {}
     -- Row/col map of entry ids for d-pad navigation (HeroModules.navMove).
     bw._hero_grid_rows = Grid.navRows(boxes, page)
 
@@ -1186,6 +1187,9 @@ function HeroModules.build(bw, content_w, hero_h, PAD, opts)
             local def = Modules.get(entry.module)
             if def and def.wants_minute_tick then
                 bw._hero_clock_cells[#bw._hero_clock_cells + 1] = rec
+            end
+            if def and def.on_minute then
+                bw._hero_minute_cells[#bw._hero_minute_cells + 1] = rec
             end
         end
     end
@@ -1374,7 +1378,31 @@ end
 -- heartbeat doesn't ghost-refresh a grid that doesn't need it. Modules are NOT
 -- re-rendered wholesale (and generation is NOT bumped), so random_unread /
 -- quote / etc. keep their current pick — only the clocks advance.
+-- Run each visible card's on_minute(ctx) hook: a module that polls (a sensor
+-- card) checks whether its data is due, and calls ctx.refresh() itself only
+-- when something changed. Nothing is re-rendered here. Returns true when any
+-- hook ran.
+function HeroModules._tickMinuteHooks(bw)
+    local cells = bw and bw._hero_minute_cells
+    if not cells or #cells == 0 then return false end
+    local Kit = require("lib/bookshelf_module_kit")
+    for _i, rec in ipairs(cells) do
+        local entry = rec.entry
+        local def = entry and Modules.get(entry.module)
+        if def and type(def.on_minute) == "function" then
+            local id = entry.id
+            pcall(def.on_minute, {
+                entry = entry, config = Kit.entryConfig(entry, nil), bw = bw,
+                surface = _build_surface,
+                refresh = function() HeroModules._reloadCellById(bw, id) end,
+            })
+        end
+    end
+    return true
+end
+
 function HeroModules.tickClocks(bw)
+    HeroModules._tickMinuteHooks(bw)
     local cells = bw and bw._hero_clock_cells
     if not cells or #cells == 0 then return false end
     local scope

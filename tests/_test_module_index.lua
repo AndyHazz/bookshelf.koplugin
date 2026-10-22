@@ -45,17 +45,20 @@ package.loaded["libs/libkoreader-lfs"] = {
     end,
 }
 
--- dofile records what ran and returns a spec, never touching the disk.
+-- loadfile records what ran and returns a spec, never touching the disk. (The
+-- loader uses loadfile + call so a module file receives its folder as `...`.)
 local ran = {}
-local real_dofile = dofile
-_G.dofile = function(path)
+local real_loadfile = loadfile
+_G.loadfile = function(path, ...)
     local dir, fname = path:match("^(.*)/([^/]+)$")
     if dir and files[dir] and files[dir][fname] then
-        ran[#ran + 1] = path
-        return { key = files[dir][fname], title = fname .. "@" .. dir,
-                 render = function() end }
+        return function()
+            ran[#ran + 1] = path
+            return { key = files[dir][fname], title = fname .. "@" .. dir,
+                     render = function() end }
+        end
     end
-    return real_dofile(path)
+    return real_loadfile(path, ...)
 end
 
 local function fresh()

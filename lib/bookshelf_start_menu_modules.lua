@@ -214,7 +214,15 @@ local function loadSpec(dir, fname, origin)
     local fkey = tostring(origin) .. "|" .. dir .. "/" .. fname
     if loaded_files[fkey] then return end
     loaded_files[fkey] = true
-    local ok, spec = pcall(dofile, dir .. "/" .. fname)
+    -- loadfile + call, not dofile: the chunk receives its own folder as
+    -- `...`, so a pack's module file can dofile shared code beside it.
+    local chunk, load_err = loadfile(dir .. "/" .. fname)
+    local ok, spec
+    if chunk then
+        ok, spec = pcall(chunk, dir)
+    else
+        ok, spec = false, load_err
+    end
     if not ok then
         logger.warn("[bookshelf] micro-module failed to load, skipping:",
             fname, spec)
@@ -240,6 +248,11 @@ local function loadSpec(dir, fname, origin)
         logger.warn("[bookshelf] micro-module spec invalid"
             .. " (keep_open must be a boolean or function when present),"
             .. " skipping:", fname)
+        return
+    end
+    if spec.on_minute ~= nil and type(spec.on_minute) ~= "function" then
+        logger.warn("[bookshelf] micro-module spec invalid"
+            .. " (on_minute must be a function when present), skipping:", fname)
         return
     end
     if spec.on_tap ~= nil and type(spec.on_tap) ~= "function" then

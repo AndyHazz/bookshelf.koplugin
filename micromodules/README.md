@@ -18,6 +18,7 @@ return {
     keep_open = true,                 -- optional: tap acts without closing the menu
                                       -- (or a function(ctx) -> bool, resolved at tap time)
     wants_minute_tick = true,         -- optional: re-render every minute (clocks)
+    on_minute = function(ctx) ... end, -- optional: once a minute while on screen, no re-render
     show_settings = function(ctx) ... end, -- optional settings dialog
     -- Hero-grid hints (all optional) -- see "Hero-grid hints" below:
     aspect       = "square",          -- pack as a square (clocks, icon cards)
@@ -182,6 +183,15 @@ Set `wants_minute_tick = true` if your card shows wall-clock time (a clock): the
 hero re-renders it once a minute (scoped) so it stays current. Read the time in
 `render` as usual.
 
+For a card that polls (a sensor reading, a feed), declare
+`on_minute = function(ctx)` instead. It runs once a minute while the card is on
+screen (the hero grid or the full-screen view, current page only; never under
+the reader or while the device sleeps), and re-renders nothing by itself: check
+whether your data is due, fetch it, and call `ctx.refresh()` only when something
+changed, so an unchanged card costs no e-ink refresh. `ctx` carries `entry`,
+`config` (read-only), `bw`, `surface` and `refresh`. Keep it cheap and never
+block: schedule the fetch.
+
 ## Storing settings
 
 Two kinds of settings, two APIs. **Neither writes the main `bookshelf.lua`** —
@@ -209,9 +219,10 @@ persist (only in `on_tap`/`show_settings` — in `render` the config is read-onl
 so `:set` there is a no-op). Config travels with the card and is removed when the
 card is deleted — no orphans. To configure a module interactively at add time,
 declare `on_add = function(host_ctx, done)`: gather fields and call
-`done(fields)` to seed the new entry, or `done(nil)` to cancel. Hosts that don't
-recognise `on_add` just insert the bare entry. See `action.lua` and
-`countdown.lua`.
+`done(fields)` to seed the new entry, or `done(nil)` to cancel. `done` may be
+called later, after async work (a picker, a network fetch); call it exactly
+once. Hosts that don't recognise `on_add` just insert the bare entry. See
+`action.lua`, `countdown.lua` and `ornament.lua`.
 
 (Under the hood this is the entry table + a host save; you can still read raw
 fields off `ctx.entry` if you need to, but `ctx.config` is the supported path.)
@@ -270,9 +281,9 @@ omit them and you get the sensible default (a flex/text card offered everywhere)
   for launcher-style cards that *do* something on tap. Leave it off for passive
   cards (a tap that only re-rolls or does nothing shouldn't flash a border).
 
-Arrangement is the **host's** job, not yours: the user moves a card, resizes its
-width, and assigns it to one of the grid's pages from the long-press menu; the
-grid paginates and renders only the visible page. A module never reads or writes
+Arrangement is the **host's** job, not yours: in the layout editor (the pencil,
+or long-press a card) the user moves, resizes and pages cards on the grid; the
+grid renders only the visible page. A module never reads or writes
 its page/size/position — just render your content and let the host place it.
 
 ## `summary`
@@ -429,7 +440,13 @@ Bookshelf looks for `bookshelf_modules/` in every plugin folder KOReader loads
 from (its own `plugins` folder and any `extra_plugin_paths`), and skips a pack
 switched off in KOReader's plugin manager. Module files there follow every rule
 in this guide; a pack can keep shared code in a subfolder and `dofile` it from
-its module files.
+its module files. Every module file is called with its own folder as `...`
+(the drop-in and bundled folders too), so find the shared code from there:
+
+```lua
+local MODULE_DIR = ...   -- e.g. .../readinglog.koplugin/bookshelf_modules
+local Shared = dofile(MODULE_DIR .. "/../shared/stats.lua")
+```
 
 **Precedence.** A module in the user drop-in folder wins over one of the same
 key in a pack, and a pack's wins over a bundled one. Keep your keys distinctive

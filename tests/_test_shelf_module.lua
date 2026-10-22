@@ -63,4 +63,15 @@ t.test("the shelf picker's plain-text buttons leave out picture markup only", fu
     assert(H.plainLabel("[icon=x]") == nil, "nothing left: let the caller fall back")
 end)
 
+t.test("a folder shelf shows its books flattened, not its folder cards", function()
+    -- Home with folders (kind "all") on a fresh install is genre folders and
+    -- no loose books: as a card it showed "No books on this shelf".
+    local s = H.bookSource({ kind = "all" })
+    assert(s.kind == "library", s.kind)
+    s = H.bookSource({ kind = "folder", id = "/books/Comics" })
+    assert(s.kind == "folder_flat" and s.id == "/books/Comics")
+    local c = { kind = "collection", id = "Faves" }
+    assert(H.bookSource(c) == c, "other kinds pass through")
+end)
+
 t.done()

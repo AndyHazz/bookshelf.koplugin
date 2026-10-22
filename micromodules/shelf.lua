@@ -1,7 +1,8 @@
 --[[
 Micro-module: one of your shelves. Shows the books of a shelf (a tab, or a
 sub-shelf) in that shelf's own style -- covers, or spines standing on a plank
--- with its source, filters and sort, as many as the cell holds. Edit the
+-- with its source, filters and sort, as many as the cell holds. A folder
+-- shelf shows the books under it, flattened. Edit the
 shelf itself to change what it shows; this card only chooses which shelf.
 
 An optional heading sits top left, the shelf's name unless renamed; a tap on
@@ -51,6 +52,15 @@ end
 --- each: at least one, at most four.
 local function rowsFor(avail_h, min_row_h)
     return math.max(1, math.min(4, math.floor((avail_h or 0) / math.max(1, min_row_h))))
+end
+
+-- The source to fetch a shelf's BOOKS from: a folder shelf's top level can be
+-- all folders (Home on a fresh install is genre folders), and a card shows
+-- books, so it takes the flattened twin -- every book under it, at any depth.
+local function bookSource(source)
+    if source.kind == "all" then return { kind = "library" } end
+    if source.kind == "folder" then return { kind = "folder_flat", id = source.id } end
+    return source
 end
 
 local function booksOnly(items)
@@ -170,7 +180,7 @@ local function coverBody(ctx, tab, w, h, gap)
     local cgap  = Screen:scaleBySize(10)
     local n     = Kit.coverFit(w, row_h, cgap, m)
     local Repo  = require("lib/bookshelf_book_repository")
-    local items = Repo.getBySource(tab.source, tab.filter, tab.sort_priority, 0, rows * n * 2,
+    local items = Repo.getBySource(bookSource(tab.source), tab.filter, tab.sort_priority, 0, rows * n * 2,
         { light_only = true })
     local books = booksOnly(items)
     local vg = VerticalGroup:new{ align = "left" }
@@ -202,7 +212,7 @@ local function spineBody(ctx, tab, w, h, gap)
     local rows  = rowsFor(h, Screen:scaleBySize(130))
     local row_h = math.floor((h - gap * (rows - 1)) / rows)
     local Repo  = require("lib/bookshelf_book_repository")
-    local items = Repo.getBySource(tab.source, tab.filter, tab.sort_priority, 0, 40 * rows,
+    local items = Repo.getBySource(bookSource(tab.source), tab.filter, tab.sort_priority, 0, 40 * rows,
         { light_only = true })
     local books = booksOnly(items)
     if #books == 0 then return nil end
@@ -292,5 +302,5 @@ return {
 
     show_settings = showSettings,
     _test = { isBookShelf = isBookShelf, headingText = headingText, rowsFor = rowsFor,
-              booksOnly = booksOnly, plainLabel = plainLabel },
+              booksOnly = booksOnly, plainLabel = plainLabel, bookSource = bookSource },
 }

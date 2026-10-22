@@ -12644,6 +12644,9 @@ function BookshelfWidget:_setActiveChip(key)
     -- User swiped/tapped to this chip: arm the OPDS fetch gate.
     self:_markOpdsNav()
     self:_clearDpadFocus()
+    -- A new shelf: the hero tier's warm copies were for the old one's covers,
+    -- and a full tier takes no more (bookshelf_hero_tier noteSource).
+    pcall(function() require("lib/bookshelf_hero_tier"):clear() end)
     -- Pre-paint feedback on the destination chip: same affordance taps
     -- get, so a swipe-driven tab change feels just as responsive even
     -- when the new tab is slow to fetch (Genres / Authors). The strip

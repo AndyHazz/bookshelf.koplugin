@@ -713,6 +713,26 @@ function SpineShelf.bookLook(book)
         return look
     end
 
+    -- No cover, and KOReader has looked: the fallback is the answer, so keep
+    -- it. Asking BIM again cost a cover-row query per coverless book per
+    -- rebuild (69% of a shelf switch on a mostly-coverless rig library).
+    -- The fallback below is NOT kept, because it usually means "not
+    -- extracted yet"; this one is settled. invalidateBook drops it (a
+    -- custom cover).
+    if not book.cover_bb then
+        local ok_r, Repo = pcall(require, "lib/bookshelf_book_repository")
+        if ok_r and Repo and Repo.coverKnownAbsent and Repo.coverKnownAbsent(fp) then
+            local look = _fallbackLook(label)
+            look.aspect = _aspectFromSizetag(book.cover_sizetag)
+            if _look_count >= LOOK_CACHE_MAX then
+                _look_cache, _look_count = {}, 0
+            end
+            _look_cache[fp] = look
+            _look_count = _look_count + 1
+            return look
+        end
+    end
+
     local look
     local ok = pcall(function()
         local bb, owned = nil, false
@@ -4135,13 +4155,19 @@ function SpineShelf.plan(items, opts)
         -- A shelf of shelves' "+ Add shelf" takes a face-out cover's place
         -- and size, as a dashed outline (see the tile branch below).
         if bk.add_subshelf or bk._series_box then face_out = true end
-        if face_out and src.has_cover == nil and src.filepath
-                and ok_repo and Repo and Repo.buildBookMeta then
+        if face_out and src.has_cover == nil and not src._cover_meta_tried
+                and src.filepath and ok_repo and Repo and Repo.buildBookMeta then
             -- Light page records carry no has_cover, and the cover tile
             -- gates its whole cover ladder on it (the face-out rendered as
             -- the text placeholder). Enrich the record with the full
             -- metadata build, missing fields only, cover pixels still
             -- lazy-loaded by the tile.
+            --
+            -- Once per record: a book KOReader hasn't indexed yet still has
+            -- no answer afterwards, and asking again on every plan was a
+            -- metadata build per such book per page turn (PW5). A record
+            -- rebuilt after its metadata changes starts without the mark.
+            src._cover_meta_tried = true
             pcall(function()
                 local full = Repo.buildBookMeta(src.filepath, { want_cover = false })
                 if full then

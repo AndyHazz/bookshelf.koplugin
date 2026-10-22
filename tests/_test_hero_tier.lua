@@ -74,15 +74,50 @@ t.test("a short source is stashed at its own height", function()
     assert(got:getHeight() == 350, "stashed at source height, not stretched")
 end)
 
-t.test("eviction really frees, oldest first, newest survives", function()
+-- A full tier skips a new cover WITHOUT scaling it. It used to scale every
+-- decoded cover and evict the oldest, and on a face-out shelf (a page of 30+
+-- covers against a budget of a few) that was a hero-size bb:scale per cover
+-- per page turn, almost all thrown away: ~10-40% of the turn (rig, 1500
+-- books, Genres face-out). What is already stashed stays until taken.
+t.test("a full tier skips new covers without scaling them", function()
     local HT = fresh()
     HT.target_h = 1000
     HT:setBudget(2 * 400 * 1000 + 100)  -- room for two 400x1000 copies
     HT:noteSource("/b/1.epub", bb(400, 1000))
     HT:noteSource("/b/2.epub", bb(400, 1000))
-    HT:noteSource("/b/3.epub", bb(400, 1000))
-    assert(HT:take("/b/1.epub") == nil, "oldest should have been evicted")
-    assert(HT:take("/b/3.epub"), "newest must survive")
+    local third = bb(400, 1000)
+    HT:noteSource("/b/3.epub", third)
+    assert(third.scaled_to == nil, "a cover that can't fit must not be scaled")
+    assert(HT:take("/b/3.epub") == nil, "nothing stashed for the third")
+    assert(HT:take("/b/1.epub") and HT:take("/b/2.epub"), "the stashed two stay")
+end)
+
+t.test("taking one makes room for the next", function()
+    local HT = fresh()
+    HT.target_h = 1000
+    HT:setBudget(400 * 1000 + 100)
+    HT:noteSource("/b/1.epub", bb(400, 1000))
+    assert(HT:take("/b/1.epub"))
+    HT:noteSource("/b/2.epub", bb(400, 1000))
+    assert(HT:take("/b/2.epub"), "room freed by take is used")
+end)
+
+t.test("the size check counts the source's bytes per pixel", function()
+    local HT = fresh()
+    HT.target_h = 1000
+    HT:setBudget(400 * 1000 + 100)          -- one 8-bit copy, not one 32-bit
+    local rgb = bb(400, 1000)
+    rgb.stride = 1600                       -- 4 bytes per pixel
+    HT:noteSource("/b/c.epub", rgb)
+    assert(rgb.scaled_to == nil, "a 32-bit copy is 4x the bytes and doesn't fit")
+end)
+
+t.test("switching shelves empties the tier for the new shelf's covers", function()
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    local f = w:match("\nfunction BookshelfWidget:_setActiveChip%(.-\nend\n")
+    assert(f, "_setActiveChip not found")
+    assert(f:find("bookshelf_hero_tier", 1, true) and f:find(":clear()", 1, true),
+        "_setActiveChip does not clear the hero tier")
 end)
 
 t.test("drop frees the stashed copy (stale-cover funnel)", function()

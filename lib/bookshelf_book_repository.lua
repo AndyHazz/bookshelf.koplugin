@@ -703,6 +703,18 @@ local function _getBookInfoIsWrapped(bim)
     return _hook_fn_wrapped
 end
 
+-- _recordHasCover(has_cover, info) -> true / false / nil for a record.
+-- false is a KNOWN "no": BIM looked for a cover (cover_fetched) and found
+-- none. nil is "not looked yet". It used to be nil for both, and every
+-- "is this known yet?" (has_cover == nil) check asked again forever: the
+-- spine plan rebuilt a coverless face-out book's metadata on every page
+-- turn.
+local function _recordHasCover(has_cover, info)
+    if has_cover == "Y" then return not info.ignore_cover end
+    if info.cover_fetched == "Y" then return false end
+    return nil
+end
+
 local function _hookedCoverFor(bim, filepath, info)
     -- The fallback patch's own preconditions, so a "no" is final for the
     -- session: anything that could change it changes these fields too.
@@ -1331,7 +1343,7 @@ function Repo.buildBookMeta(filepath, opts)
         series_num  = series_num,
         -- BIM-only: covers and page count are not in metadata.calibre.
         cover_bb    = info.cover_bb,
-        has_cover   = has_cover and not info.ignore_cover,
+        has_cover   = _recordHasCover(has_cover, info),
         -- Original (pre-thumbnail) cover dimensions BIM records as "WxH",
         -- e.g. "1072x1448". Used by the Hardcover enricher to decide whether
         -- the embedded cover is lower resolution than Hardcover's.
@@ -1423,6 +1435,25 @@ function Repo.getCoverBB(filepath)
     if not info then return nil end
     if info.ignore_cover then return nil end
     return info.cover_bb
+end
+
+-- coverKnownAbsent(filepath) -> true when KOReader looked for this book's
+-- cover and found none: a settled answer, from the batched rows already in
+-- memory (no per-book query, no blob). Lets a caller keep a fallback (a
+-- spine's colour) instead of asking BIM again on every rebuild, which a
+-- coverless library paid per book per shelf switch. false whenever unsure:
+-- not looked yet, no batched row, a cached cover (the row is stale, issue
+-- 451), or a getBookInfo wrapper that supplies covers (issue 500).
+function Repo.coverKnownAbsent(filepath)
+    if type(filepath) ~= "string" or _isRemotePath(filepath) then return false end
+    local info = _batchInfoFor and _batchInfoFor(filepath)
+    if type(info) ~= "table" then return false end
+    if _recordHasCover(info.has_cover, info) ~= false then return false end
+    local ok_scc, SCC = pcall(require, "lib/bookshelf_scaled_cover_cache")
+    if ok_scc and SCC and SCC.has and SCC:has(filepath) then return false end
+    local bim = getBookInfoMgr()
+    if bim and _hookedCoverFor(bim, filepath, info) then return false end
+    return true
 end
 
 -- Exported so the widget's own BIM reads (extraction queueing, the

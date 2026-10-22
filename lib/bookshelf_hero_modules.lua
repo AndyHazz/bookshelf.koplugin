@@ -1303,6 +1303,18 @@ end
 -- Edit-mode drawing on top of the real-size grid: dashed outlines on empty
 -- cells (under the cells), the other modules lightened and a thick outline
 -- round the selected one (over them).
+-- Fade a module that isn't selected toward its own card: lighter on a light
+-- card, darker on a dark one (lightening a dark card left it flat grey).
+function HeroModules._fade(bb, x, y, w, h, card_bg)
+    -- getColor8() is FFI cdata on the device, so read .a inside the pcall.
+    local ok, a = pcall(function() return card_bg:getColor8().a end)
+    if ok and type(a) == "number" and a < 128 then
+        bb:darkenRect(x, y, w, h, 0.5)
+    else
+        bb:lightenRect(x, y, w, h, 0.5)
+    end
+end
+
 function HeroModules._editDecorations(container, dims, boxes, page, edit, ox, oy)
     local taken = {}
     for _i, b in ipairs(boxes) do
@@ -1349,7 +1361,7 @@ function HeroModules._editDecorations(container, dims, boxes, page, edit, ox, oy
                     bb:paintBorder(x - thick, y - thick, w + 2 * thick, h + 2 * thick,
                         thick, Blitbuffer.COLOR_BLACK, Space.px(4) + thick)
                 elseif edit.selected_id then
-                    bb:lightenRect(x, y, w, h, 0.5)
+                    HeroModules._fade(bb, x, y, w, h, Modules.CARD_BG)
                 end
             end
         end

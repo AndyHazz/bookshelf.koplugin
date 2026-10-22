@@ -14,7 +14,7 @@ local body = src:match("\nlocal function _suffixEntries%(pc, base, ids%)\n(.-)\n
 local function suffix(pc, base, ids)
     assert(body, "_suffixEntries not found")
     return load("local pc, base, ids = ...\n" .. body, "sfx", "t",
-        { pairs = pairs })(pc, base, ids)
+        { pairs = pairs, setmetatable = setmetatable })(pc, base, ids)
 end
 
 -- Entries as a fresh build makes them for a list of item sizes: item_idx and

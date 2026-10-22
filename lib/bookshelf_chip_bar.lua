@@ -222,9 +222,9 @@ local function _imageSegment(name, size, ink, inverted)
     return icon
 end
 
-local function _buildLabelContent(label, size, max_w, ink, inverted)
+local function _buildLabelContent(label, size, max_w, ink, inverted, own_case)
     ink = ink or _chipInk()
-    local segments = TextSegments.labelSegments(_chipCase(label))
+    local segments = TextSegments.labelSegments(own_case and label or _chipCase(label))
     if #segments == 0 then
         local empty_face, empty_bold = BFont:getFace("infofont", size)
         return TextWidget:new{
@@ -2169,6 +2169,13 @@ function ChipBar:onHoldStrip(_, ges)
         end
     end
     return false
+end
+-- buildLabel(label, size, max_w, ink) -> a widget drawing a shelf label as a
+-- chip does -- text, icon glyphs and [icon=NAME] pictures -- in the label's
+-- own case (not the chips' case setting). For headings elsewhere, such as the
+-- Shelf micro-module.
+function ChipBar.buildLabel(label, size, max_w, ink)
+    return _buildLabelContent(label, size, max_w, ink, false, true)
 end
 
 return ChipBar

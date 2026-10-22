@@ -50,9 +50,17 @@ t.test("online (OPDS) shelves are left out: a card never fetches on its own", fu
     assert(not H.isBookShelf({ id = "ia", source = { kind = "opds" } }))
 end)
 
-t.test("the default heading leaves out the label's icon markup", function()
-    assert(H.headingText(nil, { label = "Home[icon=tab_manga]" }) == "Home")
-    assert(H.headingText(nil, { label = "[icon=x] Faves" }) == "Faves")
+t.test("the default heading is the shelf's label, icons and all", function()
+    -- Drawn like the chip (lib/bookshelf_chip_bar.buildLabel), so a label's
+    -- [icon=NAME] pictures and icon glyphs show in the heading too.
+    assert(H.headingText(nil, { label = "Home[icon=tab_manga]" }) == "Home[icon=tab_manga]")
+end)
+
+t.test("the shelf picker's plain-text buttons leave out picture markup only", function()
+    assert(H.plainLabel("Home[icon=tab_manga]") == "Home")
+    assert(H.plainLabel("[icon=x] Faves") == "Faves")
+    assert(H.plainLabel("\xEE\xAC\xB0 Faves") == "\xEE\xAC\xB0 Faves", "glyphs stay: the dialog can draw them")
+    assert(H.plainLabel("[icon=x]") == nil, "nothing left: let the caller fall back")
 end)
 
 t.done()

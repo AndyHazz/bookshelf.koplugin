@@ -220,16 +220,16 @@ end)
 
 t.test("the collection's preview probes with a held decode and renders from it", function()
     local src = io.open("lib/bookshelf_ornament_browser.lua"):read("*a")
-    local prev = src:match("\nfunction Browser%.preview%(e, box_w, box_h%)\n(.-)\nend\n")
+    local prev = src:match("\nfunction Browser%.preview%(e, box_w, box_h, mirror%)\n(.-)\nend\n")
     assert(prev, "Browser.preview moved")
     assert(prev:find("Orn.contentBox(e, true)", 1, true), "the probe does not hold its decode")
     local tail = prev:match("if Orn%.holds%(e%) then\n(.-)\n    end")
     assert(tail, "the preview does not render from the held decode")
-    assert(tail:find("Orn.render(e, preview.placement.w, preview.placement.h, preview.night)", 1, true),
+    assert(tail:find("Orn.render(e, preview.placement.w, preview.placement.h, preview.night, mirror)", 1, true),
         "the render made from the held decode is not the one the paint asks for")
     assert(tail:find("Orn.releaseHeld()", 1, true), "the held decode is not let go")
     local crop = src:match("\nfunction Cropped:paintTo%(bb, x, y%)\n(.-)\nend\n")
-    assert(crop and crop:find("O().render(p.entry, p.w, p.h, self.night)", 1, true),
+    assert(crop and crop:find("O().render(p.entry, p.w, p.h, self.night, p.mirror)", 1, true),
         "the paint asks for another render than the preview made")
 end)
 

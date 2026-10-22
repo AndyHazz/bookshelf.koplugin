@@ -6,7 +6,7 @@ with its info), or nothing.
 
 The piece (its name in the ornaments folder) and the tap live on the card's
 own entry (ctx.config), so two cards can show different pieces and do
-different things. Add picks the piece in the ornament browser; Module
+different things, and a card can show its piece flipped left to right. Add picks the piece in the ornament browser; Module
 settings changes the piece or the tap action.
 ]]
 local _ = require("lib/bookshelf_i18n").gettext
@@ -42,6 +42,10 @@ local function showSettings(ctx)
         buttons = {
             {{ text = _("Change ornament\xE2\x80\xA6"), callback = close(function()
                 pickPiece(function(e) ctx.config:set("ornament", e.name) end)
+            end) }},
+            {{ text = (ctx.config:get("mirror") == true) and _("Flip back") or _("Flip left to right"),
+               callback = close(function()
+                ctx.config:set("mirror", not (ctx.config:get("mirror") == true))
             end) }},
             {{ text = _("Tap action\xE2\x80\xA6"), callback = close(function()
                 -- The shelf ornaments' own chooser (an action, Zoom, or none),
@@ -84,7 +88,8 @@ return {
         local Geom = require("ui/geometry")
         return CenterContainer:new{
             dimen = Geom:new{ w = mw, h = mh },
-            require("lib/bookshelf_ornament_browser").preview(piece, mw, mh),
+            require("lib/bookshelf_ornament_browser").preview(piece, mw, mh,
+                ctx.config and ctx.config:get("mirror") == true),
         }
     end,
 

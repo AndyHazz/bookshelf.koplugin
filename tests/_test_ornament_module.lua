@@ -18,8 +18,13 @@ package.loaded["lib/bookshelf_action_exec"] = {
     dispatch = function(tap, bw) dispatched = { tap = tap, bw = bw } end }
 package.loaded["lib/bookshelf_ornament_zoom"] = {
     show = function(entry, bw) zoomed = { entry = entry, bw = bw } end }
+local previewed
 package.loaded["lib/bookshelf_ornament_browser"] = {
-    show = function(_on_change, opts) picked_with = opts end }
+    show = function(_on_change, opts) picked_with = opts end,
+    preview = function(e, w, h, mirror) previewed = { e = e, mirror = mirror }; return {} end }
+package.loaded["lib/bookshelf_module_kit"] = { fitText = function() return {} end, COLOR_MUTED = 0 }
+package.loaded["ui/widget/container/centercontainer"] = { new = function(_s, o) return o end }
+package.loaded["ui/geometry"] = { new = function(_s, o) return o end }
 
 local M = dofile("micromodules/ornament.lua")
 local t = dofile("tests/_helpers.lua").runner()
@@ -64,6 +69,19 @@ t.test("Add picks a piece in the ornament browser", function()
     assert(picked_with and type(picked_with.pick) == "function", "browser not in pick mode")
     picked_with.pick(PIECES[1])
     assert(got and got.ornament == "Autumn/leaf.png")
+end)
+
+t.test("a flipped card draws its piece mirrored", function()
+    previewed = nil
+    local ctx = ctxWith({ ornament = "cactus.svg", mirror = true })
+    ctx.width, ctx.height, ctx.scale = 200, 200, 100
+    M.render(ctx)
+    assert(previewed and previewed.e == PIECES[2] and previewed.mirror == true, "not mirrored")
+    previewed = nil
+    ctx = ctxWith({ ornament = "cactus.svg" })
+    ctx.width, ctx.height, ctx.scale = 200, 200, 100
+    M.render(ctx)
+    assert(previewed and not previewed.mirror, "mirrored without being asked")
 end)
 
 t.done()

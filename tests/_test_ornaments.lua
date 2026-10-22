@@ -321,6 +321,30 @@ t.test("cache: listAll keeps its answer for the TTL only inside a plan's window"
     os.execute("rm -rf '" .. d .. "'")
 end)
 
+t.test("allowRecent reports whether a window was already open, so callers can nest", function()
+    local O = fresh()
+    local t = 1000
+    O._clock = function() return t end
+    assert(not O.allowRecent(true), "nothing open before")
+    assert(O.allowRecent(true), "already open")
+    O.allowRecent(false)
+    assert(not O.allowRecent(true), "closed again")
+end)
+
+t.test("a rebuild and a page turn hold the window open for their whole run", function()
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    for _i, name in ipairs({ "BookshelfWidget:_rebuild", "BookshelfWidget:_swapShelvesInPlace" }) do
+        local f = w:match("\nfunction " .. name:gsub("[%.%:]", "%%%0") .. "%(.-\n")
+        assert(f, name .. " not found")
+        local at = w:find("\nfunction " .. name, 1, true)
+        local head = w:sub(at, at + 600)
+        assert(head:find("self:_ornScanWindow()", 1, true), name .. " does not open the window first")
+    end
+    local helper = w:match("\nfunction BookshelfWidget:_ornScanWindow%(%)\n(.-)\nend\n")
+    assert(helper and helper:find("allowRecent(true)", 1, true) and helper:find("nextTick", 1, true),
+        "the window must close on the next tick")
+end)
+
 t.test("the spine plan opens and closes the window", function()
     local src = io.open("lib/bookshelf_spine_shelf.lua"):read("*a")
     local body = src:match("\nfunction SpineShelf%.plan%(items, opts%)\n(.-)\nend\n")
@@ -328,6 +352,8 @@ t.test("the spine plan opens and closes the window", function()
     local open_at = body:find("allowRecent(true)", 1, true)
     local close_at = body:find("allowRecent(false)", 1, true)
     assert(open_at and close_at and open_at < close_at, "the plan does not bracket itself")
+    assert(body:find("not orn_scan_was_open then OrnScan.allowRecent(false)", 1, true),
+        "the plan must not close a window its caller opened")
 end)
 
 t.test("cache: a removal is noticed even when the mtime does not move", function()

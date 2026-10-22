@@ -3765,7 +3765,8 @@ function SpineShelf.plan(items, opts)
     -- The ornament scan's window: see Ornaments.allowRecent. Only if the
     -- module is already loaded (a shelf with ornaments off never loads it).
     local OrnScan = package.loaded["lib/bookshelf_ornaments"]
-    if OrnScan and OrnScan.allowRecent then OrnScan.allowRecent(true) end
+    local orn_scan_was_open = false
+    if OrnScan and OrnScan.allowRecent then orn_scan_was_open = OrnScan.allowRecent(true) end
     local entries = {}
     local budget = opts.row_h
     -- Auto thickness: base widths scale with the shelf height, so one tall
@@ -4604,7 +4605,9 @@ function SpineShelf.plan(items, opts)
         (_gettime() - _t0) * 1000, #entries, _t_hydrate * 1000, _n_hydrated,
         _t_look * 1000, _t_pages * 1000, _t_fav * 1000,
         _t_balance * 1000, _n_balance, _r_balance))
-    if OrnScan and OrnScan.allowRecent then OrnScan.allowRecent(false) end
+    -- Closed only if this plan opened it: inside a rebuild or a page turn the
+    -- widget holds it open for the rest of its run (_ornScanWindow).
+    if OrnScan and OrnScan.allowRecent and not orn_scan_was_open then OrnScan.allowRecent(false) end
     return { entries = entries, rows = rows, shown = shown,
              next_item = next_item, next_skip = next_skip,
              -- Where the deck stands after this plan's rows (the next page

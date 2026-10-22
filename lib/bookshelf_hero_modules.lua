@@ -145,11 +145,51 @@ function HeroModules._activeCursor(bw)
     return bw and bw._hero_cell_cursor
 end
 
+-- _applyPalette(bw): point the module system's card colour and ink at the
+-- ground this grid is drawn on. The palette is process-global (modules read it
+-- at render time), and other hosts set their own: the start menu's white
+-- panel, the reader. So it is set before EVERY render of a grid card, the
+-- single-card re-renders included, not once per build.
+--
+-- Under the reader there is no shelf behind the grid (the full-screen view
+-- paints white), so it takes the light defaults, not the theme of whichever
+-- shelf was shown last.
+function HeroModules._applyPalette(bw)
+    if bw and bw._reader_context then
+        if Modules.resetTheme then Modules.resetTheme() end
+        return
+    end
+    -- Point the whole module system at the card colour BEFORE anything
+    -- renders: the modules read it at render time, and the text they draw
+    -- paints it as its own background. See Modules.setCardBg.
+    if Modules.setCardBg then Modules.setCardBg(_moduleCardBg()) end
+    -- ...and the ink that has to read on it. A card colour without a matching
+    -- ink is half a theme: the cards went dark and their text stayed black
+    -- (maintainer).
+    if Modules.setInk then
+        local ok_cp, CP = pcall(require, "lib/bookshelf_cover_progress")
+        local ink, muted
+        if ok_cp and CP and CP.ink then ink = CP.ink() end
+        if ink then
+            local ok_l, lum = pcall(function() return ink:getColor8().a end)
+            if ok_l and type(lum) == "number" then
+                -- A third of the way from the ink toward the card, which is
+                -- what the light theme's 0x55 is between black and 0xEE.
+                local card = (lum > 128) and 0x11 or 0xEE
+                local m = math.floor(lum + (card - lum) / 3 + 0.5)
+                muted = Blitbuffer.Color8(m)
+            end
+        end
+        Modules.setInk(ink, muted)
+    end
+end
+
 function HeroModules._swapCell(bw, rec)
     local hg  = rec and rec.group
     local old = hg and hg[rec.idx]
     if not old then return nil end
     local focused = rec.focusable and HeroModules._activeCursor(bw) == rec.entry.id
+    HeroModules._applyPalette(bw)
     hg[rec.idx] = HeroModules._makeCell(bw, rec.entry, rec.w, rec.h, rec.scale,
         rec.focusable, focused)
     if hg.resetLayout then hg:resetLayout() end
@@ -1054,29 +1094,9 @@ end
 function HeroModules.build(bw, content_w, hero_h, PAD, opts)
     opts = opts or {}
     _build_surface = opts.surface or "hero"
-    -- Point the whole module system at the card colour BEFORE anything
-    -- renders: the modules read it at render time, and the text they draw
-    -- paints it as its own background. See Modules.setCardBg.
-    if Modules.setCardBg then Modules.setCardBg(_moduleCardBg()) end
-    -- ...and the ink that has to read on it. A card colour without a matching
-    -- ink is half a theme: the cards went dark and their text stayed black
-    -- (maintainer).
-    if Modules.setInk then
-        local ok_cp, CP = pcall(require, "lib/bookshelf_cover_progress")
-        local ink, muted
-        if ok_cp and CP and CP.ink then ink = CP.ink() end
-        if ink then
-            local ok_l, lum = pcall(function() return ink:getColor8().a end)
-            if ok_l and type(lum) == "number" then
-                -- A third of the way from the ink toward the card, which is
-                -- what the light theme's 0x55 is between black and 0xEE.
-                local card = (lum > 128) and 0x11 or 0xEE
-                local m = math.floor(lum + (card - lum) / 3 + 0.5)
-                muted = Blitbuffer.Color8(m)
-            end
-        end
-        Modules.setInk(ink, muted)
-    end
+    -- The palette that matches the ground this grid sits on, before anything
+    -- renders. See HeroModules._applyPalette.
+    HeroModules._applyPalette(bw)
     -- Arm the light-touch home-screen crash marker before building the grid
     -- (issue #163). If a module hard-crashes during the hero paint, the sentinel
     -- file survives and the next launch comes up with the cover hero instead of

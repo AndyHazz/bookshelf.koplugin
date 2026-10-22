@@ -1624,11 +1624,19 @@ end
 -- nothing unless the user opts in by adopting the naming convention. Matched
 -- case-insensitively on the basename only; the book's display title comes from
 -- metadata, not the filename, so this never changes the shown name.
+-- Remembered per path (false for "no marker"): the spine plan asks twice per
+-- spine per plan, ~3,400 matches a turn on a big grouped shelf (10% of a PW5
+-- page turn). A renamed file is a new path.
+local _filename_pages = {}
 local function pageCountFromFilename(filepath)
     if type(filepath) ~= "string" then return nil end
+    local hit = _filename_pages[filepath]
+    if hit ~= nil then return hit or nil end
     local base = filepath:match("([^/]+)$") or filepath
     local n = base:match("[Pp]%((%d+)%)")
-    return n and tonumber(n) or nil
+    local v = n and tonumber(n) or nil
+    _filename_pages[filepath] = v or false
+    return v
 end
 -- Public alias: the page-count scanner classifies filename-counted books
 -- as their own (free) category before probing anything heavier.

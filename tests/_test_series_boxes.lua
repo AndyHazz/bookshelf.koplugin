@@ -322,6 +322,7 @@ H.test("the native planner paginates boxes as single slots and resumes inside co
         BookBinding=require("lib/bookshelf_book_binding"),
         Space=package.loaded["lib/bookshelf_space"],_gettime=function() return 0 end,
         _optsKey=function(o) return tostring(o.content_w)..":"..o.row_h end,
+        _suffixEntries=function() return nil end,
         _isFavourite=function() return false end,_flushLooks=function() end,
         _hydrate_cache={},_stable_checked={},SCAN_TAGS={},SHOWN_TAGS={},
         logger={dbg=function() end},require=function(name)

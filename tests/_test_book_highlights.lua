@@ -42,46 +42,33 @@ t.test("opens KOReader's browser on the book, with the file manager as parent", 
     assert(shown.files["/b.epub"] == true and shown.parent == FM.instance, "wrong files set or parent")
 end)
 
--- The tab: KOReader's own list (the bookmark browser's Menu) at the tab's
--- size; nil without the file manager, so the tab falls back to a button.
-t.test("buildList: KOReader's list at the tab's size, nil when it can't", function()
-    local BB = package.loaded["ui/widget/bookmarkbrowser"]
-    local made, filled, details
-    package.loaded["ui/widget/menu"] = {
-        items_per_page_default = 14,
-        getItemFontSize = function() return 20 end,
-        new = function(_self, o) made = o; o.item_table = {}; return o end,
-    }
-    package.loaded["ffi/blitbuffer"] = { COLOR_DARK_GRAY = 1, COLOR_WHITE = 2 }
-    package.loaded["apps/reader/modules/readerhighlight"] = { getHighlightColor = function() return 3 end }
-    package.loaded["device"] = { screen = { isColorEnabled = function() return false end } }
-    _G.G_reader_settings = { readSetting = function() return nil end, isTrue = function() return false end }
-    BB.getBookList = function(_self, files) return files["/b.epub"] and { { file = "/b.epub" } } or {} end
-    BB.updateBookmarkList = function() filled = true end
-    BB.showBookmarkDetails = function(_self, item) details = item end
-
-    FM.instance = nil
-    assert(H.buildList("/b.epub", 600, 800) == nil, "built with no file manager")
-    FM.instance = { name = "fm" }
-    local list = H.buildList("/b.epub", 600, 800)
-    assert(list and made.width == 600 and made.height == 800, "not at the tab's size")
-    assert(made.no_title == true and made.is_enable_shortcut == false, "title bar or key hints shown")
-    assert(filled, "the browser did not fill it")
-    made.onMenuSelect(made, { file = "/b.epub" })
-    assert(details == nil, "the book's own row opened something")
-    made.onMenuSelect(made, { page = 5 })
-    assert(details and details.page == 5, "a highlight's detail did not open")
-    H.releaseList()
-    assert(BB.bm_list == nil, "the browser kept hold of the tab's list")
+-- The tab's own list: highlights (not page bookmarks) in book order, with
+-- their notes; a tapped row's panel reads where it is, the text, the note.
+t.test("the tab lists highlights with their notes, in book order", function()
+    package.loaded["lib/bookshelf_text_safe"] = { safe = function(x) return x end }
+    local l = H.list("/b.epub")
+    assert(#l == 2, "got " .. #l)
+    assert(l[1].text == "First line" and l[1].pageno == 4)
+    assert(l[2].note == "Mine")
+    assert(#H.list("/none.epub") == 0)
 end)
 
-t.test("the book modal has a Highlights tab, with the button as its fallback", function()
+t.test("a tapped highlight's panel: chapter, page, day, text, note", function()
+    local txt = H.detailText({ text = "T", note = "N", chapter = "One", pageno = 4,
+                               datetime = "2026-10-01 10:00:00" })
+    assert(txt:find("One \xC2\xB7 Page 4 \xC2\xB7 2026-10-01", 1, true), txt)
+    assert(not txt:find("10:00", 1, true), "the time shown")
+    assert(txt:find(H.PREFIX.highlight .. "T", 1, true) and txt:find(H.PREFIX.note .. "N", 1, true), "text or note missing")
+end)
+
+t.test("the book modal has a Highlights tab: our list, at the modal's size, scrolling", function()
     local w = io.open("lib/bookshelf_widget.lua"):read("*a")
     assert(w:find('id = "highlights", label = _("Highlights")', 1, true), "no Highlights tab")
     assert(w:find("Highlights.count(book.filepath)", 1, true), "shown without highlights")
-    assert(w:find("local list = Highlights.buildList(book.filepath, avail_w, avail_h)", 1, true), "not KOReader's list")
-    assert(w:find("return self:_highlightsFallback(book, hl_count, avail_w, avail_h, show_parent)", 1, true), "no fallback")
-    assert(w:find('require("lib/bookshelf_book_highlights").releaseList()', 1, true), "the list is not released on close")
+    assert(w:find("return Highlights.buildTab(self, book.filepath, show_parent or modal, avail_w, avail_h)", 1, true), "not our list")
+    local hl = io.open("lib/bookshelf_book_highlights.lua"):read("*a")
+    assert(hl:find("local font_size = (modal and modal.font_size) or 20", 1, true), "ignores the modal's font size")
+    assert(hl:find("return SnugScroll:new{", 1, true), "doesn't scroll like the other tabs")
     local q = io.open("micromodules/quote_of_day.lua"):read("*a")
     assert(q:find('require("lib/bookshelf_book_highlights").showBrowser(q.filepath)', 1, true), "the quote module opens its own copy")
 end)

@@ -53,92 +53,188 @@ function M.showBrowser(fp)
     return BookmarkBrowser
 end
 
--- buildList(fp, w, h) -> KOReader's own highlights list for the book, at
--- w x h for a tab, or nil when it can't be built (the caller then offers
--- showBrowser's button instead).
---
--- The bookmark browser's list is a stock Menu; only its show() makes it full
--- screen and puts it on the window stack. This does show()'s setup -- the
--- reader's bookmark-list settings (items per page, font size, lines, which
--- text, sorting, colours) -- then a Menu at the given size with no title bar,
--- and lets the browser fill it (getBookList, getItemTable through
--- updateBookmarkList) and handle a tap (showBookmarkDetails: KOReader's own
--- detail panel, with View in book and previous/next). It reads the browser's
--- internals, which a KOReader update may change: every step is guarded, and
--- any failure gives nil. Saved browser filters are not applied: the tab
--- shows the whole book.
-function M.buildList(fp, w, h)
-    if type(fp) ~= "string" or not (w and h) then return nil end
-    local ok, list = pcall(function()
-        local BB = require("ui/widget/bookmarkbrowser")
-        local Menu = require("ui/widget/menu")
-        local Blitbuffer = require("ffi/blitbuffer")
-        local ReaderHighlight = require("apps/reader/modules/readerhighlight")
-        local Screen = require("device").screen
-        local ui = M.parentUI()
-        if not ui then error("no file manager or reader to hang the list off") end
-        BB.ui = ui
-        ui.highlight = ui.highlight or ReaderHighlight -- for ReaderBookmark methods
-        local G = G_reader_settings
-        BB.items_per_page = G:readSetting("bookmarks_items_per_page")
-            or G:readSetting("items_per_page") or Menu.items_per_page_default
-        BB.items_font_size = G:readSetting("bookmarks_items_font_size")
-            or G:readSetting("items_font_size") or Menu.getItemFontSize(BB.items_per_page)
-        BB.items_text = G:readSetting("bookmarks_items_text_type") or "note"
-        BB.items_max_lines = G:readSetting("bookmarks_items_max_lines")
-        BB.multilines_show_more_text = G:isTrue("bookmarks_items_multilines_show_more_text")
-        BB.line_color = G:isTrue("bookmarks_items_show_separator")
-            and Blitbuffer.COLOR_DARK_GRAY or Blitbuffer.COLOR_WHITE
-        BB.sorting_mode = G:readSetting("bookmarks_items_sorting") or "page"
-        BB.is_reverse_sorting = G:isTrue("bookmarks_items_reverse_sorting")
-        BB.highlight_color_default = G:readSetting("highlight_color")
-            or (Screen:isColorEnabled() and "yellow" or "gray")
-        BB.bookmarks_items_show_color = G:isTrue("bookmarks_items_show_color")
-        BB.bookmarks_items_color_default = G:isTrue("bookmarks_items_show_color_default")
-            and ReaderHighlight:getHighlightColor(BB.highlight_color_default) or nil
-        BB.books = BB:getBookList({ [fp] = true })
-        if not BB.books or #BB.books == 0 then error("the browser found no annotations for the book") end
-        BB.filter_table = { enabled_books_nb = #BB.books }
-        BB.bm_list = Menu:new{
-            width = w, height = h,
-            no_title = true,
-            is_borderless = true,
-            is_popout = false,
-            -- No Q/W/E... key hints down the side on a device with a keyboard:
-            -- the tab is a list, not the browser's own screen.
-            is_enable_shortcut = false,
-            items_per_page = BB.items_per_page,
-            items_font_size = BB.items_font_size,
-            items_max_lines = BB.items_max_lines,
-            multilines_show_more_text = BB.multilines_show_more_text,
-            line_color = BB.line_color,
-            onMenuSelect = function(_menu, item)
-                -- The book's own row (the list's first) has nothing to show.
-                if item and not item.file then BB:showBookmarkDetails(item) end
-            end,
-        }
-        BB:updateBookmarkList()
-        return BB.bm_list
-    end)
-    if ok and list then
-        M._list = list
-        return list
+-- ─── The book modal's Highlights tab ───────────────────────────────────────
+-- Our own list rather than the bookmark browser's: that one is a paged Menu
+-- whose page footer can't be turned off and which ignores the modal's font
+-- size (maintainer: scroll it like the other tabs, at the modal's size).
+-- Rows read like KOReader's -- its type glyphs, the text, the page -- and a
+-- tap opens a panel in KOReader's own manner: the text in full, its note,
+-- and View in book.
+
+-- KOReader's own type glyphs (ReaderBookmark.display_prefix).
+M.PREFIX = { highlight = "\u{2592}\u{2002}", note = "\u{F040}\u{2002}" }
+
+-- list(fp) -> the book's highlights in book order:
+-- { { text, note, chapter, page, pos0, pageno, datetime }, ... }.
+function M.list(fp)
+    local out = {}
+    if type(fp) ~= "string" then return out end
+    local ok_ds, DocSettings = pcall(require, "docsettings")
+    if not (ok_ds and DocSettings and DocSettings.hasSidecarFile) then return out end
+    if not DocSettings:hasSidecarFile(fp) then return out end
+    local ok, ds = pcall(DocSettings.open, DocSettings, fp)
+    if not (ok and ds) then return out end
+    local ok_a, annotations = pcall(ds.readSetting, ds, "annotations")
+    if not (ok_a and type(annotations) == "table") then return out end
+    local ok_s, SafeText = pcall(require, "lib/bookshelf_text_safe")
+    local function safe(t) return (ok_s and SafeText and SafeText.safe) and SafeText.safe(t) or t end
+    for _i, a in ipairs(annotations) do
+        if type(a) == "table" and type(a.text) == "string" and a.text ~= "" then
+            out[#out + 1] = {
+                text     = safe(a.text),
+                note     = (type(a.note) == "string" and a.note ~= "") and safe(a.note) or nil,
+                chapter  = (type(a.chapter) == "string" and a.chapter ~= "") and safe(a.chapter) or nil,
+                page     = a.page,
+                pos0     = a.pos0,
+                pageno   = tonumber(a.pageno) or (type(a.page) == "number" and a.page) or nil,
+                datetime = type(a.datetime) == "string" and a.datetime or nil,
+            }
+        end
     end
-    -- Why the tab fell back to its button, for a reporter's crash.log.
-    pcall(function()
-        require("logger").warn("[bookshelf] highlights list not built:", tostring(list))
-    end)
-    return nil
+    return out
 end
 
--- releaseList(): the tab is gone; the browser keeps no hold on its list (its
--- next show() starts afresh either way).
-function M.releaseList()
-    local ok, BB = pcall(require, "ui/widget/bookmarkbrowser")
-    if ok and BB and M._list and BB.bm_list == M._list then
-        BB.bm_list, BB.books, BB.filter_table = nil, nil, nil
+-- openAt(bw, fp, h): open the book at a highlight. The reader opens first and
+-- jumps once the document is ready (after_open_callback). A rolling book
+-- navigates by xpointer: a legacy sidecar's numeric page falls back to pos0.
+function M.openAt(bw, fp, h)
+    if not (fp and h) then return end
+    local function jump(ui)
+        local target = h.page
+        if ui.rolling and type(target) ~= "string" then
+            target = type(h.pos0) == "string" and h.pos0 or nil
+        elseif ui.paging and type(target) ~= "number" then
+            target = nil
+        end
+        if not target then return end -- open without the jump
+        pcall(function()
+            ui.link:addCurrentLocationToStack()
+            ui.bookmark:gotoBookmark(target, h.pos0)
+        end)
     end
-    M._list = nil
+    if bw and bw._openBook then
+        bw:_openBook({ filepath = fp }, jump)
+    else
+        require("apps/reader/readerui"):showReader(fp, nil, nil, nil, jump)
+    end
+end
+
+-- detailText(h, _) -> the panel's text: where it is, the highlight, its note.
+function M.detailText(h, _)
+    _ = _ or function(t) return t end
+    local where = {}
+    if h.chapter then where[#where + 1] = h.chapter end
+    if h.pageno then where[#where + 1] = (_("Page %1"):gsub("%%1", tostring(h.pageno))) end
+    if h.datetime then where[#where + 1] = h.datetime:match("^%d%d%d%d%-%d%d%-%d%d") or h.datetime end
+    local parts = {}
+    if #where > 0 then parts[#parts + 1] = table.concat(where, " \xC2\xB7 ") end
+    parts[#parts + 1] = M.PREFIX.highlight .. h.text
+    if h.note then parts[#parts + 1] = M.PREFIX.note .. h.note end
+    return table.concat(parts, "\n\n")
+end
+
+-- showDetail(bw, fp, h, modal): the panel a tapped row opens.
+function M.showDetail(bw, fp, h, modal)
+    local UIManager = require("ui/uimanager")
+    local TextViewer = require("ui/widget/textviewer")
+    local _ = require("lib/bookshelf_i18n").gettext
+    local tv
+    tv = TextViewer:new{
+        title = _("Highlight"),
+        text = M.detailText(h, _),
+        add_default_buttons = false,
+        buttons_table = { {
+            { text = _("View in book"), callback = function()
+                UIManager:close(tv)
+                if modal then UIManager:close(modal) end
+                M.openAt(bw, fp, h)
+            end },
+            { text = _("Close"), callback = function() UIManager:close(tv) end },
+        } },
+    }
+    UIManager:show(tv)
+end
+
+-- buildTab(bw, fp, modal, w, h) -> the tab's body: a row per highlight in a
+-- scroll view, at the modal's font size; nil when there are none.
+function M.buildTab(bw, fp, modal, avail_w, avail_h)
+    local list = M.list(fp)
+    if #list == 0 then return nil end
+    local Blitbuffer      = require("ffi/blitbuffer")
+    local Font            = require("ui/font")
+    local Geom            = require("ui/geometry")
+    local Screen          = require("device").screen
+    local TextBoxWidget   = require("ui/widget/textboxwidget")
+    local TextWidget      = require("lib/bookshelf_colour_text")
+    local VerticalGroup   = require("ui/widget/verticalgroup")
+    local HorizontalGroup = require("ui/widget/horizontalgroup")
+    local HorizontalSpan  = require("ui/widget/horizontalspan")
+    local VerticalSpan    = require("ui/widget/verticalspan")
+    local LineWidget      = require("ui/widget/linewidget")
+    local FrameContainer  = require("ui/widget/container/framecontainer")
+    local InputContainer  = require("ui/widget/container/inputcontainer")
+    local GestureRange    = require("ui/gesturerange")
+    local SnugScroll      = require("lib/bookshelf_snug_scroll")
+    local Space           = require("lib/bookshelf_space")
+    local font_size = (modal and modal.font_size) or 20
+    local face  = Font:getFace("cfont", font_size)
+    local small = Font:getFace("cfont", math.max(12, math.floor(font_size * 0.8 + 0.5)))
+    local lpad  = (modal and modal._side_pad) or Space.px(20)
+    local bar_w = SnugScroll.widen(Screen:scaleBySize(3))
+    local inner_w = avail_w - 2 * lpad - bar_w
+    local gap = Space.px(12)
+    local muted = Blitbuffer.COLOR_DARK_GRAY
+    -- At most `lines` lines, ending in an ellipsis when it runs over; a
+    -- shorter text keeps its own height.
+    local function clamped(text, f, w, lines, fg)
+        local tb = TextBoxWidget:new{ text = text, face = f, width = w, fgcolor = fg }
+        local max_h = lines * (tb.line_height_px or f.size)
+        if tb:getSize().h <= max_h then return tb end
+        tb:free()
+        return TextBoxWidget:new{ text = text, face = f, width = w, fgcolor = fg,
+            height = max_h, height_overflow_show_ellipsis = true }
+    end
+    local vg = VerticalGroup:new{ align = "left" }
+    for i, h in ipairs(list) do
+        local page = h.pageno and TextWidget:new{ text = tostring(h.pageno), face = small, fgcolor = muted }
+        local text_w = inner_w - (page and (page:getSize().w + gap) or 0)
+        local body = VerticalGroup:new{ align = "left",
+            clamped(M.PREFIX.highlight .. h.text, face, text_w, 4),
+        }
+        if h.note then
+            body[#body + 1] = VerticalSpan:new{ width = Space.px(4) }
+            body[#body + 1] = clamped(M.PREFIX.note .. h.note, small, text_w, 2, muted)
+        end
+        local line = HorizontalGroup:new{ align = "top", body }
+        if page then
+            line[#line + 1] = HorizontalSpan:new{ width = gap }
+            line[#line + 1] = page
+        end
+        local row = FrameContainer:new{
+            bordersize = 0, margin = 0,
+            padding_left = lpad, padding_right = lpad,
+            padding_top = Space.px(10), padding_bottom = Space.px(10),
+            line,
+        }
+        local tap = InputContainer:new{ dimen = Geom:new{ w = avail_w - bar_w, h = row:getSize().h }, row }
+        tap.ges_events = { Tap = { GestureRange:new{ ges = "tap",
+            range = function() return tap.dimen end } } }
+        function tap:onTap()
+            M.showDetail(bw, fp, h, modal)
+            return true
+        end
+        vg[#vg + 1] = tap
+        if i < #list then
+            vg[#vg + 1] = LineWidget:new{ background = Blitbuffer.COLOR_LIGHT_GRAY,
+                dimen = Geom:new{ w = avail_w - bar_w, h = Screen:scaleBySize(1) } }
+        end
+    end
+    return SnugScroll:new{
+        dimen = Geom:new{ w = avail_w, h = avail_h },
+        scroll_bar_width = bar_w,
+        show_parent = modal,
+        vg,
+    }
 end
 
 return M

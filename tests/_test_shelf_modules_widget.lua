@@ -180,4 +180,19 @@ t.test("the spine module menu is centred and clear of the module", function()
     assert(not a:find("x =", 1, true), "an x stops it centring")
 end)
 
+-- The spine module menu stays open and updates in place (closing and
+-- reopening it per tap flashed the whole screen), takes swipes on the module,
+-- and the shelf's refresh after a change is the rows-only swap.
+t.test("the spine module menu updates in place and takes swipes", function()
+    local m = fn("_spineModuleMenu")
+    assert(m, "no menu")
+    assert(not m:find("bw:_spineModuleMenu(entry)", 1, true), "it still reopens itself")
+    assert(m:find("d:getButtonById(key)", 1, true) and m:find("btn:enable()", 1, true), "buttons not updated in place")
+    assert(m:find("d.ges_events.SwipeModule", 1, true) and m:find('ges.direction == "east"', 1, true), "no swipe on the module")
+    local owner = fn("_shelfModuleOwner")
+    local r = owner and owner:match("function owner.refresh%(%)(.-)\n    end")
+    assert(r and r:find("bw:_swapShelvesInPlace()", 1, true), "no in-place swap")
+    assert(not r:find("if not (bw._swapShelvesInPlace and bw:_swapShelvesInPlace())", 1, true), "still rebuilds after the swap")
+end)
+
 t.done()

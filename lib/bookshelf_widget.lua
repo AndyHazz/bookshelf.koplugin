@@ -6526,10 +6526,19 @@ function BookshelfWidget:_shelfModuleOwner(tab_id)
         end
         TabModel.save(tabs)
     end
+    -- The rows in place, refreshed over the rows only (_swapShelvesInPlace
+    -- rebuilds by itself when it can't swap). It returns nothing, so the old
+    -- "swap, else rebuild" always rebuilt too, and the whole-screen repaint
+    -- after it merged with a dialog's closing flash into a full-screen one
+    -- on every move (maintainer).
     function owner.refresh()
         if bw.chip ~= tab_id then return end
-        if not (bw._swapShelvesInPlace and bw:_swapShelvesInPlace()) then bw:_rebuild() end
-        UIManager:setDirty(bw, "ui")
+        if bw._swapShelvesInPlace then
+            bw:_swapShelvesInPlace()
+        else
+            bw:_rebuild()
+            UIManager:setDirty(bw, "ui")
+        end
     end
     function owner.hold(entry)
         if bw:_isSpineMode() then bw:_spineModuleMenu(entry) else bw:_editShelfModules(entry.id) end
@@ -6860,45 +6869,79 @@ end
 
 -- _spineModuleMenu(entry): a spine shelf module's own menu (the layout editor
 -- is for cover shelves). Laid out as the editor's toolbar on a shelf: two
--- rows of four, previous / next page leading them. It opens beside the
--- module rather than over it (MovableContainer's anchor: above if there is
--- room, else below), read when it paints, so it follows the module after a
--- move. A tap outside closes it.
+-- rows of four, previous / next page leading them, Narrower above Wider. It
+-- opens centred, clear of the module (above it when there is room), and
+-- STAYS OPEN while the module changes: its buttons are re-enabled in place
+-- and only the shelf rows refresh. Closing and reopening it per tap flashed
+-- the whole screen (maintainer). A swipe left or right that starts on the
+-- module moves it a book, as a swipe does in the layout editor. A tap
+-- outside closes it.
 function BookshelfWidget:_spineModuleMenu(entry)
     local ButtonDialog = require("ui/widget/buttondialog")
+    local GestureRange = require("ui/gesturerange")
     local Modules = require("lib/bookshelf_start_menu_modules")
     local HeroModules = require("lib/bookshelf_hero_modules")
     local Session = require("lib/bookshelf_module_grid_session")
+    local SM = require("lib/bookshelf_shelf_modules")
+    local TabModel = require("lib/bookshelf_tab_model")
     local def = Modules.get(entry.module)
     local bw, id = self, entry.id
-    local cur
-    for _i, m in ipairs(require("lib/bookshelf_shelf_modules").list(
-            require("lib/bookshelf_tab_model").getById(self.chip)) or {}) do
-        if m.id == id then cur = m end
-    end
-    if not cur then return end
-    local w = math.max(1, math.floor(tonumber(cur.w) or 2))
     local min_w = (def and def.min_w) or 1
-    local d
-    local function act(fn, keep, after_change)
-        return function()
-            UIManager:close(d)
-            bw:_changeShelfModule(id, fn)
-            if after_change then after_change() end
-            if keep then bw:_spineModuleMenu(entry) end
+    -- The module as stored now: every button reads it when tapped.
+    local function current()
+        for _i, m in ipairs(SM.list(TabModel.getById(bw.chip)) or {}) do
+            if m.id == id then return m end
         end
     end
-    local function chev(glyph, fn, enabled, after_change)
-        return { text = glyph, font_face = "symbols", font_bold = false,
-                 enabled = enabled ~= false, callback = act(fn, true, after_change) }
+    if not current() then return end
+    local d
+    local function width(m) return math.max(1, math.floor(tonumber(m.w) or 2)) end
+    local function after(m) return tonumber(m.after) or 0 end
+    -- Which buttons can act, set in place: the dialog keeps its shape.
+    local function refreshButtons()
+        local m = current()
+        if not m then
+            UIManager:close(d)
+            return
+        end
+        local can = {
+            narrower = width(m) > min_w,
+            wider    = width(m) < 6,
+            left     = after(m) > 0,
+            right    = true,
+            prev     = bw:_spineModulePageMove(id, -1) ~= nil,
+            next     = bw:_spineModulePageMove(id, 1) ~= nil,
+        }
+        for key, on in pairs(can) do
+            local btn = d:getButtonById(key)
+            if btn then
+                if on then btn:enable() else btn:disable() end
+            end
+        end
+        UIManager:setDirty(d, function() return "ui", d.movable.dimen end)
     end
-    local function pageChev(glyph, dir)
-        local after, show_from = bw:_spineModulePageMove(id, dir)
-        return chev(glyph, function(l, i) if after then l[i].after = after end end,
-            after ~= nil, show_from and function() bw:_spineShowFrom(show_from) end or nil)
+    local function change(fn, then_do)
+        bw:_changeShelfModule(id, fn)
+        if then_do then then_do() end
+        refreshButtons()
+    end
+    local function nudge(dir)
+        change(function(l, i) l[i].after = math.max(0, after(l[i]) + dir) end)
+    end
+    local function pageMove(dir)
+        local to, show_from = bw:_spineModulePageMove(id, dir)
+        if not to then return end
+        change(function(l, i) l[i].after = to end, function()
+            bw:_spineShowFrom(show_from)
+            -- The module stands somewhere else now: anchor beside it again.
+            if d and d.movable then d.movable._anchor_ensured = nil end
+        end)
+    end
+    local function chev(key, glyph, fn)
+        return { id = key, text = glyph, font_face = "symbols", font_bold = false, callback = fn }
     end
     d = ButtonDialog:new{
-        title = T("%1 \xC2\xB7 %2", (def and def.title) or entry.module, w), title_align = "center",
+        title = (def and def.title) or entry.module, title_align = "center",
         -- Centred across the screen (it is nearly full width) and clear of
         -- the module by a gap: no x, so MovableContainer centres it, and the
         -- module's rect grown by the gap above and below (maintainer).
@@ -6913,33 +6956,48 @@ function BookshelfWidget:_spineModuleMenu(entry)
         end,
         buttons = {
             {
-                pageChev(Session.PAGE_PREV, -1),
-                { text = _("Narrower"), enabled = w > min_w,
-                  callback = act(function(l, i) l[i].w = w - 1 end, true) },
-                chev(Session.CHEV_LEFT, function(l, i)
-                    l[i].after = math.max(0, (tonumber(l[i].after) or 0) - 1) end,
-                    (tonumber(cur.after) or 0) > 0),
-                chev(Session.CHEV_RIGHT, function(l, i)
-                    l[i].after = (tonumber(l[i].after) or 0) + 1 end),
+                chev("prev", Session.PAGE_PREV, function() pageMove(-1) end),
+                { id = "narrower", text = _("Narrower"), callback = function()
+                    change(function(l, i) l[i].w = math.max(min_w, width(l[i]) - 1) end) end },
+                chev("left", Session.CHEV_LEFT, function() nudge(-1) end),
+                chev("right", Session.CHEV_RIGHT, function() nudge(1) end),
             },
             {
-                pageChev(Session.PAGE_NEXT, 1),
-                { text = _("Wider"), enabled = w < 6,
-                  callback = act(function(l, i) l[i].w = w + 1 end, true) },
+                chev("next", Session.PAGE_NEXT, function() pageMove(1) end),
+                { id = "wider", text = _("Wider"), callback = function()
+                    change(function(l, i) l[i].w = math.min(6, width(l[i]) + 1) end) end },
                 { text = _("Settings"), enabled = def and type(def.show_settings) == "function",
                   callback = function()
                     UIManager:close(d)
-                    pcall(def.show_settings, HeroModules._ctx(bw, nil,
-                        HeroModules.adopt(cur, bw:_shelfModuleOwner(bw.chip))))
+                    local m = current()
+                    if m then
+                        pcall(def.show_settings, HeroModules._ctx(bw, nil,
+                            HeroModules.adopt(m, bw:_shelfModuleOwner(bw.chip))))
+                    end
                   end },
-                { text = _("Remove"), callback = act(function(l, i)
-                    Modules.notifyRemoved(l[i])
-                    table.remove(l, i)
-                  end) },
+                { text = _("Remove"), callback = function()
+                    UIManager:close(d)
+                    bw:_changeShelfModule(id, function(l, i)
+                        Modules.notifyRemoved(l[i])
+                        table.remove(l, i)
+                    end)
+                  end },
             },
         },
     }
+    -- A swipe that starts on the module moves it a book left or right.
+    d.ges_events.SwipeModule = { GestureRange:new{ ges = "swipe",
+        range = Geom:new{ x = 0, y = 0, w = Screen:getWidth(), h = Screen:getHeight() } } }
+    function d:onSwipeModule(_arg, ges)
+        local cell = bw._spine_module_cells and bw._spine_module_cells[id]
+        local r = cell and cell.dimen
+        if not (r and r.x and ges and ges.pos and ges.pos:intersectWith(r)) then return false end
+        if ges.direction == "east" then nudge(1) return true end
+        if ges.direction == "west" then nudge(-1) return true end
+        return false
+    end
     UIManager:show(d)
+    refreshButtons()
 end
 
 -- _addSpineModule(): the add picker, then the new module after the item at

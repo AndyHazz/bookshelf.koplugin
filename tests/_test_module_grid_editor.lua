@@ -53,6 +53,7 @@ local function session(items, opts)
         open_settings = opts.open_settings or function() host.log[#host.log + 1] = "settings" end,
         size_for = function() return 1, 1 end,
         min_for = opts.min_for,
+        max_pages = opts.max_pages,
         title_for = function(entry) return entry.module end,
     }
     return s, host, notes
@@ -273,6 +274,47 @@ t.test("resizeId resizes a module without selecting it", function()
     local s = session(items)
     assert(s:resizeId("a", "w", 1))
     assert(boxOf(s, "a").w == 2 and s.selected_id == nil)
+end)
+
+
+-- The toolbar's page buttons and the shelf's hidden resize buttons ask the
+-- session first: where "previous" / "next page" would put the selection, and
+-- whether a resize would change anything at all.
+t.test("adjacentPage: the pages either side, a new one next, never none", function()
+    local items = mockup()
+    items[#items + 1] = { id = "p3", type = "module", module = "x", at = at(3, 1, 1, 1, 1) }
+    local s = session(items, { selected_id = "clock", page = 1 })
+    assert(s:adjacentPage(-1) == nil, "a previous page before page 1")
+    assert(s:adjacentPage(1) == 3, "next should be the next page in use, got " .. tostring(s:adjacentPage(1)))
+    s.page = 3
+    assert(s:adjacentPage(-1) == 1, "previous should skip the gap, got " .. tostring(s:adjacentPage(-1)))
+    assert(s:adjacentPage(1) == nil, "a new page that would sort before this one was offered as next")
+    local s2 = session(mockup(), { selected_id = "clock", page = 1 })
+    assert(s2:adjacentPage(1) == 2, "no new page offered as next")
+    local s3 = session(mockup(), { page = 1 })
+    assert(s3:adjacentPage(1) == nil, "a page move with nothing selected")
+end)
+
+t.test("canResize: only when the size would actually change", function()
+    local s = session(mockup(), { selected_id = "streak", min_for = function() return 1, 1 end })
+    assert(s:canResize("w", -1) == false, "a 1-wide module can't be narrower")
+    assert(s:canResize("h", -1) == false, "a 1-tall module can't be shorter")
+    assert(s:canResize("h", 1) == true, "room below to grow")
+    local before = boxOf(s, "streak")
+    assert(before.w == 1 and before.h == 1, "asking changed the module")
+    local s2 = session(mockup(), { selected_id = "goal", min_for = function() return 2, 1 end })
+    assert(s2:canResize("w", -1) == false, "narrower than its minimum")
+end)
+
+
+t.test("on a host with its own page count every page is there to move to", function()
+    local s = session(mockup(), { selected_id = "clock", page = 1, max_pages = 9 })
+    assert(s:adjacentPage(-1) == nil)
+    assert(s:adjacentPage(1) == 2)
+    assert(s:moveToPage(5) == true, "a page with no modules on a shelf was refused")
+    assert(s.page == 5 and s:adjacentPage(-1) == 4 and s:adjacentPage(1) == 6, "not page by page")
+    s.page = 9
+    assert(s:adjacentPage(1) == nil, "past the shelf's last page")
 end)
 
 t.done()

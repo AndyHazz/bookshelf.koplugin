@@ -36,6 +36,9 @@ Session.CHEV_LEFT  = "\xEE\xA1\x80"  -- U+E840 mdi-chevron-left
 Session.CHEV_RIGHT = "\xEE\xA1\x81"  -- U+E841 mdi-chevron-right
 Session.CHEV_UP    = "\xEE\xA1\x82"  -- U+E842 mdi-chevron-up
 Session.CHEV_DOWN  = "\xEE\xA0\xBF"  -- U+E83F mdi-chevron-down
+-- Move the selection to the previous / next page (the toolbar's page buttons).
+Session.PAGE_PREV  = "\xEE\xA0\xBC"  -- U+E83C mdi-chevron-double-left
+Session.PAGE_NEXT  = "\xEE\xA0\xBD"  -- U+E83D mdi-chevron-double-right
 
 local function deepCopy(v)
     if type(v) ~= "table" then return v end
@@ -59,6 +62,7 @@ function Session.new(o)
     s.size_for      = o.size_for or function() return 1, 1 end
     s.min_for       = o.min_for or function() return 1, 1 end
     s.title_for     = o.title_for or function(entry) return entry.module end
+    s.max_pages     = o.max_pages   -- a host with its own page count (a shelf)
     return s
 end
 
@@ -163,6 +167,50 @@ function Session:resizeId(id, axis, delta)
     return self:_adopt(Grid.resize(self.boxes, id, axis, delta, self.dims, min_w, min_h, mins_for))
 end
 
+--- Would resizing the selection one cell along `axis` change it? The
+--- toolbar hides (on a shelf) a button that would do nothing.
+function Session:canResize(axis, delta)
+    local id = self.selected_id
+    local b = id and self:box(id)
+    if not b then return false end
+    local min_w, min_h = 1, 1
+    if self.min_for then min_w, min_h = self.min_for(self:item(id)) end
+    local function mins_for(other)
+        local it = self:item(other)
+        if not (it and self.min_for) then return 1, 1 end
+        return self.min_for(it)
+    end
+    local out = Grid.resize(self.boxes, id, axis, delta, self.dims, min_w, min_h, mins_for)
+    if not out then return false end
+    for _i, nb in ipairs(out) do
+        if nb.id == id then return nb.w ~= b.w or nb.h ~= b.h end
+    end
+    return false
+end
+
+--- Where the toolbar's previous (-1) / next (1) page button would take the
+--- selection: the nearest page in use that way, or for next, a new page when
+--- one is allowed and comes after this one. nil when there is nowhere.
+function Session:adjacentPage(dir)
+    if not self.selected_id then return nil end
+    -- A host with its own page count (a shelf, whose books fill every page)
+    -- has every page from 1 to that count, modules or not.
+    if self.max_pages then
+        local p = self.page + (dir < 0 and -1 or 1)
+        return (p >= 1 and p <= self.max_pages) and p or nil
+    end
+    local best
+    for _i, p in ipairs(Grid.pages(self.boxes)) do
+        if dir < 0 and p < self.page and (not best or p > best) then best = p end
+        if dir > 0 and p > self.page and (not best or p < best) then best = p end
+    end
+    if not best and dir > 0 then
+        local np = self:newPage()
+        if np and np > self.page then best = np end
+    end
+    return best
+end
+
 --- Move the selection to page p: any existing page, or the next new one as
 --- long as that stays within the page cap. The editor follows it there.
 function Session:moveToPage(p)
@@ -171,7 +219,10 @@ function Session:moveToPage(p)
     local pages = Grid.pages(self.boxes)
     local exists = false
     for _i, q in ipairs(pages) do if q == p then exists = true end end
-    if p < 1 or (not exists and (p > MAX_PAGES or p ~= self:newPage())) then
+    -- On a host with its own page count every page up to it is real;
+    -- elsewhere a page without modules is only the next new one.
+    if p < 1 or p > self:_maxPages()
+            or (not exists and not self.max_pages and p ~= self:newPage()) then
         return self:_refuse()
     end
     local boxes = Grid.toPage(self.boxes, id, p, self.dims)
@@ -245,10 +296,10 @@ function Session:add(col, row)
             self:_render()
             return true
         end
-        for p = self.page, MAX_PAGES do
+        for p = self.page, self:_maxPages() do
             if tryPage(p) then return end
         end
-        for p = 1, math.min(self.page - 1, MAX_PAGES) do
+        for p = 1, math.min(self.page - 1, self:_maxPages()) do
             if tryPage(p) then return end
         end
         self:_refuse()
@@ -261,9 +312,15 @@ end
 function Session:newPage()
     local used = {}
     for _i, b in ipairs(self.boxes) do used[b.page] = true end
-    for p = 1, MAX_PAGES do
+    for p = 1, self:_maxPages() do
         if not used[p] then return p end
     end
+end
+
+--- The page cap: four, unless the host says otherwise (a shelf's pages are
+--- the shelf's own, as many as its books make).
+function Session:_maxPages()
+    return self.max_pages or MAX_PAGES
 end
 
 local function label(fmt, n)

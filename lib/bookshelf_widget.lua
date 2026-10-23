@@ -6676,6 +6676,13 @@ function BookshelfWidget:_shelfModuleHost()
     local chip = self.chip
     local owner = self:_shelfModuleOwner(chip)
     local host, model = {}, {}
+    -- A shelf, to the editor: modules are one row tall (no Shorter/Taller),
+    -- and its pages are the shelf's own -- as many as the books make, plus
+    -- the next, not the module panels' four.
+    host.shelf = true
+    function host.max_pages()
+        return math.max(1, (tonumber(bw._total_pages) or 1) + 1)
+    end
     function model.load()
         local tab = TabModel.getById(chip)
         local out = {}
@@ -6728,6 +6735,14 @@ function BookshelfWidget:_shelfModuleHost()
     function host.gridInfo() return bw:_shelfModuleGridInfo() end
     function host.render(_self, edit)
         bw._shelf_module_edit = edit
+        -- Follow the editor's page: a module moved to the next or previous
+        -- page takes the shelf there with it, or it would vanish from view.
+        -- The cursor counts slots on a shelf with modules (see
+        -- _fetchWithShelfModules), so a page starts at a multiple of the view.
+        if edit and edit.page and edit.page ~= bw.page then
+            bw._cursor = (edit.page - 1) * bw:_viewSize() + 1
+            bw:_syncPageFromCursor()
+        end
         bw:_rebuild()
         UIManager:setDirty(bw, "ui")
     end

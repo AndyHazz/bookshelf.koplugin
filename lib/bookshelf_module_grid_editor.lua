@@ -86,6 +86,7 @@ function Editor:init()
         items = host:model().load(),
         boxes = info.boxes, dims = info.dims, key = info.key,
         page = info.page, selected_id = self.select_id,
+        max_pages = host.max_pages and host.max_pages() or nil,
         notify = function(text) UIManager:show(Notification:new{ text = text }) end,
         -- A host may bring its own (the shelf's cards number their own ids).
         add_picker = host.add_picker or function(on_added)
@@ -169,20 +170,49 @@ function Editor:_buildToolbar()
         end
         bottom[#bottom + 1] = button(_("Remove"), function() s:remove() end)
         bottom[#bottom + 1] = button(_("Close"), function() s:select(nil) end)
+        -- A size button that would do nothing is greyed, so the toolbar
+        -- keeps its shape under the finger. On a shelf Shorter and Taller
+        -- are left out: a shelf module is one row tall, so they never apply
+        -- there (maintainer). Narrower and Wider stay, greyed at their limits.
+        local on_shelf = self.host.shelf
+        local function sizeButton(text, axis, delta)
+            if on_shelf and axis == "h" then return nil end
+            return button(text, function() s:resize(axis, delta) end, s:canResize(axis, delta))
+        end
+        -- Previous / next page, leading the two rows: the footer's page dots
+        -- also take the selection there, but nothing said so (maintainer).
+        local function pageButton(glyph, dir)
+            local p = s:adjacentPage(dir)
+            local b = chevron(glyph, function() if p then s:moveToPage(p) end end)
+            b.enabled = p ~= nil
+            return b
+        end
+        -- The row's buttons less the ones left out (nil). Counted with
+        -- select("#"): a table literal with holes has no reliable length.
+        local function compact(...)
+            local out = {}
+            for i = 1, select("#", ...) do
+                local b = select(i, ...)
+                if b then out[#out + 1] = b end
+            end
+            return out
+        end
         rows = {
-            -- Size on the left, position on the right; each row one axis.
-            {
-                button(_("Narrower"), function() s:resize("w", -1) end),
-                button(_("Wider"),    function() s:resize("w", 1) end),
+            -- Page, then size, then position; each row one axis.
+            compact(
+                pageButton(Session.PAGE_PREV, -1),
+                sizeButton(_("Narrower"), "w", -1),
+                sizeButton(_("Wider"),    "w", 1),
                 chevron(Session.CHEV_LEFT,  function() s:moveBy(-1, 0) end),
-                chevron(Session.CHEV_RIGHT, function() s:moveBy(1, 0) end),
-            },
-            {
-                button(_("Shorter"),  function() s:resize("h", -1) end),
-                button(_("Taller"),   function() s:resize("h", 1) end),
+                chevron(Session.CHEV_RIGHT, function() s:moveBy(1, 0) end)
+            ),
+            compact(
+                pageButton(Session.PAGE_NEXT, 1),
+                sizeButton(_("Shorter"),  "h", -1),
+                sizeButton(_("Taller"),   "h", 1),
                 chevron(Session.CHEV_UP,    function() s:moveBy(0, -1) end),
-                chevron(Session.CHEV_DOWN,  function() s:moveBy(0, 1) end),
-            },
+                chevron(Session.CHEV_DOWN,  function() s:moveBy(0, 1) end)
+            ),
             bottom,
         }
     end

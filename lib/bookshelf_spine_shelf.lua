@@ -4868,6 +4868,12 @@ function SpineShelf._moduleTile(e, stand_h, opts, push)
         cell = HeroModules._makeCell(opts.bw, e.shelf_module, e.w, cell_h, 100, false, false)
     end)
     cell = cell or Widget:new{ dimen = Geom:new{ w = e.w, h = cell_h } }
+    -- Where the module stands, once painted: its long-press menu opens
+    -- beside it rather than over it (BookshelfWidget:_spineModuleMenu).
+    if opts.bw and e.shelf_module and e.shelf_module.id then
+        opts.bw._spine_module_cells = opts.bw._spine_module_cells or setmetatable({}, { __mode = "v" })
+        opts.bw._spine_module_cells[e.shelf_module.id] = cell
+    end
     return VerticalGroup:new{ align = "left",
         VerticalSpan:new{ width = top }, cell,
         VerticalSpan:new{ width = push + math.max(0, (opts.height or stand_h) - stand_h) } }

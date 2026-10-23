@@ -142,4 +142,30 @@ t.test("the layout editor fades all but the editable modules", function()
     assert(fade_at and footer_at and fade_at < footer_at, "the fade must come before the edit bar and toolbar")
 end)
 
+-- A spine module's page buttons: from the page ON SCREEN (a restored cursor
+-- needn't sit on the page map's boundaries), the module goes first on the
+-- next or previous page, and the shelf shows it there.
+t.test("spine page moves land the module first on the next or previous page", function()
+    local body = fn("_spineModulePageMove")
+    assert(body, "no _spineModulePageMove")
+    local src = body:gsub("^\nfunction BookshelfWidget:_spineModulePageMove%(id, dir%)", "return function(self, id, dir)")
+    local move = assert(load(src, "move", "t", setmetatable({}, { __index = _G })))()
+    local function shelf(cursor, next_item, mods)
+        return {
+            _cursor = cursor, _spine_next_item = next_item, _total_items = 100,
+            _activeShelfModules = function() return mods end,
+            _spinePageFirsts = function() return { 1, 7, 13, 19 } end,
+        }
+    end
+    -- One module after 5 books: position 6. On screen: items 6..10 (cursor 6,
+    -- the next page starts at item 11), off the page map's own boundaries.
+    local mods = { { id = "m", after = 5, w = 2 } }
+    local after, from = move(shelf(6, 6, mods), "m", 1)
+    assert(after == 9 and from == 10, "next: after " .. tostring(after) .. " from " .. tostring(from))
+    after, from = move(shelf(6, 6, mods), "m", -1)
+    assert(after == 0 and from == 1, "previous: after " .. tostring(after) .. " from " .. tostring(from))
+    assert(move(shelf(1, 6, { { id = "m", after = 0, w = 2 } }), "m", -1) == nil, "a previous page before the first")
+    assert(move(shelf(96, 6, mods), "m", 1) == nil, "a next page past the end")
+end)
+
 t.done()

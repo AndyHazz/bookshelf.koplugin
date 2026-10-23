@@ -6812,6 +6812,58 @@ end
 -- _spineModuleMenu(entry): a spine shelf's module, edited in place: a spine
 -- row is not a grid of slots, so it moves earlier or later among the books
 -- and grows by face-out widths. The same words as the layout editor.
+-- _spineModulePageMove(id, dir) -> the `after` that puts a module first on
+-- the page after (1) or before (-1) the one on screen, and the cursor that
+-- shows it there; nil when there is no such page. From what is ON SCREEN,
+-- not the page map's own boundaries: a restored cursor needn't sit on one.
+-- Next is where this page's plan ended (_spine_next_item); previous is the
+-- page map's start before the cursor. Positions count modules too; `after`
+-- counts books only.
+function BookshelfWidget:_spineModulePageMove(id, dir)
+    local cursor = self._cursor or 1
+    local mods = self:_activeShelfModules() or {}
+    local _b, at = require("lib/bookshelf_shelf_modules").spineWindow(mods, 1)
+    local mypos
+    for pos, m in pairs(at) do if m.id == id then mypos = pos end end
+    if not mypos then return nil end
+    local start
+    if dir > 0 then
+        local nxt = self._spine_next_item
+        if not nxt then return nil end
+        start = cursor + nxt - 1
+        local total = self._total_items or 0
+        if total > 0 and start > total then return nil end
+    else
+        if cursor <= 1 then return nil end
+        local ok, firsts = pcall(self._spinePageFirsts, self, true)
+        start = 1
+        if ok and firsts then
+            for i = 1, #firsts do if firsts[i] < cursor then start = firsts[i] end end
+        end
+    end
+    local mine = (mypos < start) and 1 or 0
+    local others = 0
+    for pos, m in pairs(at) do
+        if pos < start and m.id ~= id then others = others + 1 end
+    end
+    return math.max(0, start - 1 - others - mine), start - mine
+end
+
+-- _spineShowFrom(cursor): turn the spine shelf to start at `cursor` (after a
+-- page move, so the module doesn't vanish from view).
+function BookshelfWidget:_spineShowFrom(cursor)
+    self._cursor = math.max(1, cursor or 1)
+    self:_syncPageFromCursor()
+    self:_rebuild()
+    UIManager:setDirty(self, "ui")
+end
+
+-- _spineModuleMenu(entry): a spine shelf module's own menu (the layout editor
+-- is for cover shelves). Laid out as the editor's toolbar on a shelf: two
+-- rows of four, previous / next page leading them. It opens beside the
+-- module rather than over it (MovableContainer's anchor: above if there is
+-- room, else below), read when it paints, so it follows the module after a
+-- move. A tap outside closes it.
 function BookshelfWidget:_spineModuleMenu(entry)
     local ButtonDialog = require("ui/widget/buttondialog")
     local Modules = require("lib/bookshelf_start_menu_modules")
@@ -6828,25 +6880,35 @@ function BookshelfWidget:_spineModuleMenu(entry)
     local w = math.max(1, math.floor(tonumber(cur.w) or 2))
     local min_w = (def and def.min_w) or 1
     local d
-    local function act(fn, keep)
+    local function act(fn, keep, after_change)
         return function()
             UIManager:close(d)
             bw:_changeShelfModule(id, fn)
+            if after_change then after_change() end
             if keep then bw:_spineModuleMenu(entry) end
         end
     end
-    local function chev(glyph, fn, enabled)
+    local function chev(glyph, fn, enabled, after_change)
         return { text = glyph, font_face = "symbols", font_bold = false,
-                 enabled = enabled ~= false, callback = act(fn, true) }
+                 enabled = enabled ~= false, callback = act(fn, true, after_change) }
+    end
+    local function pageChev(glyph, dir)
+        local after, show_from = bw:_spineModulePageMove(id, dir)
+        return chev(glyph, function(l, i) if after then l[i].after = after end end,
+            after ~= nil, show_from and function() bw:_spineShowFrom(show_from) end or nil)
     end
     d = ButtonDialog:new{
         title = T("%1 \xC2\xB7 %2", (def and def.title) or entry.module, w), title_align = "center",
+        anchor = function()
+            local cell = bw._spine_module_cells and bw._spine_module_cells[id]
+            local r = cell and cell.dimen
+            if r and r.x and r.w then return Geom:new{ x = r.x, y = r.y, w = r.w, h = r.h } end
+        end,
         buttons = {
             {
+                pageChev(Session.PAGE_PREV, -1),
                 { text = _("Narrower"), enabled = w > min_w,
                   callback = act(function(l, i) l[i].w = w - 1 end, true) },
-                { text = _("Wider"), enabled = w < 6,
-                  callback = act(function(l, i) l[i].w = w + 1 end, true) },
                 chev(Session.CHEV_LEFT, function(l, i)
                     l[i].after = math.max(0, (tonumber(l[i].after) or 0) - 1) end,
                     (tonumber(cur.after) or 0) > 0),
@@ -6854,6 +6916,9 @@ function BookshelfWidget:_spineModuleMenu(entry)
                     l[i].after = (tonumber(l[i].after) or 0) + 1 end),
             },
             {
+                pageChev(Session.PAGE_NEXT, 1),
+                { text = _("Wider"), enabled = w < 6,
+                  callback = act(function(l, i) l[i].w = w + 1 end, true) },
                 { text = _("Settings"), enabled = def and type(def.show_settings) == "function",
                   callback = function()
                     UIManager:close(d)
@@ -6864,7 +6929,6 @@ function BookshelfWidget:_spineModuleMenu(entry)
                     Modules.notifyRemoved(l[i])
                     table.remove(l, i)
                   end) },
-                { text = _("Close"), callback = function() UIManager:close(d) end },
             },
         },
     }

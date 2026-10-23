@@ -6940,6 +6940,20 @@ function BookshelfWidget:_spineModuleMenu(entry)
     local function chev(key, glyph, fn)
         return { id = key, text = glyph, font_face = "symbols", font_bold = false, callback = fn }
     end
+    -- A pinned piece's size is the piece's own (its Size in the ornament
+    -- menu), not a module width: Adjust opens that menu in place of
+    -- Narrower and Wider.
+    local pinned_piece = entry.module == "ornament" and entry.ornament
+    local function adjustPiece()
+        UIManager:close(d)
+        local Orn = require("lib/bookshelf_ornaments")
+        for _i, pe in ipairs(Orn.listAll() or {}) do
+            if pe.name == entry.ornament then
+                require("lib/bookshelf_ornament_menu").show(pe, bw)
+                return
+            end
+        end
+    end
     d = ButtonDialog:new{
         title = (def and def.title) or entry.module, title_align = "center",
         -- Centred across the screen (it is nearly full width) and clear of
@@ -6957,16 +6971,21 @@ function BookshelfWidget:_spineModuleMenu(entry)
         buttons = {
             {
                 chev("prev", Session.PAGE_PREV, function() pageMove(-1) end),
-                { id = "narrower", text = _("Narrower"), callback = function()
+                pinned_piece and { text = _("Adjust\xE2\x80\xA6"), callback = adjustPiece }
+                    or { id = "narrower", text = _("Narrower"), callback = function()
                     change(function(l, i) l[i].w = math.max(min_w, width(l[i]) - 1) end) end },
                 chev("left", Session.CHEV_LEFT, function() nudge(-1) end),
                 chev("right", Session.CHEV_RIGHT, function() nudge(1) end),
             },
-            {
-                chev("next", Session.PAGE_NEXT, function() pageMove(1) end),
-                { id = "wider", text = _("Wider"), callback = function()
-                    change(function(l, i) l[i].w = math.min(6, width(l[i]) + 1) end) end },
-                { text = _("Settings"), enabled = def and type(def.show_settings) == "function",
+            (function()
+                -- Built up rather than written out: a pinned piece has no
+                -- Wider, and a nil in a table literal ends the row there.
+                local row = { chev("next", Session.PAGE_NEXT, function() pageMove(1) end) }
+                if not pinned_piece then
+                    row[#row + 1] = { id = "wider", text = _("Wider"), callback = function()
+                        change(function(l, i) l[i].w = math.min(6, width(l[i]) + 1) end) end }
+                end
+                row[#row + 1] = { text = _("Settings"), enabled = def and type(def.show_settings) == "function",
                   callback = function()
                     UIManager:close(d)
                     local m = current()
@@ -6974,15 +6993,16 @@ function BookshelfWidget:_spineModuleMenu(entry)
                         pcall(def.show_settings, HeroModules._ctx(bw, nil,
                             HeroModules.adopt(m, bw:_shelfModuleOwner(bw.chip))))
                     end
-                  end },
-                { text = _("Remove"), callback = function()
+                  end }
+                row[#row + 1] = { text = _("Remove"), callback = function()
                     UIManager:close(d)
                     bw:_changeShelfModule(id, function(l, i)
                         Modules.notifyRemoved(l[i])
                         table.remove(l, i)
                     end)
-                  end },
-            },
+                  end }
+                return row
+            end)(),
         },
     }
     -- A swipe that starts on the module moves it a book left or right.

@@ -1832,6 +1832,12 @@ function M.hits(p, dimen, pos, blocked)
 end
 
 function M.Ornament:onHoldOrnament(_arg, ges)
+    -- A pinned piece (a shelf module) answers with its own handler: its
+    -- module menu.
+    if self.hold_fn then
+        if not M.hits(self.placement, self.dimen, ges and ges.pos, M.handlers.blocked) then return false end
+        return self.hold_fn() and true or false
+    end
     local h = M.handlers.hold
     if not h then return false end
     if not M.hits(self.placement, self.dimen, ges and ges.pos, M.handlers.blocked) then return false end

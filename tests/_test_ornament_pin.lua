@@ -55,4 +55,21 @@ t.test("Pin here is offered where it can pin, and pins there", function()
     assert(f:find("self:_spineShowModule(m.id)", 1, true), "the shelf doesn't follow it")
 end)
 
+-- A pinned piece is drawn as the shelf draws the piece -- the same placement
+-- (size), standing at ornamentY -- not as a module scaled to a box; its
+-- long-press is its module menu, where Adjust stands in for Narrower/Wider.
+t.test("a pinned piece looks as it did dealt, and its menu adjusts the piece", function()
+    assert(ss:find('if m.module == "ornament" and m.ornament and orn then', 1, true), "not sized as a piece")
+    assert(ss:find("orn_pl = orn.mod.place(pe, orn.budget, orn.stand_h, {", 1, true), "not the dealt piece's placement")
+    assert(ss:find("tile = SpineShelf._pinnedPieceTile(e, stand_h, opts)", 1, true), "not drawn as a piece")
+    local tile = ss:match("\nfunction SpineShelf%._pinnedPieceTile%(e, stand_h, opts%)\n(.-)\nend\n")
+    assert(tile and tile:find("SpineShelf.ornamentY(pl, stand_h, opts)", 1, true), "doesn't stand like a piece")
+    assert(tile:find("w_.hold_fn = function()", 1, true), "its long-press is the ornament menu")
+    local orn = io.open("lib/bookshelf_ornaments.lua"):read("*a")
+    assert(orn:find("if self.hold_fn then", 1, true), "the piece ignores its own hold handler")
+    local m = w:match("\nfunction BookshelfWidget:_spineModuleMenu%(entry%)\n(.-)\nend\n")
+    assert(m and m:find('pinned_piece and { text = _("Adjust', 1, true) and m:find("callback = adjustPiece }", 1, true), "no Adjust")
+    assert(m:find("if not pinned_piece then", 1, true), "Wider shown for a pinned piece")
+end)
+
 t.done()

@@ -4484,10 +4484,28 @@ function SpineShelf.plan(items, opts)
             local f, m = mf.f, mf.f.book.shelf_module
             local n = math.max(1, math.floor(tonumber(m.w) or 2))
             local w = n * unit + (n - 1) * (opts.gap or 0)
+            -- A pinned piece (an Ornament module) is sized as the shelf sizes
+            -- the piece -- the same placement a dealt piece gets, the
+            -- reader's Size and Height included -- and drawn as one
+            -- (rowWidget), not scaled to a module's box.
+            local orn_pl
+            if m.module == "ornament" and m.ornament and orn then
+                pcall(function()
+                    for _i, pe in ipairs(orn.mod.listAll() or {}) do
+                        if pe.name == m.ornament then
+                            orn_pl = orn.mod.place(pe, orn.budget, orn.stand_h, {
+                                max_below = orn.max_below, hang_room = orn.hang_room,
+                                max_room = (opts.content_w or 0) - 2 * orn.pad })
+                            break
+                        end
+                    end
+                end)
+                if orn_pl then w = orn_pl.w end
+            end
             local at = math.min(mf.pos, #entries + 1)
             table.insert(entries, at, {
                 book = f.book, item = f.item, item_idx = f.item_idx, run_idx = f.run_idx,
-                shelf_module = m, w = w, h = opts.row_h, w_dp = w,
+                shelf_module = m, w = w, h = opts.row_h, w_dp = w, orn_pl = orn_pl,
                 look = { r = 128, g = 128, b = 128 }, label = "",
                 gap_before = face_gap, gap_base = face_gap, in_group = false,
             })
@@ -4889,6 +4907,30 @@ function SpineShelf._bareModule(m)
     return ok and def and def.bare == true or false
 end
 
+-- _pinnedPieceTile(e, stand_h, opts) -> a pinned piece: drawn as the shelf
+-- draws a piece (Orn.Ornament, standing at SpineShelf.ornamentY), in a tile
+-- as wide as the piece and as tall as the row. A long-press opens its module
+-- menu (it is a module), not the ornament menu; the module menu and its
+-- swipes find it through _spine_module_cells.
+function SpineShelf._pinnedPieceTile(e, stand_h, opts)
+    local Orn = require("lib/bookshelf_ornaments")
+    local OverlapGroup = require("ui/widget/overlapgroup")
+    local pl = e.orn_pl
+    local w_ = Orn.Ornament:new{ placement = pl, night = _nightMode() }
+    w_.overlap_offset = { math.floor((e.w - pl.w) / 2), SpineShelf.ornamentY(pl, stand_h, opts) }
+    local m, bw = e.shelf_module, opts.bw
+    if bw and m and m.id then
+        w_.hold_fn = function()
+            if bw._spineModuleMenu then bw:_spineModuleMenu(m) end
+            return true
+        end
+        bw._spine_module_cells = bw._spine_module_cells or setmetatable({}, { __mode = "v" })
+        bw._spine_module_cells[m.id] = w_
+    end
+    return OverlapGroup:new{ dimen = Geom:new{ w = e.w, h = opts.height or stand_h },
+                             allow_mirroring = false, w_ }
+end
+
 function SpineShelf._moduleTile(e, stand_h, opts, push)
     local VerticalGroup = require("ui/widget/verticalgroup")
     local VerticalSpan  = require("ui/widget/verticalspan")
@@ -5145,7 +5187,9 @@ function SpineShelf.rowWidget(opts)
             end
             local tile
             local _tile_t0 = e.face_out and _gettime() or nil
-            if e.shelf_module then
+            if e.shelf_module and e.orn_pl then
+                tile = SpineShelf._pinnedPieceTile(e, stand_h, opts)
+            elseif e.shelf_module then
                 tile = SpineShelf._moduleTile(e, stand_h, opts, inset)
             elseif e.series_box then
                 tile = require("lib/bookshelf_series_box_widget"):new{

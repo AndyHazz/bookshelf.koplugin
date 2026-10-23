@@ -92,7 +92,7 @@ function Editor:init()
             local ok, Edit = pcall(require, "lib/bookshelf_hero_modules_edit")
             if ok and Edit then Edit.showAdd(bw, nil, on_added) end
         end,
-        open_settings = function(entry)
+        open_settings = host.open_settings or function(entry)
             local def = entry and Modules.get(entry.module)
             if def and type(def.show_settings) == "function" then
                 local ok, err = pcall(def.show_settings, HeroModules._ctx(bw, nil, entry))

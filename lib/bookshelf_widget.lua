@@ -2017,7 +2017,7 @@ function BookshelfWidget:_rebuild()
         all_items, _total_hint = self:_spineCachedFetch(MAX_FETCH)
         self._draft_items_cache = { all_items = all_items, total_hint = _total_hint }
     else
-        all_items, _total_hint = self:_fetchWithShelfCards(MAX_FETCH)
+        all_items, _total_hint = self:_fetchWithShelfModules(MAX_FETCH)
         all_items = all_items or {}
         self._draft_items_cache = { all_items = all_items, total_hint = _total_hint }
     end
@@ -6460,80 +6460,174 @@ function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD, n_rows)
         row_opts[name] = shared[name]
     end
     local rows = {}
-    local SC = require("lib/bookshelf_shelf_cards")
     for r = 1, n_rows do
         local row_items, heads = {}, {}
         for i = 1, n_cols do
             local it = items[(r - 1) * n_cols + i]
-            -- Shelf cards (SPIKE): a card's slots are empty slots under it.
-            if SC.isPlaceholder(it) then
-                if it.shelf_card and it.part == 1 then heads[#heads + 1] = { col = i, ph = it } end
+            -- A shelf module's slots (and blanks before one) are empty slots
+            -- under it; its first slot says where it stands.
+            if type(it) == "table" and it.shelf_slot then
+                local d = it.shelf_slot
+                if d.module and d.part == 1 then
+                    heads[#heads + 1] = { col = i, entry = d.module, span = d.span }
+                end
                 it = nil
             end
             row_items[i] = it
         end
         row_opts.items = row_items
         local row = ShelfRow.new(row_opts)
-        if #heads > 0 then row = self:_cardRow(row, heads) end
+        if #heads > 0 then row = self:_moduleRow(row, heads) end
         rows[r] = row
     end
     return rows
 end
 
--- _activeShelfCards() -> this shelf's cards (SPIKE) where they stand now
--- (the editor's working copy mid-edit), or nil: cover shelves only, at the
--- top level.
-function BookshelfWidget:_activeShelfCards()
-    if self:_isListMode() or self:_isSpineMode() then return nil end
-    if self._drilldown_path and #self._drilldown_path > 0 then return nil end
-    local tab = require("lib/bookshelf_tab_model").getById(self.chip)
-    local cards = require("lib/bookshelf_shelf_cards").cardsFor(tab)
-    local edit = self._shelf_card_edit
-    if edit and edit.items then
-        -- Mid-edit: the session's boxes are where the cards stand now.
-        local at = {}
-        for _i, b in ipairs(edit.boxes or {}) do at[b.id] = b end
-        cards = {}
-        for _i, it in ipairs(edit.items) do
-            local b = at[it.id]
-            if b then
-                local c = {}
-                for k, v in pairs(it) do c[k] = v end
-                c.at = { page = b.page, col = b.col, row = b.row, w = b.w }
-                cards[#cards + 1] = c
-            end
-        end
-    end
-    if not cards or #cards == 0 then return nil end
-    return cards
+-- ── Shelf modules ───────────────────────────────────────────────────────────
+-- Micro-modules standing on a shelf among its books, one row tall
+-- (lib/bookshelf_shelf_modules: stored by order, "after N items", so they
+-- flow with the books when the layout changes).
+
+-- _moduleMinW(m) -> a module's narrowest width in slots (its min_w hint).
+function BookshelfWidget._moduleMinW(m)
+    local def = require("lib/bookshelf_start_menu_modules").get(m.module)
+    return (def and def.min_w) or 1
 end
 
--- _fetchWithShelfCards(n) -> _fetchChipItems' answer with the shelf's cards
--- (SPIKE) in their slots. A whole-list source gets placeholders inserted
--- (ShelfCards.inject). A windowed one (a page and a total) is asked for the
--- books from the page's first BOOK -- the cards before it pushed the books
--- along -- and the page is laid out slot by slot; its total counts the cards.
--- The cursor and every page sum stay in slots, so nothing else changes.
-function BookshelfWidget:_fetchWithShelfCards(n)
-    local cards = self:_activeShelfCards()
-    if not cards then return self:_fetchChipItems(n) end
-    local SC = require("lib/bookshelf_shelf_cards")
-    local view, n_cols = self:_viewSize(), self:_nCols()
-    local taken, order = SC.slots(cards, n_cols, view)
+-- _shelfModuleOwner(tab_id) -> what a shelf module's settings, redraw and
+-- long-press go through (HeroModules.adopt): the shelf, not the top panel.
+function BookshelfWidget:_shelfModuleOwner(tab_id)
+    self._shelf_module_owners = self._shelf_module_owners or {}
+    local owner = self._shelf_module_owners[tab_id]
+    if owner then return owner end
+    local bw = self
+    owner = { surface = "shelf" }
+    function owner.save(entry)
+        local TabModel = require("lib/bookshelf_tab_model")
+        local tabs = TabModel.load()
+        for _i, t in ipairs(tabs) do
+            if t.id == tab_id and type(t.shelf_modules) == "table" then
+                for i, m in ipairs(t.shelf_modules) do
+                    if m.id == entry.id then
+                        local keep = {}
+                        for k, v in pairs(entry) do
+                            if type(k) ~= "string" or k:sub(1, 1) ~= "_" then keep[k] = v end
+                        end
+                        -- Where it stands is the shelf's to say, not the module's.
+                        keep.after, keep.w = m.after, m.w
+                        t.shelf_modules[i] = keep
+                    end
+                end
+            end
+        end
+        TabModel.save(tabs)
+    end
+    function owner.refresh()
+        if bw.chip ~= tab_id then return end
+        if not (bw._swapShelvesInPlace and bw:_swapShelvesInPlace()) then bw:_rebuild() end
+        UIManager:setDirty(bw, "ui")
+    end
+    function owner.hold(entry)
+        if bw:_isSpineMode() then bw:_spineModuleMenu(entry) else bw:_editShelfModules(entry.id) end
+    end
+    self._shelf_module_owners[tab_id] = owner
+    return owner
+end
+
+-- _shelfModulesFromEdit(edit) -> the shelf's modules where the layout editor
+-- has them now: its grid boxes, back as order (ShelfModules.afterFromSlots).
+function BookshelfWidget:_shelfModulesFromEdit(edit)
+    local SM = require("lib/bookshelf_shelf_modules")
+    local view, cols = self:_viewSize(), self:_nCols()
+    local placed, by_id = {}, {}
+    for _i, b in ipairs(edit.boxes or {}) do
+        placed[#placed + 1] = { id = b.id, w = b.w,
+            slot = (b.page - 1) * view + (b.row - 1) * cols + b.col }
+        by_id[b.id] = b
+    end
+    local after = SM.afterFromSlots(placed)
+    local out = {}
+    for _i, it in ipairs(edit.items or {}) do
+        local b = by_id[it.id]
+        if b then
+            local c = {}
+            for k, v in pairs(it) do c[k] = v end
+            c.at = nil
+            c.after, c.w = after[it.id], b.w
+            out[#out + 1] = c
+        end
+    end
+    return out
+end
+
+-- _activeShelfModules() -> this shelf's modules (the editor's working copy
+-- mid-edit), or nil: cover and spine shelves at the top level.
+function BookshelfWidget:_activeShelfModules()
+    if self:_isListMode() then return nil end
+    if self._drilldown_path and #self._drilldown_path > 0 then return nil end
+    local SM = require("lib/bookshelf_shelf_modules")
+    local tab = require("lib/bookshelf_tab_model").getById(self.chip)
+    local mods = SM.list(tab)
+    local edit = self._shelf_module_edit
+    if edit and edit.items and not self:_isSpineMode() then mods = self:_shelfModulesFromEdit(edit) end
+    if not mods or #mods == 0 then return nil end
+    local owner = self:_shelfModuleOwner(self.chip)
+    local HeroModules = require("lib/bookshelf_hero_modules")
+    for _i, m in ipairs(mods) do HeroModules.adopt(m, owner) end
+    return mods
+end
+
+-- _fetchWithShelfModules(n) -> _fetchChipItems' answer with the shelf's
+-- modules in it. A spine shelf gets each one as an item after its `after`
+-- items. A cover shelf gets its SLOTS: items, and { shelf_slot = d } where a
+-- module (or a blank before one) stands. The cursor and every page sum count
+-- slots, so nothing else that pages the shelf changes. A windowed source is
+-- asked for the items from the page's first item.
+function BookshelfWidget:_fetchWithShelfModules(n)
+    local mods = self:_activeShelfModules()
+    if not mods then return self:_fetchChipItems(n) end
+    local SM = require("lib/bookshelf_shelf_modules")
+    -- A spine shelf fetches its whole list in _spineCachedFetch, which puts
+    -- the modules in it; this is the cover shelf's.
+    if self:_isSpineMode() then return self:_fetchChipItems(n) end
+    local view, cols = self:_viewSize(), self:_nCols()
+    local minw = BookshelfWidget._moduleMinW
     local first = self._cursor or 1
+    -- Items before this page's first slot, however many items there are.
+    local before = 0
+    if first > 1 then
+        for _v, d in ipairs(SM.stream(math.huge, mods, cols, first - 1, minw)) do
+            if d.item then before = before + 1 end
+        end
+    end
     local saved = self._cursor
-    self._cursor = math.max(1, first - SC.slotsBefore(order, first))
+    self._cursor = before + 1
     local ok, items, hint = pcall(self._fetchChipItems, self, n)
     self._cursor = saved
     if not ok then error(items, 0) end
-    if not hint then return SC.inject(items or {}, cards, n_cols, view), nil end
-    return SC.page(items or {}, taken, first, view), SC.total(hint, order)
+    items = items or {}
+    if not hint then
+        self._shelf_module_items = #items
+        local out = {}
+        for v, d in ipairs(SM.stream(#items, mods, cols, nil, minw)) do
+            out[v] = d.item and items[d.item] or { shelf_slot = d }
+        end
+        return out, nil
+    end
+    self._shelf_module_items = hint
+    local page = SM.window(hint, mods, cols, first, view, minw)
+    local out = {}
+    for k, d in ipairs(page) do
+        out[k] = d.item and items[d.item - before] or { shelf_slot = d }
+    end
+    return out, SM.total(hint, mods, cols, minw)
 end
 
--- _shelfCardGridInfo() -> the cover shelf's slots as a module grid (SPIKE):
--- columns of slot_w + gap, rows at the shelf's row pitch, on this page. The
--- grid has one gap, so a cell is row_pitch - gap tall: its top is exact.
-function BookshelfWidget:_shelfCardGridInfo()
+-- _shelfModuleGridInfo() -> the cover shelf's slots as a module grid for the
+-- layout editor: columns of slot_w + gap, rows at the shelf's row pitch, on
+-- this page. The grid has one gap, so a cell is row_pitch - gap tall: its top
+-- is exact.
+function BookshelfWidget:_shelfModuleGridInfo()
     local d = self._shelf_dims
     if not (d and d.content_w and d.row_pitch and d.shelf_top_idx and self._inner_vgroup) then return nil end
     if self:_isListMode() or self:_isSpineMode() then return nil end
@@ -6541,91 +6635,249 @@ function BookshelfWidget:_shelfCardGridInfo()
     local sw, gap = row1 and row1.slot_w, row1 and row1.slot_gap
     if not (sw and gap) then return nil end
     local cols, rows = self:_nCols(), d.n_shelves or self:_nShelves()
+    local view = cols * rows
     local dims = { cols = cols, rows = rows, cell_w = sw, cell_h = math.max(1, d.row_pitch - gap), gap = gap }
     local x0 = math.floor((Screen:getWidth() - d.content_w) / 2)
     local y0 = d.wipe_rows_top or 0
-    local Geom_ = require("ui/geometry")
-    local container = { dimen = Geom_:new{ x = x0, y = y0,
+    local container = { dimen = Geom:new{ x = x0, y = y0,
         w = cols * sw + (cols - 1) * gap, h = rows * d.row_pitch } }
+    local SM = require("lib/bookshelf_shelf_modules")
     local tab = require("lib/bookshelf_tab_model").getById(self.chip)
+    local mods = SM.list(tab) or {}
+    local at, spans = SM.slots(self._shelf_module_items or 0, mods, cols, BookshelfWidget._moduleMinW)
     local boxes = {}
-    for _i, c in ipairs(require("lib/bookshelf_shelf_cards").cardsFor(tab) or {}) do
-        local at = c.at or {}
-        boxes[#boxes + 1] = { id = c.id, page = at.page or 1, col = at.col or 1, row = at.row or 1,
-                              w = at.w or 1, h = 1 }
+    for _i, m in ipairs(mods) do
+        local slot = at[m.id]
+        if slot then
+            local idx = slot - 1
+            boxes[#boxes + 1] = { id = m.id, page = math.floor(idx / view) + 1,
+                col = idx % cols + 1, row = math.floor((idx % view) / cols) + 1,
+                w = spans[m.id] or SM.width(m, cols), h = 1 }
+        end
     end
     return { dims = dims, boxes = boxes, page = self.page or 1, key = "at",
              container = container, ox = 0, oy = 0, surface = "shelf" }
 end
 
--- _shelfCardHost() -> the layout editor's host for this shelf's cards (SPIKE).
-function BookshelfWidget:_shelfCardHost()
+-- _shelfModuleHost() -> the layout editor's host for this cover shelf's
+-- modules: its model reads and writes tab.shelf_modules, converting the
+-- editor's grid places to order on save.
+function BookshelfWidget:_shelfModuleHost()
     local bw = self
     local TabModel = require("lib/bookshelf_tab_model")
+    local HeroModules = require("lib/bookshelf_hero_modules")
     local chip = self.chip
-    local host = {}
-    local model = {}
+    local owner = self:_shelfModuleOwner(chip)
+    local host, model = {}, {}
     function model.load()
         local tab = TabModel.getById(chip)
         local out = {}
-        for i, c in ipairs((tab and tab.shelf_cards) or {}) do
+        for i, m in ipairs((tab and tab.shelf_modules) or {}) do
             local e = {}
-            for k, v in pairs(c) do e[k] = v end
+            for k, v in pairs(m) do e[k] = v end
             out[i] = e
         end
         return out
     end
     function model.save(items)
+        local view, cols = bw:_viewSize(), bw:_nCols()
+        local placed = {}
+        for _i, it in ipairs(items) do
+            local a = it.at
+            if a then
+                placed[#placed + 1] = { id = it.id, w = a.w,
+                    slot = (a.page - 1) * view + (a.row - 1) * cols + a.col }
+            end
+        end
+        local after = require("lib/bookshelf_shelf_modules").afterFromSlots(placed)
+        local list = {}
+        for _i, it in ipairs(items) do
+            local e = {}
+            for k, v in pairs(it) do e[k] = v end
+            e.after = after[it.id] or e.after or 0
+            e.w = (it.at and it.at.w) or e.w
+            e.at = nil
+            list[#list + 1] = e
+        end
         local tabs = TabModel.load()
         for _i, t in ipairs(tabs) do
-            if t.id == chip then t.shelf_cards = items end
+            if t.id == chip then
+                -- Removed modules: what they owned goes with them.
+                local kept = {}
+                for _j, e in ipairs(list) do kept[e.id] = true end
+                for _j, m in ipairs(t.shelf_modules or {}) do
+                    if not kept[m.id] then require("lib/bookshelf_start_menu_modules").notifyRemoved(m) end
+                end
+                t.shelf_modules = (#list > 0) and list or nil
+            end
         end
         TabModel.save(tabs)
     end
     function host.model() return model end
-    function host.gridInfo() return bw:_shelfCardGridInfo() end
+    function host.gridInfo() return bw:_shelfModuleGridInfo() end
     function host.render(_self, edit)
-        bw._shelf_card_edit = edit
+        bw._shelf_module_edit = edit
         bw:_rebuild()
         UIManager:setDirty(bw, "ui")
     end
     function host.footerRect()
         if not bw.footerPanelRect then return nil end
         local ok, x, y, w, h = pcall(function() return bw:footerPanelRect() end)
-        if ok and x then return require("ui/geometry"):new{ x = x, y = y, w = w, h = h } end
+        if ok and x then return Geom:new{ x = x, y = y, w = w, h = h } end
     end
-    -- New cards number their own ids on this shelf.
+    -- New modules number their own ids on this shelf.
     function host.add_picker(on_added)
         local Edit = require("lib/bookshelf_hero_modules_edit")
         Edit.showAdd(bw, nil, function(entry)
             local used = {}
-            for _i, c in ipairs(model.load()) do used[c.id] = true end
-            local n = 1
-            while used["card_" .. n] do n = n + 1 end
-            entry.id = "card_" .. n
-            entry.at = nil
+            for _i, m in ipairs(model.load()) do used[m.id] = true end
+            local k = 1
+            while used["sm_" .. k] do k = k + 1 end
+            entry.id = "sm_" .. k
             return on_added(entry)
         end)
+    end
+    -- Module settings save to the shelf (the editor holds copies).
+    function host.open_settings(entry)
+        local Modules = require("lib/bookshelf_start_menu_modules")
+        local def = entry and Modules.get(entry.module)
+        if def and type(def.show_settings) == "function" then
+            pcall(def.show_settings, HeroModules._ctx(bw, nil, HeroModules.adopt(entry, owner)))
+        end
     end
     return host
 end
 
--- _editShelfCards(select_id, opts) -> the layout editor over this shelf's
--- cards (SPIKE). opts.add: open the add picker straight away.
-function BookshelfWidget:_editShelfCards(select_id, opts)
+-- _editShelfModules(select_id, opts) -> the layout editor over this cover
+-- shelf's modules; on a spine shelf, the module's own menu. opts.add: open
+-- the add picker straight away.
+function BookshelfWidget:_editShelfModules(select_id, opts)
+    if self:_isSpineMode() then
+        if opts and opts.add then return self:_addSpineModule() end
+        return nil
+    end
     local Editor = require("lib/bookshelf_module_grid_editor")
-    local ed = Editor.open{ bw = self, host = self:_shelfCardHost(), select_id = select_id }
+    local ed = Editor.open{ bw = self, host = self:_shelfModuleHost(), select_id = select_id }
     if ed and opts and opts.add then ed.session:add() end
     if not ed then
         local Notification = require("ui/widget/notification")
-        UIManager:show(Notification:new{ text = _("Modules can only go on shelves shown as covers") })
+        UIManager:show(Notification:new{ text = _("Modules can only go on shelves shown as covers or spines") })
     end
     return ed
 end
 
--- _cardRow(row, heads) -> the row with its shelf cards (SPIKE) drawn over the
--- slots they take: each card is a module cell the width of its slots.
-function BookshelfWidget:_cardRow(row, heads)
+-- _changeShelfModule(id, fn) -> fn(list, i) on this shelf's module list
+-- (fn may change or remove the entry), saved, and the shelf redrawn.
+function BookshelfWidget:_changeShelfModule(id, fn)
+    local TabModel = require("lib/bookshelf_tab_model")
+    local tabs = TabModel.load()
+    for _i, t in ipairs(tabs) do
+        if t.id == self.chip and type(t.shelf_modules) == "table" then
+            for i, m in ipairs(t.shelf_modules) do
+                if m.id == id then fn(t.shelf_modules, i); break end
+            end
+            if #t.shelf_modules == 0 then t.shelf_modules = nil end
+        end
+    end
+    TabModel.save(tabs)
+    self:_shelfModuleOwner(self.chip).refresh()
+end
+
+-- _spineModuleMenu(entry): a spine shelf's module, edited in place: a spine
+-- row is not a grid of slots, so it moves earlier or later among the books
+-- and grows by face-out widths. The same words as the layout editor.
+function BookshelfWidget:_spineModuleMenu(entry)
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local Modules = require("lib/bookshelf_start_menu_modules")
+    local HeroModules = require("lib/bookshelf_hero_modules")
+    local Session = require("lib/bookshelf_module_grid_session")
+    local def = Modules.get(entry.module)
+    local bw, id = self, entry.id
+    local cur
+    for _i, m in ipairs(require("lib/bookshelf_shelf_modules").list(
+            require("lib/bookshelf_tab_model").getById(self.chip)) or {}) do
+        if m.id == id then cur = m end
+    end
+    if not cur then return end
+    local w = math.max(1, math.floor(tonumber(cur.w) or 2))
+    local min_w = (def and def.min_w) or 1
+    local d
+    local function act(fn, keep)
+        return function()
+            UIManager:close(d)
+            bw:_changeShelfModule(id, fn)
+            if keep then bw:_spineModuleMenu(entry) end
+        end
+    end
+    local function chev(glyph, fn, enabled)
+        return { text = glyph, font_face = "symbols", font_bold = false,
+                 enabled = enabled ~= false, callback = act(fn, true) }
+    end
+    d = ButtonDialog:new{
+        title = T("%1 \xC2\xB7 %2", (def and def.title) or entry.module, w), title_align = "center",
+        buttons = {
+            {
+                { text = _("Narrower"), enabled = w > min_w,
+                  callback = act(function(l, i) l[i].w = w - 1 end, true) },
+                { text = _("Wider"), enabled = w < 6,
+                  callback = act(function(l, i) l[i].w = w + 1 end, true) },
+                chev(Session.CHEV_LEFT, function(l, i)
+                    l[i].after = math.max(0, (tonumber(l[i].after) or 0) - 1) end,
+                    (tonumber(cur.after) or 0) > 0),
+                chev(Session.CHEV_RIGHT, function(l, i)
+                    l[i].after = (tonumber(l[i].after) or 0) + 1 end),
+            },
+            {
+                { text = _("Settings"), enabled = def and type(def.show_settings) == "function",
+                  callback = function()
+                    UIManager:close(d)
+                    pcall(def.show_settings, HeroModules._ctx(bw, nil,
+                        HeroModules.adopt(cur, bw:_shelfModuleOwner(bw.chip))))
+                  end },
+                { text = _("Remove"), callback = act(function(l, i)
+                    Modules.notifyRemoved(l[i])
+                    table.remove(l, i)
+                  end) },
+                { text = _("Close"), callback = function() UIManager:close(d) end },
+            },
+        },
+    }
+    UIManager:show(d)
+end
+
+-- _addSpineModule(): the add picker, then the new module after the item at
+-- this page's start, two face-outs wide, and its menu.
+function BookshelfWidget:_addSpineModule()
+    local bw = self
+    local TabModel = require("lib/bookshelf_tab_model")
+    require("lib/bookshelf_hero_modules_edit").showAdd(self, nil, function(entry)
+        local tabs = TabModel.load()
+        for _i, t in ipairs(tabs) do
+            if t.id == bw.chip then
+                t.shelf_modules = t.shelf_modules or {}
+                local used = {}
+                for _j, m in ipairs(t.shelf_modules) do used[m.id] = true end
+                local k = 1
+                while used["sm_" .. k] do k = k + 1 end
+                entry.id = "sm_" .. k
+                -- The page's first item, less the modules before it.
+                local before = math.max(0, (bw._cursor or 1) - 1)
+                for _j, m in ipairs(t.shelf_modules) do
+                    if (tonumber(m.after) or 0) < before then before = before - 1 end
+                end
+                entry.after, entry.w = math.max(0, before), 2
+                t.shelf_modules[#t.shelf_modules + 1] = entry
+            end
+        end
+        TabModel.save(tabs)
+        bw:_shelfModuleOwner(bw.chip).refresh()
+        bw:_spineModuleMenu(entry)
+    end)
+end
+
+-- _moduleRow(row, heads) -> the cover row with its modules drawn over the
+-- slots they take: each a module cell the width of its slots.
+function BookshelfWidget:_moduleRow(row, heads)
     local OverlapGroup = require("ui/widget/overlapgroup")
     local HeroModules = require("lib/bookshelf_hero_modules")
     local sw, sh, gap = row.slot_w, row.slot_h, row.slot_gap
@@ -6633,18 +6885,15 @@ function BookshelfWidget:_cardRow(row, heads)
     local size = row:getSize()
     local group = OverlapGroup:new{ dimen = Geom:new{ w = size.w, h = size.h },
         allow_mirroring = false, row }
-    -- The row's size, whatever the cards report: they never push it.
+    -- The row's size, whatever the modules report: they never push it.
     function group:getSize() return self.dimen end
     HeroModules._applyPalette(self)
-    local edit = self._shelf_card_edit
+    local edit = self._shelf_module_edit
     for _i, h in ipairs(heads) do
-        local card, span = h.ph.shelf_card, h.ph.span
-        local w = span * sw + (span - 1) * gap
-        local ok, cell = pcall(HeroModules._makeCell, self, card, w, sh, 100, false, false)
+        local w = h.span * sw + (h.span - 1) * gap
+        local ok, cell = pcall(HeroModules._makeCell, self, h.entry, w, sh, 100, false, false)
         if ok and cell then
-            local bw = self
-            function cell:onHold() bw:_editShelfCards(card.id); return true end
-            if edit and edit.selected_id == card.id then
+            if edit and edit.selected_id == h.entry.id then
                 local FrameContainer = require("ui/widget/container/framecontainer")
                 cell = FrameContainer:new{ bordersize = Screen:scaleBySize(4), padding = 0, margin = 0,
                     radius = Space.px(4), cell }
@@ -6947,6 +7196,8 @@ function BookshelfWidget:_buildSpineRows(items, content_w, shelf_h, PAD, n_rows)
         rows[r] = SpineShelf.rowWidget{
             plan              = plan,
             row               = plan.rows[r],
+            -- The shelf, for a module standing among the books.
+            bw                = self,
             -- Badges paint in the shelf's overlay, after everything else:
             -- they hang below their plank and would otherwise be painted
             -- over by the next row's books and by the footer.
@@ -7123,6 +7374,14 @@ function BookshelfWidget:_spineCachedFetch(n)
     -- it every turn, which refetched every turn (device log: 10s builds).
     -- Chip edits invalidate explicitly; the TTL bounds everything else.
     local key = tostring(self.chip) .. "|" .. tip_sig
+    -- The shelf's modules stand in the list (ShelfModules.insertItems): a
+    -- move, a resize, an addition is a different list.
+    local mods = self._activeShelfModules and self:_activeShelfModules()
+    if mods then
+        local sig = {}
+        for i, m in ipairs(mods) do sig[i] = tostring(m.id) .. ":" .. tostring(m.after) .. ":" .. tostring(m.w) end
+        key = key .. "|m:" .. table.concat(sig, ",")
+    end
     local c = self._spine_fetch_cache
     if c and c.key == key and (os.time() - c.at) <= 30 then
         self._spine_fetch_live = true
@@ -7144,6 +7403,7 @@ function BookshelfWidget:_spineCachedFetch(n)
         return items, hint
     end
     items = self:_prepareSpineItems(items, hint)
+    if mods then items = require("lib/bookshelf_shelf_modules").insertItems(items, mods) end
     -- The ornament deal states (see _ornStartState) depend only on the list:
     -- a refetch that brings back the same list keeps them, or every page
     -- turn after the TTL would rebuild the whole page map to find its start.
@@ -7616,6 +7876,22 @@ end
 -- page/pages override the live values, which is what lets the width probe
 -- measure the WIDEST text the slot may ever hold rather than today's.
 function BookshelfWidget:_pageCounterText(first, last, total, open_ended, page, pages)
+    -- A spine shelf's range counts its books: its modules stand in the list
+    -- (ShelfModules.insertItems), so take out those before and on the page.
+    if first and last and total and self:_isSpineMode() then
+        local mods = self._activeShelfModules and self:_activeShelfModules()
+        if mods then
+            local _b, at = require("lib/bookshelf_shelf_modules").spineWindow(mods, 1)
+            local before, upto, all = 0, 0, 0
+            for pos in pairs(at) do
+                all = all + 1
+                if pos < first then before = before + 1 end
+                if pos <= last then upto = upto + 1 end
+            end
+            first, last, total = first - before, last - upto, total - all
+            if last < first then last = first end
+        end
+    end
     -- WHICH FORM, decided by the shelf rather than by a setting. The two
     -- counters are not preferences, they are answers to what the shelf can
     -- honestly say about itself.
@@ -8816,7 +9092,7 @@ function BookshelfWidget:_swapShelvesInPlace()
     if self:_isSpineMode() then
         all_items, _total_hint = self:_spineCachedFetch(MAX_FETCH)
     else
-        all_items, _total_hint = self:_fetchWithShelfCards(MAX_FETCH)
+        all_items, _total_hint = self:_fetchWithShelfModules(MAX_FETCH)
     end
     all_items = all_items or {}
     local _perf_t1 = _gettime()

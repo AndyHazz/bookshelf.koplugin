@@ -223,16 +223,32 @@ end
 -- THIS module's cell (refresh), so a module's own reload stays isolated to its
 -- card. When no per-cell refresh is supplied (the edit dialog adding/removing
 -- modules, which changes the grid layout) it falls back to a full hero rebuild.
+-- adopt(entry, host): a module standing somewhere other than the top panel
+-- or the full-screen view (a shelf) is that host's: host.save(entry) keeps
+-- its settings, host.refresh() redraws it, host.hold(entry) opens its
+-- editor, host.surface names where it is. Weak keys: entries are rebuilt with
+-- every fetch, and the old ones simply go.
+HeroModules._hosts = setmetatable({}, { __mode = "k" })
+function HeroModules.adopt(entry, host)
+    if type(entry) == "table" then HeroModules._hosts[entry] = host end
+    return entry
+end
+function HeroModules._hostOf(entry)
+    return type(entry) == "table" and HeroModules._hosts[entry] or nil
+end
+
 function HeroModules._ctx(bw, refresh, entry)
-    local reload = refresh or function() HeroModules._rebuild(bw) end
+    local host = HeroModules._hostOf(entry)
+    local reload = refresh or (host and host.refresh) or function() HeroModules._rebuild(bw) end
     local shim = { bw = bw }
     function shim:_reload() reload() end
-    local ctx = { bw = bw, menu = shim, entry = entry, surface = "hero" }
+    local ctx = { bw = bw, menu = shim, entry = entry, surface = (host and host.surface) or "hero" }
     -- Persist a per-instance change a module made to ctx.entry, then reload
     -- this cell (or rebuild the hero). No-op when the module has no entry or
     -- the entry vanished from the list.
     function ctx.save()
         if not entry then return end
+        if host then host.save(entry); reload(); return end
         -- Save to the surface that owns this cell: the full-screen overlay edits
         -- its own list (bw._micro_fullscreen set), else the hero list.
         local Model = (bw and bw._micro_fullscreen)
@@ -667,7 +683,11 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
     -- after async work (weather/daily_fun/trivia) instead of a full-screen
     -- setDirty; also drives the keep_open tap reload. Keyed by entry id, so it
     -- stays valid across rebuilds.
-    local function refresh() HeroModules._reloadCellById(bw, entry.id) end
+    local host = HeroModules._hostOf(entry)
+    local function refresh()
+        if host and host.refresh then return host.refresh() end
+        HeroModules._reloadCellById(bw, entry.id)
+    end
 
     -- Inset text/flex modules from the cell's L/R edges so they read with even
     -- margins instead of hugging the sides: a text card fills its width but is
@@ -849,7 +869,10 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
         HeroModules._tap(bw, entry, refresh, region_id)
         return true
     end
-    function cell:onHold() HeroModules._hold(bw, entry); return true end
+    function cell:onHold()
+        if host and host.hold then host.hold(entry) else HeroModules._hold(bw, entry) end
+        return true
+    end
     return cell
 end
 

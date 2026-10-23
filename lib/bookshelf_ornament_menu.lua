@@ -99,7 +99,8 @@ end
 
 -- show(entry, bw, piece): the menu for one piece; piece is where it stands
 -- on screen (its dimen), for keeping the menu clear of it.
-function M.show(entry, bw, piece, widget)
+function M.show(entry, bw, piece, widget, opts)
+    opts = opts or {}
     local UIManager    = require("ui/uimanager")
     local Orn = O()
     -- The LIVE entry for this piece: the shelf's own may be older than the
@@ -312,8 +313,10 @@ function M.show(entry, bw, piece, widget)
 
     local buttons = {
         -- Where it comes round, first: what a reader arranging a shelf
-        -- reaches for most.
-        {
+        -- reaches for most. Not for a pinned piece (opts.pinned): it stands
+        -- where it was pinned, out of the shelf's deal, so Place, Swap,
+        -- Shuffle and Switch off have nothing to act on there.
+        not opts.pinned and {
             placeGlyph(CHEV_LEFT, -1),
             { text_func = function()
                 local i, n = Deck.position(entry.name, onNames())
@@ -351,7 +354,7 @@ function M.show(entry, bw, piece, widget)
                        or _("Tap: none")
             end, callback = function() M.chooseTap(entry, redraw) end },
         },
-        {
+        not opts.pinned and {
             { text = _("Swap"), callback = closeAnd(function()
                 -- The browser in pick mode: the chosen piece takes this one's
                 -- place in the order, and this one takes the chosen piece's.
@@ -420,6 +423,12 @@ function M.show(entry, bw, piece, widget)
             return row
         end)(),
     }
+    -- The rows left out above (false) come out of the list.
+    local kept = {}
+    for i = 1, #buttons do
+        if buttons[i] then kept[#kept + 1] = buttons[i] end
+    end
+    buttons = kept
     dialog = dialogClass():new{
         buttons = buttons,
         overhang = overhangFor(picture()),

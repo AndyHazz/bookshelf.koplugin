@@ -322,7 +322,8 @@ end)
 
 t.test("menu: Swap, Shuffle this shelf and a Switch off/on toggle share a row; the toggle keeps the menu open", function()
     local src = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
-    local row = src:match('\n        {\n            { text = _%("Swap"%).-\n        },\n')
+    -- Left out for a pinned piece (opts.pinned), which is out of the deal.
+    local row = src:match('\n        not opts%.pinned and {\n            { text = _%("Swap"%).-\n        },\n')
     assert(row, "no Swap row")
     assert(row:find('_("Shuffle this shelf")', 1, true), "Shuffle this shelf is not on the Swap row")
     assert(row:find('_("Switch on")', 1, true) and row:find('_("Switch off")', 1, true),
@@ -470,7 +471,8 @@ t.test("menu: mirror and tap share one row, short; no hang switch; the place row
     local src = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
     local b = src:match("local buttons = {(.-)\n    }\n")
     assert(b, "no buttons table")
-    local first = b:gsub("%-%-[^\n]*", ""):match("^%s*(%b{})")
+    -- (not for a pinned piece: opts.pinned leaves the place row out)
+    local first = b:gsub("%-%-[^\n]*", ""):match("^%s*not opts%.pinned and (%b{})")
     assert(first and first:find("placeGlyph(CHEV_LEFT, -1)", 1, true), "the place row is not the first row")
     local row = b:match('\n        {\n(%s*{ text_func = function%(%) return MIRROR_LABEL.-)\n        },')
     assert(row and row:find("Tap: ", 1, true), "mirror and tap are not one row")

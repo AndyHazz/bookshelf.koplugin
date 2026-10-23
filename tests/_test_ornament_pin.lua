@@ -68,8 +68,20 @@ t.test("a pinned piece looks as it did dealt, and its menu adjusts the piece", f
     local orn = io.open("lib/bookshelf_ornaments.lua"):read("*a")
     assert(orn:find("if self.hold_fn then", 1, true), "the piece ignores its own hold handler")
     local m = w:match("\nfunction BookshelfWidget:_spineModuleMenu%(entry%)\n(.-)\nend\n")
-    assert(m and m:find('pinned_piece and { text = _("Adjust', 1, true) and m:find("callback = adjustPiece }", 1, true), "no Adjust")
-    assert(m:find("if not pinned_piece then", 1, true), "Wider shown for a pinned piece")
+    -- One Settings for a pinned piece: the piece's own ornament menu.
+    assert(m and m:find("buttons = pinned_piece and {", 1, true), "no layout of its own")
+    assert(m:find('{ text = _("Settings"), callback = adjustPiece }', 1, true), "Settings isn't the piece's menu")
+    local pinned_rows = m:match("buttons = pinned_piece and {(.-)} or {")
+    assert(pinned_rows and not pinned_rows:find("Narrower", 1, true) and not pinned_rows:find("def.show_settings", 1, true),
+           "a pinned piece still has Narrower or the module's own Settings")
+end)
+
+t.test("a pinned piece's ornament menu leaves out the deal's controls", function()
+    assert(w:find('show(pe, bw, nil, nil, { pinned = true })', 1, true), "not opened as a pinned piece's")
+    local mm = menu:match("\nfunction M%.show%(entry, bw, piece, widget, opts%)\n(.-)\nend\n")
+    assert(mm, "show takes no opts")
+    local _, n = mm:gsub("not opts%.pinned and {", "")
+    assert(n == 2, "Place and Swap/Shuffle/Switch off rows not both left out: " .. n)
 end)
 
 t.done()

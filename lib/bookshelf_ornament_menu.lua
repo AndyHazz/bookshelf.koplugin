@@ -396,14 +396,26 @@ function M.show(entry, bw, piece)
                 redraw()
             end },
         },
-        {
-            { text = _("Reset"), callback = function()
-                Orn.readerReset(entry)
-                entry = Orn.current(entry)
-                redraw()
-            end },
-            { text = _("Done"), callback = closeAnd() },
-        },
+        (function()
+            local row = {
+                { text = _("Reset"), callback = function()
+                    Orn.readerReset(entry)
+                    entry = Orn.current(entry)
+                    redraw()
+                end },
+            }
+            -- Fixed where it stands: an Ornament module among the shelf's
+            -- books, moved from then on like any shelf module.
+            -- A tall piece's own-row copy speaks for the piece (_pin_of).
+            local src = piece and (piece._pin_of or piece)
+            if src and src.pin_after_idx and bw and bw._pinOrnament then
+                row[#row + 1] = { text = _("Pin here"), callback = closeAnd(function()
+                    bw:_pinOrnament(entry, src)
+                end) }
+            end
+            row[#row + 1] = { text = _("Done"), callback = closeAnd() }
+            return row
+        end)(),
     }
     dialog = dialogClass():new{
         buttons = buttons,

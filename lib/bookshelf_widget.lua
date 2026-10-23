@@ -7002,6 +7002,72 @@ end
 
 -- _addSpineModule(): the add picker, then the new module after the item at
 -- this page's start, two face-outs wide, and its menu.
+-- _pinOrnament(entry, piece): "Pin here" on a shelf ornament. The piece
+-- becomes an Ornament module standing where it stood (after the books
+-- before it), about its own width, and leaves the shelf's deal (SpineShelf.
+-- plan); from then on it moves like any shelf module, and removing the
+-- module puts it back in the deal. piece.pin_after_idx is the plan's item
+-- index it stands after (the page's own list); math.huge past the last book.
+function BookshelfWidget:_pinOrnament(entry, piece)
+    if not (entry and entry.name and piece and piece.pin_after_idx) then return end
+    local TabModel = require("lib/bookshelf_tab_model")
+    local SM = require("lib/bookshelf_shelf_modules")
+    local idx = piece.pin_after_idx
+    local after
+    if idx == math.huge then
+        after = self._total_items or 0
+    else
+        -- Positions count modules too; `after` counts books.
+        local pos = (self._cursor or 1) + idx - 1
+        local _b, at = SM.spineWindow(self:_activeShelfModules() or {}, 1)
+        local mods = 0
+        for p in pairs(at) do if p <= pos then mods = mods + 1 end end
+        after = math.max(0, pos - mods)
+    end
+    local unit = math.max(1, math.floor(((self._shelf_dims and self._shelf_dims.shelf_h) or 300) * 2 / 3))
+    local pw = (piece.placement and piece.placement.w) or unit
+    local w = math.max(1, math.min(6, math.floor(pw / unit + 0.5)))
+    local m
+    local tabs = TabModel.load()
+    for _i, t in ipairs(tabs) do
+        if t.id == self.chip then
+            t.shelf_modules = t.shelf_modules or {}
+            local used = {}
+            for _j, x in ipairs(t.shelf_modules) do used[x.id] = true end
+            local k = 1
+            while used["sm_" .. k] do k = k + 1 end
+            m = { id = "sm_" .. k, type = "module", module = "ornament",
+                  ornament = entry.name, tap = entry.tap, after = after, w = w }
+            t.shelf_modules[#t.shelf_modules + 1] = m
+        end
+    end
+    if not m then return end
+    TabModel.save(tabs)
+    self:_shelfModuleOwner(self.chip).refresh()
+    -- Taking the piece out of the deal moves the pieces after it along, and
+    -- that can push the books it stood by (and so the module) onto the next
+    -- page: turn to the page it is on, as the page buttons do.
+    self:_spineShowModule(m.id)
+    self:_spineModuleMenu(m)
+end
+
+-- _spineShowModule(id): when a spine shelf module isn't on the page on
+-- screen, turn to the page of the shelf's page map that holds it.
+function BookshelfWidget:_spineShowModule(id)
+    local _b, at = require("lib/bookshelf_shelf_modules").spineWindow(self:_activeShelfModules() or {}, 1)
+    local pos
+    for p, mm in pairs(at) do if mm.id == id then pos = p end end
+    if not pos then return end
+    local cursor, shown = self._cursor or 1, self._spine_shown or 0
+    if pos >= cursor and pos < cursor + shown then return end
+    local ok, firsts = pcall(self._spinePageFirsts, self, true)
+    local from = pos
+    if ok and firsts then
+        for i = 1, #firsts do if firsts[i] <= pos then from = firsts[i] end end
+    end
+    self:_spineShowFrom(from)
+end
+
 function BookshelfWidget:_addSpineModule()
     local bw = self
     local TabModel = require("lib/bookshelf_tab_model")

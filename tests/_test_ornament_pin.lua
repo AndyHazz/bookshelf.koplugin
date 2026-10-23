@@ -1,0 +1,53 @@
+-- tests/_test_ornament_pin.lua
+-- "Pin here" on a shelf ornament: the piece becomes an Ornament module at the
+-- place it stood (after the books before it), leaves that shelf's deal, and
+-- the shelf shows the page it lands on. On a grouped shelf it is offered only
+-- where the piece stands between groups: a module stands only between items.
+package.path = "./?.lua;" .. package.path
+local t = dofile("tests/_helpers.lua").runner()
+local ss = io.open("lib/bookshelf_spine_shelf.lua"):read("*a")
+local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+local menu = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
+
+local function pinAfter()
+    local body = ss:match("\nfunction SpineShelf%.pinAfter%(entries, i, side%)\n(.-)\nend\n")
+    assert(body, "no pinAfter")
+    return assert(load("return function(entries, i, side)\n" .. body .. "\nend"))()
+end
+
+t.test("a piece pins only at a boundary between items", function()
+    local pa = pinAfter()
+    -- items: 1 (one book), 2 (a group of three spines), 3
+    local entries = { { item_idx = 1 }, { item_idx = 2 }, { item_idx = 2 }, { item_idx = 2 }, { item_idx = 3 } }
+    assert(pa(entries, 2, "before") == 1, "before a group's first spine")
+    assert(pa(entries, 3, "before") == nil, "mid-group, before")
+    assert(pa(entries, 4, "after") == 2, "after a group's last spine")
+    assert(pa(entries, 3, "after") == nil, "mid-group, after")
+    assert(pa(entries, 1, "before") == 0, "before the page's first item")
+    assert(pa(entries, 5, "after") == 3, "after the page's last item")
+end)
+
+t.test("each kind of piece knows where it would pin", function()
+    assert(ss:find('w_.pin_after_idx = SpineShelf.pinAfter(opts.plan.entries, i, "before")', 1, true), "lead or gap piece")
+    assert(ss:find('SpineShelf.pinAfter(opts.plan.entries, opts.row.last, "after")', 1, true), "row-end piece")
+    assert(ss:find("w_.pin_after_idx = math.huge", 1, true), "a piece on a bare plank")
+    assert(ss:find("c._pin_of = w_", 1, true), "a tall piece's own-row copy")
+end)
+
+t.test("a pinned piece leaves its shelf's deal", function()
+    assert(ss:find('if m.module == "ornament" and m.ornament then pinned[m.ornament] = true end', 1, true), "not collected")
+    assert(ss:find("if not pinned[c.name] then kept[#kept + 1] = c end", 1, true), "not left out of the deal")
+end)
+
+t.test("Pin here is offered where it can pin, and pins there", function()
+    assert(menu:find("local src = piece and (piece._pin_of or piece)", 1, true), "the copy doesn't speak for the piece")
+    assert(menu:find("if src and src.pin_after_idx and bw and bw._pinOrnament then", 1, true), "offered with nowhere to pin")
+    assert(menu:find('row[#row + 1] = { text = _("Done"), callback = closeAnd() }', 1, true), "Done lost from the row")
+    local f = w:match("\nfunction BookshelfWidget:_pinOrnament%(entry, piece%)\n(.-)\nend\n")
+    assert(f, "no _pinOrnament")
+    assert(f:find('module = "ornament"', 1, true) and f:find("ornament = entry.name", 1, true), "not an Ornament module of the piece")
+    assert(f:find("local pos = (self._cursor or 1) + idx - 1", 1, true), "not where it stood")
+    assert(f:find("self:_spineShowModule(m.id)", 1, true), "the shelf doesn't follow it")
+end)
+
+t.done()

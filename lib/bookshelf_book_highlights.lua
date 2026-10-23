@@ -235,10 +235,10 @@ function M.buildTab(bw, fp, modal, avail_w, avail_h)
         -- The type glyph in a column of its own, so it can take the
         -- highlight's colour and the text wraps under the text.
         local icon = TextWidget:new{ text = M.PREFIX[h.type] or M.PREFIX.highlight, face = face,
-            fgcolor = (h.type == "bookmark" and muted) or M.iconColour(h, colour_screen) }
+            fgcolor = M.iconColour(h, colour_screen) }
         local text_w = inner_w - icon:getSize().w - (page and (page:getSize().w + gap) or 0)
         local body = VerticalGroup:new{ align = "left",
-            clamped(M.rowText(h), face, text_w, 4, h.type == "bookmark" and muted or nil),
+            clamped(M.rowText(h), face, text_w, 4),
         }
         if h.note then
             body[#body + 1] = VerticalSpan:new{ width = Space.px(4) }

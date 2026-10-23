@@ -21,14 +21,15 @@ package.loaded["apps/filemanager/filemanager"] = FM
 local H = dofile("lib/bookshelf_book_highlights.lua")
 
 sidecars["/b.epub"] = { annotations = {
-    { text = "First line", page = "/body/p[3]", pageno = 4 },
+    { text = "First line", page = "/body/p[3]", pageno = 4, drawer = "lighten" },
     { page = "/body/p[9]", pageno = 9 },          -- a page bookmark
-    { text = "With a note", note = "Mine", page = "/body/p[20]" },
+    { text = "With a note", note = "Mine", page = "/body/p[20]", drawer = "lighten" },
+    { text = "in Chapter Two", page = "/body/p[30]", pageno = 30 }, -- a bookmark with KOReader's text
 } }
 sidecars["/legacy.epub"] = { highlight = { [1] = { { text = "old" } } } }
 
 t.test("counts every annotation, page bookmarks too, as KOReader's list does", function()
-    assert(H.count("/b.epub") == 3, tostring(H.count("/b.epub")))
+    assert(H.count("/b.epub") == 4, tostring(H.count("/b.epub")))
     assert(H.count("/none.epub") == 0, "no sidecar")
     assert(H.count("/legacy.epub") == 0, "a legacy-only sidecar the browser can't list")
 end)
@@ -47,10 +48,11 @@ end)
 t.test("the tab lists every annotation in book order, typed as KOReader's list types them", function()
     package.loaded["lib/bookshelf_text_safe"] = { safe = function(x) return x end }
     local l = H.list("/b.epub")
-    assert(#l == 3, "got " .. #l)
+    assert(#l == 4, "got " .. #l)
     assert(l[1].type == "highlight" and l[1].text == "First line" and l[1].pageno == 4)
     assert(l[2].type == "bookmark" and l[2].text == nil and l[2].pageno == 9, "a page bookmark")
     assert(l[3].type == "note" and l[3].note == "Mine", "a highlight with a note")
+    assert(l[4].type == "bookmark" and l[4].text == "in Chapter Two", "a bookmark with text taken for a highlight")
     assert(H.rowText(l[2]) == "", "a bookmark with no chapter says only its page (beside it)")
     assert(H.rowText({ type = "bookmark", chapter = "Two", pageno = 9 }) == "Two", "a bookmark's chapter")
     assert(#H.list("/none.epub") == 0)
@@ -91,17 +93,14 @@ t.test("with no file manager the reader is the browser's parent", function()
     package.loaded["apps/reader/readerui"] = nil
 end)
 
--- Highlight colours, as KOReader's list shows them: only with its "Show
--- highlight color" on; the default colour only with "including the default".
-t.test("a row's colour follows KOReader's list settings", function()
-    local function cfg(default_bg) return { show = true, default_name = "yellow", default_bg = default_bg,
-        colour_of = function(n) return "C:" .. n end } end
-    assert(H.rowColour({ drawer = "lighten", color = "red" }, {}) == nil, "coloured with the setting off")
-    assert(H.rowColour({ drawer = "lighten", color = "red" }, cfg(nil)) == "C:red")
-    assert(H.rowColour({ drawer = "lighten", color = "yellow" }, cfg(nil)) == nil, "default colour shown without the sub-option")
-    assert(H.rowColour({ drawer = "lighten", color = "yellow" }, cfg("C:yellow")) == "C:yellow")
-    assert(H.rowColour({ drawer = "lighten" }, cfg("C:yellow")) == "C:yellow", "no colour means the default")
-    assert(H.rowColour({ type = "bookmark" }, cfg("C:yellow")) == nil, "a page bookmark coloured")
+-- Highlight colours on the row's square only, and only on a colour screen.
+t.test("a highlight's square takes its colour on a colour screen only", function()
+    package.loaded["apps/reader/modules/readerhighlight"] = { getHighlightColor = function(_s, n) return "C:" .. n end }
+    _G.G_reader_settings = { readSetting = function() return "yellow" end, isTrue = function() return false end }
+    assert(H.iconColour({ type = "highlight", drawer = "lighten", color = "red" }, true) == "C:red")
+    assert(H.iconColour({ type = "highlight", drawer = "lighten" }, true) == "C:yellow", "no colour is the default")
+    assert(H.iconColour({ type = "highlight", drawer = "lighten", color = "red" }, false) == nil, "coloured on greyscale")
+    assert(H.iconColour({ type = "bookmark" }, true) == nil, "a page bookmark coloured")
 end)
 
 t.done()

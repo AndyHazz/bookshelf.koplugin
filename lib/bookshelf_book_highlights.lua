@@ -70,7 +70,9 @@ M.PREFIX = { highlight = "\u{2592}\u{2002}", note = "\u{F040}\u{2002}",
 -- list(fp) -> the book's annotations in book order, as KOReader's list has
 -- them: { { type, text, note, chapter, page, pos0, pageno, datetime }, ... },
 -- type "highlight", "note" (a highlight with a note) or "bookmark" (a page
--- bookmark, which has no text).
+-- bookmark). Typed as KOReader types them (ReaderBookmark.getBookmarkType):
+-- by the highlight style, `drawer`, not by text -- a page bookmark in a
+-- reflowed book carries text of its own ("in <chapter>").
 function M.list(fp)
     local out = {}
     if type(fp) ~= "string" then return out end
@@ -88,7 +90,7 @@ function M.list(fp)
             local text = (type(a.text) == "string" and a.text ~= "") and safe(a.text) or nil
             local note = (type(a.note) == "string" and a.note ~= "") and safe(a.note) or nil
             out[#out + 1] = {
-                type     = (not text and "bookmark") or (note and "note") or "highlight",
+                type     = (not a.drawer and "bookmark") or (note and "note") or "highlight",
                 text     = text,
                 note     = note,
                 chapter  = (type(a.chapter) == "string" and a.chapter ~= "") and safe(a.chapter) or nil,
@@ -104,34 +106,18 @@ function M.list(fp)
     return out
 end
 
--- rowColour(h, cfg) -> the background a row's text is drawn on, or nil: the
--- highlight's own colour, exactly when KOReader's bookmark list would show
--- it (BookmarkBrowser:getItemTable). Off unless "Show highlight color" is on
--- in that list's settings; a highlight in the default colour shows it only
--- with "...including the default color" as well. cfg is colourConfig().
-function M.rowColour(h, cfg)
-    if not (cfg and cfg.show and h.drawer) then return nil end
-    if h.color == nil or h.color == cfg.default_name then return cfg.default_bg end
-    local ok, c = pcall(cfg.colour_of, h.color)
-    return ok and c or nil
-end
-
--- colourConfig() -> the reader's settings for it, read once per build.
-function M.colourConfig()
-    local cfg = {}
-    pcall(function()
-        local G = G_reader_settings
-        if not G:isTrue("bookmarks_items_show_color") then return end
+-- iconColour(h, colour_screen) -> the colour a row's type glyph is drawn
+-- in: a highlight's own colour on a colour screen (maintainer: the colour on
+-- the square, not behind the line), else nil (the text's ink). On a
+-- greyscale screen a yellow square would only come out as a faint grey.
+function M.iconColour(h, colour_screen)
+    if not (colour_screen and h.drawer and h.type ~= "bookmark") then return nil end
+    local ok, c = pcall(function()
         local ReaderHighlight = require("apps/reader/modules/readerhighlight")
-        local Screen = require("device").screen
-        cfg.show = true
-        cfg.default_name = G:readSetting("highlight_color")
-            or (Screen:isColorEnabled() and "yellow" or "gray")
-        cfg.default_bg = G:isTrue("bookmarks_items_show_color_default")
-            and ReaderHighlight:getHighlightColor(cfg.default_name) or nil
-        cfg.colour_of = function(name) return ReaderHighlight:getHighlightColor(name) end
+        local name = h.color or G_reader_settings:readSetting("highlight_color") or "yellow"
+        return ReaderHighlight:getHighlightColor(name)
     end)
-    return cfg
+    return ok and c or nil
 end
 
 -- openAt(bw, fp, h): open the book at a highlight. The reader opens first and
@@ -234,31 +220,31 @@ function M.buildTab(bw, fp, modal, avail_w, avail_h)
     local _ = require("lib/bookshelf_i18n").gettext
     -- At most `lines` lines, ending in an ellipsis when it runs over; a
     -- shorter text keeps its own height.
-    local function clamped(text, f, w, lines, fg, bg)
-        local tb = TextBoxWidget:new{ text = text, face = f, width = w, fgcolor = fg, bgcolor = bg }
+    local function clamped(text, f, w, lines, fg)
+        local tb = TextBoxWidget:new{ text = text, face = f, width = w, fgcolor = fg }
         local max_h = lines * (tb.line_height_px or f.size)
         if tb:getSize().h <= max_h then return tb end
         tb:free()
-        return TextBoxWidget:new{ text = text, face = f, width = w, fgcolor = fg, bgcolor = bg,
+        return TextBoxWidget:new{ text = text, face = f, width = w, fgcolor = fg,
             height = max_h, height_overflow_show_ellipsis = true }
     end
-    -- The highlight's colour behind its text, as KOReader's list draws it
-    -- (TextBoxWidget's bgcolor, its multi-line rows' way) when the reader
-    -- has it on there.
-    local colours = M.colourConfig()
+    local colour_screen = Screen.isColorEnabled and Screen:isColorEnabled() or false
     local vg = VerticalGroup:new{ align = "left" }
     for i, h in ipairs(list) do
         local page = h.pageno and TextWidget:new{ text = tostring(h.pageno), face = small, fgcolor = muted }
-        local text_w = inner_w - (page and (page:getSize().w + gap) or 0)
+        -- The type glyph in a column of its own, so it can take the
+        -- highlight's colour and the text wraps under the text.
+        local icon = TextWidget:new{ text = M.PREFIX[h.type] or M.PREFIX.highlight, face = face,
+            fgcolor = (h.type == "bookmark" and muted) or M.iconColour(h, colour_screen) }
+        local text_w = inner_w - icon:getSize().w - (page and (page:getSize().w + gap) or 0)
         local body = VerticalGroup:new{ align = "left",
-            clamped((M.PREFIX[h.type] or M.PREFIX.highlight) .. M.rowText(h), face, text_w, 4,
-                h.type == "bookmark" and muted or nil, M.rowColour(h, colours)),
+            clamped(M.rowText(h), face, text_w, 4, h.type == "bookmark" and muted or nil),
         }
         if h.note then
             body[#body + 1] = VerticalSpan:new{ width = Space.px(4) }
             body[#body + 1] = clamped(h.note, small, text_w, 2, muted)
         end
-        local line = HorizontalGroup:new{ align = "top", body }
+        local line = HorizontalGroup:new{ align = "top", icon, body }
         if page then
             line[#line + 1] = HorizontalSpan:new{ width = gap }
             line[#line + 1] = page

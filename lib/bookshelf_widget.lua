@@ -22669,6 +22669,26 @@ end
 -- review (issues 238, 315), KOReader's summary.note, with an Edit button in
 -- the header row where Hardcover's has Refresh. Read fresh on every build,
 -- so a save followed by rebuildTab shows the new text.
+-- _highlightsFallback(book, n, w, h, modal) -> the Highlights tab's body when
+-- KOReader's list can't be built in it: how many there are, and a button that
+-- opens KOReader's bookmark browser on the book, full screen.
+function BookshelfWidget:_highlightsFallback(book, n, avail_w, avail_h, modal)
+    local ChipButton = require("lib/bookshelf_chip_button")
+    local CenterContainer = require("ui/widget/container/centercontainer")
+    local font_size = (modal and modal.font_size) or 20
+    local face = BFont:getFace("cfont", font_size)
+    local probe = TextWidget:new{ text = "Hg", face = face }
+    local btn = ChipButton.build{
+        text   = T(_("Show highlights (%1)"), n),
+        face   = face,
+        height = probe:getSize().h + 2 * Space.px(5),
+        on_tap = function()
+            require("lib/bookshelf_book_highlights").showBrowser(book.filepath)
+        end,
+    }
+    return CenterContainer:new{ dimen = Geom:new{ w = avail_w, h = avail_h }, btn }
+end
+
 function BookshelfWidget:_buildMyReviewBody(book, modal, avail_w, avail_h, above)
     local HorizontalSpan = require("ui/widget/horizontalspan")
     local ChipButton     = require("lib/bookshelf_chip_button")
@@ -23172,7 +23192,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
     local genre_source_at_open, genre_source_changed
 
     local tabs = {}
-    local edit_idx, tags_idx, desc_idx, reviews_idx, cover_idx
+    local edit_idx, tags_idx, desc_idx, reviews_idx, cover_idx, highlights_idx
     -- Cover tab's cross-rebuild state (current page, cached candidate lists).
     -- An upvalue so pagination taps and "Search online" survive the tab's
     -- rebuildTab (which re-invokes the widget_builder). An apply tears the modal
@@ -23914,6 +23934,25 @@ function BookshelfWidget:_showBookDetail(book, opts)
         tabs[reviews_idx] = tab
     end
 
+    -- Highlights, when the book has some: KOReader's own highlights list (the
+    -- bookmark browser's), built at the tab's size (Highlights.buildList), so
+    -- its rows, settings and detail panel with View in book are KOReader's.
+    -- It reads the browser's internals: if they ever change under us, the
+    -- tab falls back to a button that opens the browser full screen.
+    local Highlights = require("lib/bookshelf_book_highlights")
+    local hl_count = (not self:_isRemoteRecord(book)) and Highlights.count(book.filepath) or 0
+    if hl_count > 0 then
+        highlights_idx = #tabs + 1
+        tabs[highlights_idx] = {
+            id = "highlights", label = _("Highlights"),
+            widget_builder = function(avail_w, avail_h, show_parent)
+                local list = Highlights.buildList(book.filepath, avail_w, avail_h)
+                if list then return list end
+                return self:_highlightsFallback(book, hl_count, avail_w, avail_h, show_parent)
+            end,
+        }
+    end
+
     -- Tags next-to-last.
     if tags_tab then
         tags_idx = #tabs + 1
@@ -23952,6 +23991,8 @@ function BookshelfWidget:_showBookDetail(book, opts)
         active_tab = reviews_idx
     elseif opts.active == "cover" and cover_idx then
         active_tab = cover_idx
+    elseif opts.active == "highlights" and highlights_idx then
+        active_tab = highlights_idx
     elseif desc_idx then
         active_tab = desc_idx  -- the chip bar defaults to the hero's source
     else
@@ -23980,6 +24021,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
             -- through UIManager:close -> onCloseWidget, which doesn't run
             -- on_close), so the carried online candidates survive that trip.
             pcall(function() require("lib/bookshelf_cover_apply").resetWorkingCache() end)
+            pcall(function() require("lib/bookshelf_book_highlights").releaseList() end)
             if opts.on_close then opts.on_close() end
         end,
         -- "Open" footer button opens the book in the reader (the popup closes

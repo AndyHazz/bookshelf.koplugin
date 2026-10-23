@@ -327,18 +327,11 @@ return {
                 })
                 return
             end
-            local ok_bb, BookmarkBrowser =
-                pcall(require, "ui/widget/bookmarkbrowser")
-            if not (ok_bb and BookmarkBrowser) then return end
-            -- FileManager may be torn down when the quote is opened from an
-            -- in-reader launcher, leaving FileManager.instance nil. Bail rather
-            -- than hand BookmarkBrowser a nil parent UI.
-            local ok_fm, FileManager = pcall(require, "apps/filemanager/filemanager")
-            local parent_ui = (ok_fm and FileManager and FileManager.instance) or nil
-            if not parent_ui then return end
-            -- files must be a SET keyed by filepath: getBookList iterates
-            -- `for file in pairs(files)` and uses the KEY as the path.
-            BookmarkBrowser:show({ [q.filepath] = true }, parent_ui)
+            -- KOReader's browser on this book (the book modal's Highlights
+            -- tab opens it the same way); nil when the file manager has been
+            -- torn down (an in-reader launcher), and then nothing happens.
+            local BookmarkBrowser = require("lib/bookshelf_book_highlights").showBrowser(q.filepath)
+            if not BookmarkBrowser then return end
             -- Land directly on this quote's note (issue #186): locate its row
             -- in the freshly-built list and open KOReader's own detail panel on
             -- top, reusing its rendering + prev/next + "View in book". show()

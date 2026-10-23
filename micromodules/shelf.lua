@@ -153,6 +153,12 @@ local function editCardShelf(ctx, id, opts)
     })
 end
 
+-- A cover narrower than this (dp) drops its badges, glyphs and progress bar.
+local SMALL_COVER_W = 120
+-- The row count Auto last chose, per shelf: a Rows nudge from Auto starts
+-- there rather than at 1.
+local auto_rows = {}
+
 -- newCardShelf(ctx): make this card a shelf of its own and open its editor.
 -- Backing out before choosing a source puts the card back as it was.
 local function newCardShelf(ctx)
@@ -214,56 +220,89 @@ local function showSettings(ctx)
     local cfg = ctx.config
     local dialog
     local function close(fn) return function() UIManager:close(dialog); if fn then fn() end end end
-    local shown = cfg:get("heading", true) ~= false
     local cur = tabFor(ctx)
     local own = cur and require("lib/bookshelf_tab_model").isCardOnly(cur) and cur or nil
+    local function rowsText()
+        local n = tonumber(cfg:get("rows"))
+        return n and T(_("Rows: %1"), n) or _("Rows: Auto")
+    end
+    local function headingToggleText()
+        return (cfg:get("heading", true) ~= false) and _("Hide heading") or _("Show heading")
+    end
+    -- Rewrite one button where it stands rather than reopening the dialog:
+    -- a reopen flashes the whole screen on e-ink. The width passed back keeps
+    -- the button's frame, so nothing moves under the finger.
+    local function retext(id, text)
+        local btn = dialog and dialog:getButtonById(id)
+        if not btn then return end
+        btn:setText(text, btn.width)
+        UIManager:setDirty(dialog, function() return "ui", dialog.movable.dimen end)
+    end
+    -- Rows: Auto, 1 ... 6. The first nudge from Auto starts from the count
+    -- on screen; below 1 is Auto again. The rows set the cover size.
+    local function nudgeRows(delta)
+        return function()
+            local n = tonumber(cfg:get("rows"))
+            if not n then
+                local base = (cur and auto_rows[cur.id]) or 1
+                cfg:set("rows", math.max(1, math.min(6, base + delta)))
+            elseif n + delta < 1 then
+                cfg:delete("rows")
+            else
+                cfg:set("rows", math.min(6, n + delta))
+            end
+            retext("rows", rowsText())
+        end
+    end
     dialog = ButtonDialog:new{
-        title = _("Shelf"), title_align = "center", width_factor = 0.7,
+        title = _("Shelf"), title_align = "center", width_factor = 0.8,
         buttons = {
-            own and {{ text = _("Edit this module's shelf\xE2\x80\xA6"), callback = close(function()
-                editCardShelf(ctx, own.id)
-            end) }} or {{ text = _("New shelf for this module\xE2\x80\xA6"), callback = close(function()
-                newCardShelf(ctx)
-            end) }},
-            {{ text = _("Change shelf\xE2\x80\xA6"), callback = close(function()
-                pickShelf(_("Choose a shelf"), function(tab)
-                    cfg:set("tab_id", tab.id)
-                    -- The card's own shelf has no other use.
-                    if own then deleteCardShelf(own.id) end
-                end)
-            end) }},
-            {{ text = (tonumber(cfg:get("rows")) and T(_("Rows: %1"), cfg:get("rows")))
-                       or _("Rows: Auto"),
-               callback = close(function()
-                -- Auto, 1 ... 6, Auto: the rows set the cover size.
-                local n = tonumber(cfg:get("rows"))
-                if not n then cfg:set("rows", 1)
-                elseif n >= 6 then cfg:delete("rows")
-                else cfg:set("rows", n + 1) end
-                showSettings(ctx)
-            end) }},
-            {{ text = shown and _("Hide heading") or _("Show heading"), callback = close(function()
-                cfg:set("heading", not shown)
-            end) }},
-            {{ text = _("Heading text\xE2\x80\xA6"), callback = close(function()
-                local InputDialog = require("ui/widget/inputdialog")
-                local input
-                input = InputDialog:new{
-                    title = _("Heading"),
-                    input = cfg:get("heading_text", "") or "",
-                    input_hint = headingText(nil, tabFor(ctx)),
-                    buttons = {{
-                        { text = _("Cancel"), id = "close", callback = function() UIManager:close(input) end },
-                        { text = _("Save"), is_enter_default = true, callback = function()
-                            local v = input:getInputText()
-                            UIManager:close(input)
-                            cfg:set("heading_text", (v ~= "" and v) or nil)
-                        end },
-                    }},
-                }
-                UIManager:show(input)
-                input:onShowKeyboard()
-            end) }},
+            -- Which shelf: a new one of the module's own, or one of the main
+            -- screen's. Once it has its own, the first button edits that.
+            {
+                own and { text = _("Edit this shelf\xE2\x80\xA6"), callback = close(function()
+                    editCardShelf(ctx, own.id)
+                end) } or { text = _("Create new shelf\xE2\x80\xA6"), callback = close(function()
+                    newCardShelf(ctx)
+                end) },
+                { text = _("Use existing shelf\xE2\x80\xA6"), callback = close(function()
+                    pickShelf(_("Choose a shelf"), function(tab)
+                        cfg:set("tab_id", tab.id)
+                        -- The module's own shelf has no other use.
+                        if own then deleteCardShelf(own.id) end
+                    end)
+                end) },
+            },
+            {
+                { text = "\u{2212}", callback = nudgeRows(-1) },
+                { id = "rows", text = rowsText(), enabled = false },
+                { text = "+", callback = nudgeRows(1) },
+            },
+            {
+                { text = _("Heading text\xE2\x80\xA6"), callback = close(function()
+                    local InputDialog = require("ui/widget/inputdialog")
+                    local input
+                    input = InputDialog:new{
+                        title = _("Heading"),
+                        input = cfg:get("heading_text", "") or "",
+                        input_hint = headingText(nil, tabFor(ctx)),
+                        buttons = {{
+                            { text = _("Cancel"), id = "close", callback = function() UIManager:close(input) end },
+                            { text = _("Save"), is_enter_default = true, callback = function()
+                                local v = input:getInputText()
+                                UIManager:close(input)
+                                cfg:set("heading_text", (v ~= "" and v) or nil)
+                            end },
+                        }},
+                    }
+                    UIManager:show(input)
+                    input:onShowKeyboard()
+                end) },
+                { id = "heading", text = headingToggleText(), callback = function()
+                    cfg:set("heading", cfg:get("heading", true) == false)
+                    retext("heading", headingToggleText())
+                end },
+            },
         },
     }
     UIManager:show(dialog)
@@ -280,9 +319,14 @@ local function coverBody(ctx, tab, w, h, gap)
     local rows  = cardRows(ctx.config and ctx.config:get("rows"), h, gap,
         shelfCoverRowH(ctx.bw), Screen:scaleBySize(100))
     local row_h = math.floor((h - gap * (rows - 1)) / rows)
+    auto_rows[tab.id] = rows
     local m     = SpineWidget.badgeOverhang(math.floor(row_h * 2 / 3))
     local cgap  = Screen:scaleBySize(10)
     local n     = Kit.coverFit(w, row_h, cgap, m)
+    -- The cover as drawn: a row's height or its slot's width, whichever binds.
+    local cover_w = math.min(math.floor(row_h * 2 / 3),
+                             math.floor((w - (n - 1) * cgap) / math.max(1, n)))
+    local small = cover_w < Screen:scaleBySize(SMALL_COVER_W)
     local Repo  = require("lib/bookshelf_book_repository")
     local items = Repo.getBySource(bookSource(tab.source), tab.filter, tab.sort_priority, 0, rows * n * 2,
         { light_only = true })
@@ -299,6 +343,9 @@ local function coverBody(ctx, tab, w, h, gap)
             on_book_tap = function(book) openBook(ctx, book) end,
             on_book_open = function(book) openBook(ctx, book) end,
             label_mode = "none",
+            -- Badges, glyphs and the progress bar crowd a small cover; below
+            -- this they leave it alone.
+            no_badges = small or nil,
         }
         vg[#vg + 1] = VerticalSpan:new{ width = m }
     end

@@ -71,7 +71,8 @@ t.test("the card: its picker, its own shelf, and removal", function()
     local card = src("micromodules/shelf.lua")
     local rows = card:match("\nlocal function shelfRows%(.-\nend\n")
     assert(rows and rows:find("isCardOnly", 1, true), "the picker offers other cards' shelves")
-    assert(card:find("New shelf for this module", 1, true), "no way to make one")
+    assert(card:find("Create new shelf", 1, true), "no way to make one")
+    assert(card:find("Use existing shelf", 1, true), "no way to pick one")
     assert(card:find("on_remove", 1, true), "removing the card leaves its shelf behind")
 end)
 
@@ -85,6 +86,34 @@ end)
 t.test("Shelf style offers a plank for card shelves only", function()
     local ed = src("lib/bookshelf_chip_editor.lua")
     assert(ed:find("draft.card_only", 1, true) and ed:find("Plank: %1", 1, true), "no Plank row")
+end)
+
+-- Settings: rows nudge in place (a reopen flashes the screen), the heading's
+-- two controls share a row, and small covers drop their badges.
+t.test("the Shelf module's settings nudge rows in place", function()
+    local card = src("micromodules/shelf.lua")
+    local dlg = card:match("\nlocal function showSettings%(ctx%)\n(.-)\nend\n")
+    assert(dlg, "showSettings not found")
+    assert(dlg:find('id = "rows"', 1, true) and dlg:find("getButtonById", 1, true), "rows are not rewritten in place")
+    assert(not dlg:find("showSettings(ctx)", 1, true), "the dialog still reopens itself")
+    assert(dlg:find("Heading text[^\n]-\n.-id = \"heading\""), "heading controls are not on one row")
+end)
+
+t.test("small covers on a Shelf module drop their badges", function()
+    local card = src("micromodules/shelf.lua")
+    assert(card:find("no_badges = ", 1, true), "the module never asks")
+    local row = src("lib/bookshelf_shelf_row.lua")
+    assert(row:find("show_progress = not opts.no_badges", 1, true), "ShelfRow ignores no_badges")
+    assert(row:find("suppress_favorite_badge = opts.no_badges", 1, true), "the favourite corner stays")
+end)
+
+-- The default card is warm paper, and a colour card stays coloured inside:
+-- fill() would collapse it to its grey.
+t.test("module cards are paper, and keep their colour inside", function()
+    assert(src("lib/bookshelf_cover_progress.lua"):find('DEFAULT_MODULE_BG = { hex = "#F3EDE0" }', 1, true),
+           "the default card is not paper")
+    local clip = src("lib/bookshelf_clip_container.lua")
+    assert(clip:find("paintRectRGB32", 1, true), "a colour card is flattened to grey inside")
 end)
 
 t.done()

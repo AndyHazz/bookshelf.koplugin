@@ -392,7 +392,9 @@ local function plankOf(tab)
 end
 
 -- Spines: standing on a plank, as many as the shelf's own spine sizes fit.
-local function spineBody(ctx, tab, w, h, gap)
+-- label: the heading, hung on the first row's plank the way the main shelf
+-- labels a section, rather than set above the shelf.
+local function spineBody(ctx, tab, w, h, gap, label)
     local Screen     = require("device").screen
     local Space      = require("lib/bookshelf_space")
     local SpineShelf = require("lib/bookshelf_spine_shelf")
@@ -430,7 +432,11 @@ local function spineBody(ctx, tab, w, h, gap)
             if not row then break end
             if r > 1 then vg[#vg + 1] = VerticalSpan:new{ width = gap } end
             vg[#vg + 1] = SpineShelf.rowWidget{ plan = plan, row = row, width = w, height = row_h,
-                gap = opts.gap, callbacks = callbacks, row_index = r }
+                gap = opts.gap, callbacks = callbacks, row_index = r,
+                plank_label = (r == 1) and label or nil,
+                -- Its plank stands on a card or on the main shelf, not on the
+                -- page: the bevels cut back to what is behind.
+                keep_ground = true }
         end
         return plankScope(design, vg)
     end)
@@ -459,7 +465,10 @@ return {
         local gap = Screen:scaleBySize(8)
         local out = VerticalGroup:new{ align = "left" }
         local body_h = mh
-        if ctx.config:get("heading", true) ~= false then
+        local ViewMode = require("lib/bookshelf_view_mode")
+        local spines = ViewMode.chipPin(tab.view_mode) == ViewMode.SPINES
+        local show_heading = ctx.config:get("heading", true) ~= false
+        if show_heading and not spines then
             local InputContainer = require("ui/widget/container/inputcontainer")
             local GestureRange   = require("ui/gesturerange")
             -- Drawn as the chip bar draws a label: text, icon glyphs and
@@ -474,10 +483,10 @@ return {
             out[#out + 1] = VerticalSpan:new{ width = gap }
             body_h = mh - label:getSize().h - gap
         end
-        local ViewMode = require("lib/bookshelf_view_mode")
         local body
-        if ViewMode.chipPin(tab.view_mode) == ViewMode.SPINES then
-            body = spineBody(ctx, tab, mw, body_h, gap)
+        if spines then
+            local label = show_heading and plainLabel(headingText(ctx.config:get("heading_text"), tab)) or nil
+            body = spineBody(ctx, tab, mw, body_h, gap, label)
         else
             body = coverBody(ctx, tab, mw, body_h, gap)
         end

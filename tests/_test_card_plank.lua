@@ -52,7 +52,7 @@ t.test("a plank choice resolves as the theme's own does", function()
 end)
 
 t.test("a card holds its shelf's plank for its build and its paint", function()
-    local sb = card:match("\nlocal function spineBody%(ctx, tab, w, h, gap%)\n(.-)\nend\n")
+    local sb = card:match("\nlocal function spineBody%(ctx, tab, w, h, gap, label%)\n(.-)\nend\n")
     assert(sb and sb:find("withPlank", 1, true), "the build does not hold it")
     assert(card:find("PlankScope", 1, true), "the paint does not hold it")
 end)

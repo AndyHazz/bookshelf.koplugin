@@ -3479,6 +3479,22 @@ function ShelfPlank:paintTo(bb, x, y)
             math.floor(math.min(255, pb * f) + 0.5), 0xFF)
     end
     local front_y = y + h - fh
+    -- keep_ground: a plank drawn over something other than the shelf's own
+    -- page (the Shelf micro-module's, over a card or the main shelf) cuts its
+    -- bevels back to what WAS there, copied out before it paints -- painting
+    -- them the page's white left white corners on it (maintainer).
+    local keep_l, keep_r, keep_top, keep_w
+    if self.keep_ground then
+        keep_w = math.min(w, math.max(2, fh, SpineShelf.PLANK_BACK_CHAMFER_MAX))
+        keep_top = front_y - SpineShelf.plankSurface(h)
+        local kh = y + h - keep_top
+        if keep_w > 0 and kh > 0 then
+            keep_l = Blitbuffer.new(keep_w, kh, bb:getType())
+            keep_l:blitFrom(bb, 0, 0, x, keep_top, keep_w, kh)
+            keep_r = Blitbuffer.new(keep_w, kh, bb:getType())
+            keep_r:blitFrom(bb, 0, 0, x + w - keep_w, keep_top, keep_w, kh)
+        end
+    end
     -- Top surface, receding: darker at the far (top) edge, lighter as it
     -- reaches the front. Three units deep, so the books stand back from
     -- the lip with surface showing in front of their feet.
@@ -3531,6 +3547,14 @@ function ShelfPlank:paintTo(bb, x, y)
                       and select(2, pcall(require, "lib/bookshelf_wallpaper"))
                       or nil
     local function cut(cx, cy, cw)
+        if keep_l then
+            if cx < x + keep_w then
+                bb:blitFrom(keep_l, cx, cy, cx - x, cy - keep_top, cw, 1)
+            else
+                bb:blitFrom(keep_r, cx, cy, cx - (x + w - keep_w), cy - keep_top, cw, 1)
+            end
+            return
+        end
         if Wallpaper and Wallpaper.restore
                 and Wallpaper.restore(bb, cx, cy, cw, 1) then
             return
@@ -3549,6 +3573,7 @@ function ShelfPlank:paintTo(bb, x, y)
         cut(x, y + h - 1 - i, run)
         cut(x + w - run, y + h - 1 - i, run)
     end
+    if keep_l then keep_l:free(); keep_r:free() end
 end
 
 -- _folderIsSingleBook(path) -> true when the folder holds exactly ONE book
@@ -4850,7 +4875,8 @@ function SpineShelf.rowWidget(opts)
     local OverlapGroup    = require("ui/widget/overlapgroup")
 
     local dimen = Geom:new{ w = opts.width, h = opts.height }
-    local plank = ShelfPlank:new{ dimen = Geom:new{ w = opts.width, h = opts.height } }
+    local plank = ShelfPlank:new{ dimen = Geom:new{ w = opts.width, h = opts.height },
+                                  keep_ground = opts.keep_ground }
     if not opts.row then
         -- A bare plank under the last books takes a piece when its shelf's
         -- turn comes round, like any other shelf (user ask: an empty shelf
@@ -5777,6 +5803,12 @@ function SpineShelf.rowWidget(opts)
     end
     if ornament then children[#children + 1] = ornament end
     children[#children + 1] = group
+    -- plank_label: one label for the whole row, hung on its plank where a
+    -- section's badge would be (the Shelf micro-module's heading). Only on a
+    -- row with no section badges of its own.
+    if opts.plank_label and opts.plank_label ~= "" and #badge_spans == 0 and cursor > lead then
+        badge_spans[1] = { x = lead, w = cursor - lead, label = opts.plank_label }
+    end
     local badges
     if #badge_spans > 0 then
         badges = ShelfBadges:new{

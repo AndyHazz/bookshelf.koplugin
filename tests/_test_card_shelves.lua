@@ -125,4 +125,17 @@ t.test("a Shelf module's cover rows fit their height", function()
     assert(body:find("width = row_w", 1, true), "the row still takes the full width")
 end)
 
+-- On spines the heading hangs on the plank, as a section's label does, and
+-- the module's planks cut their bevels back to what is behind them.
+t.test("a spine Shelf module labels its plank and keeps its corners", function()
+    local card = src("micromodules/shelf.lua")
+    assert(card:find("plank_label = (r == 1) and label or nil", 1, true), "no label on the plank")
+    assert(card:find("keep_ground = true", 1, true), "the planks still cut to white")
+    local ss = src("lib/bookshelf_spine_shelf.lua")
+    assert(ss:find("if opts.plank_label and opts.plank_label ~= \"\" and #badge_spans == 0", 1, true),
+           "rowWidget ignores plank_label")
+    assert(ss:find("keep_ground = opts.keep_ground", 1, true), "rowWidget does not pass keep_ground")
+    assert(ss:find("bb:blitFrom(keep_l, cx, cy", 1, true), "the bevel is not cut back to what was there")
+end)
+
 t.done()

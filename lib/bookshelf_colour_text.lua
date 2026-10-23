@@ -35,11 +35,38 @@ end
 
 local ColourTextWidget = TextWidget:extend{}
 
+-- keepColour(c) -> the colour that asks another plugin to leave `c` alone,
+-- or nil. The Appearance plugin (Euphoriyy/appearance.koplugin) replaces
+-- TextWidget:paintTo and paints every text in the reader's font colour,
+-- which put black titles on dark spines (issue 543). Its one way out is its
+-- exclusion colour: a widget painted in it gets its original_fgcolor instead
+-- (what it does for KOReader's footer). Text Bookshelf colours on purpose --
+-- anything but plain black ink, which is left to follow the reader's font
+-- colour -- asks for that. Looked up at paint time: plugins load in any order.
+local function keepColour(c)
+    -- type(), not `c == nil`: a colour is cdata, and comparing it to nil
+    -- calls Blitbuffer's __eq, which indexes nil (it crashed on the rig).
+    if type(c) == "nil" or (Blitbuffer.isColor8(c) and c.a == 0) then return nil end
+    if not package.loaded["ui/font_color"] then return nil end
+    local common = package.loaded["lib/common"]
+    if type(common) ~= "table" or type(common.EXCLUSION_COLOR) == "nil"
+            or type(common.is_excluded) ~= "function" then
+        return nil
+    end
+    return common.EXCLUSION_COLOR
+end
+
 function ColourTextWidget:paintTo(bb, x, y)
     local c = self.fgcolor
     if type(c) == "nil" or Blitbuffer.isColor8(c) or not bb.colorblitFromRGB32
             or not COLOUR_BB[bb:getType()] or not self.use_xtext then
-        return TextWidget.paintTo(self, bb, x, y)
+        local keep = keepColour(c)
+        if not keep then return TextWidget.paintTo(self, bb, x, y) end
+        self.original_fgcolor, self.fgcolor = c, keep
+        local ok, err = pcall(TextWidget.paintTo, self, bb, x, y)
+        self.fgcolor, self.original_fgcolor = c, nil
+        if not ok then error(err, 0) end
+        return
     end
     -- TextWidget:paintTo's xtext path, with the RGB32 blit.
     self:updateSize()

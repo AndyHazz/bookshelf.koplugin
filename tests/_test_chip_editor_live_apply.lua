@@ -238,12 +238,15 @@ t.test("a confirmed collection arrangement rebuilds the shelf", function()
     eq(#e.changes, 1, "the arrangement never reached the shelf")
 end)
 
--- The wiring, at source level: one Close, and every way out reaches finish.
-t.test("the footer is Delete, Close, Add: no Save, no Cancel", function()
+-- The wiring, at source level: the footer is Delete, Copy, Move to, Add --
+-- no Close (the X, a tap outside and Back close it), no Save, no Cancel.
+t.test("the footer is Delete, Copy, Move to, Add: no Close, Save or Cancel", function()
     local body = edit_tab:gsub("%-%-[^\n]*", "")
     assert(not body:find('_("Save")', 1, true), "the editor still has a Save button")
-    assert(body:find('text             = _("Close"),', 1, true), "no Close button")
-    assert(body:find("callback         = function() finish() end,", 1, true), "Close does not finish")
+    assert(not body:find('text             = _("Close"),', 1, true), "the footer still has Close")
+    assert(body:find('text         = _("Copy"),', 1, true), "no Copy")
+    assert(body:find('callback     = function() copyShelf() end,', 1, true), "Copy does nothing")
+    assert(body:find('callback     = function() moveShelf() end,', 1, true), "no Move to")
     assert(not body:find('text       = _("Cancel"),', 1, true), "the editor still has a Cancel button")
 end)
 

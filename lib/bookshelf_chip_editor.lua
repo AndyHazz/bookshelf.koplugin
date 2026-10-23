@@ -617,6 +617,86 @@ function Editor:editTab(tab_id, opts)
         settlePreview()
     end
 
+    -- The shelf's name as a picker row shows it: [icon=...] markup off.
+    local function plainName(t)
+        local l = type(t.label) == "string" and t.label or ""
+        l = l:gsub("%[icon=[^%]]*%]", ""):gsub("^%s+", ""):gsub("%s+$", "")
+        return l ~= "" and l or t.id
+    end
+
+    -- leaveFor(id): this editor's changes are saved; close it and show `id`
+    -- wherever it now sits (the shelf menu or inside a shelf of shelves).
+    local function leaveFor(id)
+        closed = true
+        settlePreview(true)
+        TabModel.flush()
+        UIManager:close(dialog)
+        if opts.bw and opts.bw._openShelf then
+            opts.bw:_openShelf(id)
+        elseif opts.on_change then
+            opts.on_change()
+        end
+    end
+
+    -- copyShelf(): a copy of this shelf, everything in it included (a shelf
+    -- of shelves' own shelves, a Shelf module's own shelf), right after it,
+    -- opened in its editor so the one thing to change is a tap away.
+    local function copyShelf()
+        if closed then return end
+        TabModel.flush()
+        local tabs = TabModel.load()
+        local new_id = TabModel.copyTree(tabs, tab_id, T(_("%1 (copy)"), plainName(draft)))
+        if not new_id then return end
+        TabModel.save(tabs)
+        leaveFor(new_id)
+        -- This editor's opts, less what belonged to a NEW shelf: the copy
+        -- has its source already, and backing out keeps it.
+        local copy_opts = {}
+        for k, v in pairs(opts) do
+            if k ~= "pick_source_first" and k ~= "on_discard" then copy_opts[k] = v end
+        end
+        Editor:editTab(new_id, copy_opts)
+    end
+
+    -- canMove(): somewhere to go -- a shelf of shelves other than this one
+    -- and its own, or the shelf menu when it sits inside one.
+    local function canMove()
+        if draft.card_only then return false end
+        local targets = TabModel.moveTargets(TabModel.load(), tab_id)
+        return #targets > 1 or draft.parent ~= nil
+    end
+
+    -- moveShelf(): pick where it goes: the shelf menu, or any shelf of
+    -- shelves it is not already in (and not one inside it). Where it is now
+    -- is ticked and greyed.
+    local function moveShelf()
+        if closed then return end
+        local targets = TabModel.moveTargets(TabModel.load(), tab_id)
+        local picker
+        local rows = {}
+        for _i, t in ipairs(targets) do
+            local here = (t.id == draft.parent)
+            local name = t.id and plainName(t) or _("Shelf menu")
+            rows[#rows + 1] = {{
+                text     = (here and "\u{2713} " or "") .. name,
+                enabled  = not here,
+                callback = function()
+                    UIManager:close(picker)
+                    TabModel.flush()
+                    local tabs = TabModel.load()
+                    if not TabModel.moveTree(tabs, tab_id, t.id) then return end
+                    TabModel.save(tabs)
+                    leaveFor(tab_id)
+                end,
+            }}
+        end
+        picker = ButtonDialog:new{
+            title = _("Move to"), title_align = "center",
+            buttons = rows,
+        }
+        UIManager:show(picker)
+    end
+
     -- A confirmed arrangement of the collection, from the sort picker's "Edit
     -- collection order". Not shelf state: it is written to KOReader the moment
     -- it is confirmed (and drops the book cache itself), so all the editor owes
@@ -1155,15 +1235,22 @@ function Editor:editTab(tab_id, opts)
                         })
                     end,
                 },
+                -- Copy and Move to, between Delete and Add: what readers did
+                -- by hand in the settings file (copying a set-up shelf to
+                -- change one thing; moving shelves into a shelf of shelves).
+                -- Close went to make room: the title bar's X, a tap outside
+                -- and Back all close the editor (maintainer).
                 {
-                    -- "Close" either way, a new shelf included: one still
-                    -- without a source is removed as the editor closes, which
-                    -- the note above the source row says while it is that.
-                    text             = _("Close"),
-                    id               = "close",
-                    is_enter_default = true,
-                    bordersize       = 0,
-                    callback         = function() finish() end,
+                    text         = _("Copy"),
+                    bordersize   = 0,
+                    enabled_func = function() return hasSource() end,
+                    callback     = function() copyShelf() end,
+                },
+                {
+                    text         = _("Move to\xE2\x80\xA6"),
+                    bordersize   = 0,
+                    enabled_func = function() return hasSource() and canMove() end,
+                    callback     = function() moveShelf() end,
                 },
                 {
                     -- Add button placed last in the row to balance the

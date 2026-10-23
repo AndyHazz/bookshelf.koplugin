@@ -410,4 +410,113 @@ function TabModel.insertChild(tabs, parent_id, new_tab)
     else tabs[#tabs + 1] = new_tab end
 end
 
+-- ── Copy and move (5.6) ─────────────────────────────────────────────────────
+-- What readers were doing by hand in the settings file: copying a fully set
+-- up shelf to change one thing, and moving shelves into a shelf of shelves.
+-- Every per-shelf setting lives on the record, so a deep copy carries it all.
+
+local function deepCopy(v)
+    if type(v) ~= "table" then return v end
+    local out = {}
+    for k, x in pairs(v) do out[k] = deepCopy(x) end
+    return out
+end
+
+-- treeBlock(tabs, id) -> the list positions of `id` and everything inside
+-- it, ascending (the stored list keeps a tree contiguous, but a hand-edited
+-- one may not, so positions are collected rather than assumed).
+local function treeBlock(tabs, id)
+    local inside = TabModel.descendantIds(id, tabs)
+    local pos = {}
+    for i, t in ipairs(tabs) do
+        if t.id == id or inside[t.id] then pos[#pos + 1] = i end
+    end
+    return pos
+end
+
+-- copyTree(tabs, id, label) -> the copy's id, or nil when `id` is missing.
+-- A deep copy of `id` labelled `label`, and of every shelf inside it under
+-- its own label, each with a new id; placed right after the original's tree
+-- so it sits beside it (in the same shelf of shelves, if any). A Shelf
+-- module's own shelf (card_only, named by its tab_id) is copied too: the
+-- two would otherwise share one, and removing either module would delete it
+-- from under the other. Mutates `tabs`; the caller saves.
+function TabModel.copyTree(tabs, id, label)
+    local pos = treeBlock(tabs, id)
+    if #pos == 0 then return nil end
+    local remap, copies = {}, {}
+    for _i, i in ipairs(pos) do
+        local c = deepCopy(tabs[i])
+        c.pending = nil
+        -- newId reads the list, so every copy stays in it (at the end) until
+        -- all the ids this call hands out are taken, its modules' shelves'
+        -- included.
+        c.id = TabModel.newId(tabs)
+        remap[tabs[i].id] = c.id
+        copies[#copies + 1] = c
+        tabs[#tabs + 1] = c
+    end
+    for _i, c in ipairs(copies) do
+        if c.parent and remap[c.parent] then c.parent = remap[c.parent] end
+        for _j, m in ipairs(type(c.shelf_modules) == "table" and c.shelf_modules or {}) do
+            local own
+            for _k, t in ipairs(tabs) do if t.id == m.tab_id then own = t; break end end
+            if TabModel.isCardOnly(own) then
+                m.tab_id = TabModel.copyTree(tabs, own.id, nil) or m.tab_id
+            end
+        end
+    end
+    copies[1].label = label or copies[1].label
+    -- Now into place: straight after the original's tree.
+    local mine = {}
+    for _i, c in ipairs(copies) do mine[c] = true end
+    for i = #tabs, 1, -1 do
+        if mine[tabs[i]] then table.remove(tabs, i) end
+    end
+    local now = treeBlock(tabs, id)
+    local at = now[#now]
+    for k, c in ipairs(copies) do table.insert(tabs, at + k, c) end
+    return copies[1].id
+end
+
+-- moveTargets(tabs, id) -> where `id` can move: { {} } for the top level
+-- (no id), then every shelf of shelves that is not `id`, not inside it, and
+-- not a Shelf module's own shelf, in stored order.
+function TabModel.moveTargets(tabs, id)
+    local inside = TabModel.descendantIds(id, tabs)
+    local out = { {} }
+    for _i, t in ipairs(tabs) do
+        if TabModel.isShelves(t) and t.id ~= id and not inside[t.id]
+                and not TabModel.isCardOnly(t) then
+            out[#out + 1] = t
+        end
+    end
+    return out
+end
+
+-- moveTree(tabs, id, parent_id) -> true when moved. Puts `id`, with every
+-- shelf inside it, last inside `parent_id` (a shelf of shelves), or last at
+-- the top level when parent_id is nil, keeping the list in tree order.
+-- Refuses a parent that is `id` itself, inside it, or not a shelf of shelves.
+function TabModel.moveTree(tabs, id, parent_id)
+    local pos = treeBlock(tabs, id)
+    if #pos == 0 then return false end
+    if parent_id ~= nil then
+        if parent_id == id or TabModel.descendantIds(id, tabs)[parent_id] then return false end
+        local p
+        for _i, t in ipairs(tabs) do if t.id == parent_id then p = t; break end end
+        if not TabModel.isShelves(p) then return false end
+    end
+    local block = {}
+    for k = #pos, 1, -1 do table.insert(block, 1, table.remove(tabs, pos[k])) end
+    block[1].parent = parent_id
+    local at = #tabs
+    if parent_id ~= nil then
+        local p_pos = treeBlock(tabs, parent_id)
+        at = p_pos[#p_pos]
+    end
+    for k, t in ipairs(block) do table.insert(tabs, at + k, t) end
+    return true
+end
+
 return TabModel

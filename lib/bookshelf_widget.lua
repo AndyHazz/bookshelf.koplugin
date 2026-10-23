@@ -25159,6 +25159,62 @@ function BookshelfWidget:_addSubShelf(parent_id)
     })
 end
 
+-- _addOrMoveSubShelf() -- the "+" tile's tap: a new shelf in here, or one
+-- that already exists moved in (the shelf editor's Move to, from this end).
+-- Straight to a new shelf when no other shelf could come here.
+function BookshelfWidget:_addOrMoveSubShelf()
+    local TabModel = require("lib/bookshelf_tab_model")
+    local here = self.chip
+    local tabs = TabModel.load()
+    local movable = {}
+    for _i, t in ipairs(tabs) do
+        -- Hidden shelves stay out of the list: they are switched off, and
+        -- offering them reads as offering shelves the reader cannot see.
+        if t.id ~= here and t.parent ~= here and t.enabled ~= false
+                and not TabModel.isCardOnly(t) and not t.pending then
+            for _j, dest in ipairs(TabModel.moveTargets(tabs, t.id)) do
+                if dest.id == here then movable[#movable + 1] = t; break end
+            end
+        end
+    end
+    if #movable == 0 then return self:_addSubShelf() end
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local function name(t)
+        local l = type(t.label) == "string" and t.label or ""
+        l = l:gsub("%[icon=[^%]]*%]", ""):gsub("^%s+", ""):gsub("%s+$", "")
+        return l ~= "" and l or t.id
+    end
+    local choice
+    choice = ButtonDialog:new{
+        title = _("Add shelf"), title_align = "center",
+        buttons = {
+            {{ text = _("New shelf"), callback = function()
+                UIManager:close(choice)
+                self:_addSubShelf()
+            end }},
+            {{ text = _("Move a shelf here\xE2\x80\xA6"), callback = function()
+                UIManager:close(choice)
+                local picker
+                local rows = {}
+                for _i, t in ipairs(movable) do
+                    rows[#rows + 1] = {{ text = name(t), callback = function()
+                        UIManager:close(picker)
+                        local fresh = TabModel.load()
+                        if TabModel.moveTree(fresh, t.id, here) then
+                            TabModel.save(fresh)
+                            self:_afterChipEdit()
+                        end
+                    end }}
+                end
+                picker = ButtonDialog:new{ title = _("Move a shelf here"), title_align = "center",
+                    buttons = rows }
+                UIManager:show(picker)
+            end }},
+        },
+    }
+    UIManager:show(choice)
+end
+
 -- _editSubShelf(id) -- long-press on a sub-shelf's tile: its editor, over
 -- the shelf of shelves it sits on, so a rename or a style change shows on
 -- the tile behind.
@@ -25738,7 +25794,7 @@ end
 function BookshelfWidget:_expandFolder(folder)
     -- A shelf of shelves' tiles are folder-shaped (see _subShelfItems).
     if folder and folder.subshelf_id then return self:_enterSubShelf(folder.subshelf_id) end
-    if folder and folder.add_subshelf then return self:_addSubShelf() end
+    if folder and folder.add_subshelf then return self:_addOrMoveSubShelf() end
     if not folder or not folder.path then return end
     -- Keyed on the first book, which is what the row compares a folder tile
     -- against (folder_fp in bookshelf_shelf_row).

@@ -71,7 +71,7 @@ t.test("the card: its picker, its own shelf, and removal", function()
     local card = src("micromodules/shelf.lua")
     local rows = card:match("\nlocal function shelfRows%(.-\nend\n")
     assert(rows and rows:find("isCardOnly", 1, true), "the picker offers other cards' shelves")
-    assert(card:find("New shelf for this card", 1, true), "no way to make one")
+    assert(card:find("New shelf for this module", 1, true), "no way to make one")
     assert(card:find("on_remove", 1, true), "removing the card leaves its shelf behind")
 end)
 

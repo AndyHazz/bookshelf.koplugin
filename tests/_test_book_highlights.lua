@@ -27,8 +27,8 @@ sidecars["/b.epub"] = { annotations = {
 } }
 sidecars["/legacy.epub"] = { highlight = { [1] = { { text = "old" } } } }
 
-t.test("counts highlights, not page bookmarks", function()
-    assert(H.count("/b.epub") == 2, tostring(H.count("/b.epub")))
+t.test("counts every annotation, page bookmarks too, as KOReader's list does", function()
+    assert(H.count("/b.epub") == 3, tostring(H.count("/b.epub")))
     assert(H.count("/none.epub") == 0, "no sidecar")
     assert(H.count("/legacy.epub") == 0, "a legacy-only sidecar the browser can't list")
 end)
@@ -44,21 +44,25 @@ end)
 
 -- The tab's own list: highlights (not page bookmarks) in book order, with
 -- their notes; a tapped row's panel reads where it is, the text, the note.
-t.test("the tab lists highlights with their notes, in book order", function()
+t.test("the tab lists every annotation in book order, typed as KOReader's list types them", function()
     package.loaded["lib/bookshelf_text_safe"] = { safe = function(x) return x end }
     local l = H.list("/b.epub")
-    assert(#l == 2, "got " .. #l)
-    assert(l[1].text == "First line" and l[1].pageno == 4)
-    assert(l[2].note == "Mine")
+    assert(#l == 3, "got " .. #l)
+    assert(l[1].type == "highlight" and l[1].text == "First line" and l[1].pageno == 4)
+    assert(l[2].type == "bookmark" and l[2].text == nil and l[2].pageno == 9, "a page bookmark")
+    assert(l[3].type == "note" and l[3].note == "Mine", "a highlight with a note")
+    assert(H.rowText(l[2]) == "", "a bookmark with no chapter says only its page (beside it)")
+    assert(H.rowText({ type = "bookmark", chapter = "Two", pageno = 9 }) == "Two", "a bookmark's chapter")
     assert(#H.list("/none.epub") == 0)
 end)
 
 t.test("a tapped highlight's panel: chapter, page, day, text, note", function()
-    local txt = H.detailText({ text = "T", note = "N", chapter = "One", pageno = 4,
+    local txt = H.detailText({ type = "note", text = "T", note = "N", chapter = "One", pageno = 4,
                                datetime = "2026-10-01 10:00:00" })
     assert(txt:find("One \xC2\xB7 Page 4 \xC2\xB7 2026-10-01", 1, true), txt)
     assert(not txt:find("10:00", 1, true), "the time shown")
-    assert(txt:find(H.PREFIX.highlight .. "T", 1, true) and txt:find(H.PREFIX.note .. "N", 1, true), "text or note missing")
+    assert(txt:find(H.PREFIX.note .. "T", 1, true), "a noted highlight without the pencil")
+    assert(txt:find("\n\nN", 1, true), "the note missing")
 end)
 
 t.test("the book modal has a Highlights tab: our list, at the modal's size, scrolling", function()

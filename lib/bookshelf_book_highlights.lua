@@ -11,7 +11,8 @@ only the modern array and would come up empty.
 
 local M = {}
 
--- count(fp) -> how many highlights the book has (0 without a sidecar).
+-- count(fp) -> how many annotations the book has -- highlights, notes and
+-- page bookmarks, as KOReader's list shows them (0 without a sidecar).
 function M.count(fp)
     if type(fp) ~= "string" then return 0 end
     local ok_ds, DocSettings = pcall(require, "docsettings")
@@ -23,7 +24,7 @@ function M.count(fp)
     if not (ok_a and type(annotations) == "table") then return 0 end
     local n = 0
     for _i, a in ipairs(annotations) do
-        if type(a) == "table" and type(a.text) == "string" and a.text ~= "" then n = n + 1 end
+        if type(a) == "table" then n = n + 1 end
     end
     return n
 end
@@ -61,11 +62,15 @@ end
 -- tap opens a panel in KOReader's own manner: the text in full, its note,
 -- and View in book.
 
--- KOReader's own type glyphs (ReaderBookmark.display_prefix).
-M.PREFIX = { highlight = "\u{2592}\u{2002}", note = "\u{F040}\u{2002}" }
+-- KOReader's own type glyphs (ReaderBookmark.display_prefix): a highlight,
+-- a highlight with a note, a page bookmark.
+M.PREFIX = { highlight = "\u{2592}\u{2002}", note = "\u{F040}\u{2002}",
+             bookmark = "\u{F097}\u{2002}" }
 
--- list(fp) -> the book's highlights in book order:
--- { { text, note, chapter, page, pos0, pageno, datetime }, ... }.
+-- list(fp) -> the book's annotations in book order, as KOReader's list has
+-- them: { { type, text, note, chapter, page, pos0, pageno, datetime }, ... },
+-- type "highlight", "note" (a highlight with a note) or "bookmark" (a page
+-- bookmark, which has no text).
 function M.list(fp)
     local out = {}
     if type(fp) ~= "string" then return out end
@@ -79,10 +84,13 @@ function M.list(fp)
     local ok_s, SafeText = pcall(require, "lib/bookshelf_text_safe")
     local function safe(t) return (ok_s and SafeText and SafeText.safe) and SafeText.safe(t) or t end
     for _i, a in ipairs(annotations) do
-        if type(a) == "table" and type(a.text) == "string" and a.text ~= "" then
+        if type(a) == "table" then
+            local text = (type(a.text) == "string" and a.text ~= "") and safe(a.text) or nil
+            local note = (type(a.note) == "string" and a.note ~= "") and safe(a.note) or nil
             out[#out + 1] = {
-                text     = safe(a.text),
-                note     = (type(a.note) == "string" and a.note ~= "") and safe(a.note) or nil,
+                type     = (not text and "bookmark") or (note and "note") or "highlight",
+                text     = text,
+                note     = note,
                 chapter  = (type(a.chapter) == "string" and a.chapter ~= "") and safe(a.chapter) or nil,
                 page     = a.page,
                 pos0     = a.pos0,
@@ -119,6 +127,13 @@ function M.openAt(bw, fp, h)
     end
 end
 
+-- rowText(h) -> what a row says: the highlighted text, or for a page
+-- bookmark (no text) its chapter -- else nothing, as in KOReader's list: the
+-- page number beside it says the rest.
+function M.rowText(h)
+    return h.text or h.chapter or ""
+end
+
 -- detailText(h, _) -> the panel's text: where it is, the highlight, its note.
 function M.detailText(h, _)
     _ = _ or function(t) return t end
@@ -128,8 +143,8 @@ function M.detailText(h, _)
     if h.datetime then where[#where + 1] = h.datetime:match("^%d%d%d%d%-%d%d%-%d%d") or h.datetime end
     local parts = {}
     if #where > 0 then parts[#parts + 1] = table.concat(where, " \xC2\xB7 ") end
-    parts[#parts + 1] = M.PREFIX.highlight .. h.text
-    if h.note then parts[#parts + 1] = M.PREFIX.note .. h.note end
+    parts[#parts + 1] = (M.PREFIX[h.type] or M.PREFIX.highlight) .. M.rowText(h)
+    if h.note then parts[#parts + 1] = h.note end
     return table.concat(parts, "\n\n")
 end
 
@@ -140,7 +155,7 @@ function M.showDetail(bw, fp, h, modal)
     local _ = require("lib/bookshelf_i18n").gettext
     local tv
     tv = TextViewer:new{
-        title = _("Highlight"),
+        title = h.type == "bookmark" and _("Bookmark") or _("Highlight"),
         text = M.detailText(h, _),
         add_default_buttons = false,
         buttons_table = { {
@@ -184,6 +199,7 @@ function M.buildTab(bw, fp, modal, avail_w, avail_h)
     local inner_w = avail_w - 2 * lpad - bar_w
     local gap = Space.px(12)
     local muted = Blitbuffer.COLOR_DARK_GRAY
+    local _ = require("lib/bookshelf_i18n").gettext
     -- At most `lines` lines, ending in an ellipsis when it runs over; a
     -- shorter text keeps its own height.
     local function clamped(text, f, w, lines, fg)
@@ -199,11 +215,12 @@ function M.buildTab(bw, fp, modal, avail_w, avail_h)
         local page = h.pageno and TextWidget:new{ text = tostring(h.pageno), face = small, fgcolor = muted }
         local text_w = inner_w - (page and (page:getSize().w + gap) or 0)
         local body = VerticalGroup:new{ align = "left",
-            clamped(M.PREFIX.highlight .. h.text, face, text_w, 4),
+            clamped((M.PREFIX[h.type] or M.PREFIX.highlight) .. M.rowText(h), face, text_w, 4,
+                h.type == "bookmark" and muted or nil),
         }
         if h.note then
             body[#body + 1] = VerticalSpan:new{ width = Space.px(4) }
-            body[#body + 1] = clamped(M.PREFIX.note .. h.note, small, text_w, 2, muted)
+            body[#body + 1] = clamped(h.note, small, text_w, 2, muted)
         end
         local line = HorizontalGroup:new{ align = "top", body }
         if page then

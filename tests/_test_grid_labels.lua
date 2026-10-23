@@ -282,7 +282,7 @@ t.test("_rebuild notes the labels after the fetch and re-runs once when the layo
     assert(assumed_at and shelves_at and assumed_at < shelves_at,
         "the assumption must be recorded before the row count is decided")
     local note_at = body:find("self:_noteGridLabels(all_items, _total_hint ~= nil)", 1, true)
-    local fetch_at = body:find("self:_fetchChipItems(MAX_FETCH)", 1, true)
+    local fetch_at = body:find("self:_fetchWithShelfModules(MAX_FETCH)", 1, true)
     assert(note_at and fetch_at and note_at > fetch_at, "the note must follow the fetch")
     assert(body:find("return self:_rebuild()", 1, true), "no re-run when the guess was wrong")
     assert(body:find("_grid_labels_retry", 1, true), "the re-run has no guard against looping")

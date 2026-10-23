@@ -1048,6 +1048,9 @@ function ShelfRow.new(opts)
     -- guarantees ScaledCoverCache's "cached >= requested" check passes.
     result.cover_w = slot_w
     result.cover_h = cover_h
+    -- The slots as laid out (the gap may have widened to spread the covers):
+    -- shelf cards (SPIKE) stand over them.
+    result.slot_w, result.slot_h, result.slot_gap = slot_w, slot_h, gap
     return result
 end
 

@@ -3982,9 +3982,26 @@ function SpineShelf.plan(items, opts)
 
     -- One read for the whole page's facts (look, count, cached status), so
     -- the per-book lookups below are table hits rather than a query each.
+    -- Shelf modules (lib/bookshelf_shelf_modules) stand among the books at
+    -- a width of their own: set aside from the book loop and put back at
+    -- their places after it, so nothing in it has to know about them.
+    local module_flats
     if cached then
         entries = cached
     else
+    do
+        local kept = {}
+        for j = 1, #flat do
+            local f = flat[j]
+            if f.book and f.book.shelf_module then
+                module_flats = module_flats or {}
+                module_flats[#module_flats + 1] = { pos = j, f = f }
+            else
+                kept[#kept + 1] = f
+            end
+        end
+        if module_flats then flat = kept end
+    end
     do
         local fps = {}
         local has_series = series_state.run_has_series
@@ -4432,6 +4449,21 @@ function SpineShelf.plan(items, opts)
         end
     end
 
+    if module_flats then
+        -- Back at their places: each a face-out cover's width per unit.
+        local unit = math.max(1, math.floor((opts.row_h or 0) * 2 / 3))
+        for _k, mf in ipairs(module_flats) do
+            local f, m = mf.f, mf.f.book.shelf_module
+            local n = math.max(1, math.floor(tonumber(m.w) or 2))
+            local w = n * unit + (n - 1) * (opts.gap or 0)
+            table.insert(entries, math.min(mf.pos, #entries + 1), {
+                book = f.book, item = f.item, item_idx = f.item_idx, run_idx = f.run_idx,
+                shelf_module = m, w = w, h = opts.row_h, w_dp = w,
+                look = { r = 128, g = 128, b = 128 }, label = "",
+                gap_before = opts.gap or 0, gap_base = opts.gap or 0, in_group = false,
+            })
+        end
+    end
     if _n_hydrated == 0 then
         _plan_cache = { key = cache_key, entries = entries, base = base_key, ids = ids }
     end
@@ -4775,6 +4807,26 @@ function SpineShelf.ornamentRow(opts)
     return OverlapGroup:new(kids), hanging, stand_h
 end
 
+-- _moduleTile(e, stand_h, opts) -> a shelf module standing on the plank: its
+-- cell (HeroModules._makeCell), e.w wide, filling the stand above the plank
+-- less a little headroom, the rest of the row's height below it.
+function SpineShelf._moduleTile(e, stand_h, opts)
+    local VerticalGroup = require("ui/widget/verticalgroup")
+    local VerticalSpan  = require("ui/widget/verticalspan")
+    local top = math.floor(stand_h * 0.08)
+    local cell_h = math.max(1, stand_h - top)
+    local cell
+    pcall(function()
+        local HeroModules = require("lib/bookshelf_hero_modules")
+        if opts.bw then HeroModules._applyPalette(opts.bw) end
+        cell = HeroModules._makeCell(opts.bw, e.shelf_module, e.w, cell_h, 100, false, false)
+    end)
+    cell = cell or Widget:new{ dimen = Geom:new{ w = e.w, h = cell_h } }
+    return VerticalGroup:new{ align = "left",
+        VerticalSpan:new{ width = top }, cell,
+        VerticalSpan:new{ width = math.max(0, (opts.height or stand_h) - stand_h) } }
+end
+
 function SpineShelf.rowWidget(opts)
     local HorizontalGroup = require("ui/widget/horizontalgroup")
     local HorizontalSpan  = require("ui/widget/horizontalspan")
@@ -4999,7 +5051,9 @@ function SpineShelf.rowWidget(opts)
             end
             local tile
             local _tile_t0 = e.face_out and _gettime() or nil
-            if e.series_box then
+            if e.shelf_module then
+                tile = SpineShelf._moduleTile(e, stand_h, opts)
+            elseif e.series_box then
                 tile = require("lib/bookshelf_series_box_widget"):new{
                     entry = e, width = e.w, height = stand_h, inset = inset,
                     callbacks = opts.callbacks, book_look = SpineShelf.bookLook,

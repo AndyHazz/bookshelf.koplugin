@@ -45,7 +45,12 @@ local function recentBooks(n)
     for _i, entry in ipairs(hist) do
         if #books >= n then break end
         local fp = entry.file
-        if fp and lfs.attributes(fp, "mode") == "file" then
+        -- A Kobo store book's entry names its decrypted copy, gone after a
+        -- restart: it stays, as its Kobo record (issue 546).
+        local kobo = fp and Repo._koboRecordFor and Repo._koboRecordFor(fp)
+        if kobo then
+            books[#books + 1] = kobo
+        elseif fp and lfs.attributes(fp, "mode") == "file" then
             local ok, rec = pcall(Repo.buildBookMeta, fp, { want_cover = false })
             if ok and rec then books[#books + 1] = rec end
         end

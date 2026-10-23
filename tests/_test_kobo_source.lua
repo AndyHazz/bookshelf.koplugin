@@ -244,4 +244,37 @@ t.test("sort: unread before reading before finished", function()
         { "Fresh", "Started", "Done" })
 end)
 
+
+-- Issue 546: a protected store book opens from kobo.koplugin's decrypted copy,
+-- /tmp/kobo.koplugin.cache/<ContentID>, and that is the path KOReader's
+-- history and lastfile record. After a restart the copy is gone; the path
+-- still names the book, so it maps back to its Kobo record.
+t.test("a decrypted copy's path gives back its ContentID", function()
+    assert(M.contentIdFromCachePath("/tmp/kobo.koplugin.cache/1b08245d-e375-4ced-b71c-88cb39ab7a8c")
+           == "1b08245d-e375-4ced-b71c-88cb39ab7a8c")
+    assert(M.contentIdFromCachePath("/mnt/onboard/.kobo/kepub/abc") == nil, "a real kepub is not a cache copy")
+    assert(M.contentIdFromCachePath("/tmp/kobo.koplugin.cache/") == nil)
+    assert(M.contentIdFromCachePath(nil) == nil)
+end)
+
+t.test("a decrypted copy maps back to its Kobo record", function()
+    M._dropListMemo()
+    inject(fakeVL({ entries = {
+        { path = "KOBO_VIRTUAL://aaa/Book A.epub", kobo_book_id = "aaa", kobo_metadata = { title = "A" } },
+        { path = "KOBO_VIRTUAL://1b08/Book B.epub", kobo_book_id = "1b08", kobo_metadata = { title = "B", percent_read = 40 } },
+    } }))
+    local rec = M.recordForCachePath("/tmp/kobo.koplugin.cache/1b08")
+    assert(rec and rec.is_kobo, "no record")
+    assert(rec.filepath == "KOBO_VIRTUAL://1b08/Book B.epub", tostring(rec and rec.filepath))
+    assert(rec.title == "B")
+    assert(M.recordForCachePath("/tmp/kobo.koplugin.cache/zzz") == nil, "an unknown id made a record")
+    assert(M.recordForCachePath("/mnt/us/book.epub") == nil, "an ordinary file made a record")
+end)
+
+t.test("without the plugin a decrypted copy stays unmapped", function()
+    M._dropListMemo()
+    inject(nil)
+    assert(M.recordForCachePath("/tmp/kobo.koplugin.cache/1b08") == nil)
+end)
+
 t.done()

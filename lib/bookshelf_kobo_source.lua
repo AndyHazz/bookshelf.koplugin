@@ -265,6 +265,51 @@ function M.realPathForOpen(virtual_path)
     return nil
 end
 
+-- ─── Decrypted copies (issue 546) ───────────────────────────────────────────
+-- A protected store book opens from the plugin's decrypted copy,
+-- /tmp/kobo.koplugin.cache/<ContentID>, and that is the path KOReader's
+-- history and lastfile record. The copy is gone after a restart, so Recent
+-- dropped the book and the top panel's entry went stale. The path still
+-- names the book: its ContentID maps back to the Kobo record, and opening
+-- that decrypts again, to the same path.
+
+-- contentIdFromCachePath(fp) -> the ContentID a decrypted copy's path
+-- names, or nil for any other path.
+function M.contentIdFromCachePath(fp)
+    if type(fp) ~= "string" then return nil end
+    local id = fp:match("/kobo%.koplugin%.cache/([^/]+)$")
+    return (id and id ~= "") and id or nil
+end
+
+-- The library list, held briefly: Recent can ask for several books in one
+-- build, and each listBooks reads the plugin's whole library.
+local _list_memo, _list_at = nil, 0
+local LIST_TTL = 30
+function M._dropListMemo() _list_memo, _list_at = nil, 0 end
+
+-- recordForCachePath(fp) -> a fresh copy of the Kobo record a decrypted
+-- copy's path belongs to, or nil (not a copy, no plugin, unknown book).
+function M.recordForCachePath(fp)
+    local id = M.contentIdFromCachePath(fp)
+    if not id then return nil end
+    local now = os.time()
+    local list = _list_memo
+    if not list or now - _list_at > LIST_TTL then
+        list = M.listBooks()
+        -- An empty list is not remembered: at start-up the plugin may not be
+        -- ready yet, and a held empty list would hide the books for a while.
+        if #list > 0 then _list_memo, _list_at = list, now end
+    end
+    for _i, rec in ipairs(list) do
+        if rec.kobo_book_id == id then
+            local out = {}
+            for k, v in pairs(rec) do out[k] = v end
+            return out
+        end
+    end
+    return nil
+end
+
 -- True if this filepath is one of the plugin's virtual paths (used to guard the
 -- book menu / file-ops, and to route opening). Falls back to the is_kobo marker.
 function M.isKoboPath(filepath)

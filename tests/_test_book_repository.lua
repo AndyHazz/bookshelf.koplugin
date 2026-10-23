@@ -205,6 +205,59 @@ test("getRecent: an entry that fails to build does not inflate the total", funct
     assert(total == 2, "the ghost must not count: total " .. tostring(total))
 end)
 
+-- Issue 546: a Kobo store book's history entry and lastfile name the decrypted
+-- copy, /tmp/kobo.koplugin.cache/<ContentID>, which a restart removes (so
+-- ReadHistory dims it). It stays in Recent and the top panel as its Kobo record.
+local function withKoboStub(fn)
+    local saved = package.loaded["lib/bookshelf_kobo_source"]
+    package.loaded["lib/bookshelf_kobo_source"] = {
+        contentIdFromCachePath = function(fp)
+            return type(fp) == "string" and fp:match("/kobo%.koplugin%.cache/([^/]+)$") or nil
+        end,
+        recordForCachePath = function(fp)
+            local id = fp:match("/kobo%.koplugin%.cache/([^/]+)$")
+            if id ~= "k1" then return nil end
+            return { filepath = "KOBO_VIRTUAL://k1/Kobo Book.epub", title = "Kobo Book",
+                     is_kobo = true, kobo_book_id = "k1" }
+        end,
+        coverBB = function() return nil end,
+    }
+    local ok, err = pcall(fn)
+    package.loaded["lib/bookshelf_kobo_source"] = saved
+    if not ok then error(err, 0) end
+end
+
+test("getRecent: a Kobo store book's dimmed entry stays, as its Kobo record", function()
+    withKoboStub(function()
+        package.loaded["readhistory"].hist = {
+            { file = "/lib/real1.epub", time = 300 },
+            { file = "/tmp/kobo.koplugin.cache/k1", time = 250, dim = true },
+            { file = "/tmp/kobo.koplugin.cache/gone", time = 200, dim = true },
+            { file = "/lib/real2.epub", time = 100 },
+        }
+        _G._test_bim_data = {
+            ["/lib/real1.epub"] = { title = "Real One" },
+            ["/lib/real2.epub"] = { title = "Real Two" },
+        }
+        local out = Repo.getRecent(10, 0)
+        local titles = {}
+        for _i, b in ipairs(out) do titles[#titles + 1] = b.title end
+        assert(table.concat(titles, ",") == "Real One,Kobo Book,Real Two", table.concat(titles, ","))
+        assert(out[2].is_kobo and out[2].filepath == "KOBO_VIRTUAL://k1/Kobo Book.epub", "not the Kobo record")
+        assert(out[2].last_read_time == 250, "the history time was not kept")
+    end)
+end)
+
+test("getCurrent: a Kobo store book's lastfile gives the top panel its Kobo record", function()
+    withKoboStub(function()
+        _G._test_settings = { lastfile = "/tmp/kobo.koplugin.cache/k1" }
+        assert(Repo.currentFilepath() == "KOBO_VIRTUAL://k1/Kobo Book.epub", tostring(Repo.currentFilepath()))
+        local b = Repo.getCurrent()
+        assert(b and b.is_kobo and b.title == "Kobo Book", "the top panel lost the Kobo book")
+        _G._test_settings = nil
+    end)
+end)
+
 test("getLatest: orders by mtime desc, respects limit and depth", function()
     Repo.invalidateWalkCache()
     -- Stub a tiny directory walk via the lfs mock above.

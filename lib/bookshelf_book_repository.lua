@@ -1936,13 +1936,33 @@ function Repo.noteKoboOpen(decrypted_path, record)
     end
 end
 
-function Repo.getCurrent()
-    local lastfile = G_reader_settings:readSetting("lastfile")
-    if _last_kobo_open and lastfile == _last_kobo_open.path then
-        -- Recently-opened Kobo book: return a fresh shallow copy of the virtual
-        -- record with a fresh cover, so the hero shows it as current.
+-- _koboRecordFor(path) -> a fresh copy of the Kobo record a decrypted copy's
+-- path belongs to, or nil. The book just opened is known (noteKoboOpen); any
+-- other -- after a restart, when that note is gone and so is the copy -- maps
+-- back through its ContentID (issue 546: the book left Recent, and the top
+-- panel's entry went stale).
+local function _koboRecordFor(path)
+    if _last_kobo_open and path == _last_kobo_open.path then
         local r = {}
         for k, v in pairs(_last_kobo_open.record) do r[k] = v end
+        return r
+    end
+    local ok_k, KoboSource = pcall(require, "lib/bookshelf_kobo_source")
+    if not (ok_k and KoboSource and KoboSource.contentIdFromCachePath
+            and KoboSource.contentIdFromCachePath(path)) then
+        return nil
+    end
+    return KoboSource.recordForCachePath(path)
+end
+Repo._koboRecordFor = _koboRecordFor
+
+function Repo.getCurrent()
+    local lastfile = G_reader_settings:readSetting("lastfile")
+    local kobo = lastfile and _koboRecordFor(lastfile)
+    if kobo then
+        -- A Kobo book: the virtual record with a fresh cover, so the hero
+        -- shows it as current and opens it through the Kobo source.
+        local r = kobo
         local ok_k, KoboSource = pcall(require, "lib/bookshelf_kobo_source")
         if ok_k and KoboSource and r.filepath then
             local bb, cw, ch = KoboSource.coverBB(r.filepath)
@@ -1963,11 +1983,13 @@ end
 function Repo.currentFilepath()
     local lastfile = G_reader_settings:readSetting("lastfile")
     if not lastfile then return nil end
-    -- A just-opened Kobo book: report the virtual path (which ends .epub, so it
-    -- passes the format gate) instead of the extensionless /tmp decrypted copy.
+    -- A Kobo book: report the virtual path (which ends .epub, so it passes
+    -- the format gate) instead of the extensionless /tmp decrypted copy.
     if _last_kobo_open and lastfile == _last_kobo_open.path then
         return _last_kobo_open.virtual
     end
+    local kobo = _koboRecordFor(lastfile)
+    if kobo then return kobo.filepath end
     if not _supportedExt(lastfile) then return nil end
     return lastfile
 end
@@ -2014,15 +2036,28 @@ function Repo.getRecent(limit, offset, opts)
     -- are counted without building (the build is the expensive part and
     -- nil-builds are rare); the slice itself only counts what it emits.
     local total = 0
+    local KoboSource
+    do
+        local ok_k, ks = pcall(require, "lib/bookshelf_kobo_source")
+        if ok_k and ks and ks.contentIdFromCachePath then KoboSource = ks end
+    end
     for i = 1, #rh.hist do
         local entry = rh.hist[i]
-        if not entry.dim then
+        -- A Kobo store book's entry names its decrypted copy, which a
+        -- restart takes away (so it is dimmed): it stays, as its Kobo record
+        -- (issue 546).
+        local kobo_copy = KoboSource and KoboSource.contentIdFromCachePath(entry.file)
+        if not entry.dim or kobo_copy then
             if total >= offset and #out < limit then
-                local meta_opts
-                if ScaledCoverCache and ScaledCoverCache:has(entry.file) then
-                    meta_opts = { want_cover = false }
+                local book
+                if kobo_copy then book = _koboRecordFor(entry.file) end
+                if not book and not entry.dim then
+                    local meta_opts
+                    if ScaledCoverCache and ScaledCoverCache:has(entry.file) then
+                        meta_opts = { want_cover = false }
+                    end
+                    book = Repo.buildBookMeta(entry.file, meta_opts)
                 end
-                local book = Repo.buildBookMeta(entry.file, meta_opts)
                 if book then
                     book.last_read_time = entry.time
                     out[#out + 1] = book

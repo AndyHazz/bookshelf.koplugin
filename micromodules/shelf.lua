@@ -220,9 +220,9 @@ local function showSettings(ctx)
     dialog = ButtonDialog:new{
         title = _("Shelf"), title_align = "center", width_factor = 0.7,
         buttons = {
-            own and {{ text = _("Edit this card's shelf\xE2\x80\xA6"), callback = close(function()
+            own and {{ text = _("Edit this module's shelf\xE2\x80\xA6"), callback = close(function()
                 editCardShelf(ctx, own.id)
-            end) }} or {{ text = _("New shelf for this card\xE2\x80\xA6"), callback = close(function()
+            end) }} or {{ text = _("New shelf for this module\xE2\x80\xA6"), callback = close(function()
                 newCardShelf(ctx)
             end) }},
             {{ text = _("Change shelf\xE2\x80\xA6"), callback = close(function()

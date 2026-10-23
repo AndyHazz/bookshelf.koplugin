@@ -376,7 +376,7 @@ end
 -- to the list and saves.
 function TabModel.newCardShelf(tabs)
     local _ = require("lib/bookshelf_i18n").gettext
-    local t = TabModel.newTab(tabs, _("Card shelf"))
+    local t = TabModel.newTab(tabs, _("Module shelf"))
     t.card_only = true
     return t
 end

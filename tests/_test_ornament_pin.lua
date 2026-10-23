@@ -40,7 +40,12 @@ t.test("a pinned piece leaves its shelf's deal", function()
 end)
 
 t.test("Pin here is offered where it can pin, and pins there", function()
-    assert(menu:find("local src = piece and (piece._pin_of or piece)", 1, true), "the copy doesn't speak for the piece")
+    assert(menu:find("local src = widget or piece", 1, true) and menu:find("src = src and (src._pin_of or src)", 1, true),
+           "the copy doesn't speak for the piece")
+    -- A real long-press: the piece hands itself to the menu, not only its rect.
+    local orn = io.open("lib/bookshelf_ornaments.lua"):read("*a")
+    assert(orn:find("return h(self.placement.entry, self.placement, self.dimen, self)", 1, true), "the long-press passes only the rect")
+    assert(w:find('require("lib/bookshelf_ornament_menu").show(entry, shelf, piece, widget)', 1, true), "the shelf drops the piece")
     assert(menu:find("if src and src.pin_after_idx and bw and bw._pinOrnament then", 1, true), "offered with nowhere to pin")
     assert(menu:find('row[#row + 1] = { text = _("Done"), callback = closeAnd() }', 1, true), "Done lost from the row")
     local f = w:match("\nfunction BookshelfWidget:_pinOrnament%(entry, piece%)\n(.-)\nend\n")

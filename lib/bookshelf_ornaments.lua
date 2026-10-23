@@ -1835,7 +1835,8 @@ function M.Ornament:onHoldOrnament(_arg, ges)
     local h = M.handlers.hold
     if not h then return false end
     if not M.hits(self.placement, self.dimen, ges and ges.pos, M.handlers.blocked) then return false end
-    return h(self.placement.entry, self.placement, self.dimen) and true or false
+    -- The piece itself last: "Pin here" reads where it stands from it.
+    return h(self.placement.entry, self.placement, self.dimen, self) and true or false
 end
 
 function M.Ornament:onTapOrnament(_arg, ges)

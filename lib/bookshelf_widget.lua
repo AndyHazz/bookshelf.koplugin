@@ -272,9 +272,9 @@ function BookshelfWidget:init()
                 local top = shelf:_ornGestureTop()
                 return top ~= nil and pos.y < top
             end,
-            hold = function(entry, _placement, piece)
+            hold = function(entry, _placement, piece, widget)
                 if not Gestures.on("ornament_hold") then return false end
-                require("lib/bookshelf_ornament_menu").show(entry, shelf, piece)
+                require("lib/bookshelf_ornament_menu").show(entry, shelf, piece, widget)
                 return true
             end,
             tap = function(entry)

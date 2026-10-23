@@ -99,7 +99,7 @@ end
 
 -- show(entry, bw, piece): the menu for one piece; piece is where it stands
 -- on screen (its dimen), for keeping the menu clear of it.
-function M.show(entry, bw, piece)
+function M.show(entry, bw, piece, widget)
     local UIManager    = require("ui/uimanager")
     local Orn = O()
     -- The LIVE entry for this piece: the shelf's own may be older than the
@@ -406,8 +406,11 @@ function M.show(entry, bw, piece)
             }
             -- Fixed where it stands: an Ornament module among the shelf's
             -- books, moved from then on like any shelf module.
-            -- A tall piece's own-row copy speaks for the piece (_pin_of).
-            local src = piece and (piece._pin_of or piece)
+            -- The piece's widget (a long-press hands its rect as `piece`, the
+            -- widget after it); a tall piece's own-row copy speaks for the
+            -- piece (_pin_of).
+            local src = widget or piece
+            src = src and (src._pin_of or src)
             if src and src.pin_after_idx and bw and bw._pinOrnament then
                 row[#row + 1] = { text = _("Pin here"), callback = closeAnd(function()
                     bw:_pinOrnament(entry, src)

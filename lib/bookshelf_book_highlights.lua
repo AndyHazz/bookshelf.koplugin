@@ -28,17 +28,26 @@ function M.count(fp)
     return n
 end
 
+-- parentUI() -> the UI the browser hangs off: the file manager, or, when
+-- the shelf is up over a book still open in the reader (no file manager
+-- then), the reader -- KOReader opens the browser from both. nil with
+-- neither, and the callers do nothing rather than hand it a nil parent.
+function M.parentUI()
+    local ok_fm, FileManager = pcall(require, "apps/filemanager/filemanager")
+    if ok_fm and FileManager and FileManager.instance then return FileManager.instance end
+    local ok_r, ReaderUI = pcall(require, "apps/reader/readerui")
+    if ok_r and ReaderUI and ReaderUI.instance then return ReaderUI.instance end
+    return nil
+end
+
 -- showBrowser(fp) -> KOReader's BookmarkBrowser, open on this book, or nil.
--- It needs the file manager as its parent UI, which is torn down when this is
--- reached from inside the reader: then it does nothing rather than hand the
--- browser a nil parent. The files list is a SET keyed by path: getBookList
--- iterates `for file in pairs(files)` and uses the key.
+-- The files list is a SET keyed by path: getBookList iterates
+-- `for file in pairs(files)` and uses the key.
 function M.showBrowser(fp)
     if type(fp) ~= "string" then return nil end
     local ok_bb, BookmarkBrowser = pcall(require, "ui/widget/bookmarkbrowser")
     if not (ok_bb and BookmarkBrowser) then return nil end
-    local ok_fm, FileManager = pcall(require, "apps/filemanager/filemanager")
-    local parent_ui = (ok_fm and FileManager and FileManager.instance) or nil
+    local parent_ui = M.parentUI()
     if not parent_ui then return nil end
     BookmarkBrowser:show({ [fp] = true }, parent_ui)
     return BookmarkBrowser
@@ -66,9 +75,8 @@ function M.buildList(fp, w, h)
         local Blitbuffer = require("ffi/blitbuffer")
         local ReaderHighlight = require("apps/reader/modules/readerhighlight")
         local Screen = require("device").screen
-        local FileManager = require("apps/filemanager/filemanager")
-        local ui = FileManager.instance
-        if not ui then return nil end
+        local ui = M.parentUI()
+        if not ui then error("no file manager or reader to hang the list off") end
         BB.ui = ui
         ui.highlight = ui.highlight or ReaderHighlight -- for ReaderBookmark methods
         local G = G_reader_settings
@@ -89,7 +97,7 @@ function M.buildList(fp, w, h)
         BB.bookmarks_items_color_default = G:isTrue("bookmarks_items_show_color_default")
             and ReaderHighlight:getHighlightColor(BB.highlight_color_default) or nil
         BB.books = BB:getBookList({ [fp] = true })
-        if not BB.books or #BB.books == 0 then return nil end
+        if not BB.books or #BB.books == 0 then error("the browser found no annotations for the book") end
         BB.filter_table = { enabled_books_nb = #BB.books }
         BB.bm_list = Menu:new{
             width = w, height = h,
@@ -116,6 +124,10 @@ function M.buildList(fp, w, h)
         M._list = list
         return list
     end
+    -- Why the tab fell back to its button, for a reporter's crash.log.
+    pcall(function()
+        require("logger").warn("[bookshelf] highlights list not built:", tostring(list))
+    end)
     return nil
 end
 

@@ -86,4 +86,18 @@ t.test("the book modal has a Highlights tab, with the button as its fallback", f
     assert(q:find('require("lib/bookshelf_book_highlights").showBrowser(q.filepath)', 1, true), "the quote module opens its own copy")
 end)
 
+-- Over a book still open in the reader there is no file manager: the reader
+-- is the browser's parent then (both the tab's list and the button).
+t.test("with no file manager the reader is the browser's parent", function()
+    local RUI = { instance = { name = "reader" } }
+    package.loaded["apps/reader/readerui"] = RUI
+    FM.instance = nil
+    assert(H.parentUI() == RUI.instance, "the reader was not used")
+    shown = nil
+    assert(H.showBrowser("/b.epub") ~= nil and shown.parent == RUI.instance, "the button did nothing")
+    RUI.instance = nil
+    assert(H.parentUI() == nil, "a parent with neither")
+    package.loaded["apps/reader/readerui"] = nil
+end)
+
 t.done()

@@ -116,4 +116,13 @@ t.test("module cards are paper, and keep their colour inside", function()
     assert(clip:find("paintRectRGB32", 1, true), "a colour card is flattened to grey inside")
 end)
 
+-- A cover's height follows its slot's width: one cover across a wide module
+-- stood taller than its row and pushed the heading out over the next module.
+t.test("a Shelf module's cover rows fit their height", function()
+    local body = src("micromodules/shelf.lua"):match("\nlocal function coverBody%(.-\nend\n")
+    assert(body and body:find("local row_w = math.min(w, n * math.floor((row_h - 2 * m) * 2 / 3)", 1, true),
+           "slots are not capped by the row's height")
+    assert(body:find("width = row_w", 1, true), "the row still takes the full width")
+end)
+
 t.done()

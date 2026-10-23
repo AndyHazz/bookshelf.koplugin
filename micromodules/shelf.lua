@@ -314,6 +314,8 @@ local function coverBody(ctx, tab, w, h, gap)
     local Screen      = require("device").screen
     local SpineWidget = require("lib/bookshelf_spine_widget")
     local ShelfRow    = require("lib/bookshelf_shelf_row")
+    local CenterContainer = require("ui/widget/container/centercontainer")
+    local Geom        = require("ui/geometry")
     local VerticalGroup = require("ui/widget/verticalgroup")
     local VerticalSpan  = require("ui/widget/verticalspan")
     local rows  = cardRows(ctx.config and ctx.config:get("rows"), h, gap,
@@ -327,6 +329,11 @@ local function coverBody(ctx, tab, w, h, gap)
     local cover_w = math.min(math.floor(row_h * 2 / 3),
                              math.floor((w - (n - 1) * cgap) / math.max(1, n)))
     local small = cover_w < Screen:scaleBySize(SMALL_COVER_W)
+    -- A slot's cover takes its height from the slot's WIDTH, so a row of
+    -- few covers in a wide module gets slots no wider than the row's height
+    -- allows -- or one cover across the whole width stands far taller than
+    -- its row and spills out of the module. Centred in what is left.
+    local row_w = math.min(w, n * math.floor((row_h - 2 * m) * 2 / 3) + (n - 1) * cgap)
     local Repo  = require("lib/bookshelf_book_repository")
     local items = Repo.getBySource(bookSource(tab.source), tab.filter, tab.sort_priority, 0, rows * n * 2,
         { light_only = true })
@@ -338,8 +345,8 @@ local function coverBody(ctx, tab, w, h, gap)
         if #slice == 0 then break end
         if r > 1 then vg[#vg + 1] = VerticalSpan:new{ width = gap } end
         vg[#vg + 1] = VerticalSpan:new{ width = m }
-        vg[#vg + 1] = ShelfRow.new{
-            width = w, height = row_h - 2 * m, items = slice, n_slots = n, gap = cgap,
+        local row = ShelfRow.new{
+            width = row_w, height = row_h - 2 * m, items = slice, n_slots = n, gap = cgap,
             on_book_tap = function(book) openBook(ctx, book) end,
             on_book_open = function(book) openBook(ctx, book) end,
             label_mode = "none",
@@ -347,6 +354,10 @@ local function coverBody(ctx, tab, w, h, gap)
             -- this they leave it alone.
             no_badges = small or nil,
         }
+        if row_w < w then
+            row = CenterContainer:new{ dimen = Geom:new{ w = w, h = row:getSize().h }, row }
+        end
+        vg[#vg + 1] = row
         vg[#vg + 1] = VerticalSpan:new{ width = m }
     end
     if #books == 0 then return nil end

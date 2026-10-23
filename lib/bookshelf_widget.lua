@@ -6618,7 +6618,7 @@ function BookshelfWidget:_editShelfCards(select_id, opts)
     if ed and opts and opts.add then ed.session:add() end
     if not ed then
         local Notification = require("ui/widget/notification")
-        UIManager:show(Notification:new{ text = _("Cards stand on cover shelves only") })
+        UIManager:show(Notification:new{ text = _("Modules can only go on shelves shown as covers") })
     end
     return ed
 end

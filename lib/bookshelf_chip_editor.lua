@@ -1096,7 +1096,7 @@ function Editor:editTab(tab_id, opts)
             -- never a card's own shelf. Empty rows are filtered out below.
             (opts.bw and opts.bw.chip == tab_id and not draft.card_only
                 and opts.bw._editShelfCards) and {{
-                text = _("Add a card to this shelf\xE2\x80\xA6"),
+                text = _("Add a module to this shelf\xE2\x80\xA6"),
                 callback = function()
                     finish()
                     opts.bw:_editShelfCards(nil, { add = true })

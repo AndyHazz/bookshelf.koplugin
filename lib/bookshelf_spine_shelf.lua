@@ -4609,6 +4609,8 @@ function SpineShelf.plan(items, opts)
     }) or nil
     local rows
     if hk then
+        -- A pinned piece keeps its row: the dealt end piece gives way to it.
+        hk.keep = function(i) return entries[i] and entries[i].orn_pl ~= nil end
         rows = SpineLayout.fillRows(widths, hk.avail, hk.gaps, hk.empty_ok, hk)
     else
         local g = {}

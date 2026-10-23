@@ -76,6 +76,11 @@ t.test("a pinned piece looks as it did dealt, and its menu adjusts the piece", f
            "a pinned piece still has Narrower or the module's own Settings")
 end)
 
+t.test("a pinned piece keeps its row: the dealt end piece gives way", function()
+    assert(ss:find("hk.keep = function(i) return entries[i] and entries[i].orn_pl ~= nil end", 1, true),
+           "a pinned piece wraps to the next row when a dealt piece takes the room")
+end)
+
 t.test("a pinned piece's ornament menu leaves out the deal's controls", function()
     assert(w:find('show(pe, bw, nil, nil, { pinned = true })', 1, true), "not opened as a pinned piece's")
     local mm = menu:match("\nfunction M%.show%(entry, bw, piece, widget, opts%)\n(.-)\nend\n")

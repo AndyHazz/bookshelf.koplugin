@@ -224,6 +224,12 @@ function SpineLayout.fillRows(widths, avail_w, gap, empty_ok, hooks)
         else
             local g = gaps and (gaps[i] or 0) or flat
             local need = x + g + w
+            -- A kept entry (a pinned piece) outranks the row's dealt end
+            -- piece: that piece gives way, as it does for a row's first book,
+            -- rather than the pinned one wrapping to the next row.
+            if need > limit and hooks and hooks.keep and hooks.squeeze and hooks.keep(i) then
+                limit = hooks.squeeze(#rows + 1, need) or limit
+            end
             if need > limit then
                 rows[#rows + 1] = { first = first, last = i - 1 }
                 first, x = nil, nil

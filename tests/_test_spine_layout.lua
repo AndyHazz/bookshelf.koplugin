@@ -480,4 +480,34 @@ t.test("balanceRows: a lead piece's width counts against the row", function()
     assert(rows and rows[2].first ~= 3, "the lead piece's width was not counted")
 end)
 
+-- A pinned piece stays on the row it was pinned to: a dealt end piece that
+-- leaves it too little room gives way (squeeze), as it does for a row's first
+-- book. Device: Baphomet pinned at a row's end wrapped to the next row while
+-- the next dealt piece took the room he had stood in.
+t.test("fill: a kept entry squeezes the row's end piece instead of wrapping", function()
+    local end_room = 200
+    local squeezed
+    local hooks = {
+        keep = function(i) return i == 4 end,
+        squeeze = function(r, need)
+            squeezed = { r = r, need = need }
+            end_room = 0
+            return 1100
+        end,
+    }
+    local avail = function() return 1100 - end_room end
+    local rows = SL.fillRows({ 200, 200, 200, 350, 200 }, avail, 20, nil, hooks)
+    assert(rows[1].last == 4, "the kept entry wrapped: row 1 ends at " .. rows[1].last)
+    assert(squeezed and squeezed.r == 1 and squeezed.need == 1010, "squeeze not asked for the row's need")
+    assert(rows[2].first == 5)
+end)
+
+t.test("fill: an entry not kept still wraps, and the end piece stays", function()
+    local called = false
+    local hooks = { keep = function() return false end,
+                    squeeze = function() called = true; return 1000 end }
+    local rows = SL.fillRows({ 200, 200, 200, 350 }, function() return 800 end, 20, nil, hooks)
+    assert(rows[1].last == 3 and not called, "a dealt piece gave way to an ordinary entry")
+end)
+
 t.done()

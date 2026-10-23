@@ -91,4 +91,18 @@ t.test("card-less modules leave the shelf shading alone", function()
            "a bare module still blanks the shading behind it")
 end)
 
+-- On a cover shelf a module's card is a cover's card: the slots less the
+-- shadow's room, a cover's height, standing on the covers' shadow or their
+-- selection ring (a square frame round it left white wedges in the corners).
+t.test("a cover-shelf module is sized and framed like a cover", function()
+    local f = fn("_moduleRow")
+    assert(f, "_moduleRow not found")
+    assert(f:find("local card_h = math.max(1, (row.cover_h or sh) - off)", 1, true), "not a cover's height")
+    assert(f:find("h.span * sw + (h.span - 1) * gap - off", 1, true), "not a cover's width")
+    assert(f:find("SpineWidget.cardBackdrop(card_w, card_h, selected)", 1, true), "no cover backdrop")
+    assert(not f:find("FrameContainer", 1, true), "still framed square")
+    local sw = io.open("lib/bookshelf_spine_widget.lua"):read("*a")
+    assert(sw:find("function SpineWidget.cardBackdrop(card_w, card_h, selected)", 1, true), "no backdrop helper")
+end)
+
 t.done()

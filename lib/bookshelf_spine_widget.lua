@@ -3401,4 +3401,27 @@ function SpineWidget.badgeOverhang(card_w)
     return math.ceil(CoverProgress.badgeSize(_glyphSize(card_w)) * 0.6)
 end
 
+-- What a card on the cover shelf stands on, for something that is not a
+-- book but sits among them (a shelf module): its card is the slot less
+-- SHADOW_OFFSET each way, like a cover's (_cardDimensions), and this is
+-- painted behind it -- the selection ring when selected, else the drop
+-- shadow, else nothing when the reader turned shadows off. The ring is the
+-- covers' own backdrop technique (BorderOverlay), so its inner edge is the
+-- card's own rounded edge and no corner shows between them.
+SpineWidget.SHADOW_OFFSET = SHADOW_OFFSET
+SpineWidget.CARD_RADIUS = CARD_RADIUS
+function SpineWidget.cardBackdrop(card_w, card_h, selected)
+    if selected then
+        return BorderOverlay:new{ width = card_w, height = card_h,
+                                  thickness = SELECTED_BORDER, radius = CARD_RADIUS }
+    end
+    if BookshelfSettings.read("cover_no_shadow", false) == true then return nil end
+    return FrameContainer:new{
+        bordersize = 0, padding = 0,
+        padding_top = SHADOW_OFFSET, padding_left = SHADOW_OFFSET,
+        ShadowRect:new{ width = card_w, height = card_h,
+                        radius = CARD_RADIUS, exposed = SHADOW_OFFSET },
+    }
+end
+
 return SpineWidget

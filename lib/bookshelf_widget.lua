@@ -6900,17 +6900,29 @@ function BookshelfWidget:_moduleRow(row, heads)
     function group:getSize() return self.dimen end
     HeroModules._applyPalette(self)
     local edit = self._shelf_module_edit
+    -- A module's card is a cover's card: the slots it spans less the
+    -- shadow's room, and a cover's height (not the slot's, which also holds
+    -- the room under a cover for its badges), standing on the covers' own
+    -- shadow -- or their selection ring while the editor has it picked.
+    -- Edge to edge, it read bigger than the books beside it (maintainer).
+    local SpineWidget = require("lib/bookshelf_spine_widget")
+    local off = SpineWidget.SHADOW_OFFSET or 0
+    local card_h = math.max(1, (row.cover_h or sh) - off)
     for _i, h in ipairs(heads) do
-        local w = h.span * sw + (h.span - 1) * gap
-        local ok, cell = pcall(HeroModules._makeCell, self, h.entry, w, sh, 100, false, false)
+        local card_w = math.max(1, h.span * sw + (h.span - 1) * gap - off)
+        local ok, cell = pcall(HeroModules._makeCell, self, h.entry, card_w, card_h, 100, false, false)
         if ok and cell then
-            if edit and edit.selected_id == h.entry.id then
-                local FrameContainer = require("ui/widget/container/framecontainer")
-                cell = FrameContainer:new{ bordersize = Screen:scaleBySize(4), padding = 0, margin = 0,
-                    radius = Space.px(4), cell }
-            end
-            cell.overlap_offset = { (h.col - 1) * (sw + gap), 0 }
-            group[#group + 1] = cell
+            local selected = edit and edit.selected_id == h.entry.id
+            local backdrop = SpineWidget.cardBackdrop
+                and SpineWidget.cardBackdrop(card_w, card_h, selected) or nil
+            local stack = OverlapGroup:new{
+                dimen = Geom:new{ w = card_w + off, h = card_h + off },
+                allow_mirroring = false,
+            }
+            if backdrop then stack[#stack + 1] = backdrop end
+            stack[#stack + 1] = cell
+            stack.overlap_offset = { (h.col - 1) * (sw + gap), 0 }
+            group[#group + 1] = stack
         end
     end
     group.cover_w, group.cover_h = row.cover_w, row.cover_h

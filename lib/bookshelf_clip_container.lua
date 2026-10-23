@@ -95,9 +95,13 @@ function ClipContainer:paintTo(bb, x, y)
     local off = scratchFor(self.w, self.h, bb:getType())
     -- fill() collapses a colour to its grey (getColor8), so a coloured card
     -- on a colour screen goes through paintRectRGB32, which keeps it.
+    -- Asked of Blitbuffer, never by probing `bg.r`: a grey is a Color8
+    -- cdata, which RAISES on a field it lacks -- that crashed the start menu
+    -- on a greyscale PW5.
     local bg = self.bg or Blitbuffer.COLOR_WHITE
-    if bg.r and off.paintRectRGB32 and off:getType() == Blitbuffer.TYPE_BBRGB32 then
-        off:paintRectRGB32(0, 0, self.w, self.h, bg)
+    if off:getType() == Blitbuffer.TYPE_BBRGB32 and off.paintRectRGB32
+            and Blitbuffer.isColor8 and not Blitbuffer.isColor8(bg) then
+        off:paintRectRGB32(0, 0, self.w, self.h, bg:getColorRGB32())
     else
         off:fill(bg)
     end

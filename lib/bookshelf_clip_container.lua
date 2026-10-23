@@ -93,7 +93,14 @@ function ClipContainer:paintTo(bb, x, y)
     -- child does is bounded to the cell and the full-width-paintRect fast path
     -- stays correct. Then blit the result onto the screen at this position.
     local off = scratchFor(self.w, self.h, bb:getType())
-    off:fill(self.bg or Blitbuffer.COLOR_WHITE)
+    -- fill() collapses a colour to its grey (getColor8), so a coloured card
+    -- on a colour screen goes through paintRectRGB32, which keeps it.
+    local bg = self.bg or Blitbuffer.COLOR_WHITE
+    if bg.r and off.paintRectRGB32 and off:getType() == Blitbuffer.TYPE_BBRGB32 then
+        off:paintRectRGB32(0, 0, self.w, self.h, bg)
+    else
+        off:fill(bg)
+    end
     child:paintTo(off, dx, dy)
     bb:blitFrom(off, x, y, 0, 0, self.w, self.h)
 end

@@ -673,12 +673,15 @@ local DEFAULT_CHROME_BG = { grey = 0xFF }
 -- their own, so over a semi-transparent card every line of text shows as a
 -- box -- the card cannot be less opaque than its contents.
 --
--- 0xEE, not 0xFF, and that is the value modules have always drawn on: every
--- TextBoxWidget built through the module Kit paints THIS colour as its own
--- background. Card and text background are one decision wearing two names, so
--- the setting drives both (Modules.setCardBg) -- change only the card and
--- every line of text keeps a visible box behind it.
-local DEFAULT_MODULE_BG = { grey = 0xEE }
+-- Not white, and every TextBoxWidget built through the module Kit paints THIS
+-- colour as its own background. Card and text background are one decision
+-- wearing two names, so the setting drives both (Modules.setCardBg) -- change
+-- only the card and every line of text keeps a visible box behind it.
+--
+-- A warm off-white paper, not the flat 0xEE grey it used to be: grey cards
+-- looked dead beside coloured covers on the shelf (maintainer). Its luminance
+-- is ~0xED, so a greyscale panel draws what it always did.
+local DEFAULT_MODULE_BG = { hex = "#F3EDE0" }
 -- The top panel's and footer panel's tint. Separate from chrome_bg because the
 -- two do different jobs: chrome_bg is an OPAQUE bar, panel_bg is blended over
 -- a picture at the shading strength, so the value that reads well as one is

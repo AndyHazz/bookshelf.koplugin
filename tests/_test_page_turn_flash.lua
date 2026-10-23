@@ -63,7 +63,10 @@ t.test("a page turn uses the mode it picked, and a flash skips the wipe", functi
     local wipe = swap:find("if anim_steps then", 1, true)
     assert(due and skip and wipe and due < skip and skip < wipe,
         "the flash decision must come before the wipe")
+    -- Directly, or returned from a refresh function (the rows' region is
+    -- decided after the paint when a tall piece reaches above them).
     local _n = select(2, swap:gsub("UIManager:setDirty%(self, refresh_mode", ""))
+             + select(2, swap:gsub("return refresh_mode, Geom:new", ""))
     assert(_n == 3, "every rows refresh should use refresh_mode, found " .. _n)
 end)
 

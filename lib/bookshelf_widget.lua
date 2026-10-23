@@ -265,8 +265,12 @@ function BookshelfWidget:init()
         require("lib/bookshelf_ornaments").handlers = {
             -- A piece never takes a gesture in the footer's band: its
             -- buttons (the start menu, page turns) are under it.
+            -- Nor over the top panel and shelf menu, which a tall piece on
+            -- the first shelf may stand up over.
             blocked = function(pos)
-                return pos.y >= shelf.height - _footerReserveH()
+                if pos.y >= shelf.height - _footerReserveH() then return true end
+                local top = shelf:_ornGestureTop()
+                return top ~= nil and pos.y < top
             end,
             hold = function(entry, _placement, piece)
                 if not Gestures.on("ornament_hold") then return false end
@@ -7029,6 +7033,45 @@ function BookshelfWidget._rowsRegionTop(shelf_top, d)
     return math.max(0, shelf_top - math.max(d and d.PAD or 0, d and d.hang_top_gap or 0))
 end
 
+-- _ornReachTop(rows) -> the highest screen y a piece on these rows draws at
+-- (its drawing, not its box: contentBox), or nil when none has been painted.
+-- A tall piece on row 1 may stand up over the shelf menu and the top panel
+-- (allowed on purpose -- it looks good), so a page turn's refresh has to
+-- reach that high for the page it leaves AND the page it brings, or the old
+-- piece stays on the panel (maintainer, PW5). Reads dimen.y, which a piece
+-- records as it paints: call it on rows that have been painted.
+function BookshelfWidget._ornReachTop(rows)
+    local Orn = package.loaded["lib/bookshelf_ornaments"]
+    if not (Orn and Orn.contentBox) then return nil end
+    local top
+    local function walk(n, depth)
+        if type(n) ~= "table" or depth > 10 then return end
+        local p = n.placement
+        if p and p.entry and n.dimen and n.dimen.y then
+            local _l, t = Orn.contentBox(p.entry)
+            -- Less a margin: contentBox leaves out a piece's soft glow, which
+            -- still paints (a candle's halo left a 3px line behind).
+            local y = n.dimen.y + math.floor((t or 0) * (n.dimen.h or 0))
+                      - Screen:scaleBySize(8)
+            if not top or y < top then top = y end
+            return
+        end
+        for _i, c in ipairs(n) do walk(c, depth + 1) end
+    end
+    for _i, r in ipairs(rows or {}) do walk(r, 0) end
+    return top
+end
+
+-- _ornGestureTop() -> the screen y above which no piece takes a gesture: the
+-- bottom of the top panel (the rows' top less the gap row 1's hanging pieces
+-- hang in). A piece standing up over the panel and the shelf menu is drawn
+-- there, but their taps belong to them (maintainer).
+function BookshelfWidget:_ornGestureTop()
+    local d = self._shelf_dims
+    if not (d and d.wipe_rows_top) then return nil end
+    return d.wipe_rows_top - (d.hang_top_gap or 0)
+end
+
 -- _hangUnder(rows, pitch, top_gap): a piece that hangs from the shelf above is painted
 -- by the ROW ABOVE, before its plank, so that plank and its shadow are in
 -- front of it (maintainer). Its offset was worked out against its own row, so
@@ -9209,6 +9252,9 @@ function BookshelfWidget:_swapShelvesInPlace()
     local VerticalSpan = list_rows and require("ui/widget/verticalspan") or nil
     local old_rows = {}
     if d.row_pitch then self:_hangUnder(rows, d.row_pitch, d.hang_top_gap) end
+    -- How high the leaving page's pieces reach, read while its rows still
+    -- hold their painted positions (see _ornReachTop).
+    local old_reach = BookshelfWidget._ornReachTop({ self._inner_vgroup[d.shelf_top_idx] })
     for r = 1, n_shelves do
         local idx = d.shelf_top_idx + 2 * (r - 1)
         old_rows[r] = self._inner_vgroup[idx]
@@ -9349,13 +9395,7 @@ function BookshelfWidget:_swapShelvesInPlace()
     local wiped = false
     if anim_steps then
         local ry = BookshelfWidget._rowsRegionTop(shelf_top, d)
-        -- Rows only when the footer's band is known: the footer is handled
-        -- separately below so its icons don't wipe on every turn.
-        local rh = self.height - ry
-        if footer_rect and footer_band and footer_band.y > ry then
-            rh = footer_band.y - ry
-        end
-        local region = Geom:new{ x = 0, y = ry, w = self.width, h = rh }
+        local rh, region
         wiped = pcall(function()
             -- Paint the new page OFFSCREEN and leave the screen showing the old
             -- one, so the wipe can reveal over it. Painting into the
@@ -9374,6 +9414,16 @@ function BookshelfWidget:_swapShelvesInPlace()
             local new_bb = Blitbuffer.new(Screen.bb:getWidth(), Screen.bb:getHeight(),
                                           Screen.bb:getType())
             self:paintTo(new_bb, 0, 0)
+            -- Up to the highest piece of either page, now both are placed.
+            ry = math.max(0, math.min(ry, old_reach or ry,
+                BookshelfWidget._ornReachTop({ rows[1] }) or ry))
+            -- Rows only when the footer's band is known: the footer is
+            -- handled separately below so its icons don't wipe every turn.
+            rh = self.height - ry
+            if footer_rect and footer_band and footer_band.y > ry then
+                rh = footer_band.y - ry
+            end
+            region = Geom:new{ x = 0, y = ry, w = self.width, h = rh }
             PageWipe.run(Screen, new_bb, region, _wipe_dir > 0, anim_steps)
             if footer_rect and footer_band and footer_band.y > ry then
                 -- The wipe left the footer showing the OLD page's label; copy
@@ -9397,16 +9447,26 @@ function BookshelfWidget:_swapShelvesInPlace()
             -- glyphs' above-cover pixels on the panel -- the ghost borders /
             -- hearts reported on reader return. Starting the region a PAD
             -- higher sweeps them.
-            local ry = BookshelfWidget._rowsRegionTop(shelf_top, d)
-            if footer_rect and footer_band and footer_band.y > ry then
+            local base_ry = BookshelfWidget._rowsRegionTop(shelf_top, d)
+            -- Decided at refresh time, after the paint has placed the new
+            -- page's pieces: up to the highest piece of either page.
+            local function rowsTop()
+                return math.max(0, math.min(base_ry, old_reach or base_ry,
+                    BookshelfWidget._ornReachTop({ rows[1] }) or base_ry))
+            end
+            if footer_rect and footer_band and footer_band.y > base_ry then
                 -- Rows band + only the changed part of the footer. The
                 -- widget repaint covers both; the flash covers just these.
-                UIManager:setDirty(self, refresh_mode, Geom:new{
-                    x = 0, y = ry, w = self.width, h = footer_band.y - ry })
+                UIManager:setDirty(self, function()
+                    local ry = rowsTop()
+                    return refresh_mode, Geom:new{ x = 0, y = ry, w = self.width, h = footer_band.y - ry }
+                end)
                 UIManager:setDirty(nil, "ui", footer_rect)
             else
-                UIManager:setDirty(self, refresh_mode, Geom:new{
-                    x = 0, y = ry, w = self.width, h = self.height - ry })
+                UIManager:setDirty(self, function()
+                    local ry = rowsTop()
+                    return refresh_mode, Geom:new{ x = 0, y = ry, w = self.width, h = self.height - ry }
+                end)
             end
         else
             UIManager:setDirty(self, refresh_mode)

@@ -438,4 +438,93 @@ M._test = { scanDir = scanDir, registry = registry, packDirs = packDirs,
                 for k in pairs(loaded_files) do loaded_files[k] = nil end
                 scanned, _index_checked, _index = false, false, nil
             end }
+-- ── Groups: the module library's chips ─────────────────────────────────────
+-- Every module belongs to one group, a chip in the library. Bundled modules
+-- have a category set below; a plugin pack's modules are that pack; loose
+-- modules in the reader's own folder group by a "Name · " title prefix (how
+-- a bundle like Reading Log's names its cards), else they are the reader's
+-- own. A spec may say so itself: `pack = "Name"`, or `category = "<id>"`
+-- with one of the ids below.
+M.CATEGORY_ORDER = { "shelf", "reading", "time", "fun", "actions" }
+local function _(s)
+    local ok, i18n = pcall(require, "lib/bookshelf_i18n")
+    return (ok and i18n and i18n.gettext) and i18n.gettext(s) or s
+end
+-- Functions, so each label is a literal _() the translation tools find, and
+-- is looked up when shown (the language may change while running).
+local CATEGORY_LABEL = {
+    shelf   = function() return _("Shelf & books") end,
+    reading = function() return _("Reading") end,
+    time    = function() return _("Time & device") end,
+    fun     = function() return _("Fun & info") end,
+    actions = function() return _("Actions") end,
+}
+local BUNDLED_CATEGORY = {
+    shelf = "shelf", last_books = "shelf", random_unread = "shelf",
+    shelf_size = "shelf", ornament = "shelf",
+    reading_goal = "reading", stats = "reading", reading_streak = "reading",
+    quote_of_day = "reading",
+    clock = "time", analogue_clock = "time", battery = "time", countdown = "time",
+    fact = "fun", otd = "fun", trivia = "fun", weather = "fun",
+    action = "actions",
+}
+
+-- groupFor(key, spec, file) -> group id, its label. file is where the module
+-- was loaded from ({ origin = "bundled" | "user" | "plugin:<folder>",
+-- label = the pack's own name, if known }).
+function M.groupFor(key, spec, file)
+    spec, file = spec or {}, file or {}
+    if type(spec.pack) == "string" and spec.pack ~= "" then
+        return "pack:" .. spec.pack, spec.pack
+    end
+    if type(spec.category) == "string" and CATEGORY_LABEL[spec.category] then
+        return spec.category, CATEGORY_LABEL[spec.category]()
+    end
+    local origin = file.origin or "bundled"
+    if origin == "bundled" then
+        local c = BUNDLED_CATEGORY[key] or "fun"
+        return c, CATEGORY_LABEL[c]()
+    end
+    local plugin = origin:match("^plugin:(.+)$")
+    if plugin then
+        return "pack:" .. plugin, file.label or plugin
+    end
+    local prefix = type(spec.title) == "string" and spec.title:match("^(.-)%s+\xC2\xB7%s+.+$")
+    if prefix and prefix ~= "" then return "pack:" .. prefix, prefix end
+    return "mine", _("My modules")
+end
+
+-- group(key) -> the registered module's group id and label.
+function M.group(key)
+    local spec = M.get(key)
+    local file = file_of[key]
+    local info = file and { origin = file.origin }
+    if info and file.origin and file.origin:match("^plugin:") and file.dir then
+        -- The pack's own name, from its _meta.lua beside bookshelf_modules.
+        pcall(function()
+            local meta = dofile(file.dir:gsub("/bookshelf_modules$", "") .. "/_meta.lua")
+            if type(meta) == "table" and type(meta.fullname) == "string" then info.label = meta.fullname end
+        end)
+    end
+    return M.groupFor(key, spec, info)
+end
+
+-- groupChips(ids, labels) -> the library's chips for the groups in use: All,
+-- the categories in their order, packs by name, then the reader's own.
+function M.groupChips(ids, labels)
+    labels = labels or {}
+    local used = {}
+    for _i, id in ipairs(ids or {}) do used[id] = true end
+    local chips = { { id = "all", label = _("All") } }
+    for _i, c in ipairs(M.CATEGORY_ORDER) do
+        if used[c] then chips[#chips + 1] = { id = c, label = labels[c] or CATEGORY_LABEL[c]() } end
+    end
+    local packs = {}
+    for id in pairs(used) do if id:match("^pack:") then packs[#packs + 1] = id end end
+    table.sort(packs, function(a, b) return (labels[a] or a):lower() < (labels[b] or b):lower() end)
+    for _i, id in ipairs(packs) do chips[#chips + 1] = { id = id, label = labels[id] or id:sub(6) } end
+    if used.mine then chips[#chips + 1] = { id = "mine", label = labels.mine or _("My modules") } end
+    return chips
+end
+
 return M

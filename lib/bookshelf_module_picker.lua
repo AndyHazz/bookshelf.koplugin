@@ -190,11 +190,36 @@ function ModulePicker:show(on_select, opts)
             keys[#keys + 1] = key
         end
     end
-    local items = {}
+    -- Every module's group (a chip): its category, its pack, or the reader's
+    -- own (Modules.group). Worked out once per open.
+    local all_items, group_ids, labels, seen = {}, {}, {}, {}
     for _i, key in ipairs(keys) do
-        items[#items + 1] = { key = key, title = Modules.title(key) or key,
-            solo = #keys == 1 }
+        local gid, glabel = "all", nil
+        pcall(function() gid, glabel = Modules.group(key) end)
+        all_items[#all_items + 1] = { key = key, title = Modules.title(key) or key,
+            solo = #keys == 1, group = gid }
+        if not seen[gid] then seen[gid] = true; group_ids[#group_ids + 1] = gid; labels[gid] = glabel end
     end
+    -- Under All, the cards run in the chips' order, a group's together and
+    -- by title within it.
+    local order = {}
+    for i, c in ipairs(Modules.groupChips(group_ids, labels)) do order[c.id] = i end
+    table.sort(all_items, function(a, b)
+        local oa, ob = order[a.group] or 999, order[b.group] or 999
+        if oa ~= ob then return oa < ob end
+        return (a.title or ""):lower() < (b.title or ""):lower()
+    end)
+    local chip = "all"
+    local items = all_items
+    local function filter()
+        if chip == "all" then items = all_items return end
+        items = {}
+        for _i, it in ipairs(all_items) do
+            if it.group == chip then items[#items + 1] = it end
+        end
+    end
+    -- Chips only once there is more than one group to choose between.
+    local chips = (#group_ids > 1) and Modules.groupChips(group_ids, labels) or nil
     local self_ref = self
     -- Columns: a lone module gets a single centred column (a sparse
     -- multi-column grid with one card top-left reads as broken); larger
@@ -212,6 +237,17 @@ function ModulePicker:show(on_select, opts)
         -- title AND the data-source summary line without squeezing the preview.
         -- Still 2 rows per page; this just makes those rows taller.
         rows_per_page = 6,
+        chip_strip = chips and function()
+            local out = {}
+            for _i, c in ipairs(chips) do
+                out[#out + 1] = { key = c.id, label = c.label, is_active = c.id == chip }
+            end
+            return out
+        end or nil,
+        on_chip_tap = chips and function(key)
+            chip = key
+            filter()
+        end or nil,
         cell_renderer = ModulePicker._renderCell,
         on_cell_tap = function(item)
             if self_ref.modal then

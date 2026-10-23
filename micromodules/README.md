@@ -27,6 +27,9 @@ return {
     network      = { "api.example.com" }, -- data-source domains; flags network-required
     hero_only    = true,              -- hide from the start-menu picker
     tap_feedback = true,              -- instant pressed border on tap (launchers)
+    -- Where it's listed in the Add picker (both optional) -- see "Picker chips":
+    pack         = "My Bundle",       -- a chip of its own, shared by the bundle's modules
+    category     = "reading",         -- or one of Bookshelf's: shelf, reading, time, fun, actions
 }
 ```
 
@@ -285,6 +288,23 @@ Arrangement is the **host's** job, not yours: in the layout editor (the pencil,
 or long-press a card) the user moves, resizes and pages cards on the grid; the
 grid renders only the visible page. A module never reads or writes
 its page/size/position — just render your content and let the host place it.
+
+## Picker chips (`pack`, `category`)
+
+The Add picker has a chip per group: Bookshelf's categories (Shelf & books,
+Reading, Time & device, Fun & info, Actions), one per module pack, and My
+modules. A module lands in one of them without saying anything:
+
+- A module from a plugin pack (`bookshelf_modules/` in a `.koplugin`) is
+  listed under that plugin's name.
+- A module dropped in your own modules folder whose title starts `Name · `
+  (for example `"Reading Log · Activity rings"`) is listed under `Name`, with
+  every other module that shares the prefix.
+- Anything else in your folder is under My modules.
+
+`pack = "Name"` puts a module under its own chip by name, whatever its file
+or title; `category = "reading"` (or `shelf`, `time`, `fun`, `actions`)
+puts it in one of Bookshelf's.
 
 ## `summary`
 

@@ -66,4 +66,21 @@ t.test("the editor keeps a module's width unless it was changed", function()
     assert(g and g:find("self._shelf_module_shown_w", 1, true), "the grid info does not remember it")
 end)
 
+-- On a spine shelf a module stands like a face-out cover: a face-out's gap
+-- either side, pushed back, its drawn height recorded for the shadow, and
+-- the whole stand (it never lifts).
+t.test("spine modules stand like face-out covers", function()
+    local ss = io.open("lib/bookshelf_spine_shelf.lua"):read("*a")
+    local ins = ss:match("if module_flats then\n        %-%- Back at their places(.-)\n    end\n")
+    assert(ins, "module re-insertion not found")
+    assert(ins:find("gap_before = face_gap", 1, true), "no face-out gap before a module")
+    assert(ins:find("nxt.gap_before = face_gap", 1, true), "no face-out gap after a module")
+    local tile = ss:match("\nfunction SpineShelf%._moduleTile%(e, stand_h, opts, push%)\n(.-)\nend\n")
+    assert(tile, "_moduleTile does not take the push")
+    assert(tile:find("e._drawn_h = cell_h", 1, true), "the shadow does not follow the drawn module")
+    assert(not tile:find("0.08", 1, true), "still leaves lift headroom")
+    assert(ss:find("foot = ((e.face_out or e.shelf_module) and inset or 0)", 1, true),
+           "the shadow's foot is not pushed back with the module")
+end)
+
 t.done()

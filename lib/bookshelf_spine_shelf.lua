@@ -4450,18 +4450,24 @@ function SpineShelf.plan(items, opts)
     end
 
     if module_flats then
-        -- Back at their places: each a face-out cover's width per unit.
+        -- Back at their places: each a face-out cover's width per unit, with
+        -- a face-out's air either side (FACE_GAP) so it doesn't read as part
+        -- of the books beside it.
         local unit = math.max(1, math.floor((opts.row_h or 0) * 2 / 3))
+        local face_gap = Space.px(SpineShelf.FACE_GAP_DP)
         for _k, mf in ipairs(module_flats) do
             local f, m = mf.f, mf.f.book.shelf_module
             local n = math.max(1, math.floor(tonumber(m.w) or 2))
             local w = n * unit + (n - 1) * (opts.gap or 0)
-            table.insert(entries, math.min(mf.pos, #entries + 1), {
+            local at = math.min(mf.pos, #entries + 1)
+            table.insert(entries, at, {
                 book = f.book, item = f.item, item_idx = f.item_idx, run_idx = f.run_idx,
                 shelf_module = m, w = w, h = opts.row_h, w_dp = w,
                 look = { r = 128, g = 128, b = 128 }, label = "",
-                gap_before = opts.gap or 0, gap_base = opts.gap or 0, in_group = false,
+                gap_before = face_gap, gap_base = face_gap, in_group = false,
             })
+            local nxt = entries[at + 1]
+            if nxt and (nxt.gap_before or 0) < face_gap then nxt.gap_before = face_gap end
         end
     end
     if _n_hydrated == 0 then
@@ -4807,14 +4813,17 @@ function SpineShelf.ornamentRow(opts)
     return OverlapGroup:new(kids), hanging, stand_h
 end
 
--- _moduleTile(e, stand_h, opts) -> a shelf module standing on the plank: its
--- cell (HeroModules._makeCell), e.w wide, filling the stand above the plank
--- less a little headroom, the rest of the row's height below it.
-function SpineShelf._moduleTile(e, stand_h, opts)
+-- _moduleTile(e, stand_h, opts, push) -> a shelf module standing on the
+-- plank: its cell (HeroModules._makeCell), e.w wide, pushed back like a
+-- face-out cover. It never lifts (selection doesn't apply), so it takes the
+-- whole stand bar a hair of headroom, and records what it drew for the shadow.
+function SpineShelf._moduleTile(e, stand_h, opts, push)
     local VerticalGroup = require("ui/widget/verticalgroup")
     local VerticalSpan  = require("ui/widget/verticalspan")
-    local top = math.floor(stand_h * 0.08)
-    local cell_h = math.max(1, stand_h - top)
+    push = push or 0
+    local top = Screen:scaleBySize(4)
+    local cell_h = math.max(1, stand_h - push - top)
+    e._drawn_h = cell_h
     local cell
     pcall(function()
         local HeroModules = require("lib/bookshelf_hero_modules")
@@ -4824,7 +4833,7 @@ function SpineShelf._moduleTile(e, stand_h, opts)
     cell = cell or Widget:new{ dimen = Geom:new{ w = e.w, h = cell_h } }
     return VerticalGroup:new{ align = "left",
         VerticalSpan:new{ width = top }, cell,
-        VerticalSpan:new{ width = math.max(0, (opts.height or stand_h) - stand_h) } }
+        VerticalSpan:new{ width = push + math.max(0, (opts.height or stand_h) - stand_h) } }
 end
 
 function SpineShelf.rowWidget(opts)
@@ -5052,7 +5061,7 @@ function SpineShelf.rowWidget(opts)
             local tile
             local _tile_t0 = e.face_out and _gettime() or nil
             if e.shelf_module then
-                tile = SpineShelf._moduleTile(e, stand_h, opts)
+                tile = SpineShelf._moduleTile(e, stand_h, opts, inset)
             elseif e.series_box then
                 tile = require("lib/bookshelf_series_box_widget"):new{
                     entry = e, width = e.w, height = stand_h, inset = inset,
@@ -5343,7 +5352,7 @@ function SpineShelf.rowWidget(opts)
                 recess_cols[#recess_cols + 1] = {
                     x = cursor, w = e.w,
                     h = (e._drawn_h or e.h or 0),
-                    foot = (e.face_out and inset or 0),
+                    foot = ((e.face_out or e.shelf_module) and inset or 0),
                     fp = e.book and e.book.filepath or nil,
                 }
             end

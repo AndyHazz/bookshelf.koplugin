@@ -197,24 +197,44 @@ function Editor:_buildToolbar()
             end
             return out
         end
-        rows = {
-            -- Page, then size, then position; each row one axis.
-            compact(
-                pageButton(Session.PAGE_PREV, -1),
-                sizeButton(_("Narrower"), "w", -1),
-                sizeButton(_("Wider"),    "w", 1),
-                chevron(Session.CHEV_LEFT,  function() s:moveBy(-1, 0) end),
-                chevron(Session.CHEV_RIGHT, function() s:moveBy(1, 0) end)
-            ),
-            compact(
-                pageButton(Session.PAGE_NEXT, 1),
-                sizeButton(_("Shorter"),  "h", -1),
-                sizeButton(_("Taller"),   "h", 1),
-                chevron(Session.CHEV_UP,    function() s:moveBy(0, -1) end),
-                chevron(Session.CHEV_DOWN,  function() s:moveBy(0, 1) end)
-            ),
-            bottom,
-        }
+        if on_shelf then
+            -- No height buttons, so Narrower and Wider stand one above the
+            -- other: two rows of four, as the panels' rows are (maintainer).
+            rows = {
+                compact(
+                    pageButton(Session.PAGE_PREV, -1),
+                    sizeButton(_("Narrower"), "w", -1),
+                    chevron(Session.CHEV_LEFT,  function() s:moveBy(-1, 0) end),
+                    chevron(Session.CHEV_RIGHT, function() s:moveBy(1, 0) end)
+                ),
+                compact(
+                    pageButton(Session.PAGE_NEXT, 1),
+                    sizeButton(_("Wider"),    "w", 1),
+                    chevron(Session.CHEV_UP,    function() s:moveBy(0, -1) end),
+                    chevron(Session.CHEV_DOWN,  function() s:moveBy(0, 1) end)
+                ),
+                bottom,
+            }
+        else
+            rows = {
+                -- Page, then size, then position; each row one axis.
+                compact(
+                    pageButton(Session.PAGE_PREV, -1),
+                    sizeButton(_("Narrower"), "w", -1),
+                    sizeButton(_("Wider"),    "w", 1),
+                    chevron(Session.CHEV_LEFT,  function() s:moveBy(-1, 0) end),
+                    chevron(Session.CHEV_RIGHT, function() s:moveBy(1, 0) end)
+                ),
+                compact(
+                    pageButton(Session.PAGE_NEXT, 1),
+                    sizeButton(_("Shorter"),  "h", -1),
+                    sizeButton(_("Taller"),   "h", 1),
+                    chevron(Session.CHEV_UP,    function() s:moveBy(0, -1) end),
+                    chevron(Session.CHEV_DOWN,  function() s:moveBy(0, 1) end)
+                ),
+                bottom,
+            }
+        end
     end
     local vg = VerticalGroup:new{
         align = "center",

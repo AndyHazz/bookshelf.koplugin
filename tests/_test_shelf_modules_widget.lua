@@ -117,6 +117,11 @@ t.test("the shelf editor moves modules page by page, and the shelf follows", fun
     assert(ed:find('if on_shelf and axis == "h" then return nil end', 1, true), "Shorter/Taller shown on a shelf")
     assert(not ed:find("if on_shelf and not can then return nil end", 1, true), "Narrower hidden at its limit")
     assert(ed:find("pageButton(Session.PAGE_PREV, -1)", 1, true) and ed:find("pageButton(Session.PAGE_NEXT, 1)", 1, true), "no page buttons")
+    -- On a shelf: Narrower over Wider, two rows of four.
+    local shelf_rows = ed:match("if on_shelf then(.-)\n        else")
+    assert(shelf_rows, "no shelf layout")
+    local r1 = shelf_rows:match("compact%((.-)compact%(")
+    assert(r1 and r1:find("Narrower", 1, true) and not r1:find("Wider", 1, true), "Narrower and Wider share a row")
 end)
 
 t.done()

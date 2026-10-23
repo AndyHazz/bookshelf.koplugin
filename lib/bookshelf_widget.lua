@@ -6899,10 +6899,17 @@ function BookshelfWidget:_spineModuleMenu(entry)
     end
     d = ButtonDialog:new{
         title = T("%1 \xC2\xB7 %2", (def and def.title) or entry.module, w), title_align = "center",
+        -- Centred across the screen (it is nearly full width) and clear of
+        -- the module by a gap: no x, so MovableContainer centres it, and the
+        -- module's rect grown by the gap above and below (maintainer).
         anchor = function()
             local cell = bw._spine_module_cells and bw._spine_module_cells[id]
             local r = cell and cell.dimen
-            if r and r.x and r.w then return Geom:new{ x = r.x, y = r.y, w = r.w, h = r.h } end
+            if r and r.y and r.h then
+                local gap = Screen:scaleBySize(16)
+                -- A plain table: Geom:new fills in x = 0, which pins it left.
+                return { y = r.y - gap, w = 0, h = r.h + 2 * gap }
+            end
         end,
         buttons = {
             {

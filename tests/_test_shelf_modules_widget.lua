@@ -168,4 +168,16 @@ t.test("spine page moves land the module first on the next or previous page", fu
     assert(move(shelf(96, 6, mods), "m", 1) == nil, "a next page past the end")
 end)
 
+-- The spine module menu: centred (no x, so MovableContainer centres it --
+-- a Geom would fill in x = 0) and clear of the module by a gap.
+t.test("the spine module menu is centred and clear of the module", function()
+    local m = fn("_spineModuleMenu")
+    local a = m and m:match("anchor = function%(%)(.-)\n        end,")
+    assert(a, "no anchor")
+    a = a:gsub("%-%-[^\n]*", "")
+    assert(not a:find("Geom:new", 1, true), "a Geom pins the menu to the left")
+    assert(a:find("y = r.y - gap", 1, true) and a:find("h = r.h + 2 * gap", 1, true), "no gap round the module")
+    assert(not a:find("x =", 1, true), "an x stops it centring")
+end)
+
 t.done()

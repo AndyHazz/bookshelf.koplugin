@@ -334,9 +334,10 @@ local function coverBody(ctx, tab, w, h, gap)
     -- allows -- or one cover across the whole width stands far taller than
     -- its row and spills out of the module. Centred in what is left.
     local row_w = math.min(w, n * math.floor((row_h - 2 * m) * 2 / 3) + (n - 1) * cgap)
+    -- Full records, not light ones: a light record carries no cover, and
+    -- every book came out as a plain title card. A screenful at most.
     local Repo  = require("lib/bookshelf_book_repository")
-    local items = Repo.getBySource(bookSource(tab.source), tab.filter, tab.sort_priority, 0, rows * n * 2,
-        { light_only = true })
+    local items = Repo.getBySource(bookSource(tab.source), tab.filter, tab.sort_priority, 0, rows * n * 2)
     local books = booksOnly(items)
     local vg = VerticalGroup:new{ align = "left" }
     for r = 1, rows do

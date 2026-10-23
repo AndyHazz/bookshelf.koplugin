@@ -96,4 +96,15 @@ t.test("rows: Auto without the shelf's size falls back to the old rule", functio
     assert(H.cardRows(nil, 600, 8, nil, 100) == H.rowsFor(600, 100))
 end)
 
+-- Covers need the full records: light ones carry no cover, and the module
+-- drew every book as a plain title card (rig, 2026-10-24). Spines stay light.
+t.test("a covers module asks for full records; a spines module stays light", function()
+    local src = io.open("micromodules/shelf.lua"):read("*a")
+    local cover = src:match("\nlocal function coverBody%(.-\nend\n")
+    local spine = src:match("\nlocal function spineBody%(.-\nend\n")
+    assert(cover and spine, "bodies not found")
+    assert(not cover:find("light_only", 1, true), "covers are asked for light records: no cover to draw")
+    assert(spine:find("light_only = true", 1, true), "spines lost their light records")
+end)
+
 t.done()

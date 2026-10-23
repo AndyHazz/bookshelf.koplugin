@@ -91,4 +91,17 @@ t.test("with no file manager the reader is the browser's parent", function()
     package.loaded["apps/reader/readerui"] = nil
 end)
 
+-- Highlight colours, as KOReader's list shows them: only with its "Show
+-- highlight color" on; the default colour only with "including the default".
+t.test("a row's colour follows KOReader's list settings", function()
+    local function cfg(default_bg) return { show = true, default_name = "yellow", default_bg = default_bg,
+        colour_of = function(n) return "C:" .. n end } end
+    assert(H.rowColour({ drawer = "lighten", color = "red" }, {}) == nil, "coloured with the setting off")
+    assert(H.rowColour({ drawer = "lighten", color = "red" }, cfg(nil)) == "C:red")
+    assert(H.rowColour({ drawer = "lighten", color = "yellow" }, cfg(nil)) == nil, "default colour shown without the sub-option")
+    assert(H.rowColour({ drawer = "lighten", color = "yellow" }, cfg("C:yellow")) == "C:yellow")
+    assert(H.rowColour({ drawer = "lighten" }, cfg("C:yellow")) == "C:yellow", "no colour means the default")
+    assert(H.rowColour({ type = "bookmark" }, cfg("C:yellow")) == nil, "a page bookmark coloured")
+end)
+
 t.done()

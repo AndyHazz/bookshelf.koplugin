@@ -96,10 +96,42 @@ function M.list(fp)
                 pos0     = a.pos0,
                 pageno   = tonumber(a.pageno) or (type(a.page) == "number" and a.page) or nil,
                 datetime = type(a.datetime) == "string" and a.datetime or nil,
+                drawer   = a.drawer,
+                color    = a.color,
             }
         end
     end
     return out
+end
+
+-- rowColour(h, cfg) -> the background a row's text is drawn on, or nil: the
+-- highlight's own colour, exactly when KOReader's bookmark list would show
+-- it (BookmarkBrowser:getItemTable). Off unless "Show highlight color" is on
+-- in that list's settings; a highlight in the default colour shows it only
+-- with "...including the default color" as well. cfg is colourConfig().
+function M.rowColour(h, cfg)
+    if not (cfg and cfg.show and h.drawer) then return nil end
+    if h.color == nil or h.color == cfg.default_name then return cfg.default_bg end
+    local ok, c = pcall(cfg.colour_of, h.color)
+    return ok and c or nil
+end
+
+-- colourConfig() -> the reader's settings for it, read once per build.
+function M.colourConfig()
+    local cfg = {}
+    pcall(function()
+        local G = G_reader_settings
+        if not G:isTrue("bookmarks_items_show_color") then return end
+        local ReaderHighlight = require("apps/reader/modules/readerhighlight")
+        local Screen = require("device").screen
+        cfg.show = true
+        cfg.default_name = G:readSetting("highlight_color")
+            or (Screen:isColorEnabled() and "yellow" or "gray")
+        cfg.default_bg = G:isTrue("bookmarks_items_show_color_default")
+            and ReaderHighlight:getHighlightColor(cfg.default_name) or nil
+        cfg.colour_of = function(name) return ReaderHighlight:getHighlightColor(name) end
+    end)
+    return cfg
 end
 
 -- openAt(bw, fp, h): open the book at a highlight. The reader opens first and
@@ -202,21 +234,25 @@ function M.buildTab(bw, fp, modal, avail_w, avail_h)
     local _ = require("lib/bookshelf_i18n").gettext
     -- At most `lines` lines, ending in an ellipsis when it runs over; a
     -- shorter text keeps its own height.
-    local function clamped(text, f, w, lines, fg)
-        local tb = TextBoxWidget:new{ text = text, face = f, width = w, fgcolor = fg }
+    local function clamped(text, f, w, lines, fg, bg)
+        local tb = TextBoxWidget:new{ text = text, face = f, width = w, fgcolor = fg, bgcolor = bg }
         local max_h = lines * (tb.line_height_px or f.size)
         if tb:getSize().h <= max_h then return tb end
         tb:free()
-        return TextBoxWidget:new{ text = text, face = f, width = w, fgcolor = fg,
+        return TextBoxWidget:new{ text = text, face = f, width = w, fgcolor = fg, bgcolor = bg,
             height = max_h, height_overflow_show_ellipsis = true }
     end
+    -- The highlight's colour behind its text, as KOReader's list draws it
+    -- (TextBoxWidget's bgcolor, its multi-line rows' way) when the reader
+    -- has it on there.
+    local colours = M.colourConfig()
     local vg = VerticalGroup:new{ align = "left" }
     for i, h in ipairs(list) do
         local page = h.pageno and TextWidget:new{ text = tostring(h.pageno), face = small, fgcolor = muted }
         local text_w = inner_w - (page and (page:getSize().w + gap) or 0)
         local body = VerticalGroup:new{ align = "left",
             clamped((M.PREFIX[h.type] or M.PREFIX.highlight) .. M.rowText(h), face, text_w, 4,
-                h.type == "bookmark" and muted or nil),
+                h.type == "bookmark" and muted or nil, M.rowColour(h, colours)),
         }
         if h.note then
             body[#body + 1] = VerticalSpan:new{ width = Space.px(4) }

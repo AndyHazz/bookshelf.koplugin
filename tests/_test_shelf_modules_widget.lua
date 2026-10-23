@@ -83,4 +83,12 @@ t.test("spine modules stand like face-out covers", function()
            "the shadow's foot is not pushed back with the module")
 end)
 
+-- A card-less module (a Shelf module, an ornament) is see-through: the
+-- shelf's shading must carry on behind it, not stop round a blank box.
+t.test("card-less modules leave the shelf shading alone", function()
+    local ss = io.open("lib/bookshelf_spine_shelf.lua"):read("*a")
+    assert(ss:find("elseif e.shelf_module and SpineShelf._bareModule(e.shelf_module) then", 1, true),
+           "a bare module still blanks the shading behind it")
+end)
+
 t.done()

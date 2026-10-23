@@ -4817,6 +4817,14 @@ end
 -- plank: its cell (HeroModules._makeCell), e.w wide, pushed back like a
 -- face-out cover. It never lifts (selection doesn't apply), so it takes the
 -- whole stand bar a hair of headroom, and records what it drew for the shadow.
+-- _bareModule(m) -> true for a module drawn with no card behind it.
+function SpineShelf._bareModule(m)
+    local ok, def = pcall(function()
+        return require("lib/bookshelf_start_menu_modules").get(m.module)
+    end)
+    return ok and def and def.bare == true or false
+end
+
 function SpineShelf._moduleTile(e, stand_h, opts, push)
     local VerticalGroup = require("ui/widget/verticalgroup")
     local VerticalSpan  = require("ui/widget/verticalspan")
@@ -5348,6 +5356,10 @@ function SpineShelf.rowWidget(opts)
             if e.series_box then
                 local columns = require("lib/bookshelf_series_boxes").shadowColumns(e.series_box, cursor, inset)
                 for _, col in ipairs(columns) do recess_cols[#recess_cols + 1] = col end
+            elseif e.shelf_module and SpineShelf._bareModule(e.shelf_module) then
+                -- A module with no card (an ornament, a Shelf module) is see-
+                -- through: the shelf's shading carries on behind it, where a
+                -- solid column would leave a blank box round its drawing.
             else
                 recess_cols[#recess_cols + 1] = {
                     x = cursor, w = e.w,

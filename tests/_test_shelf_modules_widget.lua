@@ -56,4 +56,14 @@ t.test("the editor's grid places come back as order", function()
     assert(f and f:find("afterFromSlots(placed)", 1, true))
 end)
 
+-- Opening the editor on a layout that narrowed a module (3 columns: a
+-- 3-wide module beside a book is drawn 2 wide) and saving without touching
+-- it must keep the width it was given, not the narrowed one.
+t.test("the editor keeps a module's width unless it was changed", function()
+    local f = w:match("\nfunction BookshelfWidget:_shelfModuleHost%(%)\n(.-)\nend\n")
+    assert(f and f:find("shown_w", 1, true), "the save does not know what width the editor opened with")
+    local g = w:match("\nfunction BookshelfWidget:_shelfModuleGridInfo%(%)\n(.-)\nend\n")
+    assert(g and g:find("self._shelf_module_shown_w", 1, true), "the grid info does not remember it")
+end)
+
 t.done()

@@ -6646,6 +6646,9 @@ function BookshelfWidget:_shelfModuleGridInfo()
     local mods = SM.list(tab) or {}
     local at, spans = SM.slots(self._shelf_module_items or 0, mods, cols, BookshelfWidget._moduleMinW)
     local boxes = {}
+    -- The widths as drawn, which the layout may have narrowed: a save that
+    -- finds a module still at its drawn width keeps the width it was given.
+    self._shelf_module_shown_w = spans
     for _i, m in ipairs(mods) do
         local slot = at[m.id]
         if slot then
@@ -6691,11 +6694,15 @@ function BookshelfWidget:_shelfModuleHost()
         end
         local after = require("lib/bookshelf_shelf_modules").afterFromSlots(placed)
         local list = {}
+        local shown_w = bw._shelf_module_shown_w or {}
         for _i, it in ipairs(items) do
             local e = {}
             for k, v in pairs(it) do e[k] = v end
             e.after = after[it.id] or e.after or 0
-            e.w = (it.at and it.at.w) or e.w
+            -- Narrower or wider in the editor sets the width; untouched, it
+            -- keeps the one it was given (the layout may have narrowed it).
+            local aw = it.at and it.at.w
+            if aw and aw ~= shown_w[it.id] then e.w = aw end
             e.at = nil
             list[#list + 1] = e
         end

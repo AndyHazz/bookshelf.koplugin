@@ -4491,7 +4491,11 @@ function SpineShelf.plan(items, opts)
                 look = { r = 128, g = 128, b = 128 }, label = "",
                 gap_before = face_gap, gap_base = face_gap, in_group = false,
             })
+            -- gap_base as well as gap_before: the row layout starts every
+            -- entry's gap from gap_base, so raising gap_before alone was
+            -- undone and the book after a module stood against it.
             local nxt = entries[at + 1]
+            if nxt and (nxt.gap_base or 0) < face_gap then nxt.gap_base = face_gap end
             if nxt and (nxt.gap_before or 0) < face_gap then nxt.gap_before = face_gap end
         end
     end

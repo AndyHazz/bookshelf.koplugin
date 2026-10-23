@@ -75,6 +75,9 @@ t.test("spine modules stand like face-out covers", function()
     assert(ins, "module re-insertion not found")
     assert(ins:find("gap_before = face_gap", 1, true), "no face-out gap before a module")
     assert(ins:find("nxt.gap_before = face_gap", 1, true), "no face-out gap after a module")
+    -- gap_base too: the row layout starts each entry's gap from it, so a
+    -- raised gap_before alone was undone (the book after a module touched it).
+    assert(ins:find("nxt.gap_base = face_gap", 1, true), "the gap after a module is lost in the row layout")
     local tile = ss:match("\nfunction SpineShelf%._moduleTile%(e, stand_h, opts, push%)\n(.-)\nend\n")
     assert(tile, "_moduleTile does not take the push")
     assert(tile:find("e._drawn_h = cell_h", 1, true), "the shadow does not follow the drawn module")
@@ -122,6 +125,21 @@ t.test("the shelf editor moves modules page by page, and the shelf follows", fun
     assert(shelf_rows, "no shelf layout")
     local r1 = shelf_rows:match("compact%((.-)compact%(")
     assert(r1 and r1:find("Narrower", 1, true) and not r1:find("Wider", 1, true), "Narrower and Wider share a row")
+end)
+
+-- The layout editor fades everything but the modules it can move, so it is
+-- plain that taps on books and page swipes are off while it is up.
+t.test("the layout editor fades all but the editable modules", function()
+    local ed = io.open("lib/bookshelf_module_grid_editor.lua"):read("*a")
+    local f = ed:match("\nfunction Editor:_fadeAround%(bb%)\n(.-)\nend\n")
+    assert(f, "no fade")
+    assert(f:find("b.page == self.session.page", 1, true), "keeps modules on other pages")
+    assert(f:find("bb:lightenRect(0, 0, bb:getWidth(), bb:getHeight(), Editor.FADE)", 1, true), "does not fade the screen")
+    assert(f:find("bb:blitFrom(k.copy, k.x, k.y, 0, 0, k.w, k.h)", 1, true), "does not put the modules back")
+    local paint = ed:match("\nfunction Editor:paintTo%(bb, x, y%)\n(.-)\nend\n")
+    local fade_at = paint and paint:find("self._fadeAround", 1, true)
+    local footer_at = paint and paint:find("footer:paintTo", 1, true)
+    assert(fade_at and footer_at and fade_at < footer_at, "the fade must come before the edit bar and toolbar")
 end)
 
 t.done()

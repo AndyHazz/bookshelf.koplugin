@@ -321,6 +321,44 @@ function Editor:_selectionRect()
     return Geom:new{ x = d.x + info.ox + x, y = d.y + info.oy + y, w = w, h = h }
 end
 
+-- How far the screen around the editable modules is faded (towards white,
+-- which a night-mode panel shows as towards black: the background either way).
+Editor.FADE = 0.6
+
+-- _fadeAround(bb): fade everything on screen but the modules on this page,
+-- so it is plain that only they answer while the editor is up (maintainer:
+-- with the shelf looking as usual, taps on books or a page swipe doing
+-- nothing was a puzzle, and the edit bar alone was easy to miss). Each
+-- module's rect, with room for its ring and shadow, is copied out, the whole
+-- screen is lightened, and the copies go back.
+function Editor:_fadeAround(bb)
+    local info = self.host:gridInfo()
+    local d = info and info.container and info.container.dimen
+    local keep = {}
+    if d and d.x then
+        local pad = Screen:scaleBySize(8)
+        for _i, b in ipairs(self.session.boxes) do
+            if b.page == self.session.page then
+                local rx, ry, rw, rh = Grid.rect(info.dims, b)
+                local x0 = math.max(0, d.x + info.ox + rx - pad)
+                local y0 = math.max(0, d.y + info.oy + ry - pad)
+                local w = math.min(bb:getWidth() - x0, rw + 2 * pad)
+                local h = math.min(bb:getHeight() - y0, rh + 2 * pad)
+                if w > 0 and h > 0 then
+                    local copy = Blitbuffer.new(w, h, bb:getType())
+                    copy:blitFrom(bb, 0, 0, x0, y0, w, h)
+                    keep[#keep + 1] = { copy = copy, x = x0, y = y0, w = w, h = h }
+                end
+            end
+        end
+    end
+    bb:lightenRect(0, 0, bb:getWidth(), bb:getHeight(), Editor.FADE)
+    for _i, k in ipairs(keep) do
+        bb:blitFrom(k.copy, k.x, k.y, 0, 0, k.w, k.h)
+        k.copy:free()
+    end
+end
+
 function Editor:paintTo(bb, x, y)
     if Screen:getWidth() ~= self._built_w or Screen:getHeight() ~= self._built_h then
         -- The screen changed under us (rotation, window resize): keep what was
@@ -328,6 +366,7 @@ function Editor:paintTo(bb, x, y)
         UIManager:nextTick(function() self:onDone() end)
         return
     end
+    pcall(self._fadeAround, self, bb)
     local fr = self:_footerRect()
     local footer = self[1]
     local fh = footer:getSize().h

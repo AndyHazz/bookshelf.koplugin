@@ -1091,6 +1091,17 @@ function Editor:editTab(tab_id, opts)
             -- when earlier ones tie) -- or, for an OPDS source, the single
             -- disabled "Server order" row computed above.
             sort_row,
+            -- Shelf cards (SPIKE): a card among this shelf's covers. The
+            -- shelf on screen only (the cards are placed on its slots), and
+            -- never a card's own shelf. Empty rows are filtered out below.
+            (opts.bw and opts.bw.chip == tab_id and not draft.card_only
+                and opts.bw._editShelfCards) and {{
+                text = _("Add a card to this shelf\xE2\x80\xA6"),
+                callback = function()
+                    finish()
+                    opts.bw:_editShelfCards(nil, { add = true })
+                end,
+            }} or {},
             -- Row 2: actions [delete] [Close] [add]. One Close, not Cancel
             -- and Save: every change has already been applied and saved, so
             -- there is nothing left to keep or throw away (maintainer, 2026-10-08).

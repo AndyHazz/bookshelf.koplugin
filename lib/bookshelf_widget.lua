@@ -2017,7 +2017,7 @@ function BookshelfWidget:_rebuild()
         all_items, _total_hint = self:_spineCachedFetch(MAX_FETCH)
         self._draft_items_cache = { all_items = all_items, total_hint = _total_hint }
     else
-        all_items, _total_hint = self:_fetchChipItems(MAX_FETCH)
+        all_items, _total_hint = self:_fetchWithShelfCards(MAX_FETCH)
         all_items = all_items or {}
         self._draft_items_cache = { all_items = all_items, total_hint = _total_hint }
     end
@@ -6460,13 +6460,202 @@ function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD, n_rows)
         row_opts[name] = shared[name]
     end
     local rows = {}
+    local SC = require("lib/bookshelf_shelf_cards")
     for r = 1, n_rows do
-        local row_items = {}
-        for i = 1, n_cols do row_items[i] = items[(r - 1) * n_cols + i] end
+        local row_items, heads = {}, {}
+        for i = 1, n_cols do
+            local it = items[(r - 1) * n_cols + i]
+            -- Shelf cards (SPIKE): a card's slots are empty slots under it.
+            if SC.isPlaceholder(it) then
+                if it.shelf_card and it.part == 1 then heads[#heads + 1] = { col = i, ph = it } end
+                it = nil
+            end
+            row_items[i] = it
+        end
         row_opts.items = row_items
-        rows[r] = ShelfRow.new(row_opts)
+        local row = ShelfRow.new(row_opts)
+        if #heads > 0 then row = self:_cardRow(row, heads) end
+        rows[r] = row
     end
     return rows
+end
+
+-- _activeShelfCards() -> this shelf's cards (SPIKE) where they stand now
+-- (the editor's working copy mid-edit), or nil: cover shelves only, at the
+-- top level.
+function BookshelfWidget:_activeShelfCards()
+    if self:_isListMode() or self:_isSpineMode() then return nil end
+    if self._drilldown_path and #self._drilldown_path > 0 then return nil end
+    local tab = require("lib/bookshelf_tab_model").getById(self.chip)
+    local cards = require("lib/bookshelf_shelf_cards").cardsFor(tab)
+    local edit = self._shelf_card_edit
+    if edit and edit.items then
+        -- Mid-edit: the session's boxes are where the cards stand now.
+        local at = {}
+        for _i, b in ipairs(edit.boxes or {}) do at[b.id] = b end
+        cards = {}
+        for _i, it in ipairs(edit.items) do
+            local b = at[it.id]
+            if b then
+                local c = {}
+                for k, v in pairs(it) do c[k] = v end
+                c.at = { page = b.page, col = b.col, row = b.row, w = b.w }
+                cards[#cards + 1] = c
+            end
+        end
+    end
+    if not cards or #cards == 0 then return nil end
+    return cards
+end
+
+-- _fetchWithShelfCards(n) -> _fetchChipItems' answer with the shelf's cards
+-- (SPIKE) in their slots. A whole-list source gets placeholders inserted
+-- (ShelfCards.inject). A windowed one (a page and a total) is asked for the
+-- books from the page's first BOOK -- the cards before it pushed the books
+-- along -- and the page is laid out slot by slot; its total counts the cards.
+-- The cursor and every page sum stay in slots, so nothing else changes.
+function BookshelfWidget:_fetchWithShelfCards(n)
+    local cards = self:_activeShelfCards()
+    if not cards then return self:_fetchChipItems(n) end
+    local SC = require("lib/bookshelf_shelf_cards")
+    local view, n_cols = self:_viewSize(), self:_nCols()
+    local taken, order = SC.slots(cards, n_cols, view)
+    local first = self._cursor or 1
+    local saved = self._cursor
+    self._cursor = math.max(1, first - SC.slotsBefore(order, first))
+    local ok, items, hint = pcall(self._fetchChipItems, self, n)
+    self._cursor = saved
+    if not ok then error(items, 0) end
+    if not hint then return SC.inject(items or {}, cards, n_cols, view), nil end
+    return SC.page(items or {}, taken, first, view), SC.total(hint, order)
+end
+
+-- _shelfCardGridInfo() -> the cover shelf's slots as a module grid (SPIKE):
+-- columns of slot_w + gap, rows at the shelf's row pitch, on this page. The
+-- grid has one gap, so a cell is row_pitch - gap tall: its top is exact.
+function BookshelfWidget:_shelfCardGridInfo()
+    local d = self._shelf_dims
+    if not (d and d.content_w and d.row_pitch and d.shelf_top_idx and self._inner_vgroup) then return nil end
+    if self:_isListMode() or self:_isSpineMode() then return nil end
+    local row1 = self._inner_vgroup[d.shelf_top_idx]
+    local sw, gap = row1 and row1.slot_w, row1 and row1.slot_gap
+    if not (sw and gap) then return nil end
+    local cols, rows = self:_nCols(), d.n_shelves or self:_nShelves()
+    local dims = { cols = cols, rows = rows, cell_w = sw, cell_h = math.max(1, d.row_pitch - gap), gap = gap }
+    local x0 = math.floor((Screen:getWidth() - d.content_w) / 2)
+    local y0 = d.wipe_rows_top or 0
+    local Geom_ = require("ui/geometry")
+    local container = { dimen = Geom_:new{ x = x0, y = y0,
+        w = cols * sw + (cols - 1) * gap, h = rows * d.row_pitch } }
+    local tab = require("lib/bookshelf_tab_model").getById(self.chip)
+    local boxes = {}
+    for _i, c in ipairs(require("lib/bookshelf_shelf_cards").cardsFor(tab) or {}) do
+        local at = c.at or {}
+        boxes[#boxes + 1] = { id = c.id, page = at.page or 1, col = at.col or 1, row = at.row or 1,
+                              w = at.w or 1, h = 1 }
+    end
+    return { dims = dims, boxes = boxes, page = self.page or 1, key = "at",
+             container = container, ox = 0, oy = 0, surface = "shelf" }
+end
+
+-- _shelfCardHost() -> the layout editor's host for this shelf's cards (SPIKE).
+function BookshelfWidget:_shelfCardHost()
+    local bw = self
+    local TabModel = require("lib/bookshelf_tab_model")
+    local chip = self.chip
+    local host = {}
+    local model = {}
+    function model.load()
+        local tab = TabModel.getById(chip)
+        local out = {}
+        for i, c in ipairs((tab and tab.shelf_cards) or {}) do
+            local e = {}
+            for k, v in pairs(c) do e[k] = v end
+            out[i] = e
+        end
+        return out
+    end
+    function model.save(items)
+        local tabs = TabModel.load()
+        for _i, t in ipairs(tabs) do
+            if t.id == chip then t.shelf_cards = items end
+        end
+        TabModel.save(tabs)
+    end
+    function host.model() return model end
+    function host.gridInfo() return bw:_shelfCardGridInfo() end
+    function host.render(_self, edit)
+        bw._shelf_card_edit = edit
+        bw:_rebuild()
+        UIManager:setDirty(bw, "ui")
+    end
+    function host.footerRect()
+        if not bw.footerPanelRect then return nil end
+        local ok, x, y, w, h = pcall(function() return bw:footerPanelRect() end)
+        if ok and x then return require("ui/geometry"):new{ x = x, y = y, w = w, h = h } end
+    end
+    -- New cards number their own ids on this shelf.
+    function host.add_picker(on_added)
+        local Edit = require("lib/bookshelf_hero_modules_edit")
+        Edit.showAdd(bw, nil, function(entry)
+            local used = {}
+            for _i, c in ipairs(model.load()) do used[c.id] = true end
+            local n = 1
+            while used["card_" .. n] do n = n + 1 end
+            entry.id = "card_" .. n
+            entry.at = nil
+            return on_added(entry)
+        end)
+    end
+    return host
+end
+
+-- _editShelfCards(select_id, opts) -> the layout editor over this shelf's
+-- cards (SPIKE). opts.add: open the add picker straight away.
+function BookshelfWidget:_editShelfCards(select_id, opts)
+    local Editor = require("lib/bookshelf_module_grid_editor")
+    local ed = Editor.open{ bw = self, host = self:_shelfCardHost(), select_id = select_id }
+    if ed and opts and opts.add then ed.session:add() end
+    if not ed then
+        local Notification = require("ui/widget/notification")
+        UIManager:show(Notification:new{ text = _("Cards stand on cover shelves only") })
+    end
+    return ed
+end
+
+-- _cardRow(row, heads) -> the row with its shelf cards (SPIKE) drawn over the
+-- slots they take: each card is a module cell the width of its slots.
+function BookshelfWidget:_cardRow(row, heads)
+    local OverlapGroup = require("ui/widget/overlapgroup")
+    local HeroModules = require("lib/bookshelf_hero_modules")
+    local sw, sh, gap = row.slot_w, row.slot_h, row.slot_gap
+    if not (sw and sh and gap) then return row end
+    local size = row:getSize()
+    local group = OverlapGroup:new{ dimen = Geom:new{ w = size.w, h = size.h },
+        allow_mirroring = false, row }
+    -- The row's size, whatever the cards report: they never push it.
+    function group:getSize() return self.dimen end
+    HeroModules._applyPalette(self)
+    local edit = self._shelf_card_edit
+    for _i, h in ipairs(heads) do
+        local card, span = h.ph.shelf_card, h.ph.span
+        local w = span * sw + (span - 1) * gap
+        local ok, cell = pcall(HeroModules._makeCell, self, card, w, sh, 100, false, false)
+        if ok and cell then
+            local bw = self
+            function cell:onHold() bw:_editShelfCards(card.id); return true end
+            if edit and edit.selected_id == card.id then
+                local FrameContainer = require("ui/widget/container/framecontainer")
+                cell = FrameContainer:new{ bordersize = Screen:scaleBySize(4), padding = 0, margin = 0,
+                    radius = Space.px(4), cell }
+            end
+            cell.overlap_offset = { (h.col - 1) * (sw + gap), 0 }
+            group[#group + 1] = cell
+        end
+    end
+    group.cover_w, group.cover_h = row.cover_w, row.cover_h
+    group.slot_w, group.slot_h, group.slot_gap = sw, sh, gap
+    return group
 end
 
 -- _buildSpineRows — the "spines" style row builder. Same contract as the
@@ -8627,7 +8816,7 @@ function BookshelfWidget:_swapShelvesInPlace()
     if self:_isSpineMode() then
         all_items, _total_hint = self:_spineCachedFetch(MAX_FETCH)
     else
-        all_items, _total_hint = self:_fetchChipItems(MAX_FETCH)
+        all_items, _total_hint = self:_fetchWithShelfCards(MAX_FETCH)
     end
     all_items = all_items or {}
     local _perf_t1 = _gettime()

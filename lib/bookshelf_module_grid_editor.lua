@@ -87,7 +87,8 @@ function Editor:init()
         boxes = info.boxes, dims = info.dims, key = info.key,
         page = info.page, selected_id = self.select_id,
         notify = function(text) UIManager:show(Notification:new{ text = text }) end,
-        add_picker = function(on_added)
+        -- A host may bring its own (the shelf's cards number their own ids).
+        add_picker = host.add_picker or function(on_added)
             local ok, Edit = pcall(require, "lib/bookshelf_hero_modules_edit")
             if ok and Edit then Edit.showAdd(bw, nil, on_added) end
         end,

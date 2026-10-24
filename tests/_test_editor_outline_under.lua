@@ -1,21 +1,23 @@
 -- tests/_test_editor_outline_under.lua
--- The layout editor's selection outline is painted under the modules: it lies
--- just outside the selected card, and what hangs out of a card (the Shelf
--- module's heading, hooked over its plank) stays in front of it. Painted
--- over them, the outline ran through that heading (maintainer, PW5).
+-- What hangs out of a selected card (the Shelf module's heading, hooked over
+-- its plank) stays in front of the layout editor's selection outline: the
+-- outline ran through it (maintainer, PW5). Painted under the cards instead,
+-- a bare module's ground covered the outline on a dark theme.
 --
 -- Usage (from plugin root): lua tests/_test_editor_outline_under.lua
 package.path = "./?.lua;./?/init.lua;" .. package.path
 local t = dofile("tests/_helpers.lua").runner()
 local src = assert(io.open("lib/bookshelf_hero_modules.lua")):read("*a")
 
-t.test("the outline is in the layer under the cells, the dimming over them", function()
-    local under = src:match("\n    function container%.under%(bb, x0, y0%)\n(.-)\n    end\n    function container%.over")
-    local over = src:match("\n    function container%.over%(bb, x0, y0%)\n(.-)\n    end\n")
-    assert(under and over, "layers moved")
-    assert(under:find("bb:paintBorder(", 1, true), "the outline is not under the cells")
-    assert(not over:find("paintBorder", 1, true), "the outline is still over the cells")
-    assert(over:find("HeroModules._fade(", 1, true), "the other modules are no longer dimmed")
+t.test("the outline goes over the cards, and the heading over the outline", function()
+    -- Under the cards, a bare module's own ground covered it on a dark theme.
+    local over = src:match("\n    function container%.over%(bb, x0, y0%)\n(.-)\n    end\nend\n")
+    assert(over, "over moved")
+    local ring = over:find("bb:paintBorder(", 1, true)
+    local again = over:find("repaintScreenBadges(bb,", 1, true)
+    assert(ring and again and ring < again, "the heading is not painted again after the outline")
+    local ss = assert(io.open("lib/bookshelf_spine_shelf.lua")):read("*a")
+    assert(ss:find("widget:paintDeferred(bb)", 1, true), "repaint does not redraw where it was")
 end)
 
 t.test("a heading hanging past the grid is kept clear of the fade", function()
@@ -23,7 +25,7 @@ t.test("a heading hanging past the grid is kept clear of the fade", function()
     local fa = ed:match("\nfunction Editor:_fadeAround%(bb%)\n(.-)\nend\n")
     assert(fa and fa:find("SpineShelf.screenBadgeRects(x0, y0, w, h)", 1, true), "the label's lower half fades")
     local ss = assert(io.open("lib/bookshelf_spine_shelf.lua")):read("*a")
-    assert(ss:find("SpineShelf._screen_badges[s] = true", 1, true), "badges are not recorded where drawn")
+    assert(ss:find("SpineShelf._screen_badges[s] = self", 1, true), "badges are not recorded where drawn")
     -- Behaviour: only rects touching the asked one.
     local body = ss:match("\n(function SpineShelf%.screenBadgeRects%(x, y, w, h%).-\nend)\n")
     local S = { _screen_badges = {} }

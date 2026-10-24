@@ -2609,10 +2609,25 @@ end
 -- run that wraps keeps its name in view on every shelf it crosses.
 local ShelfBadges = Widget:extend{}
 
--- Every badge last drawn on screen (its span, keyed weakly; _rect is where):
--- the layout editor keeps one clear when it hangs past a module it fades
--- around (Editor._fadeAround).
+-- Every badge last drawn on screen: span -> its ShelfBadges (keyed weakly;
+-- the span's _rect is where). The layout editor keeps one clear of its fade
+-- when it hangs past a module (Editor._fadeAround), and paints it again over
+-- the selected module's outline (repaintScreenBadges).
 SpineShelf._screen_badges = setmetatable({}, { __mode = "k" })
+
+-- repaintScreenBadges(bb, x, y, w, h): draw again, where they were, the
+-- badges on screen touching that rect.
+function SpineShelf.repaintScreenBadges(bb, x, y, w, h)
+    local done = {}
+    for span, widget in pairs(SpineShelf._screen_badges) do
+        local r = span._rect
+        if type(widget) == "table" and not done[widget] and r
+                and r.x < x + w and r.x + r.w > x and r.y < y + h and r.y + r.h > y then
+            done[widget] = true
+            widget:paintDeferred(bb)
+        end
+    end
+end
 
 -- screenBadgeRects(x, y, w, h) -> the on-screen badge rects touching that rect.
 function SpineShelf.screenBadgeRects(x, y, w, h)
@@ -2716,7 +2731,7 @@ function ShelfBadges:drawAt(bb, x, y)
                     -- only the screen's own buffer, never a wipe's scratch.
                     if rawequal(bb, Screen.bb) then
                         s._rect = { x = bx, y = by, w = bw, h = badge_h }
-                        SpineShelf._screen_badges[s] = true
+                        SpineShelf._screen_badges[s] = self
                     end
                     tw:paintTo(bb, bx + math.floor((bw - sz.w) / 2),
                                by + pad_y)

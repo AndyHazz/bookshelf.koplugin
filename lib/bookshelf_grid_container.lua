@@ -8,9 +8,8 @@ says. Indexing is plain array slots, so HeroModules._swapCell can replace a
 cell in place (self[i] = new) and it keeps its slot's offset.
 
 Optional hooks (used by the layout editor):
-  under(bb, x, y)  painted before the cells (dashed outlines of empty cells,
-                   the selection outline)
-  over(bb, x, y)   painted after them (dimming the unselected)
+  under(bb, x, y)  painted before the cells (dashed outlines of empty cells)
+  over(bb, x, y)   painted after them (dimming, the selection outline)
   hold()           a long-press on the grid that no cell took (an empty
                    cell, a gap): the top panel and full screen open the
                    layout editor with it

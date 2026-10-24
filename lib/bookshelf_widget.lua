@@ -895,7 +895,7 @@ function BookshelfWidget:_restoreDrillPath(saved)
         elseif e.kind == "author" or e.kind == "series"
                 or e.kind == "genre" or e.kind == "format"
                 or e.kind == "rating" or e.kind == "language" then
-            local g = Repo.findGroup(e.kind, e.label)
+            local g = Repo.findGroup(e.kind, e.label, true)
             if g and e.kind == "series" and type(e.series_box_files) == "table" then
                 g = require("lib/bookshelf_series_boxes").restore(g, e.series_box_files, e.label, Repo.lightMetaFor)
             end

@@ -5228,6 +5228,30 @@ function Repo.getTags(limit, offset, sort_priority_override, filter, opts)
     -- Compile once before the loop (not per book) when filter is active,
     -- so every per-book test is an O(1) lookup on the compiled result.
     local compiled = active and Filter.compile(filter, Repo.filterOpts()) or nil
+    -- "Show each book in one group only": a book in several collections goes
+    -- in the one highest in KOReader's collection list (the order you can
+    -- arrange there), names breaking a tie.
+    local owner
+    if Repo.oneGroupPerBook() then
+        owner = {}
+        local cs = rc.coll_settings or {}
+        local function before(a, b)
+            local oa = (cs[a] or {}).order or math.huge
+            local ob = (cs[b] or {}).order or math.huge
+            if oa ~= ob then return oa < ob end
+            return a < b
+        end
+        for coll_name, files in pairs(rc.coll) do
+            if coll_name ~= "favorites" then
+                for _file, item in pairs(files) do
+                    local fp = item.file or _file
+                    if not owner[fp] or before(coll_name, owner[fp]) then
+                        owner[fp] = coll_name
+                    end
+                end
+            end
+        end
+    end
     local groups = {}
     for coll_name, files in pairs(rc.coll) do
         if coll_name ~= "favorites" then
@@ -5235,8 +5259,9 @@ function Repo.getTags(limit, offset, sort_priority_override, filter, opts)
             local latest = 0
             for _file, item in pairs(files) do
                 local fp = item.file or _file
+                if owner and owner[fp] ~= coll_name then fp = nil end
                 light_cache = light_cache or _getLightMetaCache(home, depth)
-                local book = _lightMetaForFp(light_cache, fp)
+                local book = fp and _lightMetaForFp(light_cache, fp)
                 if book then
                     -- When filter is active, only include books that pass
                     -- the full filter (status + genre + langs + formats +
@@ -6259,8 +6284,13 @@ local function _buildGroups(group_kind, key_fn, multi, records)
             local keys = key_fn(book)
             if keys then
                 if not multi then keys = { keys } end
+                -- The book's first value: "Show each book in one group only"
+                -- keeps it in that group alone (Repo._oneGroupShapes).
+                local first_seen = false
                 for _i, raw_k in ipairs(keys) do
                     if raw_k and raw_k ~= "" then
+                        local is_first = not first_seen
+                        first_seen = true
                         -- For language, resolve the canonical key + friendly
                         -- label once (carried into the display block below).
                         local lang_label
@@ -6332,6 +6362,10 @@ local function _buildGroups(group_kind, key_fn, multi, records)
                             -- Authors keep their format-driven display.
                             g.series_name = raw_k
                         end
+                        if is_first then
+                            g._first = g._first or {}
+                            g._first[book.filepath] = true
+                        end
                         if not g._seen[book.filepath] then
                             g._seen[book.filepath] = true
                             -- Enrich the within-group book record with the
@@ -6398,6 +6432,10 @@ local function _buildGroups(group_kind, key_fn, multi, records)
     local within_cmp = SortEngine.chainedComparator(default_within)
     for _i, g in ipairs(list) do
         g._seen = nil
+        for _j, b in ipairs(g.books) do
+            b.first_group = (g._first and g._first[b.filepath]) or nil
+        end
+        g._first = nil
         table.sort(g.books, within_cmp)
     end
     logger.dbg(string.format("[bookshelf perf] _buildGroups(%s): %.0fms cands=%d groups=%d",
@@ -6430,6 +6468,7 @@ local function _cacheGroupShapes(list, kind)
                 _last_read   = b._last_read,
                 date_added   = b.date_added,
                 size         = b.size,
+                first_group  = b.first_group,
             }
         end
         shapes[#shapes + 1] = {
@@ -6451,6 +6490,42 @@ local function _cacheGroupShapes(list, kind)
         }
     end
     return shapes
+end
+
+-- Library & search > "Show each book in one group only": a book with several
+-- authors or genres sits in its first one alone. Applied to what the shelf
+-- SHOWS, not to the cache: search, filter pickers and "more by this author"
+-- still find a book under every value it has. The derived list is kept on
+-- the cache entry, so it is built once per cache.
+function Repo.oneGroupPerBook()
+    return BookshelfSettings.read("group_first_only") == true
+end
+
+function Repo._oneGroupShapes(cached)
+    if not Repo.oneGroupPerBook() then return cached.groups end
+    if cached.one_group then return cached.one_group end
+    local out = {}
+    for _i, s in ipairs(cached.groups) do
+        local fps, meta = {}, {}
+        local latest, added = 0, 0
+        for _j, m in ipairs(s.books_meta or {}) do
+            if m.first_group then
+                fps[#fps + 1] = m.filepath
+                meta[#meta + 1] = m
+                if (m._last_read or 0) > latest then latest = m._last_read end
+                if (m.date_added or 0) > added then added = m.date_added end
+            end
+        end
+        if #fps > 0 then
+            local c = {}
+            for k, v in pairs(s) do c[k] = v end
+            c.filepaths, c.books_meta = fps, meta
+            c.latest, c.latest_added = latest, added
+            out[#out + 1] = c
+        end
+    end
+    cached.one_group = out
+    return out
 end
 
 function Repo.getAuthors(limit, offset, sort_priority_override, filter, opts)
@@ -6488,7 +6563,7 @@ function Repo.getAuthors(limit, offset, sort_priority_override, filter, opts)
     local sk = sort_priority_override or Repo.getSortPriority("authors")
     local within = _withinPriority(sk)
     local sorted = {}
-    for _i, s in ipairs(cached.groups) do
+    for _i, s in ipairs(Repo._oneGroupShapes(cached)) do
         if _shapeHasFilteredBook(s, filter) then sorted[#sorted + 1] = s end
     end
     table.sort(sorted, _groupShapeCmp(sk))
@@ -6768,7 +6843,7 @@ function Repo.getGenres(limit, offset, sort_priority_override, filter, opts)
     -- genre with one poorly-tagged book can be hidden too.
     local hide_single = BookshelfSettings.isTrue("hide_single_book_stacks")
     local sorted = {}
-    for _i, s in ipairs(cached.groups) do
+    for _i, s in ipairs(Repo._oneGroupShapes(cached)) do
         if _shapeVisible(s, filter, hide_single) then sorted[#sorted + 1] = s end
     end
     table.sort(sorted, _groupShapeCmp(sk))
@@ -7498,7 +7573,10 @@ end
 -- warms it via the matching getter so the lookup actually finds the full
 -- group instead of falling back to a single-book stub. Returns nil when:
 -- kind is unrecognised, or no group matches the name even after warming.
-function Repo.findGroup(kind, name)
+-- shelf: the group as the shelf shows it (Repo._oneGroupShapes), for a
+-- drill-down restored after a sleep. Without it, every book with that value,
+-- as search and "more by this author" want.
+function Repo.findGroup(kind, name, shelf)
     if not name or name == "" then return nil end
     local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
@@ -7522,7 +7600,7 @@ function Repo.findGroup(kind, name)
         if not cache then return nil end
     end
     local lname = name:lower()
-    for _i, shape in ipairs(cache.groups) do
+    for _i, shape in ipairs(shelf and Repo._oneGroupShapes(cache) or cache.groups) do
         if (shape.series_name or ""):lower() == lname then
             return _hydrateGroupShape(shape)
         end
@@ -7731,6 +7809,7 @@ local function _bySourceCacheKey(source, filter, sort_priority)
     -- How the keys themselves are derived (pinyin, leading articles): not a
     -- sort level, but it changes the order all the same.
     parts[#parts + 1] = "k:" .. SortEngine.keySignature()
+    if Repo.oneGroupPerBook() then parts[#parts + 1] = "g1" end
     return table.concat(parts, "|")
 end
 

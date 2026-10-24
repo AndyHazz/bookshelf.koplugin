@@ -4705,6 +4705,30 @@ function Settings:_librarySubItems()
             end,
         },
         {
+            -- Grouped shelves file a book with several authors, genres or
+            -- collections under each; this files it under one
+            -- (Repo.oneGroupPerBook).
+            text = _("Show each book in one group only"),
+            help_text = _("On Authors, Genres and Collections shelves, a book"
+                .. " with several authors, genres or collections appears under"
+                .. " its first one only: the first listed in the book, or the"
+                .. " collection highest in KOReader's collection list. Search"
+                .. " and filters still find it under all of them."),
+            checked_func = function()
+                return BookshelfSettings.read("group_first_only") == true
+            end,
+            keep_menu_open = true,
+            callback = function()
+                local on = BookshelfSettings.read("group_first_only") == true
+                BookshelfSettings.save("group_first_only", not on)
+                BookshelfSettings.flush()
+                if self._bw and self._bw._rebuild then
+                    self._bw:_rebuild()
+                    UIManager:setDirty(self._bw, "ui")
+                end
+            end,
+        },
+        {
             -- Issue 428. On by default: calibre's title_sort, or a leading
             -- The / A / An dropped, for titles and series names alike. Off
             -- sorts both exactly as written.

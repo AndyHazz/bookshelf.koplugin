@@ -362,7 +362,7 @@ function TabModel.newTab(tabs, label)
     }
 end
 
--- ── Card shelves (5.6) ──────────────────────────────────────────────────────
+-- ── Card shelves (6.0) ──────────────────────────────────────────────────────
 -- A shelf made for one Shelf card (micromodules/shelf.lua): an ordinary
 -- record with card_only = true, edited in the normal shelf editor, shown by
 -- its card and nowhere on the main screen. getActive (the chip bar, swiping,
@@ -410,7 +410,7 @@ function TabModel.insertChild(tabs, parent_id, new_tab)
     else tabs[#tabs + 1] = new_tab end
 end
 
--- ── Copy and move (5.6) ─────────────────────────────────────────────────────
+-- ── Copy and move (6.0) ─────────────────────────────────────────────────────
 -- What readers were doing by hand in the settings file: copying a fully set
 -- up shelf to change one thing, and moving shelves into a shelf of shelves.
 -- Every per-shelf setting lives on the record, so a deep copy carries it all.

@@ -2033,7 +2033,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                 end),
             }}
             -- A card's own shelf stands on a plank of its own (maintainer,
-            -- 5.6: card shelves only). Unset follows the main shelf's.
+            -- 6.0: card shelves only). Unset follows the main shelf's.
             if draft.card_only then
                 rows[#rows + 1] = {{
                     text_func = function()

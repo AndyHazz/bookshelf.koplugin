@@ -21,7 +21,7 @@
 --                  not counted) for as long as the file stays the same size.
 local M = {}
 
--- { [filepath] = size in bytes }. A new key in 5.6 (was "page_count_skip"),
+-- { [filepath] = size in bytes }. A new key in 6.0 (was "page_count_skip"),
 -- so the books skipped under the old, larger share below are tried once more
 -- under the new one; a book that still takes the device down is skipped again
 -- on the next run.

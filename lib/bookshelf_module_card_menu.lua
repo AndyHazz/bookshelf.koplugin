@@ -62,7 +62,8 @@ function M.show(ctx)
         local Perf = require("lib/bookshelf_perf")
         Perf.start("module colours")
         local t = Perf.now()
-        ctx.save()
+        -- Kept in memory while the menu is up, written once as it closes.
+        if ctx.saveDeferred then ctx.saveDeferred() else ctx.save() end
         Perf.part("save", t)
         t = Perf.now()
         relabel()
@@ -124,6 +125,13 @@ function M.show(ctx)
         title_align = "center",
         buttons = buttons,
     }
+    -- The changes made in memory (ctx.saveDeferred) go to the file once, as
+    -- the menu closes, however it closes.
+    local closed = d.onCloseWidget
+    function d:onCloseWidget(...)
+        pcall(function() require("lib/bookshelf_settings_store").flush() end)
+        if closed then return closed(self, ...) end
+    end
     UIManager:show(d)
     return d
 end

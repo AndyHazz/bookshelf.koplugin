@@ -246,7 +246,10 @@ function HeroModules._ctx(bw, refresh, entry)
     -- Persist a per-instance change a module made to ctx.entry, then reload
     -- this cell (or rebuild the hero). No-op when the module has no entry or
     -- the entry vanished from the list.
-    function ctx.save()
+    -- deferred: in memory only, for a run of changes whose caller flushes
+    -- once at the end (the colour menu, as it closes): each write is the
+    -- whole settings file, a third of a second a tap on a PW5.
+    local function persist(deferred)
         if not entry then return end
         if host then host.save(entry); reload(); return end
         -- Save to the surface that owns this cell: the full-screen overlay edits
@@ -257,9 +260,11 @@ function HeroModules._ctx(bw, refresh, entry)
         local items = Model.load()
         local list, i = Model.findById(items, entry.id)
         if list and i then list[i] = entry end
-        Model.save(items)
+        if deferred then Model.saveDeferred(items) else Model.save(items) end
         reload()
     end
+    function ctx.save() persist(false) end
+    function ctx.saveDeferred() persist(true) end
     ctx.config = require("lib/bookshelf_module_kit").entryConfig(entry, ctx.save)
     return ctx
 end

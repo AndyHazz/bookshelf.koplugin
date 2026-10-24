@@ -114,4 +114,21 @@ t.test("Reset clears this look only", function()
     assert(ctx.entry.colors.bg_night.grey == 2, "the dark look was cleared too")
 end)
 
+t.test("changes stay in memory while the menu is up, and are written once as it closes", function()
+    -- Each write is the whole settings file (~300 ms a tap on a PW5).
+    suffix = ""
+    local flushed = 0
+    package.loaded["lib/bookshelf_settings_store"] = { flush = function() flushed = flushed + 1 end }
+    local ctx = ctxFor({ id = "q", module = "quote" })
+    local deferred = 0
+    function ctx.saveDeferred() deferred = deferred + 1 end
+    Menu.show(ctx)
+    shown:getButtonById("border").callback()
+    shown:getButtonById("border").callback()
+    assert(deferred == 2 and ctx.saves == 0, "wrote the file on a tap")
+    assert(flushed == 0)
+    shown:onCloseWidget()
+    assert(flushed == 1, "not written as the menu closed")
+end)
+
 t.done()

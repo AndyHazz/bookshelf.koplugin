@@ -105,6 +105,11 @@ function M.save(items)
     BookshelfSettings.save(STORAGE_KEY, items)
 end
 
+-- In memory only; the caller flushes (HeroModules._ctx's saveDeferred).
+function M.saveDeferred(items)
+    BookshelfSettings.saveDeferred(STORAGE_KEY, items)
+end
+
 -- Pure list helpers reused from the start-menu model (list-arg, no state).
 M.findById    = SMModel.findById
 M.moveBy      = SMModel.moveBy

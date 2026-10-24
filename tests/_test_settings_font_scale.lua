@@ -652,15 +652,17 @@ end)
 -- Reset was a third page of its own, so the page arrows jumped. Reset is the
 -- first row now, set apart; 20 rows, two pages of ten. Transparent shelf menu
 -- was a row (beside Panel shading, then in Colors, a third page again); it
--- is now a choice in Shelf menu background's picker (2026-10-09).
-t.test("Colors: Reset first and set apart, twenty rows, the shelf menu rows together", function()
+-- is now a choice in Shelf menu background's picker (2026-10-09). Panel color
+-- and Panel text made it 22, a third page, which the maintainer allowed
+-- (2026-10-24), with the same two rows beside the shading too.
+t.test("Colors: Reset first and set apart, twenty-two rows, the shelf menu rows together", function()
     resetStore()
     Settings._bw, Settings._plugin = makeBwWithChipBar(), makePlugin()
     local items = Settings:_colorsSubItems()
     local function label(it) return it.text or (it.text_func and it.text_func()) or "" end
     assert(label(items[1]):find("Reset to default colors", 1, true), "Reset is not the first row")
     eq(items[1].separator, true, "Reset is not set apart")
-    eq(#items, 20, "Colors no longer fits two pages of ten")
+    eq(#items, 22, "Colors has gained or lost a row")
     for _i, it in ipairs(items) do
         assert(not label(it):find("Transparent shelf menu", 1, true), "Transparent is a row again")
     end

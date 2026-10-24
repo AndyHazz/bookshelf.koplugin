@@ -922,6 +922,22 @@ function M.ink()
     return ok and colors and colors.ink or nil
 end
 
+-- panelInk() -> the text colour for what is drawn on the top and footer
+-- panels, or nil when neither Panel color nor Panel text is set (each caller
+-- then keeps its own, as before). Panel text wins; else black or white,
+-- whichever reads on the panel colour (bookshelf_module_card.autoInk),
+-- judged on the colour itself: at low Panel shading the picture behind
+-- shows through more, and Panel text is there for that.
+function M.panelInk()
+    local sfx = _modeSuffix()
+    local picked = _partRead("panel_ink" .. sfx)
+    if type(picked) ~= "nil" then return M.resolvePicked(picked) end
+    if type(_partRead("panel_color" .. sfx)) == "nil" then return nil end
+    local ok, colors = pcall(M.resolvedColors)
+    if not (ok and colors and type(colors.panel_tint) ~= "nil") then return nil end
+    return (require("lib/bookshelf_module_card").autoInk(colors.panel_tint))
+end
+
 function M.resolvedColors()
     local gen      = BookshelfSettings.generation()
     local is_color = Screen:isColorEnabled()
@@ -969,6 +985,13 @@ function M.resolvedColors()
     -- an earlier build is inert rather than surprising.
     local panel_bg_raw     = is_night and NIGHT_DEFAULT_PANEL_BG
                                       or  DEFAULT_PANEL_BG
+    -- Colors > Panel color: the top and footer panels' tint, and only that.
+    -- Its own key, not panel_bg (an earlier build's leftovers stay inert),
+    -- and its own field, because panel_bg is also the theme's PAPER (list
+    -- rows, label plates, the add tile), which a panel colour must not
+    -- repaint. Its text follows with it (M.panelInk), which is what the old
+    -- picker lacked.
+    local panel_tint_raw   = _readModeColor("panel_color", DEFAULT_PANEL_BG, NIGHT_DEFAULT_PANEL_BG)
     -- NOT keyed to a setting: the page's own colour is picked through the
     -- wallpaper background row, which stores in paint space and is read by
     -- BookshelfWidget:_pageGroundColor. This is only the themed DEFAULT for
@@ -1012,6 +1035,7 @@ function M.resolvedColors()
         chrome_bg         = _paint(chrome_bg_raw),
         module_bg         = _paint(module_bg_raw),
         panel_bg          = _paint(panel_bg_raw),
+        panel_tint        = _paint(panel_tint_raw),
         page_bg           = _paint(is_night and NIGHT_DEFAULT_PAGE_BG
                                             or DEFAULT_PAGE_BG),
         ink               = _paint(ink_raw),
@@ -1134,6 +1158,9 @@ function M.rawColors()
         folder_bg         = _readOwnColor("folder_overlay_bg", nil),
         folder_fg         = _readOwnColor("folder_overlay_fg", nil),
         module_border     = _readOwnColor("module_border", nil),
+        -- Panel color / Panel text: unset means the theme's own (and Auto).
+        panel_color       = _readOwnColor("panel_color", nil),
+        panel_ink         = _readOwnColor("panel_ink", nil),
         -- Selected chip (#294). Unset = the chip bar inverts as before, so no
         -- default here: nil is meaningful ("use the fast invert path").
         -- bookshelf_chip_bar reads the same keys directly when it paints; these

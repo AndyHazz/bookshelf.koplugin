@@ -39,6 +39,8 @@ local function run(custom_fill, custom_ink, flips)
         end,
         _selectedChipColors = function() return custom_fill, custom_ink end,
         _chipThemeFlips     = function() return flips end,
+        -- The shelf menu has its bar here (no panel colour reaches it).
+        _panelChipInk       = function() return nil end,
         _chipInk            = function() return "THEME_INK" end,
     }
     local fn = assert(load("return function()\n" .. body .. "\nend",

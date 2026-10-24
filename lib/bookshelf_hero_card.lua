@@ -44,7 +44,10 @@ local function _ink()
     if m and m.gen == gen and m.night == night then return m.v end
     local v
     local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
-    if ok and CP and CP.ink then v = CP.ink() end
+    -- Colors > Panel text (or a panel colour's own) before the shelf's ink:
+    -- this is text on the top panel.
+    if ok and CP and CP.panelInk then v = CP.panelInk() end
+    if type(v) == "nil" and ok and CP and CP.ink then v = CP.ink() end
     _ink_memo = { gen = gen, night = night, v = v }
     return v
 end
@@ -406,7 +409,7 @@ function HeroCard.buildJobRow(region, width)
     local ok_cp, CP = pcall(require, "lib/bookshelf_cover_progress")
     if ok_cp and CP and CP.resolvedColors then
         local ok_c, colors = pcall(CP.resolvedColors)
-        if ok_c and colors and colors.panel_bg then paper = colors.panel_bg end
+        if ok_c and colors and colors.panel_bg then paper = colors.panel_tint or colors.panel_bg end
     end
     local label_size = math.max(8, math.floor((region.font_size or 14) * 0.85 + 0.5))
     local label = TextWidget:new{

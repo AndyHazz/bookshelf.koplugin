@@ -1497,7 +1497,7 @@ function StartMenu:_build()
             if ok_cp and CoverProgress and CoverProgress.resolvedColors
                     and self.bw and self.bw.wallpaperScrimStrength then
                 local ok_c, colors = pcall(CoverProgress.resolvedColors)
-                if ok_c and colors then scrim_c = colors.panel_bg end
+                if ok_c and colors then scrim_c = colors.panel_tint or colors.panel_bg end
                 local ok_s, sv = pcall(function()
                     return self.bw:wallpaperScrimStrength()
                 end)

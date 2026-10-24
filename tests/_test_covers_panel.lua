@@ -53,19 +53,27 @@ local function panelMenu(store)
     compile(levels .. "\n" .. fn .. "\n" .. sub, env, "scrim")()
     local self = setmetatable({ _scrimStrength = function() return 0.85 end,
                                 _scrimLabel = function() return "Heavy" end,
+                                _panelColorItems = function()
+                                    return { { text = "Panel color" }, { text = "Panel text", separator = true } }
+                                end,
                                 _markDirty = function() seen.dirty = seen.dirty + 1 end },
                               { __index = env.Settings })
     return env.Settings._panelRows(self), seen, self
 end
 
-t.test("three panel rows: Panel shading (its levels), then Blur, then the Covers checkbox", function()
+t.test("three panel rows: Panel colors and shading, then Blur, then the Covers checkbox", function()
     local store = {}
     local rows = panelMenu(store)
     eq(#rows, 3)
-    eq(rows[1].text_func(), "Panel shading: Heavy")
+    eq(rows[1].text_func(), "Panel colors and shading: Heavy")
+    -- The five levels, set apart, then Panel color and Panel text (the
+    -- Colors menu's own rows, maintainer 2026-10-24).
     local levels = rows[1].sub_item_table_func()
-    eq(#levels, 5, "the submenu is not the five levels alone")
-    for _i, r in ipairs(levels) do eq(r.radio, true, "a level is not a radio button") end
+    eq(#levels, 7, "not the five levels and the two colour rows")
+    for i = 1, 5 do eq(levels[i].radio, true, "a level is not a radio button") end
+    eq(levels[5].separator, true, "the levels aren't set apart from the colours")
+    eq(levels[6].text, "Panel color"); eq(levels[7].text, "Panel text")
+    eq(levels[7].separator, nil, "a separator under the last row")
     eq(rows[2].text, "Blur wallpaper behind panels", "the blur row moved")
     eq(rows[3].text, "Panel behind Covers shelves")
     eq(rows[3].radio, nil, "it is a radio button, not a checkbox")

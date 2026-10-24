@@ -1299,7 +1299,11 @@ function HeroModules.pageDots(count, current, w, h, size, spacing)
     dots.spacing = spacing
     local ring  = math.max(1, math.floor(size / 8 + 0.5))
     local inset = ring + math.max(1, math.floor(size / 10 + 0.5))
-    local ink   = Modules.COLOR_PRIMARY or Blitbuffer.COLOR_BLACK
+    -- On the panel, not a card: Colors > Panel text (or a panel colour's
+    -- own) where set.
+    local ok_cp, CP = pcall(require, "lib/bookshelf_cover_progress")
+    local panel_ink = ok_cp and CP and CP.panelInk and CP.panelInk() or nil
+    local ink   = panel_ink or Modules.COLOR_PRIMARY or Blitbuffer.COLOR_BLACK
     function dots:paintTo(bb, x, y)
         self.dimen.x, self.dimen.y = x, y
         for i, d in ipairs(self.rects) do

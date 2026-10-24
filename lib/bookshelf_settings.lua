@@ -1903,7 +1903,7 @@ function Settings:_panelRows()
     return {
         {
             text_func = function()
-                return T(_("Panel shading: %1"), self:_scrimLabel())
+                return T(_("Panel colors and shading: %1"), self:_scrimLabel())
             end,
             help_text = _("How much to shade the top panel and the footer so "
                 .. "the buttons stay legible over a picture. Transparent lets "
@@ -2072,9 +2072,75 @@ function Settings:_scrimSubItems()
             end,
         }
     end
+    -- And the panels' colours beneath the shading (the same rows as Colors).
+    rows[#rows].separator = true
+    for _i, r in ipairs(self:_panelColorItems(true)) do rows[#rows + 1] = r end
+    rows[#rows].separator = nil
     return rows
 end
 
+
+-- _panelColorItems(outside) -> Panel color and Panel text, the rows the
+-- Colors menu and Wallpaper > Panel colors and shading both show (the
+-- maintainer wanted them beside the shading as well). outside: not in Colors,
+-- so they edit the look on screen (_shelfSlot), not Colors' Light | Dark
+-- switch. The second row ends its band (separator).
+function Settings:_panelColorItems(outside)
+    local CoverProgress = require("lib/bookshelf_cover_progress")
+    local function slot() if outside then self:_shelfSlot() end end
+    local function shown(field)
+        slot()
+        return Settings.valueText(CoverProgress.rawColors()[field])
+    end
+    local function clear(base, touchmenu_instance)
+        slot()
+        require("lib/bookshelf_theme_pack").partDelete(base .. CoverProgress.editSuffix())
+        self:_markDirty()
+        if touchmenu_instance then touchmenu_instance:updateItems() end
+    end
+    return {
+        {
+            -- The top and footer panels' tint (Panel shading sets how much of
+            -- it). Unset: white or black from the theme, as before.
+            text_func = function()
+                return _("Panel color") .. ": " .. shown("panel_color")
+            end,
+            help_text = _("The color of the top and bottom panels, blended over "
+                .. "the wallpaper as strongly as the shading says. Text on the "
+                .. "panels turns black or white to suit it, unless Panel text is "
+                .. "set. Long-press to clear."),
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                slot()
+                self:_pickColor("panel_color", "panel_color", 0,
+                    { _("Panel color"), _("Panel color (% black)") }, touchmenu_instance)
+            end,
+            hold_callback = function(touchmenu_instance) clear("panel_color", touchmenu_instance) end,
+        },
+        {
+            -- Auto (black or white for the panel color) until picked.
+            text_func = function()
+                local v = shown("panel_ink")
+                local raw = CoverProgress.rawColors()
+                if type(raw.panel_ink) == "nil" and type(raw.panel_color) ~= "nil" then
+                    v = _("Auto")
+                end
+                return _("Panel text") .. ": " .. v
+            end,
+            help_text = _("The color of text and icons on the top and bottom panels. "
+                .. "Left unset with a panel color, it is black or white, whichever "
+                .. "reads on it. Long-press to clear."),
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                slot()
+                self:_pickColor("panel_ink", "panel_ink", 100,
+                    { _("Panel text"), _("Panel text (% black)") }, touchmenu_instance)
+            end,
+            hold_callback = function(touchmenu_instance) clear("panel_ink", touchmenu_instance) end,
+            separator = true,   -- end of the panel band
+        },
+    }
+end
 
 -- ── The colour picker, shared ──────────────────────────────────────────────
 --
@@ -2606,6 +2672,9 @@ function Settings:_colorsSubItems()
         return require("lib/bookshelf_theme_pack").partRead(TRANSPARENT_KEY) == true
     end
 
+    -- Panel color and Panel text, built where the Wallpaper menu's panel
+    -- rows are built too (_panelColorItems).
+    local panel_rows = self:_panelColorItems()
     local items = {
         {
             -- First, set apart: at the end it was a page of its own, so the
@@ -2625,6 +2694,7 @@ function Settings:_colorsSubItems()
                     "badge_fg", "badge_bg", "border_color",
                     "chrome_bg", "chip_bar_transparent",
                     "module_bg", "module_border", "panel_bg",
+                    "panel_color", "panel_ink",
                     "selection_color", "card_shadow_color",
                     "spine_plank_color",
                     "folder_overlay_bg", "folder_overlay_fg",
@@ -2816,6 +2886,8 @@ function Settings:_colorsSubItems()
             end,
             separator = true,   -- end of the page-count badge band
         },
+        panel_rows[1],
+        panel_rows[2],
         {
             text_func = function()
                 return _("Micro-module background") .. ": " .. valueLabel("module_bg")

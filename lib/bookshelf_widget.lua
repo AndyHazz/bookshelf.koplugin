@@ -3972,8 +3972,11 @@ end
 -- than built from a Button, so they take a colour directly. Black everywhere
 -- except a manually dark shelf, where nothing inverts it for us.
 function BookshelfWidget:_chromeInk()
-    if not self:_themeFlips() then return Blitbuffer.COLOR_BLACK end
     local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
+    -- Colors > Panel text, or the text a panel colour brings (CP.panelInk).
+    local panel = ok and CP and CP.panelInk and CP.panelInk() or nil
+    if panel then return panel end
+    if not self:_themeFlips() then return Blitbuffer.COLOR_BLACK end
     local ink = ok and CP and CP.ink and CP.ink() or nil
     return ink or Blitbuffer.COLOR_WHITE
 end
@@ -4028,7 +4031,7 @@ function BookshelfWidget:_themeButton(btn)
         -- and crashes indexing the nil operand. Same trap bookshelf_color.lua
         -- documents at the top of parseColorValue.
         local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
-        local ink = ok and CP and CP.ink and CP.ink() or nil
+        local ink = ok and CP and ((CP.panelInk and CP.panelInk()) or (CP.ink and CP.ink())) or nil
         lw.fgcolor = ink or Blitbuffer.COLOR_WHITE
     end
     return btn
@@ -4097,7 +4100,7 @@ function BookshelfWidget:_groundState()
         local ok_cp, CP = pcall(require, "lib/bookshelf_cover_progress")
         local colors = ok_cp and CP and CP.resolvedColors
                        and select(2, pcall(CP.resolvedColors)) or nil
-        if colors and _sameColour(colors.panel_bg, self:_pageGroundColor()) then
+        if colors and _sameColour(colors.panel_tint or colors.panel_bg, self:_pageGroundColor()) then
             m.panel_redundant = true
         end
     end
@@ -4215,7 +4218,7 @@ function BookshelfWidget:_footerPanelRectRaw(strength)
     local h        = footer_h - Screen:scaleBySize(12)
     if h <= 0 then return nil end
     return bleed, self.height - footer_h, self.width - bleed * 2, h,
-           Space.radius.window, strength, colors.panel_bg
+           Space.radius.window, strength, colors.panel_tint or colors.panel_bg
 end
 
 -- wallpaperScrimStrength() -> 0..1, how hard to tint the chrome strips.
@@ -5079,7 +5082,7 @@ function BookshelfWidget:_buildHero(content_w, hero_cover_w, hero_cover_h, hero_
                 local ink
                 if bw:groundIsPainted() then
                     local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
-                    ink = ok and CP and CP.ink and CP.ink() or nil
+                    ink = ok and CP and ((CP.panelInk and CP.panelInk()) or (CP.ink and CP.ink())) or nil
                 end
                 return bw:_buildPillGroup(pill_specs, pill_w + (tonumber(extra_w) or 0), max_rows, pill_size,
                     tcfg.alignment or "left", nil,
@@ -11312,7 +11315,8 @@ function BookshelfWidget:_attachTopPanel(vgroup, opts)
         return false
     end
     local content_w = opts.content_w
-    local ground    = colors.panel_bg
+    -- Colors > Panel color, else the theme's paper (CoverProgress panel_tint).
+    local ground    = colors.panel_tint or colors.panel_bg
     local pw        = content_w + bleed * 2
     local ph        = opts.band_h + bleed * 2
     local radius    = Space.radius.window

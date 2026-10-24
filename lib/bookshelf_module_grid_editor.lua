@@ -326,12 +326,15 @@ end
 -- theme. The background either way.
 Editor.FADE = 0.6
 
--- _fadeDark() -> true on a dark theme: its cards are dark, as
--- HeroModules._fade reads them (night mode paints them pre-inverted, light).
+-- _fadeDark() -> true when darkening is what shows as the dark theme's
+-- background: the shelf wants dark and the frame doesn't invert (night mode
+-- inverts lightened paint to dark already). The theme, not the cards: a
+-- light shelf may have dark cards, and its fade should still be light.
 function Editor._fadeDark()
-    -- getColor8() is FFI cdata on the device, so read .a inside the pcall.
-    local ok, a = pcall(function() return Modules.CARD_BG:getColor8().a end)
-    return ok and type(a) == "number" and a < 128
+    local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
+    if not (ok and CP and CP.theme) then return false end
+    local want_dark, inverting = CP.theme()
+    return want_dark ~= inverting
 end
 
 -- _fadeAround(bb): fade everything on screen but the modules on this page,

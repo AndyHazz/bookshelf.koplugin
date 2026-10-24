@@ -145,7 +145,11 @@ t.test("the layout editor fades all but the editable modules", function()
     -- paints cards pre-inverted, light, so it still lightens there.
     assert(f:find("local fade = Editor._fadeDark() and bb.darkenRect or bb.lightenRect", 1, true), "fades towards white on a dark theme")
     local dark = ed:match("\nfunction Editor%._fadeDark%(%)\n(.-)\nend\n")
-    assert(dark and dark:find("Modules.CARD_BG:getColor8().a", 1, true), "doesn't read the card colour")
+    -- The theme, not the cards: a light shelf may have dark cards. Darkened
+    -- paint shows dark only on a frame that doesn't invert, so it is the
+    -- palette's own flip (the shelf wants dark, the frame doesn't invert).
+    assert(dark and dark:find("local want_dark, inverting = CP.theme()", 1, true)
+           and dark:find("return want_dark ~= inverting", 1, true), "doesn't follow the theme")
     local paint = ed:match("\nfunction Editor:paintTo%(bb, x, y%)\n(.-)\nend\n")
     local fade_at = paint and paint:find("self._fadeAround", 1, true)
     local footer_at = paint and paint:find("footer:paintTo", 1, true)

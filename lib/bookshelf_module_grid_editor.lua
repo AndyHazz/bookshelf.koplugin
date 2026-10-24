@@ -76,8 +76,14 @@ function Editor:init()
     local relay = {
         model  = function() return host:model() end,
         render = function(_r, edit)
+            local Perf = require("lib/bookshelf_perf")
+            if not Perf.active() then Perf.start("editor change") end
+            local t = Perf.now()
             host:render(edit)
+            Perf.part("grid", t)
+            t = Perf.now()
             editor:_buildBands()
+            Perf.part("bars", t)
             UIManager:setDirty(editor, "ui")
         end,
     }
@@ -276,7 +282,8 @@ end
 
 function Editor:_buildFooter(rect_w)
     local s = self.session
-    local row = { button("\xE2\x9C\x93 " .. _("Done"), function() self:onDone() end) }
+    -- + Add first and Done last, where a dialog's confirm sits (maintainer).
+    local row = { button("+ " .. _("Add"), function() s:add() end) }
     if not s.selected_id and #s:pageList() <= 1 then
         row[#row + 1] = button(_("Tap a module to select it"), nil, false)
     end
@@ -293,7 +300,7 @@ function Editor:_buildFooter(rect_w)
     if nxt then
         row[#row + 1] = button(_("New page"), function() s:moveToPage(nxt) end)
     end
-    row[#row + 1] = button("+ " .. _("Add"), function() s:add() end)
+    row[#row + 1] = button("\xE2\x9C\x93 " .. _("Done"), function() self:onDone() end)
     return FrameContainer:new{
         background = Blitbuffer.COLOR_WHITE,
         bordersize = 0,
@@ -426,7 +433,10 @@ function Editor:paintTo(bb, x, y)
         UIManager:nextTick(function() self:onDone() end)
         return
     end
+    local Perf = require("lib/bookshelf_perf")
+    local t_paint = Perf.now()
     pcall(self._fadeAround, self, bb)
+    Perf.part("fade", t_paint)
     local fr = self:_footerRect()
     local footer = self[1]
     local fh = footer:getSize().h
@@ -437,6 +447,8 @@ function Editor:paintTo(bb, x, y)
     local bar = self[2]
     if not bar then
         self._bar_rect = nil
+        Perf.part("paint editor", t_paint)
+        Perf.finish("editor painted")
         return
     end
     local bh = bar:getSize().h
@@ -450,6 +462,8 @@ function Editor:paintTo(bb, x, y)
     end
     bar:paintTo(bb, self.margin, ty)
     self._bar_rect = Geom:new{ x = self.margin, y = ty, w = self:_toolbarWidth(), h = bh }
+    Perf.part("paint editor", t_paint)
+    Perf.finish("editor painted")
 end
 
 -- ── Input ────────────────────────────────────────────────────────────────────

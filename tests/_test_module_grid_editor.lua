@@ -317,4 +317,13 @@ t.test("on a host with its own page count every page is there to move to", funct
     assert(s:adjacentPage(1) == nil, "past the shelf's last page")
 end)
 
+t.test("the footer has + Add first and Done last", function()
+    local src = io.open("lib/bookshelf_module_grid_editor.lua"):read("*a")
+    local body = src:match("\nfunction Editor:_buildFooter%(rect_w%)\n(.-)\nend\n")
+    local add = body:find('_("Add")', 1, true)
+    local done = body:find('_("Done")', 1, true)
+    assert(add and done and add < done, "Done comes before + Add")
+    assert(body:find('local row = { button("+ " .. _("Add")', 1, true), "+ Add is not first")
+end)
+
 t.done()

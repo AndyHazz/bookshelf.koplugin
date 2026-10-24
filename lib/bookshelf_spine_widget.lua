@@ -518,12 +518,20 @@ local BorderOverlay = Widget:extend{
     thickness = nil,
     radius    = 0,
     color     = nil,    -- defaults to COLOR_BLACK
+    -- ring_only: the ring itself, not a fill for a card to cover: around
+    -- something with no card (a bare shelf module), the fill showed.
+    ring_only = nil,
 }
 function BorderOverlay:init()
     self.dimen = Geom:new{ w = self.width, h = self.height }
 end
 function BorderOverlay:paintTo(bb, x, y)
     local t = self.thickness
+    if self.ring_only then
+        bb:paintBorder(x - t, y - t, self.width + 2 * t, self.height + 2 * t, t,
+                       self.color or _selectionColor(), (self.radius or 0) + t)
+        return
+    end
     CoverProgress.paintRoundedRect(bb, x - t, y - t,
                         self.width + 2 * t, self.height + 2 * t,
                         self.color or _selectionColor(),
@@ -3410,10 +3418,12 @@ end
 -- card's own rounded edge and no corner shows between them.
 SpineWidget.SHADOW_OFFSET = SHADOW_OFFSET
 SpineWidget.CARD_RADIUS = CARD_RADIUS
-function SpineWidget.cardBackdrop(card_w, card_h, selected)
+-- bare: the thing has no card (an ornament): just the ring, no fill.
+function SpineWidget.cardBackdrop(card_w, card_h, selected, bare)
     if selected then
         return BorderOverlay:new{ width = card_w, height = card_h,
-                                  thickness = SELECTED_BORDER, radius = CARD_RADIUS }
+                                  thickness = SELECTED_BORDER, radius = CARD_RADIUS,
+                                  ring_only = bare or nil }
     end
     if BookshelfSettings.read("cover_no_shadow", false) == true then return nil end
     return FrameContainer:new{

@@ -326,4 +326,14 @@ t.test("the footer has + Add first and Done last", function()
     assert(body:find('local row = { button("+ " .. _("Add")', 1, true), "+ Add is not first")
 end)
 
+t.test("on a shelf the footer has no page dots or New page", function()
+    -- A shelf's pages are its own, of books: the module grid's page dots and
+    -- New page made no sense there (maintainer, PW5).
+    local src = io.open("lib/bookshelf_module_grid_editor.lua"):read("*a")
+    local body = src:match("\nfunction Editor:_buildFooter%(rect_w%)\n(.-)\nend\n")
+    assert(body:find('local on_shelf = info and info.surface == "shelf"', 1, true), "the footer does not know it is on a shelf")
+    assert(body:find("if #pages > 1 and not on_shelf then", 1, true), "page dots on a shelf")
+    assert(body:find("local nxt = s.selected_id and not on_shelf and s:newPage()", 1, true), "New page on a shelf")
+end)
+
 t.done()

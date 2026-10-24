@@ -102,10 +102,10 @@ t.test("a cover-shelf module is sized and framed like a cover", function()
     assert(f, "_moduleRow not found")
     assert(f:find("local card_h = math.max(1, (row.cover_h or sh) - off)", 1, true), "not a cover's height")
     assert(f:find("h.span * sw + (h.span - 1) * gap - off", 1, true), "not a cover's width")
-    assert(f:find("SpineWidget.cardBackdrop(card_w, card_h, selected)", 1, true), "no cover backdrop")
+    assert(f:find("SpineWidget.cardBackdrop(card_w, card_h, selected, bare)", 1, true), "no cover backdrop")
     assert(not f:find("FrameContainer", 1, true), "still framed square")
     local sw = io.open("lib/bookshelf_spine_widget.lua"):read("*a")
-    assert(sw:find("function SpineWidget.cardBackdrop(card_w, card_h, selected)", 1, true), "no backdrop helper")
+    assert(sw:find("function SpineWidget.cardBackdrop(card_w, card_h, selected, bare)", 1, true), "no backdrop helper")
 end)
 
 -- The editor's page buttons on a shelf: every shelf page is there to move
@@ -223,6 +223,12 @@ t.test("a bare module on a cover shelf stands on no cover shadow", function()
     assert(body:find("local bare = def and def.bare", 1, true), "bare modules not told apart")
     assert(body:find("if SpineWidget.cardBackdrop and (selected or not bare) then", 1, true),
         "a bare module still gets the cover shadow")
+    -- Picked, it gets the ring alone: the ring is a fill a card covers, and
+    -- with no card the whole fill showed (rig).
+    assert(body:find("SpineWidget.cardBackdrop(card_w, card_h, selected, bare)", 1, true))
+    local sw = io.open("lib/bookshelf_spine_widget.lua"):read("*a")
+    local bd = sw:match("\nfunction SpineWidget%.cardBackdrop%(card_w, card_h, selected, bare%)\n(.-)\nend\n")
+    assert(bd and bd:find("ring_only = bare or nil", 1, true), "a bare module's ring is filled")
 end)
 
 t.done()

@@ -294,13 +294,18 @@ end
 
 function Editor:_buildFooter(rect_w)
     local s = self.session
+    -- On a shelf the pages are the shelf's own, of books: no page dots, no
+    -- New page (maintainer). A module moves a page with the toolbar's
+    -- double chevrons.
+    local info = self.host and self.host.gridInfo and self.host:gridInfo()
+    local on_shelf = info and info.surface == "shelf"
     -- + Add first and Done last, where a dialog's confirm sits (maintainer).
     local row = { button("+ " .. _("Add"), function() s:add() end) }
-    if not s.selected_id and #s:pageList() <= 1 then
+    if not s.selected_id and (on_shelf or #s:pageList() <= 1) then
         row[#row + 1] = button(_("Tap a module to select it"), nil, false)
     end
     local pages = s:pageList()
-    if #pages > 1 then
+    if #pages > 1 and not on_shelf then
         for _i, p in ipairs(pages) do
             local label = (p == s.page) and "\xE2\x97\x8F" or "\xE2\x97\x8B"
             row[#row + 1] = button(label, function()
@@ -308,7 +313,7 @@ function Editor:_buildFooter(rect_w)
             end)
         end
     end
-    local nxt = s.selected_id and s:newPage()
+    local nxt = s.selected_id and not on_shelf and s:newPage()
     if nxt then
         row[#row + 1] = button(_("New page"), function() s:moveToPage(nxt) end)
     end

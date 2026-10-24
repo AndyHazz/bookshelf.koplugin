@@ -7213,7 +7213,7 @@ function BookshelfWidget:_moduleRow(row, heads)
             local bare = def and def.bare
             local backdrop
             if SpineWidget.cardBackdrop and (selected or not bare) then
-                backdrop = SpineWidget.cardBackdrop(card_w, card_h, selected)
+                backdrop = SpineWidget.cardBackdrop(card_w, card_h, selected, bare)
             end
             local stack = OverlapGroup:new{
                 dimen = Geom:new{ w = card_w + off, h = card_h + off },

@@ -1893,6 +1893,9 @@ function SpineBookSlot:onTap(_arg, ges)
         if ges.pos.y < top - Screen:scaleBySize(6) then return false end
     end
     local cb = _itemCallback(self.callbacks, self.book, "tap")
+    -- Rendezvous for an opening effect drawn by the caller (a micro-module's
+    -- spines: lib/bookshelf_module_open); validated by filepath, then cleared.
+    if cb and self.book then SpineShelf.last_tapped_slot = self end
     if cb then cb(self.book) return true end
 end
 
@@ -1905,6 +1908,7 @@ function SpineBookSlot:onDoubleTap()
     -- Books only: double tap opens directly (#271); groups have no "open".
     if self.book and self.book.filepath and self.callbacks
             and self.callbacks.on_book_open then
+        SpineShelf.last_tapped_slot = self
         self.callbacks.on_book_open(self.book)
         return true
     end
@@ -2020,6 +2024,20 @@ end
 
 function SpineBookSlot:paintTo(bb, x, y)
     self.dimen.x, self.dimen.y = x, y
+    if self.keep_ground then
+        -- What is behind this spine before it paints (a micro-module's
+        -- tinted ground): the opening tilt puts it back where the spine
+        -- leaves, as the shelf's own ground can be rebuilt but this can't.
+        pcall(function()
+            local g = self._ground
+            if not (g and g:getWidth() == self.width and g:getHeight() == self.height) then
+                if g then g:free() end
+                g = Blitbuffer.new(self.width, self.height, bb:getType())
+                self._ground = g
+            end
+            g:blitFrom(bb, 0, 0, x, y, self.width, self.height)
+        end)
+    end
     local night = _nightMode()
     local key = self:_renderKey(night)
     local cached = _render_cache[key]
@@ -5429,6 +5447,9 @@ function SpineShelf.rowWidget(opts)
                     flush_dx    = cursor - block_x0,
                 }
             end
+            -- Over a ground not the shelf's own (a micro-module's), the spine
+            -- keeps what it is painted over, for its opening tilt.
+            tile.keep_ground = opts.keep_ground or nil
             if e.book and e.book.filepath and tile then
                 slots_by_fp[e.book.filepath] = tile
             end
@@ -6030,9 +6051,15 @@ function SpineShelf.paintOpeningTilt(slot)
         local Wallpaper = SpineShelf.has_wallpaper
                           and select(2, pcall(require, "lib/bookshelf_wallpaper"))
                           or nil
-        local patched = Wallpaper and Wallpaper.patch
+        -- A spine that kept its ground (in a micro-module) has the real one.
+        local kept = slot._ground and slot._ground:getWidth() == slot.width
+                     and slot._ground:getHeight() == slot.height
+        if kept then c:blitFrom(slot._ground, 0, 0, 0, 0, slot.width, slot.height) end
+        local patched = not kept and Wallpaper and Wallpaper.patch
             and Wallpaper.patch(c, 0, 0, d.x, d.y, slot.width, slot.height)
-        if patched then
+        if kept then
+            -- Put back exactly; the recess is already in it.
+        elseif patched then
             -- patch() restores the RAW picture, which is a step brighter than
             -- the shelf around it: the recess shadow painted over this slot
             -- during the row's own paint is not in the backdrop. Put an

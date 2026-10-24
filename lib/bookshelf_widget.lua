@@ -4605,7 +4605,7 @@ function BookshelfWidget:_openOnDoubleTap(book)
     self:_openBook(book)
 end
 
--- _openBook(book, after_open_callback)  — open ReaderUI for the given book
+-- _openBook(book, after_open_callback, opts)  — open ReaderUI for the given book
 -- WITHOUT closing the home screen. The Reader is shown on top in UIManager's
 -- stack; when the Reader closes, Bookshelf is exposed automatically with no
 -- intermediate FileManager flash. (Closing Bookshelf first leaves
@@ -4614,7 +4614,7 @@ end
 -- after_open_callback (optional) is handed to ReaderUI:showReader and runs
 -- with the ready ReaderUI once the document is open — same hook the bookmark
 -- browser's "View in book" uses to jump to a position after opening.
-function BookshelfWidget:_openBook(book, after_open_callback)
+function BookshelfWidget:_openBook(book, after_open_callback, opts)
     if not book or not book.filepath then return end
     -- OPDS records carry an "OPDS://server/id" pseudo-path, not a file: there
     -- is nothing on disk to hand ReaderUI. Open the catalog book modal instead
@@ -4672,8 +4672,12 @@ function BookshelfWidget:_openBook(book, after_open_callback)
     -- no-op when the tap didn't land on a visible cover). Painted before
     -- the launch so it also precedes an unpark splice - the squeeze then
     -- reads as the opening motion completing into the page.
-    UIManager:forceRePaint()
-    pcall(function() self:_paintOpeningEffect(book.filepath) end)
+    -- opts.no_effect: the caller played it already, on a cover of its own
+    -- (a micro-module's: lib/bookshelf_module_open).
+    if not (opts and opts.no_effect) then
+        UIManager:forceRePaint()
+        pcall(function() self:_paintOpeningEffect(book.filepath) end)
+    end
     self:_launchReader(open_path, after_open_callback)
 end
 
@@ -10590,7 +10594,8 @@ function BookshelfWidget:_paintOpeningEffect(fp)
         -- SpineBookSlot (double tap, or the expanded second-tap), which has
         -- its own feedback -- the spine tilts forward, and the hero cover
         -- flexes when it is showing the same book.
-        if self:_isSpineMode() then
+        -- Not under the full-screen modules: the shelf's spine is hidden.
+        if self:_isSpineMode() and not self._micro_fullscreen then
             pcall(function() self:_paintSpineOpeningEffect(fp) end)
         end
         return

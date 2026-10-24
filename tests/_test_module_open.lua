@@ -1,0 +1,130 @@
+-- tests/_test_module_open.lua
+-- A book tapped in a micro-module (the Shelf module) opens the way the shelf
+-- opens one: the tap-to-open setting, the double tap, and the cover-opening
+-- effect played on the module's own cover before the full-screen view closes
+-- (closing it first left no effect and no "Opening" message: a dead pause).
+package.path = "./?.lua;" .. package.path
+local t = dofile("tests/_helpers.lua").runner()
+
+local settings = {}
+local log = {}
+package.loaded["lib/bookshelf_settings_store"] = {
+    expandedTapAction = function() return settings.action or "open" end,
+    nilOrTrue = function(k) return settings[k] ~= false end,
+}
+package.loaded["lib/bookshelf_gestures"] = { on = function(id) return settings[id] ~= false end }
+package.loaded["ui/uimanager"] = { forceRePaint = function() log[#log + 1] = "repaint" end }
+package.loaded["device"] = { screen = { refreshUI = function() log[#log + 1] = "refresh" end } }
+local SW = {}
+package.loaded["lib/bookshelf_spine_widget"] = SW
+local SS = { paintOpeningTilt = function(slot) log[#log + 1] = "tilt " .. slot.book.filepath; return 0, 0, 10, 10 end }
+package.loaded["lib/bookshelf_spine_shelf"] = SS
+package.loaded["lib/bookshelf_widget"] = {
+    _paintOpeningEffect = function(_self, fp)
+        log[#log + 1] = "flex " .. fp
+        SW.last_tapped = nil
+    end,
+}
+package.loaded["apps/reader/readerui"] = { showReader = function(_s, fp) log[#log + 1] = "showReader " .. fp end }
+local M = dofile("lib/bookshelf_module_open.lua")
+
+local book = { filepath = "/a.epub" }
+local function shelfCtx()
+    local fs = { onTapClose = function() log[#log + 1] = "close fullscreen" end }
+    local bw = { _micro_fullscreen = fs }
+    function bw:_openBook(b, after, opts)
+        log[#log + 1] = "open " .. b.filepath .. (opts and opts.no_effect and " no_effect" or "")
+        self._after = after
+    end
+    function bw:_previewBook(b) log[#log + 1] = "preview " .. b.filepath end
+    local ctx = { bw = bw, refresh = function() log[#log + 1] = "refresh module" end }
+    return ctx, bw
+end
+
+t.test("a tap opens with the effect on the module's cover, then the full screen goes", function()
+    settings = {}; log = {}; M._staged = {}
+    local ctx, bw = shelfCtx()
+    SW.last_tapped = { book = book }
+    M.tap(ctx, "m1", book)
+    assert(log[1] == "repaint" and log[2] == "flex /a.epub", table.concat(log, ", "))
+    assert(log[3] == "open /a.epub no_effect", "the shelf would play its effect on the wrong screen: " .. tostring(log[3]))
+    assert(#log == 3, "the full-screen view closed before the reader was up")
+    bw._after()
+    assert(log[4] == "close fullscreen", "the full-screen view stayed under the reader")
+end)
+
+t.test("a tapped spine tilts", function()
+    settings = {}; log = {}; M._staged = {}
+    local ctx = shelfCtx()
+    SW.last_tapped = nil
+    SS.last_tapped_slot = { book = book }
+    M.tap(ctx, "m1", book)
+    assert(log[2] == "tilt /a.epub" and SS.last_tapped_slot == nil, table.concat(log, ", "))
+end)
+
+t.test("Open with a double tap: the first tap marks the book, the second opens", function()
+    settings = { action = "open_double" }; log = {}; M._staged = {}
+    local ctx = shelfCtx()
+    M.tap(ctx, "m1", book)
+    assert(M.staged("m1") == "/a.epub" and log[1] == "refresh module" and #log == 1, table.concat(log, ", "))
+    M.tap(ctx, "m1", { filepath = "/b.epub" })
+    assert(M.staged("m1") == "/b.epub", "another book moves the mark")
+    log = {}
+    M.tap(ctx, "m1", { filepath = "/b.epub" })
+    assert(M.staged("m1") == nil and log[#log] == "open /b.epub no_effect", table.concat(log, ", "))
+end)
+
+t.test("Show the book's details: the top panel on the shelf, a mark over the reader", function()
+    settings = { action = "show_detail" }; log = {}; M._staged = {}
+    local ctx = shelfCtx()
+    M.tap(ctx, "m1", book)
+    assert(log[1] == "close fullscreen" and log[2] == "preview /a.epub", table.concat(log, ", "))
+    log = {}
+    local reader = { bw = { _reader_context = true }, refresh = function() log[#log + 1] = "refresh module" end }
+    M.tap(reader, "m2", book)
+    assert(M.staged("m2") == "/a.epub", "nowhere to show it, and not opened either")
+end)
+
+t.test("a double tap opens straight away, when KOReader's double tap is on", function()
+    settings = { action = "open_double" }; log = {}; M._staged = { m1 = "/x.epub" }
+    local ctx = shelfCtx()
+    M.doubleTap(ctx, "m1", book)
+    assert(log[#log] == "open /a.epub no_effect" and M.staged("m1") == nil, table.concat(log, ", "))
+    settings.double_tap = false; log = {}
+    M.doubleTap(ctx, "m1", book)
+    assert(#log == 0, "opened with the double tap switched off")
+end)
+
+t.test("over the reader it opens through KOReader; effect off plays nothing", function()
+    settings = { open_cover_effect = false }; log = {}; M._staged = {}
+    SW.last_tapped = { book = book }
+    M.tap({ bw = { _reader_context = true } }, "m1", book)
+    assert(log[1] == "showReader /a.epub" and #log == 1 and SW.last_tapped == nil, table.concat(log, ", "))
+end)
+
+t.test("the Shelf module and the shelf use it", function()
+    local src = io.open("micromodules/shelf.lua"):read("*a")
+    assert(src:find('require("lib/bookshelf_module_open")', 1, true), "the Shelf module opens on its own")
+    assert(not src:find("local function openBook", 1, true), "the old open, which closed the full-screen view first, is still there")
+    local _n, sel = src:gsub("selected_filepath = staged", "")
+    assert(sel == 2, "the marked book isn't ringed in both styles")
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    assert(w:find("function BookshelfWidget:_openBook(book, after_open_callback, opts)", 1, true), "no opts")
+    assert(w:find("if not (opts and opts.no_effect) then", 1, true), "the shelf plays its effect again")
+    local ss = io.open("lib/bookshelf_spine_shelf.lua"):read("*a")
+    assert(ss:find("SpineShelf.last_tapped_slot = self", 1, true), "a spine tap leaves no rendezvous")
+end)
+
+-- A module's spine tips forward over the ground really behind it: the
+-- full-screen view tints and blurs the wallpaper, so the shelf's own
+-- wallpaper-and-recess ground showed as a bright block above the spine.
+t.test("a module's spine keeps the ground it was painted over, and the tilt uses it", function()
+    local ss = io.open("lib/bookshelf_spine_shelf.lua"):read("*a")
+    assert(ss:find("tile.keep_ground = opts.keep_ground or nil", 1, true), "module spines aren't told")
+    local paint = ss:match("\nfunction SpineBookSlot:paintTo%(bb, x, y%)\n(.-)\nend\n")
+    assert(paint and paint:find("if self.keep_ground then", 1, true), "no ground kept at paint time")
+    local tilt = ss:match("\nfunction SpineShelf%.paintOpeningTilt%(slot%)\n(.-)\nend\n")
+    assert(tilt and tilt:find("c:blitFrom(slot._ground", 1, true), "the tilt still guesses the ground")
+end)
+
+t.done()

@@ -105,6 +105,7 @@ local function load_ontap(tapped)
     assert(ontap, "no SpineBookSlot:onTap")
     local env = setmetatable({
         SpineBookSlot = {},
+        SpineShelf = {},
         Screen = { scaleBySize = function(_s, v) return v end },
         _itemCallback = function(cbs, book, kind) return function(b) tapped[#tapped + 1] = b end end,
     }, { __index = _G })

@@ -104,17 +104,16 @@ local function tabFor(ctx)
     return require("lib/bookshelf_tab_model").getById(id)
 end
 
-local function openBook(ctx, book)
-    if not (book and book.filepath) then return end
-    local bw = ctx and ctx.bw
-    if bw and bw._micro_fullscreen and bw._micro_fullscreen.onTapClose then
-        bw._micro_fullscreen:onTapClose()
-    end
-    if bw and bw._openBook then
-        bw:_openBook(book)
-    else
-        require("apps/reader/readerui"):showReader(book.filepath)
-    end
+-- A tap on a book opens it as a full screen shelf does (the tap-to-open
+-- setting, the double tap, the cover-opening effect): lib/bookshelf_module_open.
+local function tapKey(ctx, tab)
+    return (ctx and ctx.entry and ctx.entry.id) or tab.id
+end
+local function bookTaps(ctx, tab)
+    local Open, key = require("lib/bookshelf_module_open"), tapKey(ctx, tab)
+    return function(book) Open.tap(ctx, key, book) end,
+           function(book) Open.doubleTap(ctx, key, book) end,
+           Open.staged(key)
 end
 
 -- Go to the shelf: close the full-screen view if it's open, then select it
@@ -339,6 +338,7 @@ local function coverBody(ctx, tab, w, h, gap)
     local Repo  = require("lib/bookshelf_book_repository")
     local items = Repo.getBySource(bookSource(tab.source), tab.filter, tab.sort_priority, 0, rows * n * 2)
     local books = booksOnly(items)
+    local on_tap, on_open, staged = bookTaps(ctx, tab)
     local vg = VerticalGroup:new{ align = "left" }
     for r = 1, rows do
         local slice = {}
@@ -348,8 +348,9 @@ local function coverBody(ctx, tab, w, h, gap)
         vg[#vg + 1] = VerticalSpan:new{ width = m }
         local row = ShelfRow.new{
             width = row_w, height = row_h - 2 * m, items = slice, n_slots = n, gap = cgap,
-            on_book_tap = function(book) openBook(ctx, book) end,
-            on_book_open = function(book) openBook(ctx, book) end,
+            on_book_tap = on_tap,
+            on_book_open = on_open,
+            selected_filepath = staged,
             label_mode = "none",
             -- Badges, glyphs and the progress bar crowd a small cover; below
             -- this they leave it alone.
@@ -419,10 +420,8 @@ local function spineBody(ctx, tab, w, h, gap, label)
     }
     opts = require("lib/bookshelf_book_binding").applyOptions(opts, tab.id, nil)
     local design = plankOf(tab)
-    local callbacks = {
-        on_book_tap  = function(book) openBook(ctx, book) end,
-        on_book_open = function(book) openBook(ctx, book) end,
-    }
+    local on_tap, on_open, staged = bookTaps(ctx, tab)
+    local callbacks = { on_book_tap = on_tap, on_book_open = on_open }
     -- The plan and the rows read the plank (its drop and rise size them):
     -- built with this shelf's own held, and painted with it (plankScope).
     return SpineShelf.withPlank(design, function()
@@ -434,6 +433,7 @@ local function spineBody(ctx, tab, w, h, gap, label)
             if r > 1 then vg[#vg + 1] = VerticalSpan:new{ width = gap } end
             vg[#vg + 1] = SpineShelf.rowWidget{ plan = plan, row = row, width = w, height = row_h,
                 gap = opts.gap, callbacks = callbacks, row_index = r,
+                selected_filepath = staged,
                 plank_label = (r == 1) and label or nil,
                 -- Its plank stands on a card or on the main shelf, not on the
                 -- page: the bevels cut back to what is behind.

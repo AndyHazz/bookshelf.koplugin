@@ -155,9 +155,12 @@ t.test("every reason survives the widget's own gate, stored as a bare string", f
     local w = io.open("lib/bookshelf_widget.lua"):read("*a")
     assert(not w:match("local FACE_OUT_MODES = {"),
         "the widget keeps its own list of face-out modes again")
-    local fn = w:match("local function _faceOutModes%(%)(.-)\nend")
-    assert(fn, "_faceOutModes is gone")
-    assert(fn:find("SS.FACE_REASONS", 1, true),
+    -- The resolution lives in SpineShelf.faceOutFor, shared with the Shelf
+    -- micro-module.
+    local ss0 = io.open("lib/bookshelf_spine_shelf.lua"):read("*a")
+    local fn = ss0:match("function SpineShelf%.faceOutFor%(tab%)(.-)\nend")
+    assert(fn, "SpineShelf.faceOutFor is gone")
+    assert(fn:find("SpineShelf.FACE_REASONS", 1, true),
         "the accepted modes are not derived from the single list")
     assert(fn:find("none = true", 1, true) and fn:find("all = true", 1, true),
         "none/all are answers rather than reasons and must be added explicitly")
@@ -169,16 +172,16 @@ t.test("every reason survives the widget's own gate, stored as a bare string", f
         reasons[#reasons + 1] = name
     end
     assert(#reasons >= 5, "could not read FACE_REASONS")
-    local modes = assert(load(
-        "local require = ...\nreturn (function()" .. fn .. "\nend)()",
-        "modes", "t"))(function()
-            return { FACE_REASONS = reasons }
-        end)
-    -- pcall(require, ...) is used inside, so hand it a stub that answers.
+    local SS = { FACE_REASONS = reasons }
+    local faceOutFor = assert(load("return function(tab)" .. fn .. "\nend", "modes", "t",
+        { SpineShelf = SS, type = type, ipairs = ipairs, pcall = pcall,
+          require = function() return { read = function() return nil end } end }))()
     for _i = 1, #reasons do
-        assert(modes[reasons[_i]], reasons[_i]
+        assert(faceOutFor({ spine_face_out = reasons[_i] }) == reasons[_i], reasons[_i]
             .. " is rejected by the widget, so ticking it alone does nothing")
     end
+    local modes = { none = faceOutFor({ spine_face_out = "none" }) == "none",
+                    all = faceOutFor({ spine_face_out = "all" }) == "all" }
     assert(modes.none and modes.all, "none/all must still be accepted")
 end)
 

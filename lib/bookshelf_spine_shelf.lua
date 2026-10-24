@@ -1037,6 +1037,25 @@ SpineShelf.FACE_REASONS = { "favorites", "first", "first_unread", "reading",
                             "recent", "collection" }
 SpineShelf.FACE_RECENT_DEFAULT = 5
 
+-- faceOutFor(tab) -> a shelf's face-out choice AS STORED (faceOutSpec reads
+-- it): its own, else the library's, else favourites. A table, a string or a
+-- boolean; `false` IS a choice (none), so "is it set?" is not truthiness.
+-- The main shelf and a Shelf module showing the same shelf both ask here.
+function SpineShelf.faceOutFor(tab)
+    local modes = { none = true, all = true }
+    for _i, r in ipairs(SpineShelf.FACE_REASONS or {}) do modes[r] = true end
+    local function isSet(v)
+        local t = type(v)
+        if t == "table" or t == "boolean" then return true end
+        return t == "string" and modes[v] == true
+    end
+    if tab and isSet(tab.spine_face_out) then return tab.spine_face_out end
+    local ok, Store = pcall(require, "lib/bookshelf_settings_store")
+    local g = ok and Store and Store.read("spine_face_out")
+    if isSet(g) then return g end
+    return "favorites"
+end
+
 -- faceOutSpec(v) -> { favorites=, first=, reading=, all=, recent=N|nil }
 function SpineShelf.faceOutSpec(v)
     if v == false then return {} end

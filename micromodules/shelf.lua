@@ -410,9 +410,16 @@ local function spineBody(ctx, tab, w, h, gap, label)
         { light_only = true })
     local books = booksOnly(items)
     if #books == 0 then return nil end
+    -- Its shelf's face-out choice, as the shelf itself plans with it ("all
+    -- face out" showed mostly spines here without), and the books "recent N"
+    -- counts from.
+    local face_out = SpineShelf.faceOutFor(tab)
+    local spec = SpineShelf.faceOutSpec(face_out)
     local opts = {
         content_w     = w - 2 * SpineShelf.endMargin(row_h),
         row_h         = row_h,
+        face_out      = SpineShelf.faceOutFor(tab),
+        face_recent_set = spec and spec.recent and SpineShelf.recentSetForItems(books, spec.recent) or nil,
         gap           = Space.px(SpineShelf.BOOK_GAP_DP),
         group_gap     = Space.px(SpineShelf.GROUP_GAP_DP),
         thickness_pct = tab.spine_thickness_pct,

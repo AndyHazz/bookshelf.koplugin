@@ -7622,14 +7622,6 @@ end
 -- quietly did nothing ("I have series view open with first unread in series,
 -- and hardly any books are face out"). SpineShelf.FACE_REASONS is the list;
 -- "none" and "all" are the two answers that are not reasons.
-local function _faceOutModes()
-    local modes = { none = true, all = true }
-    local ok, SS = pcall(require, "lib/bookshelf_spine_shelf")
-    if ok and SS and SS.FACE_REASONS then
-        for _i = 1, #SS.FACE_REASONS do modes[SS.FACE_REASONS[_i]] = true end
-    end
-    return modes
-end
 -- Returns the setting AS STORED -- a table, a string, or a boolean -- and
 -- lets SpineShelf.faceOutSpec do the interpreting. It used to normalise to one
 -- of the five strings here and answer nil for anything else, which silently
@@ -7645,16 +7637,8 @@ function BookshelfWidget:_spineFaceOut()
     if tip and tip.kind == "series" and tip.payload and tip.payload._series_box then
         return "all"
     end
-    local function isSet(v)
-        local t = type(v)
-        if t == "table" or t == "boolean" then return true end
-        return t == "string" and _faceOutModes()[v] == true
-    end
     local tab = require("lib/bookshelf_tab_model").getById(self.chip)
-    if tab and isSet(tab.spine_face_out) then return tab.spine_face_out end
-    local g = BookshelfSettings.read("spine_face_out")
-    if isSet(g) then return g end
-    return "favorites"
+    return require("lib/bookshelf_spine_shelf").faceOutFor(tab)
 end
 
 -- _spineShowAuthor() — author name on the spine, below the title the way a

@@ -2629,36 +2629,30 @@ end
 local ShelfBadges = Widget:extend{}
 
 -- Every badge last drawn on screen: span -> its ShelfBadges (keyed weakly;
--- the span's _rect is where). The layout editor keeps one clear of its fade
--- when it hangs past a module (Editor._fadeAround), and paints it again over
--- the selected module's outline (repaintScreenBadges).
+-- the span's _rect is where, its _seq when). A module in the layout editor
+-- reports the ones it drew past its cell in a paint (badgeRectsSince), which
+-- the editor keeps clear of its fade and its outline.
 SpineShelf._screen_badges = setmetatable({}, { __mode = "k" })
 
--- repaintScreenBadges(bb, x, y, w, h): draw again, where they were, the
--- badges on screen touching that rect.
-function SpineShelf.repaintScreenBadges(bb, x, y, w, h)
-    local done = {}
-    for span, widget in pairs(SpineShelf._screen_badges) do
-        local r = span._rect
-        if type(widget) == "table" and not done[widget] and r
-                and r.x < x + w and r.x + r.w > x and r.y < y + h and r.y + r.h > y then
-            done[widget] = true
-            widget:paintDeferred(bb)
-        end
-    end
-end
 
--- screenBadgeRects(x, y, w, h) -> the on-screen badge rects touching that rect.
-function SpineShelf.screenBadgeRects(x, y, w, h)
+-- badgeSeq() -> a counter that moves each time a badge is drawn on screen;
+-- badgeRectsSince(seq, x, y, w, h) -> the badges drawn since then touching
+-- that rect. What a module drew past its cell in ONE paint, not every badge
+-- still remembered: a heading hidden since was still kept clear of the
+-- layout editor's fade.
+function SpineShelf.badgeSeq() return SpineShelf._badge_seq or 0 end
+function SpineShelf.badgeRectsSince(seq, x, y, w, h)
     local out = {}
     for span in pairs(SpineShelf._screen_badges) do
         local r = span._rect
-        if r and r.x < x + w and r.x + r.w > x and r.y < y + h and r.y + r.h > y then
+        if r and (span._seq or 0) > seq
+                and r.x < x + w and r.x + r.w > x and r.y < y + h and r.y + r.h > y then
             out[#out + 1] = r
         end
     end
     return out
 end
+
 
 -- A badge hangs BELOW its plank by design, and by more than the inter-row
 -- gap once the label is large (a high DPI, a tall UI font). Painted in row
@@ -2751,6 +2745,8 @@ function ShelfBadges:drawAt(bb, x, y)
                     if rawequal(bb, Screen.bb) then
                         s._rect = { x = bx, y = by, w = bw, h = badge_h }
                         SpineShelf._screen_badges[s] = self
+                        SpineShelf._badge_seq = (SpineShelf._badge_seq or 0) + 1
+                        s._seq = SpineShelf._badge_seq
                     end
                     tw:paintTo(bb, bx + math.floor((bw - sz.w) / 2),
                                by + pad_y)

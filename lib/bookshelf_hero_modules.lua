@@ -1509,6 +1509,35 @@ function HeroModules._dimCell(bb, id, sig, x, y, w, h)
     if not ok then HeroModules._fade(bb, x, y, w, h, Modules.CARD_BG) end
 end
 
+-- What the editor's modules drew past their cells in the grid's latest
+-- paint (a Shelf module's heading): the layout editor keeps exactly these
+-- clear of its fade. Started afresh as the grid paints (_editDecorations'
+-- under), so a heading hidden since is not kept.
+HeroModules._frame_overhangs = {}
+function HeroModules._noteOverhang(r)
+    local l = HeroModules._frame_overhangs
+    l[#l + 1] = { x = r.x, y = r.y, w = r.w, h = r.h }
+end
+
+-- _copyOverhangs(bb, x, y, w, h) -> copies off `bb` of this paint's
+-- overhangs touching that rect, each { copy, x, y, w, h }.
+function HeroModules._copyOverhangs(bb, x, y, w, h)
+    local out = {}
+    for _i, r in ipairs(HeroModules._frame_overhangs) do
+        if r.x < x + w and r.x + r.w > x and r.y < y + h and r.y + r.h > y then
+            local bx, by = math.max(0, r.x), math.max(0, r.y)
+            local bw = math.min(bb:getWidth() - bx, r.x + r.w - bx)
+            local bh = math.min(bb:getHeight() - by, r.y + r.h - by)
+            if bw > 0 and bh > 0 then
+                local c = Blitbuffer.new(bw, bh, bb:getType())
+                c:blitFrom(bb, 0, 0, bx, by, bw, bh)
+                out[#out + 1] = { copy = c, x = bx, y = by, w = bw, h = bh }
+            end
+        end
+    end
+    return out
+end
+
 -- _EditCell: a module in the layout editor. Every select, move or resize
 -- rebuilt and repainted every module (on a PW5 the three-row Shelf module
 -- alone painted for 745 ms each time), though while the editor is up a
@@ -1542,10 +1571,15 @@ function HeroModules._EditCell:paintTo(bb, x, y)
     local rec = key and HeroModules._paint_cache[self.id]
     if rec and rec.key == key then
         bb:blitFrom(rec.bb, x, y, 0, 0, self.w, self.h)
-        for _i, e in ipairs(rec.extras) do bb:blitFrom(e.bb, e.x, e.y, 0, 0, e.w, e.h) end
+        for _i, e in ipairs(rec.extras) do
+            bb:blitFrom(e.bb, e.x, e.y, 0, 0, e.w, e.h)
+            HeroModules._noteOverhang(e)
+        end
         return
     end
     if not self[1] then self[1] = self.build() end
+    local ok_ss, SpineShelf = pcall(require, "lib/bookshelf_spine_shelf")
+    local seq0 = ok_ss and SpineShelf.badgeSeq and SpineShelf.badgeSeq() or 0
     self[1]:paintTo(bb, x, y)
     if not on_screen then return end
     pcall(function()
@@ -1556,16 +1590,17 @@ function HeroModules._EditCell:paintTo(bb, x, y)
         local c = Blitbuffer.new(self.w, self.h, bb:getType())
         c:blitFrom(bb, 0, 0, x, y, self.w, self.h)
         local extras = {}
-        -- Drawn past the cell: a Shelf module's heading, below its plank.
-        local ok_ss, SpineShelf = pcall(require, "lib/bookshelf_spine_shelf")
-        if ok_ss and SpineShelf.screenBadgeRects then
-            for _i, r in ipairs(SpineShelf.screenBadgeRects(x, y, self.w, self.h)) do
+        -- Drawn past the cell in this paint: a Shelf module's heading, below
+        -- its plank.
+        if ok_ss and SpineShelf.badgeRectsSince then
+            for _i, r in ipairs(SpineShelf.badgeRectsSince(seq0, x, y, self.w, self.h)) do
                 local inside = r.x >= x and r.y >= y and r.x + r.w <= x + self.w
                     and r.y + r.h <= y + self.h
                 if not inside and r.w > 0 and r.h > 0 then
                     local e = Blitbuffer.new(r.w, r.h, bb:getType())
                     e:blitFrom(bb, 0, 0, r.x, r.y, r.w, r.h)
                     extras[#extras + 1] = { bb = e, x = r.x, y = r.y, w = r.w, h = r.h }
+                    HeroModules._noteOverhang(extras[#extras])
                 end
             end
         end
@@ -1598,6 +1633,7 @@ function HeroModules._editDecorations(container, dims, boxes, page, edit, ox, oy
         end
     end
     function container.under(bb, x0, y0)
+        HeroModules._frame_overhangs = {}
         for r = 1, dims.rows do
             for c = 1, dims.cols do
                 if not taken[r * 1000 + c] then
@@ -1616,17 +1652,21 @@ function HeroModules._editDecorations(container, dims, boxes, page, edit, ox, oy
                 if b.id == edit.selected_id then
                     -- Rounded like the card it surrounds (_makeCell's radius),
                     -- grown by the outline's own width.
-                    bb:paintBorder(x - thick, y - thick, w + 2 * thick, h + 2 * thick,
-                        thick, HeroModules._outlineColor(), Space.px(4) + thick)
                     -- What hangs out of the card stays in front of its
                     -- outline: the Shelf module's heading, hooked over its
                     -- plank, had the outline run through it (maintainer).
                     -- Under the cards instead, a bare module's own ground
-                    -- covered the outline on a dark theme.
-                    pcall(function()
-                        require("lib/bookshelf_spine_shelf").repaintScreenBadges(bb,
-                            x - thick, y - thick, w + 2 * thick, h + 2 * thick)
-                    end)
+                    -- covered the outline on a dark theme. What the modules
+                    -- drew past their cells in this paint, copied first and
+                    -- put back over it.
+                    local saved = HeroModules._copyOverhangs(bb,
+                        x - thick, y - thick, w + 2 * thick, h + 2 * thick)
+                    bb:paintBorder(x - thick, y - thick, w + 2 * thick, h + 2 * thick,
+                        thick, HeroModules._outlineColor(), Space.px(4) + thick)
+                    for _j, k in ipairs(saved) do
+                        bb:blitFrom(k.copy, k.x, k.y, 0, 0, k.w, k.h)
+                        k.copy:free()
+                    end
                 elseif edit.selected_id then
                     HeroModules._dimCell(bb, b.id, sigs and sigs[b.id], x, y, w, h)
                 end

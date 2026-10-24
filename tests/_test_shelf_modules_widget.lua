@@ -213,4 +213,16 @@ t.test("the spine module menu updates in place and takes swipes", function()
     assert(not r:find("if not (bw._swapShelvesInPlace and bw:_swapShelvesInPlace())", 1, true), "still rebuilds after the swap")
 end)
 
+t.test("a bare module on a cover shelf stands on no cover shadow", function()
+    -- An ornament drawn on a cover shelf sat on a cover's card shadow
+    -- (maintainer, PW5). A bare module has no card: no backdrop, except the
+    -- selection ring while the layout editor has it picked.
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    local body = w:match("\nfunction BookshelfWidget:_moduleRow%(row, heads%)\n(.-)\nend\n")
+    assert(body, "no _moduleRow")
+    assert(body:find("local bare = def and def.bare", 1, true), "bare modules not told apart")
+    assert(body:find("if SpineWidget.cardBackdrop and (selected or not bare) then", 1, true),
+        "a bare module still gets the cover shadow")
+end)
+
 t.done()

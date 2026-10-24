@@ -7207,8 +7207,14 @@ function BookshelfWidget:_moduleRow(row, heads)
         local ok, cell = pcall(HeroModules._makeCell, self, h.entry, card_w, card_h, 100, false, false)
         if ok and cell then
             local selected = edit and edit.selected_id == h.entry.id
-            local backdrop = SpineWidget.cardBackdrop
-                and SpineWidget.cardBackdrop(card_w, card_h, selected) or nil
+            -- A bare module (an ornament) has no card, so no cover shadow
+            -- under it (maintainer); only the selection ring while picked.
+            local def = require("lib/bookshelf_start_menu_modules").get(h.entry.module)
+            local bare = def and def.bare
+            local backdrop
+            if SpineWidget.cardBackdrop and (selected or not bare) then
+                backdrop = SpineWidget.cardBackdrop(card_w, card_h, selected)
+            end
             local stack = OverlapGroup:new{
                 dimen = Geom:new{ w = card_w + off, h = card_h + off },
                 allow_mirroring = false,

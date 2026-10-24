@@ -413,6 +413,7 @@ function Editor:_fadeAround(bb)
     local d = info and info.container and info.container.dimen
     local keep = {}
     local cache_key, kx, ky, kw, kh
+    local overs = {}
     if d and d.x and info.surface ~= "shelf" then
         -- The top panel and full screen: their whole grid stays clear, so
         -- the empty cells' dashed outlines show where a module can go
@@ -425,29 +426,27 @@ function Editor:_fadeAround(bb)
         local y0 = math.max(0, d.y + info.oy - pad)
         local w = math.min(bb:getWidth() - x0, gw + 2 * pad)
         local h = math.min(bb:getHeight() - y0, gh + 2 * pad)
-        cache_key = table.concat({ x0, y0, w, h, tostring(Editor._fadeDark()),
-            bb:getWidth(), bb:getHeight() }, ",")
         kx, ky, kw, kh = x0, y0, w, h
-        if self:_fadeFromCache(bb, cache_key, x0, y0, w, h) then return end
+        -- What the modules drew past the grid in its latest paint (a Shelf
+        -- module's heading, below its plank): clear, not half faded. Taken
+        -- off the screen as it is now and put back over the fade, never
+        -- kept in the stored fade: a heading hidden since stayed painted
+        -- there, put back with every repaint (maintainer).
+        overs = Editor._overhangCopies(bb, x0, y0, w, h)
+        -- Where they are is in the key: the stored fade was made with them on
+        -- screen, so a heading hidden since left its faded ghost in it.
+        local where = {}
+        for _i, k in ipairs(overs) do where[#where + 1] = k.x .. ":" .. k.y .. ":" .. k.w .. ":" .. k.h end
+        cache_key = table.concat({ x0, y0, w, h, tostring(Editor._fadeDark()),
+            bb:getWidth(), bb:getHeight(), table.concat(where, ";") }, ",")
+        if self:_fadeFromCache(bb, cache_key, x0, y0, w, h) then
+            Editor._putBack(bb, overs)
+            return
+        end
         if w > 0 and h > 0 then
             local copy = Blitbuffer.new(w, h, bb:getType())
             copy:blitFrom(bb, 0, 0, x0, y0, w, h)
             keep[#keep + 1] = { copy = copy, x = x0, y = y0, w = w, h = h }
-            -- A Shelf module's heading hangs past the grid, below its plank:
-            -- clear too, not half faded.
-            local ok_ss, SpineShelf = pcall(require, "lib/bookshelf_spine_shelf")
-            if ok_ss and SpineShelf.screenBadgeRects then
-                for _i, r in ipairs(SpineShelf.screenBadgeRects(x0, y0, w, h)) do
-                    local bx, by = math.max(0, r.x), math.max(0, r.y)
-                    local bw = math.min(bb:getWidth() - bx, r.w)
-                    local bh = math.min(bb:getHeight() - by, r.h)
-                    if bw > 0 and bh > 0 then
-                        local c = Blitbuffer.new(bw, bh, bb:getType())
-                        c:blitFrom(bb, 0, 0, bx, by, bw, bh)
-                        keep[#keep + 1] = { copy = c, x = bx, y = by, w = bw, h = bh }
-                    end
-                end
-            end
         end
     elseif d and d.x then
         local pad = Screen:scaleBySize(8)
@@ -487,6 +486,34 @@ function Editor:_fadeAround(bb)
     else
         bb:blitFrom(c, 0, 0, 0, 0, W, H)
         c:free()
+    end
+    Editor._putBack(bb, overs)
+end
+
+-- _overhangCopies(bb, x0, y0, w, h) -> copies, off the screen, of what the
+-- grid's modules drew past the kept rect in its latest paint
+-- (HeroModules._frame_overhangs).
+function Editor._overhangCopies(bb, x0, y0, w, h)
+    local out = {}
+    local ok, HeroModules = pcall(require, "lib/bookshelf_hero_modules")
+    for _i, r in ipairs(ok and HeroModules._frame_overhangs or {}) do
+        local inside = r.x >= x0 and r.y >= y0 and r.x + r.w <= x0 + w and r.y + r.h <= y0 + h
+        local bx, by = math.max(0, r.x), math.max(0, r.y)
+        local bw = math.min(bb:getWidth() - bx, r.x + r.w - bx)
+        local bh = math.min(bb:getHeight() - by, r.y + r.h - by)
+        if not inside and bw > 0 and bh > 0 then
+            local c = Blitbuffer.new(bw, bh, bb:getType())
+            c:blitFrom(bb, 0, 0, bx, by, bw, bh)
+            out[#out + 1] = { copy = c, x = bx, y = by, w = bw, h = bh }
+        end
+    end
+    return out
+end
+
+function Editor._putBack(bb, copies)
+    for _i, k in ipairs(copies or {}) do
+        bb:blitFrom(k.copy, k.x, k.y, 0, 0, k.w, k.h)
+        k.copy:free()
     end
 end
 

@@ -47,8 +47,11 @@ end)
 
 t.test("the fade keeps a cache only off a cover shelf, and frees it on close", function()
     local fa = src:match("\nfunction Editor:_fadeAround%(bb%)\n(.-)\nend\n")
-    assert(fa:find("if self:_fadeFromCache(bb, cache_key, x0, y0, w, h) then return end", 1, true))
+    assert(fa:find("if self:_fadeFromCache(bb, cache_key, x0, y0, w, h) then\n            Editor._putBack(bb, overs)\n            return\n        end", 1, true))
     assert(fa:find('info.surface ~= "shelf"', 1, true))
+    -- The overhangs' places are in the key: a heading hidden since left its
+    -- faded ghost in the stored fade (maintainer, PW5).
+    assert(fa:find('bb:getWidth(), bb:getHeight(), table.concat(where, ";") }, ",")', 1, true), "the fade outlives a hidden heading")
     local close = src:match("\nfunction Editor:onCloseWidget%(%)\n(.-)\nend\n")
     assert(close:find("self:_dropFadeCache()", 1, true), "the screen copy outlives the editor")
 end)

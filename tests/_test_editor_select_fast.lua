@@ -63,7 +63,8 @@ t.test("in the editor a module is built only when its kept picture won't do", fu
     local build = p:find("self[1] = self.build()", 1, true)
     assert(hit and build and hit < build, "built before the kept picture is tried")
     -- What it drew past its cell (the Shelf module's heading) is kept too.
-    assert(p:find("SpineShelf.screenBadgeRects(x, y, self.w, self.h)", 1, true))
+    assert(p:find("SpineShelf.badgeRectsSince(seq0, x, y, self.w, self.h)", 1, true))
+    assert(p:find("HeroModules._noteOverhang(e)", 1, true), "a kept heading is not reported to the editor")
     local key = hm:match("\nfunction HeroModules%._EditCell:_key%(bb, x, y%)\n(.-)\nend\n")
     assert(key:find("tostring(self.sig), x, y, self.w, self.h, os.date(\"%H%M\")", 1, true),
         "the picture is not redone when the module, its place or the minute changes")

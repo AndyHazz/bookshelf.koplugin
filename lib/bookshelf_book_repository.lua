@@ -2775,6 +2775,28 @@ end
 -- records -- e.g. toggling "Use Hardcover metadata", which rewrites
 -- title/author/series/genres -- must force a rebuild or the chips stay stale.
 -- The walk cache (file list) is untouched; only the per-file metadata refetches.
+-- What a book BIM has no row for is built from (see _getLightMetaCache). A
+-- field, not a local: this file is at Lua's 200-local limit.
+Repo._NO_ROW = {}
+
+-- Repo.lightMetaReady(fps): books whose extraction just completed. Their
+-- light records were built with no row (the file name as title): read each
+-- row live into the batch rows and drop the record, so the next lookup
+-- builds it from what KOReader now knows.
+function Repo.lightMetaReady(fps)
+    local bim = getBookInfoMgr()
+    for _k, entry in pairs(_light_meta_cache) do
+        for fp in pairs(fps or {}) do
+            if entry.rows and bim then
+                local info = _bimGetBookInfo(bim, fp, false, "getBookInfo (ready)")
+                if info then entry.rows[fp] = info end
+            end
+            if entry.map then rawset(entry.map, fp, nil) end
+        end
+    end
+    _bumpDataGeneration()
+end
+
 function Repo.invalidateLightMeta()
     _bumpDataGeneration()
     _light_meta_cache = {}
@@ -3831,8 +3853,15 @@ local function _getLightMetaCache(home, depth)
             __index = function(t, fp)
                 if type(fp) ~= "string" then return nil end
                 if prefix and fp:sub(1, #prefix) ~= prefix then return nil end
-                local info = row_map[fp]
-                if not info then return nil end
+                -- No row: the batch holds every row BIM has, so the book has
+                -- none (KOReader hasn't indexed it). It gets the record a
+                -- per-book read would give it ({} -- the file name as
+                -- title), memoised like the rest. Asking BIM again, one
+                -- SELECT per book, was ~1 s of a first visit to a shelf that
+                -- walks the library on a PW5 with 1,150 unindexed books, every
+                -- session. When the book's extraction completes, the
+                -- extraction poll swaps in its row (Repo.lightMetaReady).
+                local info = row_map[fp] or Repo._NO_ROW
                 local rec = _buildLightMetaFromInfo(fp, info)
                 -- Memoise, so the second consumer of a book pays nothing and
                 -- the map behaves like the eager one it replaced.

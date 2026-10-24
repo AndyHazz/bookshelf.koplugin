@@ -49,4 +49,20 @@ t.test("the prefix ends at a path boundary", function()
         .. "sibling directory with a shared name prefix is matched too")
 end)
 
+t.test("a book with no BIM row is built once from the batch's answer, not asked for again", function()
+    -- The batch holds every row BIM has; a book missing from it has none.
+    -- Returning nil sent every lookup back to a per-book SELECT, every
+    -- session: ~1 s of a first visit to a library-wide shelf on the PW5.
+    assert(fn:find("local info = row_map[fp] or Repo._NO_ROW", 1, true),
+        "a book with no row falls back to a per-book BIM read again")
+    assert(fn:find("rawset(t, fp, rec)", 1, true), "the record isn't memoised")
+    -- ...and the record moves on when its extraction completes.
+    local ready = src:match("\nfunction Repo%.lightMetaReady%(fps%)\n(.-)\nend\n")
+    assert(ready and ready:find("entry.rows[fp] = info", 1, true)
+        and ready:find("rawset(entry.map, fp, nil)", 1, true), "lightMetaReady")
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    assert(w:find("pcall(Repo.lightMetaReady, ready_paths)", 1, true),
+        "an extracted book keeps its file name as title")
+end)
+
 t.done()

@@ -3496,6 +3496,8 @@ function BookshelfWidget:_pollExtraction()
             end
             self:_expireSpineFetch()
         end
+        -- Their light records were built with no BIM row: take the rows now.
+        if Repo.lightMetaReady then pcall(Repo.lightMetaReady, ready_paths) end
         -- _swapShelvesInPlace re-fetches Book records (which re-query
         -- BIM) and re-arms polling for whatever is still missing.
         self:_swapShelvesInPlace()

@@ -188,18 +188,98 @@ local function openShelf(ctx, tab)
     if bw._selectChip then bw:_selectChip(tab.parent or tab.id) end
 end
 
+-- shelfChoices(tabs, is_card_only) -> { { tab, text }, ... }: the shelves a
+-- card can show, as the shelf menu has them: in its order, each sub-shelf
+-- straight after its parent and named with it ("Shelf of shelves > Recently
+-- read"), a hidden shelf marked. Listed flat by name, a sub-shelf (a Recent
+-- shelf filtered to one folder) read as a second Recent with one book on it
+-- (maintainer, PW5). Another card's own shelf belongs to that card.
+local SEP = " \xE2\x80\xBA "
+local function shelfChoices(tabs, is_card_only)
+    local out, kids = {}, {}
+    for _i, t in ipairs(tabs or {}) do
+        if t.parent ~= nil then
+            kids[t.parent] = kids[t.parent] or {}
+            table.insert(kids[t.parent], t)
+        end
+    end
+    local function walk(t, path, hidden)
+        local name = plainLabel(t.label) or tostring(t.id)
+        local full = path and (path .. SEP .. name) or name
+        hidden = hidden or t.enabled == false
+        if isBookShelf(t) and not (is_card_only and is_card_only(t)) then
+            out[#out + 1] = { tab = t, text = hidden and T(_("%1 (hidden)"), full) or full }
+        end
+        for _i, c in ipairs(kids[t.id] or {}) do walk(c, full, hidden) end
+    end
+    for _i, t in ipairs(tabs or {}) do
+        if t.parent == nil then walk(t, nil, false) end
+    end
+    return out
+end
+
 -- The shelves this card can show, as dialog rows; on_pick(tab).
 local function shelfRows(close, on_pick)
     local rows = {}
     local TabModel = require("lib/bookshelf_tab_model")
-    for _i, tab in ipairs(TabModel.load() or {}) do
-        -- Another card's own shelf belongs to that card.
-        if isBookShelf(tab) and not TabModel.isCardOnly(tab) then
-            rows[#rows + 1] = {{ text = plainLabel(tab.label) or tab.id,
-                callback = close(function() on_pick(tab) end) }}
-        end
+    for _i, c in ipairs(shelfChoices(TabModel.load(), TabModel.isCardOnly)) do
+        rows[#rows + 1] = {{ text = c.text, callback = close(function() on_pick(c.tab) end) }}
     end
     return rows
+end
+
+-- redrawCard(bw): show the module again after its shelf changed: in the
+-- layout editor (where each module's picture is kept until it changes), the
+-- editor's session; else the grid.
+local function redrawCard(bw)
+    local HeroModules = require("lib/bookshelf_hero_modules")
+    local ed = bw and bw._module_editor
+    if ed and ed.session then
+        pcall(HeroModules._dropDimCache)
+        ed.session:_render()
+    elseif bw then
+        HeroModules._rebuild(bw)
+    end
+end
+
+-- addShelf(host_ctx, done): what a new Shelf module shows. A new shelf of
+-- its own first -- making one was only in the module's settings after it had
+-- been added -- then the shelves it can show. A new shelf goes to the shelf
+-- editor at its source; the module is added once a source is picked, and
+-- backing out of the editor before that adds nothing (the editor removes the
+-- shelf). Later changes in the editor redraw the module.
+local function addShelf(host_ctx, done)
+    local UIManager    = require("ui/uimanager")
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local TabModel     = require("lib/bookshelf_tab_model")
+    local bw = host_ctx and host_ctx.bw
+    local d
+    local function close(fn) return function() UIManager:close(d); fn() end end
+    local rows = {{ { text = _("Create new shelf\xE2\x80\xA6"), callback = close(function()
+        local tabs = TabModel.load()
+        local nt = TabModel.newCardShelf(tabs)
+        tabs[#tabs + 1] = nt
+        TabModel.save(tabs)
+        local added = false
+        require("lib/bookshelf_chip_editor"):editTab(nt.id, {
+            pick_source_first = true,
+            on_change = function(info)
+                if info and info.source_changed and not added then
+                    added = true
+                    done({ tab_id = nt.id })
+                elseif added then
+                    redrawCard(bw)
+                end
+            end,
+            on_discard = function() end,
+        })
+    end) } }}
+    for _i, c in ipairs(shelfChoices(TabModel.load(), TabModel.isCardOnly)) do
+        rows[#rows + 1] = {{ text = c.text, callback = close(function() done({ tab_id = c.tab.id }) end) }}
+    end
+    d = ButtonDialog:new{ title = _("Choose a shelf"), title_align = "center", width_factor = 0.7,
+        buttons = rows }
+    UIManager:show(d)
 end
 
 local function pickShelf(title, on_pick)
@@ -510,8 +590,17 @@ return {
     end,
 
     -- Add flow: pick the shelf; cancelling aborts the add.
-    on_add = function(_host_ctx, done)
-        pickShelf(_("Choose a shelf"), function(tab) done({ tab_id = tab.id }) end)
+    on_add = function(host_ctx, done)
+        addShelf(host_ctx, done)
+    end,
+
+    -- What the module's kept picture in the layout editor also depends on:
+    -- its shelf (HeroModules._EditCell), which the module's entry does not
+    -- change with.
+    cache_key = function(entry)
+        local tab = entry and entry.tab_id and require("lib/bookshelf_tab_model").getById(entry.tab_id)
+        local ok, dump = pcall(require, "dump")
+        return tab and ok and dump(tab) or ""
     end,
 
     show_settings = showSettings,
@@ -522,5 +611,6 @@ return {
     end,
     _test = { isBookShelf = isBookShelf, headingText = headingText, rowsFor = rowsFor,
               cardRows = cardRows,
-              booksOnly = booksOnly, plainLabel = plainLabel, bookSource = bookSource },
+              booksOnly = booksOnly, plainLabel = plainLabel, bookSource = bookSource,
+              shelfChoices = shelfChoices },
 }

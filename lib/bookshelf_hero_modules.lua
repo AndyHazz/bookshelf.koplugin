@@ -1443,14 +1443,22 @@ function HeroModules._fade(bb, x, y, w, h, card_bg)
     end
 end
 
--- _entrySig(entry) -> a string that changes when the module's settings do.
+-- _entrySig(entry) -> a string that changes when the module's settings do,
+-- and with whatever else its spec says it shows (spec cache_key(entry): the
+-- Shelf module's shelf, which can change without the module's entry).
 function HeroModules._entrySig(entry)
+    local sig = tostring(entry)
     local ok, dump = pcall(require, "dump")
     if ok and type(dump) == "function" then
         local ok2, s = pcall(dump, entry)
-        if ok2 then return s end
+        if ok2 then sig = s end
     end
-    return tostring(entry)
+    local def = entry and Modules.get(entry.module)
+    if def and type(def.cache_key) == "function" then
+        local ok3, extra = pcall(def.cache_key, entry)
+        if ok3 and extra ~= nil then sig = sig .. "\0" .. tostring(extra) end
+    end
+    return sig
 end
 
 -- The layout editor dims every module but the selected one, and did so with

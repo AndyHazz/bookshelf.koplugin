@@ -1325,6 +1325,16 @@ function Editor:editTab(tab_id, opts)
             })
         end
 
+        -- A Shelf module's own shelf: not in the shelf menu, so nothing to
+        -- move along it; and it lives and dies with its module (removing the
+        -- module deletes it, its settings switch to another), so no Delete,
+        -- Copy, Move to or new shelf beside it. The first row keeps Edit
+        -- label between the arrows; the last row is the actions.
+        if draft.card_only then
+            buttons[1] = { buttons[1][2] }
+            buttons[#buttons] = {}
+        end
+
         -- Strip empty rows. The conditional delete row's IIFE returns {}
         -- for built-in tabs; ButtonTable renders a zero-cell row as a
         -- thin separator strip which visually doubles with the adjacent
@@ -3229,6 +3239,55 @@ function Editor:_pickSource(draft, on_close)
             { text = _("Cancel"), callback = function() UIManager:close(d); on_close() end },
         },
     }
+
+    -- A Shelf module's own shelf (TabModel.isCardOnly): only what the module
+    -- can show. It shows books, so no grouped source (series, authors, a
+    -- shelf of shelves...) and nothing online; each "Specific ..." picker is
+    -- books, so those stay. Offered everything, a reader could make a module
+    -- that only ever said "Choose a shelf".
+    if TabModel.isCardOnly(draft) then
+        rows = {
+            heading(_("Books")),
+            {
+                btn("recent",    _("Recently read")),
+                btn("latest",    _("Latest added")),
+                btn("favorites", _("\xE2\x98\x85 Favorites")),
+            },
+            {
+                btn("all",       _("Home (folders)")),
+                btn("library",   _("Home (flattened)")),
+            },
+            {
+                specific_btn("folder", _("Specific folder\xE2\x80\xA6"),
+                    function() open_folder_picker("folder") end),
+                specific_btn("folder_flat", _("Flattened folder\xE2\x80\xA6"),
+                    function() open_folder_picker("folder_flat") end),
+            },
+            {
+                specific_btn("single_series", _("Specific series\xE2\x80\xA6"),
+                    function() open_group_picker("series", "series", "single_series") end),
+                specific_btn("author", _("Specific author\xE2\x80\xA6"),
+                    function() open_group_picker("author", "author", "author") end),
+            },
+            {
+                specific_btn("genre", _("Specific genre\xE2\x80\xA6"),
+                    function() open_group_picker("genre", "genre", "genre") end),
+                specific_btn("collection", _("Specific collection\xE2\x80\xA6"), open_tag_picker),
+            },
+            {
+                specific_btn("format", _("Specific format\xE2\x80\xA6"),
+                    function() open_group_picker("format", "format", "format") end),
+                specific_btn("rating", _("Specific rating\xE2\x80\xA6"), open_rating_picker),
+            },
+            {
+                specific_btn("language", _("Specific language\xE2\x80\xA6"),
+                    function() open_group_picker("language", "language", "language") end),
+            },
+            {
+                { text = _("Cancel"), callback = function() UIManager:close(d); on_close() end },
+            },
+        }
+    end
 
     -- Registered sources (lib/bookshelf_sources): the Kindle's own library, and
     -- any plugin's (issue 452). Unlike the OPDS row above these are gated on

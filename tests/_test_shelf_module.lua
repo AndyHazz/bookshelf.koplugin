@@ -5,7 +5,7 @@
 -- folder cards are left out.
 package.path = "./?.lua;./?/init.lua;" .. package.path
 package.loaded["lib/bookshelf_i18n"] = { gettext = function(s) return s end }
-package.loaded["ffi/util"] = { template = function(s) return s end }
+package.loaded["ffi/util"] = { template = function(s, a) return (s:gsub("%%1", tostring(a))) end }
 package.loaded["logger"] = { dbg = function() end, info = function() end,
     warn = function() end, err = function() end }
 
@@ -105,6 +105,68 @@ t.test("a covers module asks for full records; a spines module stays light", fun
     assert(cover and spine, "bodies not found")
     assert(not cover:find("light_only", 1, true), "covers are asked for light records: no cover to draw")
     assert(spine:find("light_only = true", 1, true), "spines lost their light records")
+end)
+
+t.test("the shelf list reads as the shelf menu does: in order, sub-shelves under their parent", function()
+    -- On a PW5 a sub-shelf "Recently read" (a Recent shelf filtered to one
+    -- folder) sat in the list as if it were a second Recent, with one book.
+    local tabs = {
+        { id = "all", label = "Home", source = { kind = "all" } },
+        { id = "recent", label = "Recent", source = { kind = "recent" } },
+        { id = "sos", label = "Shelf of shelves", source = { kind = "shelves" } },
+        { id = "genres", label = "Genres", source = { kind = "genres" } },
+        { id = "c5", label = "Recently read", source = { kind = "recent" }, parent = "sos" },
+        { id = "inner", label = "Shelfy", source = { kind = "shelves" }, parent = "sos" },
+        { id = "c6", label = "Notebooks", source = { kind = "collection", id = "n" }, parent = "inner" },
+        { id = "off", label = "Old", source = { kind = "recent" }, enabled = false },
+        { id = "card", label = "Mine", source = { kind = "recent" }, card_only = true },
+    }
+    local got = {}
+    for _i, c in ipairs(H.shelfChoices(tabs, function(t) return t.card_only == true end)) do
+        got[#got + 1] = c.text
+    end
+    assert(table.concat(got, "|") == "Home|Recent|Shelf of shelves \u{203A} Recently read"
+        .. "|Shelf of shelves \u{203A} Shelfy \u{203A} Notebooks|Old (hidden)", table.concat(got, "|"))
+end)
+
+t.test("adding a module offers to create a shelf first, then the shelves", function()
+    local src = io.open("micromodules/shelf.lua"):read("*a")
+    local add = src:match("\n    on_add = function%(host_ctx, done%)\n(.-)\n    end,\n")
+    assert(add and add:find("addShelf(host_ctx, done)", 1, true), "on_add does not offer a new shelf")
+    local body = src:match("\nlocal function addShelf%(host_ctx, done%)\n(.-)\nend\n")
+    assert(body, "no addShelf")
+    local new_at = body:find([[_("Create new shelf\xE2\x80\xA6")]], 1, true)
+    local list_at = body:find("shelfChoices(", 1, true)
+    assert(new_at and list_at and new_at < list_at, "New shelf is not first")
+    -- A new shelf is only added once it has a source; backing out adds nothing.
+    assert(body:find("if info and info.source_changed and not added then", 1, true))
+    assert(body:find("on_discard = function() end", 1, true))
+end)
+
+t.test("a module's own shelf is offered only sources the module can show", function()
+    -- A grouped source (Series, Authors, Shelf of shelves) or an online one
+    -- made a module that could only say "Choose a shelf".
+    local ed = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
+    local body = ed:match("\nfunction Editor:_pickSource%(draft, on_close%)\n(.-)\nend\n")
+    local card = body:match("if TabModel.isCardOnly%(draft%) then\n(.-)\n    end\n")
+    assert(card, "the picker is the same for a module's shelf")
+    for _i, s in ipairs({ 'btn("series"', 'btn("authors"', 'btn("genres"', 'btn("tags"',
+            'btn("shelves"', '"opds"' }) do
+        assert(not card:find(s, 1, true), s .. " offered to a module's shelf")
+    end
+    for _i, s in ipairs({ '"single_series"', '"author"', '"genre"', '"collection"', '"format"',
+            '"rating"', '"language"', 'btn("recent"', '"folder_flat"' }) do
+        assert(card:find(s, 1, true), s .. " missing for a module's shelf")
+    end
+end)
+
+t.test("a module's own shelf is edited without the shelf menu's controls", function()
+    local ed = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
+    local cut = ed:match("if draft%.card_only then\n            buttons%[1%] = { buttons%[1%]%[2%] }\n            buttons%[#buttons%] = {}\n        end")
+    assert(cut, "arrows, Delete, Copy, Move to and + still shown for a module's shelf")
+    -- Edit label is the middle of the first row; the actions the last.
+    local first = ed:match("local buttons = {\n(.-)%-%- Row 1a: source")
+    assert(first and first:find('_("Edit label")', 1, true))
 end)
 
 t.done()

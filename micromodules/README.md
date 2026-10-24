@@ -283,6 +283,11 @@ omit them and you get the sensible default (a flex/text card offered everywhere)
   nothing useful to show below that size. The grid clamps them to its own size,
   so a hint bigger than a small screen's grid still loads. Leave them off and
   the card accepts any size.
+- `cache_key = function(entry) return ... end` — in the layout editor each
+  module's picture is kept until its own settings, its place or the minute
+  change. If yours shows something else that can change meanwhile (the Shelf
+  module shows a shelf, edited elsewhere), return a string that changes with
+  it.
 - `network = { "host", ... }` — the data-source domains your module fetches from.
   Declaring it marks the module network-required: the Add picker shows a
   "Network required / Data provided by: …" panel for it instead of live-rendering

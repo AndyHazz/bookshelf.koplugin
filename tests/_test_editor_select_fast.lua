@@ -71,4 +71,12 @@ t.test("in the editor a module is built only when its kept picture won't do", fu
     assert(drop:find("HeroModules._paint_cache = {}", 1, true), "kept pictures outlive the editor")
 end)
 
+t.test("a module can name more of what its kept picture depends on", function()
+    -- The Shelf module's shelf can change while the module's entry does not.
+    local sig = hm:match("\nfunction HeroModules%._entrySig%(entry%)\n(.-)\nend\n")
+    assert(sig and sig:find("def.cache_key, entry", 1, true), "spec cache_key ignored")
+    local shelf = io.open("micromodules/shelf.lua"):read("*a")
+    assert(shelf:find("cache_key = function(entry)", 1, true), "the Shelf module's picture outlives a shelf edit")
+end)
+
 t.done()

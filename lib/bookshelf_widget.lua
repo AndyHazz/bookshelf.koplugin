@@ -5277,7 +5277,12 @@ function BookshelfWidget:_buildMicroHero(content_w, hero_h, PAD)
     dots_h = 0
     local grid_h  = math.max(1, hero_h - status_h - gap)
     local grid    = HeroModules.build(self, content_w, grid_h, PAD, mopts)
-    local dots    = dotsFor(status_h)
+    -- Centred on the status text, above the row's hairline and the padding
+    -- under it (HeroCard.buildStatusRow: text, hairline, padding): centred
+    -- on the whole row they sat on the line (maintainer).
+    local text_row = rawget(status_row, 1)   -- its text line (not a shelf row)
+    local ok_t, text_h = pcall(function() return text_row:getSize().h end)
+    local dots    = dotsFor((ok_t and text_h and text_h > 0) and text_h or status_h)
     -- The status line is swapped in place every minute (_swapHeroStatusStrip):
     -- it is the group's first child, the dots its second.
     local head = OverlapGroup:new{

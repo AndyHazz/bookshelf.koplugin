@@ -13,7 +13,10 @@ local body = assert(w:match("\nfunction BookshelfWidget:_buildMicroHero%(content
 t.test("with a status line, the dots share its row and the grid gets the band", function()
     assert(body:find("dots_h = 0", 1, true), "the band is still taken from the grid")
     assert(body:find("local grid_h  = math.max(1, hero_h - status_h - gap)", 1, true))
-    assert(body:find("local dots    = dotsFor(status_h)", 1, true), "dots not sized to the status line")
+    -- On the status text, above the row's hairline.
+    assert(body:find("local text_row = rawget(status_row, 1)", 1, true)
+        and body:find("local dots    = dotsFor((ok_t and text_h and text_h > 0) and text_h or status_h)", 1, true),
+        "dots centred on the whole row, over its hairline")
     local head = body:match("local head = OverlapGroup:new{(.-)}\n")
     assert(head and head:find("status_row,", 1, true) and head:find("dots,", 1, true))
 end)

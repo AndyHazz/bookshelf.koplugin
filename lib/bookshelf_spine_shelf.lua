@@ -5962,10 +5962,28 @@ function SpineShelf.rowWidget(opts)
     -- position of its own): the face-out opening pose repaints it there.
     -- Offscreen paints (a page-turn wipe's scratch) would record the wrong
     -- place, so only the screen's own buffer counts.
+    --
+    -- keep_ground (a Shelf module): what is behind the row is the module's,
+    -- not the shelf's page, so the row copies it before it paints, as its
+    -- spines do, for the pose to put back. Wallpaper.restore knows only the
+    -- shelf's page, and filled a module's row with the library's wallpaper
+    -- when a book opened from it inside a book (maintainer, PW5).
     if #faceout_fxs > 0 then
         local paint = row_group.paintTo
+        local keep_ground = opts.keep_ground
         function row_group:paintTo(bb, x, y)
             if bb == Screen.bb then self._screen_x, self._screen_y = x, y end
+            if keep_ground and bb == Screen.bb then
+                pcall(function()
+                    local w, h = self.dimen.w, self.dimen.h
+                    local g = self._ground
+                    if not (g and g:getWidth() == w and g:getHeight() == h) then
+                        if g then g:free() end
+                        self._ground = Blitbuffer.new(w, h, bb:getType())
+                    end
+                    self._ground:blitFrom(bb, 0, 0, x, y, w, h)
+                end)
+            end
             return paint(self, bb, x, y)
         end
         for _i, fx in ipairs(faceout_fxs) do fx.row = row_group end
@@ -6347,8 +6365,12 @@ function SpineShelf.paintFaceOutTilt(tile)
         col.h = 0
         item.paintTo = function() end
         local ok_r, err_r = pcall(function()
+            -- A row in a Shelf module kept its own ground (rowWidget).
+            local g = row._ground
             local ok_wp, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
-            if not (ok_wp and Wallpaper.restore(bb, rx, ry, rw, rh)) then
+            if g and g:getWidth() == rw and g:getHeight() == rh then
+                bb:blitFrom(g, rx, ry, 0, 0, rw, rh)
+            elseif not (ok_wp and Wallpaper.restore(bb, rx, ry, rw, rh)) then
                 bb:paintRectRGB32(rx, ry, rw, rh, Blitbuffer.ColorRGB32(0xFF, 0xFF, 0xFF, 0xFF))
             end
             row:paintTo(bb, rx, ry)

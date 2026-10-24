@@ -45,4 +45,17 @@ t.test("runs of one colour are compared by identity, not ==", function()
         "colours compared with ~=")
 end)
 
+t.test("in a Shelf module the row keeps what is behind it, as its spines do", function()
+    -- The pose repaints the row "as if the book were gone" over the page put
+    -- back. In a module that page is the module's, not the shelf's: put back
+    -- through Wallpaper.restore, the library's wallpaper or ground filled the
+    -- module's row on a PW5, opened from inside a book (maintainer).
+    assert(code:find("if keep_ground and bb == Screen.bb then", 1, true), "the row keeps no ground")
+    assert(code:find("self._ground:blitFrom(bb, 0, 0, x, y, w, h)", 1, true), "the ground is not copied before the paint")
+    local body = code:match("\nfunction SpineShelf%.paintFaceOutTilt%(tile%)\n(.-)\nend\n")
+    local kept = body:find("bb:blitFrom(g, rx, ry, 0, 0, rw, rh)", 1, true)
+    local wp = body:find("Wallpaper.restore(bb, rx, ry, rw, rh)", 1, true)
+    assert(kept and wp and kept < wp, "the kept ground is not put back before the shelf's own")
+end)
+
 t.done()

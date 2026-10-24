@@ -10383,6 +10383,10 @@ function BookshelfWidget:_repaintSelectionHighlight(old_fp, new_fp)
     -- back to the heavier swap so the user isn't stuck looking at a stale
     -- highlight. (Happens when preview was set on a different page before
     -- the user paginated.)
+    -- A Shelf module's book (lib/bookshelf_module_open) is none of the
+    -- shelf's own: the module rings its own, and the fallback rebuilt every
+    -- row for nothing (150-200 ms a tap on the PW5).
+    if replaced == 0 and self._preview_from_module then return end
     if replaced == 0 then
         logger.dbg("[bookshelf perf] _repaintHighlight: no slot match -> fallback _swapShelves")
         self:_swapShelvesInPlace()

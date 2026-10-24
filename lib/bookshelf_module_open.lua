@@ -52,6 +52,65 @@ function M.staged(key, ctx)
     return key ~= nil and M._staged[key] or nil
 end
 
+-- A lift moves by flipping two spine slots' flags and repainting them, as
+-- the shelf's own does (BookshelfWidget:_repaintSpineSelection), not by
+-- re-rendering the module. The slots are looked up in the shelf as it is on
+-- screen: the module renders several times while it fits its cell, so rows
+-- noted at render time were often not the ones painted.
+-- slotsIn(node, fp, depth, out): every spine slot showing fp (from the rows'
+-- _slots_by_fp registries). Returns false when one is a face-out book, whose
+-- lift is built into the row.
+local function slotsIn(node, fp, depth, out)
+    if type(node) ~= "table" or depth > 14 then return true end
+    local reg = rawget(node, "_slots_by_fp")
+    local slot = reg and reg[fp]
+    if slot then
+        if not slot.entry then return false end
+        out[slot] = true
+    end
+    for _i, c in ipairs(node) do
+        if type(c) == "table" and not slotsIn(c, fp, depth + 1, out) then return false end
+    end
+    return true
+end
+
+-- redraw(bw, key, refresh): the module made again in its own cell (a
+-- face-out book's lift is built into its row), else its host's refresh.
+local function redraw(bw, key, refresh)
+    local ok, HM = pcall(require, "lib/bookshelf_hero_modules")
+    if ok and HM._reloadShelfCell and HM._reloadShelfCell(bw, key) then return end
+    if refresh then refresh() end
+end
+
+--- relift(bw, key, old_fp, new_fp) -> true when both moves were made in
+--- place (and the two slots repainted); false: the caller redraws.
+function M.relift(bw, key, old_fp, new_fp)
+    local root = bw and bw._inner_vgroup
+    if not root then return false end
+    local found = {}
+    for _i, fp in ipairs({ old_fp or false, new_fp or false }) do
+        if fp then
+            local slots = {}
+            if not slotsIn(root, fp, 0, slots) or next(slots) == nil then return false end
+            for slot in pairs(slots) do found[#found + 1] = { slot = slot, on = (fp == new_fp) } end
+        end
+    end
+    local UIManager = require("ui/uimanager")
+    -- Upward by the lift's reach, as the shelf's own repaint does.
+    local pad = math.max(require("device").screen:scaleBySize(12), bw._spine_lift_headroom or 0)
+    for _i, f in ipairs(found) do
+        f.slot.is_selected = f.on
+        local d = f.slot.dimen
+        if d then
+            local r = { x = d.x, y = math.max(0, d.y - pad), w = d.w, h = d.h + pad }
+            UIManager:setDirty(bw, function()
+                return "ui", require("ui/geometry"):new(r)
+            end)
+        end
+    end
+    return true
+end
+
 --- previewChanged(bw, fp): the shelf put another book in the top panel; a
 --- module lifting the old one redraws without it.
 function M.previewChanged(bw, fp)
@@ -60,7 +119,9 @@ function M.previewChanged(bw, fp)
     for key, l in pairs(lifts) do
         if l.fp ~= fp then
             lifts[key] = nil
-            if l.refresh then require("ui/uimanager"):nextTick(l.refresh) end
+            if not M.relift(bw, key, l.fp, nil) then
+                require("ui/uimanager"):nextTick(function() redraw(bw, key, l.refresh) end)
+            end
         end
     end
 end
@@ -128,12 +189,19 @@ function M.tap(ctx, key, book)
         if bw._preview_book and bw._preview_book.filepath == book.filepath then
             M.open(ctx, book)
         else
-            bw:_previewBook(book)
+            -- The book isn't one of the shelf's own: nothing of the shelf's
+            -- to re-ring (see _repaintSelectionHighlight's fallback).
+            bw._preview_from_module = true
+            local ok, err = pcall(bw._previewBook, bw, book)
+            bw._preview_from_module = nil
+            if not ok then error(err) end
             bw._module_lifts = bw._module_lifts or {}
             bw._module_lifts[key] = { fp = book.filepath, refresh = ctx.refresh }
             -- Lift (or ring) the book here too, as the shelf does. (In the
             -- top panel the module has given way to the book.)
-            if ctx.surface == "shelf" and ctx.refresh then ctx.refresh() end
+            if ctx.surface == "shelf" and not M.relift(bw, key, nil, book.filepath) then
+                redraw(bw, key, ctx.refresh)
+            end
         end
         return
     end

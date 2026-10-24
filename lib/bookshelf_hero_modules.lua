@@ -929,8 +929,43 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
         return true
     end
     cell.perf_name = entry.module
+    -- What it was made from, so it can be made again in place (_reloadShelfCell).
+    cell._made = { entry = entry, w = cell_w, h = cell_h, scale = scale_pct,
+                   focusable = focusable, focused = focused }
     Perf.part("cell " .. tostring(entry.module), t_cell)
     return cell
+end
+
+-- _reloadShelfCell(bw, id) -> true when the shelf module `id` was found on
+-- the shelf as it is on screen, made again at the same size and repainted
+-- over its own rect: one module, where its host's refresh rebuilds every row
+-- (a Shelf module moving its lift to a face-out book: ~200 ms on the PW5).
+function HeroModules._reloadShelfCell(bw, id)
+    local root = bw and bw._inner_vgroup
+    if not (root and id) then return false end
+    local function find(node, depth)
+        if type(node) ~= "table" or depth > 14 then return nil end
+        for i, c in ipairs(node) do
+            if type(c) == "table" then
+                local m = rawget(c, "_made")
+                if m and m.entry and m.entry.id == id then return node, i, c end
+                local p, j, hit = find(c, depth + 1)
+                if p then return p, j, hit end
+            end
+        end
+    end
+    local parent, idx, old = find(root, 0)
+    if not (parent and old.dimen) then return false end
+    local m = old._made
+    HeroModules._applyPalette(bw)
+    local fresh = HeroModules._makeCell(bw, m.entry, m.w, m.h, m.scale, m.focusable, m.focused)
+    if not fresh then return false end
+    parent[idx] = fresh
+    if parent.resetLayout then parent:resetLayout() end
+    local scope = old.dimen:copy()
+    if old.free then UIManager:nextTick(function() pcall(function() old:free() end) end) end
+    UIManager:setDirty(bw, function() return "ui", scope end)
+    return true
 end
 
 -- Empty list: a single full-hero bordered prompt. Tap or hold opens "Add".

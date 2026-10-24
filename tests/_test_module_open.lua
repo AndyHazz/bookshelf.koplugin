@@ -26,6 +26,11 @@ package.loaded["lib/bookshelf_widget"] = {
     end,
 }
 package.loaded["apps/reader/readerui"] = { showReader = function(_s, fp) log[#log + 1] = "showReader " .. fp end }
+local reloaded = {}
+package.loaded["lib/bookshelf_hero_modules"] = { _reloadShelfCell = function(bw, id)
+    if bw._cells and bw._cells[id] then reloaded[#reloaded + 1] = id; return true end
+    return false
+end }
 local M = dofile("lib/bookshelf_module_open.lua")
 
 local book = { filepath = "/a.epub" }
@@ -121,7 +126,9 @@ t.test("with the top panel on screen the module lifts the panel's book, and lets
     local ticked
     package.loaded["ui/uimanager"].nextTick = function(_s, f) ticked = f end
     M.previewChanged(bw, "/b.epub")
-    assert(ticked == ctx.refresh and bw._module_lifts.m1 == nil, "the old book stays lifted")
+    assert(ticked and bw._module_lifts.m1 == nil, "the old book stays lifted")
+    log = {}; ticked()
+    assert(log[1] == "refresh module", "no redraw: " .. table.concat(log, ", "))
     -- A module that never had a book in the panel doesn't redraw on the
     -- shelf's taps (it did on every one).
     local ctx2 = { bw = bw, surface = "shelf", refresh = function() end }
@@ -132,6 +139,42 @@ t.test("with the top panel on screen the module lifts the panel's book, and lets
     assert(w:find('require("lib/bookshelf_module_open").previewChanged(self, book.filepath)', 1, true),
         "the shelf never tells the module")
     assert(io.open("micromodules/shelf.lua"):read("*a"):find("Open.staged(key, ctx)", 1, true))
+end)
+
+t.test("the lift moves by flipping two slots, not by redrawing the module", function()
+    settings = { action = "open" }; log = {}; M._staged = {}
+    package.loaded["device"].screen.scaleBySize = function(_s, n) return n end
+    package.loaded["ui/geometry"] = { new = function(_s, r) return r end }
+    local dirty = {}
+    package.loaded["ui/uimanager"].setDirty = function(_s, _w, f) dirty[#dirty + 1] = f() end
+    local ctx, bw = shelfCtx()
+    ctx.surface = "shelf"
+    function bw:_previewBook(b) M.previewChanged(self, b.filepath); self._preview_book = b end
+    local a = { entry = {}, book = { filepath = "/a.epub" }, dimen = { x = 0, y = 0, w = 10, h = 10 } }
+    local b = { entry = {}, book = { filepath = "/b.epub" }, dimen = { x = 20, y = 0, w = 10, h = 10 } }
+    local face = { book = { filepath = "/f.epub" } }   -- face-out: no entry
+    -- The shelf as on screen, the module's row a few levels down.
+    bw._inner_vgroup = { {}, { { { _slots_by_fp = { ["/a.epub"] = a, ["/b.epub"] = b, ["/f.epub"] = face } } } } }
+    M.tap(ctx, "m1", { filepath = "/a.epub" })
+    assert(a.is_selected == true and #dirty == 1, "a: " .. #dirty)
+    assert(not table.concat(log, ","):find("refresh module"), "the module redrew: " .. table.concat(log, ", "))
+    dirty = {}
+    M.tap(ctx, "m1", { filepath = "/b.epub" })
+    assert(a.is_selected == false and b.is_selected == true and #dirty == 2, "moved: " .. #dirty)
+    assert(not table.concat(log, ","):find("refresh module"), "the module redrew")
+    -- A face-out book's lift is built in: the module is made again in its
+    -- own cell, or, where that can't be found, its host redraws.
+    M.tap(ctx, "m1", { filepath = "/f.epub" })
+    assert(log[#log] == "refresh module", table.concat(log, ", "))
+    bw._cells = { m1 = true }; log = {}
+    M.tap(ctx, "m1", { filepath = "/b.epub" })
+    M.tap(ctx, "m1", { filepath = "/f.epub" })
+    assert(reloaded[#reloaded] == "m1" and not table.concat(log, ","):find("refresh module"),
+        "the whole shelf redrew for one module: " .. table.concat(log, ", "))
+    -- The tap tells the shelf the book isn't one of its own, so its
+    -- highlight repaint doesn't fall back to rebuilding every row.
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    assert(w:find("if replaced == 0 and self._preview_from_module then return end", 1, true))
 end)
 
 t.test("a shelf module's render knows it is on the shelf", function()

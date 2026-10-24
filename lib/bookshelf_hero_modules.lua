@@ -1428,6 +1428,7 @@ function HeroModules._editDecorations(container, dims, boxes, page, edit, ox, oy
             bb:paintRect(x + w - line, y + i, line, len, ink)
         end
     end
+    local thick = Screen:scaleBySize(4)
     function container.under(bb, x0, y0)
         for r = 1, dims.rows do
             for c = 1, dims.cols do
@@ -1437,21 +1438,27 @@ function HeroModules._editDecorations(container, dims, boxes, page, edit, ox, oy
                 end
             end
         end
-    end
-    local thick = Screen:scaleBySize(4)
-    function container.over(bb, x0, y0)
+        -- The selected module's outline, UNDER the modules: it lies just
+        -- outside the card, so nothing of the card covers it, and what hangs
+        -- out of a card stays in front of it -- the Shelf module's heading,
+        -- hooked over its plank, had the outline run through it (maintainer).
         for _i, b in ipairs(boxes) do
-            if b.page == page then
+            if b.page == page and b.id == edit.selected_id then
                 local x, y, w, h = Grid.rect(dims, b)
                 x, y = x0 + ox + x, y0 + oy + y
-                if b.id == edit.selected_id then
-                    -- Rounded like the card it surrounds (_makeCell's radius),
-                    -- grown by the outline's own width.
-                    bb:paintBorder(x - thick, y - thick, w + 2 * thick, h + 2 * thick,
-                        thick, Blitbuffer.COLOR_BLACK, Space.px(4) + thick)
-                elseif edit.selected_id then
-                    HeroModules._fade(bb, x, y, w, h, Modules.CARD_BG)
-                end
+                -- Rounded like the card it surrounds (_makeCell's radius),
+                -- grown by the outline's own width.
+                bb:paintBorder(x - thick, y - thick, w + 2 * thick, h + 2 * thick,
+                    thick, Blitbuffer.COLOR_BLACK, Space.px(4) + thick)
+            end
+        end
+    end
+    function container.over(bb, x0, y0)
+        if not edit.selected_id then return end
+        for _i, b in ipairs(boxes) do
+            if b.page == page and b.id ~= edit.selected_id then
+                local x, y, w, h = Grid.rect(dims, b)
+                HeroModules._fade(bb, x0 + ox + x, y0 + oy + y, w, h, Modules.CARD_BG)
             end
         end
     end

@@ -378,6 +378,21 @@ function Editor:_fadeAround(bb)
             local copy = Blitbuffer.new(w, h, bb:getType())
             copy:blitFrom(bb, 0, 0, x0, y0, w, h)
             keep[#keep + 1] = { copy = copy, x = x0, y = y0, w = w, h = h }
+            -- A Shelf module's heading hangs past the grid, below its plank:
+            -- clear too, not half faded.
+            local ok_ss, SpineShelf = pcall(require, "lib/bookshelf_spine_shelf")
+            if ok_ss and SpineShelf.screenBadgeRects then
+                for _i, r in ipairs(SpineShelf.screenBadgeRects(x0, y0, w, h)) do
+                    local bx, by = math.max(0, r.x), math.max(0, r.y)
+                    local bw = math.min(bb:getWidth() - bx, r.w)
+                    local bh = math.min(bb:getHeight() - by, r.h)
+                    if bw > 0 and bh > 0 then
+                        local c = Blitbuffer.new(bw, bh, bb:getType())
+                        c:blitFrom(bb, 0, 0, bx, by, bw, bh)
+                        keep[#keep + 1] = { copy = c, x = bx, y = by, w = bw, h = bh }
+                    end
+                end
+            end
         end
     elseif d and d.x then
         local pad = Screen:scaleBySize(8)

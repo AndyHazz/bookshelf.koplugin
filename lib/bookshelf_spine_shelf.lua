@@ -4976,6 +4976,8 @@ function SpineShelf._moduleTile(e, stand_h, opts, push)
         VerticalSpan:new{ width = push + math.max(0, (opts.height or stand_h) - stand_h) } }
 end
 
+-- opts.no_pin: the row is in a Shelf module, whose pieces are dealt for the
+-- module, so none offers "Pin here" (it would pin to the main shelf).
 function SpineShelf.rowWidget(opts)
     local HorizontalGroup = require("ui/widget/horizontalgroup")
     local HorizontalSpan  = require("ui/widget/horizontalspan")
@@ -5003,7 +5005,7 @@ function SpineShelf.rowWidget(opts)
             local w_ = Orn.Ornament:new{ placement = pl, night = _nightMode() }
             w_.overlap_offset = { x, SpineShelf.ornamentY(pl, stand_h, opts) }
             -- Past the last book: "Pin here" stands it after all of them.
-            w_.pin_after_idx = math.huge
+            if not opts.no_pin then w_.pin_after_idx = math.huge end
             ornament = w_
         end)
         local design = SpineShelf.plankDesignWidget(opts.width, opts.height)
@@ -5109,7 +5111,7 @@ function SpineShelf.rowWidget(opts)
                     w_.overlap_offset = { cursor, SpineShelf.ornamentY(lead_pl, stand_h, opts) }
                     -- Where "Pin here" stands it: before this row's first
                     -- item (an item index into the plan's list).
-                    w_.pin_after_idx = SpineShelf.pinAfter(opts.plan.entries, i, "before")
+                    if not opts.no_pin then w_.pin_after_idx = SpineShelf.pinAfter(opts.plan.entries, i, "before") end
                     local part
                     if SpineShelf.behindAbove(lead_pl, w_.overlap_offset[2], opts) then
                         hanging[#hanging + 1] = w_
@@ -5141,7 +5143,7 @@ function SpineShelf.rowWidget(opts)
                                                       night = _nightMode() }
                         w_.overlap_offset = { cursor + math.floor((gap_w - pl.w) / 2),
                                               SpineShelf.ornamentY(pl, stand_h, opts) }
-                        w_.pin_after_idx = SpineShelf.pinAfter(opts.plan.entries, i, "before") -- in the gap before e
+                        if not opts.no_pin then w_.pin_after_idx = SpineShelf.pinAfter(opts.plan.entries, i, "before") end -- in the gap before e
                         local part
                         if SpineShelf.behindAbove(pl, w_.overlap_offset[2], opts) then
                             hanging[#hanging + 1] = w_
@@ -5544,9 +5546,9 @@ function SpineShelf.rowWidget(opts)
         -- Before the row's first item, or after its last, as it stands.
         pcall(function()
             if pl.side == "left" then
-                w_.pin_after_idx = SpineShelf.pinAfter(opts.plan.entries, opts.row.first, "before")
+                if not opts.no_pin then w_.pin_after_idx = SpineShelf.pinAfter(opts.plan.entries, opts.row.first, "before") end
             else
-                w_.pin_after_idx = SpineShelf.pinAfter(opts.plan.entries, opts.row.last, "after")
+                if not opts.no_pin then w_.pin_after_idx = SpineShelf.pinAfter(opts.plan.entries, opts.row.last, "after") end
             end
         end)
         local part

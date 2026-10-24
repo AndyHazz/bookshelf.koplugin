@@ -97,4 +97,16 @@ t.test("a pinned piece's ornament menu leaves out the deal's controls", function
     assert(n == 2, "Place and Swap/Shuffle/Switch off rows not both left out: " .. n)
 end)
 
+-- A Shelf module's pieces are dealt for the module, not the shelf: pinning
+-- one there would stand it among the main shelf's books instead, so "Pin
+-- here" is never offered in a module (maintainer). The menu offers it only
+-- to a piece that knows where it stands (pin_after_idx).
+t.test("no Pin here for a piece in a Shelf module", function()
+    local shelf = io.open("micromodules/shelf.lua"):read("*a")
+    assert(shelf:find("no_pin = true", 1, true), "the Shelf module's rows don't say so")
+    local n_all = select(2, ss:gsub("w_%.pin_after_idx = ", ""))
+    local n_gated = select(2, ss:gsub("if not opts%.no_pin then w_%.pin_after_idx = ", ""))
+    assert(n_all > 0 and n_all == n_gated, n_gated .. " of " .. n_all .. " pin positions are gated")
+end)
+
 t.done()

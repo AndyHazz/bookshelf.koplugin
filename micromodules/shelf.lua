@@ -437,7 +437,9 @@ local function spineBody(ctx, tab, w, h, gap, label)
                 plank_label = (r == 1) and label or nil,
                 -- Its plank stands on a card or on the main shelf, not on the
                 -- page: the bevels cut back to what is behind.
-                keep_ground = true }
+                keep_ground = true,
+                -- Its pieces are the module's, not the shelf's to pin.
+                no_pin = true }
         end
         return plankScope(design, vg)
     end)

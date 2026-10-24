@@ -908,6 +908,7 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
         if host and host.hold then host.hold(entry) else HeroModules._hold(bw, entry) end
         return true
     end
+    cell.perf_name = entry.module
     Perf.part("cell " .. tostring(entry.module), t_cell)
     return cell
 end

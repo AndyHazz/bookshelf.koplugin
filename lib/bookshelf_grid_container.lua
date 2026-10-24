@@ -33,13 +33,23 @@ function GridContainer:resetLayout() end
 
 function GridContainer:paintTo(bb, x, y)
     self.dimen.x, self.dimen.y = x, y
+    -- Each cell's paint, into an open interaction's timing (lib/bookshelf_perf).
+    local Perf = require("lib/bookshelf_perf")
+    local timing = Perf.active()
+    local t
     if self.under then self.under(bb, x, y) end
     local pos = self.pos or {}
     for i, w in ipairs(self) do
         local p = pos[i]
-        if p then w:paintTo(bb, x + p.x, y + p.y) end
+        if p then
+            if timing then t = Perf.now() end
+            w:paintTo(bb, x + p.x, y + p.y)
+            if timing then Perf.part("paint " .. tostring(w.perf_name or i), t) end
+        end
     end
+    if timing then t = Perf.now() end
     if self.over then self.over(bb, x, y) end
+    if timing then Perf.part("paint over", t) end
 end
 
 -- Cells first (a module's own long-press opens the editor on it); a hold

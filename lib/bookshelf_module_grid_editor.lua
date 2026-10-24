@@ -365,10 +365,42 @@ end
 -- nothing was a puzzle, and the edit bar alone was easy to miss). Each
 -- module's rect, with room for its ring and shadow, is copied out, the whole
 -- screen is lightened, and the copies go back.
+-- The faded screen outside the grid is the same paint after paint while the
+-- editor is up (the top panel's shelf, the full-screen view's ground): it was
+-- faded afresh every time, 600-740 ms of each select or change on a PW5. The
+-- first fade is kept (_fade_cache, the whole screen as faded, the grid and a
+-- heading hanging past it left clear) and its outside put back after that.
+-- Keyed on the kept rect, the fade's direction and the screen; a minute old
+-- it is redone, so the status line's clock can't go stale. A cover shelf's
+-- modules move among the books, which reflow, so it fades afresh each time.
+Editor.FADE_CACHE_SECS = 60
+
+-- _fadeFromCache(bb, key, x0, y0, w, h) -> true when the cached fade was put
+-- back around the kept rect.
+function Editor:_fadeFromCache(bb, key, x0, y0, w, h)
+    local c = self._fade_cache
+    if not (c and c.key == key and os.time() - c.t < Editor.FADE_CACHE_SECS) then return false end
+    local W, H = bb:getWidth(), bb:getHeight()
+    if c.bb:getWidth() ~= W or c.bb:getHeight() ~= H then return false end
+    -- The four bands around the kept rect.
+    if y0 > 0 then bb:blitFrom(c.bb, 0, 0, 0, 0, W, y0) end
+    if y0 + h < H then bb:blitFrom(c.bb, 0, y0 + h, 0, y0 + h, W, H - y0 - h) end
+    if x0 > 0 then bb:blitFrom(c.bb, 0, y0, 0, y0, x0, h) end
+    if x0 + w < W then bb:blitFrom(c.bb, x0 + w, y0, x0 + w, y0, W - x0 - w, h) end
+    return true
+end
+
+function Editor:_dropFadeCache()
+    local c = self._fade_cache
+    self._fade_cache = nil
+    if c and c.bb then c.bb:free() end
+end
+
 function Editor:_fadeAround(bb)
     local info = self.host:gridInfo()
     local d = info and info.container and info.container.dimen
     local keep = {}
+    local cache_key, kx, ky, kw, kh
     if d and d.x and info.surface ~= "shelf" then
         -- The top panel and full screen: their whole grid stays clear, so
         -- the empty cells' dashed outlines show where a module can go
@@ -381,6 +413,10 @@ function Editor:_fadeAround(bb)
         local y0 = math.max(0, d.y + info.oy - pad)
         local w = math.min(bb:getWidth() - x0, gw + 2 * pad)
         local h = math.min(bb:getHeight() - y0, gh + 2 * pad)
+        cache_key = table.concat({ x0, y0, w, h, tostring(Editor._fadeDark()),
+            bb:getWidth(), bb:getHeight() }, ",")
+        kx, ky, kw, kh = x0, y0, w, h
+        if self:_fadeFromCache(bb, cache_key, x0, y0, w, h) then return end
         if w > 0 and h > 0 then
             local copy = Blitbuffer.new(w, h, bb:getType())
             copy:blitFrom(bb, 0, 0, x0, y0, w, h)
@@ -423,6 +459,13 @@ function Editor:_fadeAround(bb)
     for _i, k in ipairs(keep) do
         bb:blitFrom(k.copy, k.x, k.y, 0, 0, k.w, k.h)
         k.copy:free()
+    end
+    if cache_key and kw and kw > 0 and kh > 0 then
+        self:_dropFadeCache()
+        local W, H = bb:getWidth(), bb:getHeight()
+        local c = Blitbuffer.new(W, H, bb:getType())
+        c:blitFrom(bb, 0, 0, 0, 0, W, H)
+        self._fade_cache = { key = cache_key, bb = c, t = os.time() }
     end
 end
 
@@ -642,6 +685,7 @@ end
 -- or it would go on drawing the working copy with edit decorations.
 function Editor:onCloseWidget()
     if self.bw and self.bw._module_editor == self then self.bw._module_editor = nil end
+    self:_dropFadeCache()
     if self._closed then return end
     self._closed = true
     pcall(function() self.session:commit() end)

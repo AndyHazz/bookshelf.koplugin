@@ -6959,7 +6959,10 @@ function BookshelfWidget:_spineModuleMenu(entry)
         end
     end
     d = ButtonDialog:new{
-        title = (def and def.title) or entry.module, title_align = "center",
+        -- A pinned piece's long-press opens this, not the ornament menu it
+        -- opened before pinning: the title says why.
+        title = pinned_piece and _("Ornament micro-module (pinned)")
+            or (def and def.title) or entry.module, title_align = "center",
         -- Centred across the screen (it is nearly full width) and clear of
         -- the module by a gap: no x, so MovableContainer centres it, and the
         -- module's rect grown by the gap above and below (maintainer).

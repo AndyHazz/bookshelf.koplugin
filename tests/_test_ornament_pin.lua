@@ -76,6 +76,14 @@ t.test("a pinned piece looks as it did dealt, and its menu adjusts the piece", f
            "a pinned piece still has Narrower or the module's own Settings")
 end)
 
+-- Its long-press opens a different menu from the piece it was: the title
+-- says why, so it doesn't read as the ornament menu gone missing.
+t.test("a pinned piece's menu is titled as a pinned ornament", function()
+    local m = w:match("\nfunction BookshelfWidget:_spineModuleMenu%(entry%)\n(.-)\nend\n")
+    assert(m and m:find('title = pinned_piece and _("Ornament micro-module (pinned)")', 1, true),
+           "titled like any Ornament module")
+end)
+
 t.test("a pinned piece keeps its row: the dealt end piece gives way", function()
     assert(ss:find("hk.keep = function(i) return entries[i] and entries[i].orn_pl ~= nil end", 1, true),
            "a pinned piece wraps to the next row when a dealt piece takes the room")

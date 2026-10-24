@@ -1366,6 +1366,9 @@ end
 function HeroModules._sizeFor(entry, dims)
     local def = Modules.get(entry.module)
     local w, h = Grid.defaultSize(dims, def ~= nil and def.aspect == "square")
+    -- The size the module says it starts at (spec start_w / start_h).
+    if def and type(def.start_w) == "number" then w = math.max(1, math.floor(def.start_w)) end
+    if def and type(def.start_h) == "number" then h = math.max(1, math.floor(def.start_h)) end
     if def and type(def.min_w) == "number" then w = math.max(w, def.min_w) end
     if def and type(def.min_h) == "number" then h = math.max(h, def.min_h) end
     return math.min(w, dims.cols), math.min(h, dims.rows)

@@ -268,9 +268,10 @@ local function registerSpec(spec, dir, fname, origin)
             .. " skipping:", fname)
         return
     end
-    -- Optional grid size hints (whole cells): the smallest the layout editor
-    -- lets the module be sized to. The grid clamps them to its own size.
-    for _i, f in ipairs({ "min_w", "min_h" }) do
+    -- Optional grid size hints (whole cells): the size it starts at, and the
+    -- smallest the layout editor lets the module be sized to. The grid clamps
+    -- them to its own size.
+    for _i, f in ipairs({ "start_w", "start_h", "min_w", "min_h" }) do
         local v = spec[f]
         if v ~= nil and (type(v) ~= "number" or v < 1 or v ~= math.floor(v)) then
             logger.warn("[bookshelf] micro-module spec invalid"

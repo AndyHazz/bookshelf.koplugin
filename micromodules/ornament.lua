@@ -65,6 +65,10 @@ return {
     hero_only = true,
     -- No card behind it: the piece stands on the wallpaper, as on the shelf.
     bare = true,
+    -- One cell to start: a new piece drops into any free cell on the page,
+    -- since pieces fill small gaps (maintainer), not a page of its own.
+    start_w = 1,
+    start_h = 1,
     tap_feedback = true,
 
     render = function(ctx)

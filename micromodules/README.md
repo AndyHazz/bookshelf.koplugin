@@ -271,6 +271,9 @@ omit them and you get the sensible default (a flex/text card offered everywhere)
 - `bare = true` — draw without the card (no fill, no border), straight onto
   the wallpaper or page, as the Ornament module does. Your render must then
   fit its cell itself: it is centred, not clipped.
+- `start_w` / `start_h` — the size, in grid cells, your card starts at when it
+  is added (the Ornament module starts at 1 x 1, to fill a small gap). Your
+  `min_w` / `min_h` still win. Leave them off for the default above.
 - `min_w` / `min_h` — the smallest size, in grid cells, the layout editor lets
   your card be sized to (whole numbers, 1 or more). Use them when the card has
   nothing useful to show below that size. The grid clamps them to its own size,

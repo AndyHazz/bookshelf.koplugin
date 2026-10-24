@@ -37,6 +37,7 @@ local MAIN = "/x/bookshelf/settings.lua"
 local MM   = "/x/bookshelf/micromodule_data.lua"
 
 local HC = "/x/bookshelf/hardcover_links.lua"
+local OD = "/x/bookshelf/ornament_decks.lua"
 
 -- Seed: legacy migration already done (skip it), relocation NOT yet done, with
 -- a micromodule_* key, the big hardcover_links cache, and an ordinary key all in
@@ -45,6 +46,12 @@ fileData(MAIN).migrated            = true
 fileData(MAIN).micromodule_foo_bar = "hello"
 fileData(MAIN).hardcover_links     = { ["/b.epub"] = { edition = 42 } }
 fileData(MAIN).active_chip         = "recent"
+-- The ornament decks: 208 KB of a 272 KB file on a PW5, rewritten with every
+-- preference saved. And three keys module_cache took over, left behind.
+fileData(MAIN).ornament_decks      = { all = { "a.png", "b.png" } }
+fileData(MAIN).module_fit_memo     = { k = { s = 1, w = 1, h = 1 } }
+fileData(MAIN).shelf_size_tally    = { total = 3 }
+fileData(MAIN).reading_goal_last   = { goal = 1 }
 
 local Store = dofile("lib/bookshelf_settings_store.lua")
 local t = dofile("tests/_helpers.lua").runner()
@@ -63,7 +70,13 @@ t.test("first access relocates routed keys to their own files", function()
         "hardcover_links must be relocated to the HC file, intact")
     assert(fileData(MAIN).hardcover_links == nil,
         "hardcover_links must be gone from the main file")
-    assert(fileData(MAIN).aux_data_relocated_v2 == true,
+    assert(fileData(OD).ornament_decks and fileData(OD).ornament_decks.all[2] == "b.png",
+        "the ornament decks must be relocated to their own file, intact")
+    assert(fileData(MAIN).ornament_decks == nil, "the decks must be gone from the main file")
+    for _i, k in ipairs({ "module_fit_memo", "shelf_size_tally", "reading_goal_last" }) do
+        assert(fileData(MAIN)[k] == nil, k .. " (module_cache's now) left in the main file")
+    end
+    assert(fileData(MAIN).aux_data_relocated_v3 == true,
         "relocation must set its one-shot flag")
     assert(fileData(MAIN).active_chip == "recent",
         "ordinary keys must be untouched by relocation")

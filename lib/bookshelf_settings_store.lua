@@ -76,10 +76,13 @@ local _settings = nil
 --   * "micromodule_*" keys      -> settings/bookshelf/micromodule_data.lua
 --   * "hardcover_links" (cache) -> settings/bookshelf/hardcover_links.lua
 --   * "opds_cache" (cache)      -> cache/bookshelf/opds.lua
+--   * "ornament_decks"          -> settings/bookshelf/ornament_decks.lua (every
+--     shelf's order of every piece: 208 KB of a 272 KB file on a PW5, so each
+--     preference saved rewrote it, a third of a second a time)
 -- subStoreFor(key) returns the destination store or nil (= the main file).
 -- Sub-stores are lazy-required so they aren't pulled in until a routed key is
 -- touched (and so the standalone test runner can stub them).
-local _mm, _hc, _opds
+local _mm, _hc, _opds, _od
 local function mm()
     _mm = _mm or require("lib/bookshelf_micromodule_store")
     return _mm
@@ -92,8 +95,13 @@ local function opds()
     _opds = _opds or require("lib/bookshelf_file_store").new(Paths.cacheFile("opds.lua"))
     return _opds
 end
+local function od()
+    _od = _od or require("lib/bookshelf_file_store").new(Paths.settingsFile("ornament_decks.lua"))
+    return _od
+end
 local function subStoreFor(key)
     if type(key) ~= "string" then return nil end
+    if key == "ornament_decks" then return od() end
     if key:sub(1, 12) == "micromodule_" then return mm() end
     if key == "hardcover_links" then return hc() end
     if key == "opds_cache" then return opds() end
@@ -158,7 +166,10 @@ end
 -- the keys removed. A crash in between leaves the value in BOTH files (the main
 -- deletes are in-memory until its flush), so the next run simply re-migrates --
 -- never a loss.
-local RELOCATED_FLAG = "aux_data_relocated_v2"
+local RELOCATED_FLAG = "aux_data_relocated_v3"
+-- Keys lib/bookshelf_module_cache took over (disposable: a refit, a recount),
+-- left behind in this file by the versions before it. Dropped by the pass.
+local LEFT_BEHIND = { "module_fit_memo", "shelf_size_tally", "reading_goal_last" }
 local function _relocateAux(s)
     if s:readSetting(RELOCATED_FLAG) then return end
     local data = s.data or {}
@@ -179,6 +190,8 @@ local function _relocateAux(s)
         logger.dbg(string.format("[bookshelf] relocated %d key(s) to %s", n, sub.path()))
     end
     for _i, k in ipairs(keys) do s:delSetting(k) end
+    for _i, k in ipairs(LEFT_BEHIND) do s:delSetting(k) end
+    s:delSetting("aux_data_relocated_v2")
     s:saveSetting(RELOCATED_FLAG, true)
     s:flush()
 end

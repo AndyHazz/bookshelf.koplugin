@@ -662,6 +662,8 @@ end
 -- focusable: reserve a d-pad focus ring (border-swap, dimen-constant — matches
 -- the start-menu rows and chip cursor). focused: draw it on this cell now.
 function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, focused)
+    local Perf     = require("lib/bookshelf_perf")
+    local t_cell   = Perf.now()
     local radius   = Space.px(4)
     -- Reserve the focus ring up front so a cell's content area is the same
     -- whether or not it's focused (no reflow as the cursor moves). Touch builds
@@ -906,6 +908,7 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
         if host and host.hold then host.hold(entry) else HeroModules._hold(bw, entry) end
         return true
     end
+    Perf.part("cell " .. tostring(entry.module), t_cell)
     return cell
 end
 

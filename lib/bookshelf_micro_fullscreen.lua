@@ -239,6 +239,8 @@ function MicroFullscreen:init()
 end
 
 function MicroFullscreen:_build()
+    local Perf = require("lib/bookshelf_perf")
+    local t_build = Perf.now()
     local sw, sh = Screen:getWidth(), Screen:getHeight()
     -- Track the built size so paintTo can re-layout on resize / rotation.
     self._built_w, self._built_h = sw, sh
@@ -521,6 +523,7 @@ function MicroFullscreen:_build()
         self._dots = dots
     end
     self[1] = children
+    Perf.part("build view", t_build)
 end
 
 -- Gesture handling. The overlay is the topmost widget, and UIManager:sendEvent
@@ -622,7 +625,10 @@ function MicroFullscreen:paintTo(bb, x, y)
     if Screen:getWidth() ~= self._built_w or Screen:getHeight() ~= self._built_h then
         self:_build()
     end
+    local Perf = require("lib/bookshelf_perf")
+    local t = Perf.now()
     InputContainer.paintTo(self, bb, x, y)
+    Perf.part("paint view", t)
 end
 
 -- Step through the pages that hold modules; no-op at either end.

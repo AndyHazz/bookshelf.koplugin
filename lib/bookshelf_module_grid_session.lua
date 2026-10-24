@@ -116,6 +116,7 @@ end
 
 function Session:select(id)
     if self.selected_id == id then return false end
+    require("lib/bookshelf_perf").start("editor select")
     self.selected_id = id
     self:_render()
     return true

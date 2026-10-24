@@ -59,8 +59,14 @@ function M.show(ctx)
         UIManager:setDirty(d, "ui")
     end
     local function changed()
+        local Perf = require("lib/bookshelf_perf")
+        Perf.start("module colours")
+        local t = Perf.now()
         ctx.save()
+        Perf.part("save", t)
+        t = Perf.now()
         relabel()
+        Perf.part("relabel", t)
     end
 
     -- The picker's store: the module's colours, keyed as it keys them (the

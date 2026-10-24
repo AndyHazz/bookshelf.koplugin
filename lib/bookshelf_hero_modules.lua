@@ -311,6 +311,10 @@ function HeroModules.heroEditHost(bw)
         if not (bw._swapMicroHeroInPlace and bw:_swapMicroHeroInPlace()) then
             if bw._rebuild then bw:_rebuild() end
             UIManager:setDirty(bw, "ui")
+        elseif edit == nil then
+            -- Out of edit mode: the editor faded the whole screen and its bars
+            -- covered the shelf, and the swap repaints only the panel.
+            UIManager:setDirty(bw, "ui")
         end
     end
     function host.footerRect()

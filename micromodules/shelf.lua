@@ -98,6 +98,18 @@ local function booksOnly(items)
     return out
 end
 
+-- askForCovers(ctx, books, w, h): the shelf's own books have their covers
+-- extracted by the shelf (BookshelfWidget:_kickOffMissingMetaExtraction,
+-- after the paint, and a rebuild when they arrive); a book only this module
+-- shows was never asked for, and stood as a title card until something else
+-- (a tap putting it in the top panel) fetched its cover. w x h: the size
+-- the module draws a cover at.
+local function askForCovers(ctx, books, w, h)
+    local bw = ctx and ctx.bw
+    if ctx.preview or not (bw and bw._kickOffMissingMetaExtraction) or #books == 0 then return end
+    pcall(bw._kickOffMissingMetaExtraction, bw, books, math.floor(w), math.floor(h))
+end
+
 local function tabFor(ctx)
     local id = ctx and ctx.config and ctx.config:get("tab_id")
     if not id then return nil end
@@ -418,6 +430,7 @@ local function coverBody(ctx, tab, w, h, gap)
     local Repo  = require("lib/bookshelf_book_repository")
     local items = Repo.getBySource(bookSource(tab.source), tab.filter, tab.sort_priority, 0, rows * n * 2)
     local books = booksOnly(items)
+    askForCovers(ctx, books, cover_w, cover_w * 3 / 2)
     local on_tap, on_open, staged = bookTaps(ctx, tab)
     local vg = VerticalGroup:new{ align = "left" }
     for r = 1, rows do
@@ -490,6 +503,8 @@ local function spineBody(ctx, tab, w, h, gap, label)
         { light_only = true })
     local books = booksOnly(items)
     if #books == 0 then return nil end
+    -- A face-out cover stands about a row tall.
+    askForCovers(ctx, books, row_h * 2 / 3, row_h)
     -- Its shelf's face-out choice, as the shelf itself plans with it ("all
     -- face out" showed mostly spines here without), and the books "recent N"
     -- counts from.

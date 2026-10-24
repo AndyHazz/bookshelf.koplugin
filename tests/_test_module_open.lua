@@ -177,6 +177,13 @@ t.test("the lift moves by flipping two slots, not by redrawing the module", func
     assert(w:find("if replaced == 0 and self._preview_from_module then return end", 1, true))
 end)
 
+t.test("the Shelf module asks for its books' covers, as the shelf does for its own", function()
+    local src = io.open("micromodules/shelf.lua"):read("*a")
+    assert(src:find("pcall(bw._kickOffMissingMetaExtraction, bw, books,", 1, true), "never asks")
+    local _n, c = src:gsub("\n    askForCovers%(ctx, books, ", "")
+    assert(c == 2, "covers and spines both ask: " .. c)
+end)
+
 t.test("a shelf module's render knows it is on the shelf", function()
     local src = io.open("lib/bookshelf_hero_modules.lua"):read("*a")
     assert(src:find("surface = _surfaceOf(entry), bw = bw,", 1, true),

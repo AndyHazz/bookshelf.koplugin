@@ -193,10 +193,4 @@ t.test("a module's shelf's editor says Source, not Source / grouping", function(
         "the editor's source row still offers grouping")
 end)
 
-t.test("a module's shelf's editor says Source, not Source / grouping", function()
-    local ed = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
-    assert(ed:find('if TabModel.isCardOnly(draft) then\n                        return _("Source: ") .. _resolveSourceLabel(draft.source)', 1, true),
-        "the editor's source row still offers grouping")
-end)
-
 t.done()

@@ -200,6 +200,7 @@ local function _pencilGlyph(bw, button_dimen, exact)
 end
 
 function MicroFullscreen.open(bw, button_dimen, footer_h)
+    MicroFullscreen.hold_paint = nil
     local self = MicroFullscreen:new{
         bw           = bw,
         button_dimen = button_dimen,
@@ -610,7 +611,14 @@ end
 
 -- Re-layout on screen resize / rotation (desktop window resize), the same way
 -- the main bookshelf view rebuilds in its paintTo on a size change.
+--
+-- hold_paint (main.lua onShowingReader): a book is opening from this view.
+-- Inside a book the old reader closes first and marks everything under it
+-- dirty, then showReader forces a repaint, which put the opening book back on
+-- its shelf before it opened (maintainer, PW5). The screen keeps the opening
+-- pose instead, as the shelf does with _suppress_transition_paint.
 function MicroFullscreen:paintTo(bb, x, y)
+    if MicroFullscreen.hold_paint then return end
     if Screen:getWidth() ~= self._built_w or Screen:getHeight() ~= self._built_h then
         self:_build()
     end

@@ -36,6 +36,8 @@ t.test("a book opening over the shelf takes the hint off the live widget", funct
     local env = {
         _live_widget = live,
         UIManager = { isWidgetShown = function() return true end, scheduleIn = function() end },
+        -- The micro-modules view's paint hold reads package.loaded.
+        package = { loaded = {} }, type = type,
     }
     local fn, err = load("return function(self)\n" .. extract(main, "Bookshelf:onShowingReader()") .. "\nend",
         "onShowingReader", "t", env)

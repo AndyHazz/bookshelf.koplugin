@@ -2267,6 +2267,14 @@ function Bookshelf:onShowingReader()
             if _live_widget then _live_widget._suppress_transition_paint = false end
         end)
     end
+    -- The full-screen micro-modules view holds its opening pose the same way
+    -- (MicroFullscreen.hold_paint). Only when it is loaded: requiring it here
+    -- would load it for every book opened from anywhere.
+    local MF = package.loaded["lib/bookshelf_micro_fullscreen"]
+    if type(MF) == "table" then
+        MF.hold_paint = true
+        UIManager:scheduleIn(10, function() MF.hold_paint = nil end)
+    end
 end
 
 -- New ReaderUI has finished loading after a Reader→Reader switch — the new
@@ -2275,6 +2283,8 @@ end
 -- widget is the shared singleton, so clearing it here unblocks the eventual
 -- return-to-shelf paint when this book is closed.
 function Bookshelf:onReaderReady()
+    local MF = package.loaded["lib/bookshelf_micro_fullscreen"]
+    if type(MF) == "table" then MF.hold_paint = nil end
     -- The page-count scan lays books out as the reader does; the status bar's
     -- reserve at the bottom of the page is only knowable from a real reader.
     if self.ui and self.ui.view then

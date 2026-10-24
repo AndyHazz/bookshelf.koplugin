@@ -405,6 +405,19 @@ local function spineBody(ctx, tab, w, h, gap, label)
     local rows  = cardRows(ctx.config and ctx.config:get("rows"), h, gap,
         nil, Screen:scaleBySize(130))
     local row_h = math.floor((h - gap * (rows - 1)) / rows)
+    -- The label hangs below its plank, as a section badge does. A shelf has
+    -- the room under the row; this box ends there, so make it inside the box
+    -- (or it hangs out, and the editor's selection border runs through it):
+    -- off the row when there is one, else as much as the gap under the
+    -- first row lacks.
+    local extra = 0
+    if label then
+        local hang = SpineShelf.badgeOverhang(row_h)
+        extra = (rows > 1) and math.max(0, hang - gap) or hang
+        if extra > 0 then
+            row_h = math.floor((h - extra - gap * (rows - 1)) / rows)
+        end
+    end
     local Repo  = require("lib/bookshelf_book_repository")
     local items = Repo.getBySource(bookSource(tab.source), tab.filter, tab.sort_priority, 0, 40 * rows,
         { light_only = true })
@@ -430,7 +443,7 @@ local function spineBody(ctx, tab, w, h, gap, label)
         for r = 1, rows do
             local row = plan.rows and plan.rows[r]
             if not row then break end
-            if r > 1 then vg[#vg + 1] = VerticalSpan:new{ width = gap } end
+            if r > 1 then vg[#vg + 1] = VerticalSpan:new{ width = gap + ((r == 2) and extra or 0) } end
             vg[#vg + 1] = SpineShelf.rowWidget{ plan = plan, row = row, width = w, height = row_h,
                 gap = opts.gap, callbacks = callbacks, row_index = r,
                 selected_filepath = staged,

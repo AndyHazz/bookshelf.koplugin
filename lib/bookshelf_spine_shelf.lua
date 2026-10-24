@@ -2616,6 +2616,33 @@ local ShelfBadges = Widget:extend{}
 -- draw, and SpineShelf.badgeOverlay -- which the shelf paints last of all --
 -- does the drawing. The space it hangs into is empty in every case that
 -- matters: books never descend below their own plank, not even lifted.
+-- badgeFace() -> the badge label's face: 14pt, scaled by the same "Stack
+-- and folder labels" size setting the folder cards use (the badge names
+-- sections the way their labels name stacks, user ruling).
+function SpineShelf.badgeFace()
+    local scale = 100
+    pcall(function()
+        local BookshelfSettings = require("lib/bookshelf_settings_store")
+        scale = BookshelfSettings.read("stack_label_font_scale", 100) or 100
+    end)
+    return BFont:getFace(BFont.getUIFontFace() or "cfont",
+                         math.max(8, math.floor(14 * scale / 100 + 0.5)))
+end
+
+-- badgeOverhang(row_h) -> how far a badge hangs below a row of that height
+-- (drawAt: its top a little above the plank's front face). A shelf leaves it
+-- the gap below; a box that ends at the row (the Shelf micro-module) has to
+-- make room for it, or the label hangs out of the box.
+function SpineShelf.badgeOverhang(row_h)
+    local h = 0
+    pcall(function()
+        local tw = TextWidget:new{ text = "Ag", face = SpineShelf.badgeFace(), padding = 0 }
+        h = tw:getSize().h + 2 * Space.px(2)
+        tw:free()
+    end)
+    return math.max(0, h - SpineShelf.plankFace(row_h) - 2)
+end
+
 function ShelfBadges:paintTo(bb, x, y)
     self.dimen.x, self.dimen.y = x, y
     if self.deferred then return end
@@ -2642,13 +2669,7 @@ function ShelfBadges:drawAt(bb, x, y)
     -- 14pt base, scaled by the same "Stack and folder labels" size
     -- setting the folder cards use -- the badge names sections the way
     -- their labels name stacks (user ruling).
-    local scale = 100
-    pcall(function()
-        local BookshelfSettings = require("lib/bookshelf_settings_store")
-        scale = BookshelfSettings.read("stack_label_font_scale", 100) or 100
-    end)
-    local face = BFont:getFace(BFont.getUIFontFace() or "cfont",
-                               math.max(8, math.floor(14 * scale / 100 + 0.5)))
+    local face = SpineShelf.badgeFace()
     local spans = self.spans or {}
     for _i, s in ipairs(spans) do
         if s.label and s.label ~= "" then

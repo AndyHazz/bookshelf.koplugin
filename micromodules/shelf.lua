@@ -113,7 +113,7 @@ local function bookTaps(ctx, tab)
     local Open, key = require("lib/bookshelf_module_open"), tapKey(ctx, tab)
     return function(book) Open.tap(ctx, key, book) end,
            function(book) Open.doubleTap(ctx, key, book) end,
-           Open.staged(key)
+           Open.staged(key, ctx)
 end
 
 -- Go to the shelf: close the full-screen view if it's open, then select it

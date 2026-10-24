@@ -11589,6 +11589,10 @@ end
 
 function BookshelfWidget:_previewBook(book, tap_t)
     if not book or not book.filepath then return end
+    -- A Shelf module lifting the book that was in the top panel drops it.
+    if self._module_lifts then
+        require("lib/bookshelf_module_open").previewChanged(self, book.filepath)
+    end
     -- A preview supersedes any pending tap-stage. _selectedFilepath ranks
     -- _tap_selected_fp above the preview book, and the hero's on_tap latches it
     -- when tap_to_open_double is on ("tap once more to open"), so without this

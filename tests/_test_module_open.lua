@@ -91,7 +91,7 @@ t.test("with the top panel on screen a tap shows the book there, as on the shelf
         local ctx, bw = shelfCtx()
         ctx.surface = surface
         M.tap(ctx, "m1", book)
-        assert(log[1] == "preview /a.epub" and #log == 1, surface .. ": " .. table.concat(log, ", "))
+        assert(log[1] == "preview /a.epub" and #log == (surface == "shelf" and 2 or 1), surface .. ": " .. table.concat(log, ", "))
         -- The second tap on the book now in the panel opens it, with the
         -- effect on the module's own cover.
         bw._preview_book = book; log = {}
@@ -107,6 +107,25 @@ t.test("with the top panel on screen a tap shows the book there, as on the shelf
         M.tap(ctx, "m1", book)
         assert(log[1] == "open /a.epub no_effect", case[1] .. ": " .. table.concat(log, ", "))
     end
+end)
+
+t.test("with the top panel on screen the module lifts the panel's book, and lets go", function()
+    settings = { action = "open" }; log = {}; M._staged = {}
+    local ctx, bw = shelfCtx()
+    ctx.surface = "shelf"
+    function bw:_previewBook(b) log[#log + 1] = "preview " .. b.filepath; self._preview_book = b end
+    M.tap(ctx, "m1", book)
+    assert(log[2] == "refresh module", "the tapped spine never lifts: " .. table.concat(log, ", "))
+    assert(M.staged("m1", ctx) == "/a.epub", "the render doesn't lift the panel's book")
+    -- Another book (a shelf cover, say) takes the panel: the module redraws.
+    local ticked
+    package.loaded["ui/uimanager"].nextTick = function(_s, f) ticked = f end
+    M.previewChanged(bw, "/b.epub")
+    assert(ticked == ctx.refresh and bw._module_lifts.m1 == nil, "the old book stays lifted")
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    assert(w:find('require("lib/bookshelf_module_open").previewChanged(self, book.filepath)', 1, true),
+        "the shelf never tells the module")
+    assert(io.open("micromodules/shelf.lua"):read("*a"):find("Open.staged(key, ctx)", 1, true))
 end)
 
 t.test("a shelf module's render knows it is on the shelf", function()

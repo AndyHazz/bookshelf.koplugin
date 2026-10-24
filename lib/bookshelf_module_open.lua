@@ -26,8 +26,43 @@ M._staged = {}
 
 local function Store() return require("lib/bookshelf_settings_store") end
 
---- staged(key) -> the filepath a module has marked, for its render's ring.
-function M.staged(key) return key ~= nil and M._staged[key] or nil end
+-- panelShowing(ctx, bw): the module sits in the top panel or on the shelf
+-- under it, and the panel is on screen (not a full screen shelf, not over the
+-- reader). The full-screen view and the start menu cover it.
+local function panelShowing(ctx, bw)
+    local surface = ctx and ctx.surface
+    return (surface == "hero" or surface == "shelf")
+        and bw ~= nil and bw._previewBook ~= nil
+        and not bw._expanded and not bw._reader_context
+end
+
+--- staged(key, ctx) -> the filepath a module has marked, for its render's
+--- ring (covers) or lift (spines). With the top panel on screen that is the
+--- book in the panel, as on the shelf; the module is noted on the shelf
+--- widget (bw._module_lifts) so it redraws when another book takes the panel.
+function M.staged(key, ctx)
+    local bw = ctx and ctx.bw
+    if key ~= nil and panelShowing(ctx, bw) then
+        local fp = bw._preview_book and bw._preview_book.filepath or nil
+        bw._module_lifts = bw._module_lifts or {}
+        bw._module_lifts[key] = fp and { fp = fp, refresh = ctx.refresh } or nil
+        return fp
+    end
+    return key ~= nil and M._staged[key] or nil
+end
+
+--- previewChanged(bw, fp): the shelf put another book in the top panel; a
+--- module lifting the old one redraws without it.
+function M.previewChanged(bw, fp)
+    local lifts = bw and bw._module_lifts
+    if not lifts then return end
+    for key, l in pairs(lifts) do
+        if l.fp ~= fp then
+            lifts[key] = nil
+            if l.refresh then require("ui/uimanager"):nextTick(l.refresh) end
+        end
+    end
+end
 
 local function closeFullscreen(fs)
     if fs and fs.onTapClose then pcall(function() fs:onTapClose() end) end
@@ -67,16 +102,6 @@ function M.playOpening(fp)
     end
 end
 
--- panelShowing(ctx, bw): the module sits in the top panel or on the shelf
--- under it, and the panel is on screen (not a full screen shelf, not over the
--- reader). The full-screen view and the start menu cover it.
-local function panelShowing(ctx, bw)
-    local surface = ctx and ctx.surface
-    return (surface == "hero" or surface == "shelf")
-        and bw ~= nil and bw._previewBook ~= nil
-        and not bw._expanded and not bw._reader_context
-end
-
 --- open(ctx, book): open it as the shelf does, effect first.
 function M.open(ctx, book)
     if not (book and book.filepath) then return end
@@ -103,6 +128,9 @@ function M.tap(ctx, key, book)
             M.open(ctx, book)
         else
             bw:_previewBook(book)
+            -- Lift (or ring) the book here too, as the shelf does. (In the
+            -- top panel the module has given way to the book.)
+            if ctx.surface == "shelf" and ctx.refresh then ctx.refresh() end
         end
         return
     end

@@ -175,4 +175,16 @@ t.test("a module's shelf's source list says what it is choosing", function()
         "titled Shelf source or grouping with no grouping offered")
 end)
 
+t.test("a module's shelf is offered each folder source once, flattened", function()
+    -- The module shows a folder shelf's books flattened (bookSource), so
+    -- "Home (folders)" and "Specific folder" were the flattened ones twice.
+    local ed = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
+    local body = ed:match("\nfunction Editor:_pickSource%(draft, on_close%)\n(.-)\nend\n")
+    local card = body:match("if TabModel.isCardOnly%(draft%) then\n(.-)\n    end\n")
+    assert(not card:find('btn("all"', 1, true), "Home (folders) offered")
+    assert(not card:find('specific_btn("folder",', 1, true), "the folder tree offered")
+    assert(card:find('btn("library",   _("Home"))', 1, true), "no Home")
+    assert(card:find('specific_btn("folder_flat", _("Specific folder\\xE2\\x80\\xA6"),', 1, true), "no folder")
+end)
+
 t.done()

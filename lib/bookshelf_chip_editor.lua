@@ -3253,14 +3253,12 @@ function Editor:_pickSource(draft, on_close)
                 btn("latest",    _("Latest added")),
                 btn("favorites", _("\xE2\x98\x85 Favorites")),
             },
+            -- One each: the module shows a folder shelf's books flattened
+            -- anyway (its bookSource), so the folder-tree twins were the
+            -- same shelf twice (maintainer).
             {
-                btn("all",       _("Home (folders)")),
-                btn("library",   _("Home (flattened)")),
-            },
-            {
-                specific_btn("folder", _("Specific folder\xE2\x80\xA6"),
-                    function() open_folder_picker("folder") end),
-                specific_btn("folder_flat", _("Flattened folder\xE2\x80\xA6"),
+                btn("library",   _("Home")),
+                specific_btn("folder_flat", _("Specific folder\xE2\x80\xA6"),
                     function() open_folder_picker("folder_flat") end),
             },
             {

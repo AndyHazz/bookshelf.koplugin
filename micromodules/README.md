@@ -149,6 +149,10 @@ fields `render` reads:
 - `ctx.colors` - your module's own colours (the `colors` spec field, see
   **Colours**), keyed by id, ready to paint: what the reader picked for the
   look on screen, else your defaults. Always a table.
+- `ctx.card` - the card your module stands on, for a module that paints a
+  card of its own (see **Colours**): `custom` (the reader set this card with
+  the palette icon), `bg`, `ink`, `muted`, `border_on` and `border`, ready to
+  paint. May be `nil` (the start menu, the picker).
 
 A common first line just pulls what you need:
 `local width, scale_pct, refresh = ctx.width, ctx.scale, ctx.refresh`.
@@ -431,6 +435,13 @@ dark looks and stored on the module. You don't need to do anything for this:
 card's colours while your module renders. A card with its own background gets
 black or white text, whichever reads on it, unless the reader picks a text
 colour too.
+
+If your module paints a card of its own over Bookshelf's (its own colours, its
+own frame), check `ctx.card.custom`: when it is true the reader has set this
+card's colours or border with the palette icon, so draw on `ctx.card` instead
+(`bg` and `ink`, and a border of `border` only when `border_on`). Those
+settings are meant to reach every module; without this they are hidden under
+your card.
 
 Colours of your own (a bar, an accent) can go in the same menu. List them in
 the spec, and read them back from `ctx.colors`:

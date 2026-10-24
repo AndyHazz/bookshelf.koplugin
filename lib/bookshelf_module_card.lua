@@ -114,6 +114,31 @@ function M.look(entry, def, base)
     return out
 end
 
+--- custom(entry) -> true when the reader set anything on this card (its
+--- background, border, border colour or text) for the look on screen.
+function M.custom(entry)
+    for _i, k in ipairs(M.CARD_KEYS) do
+        if M.raw(entry, k) ~= nil then return true end
+    end
+    return false
+end
+
+--- ctxCard(entry, look) -> ctx.card: the card a module stands on, for one
+--- that paints its own (the Reading Log pack's framed cards). Colours in
+--- paint space, like ctx.colors. custom: the reader set this card with the
+--- palette icon, so a module with a card of its own should use this one.
+function M.ctxCard(entry, look)
+    look = look or {}
+    return {
+        custom    = M.custom(entry),
+        bg        = look.bg,
+        ink       = look.ink,
+        muted     = look.muted,
+        border_on = look.border_on ~= false,
+        border    = look.border,
+    }
+end
+
 --- rows(def) -> the colour menu's rows: { key, text, kind = "colour" |
 --- "toggle", spec }. The card's four unless the module has no card (bare),
 --- then the spec's own.

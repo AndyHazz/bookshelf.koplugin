@@ -131,4 +131,29 @@ t.test("the palette icon is in the editor toolbar and the spine module menu", fu
     assert(w:find("function host.ctx_for(entry)", 1, true), "a cover shelf's modules don't save to the shelf")
 end)
 
+t.test("ctx.card says when the reader set this card, for the look on screen", function()
+    -- A module that paints its own card (the Reading Log's framed cards) uses
+    -- this card when custom, so the palette icon reaches every module.
+    suffix = ""
+    assert(Card.custom({ colors = {} }) == false)
+    assert(Card.custom({ colors = { border = false } }) == true, "a border switched off is a setting")
+    assert(Card.custom({ colors = { bg_night = { grey = 3 } } }) == false, "the dark look's setting counted in the light")
+    suffix = "_night"
+    assert(Card.custom({ colors = { bg_night = { grey = 3 } } }) == true)
+    suffix = ""
+    local entry = { colors = { bg = { grey = 0x30 } } }
+    local look = Card.look(entry, nil, base)
+    local c = Card.ctxCard(entry, look)
+    assert(c.custom and c.bg == look.bg and c.ink == look.ink and c.border_on == true)
+    c = Card.ctxCard({ colors = { border = false } }, Card.look({ colors = { border = false } }, nil, base))
+    assert(c.border_on == false)
+end)
+
+t.test("the render context carries the card", function()
+    local hm = io.open("lib/bookshelf_hero_modules.lua"):read("*a")
+    assert(hm:find("local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, user_mult, bw, colors, card)", 1, true))
+    assert(hm:find("            card = card,", 1, true), "ctx.card not set")
+    assert(hm:find("Card.ctxCard(entry, look))", 1, true), "the cell does not pass its look")
+end)
+
 t.done()

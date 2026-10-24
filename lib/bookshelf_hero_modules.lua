@@ -403,7 +403,7 @@ end
 -- Test seam: forget the in-memory copy so the next read comes from settings.
 function HeroModules._resetFitMemo() _fit_memo, _fit_memo_n = nil, nil end
 
-local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, user_mult, bw, colors)
+local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, user_mult, bw, colors, card)
     local base  = base_scale or 100
     -- Absolute size range for any cell, independent of the (now fixed) base:
     -- shrink to 60% (legibility floor; ClipContainer backstops anything worse),
@@ -433,6 +433,11 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, 
             -- The colours the spec declares (spec.colors), as the reader set
             -- them for the look on screen, else their defaults.
             colors = colors or {},
+            -- The card the module stands on, as the reader set it with the
+            -- palette icon (Card.ctxCard): a module that paints its own card
+            -- uses this one when `custom`, so those settings reach every
+            -- module (maintainer).
+            card = card,
             set_tap_regions = function(r)
                 pending_regions = type(r) == "table" and r or nil
             end,
@@ -737,7 +742,8 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
         local user_mult = BookshelfSettings.read("hero_module_font_scale", 100)
         local function renderAt(w)
             return Breaker.guard(function()
-                return _renderFitted(def, w, inner_h, scale_pct, refresh, entry, user_mult, bw, look.colors)
+                return _renderFitted(def, w, inner_h, scale_pct, refresh, entry, user_mult, bw, look.colors,
+                    Card.ctxCard(entry, look))
             end)
         end
         if own_palette then

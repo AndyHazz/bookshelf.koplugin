@@ -1014,6 +1014,16 @@ function Editor:editTab(tab_id, opts)
                     -- "grouping" in the label: readers asking how to make a
                     -- shelf of series or authors did not look for it under
                     -- "Source" (maintainer).
+                    -- A Shelf module's shelf is offered no grouping
+                    -- (_pickSource), so its row says Source alone.
+                    if TabModel.isCardOnly(draft) then
+                        return _("Source: ") .. _resolveSourceLabel(draft.source)
+                    end
+                    -- A Shelf module's shelf is offered no grouping
+                    -- (_pickSource), so its row says Source alone.
+                    if TabModel.isCardOnly(draft) then
+                        return _("Source: ") .. _resolveSourceLabel(draft.source)
+                    end
                     return _("Source / grouping: ") .. _resolveSourceLabel(draft.source)
                 end,
                 callback = function()

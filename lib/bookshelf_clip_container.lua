@@ -28,10 +28,14 @@ Placement: a child that fits is centred; a child taller/wider than the cell is
 top-/left-aligned (offset clamped to >= 0) so its START is visible and the
 overflow is clipped off the bottom/right.
 
-Gesture note: the child is painted into the offscreen buffer at buffer-local
-coords, so a child with its OWN tappable sub-widgets would get the wrong
-gesture rects. Micro-modules are display-only internally (their tap is handled
-at the cell level by the parent's InputContainer), so this is fine for that use.
+Gestures: the child is painted into the offscreen buffer at buffer-local
+coords, so its own tappable widgets know their places relative to this
+container, not the screen. With pass_gestures, a gesture inside the container
+reaches the child moved into that frame, so a module's own buttons work in a
+card as they do in a bare module (painted in place). Taps and double taps
+only: long-press and swipes stay the host's. Without it the child gets
+no gestures at all (a picker preview: the tap picks the module), rather than
+screen positions it would compare against the wrong frame.
 ]]
 local Blitbuffer       = require("ffi/blitbuffer")
 local Geom             = require("ui/geometry")
@@ -44,7 +48,30 @@ local ClipContainer = WidgetContainer:extend{
     -- margin matches the card it sits on (the parent paints the same colour
     -- behind this container). Defaults to white.
     bg = nil,
+    -- Pass gestures to the child, in its painted frame (see the header).
+    pass_gestures = nil,
 }
+
+function ClipContainer:handleEvent(event)
+    if event and event.handler == "onGesture" then
+        local ges = event.args and event.args[1]
+        local d = self.dimen
+        if not (self.pass_gestures and ges and ges.pos and d and d.x and self[1]) then return false end
+        -- Taps only: long-press is the grid's (the layout editor) and swipes
+        -- turn its pages, whatever a module's widget would make of them.
+        if ges.ges ~= "tap" and ges.ges ~= "double_tap" then return false end
+        local px, py = ges.pos.x - d.x, ges.pos.y - d.y
+        if px < 0 or py < 0 or px >= self.w or py >= self.h then return false end
+        local g = {}
+        for k, v in pairs(ges) do g[k] = v end
+        g.pos = Geom:new{ x = px, y = py, w = 0, h = 0 }
+        local moved = {}
+        for k, v in pairs(event) do moved[k] = v end
+        moved.args = { g }
+        return self[1]:handleEvent(moved) and true or false
+    end
+    return WidgetContainer.handleEvent(self, event)
+end
 
 function ClipContainer:getSize()
     return Geom:new{ w = self.w, h = self.h }

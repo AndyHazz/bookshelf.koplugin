@@ -784,14 +784,20 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
     -- buffer, which would fill the cell first.
     local bare = def and def.bare
     if bare then card_bg = nil end
+    -- in_place: painted straight onto its card, as a bare module is, for a
+    -- module whose widgets place popups from their own position (offscreen,
+    -- that position is the buffer's). It gives up the clip's containment.
+    local in_place = bare or (def and def.in_place)
     local clip
-    if bare then
+    if in_place then
         clip = CenterContainer:new{ dimen = Geom:new{ w = inner_w, h = inner_h }, content }
     else
         clip = ClipContainer:new{
             w = inner_w,
             h = inner_h,
             bg = card_bg,
+            -- A module's own buttons work in a card as in a bare module.
+            pass_gestures = true,
             content,
         }
     end

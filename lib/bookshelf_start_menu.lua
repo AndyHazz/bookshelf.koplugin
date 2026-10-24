@@ -825,7 +825,8 @@ function StartMenu:_buildModuleRow(entry, w, focused, in_flyout)
         local prev = self._module_heights[entry.id]
         if prev and math.abs(ih - prev) <= Screen:scaleBySize(6) then
             local ClipContainer = require("lib/bookshelf_clip_container")
-            inner = ClipContainer:new{ w = iw, h = prev, bg = Modules.CARD_BG, inner }
+            -- Gestures pass: unclipped, the module's own buttons get them anyway.
+            inner = ClipContainer:new{ w = iw, h = prev, bg = Modules.CARD_BG, pass_gestures = true, inner }
             hyst_clip = inner
         else
             self._module_heights[entry.id] = ih

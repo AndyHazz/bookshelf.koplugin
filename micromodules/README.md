@@ -349,10 +349,27 @@ Rects are in the coordinate space of the widget you RETURN from `render`
 (its top-left is 0,0) - never screen coordinates. The host owns all geometry:
 the cell's painted position, card chrome and the clip container's centring are
 translated for you, on every surface (start menu, flyouts, hero,
-full-screen), so the same declaration works everywhere. Never register your
-own gesture zones or reconstruct screen positions inside a module - render
-output is painted into an offscreen buffer, so render-time coordinates are
-wrong by construction (see lib/bookshelf_clip_container.lua's gesture note).
+full-screen), so the same declaration works everywhere. Never reconstruct
+screen positions inside a module: render output may be painted into an
+offscreen buffer, so render-time coordinates are wrong by construction.
+
+### Widgets with their own taps
+
+The widget you return may also handle taps itself: a `Button`, or any
+`InputContainer` with `ges_events`, the way KOReader's own widgets do. The host
+passes taps and double taps to it in the frame it was painted in (on a card,
+the clip container translates them; see lib/bookshelf_clip_container.lua), and
+a tap your widgets don't take still reaches `on_tap`. Long-press and swipes
+stay the host's: long-press edits the layout, swipes turn pages. Tap regions
+remain the lighter choice for a module of your own; this is for modules built
+from ready-made widgets, another plugin's included.
+
+On a card, your widget is painted into an offscreen buffer (that's what keeps a
+module inside its cell), so a widget that places a popup from its own position
+would put it in the wrong place. Set `in_place = true` and it's painted straight
+onto its card instead, the way a `bare` module is: popups land where they
+should, but nothing stops it drawing past its cell, so size it to `ctx.width`
+and `ctx.height`.
 
 At tap time `on_tap(ctx)` gets `ctx.tapped_region` - the `id` of the first
 declared region containing the tap, or `nil`. **Always handle `nil`**: D-pad
@@ -424,6 +441,11 @@ That's the whole registration step. The loader discovers, validates and
 registers every `.lua` file in both dirs; an invalid spec (bad/missing
 `key`/`title`/`render`, or a wrong-typed optional field) is logged and skipped,
 and a `render` that errors is contained — it never takes down the menu or hero.
+
+A file may also return a **list** of specs, `{ spec1, spec2, ... }`: for a pack
+that finds out when it loads what it can offer (one module per thing it found,
+or an empty list when what it needs isn't installed). Each spec is checked on
+its own, and the same rules apply to each.
 
 `key` is a stable API (saved user menus reference modules by it) — pick one and
 never change it. For a module shipped in this repo,

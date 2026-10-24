@@ -210,24 +210,9 @@ local function moduleDirs()
     return out
 end
 
-local function loadSpec(dir, fname, origin)
-    local fkey = tostring(origin) .. "|" .. dir .. "/" .. fname
-    if loaded_files[fkey] then return end
-    loaded_files[fkey] = true
-    -- loadfile + call, not dofile: the chunk receives its own folder as
-    -- `...`, so a pack's module file can dofile shared code beside it.
-    local chunk, load_err = loadfile(dir .. "/" .. fname)
-    local ok, spec
-    if chunk then
-        ok, spec = pcall(chunk, dir)
-    else
-        ok, spec = false, load_err
-    end
-    if not ok then
-        logger.warn("[bookshelf] micro-module failed to load, skipping:",
-            fname, spec)
-        return
-    end
+-- registerSpec(spec, dir, fname, origin): check one module spec and add it
+-- to the registry; a bad one is logged and skipped.
+local function registerSpec(spec, dir, fname, origin)
     if type(spec) ~= "table"
             or type(spec.key) ~= "string" or spec.key == ""
             or type(spec.title) ~= "string"
@@ -270,6 +255,11 @@ local function loadSpec(dir, fname, origin)
             .. " (bare must be a boolean when present), skipping:", fname)
         return
     end
+    if spec.in_place ~= nil and type(spec.in_place) ~= "boolean" then
+        logger.warn("[bookshelf] micro-module spec invalid"
+            .. " (in_place must be a boolean when present), skipping:", fname)
+        return
+    end
     -- Optional grid size hints (whole cells): the smallest the layout editor
     -- lets the module be sized to. The grid clamps them to its own size.
     for _i, f in ipairs({ "min_w", "min_h" }) do
@@ -297,6 +287,34 @@ local function loadSpec(dir, fname, origin)
     end
     registry[spec.key] = spec
     if origin then file_of[spec.key] = { fname = fname, origin = origin, dir = dir } end
+end
+
+local function loadSpec(dir, fname, origin)
+    local fkey = tostring(origin) .. "|" .. dir .. "/" .. fname
+    if loaded_files[fkey] then return end
+    loaded_files[fkey] = true
+    -- loadfile + call, not dofile: the chunk receives its own folder as
+    -- `...`, so a pack's module file can dofile shared code beside it.
+    local chunk, load_err = loadfile(dir .. "/" .. fname)
+    local ok, spec
+    if chunk then
+        ok, spec = pcall(chunk, dir)
+    else
+        ok, spec = false, load_err
+    end
+    if not ok then
+        logger.warn("[bookshelf] micro-module failed to load, skipping:",
+            fname, spec)
+        return
+    end
+    -- A list of modules: a pack that finds out when it loads what it can
+    -- offer (one per thing it found, or none when what it needs is missing).
+    -- Each entry is checked on its own; an empty list is simply nothing.
+    if type(spec) == "table" and spec.key == nil and spec.render == nil then
+        for _i, one in ipairs(spec) do registerSpec(one, dir, fname, origin) end
+        return
+    end
+    registerSpec(spec, dir, fname, origin)
 end
 
 local function scanDir(dir, origin)

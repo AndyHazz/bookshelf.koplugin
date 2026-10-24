@@ -482,7 +482,7 @@ end
 -- top-edge menu, brightness and warmth swipes, corner taps), as they do in
 -- the normal full-screen view. Swallowed either way.
 local function passThrough(ges)
-    pcall(function() require("lib/bookshelf_gesture_zones").tryLiveZones(ges) end)
+    pcall(function() require("lib/bookshelf_gesture_zones").tryLiveZones(ges, { open_book = true }) end)
     return true
 end
 
@@ -567,7 +567,7 @@ function Editor:handleEvent(event)
     if InputContainer.handleEvent(self, event) then return true end
     if event.handler == "onGesture" then return false end
     local ok, r = pcall(function()
-        return require("lib/bookshelf_gesture_zones").forwardToLive(event, self)
+        return require("lib/bookshelf_gesture_zones").forwardToLive(event, self, { open_book = true })
     end)
     return ok and r or false
 end

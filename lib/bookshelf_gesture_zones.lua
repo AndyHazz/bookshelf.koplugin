@@ -249,22 +249,27 @@ function GestureZones.forwardToReader(event, self_widget, rui)
     return _forwardToHost(rui, event, self_widget)
 end
 
--- The host KOReader is running under our view right now: FileManager, or the
+-- The host KOReader is running under our view right now: FileManager, the
 -- reader parked beneath the shelf after a book was closed with instant close
--- on (KOReader has no FileManager then). Every full-screen view of ours asks
--- this; the ones that asked FileManager alone went deaf while a book was
--- parked (#533). Required lazily: the park module pulls in UIManager.
-local function _liveHost()
+-- on (KOReader has no FileManager then), or the book being read, when the
+-- view was opened from inside it (the micro-modules button in a book). Every
+-- full-screen view of ours asks this; the ones that asked FileManager alone
+-- went deaf while a book was parked (#533), and inside a book the menu and
+-- brightness went dead under the view (maintainer, PW5). Returns host,
+-- parked, Park. The book being read only for a view that asks for it
+-- (open_book): the shelf itself must never open a book's menu over the home
+-- screen. Required lazily: the park module pulls in UIManager.
+local function _liveHost(open_book)
     local ok_fm, FM = pcall(require, "apps/filemanager/filemanager")
     local fm = ok_fm and FM and FM.instance
     if fm then return fm, false end
+    local ok_r, RUI = pcall(require, "apps/reader/readerui")
+    local rui = ok_r and RUI and RUI.instance
+    if not rui then return nil end
     local ok_p, Park = pcall(require, "lib/bookshelf_reader_park")
-    if ok_p and Park and Park.isParked and Park.isParked() then
-        local ok_r, RUI = pcall(require, "apps/reader/readerui")
-        local rui = ok_r and RUI and RUI.instance
-        if rui then return rui, true, Park end
-    end
-    return nil
+    local parked = ok_p and Park and Park.isParked and Park.isParked() or false
+    if not (parked or open_book) then return nil end
+    return rui, parked and true or false, Park
 end
 
 -- tryLiveZones(ev) -> boolean
@@ -273,13 +278,18 @@ end
 -- reader's own Gestures bindings), handed to whichever host is live. While a
 -- book is parked, a menu-intent gesture finishes the close and opens the
 -- real FileManager menu, so book actions never show on the home screen.
-function GestureZones.tryLiveZones(ev)
+-- opts.open_book: the view may sit over the book being read (the
+-- micro-modules view and its editor, opened from inside a book).
+function GestureZones.tryLiveZones(ev, opts)
     if not ev then return false end
-    local host, parked, Park = _liveHost()
+    local host, parked, Park = _liveHost(opts and opts.open_book)
     if not host then return false end
-    if not parked then return GestureZones.tryFMZones(ev, host) end
+    local ok_fm, FM = pcall(require, "apps/filemanager/filemanager")
+    if ok_fm and FM and host == FM.instance then return GestureZones.tryFMZones(ev, host) end
     if GestureZones.tryReaderPluginZones(ev, host) then return true end
-    if GestureZones.matchesReaderMenuZone(ev, host) then
+    -- In a book being read, its menu is the right one; only a parked book
+    -- is converted to the file browser's.
+    if parked and GestureZones.matchesReaderMenuZone(ev, host) then
         Park.finishToMenu()
         return true
     end
@@ -290,8 +300,8 @@ end
 -- A zone's action (or an Action card's) arrives as a separate Dispatcher
 -- event that only reaches the top widget; hand it to the live host, with
 -- the guards of forwardToFM / forwardToReader.
-function GestureZones.forwardToLive(event, self_widget)
-    local host = _liveHost()
+function GestureZones.forwardToLive(event, self_widget, opts)
+    local host = _liveHost(opts and opts.open_book)
     return _forwardToHost(host, event, self_widget)
 end
 

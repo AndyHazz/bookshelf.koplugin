@@ -480,16 +480,35 @@ t.test("forwardToLive hands an action to the parked reader, guarded", function()
     restore()
 end)
 
-t.test("forwardToLive prefers FileManager, and ignores a reader that is not parked", function()
+t.test("forwardToLive prefers FileManager, then the open book", function()
     local fm_got, rui_got = 0, 0
     local fm  = { handleEvent = function() fm_got = fm_got + 1; return true end }
     local rui = { handleEvent = function() rui_got = rui_got + 1; return true end }
     local restore = liveHosts(fm, rui, false)
     Zones.forwardToLive({ handler = "onShowQuickMenu", args = {} }, {})
     eq(fm_got, 1); eq(rui_got, 0)
+    -- Inside a book (the micro-modules view opened from the reader): no
+    -- FileManager, the reader open and not parked. Its actions reach it, or
+    -- brightness and the menu went dead under the view (maintainer, PW5).
     package.loaded["apps/filemanager/filemanager"] = { instance = nil }
-    assert(Zones.forwardToLive({ handler = "onShowQuickMenu", args = {} }, {}) == false)
+    -- The shelf itself never forwards to a book being read.
+    assert(Zones.forwardToLive({ handler = "onIncreaseFlIntensity", args = {} }, {}) == false)
     eq(rui_got, 0)
+    assert(Zones.forwardToLive({ handler = "onIncreaseFlIntensity", args = {} }, {}, { open_book = true }) == true)
+    eq(rui_got, 1)
+    restore()
+end)
+
+t.test("inside a book, the reader's own menu zone opens its menu", function()
+    local ev = { ges = "tap", pos = { x = 10, y = 10 } }
+    local menu_fired, finished = false, false
+    local rui = { _ordered_touch_zones = {
+        fakeZone("readermenu_tap", {}, { ev }, function() menu_fired = true; return true end) } }
+    local restore = liveHosts(nil, rui, false, function() finished = true end)
+    assert(Zones.tryLiveZones(ev) == false, "the shelf opened a book's menu on the home screen")
+    assert(Zones.tryLiveZones(ev, { open_book = true }) == true)
+    assert(menu_fired, "the book's menu did not open")
+    assert(not finished, "a book being read was closed to the file browser")
     restore()
 end)
 

@@ -375,6 +375,7 @@ function M.scrim(bb, x, y, w, h, colour, strength, radius)
         if opaque and alpha < 255 and M._lutBlend(bb, spans, tint, alpha, Blitbuffer) then
             return
         end
+        if not opaque and M._blendInCopy(bb, spans, tint, Blitbuffer) then return end
         for _i, s in ipairs(spans) do
             if opaque then
                 bb:paintRect(s.x, s.y, s.w, s.h, colour)
@@ -383,6 +384,41 @@ function M.scrim(bb, x, y, w, h, colour, strength, radius)
             end
         end
     end)
+    return ok
+end
+
+-- _blendInCopy(bb, spans, tint, Blitbuffer) -> true when the spans were
+-- blended. On the screen's own buffer a blend reads every pixel back, and a
+-- Kindle's framebuffer is slow memory to read: the micro-modules view's
+-- full-screen panel cost ~650 ms on a PW5, where the same blend in a copy is
+-- 23 ms and reading the area once 70 ms (rig device/editdrive.koplugin). So
+-- the area is read once, blended in memory and written back. false, with
+-- nothing painted, for any other buffer (blended in place, as before) or an
+-- inverted one (_blendThroughInverse's).
+function M._blendInCopy(bb, spans, tint, Blitbuffer)
+    if not (Blitbuffer.new and bb.blitFrom and #spans > 0) then return false end
+    local ok_d, Device = pcall(require, "device")
+    local screen = ok_d and Device and Device.screen
+    if not (screen and rawequal(bb, screen.bb)) then return false end
+    if type(bb.getInverse) == "function" and bb:getInverse() ~= 0 then return false end
+    local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
+    for _i, s in ipairs(spans) do
+        if s.x < x0 then x0 = s.x end
+        if s.y < y0 then y0 = s.y end
+        if s.x + s.w > x1 then x1 = s.x + s.w end
+        if s.y + s.h > y1 then y1 = s.y + s.h end
+    end
+    local w, h = x1 - x0, y1 - y0
+    if w <= 0 or h <= 0 then return false end
+    local tmp = Blitbuffer.new(w, h, bb:getType())
+    local ok = pcall(function()
+        tmp:blitFrom(bb, 0, 0, x0, y0, w, h)
+        for _i, s in ipairs(spans) do
+            tmp:blendRectRGB32(s.x - x0, s.y - y0, s.w, s.h, tint)
+        end
+        bb:blitFrom(tmp, x0, y0, 0, 0, w, h)
+    end)
+    tmp:free()
     return ok
 end
 

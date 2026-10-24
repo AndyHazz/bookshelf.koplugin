@@ -403,6 +403,15 @@ end
 -- Test seam: forget the in-memory copy so the next read comes from settings.
 function HeroModules._resetFitMemo() _fit_memo, _fit_memo_n = nil, nil end
 
+-- _surfaceOf(entry): where this cell is drawn. A module adopted by a host
+-- (a shelf module: host.surface "shelf") says so itself; otherwise the grid
+-- being built does. The shelf draws its modules outside any grid build, so
+-- _build_surface alone named whichever grid was built last.
+local function _surfaceOf(entry)
+    local host = HeroModules._hostOf(entry)
+    return (host and host.surface) or _build_surface
+end
+
 local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, user_mult, bw, colors, card)
     local base  = base_scale or 100
     -- Absolute size range for any cell, independent of the (now fixed) base:
@@ -429,7 +438,7 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, 
         local ctx = {
             width = inner_w, height = inner_h, scale = s, preview = false,
             refresh = refresh, shape = shape, entry = entry,
-            surface = _build_surface, bw = bw, menu = nil, config = cfg,
+            surface = _surfaceOf(entry), bw = bw, menu = nil, config = cfg,
             -- The colours the spec declares (spec.colors), as the reader set
             -- them for the look on screen, else their defaults.
             colors = colors or {},
@@ -458,7 +467,7 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, 
 
     user_mult = user_mult or 100
     local memo_key = entry and entry.id and table.concat({
-        _build_surface, tostring(def.key), tostring(entry.id),
+        _surfaceOf(entry), tostring(def.key), tostring(entry.id),
         inner_w, inner_h, base, user_mult }, "|")
     local function free(x) if x and x.free then pcall(function() x:free() end) end end
     -- Where the search starts: the grid scale, or after a memo miss the size

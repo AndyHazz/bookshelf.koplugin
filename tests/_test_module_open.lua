@@ -85,6 +85,37 @@ t.test("Show the book's details: the top panel on the shelf, a mark over the rea
     assert(M.staged("m2") == "/a.epub", "nowhere to show it, and not opened either")
 end)
 
+t.test("with the top panel on screen a tap shows the book there, as on the shelf", function()
+    for _i, surface in ipairs({ "hero", "shelf" }) do
+        settings = { action = "open" }; log = {}; M._staged = {}
+        local ctx, bw = shelfCtx()
+        ctx.surface = surface
+        M.tap(ctx, "m1", book)
+        assert(log[1] == "preview /a.epub" and #log == 1, surface .. ": " .. table.concat(log, ", "))
+        -- The second tap on the book now in the panel opens it, with the
+        -- effect on the module's own cover.
+        bw._preview_book = book; log = {}
+        M.tap(ctx, "m1", book)
+        assert(log[#log] == "open /a.epub no_effect", surface .. ": " .. table.concat(log, ", "))
+    end
+    -- A full screen shelf, the full-screen view and the start menu hide the
+    -- panel: those keep the full screen setting.
+    for _i, case in ipairs({ { "shelf", true }, { "fullscreen" }, { "start_menu" } }) do
+        settings = { action = "open" }; log = {}; M._staged = {}
+        local ctx, bw = shelfCtx()
+        ctx.surface, bw._expanded = case[1], case[2]
+        M.tap(ctx, "m1", book)
+        assert(log[1] == "open /a.epub no_effect", case[1] .. ": " .. table.concat(log, ", "))
+    end
+end)
+
+t.test("a shelf module's render knows it is on the shelf", function()
+    local src = io.open("lib/bookshelf_hero_modules.lua"):read("*a")
+    assert(src:find("surface = _surfaceOf(entry), bw = bw,", 1, true),
+        "a shelf module's ctx names whichever grid was built last")
+    assert(src:find("return (host and host.surface) or _build_surface", 1, true))
+end)
+
 t.test("a double tap opens straight away, when KOReader's double tap is on", function()
     settings = { action = "open_double" }; log = {}; M._staged = { m1 = "/x.epub" }
     local ctx = shelfCtx()

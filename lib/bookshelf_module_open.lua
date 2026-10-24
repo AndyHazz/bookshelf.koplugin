@@ -2,10 +2,13 @@
 Opening a book from a micro-module's own covers or spines (the Shelf module),
 the way the shelf opens one.
 
-- A tap follows the full screen shelves' setting (Store.expandedTapAction): a
-  module has no top panel of its own to stage a book in, so it behaves like a
-  full screen shelf. "open" opens; "open_double" marks the book first (the
-  module re-renders with the cover ringed) and opens on a second tap;
+- In the top panel, or among a shelf's books with the top panel on screen, a
+  tap shows the book in the panel and a second tap opens it, as a shelf cover
+  does. Elsewhere (the full-screen view, the start menu, a full screen shelf,
+  over the reader) there is no panel to show it in, and a tap follows the
+  full screen shelves' setting (Store.expandedTapAction). "open" opens;
+  "open_double" marks the book first (the module re-renders with the cover
+  ringed) and opens on a second tap;
   "show_detail" closes the full-screen view and shows the book in the top
   panel, or marks it like "open_double" where there is no top panel (over
   the reader).
@@ -64,6 +67,16 @@ function M.playOpening(fp)
     end
 end
 
+-- panelShowing(ctx, bw): the module sits in the top panel or on the shelf
+-- under it, and the panel is on screen (not a full screen shelf, not over the
+-- reader). The full-screen view and the start menu cover it.
+local function panelShowing(ctx, bw)
+    local surface = ctx and ctx.surface
+    return (surface == "hero" or surface == "shelf")
+        and bw ~= nil and bw._previewBook ~= nil
+        and not bw._expanded and not bw._reader_context
+end
+
 --- open(ctx, book): open it as the shelf does, effect first.
 function M.open(ctx, book)
     if not (book and book.filepath) then return end
@@ -80,8 +93,20 @@ end
 --- tap(ctx, key, book): a single tap on one of the module's books.
 function M.tap(ctx, key, book)
     if not (book and book.filepath) then return end
-    local action = Store().expandedTapAction()
     local bw = ctx and ctx.bw
+    -- In the top panel or among a shelf's books, with the panel on screen, a
+    -- tap does what a tap on a shelf cover does: the book goes into the
+    -- panel, and a tap on the book already there opens it.
+    if panelShowing(ctx, bw) then
+        M._staged[key] = nil
+        if bw._preview_book and bw._preview_book.filepath == book.filepath then
+            M.open(ctx, book)
+        else
+            bw:_previewBook(book)
+        end
+        return
+    end
+    local action = Store().expandedTapAction()
     if action == "show_detail" and bw and bw._previewBook and not bw._reader_context then
         M._staged[key] = nil
         closeFullscreen(bw._micro_fullscreen)

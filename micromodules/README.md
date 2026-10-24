@@ -142,7 +142,8 @@ fields `render` reads:
   so the same module key can appear multiple times with different settings
   (see **Per-instance config** below). Most modules ignore it.
 - `ctx.surface` — where you're rendering: `"hero"`, `"fullscreen"`,
-  `"start_menu"`, or `"picker"` (the Add preview). Adapt layout if you need to;
+  `"shelf"` (among a shelf's books), `"start_menu"`, or `"picker"` (the Add
+  preview). Adapt layout if you need to;
   most modules ignore it.
 - `ctx.bw`, `ctx.menu` — the bookshelf widget and start menu when available (may
   be `nil`, e.g. in the picker); mainly for `on_tap`.

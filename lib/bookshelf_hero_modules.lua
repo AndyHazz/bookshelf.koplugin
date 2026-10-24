@@ -1260,8 +1260,21 @@ function HeroModules.build(bw, content_w, hero_h, PAD, opts)
         if entry then
             local x, y, w, h = Grid.rect(dims, b)
             local focused = opts.focused_id ~= nil and entry.id == opts.focused_id
-            container[#container + 1] = HeroModules._makeCell(bw, entry, w, h, scale_pct,
-                opts.focusable, focused)
+            if edit then
+                -- In the layout editor a module is built only when its kept
+                -- picture is missing (HeroModules._EditCell).
+                local focusable = opts.focusable
+                container[#container + 1] = HeroModules._EditCell:new{
+                    id = entry.id, w = w, h = h, perf_name = entry.module,
+                    sig = HeroModules._entrySig(entry),
+                    build = function()
+                        return HeroModules._makeCell(bw, entry, w, h, scale_pct, focusable, focused)
+                    end,
+                }
+            else
+                container[#container + 1] = HeroModules._makeCell(bw, entry, w, h, scale_pct,
+                    opts.focusable, focused)
+            end
             container.pos[#container] = { x = ox + x, y = oy + y }
             local rec = {
                 group = container, idx = #container, entry = entry,
@@ -1443,6 +1456,11 @@ function HeroModules._dropDimCache()
         if rec.bb then rec.bb:free() end
     end
     HeroModules._dim_cache = {}
+    for _id, rec in pairs(HeroModules._paint_cache or {}) do
+        if rec.bb then rec.bb:free() end
+        for _i, e in ipairs(rec.extras or {}) do e.bb:free() end
+    end
+    HeroModules._paint_cache = {}
 end
 
 -- _dimCell(bb, id, sig, x, y, w, h): the module at that rect, dimmed: from
@@ -1463,6 +1481,70 @@ function HeroModules._dimCell(bb, id, sig, x, y, w, h)
         local c = Blitbuffer.new(w, h, bb:getType())
         c:blitFrom(bb, 0, 0, x, y, w, h)
         HeroModules._dim_cache[id] = { key = key, bb = c }
+    end)
+end
+
+-- _EditCell: a module in the layout editor. Every select, move or resize
+-- rebuilt and repainted every module (on a PW5 the three-row Shelf module
+-- alone painted for 745 ms each time), though while the editor is up a
+-- module looks the same until it, its place or the minute changes. So the
+-- first paint is kept, with anything it drew past its cell (the Shelf
+-- module's heading, hooked over its plank), and put back after that; the
+-- module is only built when the kept picture won't do. Nothing in the
+-- editor takes input from a cell, so an unbuilt one costs nothing.
+-- Dropped with the dimmed copies (_dropDimCache).
+HeroModules._paint_cache = {}
+
+HeroModules._EditCell = InputContainer:extend{
+    id = nil, w = 0, h = 0, sig = nil, build = nil,
+}
+
+function HeroModules._EditCell:getSize()
+    return Geom:new{ w = self.w, h = self.h }
+end
+
+function HeroModules._EditCell:_key(bb, x, y)
+    local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
+    local look = ok and CP and CP.theme and table.concat({ tostring(CP.theme()) }, "") or ""
+    return table.concat({ tostring(self.sig), x, y, self.w, self.h, os.date("%H%M"),
+        tostring(Modules.CARD_BG), tostring(bb:getType()), look }, "|")
+end
+
+function HeroModules._EditCell:paintTo(bb, x, y)
+    self.dimen = Geom:new{ x = x, y = y, w = self.w, h = self.h }
+    local on_screen = rawequal(bb, Screen.bb)
+    local key = on_screen and self:_key(bb, x, y)
+    local rec = key and HeroModules._paint_cache[self.id]
+    if rec and rec.key == key then
+        bb:blitFrom(rec.bb, x, y, 0, 0, self.w, self.h)
+        for _i, e in ipairs(rec.extras) do bb:blitFrom(e.bb, e.x, e.y, 0, 0, e.w, e.h) end
+        return
+    end
+    if not self[1] then self[1] = self.build() end
+    self[1]:paintTo(bb, x, y)
+    if not on_screen then return end
+    pcall(function()
+        if rec then
+            rec.bb:free()
+            for _i, e in ipairs(rec.extras) do e.bb:free() end
+        end
+        local c = Blitbuffer.new(self.w, self.h, bb:getType())
+        c:blitFrom(bb, 0, 0, x, y, self.w, self.h)
+        local extras = {}
+        -- Drawn past the cell: a Shelf module's heading, below its plank.
+        local ok_ss, SpineShelf = pcall(require, "lib/bookshelf_spine_shelf")
+        if ok_ss and SpineShelf.screenBadgeRects then
+            for _i, r in ipairs(SpineShelf.screenBadgeRects(x, y, self.w, self.h)) do
+                local inside = r.x >= x and r.y >= y and r.x + r.w <= x + self.w
+                    and r.y + r.h <= y + self.h
+                if not inside and r.w > 0 and r.h > 0 then
+                    local e = Blitbuffer.new(r.w, r.h, bb:getType())
+                    e:blitFrom(bb, 0, 0, r.x, r.y, r.w, r.h)
+                    extras[#extras + 1] = { bb = e, x = r.x, y = r.y, w = r.w, h = r.h }
+                end
+            end
+        end
+        HeroModules._paint_cache[self.id] = { key = key, bb = c, extras = extras }
     end)
 end
 

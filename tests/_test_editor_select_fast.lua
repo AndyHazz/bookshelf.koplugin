@@ -52,4 +52,21 @@ t.test("a select repaints the view as built, when only the selection moved", fun
     assert(ed:find('_dropDimCache() end)\n    local ed = Editor:new', 1, true), "a stale dim survives into a new editor")
 end)
 
+t.test("in the editor a module is built only when its kept picture won't do", function()
+    -- The three-row Shelf module painted for 745 ms on every change (PW5).
+    assert(hm:find("container[#container + 1] = HeroModules._EditCell:new{", 1, true), "editor cells not kept")
+    local p = hm:match("\nfunction HeroModules%._EditCell:paintTo%(bb, x, y%)\n(.-)\nend\n")
+    assert(p, "no paintTo")
+    local hit = p:find("bb:blitFrom(rec.bb, x, y, 0, 0, self.w, self.h)", 1, true)
+    local build = p:find("self[1] = self.build()", 1, true)
+    assert(hit and build and hit < build, "built before the kept picture is tried")
+    -- What it drew past its cell (the Shelf module's heading) is kept too.
+    assert(p:find("SpineShelf.screenBadgeRects(x, y, self.w, self.h)", 1, true))
+    local key = hm:match("\nfunction HeroModules%._EditCell:_key%(bb, x, y%)\n(.-)\nend\n")
+    assert(key:find("tostring(self.sig), x, y, self.w, self.h, os.date(\"%H%M\")", 1, true),
+        "the picture is not redone when the module, its place or the minute changes")
+    local drop = hm:match("\nfunction HeroModules%._dropDimCache%(%)\n(.-)\nend\n")
+    assert(drop:find("HeroModules._paint_cache = {}", 1, true), "kept pictures outlive the editor")
+end)
+
 t.done()

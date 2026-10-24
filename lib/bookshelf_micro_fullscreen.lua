@@ -43,6 +43,10 @@ end
 
 local MicroFullscreen = InputContainer:extend{
     name = "micro_modules_fullscreen",
+    -- Its ground is opaque (see _build), so nothing under it need paint:
+    -- without this every repaint (closing a module's colour menu, say) drew
+    -- the whole shelf beneath it too, ~400 ms on a PW5 for nothing.
+    covers_fullscreen = true,
 }
 
 -- Reader context only: the exact painted boxes of the in-reader launcher glyphs

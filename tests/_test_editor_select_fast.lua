@@ -28,7 +28,9 @@ t.test("a module is dimmed once, then copied back", function()
     HM._dimCell(bb, "a", "sig1", 0, 0, 10, 10)
     HM._dimCell(bb, "a", "sig1", 0, 0, 10, 10)
     assert(fades == 1, "blended twice: " .. fades)
-    assert(bb.blits == 1, "not copied back")
+    -- Written back once when dimmed (in a copy, off the framebuffer), and
+    -- once from the kept copy.
+    assert(bb.blits == 2, "not copied back: " .. bb.blits)
 end)
 
 t.test("a changed module, or a moved one, is dimmed afresh", function()

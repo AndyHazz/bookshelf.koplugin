@@ -134,8 +134,12 @@ t.test("the layout editor fades all but the editable modules", function()
     local f = ed:match("\nfunction Editor:_fadeAround%(bb%)\n(.-)\nend\n")
     assert(f, "no fade")
     assert(f:find("b.page == self.session.page", 1, true), "keeps modules on other pages")
-    assert(f:find("fade(bb, 0, 0, bb:getWidth(), bb:getHeight(), Editor.FADE)", 1, true), "does not fade the screen")
-    assert(f:find("bb:blitFrom(k.copy, k.x, k.y, 0, 0, k.w, k.h)", 1, true), "does not put the modules back")
+    -- In a copy of the screen, written back (a blend on a Kindle's
+    -- framebuffer was ~650 ms on a PW5).
+    assert(f:find("fade(c, 0, 0, W, H, Editor.FADE)", 1, true), "does not fade the screen, in a copy")
+    assert(f:find("c:blitFrom(k.copy, k.x, k.y, 0, 0, k.w, k.h)", 1, true), "does not put the modules back")
+    assert(f:find("bb:blitFrom(c, 0, 0, 0, 0, W, H)", 1, true) and f:find("self:_fadeFromCache(bb, cache_key, kx, ky, kw, kh)", 1, true),
+        "the faded copy never reaches the screen")
     -- The top panel and full screen keep their whole grid, so the empty
     -- cells' dashed outlines stay clear; a cover shelf keeps only its
     -- modules (its grid is the books' slots).
@@ -143,7 +147,7 @@ t.test("the layout editor fades all but the editable modules", function()
     -- On a dark theme the fade goes towards black, as a module's own fade
     -- does (lightening it washed the dark screen to flat grey). Night mode
     -- paints cards pre-inverted, light, so it still lightens there.
-    assert(f:find("local fade = Editor._fadeDark() and bb.darkenRect or bb.lightenRect", 1, true), "fades towards white on a dark theme")
+    assert(f:find("local fade = Editor._fadeDark() and c.darkenRect or c.lightenRect", 1, true), "fades towards white on a dark theme")
     local dark = ed:match("\nfunction Editor%._fadeDark%(%)\n(.-)\nend\n")
     -- The theme, not the cards: a light shelf may have dark cards. Darkened
     -- paint shows dark only on a frame that doesn't invert, so it is the

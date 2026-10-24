@@ -1483,14 +1483,22 @@ function HeroModules._dimCell(bb, id, sig, x, y, w, h)
         bb:blitFrom(rec.bb, x, y, 0, 0, w, h)
         return
     end
-    HeroModules._fade(bb, x, y, w, h, Modules.CARD_BG)
-    if not id or not sig then return end
-    pcall(function()
-        if rec and rec.bb then rec.bb:free() end
+    -- Dimmed in a copy, then written back: a blend on a Kindle's
+    -- framebuffer reads every pixel back from slow memory (see the editor's
+    -- fade, Editor:_fadeAround).
+    local ok = pcall(function()
         local c = Blitbuffer.new(w, h, bb:getType())
         c:blitFrom(bb, 0, 0, x, y, w, h)
-        HeroModules._dim_cache[id] = { key = key, bb = c }
+        HeroModules._fade(c, 0, 0, w, h, Modules.CARD_BG)
+        bb:blitFrom(c, x, y, 0, 0, w, h)
+        if id and sig then
+            if rec and rec.bb then rec.bb:free() end
+            HeroModules._dim_cache[id] = { key = key, bb = c }
+        else
+            c:free()
+        end
     end)
+    if not ok then HeroModules._fade(bb, x, y, w, h, Modules.CARD_BG) end
 end
 
 -- _EditCell: a module in the layout editor. Every select, move or resize

@@ -466,18 +466,27 @@ function Editor:_fadeAround(bb)
             end
         end
     end
-    local fade = Editor._fadeDark() and bb.darkenRect or bb.lightenRect
-    fade(bb, 0, 0, bb:getWidth(), bb:getHeight(), Editor.FADE)
+    -- Faded in a copy, then written back: never blended on the screen
+    -- itself. A Kindle's framebuffer is slow memory to read back, and the
+    -- blend reads every pixel: ~650 ms on a PW5, where the same blend in a
+    -- copy is 23 ms and the copy itself 70 ms (editdrive probe).
+    local W, H = bb:getWidth(), bb:getHeight()
+    local c = Blitbuffer.new(W, H, bb:getType())
+    c:blitFrom(bb, 0, 0, 0, 0, W, H)
+    local fade = Editor._fadeDark() and c.darkenRect or c.lightenRect
+    fade(c, 0, 0, W, H, Editor.FADE)
     for _i, k in ipairs(keep) do
-        bb:blitFrom(k.copy, k.x, k.y, 0, 0, k.w, k.h)
+        c:blitFrom(k.copy, k.x, k.y, 0, 0, k.w, k.h)
         k.copy:free()
     end
     if cache_key and kw and kw > 0 and kh > 0 then
+        -- Kept, and its outside written to the screen as a kept one is.
         self:_dropFadeCache()
-        local W, H = bb:getWidth(), bb:getHeight()
-        local c = Blitbuffer.new(W, H, bb:getType())
-        c:blitFrom(bb, 0, 0, 0, 0, W, H)
         self._fade_cache = { key = cache_key, bb = c, t = os.time() }
+        self:_fadeFromCache(bb, cache_key, kx, ky, kw, kh)
+    else
+        bb:blitFrom(c, 0, 0, 0, 0, W, H)
+        c:free()
     end
 end
 

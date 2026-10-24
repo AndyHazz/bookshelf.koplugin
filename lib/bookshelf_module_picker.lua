@@ -122,6 +122,8 @@ function ModulePicker._renderCell(item, dimen)
             preview = true, refresh = nil, shape = "square", entry = nil,
             surface = "picker", bw = nil, menu = nil,
             config = require("lib/bookshelf_module_kit").entryConfig(nil, nil),
+            -- The spec's own colours at their defaults (bookshelf_module_card).
+            colors = require("lib/bookshelf_module_card").look(nil, def).colors,
         })
         preview = ok and widget or nil
         if not ok then

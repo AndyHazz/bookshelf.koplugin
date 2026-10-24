@@ -33,6 +33,10 @@ for _, name in ipairs({
     "ui/widget/container/centercontainer",
     "ui/widget/container/widgetcontainer",
     "ui/widget/container/inputcontainer",
+    -- The toolbar title's palette icon (bookshelf_module_card_menu.titleRow).
+    "ui/widget/button",
+    "ui/widget/horizontalgroup",
+    "ui/widget/horizontalspan",
 }) do
     package.preload[name] = function() return make_widget_base() end
 end

@@ -100,6 +100,13 @@ function Editor:init()
                 if not ok then logger.warn("[bookshelf] module settings failed:", entry.module, err) end
             end
         end,
+        -- The palette icon: the module's card and colours, saved on it.
+        -- host.ctx_for (optional) is how the host saves a module (a shelf
+        -- saves its own list); else the module's own ctx.
+        open_colors = function(entry)
+            local ctx = (host.ctx_for and host.ctx_for(entry)) or HeroModules._ctx(bw, nil, entry)
+            require("lib/bookshelf_module_card_menu").show(ctx)
+        end,
         size_for = function(entry) return HeroModules._sizeFor(entry, info.dims) end,
         title_for = function(entry)
             local def = Modules.get(entry.module)
@@ -238,7 +245,7 @@ function Editor:_buildToolbar()
     end
     local vg = VerticalGroup:new{
         align = "center",
-        TextWidget:new{ text = title, face = face, max_width = width - 2 * self.margin },
+        self:_titleRow(title, face, width - 2 * self.margin, entry),
     }
     if rows then
         vg[#vg + 1] = VerticalSpan:new{ width = Screen:scaleBySize(6) }
@@ -257,6 +264,14 @@ function Editor:_buildToolbar()
         width      = width,
         vg,
     }
+end
+
+-- _titleRow(title, face, w, entry): the toolbar's title, with the palette
+-- icon when the module has colours to set (bookshelf_module_card_menu).
+function Editor:_titleRow(title, face, w, entry)
+    local s = self.session
+    return require("lib/bookshelf_module_card_menu").titleRow(title, face, w, entry, self,
+        function() s:colors() end)
 end
 
 function Editor:_buildFooter(rect_w)

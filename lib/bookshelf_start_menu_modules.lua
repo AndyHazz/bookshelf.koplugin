@@ -260,6 +260,14 @@ local function registerSpec(spec, dir, fname, origin)
             .. " (in_place must be a boolean when present), skipping:", fname)
         return
     end
+    -- Optional colour rows of its own (bookshelf_module_card): a list of
+    -- { id, text, default, default_dark }, none taking a card key.
+    if spec.colors ~= nil and not require("lib/bookshelf_module_card").validColors(spec.colors) then
+        logger.warn("[bookshelf] micro-module spec invalid"
+            .. " (colors must be a list of { id, text }, ids not bg/border/border_color/ink),"
+            .. " skipping:", fname)
+        return
+    end
     -- Optional grid size hints (whole cells): the smallest the layout editor
     -- lets the module be sized to. The grid clamps them to its own size.
     for _i, f in ipairs({ "min_w", "min_h" }) do

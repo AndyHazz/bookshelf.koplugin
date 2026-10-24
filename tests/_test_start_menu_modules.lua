@@ -71,6 +71,11 @@ put("inplace_ok.lua", [[return { key = "inplaceok", title = "In place ok",
     render = function() end, in_place = true }]])
 put("inplace_bad.lua", [[return { key = "inplacebad", title = "In place bad",
     render = function() end, in_place = 1 }]])
+-- colors: the module's own colour rows (bookshelf_module_card).
+put("colors_ok.lua", [[return { key = "colorsok", title = "Colors ok",
+    render = function() end, colors = { { id = "bar", text = "Bar", default = { hex = "#336699" } } } }]])
+put("colors_bad.lua", [[return { key = "colorsbad", title = "Colors bad",
+    render = function() end, colors = { { id = "bg", text = "Takes a card key" } } }]])
 names[#names + 1] = "README.md" -- non-lua entries must be ignored
 put("README.md", "not a module")
 
@@ -128,7 +133,9 @@ t.test("scan registers valid specs and skips broken/invalid ones", function()
     assert(reg["listbad"] == nil, "an invalid entry in a list is skipped on its own")
     assert(reg["inplaceok"] and reg["inplaceok"].in_place == true, "a boolean in_place must register")
     assert(reg["inplacebad"] == nil, "a non-boolean in_place must be skipped")
-    assert(n == 10, "exactly ten modules must have registered, got " .. n)
+    assert(reg["colorsok"] and reg["colorsok"].colors[1].id == "bar", "a valid colors list must register")
+    assert(reg["colorsbad"] == nil, "a colour taking a card key must be skipped")
+    assert(n == 11, "exactly eleven modules must have registered, got " .. n)
 end)
 
 t.test("menu-open generation hook", function()

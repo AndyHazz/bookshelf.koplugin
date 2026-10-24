@@ -80,7 +80,7 @@ end)
 -- says why, so it doesn't read as the ornament menu gone missing.
 t.test("a pinned piece's menu is titled as a pinned ornament", function()
     local m = w:match("\nfunction BookshelfWidget:_spineModuleMenu%(entry%)\n(.-)\nend\n")
-    assert(m and m:find('title = pinned_piece and _("Ornament micro-module (pinned)")', 1, true),
+    assert(m and m:find('(pinned_piece and _("Ornament micro-module (pinned)")', 1, true),
            "titled like any Ornament module")
 end)
 

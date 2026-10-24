@@ -2178,6 +2178,10 @@ local function _valueText(raw, raw_key)
     return p and (p .. "%") or _("default")
 end
 
+-- The row label for a stored colour ("default", "#RRGGBB", "40%"), for the
+-- colour rows outside this menu (a micro-module's own card colours).
+Settings.valueText = _valueText
+
 local function _screenPctToByte(pct)
     if _isNight() then
         return math.floor(pct * 0xFF / 100 + 0.5)
@@ -2311,6 +2315,8 @@ function Settings:_plankRow(markDirty)
     }
 end
 
+-- wood.store (optional): { partRead, partSnapshot, partSave, partDelete,
+-- partRestore } in place of the theme's, for a colour kept elsewhere.
 -- wood.on_done (optional): runs once when the dialog closes, however, and the
 -- menu is then left alone (the caller keeps it hidden): the palette is handed
 -- a stand-in menu whose refresh is on_done, the % dialog an on_close.
@@ -2348,7 +2354,10 @@ function Settings:_pickColor(raw_key, field, default_pct, title,
         local key      = raw_key .. suffix
         -- Read and written through the one seam: Custom theme's key, or the
         -- edits to the theme on screen (bookshelf_theme_pack.partSave).
-        local TP       = require("lib/bookshelf_theme_pack")
+        -- wood.store (optional): somewhere else to keep it, with the same
+        -- five calls -- a micro-module's own card colours live on the module
+        -- (bookshelf_module_card_menu).
+        local TP       = (wood and wood.store) or require("lib/bookshelf_theme_pack")
         local raw      = TP.partRead(key)
         local before   = TP.partSnapshot(key)
 

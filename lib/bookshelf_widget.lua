@@ -6776,6 +6776,11 @@ function BookshelfWidget:_shelfModuleHost()
             return on_added(entry)
         end)
     end
+    -- A module's ctx here saves to the shelf (the editor holds copies):
+    -- its colours (the palette icon) go through it.
+    function host.ctx_for(entry)
+        return HeroModules._ctx(bw, nil, HeroModules.adopt(entry, owner))
+    end
     -- Module settings save to the shelf (the editor holds copies).
     function host.open_settings(entry)
         local Modules = require("lib/bookshelf_start_menu_modules")
@@ -6948,6 +6953,9 @@ function BookshelfWidget:_spineModuleMenu(entry)
     -- menu), not a module width: its one Settings opens that menu, in place
     -- of Narrower, Wider and the module's own settings.
     local pinned_piece = entry.module == "ornament" and entry.ornament
+    -- A card, or colours its spec declares: the palette icon in the title.
+    local CardMenu = require("lib/bookshelf_module_card_menu")
+    local has_colors = #require("lib/bookshelf_module_card").rows(def) > 0
     local function adjustPiece()
         UIManager:close(d)
         local Orn = require("lib/bookshelf_ornaments")
@@ -6961,8 +6969,10 @@ function BookshelfWidget:_spineModuleMenu(entry)
     d = ButtonDialog:new{
         -- A pinned piece's long-press opens this, not the ornament menu it
         -- opened before pinning: the title says why.
-        title = pinned_piece and _("Ornament micro-module (pinned)")
-            or (def and def.title) or entry.module, title_align = "center",
+        -- With colours to set, the title is a row of its own, with the
+        -- palette icon (added below).
+        title = (not has_colors) and (pinned_piece and _("Ornament micro-module (pinned)")
+            or (def and def.title) or entry.module) or nil, title_align = "center",
         -- Centred across the screen (it is nearly full width) and clear of
         -- the module by a gap: no x, so MovableContainer centres it, and the
         -- module's rect grown by the gap above and below (maintainer).
@@ -7026,6 +7036,16 @@ function BookshelfWidget:_spineModuleMenu(entry)
             },
         },
     }
+    if has_colors then
+        local Font = require("ui/font")
+        d:addWidget(CardMenu.titleRow((def and def.title) or entry.module, Font:getFace("x_smalltfont"),
+            d:getAddedWidgetAvailableWidth(), entry, d, function()
+                local m = current()
+                if not m then return end
+                UIManager:close(d)
+                CardMenu.show(HeroModules._ctx(bw, nil, HeroModules.adopt(m, bw:_shelfModuleOwner(bw.chip))))
+            end))
+    end
     -- A swipe that starts on the module moves it a book left or right.
     d.ges_events.SwipeModule = { GestureRange:new{ ges = "swipe",
         range = Geom:new{ x = 0, y = 0, w = Screen:getWidth(), h = Screen:getHeight() } } }

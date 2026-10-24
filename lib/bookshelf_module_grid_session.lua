@@ -18,6 +18,7 @@ Session.new{
   notify(text),            -- show a short message
   add_picker(on_added),    -- let the user choose a module; on_added(entry)
   open_settings(entry),    -- the module's own settings
+  open_colors(entry),      -- its card and colour menu (the palette icon)
   size_for(entry) -> w, h  -- size for a newly added module
   min_for(entry) -> w, h   -- the module's minimum size (default 1, 1)
   title_for(entry)         -- the module's name, for messages
@@ -59,6 +60,7 @@ function Session.new(o)
     s.notify        = o.notify or function() end
     s.add_picker    = o.add_picker
     s.open_settings = o.open_settings
+    s.open_colors   = o.open_colors
     s.size_for      = o.size_for or function() return 1, 1 end
     s.min_for       = o.min_for or function() return 1, 1 end
     s.title_for     = o.title_for or function(entry) return entry.module end
@@ -390,6 +392,16 @@ function Session:settings()
     if not id or not self.open_settings then return false end
     self:commit()
     self.open_settings(self:item(id))
+    return true
+end
+
+-- colors(): the selected module's colour menu (the toolbar's palette icon),
+-- after the layout so far is saved, as settings() does.
+function Session:colors()
+    local id = self.selected_id
+    if not id or not self.open_colors then return false end
+    self:commit()
+    self.open_colors(self:item(id))
     return true
 end
 

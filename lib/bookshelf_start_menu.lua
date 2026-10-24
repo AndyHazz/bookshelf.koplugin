@@ -778,6 +778,8 @@ function StartMenu:_buildModuleRow(entry, w, focused, in_flyout)
                 surface = "start_menu", bw = self.bw, menu = self,
                 clamp = true,
                 config = Kit.entryConfig(entry, nil),
+                -- The spec's own colours (bookshelf_module_card).
+                colors = require("lib/bookshelf_module_card").look(entry, def).colors,
                 -- Optional per-region taps (Kit.hitRegion): rects in the
                 -- returned widget's own coordinate space; resolved by the
                 -- row's onTap below into ctx.tapped_region.

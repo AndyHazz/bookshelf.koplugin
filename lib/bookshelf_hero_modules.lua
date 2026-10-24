@@ -398,7 +398,7 @@ end
 -- Test seam: forget the in-memory copy so the next read comes from settings.
 function HeroModules._resetFitMemo() _fit_memo, _fit_memo_n = nil, nil end
 
-local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, user_mult, bw)
+local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, user_mult, bw, colors)
     local base  = base_scale or 100
     -- Absolute size range for any cell, independent of the (now fixed) base:
     -- shrink to 60% (legibility floor; ClipContainer backstops anything worse),
@@ -425,6 +425,9 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, 
             width = inner_w, height = inner_h, scale = s, preview = false,
             refresh = refresh, shape = shape, entry = entry,
             surface = _build_surface, bw = bw, menu = nil, config = cfg,
+            -- The colours the spec declares (spec.colors), as the reader set
+            -- them for the look on screen, else their defaults.
+            colors = colors or {},
             set_tap_regions = function(r)
                 pending_regions = type(r) == "table" and r or nil
             end,
@@ -701,6 +704,17 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
     -- render is centred horizontally — giving the L/R margin. Tunable.
     local is_sq      = def and (def.aspect == "square" or def.bare)
     local base_inset = Space.px(10)
+
+    -- The module's own card look (bookshelf_module_card): its background,
+    -- border and text where the reader set them, else the shared ones the
+    -- host's palette already holds. Its own background and text are pointed
+    -- at for its render only (the module's text paints the card colour as its
+    -- own background) and the shared ones put back after.
+    local Card = require("lib/bookshelf_module_card")
+    local shared = { bg = Modules.CARD_BG or _moduleCardBg(), border = _cardBorderInk(),
+                     ink = Modules.COLOR_PRIMARY, muted = Modules.COLOR_MUTED }
+    local look = Card.look(entry, def, shared)
+    local own_palette = look.bg ~= shared.bg or look.ink ~= shared.ink
     local text_w     = is_sq and inner_w or math.max(50, inner_w - 2 * base_inset)
 
     local content, errored
@@ -716,8 +730,12 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
         local user_mult = BookshelfSettings.read("hero_module_font_scale", 100)
         local function renderAt(w)
             return Breaker.guard(function()
-                return _renderFitted(def, w, inner_h, scale_pct, refresh, entry, user_mult, bw)
+                return _renderFitted(def, w, inner_h, scale_pct, refresh, entry, user_mult, bw, look.colors)
             end)
+        end
+        if own_palette then
+            Modules.setCardBg(look.bg)
+            Modules.setInk(look.ink, look.muted)
         end
         local ok, c = renderAt(text_w)
         content = ok and c or nil
@@ -751,6 +769,10 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
                 end
             end
         end
+        if own_palette then
+            Modules.setCardBg(shared.bg)
+            Modules.setInk(shared.ink, shared.muted)
+        end
     end
     if not content then
         local label = (def and def.title) or entry.module
@@ -762,7 +784,7 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
         content = TextWidget:new{
             text    = label,
             face    = BFont:getFace("cfont", 15),
-            fgcolor = Modules.COLOR_MUTED or Blitbuffer.COLOR_GRAY_5,
+            fgcolor = look.muted or Modules.COLOR_MUTED or Blitbuffer.COLOR_GRAY_5,
         }
     end
 
@@ -777,7 +799,7 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
     -- cheaper (one table lookup against a pcall + a palette walk, per cell)
     -- and stricter -- the card cannot end up a different colour from the text
     -- drawn on it, which is the pairing the whole setting exists to keep.
-    local card_bg = Modules.CARD_BG or _moduleCardBg()
+    local card_bg = look.bg
     -- A bare module (an ornament) has no card: nothing is filled behind it,
     -- so the wallpaper shows round its drawing. It sizes itself to the cell,
     -- so it is centred as it is rather than clipped through the offscreen
@@ -811,11 +833,12 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
     -- which reads as the grid having less air on the right than on the left,
     -- because the row is left-aligned and the overflow all lands at the far
     -- end. Eating the padding keeps the outer dimen at cell_w/cell_h exactly.
-    local card_border = bare and 0 or Screen:scaleBySize(1)
+    -- The reader can switch it off per module (Card border).
+    local card_border = (bare or not look.border_on) and 0 or Screen:scaleBySize(1)
     local frame = FrameContainer:new{
         background  = card_bg,
         bordersize  = card_border,
-        color       = _cardBorderInk(),
+        color       = look.border,
         radius      = radius,
         padding     = math.max(0, card_pad - card_border),
         margin      = press_b, -- empty ring at rest; becomes the pressed border

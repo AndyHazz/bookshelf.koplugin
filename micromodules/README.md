@@ -146,6 +146,9 @@ fields `render` reads:
   most modules ignore it.
 - `ctx.bw`, `ctx.menu` — the bookshelf widget and start menu when available (may
   be `nil`, e.g. in the picker); mainly for `on_tap`.
+- `ctx.colors` - your module's own colours (the `colors` spec field, see
+  **Colours**), keyed by id, ready to paint: what the reader picked for the
+  look on screen, else your defaults. Always a table.
 
 A common first line just pulls what you need:
 `local width, scale_pct, refresh = ctx.width, ctx.scale, ctx.refresh`.
@@ -416,6 +419,36 @@ place. `COLOR_MUTED` is a deliberately dark grey (0x55) — a lighter grey fails
 weaker e-ink panels. A `TextBoxWidget` paints an opaque background, so set its
 `bgcolor = Kit.CARD_BG` (fitText does this for you) or the text sits on a white
 bar.
+
+The reader can give each module its own card: tap the palette icon in the
+layout editor's toolbar for **Card background**, **Card border** (on or off),
+**Card border color** and **Card text**, each kept separately for the light and
+dark looks and stored on the module. You don't need to do anything for this:
+`Kit.CARD_BG`, `Kit.COLOR_PRIMARY` and `Kit.COLOR_MUTED` are pointed at that
+card's colours while your module renders. A card with its own background gets
+black or white text, whichever reads on it, unless the reader picks a text
+colour too.
+
+Colours of your own (a bar, an accent) can go in the same menu. List them in
+the spec, and read them back from `ctx.colors`:
+
+```lua
+colors = {
+    { id = "bar", text = _("Bar color"),
+      default = { hex = "#4A7A9C" },        -- as the reader sees it, light look
+      default_dark = { hex = "#9CC4E0" } }, -- and dark look (optional)
+},
+render = function(ctx)
+    local bar = ctx.colors.bar   -- a Blitbuffer colour, ready to paint
+    ...
+end,
+```
+
+`default` and `default_dark` are storage shapes like the Colors menu's:
+`{ hex = "#RRGGBB" }` or `{ grey = 0..255 }`. On a greyscale screen a hex
+colour is drawn as its grey. Ids may not be `bg`, `border`, `border_color` or
+`ink` (the card's own); a spec that breaks this is skipped with a warning in
+the log. A bare module (no card) can declare colours too: only its own appear.
 
 ## Translations
 

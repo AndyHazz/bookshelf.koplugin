@@ -1448,7 +1448,7 @@ function HeroModules._editDecorations(container, dims, boxes, page, edit, ox, oy
                     -- Rounded like the card it surrounds (_makeCell's radius),
                     -- grown by the outline's own width.
                     bb:paintBorder(x - thick, y - thick, w + 2 * thick, h + 2 * thick,
-                        thick, Blitbuffer.COLOR_BLACK, Space.px(4) + thick)
+                        thick, HeroModules._outlineColor(), Space.px(4) + thick)
                     -- What hangs out of the card stays in front of its
                     -- outline: the Shelf module's heading, hooked over its
                     -- plank, had the outline run through it (maintainer).
@@ -1464,6 +1464,19 @@ function HeroModules._editDecorations(container, dims, boxes, page, edit, ox, oy
             end
         end
     end
+end
+
+-- _outlineColor() -> the layout editor's selection outline: black, or white
+-- on a dark theme the frame does not invert (night mode turns black white on
+-- its own). Black vanished on a dark panel or wallpaper, and a borderless
+-- module (the Shelf module) then showed no selection at all (maintainer).
+function HeroModules._outlineColor()
+    local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
+    if ok and CP and CP.theme then
+        local want_dark, inverting = CP.theme()
+        if want_dark ~= inverting then return Blitbuffer.COLOR_WHITE end
+    end
+    return Blitbuffer.COLOR_BLACK
 end
 
 -- Re-render just the time-sensitive (clock) cells in place and scope the

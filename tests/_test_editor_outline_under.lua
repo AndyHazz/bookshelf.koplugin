@@ -36,4 +36,15 @@ t.test("a heading hanging past the grid is kept clear of the fade", function()
     assert(#got == 1 and got[1] == a._rect, #got)
 end)
 
+t.test("the outline shows on a dark theme: white where black would not", function()
+    -- Black disappeared on a dark panel or wallpaper; borderless modules
+    -- (the Shelf module) then showed no selection at all (maintainer, PW5).
+    -- Night mode flips black to white itself, so only an unflipped dark
+    -- theme paints it white: Editor._fadeDark's test.
+    local over = src:match("\n    function container%.over%(bb, x0, y0%)\n(.-)\n    end\nend\n")
+    assert(over:find("thick, HeroModules._outlineColor(), Space.px(4) + thick)", 1, true), "always black")
+    local f = src:match("\nfunction HeroModules%._outlineColor%(%)\n(.-)\nend\n")
+    assert(f and f:find("want_dark ~= inverting", 1, true), "not the theme's test")
+end)
+
 t.done()

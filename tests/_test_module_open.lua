@@ -122,6 +122,12 @@ t.test("with the top panel on screen the module lifts the panel's book, and lets
     package.loaded["ui/uimanager"].nextTick = function(_s, f) ticked = f end
     M.previewChanged(bw, "/b.epub")
     assert(ticked == ctx.refresh and bw._module_lifts.m1 == nil, "the old book stays lifted")
+    -- A module that never had a book in the panel doesn't redraw on the
+    -- shelf's taps (it did on every one).
+    local ctx2 = { bw = bw, surface = "shelf", refresh = function() end }
+    bw._preview_book = { filepath = "/c.epub" }
+    assert(M.staged("m2", ctx2) == nil and bw._module_lifts.m2 == nil,
+        "a module with no book in the panel signs up for redraws")
     local w = io.open("lib/bookshelf_widget.lua"):read("*a")
     assert(w:find('require("lib/bookshelf_module_open").previewChanged(self, book.filepath)', 1, true),
         "the shelf never tells the module")

@@ -38,15 +38,16 @@ end
 
 --- staged(key, ctx) -> the filepath a module has marked, for its render's
 --- ring (covers) or lift (spines). With the top panel on screen that is the
---- book in the panel, as on the shelf; the module is noted on the shelf
---- widget (bw._module_lifts) so it redraws when another book takes the panel.
+--- module's own book in the panel, noted when it was tapped
+--- (bw._module_lifts) so the module redraws when another book takes the
+--- panel. Only a module holding a lift redraws: every module re-rendering on
+--- every shelf tap slowed the shelf's taps.
 function M.staged(key, ctx)
     local bw = ctx and ctx.bw
     if key ~= nil and panelShowing(ctx, bw) then
-        local fp = bw._preview_book and bw._preview_book.filepath or nil
-        bw._module_lifts = bw._module_lifts or {}
-        bw._module_lifts[key] = fp and { fp = fp, refresh = ctx.refresh } or nil
-        return fp
+        local l = bw._module_lifts and bw._module_lifts[key]
+        local p = bw._preview_book
+        return (l and p and l.fp == p.filepath) and l.fp or nil
     end
     return key ~= nil and M._staged[key] or nil
 end
@@ -128,6 +129,8 @@ function M.tap(ctx, key, book)
             M.open(ctx, book)
         else
             bw:_previewBook(book)
+            bw._module_lifts = bw._module_lifts or {}
+            bw._module_lifts[key] = { fp = book.filepath, refresh = ctx.refresh }
             -- Lift (or ring) the book here too, as the shelf does. (In the
             -- top panel the module has given way to the book.)
             if ctx.surface == "shelf" and ctx.refresh then ctx.refresh() end

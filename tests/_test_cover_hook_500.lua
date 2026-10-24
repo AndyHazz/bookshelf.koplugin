@@ -33,7 +33,7 @@ t.test("buildBookMeta trusts the wrapper's cover on a get_cover=false read", fun
 end)
 
 t.test("the batched rows carry cover_fetched, and the memo goes with the walk cache", function()
-    assert(repo:find('"pages, description, has_meta, has_cover, ignore_cover, ignore_meta, cover_sizetag, " ..\n                "cover_fetched "', 1, true),
+    assert(repo:find('"pages, description, has_meta, has_cover, ignore_cover, ignore_meta, cover_sizetag, " ..\n                "cover_fetched, cover_w, cover_h "', 1, true),
         "the batch SELECT does not read cover_fetched")
     assert(repo:find("cover_fetched = col(16, i),", 1, true), "cover_fetched is not kept on the row")
     assert(repo:find("_hook_cover_memo   = {}", 1, true), "the per-file answers outlive a rescan")

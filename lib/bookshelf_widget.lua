@@ -3065,7 +3065,17 @@ function BookshelfWidget:_kickOffMissingMetaExtractionNow(items, slot_w, slot_h,
         -- this book, so skip it: treating it as "no row" would queue an
         -- extraction for every book on the page while BIM is unable to
         -- answer, which is exactly when extraction cannot succeed either.
-        local info, bim_err = Repo.bimGetBookInfo(BIM, fp, false)
+        -- A settled row from the batch read (metadata and a cover attempt
+        -- in, its cover's size known; the batch holds only rows not in
+        -- progress) answers this without a live read, which was one SQLite
+        -- SELECT per book on the first visit to every page.
+        local info, bim_err
+        local row = Repo.batchRowFor and Repo.batchRowFor(fp)
+        if row and row.cover_w and row.has_meta and row.cover_fetched == "Y" then
+            info = row
+        else
+            info, bim_err = Repo.bimGetBookInfo(BIM, fp, false)
+        end
         if bim_err then return end
         -- A format another plugin provides (Repo.isPluginFormatFile) gets its
         -- metadata here, once, and never a cover: its cover is whatever that

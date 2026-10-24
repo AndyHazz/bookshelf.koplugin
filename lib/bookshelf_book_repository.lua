@@ -3582,7 +3582,7 @@ local function _loadBatchBookInfoFromBim()
     -- what makes the per-book SELECT expensive in the first place.
     local sql = "SELECT directory, filename, title, authors, series, series_index, keywords, language, " ..
                 "pages, description, has_meta, has_cover, ignore_cover, ignore_meta, cover_sizetag, " ..
-                "cover_fetched " ..
+                "cover_fetched, cover_w, cover_h " ..
                 "FROM bookinfo WHERE in_progress=0;"
     local rows
     local ok, err = pcall(function() rows = conn:exec(sql) end)
@@ -3625,6 +3625,12 @@ local function _loadBatchBookInfoFromBim()
             -- launch path for everyone). nil reads as "not fetched", which only
             -- skips the cover-hook probe, the behaviour before it existed.
             cover_fetched = col(16, i),
+            -- The cached cover's size, for the shelf's extraction check
+            -- (BookshelfWidget._coverNeedsResize), which otherwise read
+            -- each book's row live on its first visit. Absent from older
+            -- snapshots, like cover_fetched: such a row is read live.
+            cover_w      = tonumber(col(17, i)),
+            cover_h      = tonumber(col(18, i)),
         }
     end
     return map
@@ -3919,6 +3925,10 @@ _batchInfoFor = function(fp)
     end
     return entry and entry.rows and entry.rows[fp] or nil
 end
+
+-- Repo.batchRowFor(fp) -> the book's batched BIM row (read it, never change
+-- it), or nil; see _batchInfoFor.
+function Repo.batchRowFor(fp) return _batchInfoFor(fp) end
 
 -- Walk-time helper: prefer the cache, fall back to per-book on miss. Walk
 -- consumers (getSeriesGroups MISS / _buildGroups / searchBooks) call this

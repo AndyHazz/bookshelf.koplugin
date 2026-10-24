@@ -65,4 +65,11 @@ t.test("a book with no BIM row is built once from the batch's answer, not asked 
         "an extracted book keeps its file name as title")
 end)
 
+t.test("the shelf's extraction check answers a settled book from the batch", function()
+    assert(src:find("cover_w      = tonumber(col(17, i)),", 1, true), "no cover size on the batch row")
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    assert(w:find('if row and row.cover_w and row.has_meta and row.cover_fetched == "Y" then', 1, true),
+        "every book's first check reads BIM live")
+end)
+
 t.done()

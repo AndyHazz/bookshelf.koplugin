@@ -5249,13 +5249,15 @@ function BookshelfWidget:_buildMicroHero(content_w, hero_h, PAD)
     -- A page-dots band is ALWAYS reserved under the grid, one page or many,
     -- so adding a second page never resizes the cells above it.
     local dots_h = Screen:scaleBySize(16)
-    local function dotsFor()
+    -- dotsFor(h): the dots in a content_w x h band (default the one under
+    -- the grid).
+    local function dotsFor(h)
         -- The panel's own grid, kept apart from the shared bw._module_grid
         -- (which the full-screen view also writes): the layout editor reads it.
         local info = self._module_grid
         if info and info.surface == "hero" then self._hero_grid_info = info end
         local count = (info and info.pages) and #info.pages or 1
-        return HeroModules.pageDots(count, HeroModules.pageIndex(info), content_w, dots_h)
+        return HeroModules.pageDots(count, HeroModules.pageIndex(info), content_w, h or dots_h)
     end
     if not status_row then
         self._hero_status_strip = nil
@@ -5263,18 +5265,31 @@ function BookshelfWidget:_buildMicroHero(content_w, hero_h, PAD)
         return VerticalGroup:new{ align = "left", grid, dotsFor() }
     end
     local VerticalSpan = require("ui/widget/verticalspan")
+    local OverlapGroup = require("ui/widget/overlapgroup")
     -- Tight gap under the status line (half the hero PAD); a full PAD read as
     -- slightly too much space above the grid.
     local gap     = math.max(1, math.floor((PAD or 0) / 2))
     local status_h = status_row:getSize().h
-    local grid_h  = math.max(1, hero_h - status_h - gap - dots_h)
+    -- With a status line the page dots sit in its middle (its content is at
+    -- either end), not in a band under the grid: a Shelf module in the bottom
+    -- row hangs its plank front and heading into that band, and the dots were
+    -- drawn across them (maintainer). The grid has the band's height too.
+    dots_h = 0
+    local grid_h  = math.max(1, hero_h - status_h - gap)
     local grid    = HeroModules.build(self, content_w, grid_h, PAD, mopts)
+    local dots    = dotsFor(status_h)
+    -- The status line is swapped in place every minute (_swapHeroStatusStrip):
+    -- it is the group's first child, the dots its second.
+    local head = OverlapGroup:new{
+        dimen = Geom:new{ w = content_w, h = status_h },
+        status_row,
+        dots,
+    }
     local vg = VerticalGroup:new{
         align = "left",
-        status_row,
+        head,
         VerticalSpan:new{ width = gap },
         grid,
-        dotsFor(),
     }
     -- Pin the whole strip to hero_h.
     --
@@ -5298,7 +5313,7 @@ function BookshelfWidget:_buildMicroHero(content_w, hero_h, PAD)
     -- status line (time / battery / wifi) only refreshes on a full grid reload.
     -- with_hairline matches the buildStatusRow arg so a swap re-renders it
     -- identically (the expanded strip records the same shape without hairline).
-    self._hero_status_strip = { group = vg, idx = 1, content_w = content_w,
+    self._hero_status_strip = { group = head, idx = 1, content_w = content_w,
                                 with_hairline = true }
     return vg
 end

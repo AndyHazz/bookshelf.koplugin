@@ -3318,7 +3318,9 @@ function Editor:_pickSource(draft, on_close)
         table.insert(rows, #rows, { btn(id, Sources.label(id) or id, on_tap) })
     end
     d = ButtonDialog:new{
-        title   = _("Shelf source or grouping"),
+        -- A module's shelf is offered no grouping (above), so the title says
+        -- what it is choosing (maintainer).
+        title   = TabModel.isCardOnly(draft) and _("Shelf module source") or _("Shelf source or grouping"),
         buttons = rows,
         anchor  = _highAnchor(function() return d end),
     }

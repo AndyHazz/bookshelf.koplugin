@@ -169,4 +169,10 @@ t.test("a module's own shelf is edited without the shelf menu's controls", funct
     assert(first and first:find('_("Edit label")', 1, true))
 end)
 
+t.test("a module's shelf's source list says what it is choosing", function()
+    local ed = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
+    assert(ed:find('title   = TabModel.isCardOnly(draft) and _("Shelf module source") or _("Shelf source or grouping"),', 1, true),
+        "titled Shelf source or grouping with no grouping offered")
+end)
+
 t.done()

@@ -1278,7 +1278,15 @@ function HeroModules.build(bw, content_w, hero_h, PAD, opts)
             end
         end
     end
-    if edit then HeroModules._editDecorations(container, dims, boxes, page, edit, ox, oy) end
+    if edit then
+        -- What each module on the page is, for the editor's dimmed copies.
+        local sigs = {}
+        for _i, b in ipairs(boxes) do
+            local entry = (b.page == page) and by_id[b.id]
+            if entry then sigs[b.id] = HeroModules._entrySig(entry) end
+        end
+        HeroModules._editDecorations(container, dims, boxes, page, edit, ox, oy, sigs)
+    end
     -- A long-press between the modules opens the layout editor too, not
     -- only one on a module (maintainer).
     if not edit then
@@ -1413,7 +1421,52 @@ function HeroModules._fade(bb, x, y, w, h, card_bg)
     end
 end
 
-function HeroModules._editDecorations(container, dims, boxes, page, edit, ox, oy)
+-- _entrySig(entry) -> a string that changes when the module's settings do.
+function HeroModules._entrySig(entry)
+    local ok, dump = pcall(require, "dump")
+    if ok and type(dump) == "function" then
+        local ok2, s = pcall(dump, entry)
+        if ok2 then return s end
+    end
+    return tostring(entry)
+end
+
+-- The layout editor dims every module but the selected one, and did so with
+-- a blend on every paint: 330-390 ms of each select on a PW5 (perf log). A
+-- module's dimmed look only changes with the module, its place or the time,
+-- so the first is kept (per module id) and copied back after that. Dropped
+-- when the editor opens and closes (_dropDimCache).
+HeroModules._dim_cache = {}
+
+function HeroModules._dropDimCache()
+    for _id, rec in pairs(HeroModules._dim_cache) do
+        if rec.bb then rec.bb:free() end
+    end
+    HeroModules._dim_cache = {}
+end
+
+-- _dimCell(bb, id, sig, x, y, w, h): the module at that rect, dimmed: from
+-- the kept copy when the module, its rect, the look and the minute are the
+-- same, else blended and kept.
+function HeroModules._dimCell(bb, id, sig, x, y, w, h)
+    local key = table.concat({ tostring(sig), x, y, w, h, os.date("%H%M"),
+        tostring(Modules.CARD_BG), tostring(bb:getType()) }, "|")
+    local rec = id and HeroModules._dim_cache[id]
+    if rec and rec.key == key then
+        bb:blitFrom(rec.bb, x, y, 0, 0, w, h)
+        return
+    end
+    HeroModules._fade(bb, x, y, w, h, Modules.CARD_BG)
+    if not id or not sig then return end
+    pcall(function()
+        if rec and rec.bb then rec.bb:free() end
+        local c = Blitbuffer.new(w, h, bb:getType())
+        c:blitFrom(bb, 0, 0, x, y, w, h)
+        HeroModules._dim_cache[id] = { key = key, bb = c }
+    end)
+end
+
+function HeroModules._editDecorations(container, dims, boxes, page, edit, ox, oy, sigs)
     local taken = {}
     for _i, b in ipairs(boxes) do
         if b.page == page then
@@ -1468,7 +1521,7 @@ function HeroModules._editDecorations(container, dims, boxes, page, edit, ox, oy
                             x - thick, y - thick, w + 2 * thick, h + 2 * thick)
                     end)
                 elseif edit.selected_id then
-                    HeroModules._fade(bb, x, y, w, h, Modules.CARD_BG)
+                    HeroModules._dimCell(bb, b.id, sigs and sigs[b.id], x, y, w, h)
                 end
             end
         end

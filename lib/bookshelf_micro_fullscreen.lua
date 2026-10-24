@@ -653,6 +653,20 @@ function MicroFullscreen:render(edit)
     if edit and edit.page then self._page = edit.page end
     self:rebuildGrid()
 end
+-- reselect(edit) -> true when only the selection changed and the grid as
+-- built can show it: the outline and the dimming read edit.selected_id as
+-- they paint, so a repaint does, without the 150-200 ms rebuild of every
+-- module (PW5).
+function MicroFullscreen:reselect(edit)
+    local cur = self._edit
+    if not (cur and edit and edit.page == cur.page and edit.items == cur.items
+            and edit.boxes == cur.boxes) then
+        return false
+    end
+    cur.selected_id = edit.selected_id
+    UIManager:setDirty(self, "ui")
+    return true
+end
 function MicroFullscreen:footerRect()
     return self._footer_rect
 end

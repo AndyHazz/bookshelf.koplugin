@@ -118,6 +118,9 @@ function Session:select(id)
     if self.selected_id == id then return false end
     require("lib/bookshelf_perf").start("editor select")
     self.selected_id = id
+    -- Only the outline and the dimming move: a host that can, repaints
+    -- without rebuilding its modules (host:reselect).
+    if self.host and self.host.reselect and self.host:reselect(self:edit()) then return true end
     self:_render()
     return true
 end

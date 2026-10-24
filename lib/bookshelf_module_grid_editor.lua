@@ -54,6 +54,7 @@ function Editor.open(o)
     local info = bw and host and host.gridInfo and host:gridInfo()
     if not info then return nil end
     if bw._module_editor then return bw._module_editor end
+    pcall(function() require("lib/bookshelf_hero_modules")._dropDimCache() end)
     local ed = Editor:new{ bw = bw, host = host, info = info, select_id = o.select_id }
     UIManager:show(ed)
     -- Registered only once it is up: a failed open must not leave a dead
@@ -75,6 +76,17 @@ function Editor:init()
     -- the editor rebuilds its toolbar for the new selection and repaints.
     local relay = {
         model  = function() return host:model() end,
+        -- A new selection alone: the host repaints its grid as built, if
+        -- it can (MicroFullscreen:reselect), else the whole render.
+        reselect = function(_r, edit)
+            if not (host.reselect and host:reselect(edit)) then return false end
+            local Perf = require("lib/bookshelf_perf")
+            local t = Perf.now()
+            editor:_buildBands()
+            Perf.part("bars", t)
+            UIManager:setDirty(editor, "ui")
+            return true
+        end,
         render = function(_r, edit)
             local Perf = require("lib/bookshelf_perf")
             if not Perf.active() then Perf.start("editor change") end
@@ -686,6 +698,7 @@ end
 function Editor:onCloseWidget()
     if self.bw and self.bw._module_editor == self then self.bw._module_editor = nil end
     self:_dropFadeCache()
+    pcall(function() require("lib/bookshelf_hero_modules")._dropDimCache() end)
     if self._closed then return end
     self._closed = true
     pcall(function() self.session:commit() end)

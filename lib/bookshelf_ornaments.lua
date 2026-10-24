@@ -602,6 +602,7 @@ end
 
 -- entryFor(path, relpath, file, pack) -> an ornament entry, or nil when the
 -- file cannot be sized (logged, so "my ornament doesn't show" is answerable).
+local indexedEntry, indexDone   -- below listAll's helpers
 local function entryFor(path, relpath, file, pack)
     local lname = file:lower()
     local is_png = lname:match("%.png$") ~= nil
@@ -1011,6 +1012,80 @@ function M.allowRecent(on)
     return was
 end
 
+-- The ornament index: each piece's size and flags (entryFor's answer, which
+-- reads the head of every file) kept on disk between sessions, per pack. A
+-- pack's entries stand while its part of listAll's key (its folders' mtimes,
+-- names and ornaments.json) is unchanged, so a changed pack is read again
+-- and the rest are not. Rebuilding it on the first shelf of every session
+-- was a third of that shelf's 2.1 s on the PW5 (13 packs, ~360 pieces).
+-- M._index_store: injectable; false switches it off.
+local _index, _index_dirty
+local function indexStore()
+    if M._index_store == nil then
+        local ok, store = pcall(function()
+            return require("lib/bookshelf_file_store").new(
+                require("lib/bookshelf_paths").cacheFile("ornament_index.lua"))
+        end)
+        M._index_store = ok and store or false
+    end
+    return M._index_store or nil
+end
+-- indexedEntry(group, part, path, relpath, file, pack): entryFor, from the
+-- index when the piece's group (its pack, or the root folder of a loose
+-- piece) is as it was. The index holds each group's part once and its
+-- pieces under it; a group whose part changed drops its pieces first.
+local _checked = {}
+function indexedEntry(group, part, path, relpath, file, pack)
+    local st = part and indexStore()
+    if not st then return entryFor(path, relpath, file, pack) end
+    if _index == nil then
+        local ok, all = pcall(st.read, "index", nil)
+        _index = (ok and type(all) == "table" and type(all.parts) == "table"
+                  and type(all.pieces) == "table") and all or { parts = {}, pieces = {} }
+    end
+    if not _checked[group] then
+        _checked[group] = true
+        if _index.parts[group] ~= part then
+            for rel, v in pairs(_index.pieces) do
+                if v.g == group then _index.pieces[rel] = nil end
+            end
+            _index.parts[group] = part
+            _index_dirty = true
+        end
+    end
+    local kept = _index.pieces[relpath]
+    if type(kept) == "table" and kept.g == group then
+        if kept.skip then return nil end
+        return { path = path, name = relpath, file = file, pack = pack,
+                 aspect = kept.a, overhang = kept.o or 0, night_invert = kept.n or nil }
+    end
+    local e = entryFor(path, relpath, file, pack)
+    _index.pieces[relpath] = e and { g = group, a = e.aspect, o = e.overhang ~= 0 and e.overhang or nil,
+                                     n = e.night_invert or nil }
+                             or { g = group, skip = true }
+    _index_dirty = true
+    return e
+end
+-- indexDone(): the end of a scan; write what changed (pieces and groups
+-- gone from the folders go with it).
+function indexDone(groups)
+    _checked = {}
+    if not _index_dirty then return end
+    _index_dirty = false
+    local st = indexStore()
+    if not st then return end
+    for g in pairs(_index.parts) do
+        if not groups[g] then _index.parts[g] = nil end
+    end
+    local live = {}
+    for _i, e in ipairs(M._all_cache or {}) do live[e.name] = true end
+    for rel, v in pairs(_index.pieces) do
+        if not _index.parts[v.g] or (not live[rel] and not v.skip) then _index.pieces[rel] = nil end
+    end
+    pcall(st.save, "index", _index)
+end
+function M._resetIndex() _index, _index_dirty, _checked = nil, nil, {} end
+
 function M.listAll()
     local now = M._clock()
     if M._recent_until and now <= M._recent_until
@@ -1030,6 +1105,7 @@ function M.listAll()
     local watch = {}                        -- every folder scanned, for folderStamp
     local loose, loose_root = {}, {}        -- name -> true, name -> root
     local pack_set, pack_files = {}, {}     -- pack -> true; pack -> { file -> root }
+    local part_of = {}                      -- root or pack -> its part of the key
     for _r, d in ipairs(roots) do
         local mtime = fs.attributes(d, "modification")
         local names, packs = {}, {}
@@ -1051,6 +1127,7 @@ function M.listAll()
             table.sort(packs)
             key_parts[#key_parts + 1] = d .. "\3" .. tostring(mtime) .. "|" .. table.concat(names, "\0")
                 .. "\5" .. tostring(fs.attributes(d .. "/" .. M.JSON_NAME, "modification"))
+            part_of[d] = key_parts[#key_parts]
             for _i, n in ipairs(names) do
                 if not loose[n] then loose[n], loose_root[n] = true, d end
             end
@@ -1059,6 +1136,7 @@ function M.listAll()
                 local pn, pk = AssetFolder.scan(fs, d .. "/" .. pack, ORNAMENT_EXTS)
                 key_parts[#key_parts + 1] = "\1" .. pack .. "\2" .. tostring(pk) .. "\5"
                     .. tostring(fs.attributes(d .. "/" .. pack .. "/" .. M.JSON_NAME, "modification"))
+                part_of[pack] = (part_of[pack] or "") .. key_parts[#key_parts]
                 pack_set[pack] = true
                 pack_files[pack] = pack_files[pack] or {}
                 for _j, file in ipairs(pn or {}) do
@@ -1080,7 +1158,7 @@ function M.listAll()
     local ok = pcall(function()
         for _i = 1, #names do
             local n = names[_i]
-            local e = entryFor(loose_root[n] .. "/" .. n, n, n, nil)
+            local e = indexedEntry(loose_root[n], part_of[loose_root[n]], loose_root[n] .. "/" .. n, n, n, nil)
             if e then out[#out + 1] = e end
         end
         for _i, pack in ipairs(packs) do
@@ -1089,7 +1167,7 @@ function M.listAll()
             table.sort(files)
             for _j, file in ipairs(files) do
                 local rel = pack .. "/" .. file
-                local e = entryFor(pack_files[pack][file] .. "/" .. rel, rel, file, pack)
+                local e = indexedEntry(pack, part_of[pack], pack_files[pack][file] .. "/" .. rel, rel, file, pack)
                 if e then out[#out + 1] = e end
             end
         end
@@ -1119,6 +1197,7 @@ function M.listAll()
         pcall(applyLayers, e, layers)
     end
     M._all_cache, M._all_key, M._all_packs = out, key, packs
+    indexDone(part_of)
     return out, packs
 end
 

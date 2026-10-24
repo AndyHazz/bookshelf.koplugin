@@ -78,7 +78,8 @@ local _settings = nil
 --   * "opds_cache" (cache)      -> cache/bookshelf/opds.lua
 --   * "ornament_decks"          -> settings/bookshelf/ornament_decks.lua (every
 --     shelf's order of every piece: 208 KB of a 272 KB file on a PW5, so each
---     preference saved rewrote it, a third of a second a time)
+--     preference saved rewrote it, a third of a second a time). Only on its
+--     way: lib/bookshelf_ornament_decks_db takes them into SQLite from here
 -- subStoreFor(key) returns the destination store or nil (= the main file).
 -- Sub-stores are lazy-required so they aren't pulled in until a routed key is
 -- touched (and so the standalone test runner can stub them).

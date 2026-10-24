@@ -77,14 +77,38 @@ function M.firstShelf()
     return nil
 end
 
-local function readDecks()
-    local st = store()
-    local ok, v = pcall(function() return st and st.read(M.DECKS_KEY) end)
-    return (ok and type(v) == "table") and v or {}
+-- Where the decks live: lib/bookshelf_ornament_decks_db (SQLite, a shelf's
+-- deck its own rows), or -- with no SQLite, or a test's _store seam -- one
+-- table under DECKS_KEY in the settings store, as before 6.0.
+-- { all() -> decks, put(shelf, list|nil) }
+M._decks = nil   -- seam
+local function storeDecks(st)
+    local b = {}
+    function b.all()
+        local ok, v = pcall(function() return st and st.read(M.DECKS_KEY) end)
+        return (ok and type(v) == "table") and v or {}
+    end
+    function b.put(k, list)
+        local decks = b.all()
+        decks[k] = list
+        if st then pcall(function() st.save(M.DECKS_KEY, decks) end) end
+    end
+    return b
 end
-local function saveDecks(decks)
-    local st = store()
-    if st then pcall(function() st.save(M.DECKS_KEY, decks) end) end
+local function decksStore()
+    if M._decks then return M._decks end
+    if not M._store then
+        local ok, DB = pcall(require, "lib/bookshelf_ornament_decks_db")
+        if ok and DB and DB.usable() then return DB end
+    end
+    return storeDecks(store())
+end
+
+local function readDecks()
+    return decksStore().all()
+end
+local function putDeck(k, list)
+    decksStore().put(k, list)
     _gen = _gen + 1
 end
 
@@ -96,8 +120,7 @@ local function readOrder(shelf)
     local st = store()
     local ok, old = pcall(function() return st and st.read(M.ORDER_KEY) end)
     if ok and type(old) == "table" and #old > 0 then
-        decks[k] = old
-        saveDecks(decks)
+        putDeck(k, old)
         pcall(function()
             if st.delete then st.delete(M.ORDER_KEY) else st.save(M.ORDER_KEY, nil) end
         end)
@@ -106,9 +129,7 @@ local function readOrder(shelf)
     return nil
 end
 local function saveOrder(shelf, list)
-    local decks = readDecks()
-    decks[key(shelf)] = list
-    saveDecks(decks)
+    putDeck(key(shelf), list)
 end
 
 -- newAtStart() -> whether new pieces join the order at the front.
@@ -185,11 +206,11 @@ function M.prune()
     if not list then return end
     local live = { kobo = true, [M.NO_SHELF] = true }
     for _i, t in ipairs(list) do if t.id ~= nil then live[tostring(t.id)] = true end end
-    local decks, gone = readDecks(), false
-    for k in pairs(decks) do
-        if not live[k] then decks[k] = nil; gone = true end
+    local gone = {}
+    for k in pairs(readDecks()) do
+        if not live[k] then gone[#gone + 1] = k end
     end
-    if gone then saveDecks(decks) end
+    for _i, k in ipairs(gone) do putDeck(k, nil) end
 end
 
 -- sync(all, shelf): reconcile the shelf's saved order with every piece on

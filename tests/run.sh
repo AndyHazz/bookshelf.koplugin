@@ -33,6 +33,9 @@ skip_reason() {
         # SQLite does. Run it with:
         #   /usr/lib/koreader/luajit tests/_test_book_facts_db.lua
         _test_book_facts_db.lua)  echo "needs KOReader luajit for sqlite";;
+        # The ornament decks' store, the same way:
+        #   /usr/lib/koreader/luajit tests/_test_ornament_decks_db.lua
+        _test_ornament_decks_db.lua) echo "needs KOReader luajit for sqlite";;
         # Slow, not broken: these fake the filesystem with one shell process
         # per call (thousands of them; ~80s a run between them, most of the
         # whole suite's time). Skipped by default so the gate stays quick;

@@ -19,6 +19,12 @@ function WidgetContainer:new(o)
     o = o or {}
     return setmetatable(o, self)
 end
+function WidgetContainer:handleEvent(ev)
+    for _i, c in ipairs(self) do
+        if c.handleEvent and c:handleEvent(ev) then return true end
+    end
+    return false
+end
 package.loaded["ui/widget/container/widgetcontainer"] = WidgetContainer
 
 local GridContainer = dofile("lib/bookshelf_grid_container.lua")
@@ -72,6 +78,42 @@ t.test("a swapped child keeps its slot's offset", function()
     g:resetLayout()
     g:paintTo({}, 0, 0)
     assert(fresh.painted[1][1] == 110)
+end)
+
+-- A long-press between the modules (an empty cell, a gap) opens the layout
+-- editor, as a long-press on a module does: the grid takes a hold no cell
+-- took. Built as KOReader's Event:new builds one: handler = "on" .. name.
+local function hold(x, y, kind)
+    return { handler = "onGesture", args = { { ges = kind or "hold", pos = { x = x, y = y } } } }
+end
+
+t.test("a hold no cell takes reaches the grid's hold hook", function()
+    local held = 0
+    local g = GridContainer:new{ dimen = { w = 400, h = 300 }, pos = {},
+        hold = function() held = held + 1 end }
+    g:paintTo({}, 10, 20)
+    assert(g:handleEvent(hold(200, 100)) == true and held == 1, "the empty space ignored the hold")
+    assert(g:handleEvent(hold(5, 5)) == false and held == 1, "took a hold outside the grid")
+    assert(g:handleEvent(hold(200, 100, "tap")) == false and held == 1, "took a tap")
+end)
+
+t.test("a cell's own hold wins, and no hook means no hold", function()
+    local held = 0
+    local cell = child()
+    function cell:handleEvent() return true end
+    local g = GridContainer:new{ dimen = { w = 400, h = 300 }, pos = { { x = 0, y = 0 } }, cell,
+        hold = function() held = held + 1 end }
+    g:paintTo({}, 0, 0)
+    assert(g:handleEvent(hold(50, 50)) == true and held == 0, "the grid took the cell's hold")
+    local bare = GridContainer:new{ dimen = { w = 400, h = 300 }, pos = {} }
+    bare:paintTo({}, 0, 0)
+    assert(bare:handleEvent(hold(50, 50)) == false, "a grid with no hook took a hold")
+end)
+
+t.test("the top panel and full screen grids open the editor from empty space", function()
+    local src = io.open("lib/bookshelf_hero_modules.lua"):read("*a")
+    assert(src:find("if not edit then\n        container.hold = function() HeroModules._hold(bw, nil) end", 1, true),
+           "no hold hook on the module grid")
 end)
 
 t.done()

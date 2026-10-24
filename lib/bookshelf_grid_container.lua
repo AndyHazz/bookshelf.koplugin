@@ -10,6 +10,9 @@ cell in place (self[i] = new) and it keeps its slot's offset.
 Optional hooks (used by the layout editor):
   under(bb, x, y)  painted before the cells (dashed outlines of empty cells)
   over(bb, x, y)   painted after them (dimming, the selection outline)
+  hold()           a long-press on the grid that no cell took (an empty
+                   cell, a gap): the top panel and full screen open the
+                   layout editor with it
 
 paintTo records the grid's screen position in self.dimen, which is where the
 layout editor reads it to hit-test taps.
@@ -37,6 +40,20 @@ function GridContainer:paintTo(bb, x, y)
         if p then w:paintTo(bb, x + p.x, y + p.y) end
     end
     if self.over then self.over(bb, x, y) end
+end
+
+-- Cells first (a module's own long-press opens the editor on it); a hold
+-- they leave, inside the grid, goes to the hold hook.
+function GridContainer:handleEvent(event)
+    if WidgetContainer.handleEvent(self, event) then return true end
+    if not (self.hold and event and event.handler == "onGesture") then return false end
+    local ges = event.args and event.args[1]
+    local d = self.dimen
+    if not (ges and ges.ges == "hold" and ges.pos and d and d.x) then return false end
+    local px, py = ges.pos.x - d.x, ges.pos.y - d.y
+    if px < 0 or py < 0 or px >= d.w or py >= d.h then return false end
+    self.hold()
+    return true
 end
 
 return GridContainer

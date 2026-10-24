@@ -335,7 +335,24 @@ function Editor:_fadeAround(bb)
     local info = self.host:gridInfo()
     local d = info and info.container and info.container.dimen
     local keep = {}
-    if d and d.x then
+    if d and d.x and info.surface ~= "shelf" then
+        -- The top panel and full screen: their whole grid stays clear, so
+        -- the empty cells' dashed outlines show where a module can go
+        -- (maintainer). A cover shelf's grid is its books' slots: only its
+        -- modules stay clear there.
+        local pad = Screen:scaleBySize(8)
+        local _gx, _gy, gw, gh = Grid.rect(info.dims, { col = 1, row = 1,
+            w = info.dims.cols, h = info.dims.rows })
+        local x0 = math.max(0, d.x + info.ox - pad)
+        local y0 = math.max(0, d.y + info.oy - pad)
+        local w = math.min(bb:getWidth() - x0, gw + 2 * pad)
+        local h = math.min(bb:getHeight() - y0, gh + 2 * pad)
+        if w > 0 and h > 0 then
+            local copy = Blitbuffer.new(w, h, bb:getType())
+            copy:blitFrom(bb, 0, 0, x0, y0, w, h)
+            keep[#keep + 1] = { copy = copy, x = x0, y = y0, w = w, h = h }
+        end
+    elseif d and d.x then
         local pad = Screen:scaleBySize(8)
         for _i, b in ipairs(self.session.boxes) do
             if b.page == self.session.page then

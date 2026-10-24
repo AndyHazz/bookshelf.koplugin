@@ -1247,6 +1247,11 @@ function HeroModules.build(bw, content_w, hero_h, PAD, opts)
         end
     end
     if edit then HeroModules._editDecorations(container, dims, boxes, page, edit, ox, oy) end
+    -- A long-press between the modules opens the layout editor too, not
+    -- only one on a module (maintainer).
+    if not edit then
+        container.hold = function() HeroModules._hold(bw, nil) end
+    end
 
     bw._module_grid = {
         surface = surface, dims = dims, pages = pages, page = page,

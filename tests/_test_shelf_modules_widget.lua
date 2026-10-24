@@ -136,6 +136,10 @@ t.test("the layout editor fades all but the editable modules", function()
     assert(f:find("b.page == self.session.page", 1, true), "keeps modules on other pages")
     assert(f:find("bb:lightenRect(0, 0, bb:getWidth(), bb:getHeight(), Editor.FADE)", 1, true), "does not fade the screen")
     assert(f:find("bb:blitFrom(k.copy, k.x, k.y, 0, 0, k.w, k.h)", 1, true), "does not put the modules back")
+    -- The top panel and full screen keep their whole grid, so the empty
+    -- cells' dashed outlines stay clear; a cover shelf keeps only its
+    -- modules (its grid is the books' slots).
+    assert(f:find('if d and d.x and info.surface ~= "shelf" then', 1, true), "the empty cells are faded out")
     local paint = ed:match("\nfunction Editor:paintTo%(bb, x, y%)\n(.-)\nend\n")
     local fade_at = paint and paint:find("self._fadeAround", 1, true)
     local footer_at = paint and paint:find("footer:paintTo", 1, true)

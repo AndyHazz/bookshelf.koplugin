@@ -321,9 +321,18 @@ function Editor:_selectionRect()
     return Geom:new{ x = d.x + info.ox + x, y = d.y + info.oy + y, w = w, h = h }
 end
 
--- How far the screen around the editable modules is faded (towards white,
--- which a night-mode panel shows as towards black: the background either way).
+-- How far the screen around the editable modules is faded: towards white,
+-- which a night-mode panel shows as towards black, or towards black on a dark
+-- theme. The background either way.
 Editor.FADE = 0.6
+
+-- _fadeDark() -> true on a dark theme: its cards are dark, as
+-- HeroModules._fade reads them (night mode paints them pre-inverted, light).
+function Editor._fadeDark()
+    -- getColor8() is FFI cdata on the device, so read .a inside the pcall.
+    local ok, a = pcall(function() return Modules.CARD_BG:getColor8().a end)
+    return ok and type(a) == "number" and a < 128
+end
 
 -- _fadeAround(bb): fade everything on screen but the modules on this page,
 -- so it is plain that only they answer while the editor is up (maintainer:
@@ -369,7 +378,8 @@ function Editor:_fadeAround(bb)
             end
         end
     end
-    bb:lightenRect(0, 0, bb:getWidth(), bb:getHeight(), Editor.FADE)
+    local fade = Editor._fadeDark() and bb.darkenRect or bb.lightenRect
+    fade(bb, 0, 0, bb:getWidth(), bb:getHeight(), Editor.FADE)
     for _i, k in ipairs(keep) do
         bb:blitFrom(k.copy, k.x, k.y, 0, 0, k.w, k.h)
         k.copy:free()

@@ -4001,6 +4001,13 @@ function BookshelfWidget:_chromeInk()
     return ink or Blitbuffer.COLOR_WHITE
 end
 
+-- _panelInk() -> Colors > Panel text, or the ink a panel colour brings; nil
+-- when the panels have neither (CP.panelInk).
+function BookshelfWidget:_panelInk()
+    local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
+    return ok and CP and CP.panelInk and CP.panelInk() or nil
+end
+
 -- _themeFlips() -> is the shelf dark while the PANEL is not inverting?
 --
 -- The only case chrome has to recolour itself. In device night mode the frame
@@ -4036,7 +4043,12 @@ end
 --
 -- Returns the button so this can wrap a constructor inline.
 function BookshelfWidget:_themeButton(btn)
-    if not btn or not self:_themeFlips() then return btn end
+    if not btn then return btn end
+    local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
+    -- Colors > Panel text (or a panel colour's own ink) colours the footer's
+    -- buttons on any shelf, as it does the hamburger and grid (_chromeInk).
+    local panel_ink = ok and CP and CP.panelInk and CP.panelInk() or nil
+    if not (panel_ink or self:_themeFlips()) then return btn end
     local lw = btn.label_widget
     if not lw then return btn end
     if lw.is_icon then
@@ -4050,8 +4062,7 @@ function BookshelfWidget:_themeButton(btn)
         -- __eq metamethod, so comparing one against nil routes through __eq
         -- and crashes indexing the nil operand. Same trap bookshelf_color.lua
         -- documents at the top of parseColorValue.
-        local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
-        local ink = ok and CP and ((CP.panelInk and CP.panelInk()) or (CP.ink and CP.ink())) or nil
+        local ink = panel_ink or (ok and CP and CP.ink and CP.ink()) or nil
         lw.fgcolor = ink or Blitbuffer.COLOR_WHITE
     end
     return btn
@@ -8614,7 +8625,7 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
     -- wraps the disabled ones. This recolours the enabled ones for a manually
     -- dark shelf; disabled stay the dim grey unfill gave them, which reads on
     -- either ground.
-    if self:_themeFlips() then
+    if self:_themeFlips() or self:_panelInk() then
         require("lib/bookshelf_wallpaper").recolourIcons(true, self:_chromeInk(),
             first, prev, page_text, next_btn, last)
     end

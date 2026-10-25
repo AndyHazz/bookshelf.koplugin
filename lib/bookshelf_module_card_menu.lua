@@ -155,10 +155,12 @@ function M.titleRow(title, face, w, entry, show_parent, on_tap)
     local HorizontalSpan  = require("ui/widget/horizontalspan")
     local Geom            = require("ui/geometry")
     local Screen          = require("device").screen
+    -- Large, as a tap target: at 22 pt it was a speck in the corner
+    -- (maintainer, PW5).
     local icon = Button:new{
         text = require("lib/bookshelf_menu_icons").COLORS,
-        text_font_face = "symbols", text_font_size = 22, text_font_bold = false,
-        bordersize = 0, padding = Screen:scaleBySize(4),
+        text_font_face = "symbols", text_font_size = 36, text_font_bold = false,
+        bordersize = 0, padding = Screen:scaleBySize(8),
         show_parent = show_parent,
         callback = on_tap,
     }

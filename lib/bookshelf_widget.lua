@@ -6923,6 +6923,34 @@ end
 
 -- _spineShowFrom(cursor): turn the spine shelf to start at `cursor` (after a
 -- page move, so the module doesn't vanish from view).
+-- _spineFollowModule(id) -> true when the module had left the page on screen
+-- and the view went with it: to the next page when a nudge took it past this
+-- page's end, to the page that holds it when it went before the start
+-- (maintainer, PW5). Positions count modules too, as _spineModulePageMove's.
+function BookshelfWidget:_spineFollowModule(id)
+    local cursor = self._cursor or 1
+    local mods = self:_activeShelfModules() or {}
+    local _b, at = require("lib/bookshelf_shelf_modules").spineWindow(mods, 1)
+    local mypos
+    for pos, m in pairs(at) do if m.id == id then mypos = pos end end
+    if not mypos then return false end
+    local nxt = self._spine_next_item
+    if nxt and mypos >= cursor + nxt - 1 then
+        self:_spineShowFrom(cursor + nxt - 1)
+        return true
+    end
+    if mypos < cursor then
+        local ok, firsts = pcall(self._spinePageFirsts, self, true)
+        local start = 1
+        if ok and firsts then
+            for i = 1, #firsts do if firsts[i] <= mypos then start = firsts[i] end end
+        end
+        self:_spineShowFrom(start)
+        return true
+    end
+    return false
+end
+
 function BookshelfWidget:_spineShowFrom(cursor)
     self._cursor = math.max(1, cursor or 1)
     self:_syncPageFromCursor()
@@ -6995,6 +7023,10 @@ function BookshelfWidget:_spineModuleMenu(entry)
             if not moved then return end
             for k = #l, 1, -1 do l[k] = nil end
             for k, m in ipairs(moved) do l[k] = m end
+        end, function()
+            -- Nudged off the page: the view follows, and the menu anchors
+            -- beside the module again.
+            if bw:_spineFollowModule(id) and d and d.movable then d.movable._anchor_ensured = nil end
         end)
     end
     local function pageMove(dir)

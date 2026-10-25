@@ -402,4 +402,11 @@ H.test("native row construction routes taps and projected shadows through the se
     end
 end)
 
+H.test("a box's sticker is kept between page turns, scaled in C", function()
+    local w = io.open("lib/bookshelf_series_box_widget.lua"):read("*a")
+    assert(w:find("local kept = _stickers[skey]", 1, true), "the sticker is built on every paint")
+    assert(not w:find(":scale(iw, ih)", 1, true), "Blitbuffer:scale (a Lua pixel loop) on the paint path")
+    assert(w:find('night and "n" or "d" }, "|")', 1, true), "the night sticker would serve the day")
+end)
+
 H.finish()

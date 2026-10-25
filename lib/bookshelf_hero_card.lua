@@ -1459,18 +1459,22 @@ end
 -- the BookshelfWidget's status-tick + state-event refreshes to scope the
 -- e-ink panel update to the strip rather than the whole right column.
 function HeroCard:getStatusStripDimen()
-    local s = self._status_strip_widgets
-    if not s or not s[1] or not s[1].dimen then return nil end
-    local status, hairline, gap = s[1], s[2], s[3]
-    local h = status.dimen.h
-    if hairline and hairline.dimen then h = h + hairline.dimen.h end
-    if gap      and gap.dimen      then h = h + gap.dimen.h      end
-    return Geom:new{
-        x = status.dimen.x,
-        y = status.dimen.y,
-        w = status.dimen.w,
-        h = h,
-    }
+    -- Measured, not read from a paint: the strip's rows need not record a
+    -- dimen, and a column swapped in without a paint (a tick held under
+    -- another window, issue 549) has none. The strip is the column's first
+    -- rows, under a TopContainer at the column's origin.
+    local s, o = self._status_strip_widgets, self._right_origin
+    if not s or not s[1] or not o or not self._right_dimen then return nil end
+    local h = 0
+    for i = 1, 3 do
+        local wdg = s[i]
+        if wdg and wdg.getSize then
+            local ok, sz = pcall(wdg.getSize, wdg)
+            if ok and sz and sz.h then h = h + sz.h end
+        end
+    end
+    if h <= 0 then return nil end
+    return Geom:new{ x = o.x, y = o.y, w = self._right_dimen.w, h = h }
 end
 
 -- replaceRightColumn(regions, book, state, region_hint)
@@ -1491,6 +1495,13 @@ end
 --   whose dimens aren't set yet.
 function HeroCard:replaceRightColumn(regions, book, state, region_hint)
     if not self._right_holder or not self._right_dimen then return false end
+    -- The column's screen origin, from its last paint. A slot replaced in a
+    -- HorizontalGroup does not move, so it stands for the new column too,
+    -- which may not be painted before the next swap.
+    local painted = self._right_holder[self._right_slot]
+    if painted and painted.dimen and painted.dimen.x then
+        self._right_origin = { x = painted.dimen.x, y = painted.dimen.y }
+    end
     local refresh_rect
     if region_hint == "status" then
         refresh_rect = self:getStatusStripDimen()
@@ -1501,17 +1512,17 @@ function HeroCard:replaceRightColumn(regions, book, state, region_hint)
     self._right_holder[self._right_slot] = fresh
     if self._right_holder.resetLayout then self._right_holder:resetLayout() end
     -- Fallback when the status-strip rect wasn't applicable: refresh
-    -- the FULL right column. We take the painted screen rect from the
-    -- old column for the x/y origin (HorizontalGroup's layout doesn't
-    -- shift on slot replacement, so the new column paints there too)
-    -- but expand w/h to the full right-column bound (self._right_dimen)
+    -- the FULL right column. We take the column's remembered origin
+    -- (HorizontalGroup's layout doesn't shift on slot replacement, so
+    -- the new column paints there too) and the full right-column bound
+    -- (self._right_dimen) for w/h
     -- to avoid tearing when the new column is taller than the old one
     -- — e.g. font-size edits that grow widget heights would otherwise
     -- leave the bottom strip un-refreshed.
-    if not refresh_rect and old and old.dimen and self._right_dimen then
+    if not refresh_rect and self._right_origin then
         refresh_rect = Geom:new{
-            x = old.dimen.x,
-            y = old.dimen.y,
+            x = self._right_origin.x,
+            y = self._right_origin.y,
             w = self._right_dimen.w,
             h = self._right_dimen.h,
         }

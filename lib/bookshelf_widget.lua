@@ -7028,15 +7028,19 @@ function BookshelfWidget:_spineModuleMenu(entry)
         title = (not has_colors) and (pinned_piece and _("Ornament micro-module (pinned)")
             or (def and def.title) or entry.module) or nil, title_align = "center",
         -- Centred across the screen (it is nearly full width) and clear of
-        -- the module by a gap: no x, so MovableContainer centres it, and the
-        -- module's rect grown by the gap above and below (maintainer).
+        -- the module by a gap: the module's rect grown by the gap above and
+        -- below (maintainer). The x is its own, worked out from the dialog's
+        -- width (known by the time the anchor is asked): KOReader v2026.03
+        -- reads anchor.x at once and crashed on nil (PW3); later versions
+        -- centre a missing x the same way.
         anchor = function()
             local cell = bw._spine_module_cells and bw._spine_module_cells[id]
             local r = cell and cell.dimen
-            if r and r.y and r.h then
+            local cw = d and d.movable and d.movable.dimen and d.movable.dimen.w
+            if r and r.y and r.h and cw then
                 local gap = Screen:scaleBySize(16)
-                -- A plain table: Geom:new fills in x = 0, which pins it left.
-                return { y = r.y - gap, w = 0, h = r.h + 2 * gap }
+                -- A plain table: Geom:new would fill in x = 0, pinning it left.
+                return { x = math.floor((Screen:getWidth() - cw) / 2), y = r.y - gap, w = cw, h = r.h + 2 * gap }
             end
         end,
         buttons = pinned_piece and {

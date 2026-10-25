@@ -186,8 +186,9 @@ t.test("spine page moves land the module first on the next or previous page", fu
     assert(move(shelf(96, 6, mods), "m", 1) == nil, "a next page past the end")
 end)
 
--- The spine module menu: centred (no x, so MovableContainer centres it --
--- a Geom would fill in x = 0) and clear of the module by a gap.
+-- The spine module menu: centred by an x worked out from its own width (a
+-- missing x crashed KOReader v2026.03, which reads anchor.x at once; a Geom
+-- would fill in x = 0) and clear of the module by a gap.
 t.test("the spine module menu is centred and clear of the module", function()
     local m = fn("_spineModuleMenu")
     local a = m and m:match("anchor = function%(%)(.-)\n        end,")
@@ -195,7 +196,7 @@ t.test("the spine module menu is centred and clear of the module", function()
     a = a:gsub("%-%-[^\n]*", "")
     assert(not a:find("Geom:new", 1, true), "a Geom pins the menu to the left")
     assert(a:find("y = r.y - gap", 1, true) and a:find("h = r.h + 2 * gap", 1, true), "no gap round the module")
-    assert(not a:find("x =", 1, true), "an x stops it centring")
+    assert(a:find("x = math.floor((Screen:getWidth() - cw) / 2)", 1, true), "not centred by its own x")
 end)
 
 -- The spine module menu stays open and updates in place (closing and

@@ -15,6 +15,8 @@ docs/           export-ignore
 # own line as well as one for its contents.
 assets/**                   export-ignore
 assets/bookshelf-logo.png   -export-ignore
+assets/icons               -export-ignore
+assets/icons/**            -export-ignore
 assets/wallpapers           -export-ignore
 assets/wallpapers/**        -export-ignore
 assets/planks               -export-ignore

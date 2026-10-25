@@ -734,7 +734,8 @@ function Bookshelf:buildMenuItems(menu_items)
     -- Stash plugin ref now so _updateSubItems callbacks resolve correctly.
     S._plugin = outer
 
-    menu_items.bookshelf_tab = { icon = "book.opened", text = _("Bookshelf") }
+    -- Its own icon (issue 548): KOReader's new "Reader" tab took book.opened.
+    menu_items.bookshelf_tab = { icon = require("lib/bookshelf_menu_icon").name(self.path), text = _("Bookshelf") }
 
     menu_items.bookshelf_toggle = {
         -- NO ICON, deliberately. This row and About are the secondary pair:

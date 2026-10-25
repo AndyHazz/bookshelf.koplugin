@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <!-- Bookshelf's top-menu icon (issue 548): four spines over the logo's two
+       planks, outlined in the line weight of KOReader's own icons. The
+       planks are 6 units apart, whole pixels at 16/24/32/40/48 px, so they
+       render alike. The website's favicon is the same drawing, filled. -->
+  <g fill="none" stroke="#000" stroke-width="2.4" stroke-linejoin="round">
+    <rect x="7.2" y="9.2" width="4.6" height="18.1" rx="0.8"/>
+    <rect x="16.2" y="12.7" width="3.6" height="14.6" rx="0.8"/>
+    <rect x="24.2" y="6.2" width="6.6" height="21.1" rx="0.8"/>
+    <rect x="35.2" y="11.2" width="4.6" height="16.1" rx="0.8"/>
+  </g>
+  <g fill="#000"><rect x="3" y="30" width="42" height="4" rx="1"/><rect x="3" y="36" width="42" height="4" rx="1"/></g>
+</svg>

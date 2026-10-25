@@ -129,4 +129,26 @@ t.test("a changed pack is read again, the others are not", function()
     assert(disk.index.pieces["Autumn/acorn.svg"] == nil, "a deleted piece stays in the index")
 end)
 
+t.test("a rendered piece is kept on disk, before the night and mirror passes", function()
+    disk, saves = {}, 0
+    local O, d = setup()
+    local kept, renders = {}, 0
+    O._disk_cache = { load = function(k) return kept[k] end,
+                      store = function(k, bb) kept[k] = bb; return true end }
+    O._render = function(_p, w, h)
+        renders = renders + 1
+        return { w = w, h = h, getWidth = function() return w end, getHeight = function() return h end,
+                 invertRect = function(self) self.inverted = true end, copy = function(self) return self end }
+    end
+    local e = O.listAll()[1]
+    O.render(e, 10, 20)
+    eq(renders, 1)
+    O._cache, O._cache_order = {}, {}           -- a new session's memory
+    O.render(e, 10, 20)
+    eq(renders, 1, "rendered again with the piece on disk")
+    local n = 0
+    for k in pairs(kept) do n = n + 1; assert(k:find("|10x20", 1, true), k) end
+    eq(n, 1)
+end)
+
 t.done()

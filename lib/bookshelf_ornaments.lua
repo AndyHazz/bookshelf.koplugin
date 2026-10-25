@@ -603,6 +603,7 @@ end
 -- entryFor(path, relpath, file, pack) -> an ornament entry, or nil when the
 -- file cannot be sized (logged, so "my ornament doesn't show" is answerable).
 local indexedEntry, indexDone   -- below listAll's helpers
+local renderDiskKey             -- above M.render
 local function entryFor(path, relpath, file, pack)
     local lname = file:lower()
     local is_png = lname:match("%.png$") ~= nil
@@ -1689,6 +1690,27 @@ end
 -- plank. The cache is keyed on what was painted, the one thing that
 -- distinguishes two renders of one file at one size. RGB32 invert keeps the
 -- alpha, so the shelf still shows through.
+-- renderDiskKey(path, w, h) -> the key a piece rendered at w x h is kept
+-- under in the cover disk cache (raw pixels, before the night inversion and
+-- the mirror, which are applied after), or nil when there is no disk cache.
+-- The file's mtime and size are in it, so an edited piece renders again.
+-- Decoding and un-premultiplying each piece on the first shelf of a session
+-- was ~0.25 s of Home's first visit on the PW5.
+-- M._disk_cache: injectable; false switches it off. Not under a test's
+-- M._render (a test renders by its own rules).
+function renderDiskKey(path, w, h)
+    if M._disk_cache == nil then
+        local ok, DC = pcall(require, "lib/bookshelf_cover_disk_cache")
+        M._disk_cache = (ok and DC and M._render == nil) and DC or false
+    end
+    if not M._disk_cache then return nil end
+    local fs = lfs()
+    local mt = fs and fs.attributes(path, "modification")
+    if not mt then return nil end
+    return string.format("ornament:%s|%s|%s|%dx%d", path, tostring(mt),
+        tostring(fs.attributes(path, "size")), w, h)
+end
+
 function M.render(entry, w, h, inverting, mirror)
     inverting = inverting and true or false
     local dark = inverting
@@ -1719,7 +1741,13 @@ function M.render(entry, w, h, inverting, mirror)
     local bb = M._cache[key]
     if bb then return bb end
     local ok, res = true, fromHeld(entry.path, w, h)
-    if not res then ok, res = pcall(M._render or defaultRender, entry.path, w, h) end
+    -- The rendered size outlives the session on disk (see renderDiskKey).
+    local dkey = (not res) and renderDiskKey(entry.path, w, h)
+    if dkey then res = M._disk_cache.load(dkey) end
+    if not res then
+        ok, res = pcall(M._render or defaultRender, entry.path, w, h)
+        if ok and res and dkey then pcall(M._disk_cache.store, dkey, res) end
+    end
     if not ok or not res then
         logger.dbg("[bookshelf] ornament render failed:", entry.path)
         return nil

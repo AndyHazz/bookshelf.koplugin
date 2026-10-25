@@ -3286,6 +3286,15 @@ local function _bandRows(path, rise)
     local key = path .. (rise and "|rise" or "|drop")
     local hit = _drop_memo[key]
     if hit ~= nil then return hit[1], hit[2] end
+    -- Measured once per file, not per session (a full decode of the plank).
+    local Derived = require("lib/bookshelf_derived_cache")
+    local stamp = Derived.stamp(path)
+    local dkey = stamp and ("band:" .. key .. "|" .. stamp)
+    local kept = dkey and Derived.get(dkey)
+    if type(kept) == "table" and kept[1] and kept[2] then
+        _drop_memo[key] = kept
+        return kept[1], kept[2]
+    end
     local rows = 0
     local info = _pngInfo(path)
     if info and not rise and info.bottom then
@@ -3325,6 +3334,7 @@ local function _bandRows(path, rise)
     end
     local B0 = info and math.max(1, math.floor(info.h / 3)) or 1
     _drop_memo[key] = { rows, B0 }
+    if dkey and info then Derived.put(dkey, { rows, B0 }) end
     return rows, B0
 end
 local function _dropRows(path) return _bandRows(path, false) end
@@ -3356,12 +3366,37 @@ function SpineShelf.designRise(row_h)
     return math.floor(rows * plank / B0 + 0.5)
 end
 
+-- _remember(key, entry): into the session's strip cache, oldest out.
+local function _remember(key, entry)
+    _strip_cache[key] = entry
+    _strip_order[#_strip_order + 1] = key
+    if #_strip_order > 6 then
+        local old = table.remove(_strip_order, 1)
+        if _strip_cache[old] then _strip_cache[old].bb:free(); _strip_cache[old] = nil end
+    end
+end
+
 local function _designStrip(design, width, row_x, row_w, surf_h, face_h, inverting)
     local key = table.concat({ design.middle, design.left or "-", design.right or "-",
                                width, row_x, row_w, surf_h, face_h,
                                inverting and "n" or "d" }, "|")
     local hit = _strip_cache[key]
     if hit then return hit.bb, hit.top_h, hit.regions end
+    -- The finished strip outlives the session (decoding and scaling the
+    -- design's three images, then a pass over its pixels, on the first shelf
+    -- of every session), keyed on the design files as they are.
+    local Derived = require("lib/bookshelf_derived_cache")
+    local stamp = Derived.stamp(design.middle, design.left, design.right)
+    local dkey = stamp and ("strip:" .. key .. "|" .. stamp)
+    local meta = dkey and Derived.get(dkey)
+    if type(meta) == "table" and meta.top_h then
+        local kept = Derived.bb(dkey)
+        if kept then
+            local entry = { bb = kept, top_h = meta.top_h, regions = meta.regions }
+            _remember(key, entry)
+            return entry.bb, entry.top_h, entry.regions
+        end
+    end
     local mid = _pngInfo(design.middle); if not mid then return nil end
     local l = SpineShelf.plankDesignLayout{
         screen_w = width, row_x = row_x, row_w = row_w, surf_h = surf_h, face_h = face_h,
@@ -3447,11 +3482,10 @@ local function _designStrip(design, width, row_x, row_w, surf_h, face_h, inverti
     if inverting then strip:invertRect(0, 0, width, total) end
     local ok_r, regions = pcall(SpineShelf.alphaRegions, width, total, _alphaAt(strip))
     if not ok_r then regions = nil end
-    _strip_cache[key] = { bb = strip, top_h = l.top_h, regions = regions }
-    _strip_order[#_strip_order + 1] = key
-    if #_strip_order > 6 then
-        local old = table.remove(_strip_order, 1)
-        if _strip_cache[old] then _strip_cache[old].bb:free(); _strip_cache[old] = nil end
+    _remember(key, { bb = strip, top_h = l.top_h, regions = regions })
+    if dkey then
+        Derived.putBB(dkey, strip)
+        Derived.put(dkey, { top_h = l.top_h, regions = regions })
     end
     return strip, l.top_h, regions
 end

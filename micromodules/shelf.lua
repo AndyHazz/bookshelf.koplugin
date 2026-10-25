@@ -116,6 +116,21 @@ local function tabFor(ctx)
     return require("lib/bookshelf_tab_model").getById(id)
 end
 
+-- previewTab(ctx) -> the shelf to show: the card's own, or, in the module
+-- picker's preview before one is chosen, Home (else the first shelf of
+-- books), so the preview shows what the module does instead of asking.
+local function previewTab(ctx)
+    local tab = tabFor(ctx)
+    if tab or not (ctx and ctx.preview) then return tab end
+    local TabModel = require("lib/bookshelf_tab_model")
+    local home = TabModel.getById("all")
+    if isBookShelf(home) then return home end
+    for _i, t in ipairs(TabModel.load() or {}) do
+        if isBookShelf(t) then return t end
+    end
+    return nil
+end
+
 -- A tap on a book opens it as a full screen shelf does (the tap-to-open
 -- setting, the double tap, the cover-opening effect): lib/bookshelf_module_open.
 local function tapKey(ctx, tab)
@@ -559,7 +574,7 @@ return {
         local Kit = require("lib/bookshelf_module_kit")
         local mw  = math.max(50, ctx.width)
         local mh  = (ctx.height and ctx.height > 0) and ctx.height or math.floor(mw / 2)
-        local tab = tabFor(ctx)
+        local tab = previewTab(ctx)
         if not (tab and isBookShelf(tab)) then
             return Kit.fitText{ text = _("Choose a shelf"), size = 15, scale_pct = ctx.scale,
                 width = mw, fgcolor = Kit.COLOR_MUTED }
@@ -572,7 +587,9 @@ return {
         local body_h = mh
         local ViewMode = require("lib/bookshelf_view_mode")
         local spines = ViewMode.chipPin(tab.view_mode) == ViewMode.SPINES
-        local show_heading = ctx.config:get("heading", true) ~= false
+        -- No heading in the module picker: its card is titled already, and
+        -- a spine plank's label hung out of the preview's box.
+        local show_heading = ctx.config:get("heading", true) ~= false and not ctx.preview
         if show_heading and not spines then
             local InputContainer = require("ui/widget/container/inputcontainer")
             local GestureRange   = require("ui/gesturerange")
@@ -627,5 +644,5 @@ return {
     _test = { isBookShelf = isBookShelf, headingText = headingText, rowsFor = rowsFor,
               cardRows = cardRows,
               booksOnly = booksOnly, plainLabel = plainLabel, bookSource = bookSource,
-              shelfChoices = shelfChoices },
+              shelfChoices = shelfChoices, previewTab = previewTab },
 }

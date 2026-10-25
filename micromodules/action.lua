@@ -82,11 +82,11 @@ return {
         local label = entry and entry.label
         local icon_value = entry and entry.icon
         if preview then
-            -- The picker prints its own "Action" title beneath the cell, so
-            -- render the icon ONLY here (an in-card label would duplicate it),
-            -- centred in the preview area with the same margin the live card uses.
+            -- The picker prints its own "Action" title beneath the cell; the
+            -- preview says what the card can do, under a smaller icon, sized
+            -- to fill the panel (a bare plugin icon undersold it).
             icon_value = icon_value or DEFAULT_ICON
-            label = nil
+            label = _("Launch any plugin, menu item or gesture action, and choose your own icon.")
         elseif not entry then
             label = label or _("Action")
             icon_value = icon_value or DEFAULT_ICON
@@ -106,7 +106,20 @@ return {
         -- clip cropped the label's lower edge. Cap it to ~40% of the cell so a
         -- short, wide cell keeps room for the icon (fitText ellipsis-clamps).
         local label_widget, reserve = nil, 0
-        if has_label then
+        if has_label and preview then
+            -- The description fills its share of the panel: the largest size
+            -- whose whole text fits (fitText would cut it off, not shrink it).
+            local max_h = math.max(sc(16), math.floor(box_h * 0.55))
+            for size = 26, 12, -2 do
+                label_widget = Kit.fitText{
+                    text = label, size = size, scale_pct = scale_pct,
+                    width = mw - 2 * pad, fgcolor = fg, align = "center",
+                }
+                if label_widget:getSize().h <= max_h then break end
+                if size > 12 and label_widget.free then label_widget:free() end
+            end
+            reserve = label_widget:getSize().h + gap
+        elseif has_label then
             label_widget = Kit.fitText{
                 text = label, size = 15, scale_pct = scale_pct,
                 width = mw - 2 * pad,
@@ -118,8 +131,8 @@ return {
 
         local icon_box = math.min(mw - 2 * pad, box_h - 2 * pad - reserve)
         if preview then
-            -- No height hint in the picker; cap to half the card width so the
-            -- icon stays comfortably inside the roughly-square preview area.
+            -- Cap to half the card width so the icon stays comfortably inside
+            -- the roughly square preview area, above its description.
             icon_box = math.min(icon_box, math.floor(mw * 0.5))
         end
         icon_box = math.max(16, icon_box)

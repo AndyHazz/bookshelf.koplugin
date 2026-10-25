@@ -3,7 +3,7 @@
 msgid ""
 msgstr ""
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-25 08:10+0000\n"
+"POT-Creation-Date: 2026-10-25 09:32+0000\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -133,7 +133,7 @@ msgstr "Markierung"
 msgid "View in book"
 msgstr "Im Buch anzeigen"
 
-#: lib/bookshelf_book_highlights.lua:185 lib/bookshelf_changelog.lua:148 lib/bookshelf_chip_editor.lua:1607 lib/bookshelf_chip_editor.lua:2517 lib/bookshelf_chip_editor.lua:2873 lib/bookshelf_chip_editor.lua:3405 lib/bookshelf_chip_editor.lua:3769 lib/bookshelf_collection_manager.lua:562 lib/bookshelf_folder_picker.lua:168 lib/bookshelf_font_picker.lua:271 lib/bookshelf_icons_library.lua:497 lib/bookshelf_line_editor.lua:170 lib/bookshelf_module_card_menu.lua:120 lib/bookshelf_module_grid_editor.lua:197 lib/bookshelf_module_picker.lua:264 lib/bookshelf_plank_browser.lua:268 lib/bookshelf_reviews_modal.lua:561 lib/bookshelf_settings.lua:332 lib/bookshelf_theme_library.lua:588 lib/bookshelf_updater.lua:428 lib/bookshelf_wallpaper_browser.lua:212 lib/bookshelf_widget.lua:19894 micromodules/daily_fun.lua:300
+#: lib/bookshelf_book_highlights.lua:185 lib/bookshelf_changelog.lua:148 lib/bookshelf_chip_editor.lua:1607 lib/bookshelf_chip_editor.lua:2517 lib/bookshelf_chip_editor.lua:2873 lib/bookshelf_chip_editor.lua:3405 lib/bookshelf_chip_editor.lua:3769 lib/bookshelf_collection_manager.lua:562 lib/bookshelf_folder_picker.lua:168 lib/bookshelf_font_picker.lua:271 lib/bookshelf_icons_library.lua:497 lib/bookshelf_line_editor.lua:170 lib/bookshelf_module_card_menu.lua:120 lib/bookshelf_module_grid_editor.lua:197 lib/bookshelf_module_picker.lua:276 lib/bookshelf_plank_browser.lua:268 lib/bookshelf_reviews_modal.lua:561 lib/bookshelf_settings.lua:332 lib/bookshelf_theme_library.lua:588 lib/bookshelf_updater.lua:428 lib/bookshelf_wallpaper_browser.lua:212 lib/bookshelf_widget.lua:19894 micromodules/daily_fun.lua:300
 msgid "Close"
 msgstr "Schließen"
 
@@ -186,7 +186,7 @@ msgstr "(löschen)"
 msgid "Clear"
 msgstr "Löschen"
 
-#: lib/bookshelf_bulk_actions.lua:165 lib/bookshelf_bulk_actions.lua:424 lib/bookshelf_chip_editor.lua:806 lib/bookshelf_chip_editor.lua:2723 lib/bookshelf_chip_editor.lua:2773 lib/bookshelf_chip_editor.lua:2909 lib/bookshelf_chip_editor.lua:3249 lib/bookshelf_chip_editor.lua:3295 lib/bookshelf_collection_manager.lua:339 lib/bookshelf_collection_manager.lua:415 lib/bookshelf_collection_manager.lua:422 lib/bookshelf_collection_manager.lua:455 lib/bookshelf_collection_manager.lua:505 lib/bookshelf_collection_manager.lua:530 lib/bookshelf_color_palette.lua:421 lib/bookshelf_folder_picker.lua:61 lib/bookshelf_folder_picker.lua:199 lib/bookshelf_line_editor.lua:540 lib/bookshelf_move_flow.lua:34 lib/bookshelf_move_flow.lua:386 lib/bookshelf_opds_catalog_editor.lua:45 lib/bookshelf_ornament_browser.lua:333 lib/bookshelf_pack_editor.lua:311 lib/bookshelf_page_count_dialog.lua:188 lib/bookshelf_settings.lua:1639 lib/bookshelf_settings.lua:3183 lib/bookshelf_settings.lua:3663 lib/bookshelf_settings.lua:5101 lib/bookshelf_settings.lua:5328 lib/bookshelf_settings.lua:5491 lib/bookshelf_settings.lua:5693 lib/bookshelf_settings.lua:5787 lib/bookshelf_start_menu_edit.lua:57 lib/bookshelf_start_menu_edit.lua:181 lib/bookshelf_start_menu_edit.lua:293 lib/bookshelf_start_menu_edit.lua:358 lib/bookshelf_widget.lua:9329 lib/bookshelf_widget.lua:19249 lib/bookshelf_widget.lua:21671 lib/bookshelf_widget.lua:23757 lib/bookshelf_widget.lua:23837 lib/bookshelf_widget.lua:23882 lib/bookshelf_widget.lua:23950 lib/bookshelf_widget.lua:23998 lib/bookshelf_widget.lua:24004 lib/bookshelf_widget.lua:25067 lib/bookshelf_widget.lua:25226 lib/bookshelf_widget.lua:26195 main.lua:2432 micromodules/action.lua:227 micromodules/countdown.lua:60 micromodules/reading_goal.lua:496 micromodules/reading_goal.lua:541 micromodules/shelf.lua:381 micromodules/weather.lua:254
+#: lib/bookshelf_bulk_actions.lua:165 lib/bookshelf_bulk_actions.lua:424 lib/bookshelf_chip_editor.lua:806 lib/bookshelf_chip_editor.lua:2723 lib/bookshelf_chip_editor.lua:2773 lib/bookshelf_chip_editor.lua:2909 lib/bookshelf_chip_editor.lua:3249 lib/bookshelf_chip_editor.lua:3295 lib/bookshelf_collection_manager.lua:339 lib/bookshelf_collection_manager.lua:415 lib/bookshelf_collection_manager.lua:422 lib/bookshelf_collection_manager.lua:455 lib/bookshelf_collection_manager.lua:505 lib/bookshelf_collection_manager.lua:530 lib/bookshelf_color_palette.lua:421 lib/bookshelf_folder_picker.lua:61 lib/bookshelf_folder_picker.lua:199 lib/bookshelf_line_editor.lua:540 lib/bookshelf_move_flow.lua:34 lib/bookshelf_move_flow.lua:386 lib/bookshelf_opds_catalog_editor.lua:45 lib/bookshelf_ornament_browser.lua:333 lib/bookshelf_pack_editor.lua:311 lib/bookshelf_page_count_dialog.lua:188 lib/bookshelf_settings.lua:1639 lib/bookshelf_settings.lua:3183 lib/bookshelf_settings.lua:3663 lib/bookshelf_settings.lua:5101 lib/bookshelf_settings.lua:5328 lib/bookshelf_settings.lua:5491 lib/bookshelf_settings.lua:5693 lib/bookshelf_settings.lua:5787 lib/bookshelf_start_menu_edit.lua:57 lib/bookshelf_start_menu_edit.lua:181 lib/bookshelf_start_menu_edit.lua:293 lib/bookshelf_start_menu_edit.lua:358 lib/bookshelf_widget.lua:9329 lib/bookshelf_widget.lua:19249 lib/bookshelf_widget.lua:21671 lib/bookshelf_widget.lua:23757 lib/bookshelf_widget.lua:23837 lib/bookshelf_widget.lua:23882 lib/bookshelf_widget.lua:23950 lib/bookshelf_widget.lua:23998 lib/bookshelf_widget.lua:24004 lib/bookshelf_widget.lua:25067 lib/bookshelf_widget.lua:25226 lib/bookshelf_widget.lua:26195 main.lua:2432 micromodules/action.lua:240 micromodules/countdown.lua:60 micromodules/reading_goal.lua:496 micromodules/reading_goal.lua:541 micromodules/shelf.lua:396 micromodules/weather.lua:254
 msgid "Cancel"
 msgstr "Abbrechen"
 
@@ -1028,7 +1028,7 @@ msgstr "Sammlungsname"
 msgid "Create"
 msgstr "Erstellen"
 
-#: lib/bookshelf_collection_manager.lua:510 lib/bookshelf_collection_manager.lua:534 lib/bookshelf_line_editor.lua:569 lib/bookshelf_opds_catalog_editor.lua:50 lib/bookshelf_widget.lua:21673 lib/bookshelf_widget.lua:23884 main.lua:2437 micromodules/action.lua:230 micromodules/countdown.lua:146 micromodules/reading_goal.lua:503 micromodules/reading_goal.lua:548 micromodules/shelf.lua:382 micromodules/weather.lua:261
+#: lib/bookshelf_collection_manager.lua:510 lib/bookshelf_collection_manager.lua:534 lib/bookshelf_line_editor.lua:569 lib/bookshelf_opds_catalog_editor.lua:50 lib/bookshelf_widget.lua:21673 lib/bookshelf_widget.lua:23884 main.lua:2437 micromodules/action.lua:243 micromodules/countdown.lua:146 micromodules/reading_goal.lua:503 micromodules/reading_goal.lua:548 micromodules/shelf.lua:397 micromodules/weather.lua:261
 msgid "Save"
 msgstr "Speichern"
 
@@ -1959,19 +1959,19 @@ msgstr "Dieser Menüeintrag ist nicht verfügbar"
 msgid "Menu"
 msgstr "Menü"
 
-#: lib/bookshelf_module_card.lua:149
+#: lib/bookshelf_module_card.lua:157
 msgid "Card background"
 msgstr "Kartenhintergrund"
 
-#: lib/bookshelf_module_card.lua:150
+#: lib/bookshelf_module_card.lua:158
 msgid "Card border"
 msgstr "Kartenrahmen"
 
-#: lib/bookshelf_module_card.lua:151
+#: lib/bookshelf_module_card.lua:159
 msgid "Card border color"
 msgstr "Kartenrahmenfarbe"
 
-#: lib/bookshelf_module_card.lua:152
+#: lib/bookshelf_module_card.lua:160
 msgid "Card text"
 msgstr "Kartentext"
 
@@ -2051,7 +2051,7 @@ msgstr "Netzwerk erforderlich"
 msgid "Data provided by:"
 msgstr "Daten bereitgestellt von:"
 
-#: lib/bookshelf_module_picker.lua:234
+#: lib/bookshelf_module_picker.lua:246
 msgid "Bookshelf micro-modules"
 msgstr "Bookshelf-Mikromodule"
 
@@ -4425,7 +4425,7 @@ msgstr "Symbol entfernen"
 msgid "Icon"
 msgstr "Symbol"
 
-#: lib/bookshelf_start_menu_edit.lua:192 micromodules/action.lua:242
+#: lib/bookshelf_start_menu_edit.lua:192 micromodules/action.lua:255
 msgid "Icon…"
 msgstr "Symbol…"
 
@@ -6247,27 +6247,31 @@ msgstr "Aktion"
 msgid "Launches a plugin or system action. Works offline."
 msgstr "Startet ein Plugin oder eine Systemaktion. Funktioniert offline."
 
-#: micromodules/action.lua:158
+#: micromodules/action.lua:89
+msgid "Launch any plugin, menu item or gesture action, and choose your own icon."
+msgstr "Startet ein beliebiges Plugin, einen Menüpunkt oder eine Gestenaktion, mit einem Symbol deiner Wahl."
+
+#: micromodules/action.lua:171
 msgid "Add action"
 msgstr "Aktion hinzufügen"
 
-#: micromodules/action.lua:202
+#: micromodules/action.lua:215
 msgid "Change action…"
 msgstr "Aktion ändern…"
 
-#: micromodules/action.lua:208
+#: micromodules/action.lua:221
 msgid "Change action"
 msgstr "Aktion ändern"
 
-#: micromodules/action.lua:221
+#: micromodules/action.lua:234
 msgid "Label…"
 msgstr "Beschriftung…"
 
-#: micromodules/action.lua:224
+#: micromodules/action.lua:237
 msgid "Card label (empty = icon only)"
 msgstr "Karten-Beschriftung (leer = nur Symbol)"
 
-#: micromodules/action.lua:251
+#: micromodules/action.lua:264
 msgid "Action settings"
 msgstr "Aktions-Einstellungen"
 
@@ -6939,59 +6943,59 @@ msgstr "Beste Strähne"
 msgid "Best: %1 · %2"
 msgstr "Beste: %1 · %2"
 
-#: micromodules/shelf.lua:41 micromodules/shelf.lua:349 micromodules/shelf.lua:552
+#: micromodules/shelf.lua:41 micromodules/shelf.lua:364 micromodules/shelf.lua:567
 msgid "Shelf"
 msgstr "Regal"
 
-#: micromodules/shelf.lua:223
+#: micromodules/shelf.lua:238
 msgid "%1 (hidden)"
 msgstr "%1 (ausgeblendet)"
 
-#: micromodules/shelf.lua:270 micromodules/shelf.lua:356
+#: micromodules/shelf.lua:285 micromodules/shelf.lua:371
 msgid "Create new shelf…"
 msgstr "Neues Regal erstellen…"
 
-#: micromodules/shelf.lua:292 micromodules/shelf.lua:360 micromodules/shelf.lua:564
+#: micromodules/shelf.lua:307 micromodules/shelf.lua:375 micromodules/shelf.lua:579
 msgid "Choose a shelf"
 msgstr "Regal wählen"
 
-#: micromodules/shelf.lua:318
+#: micromodules/shelf.lua:333
 msgid "Rows: %1"
 msgstr "Zeilen: %1"
 
-#: micromodules/shelf.lua:318
+#: micromodules/shelf.lua:333
 msgid "Rows: Auto"
 msgstr "Zeilen: Automatisch"
 
-#: micromodules/shelf.lua:321
+#: micromodules/shelf.lua:336
 msgid "Hide heading"
 msgstr "Überschrift ausblenden"
 
-#: micromodules/shelf.lua:321
+#: micromodules/shelf.lua:336
 msgid "Show heading"
 msgstr "Überschrift einblenden"
 
-#: micromodules/shelf.lua:354
+#: micromodules/shelf.lua:369
 msgid "Edit this shelf…"
 msgstr "Dieses Regal bearbeiten…"
 
-#: micromodules/shelf.lua:359
+#: micromodules/shelf.lua:374
 msgid "Use existing shelf…"
 msgstr "Vorhandenes Regal verwenden…"
 
-#: micromodules/shelf.lua:373
+#: micromodules/shelf.lua:388
 msgid "Heading text…"
 msgstr "Überschriftstext…"
 
-#: micromodules/shelf.lua:377
+#: micromodules/shelf.lua:392
 msgid "Heading"
 msgstr "Überschrift"
 
-#: micromodules/shelf.lua:553
+#: micromodules/shelf.lua:568
 msgid "One of your shelves, in its own style. Works offline."
 msgstr "Eines Ihrer Regale, in seinem eigenen Stil. Funktioniert offline."
 
-#: micromodules/shelf.lua:600
+#: micromodules/shelf.lua:617
 msgid "No books on this shelf"
 msgstr "Keine Bücher in diesem Regal"
 

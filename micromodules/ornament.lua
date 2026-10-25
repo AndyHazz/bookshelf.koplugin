@@ -87,10 +87,14 @@ return {
         end
         local CenterContainer = require("ui/widget/container/centercontainer")
         local Geom = require("ui/geometry")
+        -- In the module picker the piece gets room round it, so it reads as a
+        -- piece on a card rather than one cropped to its edges. A card on the
+        -- grid stays edge to edge: its size is the user's choice.
+        local pad = ctx.preview and math.floor(math.min(mw, mh) * 0.14) or 0
         return CenterContainer:new{
             dimen = Geom:new{ w = mw, h = mh },
             -- Mirrored as the piece's own shelf setting says ("Always").
-            require("lib/bookshelf_ornament_browser").preview(piece, mw, mh,
+            require("lib/bookshelf_ornament_browser").preview(piece, mw - 2 * pad, mh - 2 * pad,
                 piece.mirror == "always"),
         }
     end,

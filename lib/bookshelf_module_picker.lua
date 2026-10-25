@@ -102,6 +102,16 @@ function ModulePicker._renderCell(item, dimen)
     -- FRESH preview per render (never the menu's own instance): the same
     -- contract as bookshelf_start_menu._buildModuleRow, including the
     -- title-text fallback when render fails or returns nil.
+    -- The picker is KOReader's own dialog, light whatever the shelf's theme,
+    -- so its cards are drawn in the default light card and ink, not a dark
+    -- theme's (near-black cards in a white dialog, maintainer, PW5). The
+    -- theme's come back once the card is built: modules read these at render
+    -- time.
+    -- Only a dark card is swapped: a light theme's own (warm paper on a
+    -- colour screen, or the reader's pick) already suits the dialog.
+    local Card = require("lib/bookshelf_module_card")
+    local saved_bg, saved_ink, saved_muted = Modules.CARD_BG, Modules.COLOR_PRIMARY, Modules.COLOR_MUTED
+    if Card.isDark(saved_bg) then Modules.resetTheme() end
     local def = Modules.get(item.key)
     local preview
     if def and def.network then
@@ -153,6 +163,8 @@ function ModulePicker._renderCell(item, dimen)
             preview,
         },
     }
+    Modules.setCardBg(saved_bg)
+    Modules.setInk(saved_ink, saved_muted)
     local stack = VerticalGroup:new{
         align = "center",
         grey_card,

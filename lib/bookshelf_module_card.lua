@@ -56,6 +56,14 @@ local function lum(c)
     return ok and type(a) == "number" and a or nil
 end
 
+--- isDark(bg) -> true for a card dark enough to take white ink (autoInk's
+--- own threshold); false for a light one or none.
+function M.isDark(bg)
+    if type(bg) == "nil" then return false end
+    local l = lum(bg)
+    return l ~= nil and l < 128
+end
+
 --- autoInk(bg) -> ink, muted: black or white, whichever reads on bg, and a
 --- muted grey a third of the way from it toward the card (the light theme's
 --- 0x55 between black and 0xEE). Judged in paint space: a night frame flips

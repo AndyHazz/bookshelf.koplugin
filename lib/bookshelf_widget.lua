@@ -5388,6 +5388,7 @@ function BookshelfWidget:_swapHeroStatusStrip()
     if old.free then
         UIManager:nextTick(function() pcall(function() old:free() end) end)
     end
+    if self:_holdTickRefresh() then return true end
     local scope = old.dimen and old.dimen:copy()
     if scope then
         UIManager:setDirty(self, function() return "ui", scope end)
@@ -11545,6 +11546,27 @@ end
 -- wifi event paths so a clock update doesn't refresh the entire right
 -- column. nil = whole right column (line-editor live preview, where any
 -- region might have changed).
+-- _holdTickRefresh(target) -> true when a minute tick or a device-state
+-- event (self._in_status_tick) is being applied while another window is on
+-- top of target (the shelf by default). The caller has already swapped the
+-- new status line into the tree; it then asks for no refresh. KOReader would
+-- repaint the window over it, so nothing wrong is drawn, but the panel still
+-- refreshes the rectangle: on e-ink a flash and a faint ghost of its edge,
+-- every minute, over whatever the reader is looking at (issue 549: windows
+-- such as Storefront's Updates list are full-screen without being marked
+-- covers_fullscreen). The underlay's copy of the shelf is dropped, so the
+-- window's close repaints the shelf as it is now, not as it was.
+--
+-- Only ticks: a dialog over the shelf that previews into it (the line
+-- editor, the size dialogs) is not one, and keeps its live repaint.
+function BookshelfWidget:_holdTickRefresh(target)
+    if not self._in_status_tick then return false end
+    if UIManager:getTopmostVisibleWidget() == (target or self) then return false end
+    local ok, Underlay = pcall(require, "lib/bookshelf_underlay")
+    if ok and Underlay and Underlay.invalidate then Underlay.invalidate() end
+    return true
+end
+
 function BookshelfWidget:_swapHeroRightColumnInPlace(regions, region_hint)
     -- No book-hero right column under the module grid (micro + not expanded),
     -- so status ticks / line-editor previews no-op there. When expanded the
@@ -11573,7 +11595,7 @@ function BookshelfWidget:_swapHeroRightColumnInPlace(regions, region_hint)
     -- update to the area that actually changed — for a clock tick that's
     -- ~30dp tall instead of the whole right column, so any overlay
     -- happens to be unaffected by the refresh entirely.
-    if ok then UIManager:setDirty(self, "ui", rect) end
+    if ok and not self:_holdTickRefresh() then UIManager:setDirty(self, "ui", rect) end
     return ok
 end
 
@@ -12014,7 +12036,7 @@ end
 -- (line editor open, FM menu open, ReaderUI on top during a read).
 -- Optional debounce coalesces rapid event bursts (slider drags).
 function BookshelfWidget:_gatedRepaint(tokens, debounce)
-    local function fire()
+    local function fire_now()
         self._gated_repaint_pending = nil
         -- Skip ONLY if a covers_fullscreen widget (typically ReaderUI)
         -- is above us -- in that case bookshelf isn't visible at all
@@ -12072,6 +12094,13 @@ function BookshelfWidget:_gatedRepaint(tokens, debounce)
         -- strip rather than the whole right column.
         self:_swapHeroRightColumnInPlace(Regions.read(), "status")
     end
+    -- Every caller is a tick or a device-state event (see _holdTickRefresh).
+    local function fire()
+        self._in_status_tick = true
+        local ok, err = pcall(fire_now)
+        self._in_status_tick = nil
+        if not ok then logger.warn("[bookshelf] status repaint failed:", tostring(err)) end
+    end
     if debounce and debounce > 0 then
         if self._gated_repaint_pending then
             UIManager:unschedule(self._gated_repaint_pending)
@@ -12099,32 +12128,39 @@ function BookshelfWidget:_startStatusTimer()
     self:_startFilePoll()
     if self._status_timer_func then return end -- already armed
     self._status_timer_func = function()
-        local mfs = self._micro_fullscreen
-        if mfs and UIManager:isWidgetShown(mfs) then
-            -- The full-screen micro-modules view is on top: its clock cells
-            -- (it took over the clock-cell list when it opened) and its own
-            -- status line are what is on screen, not the shelf underneath.
-            require("lib/bookshelf_hero_modules").tickClocks(self)
-            _device_state_expires_at = 0   -- a fresh battery / wifi read
-            if mfs.refreshStatus then mfs:refreshStatus() end
-        elseif self._hero_mode == "micro" and not self._expanded then
-            -- Micro grid is the hero: advance its clock cells in place
-            -- (scoped, no re-roll of the other modules). No-op if the grid
-            -- has no clock.
-            require("lib/bookshelf_hero_modules").tickClocks(self)
-        end
-        if self._hero_status_strip then
-            -- Micro-page header or expanded strip: the status line isn't a
-            -- clock cell, so tick it here when it carries a time token (#292);
-            -- otherwise it lags behind the grid's own clock.
-            if self:_anyActiveRegionUses(TIMER_TOKENS) then
-                self:_swapHeroStatusStrip()
+        -- A tick: under another window it swaps without a refresh (see
+        -- _holdTickRefresh). Cleared even if a swap throws.
+        self._in_status_tick = true
+        local ok_tick, err_tick = pcall(function()
+            local mfs = self._micro_fullscreen
+            if mfs and UIManager:isWidgetShown(mfs) then
+                -- The full-screen micro-modules view is on top: its clock cells
+                -- (it took over the clock-cell list when it opened) and its own
+                -- status line are what is on screen, not the shelf underneath.
+                require("lib/bookshelf_hero_modules").tickClocks(self)
+                _device_state_expires_at = 0   -- a fresh battery / wifi read
+                if mfs.refreshStatus then mfs:refreshStatus() end
+            elseif self._hero_mode == "micro" and not self._expanded then
+                -- Micro grid is the hero: advance its clock cells in place
+                -- (scoped, no re-roll of the other modules). No-op if the grid
+                -- has no clock.
+                require("lib/bookshelf_hero_modules").tickClocks(self)
             end
-        else
-            -- Book hero: repaint the status strip iff a template uses a
-            -- time-driven token.
-            self:_gatedRepaint(TIMER_TOKENS)
-        end
+            if self._hero_status_strip then
+                -- Micro-page header or expanded strip: the status line isn't a
+                -- clock cell, so tick it here when it carries a time token (#292);
+                -- otherwise it lags behind the grid's own clock.
+                if self:_anyActiveRegionUses(TIMER_TOKENS) then
+                    self:_swapHeroStatusStrip()
+                end
+            else
+                -- Book hero: repaint the status strip iff a template uses a
+                -- time-driven token.
+                self:_gatedRepaint(TIMER_TOKENS)
+            end
+        end)
+        self._in_status_tick = nil
+        if not ok_tick then logger.warn("[bookshelf] minute tick failed:", tostring(err_tick)) end
         -- Re-arm at the next minute boundary.
         if self._status_timer_func then
             local now_sec = os.date("*t").sec

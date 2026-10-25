@@ -212,6 +212,8 @@ function HeroModules._reloadCellById(bw, id)
     -- When the full-screen overlay hosts the grid, repaint IT (the cells live in
     -- the overlay, on top of the bookshelf); else repaint the bookshelf hero.
     local target = bw._micro_fullscreen or bw
+    -- Under another window: the cells are current, no refresh (issue 549).
+    if bw._holdTickRefresh and bw:_holdTickRefresh(target) then return end
     if scope then
         UIManager:setDirty(target, function() return "ui", scope end)
     else
@@ -1790,6 +1792,8 @@ function HeroModules.tickClocks(bw)
     -- The full-screen view's grid takes over the clock-cell list while it is
     -- open (its cells live in the overlay, on top of the shelf): repaint that.
     local target = bw._micro_fullscreen or bw
+    -- Under another window: the cells are current, no refresh (issue 549).
+    if bw._holdTickRefresh and bw:_holdTickRefresh(target) then return true end
     if scope then
         UIManager:setDirty(target, function() return "ui", scope end)
     else

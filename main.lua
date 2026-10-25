@@ -1596,9 +1596,10 @@ end
 -- Open the full-screen micro-module overlay from the reader (v1). No bookshelf
 -- widget exists here, so a minimal context shim stands in for `bw`: enough for
 -- the overlay to render + navigate the grid, position its close-X / hamburger,
--- and open the start menu. No status line (no _currentHeroBook /
--- _buildDeviceState), and widget-dependent module taps no-op (HeroModules._tap
--- pcalls on_tap). pcall'd so a context gap can't crash the reader.
+-- and open the start menu, plus the shelf's status line for the book being
+-- read, kept current by its own minute tick (the shelf's does not run in the
+-- reader). Widget-dependent module taps no-op (HeroModules._tap pcalls
+-- on_tap). pcall'd so a context gap can't crash the reader.
 function Bookshelf:_openReaderMicroModules()
     local ok, Mod = pcall(require, "lib/bookshelf_micro_fullscreen")
     if not ok or not Mod then return end
@@ -1637,7 +1638,31 @@ function Bookshelf:_openReaderMicroModules()
         end,
         _openStartMenu = function() outer:_openReaderStartMenu() end,
     }
+    -- The status line: the shelf's own answers for the current book (the
+    -- one being read) and the device state. Neither needs a shelf.
+    local ok_bw, BW = pcall(require, "lib/bookshelf_widget")
+    if ok_bw and type(BW) == "table" then
+        shim._currentHeroBook  = function(s) return BW._currentHeroBook(s) end
+        shim._buildDeviceState = function(s) return BW._buildDeviceState(s) end
+    end
     pcall(function() Mod.open(shim, shim._micromod_dimen, Screen:scaleBySize(48)) end)
+    -- Minute tick while the view is up: the status line and clock cells.
+    local tick
+    tick = function()
+        local view = shim._micro_fullscreen
+        if not (view and UIManager:isWidgetShown(view)) then return end
+        pcall(function()
+            if BW and BW.invalidateDeviceState then BW.invalidateDeviceState() end
+            require("lib/bookshelf_hero_modules").tickClocks(shim)
+            if view.refreshStatus then view:refreshStatus() end
+        end)
+        local delay = 60 - os.date("*t").sec
+        UIManager:scheduleIn(delay > 0 and delay or 60, tick)
+    end
+    if shim._micro_fullscreen then
+        local delay = 60 - os.date("*t").sec
+        UIManager:scheduleIn(delay > 0 and delay or 60, tick)
+    end
 end
 
 -- Open the start menu from the reader. No bookshelf widget exists here, but

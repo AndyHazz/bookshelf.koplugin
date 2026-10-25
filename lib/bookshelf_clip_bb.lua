@@ -13,9 +13,14 @@ inside it.
   local ClipBB = require("lib/bookshelf_clip_bb")
   widget:paintTo(ClipBB.new(Screen.bb, { rect, rect2 }), x, y)
 
-Methods that draw are wrapped; anything else (getWidth, getType, a
-viewport, the data pointer...) goes to the real buffer. A drawing method
-not wrapped here draws unclipped: correct, only not cheaper.
+Methods that draw are wrapped; reads (get*, is*, can*, has*), setInverse
+and plain fields (the data pointer, stride) go to the real buffer. Any other
+method THROWS. A drawing call let through unclipped is not "only not
+cheaper": the clip then cuts away whatever should have covered it, so it
+lands on top (issue 550: on a colour screen the cover shadows, drawn with
+paintRoundedRectRGB32, painted over every cover for a repaint scoped to the
+status line). The shelf paints the frame whole when a clipped paint throws,
+so an unknown method costs the clipping, never the picture.
 
 READING THE TARGET BACK. A painter that copies what is already on the
 target (a corner cut keeping what was behind it) must hand the REAL buffer
@@ -63,7 +68,7 @@ end
 
 -- Rect fills: (x, y, w, h, ...).
 local RECTS = { "paintRect", "paintRectRGB32", "invertRect", "lightenRect", "darkenRect",
-                "dimRect", "blendRectRGB32" }
+                "dimRect", "blendRectRGB32", "hatchRect", "multiplyRectRGB" }
 for _i, name in ipairs(RECTS) do
     Clip[name] = function(self, x, y, w, h, ...)
         if not (x and y and w and h) then return end
@@ -107,12 +112,37 @@ local function shape(self, name, x, y, w, h, ...)
     end
 end
 for _i, name in ipairs({ "paintBorder", "paintRoundedRect", "paintBorderRGB32",
-                         "paintInnerBorder", "paintRoundedCorner" }) do
+                         "paintRoundedRectRGB32", "paintInnerBorder", "paintRoundedCorner" }) do
     Clip[name] = function(self, x, y, w, h, ...) return shape(self, name, x, y, w, h, ...) end
 end
 
+-- A circle is drawn by its centre: the same treatment over its bounding box,
+-- the centre moved into the copy's coordinates when it is drawn there.
+function Clip:paintCircle(cx, cy, r, ...)
+    if not (cx and cy and r) or r <= 0 then return end
+    local x, y, w, h = cx - r, cy - r, 2 * r + 1, 2 * r + 1
+    local bb = self._bb
+    for _r, c in ipairs(self._rects) do
+        local ix, iy, iw, ih = cut(c, x, y, w, h)
+        if ix then
+            if ix == x and iy == y and iw == w and ih == h then
+                bb:paintCircle(cx, cy, r, ...)
+            else
+                local Blitbuffer = require("ffi/blitbuffer")
+                local tmp = Blitbuffer.new(iw, ih, bb:getType())
+                tmp:blitFrom(bb, 0, 0, ix, iy, iw, ih)
+                local ok = pcall(tmp.paintCircle, tmp, cx - ix, cy - iy, r, ...)
+                if ok then bb:blitFrom(tmp, ix, iy, 0, 0, iw, ih) end
+                tmp:free()
+            end
+        end
+    end
+end
+
 -- Single pixels: inside a rect or not at all.
-for _i, name in ipairs({ "setPixel", "setPixelClamped" }) do
+for _i, name in ipairs({ "setPixel", "setPixelClamped", "setPixelAdd", "setPixelBlend",
+                         "setPixelColorize", "setPixelColorizeRGB32", "setPixelInverted",
+                         "setPixelMultiply", "setPixelPmulBlend" }) do
     Clip[name] = function(self, x, y, ...)
         for _r, c in ipairs(self._rects) do
             if x >= c.x and y >= c.y and x < c.x + c.w and y < c.y + c.h then
@@ -123,6 +153,10 @@ for _i, name in ipairs({ "setPixel", "setPixelClamped" }) do
     end
 end
 
+-- Methods that change no pixels but are not reads by name. setInverse is the
+-- night-mode flag a painter flips around a blit it wants left uninverted.
+local PASS = { setInverse = true }
+
 local mt = {
     __index = function(self, k)
         local f = Clip[k]
@@ -130,6 +164,10 @@ local mt = {
         local bb = rawget(self, "_bb")
         local v = bb[k]
         if type(v) == "function" then
+            if not PASS[k] and not (type(k) == "string" and (k:find("^get") or k:find("^is")
+                    or k:find("^can") or k:find("^has"))) then
+                error("bookshelf_clip_bb: " .. tostring(k) .. " is not clipped", 2)
+            end
             return function(_s, ...) return v(bb, ...) end
         end
         return v

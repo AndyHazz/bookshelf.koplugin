@@ -169,4 +169,70 @@ t.test("a clipped paint that throws is painted whole, and clipping goes off", fu
     end
 end)
 
+t.test("a colour shadow outside the rects is not drawn (issue 550)", function()
+    -- On a colour screen the drop shadow is a ColorRGB32 and is painted with
+    -- paintRoundedRectRGB32. Passed through unclipped, a repaint scoped to
+    -- the hero's status line drew every shadow on the shelf while the covers
+    -- above them were (rightly) clipped away: grey cards until a full paint.
+    local made = {}
+    package.loaded["ffi/blitbuffer"] = { new = function(w, h)
+        local b = fakeBB(w, h); b.free = function() end
+        function b:paintRoundedRectRGB32(x, y, cw, ch) self.calls[#self.calls + 1] = { "shape", x, y, cw, ch } end
+        made[#made + 1] = b
+        return b
+    end }
+    local screen = fakeBB(1000, 1000)
+    function screen:paintRoundedRectRGB32(x, y, cw, ch) self.calls[#self.calls + 1] = { "shape", x, y, cw, ch } end
+    local c = ClipBB.new(screen, { { x = 400, y = 0, w = 600, h = 300 } })
+    c:paintRoundedRectRGB32(40, 600, 250, 380, "grey", 8)
+    eq(#screen.calls, 0, "a shadow far from the rect was drawn")
+    c:paintRoundedRectRGB32(450, 50, 100, 100, "grey", 8)
+    eq(#screen.calls, 1, "a shadow inside the rect was not drawn")
+    c:paintRoundedRectRGB32(350, 50, 100, 100, "grey", 8)
+    eq(#made, 1, "a shadow across the edge was not drawn through a copy")
+end)
+
+t.test("the other drawing calls are clipped too", function()
+    local screen = fakeBB(1000, 1000)
+    for _i, name in ipairs({ "hatchRect", "multiplyRectRGB" }) do
+        screen[name] = function(self, x, y, cw, ch) self.calls[#self.calls + 1] = { name, x, y, cw, ch } end
+    end
+    for _i, name in ipairs({ "setPixelAdd", "setPixelBlend", "setPixelColorize", "setPixelColorizeRGB32",
+                             "setPixelInverted", "setPixelMultiply", "setPixelPmulBlend" }) do
+        screen[name] = function(self, x, y) self.calls[#self.calls + 1] = { name, x, y } end
+    end
+    local c = ClipBB.new(screen, { { x = 0, y = 0, w = 100, h = 100 } })
+    c:hatchRect(500, 500, 50, 50, 4, "ink")
+    c:multiplyRectRGB(500, 500, 50, 50, "tint")
+    c:hatchRect(50, 50, 100, 100, 4, "ink")
+    eq(#screen.calls, 1, "a rect fill outside the rect was drawn")
+    eq(screen.calls[1][4], 50, "not cut to the rect")
+    c:setPixelBlend(500, 500, "ink"); c:setPixelMultiply(5, 5, "ink")
+    eq(#screen.calls, 2, "a pixel outside the rect was set")
+end)
+
+t.test("a drawing call it does not know throws rather than draw unclipped", function()
+    -- Unclipped, it lands on top of whatever the clip then cuts away. The
+    -- shelf's guard paints the frame whole when the clipped paint throws.
+    local screen = fakeBB(1000, 1000)
+    function screen:paintCircle() self.calls[#self.calls + 1] = { "circle" } end
+    function screen:invert() self.calls[#self.calls + 1] = { "invert" } end
+    function screen:somethingNew() self.calls[#self.calls + 1] = { "new" } end
+    local c = ClipBB.new(screen, { { x = 0, y = 0, w = 100, h = 100 } })
+    for _i, name in ipairs({ "invert", "somethingNew" }) do
+        local ok = pcall(function() c[name](c, 500, 500, 10) end)
+        assert(not ok, name .. " did not throw")
+    end
+    -- A circle (cover marks, badges) is clipped like a shape instead.
+    c:paintCircle(500, 500, 10, "ink")
+    eq(#screen.calls, 0, "an unknown call or a far circle reached the screen")
+    c:paintCircle(50, 50, 10, "ink")
+    eq(#screen.calls, 1, "a circle inside the rect was not drawn")
+    -- Reads still reach the real buffer.
+    function screen:getRotation() return 0 end
+    function screen:isRotated() return false end
+    function screen:canUseCbb() return true end
+    eq(c:getRotation(), 0); eq(c:isRotated(), false); eq(c:canUseCbb(), true)
+end)
+
 t.done()

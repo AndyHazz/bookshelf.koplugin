@@ -659,6 +659,29 @@ local function frostBuild(src_bb, x, y, w, h, tint)
     return out
 end
 
+-- The cover disk cache, for decoded pictures (M._disk_cache: test seam;
+-- false switches it off).
+local function diskCache()
+    if M._disk_cache == nil then
+        local ok, DC = pcall(require, "lib/bookshelf_cover_disk_cache")
+        M._disk_cache = ok and DC or false
+    end
+    return M._disk_cache or nil
+end
+-- diskKey(path, w, h) -> the cache key for this picture at this size, or nil.
+local function diskKey(path, w, h)
+    local ok, key = pcall(function()
+        local lfs = require("libs/libkoreader-lfs")
+        local attr = lfs.attributes(path)
+        if not (attr and attr.modification) then return nil end
+        local Screen = require("device").screen
+        local fbt = Screen and Screen.bb and Screen.bb.getType and Screen.bb:getType()
+        return string.format("wallpaper:%s|%s|%s|%dx%d|%s", path,
+            tostring(attr.modification), tostring(attr.size), w, h, tostring(fbt))
+    end)
+    return ok and key or nil
+end
+
 -- frostFor(x, y, w, h, tint) -> the cached blur for exactly that panel rect
 -- (and, dithered, that tint) over the current picture, built on a miss; nil
 -- without a picture.
@@ -673,7 +696,22 @@ local function frostFor(x, y, w, h, tint)
             return e.bb
         end
     end
-    local bb = (M._frost_build or frostBuild)(bg.bb, x, y, w, h, tint)
+    -- The finished blur outlives the session too, beside the picture it was
+    -- made from (the first full-screen view of a session built its panel's
+    -- blur, ~0.2-0.8 s on the PW5). Keyed on the picture's own disk key, the
+    -- mode it is in, the rect, the tint and the blur's constants.
+    local fkey
+    if bg.dkey and not M._frost_build and diskCache() then
+        local Frost = require("lib/bookshelf_frost")
+        fkey = string.format("frost:%s|%s|%d,%d,%dx%d|%s|%s|%d/%d/%d", bg.dkey,
+            M._bg_key:sub(-2) == "|n" and "n" or "d", x, y, w, h, tostring(tc), tostring(ts),
+            Frost.FACTOR, Frost.RADIUS, Frost.PASSES)
+    end
+    local bb = fkey and diskCache().load(fkey)
+    if not bb then
+        bb = (M._frost_build or frostBuild)(bg.bb, x, y, w, h, tint)
+        if bb and fkey then pcall(diskCache().store, fkey, bb) end
+    end
     if not bb then return nil end
     table.insert(M._frost, 1, { bg_key = M._bg_key, x = x, y = y, w = w, h = h, bb = bb,
                                 tint_key = tc, tint_strength = ts })
@@ -1943,29 +1981,6 @@ function M.toScreenType(bb)
     return (ok and out) or bb
 end
 
--- The cover disk cache, for decoded pictures (M._disk_cache: test seam;
--- false switches it off).
-local function diskCache()
-    if M._disk_cache == nil then
-        local ok, DC = pcall(require, "lib/bookshelf_cover_disk_cache")
-        M._disk_cache = ok and DC or false
-    end
-    return M._disk_cache or nil
-end
--- diskKey(path, w, h) -> the cache key for this picture at this size, or nil.
-local function diskKey(path, w, h)
-    local ok, key = pcall(function()
-        local lfs = require("libs/libkoreader-lfs")
-        local attr = lfs.attributes(path)
-        if not (attr and attr.modification) then return nil end
-        local Screen = require("device").screen
-        local fbt = Screen and Screen.bb and Screen.bb.getType and Screen.bb:getType()
-        return string.format("wallpaper:%s|%s|%s|%dx%d|%s", path,
-            tostring(attr.modification), tostring(attr.size), w, h, tostring(fbt))
-    end)
-    return ok and key or nil
-end
-
 -- bg(name, w, h, night) -> a paintable full-screen widget, or nil.
 --
 -- night is part of the key AND of the render: the panel inverts everything at
@@ -2017,6 +2032,7 @@ function M.bg(name, w, h, night)
     end
     local widget = backgroundWidget(bb, w, h)
     widget.bb = bb
+    widget.dkey = dkey   -- what its blurs are kept under (frostFor)
     M._bg, M._bg_key = widget, key
     return widget
 end

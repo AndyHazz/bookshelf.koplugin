@@ -2012,4 +2012,16 @@ t.test("a decoded picture is kept on disk, so the next session doesn't decode it
     os.execute("rm -rf '" .. d .. "'"); package.loaded["ffi/blitbuffer"] = nil
 end)
 
+t.test("a panel's blur is kept on disk beside its picture, keyed on what made it", function()
+    local src = io.open("lib/bookshelf_wallpaper.lua"):read("*a")
+    local ff = src:match("\nlocal function frostFor%(x, y, w, h, tint%)\n(.-)\nend\n")
+    assert(ff, "frostFor moved")
+    assert(ff:find('fkey = string.format("frost:%s|%s|%d,%d,%dx%d|%s|%s|%d/%d/%d", bg.dkey,', 1, true),
+        "the blur isn't keyed on its picture, mode, rect, tint and constants")
+    assert(ff:find("pcall(diskCache().store, fkey, bb)", 1, true), "never stored")
+    assert(src:find("widget.dkey = dkey", 1, true), "the picture doesn't carry its disk key")
+    -- Declared above frostFor: a local below its caller is a nil global there.
+    assert(src:find("local function diskCache", 1, true) < src:find("local function frostFor", 1, true))
+end)
+
 t.done()

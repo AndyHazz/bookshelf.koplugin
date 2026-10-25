@@ -414,7 +414,10 @@ function M.show(entry, bw, piece, widget, opts)
             -- piece (_pin_of).
             local src = widget or piece
             src = src and (src._pin_of or src)
-            if src and src.pin_after_idx and bw and bw._pinOrnament then
+            -- Not with Micro modules > On the shelf off: a pinned piece is a
+            -- module among the books, which that turns off.
+            local on_shelf = require("lib/bookshelf_settings_store").microOnShelf()
+            if on_shelf and src and src.pin_after_idx and bw and bw._pinOrnament then
                 row[#row + 1] = { text = _("Pin here"), callback = closeAnd(function()
                     bw:_pinOrnament(entry, src)
                 end) }

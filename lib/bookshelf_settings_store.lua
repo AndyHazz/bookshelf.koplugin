@@ -325,10 +325,18 @@ function Store.expandedTapAction()
     return Store.isTrue("tap_to_open_double") and "open_double" or "open"
 end
 
+-- Modules among a shelf's books (Shelf editor > Add a module to this shelf,
+-- an ornament's Pin here). On by default; off, a shelf shows only its books
+-- and the ornaments it deals, and its modules are kept for when it is on.
+function Store.microOnShelf()
+    return Store.read("micro_on_shelf") ~= false
+end
+
 -- Kill switch: true while ANY surface is on. When false the micro-module
 -- registry scan / loader is skipped entirely (no rendering, no async fetches).
 function Store.microAnyEnabled()
     return Store.microInStartMenu() or Store.microInHero() or Store.microFullscreenButton()
+        or Store.microOnShelf()
 end
 
 -- saveDeferred(key, value): in-memory write only -- no flush. For hot-path

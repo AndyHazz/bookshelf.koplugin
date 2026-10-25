@@ -21,6 +21,10 @@ M.KEY = "shelf_modules"
 
 -- list(tab) -> the shelf's modules, or nil when it has none.
 function M.list(tab)
+    -- Micro modules > On the shelf off: none, so the books take the space
+    -- back. The list itself stays on the shelf's record for when it is on.
+    local ok, Store = pcall(require, "lib/bookshelf_settings_store")
+    if ok and Store and Store.microOnShelf and not Store.microOnShelf() then return nil end
     local l = type(tab) == "table" and tab[M.KEY]
     if type(l) ~= "table" or #l == 0 then return nil end
     return l

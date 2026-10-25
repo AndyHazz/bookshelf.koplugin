@@ -3286,9 +3286,10 @@ function Settings:_settingsSubItems()
     items[#items].separator = true  -- end appearance band
 
     -- ── surfaces band: micro-module placement + the start menu ──
-    -- Micro-module placement: three INDEPENDENT surfaces (start menu / hero /
-    -- full-screen button), each a checkbox, so any combination can run at once.
-    -- Turning all three off is the kill switch (microAnyEnabled() false).
+    -- Micro-module placement: four INDEPENDENT surfaces (start menu / hero /
+    -- full-screen button / on the shelf), each a checkbox, so any combination
+    -- can run at once. Turning all four off is the kill switch
+    -- (microAnyEnabled() false).
     -- ("Hero area starts with" - which the hero checkbox governs - lives in
     -- Behavior since 4.0.)
     items[#items + 1] = {
@@ -3302,8 +3303,10 @@ function Settings:_settingsSubItems()
             .. " In start menu shows module cards in the start-menu launcher; In"
             .. " top panel adds a shelf-menu entry that swaps the book for the grid;"
             .. " Full-screen button adds a footer button opening a full-screen"
-            .. " grid. The top panel and full screen shelves keep their own module"
-            .. " lists. Turn all three off to disable micro-modules entirely."),
+            .. " grid; On the shelf shows modules among a shelf's books (turn it off"
+            .. " and the books take their space back). The top panel and full screen"
+            .. " shelves keep their own module lists. Turn all four off to disable"
+            .. " micro-modules entirely."),
         sub_item_table_func = function()
             -- Flip one surface. Snapshot the current (possibly still
             -- legacy-derived) state of all three and persist them explicitly, so
@@ -3353,6 +3356,22 @@ function Settings:_settingsSubItems()
                 row("start_menu", _("In start menu"),     BookshelfSettings.microInStartMenu),
                 row("hero",       _("In the top panel"),       BookshelfSettings.microInHero),
                 row("fullscreen", _("Full-screen button"), BookshelfSettings.microFullscreenButton),
+                -- Its own key, not part of the three-way snapshot above: it
+                -- was never derived from the legacy placement.
+                {
+                    text           = _("On the shelf"),
+                    checked_func   = BookshelfSettings.microOnShelf,
+                    keep_menu_open = true,
+                    callback       = function(tmi)
+                        BookshelfSettings.save("micro_on_shelf", not BookshelfSettings.microOnShelf())
+                        BookshelfSettings.flush()
+                        if self._bw and self._bw._rebuild then
+                            self._bw:_rebuild()
+                            UIManager:setDirty(self._bw, "ui")
+                        end
+                        if tmi and tmi.updateItems then tmi:updateItems() end
+                    end,
+                },
             }
         end,
     }

@@ -342,17 +342,24 @@ local function scanDir(dir, origin)
 end
 
 -- inUse() -> false only when micro-modules are used nowhere: every surface
--- switched off (start menu / hero / full-screen) AND no module standing among
--- a shelf's books, which no switch covers (6.0). Counting only the switches
--- left a shelf's modules with no definition: they showed their key ("shelf")
--- in place of themselves (maintainer, PW5). pcall + explicit `== false` so the
--- standalone test runner (no settings store) and any read error count as in
--- use, never block.
+-- switched off (start menu / hero / full-screen / On the shelf), or only On
+-- the shelf on and no shelf with modules among its books. Counting only the
+-- first three left a shelf's modules with no definition: they showed their
+-- key ("shelf") in place of themselves (maintainer, PW5). pcall + explicit
+-- `== false` so the standalone test runner (no settings store) and any read
+-- error count as in use, never block.
 local function inUse()
     local ok_any, any = pcall(function()
         return require("lib/bookshelf_settings_store").microAnyEnabled()
     end)
-    if not (ok_any and any == false) then return true end
+    if ok_any and any == false then return false end
+    -- On, but perhaps only On the shelf (on by default): in use only if a
+    -- shelf has modules, so a reader who uses none loads none.
+    local ok_s, surfaces = pcall(function()
+        local Store = require("lib/bookshelf_settings_store")
+        return Store.microInStartMenu() or Store.microInHero() or Store.microFullscreenButton()
+    end)
+    if not ok_s or surfaces ~= false then return true end
     local ok_t, on_shelf = pcall(function()
         for _i, t in ipairs(require("lib/bookshelf_tab_model").load() or {}) do
             if type(t.shelf_modules) == "table" and #t.shelf_modules > 0 then return true end

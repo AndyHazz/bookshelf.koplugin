@@ -93,6 +93,24 @@ end
 -- instance's onCloseWidget find and dismiss the overlay during a KOReader
 -- exit, so the UIManager window stack can drain to zero.
 local _live_widget = nil
+
+-- afterFirstPaint(delay, fn): fn, delay seconds after the shelf has first
+-- painted -- for startup chores that must not hold the shelf back. When
+-- the shelf isn't shown this session (started into a book, say), after
+-- 30 s anyway.
+local function afterFirstPaint(delay, fn)
+    local waited = 0
+    local function poll()
+        local w = _live_widget
+        if (w and w._first_paint_done) or waited >= 30 then
+            UIManager:scheduleIn(delay, fn)
+            return
+        end
+        waited = waited + 0.5
+        UIManager:scheduleIn(0.5, poll)
+    end
+    UIManager:scheduleIn(0.5, poll)
+end
 -- The FileManager path the overlay was sitting over when it last (re)appeared.
 -- onPathChanged compares against this so the PathChanged that FileManager
 -- fires during our OWN takeover (the onShow chain, same path) is ignored,
@@ -450,8 +468,10 @@ function Bookshelf:init()
     -- want a quick toggle rather than digging through the FM menu.
     self:onDispatcherRegisterActions()
 
-    -- One silent background check per init when the user's opted in.
-    self:backgroundUpdateCheck()
+    -- One silent background check per init when the user's opted in. After
+    -- the shelf is on screen, not before it: the request (a TLS handshake,
+    -- then the reply) ran ahead of the first paint (~0.3 s of it on the PW5).
+    afterFirstPaint(5, function() self:backgroundUpdateCheck() end)
 
     -- One-shot bookinfo_cache staleness sweep. Detects EPUBs whose
     -- on-disk size/mtime has diverged from BIM's cached values (typical
@@ -460,7 +480,10 @@ function Bookshelf:init()
     -- requeues fresh extraction. Deferred 2s so init isn't blocked and
     -- so BIM's own scan-on-start has settled. Module guards against
     -- double-fire across FM+Reader init contexts.
-    UIManager:scheduleIn(2, function()
+    -- Counted from the first paint: two seconds from here landed before it
+    -- on a device with many plugins (the shelf first paints ~4 s after this
+    -- init on the PW5), and the sweep's SQLite pass delayed it.
+    afterFirstPaint(2, function()
         local ok, StaleSweep = pcall(require, "lib/bookshelf_stale_sweep")
         if ok and StaleSweep then
             pcall(function() StaleSweep:run() end)

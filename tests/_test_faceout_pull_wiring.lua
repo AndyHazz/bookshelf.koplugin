@@ -25,7 +25,9 @@ t.test("each face-out knows its row, its widget and its recess column", function
 end)
 
 t.test("the row records where it is painted, on the real screen only", function()
-    assert(code:find("if bb == Screen.bb then", 1, true), "offscreen paints would record wrong positions")
+    -- The real screen behind a clipped repaint's stand-in counts as the screen.
+    assert(code:find('local on_screen = require("lib/bookshelf_clip_bb").real(bb) == Screen.bb', 1, true)
+        and code:find("if on_screen then self._screen_x", 1, true), "offscreen paints would record wrong positions")
     assert(code:find("self._screen_x, self._screen_y = x, y", 1, true), "the row's screen position is not recorded")
 end)
 
@@ -50,8 +52,8 @@ t.test("in a Shelf module the row keeps what is behind it, as its spines do", fu
     -- back. In a module that page is the module's, not the shelf's: put back
     -- through Wallpaper.restore, the library's wallpaper or ground filled the
     -- module's row on a PW5, opened from inside a book (maintainer).
-    assert(code:find("if keep_ground and bb == Screen.bb then", 1, true), "the row keeps no ground")
-    assert(code:find("self._ground:blitFrom(bb, 0, 0, x, y, w, h)", 1, true), "the ground is not copied before the paint")
+    assert(code:find("if keep_ground and on_screen then", 1, true), "the row keeps no ground")
+    assert(code:find("self._ground:blitFrom(require(\"lib/bookshelf_clip_bb\").real(bb), 0, 0, x, y, w, h)", 1, true), "the ground is not copied before the paint")
     local body = code:match("\nfunction SpineShelf%.paintFaceOutTilt%(tile%)\n(.-)\nend\n")
     local kept = body:find("bb:blitFrom(g, rx, ry, 0, 0, rw, rh)", 1, true)
     local wp = body:find("Wallpaper.restore(bb, rx, ry, rw, rh)", 1, true)

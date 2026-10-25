@@ -412,7 +412,7 @@ function M._blendInCopy(bb, spans, tint, Blitbuffer)
     if w <= 0 or h <= 0 then return false end
     local tmp = Blitbuffer.new(w, h, bb:getType())
     local ok = pcall(function()
-        tmp:blitFrom(bb, 0, 0, x0, y0, w, h)
+        tmp:blitFrom(require("lib/bookshelf_clip_bb").real(bb), 0, 0, x0, y0, w, h)
         for _i, s in ipairs(spans) do
             tmp:blendRectRGB32(s.x - x0, s.y - y0, s.w, s.h, tint)
         end
@@ -1974,7 +1974,7 @@ function M.toScreenType(bb)
         if not (fb and fb.getType and fb:getType() == Blitbuffer.TYPE_BB8) then return bb end
         if bb:getType() == Blitbuffer.TYPE_BB8 then return bb end
         local grey = Blitbuffer.new(bb:getWidth(), bb:getHeight(), Blitbuffer.TYPE_BB8)
-        grey:blitFrom(bb, 0, 0, 0, 0, bb:getWidth(), bb:getHeight())
+        grey:blitFrom(require("lib/bookshelf_clip_bb").real(bb), 0, 0, 0, 0, bb:getWidth(), bb:getHeight())
         bb:free()
         return grey
     end)

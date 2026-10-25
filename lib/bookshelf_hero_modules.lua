@@ -1540,7 +1540,7 @@ function HeroModules._dimCell(bb, id, sig, x, y, w, h)
     -- fade, Editor:_fadeAround).
     local ok = pcall(function()
         local c = Blitbuffer.new(w, h, bb:getType())
-        c:blitFrom(bb, 0, 0, x, y, w, h)
+        c:blitFrom(require("lib/bookshelf_clip_bb").real(bb), 0, 0, x, y, w, h)
         HeroModules._fade(c, 0, 0, w, h, Modules.CARD_BG)
         bb:blitFrom(c, x, y, 0, 0, w, h)
         if id and sig then
@@ -1574,7 +1574,7 @@ function HeroModules._copyOverhangs(bb, x, y, w, h)
             local bh = math.min(bb:getHeight() - by, r.y + r.h - by)
             if bw > 0 and bh > 0 then
                 local c = Blitbuffer.new(bw, bh, bb:getType())
-                c:blitFrom(bb, 0, 0, bx, by, bw, bh)
+                c:blitFrom(require("lib/bookshelf_clip_bb").real(bb), 0, 0, bx, by, bw, bh)
                 out[#out + 1] = { copy = c, x = bx, y = by, w = bw, h = bh }
             end
         end
@@ -1632,7 +1632,7 @@ function HeroModules._EditCell:paintTo(bb, x, y)
             for _i, e in ipairs(rec.extras) do e.bb:free() end
         end
         local c = Blitbuffer.new(self.w, self.h, bb:getType())
-        c:blitFrom(bb, 0, 0, x, y, self.w, self.h)
+        c:blitFrom(require("lib/bookshelf_clip_bb").real(bb), 0, 0, x, y, self.w, self.h)
         local extras = {}
         -- Drawn past the cell in this paint: a Shelf module's heading, below
         -- its plank.
@@ -1642,7 +1642,7 @@ function HeroModules._EditCell:paintTo(bb, x, y)
                     and r.y + r.h <= y + self.h
                 if not inside and r.w > 0 and r.h > 0 then
                     local e = Blitbuffer.new(r.w, r.h, bb:getType())
-                    e:blitFrom(bb, 0, 0, r.x, r.y, r.w, r.h)
+                    e:blitFrom(require("lib/bookshelf_clip_bb").real(bb), 0, 0, r.x, r.y, r.w, r.h)
                     extras[#extras + 1] = { bb = e, x = r.x, y = r.y, w = r.w, h = r.h }
                     HeroModules._noteOverhang(extras[#extras])
                 end

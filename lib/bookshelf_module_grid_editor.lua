@@ -450,7 +450,7 @@ function Editor:_fadeAround(bb)
         end
         if w > 0 and h > 0 then
             local copy = Blitbuffer.new(w, h, bb:getType())
-            copy:blitFrom(bb, 0, 0, x0, y0, w, h)
+            copy:blitFrom(require("lib/bookshelf_clip_bb").real(bb), 0, 0, x0, y0, w, h)
             keep[#keep + 1] = { copy = copy, x = x0, y = y0, w = w, h = h }
         end
     elseif d and d.x then
@@ -464,7 +464,7 @@ function Editor:_fadeAround(bb)
                 local h = math.min(bb:getHeight() - y0, rh + 2 * pad)
                 if w > 0 and h > 0 then
                     local copy = Blitbuffer.new(w, h, bb:getType())
-                    copy:blitFrom(bb, 0, 0, x0, y0, w, h)
+                    copy:blitFrom(require("lib/bookshelf_clip_bb").real(bb), 0, 0, x0, y0, w, h)
                     keep[#keep + 1] = { copy = copy, x = x0, y = y0, w = w, h = h }
                 end
             end
@@ -476,7 +476,7 @@ function Editor:_fadeAround(bb)
     -- copy is 23 ms and the copy itself 70 ms (editdrive probe).
     local W, H = bb:getWidth(), bb:getHeight()
     local c = Blitbuffer.new(W, H, bb:getType())
-    c:blitFrom(bb, 0, 0, 0, 0, W, H)
+    c:blitFrom(require("lib/bookshelf_clip_bb").real(bb), 0, 0, 0, 0, W, H)
     local fade = Editor._fadeDark() and c.darkenRect or c.lightenRect
     fade(c, 0, 0, W, H, Editor.FADE)
     for _i, k in ipairs(keep) do
@@ -508,7 +508,7 @@ function Editor._overhangCopies(bb, x0, y0, w, h)
         local bh = math.min(bb:getHeight() - by, r.y + r.h - by)
         if not inside and bw > 0 and bh > 0 then
             local c = Blitbuffer.new(bw, bh, bb:getType())
-            c:blitFrom(bb, 0, 0, bx, by, bw, bh)
+            c:blitFrom(require("lib/bookshelf_clip_bb").real(bb), 0, 0, bx, by, bw, bh)
             out[#out + 1] = { copy = c, x = bx, y = by, w = bw, h = bh }
         end
     end

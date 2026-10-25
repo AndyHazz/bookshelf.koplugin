@@ -91,7 +91,7 @@ end
 -- rows(bb, y0, h) -> rows [y0, y0+h) of bb as their own buffer (a C copy)
 local function rows(bb, y0, h)
     local out = Blitbuffer.new(bb:getWidth(), h, typeOf(bb))
-    out:blitFrom(bb, 0, 0, 0, y0, bb:getWidth(), h)
+    out:blitFrom(require("lib/bookshelf_clip_bb").real(bb), 0, 0, 0, y0, bb:getWidth(), h)
     return out
 end
 
@@ -99,7 +99,7 @@ end
 local function mirrored(bb)
     local w, h = bb:getWidth(), bb:getHeight()
     local out = Blitbuffer.new(w, h, typeOf(bb))
-    for x = 0, w - 1 do out:blitFrom(bb, w - 1 - x, 0, x, 0, 1, h) end
+    for x = 0, w - 1 do out:blitFrom(require("lib/bookshelf_clip_bb").real(bb), w - 1 - x, 0, x, 0, 1, h) end
     return out
 end
 

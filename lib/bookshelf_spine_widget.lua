@@ -582,7 +582,7 @@ function CornerKeep.take(bb, x, y, w, h, r)
         local sq  = {}
         for i = 1, 4 do
             local s = Blitbuffer.new(r, r, typ)
-            s:blitFrom(bb, 0, 0, at[i][1], at[i][2], r, r)
+            s:blitFrom(require("lib/bookshelf_clip_bb").real(bb), 0, 0, at[i][1], at[i][2], r, r)
             sq[i] = { bb = s, x = at[i][1], y = at[i][2] }
         end
         return sq

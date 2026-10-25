@@ -1776,7 +1776,7 @@ function M.flipped(bb)
         local BB = require("ffi/blitbuffer")
         local w, h = bb:getWidth(), bb:getHeight()
         local dst = BB.new(w, h, bb:getType())
-        for x = 0, w - 1 do dst:blitFrom(bb, w - 1 - x, 0, x, 0, 1, h) end
+        for x = 0, w - 1 do dst:blitFrom(require("lib/bookshelf_clip_bb").real(bb), w - 1 - x, 0, x, 0, 1, h) end
         return dst
     end)
     if not ok or not out then return nil end

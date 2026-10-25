@@ -368,8 +368,8 @@ local function _compact(path, ext)
     if ok_b and Blitbuffer and bb.getType and bb:getType() == Blitbuffer.TYPE_BBRGB32 then
         local flat = Blitbuffer.new(w, h, Blitbuffer.TYPE_BBRGB32)
         flat:fill(Blitbuffer.COLOR_WHITE)
-        if flat.pmulalphablitFrom then flat:pmulalphablitFrom(bb, 0, 0, 0, 0, w, h)
-        else flat:alphablitFrom(bb, 0, 0, 0, 0, w, h) end
+        if flat.pmulalphablitFrom then flat:pmulalphablitFrom(require("lib/bookshelf_clip_bb").real(bb), 0, 0, 0, 0, w, h)
+        else flat:alphablitFrom(require("lib/bookshelf_clip_bb").real(bb), 0, 0, 0, 0, w, h) end
         bb:free()
         out = Blitbuffer.new(w, h, Blitbuffer.TYPE_BBRGB24)
         out:blitFrom(flat, 0, 0, 0, 0, w, h)

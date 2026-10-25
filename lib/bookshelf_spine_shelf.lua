@@ -2054,7 +2054,7 @@ function SpineBookSlot:paintTo(bb, x, y)
                 g = Blitbuffer.new(self.width, self.height, bb:getType())
                 self._ground = g
             end
-            g:blitFrom(bb, 0, 0, x, y, self.width, self.height)
+            g:blitFrom(require("lib/bookshelf_clip_bb").real(bb), 0, 0, x, y, self.width, self.height)
         end)
     end
     local night = _nightMode()
@@ -3590,9 +3590,9 @@ function ShelfPlank:paintTo(bb, x, y)
         local kh = y + h - keep_top
         if keep_w > 0 and kh > 0 then
             keep_l = Blitbuffer.new(keep_w, kh, bb:getType())
-            keep_l:blitFrom(bb, 0, 0, x, keep_top, keep_w, kh)
+            keep_l:blitFrom(require("lib/bookshelf_clip_bb").real(bb), 0, 0, x, keep_top, keep_w, kh)
             keep_r = Blitbuffer.new(keep_w, kh, bb:getType())
-            keep_r:blitFrom(bb, 0, 0, x + w - keep_w, keep_top, keep_w, kh)
+            keep_r:blitFrom(require("lib/bookshelf_clip_bb").real(bb), 0, 0, x + w - keep_w, keep_top, keep_w, kh)
         end
     end
     -- Top surface, receding: darker at the far (top) edge, lighter as it
@@ -5367,6 +5367,7 @@ function SpineShelf.rowWidget(opts)
                     -- spine-out shows its cover width, so its whole
                     -- silhouette really is shorter.
                     local cover_h = math.min(e.face_h or (avail - depth), avail - depth)
+                    local natural_h = cover_h   -- before any shrink for a lift
                     -- A tall cover shrinks to make room for the lift rather
                     -- than losing the gap.
                     if lift > 0 and cover_h + depth + lift > fo_stand then
@@ -5455,49 +5456,89 @@ function SpineShelf.rowWidget(opts)
                                          thick = e.thick }
                     fx_here = cover.faceout_fx
                     local stack = VerticalGroup:new{ align = "center" }
-                    local head = fo_stand - cover_h - depth - lift
-                    if head > 0 then
-                        stack[#stack + 1] = VerticalSpan:new{ width = head }
-                    end
-                    if depth > 0 then
-                        stack[#stack + 1] = FaceOutTopBlock:new{
-                            dimen = Geom:new{ w = e.w, h = depth },
-                            look  = e.look,
-                            binding = e.binding,
-                        }
-                    end
+                    local block = depth > 0 and FaceOutTopBlock:new{
+                        dimen = Geom:new{ w = e.w, h = depth },
+                        look  = e.look,
+                        binding = e.binding,
+                    } or nil
+                    local feet = FaceOutFeet:new{
+                        dimen  = Geom:new{ w = e.w, h = cover_h },
+                        -- `lip` is the cover's foot to the plank's front edge:
+                        -- a face-out is pushed back by `push`, and
+                        -- then every book stands one inset behind
+                        -- the lip. The contact strip needs it to
+                        -- index the plank's bands the way the plank
+                        -- itself did.
+                        plank  = { b = b, inset = inset, surf = surf,
+                                   lip = push + inset },
+                        lifted = lift > 0 or nil,
+                    }
                     -- The cover's corners come off the same way a spine's
                     -- do, standing OR lifted: the cut copies what is behind,
                     -- so it is the plank on the shelf and the page off it.
-                    stack[#stack + 1] = OverlapGroup:new{
+                    local face = OverlapGroup:new{
                         dimen = Geom:new{ w = e.w, h = cover_h },
                         cover,
-                        FaceOutFeet:new{
-                            dimen  = Geom:new{ w = e.w, h = cover_h },
-                            -- `lip` is the cover's foot to the plank's front edge:
-                            -- a face-out is pushed back by `push`, and
-                            -- then every book stands one inset behind
-                            -- the lip. The contact strip needs it to
-                            -- index the plank's bands the way the plank
-                            -- itself did.
-                            plank  = { b = b, inset = inset, surf = surf,
-                                       lip = push + inset },
-                            lifted = lift > 0 or nil,
-                        },
+                        feet,
                     }
-                    if push + lift > 0 then
-                        if lift > 0 then
-                            -- The lifted book's shadow where it stood.
-                            stack[#stack + 1] = LiftShadow:new{
-                                dimen    = Geom:new{ w = e.w, h = push + lift },
-                                shadow_h = lift,
-                                plank    = { b = b, inset = inset, surf = surf },
-                            }
-                        else
-                            stack[#stack + 1] = VerticalSpan:new{
-                                width = push + lift,
-                            }
+                    -- arrange(l): the stack for a lift of l px -- the head
+                    -- above shortened by it, and below the cover the lifted
+                    -- book's shadow where it stood, or the push span.
+                    local function arrange(l)
+                        for i = #stack, 1, -1 do stack[i] = nil end
+                        local head = fo_stand - cover_h - depth - l
+                        if head > 0 then
+                            stack[#stack + 1] = VerticalSpan:new{ width = head }
                         end
+                        if block then stack[#stack + 1] = block end
+                        stack[#stack + 1] = face
+                        if push + l > 0 then
+                            if l > 0 then
+                                -- The lifted book's shadow where it stood.
+                                stack[#stack + 1] = LiftShadow:new{
+                                    dimen    = Geom:new{ w = e.w, h = push + l },
+                                    shadow_h = l,
+                                    plank    = { b = b, inset = inset, surf = surf },
+                                }
+                            else
+                                stack[#stack + 1] = VerticalSpan:new{
+                                    width = push + l,
+                                }
+                            end
+                        end
+                    end
+                    arrange(lift)
+                    -- Where it was painted (a VerticalGroup records no
+                    -- position): the selection repaint's rect.
+                    function stack.paintTo(self, target, x, y)
+                        local sz = self:getSize()
+                        self.dimen = Geom:new{ x = x, y = y, w = sz.w, h = sz.h }
+                        return VerticalGroup.paintTo(self, target, x, y)
+                    end
+                    -- _setLifted(on) -> true when the stack now stands (or
+                    -- is raised) as asked, in place: the selection repaint
+                    -- flips a face-out like a spine's flag rather than
+                    -- rebuilding every row and repainting the whole shelf
+                    -- (a face-out tap on the PW5 was the full ~240 ms paint).
+                    -- false when the lift needs a shorter cover (a tall one
+                    -- shrinks to make room): that is a rebuild.
+                    local lifted, raise = lift > 0, (lift > 0) and lift or tilt_lift
+                    function stack._setLifted(_self, on)
+                        on = on and true or false
+                        if on == lifted then return true end
+                        local l = on and raise or 0
+                        -- Raised, it would need a shorter cover; set down
+                        -- after a shrink, its full one: both are a rebuild.
+                        if cover_h + depth + l > fo_stand or cover_h ~= natural_h then
+                            return false
+                        end
+                        arrange(l)
+                        feet.lifted = l > 0 or nil
+                        cover.faceout_fx.raised = l
+                        cover.faceout_fx.lift = (l == 0) and raise or 0
+                        if stack.resetLayout then stack:resetLayout() end
+                        lifted = on
+                        return true
                     end
                     -- Mark the wrapper so the selection repaint can find it
                     -- (it has no .entry; flips fall back to a full swap).
@@ -6054,8 +6095,9 @@ function SpineShelf.rowWidget(opts)
         local paint = row_group.paintTo
         local keep_ground = opts.keep_ground
         function row_group:paintTo(bb, x, y)
-            if bb == Screen.bb then self._screen_x, self._screen_y = x, y end
-            if keep_ground and bb == Screen.bb then
+            local on_screen = require("lib/bookshelf_clip_bb").real(bb) == Screen.bb
+            if on_screen then self._screen_x, self._screen_y = x, y end
+            if keep_ground and on_screen then
                 pcall(function()
                     local w, h = self.dimen.w, self.dimen.h
                     local g = self._ground
@@ -6063,7 +6105,7 @@ function SpineShelf.rowWidget(opts)
                         if g then g:free() end
                         self._ground = Blitbuffer.new(w, h, bb:getType())
                     end
-                    self._ground:blitFrom(bb, 0, 0, x, y, w, h)
+                    self._ground:blitFrom(require("lib/bookshelf_clip_bb").real(bb), 0, 0, x, y, w, h)
                 end)
             end
             return paint(self, bb, x, y)
@@ -6270,7 +6312,7 @@ function SpineShelf._paintFaceOutTip(tile)
     local ok = pcall(function()
         -- Squash the cover toward its (raised) feet.
         local src = Blitbuffer.new(rect.w, rect.h, bb:getType())
-        src:blitFrom(bb, 0, 0, rect.x, rect.y, rect.w, rect.h)
+        src:blitFrom(require("lib/bookshelf_clip_bb").real(bb), 0, 0, rect.x, rect.y, rect.w, rect.h)
         local scaled = src:scale(rect.w, rect.h - freed)
         local dy, sy, hh = ny, 0, rect.h - freed
         if dy < 0 then sy = -dy; hh = hh + dy; dy = 0 end
@@ -6437,7 +6479,7 @@ function SpineShelf.paintFaceOutTilt(tile)
     local ok, err = pcall(function()
         -- 1. The cover alone.
         local src = Blitbuffer.new(W, H, bb:getType())
-        src:blitFrom(bb, 0, 0, rect.x, rect.y, W, H)
+        src:blitFrom(require("lib/bookshelf_clip_bb").real(bb), 0, 0, rect.x, rect.y, W, H)
         local cx0, cy0 = card.dimen.x, card.dimen.y
         pcall(function() card:paintTo(src, 0, 0) end)
         card.dimen.x, card.dimen.y = cx0, cy0

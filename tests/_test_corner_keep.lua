@@ -41,7 +41,7 @@ local function fakeBB(w, h, typ)
     b.free = function() b.freed = true end
     return b
 end
-local env = { type = type, pcall = pcall, ipairs = ipairs, math = math, setmetatable = setmetatable,
+local env = { require = require, type = type, pcall = pcall, ipairs = ipairs, math = math, setmetatable = setmetatable,
               Blitbuffer = { new = function(w, h, typ) local b = fakeBB(w, h, typ); news[#news + 1] = b; return b end } }
 local CornerKeep = compile(block .. "\nreturn CornerKeep", env, "CornerKeep")()
 

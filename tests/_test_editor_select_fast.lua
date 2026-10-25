@@ -19,7 +19,7 @@ local function newBB(w, h)
     function b:free() end
     return b
 end
-local env = { HeroModules = HM, Modules = { CARD_BG = "bg" }, table = table, tostring = tostring,
+local env = { require = require, HeroModules = HM, Modules = { CARD_BG = "bg" }, table = table, tostring = tostring,
     os = os, pcall = pcall, Blitbuffer = { new = function(w, h) return newBB(w, h) end } }
 assert(load(body, "dim", "t", env))()
 

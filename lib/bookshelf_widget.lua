@@ -231,6 +231,9 @@ function BookshelfWidget._coverNeedsResize(info, specs)
 end
 
 function BookshelfWidget:init()
+    -- Clipped repaints (see _noteDirty): the newest shelf is the one listened for.
+    BookshelfWidget._clip_target = self
+    BookshelfWidget.installClipHook()
     -- A registered source that has fetched more (lib/bookshelf_sources,
     -- ui.bookshelf:sourceChanged) redraws the shelf, but only while that
     -- source is what is on screen. One named slot, so a later widget replaces
@@ -4193,7 +4196,7 @@ function BookshelfWidget:_keepBurgerUnder(bb, x, y, w, h)
             s = { bb = Blitbuffer.new(w, h, bb:getType()), w = w, h = h }
         end
         s.x, s.y = x, y
-        s.bb:blitFrom(bb, 0, 0, x, y, w, h)
+        s.bb:blitFrom(require("lib/bookshelf_clip_bb").real(bb), 0, 0, x, y, w, h)
         self._burger_under = s
     end)
 end
@@ -10244,6 +10247,12 @@ function BookshelfWidget:_repaintSpineSelection(old_fp, new_fp)
                         slot.is_selected = (fp == new_fp)
                         expand(slot.dimen)
                         changed = changed + 1
+                    elseif slot._setLifted and slot.dimen
+                            and slot:_setLifted(fp == new_fp) then
+                        -- A face-out raised or set down in place, its own
+                        -- stack re-arranged (SpineShelf's _setLifted).
+                        expand(slot.dimen)
+                        changed = changed + 1
                     else
                         faceout_hit = true
                     end
@@ -10947,7 +10956,7 @@ function BookshelfWidget.squashCoverOpen(rect, opts)
 
     local ok = pcall(function()
         local src = Blitbuffer.new(iw, ih, bb:getType())
-        src:blitFrom(bb, 0, 0, ix, iy, iw, ih)
+        src:blitFrom(require("lib/bookshelf_clip_bb").real(bb), 0, 0, ix, iy, iw, ih)
         local scaled = src:scale(new_w, ih)
         bb:blitFrom(scaled, ix, iy, 0, 0, new_w, ih)
         bb:paintRect(ix + new_w, iy, iw - new_w, ih, page_color)
@@ -11008,7 +11017,7 @@ function BookshelfWidget.flexCoverOpen(rect, opts)
     local scr_h = (bb.getHeight and bb:getHeight()) or Screen:getHeight()
     local ok = pcall(function()
         local src_bb = Blitbuffer.new(rw, rh, bb:getType())
-        src_bb:blitFrom(bb, 0, 0, ax, rect.y, rw, rh)
+        src_bb:blitFrom(require("lib/bookshelf_clip_bb").real(bb), 0, 0, ax, rect.y, rw, rh)
         -- Banded trapezoid: bands grow taller toward the free edge (up to
         -- +LIFT of the height, split above/below), so the cover face reads
         -- as lifting OUT of the screen. Only the PAINT overdraws past the
@@ -13584,6 +13593,72 @@ end
 -- painting so the widget tree matches the new coordinate space. Without this,
 -- UIManager calls paintTo in the new rotated frame while self.dimen still
 -- holds the old portrait size, placing the bottom of the widget off-screen.
+-- ── Clipped repaints ─────────────────────────────────────────────────────
+-- KOReader repaints a whole widget for any setDirty and scopes only the
+-- panel refresh, so lifting one book painted the entire shelf again (150 ms
+-- on a PW5; the same paint clipped to the book, 51-72 ms). Every dirty
+-- request for the shelf passes through _noteDirty (UIManager.setDirty is
+-- wrapped once, below): one that names a small region (its refresh
+-- function's rect) adds that rect; anything else -- no function, no rect, a
+-- large one, "all" -- asks for the whole shelf. paintTo then paints through
+-- lib/bookshelf_clip_bb when only rects were asked for.
+BookshelfWidget.CLIP_MAX_SHARE = 0.5   -- of the screen, summed over the rects
+
+function BookshelfWidget:_noteDirty(widget, refreshtype, refreshregion)
+    if self._clip_full then return end
+    if widget == "all" then
+        self._clip_full = true
+        return
+    end
+    -- The region: a refresh function's, or the third argument with a mode
+    -- string (setDirty(w, "ui", rect)).
+    local ok, region = true, refreshregion
+    if type(refreshtype) == "function" then
+        local _mode
+        ok, _mode, region = pcall(refreshtype)
+    end
+    if not (ok and type(region) == "table" and tonumber(region.x) and tonumber(region.y)
+            and tonumber(region.w) and tonumber(region.h) and region.w > 0 and region.h > 0) then
+        self._clip_full = true
+        return
+    end
+    local rects = self._clip_rects or {}
+    rects[#rects + 1] = { x = region.x, y = region.y, w = region.w, h = region.h }
+    self._clip_rects = rects
+    local area = 0
+    for _i, r in ipairs(rects) do area = area + r.w * r.h end
+    if area > BookshelfWidget.CLIP_MAX_SHARE * Screen:getWidth() * Screen:getHeight() then
+        self._clip_full = true
+    end
+end
+
+-- _takePaintClip(bb) -> the rects to paint this frame, or nil for all of
+-- it; either way the requests are spent.
+function BookshelfWidget:_takePaintClip(bb)
+    local rects, full = self._clip_rects, self._clip_full
+    self._clip_rects, self._clip_full = nil, nil
+    if full or not rects or not self._first_paint_done or BookshelfWidget._clip_off then return nil end
+    -- The screen only (the page wipe paints offscreen), and not while the
+    -- module editor is up: it fades and keeps rects of the whole screen.
+    if bb ~= Screen.bb or self._shelf_module_edit or self._micro_fullscreen then return nil end
+    return rects
+end
+
+-- installClipHook(): UIManager.setDirty, wrapped once, tells the live shelf
+-- (BookshelfWidget._clip_target) about every request that could repaint it.
+function BookshelfWidget.installClipHook()
+    if BookshelfWidget._clip_hooked then return end
+    BookshelfWidget._clip_hooked = true
+    local orig = UIManager.setDirty
+    UIManager.setDirty = function(um, widget, refreshtype, ...)
+        local bw = BookshelfWidget._clip_target
+        if bw and not bw._closed and (widget == bw or widget == "all") then
+            pcall(bw._noteDirty, bw, widget, refreshtype, (...))
+        end
+        return orig(um, widget, refreshtype, ...)
+    end
+end
+
 function BookshelfWidget:paintTo(bb, x, y)
     -- Skip painting when the seamless ReaderUI-reload "Opening file..."
     -- InfoMessage placeholder is on top of us. That placeholder is
@@ -13620,6 +13695,7 @@ function BookshelfWidget:paintTo(bb, x, y)
     local sh = Screen:getHeight()
     if sw ~= self.width or sh ~= self.height then
         self:_rebuild()
+        self._clip_full = true
     end
     -- Detect external toggles of KOReader's "Folders and files mixed"
     -- (e.g. user opens the FM Sort menu, flips the checkbox, closes the
@@ -13648,6 +13724,10 @@ function BookshelfWidget:paintTo(bb, x, y)
     -- _followScreenNight. Before the paint, so this frame gets the flipped
     -- wallpaper.
     self:_followScreenNight()
+    -- Only the rects this frame's dirty requests named, when that is all
+    -- that changed (see _noteDirty): the tree paints through a clipped
+    -- stand-in for the screen, at its real coordinates.
+    local clip_rects = self:_takePaintClip(bb)
     -- Diag: one-shot first-paint marker for cold-start traces. The init
     -- log fires at end of :init() (well before the paint actually
     -- happens), and the Bookshelf:show TOTAL fires before UIManager has
@@ -13676,7 +13756,23 @@ function BookshelfWidget:paintTo(bb, x, y)
             (_gettime() - _diag_paint_t0) * 1000, self.chip))
         return
     end
-    InputContainer.paintTo(self, bb, x, y)
+    local clipped_ok = false
+    if clip_rects then
+        -- A painter that hands the stand-in to a real buffer's method (to
+        -- copy what is behind it) throws here; ours ask ClipBB.real, a
+        -- module's might not. Then the whole frame is painted as it always
+        -- was, and clipping is off for the session.
+        local ok, err = pcall(InputContainer.paintTo, self,
+            require("lib/bookshelf_clip_bb").new(bb, clip_rects), x, y)
+        clipped_ok = ok
+        if not ok then
+            logger.warn("[bookshelf] clipped repaint failed, painting whole from now on:", tostring(err))
+            BookshelfWidget._clip_off = true
+        end
+    end
+    if not clipped_ok then
+        InputContainer.paintTo(self, bb, x, y)
+    end
     self:_clearHeroMarker()
     -- Remember the footer buttons' real painted rects so the in-reader launcher
     -- matches them exactly (single Lua state; see bookshelf_footer_geom).

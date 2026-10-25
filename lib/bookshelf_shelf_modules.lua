@@ -41,6 +41,41 @@ function M.ordered(mods)
     return out
 end
 
+-- step(mods, id, dir) -> the list in shelf order with module `id` one thing
+-- along (dir -1 left, 1 right), or nil when it can go no further left. A
+-- module beside it at the same `after` is passed by swapping the two; else
+-- it passes one item, landing at the near end of the modules there, beside
+-- where it was. Changing `after` alone jumped: ties keep their list order,
+-- so a module could land before others it had been after (maintainer, PW5).
+-- The module's own table is changed, as the caller's list holds it.
+local function stepTo(list, id, dir)
+    local p
+    for i, m in ipairs(list) do if m.id == id then p = i end end
+    if not p then return nil end
+    local a = after(list[p])
+    local nb = list[p + dir]
+    if nb and after(nb) == a then return p, "swap" end
+    if dir < 0 and a == 0 then return nil end
+    return p, "after"
+end
+
+function M.step(mods, id, dir)
+    local list = M.ordered(mods)
+    local p, how = stepTo(list, id, dir)
+    if not p then return nil end
+    if how == "swap" then
+        list[p], list[p + dir] = list[p + dir], list[p]
+    else
+        list[p].after = after(list[p]) + dir
+    end
+    return list
+end
+
+-- canStep(mods, id, dir) -> whether step would move it; changes nothing.
+function M.canStep(mods, id, dir)
+    return stepTo(M.ordered(mods), id, dir) ~= nil
+end
+
 -- width(m, cols) -> a module's width in slots, 1 to the row's width.
 function M.width(m, cols)
     return math.max(1, math.min(math.floor(tonumber(m.w) or 2), cols or 1))

@@ -6959,7 +6959,6 @@ function BookshelfWidget:_spineModuleMenu(entry)
     if not current() then return end
     local d
     local function width(m) return math.max(1, math.floor(tonumber(m.w) or 2)) end
-    local function after(m) return tonumber(m.after) or 0 end
     -- Which buttons can act, set in place: the dialog keeps its shape.
     local function refreshButtons()
         local m = current()
@@ -6970,7 +6969,7 @@ function BookshelfWidget:_spineModuleMenu(entry)
         local can = {
             narrower = width(m) > min_w,
             wider    = width(m) < 6,
-            left     = after(m) > 0,
+            left     = SM.canStep(SM.list(TabModel.getById(bw.chip)) or {}, id, -1),
             right    = true,
             prev     = bw:_spineModulePageMove(id, -1) ~= nil,
             next     = bw:_spineModulePageMove(id, 1) ~= nil,
@@ -6988,8 +6987,15 @@ function BookshelfWidget:_spineModuleMenu(entry)
         if then_do then then_do() end
         refreshButtons()
     end
+    -- One thing along the shelf: past a book, or past a module beside it
+    -- (SM.step); the list is rewritten in shelf order.
     local function nudge(dir)
-        change(function(l, i) l[i].after = math.max(0, after(l[i]) + dir) end)
+        change(function(l)
+            local moved = SM.step(l, id, dir)
+            if not moved then return end
+            for k = #l, 1, -1 do l[k] = nil end
+            for k, m in ipairs(moved) do l[k] = m end
+        end)
     end
     local function pageMove(dir)
         local to, show_from = bw:_spineModulePageMove(id, dir)

@@ -489,8 +489,8 @@ t.test("fill: a kept entry squeezes the row's end piece instead of wrapping", fu
     local squeezed
     local hooks = {
         keep = function(i) return i == 4 end,
-        squeeze = function(r, need)
-            squeezed = { r = r, need = need }
+        squeeze = function(r, need, kept)
+            squeezed = { r = r, need = need, kept = kept }
             end_room = 0
             return 1100
         end,
@@ -499,6 +499,7 @@ t.test("fill: a kept entry squeezes the row's end piece instead of wrapping", fu
     local rows = SL.fillRows({ 200, 200, 200, 350, 200 }, avail, 20, nil, hooks)
     assert(rows[1].last == 4, "the kept entry wrapped: row 1 ends at " .. rows[1].last)
     assert(squeezed and squeezed.r == 1 and squeezed.need == 1010, "squeeze not asked for the row's need")
+    assert(squeezed.kept == true, "a pinned piece's squeeze is not the gentle one")
     assert(rows[2].first == 5)
 end)
 

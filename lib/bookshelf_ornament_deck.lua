@@ -482,14 +482,30 @@ function M.fillHooks(env)
     -- one fits. On a one-row shelf a wide piece otherwise put a face-out past
     -- the plank's end (maintainer). The card stays dealt either way, so
     -- both passes still agree on every later slot.
-    function h.squeeze(r, need)
+    --
+    -- kept: the room is for a pinned piece, not a row's first book. The end
+    -- piece then only shrinks a little (to two thirds of its width at the
+    -- least) and never comes off: past that the pinned piece wraps to the
+    -- next row. Squeezed as far as a first book may squeeze it, a pinned
+    -- skull nudged past a book stayed on its row and the row's dealt cat went
+    -- to a quarter of its size (maintainer, PW5).
+    function h.squeeze(r, need, kept)
         local pl, deal = h.row_orn[r], h.row_deal[r]
         if not pl or not deal then return nil end
         local room = env.content_w - need
         local pads = env.space("rowend", pl) - pl.w
         if pl.w + pads <= room then return nil end
         local cap = room - pads
+        if kept and cap * 3 < pl.w * 2 then return nil end
         local small = cap > 0 and env.size("rowend", deal[1], deal[2], cap) or nil
+        if kept then
+            if small and small.w * 3 >= pl.w * 2 and env.space("rowend", small) <= room then
+                small.side = pl.side
+                h.row_orn[r] = small
+                return env.content_w - env.space("rowend", small)
+            end
+            return nil
+        end
         -- Not a scrap: under a quarter of its own width it is not the piece
         -- any more (sizeFor never refuses a size), so it comes off the row.
         if small and small.w * 4 >= pl.w and env.space("rowend", small) <= room then

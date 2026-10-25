@@ -630,6 +630,32 @@ t.test("a piece squeezed below a quarter of its width is left off instead", func
     assert(h.row_orn[1] == nil, "a 42px scrap of a 200px piece still stands")
 end)
 
+t.test("for a pinned piece the end piece only shrinks a little, and never goes", function()
+    -- Device: a pinned skull nudged one place right, past a book, stayed on
+    -- its row by squeezing the row's dealt cat to a quarter of its size. For
+    -- a pinned piece (kept) the end piece keeps two thirds of its width or
+    -- stands as it was, and the pinned piece wraps to the next row.
+    local D = fresh()
+    local e = env(D, D.newState(), "always", shelf(3, 40, nil), false, 1, 1, cards("a"))
+    e.size = function(kind, en, no, cap)
+        local w = (kind == "rowend") and 90 or 40
+        if cap then w = math.max(1, math.min(w, cap)) end
+        return { entry = en, w = w, kind = kind, no = no }
+    end
+    local _rows, h = run(D, e)
+    local pl = h.row_orn[1]
+    assert(pl and pl.w == 90, "no end piece to squeeze")
+    local pads = e.space("rowend", pl) - pl.w
+    -- A little room wanted: the piece shrinks to make it.
+    local need_small = e.content_w - (80 + pads)
+    assert(h.squeeze(1, need_small, true), "a small shrink was refused")
+    eq(h.row_orn[1].w, 80)
+    -- Most of it wanted: the piece stays as it is, nothing shrinks.
+    h.row_orn[1] = pl
+    eq(h.squeeze(1, e.content_w - (30 + pads), true), nil, "the kept entry squeezed the piece to a scrap")
+    eq(h.row_orn[1], pl, "the end piece was changed or taken off")
+end)
+
 t.test("sync reconciles the order with every piece on disk, once per scan", function()
     -- Review: reconcile had no production caller, so deleted files were never
     -- dropped, a re-added one came back to its old place, and a piece that

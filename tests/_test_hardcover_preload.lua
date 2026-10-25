@@ -176,4 +176,13 @@ t.test("the preload is inert when the metadata override is off", function()
     assert(sql_count.bulk == 0, "read the cache with the override off")
 end)
 
+t.test("a preload keeps the rows undecoded until one is asked for", function()
+    -- Decoding all of them up front was ~13% of the shelf's first build on a
+    -- PW5 (235 rows, 330 KB of JSON) for the handful of books on screen.
+    local src = io.open("lib/bookshelf_hardcover.lua"):read("*a")
+    local pre = src:match("\nfunction Hardcover%.preloadMetadata%(%)\n(.-)\nend\n")
+    assert(pre:find('_cacheReadKindRaw("enrich")', 1, true), "the preload decodes every row")
+    assert(src:find("local v = _cacheDecode(raw)", 1, true), "a kept row is never decoded")
+end)
+
 t.done()

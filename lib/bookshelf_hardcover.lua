@@ -28,6 +28,11 @@ local _cache_memo = {}          -- [kind][ckey] -> decoded value (false = known-
 -- _cache_memo is (invalidate, _cacheDelKind, _cacheReplaceKind). _cachePut
 -- keeps the memo in step with the DB, so a single write does not unset it.
 local _cache_bulk = {}
+-- [kind][ckey] -> a row's JSON, not yet decoded: a bulk load (preloadMetadata)
+-- keeps the rows as they are and _cacheGet decodes one when it is asked for.
+-- Decoding every enrichment at once was ~13% of the shelf's first build on
+-- the PW5 (235 rows, 330 KB of JSON), for the handful of books on screen.
+local _cache_raw = {}
 local _hc_settings
 local _hc_settings_object
 
@@ -180,6 +185,15 @@ local function _cacheGet(kind, ckey)
         local v = m[ckey]
         return v ~= false and v or nil
     end
+    local raws = _cache_raw[kind]
+    local raw = raws and raws[ckey]
+    if raw then
+        raws[ckey] = nil
+        local v = _cacheDecode(raw)
+        _cache_memo[kind] = _cache_memo[kind] or {}
+        _cache_memo[kind][ckey] = v or false
+        return v
+    end
     -- Every row of this kind is already memoised, so not being there IS the
     -- answer. Without this a bulk load would still pay a query per absent key.
     if _cache_bulk[kind] then return nil end
@@ -202,6 +216,7 @@ end
 -- Single-row write.
 local function _cachePut(kind, ckey, value)
     if not ckey then return end
+    if _cache_raw[kind] then _cache_raw[kind][ckey] = nil end
     _cache_memo[kind] = _cache_memo[kind] or {}
     _cache_memo[kind][ckey] = value or false
     local json = _cacheEncode(value)
@@ -218,6 +233,7 @@ end
 
 local function _cacheDelKind(kind)
     _cache_memo[kind] = nil
+    _cache_raw[kind] = nil
     _cache_bulk[kind] = nil
     local db = _cacheDb()
     if not db then return end
@@ -261,6 +277,24 @@ local function _cacheReadKind(kind)
     return out
 end
 
+-- _cacheReadKindRaw(kind) -> { [ckey] = json }: the rows, undecoded.
+local function _cacheReadKindRaw(kind)
+    local out = {}
+    local db = _cacheDb()
+    if not db then return out end
+    pcall(function()
+        local stmt = db:prepare("SELECT ckey, data FROM cache WHERE kind = ?")
+        stmt:bind(kind)
+        local row = stmt:step()
+        while row do
+            if row[2] then out[tostring(row[1])] = row[2] end
+            row = stmt:step()
+        end
+        stmt:clearbind():reset(); stmt:close()
+    end)
+    return out
+end
+
 local function _cacheReplaceKind(kind, tbl)
     _cacheDelKind(kind)
     local db = _cacheDb(true)   -- write path: create the DB on demand
@@ -276,6 +310,7 @@ local function _cacheReplaceKind(kind, tbl)
         stmt:close()
     end)
     _cache_memo[kind] = nil
+    _cache_raw[kind] = nil
     _cache_bulk[kind] = nil
 end
 
@@ -619,6 +654,7 @@ function Hardcover.invalidate()
     _links = nil
     _external_links = nil
     _cache_memo = {}
+    _cache_raw = {}
     _cache_bulk = {}
     _hc_settings = nil
     _hc_settings_object = nil
@@ -2160,14 +2196,16 @@ function Hardcover.preloadMetadata()
     if _cache_bulk.enrich then return end
     if not Hardcover.isAvailable() then return end
     if not BookshelfSettings.isTrue("hardcover_use_metadata") then return end
-    local rows = _cacheReadKind("enrich")
+    local rows = _cacheReadKindRaw("enrich")
     local memo = _cache_memo.enrich or {}
-    for ckey, v in pairs(rows) do
+    local raw = {}
+    for ckey, json in pairs(rows) do
         -- Never overwrite a live memo entry: a _cachePut earlier this session
-        -- is newer than what the read returned.
-        if memo[ckey] == nil then memo[ckey] = v end
+        -- is newer than what the read returned. Decoded when asked for.
+        if memo[ckey] == nil then raw[ckey] = json end
     end
     _cache_memo.enrich = memo
+    _cache_raw.enrich = raw
     _cache_bulk.enrich = true
 end
 

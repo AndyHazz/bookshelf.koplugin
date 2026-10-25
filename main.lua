@@ -3336,7 +3336,17 @@ function Bookshelf:_repaintAfterWake()
     -- finally unlocks, so bookshelf still gets repainted then.
     if require("device").screen_saver_lock then return end
     if self:_isShowing() then
-        UIManager:setDirty(_live_widget, "full")
+        -- The sleep screen's close puts the shelf's own pixels back
+        -- (lib/bookshelf_underlay): then the panel needs a full refresh, not
+        -- the shelf a full repaint (~580 ms on a PW5).
+        local Underlay = require("lib/bookshelf_underlay")
+        if Underlay.covered() then
+            -- Still up: its close does it.
+        elseif os.time() - (Underlay._last_restore or 0) <= 2 then
+            UIManager:setDirty(nil, "full")
+        else
+            UIManager:setDirty(_live_widget, "full")
+        end
     end
     self:_evictHomescreenOverlay()
 end

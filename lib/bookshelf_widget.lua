@@ -234,6 +234,7 @@ function BookshelfWidget:init()
     -- Clipped repaints (see _noteDirty): the newest shelf is the one listened for.
     BookshelfWidget._clip_target = self
     BookshelfWidget.installClipHook()
+    require("lib/bookshelf_underlay").install(self)
     -- A registered source that has fetched more (lib/bookshelf_sources,
     -- ui.bookshelf:sourceChanged) redraws the shelf, but only while that
     -- source is what is on screen. One named slot, so a later widget replaces
@@ -1222,11 +1223,15 @@ function BookshelfWidget:_rebuild()
     -- Calling :free() synchronously during an event handler tears down
     -- ImageWidget bb buffers that may still be referenced by an in-flight
     -- paint, producing native segfaults (notably on rapid swipe-to-paginate).
-    -- nextTick lets the current event handler return, the new tree paint to
-    -- finish, and only then reaps the old tree's resources.
+    -- tickAfterNext lets the current event handler return, the new tree paint
+    -- to finish, and only then reaps the old tree's resources. (It was
+    -- nextTick, which UIManager runs BEFORE the repaint -- _checkTasks comes
+    -- first in its loop -- so the free and, every 4th rebuild, a full collect
+    -- of a ~100 MB heap held up the new shelf's paint.)
     if self[1] and self[1].free then
         local old_tree = self[1]
-        UIManager:nextTick(function()
+        local after = UIManager.tickAfterNext and UIManager.tickAfterNext or UIManager.nextTick
+        after(UIManager, function()
             local ok, err = pcall(function() old_tree:free() end)
             if not ok then
                 require("logger").warn("[bookshelf] tree free failed:", err)
@@ -13605,6 +13610,14 @@ end
 BookshelfWidget.CLIP_MAX_SHARE = 0.5   -- of the screen, summed over the rects
 
 function BookshelfWidget:_noteDirty(widget, refreshtype, refreshregion)
+    -- A window closing over the shelf whose pixels went back under it
+    -- (lib/bookshelf_underlay): its "repaint what was under me" asks
+    -- nothing of the shelf.
+    if widget == self and refreshtype == nil
+            and require("lib/bookshelf_underlay").restoring() then
+        self._underlay_skip = true
+        return
+    end
     if self._clip_full then return end
     if widget == "all" then
         self._clip_full = true
@@ -13727,6 +13740,16 @@ function BookshelfWidget:paintTo(bb, x, y)
     -- Only the rects this frame's dirty requests named, when that is all
     -- that changed (see _noteDirty): the tree paints through a clipped
     -- stand-in for the screen, at its real coordinates.
+    local skip = self._underlay_skip
+    self._underlay_skip = nil
+    if skip and not self._clip_full and not self._clip_rects and self._first_paint_done
+            and bb == Screen.bb then
+        -- Only a close that put the shelf back asked: it is already on screen.
+        return
+    end
+    -- Painting under a window over the shelf: what was kept of it is stale.
+    local Underlay = require("lib/bookshelf_underlay")
+    if Underlay.covered() then Underlay.invalidate() end
     local clip_rects = self:_takePaintClip(bb)
     -- Diag: one-shot first-paint marker for cold-start traces. The init
     -- log fires at end of :init() (well before the paint actually

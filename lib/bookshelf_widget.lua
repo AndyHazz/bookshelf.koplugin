@@ -20415,9 +20415,32 @@ end
 local function _headerThumbBB(filepath, fresh, thumb_w)
     local ext_cover = fresh and fresh.cover_image_path
     if ext_cover then
+        -- The header-sized copy, kept on disk (lib/bookshelf_derived_cache):
+        -- an external cover is a full-size picture, and decoding it was ~40%
+        -- of opening the book popup on the PW5, every session. A fresh bb,
+        -- so the caller owns it (true).
+        local Derived = require("lib/bookshelf_derived_cache")
+        local stamp = thumb_w and Derived.stamp(ext_cover)
+        local key = stamp and ("hthumb:" .. thumb_w .. "|" .. stamp)
+        local kept = key and Derived.bb(key)
+        if kept then return kept, true end
         local ok_img, ImageSource = pcall(require, "lib/bookshelf_image_source")
         local bb = ok_img and ImageSource.loadImageNative(ext_cover) or nil
-        if bb then return bb, false end
+        if bb then
+            local sw = key and bb.getWidth and bb:getWidth() or 0
+            local sh = key and bb.getHeight and bb:getHeight() or 0
+            if key and sw > thumb_w and sh > 0 then
+                local th = math.max(1, math.floor(thumb_w * sh / sw + 0.5))
+                local ok_s, small = pcall(function()
+                    return require("ui/renderimage"):scaleBlitBuffer(bb, thumb_w, th)
+                end)
+                if ok_s and small then
+                    Derived.putBB(key, small)
+                    return small, true
+                end
+            end
+            return bb, false
+        end
     end
     if fresh and fresh.cover_bb then return fresh.cover_bb, true end
     if not filepath then return nil end

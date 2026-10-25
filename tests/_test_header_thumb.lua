@@ -42,7 +42,7 @@ local function run(fresh, thumb_w, opts)
     opts = opts or {}
     local calls = { decode = 0 }
     local env = {
-        pcall = pcall, type = type,
+        pcall = pcall, type = type, math = math,
         Repo = {
             getCoverBB = function()
                 calls.decode = calls.decode + 1
@@ -54,6 +54,11 @@ local function run(fresh, thumb_w, opts)
             if name == "lib/bookshelf_image_source" then
                 return { loadImageNative = function() return opts.external end }
             end
+            if name == "lib/bookshelf_derived_cache" then
+                return opts.derived or { stamp = function() return nil end,
+                                         bb = function() return nil end, putBB = function() end }
+            end
+            if name == "ui/renderimage" then return opts.renderimage end
             if name == "lib/bookshelf_scaled_cover_cache" then
                 if opts.no_scc then error("absent") end
                 return { get = function() return opts.cached end }
@@ -133,6 +138,25 @@ t.test("no cache-owned bb is ever returned as disposable", function()
         local _, disp = run(c.fresh, 110, c.opts)
         assert(disp == false, c.owner .. "-owned bb came back disposable")
     end
+end)
+
+t.test("an external cover's header-sized copy is kept on disk and comes back caller-owned", function()
+    -- Decoding the full-size picture was ~40% of opening the book popup.
+    local disk = {}
+    local derived = { stamp = function() return "s1" end,
+                      bb = function(k) return disk[k] end,
+                      putBB = function(k, v) disk[k] = v end }
+    local ext = bb(400, "ext")
+    ext.getWidth = function() return 400 end
+    ext.getHeight = function() return 600 end
+    local small = bb(110, "small")
+    local scaled_to
+    local ri = { scaleBlitBuffer = function(_s, _src, w, h) scaled_to = { w, h }; return small end }
+    local got, disp = run({ cover_image_path = "/c.jpg" }, 110, { external = ext, derived = derived, renderimage = ri })
+    assert(got == small and disp == true, "the scaled copy is the caller's to free")
+    assert(scaled_to[1] == 110 and scaled_to[2] == 165, "not scaled to the thumb's width")
+    local again, disp2 = run({ cover_image_path = "/c.jpg" }, 110, { external = nil, derived = derived })
+    assert(again == small and disp2 == true, "the kept copy wasn't used")
 end)
 
 t.done()

@@ -77,6 +77,20 @@ local function ensure(bb, x, y, w, h)
     local tx1 = math.min(math.ceil(sw / T) - 1, math.floor((x + w - 1) / T))
     local ty1 = math.min(math.ceil(sh / T) - 1, math.floor((y + h - 1) / T))
     local per_row = math.ceil(sw / T)
+    -- Over the limit with this draw: stop before copying anything for it.
+    -- A big popup's first draw is usually its whole frame, so the copy
+    -- that would only be thrown away is never made.
+    local new_area = 0
+    for ty = ty0, ty1 do
+        for tx = tx0, tx1 do
+            if not _tiles[ty * per_row + tx] then new_area = new_area + T * T end
+        end
+    end
+    if new_area > 0 and _tile_area + new_area > M.MAX_SHARE * sw * sh then
+        _valid = false
+        dropPieces()
+        return
+    end
     for ty = ty0, ty1 do
         local run_from
         for tx = tx0, tx1 + 1 do

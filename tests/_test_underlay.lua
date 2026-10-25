@@ -141,6 +141,16 @@ t.test("a window covering the whole screen (the reader) isn't tracked or copied"
     assert(U.covered(), "the sleep screen isn't tracked")
 end)
 
+t.test("a draw that would pass the limit copies nothing", function()
+    U._reset()
+    Screen.bb:fillRect(0, 0, W, H, "shelf")
+    U.install({})
+    local big, x, y = window("popup", 0, 0, 90, 90)
+    U.shown(big); big:paintTo(Screen.bb, x, y)
+    eq(#U._debugPieces(), 0, "copied tiles it then threw away")
+    assert(not U.closing(big))
+end)
+
 t.test("the shelf lets only the restoring close go unpainted", function()
     local src = io.open("lib/bookshelf_widget.lua"):read("*a")
     assert(src:find('if widget == self and refreshtype == nil\n            and require("lib/bookshelf_underlay").restoring() then', 1, true))

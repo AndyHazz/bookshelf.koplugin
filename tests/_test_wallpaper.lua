@@ -1990,4 +1990,26 @@ t.test("without shelf themes the cache keeps one picture, as before", function()
     os.execute("rm -rf '" .. d .. "'"); package.loaded["ffi/blitbuffer"] = nil
 end)
 
+t.test("a decoded picture is kept on disk, so the next session doesn't decode it", function()
+    local W, d, renders = twoSetup(false)
+    local disk = {}
+    W._disk_cache = { load = function(k) return disk[k] end,
+                      store = function(k, bb) disk[k] = bb; return true end }
+    local mtime = 1
+    package.loaded["libs/libkoreader-lfs"] = { attributes = function() return { modification = mtime, size = 10 } end }
+    package.loaded["device"] = { screen = { bb = { getType = function() return 1 end } } }
+    W.bg("a.png", 100, 100, false)
+    eq(renders(), 1)
+    W.free(); W._bg, W._bg_key = nil, nil
+    W.bg("a.png", 100, 100, false)
+    eq(renders(), 1, "decoded again with the picture on disk")
+    -- An edited picture is decoded again.
+    W.free(); W._bg, W._bg_key = nil, nil
+    mtime = 2
+    W.bg("a.png", 100, 100, false)
+    eq(renders(), 2, "an edited picture came from the old copy")
+    package.loaded["libs/libkoreader-lfs"] = nil; package.loaded["device"] = nil
+    os.execute("rm -rf '" .. d .. "'"); package.loaded["ffi/blitbuffer"] = nil
+end)
+
 t.done()

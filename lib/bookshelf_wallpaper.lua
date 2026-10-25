@@ -1943,6 +1943,29 @@ function M.toScreenType(bb)
     return (ok and out) or bb
 end
 
+-- The cover disk cache, for decoded pictures (M._disk_cache: test seam;
+-- false switches it off).
+local function diskCache()
+    if M._disk_cache == nil then
+        local ok, DC = pcall(require, "lib/bookshelf_cover_disk_cache")
+        M._disk_cache = ok and DC or false
+    end
+    return M._disk_cache or nil
+end
+-- diskKey(path, w, h) -> the cache key for this picture at this size, or nil.
+local function diskKey(path, w, h)
+    local ok, key = pcall(function()
+        local lfs = require("libs/libkoreader-lfs")
+        local attr = lfs.attributes(path)
+        if not (attr and attr.modification) then return nil end
+        local Screen = require("device").screen
+        local fbt = Screen and Screen.bb and Screen.bb.getType and Screen.bb:getType()
+        return string.format("wallpaper:%s|%s|%s|%dx%d|%s", path,
+            tostring(attr.modification), tostring(attr.size), w, h, tostring(fbt))
+    end)
+    return ok and key or nil
+end
+
 -- bg(name, w, h, night) -> a paintable full-screen widget, or nil.
 --
 -- night is part of the key AND of the render: the panel inverts everything at
@@ -1972,12 +1995,23 @@ function M.bg(name, w, h, night)
     else
         M.free()
     end
-    local ok, bb = pcall(decode, path, w, h)
-    if not ok or not bb then
-        logger.info("[bookshelf] wallpaper could not be decoded:", path)
-        return nil
+    -- The decoded picture outlives the session in the cover disk cache (raw
+    -- pixels, already in the screen's own type): a full-screen JPEG decode
+    -- was ~0.5 s of the first visit to each shelf with its own wallpaper on
+    -- the PW5; reading the raw buffer back is a few tens of ms. Keyed on the
+    -- file's mtime and size as well, so an edited picture is decoded again.
+    local dkey = diskKey(path, w, h)
+    local bb = dkey and diskCache() and diskCache().load(dkey)
+    if not bb then
+        local ok
+        ok, bb = pcall(decode, path, w, h)
+        if not ok or not bb then
+            logger.info("[bookshelf] wallpaper could not be decoded:", path)
+            return nil
+        end
+        bb = M.toScreenType(bb)
+        if dkey and diskCache() then pcall(diskCache().store, dkey, bb) end
     end
-    bb = M.toScreenType(bb)
     if night and bb.invertRect then
         pcall(function() bb:invertRect(0, 0, bb:getWidth(), bb:getHeight()) end)
     end

@@ -99,6 +99,7 @@ package.loaded["lib/bookshelf_gesture_zones"] = {
 
 local Editor = require("lib/bookshelf_module_grid_editor")
 local t = dofile("tests/_helpers.lua").runner()
+local eq = dofile("tests/_helpers.lua").eq
 
 local D = { cols = 4, rows = 5, cell_w = 100, cell_h = 100, gap = 10 }
 
@@ -242,6 +243,74 @@ t.test("a pinch off any module does nothing", function()
     local ed = openOn({ { id = "a", page = 1, col = 1, row = 1, w = 1, h = 1 } })
     ed:onEdPinch(nil, { ges = "pinch", direction = "horizontal", pos = pos(300, 300) })
     assert(ed.session:box("a").w == 1)
+end)
+
+-- Keys: Enter puts focus on the toolbar on screen (its buttons, the palette
+-- icon above them, the footer below), the arrows move along it, Enter presses
+-- the focused button and Back goes back to the grid (maintainer: on the
+-- desktop emulator keys could not reach the toolbar).
+local function btn(name, log, enabled)
+    return { name = name, enabled = enabled ~= false,
+             onFocus = function(self) log.focus = self.name end,
+             onUnfocus = function() end,
+             callback = function() log.pressed = name end }
+end
+local function keyEd()
+    local log = {}
+    local ed = setmetatable({
+        session = { selected_id = "a" },
+        _bar_table = { buttons_layout = { { btn("narrower", log), btn("wider", log) },
+                                          { btn("settings", log), btn("remove", log) } } },
+        _foot_table = { buttons_layout = { { btn("add", log), btn("done", log) } } },
+        _palette = btn("palette", log),
+    }, { __index = Editor })
+    ed._buildBands = function() end
+    return ed, log
+end
+
+t.test("keys: Enter focuses the toolbar, arrows move along it, Enter presses", function()
+    local ed, log = keyEd()
+    ed:onEdPress()
+    assert(ed._key_focus, "Enter did not move focus onto the toolbar")
+    eq(log.focus, "narrower")
+    ed:onEdRight(); eq(log.focus, "wider")
+    ed:onEdDown();  eq(log.focus, "remove")
+    ed:onEdDown();  eq(log.focus, "done", "the footer is below the toolbar")
+    ed:onEdUp(); ed:onEdUp(); ed:onEdUp(); eq(log.focus, "palette", "the palette icon is above the toolbar")
+    ed:onEdDown(); ed:onEdPress(); eq(log.pressed, "narrower")
+end)
+
+t.test("keys: Back leaves the toolbar for the grid, not the editor", function()
+    local ed = keyEd()
+    ed:onEdPress()
+    ed:onDone()
+    assert(not ed._key_focus, "Back kept the toolbar focused")
+    assert(not ed._closed, "Back closed the editor from the toolbar")
+end)
+
+t.test("keys: the footer's Done finishes, even with the toolbar focused", function()
+    local src = io.open("lib/bookshelf_module_grid_editor.lua"):read("*a")
+    assert(src:find('button("\\xE2\\x9C\\x93 " .. _("Done"), function() self:_finish() end)', 1, true),
+        "the Done button only steps out of the toolbar")
+    assert(src:find("on_done = function() self:_finish() end", 1, true), "the actions dialog's Done steps out")
+end)
+
+t.test("keys: the button tables leave the arrows to the editor", function()
+    -- KOReader offers a key to a container's children first, and a
+    -- ButtonTable is a FocusManager: the footer's took the arrows, so the
+    -- editor never knew its toolbar was focused and Back closed it (rig).
+    local src = io.open("lib/bookshelf_module_grid_editor.lua"):read("*a")
+    assert(src:find("self._bar_table.key_events = {}", 1, true), "the toolbar's table takes the arrows")
+    assert(src:find("self._foot_table.key_events = {}", 1, true), "the footer's table takes the arrows")
+end)
+
+t.test("keys: a greyed-out button is passed over by Enter", function()
+    local ed, log = keyEd()
+    ed._bar_table.buttons_layout[1][1].enabled = false
+    ed:onEdPress()
+    eq(log.focus, "wider", "focus started on a disabled button")
+    ed:onEdLeft(); ed:onEdPress()
+    eq(log.pressed, nil, "a disabled button was pressed")
 end)
 
 t.done()

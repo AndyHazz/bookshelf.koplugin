@@ -261,18 +261,25 @@ function Editor:_buildToolbar()
             }
         end
     end
+    local title_row = self:_titleRow(title, face, width - 2 * self.margin, entry)
+    self._palette = type(title_row) == "table" and title_row.palette_button or nil
     local vg = VerticalGroup:new{
         align = "center",
-        self:_titleRow(title, face, width - 2 * self.margin, entry),
+        title_row,
     }
+    self._bar_table = nil
     if rows then
         vg[#vg + 1] = VerticalSpan:new{ width = Screen:scaleBySize(6) }
-        vg[#vg + 1] = ButtonTable:new{
+        self._bar_table = ButtonTable:new{
             width = width - 2 * Size.border.window - 2 * Size.padding.default,
             buttons = rows,
             zero_sep = true,
             show_parent = self,
         }
+        -- The arrows are the editor's (_keyRows): a ButtonTable is a
+        -- FocusManager, and KOReader offers a key to children first.
+        self._bar_table.key_events = {}
+        vg[#vg + 1] = self._bar_table
     end
     return FrameContainer:new{
         background = Blitbuffer.COLOR_WHITE,
@@ -317,12 +324,14 @@ function Editor:_buildFooter(rect_w)
     if nxt then
         row[#row + 1] = button(_("New page"), function() s:moveToPage(nxt) end)
     end
-    row[#row + 1] = button("\xE2\x9C\x93 " .. _("Done"), function() self:onDone() end)
+    row[#row + 1] = button("\xE2\x9C\x93 " .. _("Done"), function() self:_finish() end)
+    self._foot_table = ButtonTable:new{ width = rect_w, buttons = { row }, zero_sep = true, show_parent = self }
+    self._foot_table.key_events = {}   -- the arrows are the editor's (see the toolbar)
     return FrameContainer:new{
         background = Blitbuffer.COLOR_WHITE,
         bordersize = 0,
         padding    = 0,
-        ButtonTable:new{ width = rect_w, buttons = { row }, zero_sep = true, show_parent = self },
+        self._foot_table,
     }
 end
 
@@ -337,8 +346,11 @@ function Editor:_buildBands()
     local old1, old2 = self[1], self[2]
     local fr = self:_footerRect()
     -- [1] the footer (always), [2] the toolbar (only with a selection).
+    self._palette = nil
     self[1] = self:_buildFooter(fr.w)
     self[2] = self:_buildToolbar()
+    -- Rebuilt after every change: key focus goes back on the same button.
+    if self._key_focus then self:_applyKeyFocus() end
     for _i, w in ipairs({ old1, old2 }) do
         if w and w.free then
             UIManager:nextTick(function() pcall(function() w:free() end) end)
@@ -526,7 +538,7 @@ function Editor:paintTo(bb, x, y)
     if Screen:getWidth() ~= self._built_w or Screen:getHeight() ~= self._built_h then
         -- The screen changed under us (rotation, window resize): keep what was
         -- edited and leave rather than draw at stale positions.
-        UIManager:nextTick(function() self:onDone() end)
+        UIManager:nextTick(function() self:_finish() end)
         return
     end
     local Perf = require("lib/bookshelf_perf")
@@ -690,21 +702,85 @@ function Editor:_nav(dir)
     if nid then s:select(nid) end
     return true
 end
-function Editor:onEdUp()    return self:_nav("up") end
-function Editor:onEdDown()  return self:_nav("down") end
-function Editor:onEdLeft()  return self:_nav("left") end
-function Editor:onEdRight() return self:_nav("right") end
+-- ── Keys on the toolbar ──────────────────────────────────────────────────
+-- Press puts key focus on the toolbar on screen: the palette icon in its
+-- title, its rows of buttons and the footer below, a grid the arrows move
+-- along. Press then presses the focused button and Back goes back to the
+-- grid, where the arrows select modules (maintainer: on the desktop emulator
+-- keys could not reach the toolbar). _key_focus = { row, col } in _keyRows.
+function Editor:_keyRows()
+    local rows = {}
+    if self._palette then rows[#rows + 1] = { self._palette } end
+    for _i, t in ipairs({ self._bar_table, self._foot_table }) do
+        for _j, r in ipairs(t and t.buttons_layout or {}) do
+            if #r > 0 then rows[#rows + 1] = r end
+        end
+    end
+    return rows
+end
+local function usable(b) return b and b.enabled ~= false end
+function Editor:_applyKeyFocus()
+    local rows = self:_keyRows()
+    local f = self._key_focus
+    if self._focused_btn and self._focused_btn.onUnfocus then self._focused_btn:onUnfocus() end
+    self._focused_btn = nil
+    if not f or #rows == 0 then self._key_focus = nil; UIManager:setDirty(self, "ui"); return end
+    f.row = math.max(1, math.min(f.row, #rows))
+    f.col = math.max(1, math.min(f.col, #rows[f.row]))
+    local b = rows[f.row][f.col]
+    if b and b.onFocus then b:onFocus() end
+    self._focused_btn = b
+    UIManager:setDirty(self, "ui")
+end
+-- The first button that does something, from the toolbar's first row (the
+-- palette above it is one Up away), else the footer.
+function Editor:_enterKeyFocus()
+    local rows = self:_keyRows()
+    local start = (self._palette and #rows > 1) and 2 or 1
+    for r = start, #rows do
+        for c, b in ipairs(rows[r]) do
+            if usable(b) then self._key_focus = { row = r, col = c }; self:_applyKeyFocus(); return true end
+        end
+    end
+    return false
+end
+function Editor:_keyMove(dr, dc)
+    local f = self._key_focus
+    f.row, f.col = f.row + dr, f.col + dc
+    self:_applyKeyFocus()
+    return true
+end
+function Editor:_leaveKeyFocus()
+    self._key_focus = nil
+    self:_applyKeyFocus()
+    return true
+end
 
--- Keys-only: Press opens everything the toolbar and edit footer offer as a
--- dialog (which brings its own focus handling). It closes after each action
--- so the result isn't hidden under it; Press again for the next one.
+function Editor:onEdUp()    if self._key_focus then return self:_keyMove(-1, 0) end return self:_nav("up") end
+function Editor:onEdDown()  if self._key_focus then return self:_keyMove(1, 0) end return self:_nav("down") end
+function Editor:onEdLeft()  if self._key_focus then return self:_keyMove(0, -1) end return self:_nav("left") end
+function Editor:onEdRight() if self._key_focus then return self:_keyMove(0, 1) end return self:_nav("right") end
+
 function Editor:onEdPress()
+    if self._key_focus then
+        local b = self._focused_btn
+        if usable(b) and b.callback then b.callback() end
+        return true
+    end
+    if self:_enterKeyFocus() then return true end
+    return self:_actionsDialog()
+end
+
+-- Nothing on screen to focus: everything the toolbar and edit footer offer as
+-- a dialog (which brings its own focus handling). It closes after each action
+-- so the result isn't hidden under it; Press again for the next one.
+function Editor:_actionsDialog()
     local s = self.session
     local entry = s.selected_id and s:item(s.selected_id)
     local def = entry and Modules.get(entry.module)
     local rows = s:keyActions{
         has_settings = def and type(def.show_settings) == "function",
-        on_done = function() self:onDone() end,
+        on_done = function() self:_finish() end,
     }
     local dialog
     for _i, row in ipairs(rows) do
@@ -721,7 +797,15 @@ function Editor:onEdPress()
     return true
 end
 
+-- Back: from the toolbar, back to the grid; else Done.
 function Editor:onDone()
+    if self._key_focus then return self:_leaveKeyFocus() end
+    return self:_finish()
+end
+
+-- _finish(): Done. The footer's Done button and the actions dialog's call it
+-- straight, so it finishes with the toolbar focused too.
+function Editor:_finish()
     if self._closed then return true end
     self._closed = true
     local ok, err = pcall(function() self.session:commit() end)

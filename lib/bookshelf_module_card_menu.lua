@@ -183,7 +183,7 @@ function M.titleRow(title, face, w, entry, show_parent, on_tap)
     function holder:handleEvent(ev) return icon:handleEvent(ev) end
     function holder:free() if icon.free then icon:free() end end
     local tw = math.max(1, w - 2 * iw)
-    return HorizontalGroup:new{
+    local row = HorizontalGroup:new{
         align = "center",
         HorizontalSpan:new{ width = iw },
         CenterContainer:new{
@@ -192,6 +192,9 @@ function M.titleRow(title, face, w, entry, show_parent, on_tap)
         },
         holder,
     }
+    -- The icon itself, for a host that moves key focus onto it.
+    row.palette_button = icon
+    return row
 end
 
 return M

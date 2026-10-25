@@ -172,4 +172,46 @@ t.test("an editor that fails to open doesn't take the view down", function()
     assert(ok, "the error escaped the view")
 end)
 
+-- Keys: the footer is a row of the pencil and the close X, in screen order.
+-- Down from the grid's bottom reaches it, Left / Right move along it, Up goes
+-- back to the grid, and Press on the pencil opens the editor as a tap does
+-- (maintainer: keys could not reach the pencil on the desktop emulator).
+local function keyed()
+    local v = view()
+    v._cursor_id = "m1"
+    v._pencil_rect = { x = 40, y = 1600, w = 80, h = 60 }
+    v._close_rect = { x = 1100, y = 1600, w = 80, h = 60 }
+    v._navCell = function() return nil end      -- the cursor is on the grid's bottom row
+    return v
+end
+
+t.test("keys: down to the close X, left to the pencil, press opens the editor", function()
+    local v = keyed()
+    v:onMFFocusDown()
+    assert(v._focus_close and not v._focus_pencil, "down did not reach the footer")
+    v:onMFFocusLeft()
+    assert(v._focus_pencil and not v._focus_close, "left did not reach the pencil")
+    opened = nil
+    v:onMFPress()
+    assert(opened and opened.host == v, "press on the pencil did not open the editor")
+    assert(v.closed == 0, "press on the pencil closed the view")
+end)
+
+t.test("keys: right goes back to the close X, up leaves the footer", function()
+    local v = keyed()
+    v:onMFFocusDown(); v:onMFFocusLeft(); v:onMFFocusRight()
+    assert(v._focus_close and not v._focus_pencil, "right did not go back to the X")
+    v:onMFFocusRight()
+    assert(v._focus_close, "right past the end left the footer")
+    v:onMFFocusUp()
+    assert(not v._focus_close and not v._focus_pencil, "up stayed in the footer")
+end)
+
+t.test("keys: with no pencil (editing), left stays on the X", function()
+    local v = keyed()
+    v._pencil_rect = nil
+    v:onMFFocusDown(); v:onMFFocusLeft()
+    assert(v._focus_close and not v._focus_pencil)
+end)
+
 t.done()

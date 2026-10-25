@@ -175,7 +175,7 @@ end
 -- exact (optional): the launcher's real painted bars box (reader context), so
 -- the pencil lands where the launcher's own glyph is.
 local PENCIL = "\xEE\xAB\xAA" -- nf-md-pencil, U+EAEA
-local function _pencilGlyph(bw, button_dimen, exact)
+local function _pencilGlyph(bw, button_dimen, exact, reserve_ring, focused)
     local box
     if exact and exact.w and exact.w > 0 then
         box = { x = exact.x, y = exact.y, w = exact.w, h = exact.h }
@@ -192,11 +192,17 @@ local function _pencilGlyph(bw, button_dimen, exact)
         face    = BFont:getFace("symbols", 26),
         fgcolor = _glyphInk(bw),
     }
+    -- Focus ring as the close X's: reserved when keys can reach the pencil,
+    -- drawn only while it holds focus.
+    local fb = reserve_ring and Screen:scaleBySize(2) or 0
     local frame = FrameContainer:new{
         background = _glyphBacking(bw),
-        bordersize = 0, padding = 0, margin = 0,
+        bordersize = focused and fb or 0,
+        margin     = focused and 0 or fb,
+        radius     = fb > 0 and Space.px(4) or 0,
+        padding    = 0,
         CenterContainer:new{
-            dimen = Geom:new{ w = box.w, h = box.h },
+            dimen = Geom:new{ w = math.max(1, box.w - 2 * fb), h = math.max(1, box.h - 2 * fb) },
             glyph,
         },
     }
@@ -350,7 +356,7 @@ function MicroFullscreen:_build()
     end
     local ok, grid = pcall(HeroModules.build, self.bw, content_w, grid_h, PAD,
         { items = items, focusable = self._dpad or nil,
-          focused_id = (not self._focus_close) and self._cursor_id or nil,
+          focused_id = (not self._focus_close and not self._focus_pencil) and self._cursor_id or nil,
           surface = "fullscreen", page = self._page, edit = self._edit })
     if not ok or not grid then
         grid = Widget:new{}  -- defensive: empty, still closeable
@@ -500,7 +506,8 @@ function MicroFullscreen:_build()
             pencil_dimen = ReaderButtons.gridTapRect(close_side == "left" and "right" or "left")
         end
     end
-    local pg = pencil_dimen and _pencilGlyph(self.bw, pencil_dimen, launcher and launcher.bars or nil)
+    local pg = pencil_dimen and _pencilGlyph(self.bw, pencil_dimen, launcher and launcher.bars or nil,
+        self._dpad, self._focus_pencil)
     if pg and not self._edit then
         children[#children + 1] = pg
         self._pencil_rect = Geom:new{ x = pencil_dimen.x, y = pencil_dimen.y,
@@ -570,14 +577,7 @@ function MicroFullscreen:handleEvent(event)
         end
         -- The pencil opens the layout editor on this view.
         if ev and ev.ges == "tap" and _tapInRect(ev, self._pencil_rect) then
-            local ok, Editor = pcall(require, "lib/bookshelf_module_grid_editor")
-            if ok and Editor then
-                -- pcall: in the reader the view runs on a context shim, and an
-                -- editor that fails to open must not take the reader down.
-                local ok_open, err = pcall(Editor.open, { bw = self.bw, host = self })
-                if not ok_open then logger.warn("[bookshelf] layout editor failed to open:", err) end
-            end
-            return true
+            return self:_openEditor()
         end
         -- A footer dot goes to its page.
         if ev and ev.ges == "tap" and self._dots and _tapInRect(ev, self._dots.dimen) then
@@ -695,10 +695,37 @@ end
 -- Move the focus cursor across the recorded row/col map and rebuild. Edges are
 -- no-ops here (the overlay is a closed workspace; Back exits), unlike the hero
 -- zone which hands focus back to the chips/shelf at its edges.
+function MicroFullscreen:_openEditor()
+    local ok, Editor = pcall(require, "lib/bookshelf_module_grid_editor")
+    if ok and Editor then
+        -- pcall: in the reader the view runs on a context shim, and an
+        -- editor that fails to open must not take the reader down.
+        local ok_open, err = pcall(Editor.open, { bw = self.bw, host = self })
+        if not ok_open then logger.warn("[bookshelf] layout editor failed to open:", err) end
+    end
+    return true
+end
 function MicroFullscreen:_setFocusClose(on)
-    if self._focus_close == on then return end
+    if self._focus_close == on and not self._focus_pencil then return end
     self._focus_close = on
+    self._focus_pencil = false
     self:rebuildGrid()
+end
+-- The footer as keys see it: the pencil and the close X in their screen
+-- order, so Left / Right go to whichever stands that way (maintainer: keys
+-- could not reach the pencil). No pencil while editing.
+function MicroFullscreen:_footerStep(dir)
+    local p, c = self._pencil_rect, self._close_rect
+    if not p then return end
+    local pencil_left = c == nil or p.x < c.x
+    local to_pencil = (dir == "left") == pencil_left
+    if to_pencil and not self._focus_pencil then
+        self._focus_pencil, self._focus_close = true, false
+        self:rebuildGrid()
+    elseif not to_pencil and self._focus_pencil then
+        self._focus_pencil, self._focus_close = false, true
+        self:rebuildGrid()
+    end
 end
 function MicroFullscreen:_navCell(dir)
     local HeroModules = require("lib/bookshelf_hero_modules")
@@ -708,23 +735,24 @@ function MicroFullscreen:_moveTo(dir)
     local nid = self:_navCell(dir)
     if nid and nid ~= self._cursor_id then self._cursor_id = nid; self:rebuildGrid() end
 end
--- Up/Down cross between the grid and the close button (the single exit), so the
--- X is reachable by d-pad, not only by Back. Left/Right stay within the grid.
+-- Up/Down cross between the grid and the footer (the close X, and the pencil
+-- beside it), so both are reachable by d-pad, not only by Back and a tap.
+-- Left/Right move within the grid, or along the footer.
 function MicroFullscreen:onMFFocusUp()
-    if self._focus_close then self:_setFocusClose(false) else self:_moveTo("up") end
+    if self._focus_close or self._focus_pencil then self:_setFocusClose(false) else self:_moveTo("up") end
     return true
 end
 function MicroFullscreen:onMFFocusDown()
-    if self._focus_close then return true end
+    if self._focus_close or self._focus_pencil then return true end
     if self:_navCell("down") then self:_moveTo("down") else self:_setFocusClose(true) end
     return true
 end
 function MicroFullscreen:onMFFocusLeft()
-    if not self._focus_close then self:_moveTo("left") end
+    if self._focus_close or self._focus_pencil then self:_footerStep("left") else self:_moveTo("left") end
     return true
 end
 function MicroFullscreen:onMFFocusRight()
-    if not self._focus_close then self:_moveTo("right") end
+    if self._focus_close or self._focus_pencil then self:_footerStep("right") else self:_moveTo("right") end
     return true
 end
 
@@ -734,6 +762,7 @@ function MicroFullscreen:_focusedRec()
         and self.bw._hero_cells[self._cursor_id] or nil
 end
 function MicroFullscreen:onMFPress()
+    if self._focus_pencil then return self:_openEditor() end
     if self._focus_close then return self:onTapClose() end
     local HeroModules = require("lib/bookshelf_hero_modules")
     local rec = self:_focusedRec()
@@ -744,7 +773,7 @@ function MicroFullscreen:onMFPress()
     return true
 end
 function MicroFullscreen:onMFHold()
-    if self._focus_close then return true end
+    if self._focus_close or self._focus_pencil then return true end
     local HeroModules = require("lib/bookshelf_hero_modules")
     local rec = self:_focusedRec()
     if rec and rec.entry and HeroModules._hold then

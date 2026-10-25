@@ -63,6 +63,12 @@ local ADDED_COLUMNS = {
     -- when they were counted (the quote of the day, lib/bookshelf_quotes).
     "highlights INTEGER",
     "highlights_mtime INTEGER",
+    -- What Repo.readProgress read from the book's sidecar (one packed
+    -- string), and that sidecar's mtime: answered from here while the
+    -- sidecar is unchanged, instead of parsing it on the first visit of
+    -- every session.
+    "rprog TEXT",
+    "rprog_mtime INTEGER",
 }
 
 local _db
@@ -146,12 +152,14 @@ local function _rowToFacts(row)
     e.m    = tonumber(row[10])
     e.hl   = tonumber(row[11])
     e.hm   = tonumber(row[12])
+    e.rp   = row[13] ~= nil and tostring(row[13]) or nil
+    e.rpm  = tonumber(row[14])
     return e
 end
 
 local SELECT_COLS =
     "fp, pages, pages_src, r, g, b, aspect, status, status_known, sidecar_mtime, "
-    .. "highlights, highlights_mtime"
+    .. "highlights, highlights_mtime, rprog, rprog_mtime"
 
 -- get(fp) -> facts | nil
 -- Keys match the entries the settings store used, so the call sites that read
@@ -231,7 +239,7 @@ function M.put(fp, facts)
     -- distinction matters: writing a look must not disturb a page count, and
     -- a sidecar that changed under us clears the cached status without
     -- touching the count, which is not the sidecar's to invalidate.
-    for _, k in ipairs({ "p", "psrc", "r", "g", "b", "a", "s", "sk", "m", "hl", "hm" }) do
+    for _, k in ipairs({ "p", "psrc", "r", "g", "b", "a", "s", "sk", "m", "hl", "hm", "rp", "rpm" }) do
         local v = facts[k]
         if v ~= nil then
             if v == false then e[k] = nil else e[k] = v end
@@ -285,14 +293,15 @@ function M.flush()
         local ok = pcall(function()
             local ins = db:prepare(
                 "INSERT INTO book_facts (" .. SELECT_COLS .. ") "
-                .. "VALUES (?,?,?,?,?,?,?,?,?,?,?,?) "
+                .. "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
                 .. "ON CONFLICT(fp) DO UPDATE SET "
                 .. "pages=excluded.pages, pages_src=excluded.pages_src, "
                 .. "r=excluded.r, g=excluded.g, b=excluded.b, "
                 .. "aspect=excluded.aspect, status=excluded.status, "
                 .. "status_known=excluded.status_known, "
                 .. "sidecar_mtime=excluded.sidecar_mtime, "
-                .. "highlights=excluded.highlights, highlights_mtime=excluded.highlights_mtime")
+                .. "highlights=excluded.highlights, highlights_mtime=excluded.highlights_mtime, "
+                .. "rprog=excluded.rprog, rprog_mtime=excluded.rprog_mtime")
             local del = db:prepare("DELETE FROM book_facts WHERE fp=?")
             for fp, what in pairs(_dirty) do
                 if what == "delete" then
@@ -301,7 +310,8 @@ function M.flush()
                     local e = _memo[fp]
                     if type(e) == "table" then
                         ins:reset():bind(fp, e.p, e.psrc, e.r, e.g, e.b, e.a,
-                                         e.s, e.sk and 1 or nil, e.m, e.hl, e.hm):step()
+                                         e.s, e.sk and 1 or nil, e.m, e.hl, e.hm,
+                                         e.rp, e.rpm):step()
                         n = n + 1
                     end
                 end
@@ -316,6 +326,21 @@ function M.flush()
     -- answers for the session.
     _dirty = {}
     return written
+end
+
+-- flushSoon(): a flush a few seconds after the last change, for writers
+-- that have no flush point of their own (Repo.readProgress).
+local _flush_armed = false
+function M.flushSoon()
+    if _flush_armed then return end
+    _flush_armed = true
+    local ok, UIManager = pcall(require, "ui/uimanager")
+    if ok and UIManager and UIManager.scheduleIn then
+        UIManager:scheduleIn(3, function() _flush_armed = false; M.flush() end)
+    else
+        _flush_armed = false
+        M.flush()
+    end
 end
 
 -- clearPageCounts() -> number of books cleared

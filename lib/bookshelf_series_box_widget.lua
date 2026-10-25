@@ -74,11 +74,23 @@ local function fitName(name, size, room, font)
 end
 
 -- finishedCount(books) -> how many of them are marked finished.
+-- The read status from the book facts store when it holds one (checked
+-- against the sidecar's mtime once a session, SpineShelf.cachedProgress),
+-- else the sidecar itself. Parsing every member's sidecar on each build was
+-- most of a box's cost on the first visit to a page (a 10-book series box:
+-- ten dofiles) on the PW5.
 local function finishedCount(books)
     local Repo = require("lib/bookshelf_book_repository")
+    local SS = require("lib/bookshelf_spine_shelf")
     local done = 0
     for _, member in ipairs(books) do
-        local _, status = Repo.readProgress(member.filepath)
+        local _p, status, known = SS.cachedProgress(member.filepath)
+        if not known then
+            local _pct
+            _pct, status = Repo.readProgress(member.filepath)
+            -- Kept for next time (status only: the stored page count stays).
+            if member.filepath then pcall(SS.persistProgress, member.filepath, nil, status) end
+        end
         if status == "finished" then done = done + 1 end
     end
     return done

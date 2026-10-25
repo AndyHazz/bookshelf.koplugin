@@ -521,6 +521,9 @@ local function _sidecarMtime(fp)
     return ok and (m or 0) or 0
 end
 
+-- sidecarMtime(fp) -> the book's sidecar's mtime, or 0 for none.
+SpineShelf.sidecarMtime = function(fp) return _sidecarMtime(fp) end
+
 function SpineShelf.cachedProgress(fp)
     local F = fp and _facts()
     local e = F and F.get(fp)

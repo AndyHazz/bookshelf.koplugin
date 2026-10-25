@@ -2849,6 +2849,42 @@ end
 -- plugin's view), then a p(<n>) token in the filename (#159). Lets the
 -- cover-progress page-count indicator work for EPUBs, which have no
 -- BIM-reported page count — including unopened ones via the filename token.
+-- The sidecar's part of readProgress, kept in the book facts store: one
+-- string of its fields (unit-separated; "" for none) and the sidecar's mtime
+-- it was read at. _finished_on rides along: "" when the sidecar had no
+-- summary, "-" when it had one with no date.
+Repo._PROG_SEP = "\31"   -- a field: this file is at Lua's 200-local limit
+function Repo._progressFacts(fp)
+    local okF, Facts = pcall(require, "lib/bookshelf_book_facts_db")
+    local okS, SS = pcall(require, "lib/bookshelf_spine_shelf")
+    if not (okF and Facts and Facts.get and okS and SS and SS.sidecarMtime) then return nil end
+    local smt = SS.sidecarMtime(fp)
+    local e = Facts.get(fp)
+    if e and e.rp and e.rpm == smt then return Facts, smt, e.rp end
+    return Facts, smt, nil
+end
+function Repo._unpackProgress(packed, fp)
+    local f = {}
+    for v in (packed .. Repo._PROG_SEP):gmatch("(.-)" .. Repo._PROG_SEP) do f[#f + 1] = v end
+    local function num(i) return tonumber(f[i]) end
+    local function str(i) return (f[i] and f[i] ~= "") and f[i] or nil end
+    local fon = f[7]
+    if fon == "-" then _finished_on[fp] = false
+    elseif fon and fon ~= "" then _finished_on[fp] = fon end
+    return num(1), str(2), num(3), num(4), str(5), num(6)
+end
+function Repo._keepProgress(Facts, fp, smt, pct, status, rating, page_count, page_src, page_num)
+    local fon = _finished_on[fp]
+    local packed = table.concat({
+        pct and tostring(pct) or "", status or "", rating and tostring(rating) or "",
+        page_count and tostring(page_count) or "", page_src or "",
+        page_num and tostring(page_num) or "",
+        (fon == false and "-") or (type(fon) == "string" and fon) or "",
+    }, Repo._PROG_SEP)
+    Facts.put(fp, { rp = packed, rpm = smt })
+    if Facts.flushSoon then Facts.flushSoon() end
+end
+
 function Repo.readProgress(filepath)
     if not filepath then return nil, nil, nil, nil end
     local now = os.time()
@@ -2861,7 +2897,18 @@ function Repo.readProgress(filepath)
     -- "store" or "filename". The sixth return; the spine's thickness needs
     -- to know (issue 387, SpineShelf.thicknessPages).
     local pct, status, rating, page_count, page_num, page_src
-    local ok_ds, ds = pcall(function() return getDocSettings():open(filepath) end)
+    -- What the sidecar said, kept in the book facts store with the sidecar's
+    -- mtime (Repo._progressFromFacts): one stat while it is unchanged,
+    -- instead of a full parse on the first visit of every session (a page of
+    -- books on the PW5: ~9% of its first turn, and a series box parsed every
+    -- member's).
+    local Facts, smt, kept = Repo._progressFacts(filepath)
+    local ok_ds, ds = false, nil
+    if kept then
+        pct, status, rating, page_count, page_src, page_num = Repo._unpackProgress(kept, filepath)
+    else
+        ok_ds, ds = pcall(function() return getDocSettings():open(filepath) end)
+    end
     if ok_ds and ds then
         local ok_pct, p = pcall(ds.readSetting, ds, "percent_finished")
         if ok_pct then pct = tonumber(p) end
@@ -2897,6 +2944,9 @@ function Repo.readProgress(filepath)
             local ok_lp, last_page = pcall(ds.readSetting, ds, "last_page")
             if ok_lp then page_num = tonumber(last_page) end
         end
+    end
+    if not kept and Facts and smt then
+        Repo._keepProgress(Facts, filepath, smt, pct, status, rating, page_count, page_src, page_num)
     end
     -- Bookshelf's own persisted page-count store: the bulk scanner's
     -- answers for never-opened books (publisher page lists and Hardcover

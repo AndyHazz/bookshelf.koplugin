@@ -239,12 +239,55 @@ function HeroModules._hostOf(entry)
     return type(entry) == "table" and HeroModules._hosts[entry] or nil
 end
 
+-- bookHelpers(ctx): the book actions a module may call, documented in
+-- micromodules/README.md. book is a record or a filepath.
+--   ctx.open_book(book)  opens it as a tap on the module's own cover does
+--   ctx.show_book(book)  its book menu; opens it where there is none (inside
+--                        a book, the picker's preview)
+-- Public so a module never needs the shelf's private _openBook or
+-- _showBookDetail (Reading Log reached for both).
+function HeroModules.bookHelpers(ctx)
+    local function record(book)
+        if type(book) == "string" and book ~= "" then return { filepath = book } end
+        if type(book) == "table" and type(book.filepath) == "string" then return book end
+        return nil
+    end
+    function ctx.open_book(book)
+        local b = record(book)
+        if b then require("lib/bookshelf_module_open").open(ctx, b) end
+    end
+    function ctx.show_book(book)
+        local b = record(book)
+        if not b then return end
+        local bw = ctx.bw
+        if bw and bw._showBookDetail and not bw._reader_context then
+            if not b.title then
+                local ok, full = pcall(function()
+                    return require("lib/bookshelf_book_repository").buildBook(b.filepath)
+                end)
+                if ok and full then b = full end
+            end
+            bw:_showBookDetail(b)
+            return
+        end
+        ctx.open_book(b)
+    end
+    return ctx
+end
+
 function HeroModules._ctx(bw, refresh, entry)
     local host = HeroModules._hostOf(entry)
     local reload = refresh or (host and host.refresh) or function() HeroModules._rebuild(bw) end
     local shim = { bw = bw }
     function shim:_reload() reload() end
-    local ctx = { bw = bw, menu = shim, entry = entry, surface = (host and host.surface) or "hero" }
+    -- Where the tapped card is: a host says (a shelf); else the full-screen
+    -- view while it is open (it covers the top panel, so no panel card can be
+    -- tapped then); else the top panel.
+    local surface = (host and host.surface)
+        or (bw and bw._micro_fullscreen and "fullscreen")
+        or "hero"
+    local ctx = { bw = bw, menu = shim, entry = entry, surface = surface }
+    HeroModules.bookHelpers(ctx)
     -- Persist a per-instance change a module made to ctx.entry, then reload
     -- this cell (or rebuild the hero). No-op when the module has no entry or
     -- the entry vanished from the list.
@@ -460,6 +503,7 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, 
             -- whatever happens to be at the bottom.
             clamp = clamp or nil,
         }
+        HeroModules.bookHelpers(ctx)
         local ok, widget = pcall(def.render, ctx)
         if not ok or not widget then return nil end
         if pending_regions then widget._tap_regions = pending_regions end

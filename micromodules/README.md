@@ -146,7 +146,14 @@ fields `render` reads:
   preview). Adapt layout if you need to;
   most modules ignore it.
 - `ctx.bw`, `ctx.menu` — the bookshelf widget and start menu when available (may
-  be `nil`, e.g. in the picker); mainly for `on_tap`.
+  be `nil`, e.g. in the picker). Their methods with a leading underscore are
+  internal and can change in any release: use the calls below instead.
+- `ctx.open_book(book)` — opens a book as a tap on your module's own cover
+  does (the opening effect, the full-screen view closed first). `book` is a
+  book record or a file path.
+- `ctx.show_book(book)` — shows the book's menu (the long-press one on a
+  shelf cover). Inside a book, where there is no shelf to show it from, it
+  opens the book instead. `book` is a record or a file path.
 - `ctx.colors` - your module's own colours (the `colors` spec field, see
   **Colours**), keyed by id, ready to paint: what the reader picked for the
   look on screen, else your defaults. Always a table.
@@ -333,7 +340,8 @@ contract test checks for it).
 ## `on_tap` / `show_settings`
 
 `on_tap(ctx)` and `show_settings(ctx)` receive the same `ctx` as `render`
-(above): `ctx.bw`, `ctx.menu`, `ctx.entry`, `ctx.surface`, plus `ctx.config` for
+(above): `ctx.bw`, `ctx.menu`, `ctx.entry`, `ctx.surface` (where the tapped
+card is), `ctx.open_book` and `ctx.show_book`, plus `ctx.config` for
 per-instance settings (and `ctx.save()`, the lower-level persist it wraps). By
 default a tap closes the menu then runs `on_tap`. With `keep_open = true` the
 menu stays open: `on_tap(ctx)` runs, then the card reloads **automatically** — do

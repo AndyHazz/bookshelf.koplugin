@@ -24,7 +24,8 @@ t.test("an adopted entry saves through its host, not the top panel's list", func
             hero_saved = true
             return { load = function() return {} end, findById = function() end, save = function() end }
         end,
-        HeroModules = { _rebuild = function() end, _hostOf = function(e) return e == entry and host or nil end },
+        HeroModules = { _rebuild = function() end, _hostOf = function(e) return e == entry and host or nil end,
+                        bookHelpers = function(c) return c end },
     }
     local ctx = load("local bw, refresh, entry = ...\n" .. ctx_body, "ctx", "t", env)({}, nil, entry)
     ctx.config:set("rows", 2)

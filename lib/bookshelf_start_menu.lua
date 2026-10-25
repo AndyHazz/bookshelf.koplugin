@@ -770,7 +770,8 @@ function StartMenu:_buildModuleRow(entry, w, focused, in_flyout)
         -- layout/shaping error is caught here too. No disk writes on this path.
         -- The render still gets the scoped refresh (5th arg) for async redraws.
         local ok, widget = Breaker.guard(function()
-            local wgt = def.render({
+            -- With the book actions every module ctx has (bookHelpers).
+            local wgt = def.render(require("lib/bookshelf_hero_modules").bookHelpers({
                 width = inner_w, height = nil, max_height = content_cap,
                 scale = self._scale_pct or 100,
                 preview = false, refresh = refresh, shape = card_shape,
@@ -786,7 +787,7 @@ function StartMenu:_buildModuleRow(entry, w, focused, in_flyout)
                 set_tap_regions = function(r)
                     tap_regions = type(r) == "table" and r or nil
                 end,
-            })
+            }))
             if wgt then wgt:getSize() end
             return wgt
         end)
@@ -1732,6 +1733,7 @@ function StartMenu:_activate(entry, tap_rect, tapped_region)
         local menu = self
         local ctx = { bw = self.bw, menu = self, entry = entry, surface = "start_menu",
                       tapped_region = tapped_region }
+        require("lib/bookshelf_hero_modules").bookHelpers(ctx)
         -- Per-instance save: persist a change the module made to ctx.entry into
         -- the start-menu list, then reload. (Mirrors the hero ctx.save.)
         function ctx.save()

@@ -3,13 +3,13 @@
 msgid ""
 msgstr ""
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-24 14:29+0100\n"
+"POT-Creation-Date: 2026-10-25 08:10+0000\n"
 "Language: fr\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: _meta.lua:19 lib/bookshelf_action_exec.lua:77 main.lua:714
+#: _meta.lua:19 lib/bookshelf_action_exec.lua:77 main.lua:737
 msgid "Bookshelf"
 msgstr "Bookshelf"
 
@@ -117,7 +117,7 @@ msgstr "Relié"
 msgid "Paperback"
 msgstr "Broché"
 
-#: lib/bookshelf_book_highlights.lua:160 lib/bookshelf_module_grid_session.lua:367
+#: lib/bookshelf_book_highlights.lua:160 lib/bookshelf_module_grid_session.lua:371
 msgid "Page %1"
 msgstr "Page %1"
 
@@ -133,15 +133,15 @@ msgstr "Surlignage"
 msgid "View in book"
 msgstr "Voir dans le livre"
 
-#: lib/bookshelf_book_highlights.lua:185 lib/bookshelf_changelog.lua:148 lib/bookshelf_chip_editor.lua:1587 lib/bookshelf_chip_editor.lua:2497 lib/bookshelf_chip_editor.lua:2853 lib/bookshelf_chip_editor.lua:3336 lib/bookshelf_chip_editor.lua:3700 lib/bookshelf_collection_manager.lua:562 lib/bookshelf_folder_picker.lua:168 lib/bookshelf_font_picker.lua:271 lib/bookshelf_icons_library.lua:497 lib/bookshelf_line_editor.lua:170 lib/bookshelf_module_card_menu.lua:113 lib/bookshelf_module_grid_editor.lua:179 lib/bookshelf_module_picker.lua:264 lib/bookshelf_plank_browser.lua:268 lib/bookshelf_reviews_modal.lua:561 lib/bookshelf_settings.lua:332 lib/bookshelf_theme_library.lua:588 lib/bookshelf_updater.lua:428 lib/bookshelf_wallpaper_browser.lua:212 lib/bookshelf_widget.lua:19729 micromodules/daily_fun.lua:300
+#: lib/bookshelf_book_highlights.lua:185 lib/bookshelf_changelog.lua:148 lib/bookshelf_chip_editor.lua:1607 lib/bookshelf_chip_editor.lua:2517 lib/bookshelf_chip_editor.lua:2873 lib/bookshelf_chip_editor.lua:3405 lib/bookshelf_chip_editor.lua:3769 lib/bookshelf_collection_manager.lua:562 lib/bookshelf_folder_picker.lua:168 lib/bookshelf_font_picker.lua:271 lib/bookshelf_icons_library.lua:497 lib/bookshelf_line_editor.lua:170 lib/bookshelf_module_card_menu.lua:120 lib/bookshelf_module_grid_editor.lua:197 lib/bookshelf_module_picker.lua:264 lib/bookshelf_plank_browser.lua:268 lib/bookshelf_reviews_modal.lua:561 lib/bookshelf_settings.lua:332 lib/bookshelf_theme_library.lua:588 lib/bookshelf_updater.lua:428 lib/bookshelf_wallpaper_browser.lua:212 lib/bookshelf_widget.lua:19894 micromodules/daily_fun.lua:300
 msgid "Close"
 msgstr "Fermer"
 
-#: lib/bookshelf_book_repository.lua:6338 lib/bookshelf_book_repository.lua:8773 micromodules/weather.lua:62
+#: lib/bookshelf_book_repository.lua:6427 lib/bookshelf_book_repository.lua:8862 micromodules/weather.lua:62
 msgid "Unknown"
 msgstr "Inconnu"
 
-#: lib/bookshelf_book_repository.lua:7442 lib/bookshelf_chip_editor.lua:2949 lib/bookshelf_filter.lua:294
+#: lib/bookshelf_book_repository.lua:7531 lib/bookshelf_chip_editor.lua:2969 lib/bookshelf_filter.lua:294
 msgid "Unrated"
 msgstr "Non noté"
 
@@ -158,19 +158,19 @@ msgstr "Bibliothèque Kobo"
 msgid "Edit selected (%d)"
 msgstr "Modifier la sélection (%d)"
 
-#: lib/bookshelf_bulk_actions.lua:111 lib/bookshelf_widget.lua:22117
+#: lib/bookshelf_bulk_actions.lua:111 lib/bookshelf_widget.lua:22305
 msgid "Unopened"
 msgstr "Non ouvert"
 
-#: lib/bookshelf_bulk_actions.lua:112 lib/bookshelf_chip_editor.lua:2103 lib/bookshelf_filter.lua:249 lib/bookshelf_filter.lua:281 lib/bookshelf_icons_catalogue.lua:23 lib/bookshelf_start_menu_modules.lua:483 lib/bookshelf_tokens.lua:261 lib/bookshelf_widget.lua:22117 micromodules/shelf_size.lua:23
+#: lib/bookshelf_bulk_actions.lua:112 lib/bookshelf_chip_editor.lua:2123 lib/bookshelf_filter.lua:249 lib/bookshelf_filter.lua:281 lib/bookshelf_icons_catalogue.lua:23 lib/bookshelf_start_menu_modules.lua:484 lib/bookshelf_tokens.lua:261 lib/bookshelf_widget.lua:22305 micromodules/shelf_size.lua:23
 msgid "Reading"
 msgstr "En cours"
 
-#: lib/bookshelf_bulk_actions.lua:113 lib/bookshelf_chip_editor.lua:2105 lib/bookshelf_filter.lua:250 lib/bookshelf_filter.lua:282 lib/bookshelf_tokens.lua:262 lib/bookshelf_widget.lua:22118 micromodules/random_unread.lua:300 micromodules/shelf_size.lua:25
+#: lib/bookshelf_bulk_actions.lua:113 lib/bookshelf_chip_editor.lua:2125 lib/bookshelf_filter.lua:250 lib/bookshelf_filter.lua:282 lib/bookshelf_tokens.lua:262 lib/bookshelf_widget.lua:22306 micromodules/random_unread.lua:300 micromodules/shelf_size.lua:25
 msgid "On hold"
 msgstr "En pause"
 
-#: lib/bookshelf_bulk_actions.lua:114 lib/bookshelf_chip_editor.lua:2104 lib/bookshelf_filter.lua:250 lib/bookshelf_filter.lua:283 lib/bookshelf_tokens.lua:263 lib/bookshelf_widget.lua:22118 micromodules/random_unread.lua:301 micromodules/shelf_size.lua:26
+#: lib/bookshelf_bulk_actions.lua:114 lib/bookshelf_chip_editor.lua:2124 lib/bookshelf_filter.lua:250 lib/bookshelf_filter.lua:283 lib/bookshelf_tokens.lua:263 lib/bookshelf_widget.lua:22306 micromodules/random_unread.lua:301 micromodules/shelf_size.lua:26
 msgid "Finished"
 msgstr "Terminé"
 
@@ -182,11 +182,11 @@ msgstr "Note"
 msgid "(clear)"
 msgstr "(effacer)"
 
-#: lib/bookshelf_bulk_actions.lua:160 lib/bookshelf_chip_editor.lua:3503
+#: lib/bookshelf_bulk_actions.lua:160 lib/bookshelf_chip_editor.lua:3572
 msgid "Clear"
 msgstr "Effacer"
 
-#: lib/bookshelf_bulk_actions.lua:165 lib/bookshelf_bulk_actions.lua:424 lib/bookshelf_chip_editor.lua:806 lib/bookshelf_chip_editor.lua:2703 lib/bookshelf_chip_editor.lua:2753 lib/bookshelf_chip_editor.lua:2889 lib/bookshelf_chip_editor.lua:3229 lib/bookshelf_collection_manager.lua:339 lib/bookshelf_collection_manager.lua:415 lib/bookshelf_collection_manager.lua:422 lib/bookshelf_collection_manager.lua:455 lib/bookshelf_collection_manager.lua:505 lib/bookshelf_collection_manager.lua:530 lib/bookshelf_color_palette.lua:421 lib/bookshelf_folder_picker.lua:61 lib/bookshelf_folder_picker.lua:199 lib/bookshelf_line_editor.lua:540 lib/bookshelf_move_flow.lua:34 lib/bookshelf_move_flow.lua:386 lib/bookshelf_opds_catalog_editor.lua:45 lib/bookshelf_ornament_browser.lua:333 lib/bookshelf_pack_editor.lua:311 lib/bookshelf_page_count_dialog.lua:188 lib/bookshelf_settings.lua:1639 lib/bookshelf_settings.lua:3183 lib/bookshelf_settings.lua:3663 lib/bookshelf_settings.lua:5101 lib/bookshelf_settings.lua:5328 lib/bookshelf_settings.lua:5491 lib/bookshelf_settings.lua:5693 lib/bookshelf_settings.lua:5787 lib/bookshelf_start_menu_edit.lua:57 lib/bookshelf_start_menu_edit.lua:181 lib/bookshelf_start_menu_edit.lua:293 lib/bookshelf_start_menu_edit.lua:358 lib/bookshelf_widget.lua:9288 lib/bookshelf_widget.lua:19084 lib/bookshelf_widget.lua:21483 lib/bookshelf_widget.lua:23569 lib/bookshelf_widget.lua:23649 lib/bookshelf_widget.lua:23694 lib/bookshelf_widget.lua:23762 lib/bookshelf_widget.lua:23810 lib/bookshelf_widget.lua:23816 lib/bookshelf_widget.lua:24879 lib/bookshelf_widget.lua:25038 lib/bookshelf_widget.lua:26007 main.lua:2374 micromodules/action.lua:227 micromodules/countdown.lua:60 micromodules/reading_goal.lua:496 micromodules/reading_goal.lua:541 micromodules/shelf.lua:289 micromodules/weather.lua:254
+#: lib/bookshelf_bulk_actions.lua:165 lib/bookshelf_bulk_actions.lua:424 lib/bookshelf_chip_editor.lua:806 lib/bookshelf_chip_editor.lua:2723 lib/bookshelf_chip_editor.lua:2773 lib/bookshelf_chip_editor.lua:2909 lib/bookshelf_chip_editor.lua:3249 lib/bookshelf_chip_editor.lua:3295 lib/bookshelf_collection_manager.lua:339 lib/bookshelf_collection_manager.lua:415 lib/bookshelf_collection_manager.lua:422 lib/bookshelf_collection_manager.lua:455 lib/bookshelf_collection_manager.lua:505 lib/bookshelf_collection_manager.lua:530 lib/bookshelf_color_palette.lua:421 lib/bookshelf_folder_picker.lua:61 lib/bookshelf_folder_picker.lua:199 lib/bookshelf_line_editor.lua:540 lib/bookshelf_move_flow.lua:34 lib/bookshelf_move_flow.lua:386 lib/bookshelf_opds_catalog_editor.lua:45 lib/bookshelf_ornament_browser.lua:333 lib/bookshelf_pack_editor.lua:311 lib/bookshelf_page_count_dialog.lua:188 lib/bookshelf_settings.lua:1639 lib/bookshelf_settings.lua:3183 lib/bookshelf_settings.lua:3663 lib/bookshelf_settings.lua:5101 lib/bookshelf_settings.lua:5328 lib/bookshelf_settings.lua:5491 lib/bookshelf_settings.lua:5693 lib/bookshelf_settings.lua:5787 lib/bookshelf_start_menu_edit.lua:57 lib/bookshelf_start_menu_edit.lua:181 lib/bookshelf_start_menu_edit.lua:293 lib/bookshelf_start_menu_edit.lua:358 lib/bookshelf_widget.lua:9329 lib/bookshelf_widget.lua:19249 lib/bookshelf_widget.lua:21671 lib/bookshelf_widget.lua:23757 lib/bookshelf_widget.lua:23837 lib/bookshelf_widget.lua:23882 lib/bookshelf_widget.lua:23950 lib/bookshelf_widget.lua:23998 lib/bookshelf_widget.lua:24004 lib/bookshelf_widget.lua:25067 lib/bookshelf_widget.lua:25226 lib/bookshelf_widget.lua:26195 main.lua:2432 micromodules/action.lua:227 micromodules/countdown.lua:60 micromodules/reading_goal.lua:496 micromodules/reading_goal.lua:541 micromodules/shelf.lua:381 micromodules/weather.lua:254
 msgid "Cancel"
 msgstr "Annuler"
 
@@ -194,23 +194,23 @@ msgstr "Annuler"
 msgid "Set rating"
 msgstr "Définir la note"
 
-#: lib/bookshelf_bulk_actions.lua:184 lib/bookshelf_bulk_actions.lua:186 lib/bookshelf_bulk_actions.lua:188 lib/bookshelf_widget.lua:22295
+#: lib/bookshelf_bulk_actions.lua:184 lib/bookshelf_bulk_actions.lua:186 lib/bookshelf_bulk_actions.lua:188 lib/bookshelf_widget.lua:22483
 msgid "Favorite"
 msgstr "Favori"
 
-#: lib/bookshelf_bulk_actions.lua:214 lib/bookshelf_chip_editor.lua:386 lib/bookshelf_chip_editor.lua:3195 lib/bookshelf_settings.lua:576 lib/bookshelf_widget.lua:23339
+#: lib/bookshelf_bulk_actions.lua:214 lib/bookshelf_chip_editor.lua:386 lib/bookshelf_chip_editor.lua:3215 lib/bookshelf_settings.lua:576 lib/bookshelf_widget.lua:23527
 msgid "Collections"
 msgstr "Collections"
 
-#: lib/bookshelf_bulk_actions.lua:246 lib/bookshelf_widget.lua:22063
+#: lib/bookshelf_bulk_actions.lua:246 lib/bookshelf_widget.lua:22251
 msgid "Refresh metadata"
 msgstr "Actualiser les métadonnées"
 
-#: lib/bookshelf_bulk_actions.lua:259 lib/bookshelf_widget.lua:21987 lib/bookshelf_widget.lua:22298
+#: lib/bookshelf_bulk_actions.lua:259 lib/bookshelf_widget.lua:22175 lib/bookshelf_widget.lua:22486
 msgid "Remove from history"
 msgstr "Retirer de l'historique"
 
-#: lib/bookshelf_bulk_actions.lua:278 lib/bookshelf_widget.lua:22024
+#: lib/bookshelf_bulk_actions.lua:278 lib/bookshelf_widget.lua:22212
 msgid "Reset book data…"
 msgstr "Réinitialiser les données du livre…"
 
@@ -219,7 +219,7 @@ msgstr "Réinitialiser les données du livre…"
 msgid "Reset %d books?"
 msgstr "Réinitialiser %d livres ?"
 
-#: lib/bookshelf_bulk_actions.lua:285 lib/bookshelf_font_picker.lua:275 lib/bookshelf_module_card_menu.lua:109 lib/bookshelf_ornament_menu.lua:404 lib/bookshelf_settings.lua:4900 lib/bookshelf_settings.lua:4943 lib/bookshelf_theme_library.lua:581 lib/bookshelf_theme_pack.lua:1359 main.lua:3040
+#: lib/bookshelf_bulk_actions.lua:285 lib/bookshelf_font_picker.lua:275 lib/bookshelf_module_card_menu.lua:116 lib/bookshelf_ornament_menu.lua:404 lib/bookshelf_settings.lua:4900 lib/bookshelf_settings.lua:4943 lib/bookshelf_theme_library.lua:581 lib/bookshelf_theme_pack.lua:1359 main.lua:3098
 msgid "Reset"
 msgstr "Réinitialiser"
 
@@ -227,7 +227,7 @@ msgstr "Réinitialiser"
 msgid "Pending changes discarded"
 msgstr "Modifications en attente annulées"
 
-#: lib/bookshelf_bulk_actions.lua:329 lib/bookshelf_bulk_actions.lua:345 lib/bookshelf_chip_editor.lua:1206 lib/bookshelf_chip_editor.lua:3052 lib/bookshelf_collection_manager.lua:383 lib/bookshelf_collection_manager.lua:413 lib/bookshelf_opds_catalog_editor.lua:104 lib/bookshelf_ornament_browser.lua:247 lib/bookshelf_page_count_dialog.lua:72 lib/bookshelf_settings.lua:1631 lib/bookshelf_start_menu_edit.lua:385 lib/bookshelf_widget.lua:22028 lib/bookshelf_widget.lua:22047 lib/bookshelf_widget.lua:23809 lib/bookshelf_widget.lua:25210
+#: lib/bookshelf_bulk_actions.lua:329 lib/bookshelf_bulk_actions.lua:345 lib/bookshelf_chip_editor.lua:1216 lib/bookshelf_chip_editor.lua:3072 lib/bookshelf_collection_manager.lua:383 lib/bookshelf_collection_manager.lua:413 lib/bookshelf_opds_catalog_editor.lua:104 lib/bookshelf_ornament_browser.lua:247 lib/bookshelf_page_count_dialog.lua:72 lib/bookshelf_settings.lua:1631 lib/bookshelf_start_menu_edit.lua:385 lib/bookshelf_widget.lua:22216 lib/bookshelf_widget.lua:22235 lib/bookshelf_widget.lua:23997 lib/bookshelf_widget.lua:25398
 msgid "Delete"
 msgstr "Supprimer"
 
@@ -284,7 +284,7 @@ msgstr "Plus ancien"
 msgid "Newer"
 msgstr "Plus récent"
 
-#: lib/bookshelf_changelog.lua:139 lib/bookshelf_chip_editor.lua:1584 lib/bookshelf_reviews_modal.lua:529 lib/bookshelf_widget.lua:22698 micromodules/quote_of_day.lua:202
+#: lib/bookshelf_changelog.lua:139 lib/bookshelf_chip_editor.lua:1604 lib/bookshelf_reviews_modal.lua:529 lib/bookshelf_widget.lua:22886 micromodules/quote_of_day.lua:202
 msgid "Refresh"
 msgstr "Actualiser"
 
@@ -296,23 +296,23 @@ msgstr "Journal des modifications (%1 sur %2)"
 msgid "Could not fetch the changelog."
 msgstr "Impossible de récupérer le journal des modifications."
 
-#: lib/bookshelf_chip_editor.lua:114 lib/bookshelf_chip_editor.lua:1877 lib/bookshelf_widget.lua:5725
+#: lib/bookshelf_chip_editor.lua:114 lib/bookshelf_chip_editor.lua:1897 lib/bookshelf_widget.lua:5776
 msgid "List"
 msgstr "Liste"
 
-#: lib/bookshelf_chip_editor.lua:115 lib/bookshelf_chip_editor.lua:1873 lib/bookshelf_widget.lua:5724
+#: lib/bookshelf_chip_editor.lua:115 lib/bookshelf_chip_editor.lua:1893 lib/bookshelf_widget.lua:5775
 msgid "Covers"
 msgstr "Couvertures"
 
-#: lib/bookshelf_chip_editor.lua:116 lib/bookshelf_chip_editor.lua:1861 lib/bookshelf_chip_editor.lua:1939 lib/bookshelf_chip_editor.lua:2067 lib/bookshelf_module_card_menu.lua:45 lib/bookshelf_settings.lua:2126 lib/bookshelf_settings.lua:4543 lib/bookshelf_settings.lua:4546 lib/bookshelf_settings.lua:4578 lib/bookshelf_start_menu_edit.lua:320 lib/bookshelf_widget.lua:5727
+#: lib/bookshelf_chip_editor.lua:116 lib/bookshelf_chip_editor.lua:1881 lib/bookshelf_chip_editor.lua:1959 lib/bookshelf_chip_editor.lua:2087 lib/bookshelf_module_card_menu.lua:45 lib/bookshelf_settings.lua:2126 lib/bookshelf_settings.lua:4543 lib/bookshelf_settings.lua:4546 lib/bookshelf_settings.lua:4578 lib/bookshelf_start_menu_edit.lua:320 lib/bookshelf_widget.lua:5778
 msgid "Auto"
 msgstr "Auto"
 
-#: lib/bookshelf_chip_editor.lua:117 lib/bookshelf_chip_editor.lua:1886 lib/bookshelf_widget.lua:5726
+#: lib/bookshelf_chip_editor.lua:117 lib/bookshelf_chip_editor.lua:1906 lib/bookshelf_widget.lua:5777
 msgid "Spines"
 msgstr "Dos"
 
-#: lib/bookshelf_chip_editor.lua:303 lib/bookshelf_chip_editor.lua:1287 lib/bookshelf_settings.lua:6472 lib/bookshelf_widget.lua:25506 lib/bookshelf_widget.lua:25556
+#: lib/bookshelf_chip_editor.lua:303 lib/bookshelf_chip_editor.lua:1297 lib/bookshelf_settings.lua:6472 lib/bookshelf_widget.lua:25694 lib/bookshelf_widget.lua:25744
 msgid "New shelf"
 msgstr "Nouvelle étagère"
 
@@ -340,51 +340,51 @@ msgstr "Ajoutés le plus récemment"
 msgid "Book count"
 msgstr "Nombre de livres"
 
-#: lib/bookshelf_chip_editor.lua:379 lib/bookshelf_chip_editor.lua:3164
+#: lib/bookshelf_chip_editor.lua:379 lib/bookshelf_chip_editor.lua:3184
 msgid "Home (folders)"
 msgstr "Accueil (dossiers)"
 
-#: lib/bookshelf_chip_editor.lua:380 lib/bookshelf_chip_editor.lua:3165
+#: lib/bookshelf_chip_editor.lua:380 lib/bookshelf_chip_editor.lua:3185
 msgid "Home (flattened)"
 msgstr "Accueil (à plat)"
 
-#: lib/bookshelf_chip_editor.lua:381 lib/bookshelf_chip_editor.lua:3157 micromodules/last_books.lua:107
+#: lib/bookshelf_chip_editor.lua:381 lib/bookshelf_chip_editor.lua:3177 lib/bookshelf_chip_editor.lua:3262 micromodules/last_books.lua:107
 msgid "Recently read"
 msgstr "Récemment lus"
 
-#: lib/bookshelf_chip_editor.lua:382 lib/bookshelf_chip_editor.lua:3158
+#: lib/bookshelf_chip_editor.lua:382 lib/bookshelf_chip_editor.lua:3178 lib/bookshelf_chip_editor.lua:3263
 msgid "Latest added"
 msgstr "Derniers ajoutés"
 
-#: lib/bookshelf_chip_editor.lua:383 lib/bookshelf_chip_editor.lua:398 lib/bookshelf_chip_editor.lua:2590 lib/bookshelf_chip_editor.lua:3180 lib/bookshelf_filter.lua:37 lib/bookshelf_settings.lua:575 lib/bookshelf_settings.lua:832 lib/bookshelf_sort_engine.lua:575 lib/bookshelf_tab_model.lua:77 lib/bookshelf_widget.lua:1757 lib/bookshelf_widget.lua:23338
+#: lib/bookshelf_chip_editor.lua:383 lib/bookshelf_chip_editor.lua:398 lib/bookshelf_chip_editor.lua:2610 lib/bookshelf_chip_editor.lua:3200 lib/bookshelf_filter.lua:37 lib/bookshelf_settings.lua:575 lib/bookshelf_settings.lua:832 lib/bookshelf_sort_engine.lua:575 lib/bookshelf_tab_model.lua:77 lib/bookshelf_widget.lua:1765 lib/bookshelf_widget.lua:23526
 msgid "Series"
 msgstr "Séries"
 
-#: lib/bookshelf_chip_editor.lua:384 lib/bookshelf_chip_editor.lua:3185 lib/bookshelf_settings.lua:155 lib/bookshelf_tab_model.lua:81 lib/bookshelf_tokens.lua:30 lib/bookshelf_widget.lua:1756
+#: lib/bookshelf_chip_editor.lua:384 lib/bookshelf_chip_editor.lua:3205 lib/bookshelf_settings.lua:155 lib/bookshelf_tab_model.lua:81 lib/bookshelf_tokens.lua:30 lib/bookshelf_widget.lua:1764
 msgid "Authors"
 msgstr "Auteurs"
 
-#: lib/bookshelf_chip_editor.lua:385 lib/bookshelf_chip_editor.lua:3190 lib/bookshelf_settings.lua:577 lib/bookshelf_tab_model.lua:89 lib/bookshelf_widget.lua:1758 lib/bookshelf_widget.lua:23340
+#: lib/bookshelf_chip_editor.lua:385 lib/bookshelf_chip_editor.lua:3210 lib/bookshelf_settings.lua:577 lib/bookshelf_tab_model.lua:89 lib/bookshelf_widget.lua:1766 lib/bookshelf_widget.lua:23528
 msgid "Genres"
 msgstr "Genres"
 
-#: lib/bookshelf_chip_editor.lua:387 lib/bookshelf_chip_editor.lua:3199
+#: lib/bookshelf_chip_editor.lua:387 lib/bookshelf_chip_editor.lua:3219
 msgid "Formats"
 msgstr "Formats"
 
-#: lib/bookshelf_chip_editor.lua:388 lib/bookshelf_chip_editor.lua:3204 lib/bookshelf_widget.lua:1761 lib/bookshelf_widget.lua:22457
+#: lib/bookshelf_chip_editor.lua:388 lib/bookshelf_chip_editor.lua:3224 lib/bookshelf_widget.lua:1769 lib/bookshelf_widget.lua:22645
 msgid "Ratings"
 msgstr "Notes"
 
-#: lib/bookshelf_chip_editor.lua:389 lib/bookshelf_chip_editor.lua:3208 lib/bookshelf_tab_model.lua:94
+#: lib/bookshelf_chip_editor.lua:389 lib/bookshelf_chip_editor.lua:3228 lib/bookshelf_tab_model.lua:94
 msgid "Languages"
 msgstr "Langues"
 
-#: lib/bookshelf_chip_editor.lua:390 lib/bookshelf_chip_editor.lua:2097 lib/bookshelf_collection_manager.lua:119 lib/bookshelf_tab_model.lua:96 lib/bookshelf_widget.lua:21017 lib/bookshelf_widget.lua:21054
+#: lib/bookshelf_chip_editor.lua:390 lib/bookshelf_chip_editor.lua:2117 lib/bookshelf_collection_manager.lua:119 lib/bookshelf_tab_model.lua:96 lib/bookshelf_widget.lua:21205 lib/bookshelf_widget.lua:21242
 msgid "Favorites"
 msgstr "Favoris"
 
-#: lib/bookshelf_chip_editor.lua:392 lib/bookshelf_settings.lua:578 lib/bookshelf_widget.lua:1760 lib/bookshelf_widget.lua:23341
+#: lib/bookshelf_chip_editor.lua:392 lib/bookshelf_settings.lua:578 lib/bookshelf_widget.lua:1768 lib/bookshelf_widget.lua:23529
 msgid "Folder"
 msgstr "Dossier"
 
@@ -400,7 +400,7 @@ msgstr "Collection"
 msgid "Genre"
 msgstr "Genre"
 
-#: lib/bookshelf_chip_editor.lua:397 lib/bookshelf_chip_editor.lua:2589 lib/bookshelf_settings.lua:455 lib/bookshelf_settings.lua:574 lib/bookshelf_settings.lua:831 lib/bookshelf_sort_engine.lua:571
+#: lib/bookshelf_chip_editor.lua:397 lib/bookshelf_chip_editor.lua:2609 lib/bookshelf_settings.lua:455 lib/bookshelf_settings.lua:574 lib/bookshelf_settings.lua:831 lib/bookshelf_sort_engine.lua:571
 msgid "Author"
 msgstr "Auteur"
 
@@ -420,7 +420,7 @@ msgstr "Langue"
 msgid "OPDS catalog"
 msgstr "Catalogue OPDS"
 
-#: lib/bookshelf_chip_editor.lua:408 lib/bookshelf_chip_editor.lua:3223
+#: lib/bookshelf_chip_editor.lua:408 lib/bookshelf_chip_editor.lua:3243
 msgid "Shelf of shelves"
 msgstr "Étagère d'étagères"
 
@@ -480,495 +480,507 @@ msgstr "Ordre du serveur"
 msgid "Shelves stand in the order you arrange them"
 msgstr "Les étagères suivent l'ordre que vous leur donnez"
 
-#: lib/bookshelf_chip_editor.lua:1017
+#: lib/bookshelf_chip_editor.lua:1020 lib/bookshelf_chip_editor.lua:1025
+msgid "Source: "
+msgstr "Source : "
+
+#: lib/bookshelf_chip_editor.lua:1027
 msgid "Source / grouping: "
 msgstr "Source / regroupement : "
 
-#: lib/bookshelf_chip_editor.lua:1035
+#: lib/bookshelf_chip_editor.lua:1045
 msgid "Show + Add shelf"
 msgstr "Afficher + Ajouter une étagère"
 
-#: lib/bookshelf_chip_editor.lua:1048
+#: lib/bookshelf_chip_editor.lua:1058
 msgid "Filters: "
 msgstr "Filtres : "
 
-#: lib/bookshelf_chip_editor.lua:1062 lib/bookshelf_chip_editor.lua:1572
+#: lib/bookshelf_chip_editor.lua:1072 lib/bookshelf_chip_editor.lua:1592
 msgid "Catalog settings"
 msgstr "Paramètres du catalogue"
 
-#: lib/bookshelf_chip_editor.lua:1099
+#: lib/bookshelf_chip_editor.lua:1109
 msgid "Shelf style: "
 msgstr "Style de l'étagère : "
 
-#: lib/bookshelf_chip_editor.lua:1151
+#: lib/bookshelf_chip_editor.lua:1161
 msgid "Edit label"
 msgstr "Modifier l'étiquette"
 
-#: lib/bookshelf_chip_editor.lua:1179
+#: lib/bookshelf_chip_editor.lua:1189
 msgid "Add a module to this shelf…"
 msgstr "Ajouter un module à cette étagère…"
 
-#: lib/bookshelf_chip_editor.lua:1204
+#: lib/bookshelf_chip_editor.lua:1214
 msgid "Delete this shelf and the shelves inside it? This cannot be undone."
 msgstr "Supprimer cette étagère et les étagères qu'elle contient ? Cette action est irréversible."
 
-#: lib/bookshelf_chip_editor.lua:1205
+#: lib/bookshelf_chip_editor.lua:1215
 msgid "Delete this shelf? This cannot be undone."
 msgstr "Supprimer cette étagère ? Cette action est irréversible."
 
-#: lib/bookshelf_chip_editor.lua:1244
+#: lib/bookshelf_chip_editor.lua:1254
 msgid "Copy"
 msgstr "Copier"
 
-#: lib/bookshelf_chip_editor.lua:1250 lib/bookshelf_folder_picker.lua:136 lib/bookshelf_folder_picker.lua:203
+#: lib/bookshelf_chip_editor.lua:1260 lib/bookshelf_folder_picker.lua:136 lib/bookshelf_folder_picker.lua:203
 msgid "Move to…"
 msgstr "Déplacer vers…"
 
-#: lib/bookshelf_chip_editor.lua:1324 lib/bookshelf_widget.lua:2174
+#: lib/bookshelf_chip_editor.lua:1334 lib/bookshelf_widget.lua:2182
 msgid "Choose a source to keep this new shelf."
 msgstr "Choisissez une source pour conserver cette nouvelle étagère."
 
-#: lib/bookshelf_chip_editor.lua:1356
+#: lib/bookshelf_chip_editor.lua:1376
 msgid "Edit shelf"
 msgstr "Modifier l'étagère"
 
-#: lib/bookshelf_chip_editor.lua:1358
+#: lib/bookshelf_chip_editor.lua:1378
 msgid "Editing: "
 msgstr "Modification : "
 
-#: lib/bookshelf_chip_editor.lua:1540
+#: lib/bookshelf_chip_editor.lua:1560
 msgid "KOReader folder"
 msgstr "Dossier KOReader"
 
-#: lib/bookshelf_chip_editor.lua:1555
+#: lib/bookshelf_chip_editor.lua:1575
 msgid "Starts at"
 msgstr "Point de départ"
 
-#: lib/bookshelf_chip_editor.lua:1555
+#: lib/bookshelf_chip_editor.lua:1575
 msgid "a subcatalog"
 msgstr "un sous-catalogue"
 
-#: lib/bookshelf_chip_editor.lua:1564
+#: lib/bookshelf_chip_editor.lua:1584
 msgid "Starts at: the top of the catalog"
 msgstr "Point de départ : le haut du catalogue"
 
-#: lib/bookshelf_chip_editor.lua:1576
+#: lib/bookshelf_chip_editor.lua:1596
 msgid "Saves to"
 msgstr "Enregistrer dans"
 
-#: lib/bookshelf_chip_editor.lua:1584
+#: lib/bookshelf_chip_editor.lua:1604
 msgid "Refresh this catalog"
 msgstr "Actualiser ce catalogue"
 
-#: lib/bookshelf_chip_editor.lua:1616
+#: lib/bookshelf_chip_editor.lua:1636
 msgid "How many count as recently added"
 msgstr "Combien comptent comme récemment ajoutés"
 
-#: lib/bookshelf_chip_editor.lua:1637 lib/bookshelf_chip_editor.lua:1691 lib/bookshelf_chip_editor.lua:2315 lib/bookshelf_chip_editor.lua:2654 lib/bookshelf_chip_editor.lua:3514 lib/bookshelf_chip_editor.lua:3572 lib/bookshelf_chip_editor.lua:3635 lib/bookshelf_menu_host.lua:135 lib/bookshelf_widget.lua:1780 micromodules/quote_of_day.lua:86
+#: lib/bookshelf_chip_editor.lua:1657 lib/bookshelf_chip_editor.lua:1711 lib/bookshelf_chip_editor.lua:2335 lib/bookshelf_chip_editor.lua:2674 lib/bookshelf_chip_editor.lua:3583 lib/bookshelf_chip_editor.lua:3641 lib/bookshelf_chip_editor.lua:3704 lib/bookshelf_menu_host.lua:135 lib/bookshelf_widget.lua:1788 micromodules/quote_of_day.lua:86
 msgid "Back"
 msgstr "Retour"
 
-#: lib/bookshelf_chip_editor.lua:1644
+#: lib/bookshelf_chip_editor.lua:1664
 msgid "Recently added"
 msgstr "Ajoutés récemment"
 
-#: lib/bookshelf_chip_editor.lua:1673
+#: lib/bookshelf_chip_editor.lua:1693
 msgid "No collections yet"
 msgstr "Aucune collection pour l'instant"
 
-#: lib/bookshelf_chip_editor.lua:1698 lib/bookshelf_chip_editor.lua:2108
+#: lib/bookshelf_chip_editor.lua:1718 lib/bookshelf_chip_editor.lua:2128
 msgid "In a collection"
 msgstr "Dans une collection"
 
-#: lib/bookshelf_chip_editor.lua:1824 lib/bookshelf_chip_editor.lua:1825 lib/bookshelf_theme_library.lua:547
+#: lib/bookshelf_chip_editor.lua:1844 lib/bookshelf_chip_editor.lua:1845 lib/bookshelf_theme_library.lua:547
 msgid "Theme: %1"
 msgstr "Thème : %1"
 
-#: lib/bookshelf_chip_editor.lua:1856
+#: lib/bookshelf_chip_editor.lua:1876
 msgid "Show as"
 msgstr "Afficher comme"
 
-#: lib/bookshelf_chip_editor.lua:1975
+#: lib/bookshelf_chip_editor.lua:1995
 msgid "Level 1: %1"
 msgstr "Niveau 1 : %1"
 
-#: lib/bookshelf_chip_editor.lua:1975
+#: lib/bookshelf_chip_editor.lua:1995
 msgid "Level 2: %1"
 msgstr "Niveau 2 : %1"
 
-#: lib/bookshelf_chip_editor.lua:1997
+#: lib/bookshelf_chip_editor.lua:2017
 msgid "List columns"
 msgstr "Colonnes de la liste"
 
-#: lib/bookshelf_chip_editor.lua:2000
+#: lib/bookshelf_chip_editor.lua:2020
 msgid "List rows"
 msgstr "Rangées de la liste"
 
-#: lib/bookshelf_chip_editor.lua:2008
+#: lib/bookshelf_chip_editor.lua:2028
 msgid "Level 1"
 msgstr "Niveau 1"
 
-#: lib/bookshelf_chip_editor.lua:2010
+#: lib/bookshelf_chip_editor.lua:2030
 msgid "Level 2"
 msgstr "Niveau 2"
 
-#: lib/bookshelf_chip_editor.lua:2021 lib/bookshelf_widget.lua:25081
+#: lib/bookshelf_chip_editor.lua:2041 lib/bookshelf_widget.lua:25269
 msgid "Book binding: %1"
 msgstr "Reliure : %1"
 
-#: lib/bookshelf_chip_editor.lua:2029 lib/bookshelf_module_card_menu.lua:41 lib/bookshelf_settings.lua:695 lib/bookshelf_settings.lua:755 lib/bookshelf_settings.lua:1320 lib/bookshelf_settings.lua:3297 lib/bookshelf_settings.lua:4177 lib/bookshelf_settings.lua:4204 lib/bookshelf_settings.lua:5520
+#: lib/bookshelf_chip_editor.lua:2049 lib/bookshelf_module_card_menu.lua:41 lib/bookshelf_settings.lua:695 lib/bookshelf_settings.lua:755 lib/bookshelf_settings.lua:1320 lib/bookshelf_settings.lua:3297 lib/bookshelf_settings.lua:4177 lib/bookshelf_settings.lua:4204 lib/bookshelf_settings.lua:5520
 msgid "Off"
 msgstr "Désactivé"
 
-#: lib/bookshelf_chip_editor.lua:2029 lib/bookshelf_module_card_menu.lua:41
+#: lib/bookshelf_chip_editor.lua:2049 lib/bookshelf_module_card_menu.lua:41
 msgid "On"
 msgstr "Activé"
 
-#: lib/bookshelf_chip_editor.lua:2029
+#: lib/bookshelf_chip_editor.lua:2049
 msgid "Series boxes: %1"
 msgstr "Coffrets de série : %1"
 
-#: lib/bookshelf_chip_editor.lua:2040 lib/bookshelf_settings.lua:2343
+#: lib/bookshelf_chip_editor.lua:2060 lib/bookshelf_settings.lua:2343
 msgid "Plank: %1"
 msgstr "Planche : %1"
 
-#: lib/bookshelf_chip_editor.lua:2054
+#: lib/bookshelf_chip_editor.lua:2074
 msgid "Spine rows"
 msgstr "Rangées de dos"
 
-#: lib/bookshelf_chip_editor.lua:2088
+#: lib/bookshelf_chip_editor.lua:2108
 msgid "Spine thickness"
 msgstr "Épaisseur des dos"
 
-#: lib/bookshelf_chip_editor.lua:2096 lib/bookshelf_chip_editor.lua:2391 lib/bookshelf_chip_editor.lua:2592 lib/bookshelf_settings.lua:834 lib/bookshelf_settings.lua:1100 lib/bookshelf_settings.lua:1159 lib/bookshelf_settings.lua:1740 lib/bookshelf_settings.lua:1770 lib/bookshelf_settings.lua:1856 lib/bookshelf_shelf_row.lua:418 lib/bookshelf_stack_display.lua:106
+#: lib/bookshelf_chip_editor.lua:2116 lib/bookshelf_chip_editor.lua:2411 lib/bookshelf_chip_editor.lua:2612 lib/bookshelf_settings.lua:834 lib/bookshelf_settings.lua:1100 lib/bookshelf_settings.lua:1159 lib/bookshelf_settings.lua:1740 lib/bookshelf_settings.lua:1770 lib/bookshelf_settings.lua:1856 lib/bookshelf_shelf_row.lua:418 lib/bookshelf_stack_display.lua:106
 msgid "None"
 msgstr "Aucun"
 
-#: lib/bookshelf_chip_editor.lua:2098
+#: lib/bookshelf_chip_editor.lua:2118
 msgid "First in series"
 msgstr "Premier de la série"
 
-#: lib/bookshelf_chip_editor.lua:2099
+#: lib/bookshelf_chip_editor.lua:2119
 msgid "First unread in series"
 msgstr "Premier non lu de la série"
 
-#: lib/bookshelf_chip_editor.lua:2106 lib/bookshelf_filter.lua:249 lib/bookshelf_filter.lua:280 lib/bookshelf_tokens.lua:260 micromodules/random_unread.lua:298 micromodules/shelf_size.lua:24
+#: lib/bookshelf_chip_editor.lua:2126 lib/bookshelf_filter.lua:249 lib/bookshelf_filter.lua:280 lib/bookshelf_tokens.lua:260 micromodules/random_unread.lua:298 micromodules/shelf_size.lua:24
 msgid "Unread"
 msgstr "Non lu"
 
-#: lib/bookshelf_chip_editor.lua:2107
+#: lib/bookshelf_chip_editor.lua:2127
 msgid "Unread standalone"
 msgstr "Indépendant non lu"
 
-#: lib/bookshelf_chip_editor.lua:2109 micromodules/random_unread.lua:297
+#: lib/bookshelf_chip_editor.lua:2129 micromodules/random_unread.lua:297
 msgid "All books"
 msgstr "Tous les livres"
 
-#: lib/bookshelf_chip_editor.lua:2120 lib/bookshelf_chip_editor.lua:2122 lib/bookshelf_chip_editor.lua:2139 lib/bookshelf_chip_editor.lua:2322
+#: lib/bookshelf_chip_editor.lua:2140 lib/bookshelf_chip_editor.lua:2142 lib/bookshelf_chip_editor.lua:2159 lib/bookshelf_chip_editor.lua:2342
 msgid "Face out"
 msgstr "Couvertures de face"
 
-#: lib/bookshelf_chip_editor.lua:2128
+#: lib/bookshelf_chip_editor.lua:2148
 msgid "Newest %1"
 msgstr "%1 plus récents"
 
-#: lib/bookshelf_chip_editor.lua:2137
+#: lib/bookshelf_chip_editor.lua:2157
 msgid "Face out: %1 reasons"
 msgstr "Couvertures de face : %1 raisons"
 
-#: lib/bookshelf_chip_editor.lua:2182
+#: lib/bookshelf_chip_editor.lua:2202
 msgid "Recently added (%1)"
 msgstr "Ajoutés récemment (%1)"
 
-#: lib/bookshelf_chip_editor.lua:2185
+#: lib/bookshelf_chip_editor.lua:2205
 msgid "How many: %1"
 msgstr "Combien : %1"
 
-#: lib/bookshelf_chip_editor.lua:2193
+#: lib/bookshelf_chip_editor.lua:2213
 msgid "Collection: %1 (not found)"
 msgstr "Collection : %1 (introuvable)"
 
-#: lib/bookshelf_chip_editor.lua:2195
+#: lib/bookshelf_chip_editor.lua:2215
 msgid "Collection: %1"
 msgstr "Collection : %1"
 
-#: lib/bookshelf_chip_editor.lua:2197
+#: lib/bookshelf_chip_editor.lua:2217
 msgid "Choose collection"
 msgstr "Choisir une collection"
 
-#: lib/bookshelf_chip_editor.lua:2326
+#: lib/bookshelf_chip_editor.lua:2346
 msgid "Ticked books stand face out. Tick as many reasons as you like."
 msgstr "Les livres cochés sont présentés de face. Cochez autant de raisons que vous le souhaitez."
 
-#: lib/bookshelf_chip_editor.lua:2392
+#: lib/bookshelf_chip_editor.lua:2412
 msgid "Rarely"
 msgstr "Rarement"
 
-#: lib/bookshelf_chip_editor.lua:2393
+#: lib/bookshelf_chip_editor.lua:2413
 msgid "Often"
 msgstr "Souvent"
 
-#: lib/bookshelf_chip_editor.lua:2394 lib/bookshelf_settings.lua:1217
+#: lib/bookshelf_chip_editor.lua:2414 lib/bookshelf_settings.lua:1217
 msgid "Always"
 msgstr "Toujours"
 
-#: lib/bookshelf_chip_editor.lua:2411
+#: lib/bookshelf_chip_editor.lua:2431
 msgid "Author on spine"
 msgstr "Auteur sur le dos"
 
-#: lib/bookshelf_chip_editor.lua:2426
+#: lib/bookshelf_chip_editor.lua:2446
 msgid "Ornaments"
 msgstr "Ornements"
 
-#: lib/bookshelf_chip_editor.lua:2454
+#: lib/bookshelf_chip_editor.lua:2474
 msgid "Folder tiles: "
 msgstr "Tuiles de dossier : "
 
-#: lib/bookshelf_chip_editor.lua:2457
+#: lib/bookshelf_chip_editor.lua:2477
 msgid "Folder tiles"
 msgstr "Tuiles de dossier"
 
-#: lib/bookshelf_chip_editor.lua:2504
+#: lib/bookshelf_chip_editor.lua:2524
 msgid "Shelf style"
 msgstr "Style de l'étagère"
 
-#: lib/bookshelf_chip_editor.lua:2519
+#: lib/bookshelf_chip_editor.lua:2539
 msgid "Same as main shelf"
 msgstr "Comme l'étagère principale"
 
-#: lib/bookshelf_chip_editor.lua:2520 lib/bookshelf_plank_browser.lua:115 lib/bookshelf_theme_library.lua:134
+#: lib/bookshelf_chip_editor.lua:2540 lib/bookshelf_plank_browser.lua:115 lib/bookshelf_theme_library.lua:134
 msgid "Plain color"
 msgstr "Couleur unie"
 
-#: lib/bookshelf_chip_editor.lua:2521 lib/bookshelf_plank_browser.lua:116 lib/bookshelf_theme_library.lua:137
+#: lib/bookshelf_chip_editor.lua:2541 lib/bookshelf_plank_browser.lua:116 lib/bookshelf_theme_library.lua:137
 msgid "Oak"
 msgstr "Chêne"
 
-#: lib/bookshelf_chip_editor.lua:2524 lib/bookshelf_plank_browser.lua:148 lib/bookshelf_theme_pack.lua:880
+#: lib/bookshelf_chip_editor.lua:2544 lib/bookshelf_plank_browser.lua:148 lib/bookshelf_theme_pack.lua:880
 msgid "%1 (%2 pack)"
 msgstr "%1 (pack %2)"
 
-#: lib/bookshelf_chip_editor.lua:2555 lib/bookshelf_plank_browser.lua:223
+#: lib/bookshelf_chip_editor.lua:2575 lib/bookshelf_plank_browser.lua:223
 msgid "Plank"
 msgstr "Planche"
 
-#: lib/bookshelf_chip_editor.lua:2569
+#: lib/bookshelf_chip_editor.lua:2589
 msgid "Cover captions: %1"
 msgstr "Légendes de couverture : %1"
 
-#: lib/bookshelf_chip_editor.lua:2588 lib/bookshelf_settings.lua:454 lib/bookshelf_settings.lua:830 lib/bookshelf_sort_engine.lua:560 lib/bookshelf_tokens.lua:68
+#: lib/bookshelf_chip_editor.lua:2608 lib/bookshelf_settings.lua:454 lib/bookshelf_settings.lua:830 lib/bookshelf_sort_engine.lua:560 lib/bookshelf_tokens.lua:68
 msgid "Title"
 msgstr "Titre"
 
-#: lib/bookshelf_chip_editor.lua:2591 lib/bookshelf_settings.lua:833
+#: lib/bookshelf_chip_editor.lua:2611 lib/bookshelf_settings.lua:833
 msgid "Custom"
 msgstr "Personnalisé"
 
-#: lib/bookshelf_chip_editor.lua:2595 lib/bookshelf_theme_pack.lua:453
+#: lib/bookshelf_chip_editor.lua:2615 lib/bookshelf_theme_pack.lua:453
 msgid "Same as %1"
 msgstr "Identique à %1"
 
-#: lib/bookshelf_chip_editor.lua:2597 lib/bookshelf_color_palette.lua:423 lib/bookshelf_font_picker.lua:192 lib/bookshelf_line_editor.lua:165 lib/bookshelf_line_editor.lua:565 lib/bookshelf_settings.lua:2507 lib/bookshelf_settings.lua:3184 lib/bookshelf_settings.lua:5111 lib/bookshelf_settings.lua:5492 lib/bookshelf_settings.lua:5701 lib/bookshelf_settings.lua:5788 lib/bookshelf_stack_display.lua:194
+#: lib/bookshelf_chip_editor.lua:2617 lib/bookshelf_color_palette.lua:423 lib/bookshelf_font_picker.lua:192 lib/bookshelf_line_editor.lua:165 lib/bookshelf_line_editor.lua:565 lib/bookshelf_settings.lua:2507 lib/bookshelf_settings.lua:3184 lib/bookshelf_settings.lua:5111 lib/bookshelf_settings.lua:5492 lib/bookshelf_settings.lua:5701 lib/bookshelf_settings.lua:5788 lib/bookshelf_stack_display.lua:194
 msgid "Default"
 msgstr "Défaut"
 
-#: lib/bookshelf_chip_editor.lua:2622 lib/bookshelf_settings.lua:850
+#: lib/bookshelf_chip_editor.lua:2642 lib/bookshelf_settings.lua:850
 msgid "Custom…"
 msgstr "Personnalisé…"
 
-#: lib/bookshelf_chip_editor.lua:2661 lib/bookshelf_cover_label_editor.lua:60 lib/bookshelf_settings.lua:891 lib/bookshelf_settings.lua:5879
+#: lib/bookshelf_chip_editor.lua:2681 lib/bookshelf_cover_label_editor.lua:60 lib/bookshelf_settings.lua:891 lib/bookshelf_settings.lua:5879
 msgid "Cover captions"
 msgstr "Légendes de couverture"
 
-#: lib/bookshelf_chip_editor.lua:2725
+#: lib/bookshelf_chip_editor.lua:2745
 msgid "Save downloads from this catalog to…"
 msgstr "Enregistrer les téléchargements de ce catalogue dans…"
 
-#: lib/bookshelf_chip_editor.lua:2729
+#: lib/bookshelf_chip_editor.lua:2749
 msgid "Choose folder…"
 msgstr "Choisir un dossier…"
 
-#: lib/bookshelf_chip_editor.lua:2733
+#: lib/bookshelf_chip_editor.lua:2753
 msgid "Save downloads to…"
 msgstr "Enregistrer les téléchargements dans…"
 
-#: lib/bookshelf_chip_editor.lua:2744 lib/bookshelf_chip_editor.lua:2745
+#: lib/bookshelf_chip_editor.lua:2764 lib/bookshelf_chip_editor.lua:2765
 msgid "KOReader's download folder"
 msgstr "Dossier de téléchargement de KOReader"
 
-#: lib/bookshelf_chip_editor.lua:2805 lib/bookshelf_chip_editor.lua:2893
+#: lib/bookshelf_chip_editor.lua:2825 lib/bookshelf_chip_editor.lua:2913
 msgid "Choose "
 msgstr "Choisir "
 
-#: lib/bookshelf_chip_editor.lua:2806 lib/bookshelf_chip_editor.lua:3474 lib/bookshelf_folder_picker.lua:137 lib/bookshelf_library_modal.lua:557 lib/bookshelf_widget.lua:9253 lib/bookshelf_widget.lua:23669
+#: lib/bookshelf_chip_editor.lua:2826 lib/bookshelf_chip_editor.lua:3543 lib/bookshelf_folder_picker.lua:137 lib/bookshelf_library_modal.lua:557 lib/bookshelf_widget.lua:9294 lib/bookshelf_widget.lua:23857
 msgid "Search…"
 msgstr "Rechercher…"
 
-#: lib/bookshelf_chip_editor.lua:3031
+#: lib/bookshelf_chip_editor.lua:3051
 msgid "Choose OPDS catalog"
 msgstr "Choisir un catalogue OPDS"
 
-#: lib/bookshelf_chip_editor.lua:3033
+#: lib/bookshelf_chip_editor.lua:3053
 msgid "Add catalog…"
 msgstr "Ajouter un catalogue…"
 
-#: lib/bookshelf_chip_editor.lua:3048 lib/bookshelf_line_editor.lua:583 lib/bookshelf_widget.lua:22525 lib/bookshelf_widget.lua:22815 lib/bookshelf_widget.lua:23323 lib/bookshelf_widget.lua:23421
+#: lib/bookshelf_chip_editor.lua:3068 lib/bookshelf_line_editor.lua:583 lib/bookshelf_widget.lua:22713 lib/bookshelf_widget.lua:23003 lib/bookshelf_widget.lua:23511 lib/bookshelf_widget.lua:23609
 msgid "Edit"
 msgstr "Modifier"
 
-#: lib/bookshelf_chip_editor.lua:3124
+#: lib/bookshelf_chip_editor.lua:3144
 msgid "Choose folder within home folder"
 msgstr "Choisir un dossier dans le dossier d'accueil"
 
-#: lib/bookshelf_chip_editor.lua:3126 lib/bookshelf_folder_picker.lua:111
+#: lib/bookshelf_chip_editor.lua:3146 lib/bookshelf_folder_picker.lua:111
 msgid "Browse device…"
 msgstr "Parcourir l'appareil…"
 
-#: lib/bookshelf_chip_editor.lua:3151 lib/bookshelf_sort_engine.lua:688 micromodules/shelf_size.lua:254 micromodules/trivia.lua:44
+#: lib/bookshelf_chip_editor.lua:3171 lib/bookshelf_chip_editor.lua:3260 lib/bookshelf_sort_engine.lua:688 micromodules/shelf_size.lua:254 micromodules/trivia.lua:44
 msgid "Books"
 msgstr "Livres"
 
-#: lib/bookshelf_chip_editor.lua:3159
+#: lib/bookshelf_chip_editor.lua:3179 lib/bookshelf_chip_editor.lua:3264
 msgid "★ Favorites"
 msgstr "★ Favoris"
 
-#: lib/bookshelf_chip_editor.lua:3172
+#: lib/bookshelf_chip_editor.lua:3192 lib/bookshelf_chip_editor.lua:3271
 msgid "Specific folder…"
 msgstr "Dossier spécifique…"
 
-#: lib/bookshelf_chip_editor.lua:3174
+#: lib/bookshelf_chip_editor.lua:3194
 msgid "Flattened folder…"
 msgstr "Dossier à plat…"
 
-#: lib/bookshelf_chip_editor.lua:3178
+#: lib/bookshelf_chip_editor.lua:3198
 msgid "Grouped"
 msgstr "Regroupé"
 
-#: lib/bookshelf_chip_editor.lua:3181
+#: lib/bookshelf_chip_editor.lua:3201 lib/bookshelf_chip_editor.lua:3275
 msgid "Specific series…"
 msgstr "Série spécifique…"
 
-#: lib/bookshelf_chip_editor.lua:3186
+#: lib/bookshelf_chip_editor.lua:3206 lib/bookshelf_chip_editor.lua:3277
 msgid "Specific author…"
 msgstr "Auteur spécifique…"
 
-#: lib/bookshelf_chip_editor.lua:3191
+#: lib/bookshelf_chip_editor.lua:3211 lib/bookshelf_chip_editor.lua:3281
 msgid "Specific genre…"
 msgstr "Genre spécifique…"
 
-#: lib/bookshelf_chip_editor.lua:3196
+#: lib/bookshelf_chip_editor.lua:3216 lib/bookshelf_chip_editor.lua:3283
 msgid "Specific collection…"
 msgstr "Collection spécifique…"
 
-#: lib/bookshelf_chip_editor.lua:3200
+#: lib/bookshelf_chip_editor.lua:3220 lib/bookshelf_chip_editor.lua:3286
 msgid "Specific format…"
 msgstr "Format spécifique…"
 
-#: lib/bookshelf_chip_editor.lua:3205
+#: lib/bookshelf_chip_editor.lua:3225 lib/bookshelf_chip_editor.lua:3288
 msgid "Specific rating…"
 msgstr "Note spécifique…"
 
-#: lib/bookshelf_chip_editor.lua:3209
+#: lib/bookshelf_chip_editor.lua:3229 lib/bookshelf_chip_editor.lua:3291
 msgid "Specific language…"
 msgstr "Langue spécifique…"
 
-#: lib/bookshelf_chip_editor.lua:3224
+#: lib/bookshelf_chip_editor.lua:3244
 msgid "OPDS catalog…"
 msgstr "Catalogue OPDS…"
 
-#: lib/bookshelf_chip_editor.lua:3262
+#: lib/bookshelf_chip_editor.lua:3270 lib/bookshelf_tab_model.lua:56
+msgid "Home"
+msgstr "Accueil"
+
+#: lib/bookshelf_chip_editor.lua:3331
+msgid "Shelf module source"
+msgstr "Source du module Étagère"
+
+#: lib/bookshelf_chip_editor.lua:3331
 msgid "Shelf source or grouping"
 msgstr "Source ou regroupement de l'étagère"
 
-#: lib/bookshelf_chip_editor.lua:3330
+#: lib/bookshelf_chip_editor.lua:3399
 msgid "Clear all filters"
 msgstr "Effacer tous les filtres"
 
-#: lib/bookshelf_chip_editor.lua:3339
+#: lib/bookshelf_chip_editor.lua:3408
 msgid "Pick filters to narrow the shelf. Several picks in the same row match any of them, so picking two genres shows books in either. Picks in different rows must all match, so adding a 5-star rating then limits those to 5-star books only. Numbers below filter choices show how many books currently match based on other selected filters."
 msgstr "Choisissez des filtres pour affiner l'étagère. Plusieurs sélections dans la même ligne correspondent à l'une ou l'autre, donc choisir deux genres affiche les livres de l'un ou l'autre. Les sélections dans des lignes différentes doivent toutes correspondre, donc ajouter une note de 5 étoiles limite ensuite les résultats aux livres 5 étoiles uniquement. Les chiffres sous les choix de filtres indiquent combien de livres correspondent actuellement selon les autres filtres sélectionnés."
 
-#: lib/bookshelf_chip_editor.lua:3341
+#: lib/bookshelf_chip_editor.lua:3410
 msgid "Filters"
 msgstr "Filtres"
 
-#: lib/bookshelf_chip_editor.lua:3391
+#: lib/bookshelf_chip_editor.lua:3460
 msgid "Series filter"
 msgstr "Filtre par série"
 
-#: lib/bookshelf_chip_editor.lua:3406
+#: lib/bookshelf_chip_editor.lua:3475
 msgid "Reading status filter"
 msgstr "Filtre par statut de lecture"
 
-#: lib/bookshelf_chip_editor.lua:3407
+#: lib/bookshelf_chip_editor.lua:3476
 msgid "Genre filter"
 msgstr "Filtre par genre"
 
-#: lib/bookshelf_chip_editor.lua:3408
+#: lib/bookshelf_chip_editor.lua:3477
 msgid "Language filter"
 msgstr "Filtre par langue"
 
-#: lib/bookshelf_chip_editor.lua:3409
+#: lib/bookshelf_chip_editor.lua:3478
 msgid "Format filter"
 msgstr "Filtre par format"
 
-#: lib/bookshelf_chip_editor.lua:3410
+#: lib/bookshelf_chip_editor.lua:3479
 msgid "Rating filter"
 msgstr "Filtre par note"
 
-#: lib/bookshelf_chip_editor.lua:3411
+#: lib/bookshelf_chip_editor.lua:3480
 msgid "Collection filter"
 msgstr "Filtre par collection"
 
-#: lib/bookshelf_chip_editor.lua:3413
+#: lib/bookshelf_chip_editor.lua:3482
 msgid "Filter"
 msgstr "Filtre"
 
-#: lib/bookshelf_chip_editor.lua:3550 micromodules/trivia.lua:42 micromodules/trivia.lua:63 micromodules/trivia.lua:70 micromodules/trivia.lua:431
+#: lib/bookshelf_chip_editor.lua:3619 micromodules/trivia.lua:42 micromodules/trivia.lua:63 micromodules/trivia.lua:70 micromodules/trivia.lua:431
 msgid "Any"
 msgstr "Tout"
 
-#: lib/bookshelf_chip_editor.lua:3570
+#: lib/bookshelf_chip_editor.lua:3639
 msgid "(none in library)"
 msgstr "(aucun dans la bibliothèque)"
 
-#: lib/bookshelf_chip_editor.lua:3628
+#: lib/bookshelf_chip_editor.lua:3697
 msgid "(no folder filters - tap to remove once added)"
 msgstr "(aucun filtre de dossier - touchez pour retirer une fois ajouté)"
 
-#: lib/bookshelf_chip_editor.lua:3632
+#: lib/bookshelf_chip_editor.lua:3701
 msgid "Add folder to include"
 msgstr "Ajouter un dossier à inclure"
 
-#: lib/bookshelf_chip_editor.lua:3633
+#: lib/bookshelf_chip_editor.lua:3702
 msgid "Add folder to exclude"
 msgstr "Ajouter un dossier à exclure"
 
-#: lib/bookshelf_chip_editor.lua:3638
+#: lib/bookshelf_chip_editor.lua:3707
 msgid "Folder filter"
 msgstr "Filtre par dossier"
 
-#: lib/bookshelf_chip_editor.lua:3692
+#: lib/bookshelf_chip_editor.lua:3761
 msgid "Clear sort"
 msgstr "Effacer le tri"
 
-#: lib/bookshelf_chip_editor.lua:3772
+#: lib/bookshelf_chip_editor.lua:3841
 msgid "Edit collection order"
 msgstr "Modifier l'ordre de la collection"
 
-#: lib/bookshelf_chip_editor.lua:3782
+#: lib/bookshelf_chip_editor.lua:3851
 msgid "Sort groups by"
 msgstr "Trier les groupes par"
 
-#: lib/bookshelf_chip_editor.lua:3784
+#: lib/bookshelf_chip_editor.lua:3853
 msgid "Within each group, then by"
 msgstr "Dans chaque groupe, puis par"
 
-#: lib/bookshelf_chip_editor.lua:3786
+#: lib/bookshelf_chip_editor.lua:3855
 msgid "Sort by"
 msgstr "Trier par"
 
-#: lib/bookshelf_chip_editor.lua:3788
+#: lib/bookshelf_chip_editor.lua:3857
 msgid "Then by"
 msgstr "Puis par"
 
@@ -976,11 +988,11 @@ msgstr "Puis par"
 msgid "Rename collection"
 msgstr "Renommer la collection"
 
-#: lib/bookshelf_collection_manager.lua:337 lib/bookshelf_widget.lua:23760
+#: lib/bookshelf_collection_manager.lua:337 lib/bookshelf_widget.lua:23948
 msgid "New name"
 msgstr "Nouveau nom"
 
-#: lib/bookshelf_collection_manager.lua:341 lib/bookshelf_collection_manager.lua:409 lib/bookshelf_move_flow.lua:389 lib/bookshelf_start_menu_edit.lua:101 lib/bookshelf_start_menu_edit.lua:107 lib/bookshelf_start_menu_edit.lua:108 lib/bookshelf_widget.lua:23764 lib/bookshelf_widget.lua:23805
+#: lib/bookshelf_collection_manager.lua:341 lib/bookshelf_collection_manager.lua:409 lib/bookshelf_move_flow.lua:389 lib/bookshelf_start_menu_edit.lua:101 lib/bookshelf_start_menu_edit.lua:107 lib/bookshelf_start_menu_edit.lua:108 lib/bookshelf_widget.lua:23952 lib/bookshelf_widget.lua:23993
 msgid "Rename"
 msgstr "Renommer"
 
@@ -996,7 +1008,7 @@ msgstr "Supprimer la collection « "
 msgid "\"? Books are not deleted, only the tag."
 msgstr " » ? Les livres ne sont pas supprimés, seule l'étiquette l'est."
 
-#: lib/bookshelf_collection_manager.lua:410 lib/bookshelf_collection_manager.lua:421 lib/bookshelf_widget.lua:23807 lib/bookshelf_widget.lua:23814
+#: lib/bookshelf_collection_manager.lua:410 lib/bookshelf_collection_manager.lua:421 lib/bookshelf_widget.lua:23995 lib/bookshelf_widget.lua:24002
 msgid "Pin to shelf menu"
 msgstr "Épingler au menu des étagères"
 
@@ -1016,7 +1028,7 @@ msgstr "Nom de la collection"
 msgid "Create"
 msgstr "Créer"
 
-#: lib/bookshelf_collection_manager.lua:510 lib/bookshelf_collection_manager.lua:534 lib/bookshelf_line_editor.lua:569 lib/bookshelf_opds_catalog_editor.lua:50 lib/bookshelf_widget.lua:21485 lib/bookshelf_widget.lua:23696 main.lua:2379 micromodules/action.lua:230 micromodules/countdown.lua:146 micromodules/reading_goal.lua:503 micromodules/reading_goal.lua:548 micromodules/shelf.lua:290 micromodules/weather.lua:261
+#: lib/bookshelf_collection_manager.lua:510 lib/bookshelf_collection_manager.lua:534 lib/bookshelf_line_editor.lua:569 lib/bookshelf_opds_catalog_editor.lua:50 lib/bookshelf_widget.lua:21673 lib/bookshelf_widget.lua:23884 main.lua:2437 micromodules/action.lua:230 micromodules/countdown.lua:146 micromodules/reading_goal.lua:503 micromodules/reading_goal.lua:548 micromodules/shelf.lua:382 micromodules/weather.lua:261
 msgid "Save"
 msgstr "Enregistrer"
 
@@ -1053,11 +1065,11 @@ msgstr "Retirer de tous"
 msgid "Mixed"
 msgstr "Mixte"
 
-#: lib/bookshelf_collection_manager.lua:830 lib/bookshelf_module_grid_editor.lua:296 lib/bookshelf_module_grid_session.lua:376 lib/bookshelf_start_menu_edit.lua:521 lib/bookshelf_widget.lua:23571 lib/bookshelf_widget.lua:23651 micromodules/countdown.lua:123
+#: lib/bookshelf_collection_manager.lua:830 lib/bookshelf_module_grid_editor.lua:303 lib/bookshelf_module_grid_session.lua:380 lib/bookshelf_start_menu_edit.lua:521 lib/bookshelf_widget.lua:23759 lib/bookshelf_widget.lua:23839 micromodules/countdown.lua:123
 msgid "Add"
 msgstr "Ajouter"
 
-#: lib/bookshelf_collection_manager.lua:832 lib/bookshelf_module_grid_editor.lua:178 lib/bookshelf_module_grid_session.lua:361 lib/bookshelf_widget.lua:7003 lib/bookshelf_widget.lua:7032 lib/bookshelf_widget.lua:23798
+#: lib/bookshelf_collection_manager.lua:832 lib/bookshelf_module_grid_editor.lua:196 lib/bookshelf_module_grid_session.lua:365 lib/bookshelf_widget.lua:7054 lib/bookshelf_widget.lua:7083 lib/bookshelf_widget.lua:23986
 msgid "Remove"
 msgstr "Retirer"
 
@@ -1081,7 +1093,7 @@ msgstr "Choisir une couleur"
 msgid "Invalid hex color (use #RGB or #RRGGBB)"
 msgstr "Couleur hexadécimale invalide (utilisez #RGB ou #RRGGBB)"
 
-#: lib/bookshelf_cover_apply.lua:166 lib/bookshelf_widget.lua:21767 lib/bookshelf_widget.lua:23515
+#: lib/bookshelf_cover_apply.lua:166 lib/bookshelf_widget.lua:21955 lib/bookshelf_widget.lua:23703
 msgid "Embedded"
 msgstr "Intégré"
 
@@ -1097,7 +1109,7 @@ msgstr "Couverture personnalisée"
 msgid "Previous cover"
 msgstr "Couverture précédente"
 
-#: lib/bookshelf_cover_apply.lua:208 lib/bookshelf_cover_sources.lua:298 lib/bookshelf_widget.lua:21768 lib/bookshelf_widget.lua:22431 lib/bookshelf_widget.lua:23517 lib/bookshelf_widget.lua:24473
+#: lib/bookshelf_cover_apply.lua:208 lib/bookshelf_cover_sources.lua:298 lib/bookshelf_widget.lua:21956 lib/bookshelf_widget.lua:22619 lib/bookshelf_widget.lua:23705 lib/bookshelf_widget.lua:24661
 msgid "Hardcover"
 msgstr "Hardcover"
 
@@ -1223,7 +1235,7 @@ msgstr "Nouveau dossier…"
 msgid "Pick font"
 msgstr "Choisir une police"
 
-#: lib/bookshelf_font_picker.lua:284 lib/bookshelf_module_grid_editor.lua:279 lib/bookshelf_module_grid_session.lua:377 lib/bookshelf_ornament_menu.lua:422 lib/bookshelf_widget.lua:24402
+#: lib/bookshelf_font_picker.lua:284 lib/bookshelf_module_grid_editor.lua:320 lib/bookshelf_module_grid_session.lua:381 lib/bookshelf_ornament_menu.lua:422 lib/bookshelf_widget.lua:24590
 msgid "Done"
 msgstr "Terminé"
 
@@ -1323,15 +1335,15 @@ msgstr "Toucher un ornement pour exécuter son action"
 msgid "All gestures"
 msgstr "Tous les gestes"
 
-#: lib/bookshelf_hero_card.lua:416 lib/bookshelf_widget.lua:17476
+#: lib/bookshelf_hero_card.lua:421 lib/bookshelf_widget.lua:17641
 msgid "Stop"
 msgstr "Arrêter"
 
-#: lib/bookshelf_hero_modules.lua:782 lib/bookshelf_start_menu.lua:810
+#: lib/bookshelf_hero_modules.lua:804 lib/bookshelf_start_menu.lua:810
 msgid "%1 (error)"
 msgstr "%1 (erreur)"
 
-#: lib/bookshelf_hero_modules.lua:929
+#: lib/bookshelf_hero_modules.lua:988
 msgid "Hold to add micro-modules"
 msgstr "Maintenez pour ajouter des micro-modules"
 
@@ -1339,7 +1351,7 @@ msgstr "Maintenez pour ajouter des micro-modules"
 msgid "No micro-modules available"
 msgstr "Aucun micro-module disponible"
 
-#: lib/bookshelf_icons_catalogue.lua:20 lib/bookshelf_ornament_browser.lua:229 lib/bookshelf_plank_browser.lua:210 lib/bookshelf_settings.lua:153 lib/bookshelf_start_menu_modules.lua:544 lib/bookshelf_wallpaper_browser.lua:237
+#: lib/bookshelf_icons_catalogue.lua:20 lib/bookshelf_ornament_browser.lua:229 lib/bookshelf_plank_browser.lua:210 lib/bookshelf_settings.lua:153 lib/bookshelf_start_menu_modules.lua:545 lib/bookshelf_wallpaper_browser.lua:237
 msgid "All"
 msgstr "Tout"
 
@@ -1347,7 +1359,7 @@ msgstr "Tout"
 msgid "Dynamic"
 msgstr "Dynamique"
 
-#: lib/bookshelf_icons_catalogue.lua:22 lib/bookshelf_settings.lua:158 lib/bookshelf_tokens.lua:32 lib/bookshelf_widget.lua:23219
+#: lib/bookshelf_icons_catalogue.lua:22 lib/bookshelf_settings.lua:158 lib/bookshelf_tokens.lua:32 lib/bookshelf_widget.lua:23407
 msgid "Device"
 msgstr "Appareil"
 
@@ -1807,7 +1819,7 @@ msgstr "Rechercher %1 icônes par nom…"
 msgid "Drop .svg or .png files in koreader/icons/"
 msgstr "Déposez des fichiers .svg ou .png dans koreader/icons/"
 
-#: lib/bookshelf_library_modal.lua:593 lib/bookshelf_widget.lua:19079 lib/bookshelf_widget.lua:26012
+#: lib/bookshelf_library_modal.lua:593 lib/bookshelf_widget.lua:19244 lib/bookshelf_widget.lua:26200
 msgid "Search"
 msgstr "Rechercher"
 
@@ -1947,19 +1959,19 @@ msgstr "Cet élément de menu n'est pas disponible"
 msgid "Menu"
 msgstr "Menu"
 
-#: lib/bookshelf_module_card.lua:124
+#: lib/bookshelf_module_card.lua:149
 msgid "Card background"
 msgstr "Fond de la carte"
 
-#: lib/bookshelf_module_card.lua:125
+#: lib/bookshelf_module_card.lua:150
 msgid "Card border"
 msgstr "Bordure de la carte"
 
-#: lib/bookshelf_module_card.lua:126
+#: lib/bookshelf_module_card.lua:151
 msgid "Card border color"
 msgstr "Couleur de bordure de la carte"
 
-#: lib/bookshelf_module_card.lua:127
+#: lib/bookshelf_module_card.lua:152
 msgid "Card text"
 msgstr "Texte de la carte"
 
@@ -1967,47 +1979,47 @@ msgstr "Texte de la carte"
 msgid "%1: %2"
 msgstr "%1 : %2"
 
-#: lib/bookshelf_module_card_menu.lua:117
+#: lib/bookshelf_module_card_menu.lua:124
 msgid "%1 · colors for %2"
 msgstr "%1 · couleurs pour %2"
 
-#: lib/bookshelf_module_card_menu.lua:117 lib/bookshelf_settings.lua:1978 lib/bookshelf_settings.lua:2721
+#: lib/bookshelf_module_card_menu.lua:124 lib/bookshelf_settings.lua:1978 lib/bookshelf_settings.lua:2721
 msgid "Dark"
 msgstr "Sombre"
 
-#: lib/bookshelf_module_card_menu.lua:117 lib/bookshelf_settings.lua:1977 lib/bookshelf_settings.lua:2723
+#: lib/bookshelf_module_card_menu.lua:124 lib/bookshelf_settings.lua:1977 lib/bookshelf_settings.lua:2723
 msgid "Light"
 msgstr "Clair"
 
-#: lib/bookshelf_module_grid_editor.lua:173
+#: lib/bookshelf_module_grid_editor.lua:191
 msgid "%1 · %2 × %3"
 msgstr "%1 · %2 × %3"
 
-#: lib/bookshelf_module_grid_editor.lua:176 lib/bookshelf_module_grid_session.lua:360 lib/bookshelf_widget.lua:7002 lib/bookshelf_widget.lua:7023 main.lua:853
+#: lib/bookshelf_module_grid_editor.lua:194 lib/bookshelf_module_grid_session.lua:364 lib/bookshelf_widget.lua:7053 lib/bookshelf_widget.lua:7074 main.lua:876
 msgid "Settings"
 msgstr "Paramètres"
 
-#: lib/bookshelf_module_grid_editor.lua:213 lib/bookshelf_module_grid_editor.lua:230 lib/bookshelf_module_grid_session.lua:348 lib/bookshelf_widget.lua:7014
+#: lib/bookshelf_module_grid_editor.lua:231 lib/bookshelf_module_grid_editor.lua:248 lib/bookshelf_module_grid_session.lua:352 lib/bookshelf_widget.lua:7065
 msgid "Narrower"
 msgstr "Plus étroit"
 
-#: lib/bookshelf_module_grid_editor.lua:219 lib/bookshelf_module_grid_editor.lua:231 lib/bookshelf_module_grid_session.lua:349 lib/bookshelf_widget.lua:7021
+#: lib/bookshelf_module_grid_editor.lua:237 lib/bookshelf_module_grid_editor.lua:249 lib/bookshelf_module_grid_session.lua:353 lib/bookshelf_widget.lua:7072
 msgid "Wider"
 msgstr "Plus large"
 
-#: lib/bookshelf_module_grid_editor.lua:237 lib/bookshelf_module_grid_session.lua:354
+#: lib/bookshelf_module_grid_editor.lua:255 lib/bookshelf_module_grid_session.lua:358
 msgid "Shorter"
 msgstr "Moins haut"
 
-#: lib/bookshelf_module_grid_editor.lua:238 lib/bookshelf_module_grid_session.lua:355
+#: lib/bookshelf_module_grid_editor.lua:256 lib/bookshelf_module_grid_session.lua:359
 msgid "Taller"
 msgstr "Plus haut"
 
-#: lib/bookshelf_module_grid_editor.lua:281
+#: lib/bookshelf_module_grid_editor.lua:305
 msgid "Tap a module to select it"
 msgstr "Toucher un module pour le sélectionner"
 
-#: lib/bookshelf_module_grid_editor.lua:294 lib/bookshelf_module_grid_session.lua:373
+#: lib/bookshelf_module_grid_editor.lua:318 lib/bookshelf_module_grid_session.lua:377
 msgid "New page"
 msgstr "Nouvelle page"
 
@@ -2564,11 +2576,11 @@ msgstr "Extraire le nombre de pages"
 msgid "No books to count here."
 msgstr "Aucun livre à compter ici."
 
-#: lib/bookshelf_pagination.lua:85 lib/bookshelf_widget.lua:8277
+#: lib/bookshelf_pagination.lua:85 lib/bookshelf_widget.lua:8318
 msgid "Page %1 of %2+"
 msgstr "Page %1 sur %2+"
 
-#: lib/bookshelf_pagination.lua:86 lib/bookshelf_widget.lua:8278
+#: lib/bookshelf_pagination.lua:86 lib/bookshelf_widget.lua:8319
 msgid "Page %1 of %2"
 msgstr "Page %1 sur %2"
 
@@ -2588,11 +2600,11 @@ msgstr "D'autres planches arrivent avec des packs : voir Ajouter des ornements d
 msgid "Built-in"
 msgstr "Intégré"
 
-#: lib/bookshelf_reader_park.lua:437 lib/bookshelf_widget.lua:26370 main.lua:1361
+#: lib/bookshelf_reader_park.lua:437 lib/bookshelf_widget.lua:26558 main.lua:1384
 msgid "Closing book…"
 msgstr "Fermeture du livre…"
 
-#: lib/bookshelf_reviews_modal.lua:507 lib/bookshelf_updater.lua:231 lib/bookshelf_widget.lua:19633
+#: lib/bookshelf_reviews_modal.lua:507 lib/bookshelf_updater.lua:231 lib/bookshelf_widget.lua:19798
 msgid "Open"
 msgstr "Ouvrir"
 
@@ -2666,7 +2678,7 @@ msgstr "Note (interactif)"
 msgid "Metadata"
 msgstr "Métadonnées"
 
-#: lib/bookshelf_settings.lua:458 lib/bookshelf_widget.lua:19717 lib/bookshelf_widget.lua:21757 lib/bookshelf_widget.lua:23939 lib/bookshelf_widget.lua:23949
+#: lib/bookshelf_settings.lua:458 lib/bookshelf_widget.lua:19882 lib/bookshelf_widget.lua:21945 lib/bookshelf_widget.lua:24127 lib/bookshelf_widget.lua:24137
 msgid "Description"
 msgstr "Description"
 
@@ -2718,7 +2730,7 @@ msgstr "Pourcentage lu"
 msgid "Percent read and pages"
 msgstr "Pourcentage lu et pages"
 
-#: lib/bookshelf_settings.lua:698 lib/bookshelf_settings.lua:756 lib/bookshelf_sort_engine.lua:704 lib/bookshelf_widget.lua:20601
+#: lib/bookshelf_settings.lua:698 lib/bookshelf_settings.lua:756 lib/bookshelf_sort_engine.lua:704 lib/bookshelf_widget.lua:20789
 msgid "Pages"
 msgstr "Pages"
 
@@ -2754,7 +2766,7 @@ msgstr "Nombre seul"
 msgid "Show \"220\" rather than \"220 p\"."
 msgstr "Afficher « 220 » plutôt que « 220 p »."
 
-#: lib/bookshelf_settings.lua:777 lib/bookshelf_settings.lua:4467 lib/bookshelf_widget.lua:25238
+#: lib/bookshelf_settings.lua:777 lib/bookshelf_settings.lua:4467 lib/bookshelf_widget.lua:25426
 msgid "Extract page counts…"
 msgstr "Extraire le nombre de pages…"
 
@@ -3436,7 +3448,7 @@ msgstr "Avancé"
 msgid "never"
 msgstr "jamais"
 
-#: lib/bookshelf_settings.lua:3498 main.lua:2961
+#: lib/bookshelf_settings.lua:3498 main.lua:3019
 msgid "Hardcover plugin is not available"
 msgstr "L'extension Hardcover n'est pas disponible"
 
@@ -3557,7 +3569,7 @@ msgstr "Actualiser uniquement les notes"
 msgid "Fetch up-to-date public ratings and review counts for every linked book in one quick batched request -- seconds, even for a large library. Ratings drift daily; for the rarely-changing details (author, genres, series, description, pages) use Refresh linked book details instead."
 msgstr "Récupère les notes publiques et le nombre d'avis à jour pour chaque livre lié en une seule requête groupée rapide : quelques secondes, même pour une grande bibliothèque. Les notes évoluent au jour le jour ; pour les détails qui changent rarement (auteur, genres, série, description, pages), utilisez plutôt Actualiser les détails des livres liés."
 
-#: lib/bookshelf_settings.lua:3824 lib/bookshelf_widget.lua:24239
+#: lib/bookshelf_settings.lua:3824 lib/bookshelf_widget.lua:24427
 msgid "Hardcover integration could not be loaded"
 msgstr "L'intégration Hardcover n'a pas pu être chargée"
 
@@ -4021,7 +4033,7 @@ msgstr "Pour les utilisateurs disposant d'une bibliothèque gérée par Calibre.
 msgid "Rows and columns set how much of the screen the shelf takes; the top panel above fills whatever is left. List and spine shelves use that same space with their own row counts, so covers are shown here while you adjust it."
 msgstr "Les rangées et les colonnes déterminent la part de l'écran occupée par l'étagère ; le panneau supérieur au-dessus remplit ce qui reste. Les étagères en liste et en dos utilisent ce même espace avec leur propre nombre de rangées ; les couvertures sont donc affichées ici pendant que vous ajustez."
 
-#: lib/bookshelf_settings.lua:5300 main.lua:781
+#: lib/bookshelf_settings.lua:5300 main.lua:804
 msgid "Adjust shelf/top panel size"
 msgstr "Ajuster la taille de l'étagère/du panneau supérieur"
 
@@ -4129,7 +4141,7 @@ msgstr "Texte de la liste"
 msgid "Top panel"
 msgstr "Panneau supérieur"
 
-#: lib/bookshelf_settings.lua:5900 lib/bookshelf_widget.lua:16109
+#: lib/bookshelf_settings.lua:5900 lib/bookshelf_widget.lua:16274
 msgid "Micro-modules"
 msgstr "Micro-modules"
 
@@ -4177,7 +4189,7 @@ msgstr ""
 msgid "Link copied to clipboard"
 msgstr "Lien copié dans le presse-papiers"
 
-#: lib/bookshelf_settings.lua:6231 main.lua:871
+#: lib/bookshelf_settings.lua:6231 main.lua:894
 msgid "Update available"
 msgstr "Mise à jour disponible"
 
@@ -4205,7 +4217,7 @@ msgstr "Notifier au réveil si une mise à jour est disponible"
 msgid "Developer updates"
 msgstr "Mises à jour développeur"
 
-#: lib/bookshelf_settings.lua:6275 lib/bookshelf_settings.lua:6276 main.lua:2369
+#: lib/bookshelf_settings.lua:6275 lib/bookshelf_settings.lua:6276 main.lua:2427
 msgid "Development branch"
 msgstr "Branche de développement"
 
@@ -4321,7 +4333,7 @@ msgstr "Favoris d'abord"
 msgid "Favorites first"
 msgstr "Favoris en premier"
 
-#: lib/bookshelf_sort_engine.lua:654 lib/bookshelf_widget.lua:20604 lib/bookshelf_widget.lua:20619
+#: lib/bookshelf_sort_engine.lua:654 lib/bookshelf_widget.lua:20792 lib/bookshelf_widget.lua:20807
 msgid "Added"
 msgstr "Ajouté"
 
@@ -4349,7 +4361,7 @@ msgstr "Nombre de pages"
 msgid "Collection order"
 msgstr "Ordre de la collection"
 
-#: lib/bookshelf_spine_widget.lua:1626
+#: lib/bookshelf_spine_widget.lua:1634
 msgid "%1 p"
 msgstr "%1 p"
 
@@ -4497,29 +4509,25 @@ msgstr "Fermer le livre"
 msgid "Sleep"
 msgstr "Veille"
 
-#: lib/bookshelf_start_menu_modules.lua:482
+#: lib/bookshelf_start_menu_modules.lua:483
 msgid "Shelf & books"
 msgstr "Étagère & livres"
 
-#: lib/bookshelf_start_menu_modules.lua:484
+#: lib/bookshelf_start_menu_modules.lua:485
 msgid "Time & device"
 msgstr "Heure & appareil"
 
-#: lib/bookshelf_start_menu_modules.lua:485
+#: lib/bookshelf_start_menu_modules.lua:486
 msgid "Fun & info"
 msgstr "Loisirs & infos"
 
-#: lib/bookshelf_start_menu_modules.lua:486
+#: lib/bookshelf_start_menu_modules.lua:487
 msgid "Actions"
 msgstr "Actions"
 
-#: lib/bookshelf_start_menu_modules.lua:520 lib/bookshelf_start_menu_modules.lua:552
+#: lib/bookshelf_start_menu_modules.lua:521 lib/bookshelf_start_menu_modules.lua:553
 msgid "My modules"
 msgstr "Mes modules"
-
-#: lib/bookshelf_tab_model.lua:56
-msgid "Home"
-msgstr "Accueil"
 
 #: lib/bookshelf_tab_model.lua:67
 msgid "Recent"
@@ -4529,7 +4537,7 @@ msgstr "Récents"
 msgid "Latest"
 msgstr "Récents"
 
-#: lib/bookshelf_tab_model.lua:92 lib/bookshelf_widget.lua:1759 lib/bookshelf_widget.lua:23347
+#: lib/bookshelf_tab_model.lua:92 lib/bookshelf_widget.lua:1767 lib/bookshelf_widget.lua:23535
 msgid "Tags"
 msgstr "Étiquettes"
 
@@ -5110,7 +5118,7 @@ msgstr "Impossible de récupérer la dernière version."
 msgid "Latest release has no downloadable zip."
 msgstr "La dernière version ne contient pas de fichier zip téléchargeable."
 
-#: lib/bookshelf_wallpaper.lua:1058
+#: lib/bookshelf_wallpaper.lua:1132
 msgid "wallpapers"
 msgstr "fonds d'écran"
 
@@ -5134,104 +5142,104 @@ msgstr "Fond d'écran"
 msgid "No images in %1"
 msgstr "Aucune image dans %1"
 
-#: lib/bookshelf_widget.lua:1728
+#: lib/bookshelf_widget.lua:1736
 msgid "Search results"
 msgstr "Résultats de recherche"
 
-#: lib/bookshelf_widget.lua:2107
+#: lib/bookshelf_widget.lua:2115
 #, lua-format
 msgid "No matches for \"%s\""
 msgstr "Aucun résultat pour « %s »"
 
-#: lib/bookshelf_widget.lua:2109
+#: lib/bookshelf_widget.lua:2117
 msgid "Nothing in Series yet · Add series metadata to your books and they will appear here"
 msgstr "Aucune série pour l'instant · Ajoutez des métadonnées de série à vos livres et elles apparaîtront ici"
 
-#: lib/bookshelf_widget.lua:2111
+#: lib/bookshelf_widget.lua:2119
 msgid "No authors yet · Add author metadata to your books and they will appear here"
 msgstr "Aucun auteur pour l'instant · Ajoutez des métadonnées d'auteur à vos livres et ils apparaîtront ici"
 
-#: lib/bookshelf_widget.lua:2113
+#: lib/bookshelf_widget.lua:2121
 msgid "No genres yet · Add keywords or subject metadata to your books and they will appear here"
 msgstr "Aucun genre pour l'instant · Ajoutez des mots-clés ou des métadonnées de sujet à vos livres et ils apparaîtront ici"
 
-#: lib/bookshelf_widget.lua:2115
+#: lib/bookshelf_widget.lua:2123
 msgid "No collections yet · Long-press a book and tap 'Collections…' to create one"
 msgstr "Aucune collection pour l'instant · Appuyez longuement sur un livre et touchez « Collections… » pour en créer une"
 
-#: lib/bookshelf_widget.lua:2117
+#: lib/bookshelf_widget.lua:2125
 msgid "No favorites yet · Long-press a book and tap 'Add to favorites'"
 msgstr "Aucun favori pour l'instant · Appuyez longuement sur un livre et sélectionnez « Ajouter aux favoris »"
 
-#: lib/bookshelf_widget.lua:2119
+#: lib/bookshelf_widget.lua:2127
 msgid "No books found · Set your library folder in Settings then tap Latest"
 msgstr "Aucun livre trouvé · Définissez votre dossier de bibliothèque dans les Paramètres puis touchez Récents"
 
-#: lib/bookshelf_widget.lua:2121
+#: lib/bookshelf_widget.lua:2129
 msgid "No recent reads yet · Open a book and it will appear here"
 msgstr "Aucune lecture récente · Ouvrez un livre et il apparaîtra ici"
 
-#: lib/bookshelf_widget.lua:2127
+#: lib/bookshelf_widget.lua:2135
 msgid "No books here yet · Pick a folder to use as your KOReader library and books in it will appear here."
 msgstr "Aucun livre ici pour l'instant · Choisissez un dossier à utiliser comme bibliothèque KOReader et les livres qu'il contient apparaîtront ici."
 
-#: lib/bookshelf_widget.lua:2153
+#: lib/bookshelf_widget.lua:2161
 #, lua-format
 msgid "Couldn't load %s · Pull down to try again"
 msgstr "Impossible de charger %s · Tirez vers le bas pour réessayer"
 
-#: lib/bookshelf_widget.lua:2157
+#: lib/bookshelf_widget.lua:2165
 #, lua-format
 msgid "Nothing in \"%s\" · Pull down to refresh, or clear the start folder in Catalog settings"
 msgstr "Rien dans « %s » · Tirez vers le bas pour actualiser, ou effacez le dossier de départ dans Paramètres du catalogue"
 
-#: lib/bookshelf_widget.lua:2161
+#: lib/bookshelf_widget.lua:2169
 #, lua-format
 msgid "Nothing in %s · Pull down to refresh"
 msgstr "Rien dans %s · Tirez vers le bas pour actualiser"
 
-#: lib/bookshelf_widget.lua:2180
+#: lib/bookshelf_widget.lua:2188
 #, lua-format
 msgid "No books in %s yet · Go back and long-press its tile to edit its source or filter"
 msgstr "Aucun livre dans %s pour l'instant · Revenez en arrière et appuyez longuement sur sa tuile pour modifier sa source ou son filtre"
 
-#: lib/bookshelf_widget.lua:2187
+#: lib/bookshelf_widget.lua:2195
 #, lua-format
 msgid "No books in %s yet · Long-press it in the shelf menu above to edit its source or filter"
 msgstr "Aucun livre dans %s pour l'instant · Appuyez longuement sur son nom dans le menu des étagères ci-dessus pour modifier sa source ou son filtre"
 
-#: lib/bookshelf_widget.lua:2190
+#: lib/bookshelf_widget.lua:2198
 #, lua-format
 msgid "No books in %s yet"
 msgstr "Aucun livre dans %s pour l'instant"
 
-#: lib/bookshelf_widget.lua:2202
+#: lib/bookshelf_widget.lua:2210
 #, lua-format
 msgid "Nothing in %s yet · Go back and long-press its tile to edit its filter"
 msgstr "Rien dans %s pour l'instant · Revenez en arrière et appuyez longuement sur sa tuile pour modifier son filtre"
 
-#: lib/bookshelf_widget.lua:2206
+#: lib/bookshelf_widget.lua:2214
 #, lua-format
 msgid "Nothing in %s yet · Long-press it in the shelf menu above to edit its filter"
 msgstr "Rien dans %s pour l'instant · Appuyez longuement sur son nom dans le menu des étagères ci-dessus pour modifier son filtre"
 
-#: lib/bookshelf_widget.lua:2301
+#: lib/bookshelf_widget.lua:2309
 msgid "Set home folder"
 msgstr "Définir le dossier d'accueil"
 
-#: lib/bookshelf_widget.lua:2310
+#: lib/bookshelf_widget.lua:2318
 msgid "Current home folder:"
 msgstr "Dossier d'accueil actuel :"
 
-#: lib/bookshelf_widget.lua:4667 lib/bookshelf_widget.lua:21935
+#: lib/bookshelf_widget.lua:4698 lib/bookshelf_widget.lua:22123
 msgid "File no longer exists. The bookshelf entry is stale."
 msgstr "Le fichier n'existe plus. L'entrée bookshelf est obsolète."
 
-#: lib/bookshelf_widget.lua:4695
+#: lib/bookshelf_widget.lua:4726
 msgid "Couldn't open this Kobo book."
 msgstr "Impossible d'ouvrir ce livre Kobo."
 
-#: lib/bookshelf_widget.lua:4742
+#: lib/bookshelf_widget.lua:4773
 msgid ""
 "This Kindle book has to be converted before KOReader can read it.\n"
 "\n"
@@ -5245,11 +5253,11 @@ msgstr ""
 "\n"
 "Cela ne se produit qu'à la première ouverture d'un livre."
 
-#: lib/bookshelf_widget.lua:4747
+#: lib/bookshelf_widget.lua:4778
 msgid "Convert"
 msgstr "Convertir"
 
-#: lib/bookshelf_widget.lua:4790
+#: lib/bookshelf_widget.lua:4821
 msgid ""
 "This is a protected %1 file, which can't be opened.\n"
 "\n"
@@ -5263,7 +5271,7 @@ msgstr ""
 "\n"
 "Vos livres KFX devraient s'ouvrir normalement."
 
-#: lib/bookshelf_widget.lua:4800
+#: lib/bookshelf_widget.lua:4831
 msgid ""
 "KOReader can't read %1 files.\n"
 "\n"
@@ -5277,107 +5285,107 @@ msgstr ""
 "\n"
 "Vos autres livres Kindle devraient s'ouvrir normalement."
 
-#: lib/bookshelf_widget.lua:4805
+#: lib/bookshelf_widget.lua:4836
 msgid "The Kindle library isn't available right now."
 msgstr "La bibliothèque Kindle n'est pas disponible pour le moment."
 
-#: lib/bookshelf_widget.lua:4923
+#: lib/bookshelf_widget.lua:4954
 msgid "Preparing this book…"
 msgstr "Préparation de ce livre…"
 
-#: lib/bookshelf_widget.lua:4937
+#: lib/bookshelf_widget.lua:4968
 msgid "This book is still being prepared. Please try again in a moment."
 msgstr "Ce livre est encore en cours de préparation. Veuillez réessayer dans un instant."
 
-#: lib/bookshelf_widget.lua:5722
+#: lib/bookshelf_widget.lua:5773
 msgid "Show search results as"
 msgstr "Afficher les résultats de recherche comme"
 
-#: lib/bookshelf_widget.lua:6216
+#: lib/bookshelf_widget.lua:6267
 msgid "Catalog books can't be selected."
 msgstr "Les livres de catalogue ne peuvent pas être sélectionnés."
 
-#: lib/bookshelf_widget.lua:6811
+#: lib/bookshelf_widget.lua:6862
 msgid "Modules can only go on shelves shown as covers or spines"
 msgstr "Les modules ne vont que sur des étagères affichées en couvertures ou en dos"
 
-#: lib/bookshelf_widget.lua:6977
+#: lib/bookshelf_widget.lua:7028
 msgid "Ornament micro-module (pinned)"
 msgstr "Micro-module ornement (épinglé)"
 
-#: lib/bookshelf_widget.lua:8280
+#: lib/bookshelf_widget.lua:8321
 msgid "%1 - %2 of %3+"
 msgstr "%1 - %2 sur %3+"
 
-#: lib/bookshelf_widget.lua:8281
+#: lib/bookshelf_widget.lua:8322
 msgid "%1 - %2 of %3"
 msgstr "%1 - %2 sur %3"
 
-#: lib/bookshelf_widget.lua:8917 lib/bookshelf_widget.lua:13155
+#: lib/bookshelf_widget.lua:8958 lib/bookshelf_widget.lua:13215
 msgid "Selection cleared"
 msgstr "Sélection effacée"
 
-#: lib/bookshelf_widget.lua:9219
+#: lib/bookshelf_widget.lua:9260
 #, lua-format
 msgid "No items start with %q"
 msgstr "Aucun élément ne commence par %q"
 
-#: lib/bookshelf_widget.lua:9264
+#: lib/bookshelf_widget.lua:9305
 msgid "Go to letter"
 msgstr "Aller à la lettre"
 
-#: lib/bookshelf_widget.lua:9275
+#: lib/bookshelf_widget.lua:9316
 msgid "Enter text, letter or book number"
 msgstr "Saisissez du texte, une lettre ou un numéro de livre"
 
-#: lib/bookshelf_widget.lua:9276
+#: lib/bookshelf_widget.lua:9317
 msgid "Enter text, letter or page number"
 msgstr "Saisissez du texte, une lettre ou un numéro de page"
 
-#: lib/bookshelf_widget.lua:9283
+#: lib/bookshelf_widget.lua:9324
 #, lua-format
 msgid "(a - z) or (1 - %d)"
 msgstr "(a - z) ou (1 - %d)"
 
-#: lib/bookshelf_widget.lua:9293
+#: lib/bookshelf_widget.lua:9334
 msgid "Go to book"
 msgstr "Aller au livre"
 
-#: lib/bookshelf_widget.lua:9293
+#: lib/bookshelf_widget.lua:9334
 msgid "Go to page"
 msgstr "Aller à la page"
 
-#: lib/bookshelf_widget.lua:9300
+#: lib/bookshelf_widget.lua:9341
 #, lua-format
 msgid "Book must be between 1 and %d"
 msgstr "Le livre doit être entre 1 et %d"
 
-#: lib/bookshelf_widget.lua:9301
+#: lib/bookshelf_widget.lua:9342
 #, lua-format
 msgid "Page must be between 1 and %d"
 msgstr "La page doit être entre 1 et %d"
 
-#: lib/bookshelf_widget.lua:11541
+#: lib/bookshelf_widget.lua:11597
 msgid "Retrieving book cover…"
 msgstr "Récupération de la couverture…"
 
-#: lib/bookshelf_widget.lua:16113
+#: lib/bookshelf_widget.lua:16278
 msgid "Reset modules to default"
 msgstr "Réinitialiser les modules par défaut"
 
-#: lib/bookshelf_widget.lua:16122
+#: lib/bookshelf_widget.lua:16287
 msgid "Remove micro-modules (re-enable in settings)"
 msgstr "Retirer les micro-modules (réactiver dans les paramètres)"
 
-#: lib/bookshelf_widget.lua:16298 lib/bookshelf_widget.lua:24747
+#: lib/bookshelf_widget.lua:16463 lib/bookshelf_widget.lua:24935
 msgid "Bulk selection isn't available in remote catalog views."
 msgstr "La sélection groupée n'est pas disponible dans les vues de catalogue distant."
 
-#: lib/bookshelf_widget.lua:16912
+#: lib/bookshelf_widget.lua:17077
 msgid "Refreshing library…"
 msgstr "Actualisation de la bibliothèque…"
 
-#: lib/bookshelf_widget.lua:17398
+#: lib/bookshelf_widget.lua:17563
 msgid ""
 "Fetching %1… (%2 books)\n"
 "(Tap to cancel)"
@@ -5385,7 +5393,7 @@ msgstr ""
 "Récupération de %1… (%2 livres)\n"
 "(Touchez pour annuler)"
 
-#: lib/bookshelf_widget.lua:17402
+#: lib/bookshelf_widget.lua:17567
 msgid ""
 "Fetching %1…\n"
 "(Tap to cancel)"
@@ -5393,7 +5401,7 @@ msgstr ""
 "Récupération de %1…\n"
 "(Touchez pour annuler)"
 
-#: lib/bookshelf_widget.lua:17472
+#: lib/bookshelf_widget.lua:17637
 msgid ""
 "Stop loading %1?\n"
 "%2 books so far."
@@ -5401,123 +5409,123 @@ msgstr ""
 "Arrêter le chargement de %1 ?\n"
 "%2 livres pour l'instant."
 
-#: lib/bookshelf_widget.lua:17474
+#: lib/bookshelf_widget.lua:17639
 msgid "Stop loading %1?"
 msgstr "Arrêter le chargement de %1 ?"
 
-#: lib/bookshelf_widget.lua:17476
+#: lib/bookshelf_widget.lua:17641
 msgid "Keep loading"
 msgstr "Continuer le chargement"
 
-#: lib/bookshelf_widget.lua:17528 lib/bookshelf_widget.lua:19196 lib/bookshelf_widget.lua:20090
+#: lib/bookshelf_widget.lua:17693 lib/bookshelf_widget.lua:19361 lib/bookshelf_widget.lua:20255
 msgid "Authentication failed for %1"
 msgstr "Échec de l'authentification pour %1"
 
-#: lib/bookshelf_widget.lua:17530 lib/bookshelf_widget.lua:19198
+#: lib/bookshelf_widget.lua:17695 lib/bookshelf_widget.lua:19363
 msgid "%1 refused every format Bookshelf asked for"
 msgstr "%1 a refusé tous les formats demandés par Bookshelf"
 
-#: lib/bookshelf_widget.lua:17532 lib/bookshelf_widget.lua:19200
+#: lib/bookshelf_widget.lua:17697 lib/bookshelf_widget.lua:19365
 msgid "%1 is limiting requests. Wait a minute and try again."
 msgstr "%1 limite les requêtes. Attendez une minute et réessayez."
 
-#: lib/bookshelf_widget.lua:17533 lib/bookshelf_widget.lua:19201 lib/bookshelf_widget.lua:20094
+#: lib/bookshelf_widget.lua:17698 lib/bookshelf_widget.lua:19366 lib/bookshelf_widget.lua:20259
 msgid "Couldn't reach %1"
 msgstr "Impossible de joindre %1"
 
-#: lib/bookshelf_widget.lua:17566 lib/bookshelf_widget.lua:17596
+#: lib/bookshelf_widget.lua:17731 lib/bookshelf_widget.lua:17761
 msgid "No books found in %1"
 msgstr "Aucun livre trouvé dans %1"
 
-#: lib/bookshelf_widget.lua:17595
+#: lib/bookshelf_widget.lua:17760
 msgid "No downloadable titles in this category."
 msgstr "Aucun titre téléchargeable dans cette catégorie."
 
-#: lib/bookshelf_widget.lua:17791 lib/bookshelf_widget.lua:19145 lib/bookshelf_widget.lua:19896 lib/bookshelf_widget.lua:20029 lib/bookshelf_widget.lua:26294
+#: lib/bookshelf_widget.lua:17956 lib/bookshelf_widget.lua:19310 lib/bookshelf_widget.lua:20061 lib/bookshelf_widget.lua:20194 lib/bookshelf_widget.lua:26482
 msgid "The catalog is busy. Try again in a moment."
 msgstr "Le catalogue est occupé. Réessayez dans un instant."
 
-#: lib/bookshelf_widget.lua:19041
+#: lib/bookshelf_widget.lua:19206
 msgid "This catalog does not offer search."
 msgstr "Ce catalogue ne propose pas de recherche."
 
-#: lib/bookshelf_widget.lua:19042
+#: lib/bookshelf_widget.lua:19207
 msgid "Load the catalog first, then search it."
 msgstr "Chargez d'abord le catalogue, puis lancez la recherche."
 
-#: lib/bookshelf_widget.lua:19089
+#: lib/bookshelf_widget.lua:19254
 msgid "Search my library"
 msgstr "Rechercher dans ma bibliothèque"
 
-#: lib/bookshelf_widget.lua:19095
+#: lib/bookshelf_widget.lua:19260
 msgid "Search %1"
 msgstr "Rechercher dans %1"
 
-#: lib/bookshelf_widget.lua:19168
+#: lib/bookshelf_widget.lua:19333
 msgid "Searching %1…"
 msgstr "Recherche dans %1…"
 
-#: lib/bookshelf_widget.lua:19230
+#: lib/bookshelf_widget.lua:19395
 msgid "Search: \"%1\""
 msgstr "Recherche : « %1 »"
 
-#: lib/bookshelf_widget.lua:19463 lib/bookshelf_widget.lua:20500
+#: lib/bookshelf_widget.lua:19628 lib/bookshelf_widget.lua:20688
 msgid "(no title)"
 msgstr "(sans titre)"
 
-#: lib/bookshelf_widget.lua:19660
+#: lib/bookshelf_widget.lua:19825
 msgid "Download"
 msgstr "Télécharger"
 
-#: lib/bookshelf_widget.lua:19660
+#: lib/bookshelf_widget.lua:19825
 msgid "Download %1"
 msgstr "Télécharger %1"
 
-#: lib/bookshelf_widget.lua:19666
+#: lib/bookshelf_widget.lua:19831
 msgid "Recommended"
 msgstr "Recommandé"
 
-#: lib/bookshelf_widget.lua:19668
+#: lib/bookshelf_widget.lua:19833
 msgid "Alternatives"
 msgstr "Alternatives"
 
-#: lib/bookshelf_widget.lua:19685
+#: lib/bookshelf_widget.lua:19850
 msgid "Page stream"
 msgstr "Flux de pages"
 
-#: lib/bookshelf_widget.lua:19687
+#: lib/bookshelf_widget.lua:19852
 msgid "Stream from page"
 msgstr "Flux depuis la page"
 
-#: lib/bookshelf_widget.lua:19692
+#: lib/bookshelf_widget.lua:19857
 msgid "Resume stream from page"
 msgstr "Reprendre le flux à la page"
 
-#: lib/bookshelf_widget.lua:19709
+#: lib/bookshelf_widget.lua:19874
 msgid "No formats this device can open"
 msgstr "Aucun format lisible par cet appareil"
 
-#: lib/bookshelf_widget.lua:19921
+#: lib/bookshelf_widget.lua:20086
 msgid "Set a home folder in KOReader before downloading books."
 msgstr "Définissez un dossier d'accueil dans KOReader avant de télécharger des livres."
 
-#: lib/bookshelf_widget.lua:19978
+#: lib/bookshelf_widget.lua:20143
 msgid "%1 already exists. Download it again?"
 msgstr "%1 existe déjà. Le télécharger à nouveau ?"
 
-#: lib/bookshelf_widget.lua:19979
+#: lib/bookshelf_widget.lua:20144
 msgid "Overwrite"
 msgstr "Écraser"
 
-#: lib/bookshelf_widget.lua:20054
+#: lib/bookshelf_widget.lua:20219
 msgid "Downloading %1… (tap to cancel)"
 msgstr "Téléchargement de %1… (touchez pour annuler)"
 
-#: lib/bookshelf_widget.lua:20066
+#: lib/bookshelf_widget.lua:20231
 msgid "Download cancelled"
 msgstr "Téléchargement annulé"
 
-#: lib/bookshelf_widget.lua:20084
+#: lib/bookshelf_widget.lua:20249
 msgid ""
 "Insecure redirect refused.\n"
 "\n"
@@ -5535,365 +5543,365 @@ msgstr ""
 "\n"
 "De nombreuses applications refusent cela, car il pourrait s'agir d'une attaque par rétrogradation."
 
-#: lib/bookshelf_widget.lua:20193
+#: lib/bookshelf_widget.lua:20358
 msgid "%1 downloaded. Read it now?"
 msgstr "%1 téléchargé. Le lire maintenant ?"
 
-#: lib/bookshelf_widget.lua:20194 lib/bookshelf_widget.lua:20605
+#: lib/bookshelf_widget.lua:20359 lib/bookshelf_widget.lua:20793
 msgid "Read"
 msgstr "Lu"
 
-#: lib/bookshelf_widget.lua:20202
+#: lib/bookshelf_widget.lua:20367
 msgid "Not now"
 msgstr "Pas maintenant"
 
-#: lib/bookshelf_widget.lua:20454
+#: lib/bookshelf_widget.lua:20642
 msgid "%1 bookmarks"
 msgstr "%1 marque-pages"
 
-#: lib/bookshelf_widget.lua:20454
+#: lib/bookshelf_widget.lua:20642
 msgid "1 bookmark"
 msgstr "1 marque-page"
 
-#: lib/bookshelf_widget.lua:20620
+#: lib/bookshelf_widget.lua:20808
 msgid "Last read"
 msgstr "Dernière lecture"
 
-#: lib/bookshelf_widget.lua:21477 lib/bookshelf_widget.lua:24030 lib/bookshelf_widget.lua:24035
+#: lib/bookshelf_widget.lua:21665 lib/bookshelf_widget.lua:24218 lib/bookshelf_widget.lua:24223
 msgid "My review"
 msgstr "Mon avis"
 
-#: lib/bookshelf_widget.lua:21789
+#: lib/bookshelf_widget.lua:21977
 msgid "(from Hardcover)"
 msgstr "(depuis Hardcover)"
 
-#: lib/bookshelf_widget.lua:21931
+#: lib/bookshelf_widget.lua:22119
 msgid "Show info"
 msgstr "Afficher les infos"
 
-#: lib/bookshelf_widget.lua:21992
+#: lib/bookshelf_widget.lua:22180
 msgid "Removed from history"
 msgstr "Retiré de l'historique"
 
-#: lib/bookshelf_widget.lua:22046
+#: lib/bookshelf_widget.lua:22234
 msgid "Delete file permanently?"
 msgstr "Supprimer définitivement le fichier ?"
 
-#: lib/bookshelf_widget.lua:22055
+#: lib/bookshelf_widget.lua:22243
 msgid "Failed to delete file."
 msgstr "Échec de la suppression du fichier."
 
-#: lib/bookshelf_widget.lua:22079
+#: lib/bookshelf_widget.lua:22267
 msgid "Metadata refresh queued"
 msgstr "Actualisation des métadonnées en file d'attente"
 
-#: lib/bookshelf_widget.lua:22081
+#: lib/bookshelf_widget.lua:22269
 msgid "Select"
 msgstr "Sélectionner"
 
-#: lib/bookshelf_widget.lua:22094
+#: lib/bookshelf_widget.lua:22282
 msgid "Move…"
 msgstr "Déplacer…"
 
-#: lib/bookshelf_widget.lua:22228
+#: lib/bookshelf_widget.lua:22416
 msgid "Reading status"
 msgstr "Statut de lecture"
 
-#: lib/bookshelf_widget.lua:22369
+#: lib/bookshelf_widget.lua:22557
 msgid "Your rating"
 msgstr "Votre note"
 
-#: lib/bookshelf_widget.lua:22511
+#: lib/bookshelf_widget.lua:22699
 msgid "File & metadata"
 msgstr "Fichier et métadonnées"
 
-#: lib/bookshelf_widget.lua:22524
+#: lib/bookshelf_widget.lua:22712
 msgid "Not linked"
 msgstr "Non lié"
 
-#: lib/bookshelf_widget.lua:22525
+#: lib/bookshelf_widget.lua:22713
 msgid "Link…"
 msgstr "Lier…"
 
-#: lib/bookshelf_widget.lua:22537
+#: lib/bookshelf_widget.lua:22725
 msgid "Plugin actions"
 msgstr "Actions du plugin"
 
-#: lib/bookshelf_widget.lua:22684
+#: lib/bookshelf_widget.lua:22872
 #, lua-format
 msgid "%d ratings"
 msgstr "%d notes"
 
-#: lib/bookshelf_widget.lua:22687
+#: lib/bookshelf_widget.lua:22875
 #, lua-format
 msgid "%d reviews"
 msgstr "%d avis"
 
-#: lib/bookshelf_widget.lua:22815
+#: lib/bookshelf_widget.lua:23003
 msgid "Write…"
 msgstr "Écrire…"
 
-#: lib/bookshelf_widget.lua:22837
+#: lib/bookshelf_widget.lua:23025
 msgid "You haven't reviewed this book yet."
 msgstr "Vous n'avez pas encore donné votre avis sur ce livre."
 
-#: lib/bookshelf_widget.lua:22917
+#: lib/bookshelf_widget.lua:23105
 msgid "Choose from device"
 msgstr "Choisir depuis l'appareil"
 
-#: lib/bookshelf_widget.lua:22921
+#: lib/bookshelf_widget.lua:23109
 msgid "Search online…"
 msgstr "Rechercher en ligne…"
 
-#: lib/bookshelf_widget.lua:22988
+#: lib/bookshelf_widget.lua:23176
 msgid "No covers stored yet. Use Search online or Choose from device."
 msgstr "Aucune couverture enregistrée pour l'instant. Utilisez Rechercher en ligne ou Choisir depuis l'appareil."
 
-#: lib/bookshelf_widget.lua:23136
+#: lib/bookshelf_widget.lua:23324
 msgid "That cover is unavailable"
 msgstr "Cette couverture est indisponible"
 
-#: lib/bookshelf_widget.lua:23143
+#: lib/bookshelf_widget.lua:23331
 msgid "Couldn't set the cover"
 msgstr "Impossible de définir la couverture"
 
-#: lib/bookshelf_widget.lua:23198
+#: lib/bookshelf_widget.lua:23386
 msgid "Cover updated"
 msgstr "Couverture mise à jour"
 
-#: lib/bookshelf_widget.lua:23198
+#: lib/bookshelf_widget.lua:23386
 msgid "Reverted to embedded cover"
 msgstr "Rétabli sur la couverture intégrée"
 
-#: lib/bookshelf_widget.lua:23211
+#: lib/bookshelf_widget.lua:23399
 msgid "Choose cover image"
 msgstr "Choisir l'image de couverture"
 
-#: lib/bookshelf_widget.lua:23242
+#: lib/bookshelf_widget.lua:23430
 msgid "No cover matches found"
 msgstr "Aucune couverture correspondante trouvée"
 
-#: lib/bookshelf_widget.lua:23251
+#: lib/bookshelf_widget.lua:23439
 msgid "Cover search failed"
 msgstr "Échec de la recherche de couvertures"
 
-#: lib/bookshelf_widget.lua:23337
+#: lib/bookshelf_widget.lua:23525
 msgid "Author(s)"
 msgstr "Auteur(s)"
 
-#: lib/bookshelf_widget.lua:23516
+#: lib/bookshelf_widget.lua:23704
 msgid "Calibre"
 msgstr "Calibre"
 
-#: lib/bookshelf_widget.lua:23567 lib/bookshelf_widget.lua:23647 lib/bookshelf_widget.lua:23692
+#: lib/bookshelf_widget.lua:23755 lib/bookshelf_widget.lua:23835 lib/bookshelf_widget.lua:23880
 msgid "New tag"
 msgstr "Nouvelle étiquette"
 
-#: lib/bookshelf_widget.lua:23668
+#: lib/bookshelf_widget.lua:23856
 msgid "Edit tags"
 msgstr "Modifier les étiquettes"
 
-#: lib/bookshelf_widget.lua:23759
+#: lib/bookshelf_widget.lua:23947
 msgid "Rename tag"
 msgstr "Renommer l'étiquette"
 
-#: lib/bookshelf_widget.lua:23797
+#: lib/bookshelf_widget.lua:23985
 msgid "Remove the tag \"%1\" from this book?"
 msgstr "Retirer l'étiquette « %1 » de ce livre ?"
 
-#: lib/bookshelf_widget.lua:23820
+#: lib/bookshelf_widget.lua:24008
 msgid "Edit tag: "
 msgstr "Modifier l'étiquette : "
 
-#: lib/bookshelf_widget.lua:23909
+#: lib/bookshelf_widget.lua:24097
 msgid "Not in any collection."
 msgstr "Dans aucune collection."
 
-#: lib/bookshelf_widget.lua:23999
+#: lib/bookshelf_widget.lua:24187
 msgid "Reviews couldn't be fetched."
 msgstr "Impossible de récupérer les avis."
 
-#: lib/bookshelf_widget.lua:24015
+#: lib/bookshelf_widget.lua:24203
 msgid "Tap Refresh to load reviews."
 msgstr "Appuyez sur Actualiser pour charger les avis."
 
-#: lib/bookshelf_widget.lua:24029 lib/bookshelf_widget.lua:24035
+#: lib/bookshelf_widget.lua:24217 lib/bookshelf_widget.lua:24223
 msgid "Reviews"
 msgstr "Avis"
 
-#: lib/bookshelf_widget.lua:24057
+#: lib/bookshelf_widget.lua:24245
 msgid "Highlights"
 msgstr "Surlignages"
 
-#: lib/bookshelf_widget.lua:24082
+#: lib/bookshelf_widget.lua:24270
 msgid "Cover"
 msgstr "Couverture"
 
-#: lib/bookshelf_widget.lua:24282
+#: lib/bookshelf_widget.lua:24470
 msgid "Hardcover metadata refreshed"
 msgstr "Métadonnées Hardcover actualisées"
 
-#: lib/bookshelf_widget.lua:24284
+#: lib/bookshelf_widget.lua:24472
 msgid "Hardcover refresh failed"
 msgstr "Échec de l'actualisation Hardcover"
 
-#: lib/bookshelf_widget.lua:24296
+#: lib/bookshelf_widget.lua:24484
 msgid "Auto link"
 msgstr "Associer automatiquement"
 
-#: lib/bookshelf_widget.lua:24296
+#: lib/bookshelf_widget.lua:24484
 msgid "Auto link (best guess)"
 msgstr "Associer automatiquement (meilleure estimation)"
 
-#: lib/bookshelf_widget.lua:24301
+#: lib/bookshelf_widget.lua:24489
 msgid "No embedded Hardcover identifier found"
 msgstr "Aucun identifiant Hardcover intégré trouvé"
 
-#: lib/bookshelf_widget.lua:24304 lib/bookshelf_widget.lua:24339
+#: lib/bookshelf_widget.lua:24492 lib/bookshelf_widget.lua:24527
 msgid "Hardcover book linked"
 msgstr "Livre Hardcover lié"
 
-#: lib/bookshelf_widget.lua:24311
+#: lib/bookshelf_widget.lua:24499
 msgid "No confident Hardcover match -- try Manual link"
 msgstr "Aucune correspondance Hardcover fiable — essayez l'association manuelle"
 
-#: lib/bookshelf_widget.lua:24312 lib/bookshelf_widget.lua:24346
+#: lib/bookshelf_widget.lua:24500 lib/bookshelf_widget.lua:24534
 msgid "Hardcover search failed"
 msgstr "Échec de la recherche Hardcover"
 
-#: lib/bookshelf_widget.lua:24316
+#: lib/bookshelf_widget.lua:24504
 msgid "Hardcover book linked (best guess)"
 msgstr "Livre Hardcover lié (meilleure estimation)"
 
-#: lib/bookshelf_widget.lua:24323
+#: lib/bookshelf_widget.lua:24511
 msgid "Manual link"
 msgstr "Association manuelle"
 
-#: lib/bookshelf_widget.lua:24331 lib/bookshelf_widget.lua:24365
+#: lib/bookshelf_widget.lua:24519 lib/bookshelf_widget.lua:24553
 msgid "Hardcover link failed"
 msgstr "Échec de l'association Hardcover"
 
-#: lib/bookshelf_widget.lua:24336
+#: lib/bookshelf_widget.lua:24524
 msgid "Book linked, but metadata refresh failed: %1"
 msgstr "Livre lié, mais l'actualisation des métadonnées a échoué : %1"
 
-#: lib/bookshelf_widget.lua:24353
+#: lib/bookshelf_widget.lua:24541
 msgid "Select edition"
 msgstr "Choisir l'édition"
 
-#: lib/bookshelf_widget.lua:24358
+#: lib/bookshelf_widget.lua:24546
 msgid "Link a Hardcover book first"
 msgstr "Liez d'abord un livre Hardcover"
 
-#: lib/bookshelf_widget.lua:24370
+#: lib/bookshelf_widget.lua:24558
 msgid "Edition linked, but metadata refresh failed: %1"
 msgstr "Édition liée, mais l'actualisation des métadonnées a échoué : %1"
 
-#: lib/bookshelf_widget.lua:24373
+#: lib/bookshelf_widget.lua:24561
 msgid "Hardcover edition linked"
 msgstr "Édition Hardcover liée"
 
-#: lib/bookshelf_widget.lua:24378
+#: lib/bookshelf_widget.lua:24566
 msgid "Hardcover edition search failed"
 msgstr "Échec de la recherche d'édition Hardcover"
 
-#: lib/bookshelf_widget.lua:24385
+#: lib/bookshelf_widget.lua:24573
 msgid "Clear link"
 msgstr "Supprimer le lien"
 
-#: lib/bookshelf_widget.lua:24391
+#: lib/bookshelf_widget.lua:24579
 msgid "Hardcover link cleared"
 msgstr "Lien Hardcover supprimé"
 
-#: lib/bookshelf_widget.lua:24393
+#: lib/bookshelf_widget.lua:24581
 msgid "Could not clear Hardcover link"
 msgstr "Impossible de supprimer le lien Hardcover"
 
-#: lib/bookshelf_widget.lua:24419
+#: lib/bookshelf_widget.lua:24607
 msgid "Use Hardcover image"
 msgstr "Utiliser l'image Hardcover"
 
-#: lib/bookshelf_widget.lua:24429
+#: lib/bookshelf_widget.lua:24617
 msgid "Could not update"
 msgstr "Impossible de mettre à jour"
 
-#: lib/bookshelf_widget.lua:24446
+#: lib/bookshelf_widget.lua:24634
 msgid "Use Hardcover description"
 msgstr "Utiliser la description Hardcover"
 
-#: lib/bookshelf_widget.lua:24464
+#: lib/bookshelf_widget.lua:24652
 msgid "Linked: %1"
 msgstr "Lié : %1"
 
-#: lib/bookshelf_widget.lua:24465
+#: lib/bookshelf_widget.lua:24653
 msgid "Not linked to Hardcover"
 msgstr "Non lié à Hardcover"
 
-#: lib/bookshelf_widget.lua:24753
+#: lib/bookshelf_widget.lua:24941
 msgid "No books to select here."
 msgstr "Aucun livre à sélectionner ici."
 
-#: lib/bookshelf_widget.lua:24765
+#: lib/bookshelf_widget.lua:24953
 msgid "Selected the first %1 books (the most one selection holds)."
 msgstr "Les %1 premiers livres ont été sélectionnés (le maximum qu'une sélection peut contenir)."
 
-#: lib/bookshelf_widget.lua:24770
+#: lib/bookshelf_widget.lua:24958
 msgid "Selected %1 books."
 msgstr "%1 livres sélectionnés."
 
-#: lib/bookshelf_widget.lua:24844 lib/bookshelf_widget.lua:24922
+#: lib/bookshelf_widget.lua:25032 lib/bookshelf_widget.lua:25110
 msgid "this folder"
 msgstr "ce dossier"
 
-#: lib/bookshelf_widget.lua:24852
+#: lib/bookshelf_widget.lua:25040
 msgid "Already the start folder"
 msgstr "Déjà le dossier de départ"
 
-#: lib/bookshelf_widget.lua:24856
+#: lib/bookshelf_widget.lua:25044
 msgid "Start this shelf at \"%1\""
 msgstr "Démarrer cette étagère à « %1 »"
 
-#: lib/bookshelf_widget.lua:24866
+#: lib/bookshelf_widget.lua:25054
 msgid "Back to the top (now starts at \"%1\")"
 msgstr "Retour en haut (démarre maintenant à « %1 »)"
 
-#: lib/bookshelf_widget.lua:24871
+#: lib/bookshelf_widget.lua:25059
 msgid "Back to the top of the catalog"
 msgstr "Retour en haut du catalogue"
 
-#: lib/bookshelf_widget.lua:24923
+#: lib/bookshelf_widget.lua:25111
 msgid "this series"
 msgstr "cette série"
 
-#: lib/bookshelf_widget.lua:24924
+#: lib/bookshelf_widget.lua:25112
 msgid "this author"
 msgstr "cet auteur"
 
-#: lib/bookshelf_widget.lua:24925
+#: lib/bookshelf_widget.lua:25113
 msgid "this genre"
 msgstr "ce genre"
 
-#: lib/bookshelf_widget.lua:24926
+#: lib/bookshelf_widget.lua:25114
 msgid "this collection"
 msgstr "cette collection"
 
-#: lib/bookshelf_widget.lua:24927
+#: lib/bookshelf_widget.lua:25115
 msgid "this format"
 msgstr "ce format"
 
-#: lib/bookshelf_widget.lua:24928
+#: lib/bookshelf_widget.lua:25116
 msgid "this rating"
 msgstr "cette note"
 
-#: lib/bookshelf_widget.lua:24929
+#: lib/bookshelf_widget.lua:25117
 msgid "this language"
 msgstr "cette langue"
 
-#: lib/bookshelf_widget.lua:24930
+#: lib/bookshelf_widget.lua:25118
 msgid "this group"
 msgstr "ce groupe"
 
-#: lib/bookshelf_widget.lua:24952
+#: lib/bookshelf_widget.lua:25140
 #, lua-format
 msgid ""
 "Pin %s to the shelf menu for quick access,\n"
@@ -5902,7 +5910,7 @@ msgstr ""
 "Épinglez %s au menu des étagères pour un accès rapide,\n"
 "ou retirez ses %d livres de votre sélection."
 
-#: lib/bookshelf_widget.lua:24958
+#: lib/bookshelf_widget.lua:25146
 #, lua-format
 msgid ""
 "Pin %s to the shelf menu for quick access,\n"
@@ -5911,7 +5919,7 @@ msgstr ""
 "Épinglez %s au menu des étagères pour un accès rapide,\n"
 "ou ajoutez-en %d de plus / retirez les %d déjà sélectionnés."
 
-#: lib/bookshelf_widget.lua:24962
+#: lib/bookshelf_widget.lua:25150
 #, lua-format
 msgid ""
 "Pin %s to the shelf menu for quick access,\n"
@@ -5920,78 +5928,78 @@ msgstr ""
 "Épinglez %s au menu des étagères pour un accès rapide,\n"
 "ou sélectionnez ses %d livres pour des modifications groupées."
 
-#: lib/bookshelf_widget.lua:25039
+#: lib/bookshelf_widget.lua:25227
 msgid "Pin"
 msgstr "Épingler"
 
-#: lib/bookshelf_widget.lua:25057
+#: lib/bookshelf_widget.lua:25245
 #, lua-format
 msgid "Add %d more"
 msgstr "Ajouter %d de plus"
 
-#: lib/bookshelf_widget.lua:25058
+#: lib/bookshelf_widget.lua:25246
 #, lua-format
 msgid "Select %d"
 msgstr "Sélectionner %d"
 
-#: lib/bookshelf_widget.lua:25067
+#: lib/bookshelf_widget.lua:25255
 #, lua-format
 msgid "Remove %d"
 msgstr "Retirer %d"
 
-#: lib/bookshelf_widget.lua:25081
+#: lib/bookshelf_widget.lua:25269
 msgid "Follow shelf"
 msgstr "Comme l'étagère"
 
-#: lib/bookshelf_widget.lua:25109
+#: lib/bookshelf_widget.lua:25297
 msgid "Set folder image…"
 msgstr "Définir l'image du dossier…"
 
-#: lib/bookshelf_widget.lua:25116
+#: lib/bookshelf_widget.lua:25304
 msgid "Clear folder image"
 msgstr "Effacer l'image du dossier"
 
-#: lib/bookshelf_widget.lua:25131
+#: lib/bookshelf_widget.lua:25319
 msgid "Move folder…"
 msgstr "Déplacer le dossier…"
 
-#: lib/bookshelf_widget.lua:25137
+#: lib/bookshelf_widget.lua:25325
 msgid "Rename folder…"
 msgstr "Renommer le dossier…"
 
-#: lib/bookshelf_widget.lua:25153 lib/bookshelf_widget.lua:25164
+#: lib/bookshelf_widget.lua:25341 lib/bookshelf_widget.lua:25352
 msgid "Set author image…"
 msgstr "Définir l'image de l'auteur…"
 
-#: lib/bookshelf_widget.lua:25154 lib/bookshelf_widget.lua:25165
+#: lib/bookshelf_widget.lua:25342 lib/bookshelf_widget.lua:25353
 msgid "Set series image…"
 msgstr "Définir l'image de la série…"
 
-#: lib/bookshelf_widget.lua:25155 lib/bookshelf_widget.lua:25166
+#: lib/bookshelf_widget.lua:25343 lib/bookshelf_widget.lua:25354
 msgid "Set genre image…"
 msgstr "Définir l'image du genre…"
 
-#: lib/bookshelf_widget.lua:25156 lib/bookshelf_widget.lua:25167
+#: lib/bookshelf_widget.lua:25344 lib/bookshelf_widget.lua:25355
 msgid "Set collection image…"
 msgstr "Définir l'image de la collection…"
 
-#: lib/bookshelf_widget.lua:25157 lib/bookshelf_widget.lua:25170
+#: lib/bookshelf_widget.lua:25345 lib/bookshelf_widget.lua:25358
 msgid "Clear author image"
 msgstr "Effacer l'image de l'auteur"
 
-#: lib/bookshelf_widget.lua:25158 lib/bookshelf_widget.lua:25171
+#: lib/bookshelf_widget.lua:25346 lib/bookshelf_widget.lua:25359
 msgid "Clear series image"
 msgstr "Effacer l'image de la série"
 
-#: lib/bookshelf_widget.lua:25159 lib/bookshelf_widget.lua:25172
+#: lib/bookshelf_widget.lua:25347 lib/bookshelf_widget.lua:25360
 msgid "Clear genre image"
 msgstr "Effacer l'image du genre"
 
-#: lib/bookshelf_widget.lua:25160 lib/bookshelf_widget.lua:25173
+#: lib/bookshelf_widget.lua:25348 lib/bookshelf_widget.lua:25361
 msgid "Clear collection image"
 msgstr "Effacer l'image de la collection"
 
-#: lib/bookshelf_widget.lua:25208
+#: lib/bookshelf_widget.lua:25396
 msgid ""
 "Delete this image from the image library?\n"
 "\n"
@@ -6001,47 +6009,47 @@ msgstr ""
 "\n"
 "%1"
 
-#: lib/bookshelf_widget.lua:25227
+#: lib/bookshelf_widget.lua:25415
 msgid "Find author image online"
 msgstr "Chercher l'image de l'auteur en ligne"
 
-#: lib/bookshelf_widget.lua:25279
+#: lib/bookshelf_widget.lua:25467
 msgid "Choose folder image"
 msgstr "Choisir l'image du dossier"
 
-#: lib/bookshelf_widget.lua:25318
+#: lib/bookshelf_widget.lua:25506
 msgid "Choose image"
 msgstr "Choisir une image"
 
-#: lib/bookshelf_widget.lua:25554 lib/bookshelf_widget.lua:25727 lib/bookshelf_widget.lua:25772
+#: lib/bookshelf_widget.lua:25742 lib/bookshelf_widget.lua:25915 lib/bookshelf_widget.lua:25960
 msgid "Add shelf"
 msgstr "Ajouter une étagère"
 
-#: lib/bookshelf_widget.lua:25560
+#: lib/bookshelf_widget.lua:25748
 msgid "Move a shelf here…"
 msgstr "Déplacer une étagère ici…"
 
-#: lib/bookshelf_widget.lua:25574
+#: lib/bookshelf_widget.lua:25762
 msgid "Move a shelf here"
 msgstr "Déplacer une étagère ici"
 
-#: lib/bookshelf_widget.lua:26000
+#: lib/bookshelf_widget.lua:26188
 msgid "Search library"
 msgstr "Rechercher dans la bibliothèque"
 
-#: lib/bookshelf_widget.lua:26003
+#: lib/bookshelf_widget.lua:26191
 msgid "title, author, series, genre…"
 msgstr "titre, auteur, série, genre…"
 
-#: lib/bookshelf_widget.lua:26003
+#: lib/bookshelf_widget.lua:26191
 msgid "title, author, series…"
 msgstr "titre, auteur, série…"
 
-#: main.lua:259
+#: main.lua:277
 msgid "Importing calibre metadata…"
 msgstr "Importation des métadonnées calibre…"
 
-#: main.lua:387
+#: main.lua:405
 msgid ""
 "Bookshelf update: cached Hardcover book details from earlier versions can list audiobook narrators and translators as authors, which shows extra author cards.\n"
 "\n"
@@ -6051,139 +6059,139 @@ msgstr ""
 "\n"
 "Actualiser maintenant les détails de vos livres liés ? (Contacte Hardcover, débit limité, annulable. Également accessible plus tard dans Hardcover > Gérer les données Hardcover.)"
 
-#: main.lua:388
+#: main.lua:406
 msgid "Refresh now"
 msgstr "Actualiser maintenant"
 
-#: main.lua:389
+#: main.lua:407
 msgid "Later"
 msgstr "Plus tard"
 
-#: main.lua:492
+#: main.lua:515
 msgid "Bookshelf requires the CoverBrowser plugin. Enable it under Settings > More plugins."
 msgstr "Bookshelf nécessite l'extension CoverBrowser. Activez-la dans Paramètres > Autres extensions."
 
-#: main.lua:570 main.lua:574 main.lua:605
+#: main.lua:593 main.lua:597 main.lua:628
 msgid "bookshelf"
 msgstr "bookshelf"
 
-#: main.lua:605
+#: main.lua:628
 msgid "Start with: %1"
 msgstr "Démarrer avec : %1"
 
-#: main.lua:722
+#: main.lua:745
 msgid "Close Bookshelf"
 msgstr "Fermer Bookshelf"
 
-#: main.lua:722
+#: main.lua:745
 msgid "Open Bookshelf"
 msgstr "Ouvrir Bookshelf"
 
-#: main.lua:782
+#: main.lua:805
 msgid "Open a small overlay that lets you set the number of columns and rows of books on the shelf, with the bookshelf visible behind it. Cover size follows the column count and the top panel fills the space left over. Changes preview in realtime; Accept keeps them, Cancel reverts."
 msgstr "Ouvre une petite surimpression qui permet de définir le nombre de colonnes et de rangées de livres sur l'étagère, avec l'étagère visible en arrière-plan. La taille des couvertures suit le nombre de colonnes et le panneau supérieur occupe l'espace restant. Les changements s'affichent en temps réel ; Accepter les conserve, Annuler les rétablit."
 
-#: main.lua:797
+#: main.lua:820
 msgid "Edit shelves…"
 msgstr "Modifier les étagères…"
 
-#: main.lua:843
+#: main.lua:866
 msgid "Hardcover enrichment"
 msgstr "Enrichissement Hardcover"
 
-#: main.lua:873
+#: main.lua:896
 msgid "Updates"
 msgstr "Mises à jour"
 
-#: main.lua:880
+#: main.lua:903
 msgid "About"
 msgstr "À propos"
 
-#: main.lua:1015
+#: main.lua:1038
 msgid "Bookshelf couldn't open. Some of its files may be missing or corrupted after an update. Try reinstalling the plugin."
 msgstr "Bookshelf n'a pas pu s'ouvrir. Certains de ses fichiers sont peut-être manquants ou corrompus après une mise à jour. Essayez de réinstaller l'extension."
 
-#: main.lua:1089
+#: main.lua:1112
 msgid "Bookshelf: open or close"
 msgstr "Bookshelf : ouvrir ou fermer"
 
-#: main.lua:1095
+#: main.lua:1118
 msgid "Bookshelf: open"
 msgstr "Bookshelf : ouvrir"
 
-#: main.lua:1098
+#: main.lua:1121
 msgid "off"
 msgstr "désactivé"
 
-#: main.lua:1098
+#: main.lua:1121
 msgid "on"
 msgstr "activé"
 
-#: main.lua:1104
+#: main.lua:1127
 msgid "Bookshelf: next shelf"
 msgstr "Bookshelf : étagère suivante"
 
-#: main.lua:1110
+#: main.lua:1133
 msgid "Bookshelf: previous shelf"
 msgstr "Bookshelf : étagère précédente"
 
-#: main.lua:1116
+#: main.lua:1139
 msgid "Bookshelf: next page of shelves"
 msgstr "Bookshelf : page d'étagères suivante"
 
-#: main.lua:1122
+#: main.lua:1145
 msgid "Bookshelf: previous page of shelves"
 msgstr "Bookshelf : page d'étagères précédente"
 
-#: main.lua:1128
+#: main.lua:1151
 msgid "Bookshelf: full screen shelves on or off"
 msgstr "Bookshelf : activer ou désactiver les étagères plein écran"
 
-#: main.lua:1138
+#: main.lua:1161
 msgid "Bookshelf: refresh the library"
 msgstr "Bookshelf : actualiser la bibliothèque"
 
-#: main.lua:1144
+#: main.lua:1167
 msgid "Bookshelf: toggle bulk selection mode"
 msgstr "Bookshelf : activer ou désactiver le mode de sélection groupée"
 
-#: main.lua:1151
+#: main.lua:1174
 msgid "Bookshelf: toggle selection on focused book"
 msgstr "Bookshelf : basculer la sélection sur le livre ciblé"
 
-#: main.lua:1160
+#: main.lua:1183
 msgid "Bookshelf: select all books in this shelf"
 msgstr "Bookshelf : sélectionner tous les livres de cette étagère"
 
-#: main.lua:1166
+#: main.lua:1189
 msgid "Bookshelf: add focused stack to selection"
 msgstr "Bookshelf : ajouter la pile ciblée à la sélection"
 
-#: main.lua:1172
+#: main.lua:1195
 msgid "Bookshelf: open bulk action menu"
 msgstr "Bookshelf : ouvrir le menu d'actions groupées"
 
-#: main.lua:1183
+#: main.lua:1206
 msgid "Bookshelf: open start menu"
 msgstr "Bookshelf : ouvrir le menu de démarrage"
 
-#: main.lua:1189
+#: main.lua:1212
 msgid "Bookshelf: open micro-modules"
 msgstr "Bookshelf : ouvrir les micro-modules"
 
-#: main.lua:1203
+#: main.lua:1226
 msgid "Bookshelf: shuffle ornaments"
 msgstr "Bookshelf : mélanger les ornements"
 
-#: main.lua:1209
+#: main.lua:1232
 msgid "Bookshelf: go to home screen"
 msgstr "Bookshelf : aller à l'écran d'accueil"
 
-#: main.lua:2371
+#: main.lua:2429
 msgid "Branch name (leave empty for stable)"
 msgstr "Nom de branche (laisser vide pour la version stable)"
 
-#: main.lua:2408
+#: main.lua:2466
 msgid ""
 "Book metadata scanner not available.\n"
 "Install the CoverBrowser plugin to enable it."
@@ -6191,43 +6199,43 @@ msgstr ""
 "Le scanner de métadonnées de livres n'est pas disponible.\n"
 "Installez le plugin CoverBrowser pour l'activer."
 
-#: main.lua:2553
+#: main.lua:2611
 msgid "Page count report"
 msgstr "Rapport sur le nombre de pages"
 
-#: main.lua:2566
+#: main.lua:2624
 msgid "Page counts are already being extracted."
 msgstr "L'extraction du nombre de pages est déjà en cours."
 
-#: main.lua:2594
+#: main.lua:2652
 msgid "Counting pages in book %1 of %2"
 msgstr "Comptage des pages du livre %1 sur %2"
 
-#: main.lua:2604
+#: main.lua:2662
 msgid "Looking up page numbers…"
 msgstr "Recherche des numéros de page…"
 
-#: main.lua:2671
+#: main.lua:2729
 msgid "Every book already has a page count."
 msgstr "Tous les livres ont déjà un nombre de pages."
 
-#: main.lua:2967
+#: main.lua:3025
 msgid "No linked books to refresh"
 msgstr "Aucun livre lié à actualiser"
 
-#: main.lua:2984
+#: main.lua:3042
 msgid "Refreshing Hardcover details… %1 of %2"
 msgstr "Actualisation des détails Hardcover… %1 sur %2"
 
-#: main.lua:3017
+#: main.lua:3075
 msgid "Hardcover details refreshed for %1 of %2 linked books."
 msgstr "Détails Hardcover actualisés pour %1 livres liés sur %2."
 
-#: main.lua:3039
+#: main.lua:3097
 msgid "This will clear the development branch setting and install the latest stable release of Bookshelf, then restart KOReader. Continue?"
 msgstr "Cela effacera le paramètre de branche de développement et installera la dernière version stable de Bookshelf, puis redémarrera KOReader. Continuer ?"
 
-#: main.lua:3061
+#: main.lua:3119
 msgid "Bookshelf update available: v"
 msgstr "Mise à jour Bookshelf disponible : v"
 
@@ -6519,7 +6527,7 @@ msgstr "%1 / %2 • Touchez pour en lire plus…"
 msgid "%1 / %2 • Tap for next event →"
 msgstr "%1 / %2 • Touchez pour l'événement suivant →"
 
-#: micromodules/ornament.lua:28 micromodules/ornament.lua:81
+#: micromodules/ornament.lua:28 micromodules/ornament.lua:85
 msgid "Choose an ornament"
 msgstr "Choisir un ornement"
 
@@ -6931,55 +6939,59 @@ msgstr "Meilleure série"
 msgid "Best: %1 · %2"
 msgstr "Meilleure : %1 · %2"
 
-#: micromodules/shelf.lua:41 micromodules/shelf.lua:257 micromodules/shelf.lua:450
+#: micromodules/shelf.lua:41 micromodules/shelf.lua:349 micromodules/shelf.lua:552
 msgid "Shelf"
 msgstr "Étagère"
 
-#: micromodules/shelf.lua:226
-msgid "Rows: %1"
-msgstr "Rangées : %1"
+#: micromodules/shelf.lua:223
+msgid "%1 (hidden)"
+msgstr "%1 (masquée)"
 
-#: micromodules/shelf.lua:226
-msgid "Rows: Auto"
-msgstr "Rangées : Auto"
-
-#: micromodules/shelf.lua:229
-msgid "Hide heading"
-msgstr "Masquer le titre"
-
-#: micromodules/shelf.lua:229
-msgid "Show heading"
-msgstr "Afficher le titre"
-
-#: micromodules/shelf.lua:262
-msgid "Edit this shelf…"
-msgstr "Modifier cette étagère…"
-
-#: micromodules/shelf.lua:264
+#: micromodules/shelf.lua:270 micromodules/shelf.lua:356
 msgid "Create new shelf…"
 msgstr "Créer une nouvelle étagère…"
 
-#: micromodules/shelf.lua:267
-msgid "Use existing shelf…"
-msgstr "Utiliser une étagère existante…"
-
-#: micromodules/shelf.lua:268 micromodules/shelf.lua:462 micromodules/shelf.lua:507
+#: micromodules/shelf.lua:292 micromodules/shelf.lua:360 micromodules/shelf.lua:564
 msgid "Choose a shelf"
 msgstr "Choisir une étagère"
 
-#: micromodules/shelf.lua:281
+#: micromodules/shelf.lua:318
+msgid "Rows: %1"
+msgstr "Rangées : %1"
+
+#: micromodules/shelf.lua:318
+msgid "Rows: Auto"
+msgstr "Rangées : Auto"
+
+#: micromodules/shelf.lua:321
+msgid "Hide heading"
+msgstr "Masquer le titre"
+
+#: micromodules/shelf.lua:321
+msgid "Show heading"
+msgstr "Afficher le titre"
+
+#: micromodules/shelf.lua:354
+msgid "Edit this shelf…"
+msgstr "Modifier cette étagère…"
+
+#: micromodules/shelf.lua:359
+msgid "Use existing shelf…"
+msgstr "Utiliser une étagère existante…"
+
+#: micromodules/shelf.lua:373
 msgid "Heading text…"
 msgstr "Texte du titre…"
 
-#: micromodules/shelf.lua:285
+#: micromodules/shelf.lua:377
 msgid "Heading"
 msgstr "Titre"
 
-#: micromodules/shelf.lua:451
+#: micromodules/shelf.lua:553
 msgid "One of your shelves, in its own style. Works offline."
 msgstr "Une de vos étagères, dans son propre style. Fonctionne hors ligne."
 
-#: micromodules/shelf.lua:498
+#: micromodules/shelf.lua:600
 msgid "No books on this shelf"
 msgstr "Aucun livre sur cette étagère"
 
@@ -7517,9 +7529,6 @@ msgstr "Mis à jour il y a %1 h"
 
 #~ msgid "Background and colors"
 #~ msgstr "Arrière-plan et couleurs"
-
-#~ msgid "Source: "
-#~ msgstr "Source : "
 
 #~ msgid "Shelf source"
 #~ msgstr "Source de l'étagère"

@@ -5468,6 +5468,11 @@ function BookshelfWidget:_buildExpandedStrip(content_w, strip_h, PAD)
         Tap = { GestureRange:new{ ges = "tap", range = strip_dimen } },
     }
     function strip:onTap()
+        -- "Swipe down leaves full screen shelves" off: full screen stays put,
+        -- as for the swipe; the top panel comes back from the shelf bar's
+        -- book icon or a gesture (issue 554: a tap on the status line brought
+        -- it back).
+        if not BookshelfSettings.nilOrTrue("expanded_swipe_back") then return true end
         bw:_setExpanded(false)
         bw:_rebuild()
         UIManager:setDirty(bw, "ui")

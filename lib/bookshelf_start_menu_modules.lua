@@ -341,17 +341,34 @@ local function scanDir(dir, origin)
     end
 end
 
-local function scan()
-    if scanned then return end
-    -- Kill switch: when every micro-module surface (start menu / hero /
-    -- full-screen) is off, skip discovery entirely so no module file is even
-    -- dofile'd. Re-attempts when a surface is turned back on (scanned stays
-    -- false). pcall + explicit `== false` so the standalone test runner (no
-    -- settings store) and any read error fall through to scanning, never block.
+-- inUse() -> false only when micro-modules are used nowhere: every surface
+-- switched off (start menu / hero / full-screen) AND no module standing among
+-- a shelf's books, which no switch covers (6.0). Counting only the switches
+-- left a shelf's modules with no definition: they showed their key ("shelf")
+-- in place of themselves (maintainer, PW5). pcall + explicit `== false` so the
+-- standalone test runner (no settings store) and any read error count as in
+-- use, never block.
+local function inUse()
     local ok_any, any = pcall(function()
         return require("lib/bookshelf_settings_store").microAnyEnabled()
     end)
-    if ok_any and any == false then return end
+    if not (ok_any and any == false) then return true end
+    local ok_t, on_shelf = pcall(function()
+        for _i, t in ipairs(require("lib/bookshelf_tab_model").load() or {}) do
+            if type(t.shelf_modules) == "table" and #t.shelf_modules > 0 then return true end
+        end
+        return false
+    end)
+    return not ok_t or on_shelf == true
+end
+
+-- scan(force): load every module file. Kill switch: unless forced, skipped
+-- while micro-modules are in use nowhere (inUse), so no module file is even
+-- dofile'd; re-attempted once something uses them (scanned stays false). The
+-- picker forces it: opening it is asking for modules (M.keys).
+local function scan(force)
+    if scanned then return end
+    if not force and not inUse() then return end
     scanned = true
     -- User dir FIRST so a user module overrides a bundled one of the same key
     -- (first-registered wins), and survives plugin updates; then the bundled
@@ -415,10 +432,7 @@ end
 
 local function loadIndexed(key)
     if scanned then return false end
-    local ok_any, any = pcall(function()
-        return require("lib/bookshelf_settings_store").microAnyEnabled()
-    end)
-    if ok_any and any == false then return false end
+    if not inUse() then return false end
     local idx = trustedIndex()
     local e = idx and idx.keys[key]
     if type(e) ~= "table" then return false end
@@ -451,7 +465,7 @@ function M.title(key)
     return d and d.title
 end
 function M.keys()
-    scan()
+    scan(true)
     local out = {}
     for k in pairs(registry) do out[#out + 1] = k end
     table.sort(out)

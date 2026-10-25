@@ -23,6 +23,10 @@ package.loaded["lib/bookshelf_settings_store"] = {
     microAnyEnabled = function() return any_enabled end,
 }
 
+-- The shelves, for modules standing among a shelf's books (see below).
+local shelf_tabs = {}
+package.loaded["lib/bookshelf_tab_model"] = { load = function() return shelf_tabs end }
+
 local M = dofile("lib/bookshelf_start_menu_modules.lua")
 -- The bundled dir is resolved from the loader's own path.
 local BUNDLED = "micromodules"
@@ -128,6 +132,30 @@ t.test("with every surface off nothing is run", function()
     any_enabled = false
     fresh()
     assert(M.get("a") == nil and #ran == 0, "ran " .. #ran)
+    any_enabled = true
+end)
+
+-- Modules among a shelf's books (6.0) are a surface no switch covers: with the
+-- three switches off they found no definition and showed their key ("shelf")
+-- in place of themselves (maintainer, PW5).
+t.test("a module among a shelf's books loads with every switch off", function()
+    any_enabled = false
+    shelf_tabs = { { id = "recent", shelf_modules = { { id = "sm_3", module = "a" } } } }
+    fresh()
+    assert(M.get("a") ~= nil, "a shelf's module had no definition with the switches off")
+    shelf_tabs = { { id = "recent", shelf_modules = {} }, { id = "home" } }
+    fresh()
+    assert(M.get("a") == nil and #ran == 0, "no modules in use anywhere, yet files ran")
+    any_enabled, shelf_tabs = true, {}
+end)
+
+t.test("the module picker lists every module, whatever the switches", function()
+    -- Opening it is asking for modules: adding the first one to a shelf with
+    -- every switch off found an empty picker.
+    any_enabled = false
+    fresh()
+    local keys = M.keys()
+    assert(#keys >= 5, "the picker found " .. #keys .. " modules")
     any_enabled = true
 end)
 

@@ -1687,7 +1687,7 @@ function HeroModules._editDecorations(container, dims, boxes, page, edit, ox, oy
             end
         end
     end
-    local thick = Screen:scaleBySize(4)
+    local thick = HeroModules.outlineOutset()
     function container.over(bb, x0, y0)
         for _i, b in ipairs(boxes) do
             if b.page == page then
@@ -1717,6 +1717,13 @@ function HeroModules._editDecorations(container, dims, boxes, page, edit, ox, oy
             end
         end
     end
+end
+
+-- outlineOutset() -> how far the layout editor's selection outline reaches
+-- past the selected card. A repaint scoped to the panel takes it in
+-- (BookshelfWidget:_swapMicroHeroInPlace).
+function HeroModules.outlineOutset()
+    return Screen:scaleBySize(4)
 end
 
 -- _outlineColor() -> the layout editor's selection outline: black, or white

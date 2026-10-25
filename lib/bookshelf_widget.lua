@@ -11275,12 +11275,17 @@ function BookshelfWidget:_swapMicroHeroInPlace()
     -- (unlike the book hero's HeroCard/InputContainer), so derive the hero's
     -- screen rect from the geometry: full width, from the top down through the
     -- top margin + hero height. Scopes the refresh to the hero band so the
-    -- chips and shelves below don't flash.
+    -- chips and shelves below don't flash. While editing, the selection
+    -- outline round a bottom-row card hangs below the band: the repaint
+    -- takes it in, or its bottom edge is left off until a full paint.
     local scope = Geom:new{
         x = 0, y = 0,
         w = self.width,
         h = (d.PAD or 0) + (d.hero_h or 0),
     }
+    if self._module_edit then
+        scope.h = scope.h + require("lib/bookshelf_hero_modules").outlineOutset()
+    end
     self._hero_parent[1] = self:_buildMicroHero(d.content_w, d.hero_h, d.PAD)
     self._hero_card = nil
     if self._hero_parent.resetLayout then self._hero_parent:resetLayout() end

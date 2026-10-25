@@ -3980,6 +3980,20 @@ end
 -- it), or nil; see _batchInfoFor.
 function Repo.batchRowFor(fp) return _batchInfoFor(fp) end
 
+-- Repo.forgetBook(fp): the book's BIM row was just deleted (Refresh
+-- metadata, the stale-cover sweep): drop its batch row too. The extraction
+-- check answers settled books from these rows without a live read, so a
+-- row left here kept saying "cover-ok" for a book BIM no longer had, and
+-- nothing re-extracted it: Refresh metadata did nothing (6.0). Gone from the
+-- batch, the book is read live, has no row, and is queued.
+function Repo.forgetBook(fp)
+    if type(fp) ~= "string" then return end
+    for _key, entry in pairs(_light_meta_cache) do
+        if entry.rows then entry.rows[fp] = nil end
+    end
+    _bumpDataGeneration()
+end
+
 -- Walk-time helper: prefer the cache, fall back to per-book on miss. Walk
 -- consumers (getSeriesGroups MISS / _buildGroups / searchBooks) call this
 -- per candidate instead of _buildBookMetaLight directly.

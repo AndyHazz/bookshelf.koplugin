@@ -3540,6 +3540,9 @@ function BookshelfWidget:_pollExtraction()
                 hero_fp = Repo.currentFilepath and Repo.currentFilepath()
             end
             if hero_fp and ready_paths[hero_fp] then
+                -- Its record from before the extraction is not what BIM now
+                -- has (Refresh metadata's rebuild memoised it with no row).
+                self._hero_current_memo = nil
                 self:_swapHeroInPlace()
             end
         end
@@ -22332,6 +22335,8 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         if ok_bim and BIM and BIM.deleteBookInfo then
             pcall(function() BIM:deleteBookInfo(book.filepath) end)
         end
+        -- And from the batch rows, or the extraction check still finds it.
+        Repo.forgetBook(book.filepath)
         -- Asked for: the cover comes back too, plugin format or not.
         bw:_allowCoverFetch(book.filepath)
         pcall(function() require("lib/bookshelf_scaled_cover_cache"):drop(book.filepath) end)
@@ -23393,6 +23398,7 @@ function BookshelfWidget:_applyCoverCandidate(book, candidate, modal, state)
                     local sw = Screen:getWidth()
                     local cw = math.max(1, math.floor(sw * 0.5))
                     if BIM.deleteBookInfo then BIM:deleteBookInfo(book.filepath) end
+                    Repo.forgetBook(book.filepath)
                     BIM:extractBookInfo(book.filepath,
                         { max_cover_w = cw, max_cover_h = math.floor(cw * 1.5) })
                 end

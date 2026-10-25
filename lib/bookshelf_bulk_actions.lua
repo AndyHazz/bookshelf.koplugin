@@ -509,6 +509,7 @@ function BulkActions.show(opts)
                             local ok_bim, BIM = pcall(require, "bookinfomanager")
                             if ok_bim and BIM and BIM.deleteBookInfo then
                                 BIM:deleteBookInfo(fp)
+                                require("lib/bookshelf_book_repository").forgetBook(fp)
                                 -- Drop the in-memory scaled cover so the
                                 -- next render re-decodes from the freshly
                                 -- re-extracted BIM bytes (matches the

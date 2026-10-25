@@ -35,7 +35,12 @@ local Screen          = require("device").screen
 -- needed to say. Under a dark shelf on a light device nothing inverts, so
 -- black title text lands on a black panel.
 local _ink_memo = nil
+-- buildStatusRow(..., ink): the ink its text takes, for a row standing on a
+-- ground other than the shelf's (set only while it builds).
+local _ink_override = nil
 local function _ink()
+    -- type(), not ~= nil: a Blitbuffer colour raises on a compare with nil.
+    if type(_ink_override) ~= "nil" then return _ink_override end
     -- Twelve call sites per hero build; the answer moves only with the
     -- settings generation or the night flag.
     local gen   = BookshelfSettings.generation and BookshelfSettings.generation() or 0
@@ -466,7 +471,7 @@ end
 -- allow_job (5th): shelf surfaces pass true, so a running background job's
 -- progress takes the line's place (shown even when the line is switched
 -- off). The reader's copy of the line (bookshelf_reader_status) does not.
-function HeroCard.buildStatusRow(book, state, width, with_hairline, allow_job)
+local function _buildStatusRow(book, state, width, with_hairline, allow_job)
     if with_hairline == nil then with_hairline = true end
     local regions = Regions.read()
     local job_row = allow_job and HeroCard.buildJobRow(regions.status, width)
@@ -502,6 +507,18 @@ function HeroCard.buildStatusRow(book, state, width, with_hairline, allow_job)
         vg[#vg + 1] = VerticalSpan:new{ width = Space.padding.default }
     end
     return vg
+end
+
+-- ink (optional): the colour its text takes instead of the shelf's, for a
+-- row on another ground (the full-screen view on plain white inside a book,
+-- where a dark theme's ink would be white on white).
+function HeroCard.buildStatusRow(book, state, width, with_hairline, allow_job, ink)
+    if type(ink) == "nil" then return _buildStatusRow(book, state, width, with_hairline, allow_job) end
+    _ink_override = ink
+    local ok, row = pcall(_buildStatusRow, book, state, width, with_hairline, allow_job)
+    _ink_override = nil
+    if not ok then error(row, 0) end
+    return row
 end
 
 -- buildLine: if `expanded` contains an elastic token (%bar or %spacer),

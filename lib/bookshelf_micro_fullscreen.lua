@@ -266,10 +266,20 @@ function MicroFullscreen:_build()
     local FSModel     = require("lib/bookshelf_fullscreen_modules_model")
     local HeroCard    = require("lib/bookshelf_hero_card")
 
+    -- The ground: the shelf's wallpaper (see bg below), else plain white.
+    -- Decided first, as the status line's ink follows it: inside a book there
+    -- is no wallpaper, and a dark theme's white ink vanished on the white.
+    local wall
+    if self.bw and self.bw._wallpaperWidget then
+        local ok_bg, w = pcall(function() return self.bw:_wallpaperWidget() end)
+        if ok_bg and w then wall = w end
+    end
+    self._status_ink = (not wall) and Blitbuffer.COLOR_BLACK or nil
+
     -- Full-width status line + hairline at the top, like the in-hero grid.
     local current = (self.bw._currentHeroBook and self.bw:_currentHeroBook()) or nil
     local state   = (self.bw._buildDeviceState and self.bw:_buildDeviceState()) or nil
-    local ok_s, status_row = pcall(HeroCard.buildStatusRow, current, state, content_w, true)
+    local ok_s, status_row = pcall(HeroCard.buildStatusRow, current, state, content_w, true, nil, self._status_ink)
     if not ok_s then status_row = nil end
     local status_h = (status_row and status_row:getSize().h) or 0
     local gap      = math.max(1, math.floor(margin / 2))
@@ -382,11 +392,7 @@ function MicroFullscreen:_build()
     -- picture -- so the library's backdrop carries into this view instead of
     -- the overlay reading as a different app. Falls back to white whenever
     -- there is no wallpaper, or it cannot be decoded.
-    local bg
-    if self.bw and self.bw._wallpaperWidget then
-        local ok_bg, w = pcall(function() return self.bw:_wallpaperWidget() end)
-        if ok_bg and w then bg = w end
-    end
+    local bg = wall
     if not bg then
         bg = FrameContainer:new{
             background = Blitbuffer.COLOR_WHITE,
@@ -758,7 +764,7 @@ function MicroFullscreen:refreshStatus()
     local bw = self.bw
     local current = (bw and bw._currentHeroBook and bw:_currentHeroBook()) or nil
     local state   = (bw and bw._buildDeviceState and bw:_buildDeviceState()) or nil
-    local ok, row = pcall(HeroCard.buildStatusRow, current, state, rec.content_w, true)
+    local ok, row = pcall(HeroCard.buildStatusRow, current, state, rec.content_w, true, nil, self._status_ink)
     if not ok or not row then return false end
     rec.group[rec.idx] = row
     if rec.group.resetLayout then rec.group:resetLayout() end

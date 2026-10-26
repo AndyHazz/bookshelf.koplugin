@@ -21449,39 +21449,23 @@ function BookshelfWidget:_buildPillSpecs(book, collection_set, close_cb, filter)
     return pill_specs
 end
 
--- _sectionHeadingBar(text, content_w, font_size, inset) — a full-width black
--- strip with white uppercase text, the section heading used by the book-detail
--- Edit and Tags tabs. Paints a hair wider than content_w so the bar reaches the
--- window border (FrameContainer:getSize ignores `width`, so the slop can't widen
--- the layout). Left-inset so the heading text aligns with the body text.
 -- A section heading in the book popup's tabs: small uppercase text in dark
--- grey over a hairline, like a KOReader dialog's own grouping. It was a solid
--- black bar, the heaviest thing on the screen, so the headings outweighed the
--- buttons they name (book popup redesign).
---
--- The hairline is painted, not a child: it runs the full tab width (content_w,
--- past the scrollbar to the frame edge), and a widget that wide would widen
--- the scrolled body and bring up a horizontal scrollbar. The heading reports
--- only its text's size, as the old bar did.
+-- grey. It was a solid black bar, the heaviest thing on the screen, so the
+-- headings outweighed the buttons they name; then a hairline, which ran to the
+-- frame edges past controls that stop at the inset and so ended nowhere (book
+-- popup redesign). Space now does the grouping. content_w is unused, kept so
+-- callers don't change.
 function BookshelfWidget:_sectionHeadingBar(text, content_w, font_size, inset)
     local FrameContainer = require("ui/widget/container/framecontainer")
     local TextWidget     = require("lib/bookshelf_colour_text")
     local face, bold = BFont:getFace("cfont", math.max(10, (font_size or 18) - 4), { bold = true })
-    local line_h = Size.line.thin
-    local heading = FrameContainer:new{
+    return FrameContainer:new{
         bordersize  = 0, margin = 0,
         padding_left = inset, padding_right = inset,
-        padding_top = Space.px(16), padding_bottom = Space.px(6) + line_h,
+        padding_top = Space.px(22), padding_bottom = Space.px(10),
         TextWidget:new{ text = TextSegments.upper(text), face = face, bold = bold,
             fgcolor = Blitbuffer.COLOR_DARK_GRAY },
     }
-    local paint = heading.paintTo
-    function heading:paintTo(bb, x, y)
-        paint(self, bb, x, y)
-        bb:paintRect(x, y + self:getSize().h - line_h, content_w + Size.border.window, line_h,
-            Blitbuffer.COLOR_GRAY)
-    end
-    return heading
 end
 
 -- _segmentedChips(items, active_key, on_pick, font_size, inset) — a compact
@@ -22250,11 +22234,9 @@ end
 -- Hardcover reviews aren't here -- they're the Reviews tab.
 function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     local bw = self
-    local ButtonTable         = require("ui/widget/buttontable")
     local ScrollableContainer = require("ui/widget/container/scrollablecontainer")
     local FrameContainer      = require("ui/widget/container/framecontainer")
     local ReadCollection      = require("readcollection")
-    local LineWidget          = require("ui/widget/linewidget")
     local TextWidget          = require("lib/bookshelf_colour_text")
     local TextBoxWidget       = require("ui/widget/textboxwidget")
     local InputContainer      = require("ui/widget/container/inputcontainer")
@@ -22262,6 +22244,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     local HorizontalSpan      = require("ui/widget/horizontalspan")
     local VerticalSpan        = require("ui/widget/verticalspan")
     local GestureRange        = require("ui/gesturerange")
+    local WidgetContainer     = require("ui/widget/container/widgetcontainer")
 
     -- Hydrate rating from the sidecar (shelf records skip it for speed).
     if book.rating == nil and book.filepath then
@@ -22323,28 +22306,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     -- itself is shown/edited on the Tags tab, not here).
     local default_coll = ReadCollection.default_collection_name
 
-    -- ── Reading status quad ──────────────────────────────────────────────────
-    -- Selected state reads as a light-gray fill rather than an appended
-    -- checkmark: a checkmark changes the label's own width every time a
-    -- different status is picked, which visibly shifts the row's layout
-    -- (Button's own text repositions, and its neighbours can reflow at
-    -- narrow zoom levels). A fixed-width background swap has no such
-    -- shift. Evaluated once per buildBody() call, which already reruns via
-    -- modal:rebuildTab() on every status change (refreshInPlace below).
     local BookList = require("ui/widget/booklist")
-    local function statusBtn(label, value)
-        local selected = BookList.getBookStatus(book.filepath) == value
-        return {
-            id   = "status_" .. value,
-            text = label,
-            background = selected and Blitbuffer.COLOR_LIGHT_GRAY or nil,
-            callback = function()
-                if BookList.getBookStatus(book.filepath) == value then return end
-                bw:_commitBookStatus(book, value)
-                refreshInPlace()
-            end,
-        }
-    end
 
     -- ── Favourite / Remove from history ──────────────────────────────────────
     local remove_history = { text = _("Remove from history"), callback = function()
@@ -22358,12 +22320,6 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         local s = ReadCollection:getCollectionsWithFile(book.filepath) or {}
         return s[default_coll] and true or false
     end
-    -- Same checkbox-marked / checkbox-blank-outline glyph pair as the start
-    -- menu's toggle items (lib/bookshelf_menu_host.lua's GLYPH_CHECK_ON/OFF).
-    -- Rendered by the hand-built Favourite row below, not embedded in this
-    -- spec -- see that row's comment for why.
-    local FAV_CHECK_ON  = "\xEE\xA0\xB1" -- U+E831 checkbox-marked
-    local FAV_CHECK_OFF = "\xEE\xA0\xB0" -- U+E830 checkbox-blank-outline
     local fav = {
         callback = function()
             if inFav() then
@@ -22473,92 +22429,75 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     -- onShowingReader handler, which closes the popup cleanly.
     local plugin_rows = bw:_fileDialogPluginRows(book.filepath)
 
-    -- ── Section row groups ───────────────────────────────────────────────────
-    -- The status quad is a real ButtonTable row; Favourite/Remove-from-history
-    -- is hand-built below instead (see "Favourite row" comment) so the
-    -- checkbox glyph can be its own non-bold TextWidget.
-    local status_rows = {
-        {
-            statusBtn(_("Unopened"), "new"),       statusBtn(_("Reading"),  "reading"),
-            statusBtn(_("On hold"),  "abandoned"), statusBtn(_("Finished"), "complete"),
-        },
-    }
-    local file_rows = {
-        { show_info, refresh_btn, select_btn },
-        { move_btn, reset_btn, delete_btn },
+    -- ── Action tiles ─────────────────────────────────────────────────────────
+    -- Most used first. Icons are the bundled symbols font's Material Design
+    -- glyphs (PUA, so safe in any UI font).
+    local tile_specs = {
+        { text = _("Favorite"), icon = inFav() and "\xEE\xA7\x90" or "\xEE\xA7\x94", -- heart / heart-outline
+          on = inFav(), callback = fav.callback },
+        { text = remove_history.text, icon = "\xEE\xA7\x99", callback = remove_history.callback }, -- history
+        { text = show_info.text,   icon = "\xEE\xA7\xBC", callback = show_info.callback },   -- information-outline
+        { text = select_btn.text,  icon = "\xEE\xA0\xB8", callback = select_btn.callback },  -- checkbox-multiple-marked-outline
+        { text = refresh_btn.text, icon = "\xEE\xAD\x8F", callback = refresh_btn.callback }, -- refresh
     }
     -- A record from a device library (Kindle #355, Kobo) is not a file the user
     -- put on the device: its path is the reader's own library entry, or a
     -- generated conversion of one. Delete would really remove the book from the
     -- Kindle, and Move would break the catalogue's idea of where it lives, so
-    -- the whole destructive row goes rather than being offered and failing.
-    if book.is_kindle or book.is_kobo then
-        file_rows = { { show_info, refresh_btn, select_btn } }
+    -- those actions go rather than being offered and failing.
+    if not (book.is_kindle or book.is_kobo) then
+        tile_specs[#tile_specs + 1] = { text = move_btn.text, icon = "\xEE\xA5\x91", -- folder-move
+            enabled = move_btn.enabled, callback = move_btn.callback }
+        tile_specs[#tile_specs + 1] = { text = reset_btn.text, icon = "\xEE\x9D\xAE", -- backup-restore
+            callback = reset_btn.callback }
+        tile_specs[#tile_specs + 1] = { text = _("Delete"), icon = "\xEE\xA2\xBF", -- delete
+            callback = delete_btn.callback }
+    end
+
+    -- Shared by the status control and the tiles: the button outline and
+    -- corner, and a tap target with a dpad focus highlight.
+    local tile_border = Size.border.button
+    local tile_radius = Space.radius.button
+    local function tapCell(widget, w, h, on_tap, enabled)
+        local cell = InputContainer:new{ dimen = Geom:new{ w = w, h = h }, widget }
+        cell.ges_events = { Tap = { GestureRange:new{ ges = "tap", range = cell.dimen } } }
+        cell.onTap = function()
+            if enabled ~= false then on_tap() end
+            return true
+        end
+        cell._focused = false
+        function cell:paintTo(bb, x, y)
+            InputContainer.paintTo(self, bb, x, y)
+            if self._focused then bb:invertRect(x, y, w, h) end
+        end
+        cell.onFocus = function() cell._focused = true; return true end
+        cell.onUnfocus = function() cell._focused = false; return true end
+        return cell
     end
 
     -- This is our own widget tree (not a ButtonDialog), so the body is a
-    -- VerticalGroup we compose freely. Section headings are a full-width BLACK
-    -- STRIP with white text -- a strong, compact divider, so option rows butt
-    -- straight up against it with no rules between sections (only the very last
-    -- section gets a closing rule). ButtonTable draws gray separators BETWEEN
-    -- rows but no outer border, so a section's first button meets the strip
-    -- above it and its last meets the next strip.
+    -- VerticalGroup we compose freely: small grey headings, and under each a
+    -- control that draws its whole outline itself, inset from the frame.
     -- Thin scrollbar, minimal right reserve; SnugScroll.widen adds the couple
     -- of pixels that make it read as a bar beside the frame's border.
     local bar_w     = SnugScroll.widen(Screen:scaleBySize(3))
     local sb        = bar_w   -- SnugScroll reserves exactly the bar width (no gaps)
     local pad_top    = 0   -- first heading strip butts against the tab strip
-    local pad_bottom = Space.px(10)
+    local pad_bottom = Space.px(20)
     -- Left inset = the modal's shared side pad, so heading text + info-row text
     -- line up with the tab strip and the description body.
     local inset      = (modal and modal._side_pad) or Space.px(28)
 
-    -- Stamp the font size onto every button spec so the +/- zoom scales them.
-    -- Also stamp an explicit `height`, floored to what the footer's Zoom-/
-    -- Zoom+ buttons render at: those are the tallest thing in the footer's
-    -- row, since they use the bundled Nerd Font "symbols" face (an on-device
-    -- probe confirmed this face renders taller than bold "cfont" text at the
-    -- same nominal size -- 55px vs 48px on the maintainer's PW5). The footer's
-    -- Close/Open text buttons don't set their own height; ButtonTable just
-    -- takes the row's max, so the whole row inherits the icon buttons'
-    -- height. None of this tab's rows have an icon glyph, so without an
-    -- explicit floor they render shorter than the footer even at the same
-    -- font_size.
+    -- The status control's row height: a button label at the modal's zoom.
     local Button = require("ui/widget/button")
-    local function labelHeightAt(sz, face, bold)
-        local probe = Button:new{ text = "Ag", text_font_size = sz,
-            text_font_face = face, text_font_bold = bold }
-        local h = probe.label_widget:getSize().h
+    local row_label_h
+    do
+        local probe = Button:new{ text = "Ag", text_font_size = font_size, text_font_bold = true }
+        row_label_h = probe.label_widget:getSize().h
         probe:free()
-        return h
-    end
-    local row_label_h = math.max(
-        labelHeightAt(font_size, "cfont", true),
-        labelHeightAt(20, "symbols", false))
-    local function sizeRows(rows)
-        for _r = 1, #rows do
-            for _c = 1, #rows[_r] do
-                rows[_r][_c].font_size = font_size
-                rows[_r][_c].height    = row_label_h
-            end
-        end
-        return rows
     end
 
     local function buildBody(content_w)
-        local function rule()
-            -- A thin Size.border.window gap either side, same as KOReader's
-            -- own ButtonDialog separator -- close to full width, not
-            -- perfectly edge-to-edge.
-            return FrameContainer:new{
-                bordersize = 0, margin = 0,
-                padding_left = Size.border.window, padding_right = Size.border.window,
-                LineWidget:new{
-                    background = Blitbuffer.COLOR_GRAY,
-                    dimen = Geom:new{ w = content_w - 2 * Size.border.window, h = Size.line.medium },
-                },
-            }
-        end
         local function heading(text)
             -- Pass the FULL tab width (not the scroll-reduced content_w) so the
             -- bar reaches the frame edge; getSize ignores width, so it can't widen
@@ -22580,121 +22519,65 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         -- see ui/widget/buttontable.lua; one-off custom rows below get a
         -- `{layout=...}` wrapper to match that same shape).
         local focus_tables = {}
-        local function btSection(title, rows)
-            vg[#vg + 1] = heading(title)
-            local bt = ButtonTable:new{
-                width = content_w, buttons = sizeRows(rows), show_parent = modal }
-            vg[#vg + 1] = bt
-            focus_tables[#focus_tables + 1] = bt
-            return bt
-        end
 
-        -- 1. Reading status.
-        local status_bt = btSection(_("Reading status"), status_rows)
-        -- Button's background-implies-rounded-corners coupling (button.lua:
-        -- radius defaults to Size.radius.button whenever background is set,
-        -- and ButtonTable doesn't forward a per-row radius override) can't be
-        -- overridden via the row spec -- square off the selected pill's fill
-        -- directly on the built Button instance instead. Also underline the
-        -- label itself (not the full button width -- a full-width bar reads
-        -- as just another edge, a text-width underline as a deliberate
-        -- mark), and extend the fill down through ButtonTable's own
-        -- inter-row span gap (addVerticalSpan, a sibling widget below this
-        -- frame, not part of it) so it meets the row separator directly
-        -- instead of stopping short with a visible white sliver before it.
+        -- 1. Reading status: one segmented control. It draws its own rounded
+        -- outline and dividers, so it closes on itself instead of leaning on
+        -- the frame edge or the next row to finish it (book popup redesign:
+        -- the old full-width button grid left lines that ended nowhere).
+        vg[#vg + 1] = heading(_("Reading status"))
         do
+            local items = {
+                { _("Unopened"), "new" },     { _("Reading"),  "reading" },
+                { _("On hold"),  "abandoned" }, { _("Finished"), "complete" },
+            }
             local cur_status = BookList.getBookStatus(book.filepath)
-            local selected_btn = cur_status and status_bt.button_by_id["status_" .. cur_status]
-            if selected_btn and selected_btn.frame then
-                local frame = selected_btn.frame
-                frame.radius = 0
-                local orig_paintTo = frame.paintTo
-                local underline_h = Size.line.medium
-                local underline_gap = Screen:scaleBySize(1)
-                -- Gap between this button's own frame and the row separator
-                -- immediately below it in status_bt's own layout (ButtonTable's
-                -- internal addVerticalSpan after its row). status_bt's own
-                -- reported height runs Size.line.medium past the separator's
-                -- own position (measured on-device), so subtract that back out
-                -- -- else the fill bleeds past the separator into row 2's own
-                -- top padding instead of stopping flush against it.
-                local fill_extend = status_bt:getSize().h - frame:getSize().h - Size.line.medium
-                function frame:paintTo(bb, x, y)
-                    orig_paintTo(self, bb, x, y)
-                    local sz = self:getSize()
-                    bb:paintRect(x, y + sz.h, sz.w, fill_extend, self.background)
-                    local label_sz = selected_btn.label_widget:getSize()
-                    local ux = x + math.floor((sz.w - label_sz.w) / 2)
-                    local uy = y + math.floor((sz.h + label_sz.h) / 2) + underline_gap
-                    bb:paintRect(ux, uy, label_sz.w, underline_h, Blitbuffer.COLOR_BLACK)
+            local w = content_w - 2 * inset
+            local n = #items
+            local seg_w = math.floor(w / n)
+            local seg_h = row_label_h + 2 * Space.px(12)
+            local face = Font:getFace("cfont", font_size)
+            local row = HorizontalGroup:new{ align = "top" }
+            local cells, sel_i = {}, nil
+            for i, it in ipairs(items) do
+                local sw = (i == n) and (w - seg_w * (n - 1)) or seg_w
+                local selected = cur_status == it[2]
+                if selected then sel_i = i end
+                local label = TextWidget:new{ text = it[1], face = face, bold = selected,
+                    max_width = sw - 2 * Space.px(6),
+                    fgcolor = selected and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK }
+                local cell = tapCell(
+                    CenterContainer:new{ dimen = Geom:new{ w = sw, h = seg_h }, label },
+                    sw, seg_h, function()
+                        if BookList.getBookStatus(book.filepath) == it[2] then return end
+                        bw:_commitBookStatus(book, it[2])
+                        refreshInPlace()
+                    end)
+                row[#row + 1] = cell
+                cells[#cells + 1] = cell
+            end
+            focus_tables[#focus_tables + 1] = focusRow({ cells })
+            local seg = WidgetContainer:new{ dimen = Geom:new{ w = w, h = seg_h }, row }
+            function seg:paintTo(bb, x, y)
+                self.dimen.x, self.dimen.y = x, y
+                local r = tile_radius
+                if sel_i then
+                    local sx = x + (sel_i - 1) * seg_w
+                    local sw = (sel_i == n) and (w - seg_w * (n - 1)) or seg_w
+                    bb:paintRoundedRect(sx, y, sw, seg_h, Blitbuffer.COLOR_BLACK, r)
+                    -- Square off the inner side(s): only the control's own
+                    -- ends are rounded.
+                    if sel_i > 1 then bb:paintRect(sx, y, r, seg_h, Blitbuffer.COLOR_BLACK) end
+                    if sel_i < n then bb:paintRect(sx + sw - r, y, r, seg_h, Blitbuffer.COLOR_BLACK) end
                 end
+                for i = 2, n do
+                    if i ~= sel_i and i - 1 ~= sel_i then
+                        bb:paintRect(x + (i - 1) * seg_w, y, tile_border, seg_h, Blitbuffer.COLOR_BLACK)
+                    end
+                end
+                bb:paintBorder(x, y, w, seg_h, tile_border, Blitbuffer.COLOR_BLACK, r)
+                row:paintTo(bb, x, y)
             end
-        end
-
-        -- Favourite row: hand-built rather than a ButtonTable entry, so the
-        -- checkbox glyph is its own plain (non-bold) TextWidget, sized and
-        -- centred independently of the "Favourite" label. Embedding the
-        -- glyph inline in a bold button string (the previous approach) faux-
-        -- bolds it -- BFont:getFace only has a real bold *.ttf for the UI
-        -- font, so a bold request against the bundled Nerd Font symbols face
-        -- falls back to synthetically emboldening the regular glyph, which
-        -- reads as heavier/muddier strokes than the label text next to it.
-        -- Matches ButtonTable's own row metrics (row_label_h, buttontable
-        -- padding, gray column/row separators) so it reads as a continuation
-        -- of the ButtonTable above rather than a visually distinct element.
-        -- The label font is plain stock Font:getFace, NOT BFont:getFace --
-        -- Button itself resolves its label face via stock Font:getFace
-        -- (button.lua), bypassing bookshelf's own "follow UI font"
-        -- substitution wrapper entirely. Using BFont here rendered a
-        -- visibly different typeface from its ButtonTable siblings whenever
-        -- that substitution is active.
-        do
-            local row_face = Font:getFace("cfont", font_size)
-            local check_size = font_size + 8
-            local check_face = BFont:getFace("symbols", check_size)
-            local function favContent()
-                local glyph = inFav() and FAV_CHECK_ON or FAV_CHECK_OFF
-                return HorizontalGroup:new{ align = "center",
-                    TextWidget:new{ text = glyph, face = check_face, fgcolor = Blitbuffer.COLOR_BLACK },
-                    HorizontalSpan:new{ width = Space.px(10) },
-                    TextWidget:new{ text = _("Favorite"), face = row_face, bold = true },
-                }
-            end
-            local remove_label = TextWidget:new{ text = _("Remove from history"),
-                face = row_face, bold = true }
-            local cell_w = math.floor((content_w - Size.line.medium) / 2)
-            -- ButtonTable buttons total row_label_h PLUS its own padding
-            -- (buttontable.lua passes padding = Size.padding.buttontable,
-            -- which Button applies as extra top/bottom frame padding beyond
-            -- the label height) -- match that here or this row renders
-            -- visibly shorter than the quad above it.
-            local row_h = row_label_h + 2 * Size.padding.buttontable
-            local function tappableCell(widget, on_tap)
-                local framed = FrameContainer:new{
-                    bordersize = 0, margin = 0, padding = 0,
-                    CenterContainer:new{ dimen = Geom:new{ w = cell_w, h = row_h }, widget },
-                }
-                local cell = InputContainer:new{
-                    dimen = Geom:new{ w = cell_w, h = row_h }, framed }
-                cell.ges_events = { Tap = { GestureRange:new{ ges = "tap", range = cell.dimen } } }
-                cell.onTap = function() on_tap(); return true end
-                cell.onFocus = function() framed.invert = true; return true end
-                cell.onUnfocus = function() framed.invert = false; return true end
-                return cell
-            end
-            local fav_cell    = tappableCell(favContent(), fav.callback)
-            local remove_cell = tappableCell(remove_label, remove_history.callback)
-            local sep = LineWidget:new{ background = Blitbuffer.COLOR_GRAY,
-                dimen = Geom:new{ w = Size.line.medium, h = row_h } }
-            focus_tables[#focus_tables + 1] = focusRow({ { fav_cell, remove_cell } })
-            -- No extra VerticalSpan here: ButtonTable's own addVerticalSpan
-            -- already ran once after the quad row (baked into status_bt's
-            -- own rendered height above) -- adding a second one doubled the
-            -- gap between the quad and this separator versus the original
-            -- two-row ButtonTable layout.
-            vg[#vg + 1] = LineWidget:new{ background = Blitbuffer.COLOR_GRAY,
-                dimen = Geom:new{ w = avail_w, h = Size.line.medium } }
-            vg[#vg + 1] = HorizontalGroup:new{ align = "top", fav_cell, sep, remove_cell }
+            vg[#vg + 1] = padded(seg, 0, 0)
         end
 
         -- 2. Ratings: editable "Your rating" stars and, inline, the read-only
@@ -22812,15 +22695,8 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                     your_group, VerticalSpan:new{ width = Space.px(8) }, hc_group }
             end
         end
-        -- Centre the rating row(s) within the section instead of hugging the
-        -- left inset -- reads better as a standalone block of content rather
-        -- than a left-aligned label/value pair like the rows above it.
-        ratings_widget = CenterContainer:new{
-            dimen = Geom:new{ w = content_w - 2 * inset, h = ratings_widget:getSize().h },
-            ratings_widget,
-        }
         vg[#vg + 1] = heading(_("Ratings"))
-        vg[#vg + 1] = padded(ratings_widget, Space.px(8), Space.px(10))
+        vg[#vg + 1] = padded(ratings_widget, 0, 0)
 
         -- An info row styled like a File-&-metadata button row: the value on the
         -- left (inset to align with the headings), then a bordered ChipButton
@@ -22872,8 +22748,94 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                 bw:_actionButtonColumn(btn, btn_w, row_h, want_bottom_border) }
         end
 
-        -- 3. File & metadata.
-        btSection(_("File & metadata"), file_rows)
+        -- 3. Actions: separate rounded tiles, an icon over a short label,
+        -- with space between them. Each tile is a whole shape on its own, so
+        -- a short last row or a missing action leaves no stray line behind.
+        vg[#vg + 1] = heading(_("Actions"))
+        do
+            local w   = content_w - 2 * inset
+            local gap = Space.px(12)
+            local icon_face  = BFont:getFace("symbols", font_size + 10)
+            local label_face = Font:getFace("cfont", math.max(10, font_size - 3))
+            local pad_v = Space.px(12)
+            -- As many columns (4 at most) as leave every label two lines or
+            -- fewer: a small screen or a big zoom drops to 3, then 2.
+            local function innerW(c)
+                return math.floor((w - (c - 1) * gap) / c) - 2 * tile_border - 2 * Space.px(6)
+            end
+            local function textH(text, tw)
+                local tb = TextBoxWidget:new{ text = text, face = label_face, width = tw }
+                local h = tb:getSize().h
+                tb:free()
+                return h
+            end
+            local cols = 4
+            while cols > 2 do
+                local iw, two = innerW(cols), 2 * textH("Ag", innerW(cols))
+                local fits = true
+                for _i, a in ipairs(tile_specs) do
+                    if textH(a.text, iw) > two then fits = false; break end
+                end
+                if fits then break end
+                cols = cols - 1
+            end
+            local tile_w = math.floor((w - (cols - 1) * gap) / cols)
+            local inner_w = innerW(cols)
+            -- Build the contents first: every tile in the grid takes the
+            -- tallest one's height, so the rows line up.
+            local built, content_h = {}, 0
+            for _i, a in ipairs(tile_specs) do
+                local fg = (a.enabled == false) and Blitbuffer.COLOR_DARK_GRAY
+                    or (a.on and Blitbuffer.COLOR_WHITE) or Blitbuffer.COLOR_BLACK
+                local icon = TextWidget:new{ text = a.icon, face = icon_face, fgcolor = fg }
+                local label = TextBoxWidget:new{ text = a.text, face = label_face,
+                    width = inner_w, alignment = "center", fgcolor = fg,
+                    bgcolor = a.on and Blitbuffer.COLOR_BLACK or nil }
+                local content = VerticalGroup:new{ align = "center",
+                    CenterContainer:new{ dimen = Geom:new{ w = inner_w, h = icon:getSize().h }, icon },
+                    VerticalSpan:new{ width = Space.px(4) },
+                    label,
+                }
+                built[#built + 1] = content
+                content_h = math.max(content_h, content:getSize().h)
+            end
+            local tile_h = content_h + 2 * pad_v + 2 * tile_border
+            local grid = VerticalGroup:new{ align = "left" }
+            local line, line_cells
+            for i, a in ipairs(tile_specs) do
+                if (i - 1) % cols == 0 then
+                    if line then
+                        grid[#grid + 1] = line
+                        grid[#grid + 1] = VerticalSpan:new{ width = gap }
+                        focus_tables[#focus_tables + 1] = focusRow({ line_cells })
+                    end
+                    line, line_cells = HorizontalGroup:new{ align = "top" }, {}
+                else
+                    line[#line + 1] = HorizontalSpan:new{ width = gap }
+                end
+                local frame = FrameContainer:new{
+                    bordersize = tile_border, radius = tile_radius, margin = 0,
+                    padding = 0, padding_top = pad_v,
+                    background = a.on and Blitbuffer.COLOR_BLACK or nil,
+                    color = (a.enabled == false) and Blitbuffer.COLOR_GRAY or Blitbuffer.COLOR_BLACK,
+                    width = tile_w, height = tile_h,
+                    CenterContainer:new{
+                        dimen = Geom:new{ w = tile_w - 2 * tile_border,
+                                          h = built[i]:getSize().h },
+                        built[i],
+                    },
+                }
+                local cell = tapCell(frame, tile_w, tile_h, a.callback, a.enabled)
+                line[#line + 1] = cell
+                line_cells[#line_cells + 1] = cell
+            end
+            if line then
+                grid[#grid + 1] = line
+                focus_tables[#focus_tables + 1] = focusRow({ line_cells })
+            end
+            vg[#vg + 1] = padded(grid, 0, 0)
+        end
+
 
         -- 4. Hardcover link (brand name -> heading not translated). Edition text
         -- + inline Edit/Link button, below File & metadata. (Collections live on
@@ -22952,12 +22914,6 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             vg[#vg + 1] = padded(rows_vg, Space.px(10), Space.px(20))
         end
 
-        -- Close the last section so its final button has a bottom edge --
-        -- unless Plugin actions rendered: its ChipButtons already read as a
-        -- complete block without a trailing rule under them.
-        if not (plugin_rows and #plugin_rows > 0) then
-            vg[#vg + 1] = rule()
-        end
         return vg, focus_tables
     end
 
@@ -23746,7 +23702,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
                     return FrameContainer:new{
                         bordersize = 0, margin = 0,
                         padding_left = lpad, padding_right = lpad,
-                        padding_top = top_pad or Space.px(10),
+                        padding_top = top_pad or 0,
                         -- The next heading brings its own space above it
                         -- (self:_sectionHeadingBar), so only a little here.
                         padding_bottom = Space.px(4),
@@ -23828,7 +23784,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
                     return FrameContainer:new{
                         bordersize = 0, margin = 0,
                         padding_left = lpad, padding_right = lpad,
-                        padding_top = top_pad or Space.px(10),
+                        padding_top = top_pad or 0,
                         padding_bottom = Space.px(4),
                         HorizontalGroup:new{ align = valign,
                             left,

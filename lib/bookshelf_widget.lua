@@ -21459,7 +21459,7 @@ end
 -- popup redesign). Space now does the grouping. action (optional): a button
 -- right-aligned in the heading row, which is row_w wide (default content_w
 -- less the insets).
-function BookshelfWidget:_sectionHeadingBar(text, content_w, font_size, inset, action, at_end)
+function BookshelfWidget:_sectionHeadingBar(text, content_w, font_size, inset)
     local FrameContainer = require("ui/widget/container/framecontainer")
     local TextWidget     = require("lib/bookshelf_colour_text")
     local face, bold = BFont:getFace("cfont", math.max(10, (font_size or 18) - 4), { bold = true })
@@ -21467,19 +21467,6 @@ function BookshelfWidget:_sectionHeadingBar(text, content_w, font_size, inset, a
         fgcolor = Blitbuffer.COLOR_DARK_GRAY }
     local pad_top, pad_bottom = Space.px(22), Space.px(10)
     local widget = label
-    if action then
-        -- An action on the heading's line: right after the text, or with
-        -- at_end at the row's right end. The taller action eats into the
-        -- heading's padding, keeping the text where it was.
-        local HorizontalSpan = require("ui/widget/horizontalspan")
-        local extra = math.max(0, action:getSize().h - label:getSize().h)
-        pad_top    = math.max(0, pad_top - math.floor(extra / 2))
-        pad_bottom = math.max(0, pad_bottom - (extra - math.floor(extra / 2)))
-        widget = HorizontalGroup:new{ align = "center",
-            label, HorizontalSpan:new{ width = at_end
-                and math.max(Space.px(8), content_w - 2 * inset - label:getSize().w - action:getSize().w)
-                or Space.px(8) }, action }
-    end
     return FrameContainer:new{
         bordersize  = 0, margin = 0,
         padding_left = inset, padding_right = inset,
@@ -22964,7 +22951,8 @@ function BookshelfWidget:_buildReviewsHeader(tab, modal, avail_w, refreshReviews
     end
 
     return FrameContainer:new{
-        bordersize = 0, margin = 0,
+        bordersize = 0, margin = 0, width = avail_w,
+        background = PopupKit.STRIP_BG,
         padding_left = inset, padding_right = inset,
         padding_top = Space.px(10), padding_bottom = Space.px(10),
         row,
@@ -22987,11 +22975,10 @@ end
 -- same row, so the pair costs one row rather than two. nil when they do not
 -- fit side by side.
 function BookshelfWidget:_chipsWithButton(above, btn, avail_w, inset)
-    local HorizontalSpan = require("ui/widget/horizontalspan")
-    local gap = avail_w - above:getSize().w - btn:getSize().w - inset
-    if gap < Space.px(10) then return nil end
-    return HorizontalGroup:new{ align = "center",
-        above, HorizontalSpan:new{ width = gap }, btn, HorizontalSpan:new{ width = inset } }
+    local seg = above.seg
+    if not seg then return nil end
+    if seg:getSize().w + Space.px(10) + btn:getSize().w > avail_w - 2 * inset then return nil end
+    return PopupKit.headerRow{ width = avail_w, inset = inset, left = seg, buttons = { btn } }
 end
 
 -- _headedHtmlBody(modal, avail_w, avail_h, header, html, above): a native
@@ -23052,12 +23039,15 @@ function BookshelfWidget:_buildMyReviewBody(book, modal, avail_w, avail_h, above
         -- The header row alone: a grey note where the review will be, the
         -- button at the right end like every tab's own action.
         local col = VerticalGroup:new{ align = "left" }
-        if above then col[#col + 1] = above end
-        col[#col + 1] = PopupKit.headerRow{ width = avail_w, inset = inset,
-            left = TextWidget:new{ text = _("No review yet."), face = PopupKit.sourceFace(font_size),
-                fgcolor = Blitbuffer.COLOR_DARK_GRAY,
-                max_width = math.max(1, content_w - btn:getSize().w - Space.px(10)) },
-            buttons = { btn } }
+        col[#col + 1] = (above and self:_chipsWithButton(above, btn, avail_w, inset))
+            or PopupKit.headerRow{ width = avail_w, inset = inset, buttons = { btn } }
+        col[#col + 1] = FrameContainer:new{
+            bordersize = 0, margin = 0,
+            padding_left = inset, padding_right = inset,
+            padding_top = Space.px(16), padding_bottom = 0,
+            TextWidget:new{ text = _("No review yet."), face = text_face,
+                fgcolor = Blitbuffer.COLOR_DARK_GRAY, max_width = content_w },
+        }
         local used = 0
         for _i, w in ipairs(col) do used = used + w:getSize().h end
         if used < avail_h then col[#col + 1] = VerticalSpan:new{ width = avail_h - used } end
@@ -23143,14 +23133,9 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
     local online_btn = PopupKit.headerButton{ text = _("Search online\xE2\x80\xA6"),
         icon = "\xEE\xB8\x8D", font_size = base, -- search-web
         on_tap = function() bw:_searchOnlineCovers(book, state, modal) end }
-    local tb_gap_x = Space.px(10)
-    local tb_w = device_btn:getSize().w + tb_gap_x + online_btn:getSize().w
-    local toolbar_row = HorizontalGroup:new{
-        align = "center",
-        HorizontalSpan:new{ width = math.max(0, content_w - tb_w) },
-        device_btn, HorizontalSpan:new{ width = tb_gap_x }, online_btn,
-    }
-    local toolbar_h = toolbar_row:getSize().h
+    local strip = PopupKit.headerRow{ width = avail_w, inset = side_pad,
+        buttons = { device_btn, online_btn } }
+    local toolbar_h = strip:getSize().h
 
     -- Grid geometry: 2-4 columns by width; rows to fill the height.
     local gap      = Space.px(10)
@@ -23164,8 +23149,8 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
     -- Non-cover part of a cell (caption + gap + ring headroom top/bottom).
     local chrome = Space.px(4) + cap_h + 2 * ring
 
-    local top_pad     = Space.px(10)   -- gap below the tab bar / above toolbar (headerRow's)
-    local tb_gap      = Space.px(10)    -- gap below the toolbar (headerRow's)
+    local top_pad     = 0              -- the strip sits right under the tab bar
+    local tb_gap      = Space.px(12)    -- gap below the strip
     -- Space reserved below the grid for the pagination row plus a standard gap
     -- beneath it (matching the pagination spacing used elsewhere) so the page
     -- nav sits just off the modal's Close/Open footer, not jammed against it.
@@ -23195,8 +23180,6 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
     if state.page < 1 then state.page = 1 end
 
     local col = VerticalGroup:new{ align = "center" }
-    col[#col + 1] = VerticalSpan:new{ width = top_pad }   -- breathing room below the tab bar
-    col[#col + 1] = toolbar_row
     col[#col + 1] = VerticalSpan:new{ width = tb_gap }
 
     -- D-pad rows, top to bottom: the two buttons, then each grid row. focusRow
@@ -23294,7 +23277,7 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
     -- VerticalGroup caches its size/offsets on first getSize(), so measuring the
     -- group before appending the spacer would freeze the short height and ignore
     -- the pad (the VerticalGroup getSize caching gotcha).
-    local used_h = 0
+    local used_h = toolbar_h   -- the strip above the column
     for _i, ch in ipairs(col) do
         used_h = used_h + (ch.getSize and ch:getSize().h or 0)
     end
@@ -23307,6 +23290,8 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
         background = Blitbuffer.COLOR_WHITE,
         col,
     }
+    -- The controls strip runs edge to edge above the inset column.
+    framed = VerticalGroup:new{ align = "left", strip, framed }
     framed.focus_tables = focus_tables
     -- Expose the grid's pagination so the modal's horizontal swipe pages the
     -- covers first and only cycles tabs once you're off the end (see
@@ -23616,12 +23601,10 @@ function BookshelfWidget:_showBookDetail(book, opts)
                 -- first heading. Editing puts a cross in each tag that can be
                 -- removed (tap removes it) and a "+ Add" after each editable
                 -- group; tags that can't be edited here go grey. Done ends it.
-                local first_heading = true
                 local function heading(title)
-                    if not first_heading then
-                        return self:_sectionHeadingBar(title, avail_w, base, lpad)
-                    end
-                    first_heading = false
+                    return self:_sectionHeadingBar(title, avail_w, base, lpad)
+                end
+                local function editStrip()
                     local btn = PopupKit.headerButton{
                         text      = tags_editing and _("Done") or _("Edit"),
                         icon      = (not tags_editing) and "\xEE\xAB\xAA" or nil, -- nf-md-pencil
@@ -23633,7 +23616,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
                         end,
                     }
                     focus_tables[#focus_tables + 1] = focusRow({ { btn } })
-                    return self:_sectionHeadingBar(title, avail_w, base, lpad, btn, true)
+                    return PopupKit.headerRow{ width = avail_w, inset = lpad, buttons = { btn } }
                 end
                 -- Edit mode's version of a group: each removable tag gets a
                 -- cross and removes itself on tap; "+ Add" goes last.
@@ -23669,7 +23652,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
                         }
                     end
                 end
-                local vg = VerticalGroup:new{ align = "left" }
+                local vg = VerticalGroup:new{ align = "left", editStrip() }
                 for _s = 1, #TAG_SECTIONS do
                     local sec = TAG_SECTIONS[_s]
                     if sec.cat == "genres" then

@@ -104,6 +104,7 @@ function Kit.segmented(o)
         local r, black = Kit.RADIUS, Blitbuffer.COLOR_BLACK
         local starts, sx = {}, x
         for i = 1, n do starts[i] = sx; sx = sx + widths[i] end
+        bb:paintRoundedRect(x, y, w, h, Blitbuffer.COLOR_WHITE, r)
         if sel then
             local cx, cw = starts[sel], widths[sel]
             bb:paintRoundedRect(cx, y, cw, h, black, r)
@@ -152,9 +153,13 @@ function Kit.headerButton(o)
     }
 end
 
--- headerRow(o) -> a tab's first row: o.left (a heading, a source switch or a
--- note; optional) at the content edge, o.buttons (headerButtons) at the right
--- end. Stacks the two when they don't fit side by side.
+-- The light grey strip a tab's controls sit in, edge to edge under the tabs.
+Kit.STRIP_BG = Blitbuffer.COLOR_GRAY_E
+
+-- headerRow(o) -> a tab's controls strip: o.left (a source switch; optional)
+-- at the content edge, o.buttons (headerButtons) at the right end, on the
+-- grey strip the tab's full width. Stacks the two when they don't fit side
+-- by side.
 --   o.width (the tab's), o.inset (its side padding), o.pad_top, o.pad_bottom
 function Kit.headerRow(o)
     local VerticalGroup = require("ui/widget/verticalgroup")
@@ -179,7 +184,8 @@ function Kit.headerRow(o)
         row[#row + 1] = btns
     end
     return FrameContainer:new{
-        bordersize = 0, margin = 0,
+        bordersize = 0, margin = 0, width = o.width,
+        background = Kit.STRIP_BG,
         padding_left = o.inset, padding_right = o.inset,
         padding_top = o.pad_top or Space.px(10), padding_bottom = o.pad_bottom or Space.px(10),
         row,

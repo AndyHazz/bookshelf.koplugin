@@ -60,4 +60,15 @@ t.test("every tab's own actions are the kit's header button", function()
     assert(widget:find("local btn = PopupKit.headerButton{\n                        text      = tags_editing", 1, true))
 end)
 
+t.test("tab controls sit on one grey strip, edge to edge", function()
+    local kit = read("lib/bookshelf_popup_kit.lua")
+    local row = assert(kit:match("function Kit%.headerRow.-\nend\n"))
+    assert(row:find("background = Kit.STRIP_BG", 1, true))
+    assert(row:find("width = o.width", 1, true))
+    -- The Description source switch and Hardcover's header use the same strip.
+    local modal = read("lib/bookshelf_reviews_modal.lua")
+    assert(method(modal, "_buildSourceChips"):find("PopupKit.headerRow{", 1, true))
+    assert(method(widget, "_buildReviewsHeader"):find("PopupKit.STRIP_BG", 1, true))
+end)
+
 t.done()

@@ -861,12 +861,11 @@ function ReviewsModal:_buildSourceChips(tab)
             UIManager:setDirty(self, function() return "ui", self.frame.dimen end)
         end,
     }
-    return FrameContainer:new{
-        bordersize = 0, margin = 0,
-        padding_left = self._side_pad, padding_right = self._side_pad,
-        padding_top = Space.px(10), padding_bottom = Space.px(10), -- PopupKit.headerRow's
-        seg,
-    }
+    -- On the tab's controls strip; .seg lets a tab with its own button (My
+    -- review's Edit, Hardcover's Refresh) build one strip holding both.
+    local strip = PopupKit.headerRow{ width = self.width, inset = self._side_pad, left = seg }
+    strip.seg = seg
+    return strip
 end
 
 -- Free every cached sourced-description body (their MuPDF docs + bbs).

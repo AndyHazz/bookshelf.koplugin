@@ -21455,35 +21455,18 @@ end
 -- grey. It was a solid black bar, the heaviest thing on the screen, so the
 -- headings outweighed the buttons they name; then a hairline, which ran to the
 -- frame edges past controls that stop at the inset and so ended nowhere (book
--- popup redesign). Space now does the grouping. action (optional): a button
--- right-aligned in the heading row, which is row_w wide (default content_w
--- less the insets).
-function BookshelfWidget:_sectionHeadingBar(text, content_w, font_size, inset, action, row_w)
+-- popup redesign). Space now does the grouping. content_w is unused, kept so
+-- callers don't change.
+function BookshelfWidget:_sectionHeadingBar(text, content_w, font_size, inset)
     local FrameContainer = require("ui/widget/container/framecontainer")
     local TextWidget     = require("lib/bookshelf_colour_text")
     local face, bold = BFont:getFace("cfont", math.max(10, (font_size or 18) - 4), { bold = true })
-    local label = TextWidget:new{ text = TextSegments.upper(text), face = face, bold = bold,
-        fgcolor = Blitbuffer.COLOR_DARK_GRAY }
-    local pad_top, pad_bottom = Space.px(22), Space.px(10)
-    local widget = label
-    if action then
-        -- The section's own action (Edit) at the right end of its heading,
-        -- so the rows under it hold only their content. The taller button
-        -- eats into the heading's padding, keeping the text where it was.
-        local HorizontalSpan = require("ui/widget/horizontalspan")
-        row_w = row_w or (content_w - 2 * inset)
-        local lw, aw = label:getSize().w, action:getSize().w
-        local extra = math.max(0, action:getSize().h - label:getSize().h)
-        pad_top    = math.max(0, pad_top - math.floor(extra / 2))
-        pad_bottom = math.max(0, pad_bottom - (extra - math.floor(extra / 2)))
-        widget = HorizontalGroup:new{ align = "center",
-            label, HorizontalSpan:new{ width = math.max(Space.px(8), row_w - lw - aw) }, action }
-    end
     return FrameContainer:new{
         bordersize  = 0, margin = 0,
         padding_left = inset, padding_right = inset,
-        padding_top = pad_top, padding_bottom = pad_bottom,
-        widget,
+        padding_top = Space.px(22), padding_bottom = Space.px(10),
+        TextWidget:new{ text = TextSegments.upper(text), face = face, bold = bold,
+            fgcolor = Blitbuffer.COLOR_DARK_GRAY },
     }
 end
 
@@ -21568,16 +21551,37 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
     -- to hit. link_style renders an action (e.g. "Edit…") inline with the
     -- data pills but styled as a link -- no border, underlined label --
     -- so it reads as an action rather than another tag.
-    local function _buildPill(label_text, on_tap_cb, extra_pad, on_hold_cb, link_style)
-        -- Upper-case label: centre its capitals, not its line box
-        -- (lib/bookshelf_cap_centre), as the shelf chips do.
-        local label_w = require("lib/bookshelf_cap_centre").centre(TextWidget_:new{
-            text = TextSegments.upper(label_text or ""),
-            face = pill_face,
-            bold = pill_bold,
-            fgcolor = ink,  -- nil: TextWidget's own black
-            max_width = pill_label_max,
-        })
+    --
+    -- icon (a symbols-font glyph) makes an action pill (the Tags tab's Edit):
+    -- the same shape and height as the tags beside it, but its label in
+    -- regular mixed case with the icon after, so it reads as a thing to do.
+    local function _buildPill(label_text, on_tap_cb, extra_pad, on_hold_cb, link_style, icon)
+        local label_w, inks
+        if icon then
+            local text_w = TextWidget_:new{ text = label_text or "",
+                face = BFont:getFace("cfont", base_size or 14), fgcolor = ink,
+                max_width = pill_label_max }
+            local icon_w = TextWidget_:new{ text = icon,
+                face = BFont:getFace("symbols", math.max(8, (base_size or 14) - 2)), fgcolor = ink }
+            local line_h = TextWidget_:new{ text = "Hg", face = pill_face, bold = pill_bold }:getSize().h
+            label_w = CenterContainer:new{
+                dimen = Geom:new{ w = text_w:getSize().w + Space.px(6) + icon_w:getSize().w, h = line_h },
+                HorizontalGroup_:new{ align = "center",
+                    text_w, HorizontalSpan_:new{ width = Space.px(6) }, icon_w },
+            }
+            inks = { text_w, icon_w }
+        else
+            -- Upper-case label: centre its capitals, not its line box
+            -- (lib/bookshelf_cap_centre), as the shelf chips do.
+            label_w = require("lib/bookshelf_cap_centre").centre(TextWidget_:new{
+                text = TextSegments.upper(label_text or ""),
+                face = pill_face,
+                bold = pill_bold,
+                fgcolor = ink,  -- nil: TextWidget's own black
+                max_width = pill_label_max,
+            })
+            inks = { label_w }
+        end
         -- Explicit white bg so the tap-feedback inversion has something to
         -- invert to black (without this, the frame's transparent fill
         -- can't be flipped). Matches KOReader's Button feedback pattern.
@@ -21641,7 +21645,7 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
                 -- pressed, it fills with the ink and the label swaps to the
                 -- ink's opposite so it stays legible ON that fill.
                 frame.background = frame.background and frame.background:invert() or ink
-                label_w.fgcolor  = label_w.fgcolor:invert()
+                for _k, tw in ipairs(inks) do tw.fgcolor = tw.fgcolor:invert() end
                 UIManager:widgetRepaint(frame, frame.dimen.x, frame.dimen.y)
                 UIManager:setDirty(nil, "fast", frame.dimen)
                 -- This is the critical bit -- without it, setDirty
@@ -21668,7 +21672,7 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
     local pill_widgets = {}
     for _i, spec in ipairs(pill_specs) do
         local on_tap = spec.on_tap
-        local pill, pw = _buildPill(spec.label, on_tap, nil, spec.on_hold, spec.link)
+        local pill, pw = _buildPill(spec.label, on_tap, nil, spec.on_hold, spec.link, spec.icon)
         pill_widgets[#pill_widgets + 1] = { widget = pill, w = pw }
     end
 
@@ -23599,7 +23603,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
                 local base  = (show_parent and show_parent.font_size) or 18
                 local pills_w   = avail_w - 2 * lpad - bar_w
                 -- Every section's focusable row(s), in visual top-to-bottom
-                -- order -- pillsFrame and the Edit headings register into this
+                -- order -- pillsFrame registers into this
                 -- as they're called, so each section's own call site doesn't
                 -- need to change. See ReviewsModal:_assemble's handling of an
                 -- ARRAY focus_tables (bookshelf_reviews_modal.lua).
@@ -23620,41 +23624,16 @@ function BookshelfWidget:_showBookDetail(book, opts)
                         pills,
                     }
                 end
-                -- An editable section (Collections, Genres) carries its pencil
-                -- Edit button at the right end of its heading, so the rows
-                -- under it hold only pills (issue #230 wanted the button off a
-                -- row of its own; the heading is the row that was already there).
-                local edit_h
-                do
-                    local ef = BFont:getFace("cfont", math.max(10, base - 2))
-                    edit_h = TextWidget:new{ text = "Hg", face = ef }:getSize().h + 2 * Space.px(4)
-                end
-                local function headingWithEdit(title, on_edit_tap)
-                    local btn = PopupKit.button{
-                        text       = _("Edit"),
-                        face       = BFont:getFace("cfont", math.max(10, base - 2)),
-                        icon_glyph = "\xEE\xAB\xAA", -- nf-md-pencil, U+EAEA
-                        icon_face  = BFont:getFace("symbols", math.max(10, base - 2)),
-                        icon_after = true,
-                        height     = edit_h,
-                        on_tap     = on_edit_tap,
-                    }
-                    return self:_sectionHeadingBar(title, avail_w, base, lpad, btn, pills_w), btn
-                end
-                -- A section's pills, or a grey note when it has none (e.g. "Not
-                -- in any collection."), or nothing.
-                local function pillsOrNote(specs, empty_msg)
-                    if specs and #specs > 0 then return pillsFrame(specs) end
-                    if empty_msg and empty_msg ~= "" then
-                        return FrameContainer:new{
-                            bordersize = 0, margin = 0,
-                            padding_left = lpad, padding_right = lpad,
-                            padding_top = 0, padding_bottom = Space.px(4),
-                            TextBoxWidget:new{ text = empty_msg,
-                                face = BFont:getFace("cfont", base),
-                                fgcolor = Blitbuffer.COLOR_DARK_GRAY, width = pills_w },
-                        }
-                    end
+                -- An editable section (Collections, Genres) ends its pills
+                -- with an "Edit" action pill (_buildPillGroup's icon): it
+                -- wraps with the tags and stands alone when there are none,
+                -- so a book with no tags can still get some.
+                local function withEdit(specs, on_edit_tap)
+                    local out = {}
+                    for _i, sp in ipairs(specs or {}) do out[#out + 1] = sp end
+                    out[#out + 1] = { label = _("Edit"), on_tap = on_edit_tap,
+                        icon = "\xEE\xAB\xAA" } -- nf-md-pencil, U+EAEA
+                    return out
                 end
                 local vg = VerticalGroup:new{ align = "left" }
                 for _s = 1, #TAG_SECTIONS do
@@ -23685,11 +23664,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
                             if genre_source_at_open == nil then
                                 genre_source_at_open = active
                             end
-                            -- The heading's slot (and its place in the dpad
-                            -- order): an editable source swaps in a heading
-                            -- with the Edit button once editGenres exists.
-                            local head_i, head_focus_i = #vg + 1, #focus_tables + 1
-                            vg[head_i] = self:_sectionHeadingBar(sec.title, avail_w, base, lpad)
+                            vg[#vg + 1] = self:_sectionHeadingBar(sec.title, avail_w, base, lpad)
                             -- Embedded is always offered (it's the editable source);
                             -- Calibre / Hardcover only when that source has genres.
                             local SRC = {
@@ -24040,16 +24015,13 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                 focus_tables[#focus_tables + 1] = focusRow(chips_focus_rows)
                                 vg[#vg + 1] = source_chips
                             end
-                            -- Editable (Embedded) source: the Edit button in
-                            -- the heading (also the way to add the first tag to
-                            -- an untagged book). Read-only sources (Calibre /
-                            -- Hardcover): pills only.
+                            -- Editable (Embedded) source: the tags then the Edit
+                            -- pill (also the way to add the first tag to an
+                            -- untagged book). Read-only sources (Calibre /
+                            -- Hardcover): the tags only.
                             if editable then
-                                local head, btn = headingWithEdit(sec.title, editGenres)
-                                vg[head_i] = head
-                                table.insert(focus_tables, head_focus_i, focusRow({ { btn } }))
-                            end
-                            if #gpills > 0 then
+                                vg[#vg + 1] = pillsFrame(withEdit(gpills, editGenres))
+                            elseif #gpills > 0 then
                                 vg[#vg + 1] = pillsFrame(gpills)
                             end
                         end
@@ -24080,10 +24052,8 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                     if modal and modal.rebuildTab then modal:rebuildTab() end
                                 end }
                         end
-                        local head, btn = headingWithEdit(sec.title, editCollections)
-                        vg[#vg + 1] = head
-                        focus_tables[#focus_tables + 1] = focusRow({ { btn } })
-                        vg[#vg + 1] = pillsOrNote(specs, _("Not in any collection."))
+                        vg[#vg + 1] = self:_sectionHeadingBar(sec.title, avail_w, base, lpad)
+                        vg[#vg + 1] = pillsFrame(withEdit(specs, editCollections))
                     else
                         local specs = by_cat[sec.cat]
                         if specs and #specs > 0 then

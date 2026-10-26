@@ -32,10 +32,11 @@ t.test("source switches and the status control are the kit's rounded control", f
     assert(method(modal, "_buildSourceChips"):find("PopupKit.segmented{", 1, true))
 end)
 
-t.test("an editable Tags section carries its Edit in the heading", function()
-    assert(method(widget, "_sectionHeadingBar"):find("action", 1, true))
-    assert(widget:find("headingWithEdit(sec.title, editCollections)", 1, true))
-    assert(widget:find("headingWithEdit(sec.title, editGenres)", 1, true))
+t.test("an editable Tags section ends its pills with an Edit pill", function()
+    assert(widget:find("pillsFrame(withEdit(specs, editCollections))", 1, true))
+    assert(widget:find("pillsFrame(withEdit(gpills, editGenres))", 1, true))
+    assert(method(widget, "_buildPillGroup"):find("spec.icon)", 1, true),
+        "the pill group ignores an action pill's icon")
 end)
 
 t.test("an unreviewed book gets a Write a review tile", function()

@@ -24161,14 +24161,13 @@ function BookshelfWidget:_showBookDetail(book, opts)
                         vg[#vg + 1] = self:_sectionHeadingBar(sec.title, avail_w, base, lpad)
                         local function editCollections()
                             -- Leave the everything-modal OPEN behind the
-                            -- collection dialog (no_header drops its
-                            -- redundant book header). On close, refresh the
+                            -- collection dialog. On close, refresh the
                             -- membership in place: reassign the captured
                             -- pill_specs upvalue and rebuild the Tags tab
                             -- body (which re-reads it), so no flash from
                             -- closing/reopening the popup.
                             require("lib/bookshelf_collection_manager").show{
-                                book = book, bw = self, no_header = true,
+                                book = book, bw = self,
                                 on_close = function()
                                     local rc = require("readcollection")
                                     in_collections = (rc.getCollectionsWithFile

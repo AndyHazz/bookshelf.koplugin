@@ -1302,6 +1302,16 @@ function LibraryModal:refresh()
         title,                                       -- spans full modal_w (separator inside)
         VerticalSpan:new{ width = MARGIN },
     }
+    -- config.intro: a line or two under the title saying what a tap does
+    -- (the collection editor's manage and bulk modes).
+    local intro = self.config.intro
+    if type(intro) == "function" then intro = intro() end
+    if intro and intro ~= "" then
+        local TextBoxWidget = require("ui/widget/textboxwidget")
+        local face, bold = BFont:getFace("infofont", 16)
+        table.insert(body, padded(TextBoxWidget:new{ text = intro, face = face, bold = bold, width = cw }))
+        table.insert(body, VerticalSpan:new{ width = MARGIN })
+    end
     if search then
         table.insert(body, padded(search))
         table.insert(body, VerticalSpan:new{ width = MARGIN })

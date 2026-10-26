@@ -130,6 +130,32 @@ function Kit.button(opts)
     return require("lib/bookshelf_chip_button").build(opts)
 end
 
+-- textLink(o) -> "Edit ✎": black text, underlined, the icon after, with no
+-- border, so it reads as a link rather than a tag or a button. The tap area
+-- reaches Space.px(8) past the text on every side.
+--   o.text, o.face, o.icon (a symbols-font glyph, optional), o.icon_face, o.on_tap
+function Kit.textLink(o)
+    local pad = Space.px(8)
+    local text = TextWidget:new{ text = o.text, face = o.face, fgcolor = Blitbuffer.COLOR_BLACK }
+    local group = HorizontalGroup:new{ align = "center", text }
+    if o.icon then
+        group[#group + 1] = HorizontalSpan:new{ width = Space.px(6) }
+        group[#group + 1] = TextWidget:new{ text = o.icon, face = o.icon_face,
+            fgcolor = Blitbuffer.COLOR_BLACK }
+    end
+    local gs, ts = group:getSize(), text:getSize()
+    local ul_h = Size.line.medium
+    -- The underline sits just under the text's baseline, inside its box.
+    local ul_y = pad + math.floor((gs.h - ts.h) / 2) + (text.getBaseline and text:getBaseline() or ts.h) + Space.px(2)
+    local w, h = gs.w + 2 * pad, gs.h + 2 * pad
+    local body = WidgetContainer:new{ dimen = Geom:new{ w = w, h = h }, group }
+    function body:paintTo(bb, x, y)
+        group:paintTo(bb, x + pad, y + pad)
+        bb:paintRect(x + pad, y + ul_y, ts.w, ul_h, Blitbuffer.COLOR_BLACK)
+    end
+    return Kit.tapCell(body, w, h, o.on_tap)
+end
+
 -- wideTile(o) -> a rounded tile o.width wide: an icon then a label, centred.
 --   o.icon (a symbols-font glyph), o.icon_face, o.text, o.face,
 --   o.pad_v (default Space.px(16)), o.on_tap

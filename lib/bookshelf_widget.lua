@@ -22424,6 +22424,20 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             callback = delete_btn.callback }
     end
 
+    -- Third-party actions join the grid after ours, as cards with the Action
+    -- card's puzzle icon (they bring no icon of their own).
+    for _ri, row in ipairs(plugin_rows or {}) do
+        for _ci, spec in ipairs(row) do
+            local enabled = spec.enabled
+            if spec.enabled_func then enabled = spec.enabled_func() end
+            tile_specs[#tile_specs + 1] = {
+                text = (spec.text_func and spec.text_func()) or spec.text or "",
+                icon = "\xEE\xAC\xB0", -- mdi-puzzle
+                enabled = enabled ~= false, callback = spec.callback,
+            }
+        end
+    end
+
     -- The popup's shared controls (lib/bookshelf_popup_kit): the button
     -- outline and corner, and a tap target with a dpad focus highlight.
     local tile_border, tile_radius, tapCell = PopupKit.BORDER, PopupKit.RADIUS, PopupKit.tapCell
@@ -22655,9 +22669,9 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                 bw:_actionButtonColumn(btn, btn_w, row_h, want_bottom_border) }
         end
 
-        -- 3. Actions: separate rounded tiles, an icon over a short label,
-        -- with space between them. Each tile is a whole shape on its own, so
-        -- a short last row or a missing action leaves no stray line behind.
+        -- 3. Actions: the home screen's Action card look, an icon over a
+        -- short label on a light grey card, in an even grid. "On" (a
+        -- favourite) fills the card black.
         vg[#vg + 1] = heading(_("Actions"))
         do
             local w   = content_w - 2 * inset
@@ -22697,7 +22711,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                 local icon = TextWidget:new{ text = a.icon, face = icon_face, fgcolor = fg }
                 local label = TextBoxWidget:new{ text = a.text, face = label_face,
                     width = inner_w, alignment = "center", fgcolor = fg,
-                    bgcolor = a.on and Blitbuffer.COLOR_BLACK or nil }
+                    bgcolor = a.on and Blitbuffer.COLOR_BLACK or PopupKit.STRIP_BG }
                 local content = VerticalGroup:new{ align = "center",
                     CenterContainer:new{ dimen = Geom:new{ w = inner_w, h = icon:getSize().h }, icon },
                     VerticalSpan:new{ width = Space.px(4) },
@@ -22721,13 +22735,12 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                     line[#line + 1] = HorizontalSpan:new{ width = gap }
                 end
                 local frame = FrameContainer:new{
-                    bordersize = tile_border, radius = tile_radius, margin = 0,
-                    padding = 0, padding_top = pad_v,
-                    background = a.on and Blitbuffer.COLOR_BLACK or nil,
-                    color = (a.enabled == false) and Blitbuffer.COLOR_GRAY or Blitbuffer.COLOR_BLACK,
+                    bordersize = 0, radius = tile_radius, margin = 0,
+                    padding = 0, padding_top = pad_v + tile_border,
+                    background = a.on and Blitbuffer.COLOR_BLACK or PopupKit.STRIP_BG,
                     width = tile_w, height = tile_h,
                     CenterContainer:new{
-                        dimen = Geom:new{ w = tile_w - 2 * tile_border,
+                        dimen = Geom:new{ w = tile_w,
                                           h = built[i]:getSize().h },
                         built[i],
                     },
@@ -22761,64 +22774,6 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                     closeModal()
                     UIManager:nextTick(function() bw:_openHardcoverMenu(book) end)
                 end)
-        end
-
-        -- 5. Plugin actions (only when a plugin contributed buttons) --
-        -- bordered ChipButtons, same style as the Tags tab's Edit button
-        -- (minus its pencil glyph: these are arbitrary third-party actions
-        -- with no shared icon), rather than plain ButtonTable menu rows.
-        if plugin_rows and #plugin_rows > 0 then
-            vg[#vg + 1] = heading(_("Plugin actions"))
-            local edit_face = BFont:getFace("cfont", font_size)
-            local probe = TextWidget:new{ text = "Hg", face = edit_face }
-            local chip_h = probe:getSize().h + 2 * Space.px(5)
-            local chip_gap = Space.px(12)
-            local row_gap  = Space.px(10)
-            -- Flatten every registration's row into one list, then lay the
-            -- chips out as a wrapping horizontal flow. Plugins each register a
-            -- single-button "row", so the old row-per-line layout stacked them
-            -- vertically once more than one plugin contributed; wrapping keeps
-            -- them inline (like the pill groups), only breaking to a new line
-            -- when the next chip wouldn't fit the content width.
-            local avail = content_w - 2 * inset
-            local specs = {}
-            for _ri, row in ipairs(plugin_rows) do
-                for _ci, spec in ipairs(row) do specs[#specs + 1] = spec end
-            end
-            local rows_vg = VerticalGroup:new{ align = "left" }
-            local line, line_w, line_focus
-            local function newLine()
-                line = HorizontalGroup:new{ align = "center" }; line_w = 0; line_focus = {}
-            end
-            local function commitLine()
-                if line and #line_focus > 0 then
-                    if #rows_vg > 0 then
-                        rows_vg[#rows_vg + 1] = VerticalSpan:new{ width = row_gap }
-                    end
-                    rows_vg[#rows_vg + 1] = line
-                    focus_tables[#focus_tables + 1] = focusRow({ line_focus })
-                end
-            end
-            newLine()
-            for _si, spec in ipairs(specs) do
-                local label = (spec.text_func and spec.text_func()) or spec.text or ""
-                local chip = PopupKit.button{
-                    text = label, face = edit_face, height = chip_h, on_tap = spec.callback,
-                }
-                local cw = chip:getSize().w
-                if #line_focus > 0 and (line_w + chip_gap + cw) > avail then
-                    commitLine(); newLine()
-                end
-                if #line_focus > 0 then
-                    line[#line + 1] = HorizontalSpan:new{ width = chip_gap }
-                    line_w = line_w + chip_gap
-                end
-                line[#line + 1] = chip
-                line_w = line_w + cw
-                line_focus[#line_focus + 1] = chip
-            end
-            commitLine()
-            vg[#vg + 1] = padded(rows_vg, Space.px(10), Space.px(20))
         end
 
         return vg, focus_tables
@@ -23652,7 +23607,10 @@ function BookshelfWidget:_showBookDetail(book, opts)
                         }
                     end
                 end
-                local vg = VerticalGroup:new{ align = "left", editStrip() }
+                -- The strip stays put above the scrolling sections, as on
+                -- the other tabs.
+                local strip = editStrip()
+                local vg = VerticalGroup:new{ align = "left" }
                 for _s = 1, #TAG_SECTIONS do
                     local sec = TAG_SECTIONS[_s]
                     if sec.cat == "genres" then
@@ -24103,13 +24061,15 @@ function BookshelfWidget:_showBookDetail(book, opts)
                     end
                 end
                 local scroll = SnugScroll:new{
-                    dimen = Geom:new{ w = avail_w, h = avail_h },
+                    dimen = Geom:new{ w = avail_w,
+                        h = math.max(1, avail_h - strip:getSize().h) },
                     scroll_bar_width = bar_w,
                     show_parent = show_parent,
                     vg,
                 }
-                scroll.focus_tables = focus_tables
-                return scroll
+                local body = VerticalGroup:new{ align = "left", strip, scroll }
+                body.focus_tables = focus_tables
+                return body
             end,
         }
     end

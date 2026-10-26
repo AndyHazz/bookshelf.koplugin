@@ -21458,7 +21458,7 @@ end
 -- popup redesign). Space now does the grouping. action (optional): a button
 -- right-aligned in the heading row, which is row_w wide (default content_w
 -- less the insets).
-function BookshelfWidget:_sectionHeadingBar(text, content_w, font_size, inset, action, row_w)
+function BookshelfWidget:_sectionHeadingBar(text, content_w, font_size, inset, action)
     local FrameContainer = require("ui/widget/container/framecontainer")
     local TextWidget     = require("lib/bookshelf_colour_text")
     local face, bold = BFont:getFace("cfont", math.max(10, (font_size or 18) - 4), { bold = true })
@@ -21467,17 +21467,16 @@ function BookshelfWidget:_sectionHeadingBar(text, content_w, font_size, inset, a
     local pad_top, pad_bottom = Space.px(22), Space.px(10)
     local widget = label
     if action then
-        -- The section's own action (Edit) at the right end of its heading,
-        -- so the rows under it hold only their content. The taller button
-        -- eats into the heading's padding, keeping the text where it was.
+        -- The section's own action (Edit) right after its heading text, so
+        -- the rows under it hold only their content. The taller action eats
+        -- into the heading's padding, keeping the text where it was. The
+        -- action brings its own tap padding, which is most of the gap.
         local HorizontalSpan = require("ui/widget/horizontalspan")
-        row_w = row_w or (content_w - 2 * inset)
-        local lw, aw = label:getSize().w, action:getSize().w
         local extra = math.max(0, action:getSize().h - label:getSize().h)
         pad_top    = math.max(0, pad_top - math.floor(extra / 2))
         pad_bottom = math.max(0, pad_bottom - (extra - math.floor(extra / 2)))
         widget = HorizontalGroup:new{ align = "center",
-            label, HorizontalSpan:new{ width = math.max(Space.px(8), row_w - lw - aw) }, action }
+            label, HorizontalSpan:new{ width = Space.px(8) }, action }
     end
     return FrameContainer:new{
         bordersize  = 0, margin = 0,
@@ -23621,22 +23620,20 @@ function BookshelfWidget:_showBookDetail(book, opts)
                     }
                 end
                 -- An editable section (Collections, Genres) carries an
-                -- underlined "Edit" link at the right end of its heading, so
+                -- underlined "Edit" link just after its heading, so
                 -- the rows under it hold only pills (issue #230 wanted it off a
                 -- row of its own; the heading is the row that was already
                 -- there). A link, not a bordered pill, so it can't be taken
                 -- for one of the tags.
                 local function headingWithEdit(title, on_edit_tap)
+                    -- The heading's size, so the two read as one line.
                     local link = PopupKit.textLink{
                         text = _("Edit"), on_tap = on_edit_tap,
-                        face = BFont:getFace("cfont", math.max(10, base - 2)),
+                        face = BFont:getFace("cfont", math.max(10, base - 4)),
                         icon = "\xEE\xAB\xAA", -- nf-md-pencil, U+EAEA
-                        icon_face = BFont:getFace("symbols", math.max(10, base - 2)),
+                        icon_face = BFont:getFace("symbols", math.max(10, base - 4)),
                     }
-                    -- The link's text, not its padded tap area, ends at the
-                    -- content edge, level with the other tabs' right edge.
-                    return self:_sectionHeadingBar(title, avail_w, base, lpad, link,
-                        avail_w - 2 * lpad + Space.px(8)), link
+                    return self:_sectionHeadingBar(title, avail_w, base, lpad, link), link
                 end
                 -- A section's pills, or a grey note when it has none (e.g. "Not
                 -- in any collection."), or nothing.

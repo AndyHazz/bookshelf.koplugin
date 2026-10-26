@@ -45,6 +45,8 @@ local Gestures    = require("lib/bookshelf_gestures")
 -- geometry pass, dozens per rebuild -- and a per-call require() of a
 -- dependency-free 70-line table is a cost with nothing to show for it.
 local ViewMode    = require("lib/bookshelf_view_mode")
+-- The book popup's shared controls: rounded, closed shapes.
+local PopupKit    = require("lib/bookshelf_popup_kit")
 local logger      = require("logger")
 local T           = require("ffi/util").template
 
@@ -21453,94 +21455,56 @@ end
 -- grey. It was a solid black bar, the heaviest thing on the screen, so the
 -- headings outweighed the buttons they name; then a hairline, which ran to the
 -- frame edges past controls that stop at the inset and so ended nowhere (book
--- popup redesign). Space now does the grouping. content_w is unused, kept so
--- callers don't change.
-function BookshelfWidget:_sectionHeadingBar(text, content_w, font_size, inset)
+-- popup redesign). Space now does the grouping. action (optional): a button
+-- right-aligned in the heading row, which is row_w wide (default content_w
+-- less the insets).
+function BookshelfWidget:_sectionHeadingBar(text, content_w, font_size, inset, action, row_w)
     local FrameContainer = require("ui/widget/container/framecontainer")
     local TextWidget     = require("lib/bookshelf_colour_text")
     local face, bold = BFont:getFace("cfont", math.max(10, (font_size or 18) - 4), { bold = true })
+    local label = TextWidget:new{ text = TextSegments.upper(text), face = face, bold = bold,
+        fgcolor = Blitbuffer.COLOR_DARK_GRAY }
+    local pad_top, pad_bottom = Space.px(22), Space.px(10)
+    local widget = label
+    if action then
+        -- The section's own action (Edit) at the right end of its heading,
+        -- so the rows under it hold only their content. The taller button
+        -- eats into the heading's padding, keeping the text where it was.
+        local HorizontalSpan = require("ui/widget/horizontalspan")
+        row_w = row_w or (content_w - 2 * inset)
+        local lw, aw = label:getSize().w, action:getSize().w
+        local extra = math.max(0, action:getSize().h - label:getSize().h)
+        pad_top    = math.max(0, pad_top - math.floor(extra / 2))
+        pad_bottom = math.max(0, pad_bottom - (extra - math.floor(extra / 2)))
+        widget = HorizontalGroup:new{ align = "center",
+            label, HorizontalSpan:new{ width = math.max(Space.px(8), row_w - lw - aw) }, action }
+    end
     return FrameContainer:new{
         bordersize  = 0, margin = 0,
         padding_left = inset, padding_right = inset,
-        padding_top = Space.px(22), padding_bottom = Space.px(10),
-        TextWidget:new{ text = TextSegments.upper(text), face = face, bold = bold,
-            fgcolor = Blitbuffer.COLOR_DARK_GRAY },
+        padding_top = pad_top, padding_bottom = pad_bottom,
+        widget,
     }
 end
 
--- _segmentedChips(items, active_key, on_pick, font_size, inset) — a compact
--- segmented control matching the description tab's source chips: uppercase
--- labels, square corners, cells butted with thin separators inside one bordered
--- frame, the active cell inverted. items = { {key=, label=}, ... }. Tapping an
--- inactive chip fires on_pick(key). Left-inset to align with the body text.
+-- _segmentedChips(items, active_key, on_pick, font_size, inset) -- a source
+-- switch: the popup's rounded segmented control (lib/bookshelf_popup_kit) at
+-- the source size, matching the Description and Reviews tabs' switches.
+-- items = { {key=, label=}, ... }. Tapping an inactive cell fires
+-- on_pick(key). Left-inset to align with the body text. Second return value:
+-- the cells as one dpad row (see _buildPillGroup's focus_rows).
 function BookshelfWidget:_segmentedChips(items, active_key, on_pick, font_size, inset)
-    local FrameContainer  = require("ui/widget/container/framecontainer")
-    local TextWidget      = require("lib/bookshelf_colour_text")
-    local InputContainer  = require("ui/widget/container/inputcontainer")
-    local HorizontalGroup = require("ui/widget/horizontalgroup")
-    local CenterContainer = require("ui/widget/container/centercontainer")
-    local LineWidget      = require("ui/widget/linewidget")
-    local GestureRange    = require("ui/gesturerange")
-    local sep_w = Size.border.thin
-    local h_pad = Space.padding.large
-    local v_pad = Space.padding.small
-    -- Match the main bookshelf nav chip bar exactly: a logical 16pt label scaled
-    -- by the user's chip-font setting (chip_font_scale). NOT Screen:scaleBySize,
-    -- which the font layer scales a second time (font_size, passed in, is the
-    -- larger body size and would make these read like the tab bar).
-    --
-    -- CHIP_KEY, explicitly: this control follows the chip strip and always
-    -- did. List rows are on their own key now, and a copy of the arithmetic
-    -- here would have made that impossible to see.
-    local size  = BandMetrics.fontSize(BandMetrics.CHIP_KEY)
-    local labels, cell_h = {}, 0
-    for i, it in ipairs(items) do
-        local face, bold = BFont:getFace("infofont", size, { bold = true })
-        labels[i] = TextWidget:new{ text = TextSegments.upper(it.label or ""),
-            face = face, bold = bold, fgcolor = Blitbuffer.COLOR_BLACK }
-        cell_h = math.max(cell_h, labels[i]:getSize().h)
-    end
-    cell_h = cell_h + 2 * v_pad
-    local row = HorizontalGroup:new{ align = "center" }
-    local focus_row = {}
-    for i, it in ipairs(items) do
-        if i > 1 then
-            row[#row + 1] = LineWidget:new{ background = Blitbuffer.COLOR_BLACK,
-                dimen = Geom:new{ w = sep_w, h = cell_h } }
-        end
-        local cell_w = labels[i]:getSize().w + 2 * h_pad
-        local is_active = (it.key == active_key)
-        local body = InvertedFrame:new{
-            _invert = is_active,
-            bordersize = 0, margin = 0, padding = 0, background = Blitbuffer.COLOR_WHITE,
-            CenterContainer:new{ dimen = Geom:new{ w = cell_w, h = cell_h }, labels[i] },
-        }
-        local chip = InputContainer:new{ dimen = Geom:new{ w = cell_w, h = cell_h }, body }
-        chip.ges_events = { Tap = { GestureRange:new{ ges = "tap", range = chip.dimen } } }
-        local key = it.key
-        chip.onTap = function()
-            if key ~= active_key and on_pick then on_pick(key) end
-            return true
-        end
-        -- Dpad/keyboard focus highlight -- restores to the chip's own
-        -- active/inactive baseline on unfocus, not unconditionally false,
-        -- so the active chip stays visibly selected once focus moves away.
-        chip.onFocus = function() body._invert = true; return true end
-        chip.onUnfocus = function() body._invert = is_active; return true end
-        row[#row + 1] = chip
-        focus_row[#focus_row + 1] = chip
-    end
-    local framed = FrameContainer:new{
-        bordersize = Size.border.thin, margin = 0, padding = 0, row }
-    local outer = FrameContainer:new{
+    local FrameContainer = require("ui/widget/container/framecontainer")
+    local seg, focus_rows = PopupKit.segmented{
+        items = items, active = active_key, on_pick = on_pick,
+        face = PopupKit.sourceFace(font_size), pad_v = PopupKit.SOURCE_PAD_V,
+    }
+    return FrameContainer:new{
         bordersize = 0, margin = 0,
         padding_left = inset, padding_right = inset,
-        padding_top = Space.px(12), padding_bottom = Space.px(12),
-        framed,
-    }
-    -- Second return value: the chips as one dpad row, left-to-right, for
-    -- callers that want focus support (see _buildPillGroup's focus_rows).
-    return outer, { focus_row }
+        padding_top = 0, padding_bottom = Space.px(12),
+        seg,
+    }, focus_rows
 end
 
 -- _buildPillGroup(pill_specs, available_w, max_rows)
@@ -21561,7 +21525,10 @@ end
 -- The hero's column used to get this for free from a stencil over the
 -- whole column, which turned a white fill into nothing and black into the
 -- ink; the pills now say so themselves.
-function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base_size, align, gap, on_overflow, ink)
+--
+-- border (optional): the pill outline, Size.border.thin by default; the book
+-- popup's Tags tab passes its button border so pills match its other controls.
+function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base_size, align, gap, on_overflow, ink, border)
     local Font            = require("ui/font")
     local TextWidget_     = require("lib/bookshelf_colour_text")
     local FrameContainer_ = require("ui/widget/container/framecontainer")
@@ -21593,7 +21560,8 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
     -- natural width and spill off the screen edge (the packer only rejects a
     -- pill that isn't first in its row). Cap the label so one pill never exceeds
     -- available_w; TextWidget truncates with an ellipsis on one line (no wrap).
-    local pill_label_max = math.max(1, available_w - 2 * pill_pad_h - 2 * Size.border.thin)
+    local pill_border = border or Size.border.thin
+    local pill_label_max = math.max(1, available_w - 2 * pill_pad_h - 2 * pill_border)
 
     -- extra_pad widens a pill's L/R padding (and so its tap target) without
     -- touching the others -- used to make the small "+N" overflow pill easier
@@ -21616,7 +21584,7 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
         -- Over a ground there is deliberately NO fill, so what is behind
         -- the pill shows through; the tap feedback fills with the ink then.
         local frame = FrameContainer_:new{
-            bordersize     = link_style and 0 or Size.border.thin,
+            bordersize     = link_style and 0 or pill_border,
             background     = (not ink) and Blitbuffer.COLOR_WHITE or nil,
             color          = ink,  -- nil: FrameContainer's own black
             radius         = Space.radius.button,
@@ -22244,7 +22212,6 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     local HorizontalSpan      = require("ui/widget/horizontalspan")
     local VerticalSpan        = require("ui/widget/verticalspan")
     local GestureRange        = require("ui/gesturerange")
-    local WidgetContainer     = require("ui/widget/container/widgetcontainer")
 
     -- Hydrate rating from the sidecar (shelf records skip it for speed).
     if book.rating == nil and book.filepath then
@@ -22454,26 +22421,9 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             callback = delete_btn.callback }
     end
 
-    -- Shared by the status control and the tiles: the button outline and
-    -- corner, and a tap target with a dpad focus highlight.
-    local tile_border = Size.border.button
-    local tile_radius = Space.radius.button
-    local function tapCell(widget, w, h, on_tap, enabled)
-        local cell = InputContainer:new{ dimen = Geom:new{ w = w, h = h }, widget }
-        cell.ges_events = { Tap = { GestureRange:new{ ges = "tap", range = cell.dimen } } }
-        cell.onTap = function()
-            if enabled ~= false then on_tap() end
-            return true
-        end
-        cell._focused = false
-        function cell:paintTo(bb, x, y)
-            InputContainer.paintTo(self, bb, x, y)
-            if self._focused then bb:invertRect(x, y, w, h) end
-        end
-        cell.onFocus = function() cell._focused = true; return true end
-        cell.onUnfocus = function() cell._focused = false; return true end
-        return cell
-    end
+    -- The popup's shared controls (lib/bookshelf_popup_kit): the button
+    -- outline and corner, and a tap target with a dpad focus highlight.
+    local tile_border, tile_radius, tapCell = PopupKit.BORDER, PopupKit.RADIUS, PopupKit.tapCell
 
     -- This is our own widget tree (not a ButtonDialog), so the body is a
     -- VerticalGroup we compose freely: small grey headings, and under each a
@@ -22487,15 +22437,6 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     -- Left inset = the modal's shared side pad, so heading text + info-row text
     -- line up with the tab strip and the description body.
     local inset      = (modal and modal._side_pad) or Space.px(28)
-
-    -- The status control's row height: a button label at the modal's zoom.
-    local Button = require("ui/widget/button")
-    local row_label_h
-    do
-        local probe = Button:new{ text = "Ag", text_font_size = font_size, text_font_bold = true }
-        row_label_h = probe.label_widget:getSize().h
-        probe:free()
-    end
 
     local function buildBody(content_w)
         local function heading(text)
@@ -22527,56 +22468,20 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         vg[#vg + 1] = heading(_("Reading status"))
         do
             local items = {
-                { _("Unopened"), "new" },     { _("Reading"),  "reading" },
-                { _("On hold"),  "abandoned" }, { _("Finished"), "complete" },
+                { label = _("Unopened"), key = "new" },
+                { label = _("Reading"),  key = "reading" },
+                { label = _("On hold"),  key = "abandoned" },
+                { label = _("Finished"), key = "complete" },
             }
-            local cur_status = BookList.getBookStatus(book.filepath)
-            local w = content_w - 2 * inset
-            local n = #items
-            local seg_w = math.floor(w / n)
-            local seg_h = row_label_h + 2 * Space.px(12)
-            local face = Font:getFace("cfont", font_size)
-            local row = HorizontalGroup:new{ align = "top" }
-            local cells, sel_i = {}, nil
-            for i, it in ipairs(items) do
-                local sw = (i == n) and (w - seg_w * (n - 1)) or seg_w
-                local selected = cur_status == it[2]
-                if selected then sel_i = i end
-                local label = TextWidget:new{ text = it[1], face = face, bold = selected,
-                    max_width = sw - 2 * Space.px(6),
-                    fgcolor = selected and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK }
-                local cell = tapCell(
-                    CenterContainer:new{ dimen = Geom:new{ w = sw, h = seg_h }, label },
-                    sw, seg_h, function()
-                        if BookList.getBookStatus(book.filepath) == it[2] then return end
-                        bw:_commitBookStatus(book, it[2])
-                        refreshInPlace()
-                    end)
-                row[#row + 1] = cell
-                cells[#cells + 1] = cell
-            end
-            focus_tables[#focus_tables + 1] = focusRow({ cells })
-            local seg = WidgetContainer:new{ dimen = Geom:new{ w = w, h = seg_h }, row }
-            function seg:paintTo(bb, x, y)
-                self.dimen.x, self.dimen.y = x, y
-                local r = tile_radius
-                if sel_i then
-                    local sx = x + (sel_i - 1) * seg_w
-                    local sw = (sel_i == n) and (w - seg_w * (n - 1)) or seg_w
-                    bb:paintRoundedRect(sx, y, sw, seg_h, Blitbuffer.COLOR_BLACK, r)
-                    -- Square off the inner side(s): only the control's own
-                    -- ends are rounded.
-                    if sel_i > 1 then bb:paintRect(sx, y, r, seg_h, Blitbuffer.COLOR_BLACK) end
-                    if sel_i < n then bb:paintRect(sx + sw - r, y, r, seg_h, Blitbuffer.COLOR_BLACK) end
-                end
-                for i = 2, n do
-                    if i ~= sel_i and i - 1 ~= sel_i then
-                        bb:paintRect(x + (i - 1) * seg_w, y, tile_border, seg_h, Blitbuffer.COLOR_BLACK)
-                    end
-                end
-                bb:paintBorder(x, y, w, seg_h, tile_border, Blitbuffer.COLOR_BLACK, r)
-                row:paintTo(bb, x, y)
-            end
+            local seg, seg_focus = PopupKit.segmented{
+                items = items, active = BookList.getBookStatus(book.filepath),
+                face = Font:getFace("cfont", font_size), width = content_w - 2 * inset,
+                on_pick = function(key)
+                    bw:_commitBookStatus(book, key)
+                    refreshInPlace()
+                end,
+            }
+            focus_tables[#focus_tables + 1] = focusRow(seg_focus)
             vg[#vg + 1] = padded(seg, 0, 0)
         end
 
@@ -22702,7 +22607,6 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         -- left (inset to align with the headings), then a bordered ChipButton
         -- on the right -- same style as the Tags tab's Edit button (pencil glyph
         -- after the label). Used by the Hardcover row.
-        local ChipButton = require("lib/bookshelf_chip_button")
         local function infoRow(text, btn_label, cb, want_bottom_border)
             local btn_w = Screen:scaleBySize(150)
             local edit_face = BFont:getFace("cfont", font_size)
@@ -22712,7 +22616,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             local pf = BFont:getFace("cfont", font_size, { bold = true })
             local btn_h = TextWidget:new{ text = "Hg", face = pf }:getSize().h
                 + 2 * Space.padding.small + 2 * Size.border.thin
-            local btn = ChipButton.build{
+            local btn = PopupKit.button{
                 text       = btn_label,
                 face       = edit_face,
                 icon_glyph = "\xEE\xAB\xAA", -- nf-md-pencil, U+EAEA
@@ -22895,7 +22799,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             newLine()
             for _si, spec in ipairs(specs) do
                 local label = (spec.text_func and spec.text_func()) or spec.text or ""
-                local chip = ChipButton.build{
+                local chip = PopupKit.button{
                     text = label, face = edit_face, height = chip_h, on_tap = spec.callback,
                 }
                 local cw = chip:getSize().w
@@ -22960,7 +22864,6 @@ end
 function BookshelfWidget:_buildReviewsHeader(tab, modal, avail_w, refreshReviews, above)
     local HorizontalSpan = require("ui/widget/horizontalspan")
     local VerticalSpan   = require("ui/widget/verticalspan")
-    local ChipButton     = require("lib/bookshelf_chip_button")
     local font_size = (modal and modal.font_size) or 20
     local inset = (modal and modal._side_pad) or Space.px(28)
     local content_w = avail_w - 2 * inset
@@ -23015,7 +22918,7 @@ function BookshelfWidget:_buildReviewsHeader(tab, modal, avail_w, refreshReviews
     -- at this size than the stock document+arrow SVG icon.
     local probe = TextWidget:new{ text = "Hg", face = text_face }
     local text_h = probe:getSize().h
-    local refresh_btn = ChipButton.build{
+    local refresh_btn = PopupKit.button{
         text       = _("Refresh"),
         face       = text_face,
         icon_glyph = "\xEE\xAD\x92",
@@ -23081,26 +22984,17 @@ function BookshelfWidget:_chipsWithButton(above, btn, avail_w, inset)
 end
 
 -- _headedHtmlBody(modal, avail_w, avail_h, header, html, above): a native
--- header row, a hairline, then `html` in its own scroller sized to what is
+-- header row, then `html` in its own scroller sized to what is
 -- left. `above` (optional) sits over the header: the Reviews tab's source
 -- chips. Shared by Hardcover's reviews and the reader's own.
 function BookshelfWidget:_headedHtmlBody(modal, avail_w, avail_h, header, html, above)
     local ScrollHtmlWidget = require("ui/widget/scrollhtmlwidget")
-    local LineWidget = require("ui/widget/linewidget")
     local top = above and VerticalGroup:new{ align = "left", above, header } or header
     local header_h = top:getSize().h
-    -- Hairline marking the top of the scrollable area -- now that Refresh has
-    -- moved out of the HTML, the gap between the native header and the review
-    -- list read as ambiguous whitespace without a line to define the boundary.
-    local hairline = LineWidget:new{
-        background = Blitbuffer.COLOR_DARK_GRAY,
-        dimen = Geom:new{ w = avail_w, h = Size.line.medium },
-    }
-    local hairline_h = hairline:getSize().h
-    -- Most of the shared body top padding is now redundant -- the header and
-    -- hairline already supply a gap above the first review -- so shrink it to
-    -- a small residual rather than dropping it to 0 (_buildSourcedBody's
-    -- padding-top override, same technique).
+    -- No rule between the header and the text: the popup draws lines only in
+    -- its frame. Most of the shared body top padding is redundant under the
+    -- header, so shrink it to a small residual rather than dropping it to 0
+    -- (_buildSourcedBody's padding-top override, same technique).
     local css = modal._css .. string.format("\nbody { padding-top: %dpx; }", Space.px(8))
     -- Through the modal's _scroller, NOT a raw ScrollHtmlWidget: the stock
     -- widget claims every south swipe even with nothing above the fold, so
@@ -23110,37 +23004,65 @@ function BookshelfWidget:_headedHtmlBody(modal, avail_w, avail_h, header, html, 
         css               = css,
         default_font_size = Screen:scaleBySize((modal and modal.font_size) or 20),
         width             = avail_w,
-        height            = math.max(Screen:scaleBySize(80), avail_h - header_h - hairline_h),
+        height            = math.max(Screen:scaleBySize(80), avail_h - header_h),
         dialog            = modal,
     }
     local scroller = (modal and modal._scroller) and modal:_scroller(opts)
                      or ScrollHtmlWidget:new(opts)
-    return VerticalGroup:new{ align = "left", top, hairline, scroller }
+    return VerticalGroup:new{ align = "left", top, scroller }
 end
 
 -- _buildMyReviewBody(book, modal, avail_w, avail_h, above): the reader's own
 -- review (issues 238, 315), KOReader's summary.note, with an Edit button in
--- the header row where Hardcover's has Refresh. Read fresh on every build,
--- so a save followed by rebuildTab shows the new text.
+-- the header row where Hardcover's has Refresh. With no review yet, one wide
+-- "Write a review" tile instead. Read fresh on every build, so a save
+-- followed by rebuildTab shows the new text.
 function BookshelfWidget:_buildMyReviewBody(book, modal, avail_w, avail_h, above)
     local HorizontalSpan = require("ui/widget/horizontalspan")
-    local ChipButton     = require("lib/bookshelf_chip_button")
+    local VerticalSpan   = require("ui/widget/verticalspan")
     local Tokens         = require("lib/bookshelf_tokens")
     local font_size = (modal and modal.font_size) or 20
     local inset = (modal and modal._side_pad) or Space.px(28)
     local content_w = avail_w - 2 * inset
     local text_face = BFont:getFace("cfont", font_size)
     local review = self:_bookReview(book)
+    local function edit()
+        self:_editBookReview(book, function()
+            if modal and modal.rebuildTab then modal:rebuildTab() end
+        end)
+    end
+    if not review then
+        local tile = PopupKit.wideTile{
+            width = content_w, text = _("Write a review"), face = text_face,
+            icon = "\xEE\xAB\xAA", -- nf-md-pencil, U+EAEA
+            icon_face = BFont:getFace("symbols", font_size + 4),
+            on_tap = edit,
+        }
+        local col = VerticalGroup:new{ align = "left" }
+        if above then col[#col + 1] = above end
+        col[#col + 1] = FrameContainer:new{
+            bordersize = 0, margin = 0,
+            padding_left = inset, padding_right = inset,
+            padding_top = above and 0 or Space.px(16), padding_bottom = 0,
+            tile,
+        }
+        local used = 0
+        for _i, w in ipairs(col) do used = used + w:getSize().h end
+        if used < avail_h then col[#col + 1] = VerticalSpan:new{ width = avail_h - used } end
+        local body = FrameContainer:new{ bordersize = 0, margin = 0, padding = 0,
+            background = Blitbuffer.COLOR_WHITE, col }
+        body.focus_tables = { focusRow({ { tile } }) }
+        return body
+    end
     local probe = TextWidget:new{ text = "Hg", face = text_face }
-    local btn = ChipButton.build{
-        text   = review and _("Edit") or _("Write\xE2\x80\xA6"),
-        face   = text_face,
-        height = probe:getSize().h + 2 * Space.px(5),
-        on_tap = function()
-            self:_editBookReview(book, function()
-                if modal and modal.rebuildTab then modal:rebuildTab() end
-            end)
-        end,
+    local btn = PopupKit.button{
+        text       = _("Edit"),
+        face       = text_face,
+        icon_glyph = "\xEE\xAB\xAA", -- nf-md-pencil, U+EAEA
+        icon_face  = BFont:getFace("symbols", font_size),
+        icon_after = true,
+        height     = probe:getSize().h + 2 * Space.px(5),
+        on_tap     = edit,
     }
     local header = above and self:_chipsWithButton(above, btn, avail_w, inset)
     if header then
@@ -23154,9 +23076,7 @@ function BookshelfWidget:_buildMyReviewBody(book, modal, avail_w, avail_h, above
                 HorizontalSpan:new{ width = math.max(0, content_w - btn:getSize().w) }, btn },
         }
     end
-    local html = Tokens.myReviewHtml(review)
-        or ("<p>" .. _("You haven't reviewed this book yet.") .. "</p>")
-    return self:_headedHtmlBody(modal, avail_w, avail_h, header, html, above)
+    return self:_headedHtmlBody(modal, avail_w, avail_h, header, Tokens.myReviewHtml(review), above)
 end
 
 -- _buildBookCoverTab — the Cover tab body: a toolbar (device picker + online
@@ -23171,13 +23091,11 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
     local HorizontalSpan  = require("ui/widget/horizontalspan")
     local VerticalSpan    = require("ui/widget/verticalspan")
     local CenterContainer = require("ui/widget/container/centercontainer")
-    local LeftContainer   = require("ui/widget/container/leftcontainer")
     local FrameContainer  = require("ui/widget/container/framecontainer")
     local TextWidget      = require("lib/bookshelf_colour_text")
     local CoverApply      = require("lib/bookshelf_cover_apply")
     local CoverGridCell   = require("lib/bookshelf_cover_grid_cell")
     local Pagination      = require("lib/bookshelf_pagination")
-    local ChipButton      = require("lib/bookshelf_chip_button")
     local SpineWidget     = require("lib/bookshelf_spine_widget")
     local bw = self
     -- show_parent IS the live ReviewsModal (see ReviewsModal:_activeBody). The
@@ -23220,34 +23138,28 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
     end
     local total = #candidates
 
-    -- Toolbar (text-only chips), left-aligned and inset by _side_pad -- the
-    -- same left edge + padding as the tab content below.
-    -- Match the Edit/Tags-tab chip buttons exactly: cfont at the modal's base
-    -- size, sized to the same "pill height" (base text + small pad + thin
-    -- border top/bottom) as makeEditButton, rather than the old chunky fixed
-    -- 40px / 15pt look.
+    -- Toolbar: the two ways in as a pair of wide tiles, icon and label, the
+    -- popup's rounded shape (lib/bookshelf_popup_kit), together the content
+    -- width so they line up with the grid below.
     local base     = (modal and modal.font_size) or 18
-    local btn_face = BFont:getFace("cfont", base)
-    local btn_h
-    do
-        local pf = BFont:getFace("cfont", base, { bold = true })
-        btn_h = TextWidget:new{ text = "Hg", face = pf }:getSize().h
-            + 2 * Space.padding.small + 2 * Size.border.thin
+    local btn_face = BFont:getFace("cfont", math.max(10, base - 2))
+    local tb_gap_x = Space.px(12)
+    local half_w   = math.floor((content_w - tb_gap_x) / 2)
+    local function toolTile(icon, text, w, on_tap)
+        return PopupKit.wideTile{
+            width = w, icon = icon, text = text, face = btn_face,
+            icon_face = BFont:getFace("symbols", base + 2), pad_v = Space.px(10),
+            on_tap = on_tap,
+        }
     end
-    local device_btn = ChipButton.build{
-        text = _("Choose from device"), face = btn_face, height = btn_h,
-        on_tap = function() bw:_pickBookCoverFromDevice(book, modal, state) end,
-    }
-    local online_btn = ChipButton.build{
-        text = _("Search online\xE2\x80\xA6"), face = btn_face, height = btn_h,
-        on_tap = function() bw:_searchOnlineCovers(book, state, modal) end,
-    }
-    local toolbar = HorizontalGroup:new{
+    local device_btn = toolTile("\xEE\xA5\x8E", _("Choose from device"), half_w, -- folder-image
+        function() bw:_pickBookCoverFromDevice(book, modal, state) end)
+    local online_btn = toolTile("\xEE\xB8\x8D", _("Search online\xE2\x80\xA6"), -- search-web
+        content_w - half_w - tb_gap_x,
+        function() bw:_searchOnlineCovers(book, state, modal) end)
+    local toolbar_row = HorizontalGroup:new{
         align = "center",
-        device_btn, HorizontalSpan:new{ width = Space.px(10) }, online_btn,
-    }
-    local toolbar_row = LeftContainer:new{
-        dimen = Geom:new{ w = content_w, h = toolbar:getSize().h }, toolbar,
+        device_btn, HorizontalSpan:new{ width = tb_gap_x }, online_btn,
     }
     local toolbar_h = toolbar_row:getSize().h
 
@@ -23666,7 +23578,6 @@ function BookshelfWidget:_showBookDetail(book, opts)
             label = _("Tags"),
             widget_builder = function(avail_w, avail_h, show_parent)
                 local FrameContainer = require("ui/widget/container/framecontainer")
-                local ChipButton = require("lib/bookshelf_chip_button")
                 local HorizontalSpan = require("ui/widget/horizontalspan")
                 -- Group the specs by category, wrapping each tap to close first.
                 local by_cat = {}
@@ -23688,14 +23599,14 @@ function BookshelfWidget:_showBookDetail(book, opts)
                 local base  = (show_parent and show_parent.font_size) or 18
                 local pills_w   = avail_w - 2 * lpad - bar_w
                 -- Every section's focusable row(s), in visual top-to-bottom
-                -- order -- pillsFrame/pillsWithEdit below register into this
+                -- order -- pillsFrame and the Edit headings register into this
                 -- as they're called, so each section's own call site doesn't
                 -- need to change. See ReviewsModal:_assemble's handling of an
                 -- ARRAY focus_tables (bookshelf_reviews_modal.lua).
                 local focus_tables = {}
                 local function pillsFrame(specs, top_pad)
                     local pills, focus_rows = self:_buildPillGroup(specs, pills_w, 9999, base, "left",
-                        Space.px(8))
+                        Space.px(8), nil, nil, PopupKit.BORDER)
                     if focus_rows and #focus_rows > 0 then
                         focus_tables[#focus_tables + 1] = focusRow(focus_rows)
                     end
@@ -23709,89 +23620,41 @@ function BookshelfWidget:_showBookDetail(book, opts)
                         pills,
                     }
                 end
-                -- A section's pills laid out in a column that RESERVES the Edit
-                -- button's width on the right, with the button pinned top-right
-                -- (issue #230). Replaces the old hairline + separate padded Edit
-                -- row + empty-state label: each editable section is now just its
-                -- heading + this block, reclaiming the vertical space #230 flagged
-                -- (genres pushed below the fold on a short screen). Empty `specs`
-                -- => just the button, so a book with no tags can still add some.
-                -- Pills wrap inside the narrowed column so they never run under
-                -- the button.
-                -- The pencil "Edit" ChipButton. Focus is NOT registered here so
-                -- the caller can order it relative to sibling widgets (pills, the
-                -- source-chip row).
-                -- Height a Tags-tab pill renders at, so the Edit button lines up
-                -- with them: a bold cfont label at `base` + Size.padding.small
-                -- top/bottom + a thin border top/bottom (mirrors _buildPillGroup).
-                local pill_h
+                -- An editable section (Collections, Genres) carries its pencil
+                -- Edit button at the right end of its heading, so the rows
+                -- under it hold only pills (issue #230 wanted the button off a
+                -- row of its own; the heading is the row that was already there).
+                local edit_h
                 do
-                    local pf = BFont:getFace("cfont", base, { bold = true })
-                    pill_h = TextWidget:new{ text = "Hg", face = pf }:getSize().h
-                        + 2 * Space.padding.small + 2 * Size.border.thin
+                    local ef = BFont:getFace("cfont", math.max(10, base - 2))
+                    edit_h = TextWidget:new{ text = "Hg", face = ef }:getSize().h + 2 * Space.px(4)
                 end
-                local function makeEditButton(on_edit_tap)
-                    return ChipButton.build{
+                local function headingWithEdit(title, on_edit_tap)
+                    local btn = PopupKit.button{
                         text       = _("Edit"),
-                        face       = BFont:getFace("cfont", base),
+                        face       = BFont:getFace("cfont", math.max(10, base - 2)),
                         icon_glyph = "\xEE\xAB\xAA", -- nf-md-pencil, U+EAEA
-                        icon_face  = BFont:getFace("symbols", base),
+                        icon_face  = BFont:getFace("symbols", math.max(10, base - 2)),
                         icon_after = true,
-                        -- Same height as the pills so it sits level with them,
-                        -- while staying a distinct bordered chip (not pill-styled).
-                        height     = pill_h,
+                        height     = edit_h,
                         on_tap     = on_edit_tap,
                     }
+                    return self:_sectionHeadingBar(title, avail_w, base, lpad, btn, pills_w), btn
                 end
-                local function pillsWithEdit(specs, on_edit_tap, top_pad, empty_msg)
-                    local btn = makeEditButton(on_edit_tap)
-                    local gap   = Space.px(12)
-                    local col_w = math.max(Screen:scaleBySize(40),
-                        pills_w - btn:getSize().w - gap)
-                    local left
-                    -- Pills top-align with the button (multi-row pills start at
-                    -- the top); a lone empty-state note instead centres against
-                    -- the button, like the Hardcover title row in the Edit tab.
-                    local valign = "center"
-                    if specs and #specs > 0 then
-                        valign = "top"
-                        local pills, focus_rows = self:_buildPillGroup(specs, col_w, 9999,
-                            base, "left", Space.px(8))
-                        if focus_rows and #focus_rows > 0 then
-                            focus_tables[#focus_tables + 1] = focusRow(focus_rows)
-                        end
-                        -- Pin the pill column to the FULL reserved width so the
-                        -- Edit button sits at the section's right edge -- a bare
-                        -- pill group sizes to its widest row, which left the
-                        -- button floating just right of the pills (#230 review).
-                        local LeftContainer = require("ui/widget/container/leftcontainer")
-                        left = LeftContainer:new{
-                            dimen = Geom:new{ w = col_w, h = pills:getSize().h },
-                            pills,
+                -- A section's pills, or a grey note when it has none (e.g. "Not
+                -- in any collection."), or nothing.
+                local function pillsOrNote(specs, empty_msg)
+                    if specs and #specs > 0 then return pillsFrame(specs) end
+                    if empty_msg and empty_msg ~= "" then
+                        return FrameContainer:new{
+                            bordersize = 0, margin = 0,
+                            padding_left = lpad, padding_right = lpad,
+                            padding_top = 0, padding_bottom = Space.px(4),
+                            TextBoxWidget:new{ text = empty_msg,
+                                face = BFont:getFace("cfont", base),
+                                fgcolor = Blitbuffer.COLOR_DARK_GRAY, width = pills_w },
                         }
-                    elseif empty_msg and empty_msg ~= "" then
-                        -- Empty section: a left-aligned note where the pills would
-                        -- be (e.g. "Not in any collection."), Edit still top-right.
-                        left = TextBoxWidget:new{ text = empty_msg,
-                            face = BFont:getFace("cfont", base),
-                            fgcolor = Blitbuffer.COLOR_DARK_GRAY, width = col_w }
-                    else
-                        left = HorizontalSpan:new{ width = col_w }
                     end
-                    -- Register the button's focus AFTER the pills so dpad reads
-                    -- pills -> Edit, matching the visual top-left-to-right order.
-                    focus_tables[#focus_tables + 1] = focusRow({ { btn } })
-                    return FrameContainer:new{
-                        bordersize = 0, margin = 0,
-                        padding_left = lpad, padding_right = lpad,
-                        padding_top = top_pad or 0,
-                        padding_bottom = Space.px(4),
-                        HorizontalGroup:new{ align = valign,
-                            left,
-                            HorizontalSpan:new{ width = gap },
-                            btn,
-                        },
-                    }
                 end
                 local vg = VerticalGroup:new{ align = "left" }
                 for _s = 1, #TAG_SECTIONS do
@@ -23822,7 +23685,11 @@ function BookshelfWidget:_showBookDetail(book, opts)
                             if genre_source_at_open == nil then
                                 genre_source_at_open = active
                             end
-                            vg[#vg + 1] = self:_sectionHeadingBar(sec.title, avail_w, base, lpad)
+                            -- The heading's slot (and its place in the dpad
+                            -- order): an editable source swaps in a heading
+                            -- with the Edit button once editGenres exists.
+                            local head_i, head_focus_i = #vg + 1, #focus_tables + 1
+                            vg[head_i] = self:_sectionHeadingBar(sec.title, avail_w, base, lpad)
                             -- Embedded is always offered (it's the editable source);
                             -- Calibre / Hardcover only when that source has genres.
                             local SRC = {
@@ -24155,10 +24022,8 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                     on_hold = function() holdMenu(gname) end,
                                 }
                             end
-                            -- Source-chip strip (Embedded/Calibre/Hardcover) as
-                            -- its own full-width row when there's more than one
-                            -- source. The Edit button then pins top-right of the
-                            -- first pill row (pillsWithEdit below).
+                            -- Source switch (Embedded/Calibre/Hardcover) as its
+                            -- own row when there's more than one source.
                             if #items > 1 then
                                 local chip_cb = function(key)
                                     -- The expensive part (light-meta invalidation + a full
@@ -24175,14 +24040,16 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                 focus_tables[#focus_tables + 1] = focusRow(chips_focus_rows)
                                 vg[#vg + 1] = source_chips
                             end
-                            -- Editable (Embedded) source: pills + inline top-right
-                            -- Edit button (empty gpills -> just the button, so an
-                            -- untagged book can still add tags). Read-only sources
-                            -- (Calibre/Hardcover): pills only, full width.
+                            -- Editable (Embedded) source: the Edit button in
+                            -- the heading (also the way to add the first tag to
+                            -- an untagged book). Read-only sources (Calibre /
+                            -- Hardcover): pills only.
                             if editable then
-                                vg[#vg + 1] = pillsWithEdit(gpills, editGenres,
-                                    (#items > 1) and Space.px(6) or nil)
-                            elseif #gpills > 0 then
+                                local head, btn = headingWithEdit(sec.title, editGenres)
+                                vg[head_i] = head
+                                table.insert(focus_tables, head_focus_i, focusRow({ { btn } }))
+                            end
+                            if #gpills > 0 then
                                 vg[#vg + 1] = pillsFrame(gpills)
                             end
                         end
@@ -24194,7 +24061,6 @@ function BookshelfWidget:_showBookDetail(book, opts)
                         -- place collections are surfaced (the Edit tab no
                         -- longer duplicates them).
                         local specs = by_cat[sec.cat]
-                        vg[#vg + 1] = self:_sectionHeadingBar(sec.title, avail_w, base, lpad)
                         local function editCollections()
                             -- Leave the everything-modal OPEN behind the
                             -- collection dialog. On close, refresh the
@@ -24214,17 +24080,15 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                     if modal and modal.rebuildTab then modal:rebuildTab() end
                                 end }
                         end
-                        -- Pills + inline top-right Edit button. When empty, a
-                        -- left-aligned "Not in any collection." note fills the
-                        -- pill column (Edit stays top-right), rather than its own
-                        -- extra line as before.
-                        vg[#vg + 1] = pillsWithEdit(specs, editCollections, Space.px(16),
-                            (not specs or #specs == 0) and _("Not in any collection.") or nil)
+                        local head, btn = headingWithEdit(sec.title, editCollections)
+                        vg[#vg + 1] = head
+                        focus_tables[#focus_tables + 1] = focusRow({ { btn } })
+                        vg[#vg + 1] = pillsOrNote(specs, _("Not in any collection."))
                     else
                         local specs = by_cat[sec.cat]
                         if specs and #specs > 0 then
                             vg[#vg + 1] = self:_sectionHeadingBar(sec.title, avail_w, base, lpad)
-                            vg[#vg + 1] = pillsFrame(specs, Space.px(16))
+                            vg[#vg + 1] = pillsFrame(specs)
                         end
                     end
                 end

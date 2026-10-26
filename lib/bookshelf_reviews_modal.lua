@@ -841,82 +841,31 @@ function ReviewsModal:_activeBody()
     return self.scroll_html, false, nil
 end
 
--- A small "EMBEDDED | HARDCOVER" segmented control toggling a tab's active HTML
--- source -- same style as the nav chip bar: uppercase labels, square corners,
--- cells butted together with thin separators inside one bordered frame, the
--- selected cell inverted. Built fresh each assemble; tapping an inactive chip
--- switches the source and reassembles. Left-inset to align with the body text.
+-- An "Embedded | Hardcover" segmented control toggling a tab's active HTML
+-- source: the popup's rounded control (lib/bookshelf_popup_kit), the selected
+-- source filled black. Built fresh each assemble; tapping an inactive source
+-- switches it and reassembles. Left-inset to align with the body text.
 function ReviewsModal:_buildSourceChips(tab)
-    local sep_w   = Size.border.thin
-    local h_pad   = Space.padding.large
-    local v_pad   = Space.padding.small
-    -- Match the main bookshelf nav chip bar exactly: a logical 16pt label scaled
-    -- by the user's chip-font setting. NOT Screen:scaleBySize (the font layer
-    -- scales that again) -- keeps these source chips smaller than the tab bar.
-    -- Through BandMetrics on CHIP_KEY, the one place that derivation lives.
-    local BandMetrics = require("lib/bookshelf_band_metrics")
-    local size    = BandMetrics.fontSize(BandMetrics.CHIP_KEY)
-
-    -- Build the label widgets first (uppercased, UTF-8-aware so accented
-    -- letters fold correctly -- issue #130) to find a uniform cell height.
-    local labels, cell_h = {}, 0
+    local PopupKit = require("lib/bookshelf_popup_kit")
+    local items = {}
     for i, src in ipairs(tab.sources) do
-        local face, bold = BFont:getFace("infofont", size, { bold = true })
-        labels[i] = TextWidget:new{
-            text    = TextSegments.upper(src.label or tostring(i)),
-            face    = face,
-            bold    = bold,
-            fgcolor = Blitbuffer.COLOR_BLACK,
-        }
-        cell_h = math.max(cell_h, labels[i]:getSize().h)
+        items[i] = { key = i, label = src.label or tostring(i) }
     end
-    cell_h = cell_h + 2 * v_pad
-
-    local row = HorizontalGroup:new{ align = "center" }
-    for i, src in ipairs(tab.sources) do
-        if i > 1 then
-            row[#row + 1] = LineWidget:new{
-                background = Blitbuffer.COLOR_BLACK,
-                dimen = Geom:new{ w = sep_w, h = cell_h },
-            }
-        end
-        local cell_w = labels[i]:getSize().w + 2 * h_pad
-        local body = InvertedFrame:new{
-            _invert    = (i == tab._active_source),
-            bordersize = 0, margin = 0, padding = 0,
-            background = Blitbuffer.COLOR_WHITE,
-            CenterContainer:new{
-                dimen = Geom:new{ w = cell_w, h = cell_h },
-                labels[i],
-            },
-        }
-        local chip = InputContainer:new{
-            dimen = Geom:new{ w = cell_w, h = cell_h }, body }
-        chip.ges_events = { Tap = { GestureRange:new{ ges = "tap", range = chip.dimen } } }
-        chip.onTap = function()
-            if i ~= tab._active_source then
-                tab._active_source = i
-                self:_assemble()
-                UIManager:setDirty(self, function() return "ui", self.frame.dimen end)
-            end
-            return true
-        end
-        row[#row + 1] = chip
-    end
-    local framed = FrameContainer:new{
-        bordersize = Size.border.thin, margin = 0, padding = 0, row }
+    local seg = PopupKit.segmented{
+        items = items, active = tab._active_source,
+        face  = PopupKit.sourceFace(self.font_size),
+        pad_v = PopupKit.SOURCE_PAD_V,
+        on_pick = function(i)
+            tab._active_source = i
+            self:_assemble()
+            UIManager:setDirty(self, function() return "ui", self.frame.dimen end)
+        end,
+    }
     return FrameContainer:new{
         bordersize = 0, margin = 0,
         padding_left = self._side_pad, padding_right = self._side_pad,
-        -- Symmetric: the description content below drops its own top padding
-        -- when chips show (see _buildSourcedBody), so the chip bar owns the gap.
-        -- -2px (not the full 16) on each side: measured on a real PW5, this
-        -- header came out 104px vs the Reviews tab's native header at 100px
-        -- (lib/bookshelf_widget.lua's _buildReviewsHeader) -- the two tabs'
-        -- hairlines must land at the identical Y or switching tabs visibly
-        -- shifts the scroll boundary. -2/-2 brings this to the same 100px.
-        padding_top = Space.px(16) - 2, padding_bottom = Space.px(16) - 2,
-        framed,
+        padding_top = Space.px(16), padding_bottom = Space.px(8),
+        seg,
     }
 end
 
@@ -958,24 +907,14 @@ function ReviewsModal:_buildSourcedBody(tab, w, h)
     self._sourced_cache = self._sourced_cache or {}
     if self._sourced_cache[idx] then return self._sourced_cache[idx] end
 
+    -- No rule under the chips: the popup draws lines only in its frame.
     local chips  = self:_buildSourceChips(tab)
     local chip_h = chips:getSize().h
-    -- Hairline marking the top of the scrollable area -- same construction as
-    -- the Reviews tab's own (lib/bookshelf_widget.lua's _buildReviewsTab), and
-    -- landing at the identical Y (the padding fix on _buildSourceChips above
-    -- makes chip_h == that tab's header_h) so switching tabs doesn't visibly
-    -- shift the boundary line.
-    local hairline = LineWidget:new{
-        background = Blitbuffer.COLOR_DARK_GRAY,
-        dimen = Geom:new{ w = w, h = Size.line.medium },
-    }
-    local hairline_h = hairline:getSize().h
     local src    = tab.sources[idx] or tab.sources[1]
     -- Shrink (not drop) the body's top padding to a small residual: the chip
-    -- bar's own bottom padding plus the hairline already supply most of the
-    -- gap, but the text needs a little breathing room below the hairline
-    -- rather than hugging it -- same value and reasoning as the Reviews tab's
-    -- own header+hairline gap (lib/bookshelf_widget.lua's _buildReviewsTab).
+    -- bar's own bottom padding already supplies most of the gap -- same value
+    -- as the Reviews tab's own header gap (lib/bookshelf_widget.lua's
+    -- _headedHtmlBody).
     -- (A later rule overrides just padding-top from the shared `body { padding }`.)
     local css = self._css .. string.format("\nbody { padding-top: %dpx; }", Space.px(8))
     local scroller = self:_scroller{
@@ -985,10 +924,10 @@ function ReviewsModal:_buildSourcedBody(tab, w, h)
         -- As self.scroll_html above: full width, a rail against the border.
         width             = w,
         scroll_bar_width  = require("lib/bookshelf_snug_scroll").scroll_bar_width,
-        height            = math.max(Screen:scaleBySize(80), h - chip_h - hairline_h),
+        height            = math.max(Screen:scaleBySize(80), h - chip_h),
         dialog            = self,
     }
-    local body = VerticalGroup:new{ align = "left", chips, hairline, scroller }
+    local body = VerticalGroup:new{ align = "left", chips, scroller }
     self._sourced_cache[idx] = body
     return body
 end

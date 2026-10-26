@@ -272,7 +272,7 @@ t.test("the hero's tag pills go unfilled over a painted ground", function()
     local src = read("lib/bookshelf_widget.lua")
     local grp = src:match("\nfunction BookshelfWidget:_buildPillGroup%(.-\nend\n")
     assert(grp, "no _buildPillGroup")
-    assert(grp:find("on_overflow, ink)", 1, true), "_buildPillGroup takes no ink")
+    assert(grp:find("on_overflow, ink", 1, true), "_buildPillGroup takes no ink")
     assert(grp:find("background     = (not ink) and Blitbuffer.COLOR_WHITE or nil", 1, true),
         "the pill keeps its white fill when an ink is given")
     assert(grp:find("color          = ink", 1, true), "the pill border ignores the ink")

@@ -152,6 +152,18 @@ function M.rowText(h)
     return h.text or h.chapter or ""
 end
 
+-- whereLine(h, _) -> "Chapter · Page 12 · 2026-10-20", the parts it has, or
+-- nil. A page bookmark's row text is already its chapter, so not again.
+function M.whereLine(h, _)
+    _ = _ or function(t) return t end
+    local where = {}
+    if h.chapter and M.rowText(h) ~= h.chapter then where[#where + 1] = h.chapter end
+    if h.pageno then where[#where + 1] = (_("Page %1"):gsub("%%1", tostring(h.pageno))) end
+    if h.datetime then where[#where + 1] = h.datetime:match("^%d%d%d%d%-%d%d%-%d%d") or h.datetime end
+    if #where == 0 then return nil end
+    return table.concat(where, " \xC2\xB7 ")
+end
+
 -- detailText(h, _) -> the panel's text: where it is, the highlight, its note.
 function M.detailText(h, _)
     _ = _ or function(t) return t end
@@ -201,9 +213,7 @@ function M.buildTab(bw, fp, modal, avail_w, avail_h)
     local TextWidget      = require("lib/bookshelf_colour_text")
     local VerticalGroup   = require("ui/widget/verticalgroup")
     local HorizontalGroup = require("ui/widget/horizontalgroup")
-    local HorizontalSpan  = require("ui/widget/horizontalspan")
     local VerticalSpan    = require("ui/widget/verticalspan")
-    local LineWidget      = require("ui/widget/linewidget")
     local FrameContainer  = require("ui/widget/container/framecontainer")
     local InputContainer  = require("ui/widget/container/inputcontainer")
     local GestureRange    = require("ui/gesturerange")
@@ -215,7 +225,6 @@ function M.buildTab(bw, fp, modal, avail_w, avail_h)
     local lpad  = (modal and modal._side_pad) or Space.px(20)
     local bar_w = SnugScroll.widen(Screen:scaleBySize(3))
     local inner_w = avail_w - 2 * lpad - bar_w
-    local gap = Space.px(12)
     local muted = Blitbuffer.COLOR_DARK_GRAY
     local _ = require("lib/bookshelf_i18n").gettext
     -- At most `lines` lines, ending in an ellipsis when it runs over; a
@@ -230,13 +239,12 @@ function M.buildTab(bw, fp, modal, avail_w, avail_h)
     end
     local colour_screen = Screen.isColorEnabled and Screen:isColorEnabled() or false
     local vg = VerticalGroup:new{ align = "left" }
-    for i, h in ipairs(list) do
-        local page = h.pageno and TextWidget:new{ text = tostring(h.pageno), face = small, fgcolor = muted }
+    for _i, h in ipairs(list) do
         -- The type glyph in a column of its own, so it can take the
         -- highlight's colour and the text wraps under the text.
         local icon = TextWidget:new{ text = M.PREFIX[h.type] or M.PREFIX.highlight, face = face,
             fgcolor = M.iconColour(h, colour_screen) }
-        local text_w = inner_w - icon:getSize().w - (page and (page:getSize().w + gap) or 0)
+        local text_w = inner_w - icon:getSize().w
         local body = VerticalGroup:new{ align = "left",
             clamped(M.rowText(h), face, text_w, 4),
         }
@@ -244,16 +252,19 @@ function M.buildTab(bw, fp, modal, avail_w, avail_h)
             body[#body + 1] = VerticalSpan:new{ width = Space.px(4) }
             body[#body + 1] = clamped(h.note, small, text_w, 2, muted)
         end
-        local line = HorizontalGroup:new{ align = "top", icon, body }
-        if page then
-            line[#line + 1] = HorizontalSpan:new{ width = gap }
-            line[#line + 1] = page
+        -- Where it is, in grey under the text, as the popup's header gives
+        -- the book's details: no rules between rows, space parts them.
+        local where = M.whereLine(h, _)
+        if where then
+            body[#body + 1] = VerticalSpan:new{ width = Space.px(4) }
+            body[#body + 1] = TextWidget:new{ text = where, face = small, fgcolor = muted,
+                max_width = text_w }
         end
         local row = FrameContainer:new{
             bordersize = 0, margin = 0,
             padding_left = lpad, padding_right = lpad,
-            padding_top = Space.px(10), padding_bottom = Space.px(10),
-            line,
+            padding_top = Space.px(12), padding_bottom = Space.px(12),
+            HorizontalGroup:new{ align = "top", icon, body },
         }
         local tap = InputContainer:new{ dimen = Geom:new{ w = avail_w - bar_w, h = row:getSize().h }, row }
         tap.ges_events = { Tap = { GestureRange:new{ ges = "tap",
@@ -263,10 +274,6 @@ function M.buildTab(bw, fp, modal, avail_w, avail_h)
             return true
         end
         vg[#vg + 1] = tap
-        if i < #list then
-            vg[#vg + 1] = LineWidget:new{ background = Blitbuffer.COLOR_LIGHT_GRAY,
-                dimen = Geom:new{ w = avail_w - bar_w, h = Screen:scaleBySize(1) } }
-        end
     end
     return SnugScroll:new{
         dimen = Geom:new{ w = avail_w, h = avail_h },

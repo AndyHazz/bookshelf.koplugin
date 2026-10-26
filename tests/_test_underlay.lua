@@ -194,6 +194,38 @@ t.test("once the shelf paints whole again, the sleep screen is kept", function()
     eq(Screen.bb.px[50][50], "shelf")
 end)
 
+-- Sleep screen anti-ghosting redraws fill the screen black from a timer. On a
+-- PW5 the plugins' Suspend handlers held the first paint back past it, so
+-- the copy taken at that paint was the black screen, and the wake put black
+-- back (maintainer).
+t.test("a sleep screen keeps the shelf as it was when shown, not at its first paint", function()
+    U._reset()
+    Screen.bb:fillRect(0, 0, W, H, "shelf")
+    U.install({})
+    local ss, x, y = window("ScreenSaver", 0, 0, W, H)
+    ss.covers_fullscreen = true
+    U.shown(ss)
+    Screen.bb:fillRect(0, 0, W, H, "black")
+    ss:paintTo(Screen.bb, x, y)
+    assert(U.closing(ss), "nothing was put back")
+    eq(Screen.bb.px[50][50], "shelf")
+end)
+
+t.test("a sleep screen shown before the shelf's pending paint isn't kept", function()
+    U._reset()
+    Screen.bb:fillRect(0, 0, W, H, "shelf")
+    local bw = {}
+    U.install(bw)
+    local UI = package.loaded["ui/uimanager"]
+    UI._dirty = { [bw] = true }
+    local ok, err = pcall(function()
+        local ss = sleepOver()
+        assert(not U.closing(ss), "kept a screen the shelf had yet to paint")
+    end)
+    UI._dirty = nil
+    assert(ok, err)
+end)
+
 t.test("the shelf reports its whole paints to the screen", function()
     local src = io.open("lib/bookshelf_widget.lua"):read("*a")
     local i = src:find("local clip_rects = self:_takePaintClip(bb)", 1, true)

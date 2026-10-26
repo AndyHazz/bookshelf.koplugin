@@ -179,23 +179,34 @@ local function sleepScreen(window)
     return window.name == "ScreenSaver" or window.name == "ScreenSaverLock"
 end
 
+-- keepWhole(): the sleep screen covers it all, so the whole screen is copied
+-- once, as it is when the sleep screen is shown. Not at its first paint: its
+-- anti-ghosting redraws fill the screen black from a timer, and on a PW5 the
+-- plugins' Suspend handlers held that paint back past the first of them.
+local function keepWhole()
+    if not _valid or _tiles.all then return end
+    local Screen = screen()
+    local UIManager = require("ui/uimanager")
+    -- Cleared or turned, or the shelf has a paint still to come: the screen
+    -- is not the shelf as it stands.
+    if _wiped or (UIManager._dirty and _bw and UIManager._dirty[_bw]) then
+        _valid = false
+        dropPieces()
+        return
+    end
+    _tiles.all = true
+    local ok = pcall(copy, Screen.bb, 0, 0, Screen:getWidth(), Screen:getHeight())
+    if not ok then _valid = false; dropPieces() end
+end
+
 -- paintOver(window, paint, bb, x, y): the window's paint, through the
--- stand-in while its draws are being kept. The sleep screen covers it all:
--- one copy of the whole screen first, then its own paint.
+-- stand-in while its draws are being kept. The sleep screen was copied whole
+-- when shown (keepWhole) and paints as it is.
 local function paintOver(window, paint, bb, x, y)
     local Screen = screen()
     if not _valid or bb ~= Screen.bb then return paint(window, bb, x, y) end
     if sleepScreen(window) then
-        if _wiped then
-            _valid = false
-            dropPieces()
-            return paint(window, bb, x, y)
-        end
-        if not _tiles.all then
-            _tiles.all = true
-            local ok = pcall(copy, bb, 0, 0, Screen:getWidth(), Screen:getHeight())
-            if not ok then _valid = false; dropPieces() end
-        end
+        keepWhole()
         return paint(window, bb, x, y)
     end
     local ok, err = pcall(paint, window, M.cow(bb), x, y)
@@ -235,6 +246,7 @@ function M.shown(window)
     rawset(window, "paintTo", function(self, bb, x, y)
         return paintOver(self, paint, bb, x, y)
     end)
+    if sleepScreen(window) then keepWhole() end
 end
 
 --- closing(window) -> true when the shelf's pixels went back under it (and

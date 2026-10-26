@@ -20587,7 +20587,10 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
     -- derived from the actual cover aspect once we've fetched the bb
     -- (a few lines down) so the FrameContainer matches the painted
     -- image exactly -- no horizontal or vertical letterboxing.
-    local thumb_w  = Screen:scaleBySize(110)
+    -- The popup's (rich) cover follows the screen's size, not the UI scale;
+    -- the compact header keeps its scaled size.
+    local thumb_w  = rich and math.floor(math.min(Screen:getWidth(), Screen:getHeight()) * 0.15)
+        or Screen:scaleBySize(110)
     local thumb_h  = math.floor(thumb_w * 1.5)  -- default 2:3 if no cover
     -- Cover<->text gap = the shelf's inter-column book gap, so the menu
     -- matches the main grid. The header's outer inset is supplied by the
@@ -20611,19 +20614,94 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
 
     -- Which bb, and who owns it: see _headerThumbBB. External and cached
     -- covers come back non-disposable and must NOT reach owned_cover_bb below.
-    local thumb_bb, thumb_disposable = _headerThumbBB(book.filepath, fresh, thumb_w)
-
-    -- The rich (popup) header is CACHED + repainted across every _assemble, so a
-    -- one-shot disposable bb would be freed after the first paint and the next
-    -- repaint would blit garbage. Keep the embedded bb alive instead and hand it
-    -- back via owned_cover_bb so the modal frees it once, at close. (External
-    -- covers are already non-disposable -- the ImageSource cache owns them.)
-    local owned_cover_bb
-    if rich and thumb_disposable then
-        thumb_disposable = false
-        owned_cover_bb = thumb_bb
+    -- A tap on the cover opens it full screen. The embedded bb is one-shot, so
+    -- this reloads the cover for ImageViewer. The external cover comes from
+    -- ImageSource's cache, so the viewer must NOT free it.
+    local fp = book.filepath
+    -- The external cover _headerThumbBB loads first. (This read a local
+    -- of that helper, out of scope here, so the tap never found it.)
+    local ext_for_viewer = fresh and fresh.cover_image_path
+    local title_for_viewer = book.title or book.filename or ""
+    local function previewCover()
+        if ext_for_viewer then
+            local ok_img, ImageSource = pcall(require, "lib/bookshelf_image_source")
+            -- Native load: ImageViewer fits it to the screen preserving
+            -- aspect. A fixed w*h resize here stretched the cover.
+            local pv_bb = ok_img and ImageSource.loadImageNative(ext_for_viewer) or nil
+            if pv_bb then
+                UIManager:show(require("ui/widget/imageviewer"):new{
+                    image            = pv_bb,
+                    image_disposable = false,  -- ImageSource cache owns it
+                    title_text       = title_for_viewer,
+                    fullscreen       = true,
+                })
+                return
+            end
+        end
+        -- Embedded cover: load the FULL-resolution cover straight from the
+        -- document, exactly like KOReader's native Book information > Cover
+        -- image (filemanagerbookinfo:getCoverImage, which also picks up a
+        -- DocSettings custom cover). The BIM cover_bb used as the fallback
+        -- below is a grid-sized THUMBNAIL -- feeding it to ImageViewer
+        -- upscales blurry, even at "original size" (#228). Guarded with a
+        -- pcall + the thumbnail fallback so an older build still shows
+        -- something.
+        local ok_bi, BookInfo = pcall(require, "apps/filemanager/filemanagerbookinfo")
+        if ok_bi and BookInfo and BookInfo.getCoverImage then
+            local ok_bb, full_bb = pcall(function()
+                return BookInfo:getCoverImage(nil, fp, false)
+            end)
+            if ok_bb and full_bb then
+                UIManager:show(require("ui/widget/imageviewer"):new{
+                    image            = full_bb,
+                    image_disposable = true,  -- getCoverPageImage bb is ours
+                    title_text       = title_for_viewer,
+                    fullscreen       = true,
+                })
+                return
+            end
+        end
+        local preview = Repo.buildBookMeta(fp)
+        if not preview or not preview.cover_bb then return end
+        UIManager:show(require("ui/widget/imageviewer"):new{
+            image            = preview.cover_bb,
+            image_disposable = true,
+            title_text       = title_for_viewer,
+            fullscreen       = true,
+        })
     end
 
+    -- Nothing is handed back for the modal to free: the popup's cover is the
+    -- shelf's own card (below), which keeps its scaled bb in the cover cache,
+    -- and the compact header's bb is ImageWidget's to free.
+    local owned_cover_bb
+
+    if rich then
+        -- The popup draws the cover the way the shelf does (SpineWidget:
+        -- corners, border and shadow as the reader set them), as the hero
+        -- does, rather than a square-bordered thumbnail. Its width follows
+        -- the screen, not the UI scale, so a large scale setting no longer
+        -- grows the header and pushes the actions below it out of view
+        -- (issues 442, 553). A 2:3 card, like the shelf's.
+        local ok_sw, SpineWidget = pcall(require, "lib/bookshelf_spine_widget")
+        if ok_sw and SpineWidget then
+            local ok_card, card = pcall(function()
+                return SpineWidget:new{
+                    book   = book,
+                    width  = thumb_w,
+                    height = thumb_h,
+                    on_tap = function() previewCover() end,
+                    suppress_favorite_badge = true,
+                }
+            end)
+            if ok_card then thumb_widget = card end
+        end
+    end
+
+    local thumb_bb, thumb_disposable
+    if not thumb_widget then
+        thumb_bb, thumb_disposable = _headerThumbBB(book.filepath, fresh, thumb_w)
+    end
     if thumb_bb then
         -- Resize the container to the cover's true aspect ratio so the
         -- image fills the frame with no letterboxing. The bb is a
@@ -20646,16 +20724,6 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
                 scale_factor     = 0,
             },
         }
-        -- Wrap in an InputContainer so a tap on the thumbnail opens a
-        -- full-screen preview. The embedded bb is one-shot (freed after
-        -- first paint), so the tap handler reloads the cover for
-        -- ImageViewer. The external cover comes from ImageSource's cache,
-        -- so the viewer must NOT free it (image_disposable=false).
-        local fp = book.filepath
-        -- The external cover _headerThumbBB loads first. (This read a local
-        -- of that helper, out of scope here, so the tap never found it.)
-        local ext_for_viewer = fresh and fresh.cover_image_path
-        local title_for_viewer = book.title or book.filename or ""
         thumb_widget = InputContainer:new{
             dimen = Geom:new{
                 w = thumb_w + 2 * Size.border.thin,
@@ -20667,52 +20735,7 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
             Tap = { GestureRange:new{ ges = "tap", range = thumb_widget.dimen } },
         }
         thumb_widget.onTap = function()
-            if ext_for_viewer then
-                local ok_img, ImageSource = pcall(require, "lib/bookshelf_image_source")
-                -- Native load: ImageViewer fits it to the screen preserving
-                -- aspect. A fixed w*h resize here stretched the cover.
-                local pv_bb = ok_img and ImageSource.loadImageNative(ext_for_viewer) or nil
-                if pv_bb then
-                    UIManager:show(require("ui/widget/imageviewer"):new{
-                        image            = pv_bb,
-                        image_disposable = false,  -- ImageSource cache owns it
-                        title_text       = title_for_viewer,
-                        fullscreen       = true,
-                    })
-                    return true
-                end
-            end
-            -- Embedded cover: load the FULL-resolution cover straight from the
-            -- document, exactly like KOReader's native Book information > Cover
-            -- image (filemanagerbookinfo:getCoverImage, which also picks up a
-            -- DocSettings custom cover). The BIM cover_bb used as the fallback
-            -- below is a grid-sized THUMBNAIL -- feeding it to ImageViewer
-            -- upscales blurry, even at "original size" (#228). Guarded with a
-            -- pcall + the thumbnail fallback so an older build still shows
-            -- something.
-            local ok_bi, BookInfo = pcall(require, "apps/filemanager/filemanagerbookinfo")
-            if ok_bi and BookInfo and BookInfo.getCoverImage then
-                local ok_bb, full_bb = pcall(function()
-                    return BookInfo:getCoverImage(nil, fp, false)
-                end)
-                if ok_bb and full_bb then
-                    UIManager:show(require("ui/widget/imageviewer"):new{
-                        image            = full_bb,
-                        image_disposable = true,  -- getCoverPageImage bb is ours
-                        title_text       = title_for_viewer,
-                        fullscreen       = true,
-                    })
-                    return true
-                end
-            end
-            local preview = Repo.buildBookMeta(fp)
-            if not preview or not preview.cover_bb then return true end
-            UIManager:show(require("ui/widget/imageviewer"):new{
-                image            = preview.cover_bb,
-                image_disposable = true,
-                title_text       = title_for_viewer,
-                fullscreen       = true,
-            })
+            previewCover()
             return true
         end
     end
@@ -20864,8 +20887,8 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
     local last_str  = _fmt_short_date(_last_opened(book.filepath))
 
     -- Format · size · pages. In the compact header the dates ride along on this
-    -- same row (the original one-line strip); the rich popup header breaks them
-    -- onto their own calendar-prefixed row below.
+    -- same row (the original one-line strip). The rich popup header leads with
+    -- where the reader is in the book instead, then the file's details.
     local meta_parts = {}
     if book.format then meta_parts[#meta_parts + 1] = book.format end
     local size_str = _fmt_size(size_bytes)
@@ -20873,30 +20896,79 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
     if rich then
         local pages = tonumber(book.page_count)  -- nil for un-rendered EPUBs
         if pages and pages > 0 then
-            meta_parts[#meta_parts + 1] = _("Pages") .. " " .. tostring(pages)
+            meta_parts[#meta_parts + 1] = T(_("%1 pages"), pages)
         end
+        if added_str then meta_parts[#meta_parts + 1] = _("Added") .. " " .. added_str end
     else
         if added_str then meta_parts[#meta_parts + 1] = _("Added") .. " " .. added_str end
         if last_str  then meta_parts[#meta_parts + 1] = _("Read") .. " " .. last_str end
     end
+
+    -- Reading line (rich popup header only): the status, how far in, and when
+    -- it was last read -- what the shelf's own badges and the hero say about
+    -- the book, and what a reader looks for first. A slim bar below it while
+    -- the book is under way.
+    local reading_pct
+    if rich then
+        local ok_bl, BookList = pcall(require, "ui/widget/booklist")
+        local status = ok_bl and BookList and BookList.getBookStatus
+            and BookList.getBookStatus(book.filepath) or nil
+        local pct, _st, _rating, page_count, page_num = Repo.readProgress(book.filepath)
+        pct = tonumber(pct)
+        local parts = {}
+        if status == "complete" then
+            parts[#parts + 1] = _("Finished")
+        elseif status == "abandoned" then
+            parts[#parts + 1] = _("On hold")
+            if pct and pct > 0 then parts[#parts + 1] = T(_("%1% read"), math.floor(pct * 100 + 0.5)) end
+            reading_pct = pct
+        elseif pct and pct > 0 then
+            parts[#parts + 1] = T(_("%1% read"), math.floor(pct * 100 + 0.5))
+            page_num, page_count = tonumber(page_num), tonumber(page_count)
+            if page_num and page_count and page_count > 0 then
+                parts[#parts + 1] = T(_("page %1 of %2"), page_num, page_count)
+            end
+            reading_pct = pct
+        else
+            parts[#parts + 1] = _("Unopened")
+        end
+        if last_str and status ~= "new" then
+            parts[#parts + 1] = _("Last read") .. " " .. last_str
+        end
+        local rface, rbold = BFont:getFace("cfont", 20, { bold = true })
+        top_stack[#top_stack + 1] = VerticalSpan_:new{ width = Space.px(6) }
+        top_stack[#top_stack + 1] = TextBoxWidget_:new{
+            text  = table.concat(parts, "  \xC2\xB7  "),  -- middle-dot
+            face  = rface,
+            bold  = rbold,
+            width = text_w,
+        }
+        if reading_pct then
+            local ProgressWidget = require("ui/widget/progresswidget")
+            top_stack[#top_stack + 1] = VerticalSpan_:new{ width = Space.px(6) }
+            top_stack[#top_stack + 1] = ProgressWidget:new{
+                width      = math.floor(text_w * 0.6),
+                height     = Space.px(8),
+                percentage = math.max(0, math.min(1, reading_pct)),
+                margin_h   = 0, margin_v = 0,
+                radius     = 0,
+                bordersize = Size.border.thin,
+                bordercolor = Blitbuffer.COLOR_BLACK,
+                fillcolor  = Blitbuffer.COLOR_BLACK,
+                ticks      = nil,
+            }
+            top_stack[#top_stack + 1] = VerticalSpan_:new{ width = Space.px(4) }
+        end
+    end
+
     if #meta_parts > 0 then
         top_stack[#top_stack + 1] = TextBoxWidget_:new{
             text  = table.concat(meta_parts, "  \xC2\xB7  "),  -- middle-dot
             face  = meta_face,
             bold  = meta_bold,
+            fgcolor = rich and Blitbuffer.COLOR_DARK_GRAY or nil,
             width = text_w,
         }
-    end
-
-    -- Dates on their own row with a calendar glyph (rich popup header only).
-    if rich then
-        local date_parts = {}
-        if added_str then date_parts[#date_parts + 1] = _("Added") .. " " .. added_str end
-        if last_str  then date_parts[#date_parts + 1] = _("Last read") .. " " .. last_str end
-        if #date_parts > 0 then
-            top_stack[#top_stack + 1] = _icon_row(
-                "\xEF\x81\xB3", table.concat(date_parts, "  \xC2\xB7  "))  -- U+F073 calendar
-        end
     end
 
     -- Filename. The compact (long-press menu) header shows the basename only --
@@ -21382,18 +21454,34 @@ end
 -- Edit and Tags tabs. Paints a hair wider than content_w so the bar reaches the
 -- window border (FrameContainer:getSize ignores `width`, so the slop can't widen
 -- the layout). Left-inset so the heading text aligns with the body text.
+-- A section heading in the book popup's tabs: small uppercase text in dark
+-- grey over a hairline, like a KOReader dialog's own grouping. It was a solid
+-- black bar, the heaviest thing on the screen, so the headings outweighed the
+-- buttons they name (book popup redesign).
+--
+-- The hairline is painted, not a child: it runs the full tab width (content_w,
+-- past the scrollbar to the frame edge), and a widget that wide would widen
+-- the scrolled body and bring up a horizontal scrollbar. The heading reports
+-- only its text's size, as the old bar did.
 function BookshelfWidget:_sectionHeadingBar(text, content_w, font_size, inset)
     local FrameContainer = require("ui/widget/container/framecontainer")
     local TextWidget     = require("lib/bookshelf_colour_text")
-    local face, bold = BFont:getFace("cfont", math.max(10, (font_size or 18) - 3), { bold = true })
-    return FrameContainer:new{
-        background  = Blitbuffer.COLOR_BLACK,
-        bordersize  = 0, margin = 0, width = content_w + Size.border.window,
+    local face, bold = BFont:getFace("cfont", math.max(10, (font_size or 18) - 4), { bold = true })
+    local line_h = Size.line.thin
+    local heading = FrameContainer:new{
+        bordersize  = 0, margin = 0,
         padding_left = inset, padding_right = inset,
-        padding_top = Space.px(7), padding_bottom = Space.px(4),
+        padding_top = Space.px(16), padding_bottom = Space.px(6) + line_h,
         TextWidget:new{ text = TextSegments.upper(text), face = face, bold = bold,
-            fgcolor = Blitbuffer.COLOR_WHITE },
+            fgcolor = Blitbuffer.COLOR_DARK_GRAY },
     }
+    local paint = heading.paintTo
+    function heading:paintTo(bb, x, y)
+        paint(self, bb, x, y)
+        bb:paintRect(x, y + self:getSize().h - line_h, content_w + Size.border.window, line_h,
+            Blitbuffer.COLOR_GRAY)
+    end
+    return heading
 end
 
 -- _segmentedChips(items, active_key, on_pick, font_size, inset) — a compact
@@ -23599,9 +23687,6 @@ function BookshelfWidget:_showBookDetail(book, opts)
     local edit_tab = {
         id = "edit",
         label = _("Edit"),
-        -- The Edit body starts with a black heading strip, so the active tab's
-        -- open-bottom should stay black (not erase to white) to avoid a notch.
-        dark_body = true,
         widget_builder = function(avail_w, avail_h, show_parent)
             return self:_buildBookEditTab(book, show_parent, avail_w, avail_h)
         end,
@@ -23623,9 +23708,6 @@ function BookshelfWidget:_showBookDetail(book, opts)
         tags_tab = {
             id = "tags",
             label = _("Tags"),
-            -- Starts with a black heading strip, like the Edit tab, so keep the
-            -- active tab's open-bottom black (no white notch).
-            dark_body = true,
             widget_builder = function(avail_w, avail_h, show_parent)
                 local FrameContainer = require("ui/widget/container/framecontainer")
                 local ChipButton = require("lib/bookshelf_chip_button")
@@ -23665,11 +23747,9 @@ function BookshelfWidget:_showBookDetail(book, opts)
                         bordersize = 0, margin = 0,
                         padding_left = lpad, padding_right = lpad,
                         padding_top = top_pad or Space.px(10),
-                        -- Section heading bars have no top margin of their own
-                        -- (self:_sectionHeadingBar) -- this is the only gap
-                        -- between one section's pills and the next heading, so
-                        -- it's a bit larger than the pill row's own top pad.
-                        padding_bottom = Space.px(20),
+                        -- The next heading brings its own space above it
+                        -- (self:_sectionHeadingBar), so only a little here.
+                        padding_bottom = Space.px(4),
                         pills,
                     }
                 end
@@ -23749,7 +23829,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
                         bordersize = 0, margin = 0,
                         padding_left = lpad, padding_right = lpad,
                         padding_top = top_pad or Space.px(10),
-                        padding_bottom = Space.px(16),
+                        padding_bottom = Space.px(4),
                         HorizontalGroup:new{ align = valign,
                             left,
                             HorizontalSpan:new{ width = gap },

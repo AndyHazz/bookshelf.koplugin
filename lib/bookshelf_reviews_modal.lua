@@ -240,6 +240,30 @@ function TabBar:init()
         if sz.h > label_h then label_h = sz.h end
     end
     self._n_rows = row
+    -- Each row spans the strip, inset alike at both ends: its spare width is
+    -- shared among its tabs. Packed at their natural widths, the tabs stopped
+    -- short of the right edge, under a baseline and a body that run the full
+    -- width (book popup redesign).
+    local right = self.width - self.left_inset
+    for r = 1, row do
+        local idx, used = {}, 0
+        for i = 1, #self.tabs do
+            if self._tab_row[i] == r then
+                idx[#idx + 1] = i
+                used = used + self._tab_w[i]
+            end
+        end
+        local spare = right - self.left_inset - used
+        if spare > 0 and #idx > 0 then
+            local each, extra = math.floor(spare / #idx), spare % #idx
+            local tx = self.left_inset
+            for k, i in ipairs(idx) do
+                self._tab_w[i] = self._tab_w[i] + each + (k <= extra and 1 or 0)
+                self._tab_x[i] = tx
+                tx = tx + self._tab_w[i]
+            end
+        end
+    end
     self._row_h  = label_h + 2 * self.pad_v
     self.dimen = Geom:new{
         x = 0, y = 0,
@@ -289,7 +313,8 @@ function TabBar:paintTo(bb, x, y)
         local rr = self._tab_row[i]
         local tx = x + self._tab_x[i]
         local ty = box_top + (rr - 1) * self._row_h
-        tw:paintTo(bb, tx + self.pad_h, ty + self.pad_v)
+        -- Centred: a row's spare width widens its cells (init).
+        tw:paintTo(bb, tx + math.floor((self._tab_w[i] - tw:getSize().w) / 2), ty + self.pad_v)
         if self.focus_cells and self.focus_cells[i] then
             self.focus_cells[i].dimen = Geom:new{
                 x = tx, y = ty, w = self._tab_w[i], h = self._row_h }

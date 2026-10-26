@@ -22932,17 +22932,12 @@ function BookshelfWidget:_buildReviewsHeader(tab, modal, avail_w, refreshReviews
     -- reload glyph is a Nerd Font PUA icon (nf-md-reload, U+EB52) rendered
     -- through the bundled "symbols" face -- a plain circular arrow, cleaner
     -- at this size than the stock document+arrow SVG icon.
-    local probe = TextWidget:new{ text = "Hg", face = text_face }
-    local text_h = probe:getSize().h
-    local refresh_btn = PopupKit.button{
-        text       = _("Refresh"),
-        face       = text_face,
-        icon_glyph = "\xEE\xAD\x92",
-        icon_face  = BFont:getFace("symbols", font_size),
-        icon_after = true,
-        height     = text_h + 2 * Space.px(5),
-        inverted   = tab.busy or false,
-        on_tap     = function() if not tab.busy then refreshReviews() end end,
+    local refresh_btn = PopupKit.headerButton{
+        text      = _("Refresh"),
+        icon      = "\xEE\xAD\x92", -- nf-md-reload
+        font_size = font_size,
+        inverted  = tab.busy,
+        on_tap    = function() if not tab.busy then refreshReviews() end end,
     }
 
     local left_w, right_w = left:getSize().w, refresh_btn:getSize().w
@@ -23047,50 +23042,35 @@ function BookshelfWidget:_buildMyReviewBody(book, modal, avail_w, avail_h, above
             if modal and modal.rebuildTab then modal:rebuildTab() end
         end)
     end
+    local btn = PopupKit.headerButton{
+        text      = review and _("Edit") or _("Write a review"),
+        icon      = "\xEE\xAB\xAA", -- nf-md-pencil, U+EAEA
+        font_size = font_size,
+        on_tap    = edit,
+    }
     if not review then
-        local tile = PopupKit.wideTile{
-            width = content_w, text = _("Write a review"), face = text_face,
-            icon = "\xEE\xAB\xAA", -- nf-md-pencil, U+EAEA
-            icon_face = BFont:getFace("symbols", font_size + 4),
-            on_tap = edit,
-        }
+        -- The header row alone: a grey note where the review will be, the
+        -- button at the right end like every tab's own action.
         local col = VerticalGroup:new{ align = "left" }
         if above then col[#col + 1] = above end
-        col[#col + 1] = FrameContainer:new{
-            bordersize = 0, margin = 0,
-            padding_left = inset, padding_right = inset,
-            padding_top = above and 0 or Space.px(16), padding_bottom = 0,
-            tile,
-        }
+        col[#col + 1] = PopupKit.headerRow{ width = avail_w, inset = inset,
+            left = TextWidget:new{ text = _("No review yet."), face = PopupKit.sourceFace(font_size),
+                fgcolor = Blitbuffer.COLOR_DARK_GRAY,
+                max_width = math.max(1, content_w - btn:getSize().w - Space.px(10)) },
+            buttons = { btn } }
         local used = 0
         for _i, w in ipairs(col) do used = used + w:getSize().h end
         if used < avail_h then col[#col + 1] = VerticalSpan:new{ width = avail_h - used } end
         local body = FrameContainer:new{ bordersize = 0, margin = 0, padding = 0,
             background = Blitbuffer.COLOR_WHITE, col }
-        body.focus_tables = { focusRow({ { tile } }) }
+        body.focus_tables = { focusRow({ { btn } }) }
         return body
     end
-    local probe = TextWidget:new{ text = "Hg", face = text_face }
-    local btn = PopupKit.button{
-        text       = _("Edit"),
-        face       = text_face,
-        icon_glyph = "\xEE\xAB\xAA", -- nf-md-pencil, U+EAEA
-        icon_face  = BFont:getFace("symbols", font_size),
-        icon_after = true,
-        height     = probe:getSize().h + 2 * Space.px(5),
-        on_tap     = edit,
-    }
     local header = above and self:_chipsWithButton(above, btn, avail_w, inset)
     if header then
         above = nil
     else
-        header = FrameContainer:new{
-            bordersize = 0, margin = 0,
-            padding_left = inset, padding_right = inset,
-            padding_top = Space.px(10), padding_bottom = Space.px(10),
-            HorizontalGroup:new{ align = "center",
-                HorizontalSpan:new{ width = math.max(0, content_w - btn:getSize().w) }, btn },
-        }
+        header = PopupKit.headerRow{ width = avail_w, inset = inset, buttons = { btn } }
     end
     return self:_headedHtmlBody(modal, avail_w, avail_h, header, Tokens.myReviewHtml(review), above)
 end
@@ -23154,27 +23134,20 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
     end
     local total = #candidates
 
-    -- Toolbar: the two ways in as a pair of wide tiles, icon and label, the
-    -- popup's rounded shape (lib/bookshelf_popup_kit), together the content
-    -- width so they line up with the grid below.
+    -- Toolbar: the two ways in as the tab's header buttons, at the right
+    -- end of the first row like every tab's own actions.
     local base     = (modal and modal.font_size) or 18
-    local btn_face = BFont:getFace("cfont", math.max(10, base - 2))
-    local tb_gap_x = Space.px(12)
-    local half_w   = math.floor((content_w - tb_gap_x) / 2)
-    local function toolTile(icon, text, w, on_tap)
-        return PopupKit.wideTile{
-            width = w, icon = icon, text = text, face = btn_face,
-            icon_face = BFont:getFace("symbols", base + 2), pad_v = Space.px(10),
-            on_tap = on_tap,
-        }
-    end
-    local device_btn = toolTile("\xEE\xA5\x8E", _("Choose from device"), half_w, -- folder-image
-        function() bw:_pickBookCoverFromDevice(book, modal, state) end)
-    local online_btn = toolTile("\xEE\xB8\x8D", _("Search online\xE2\x80\xA6"), -- search-web
-        content_w - half_w - tb_gap_x,
-        function() bw:_searchOnlineCovers(book, state, modal) end)
+    local device_btn = PopupKit.headerButton{ text = _("Choose from device"),
+        icon = "\xEE\xA5\x8E", font_size = base, -- folder-image
+        on_tap = function() bw:_pickBookCoverFromDevice(book, modal, state) end }
+    local online_btn = PopupKit.headerButton{ text = _("Search online\xE2\x80\xA6"),
+        icon = "\xEE\xB8\x8D", font_size = base, -- search-web
+        on_tap = function() bw:_searchOnlineCovers(book, state, modal) end }
+    local tb_gap_x = Space.px(10)
+    local tb_w = device_btn:getSize().w + tb_gap_x + online_btn:getSize().w
     local toolbar_row = HorizontalGroup:new{
         align = "center",
+        HorizontalSpan:new{ width = math.max(0, content_w - tb_w) },
         device_btn, HorizontalSpan:new{ width = tb_gap_x }, online_btn,
     }
     local toolbar_h = toolbar_row:getSize().h
@@ -23191,8 +23164,8 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
     -- Non-cover part of a cell (caption + gap + ring headroom top/bottom).
     local chrome = Space.px(4) + cap_h + 2 * ring
 
-    local top_pad     = Space.px(12)   -- gap below the tab bar / above toolbar
-    local tb_gap      = Space.px(12)    -- gap below the toolbar
+    local top_pad     = Space.px(10)   -- gap below the tab bar / above toolbar (headerRow's)
+    local tb_gap      = Space.px(10)    -- gap below the toolbar (headerRow's)
     -- Space reserved below the grid for the pagination row plus a standard gap
     -- beneath it (matching the pagination spacing used elsewhere) so the page
     -- nav sits just off the modal's Close/Open footer, not jammed against it.
@@ -23649,18 +23622,12 @@ function BookshelfWidget:_showBookDetail(book, opts)
                         return self:_sectionHeadingBar(title, avail_w, base, lpad)
                     end
                     first_heading = false
-                    local TextWidget = require("lib/bookshelf_colour_text")
-                    local face = BFont:getFace("cfont", math.max(10, base - 2))
-                    local btn = PopupKit.button{
-                        text       = tags_editing and _("Done") or _("Edit"),
-                        face       = face,
-                        icon_glyph = (not tags_editing) and "\xEE\xAB\xAA" or nil, -- nf-md-pencil
-                        icon_face  = BFont:getFace("symbols", math.max(10, base - 2)),
-                        icon_after = true,
-                        height     = TextWidget:new{ text = "Hg", face = face }:getSize().h
-                            + 2 * Space.px(6) + 2 * PopupKit.BORDER,
-                        inverted   = tags_editing,
-                        on_tap     = function()
+                    local btn = PopupKit.headerButton{
+                        text      = tags_editing and _("Done") or _("Edit"),
+                        icon      = (not tags_editing) and "\xEE\xAB\xAA" or nil, -- nf-md-pencil
+                        font_size = base,
+                        inverted  = tags_editing,
+                        on_tap    = function()
                             tags_editing = not tags_editing
                             if modal and modal.rebuildTab then modal:rebuildTab() end
                         end,

@@ -130,58 +130,60 @@ function Kit.button(opts)
     return require("lib/bookshelf_chip_button").build(opts)
 end
 
--- textLink(o) -> "Edit ✎": black text, underlined, the icon after, with no
--- border, so it reads as a link rather than a tag or a button. The tap area
--- reaches Space.px(8) past the text on every side.
---   o.text, o.face, o.icon (a symbols-font glyph, optional), o.icon_face, o.on_tap
-function Kit.textLink(o)
-    local pad = Space.px(8)
-    local text = TextWidget:new{ text = o.text, face = o.face, fgcolor = Blitbuffer.COLOR_BLACK }
-    local group = HorizontalGroup:new{ align = "center", text }
-    if o.icon then
-        group[#group + 1] = HorizontalSpan:new{ width = Space.px(6) }
-        group[#group + 1] = TextWidget:new{ text = o.icon, face = o.icon_face,
-            fgcolor = Blitbuffer.COLOR_BLACK }
-    end
-    local gs, ts = group:getSize(), text:getSize()
-    local ul_h = Size.line.medium
-    -- The underline sits just under the text's baseline, inside its box.
-    local ul_y = pad + math.floor((gs.h - ts.h) / 2) + (text.getBaseline and text:getBaseline() or ts.h) + Space.px(2)
-    local w, h = gs.w + 2 * pad, gs.h + 2 * pad
-    local body = WidgetContainer:new{ dimen = Geom:new{ w = w, h = h }, group }
-    function body:paintTo(bb, x, y)
-        group:paintTo(bb, x + pad, y + pad)
-        bb:paintRect(x + pad, y + ul_y, ts.w, ul_h, Blitbuffer.COLOR_BLACK)
-    end
-    return Kit.tapCell(body, w, h, o.on_tap)
+-- headerButton(o) -> a tab's own action (Edit, Refresh, Choose from device):
+-- a small rounded button, label then icon, the same height as a source
+-- switch, so every tab's top row holds the same control. Tabs put these at
+-- the right end of their first row (headerRow).
+--   o.text, o.icon (a symbols-font glyph, optional), o.font_size (the
+--   popup's), o.inverted (busy or on), o.on_tap
+function Kit.headerButton(o)
+    local face = Kit.sourceFace(o.font_size)
+    local probe = TextWidget:new{ text = "Hg", face = face }
+    return Kit.button{
+        text       = o.text,
+        face       = face,
+        icon_glyph = o.icon,
+        icon_face  = o.icon and require("ui/font"):getFace("symbols",
+            math.max(10, (o.font_size or 20) - 2)) or nil,
+        icon_after = true,
+        height     = probe:getSize().h + 2 * Kit.SOURCE_PAD_V,
+        inverted   = o.inverted or false,
+        on_tap     = o.on_tap,
+    }
 end
 
--- wideTile(o) -> a rounded tile o.width wide: an icon then a label, centred.
---   o.icon (a symbols-font glyph), o.icon_face, o.text, o.face,
---   o.pad_v (default Space.px(16)), o.on_tap
-function Kit.wideTile(o)
-    local pad_v = o.pad_v or Space.px(16)
-    local group = HorizontalGroup:new{ align = "center" }
-    if o.icon then
-        group[#group + 1] = TextWidget:new{ text = o.icon, face = o.icon_face,
-            fgcolor = Blitbuffer.COLOR_BLACK }
-        group[#group + 1] = HorizontalSpan:new{ width = Space.px(12) }
+-- headerRow(o) -> a tab's first row: o.left (a heading, a source switch or a
+-- note; optional) at the content edge, o.buttons (headerButtons) at the right
+-- end. Stacks the two when they don't fit side by side.
+--   o.width (the tab's), o.inset (its side padding), o.pad_top, o.pad_bottom
+function Kit.headerRow(o)
+    local VerticalGroup = require("ui/widget/verticalgroup")
+    local VerticalSpan  = require("ui/widget/verticalspan")
+    local content_w = o.width - 2 * o.inset
+    local btns = HorizontalGroup:new{ align = "center" }
+    for i, b in ipairs(o.buttons or {}) do
+        if i > 1 then btns[#btns + 1] = HorizontalSpan:new{ width = Space.px(10) } end
+        btns[#btns + 1] = b
     end
-    local used = 0
-    for _i, wdg in ipairs(group) do used = used + wdg:getSize().w end
-    group[#group + 1] = TextWidget:new{ text = o.text, face = o.face,
-        fgcolor = Blitbuffer.COLOR_BLACK,
-        max_width = o.width - 2 * Kit.BORDER - 2 * Space.px(12) - used }
-    local h = group:getSize().h + 2 * pad_v + 2 * Kit.BORDER
-    local frame = FrameContainer:new{
-        bordersize = Kit.BORDER, radius = Kit.RADIUS, margin = 0, padding = 0,
-        width = o.width, height = h,
-        CenterContainer:new{
-            dimen = Geom:new{ w = o.width - 2 * Kit.BORDER, h = h - 2 * Kit.BORDER },
-            group,
-        },
+    local bw = 0
+    for _i, wdg in ipairs(btns) do bw = bw + wdg:getSize().w end
+    local lw = o.left and o.left:getSize().w or 0
+    local row
+    if o.left and lw + Space.px(10) + bw > content_w then
+        row = VerticalGroup:new{ align = "left",
+            o.left, VerticalSpan:new{ width = Space.px(8) }, btns }
+    else
+        row = HorizontalGroup:new{ align = "center" }
+        if o.left then row[#row + 1] = o.left end
+        row[#row + 1] = HorizontalSpan:new{ width = math.max(0, content_w - lw - bw) }
+        row[#row + 1] = btns
+    end
+    return FrameContainer:new{
+        bordersize = 0, margin = 0,
+        padding_left = o.inset, padding_right = o.inset,
+        padding_top = o.pad_top or Space.px(10), padding_bottom = o.pad_bottom or Space.px(10),
+        row,
     }
-    return Kit.tapCell(frame, o.width, h, o.on_tap)
 end
 
 return Kit

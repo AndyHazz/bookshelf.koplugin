@@ -864,7 +864,7 @@ function ReviewsModal:_buildSourceChips(tab)
     return FrameContainer:new{
         bordersize = 0, margin = 0,
         padding_left = self._side_pad, padding_right = self._side_pad,
-        padding_top = Space.px(16), padding_bottom = Space.px(8),
+        padding_top = Space.px(10), padding_bottom = Space.px(10), -- PopupKit.headerRow's
         seg,
     }
 end

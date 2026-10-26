@@ -49,8 +49,15 @@ t.test("an inverted chip button keeps its rounded corners", function()
     assert(n > 1, "corners outside the radius are not restored")
 end)
 
-t.test("an unreviewed book gets a Write a review tile", function()
-    assert(method(widget, "_buildMyReviewBody"):find('PopupKit.wideTile{', 1, true))
+t.test("every tab's own actions are the kit's header button", function()
+    -- One control for Edit, Refresh, Write a review and the Cover tools, so
+    -- the tabs' top rows match.
+    assert(method(widget, "_buildMyReviewBody"):find("PopupKit.headerButton{", 1, true))
+    assert(method(widget, "_buildReviewsHeader"):find("PopupKit.headerButton{", 1, true))
+    local cover = method(widget, "_buildBookCoverTab")
+    local _, n = cover:gsub("PopupKit%.headerButton{", "")
+    assert(n == 2, "Cover's two tools")
+    assert(widget:find("local btn = PopupKit.headerButton{\n                        text      = tags_editing", 1, true))
 end)
 
 t.done()

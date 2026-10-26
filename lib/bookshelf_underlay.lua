@@ -39,6 +39,9 @@ local _tiles = {}      -- [tile index] = true once copied
 local _tile_area = 0
 local _valid = true
 local _restoring = false
+-- The screen was cleared or turned since the shelf last painted all of it:
+-- what is on it is not the shelf, so there is nothing to keep.
+local _wiped = false
 M._last_restore = 0
 
 local function screen()
@@ -183,6 +186,11 @@ local function paintOver(window, paint, bb, x, y)
     local Screen = screen()
     if not _valid or bb ~= Screen.bb then return paint(window, bb, x, y) end
     if sleepScreen(window) then
+        if _wiped then
+            _valid = false
+            dropPieces()
+            return paint(window, bb, x, y)
+        end
         if not _tiles.all then
             _tiles.all = true
             local ok = pcall(copy, bb, 0, 0, Screen:getWidth(), Screen:getHeight())
@@ -256,6 +264,9 @@ end
 function M.restoring() return _restoring end
 function M._setRestoring(v) _restoring = v and true or false end
 
+--- shelfPainted(): the shelf painted the whole of itself to the screen.
+function M.shelfPainted() _wiped = false end
+
 --- covered() -> true while a tracked window is over the shelf.
 function M.covered() return next(_over) ~= nil end
 
@@ -284,12 +295,26 @@ function M.install(bw)
         end
         return close(um, window, ...)
     end
+    -- An image sleep screen on e-ink clears the screen to white, and one in
+    -- landscape turns it upright, before it shows itself (ui/screensaver):
+    -- its first paint then finds no shelf to copy (issue 551).
+    local Screen = screen()
+    for _i, name in ipairs({ "clear", "setRotationMode" }) do
+        local f = Screen[name]
+        if type(f) == "function" then
+            Screen[name] = function(...)
+                _wiped = true
+                M.invalidate()
+                return f(...)
+            end
+        end
+    end
 end
 
 function M._debugPieces() return _pieces end
 
 function M._reset()
-    dropPieces(); _over = {}; _valid = true; _restoring = false; _bw = nil
+    dropPieces(); _over = {}; _valid = true; _restoring = false; _bw = nil; _wiped = false
 end
 
 return M

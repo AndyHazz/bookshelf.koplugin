@@ -13853,6 +13853,7 @@ function BookshelfWidget:paintTo(bb, x, y)
     local Underlay = require("lib/bookshelf_underlay")
     if Underlay.covered() then Underlay.invalidate() end
     local clip_rects = self:_takePaintClip(bb)
+    if not clip_rects and bb == Screen.bb then Underlay.shelfPainted() end
     -- Diag: one-shot first-paint marker for cold-start traces. The init
     -- log fires at end of :init() (well before the paint actually
     -- happens), and the Bookshelf:show TOTAL fires before UIManager has

@@ -29,6 +29,9 @@ local function newBB(w, h)
     return b
 end
 local Screen = { bb = newBB(W, H), getWidth = function() return W end, getHeight = function() return H end }
+-- What KOReader's sleep screen can do to the screen before it shows itself.
+function Screen:clear() self.bb:fillRect(0, 0, W, H, "white") end
+function Screen:setRotationMode(mode) self.mode = mode end
 package.loaded["device"] = { screen = Screen }
 package.loaded["logger"] = { dbg = function() end, warn = function() end, info = function() end }
 package.loaded["ffi/blitbuffer"] = { new = function(w, h) return newBB(w, h) end }
@@ -149,6 +152,53 @@ t.test("a draw that would pass the limit copies nothing", function()
     U.shown(big); big:paintTo(Screen.bb, x, y)
     eq(#U._debugPieces(), 0, "copied tiles it then threw away")
     assert(not U.closing(big))
+end)
+
+-- Issue 551: an image sleep screen on e-ink clears the screen to white (and a
+-- landscape one turns it upright) BEFORE it shows itself, so its first paint
+-- found no shelf to copy, the wake put a white screen back, and only the
+-- status line was drawn again.
+local function sleepOver()
+    local ss, x, y = window("ScreenSaver", 0, 0, W, H)
+    ss.covers_fullscreen = true
+    U.shown(ss); ss:paintTo(Screen.bb, x, y)
+    return ss
+end
+
+t.test("a sleep screen shown after the screen was cleared isn't kept", function()
+    U._reset()
+    Screen.bb:fillRect(0, 0, W, H, "shelf")
+    U.install({})
+    Screen:clear()
+    local ss = sleepOver()
+    assert(not U.closing(ss), "put a cleared screen back as the shelf")
+end)
+
+t.test("a sleep screen shown after the screen turned isn't kept", function()
+    U._reset()
+    Screen.bb:fillRect(0, 0, W, H, "shelf")
+    U.install({})
+    Screen:setRotationMode(0)
+    local ss = sleepOver()
+    assert(not U.closing(ss), "put the shelf back in the other orientation")
+end)
+
+t.test("once the shelf paints whole again, the sleep screen is kept", function()
+    U._reset()
+    U.install({})
+    Screen:clear()
+    Screen.bb:fillRect(0, 0, W, H, "shelf")
+    U.shelfPainted()
+    local ss = sleepOver()
+    assert(U.closing(ss), "nothing kept after the shelf painted again")
+    eq(Screen.bb.px[50][50], "shelf")
+end)
+
+t.test("the shelf reports its whole paints to the screen", function()
+    local src = io.open("lib/bookshelf_widget.lua"):read("*a")
+    local i = src:find("local clip_rects = self:_takePaintClip(bb)", 1, true)
+    assert(i, "_takePaintClip call moved")
+    assert(src:sub(i, i + 400):find("Underlay.shelfPainted()", 1, true), "a whole paint isn't reported")
 end)
 
 t.test("the shelf lets only the restoring close go unpainted", function()

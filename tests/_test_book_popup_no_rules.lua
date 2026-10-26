@@ -32,12 +32,21 @@ t.test("source switches and the status control are the kit's rounded control", f
     assert(method(modal, "_buildSourceChips"):find("PopupKit.segmented{", 1, true))
 end)
 
-t.test("an editable Tags section carries its Edit in the heading", function()
-    assert(method(widget, "_sectionHeadingBar"):find("action", 1, true))
-    assert(widget:find("headingWithEdit(sec.title, editCollections)", 1, true))
-    assert(widget:find("headingWithEdit(sec.title, editGenres)", 1, true))
-    -- An underlined link, not a bordered pill a tag could be mistaken for.
-    assert(widget:find("local link = PopupKit.textLink{", 1, true))
+t.test("the Tags tab has one Edit for the whole tab, not one per section", function()
+    -- One button toggles the tab's edit mode; editing puts a cross in each
+    -- removable tag and "+ Add" after each editable group.
+    assert(widget:find("local tags_editing = false", 1, true))
+    assert(not widget:find("headingWithEdit", 1, true))
+    assert(widget:find("pillsFrame(editSpecs(specs or {}, leaveCollection, editCollections))", 1, true))
+    assert(widget:find("function(it) applyEdit(withoutGenre(it.label)) end, editGenres))", 1, true))
+end)
+
+t.test("an inverted chip button keeps its rounded corners", function()
+    local chip = read("lib/bookshelf_chip_button.lua")
+    local paint = assert(chip:match("function ChipFrame:paintTo.-\nend\n"))
+    -- invertRect once for the box, then again for the corners.
+    local _, n = paint:gsub("invertRect", "")
+    assert(n > 1, "corners outside the radius are not restored")
 end)
 
 t.test("an unreviewed book gets a Write a review tile", function()

@@ -32,7 +32,21 @@ local ChipFrame = FrameContainer:extend{}
 function ChipFrame:paintTo(bb, x, y)
     FrameContainer.paintTo(self, bb, x, y)
     if self.inverted and self.dimen then
-        bb:invertRect(x, y, self.dimen.w, self.dimen.h)
+        local w, h = self.dimen.w, self.dimen.h
+        bb:invertRect(x, y, w, h)
+        -- Flip the corners outside the rounded border back, or the inverted
+        -- box shows square black corners past its own outline.
+        local r = math.min(self.radius or 0, math.floor(w / 2), math.floor(h / 2))
+        for i = 0, r - 1 do
+            local dy = r - i - 0.5
+            local out = math.floor(r - math.sqrt(r * r - dy * dy) + 0.5)
+            if out > 0 then
+                bb:invertRect(x, y + i, out, 1)
+                bb:invertRect(x + w - out, y + i, out, 1)
+                bb:invertRect(x, y + h - 1 - i, out, 1)
+                bb:invertRect(x + w - out, y + h - 1 - i, out, 1)
+            end
+        end
     end
 end
 

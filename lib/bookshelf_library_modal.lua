@@ -327,7 +327,7 @@ function LibraryModal:_dismissKeyboard()
         -- which is the visible "focus border" the user is asking for.
         -- Setting input.focused = false alone wouldn't update the color.
         input:unfocus()
-        UIManager:setDirty(self, "ui")
+        self:_dirty()
     end
 end
 
@@ -633,7 +633,7 @@ function LibraryModal:_renderSearchInput(content_width)
             if not this.focused or this._frame_textwidget.color ~= Blitbuffer.COLOR_BLACK then
                 this:focus()
             end
-            UIManager:setDirty(self, "ui")
+            self:_dirty()
             return r
         end
         -- Slightly rounded corners on the input border distinguish the
@@ -1342,7 +1342,19 @@ function LibraryModal:refresh()
     -- Self-bounded dirty rect is sufficient now that the modal is a fixed,
     -- content-derived size. setDirty(nil, ...) was triggering full-screen
     -- repaints that stacked ~1s each on e-ink.
-    UIManager:setDirty(self, "ui")
+    self:_dirty()
+end
+
+-- _dirty(): repaint the modal and refresh only its own box. Naming the window
+-- limits what is painted, not what is refreshed: with no region the "ui"
+-- covered the whole screen, and UIManager merged it with the flashui of a
+-- dialog closing as the modal opened (Filters > Genre) into one whole-screen
+-- flash.
+function LibraryModal:_dirty()
+    UIManager:setDirty(self, function()
+        local r = self._shown_rect
+        return "ui", r and Geom:new{ x = r.x, y = r.y, w = r.w, h = r.h } or nil
+    end)
 end
 
 return LibraryModal

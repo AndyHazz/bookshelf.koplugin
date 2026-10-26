@@ -759,6 +759,21 @@ function Editor:editTab(tab_id, opts)
     local frame
     local current_bt   -- the ButtonTable on screen; rebuilt on every edit
 
+    -- editorRefresh() -> "ui" over the editor's own box, for setDirty to
+    -- resolve after the paint. With no region a "ui" covers the whole screen,
+    -- and UIManager merges it with the flashui of a picker closing over the
+    -- editor (Filters, Shelf style) into one whole-screen flash (maintainer,
+    -- PW5). frame.dimen moves with each paint but keeps its first size, so
+    -- the box is the larger of that and the size now: the editor is anchored
+    -- at its top, so that covers it both grown and shrunk.
+    local function editorRefresh()
+        local d = frame and frame.dimen
+        if not d then return "ui" end
+        local size = frame:getSize()
+        return "ui", Geom:new{ x = d.x, y = d.y,
+                               w = math.max(d.w, size.w), h = math.max(d.h, size.h) }
+    end
+
     -- rebuild() -- swap frame[1] in-place so the button labels and enabled
     -- states refresh without touching the MovableContainer. The anchor-based
     -- positioning set on first paint is therefore preserved across rebuilds.
@@ -1129,13 +1144,8 @@ function Editor:editTab(tab_id, opts)
                     -- back on the window stack, taking taps, without ever
                     -- painting it. It read as an invisible dialog swallowing
                     -- the screen: a tap in the middle opened the source menu.
-                    -- Over its own frame, as first shown: with no region the
-                    -- "ui" covered the whole screen, and UIManager merged it
-                    -- with Shelf style's flashui on close into one
-                    -- whole-screen flash (maintainer, PW5).
-                    show = function()
-                        UIManager:show(dialog, function() return "ui", frame.dimen end)
-                    end,
+                    -- Over its own box (editorRefresh), not the whole screen.
+                    show = function() UIManager:show(dialog, editorRefresh) end,
                     -- A catalogue gets Default and List only; see above.
                     is_opds = is_opds_src or is_paged_src,
                     -- The live shelf, so the density nudges can seed from the
@@ -1407,7 +1417,7 @@ function Editor:editTab(tab_id, opts)
         -- with the picker's own close refresh it became a whole-screen flash
         -- on every tap. The re-show that follows a picker repaints anyway.
         if dialog and UIManager:isWidgetShown(dialog) then
-            UIManager:setDirty(dialog, "ui")
+            UIManager:setDirty(dialog, editorRefresh)
         end
     end
 

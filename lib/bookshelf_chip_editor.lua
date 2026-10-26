@@ -1129,7 +1129,13 @@ function Editor:editTab(tab_id, opts)
                     -- back on the window stack, taking taps, without ever
                     -- painting it. It read as an invisible dialog swallowing
                     -- the screen: a tap in the middle opened the source menu.
-                    show = function() UIManager:show(dialog, "ui") end,
+                    -- Over its own frame, as first shown: with no region the
+                    -- "ui" covered the whole screen, and UIManager merged it
+                    -- with Shelf style's flashui on close into one
+                    -- whole-screen flash (maintainer, PW5).
+                    show = function()
+                        UIManager:show(dialog, function() return "ui", frame.dimen end)
+                    end,
                     -- A catalogue gets Default and List only; see above.
                     is_opds = is_opds_src or is_paged_src,
                     -- The live shelf, so the density nudges can seed from the

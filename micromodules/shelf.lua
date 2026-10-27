@@ -360,7 +360,7 @@ local function showSettings(ctx)
             retext("rows", rowsText())
         end
     end
-    dialog = ButtonDialog:new{
+    dialog = ButtonDialog:new(require("lib/bookshelf_module_kit").withClose{
         title = _("Shelf"), title_align = "center", width_factor = 0.8,
         buttons = {
             -- Which shelf: a new one of the module's own, or one of the main
@@ -410,7 +410,7 @@ local function showSettings(ctx)
                 end },
             },
         },
-    }
+    })
     UIManager:show(dialog)
 end
 

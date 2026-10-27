@@ -95,10 +95,10 @@ local function showSettings(ctx)
             end,
         }
     end
-    dialog = ButtonDialog:new{
+    dialog = ButtonDialog:new(require("lib/bookshelf_module_kit").withClose{
         title = _("Books to show"), title_align = "center", width_factor = 0.6,
         buttons = { row },
-    }
+    })
     UIManager:show(dialog)
 end
 

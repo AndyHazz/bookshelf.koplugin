@@ -564,7 +564,7 @@ local function showSettings(ctx)
         }
     end
 
-    dialog = ButtonDialog:new{
+    dialog = ButtonDialog:new(require("lib/bookshelf_module_kit").withClose{
         title        = _("Reading goals"),
         title_align  = "center",
         width_factor = 0.85,
@@ -599,7 +599,7 @@ local function showSettings(ctx)
               customTargetBtn(_("Yearly challenge"), _("books"), readYearly, function(v) S.save(KEY_YEARLY, v) end) },
             { otherBooksBtn() },
         },
-    }
+    })
     UIManager:show(dialog)
 end
 

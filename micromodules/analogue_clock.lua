@@ -189,7 +189,7 @@ local function showSettings(ctx)
             end,
         }
     end
-    dialog = ButtonDialog:new{
+    dialog = ButtonDialog:new(require("lib/bookshelf_module_kit").withClose{
         title        = _("Analog clock"),
         title_align  = "center",
         width_factor = 0.7,
@@ -207,7 +207,7 @@ local function showSettings(ctx)
                 },
             },
         },
-    }
+    })
     UIManager:show(dialog)
 end
 

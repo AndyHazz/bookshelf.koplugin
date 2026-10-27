@@ -289,7 +289,7 @@ local function showSettings(ctx)
             end,
         }
     end
-    dialog = ButtonDialog:new{
+    dialog = ButtonDialog:new(require("lib/bookshelf_module_kit").withClose{
         title        = _("Random book"),
         title_align  = "center",
         width_factor = 0.65,
@@ -305,7 +305,7 @@ local function showSettings(ctx)
             { tapBtn(_("Show book in top panel"), "preview") },
             { tapBtn(_("Open book directly"), "open") },
         },
-    }
+    })
     UIManager:show(dialog)
 end
 

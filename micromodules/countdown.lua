@@ -135,7 +135,7 @@ return {
         local function close(fn)
             return function() UIManager:close(dialog); if fn then fn() end end
         end
-        dialog = ButtonDialog:new{
+        dialog = ButtonDialog:new(require("lib/bookshelf_module_kit").withClose{
             title = _("Countdown"), title_align = "center", width_factor = 0.7,
             buttons = {
                 {{ text = _("Change date\xE2\x80\xA6"), callback = close(function()
@@ -147,7 +147,7 @@ return {
                         function(label) ctx.config:set("label", label) end)
                 end) }},
             },
-        }
+        })
         UIManager:show(dialog)
     end,
 }

@@ -51,7 +51,7 @@ local function showSettings(ctx)
             end,
         }
     end
-    dialog = ButtonDialog:new{
+    dialog = ButtonDialog:new(require("lib/bookshelf_module_kit").withClose{
         title        = _("Clock"),
         title_align  = "center",
         width_factor = 0.65,
@@ -60,7 +60,7 @@ local function showSettings(ctx)
             { fmtBtn(_("12-hour"), "12") },
             { fmtBtn(_("24-hour"), "24") },
         },
-    }
+    })
     UIManager:show(dialog)
 end
 

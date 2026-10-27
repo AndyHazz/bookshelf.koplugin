@@ -75,7 +75,7 @@ local function showSettings(ctx)
     local function header(label)
         return { text = label, enabled = false }
     end
-    dialog = ButtonDialog:new{
+    dialog = ButtonDialog:new(require("lib/bookshelf_module_kit").withClose{
         title        = _("Reading streak"),
         title_align  = "center",
         width_factor = 0.65,
@@ -84,7 +84,7 @@ local function showSettings(ctx)
             { radio(_("Reading insight"), "reading_progress") },
             { radio(_("Reading calendar"), "stats_calendar_view") },
         },
-    }
+    })
     UIManager:show(dialog)
 end
 

@@ -260,10 +260,10 @@ return {
                 end, { dynamic = false, svg = true })
             end) } },
         }
-        dialog = ButtonDialog:new{
+        dialog = ButtonDialog:new(require("lib/bookshelf_module_kit").withClose{
             title = _("Action settings"), title_align = "center",
             width_factor = 0.75, buttons = rows,
-        }
+        })
         UIManager:show(dialog)
     end,
 }

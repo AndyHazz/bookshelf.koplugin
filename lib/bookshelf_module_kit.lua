@@ -98,6 +98,19 @@ function Kit.settingsReopen(ctx, dialog, show_settings)
     if show_settings then show_settings(ctx) end
 end
 
+-- Kit.withClose(spec) -> a module settings ButtonDialog's spec with a Close
+-- row at the foot: tapping outside closed it, but nothing on it said so.
+-- Close is the same as that tap (onClose, so a tap_close_callback runs).
+-- ButtonDialog:new keeps the spec table as the dialog, hence spec:onClose.
+function Kit.withClose(spec)
+    local _ = require("lib/bookshelf_i18n").gettext
+    spec.buttons = spec.buttons or {}
+    table.insert(spec.buttons, { { text = _("Close"), callback = function()
+        if spec.onClose then spec:onClose() else require("ui/uimanager"):close(spec) end
+    end } })
+    return spec
+end
+
 -- Kit.radioRow{ label=, active=, on_pick=, toggle= } -> ButtonDialog row.
 -- Checkmark-prefixed radio row (U+2713 when active, two-space placeholder
 -- otherwise, so labels stay aligned). Tapping the already-active row is a

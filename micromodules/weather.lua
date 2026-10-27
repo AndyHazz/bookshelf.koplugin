@@ -235,7 +235,7 @@ local function showSettings(ctx)
     local city = Store.read(KEY_CITY, "")
     local unit = Store.read(KEY_UNIT, "celsius")
 
-    dialog = ButtonDialog:new{
+    dialog = ButtonDialog:new(require("lib/bookshelf_module_kit").withClose{
         title       = _("Weather settings"),
         title_align = "center",
         buttons = {
@@ -322,7 +322,7 @@ local function showSettings(ctx)
                 },
             },
         },
-    }
+    })
     UIManager:show(dialog)
 end
 

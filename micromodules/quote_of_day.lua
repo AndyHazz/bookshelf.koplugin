@@ -224,12 +224,12 @@ showSettings = function(ctx)
                 callback = open(function() coloursDialog(ctx, colours) end) } }
         end
     end
-    dialog = ButtonDialog:new{
+    dialog = ButtonDialog:new(require("lib/bookshelf_module_kit").withClose{
         title        = _("Quote of the day"),
         title_align  = "center",
         width_factor = 0.75,
         buttons      = rows,
-    }
+    })
     UIManager:show(dialog)
 end
 

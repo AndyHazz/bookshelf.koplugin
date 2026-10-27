@@ -468,7 +468,7 @@ return {
             local lang_val = Store.read(KEY_API_LANG) or "en"
             local lang_label = (lang_val == "pt") and "Português" or "English"
 
-            dialog = ButtonDialog:new{
+            dialog = ButtonDialog:new(require("lib/bookshelf_module_kit").withClose{
                 title = _("Trivia Settings"),
                 title_align = "center",
                 use_info_style = false,
@@ -483,7 +483,7 @@ return {
                     { { text = _("Difficulty") .. ": " .. diff_label, font_bold = false, callback = close(function() showMultiSelectMenu(_("Difficulty"), KEY_DIFFICULTY, DIFFICULTIES) end) } },
                     { { text = _("Type") .. ": " .. type_label, font_bold = false, callback = close(function() showMultiSelectMenu(_("Type"), KEY_TYPE, TYPES) end) } },
                 }
-            }
+            })
             UIManager:show(dialog)
         end
         showRoot()

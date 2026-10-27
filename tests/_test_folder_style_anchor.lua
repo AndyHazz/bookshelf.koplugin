@@ -164,6 +164,17 @@ local env = {
     end,
 }
 env._G = env
+-- Outside a shelf editor, Editor._menu is a ButtonDialog, shown.
+env.Editor = {
+    _menu = function(spec)
+        local d = env.ButtonDialog:new(spec)
+        if env.UIManager and env.UIManager.show then env.UIManager:show(d) end
+        return d
+    end,
+    _closeMenu = function(d)
+        if env.UIManager and env.UIManager.close then env.UIManager:close(d) end
+    end,
+}
 -- lib/bookshelf_space's rule, against the stub screen above.
 env.Space = { px = function(n)
     return math.min(env.Screen:scaleBySize(n),

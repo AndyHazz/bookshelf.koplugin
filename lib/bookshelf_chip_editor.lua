@@ -479,6 +479,25 @@ function Editor._sameValue(a, b)
     return true
 end
 
+-- _menu(spec) -> a sub-menu (ButtonDialog's options). While a shelf
+-- editor is open it is a page inside the editor (Editor._host: a heading
+-- and a back chevron, the rows as the editor's cards), not a dialog over
+-- it; otherwise a ButtonDialog, shown. _closeMenu(d) closes either.
+function Editor._menu(spec)
+    if Editor._host then return Editor._host.push(spec) end
+    local d = require("ui/widget/buttondialog"):new(spec)
+    UIManager:show(d)
+    return d
+end
+
+function Editor._closeMenu(d)
+    if type(d) == "table" and d._page then
+        if Editor._host then Editor._host.close(d) end
+        return
+    end
+    if d then UIManager:close(d) end
+end
+
 function Editor:editTab(tab_id, opts)
     opts = opts or {}
     local target
@@ -681,7 +700,7 @@ function Editor:editTab(tab_id, opts)
                 text     = (here and "\u{2713} " or "") .. name,
                 enabled  = not here,
                 callback = function()
-                    UIManager:close(picker)
+                    Editor._closeMenu(picker)
                     TabModel.flush()
                     local tabs = TabModel.load()
                     if not TabModel.moveTree(tabs, tab_id, t.id) then return end
@@ -690,11 +709,10 @@ function Editor:editTab(tab_id, opts)
                 end,
             }}
         end
-        picker = ButtonDialog:new{
+        picker = Editor._menu{
             title = _("Move to"), title_align = "center",
             buttons = rows,
         }
-        UIManager:show(picker)
     end
 
     -- A confirmed arrangement of the collection, from the sort picker's "Edit
@@ -774,11 +792,261 @@ function Editor:editTab(tab_id, opts)
                                w = math.max(d.w, size.w), h = math.max(d.h, size.h) }
     end
 
+    -- markDirty(): repaint the editor after frame[1] changed. When it came out
+    -- smaller (a short page after a long one), what it covered and no longer
+    -- does is repainted from the windows underneath, or the old rows stay on
+    -- screen below it; and frame.dimen is dropped so a tap outside is judged
+    -- by the new size.
+    local last_rect
+    local function markDirty()
+        if not (dialog and UIManager:isWidgetShown(dialog)) then return end
+        local d = frame.dimen
+        local size = frame:getSize()
+        if d and d.x then
+            local now = { x = d.x, y = d.y, w = size.w, h = size.h }
+            -- Before the first change: the size it was first painted at.
+            local prev = last_rect or { x = d.x, y = d.y, w = d.w, h = d.h }
+            if prev and (prev.h > now.h or prev.w > now.w) then
+                UIManager:setDirty("all", "ui", Geom:new{ x = prev.x, y = prev.y, w = prev.w, h = prev.h })
+            end
+            if prev and (prev.h ~= now.h or prev.w ~= now.w) then frame.dimen = nil end
+            last_rect = now
+        end
+        UIManager:setDirty(dialog, editorRefresh)
+    end
+
     -- rebuild() -- swap frame[1] in-place so the button labels and enabled
     -- states refresh without touching the MovableContainer. The anchor-based
     -- positioning set on first paint is therefore preserved across rebuilds.
     -- Declared above, with sourceChosen, which calls it.
+    -- ── The popup style pieces (STYLE.md), for the editor's front page and
+    -- for its sub-menus, which open as pages inside it (Editor._menu). ──────
+    local Kit = require("lib/bookshelf_popup_kit")
+    local FocusManager = require("ui/widget/focusmanager")
+    local TextWidget = require("lib/bookshelf_colour_text")
+    local Font = require("ui/font")
+    local LeftContainer = require("ui/widget/container/leftcontainer")
+    local HorizontalSpan = require("ui/widget/horizontalspan")
+    local VerticalSpan = require("ui/widget/verticalspan")
+    local FS = 20
+    local inset = Space.px(16)
+    local content_w = dialog_w - 2 * inset
+    local function cellText(c)
+        if c.text_func then return c.text_func() end
+        return c.text or ""
+    end
+    local function cellEnabled(c)
+        if c.enabled_func then return c.enabled_func() end
+        return c.enabled ~= false
+    end
+    -- card(c, w, as_choice) -> body, pad, enabled, on. "Heading: value"
+    -- splits into a grey heading over the value. A leading tick (or radio
+    -- dot) is a checkbox on the front page; on a sub-menu's page it marks
+    -- the choice in use, which is black (as_choice).
+    local value_face = Font:getFace("cfont", FS)
+    local CHECKED, UNCHECKED = "\xEE\xA0\xB1", "\xEE\xA0\xB0"
+    local function card(c, w, as_choice)
+        local text = cellText(c)
+        local enabled = cellEnabled(c)
+        local pad = Space.px(12)
+        local inner_w = w - 2 * pad
+        local tick = text:match("^\xE2\x9C\x93%s+(.*)$") or text:match("^\xE2\x97\x8F%s+(.*)$")
+        -- Unticked: a hollow dot, or blank padding (spaces, or an em space
+        -- as Face out pads its labels).
+        local untick = not tick and (text:match("^\xE2\x97\x8B%s+(.*)$") or text:match("^%s%s+(.*)$")
+            or text:match("^\xE2\x80\x83%s*(.*)$"))
+        local on = as_choice and tick ~= nil
+        local ink = (on and Blitbuffer.COLOR_WHITE)
+            or (enabled and Blitbuffer.COLOR_BLACK) or Blitbuffer.COLOR_DARK_GRAY
+        if as_choice then text = tick or untick or text end
+        local body
+        if not as_choice and (tick or untick) then
+            body = HorizontalGroup:new{ align = "center",
+                TextWidget:new{ text = tick and CHECKED or UNCHECKED,
+                    face = Font:getFace("symbols", FS + 4), fgcolor = ink },
+                HorizontalSpan:new{ width = Space.px(8) },
+                TextWidget:new{ text = tick or untick, face = value_face, fgcolor = ink,
+                    max_width = inner_w - Space.px(40) } }
+        else
+            local head, value = text:match("^(.-):%s+(.+)$")
+            if head and #head <= 24 then
+                body = VerticalGroup:new{ align = "left",
+                    Kit.heading(head, FS),
+                    VerticalSpan:new{ width = Space.px(4) },
+                    TextWidget:new{ text = value, face = value_face, bold = true,
+                        fgcolor = ink, max_width = inner_w } }
+            else
+                body = TextWidget:new{ text = text, face = value_face, bold = not as_choice or on,
+                    fgcolor = ink, max_width = inner_w }
+            end
+        end
+        return body, pad, enabled, on
+    end
+    -- buildCards(rows, layout, as_choice) -> the rows as cards (a row of
+    -- notes only, nothing to tap, as grey hint text); each row's cards are
+    -- added to layout for the keys.
+    local function buildCards(rows, layout, as_choice)
+        local rows_vg = VerticalGroup:new{ align = "left" }
+        local gap = Space.px(10)
+        for ri, row in ipairs(rows) do
+            if ri > 1 then rows_vg[#rows_vg + 1] = VerticalSpan:new{ width = gap } end
+            local all_notes = true
+            for _i, c in ipairs(row) do
+                if c.callback or cellEnabled(c) then all_notes = false end
+            end
+            if all_notes then
+                local t = {}
+                for _i, c in ipairs(row) do t[#t + 1] = cellText(c) end
+                rows_vg[#rows_vg + 1] = Kit.hintText(table.concat(t, "  "), FS, content_w)
+            else
+                local n = #row
+                local w = math.floor((content_w - (n - 1) * gap) / n)
+                local built, h = {}, 0
+                for i, c in ipairs(row) do
+                    local body, pad, enabled, on = card(c, w, as_choice)
+                    built[i] = { body = body, pad = pad, enabled = enabled, on = on, c = c }
+                    h = math.max(h, body:getSize().h + 2 * pad)
+                end
+                local hg, focus = HorizontalGroup:new{ align = "top" }, {}
+                for i, b in ipairs(built) do
+                    if i > 1 then hg[#hg + 1] = HorizontalSpan:new{ width = gap } end
+                    local cw = (i == n) and (content_w - (n - 1) * (w + gap)) or w
+                    local frame_c = Kit.card{ width = cw, height = h, on = b.on,
+                        padding_left = b.pad, padding_right = b.pad,
+                        LeftContainer:new{ dimen = Geom:new{ w = cw - 2 * b.pad, h = h }, b.body } }
+                    local cell = Kit.tapCell(frame_c, cw, h, b.c.callback, b.enabled)
+                    cell.focus_radius = Kit.RADIUS
+                    hg[#hg + 1], focus[#focus + 1] = cell, cell
+                end
+                rows_vg[#rows_vg + 1] = hg
+                layout[#layout + 1] = focus
+            end
+        end
+        return rows_vg
+    end
+
+    -- Sub-menus as pages inside the editor (Editor._menu while it is open):
+    -- the newest on top, a breadcrumb title and a back chevron. A menu's
+    -- Close, Back or Cancel is that chevron (its callback runs).
+    local pages = {}
+    local renderPage
+    local function goBack()
+        local page = pages[#pages]
+        if not page then return end
+        if page.back then
+            page.back()
+        elseif page.spec.tap_close_callback then
+            pcall(page.spec.tap_close_callback)
+        end
+        for i = #pages, 1, -1 do
+            if pages[i] == page then table.remove(pages, i) end
+        end
+        rebuild()
+    end
+    local host = {
+        push = function(spec)
+            local page = { _page = true, spec = spec }
+            -- What a menu that updates itself in place (Face out) calls on a
+            -- ButtonDialog: its buttons by id, and the box it fills.
+            local queued = false
+            local function redraw()
+                if queued then return end
+                queued = true
+                UIManager:nextTick(function()
+                    queued = false
+                    if pages[#pages] == page then rebuild() end
+                end)
+            end
+            function page:getButtonById(id)
+                for _r, row in ipairs(spec.buttons or {}) do
+                    for _i, b in ipairs(row) do
+                        if b.id == id then
+                            return {
+                                setText = function(_s, text) b.text, b.text_func = text, nil; redraw() end,
+                                enable  = function() b.enabled, b.enabled_func = true, nil; redraw() end,
+                                disable = function() b.enabled, b.enabled_func = false, nil; redraw() end,
+                            }
+                        end
+                    end
+                end
+            end
+            page.movable = setmetatable({}, { __index = function(_t, k)
+                if k == "dimen" then return frame and frame.dimen end
+            end })
+            pages[#pages + 1] = page
+            rebuild()
+            return page
+        end,
+        close = function(page)
+            for i = #pages, 1, -1 do
+                if pages[i] == page then table.remove(pages, i) end
+            end
+            rebuild()
+        end,
+    }
+    renderPage = function(page)
+        local spec = page.spec
+        local rows, back = {}, nil
+        for _r, row in ipairs(spec.buttons or {}) do
+            local out = {}
+            for _i, b in ipairs(row) do
+                local t = cellText(b)
+                if b.callback and (t == _("Close") or t == _("Back") or t == _("Cancel")) then
+                    back = back or b.callback
+                else
+                    out[#out + 1] = b
+                end
+            end
+            if #out > 0 then rows[#rows + 1] = out end
+        end
+        page.back = back
+        -- A long list of single-card rows (Filters) two to a row, so the
+        -- page fits the screen.
+        local singles = #rows > 4
+        for _i, r in ipairs(rows) do if #r ~= 1 then singles = false end end
+        if singles then
+            local paired = {}
+            for i = 1, #rows, 2 do
+                paired[#paired + 1] = { rows[i][1], rows[i + 1] and rows[i + 1][1] or nil }
+            end
+            rows = paired
+        end
+        local layout = {}
+        local vg = VerticalGroup:new{ align = "left" }
+        for _i, wdg in ipairs(spec._added_widgets or {}) do
+            -- A help paragraph laid out for the dialog's width: wrapped again
+            -- to the editor's.
+            if type(wdg.text) == "string" and wdg.face and wdg.width then
+                wdg = require("ui/widget/textboxwidget"):new{ text = wdg.text,
+                    face = wdg.face, fgcolor = wdg.fgcolor, width = content_w }
+            end
+            vg[#vg + 1] = wdg
+            vg[#vg + 1] = VerticalSpan:new{ width = Space.px(10) }
+        end
+        vg[#vg + 1] = buildCards(rows, layout, true)
+        local crumbs = { (draft.label and draft.label ~= "") and draft.label or _("Shelf") }
+        for _i, p in ipairs(pages) do crumbs[#crumbs + 1] = p.spec.title or "\xE2\x80\xA6" end
+        local title_bar = TitleBar:new{
+            width            = dialog_w,
+            title            = table.concat(crumbs, " \xE2\x80\xBA "),
+            with_bottom_line = true,
+            bottom_v_padding = 0,
+            left_icon        = "chevron.left",
+            left_icon_tap_callback = goBack,
+            close_callback   = function() finish() end,
+        }
+        local body = FocusManager:new{
+            layout = layout,
+            show_parent = dialog,
+            FrameContainer:new{ bordersize = 0, padding = inset, vg },
+        }
+        current_bt = body
+        frame[1] = VerticalGroup:new{ align = "left", title_bar, body }
+        markDirty()
+    end
+
     rebuild = function()
+        if #pages > 0 then return renderPage(pages[#pages]) end
         -- Reload tabs for the move buttons so enabled state is always current.
         local current_tabs = TabModel.load()
         local current_idx = 0
@@ -1133,7 +1401,7 @@ function Editor:editTab(tab_id, opts)
                 end, {
                     -- Stand the editor down while the picker is up: it sits
                     -- over the shelf rows whose tiles are being previewed.
-                    hide = function() UIManager:close(dialog) end,
+                    -- No hide/show: the picker is a page inside the editor now.
                     -- "ui", not a bare show. UIManager:show passes its
                     -- refreshtype straight to setDirty, which only enqueues a
                     -- refresh when it HAS one - so a bare show put the editor
@@ -1141,7 +1409,7 @@ function Editor:editTab(tab_id, opts)
                     -- painting it. It read as an invisible dialog swallowing
                     -- the screen: a tap in the middle opened the source menu.
                     -- Over its own box (editorRefresh), not the whole screen.
-                    show = function() UIManager:show(dialog, editorRefresh) end,
+
                     -- A catalogue gets Default and List only; see above.
                     is_opds = is_opds_src or is_paged_src,
                     -- The live shelf, so the density nudges can seed from the
@@ -1372,24 +1640,6 @@ function Editor:editTab(tab_id, opts)
                 for _r, r in ipairs(src_rows) do middle[#middle + 1] = r end
             elseif #row > 0 then middle[#middle + 1] = row end
         end
-        local Kit = require("lib/bookshelf_popup_kit")
-        local FocusManager = require("ui/widget/focusmanager")
-        local TextWidget = require("lib/bookshelf_colour_text")
-        local Font = require("ui/font")
-        local LeftContainer = require("ui/widget/container/leftcontainer")
-        local HorizontalSpan = require("ui/widget/horizontalspan")
-        local VerticalSpan = require("ui/widget/verticalspan")
-        local FS = 20
-        local inset = Space.px(16)
-        local content_w = dialog_w - 2 * inset
-        local function cellText(c)
-            if c.text_func then return c.text_func() end
-            return c.text or ""
-        end
-        local function cellEnabled(c)
-            if c.enabled_func then return c.enabled_func() end
-            return c.enabled ~= false
-        end
         local function stripButton(c)
             if c.font_face == "symbols" then
                 return Kit.iconButton{ icon = cellText(c), font_size = FS,
@@ -1417,78 +1667,7 @@ function Editor:editTab(tab_id, opts)
         local strip = Kit.headerRow{ width = dialog_w, inset = inset,
             left = left, buttons = right and { right } or nil }
 
-        -- A setting's card: "Heading: value" splits into a grey heading over
-        -- the value; a leading tick is a checkbox.
-        local value_face = Font:getFace("cfont", FS)
-        local CHECKED, UNCHECKED = "\xEE\xA0\xB1", "\xEE\xA0\xB0"
-        local function card(c, w)
-            local text = cellText(c)
-            local enabled = cellEnabled(c)
-            local ink = enabled and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_DARK_GRAY
-            local pad = Space.px(12)
-            local inner_w = w - 2 * pad
-            local body
-            local tick = text:match("^\xE2\x9C\x93 (.*)$")
-            local untick = not tick and text:match("^  (.*)$")
-            if tick or untick then
-                body = HorizontalGroup:new{ align = "center",
-                    TextWidget:new{ text = tick and CHECKED or UNCHECKED,
-                        face = Font:getFace("symbols", FS + 4), fgcolor = ink },
-                    HorizontalSpan:new{ width = Space.px(8) },
-                    TextWidget:new{ text = tick or untick, face = value_face, fgcolor = ink,
-                        max_width = inner_w - Space.px(40) } }
-            else
-                local head, value = text:match("^(.-):%s+(.+)$")
-                if head and #head <= 24 then
-                    body = VerticalGroup:new{ align = "left",
-                        Kit.heading(head, FS),
-                        VerticalSpan:new{ width = Space.px(4) },
-                        TextWidget:new{ text = value, face = value_face, bold = true,
-                            fgcolor = ink, max_width = inner_w } }
-                else
-                    body = TextWidget:new{ text = text, face = value_face, bold = true,
-                        fgcolor = ink, max_width = inner_w }
-                end
-            end
-            return body, pad, enabled
-        end
-        local rows_vg = VerticalGroup:new{ align = "left" }
-        local gap = Space.px(10)
-        for ri, row in ipairs(middle) do
-            if ri > 1 then rows_vg[#rows_vg + 1] = VerticalSpan:new{ width = gap } end
-            -- A row of notes only (nothing to tap): hint text.
-            local all_notes = true
-            for _i, c in ipairs(row) do
-                if c.callback or cellEnabled(c) then all_notes = false end
-            end
-            if all_notes then
-                local t = {}
-                for _i, c in ipairs(row) do t[#t + 1] = cellText(c) end
-                rows_vg[#rows_vg + 1] = Kit.hintText(table.concat(t, "  "), FS, content_w)
-            else
-                local n = #row
-                local w = math.floor((content_w - (n - 1) * gap) / n)
-                local built, h = {}, 0
-                for i, c in ipairs(row) do
-                    local body, pad, enabled = card(c, w)
-                    built[i] = { body = body, pad = pad, enabled = enabled, c = c }
-                    h = math.max(h, body:getSize().h + 2 * pad)
-                end
-                local hg, focus = HorizontalGroup:new{ align = "top" }, {}
-                for i, b in ipairs(built) do
-                    if i > 1 then hg[#hg + 1] = HorizontalSpan:new{ width = gap } end
-                    local cw = (i == n) and (content_w - (n - 1) * (w + gap)) or w
-                    local frame_c = Kit.card{ width = cw, height = h,
-                        padding_left = b.pad, padding_right = b.pad,
-                        LeftContainer:new{ dimen = Geom:new{ w = cw - 2 * b.pad, h = h }, b.body } }
-                    local cell = Kit.tapCell(frame_c, cw, h, b.c.callback, b.enabled)
-                    cell.focus_radius = Kit.RADIUS
-                    hg[#hg + 1], focus[#focus + 1] = cell, cell
-                end
-                rows_vg[#rows_vg + 1] = hg
-                layout[#layout + 1] = focus
-            end
-        end
+        local rows_vg = buildCards(middle, layout, false)
 
         -- One FocusManager over the strip and the cards, so keys move through
         -- them (GitHub issue 361); it repaints the dialog when focus moves.
@@ -1537,9 +1716,7 @@ function Editor:editTab(tab_id, opts)
         -- a FULL-SCREEN ui refresh for a widget nobody could see, and merged
         -- with the picker's own close refresh it became a whole-screen flash
         -- on every tap. The re-show that follows a picker repaints anyway.
-        if dialog and UIManager:isWidgetShown(dialog) then
-            UIManager:setDirty(dialog, editorRefresh)
-        end
+        markDirty()
     end
 
     -- Build frame shell once; rebuild() will fill frame[1].
@@ -1592,10 +1769,11 @@ function Editor:editTab(tab_id, opts)
         return true
     end
     dialog.onClose = function()
-        finish()
+        if #pages > 0 then goBack() else finish() end
         return true
     end
     dialog.onCloseWidget = function()
+        if Editor._host == host then Editor._host = nil end
         -- Repaint the region under the dialog. setDirty(nil, fn) only
         -- queues an EPDC flush -- it does NOT trigger any widget's
         -- paintTo, so the stale dialog pixels still sit in the buffer
@@ -1628,6 +1806,8 @@ function Editor:editTab(tab_id, opts)
         movable,
     }
 
+    -- Its sub-menus open as pages inside it while it is up (Editor._menu).
+    Editor._host = host
     UIManager:show(dialog, function() return "partial", frame.dimen end)
 
     -- A chip that has just been created has no source the user chose: it holds
@@ -1683,7 +1863,7 @@ function Editor:_openCatalogSettings(draft, on_close)
     -- Re-entry after any sub-pick, so the row under the finger shows its new
     -- value and the user stays in the menu they were working in.
     local function reopen()
-        if d then UIManager:close(d) end
+        if d then Editor._closeMenu(d) end
         self:_openCatalogSettings(draft, on_close)
     end
     local function row(label, value, on_tap)
@@ -1732,13 +1912,13 @@ function Editor:_openCatalogSettings(draft, on_close)
         }}
     end
 
-    d = ButtonDialog:new{
+    d = Editor._menu{
         title       = _("Catalog settings"),
         title_align = "center",
         buttons = {
             start_row,
             row(_("Saves to"), dir_label, function()
-                UIManager:close(d)
+                Editor._closeMenu(d)
                 d = nil
                 self:_pickDownloadDir(draft, function()
                     if on_close then on_close() end
@@ -1750,14 +1930,13 @@ function Editor:_openCatalogSettings(draft, on_close)
             {{
                 text = _("Close"),
                 callback = function()
-                    UIManager:close(d)
+                    Editor._closeMenu(d)
                     d = nil
                     if on_close then on_close() end
                 end,
             }},
         },
     }
-    UIManager:show(d)
 end
 
 -- _pickFaceRecentCount(draft, on_change, back) -- how many books count as
@@ -1791,7 +1970,7 @@ function Editor:_pickFaceRecentCount(draft, on_change, back)
                 spec.all = nil
                 draft.spine_face_out = spec
                 if on_change then on_change() end
-                UIManager:close(d)
+                Editor._closeMenu(d)
                 if back then back() end
             end,
         }
@@ -1800,18 +1979,17 @@ function Editor:_pickFaceRecentCount(draft, on_change, back)
     rows[#rows + 1] = {{
         text = _("Back"),
         callback = function()
-            UIManager:close(d)
+            Editor._closeMenu(d)
             if back then back() end
         end,
     }}
-    d = ButtonDialog:new{
+    d = Editor._menu{
         title          = _("Recently added"),
         title_align    = "left",
         use_info_style = false,
         buttons        = rows,
         anchor         = _highAnchor(function() return d end),
     }
-    UIManager:show(d)
 end
 
 -- _pickFaceCollection(draft, on_change, back) -- which collection the "In a
@@ -1846,7 +2024,7 @@ function Editor:_pickFaceCollection(draft, on_change, back)
                 spec.all = nil
                 draft.spine_face_out = spec
                 if on_change then on_change() end
-                UIManager:close(d)
+                Editor._closeMenu(d)
                 if back then back() end
             end,
         } }
@@ -1854,18 +2032,17 @@ function Editor:_pickFaceCollection(draft, on_change, back)
     rows[#rows + 1] = {{
         text = _("Back"),
         callback = function()
-            UIManager:close(d)
+            Editor._closeMenu(d)
             if back then back() end
         end,
     }}
-    d = ButtonDialog:new{
+    d = Editor._menu{
         title          = _("In a collection"),
         title_align    = "left",
         use_info_style = false,
         buttons        = rows,
         anchor         = _highAnchor(function() return d end),
     }
-    UIManager:show(d)
 end
 
 -- _pickGroupDisplay(draft, on_change) - how THIS chip draws its folder and
@@ -1935,7 +2112,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             return function()
                 apply()
                 if on_change then on_change() end
-                UIManager:close(d)
+                Editor._closeMenu(d)
                 show()
             end
         end
@@ -1989,7 +2166,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                     return T(_("Theme: %1"), TP.choiceLabel(v))
                 end,
                 callback = function()
-                    UIManager:close(d)
+                    Editor._closeMenu(d)
                     require("lib/bookshelf_theme_library").show{
                         shelf = draft.label or "",
                         current = cur,
@@ -2204,7 +2381,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                         return T(_("Plank: %1"), Editor._plankLabel(draft.plank))
                     end,
                     callback = function()
-                        UIManager:close(d)
+                        Editor._closeMenu(d)
                         Editor:_pickCardPlank(draft, function()
                             if on_change then on_change() end
                             show()
@@ -2321,7 +2498,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             rows[#rows + 1] = {{
                 text_func = faceOutShown,
                 callback = function()
-                    UIManager:close(d)
+                    Editor._closeMenu(d)
                     -- A picker that stays open and REDRAWS ITSELF IN PLACE. It
                     -- used to close and reopen after every toggle; KOReader's
                     -- ButtonDialog asks for a flashui of its own rectangle on
@@ -2451,7 +2628,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                               { id = "face_count", text = countLabel(spec),
                                 enabled = spec.recent ~= nil,
                                 callback = function()
-                                    UIManager:close(sub)
+                                    Editor._closeMenu(sub)
                                     self:_pickFaceRecentCount(draft, function()
                                         if on_change then on_change() end
                                     end, showFace)
@@ -2478,11 +2655,11 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                             -- Back to Shelf style, which this was opened from.
                             { { text = _("Back"),
                                 callback = function()
-                                    UIManager:close(sub)
+                                    Editor._closeMenu(sub)
                                     show()
                                 end } },
                         }
-                        sub = ButtonDialog:new{
+                        sub = Editor._menu{
                             title          = _("Face out"),
                             title_align    = "left",
                             use_info_style = false,
@@ -2493,10 +2670,9 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                             -- pick in the group that redraws the shelf under it.
                             anchor         = _highAnchor(function() return sub end),
                         }
-                        UIManager:show(sub)
                     end
                     pickCollection = function()
-                        UIManager:close(sub)
+                        Editor._closeMenu(sub)
                         self:_pickFaceCollection(draft, function()
                             if on_change then on_change() end
                         end, showFace)
@@ -2647,7 +2823,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         if show_covers then
             local text_row = self:_coverTextRow(draft, function()
                 if on_change then on_change() end
-            end, function() UIManager:close(d) end, show, bw)
+            end, function() Editor._closeMenu(d) end, show, bw)
             if tiles_row then
                 tiles_row[#tiles_row + 1] = text_row[1]
             else
@@ -2660,11 +2836,11 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         rows[#rows + 1] = {{
             text = _("Close"),
             callback = function()
-                UIManager:close(d)
+                Editor._closeMenu(d)
                 restoreChrome()
             end,
         }}
-        d = ButtonDialog:new{
+        d = Editor._menu{
             title       = _("Shelf style"),
             title_align = "center",
             buttons     = rows,
@@ -2673,7 +2849,6 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             anchor      = _highAnchor(function() return d end),
             tap_close_callback = restoreChrome,
         }
-        UIManager:show(d)
     end
     show()
 end
@@ -2701,7 +2876,7 @@ function Editor:_pickCardPlank(draft, done)
     local function choose(v)
         return function()
             draft.plank = v
-            UIManager:close(dlg)
+            Editor._closeMenu(dlg)
             done()
         end
     end
@@ -2715,13 +2890,12 @@ function Editor:_pickCardPlank(draft, done)
                 active = draft.plank == v, on_pick = choose(v) } }
         end
     end
-    dlg = ButtonDialog:new{
+    dlg = Editor._menu{
         title = _("Plank"), title_align = "center",
         buttons = rows,
         rows_per_page = 8,
         tap_close_callback = done,
     }
-    UIManager:show(dlg)
 end
 
 -- _coverTextRow(draft, on_change, close, reshow, bw) -> Shelf style's
@@ -2776,7 +2950,7 @@ function Editor:_pickCoverText(draft, on_change, back, bw)
         return function()
             draft.cover_text = v
             on_change()
-            UIManager:close(d)
+            Editor._closeMenu(d)
             back()
         end
     end
@@ -2785,7 +2959,7 @@ function Editor:_pickCoverText(draft, on_change, back, bw)
         return {
             text = (cur == "custom" and "\xE2\x9C\x93 " or "") .. _("Custom\xE2\x80\xA6"),
             callback = function()
-                UIManager:close(d)
+                Editor._closeMenu(d)
                 -- Starts from the shelf's own line, else the one it shows
                 -- now, so Custom changes nothing until it is edited.
                 require("lib/bookshelf_cover_label_editor").showForShelf(bw, {
@@ -2817,18 +2991,17 @@ function Editor:_pickCoverText(draft, on_change, back, bw)
     rows[#rows + 1] = {{
         text = _("Back"),
         callback = function()
-            UIManager:close(d)
+            Editor._closeMenu(d)
             back()
         end,
     }}
-    d = ButtonDialog:new{
+    d = Editor._menu{
         title       = _("Cover captions"),
         title_align = "center",
         buttons     = rows,
         anchor      = _highAnchor(function() return d end),
         tap_close_callback = back,
     }
-    UIManager:show(d)
 end
 
 -- _pickOpdsOption(draft, field, options, title, on_close) - one radio list for
@@ -2858,7 +3031,7 @@ function Editor:_pickOpdsOption(draft, field, options, title, on_close)
             active = current == opt.value,
             on_pick = function()
                 draft[field] = opt.value
-                UIManager:close(d)
+                Editor._closeMenu(d)
                 if on_close then on_close() end
             end,
         }}
@@ -2866,12 +3039,11 @@ function Editor:_pickOpdsOption(draft, field, options, title, on_close)
     rows[#rows + 1] = {{
         text = _("Cancel"),
         callback = function()
-            UIManager:close(d)
+            Editor._closeMenu(d)
             if on_close then on_close() end
         end,
     }}
-    d = ButtonDialog:new{ title = title, title_align = "center", buttons = rows }
-    UIManager:show(d)
+    d = Editor._menu{ title = title, title_align = "center", buttons = rows }
 end
 
 -- _pickDownloadDir(draft, on_close) - where THIS catalog chip saves its
@@ -2885,14 +3057,14 @@ function Editor:_pickDownloadDir(draft, on_close)
     local ButtonDialog = require("ui/widget/buttondialog")
     local Picker = require("lib/bookshelf_folder_picker")
     local d
-    d = ButtonDialog:new{
+    d = Editor._menu{
         title       = _("Save downloads from this catalog to\xE2\x80\xA6"),
         title_align = "center",
         buttons = {
             {{
                 text = _("Choose folder\xE2\x80\xA6"),
                 callback = function()
-                    UIManager:close(d)
+                    Editor._closeMenu(d)
                     Picker.show{
                         title     = _("Save downloads to\xE2\x80\xA6"),
                         on_cancel = on_close,
@@ -2909,20 +3081,19 @@ function Editor:_pickDownloadDir(draft, on_close)
                     or  ("  " .. _("KOReader's download folder")),
                 callback = function()
                     draft.download_dir = nil
-                    UIManager:close(d)
+                    Editor._closeMenu(d)
                     if on_close then on_close() end
                 end,
             }},
             {{
                 text = _("Cancel"),
                 callback = function()
-                    UIManager:close(d)
+                    Editor._closeMenu(d)
                     if on_close then on_close() end
                 end,
             }},
         },
     }
-    UIManager:show(d)
 end
 
 function Editor:_pickSource(draft, on_close)
@@ -3043,26 +3214,25 @@ function Editor:_pickSource(draft, on_close)
         for _i,c in ipairs(choices) do
             rows[#rows + 1] = {{
                 text     = c.label,
-                callback = function() on_pick(c.value); UIManager:close(k) end,
+                callback = function() on_pick(c.value); Editor._closeMenu(k) end,
             }}
         end
         if opts and opts.extra_footer_actions then
             for _i, a in ipairs(opts.extra_footer_actions) do
                 rows[#rows + 1] = {{
                     text     = a.label,
-                    callback = function() UIManager:close(k); a.on_tap() end,
+                    callback = function() Editor._closeMenu(k); a.on_tap() end,
                 }}
             end
         end
         rows[#rows + 1] = {{
             text     = _("Cancel"),
-            callback = function() UIManager:close(k); on_pick(nil) end,
+            callback = function() Editor._closeMenu(k); on_pick(nil) end,
         }}
-        k = ButtonDialog:new{
+        k = Editor._menu{
             title   = (opts and opts.title) or _("Choose " .. kind),
             buttons = rows,
         }
-        UIManager:show(k)
     end
     -- Built-in shortcuts + working custom kinds.
     -- "Specific tag..." and "Reading status..." are deferred (see note above).
@@ -3077,7 +3247,7 @@ function Editor:_pickSource(draft, on_close)
         return function()
             draft.source = { kind = kind_value }
             _applySourceDefaults(draft)
-            UIManager:close(d)
+            Editor._closeMenu(d)
             on_close()
         end
     end
@@ -3090,7 +3260,7 @@ function Editor:_pickSource(draft, on_close)
     local function open_group_picker(picker_kind, fetcher_kind, target_kind)
         local choices = Repo.getGroupChoices(fetcher_kind) or {}
         table.sort(choices, function(a, b) return a.label:lower() < b.label:lower() end)
-        UIManager:close(d)
+        Editor._closeMenu(d)
         pickById(picker_kind, choices, function(name)
             if not name then
                 -- User tapped Close in the choose modal. Reopen the
@@ -3117,7 +3287,7 @@ function Editor:_pickSource(draft, on_close)
             { value = "1",       label = "\xE2\x98\x85" },
             { value = "unrated", label = _("Unrated") },
         }
-        UIManager:close(d)
+        Editor._closeMenu(d)
         pickById("rating", choices, function(picked)
             if not picked then
                 Editor:_pickSource(draft, on_close)
@@ -3149,7 +3319,7 @@ function Editor:_pickSource(draft, on_close)
             end
         end
         table.sort(choices, function(a, b) return a.label:lower() < b.label:lower() end)
-        UIManager:close(d)
+        Editor._closeMenu(d)
         pickById("collection", choices, function(picked)
             if not picked then
                 Editor:_pickSource(draft, on_close)
@@ -3184,7 +3354,7 @@ function Editor:_pickSource(draft, on_close)
             return choices
         end
 
-        UIManager:close(d)
+        Editor._closeMenu(d)
 
         local reopen  -- forward declaration so handlers can re-open the picker
         reopen = function()
@@ -3209,22 +3379,21 @@ function Editor:_pickSource(draft, on_close)
                     end
                     local ButtonDialog = require("ui/widget/buttondialog")
                     local menu
-                    menu = ButtonDialog:new{
+                    menu = Editor._menu{
                         -- Dismissing the menu (tap outside) returns to the
                         -- picker rather than dropping out to the chip editor.
                         tap_close_callback = reopen,
                         buttons = {
                             {{ text = _("Edit"), callback = function()
-                                UIManager:close(menu)
+                                Editor._closeMenu(menu)
                                 Editor_.show{ item = item._catalog, on_saved = reopen, on_cancel = reopen }
                             end }},
                             {{ text = _("Delete"), callback = function()
-                                UIManager:close(menu)
+                                Editor._closeMenu(menu)
                                 Editor_.confirmDelete{ item = item._catalog, on_deleted = reopen, on_cancel = reopen }
                             end }},
                         },
                     }
-                    UIManager:show(menu)
                 end,
             })
         end
@@ -3243,7 +3412,7 @@ function Editor:_pickSource(draft, on_close)
     local function open_folder_picker(folder_kind)
         folder_kind = folder_kind or "folder"
         local choices = Repo.getFolderChoices() or {}
-        UIManager:close(d)
+        Editor._closeMenu(d)
 
         local function pick_path(picked)
             draft.source = { kind = folder_kind, id = picked }
@@ -3395,7 +3564,7 @@ function Editor:_pickSource(draft, on_close)
         },
         -- Cancel row
         {
-            { text = _("Cancel"), callback = function() UIManager:close(d); on_close() end },
+            { text = _("Cancel"), callback = function() Editor._closeMenu(d); on_close() end },
         },
     }
 
@@ -3441,7 +3610,7 @@ function Editor:_pickSource(draft, on_close)
                     function() open_group_picker("language", "language", "language") end),
             },
             {
-                { text = _("Cancel"), callback = function() UIManager:close(d); on_close() end },
+                { text = _("Cancel"), callback = function() Editor._closeMenu(d); on_close() end },
             },
         }
     end
@@ -3459,7 +3628,7 @@ function Editor:_pickSource(draft, on_close)
             -- The source asks its own question (which server, which library)
             -- and fills draft.source; done() carries on as a plain pick would.
             on_tap = function()
-                UIManager:close(d)
+                Editor._closeMenu(d)
                 local prev = draft.source
                 draft.source = { kind = id }
                 local ok = Sources.call(spec, "pick", draft, function(accepted)
@@ -3474,21 +3643,20 @@ function Editor:_pickSource(draft, on_close)
         end
         table.insert(rows, #rows, { btn(id, Sources.label(id) or id, on_tap) })
     end
-    d = ButtonDialog:new{
+    d = Editor._menu{
         -- A module's shelf is offered no grouping (above), so the title says
         -- what it is choosing (maintainer).
         title   = TabModel.isCardOnly(draft) and _("Shelf module source") or _("Shelf source or grouping"),
         buttons = rows,
         anchor  = _highAnchor(function() return d end),
     }
-    UIManager:show(d)
 end
 -- Filters list: one row per dimension showing its current selection, plus a
 -- Clear-all row. Re-opens itself after each sub-picker so the summary updates.
 function Editor:_openFilters(draft, on_close)
     draft.filter = draft.filter or {}
     local d
-    local function reopen() UIManager:close(d); Editor:_openFilters(draft, on_close) end
+    local function reopen() Editor._closeMenu(d); Editor:_openFilters(draft, on_close) end
 
     -- Pixel-accurate row truncation: a standard button SHRINKS its font when
     -- the label is too wide rather than ellipsising, so measure the row text at
@@ -3530,7 +3698,7 @@ function Editor:_openFilters(draft, on_close)
                 text  = fitRow(prefix .. Filter.dimSummary(draft.filter, dkey)),
                 align = "left",   -- line up with the left-aligned header text
                 callback = function()
-                    UIManager:close(d)
+                    Editor._closeMenu(d)
                     local reopen_filters = function() Editor:_openFilters(draft, on_close) end
                     if dim.kind == "folder" then
                         Editor:_pickFolderFilter(draft, reopen_filters)
@@ -3551,11 +3719,11 @@ function Editor:_openFilters(draft, on_close)
         end },
         -- Close: the filters apply as the reader leaves this list (on_close
         -- saves them and rebuilds the shelf once), not per tap inside it.
-        { text = _("Close"), callback = function() UIManager:close(d); on_close() end },
+        { text = _("Close"), callback = function() Editor._closeMenu(d); on_close() end },
     }
     -- A bold "Filters" heading plus a body-size help paragraph below it.
     local help_widget = _helpParagraph(_("Pick filters to narrow the shelf. Several picks in the same row match any of them, so picking two genres shows books in either. Picks in different rows must all match, so adding a 5-star rating then limits those to 5-star books only. Numbers below filter choices show how many books currently match based on other selected filters."))
-    d = ButtonDialog:new{
+    d = Editor._menu{
         title          = _("Filters"),
         title_align    = "left",
         use_info_style = false,        -- bold heading, distinct from the body text
@@ -3563,7 +3731,6 @@ function Editor:_openFilters(draft, on_close)
         buttons        = rows,
         anchor         = _highAnchor(function() return d end),
     }
-    UIManager:show(d)
 end
 
 -- Generic multi-select picker for a categorical dimension. Status uses a fixed
@@ -3600,19 +3767,18 @@ function Editor:_pickChoiceFilter(draft, dim_key, on_close)
             align = "left",
             callback = function()
                 draft.filter[dim_key] = v.value
-                UIManager:close(d)
+                Editor._closeMenu(d)
                 on_close()
             end,
         }}
     end
-    d = ButtonDialog:new{
+    d = Editor._menu{
         title             = _("Series filter"),
         title_align       = "center",
         buttons           = buttons,
         anchor            = _highAnchor(function() return d end),
         tap_close_callback = function() on_close() end,
     }
-    UIManager:show(d)
 end
 
 function Editor:_pickMultiFilter(draft, dim_key, on_close)
@@ -3761,7 +3927,7 @@ function Editor:_pickMultiFilter(draft, dim_key, on_close)
         for _k in pairs(sel) do return false end
         return true
     end
-    local function reopen() UIManager:close(d); Editor:_pickMultiFilter(draft, dim_key, on_close) end
+    local function reopen() Editor._closeMenu(d); Editor:_pickMultiFilter(draft, dim_key, on_close) end
     local function toggle(value)
         if sel[value] then sel[value] = nil else sel[value] = true end
         reopen()
@@ -3790,14 +3956,13 @@ function Editor:_pickMultiFilter(draft, dim_key, on_close)
     if #values == 0 then
         rows[#rows + 1] = { { text = _("(none in library)"), callback = function() end } }
     end
-    rows[#rows + 1] = { { text = _("Back"), callback = function() UIManager:close(d); on_close() end } }
+    rows[#rows + 1] = { { text = _("Back"), callback = function() Editor._closeMenu(d); on_close() end } }
 
-    d = ButtonDialog:new{
+    d = Editor._menu{
         title   = title,
         buttons = rows,
         anchor  = _highAnchor(function() return d end),
     }
-    UIManager:show(d)
 end
 
 -- Folder include/exclude manager. Lists current include (+) and exclude (-)
@@ -3812,7 +3977,7 @@ function Editor:_pickFolderFilter(draft, on_close)
     folders.include = folders.include or {}
     folders.exclude = folders.exclude or {}
     local d
-    local function reopen() UIManager:close(d); Editor:_pickFolderFilter(draft, on_close) end
+    local function reopen() Editor._closeMenu(d); Editor:_pickFolderFilter(draft, on_close) end
 
     local function add_via_chooser(set)
         local confirmed = false
@@ -3850,17 +4015,16 @@ function Editor:_pickFolderFilter(draft, on_close)
             callback = function() end } }
     end
     rows[#rows + 1] = {
-        { text = _("Add folder to include"), callback = function() UIManager:close(d); add_via_chooser(folders.include) end },
-        { text = _("Add folder to exclude"), callback = function() UIManager:close(d); add_via_chooser(folders.exclude) end },
+        { text = _("Add folder to include"), callback = function() Editor._closeMenu(d); add_via_chooser(folders.include) end },
+        { text = _("Add folder to exclude"), callback = function() Editor._closeMenu(d); add_via_chooser(folders.exclude) end },
     }
-    rows[#rows + 1] = { { text = _("Back"), callback = function() UIManager:close(d); on_close() end } }
+    rows[#rows + 1] = { { text = _("Back"), callback = function() Editor._closeMenu(d); on_close() end } }
 
-    d = ButtonDialog:new{
+    d = Editor._menu{
         title   = _("Folder filter"),
         buttons = rows,
         anchor  = _highAnchor(function() return d end),
     }
-    UIManager:show(d)
 end
 
 -- _pickSortLevel -- single-level sort key picker.
@@ -3899,7 +4063,7 @@ function Editor:_pickSortLevel(draft, level_index, on_close, on_arranged)
                     rev = DEFAULT_REVERSE[key_id] == true    -- natural default
                 end
                 draft.sort_priority[level_index] = { key = key_id, reverse = rev }
-                UIManager:close(d); on_close()
+                Editor._closeMenu(d); on_close()
             end,
         }
     end
@@ -3915,11 +4079,11 @@ function Editor:_pickSortLevel(draft, level_index, on_close, on_arranged)
             if draft.sort_priority then
                 table.remove(draft.sort_priority, level_index)
             end
-            UIManager:close(d); on_close()
+            Editor._closeMenu(d); on_close()
         end,
     }
     local close_btn = { text = _("Close"),
-                        callback = function() UIManager:close(d); on_close() end }
+                        callback = function() Editor._closeMenu(d); on_close() end }
     local close_row = { close_btn }
 
     local rows
@@ -4008,12 +4172,11 @@ function Editor:_pickSortLevel(draft, level_index, on_close, on_arranged)
     else
         title = _("Then by")
     end
-    d = ButtonDialog:new{
+    d = Editor._menu{
         title   = title,
         buttons = rows,
         anchor  = _highAnchor(function() return d end),
     }
-    UIManager:show(d)
 end
 -- _pickIcon -- opens the bundled icons library (categorised glyph grid) for
 -- the start-menu icon slot. Selection writes the chosen value into draft.icon.

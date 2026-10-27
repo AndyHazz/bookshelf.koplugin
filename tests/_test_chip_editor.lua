@@ -477,7 +477,9 @@ for _, name in ipairs({
 }) do
     t.test(name .. " anchors its dialog above the shelf", function()
         local body = bodyOf(name)
-        assert(body:find("ButtonDialog:new", 1, true), "no dialog in " .. name)
+        -- Editor._menu: a page inside the shelf editor while it is open,
+        -- else this anchored ButtonDialog.
+        assert(body:find("Editor._menu{", 1, true), "no dialog in " .. name)
         assert(body:find("_highAnchor", 1, true),
             name .. " went back to a centred dialog, which covers the shelf "
             .. "it is configuring")
@@ -513,7 +515,7 @@ t.test("the face-out chooser says what it is choosing between", function()
     -- has closed behind them, "Favorites" / "First in series" could be
     -- choosing anything.
     local body = bodyOf("_pickGroupDisplay")
-    local sub = body:match("sub = ButtonDialog:new{(.-)\n%s+}")
+    local sub = body:match("sub = Editor._menu{(.-)\n%s+}")
     assert(sub, "the face-out sub-dialog moved or was renamed")
     assert(sub:find('title%s*=%s*_%("Face out"%)'), "no heading")
     assert(sub:find("_helpParagraph", 1, true), "no explanatory line")

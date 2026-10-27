@@ -52,6 +52,15 @@ local env = {
     end,
 }
 env._G = env
+-- Outside a shelf editor, Editor._menu is a ButtonDialog, shown.
+env.Editor = {
+    _menu = function(spec)
+        local d = env.require("ui/widget/buttondialog"):new(spec)
+        env.require("ui/uimanager"):show(d)
+        return d
+    end,
+    _closeMenu = function(d) env.require("ui/uimanager"):close(d) end,
+}
 
 local function compile(code)
     if _G.setfenv then

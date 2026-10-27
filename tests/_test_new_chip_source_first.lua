@@ -35,7 +35,7 @@ t.test("the picker is shown AFTER the editor, so cancelling lands somewhere", fu
     -- Opening it before the editor exists would leave Cancel returning to
     -- nothing, and the picker would be underneath the editor besides.
     local show_at = edit_tab:find("UIManager:show%(dialog")
-    local pick_at = edit_tab:find("opts%.pick_source_first")
+    local pick_at = edit_tab:find("if opts%.pick_source_first then")
     assert(show_at and pick_at, "expected both the show and the picker call")
     assert(pick_at > show_at,
         "the source picker must be opened after the editor dialog is shown")

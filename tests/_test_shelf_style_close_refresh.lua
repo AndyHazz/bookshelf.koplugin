@@ -13,8 +13,10 @@ local src = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
 t.test("the editor comes back over its own frame, not the whole screen", function()
     assert(not src:find('show = function() UIManager:show(dialog, "ui") end', 1, true),
         "the editor's re-show still refreshes the whole screen")
-    assert(src:find("show = function() UIManager:show(dialog, editorRefresh) end", 1, true),
-        "the editor's re-show doesn't name its box")
+    -- Shelf style is a page inside the editor now: the editor is never
+    -- closed and shown again around it.
+    assert(not src:find("hide = function() UIManager:close(dialog) end", 1, true),
+        "Shelf style still hides the editor")
 end)
 
 -- Closing Filters rebuilt the editor under it with a whole-screen "ui".

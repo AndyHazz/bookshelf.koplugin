@@ -51,7 +51,6 @@ local PALETTE = {
 
 local SWATCH_SIDE  = Screen:scaleBySize(60)
 local SWATCH_GAP   = Space.px(8)
-local SWATCH_RADIUS = Space.radius.default
 
 -- Swatch: a rounded colored square that renders via paintRoundedRectRGB32.
 -- A WidgetContainer subclass — owns its own dimen, not a CenterContainer.
@@ -73,13 +72,23 @@ function Swatch:getSize()
     return Geom:new{ w = self.side, h = self.side }
 end
 
+-- A swatch is the popup style's card (STYLE.md): light grey with the hairline
+-- shadow down and right, black when it is the colour picked, the colour set
+-- in it with a margin of the card round it.
 function Swatch:paintTo(bb, x, y)
     self.dimen = Geom:new{ x = x, y = y, w = self.side, h = self.side }
-    local r = SWATCH_RADIUS
-    bb:paintRoundedRectRGB32(x, y, self.side, self.side, self._fill, r)
-    local bw = self.selected and Size.border.thick or Size.border.thin
-    local bc = self.selected and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_DARK_GRAY
-    bb:paintBorder(x, y, self.side, self.side, bw, bc, r)
+    local Kit = require("lib/bookshelf_popup_kit")
+    local side, r, s = self.side, Kit.RADIUS, Kit.shadowSize()
+    bb:paintRoundedRect(x + s, y + s, side, side, Kit.SHADOW, r)
+    bb:paintRoundedRect(x, y, side, side,
+        self.selected and Blitbuffer.COLOR_BLACK or Kit.STRIP_BG, r)
+    local m = Space.px(6)
+    local inner = side - 2 * m
+    bb:paintRoundedRectRGB32(x + m, y + m, inner, inner, self._fill, math.max(0, r - Space.px(2)))
+    -- A hairline round the colour, so white and the palest shades read on
+    -- the grey card.
+    bb:paintBorder(x + m, y + m, inner, inner, Size.border.thin, Blitbuffer.COLOR_GRAY,
+        math.max(0, r - Space.px(2)))
 end
 
 -- woodSwatch(path, side) -> a side x side bitmap of a plank design's own
@@ -136,17 +145,17 @@ local function nullTile(label, selected, side, on_tap, image_path, fit)
             strip,
         }
     end
-    local frame = FrameContainer:new{
-        bordersize = selected and Size.border.thick or Size.border.thin,
+    -- A card as the swatches beside it are; the one picked outlined (a
+    -- picture would be hidden by black).
+    local frame = require("lib/bookshelf_popup_kit").cardify(FrameContainer:new{
+        bordersize = 0,
         padding    = 0,
         margin     = 0,
-        radius     = Space.radius.default,   -- as the swatches beside it
-        background = Blitbuffer.COLOR_WHITE,
         inner or CenterContainer:new{
             dimen = Geom:new{ w = w, h = side },
             tw,
         },
-    }
+    }, { outline = selected })
     local container = InputContainer:new{
         dimen = Geom:new{ w = w, h = side },
         frame,

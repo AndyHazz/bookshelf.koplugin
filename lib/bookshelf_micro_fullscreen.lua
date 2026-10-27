@@ -359,7 +359,10 @@ function MicroFullscreen:_build()
           focused_id = (not self._focus_close and not self._focus_pencil) and self._cursor_id or nil,
           surface = "fullscreen", page = self._page, edit = self._edit })
     if not ok or not grid then
-        grid = Widget:new{}  -- defensive: empty, still closeable
+        logger.warn("[bookshelf] micro modules: the grid failed to build:", tostring(grid))
+        -- Defensive: empty, still closeable. Sized, or the column laying it
+        -- out raises on a nil size and takes KOReader down with it.
+        grid = Widget:new{ dimen = Geom:new{ w = content_w, h = grid_h } }
     end
     -- The page the grid settled on (it snaps a stale page to a real one), and
     -- where the grid sits, for the page swipe.

@@ -781,7 +781,15 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
     local shared = { bg = Modules.CARD_BG or _moduleCardBg(), border = _cardBorderInk(),
                      ink = Modules.COLOR_PRIMARY, muted = Modules.COLOR_MUTED }
     local look = Card.look(entry, def, shared)
-    local own_palette = look.bg ~= shared.bg or look.ink ~= shared.ink
+    -- Not `look.bg ~= shared.bg`: a colour's __eq indexes the other side, and
+    -- one of them can be nil (the full-screen view has no shared ink), which
+    -- raised, failed the whole grid and crashed the view (6.0.4).
+    local function differs(a, b)
+        if type(a) == "nil" or type(b) == "nil" then return rawequal(a, b) == false end
+        local ok, same = pcall(function() return a == b end)
+        return not (ok and same)
+    end
+    local own_palette = differs(look.bg, shared.bg) or differs(look.ink, shared.ink)
     local text_w     = is_sq and inner_w or math.max(50, inner_w - 2 * base_inset)
 
     local content, errored

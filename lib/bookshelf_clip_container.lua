@@ -125,8 +125,13 @@ function ClipContainer:paintTo(bb, x, y)
     -- Asked of Blitbuffer, never by probing `bg.r`: a grey is a Color8
     -- cdata, which RAISES on a field it lacks -- that crashed the start menu
     -- on a greyscale PW5.
+    -- Every colour buffer, not only RGB32: a PocketBook colour screen is
+    -- RGB24, where the fill() below made every module card its grey (565).
     local bg = self.bg or Blitbuffer.COLOR_WHITE
-    if off:getType() == Blitbuffer.TYPE_BBRGB32 and off.paintRectRGB32
+    local t = off:getType()
+    local colour_bb = t == Blitbuffer.TYPE_BBRGB32 or t == Blitbuffer.TYPE_BBRGB24
+        or t == Blitbuffer.TYPE_BBRGB16
+    if colour_bb and off.paintRectRGB32
             and Blitbuffer.isColor8 and not Blitbuffer.isColor8(bg) then
         off:paintRectRGB32(0, 0, self.w, self.h, bg:getColorRGB32())
     else

@@ -445,6 +445,18 @@ function LibraryModal:_renderTitleBar(content_width, modal_w)
     else
         right_widget = HorizontalSpan:new{ width = 0 }
     end
+    -- A footer of Close alone is the title's X instead (as the book popup's),
+    -- not a whole row for one thin button.
+    local close = self:_closeOnlyAction()
+    if close then
+        local IconButton = require("ui/widget/iconbutton")
+        local size = Screen:scaleBySize(28)
+        local x_btn = IconButton:new{ icon = "close", width = size, height = size,
+            padding = Space.px(6), callback = function() close.on_tap() end,
+            show_parent = self }
+        right_widget = HorizontalGroup:new{ align = "center", right_widget,
+            HorizontalSpan:new{ width = Space.px(8) }, x_btn }
+    end
 
     -- Title left, tab segments right, with the gap absorbed by a flexible spacer.
     local row = HorizontalGroup:new{
@@ -466,6 +478,21 @@ function LibraryModal:_renderTitleBar(content_width, modal_w)
             dimen = Geom:new{ w = modal_w, h = Device.screen:scaleBySize(3) },
         },
     }
+end
+
+-- _closeOnlyAction() -> the footer's one action when it is Close alone
+-- (key "close" or labelled Close), else nil.
+function LibraryModal:_closeOnlyAction()
+    local rows = self.config.footer_rows or { self.config.footer_actions or {} }
+    local only
+    for _i, row in ipairs(rows) do
+        for _j, a in ipairs(row) do
+            if only then return nil end
+            only = a
+        end
+    end
+    if only and (only.key == "close" or only.label == _("Close")) then return only end
+    return nil
 end
 
 function LibraryModal:_showHelp()
@@ -1067,6 +1094,7 @@ function LibraryModal:_renderFooter(content_width)
     local LineWidget = require("ui/widget/linewidget")
 
     self._footer_layout = nil
+    if self:_closeOnlyAction() then return nil end
 
     -- footer_rows (array of action-rows) renders a stacked multi-row bar,
     -- mirroring ButtonDialog (e.g. a full-width "+ New" above a Cancel/Save
@@ -1106,6 +1134,7 @@ function LibraryModal:_renderFooter(content_width)
                 bordersize = 0,
                 radius = 0,
                 width = btn_width,
+                padding_v = Space.px(12),
                 callback = function() if enabled then action.on_tap() end end,
                 enabled = enabled,
             })

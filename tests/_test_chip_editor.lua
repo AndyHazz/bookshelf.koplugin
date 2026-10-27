@@ -703,4 +703,14 @@ t.test("shelf style: a spines shelf whose source became a catalogue shows covers
     eq(auto.find("Top level").active, "covers")
 end)
 
+t.test("shelf style: a style with one setting has it on the main page", function()
+    -- A catalogue's covers have captions only (no folder tiles): no page of one row.
+    local p = openStyle({}, { is_opds = true })
+    assert(p.find("Cover captions"), "the one setting is not on the main page")
+    for _i, b in ipairs(p.blocks()) do
+        assert(not (b.type == "option" and b.text:find("Covers", 1, true)), "a page for one row")
+    end
+    assert(not openStyle({}).find("Cover captions"), "a local shelf's covers lost their page")
+end)
+
 t.done()

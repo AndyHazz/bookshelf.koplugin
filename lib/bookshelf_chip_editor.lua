@@ -2290,7 +2290,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             add({ type = "heading", text = _("Folder tiles") })
             add({ type = "chips", items = items })
         end
-        add({ type = "row", label = _("Cover captions"),
+        add({ type = "row", label = _("Cover captions"), icon = "\u{EA15}",   -- label-outline
             value = Editor._coverTextLabel(draft, draft.cover_text),
             callback = function()
                 Editor:_pickCoverText(draft, function()
@@ -2418,20 +2418,23 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         if show_spines or show_list or show_covers then
             add({ type = "heading", text = _("Settings") })
         end
+        -- A style with one setting (a catalogue's covers: captions only)
+        -- has it here, not a page holding one row.
+        local function styleCard(title, icon, summary, build)
+            local own = {}
+            build(pick, function(b) own[#own + 1] = b end)
+            if #own == 1 then return add(own[1]) end
+            add({ type = "option", text = title .. CHEV, desc = summary(), icon = icon,
+                callback = section(title, build) })
+        end
         if show_spines then
-            add({ type = "option", text = _("Spines") .. CHEV, desc = spinesSummary(),
-                icon = "\u{EA30}",   -- library
-                callback = section(_("Spines"), spinesBlocks) })
+            styleCard(_("Spines"), "\u{EA30}", spinesSummary, spinesBlocks)   -- library
         end
         if show_list then
-            add({ type = "option", text = _("List") .. CHEV, desc = listSummary(),
-                icon = "\u{EC71}",   -- view-list
-                callback = section(_("List"), listBlocks) })
+            styleCard(_("List"), "\u{EC71}", listSummary, listBlocks)         -- view-list
         end
         if show_covers then
-            add({ type = "option", text = _("Covers") .. CHEV, desc = coversSummary(),
-                icon = "\u{EC72}",   -- view-module
-                callback = section(_("Covers"), coversBlocks) })
+            styleCard(_("Covers"), "\u{EC72}", coversSummary, coversBlocks)   -- view-module
         end
         return { blocks = blocks }
     end, function() if chrome and chrome.show then chrome.show() end end)

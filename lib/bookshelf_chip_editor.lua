@@ -1034,11 +1034,6 @@ function Editor:editTab(tab_id, opts)
                     if TabModel.isCardOnly(draft) then
                         return _("Source: ") .. _resolveSourceLabel(draft.source)
                     end
-                    -- A Shelf module's shelf is offered no grouping
-                    -- (_pickSource), so its row says Source alone.
-                    if TabModel.isCardOnly(draft) then
-                        return _("Source: ") .. _resolveSourceLabel(draft.source)
-                    end
                     return _("Source / grouping: ") .. _resolveSourceLabel(draft.source)
                 end,
                 callback = function()
@@ -1372,11 +1367,20 @@ function Editor:editTab(tab_id, opts)
                 for _r, r in ipairs(src_rows) do non_empty_buttons[#non_empty_buttons + 1] = r end
             elseif #row > 0 then non_empty_buttons[#non_empty_buttons + 1] = row end
         end
+        -- The frame's full width: the grid's separators meet its border
+        -- (STYLE.md: a line set in from the frame ends nowhere).
         local button_table = ButtonTable:new{
-            width   = dialog_w - 2 * Space.padding.default,
+            width   = dialog_w,
             buttons = non_empty_buttons,
             zero_sep = true,
         }
+        -- No square white boxes of their own: the frame's rounded white is
+        -- the ground, so the bottom row doesn't square off its corners.
+        for _r, row in ipairs(button_table.buttons_layout or {}) do
+            for _c, b in ipairs(row) do
+                if b.frame then b.frame.background = nil end
+            end
+        end
         -- FocusManager repaints `show_parent or self` on a D-pad move, and the
         -- table is not on the window stack, so without this the highlight never
         -- moved on screen (GitHub issue 361). Set after new{} so the Buttons
@@ -1429,6 +1433,12 @@ function Editor:editTab(tab_id, opts)
         background = Blitbuffer.COLOR_WHITE,
         VerticalGroup:new{},  -- placeholder; filled by rebuild() below
     }
+    -- The grid runs to the frame's edge: its border is drawn again over it.
+    function frame:paintTo(bb, x, y)
+        FrameContainer.paintTo(self, bb, x, y)
+        local sz = self:getSize()
+        bb:paintBorder(x, y, sz.w, sz.h, self.bordersize, Blitbuffer.COLOR_BLACK, self.radius)
+    end
 
     -- Populate frame[1] for the first time before show.
     rebuild()

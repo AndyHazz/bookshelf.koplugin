@@ -22759,6 +22759,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                 content_h = math.max(content_h, content:getSize().h)
             end
             local tile_h = content_h + 2 * pad_v + 2 * tile_border
+            local card_shadow = Space.px(1)
             local grid = VerticalGroup:new{ align = "left" }
             local line, line_cells
             for i, a in ipairs(tile_specs) do
@@ -22784,11 +22785,15 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                         built[i],
                     },
                 }
-                if arranging and arranging.sel == a.id then
-                    local sel_b = Space.px(4)
-                    function frame:paintTo(bb, x, y)
-                        FrameContainer.paintTo(self, bb, x, y)
-                        bb:paintBorder(x, y, tile_w, tile_h, sel_b, Blitbuffer.COLOR_BLACK, tile_radius)
+                -- A hairline shadow under each card: the light grey alone is
+                -- faint on e-ink with no border.
+                local picked = arranging and arranging.sel == a.id
+                function frame:paintTo(bb, x, y)
+                    bb:paintRoundedRect(x + card_shadow, y + card_shadow, tile_w, tile_h,
+                        Blitbuffer.COLOR_GRAY, tile_radius)
+                    FrameContainer.paintTo(self, bb, x, y)
+                    if picked then
+                        bb:paintBorder(x, y, tile_w, tile_h, Space.px(4), Blitbuffer.COLOR_BLACK, tile_radius)
                     end
                 end
                 local id = a.id
@@ -22863,9 +22868,9 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         end
         local hidden_now = sel and arranging.hidden[sel]
         local back = PopupKit.headerButton{ icon = "\xEE\xA1\x80", font_size = font_size, -- mdi-chevron-left
-            icon_size = font_size + 8, on_tap = function() move(-1) end }
+            icon_size = font_size, on_tap = function() move(-1) end }
         local fwd = PopupKit.headerButton{ icon = "\xEE\xA1\x81", font_size = font_size, -- mdi-chevron-right
-            icon_size = font_size + 8, on_tap = function() move(1) end }
+            icon_size = font_size, on_tap = function() move(1) end }
         local hide = PopupKit.headerButton{ text = hidden_now and _("Show") or _("Hide"),
             font_size = font_size,
             on_tap = function()

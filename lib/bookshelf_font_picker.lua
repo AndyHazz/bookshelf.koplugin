@@ -264,8 +264,9 @@ function FontPicker.show(current_face, on_select, default_face)
             on_goto = function(p) page = p; picker:rebuild() end,
             show_parent = picker,
         }
+        -- The footer runs edge to edge under a full-width line (STYLE.md).
         local actions = ButtonTable:new{
-            width = width - 2 * Space.padding.default,
+            width = width,
             buttons = {{
                 {
                     text = _("Close"),
@@ -289,6 +290,12 @@ function FontPicker.show(current_face, on_select, default_face)
             zero_sep = true,
             show_parent = picker,
         }
+        -- No square white boxes: they would square off the frame's corners.
+        for _r, row in ipairs(actions.buttons_layout or {}) do
+            for _c, b in ipairs(row) do
+                if b.frame then b.frame.background = nil end
+            end
+        end
 
         return FrameContainer:new{
             radius = Space.radius.window,
@@ -307,23 +314,17 @@ function FontPicker.show(current_face, on_select, default_face)
                     dimen = Geom:new{ w = width, h = per_page * row_height },
                     list_group,
                 },
-                CenterContainer:new{
-                    dimen = Geom:new{ w = width, h = Size.line.thin },
-                    LineWidget:new{
-                        background = Blitbuffer.COLOR_DARK_GRAY,
-                        dimen = Geom:new{ w = width - 2 * Space.padding.default, h = Size.line.thin },
-                    },
-                },
                 VerticalSpan:new{ width = Space.span.vertical_default },
                 CenterContainer:new{
                     dimen = Geom:new{ w = width, h = page_nav:getSize().h },
                     page_nav,
                 },
                 VerticalSpan:new{ width = Space.span.vertical_default },
-                CenterContainer:new{
-                    dimen = Geom:new{ w = width, h = actions:getSize().h },
-                    actions,
+                LineWidget:new{
+                    background = Blitbuffer.COLOR_DARK_GRAY,
+                    dimen = Geom:new{ w = width, h = Size.line.thin },
                 },
+                actions,
             },
         }
     end

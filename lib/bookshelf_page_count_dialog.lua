@@ -129,9 +129,9 @@ function Dialog:init()
             fgcolor = color or Blitbuffer.COLOR_BLACK,
         }
     end
-    local function heading(t)
-        return TextWidget:new{ text = t, face = Font:getFace("smallinfofontbold") }
-    end
+    -- The popups' section heading (STYLE.md): grey, upper case, no line.
+    local Kit = require("lib/bookshelf_popup_kit")
+    local function heading(t) return Kit.heading(t, 20) end
     local hint_face = Font:getFace("x_smallinfofont")
 
     -- A checkbox (or radio) and, under its label, a grey line on what it is.
@@ -245,26 +245,26 @@ function Dialog:init()
             hint  = _("Lays out each remaining book in your font and margins, so the count matches what you see when reading."),
             checked = o.render, callback = source("render"),
         }
-        local radios = {}
-        local function pick(recount)
-            return function()
-                o.recount = recount
-                save()
-                for want, rb in pairs(radios) do
-                    rb:initCheckButton(want == recount)
-                    UIManager:setDirty(self, function() return "ui", rb.dimen end)
-                end
-            end
+        -- Which books: one of two, the popups' segmented control (STYLE.md),
+        -- redrawn in place when picked.
+        local which = FrameContainer:new{ bordersize = 0, padding = 0 }
+        local function setWhich()
+            which[1] = Kit.segmented{
+                items = {
+                    { key = "missing", label = _("Only books without a page count") },
+                    { key = "every",   label = _("Every book, replacing earlier counts") },
+                },
+                active = o.recount and "every" or "missing",
+                face = Font:getFace("cfont", 17), width = iw,
+                on_pick = function(key)
+                    o.recount = key == "every"
+                    save()
+                    setWhich()
+                    UIManager:setDirty(self, function() return "ui", which.dimen end)
+                end,
+            }
         end
-        local missing, rb_missing = option{
-            label = _("Only books without a page count"), radio = true,
-            checked = not o.recount, callback = pick(false),
-        }
-        local every, rb_every = option{
-            label = _("Every book, replacing earlier counts"), radio = true,
-            checked = o.recount, callback = pick(true),
-        }
-        radios[false], radios[true] = rb_missing, rb_every
+        setWhich()
 
         local body = VerticalGroup:new{
             align = "left",
@@ -280,7 +280,7 @@ function Dialog:init()
             VerticalSpan:new{ width = gap },
             heading(_("Which books")),
             VerticalSpan:new{ width = gap },
-            missing, every,
+            which,
         }
         return body
     end

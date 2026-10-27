@@ -140,7 +140,7 @@ local function nullTile(label, selected, side, on_tap, image_path, fit)
         bordersize = selected and Size.border.thick or Size.border.thin,
         padding    = 0,
         margin     = 0,
-        radius     = 0,
+        radius     = Space.radius.default,   -- as the swatches beside it
         background = Blitbuffer.COLOR_WHITE,
         inner or CenterContainer:new{
             dimen = Geom:new{ w = w, h = side },
@@ -417,7 +417,10 @@ function ColorPaletteWidget:update()
     -- (currently the background-color picker).
     local footer_h = Screen:scaleBySize(44)
     local n_btns   = self.white_callback and 4 or 3
-    local btn_w    = math.floor(iw / n_btns)
+    -- Edge to edge under a full-width line, the dividers the buttons'
+    -- full height (STYLE.md: lines set in from the frame end nowhere).
+    local foot_w   = self.dialog_width
+    local btn_w    = math.floor(foot_w / n_btns)
     local cancel_btn  = makeFooterBtn(_("Cancel"),  btn_w, footer_h,
         function() if self.revert_callback  then self.revert_callback()  end end)
     local default_btn = makeFooterBtn(_("Default"), btn_w, footer_h,
@@ -427,13 +430,9 @@ function ColorPaletteWidget:update()
     local white_btn   = self.white_callback and makeFooterBtn(_("White"), btn_w, footer_h,
         function() self.white_callback() end) or nil
 
-    local vdiv_inset = Space.px(10)
-    local vdiv = function() return CenterContainer:new{
+    local vdiv = function() return LineWidget:new{
+        background = Blitbuffer.COLOR_DARK_GRAY,
         dimen = Geom:new{ w = Size.line.thin, h = footer_h },
-        LineWidget:new{
-            background = Blitbuffer.COLOR_DARK_GRAY,
-            dimen = Geom:new{ w = Size.line.thin, h = footer_h - 2 * vdiv_inset },
-        },
     } end
 
     local footer_row
@@ -448,7 +447,7 @@ function ColorPaletteWidget:update()
     end
     local footer_separator = LineWidget:new{
         background = Blitbuffer.COLOR_DARK_GRAY,
-        dimen      = Geom:new{ w = iw, h = Size.line.thin },
+        dimen      = Geom:new{ w = foot_w, h = Size.line.thin },
     }
 
     local title_bar = TitleBar:new{

@@ -368,6 +368,15 @@ function Kit.cardify(frame, o)
     return frame
 end
 
+-- heading(text, font_size) -> a section heading: grey, bold, upper case, a
+-- step smaller than the body, no line (the book popup's _sectionHeadingBar).
+function Kit.heading(text, font_size)
+    local BFont = require("lib/bookshelf_fonts")
+    local face, bold = BFont:getFace("cfont", math.max(10, (font_size or 20) - 4), { bold = true })
+    return TextWidget:new{ text = require("lib/bookshelf_text_segments").upper(text),
+        face = face, bold = bold, fgcolor = Blitbuffer.COLOR_DARK_GRAY }
+end
+
 -- hintText(text, font_size, width) -> grey secondary text: a hint or a
 -- note, never a greyed-out button (a border says "tap me").
 function Kit.hintText(text, font_size, width)

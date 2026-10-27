@@ -127,17 +127,17 @@ t.test("the picker groups the reasons the way a reader thinks", function()
     -- with Favourites beside it, and the collection reason has its own row
     -- beside the button that picks which (issue 470).
     local ed = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
-    local rows = ed:match("local sub_rows = {(.-)\n%s+}\n")
+    local rows = ed:match("\nfunction Editor:_openFaceOut%b()(.-)\nend\n")
     assert(rows, "the picker's rows moved")
     local order = {}
     for name in rows:gmatch('toggle%("([%a_]+)"%)') do order[#order + 1] = name end
-    eq(table.concat(order, ","), "unread,reading,on_hold,finished,standalone,favorites,first,first_unread,recent,collection",
+    eq(table.concat(order, ","), "unread,reading,on_hold,finished,first,first_unread,standalone,favorites,recent,collection",
        "the picker's row order changed")
-    assert(rows:find('{ toggle("unread"), toggle("reading"), toggle("on_hold"), toggle("finished") }', 1, true),
+    assert(rows:find('toggle%("unread"%), toggle%("reading"%),%s+toggle%("on_hold"%), toggle%("finished"%)'),
         "the four reading states should share a line, in the book menu's order")
-    assert(rows:find('toggle("first"),  toggle("first_unread")', 1, true),
+    assert(rows:find('toggle("first"), toggle("first_unread")', 1, true),
         "the two series reasons should share a line")
-    local ed_labels = ed:match("local FACE_LABELS = (%b{})")
+    local ed_labels = ed:match("local function _faceLabels%(%)\n    return (%b{})")
     assert(ed_labels and ed_labels:find("first_unread", 1, true),
         "the new reason has no label, so its button would be blank")
 end)

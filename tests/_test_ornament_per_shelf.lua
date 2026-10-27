@@ -76,10 +76,10 @@ end)
 local STOPS = (function()
     -- To the closing brace at the list's own indentation: a plain "}" stops
     -- at the end of the first entry.
-    local block = editor:match("local ORN_STOPS = {(.-)\n            }")
+    local block = editor:match("local ORN_STOPS = (%b{})")
     assert(block, "the ornament stops are missing from the style dialog")
     local out = {}
-    for value, word in block:gmatch("value = ([%d%.]+),%s*label = function%(%) return _%(\"([^\"]+)\"%)") do
+    for value, word in block:gmatch('{ ([%d%.]+), _%("([^"]+)"%) }') do
         out[#out + 1] = { value = tonumber(value), word = word }
     end
     return out
@@ -89,7 +89,7 @@ t.test("four stops, in the maintainer's words, and no hidden Default", function(
     local words = {}
     for i, stop in ipairs(STOPS) do words[i] = stop.word end
     eq(table.concat(words, ","), "None,Rarely,Often,Always")
-    local orn = editor:match("local ORN_STOPS = {(.-)\n            }")
+    local orn = editor:match("local ORN_STOPS = (%b{})")
     assert(orn and not orn:find('_("Default")', 1, true),
         "a Default stop stores a value the reader cannot see")
 end)
@@ -114,41 +114,26 @@ t.test("every stop looks different from the one before it", function()
 end)
 
 t.test("an untouched chip shows its default's word, by nearest stop", function()
-    local at = editor:match("local function ornAt%(%)\n(.-)\n            end\n")
-    assert(at, "ornAt moved or was renamed")
-    assert(at:find("Orn.FREQ_DEFAULT", 1, true),
+    local at = editor:match("local ORN_STOPS = .-\n(.-)local items = {}")
+    assert(at, "the stop resolution moved")
+    assert(at:find("if v == nil then v = Orn.FREQ_DEFAULT end", 1, true),
         "nil must resolve to the module's default, not to the first stop")
     assert(at:find("math.abs", 1, true),
         "nearest stop, so a value from an older build cannot fall off the list")
 end)
 
-t.test("the row sits in the spine block, paired with the author tick", function()
-    local author_at = editor:find('local function authorOn()', 1, true)
+t.test("the row sits in the spine block", function()
+    local spines_at = editor:find("if show_spines then", 1, true)
     local stops_at  = editor:find("local ORN_STOPS", 1, true)
-    assert(author_at and stops_at and stops_at > author_at,
+    local covers_at = editor:find("if show_covers then", stops_at or 1, true)
+    assert(spines_at and stops_at and covers_at and spines_at < stops_at and stops_at < covers_at,
         "the row belongs in the spine block, not the general one")
-    -- One row, two buttons: the maintainer asked for the author switch beside
-    -- the ornament dial rather than on a line of its own.
-    local row = editor:match("(rows%[#rows %+ 1%] = {\n                { text_func = function%(%)\n"
-        .. "                      return %(authorOn.-\n            }\n)")
-    assert(row, "the author and ornament buttons are no longer one row")
-    assert(row:find("_(\"Ornaments\")", 1, true), "the ornament dial shares the row")
-end)
-
-t.test("the author switch is a tick, the same mark the face-out picker uses", function()
-    local tick = editor:match('local TICK, BLANK = ("\\x%x%x\\x%x%x\\x%x%x ")')
-    assert(tick, "the tick constant moved")
-    assert(editor:find("(authorOn() and TICK or BLANK) .. _(\"Author on spine\")", 1, true),
-        "Author on spine must render as a tick box, not a Yes/No label")
-    assert(not editor:find("toggleRow", 1, true),
-        "the Yes/No row helper is dead once nothing calls it")
 end)
 
 t.test("the pin reaches the shelf behind as it is picked, like the other spine pins", function()
     -- pick() hands every Shelf style change to on_change, which commits the
     -- whole working copy (see _test_chip_editor_live_apply).
-    assert(editor:find("draft.ornament_frequency = ORN_STOPS[(ornAt() % #ORN_STOPS) + 1].value", 1, true)
-        and editor:find("callback = pick(function()\n                      draft.ornament_frequency", 1, true),
+    assert(editor:find("pick(function() draft.ornament_frequency = ORN_STOPS[i][1] end)", 1, true),
         "the ornament dial is not a pick() that reaches the shelf")
     assert(editor:find("save_tabs[i] = Editor._deepCopy(draft)", 1, true),
         "a change is not written onto the saved shelf whole")

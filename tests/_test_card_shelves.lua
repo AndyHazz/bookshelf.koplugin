@@ -83,13 +83,6 @@ t.test("removing a card tells its module", function()
     assert(m and m:find("on_remove", 1, true), "notifyRemoved does not reach the module")
 end)
 
-t.test("Shelf style offers a plank for card shelves only", function()
-    local ed = src("lib/bookshelf_chip_editor.lua")
-    assert(ed:find("draft.card_only", 1, true) and ed:find("Plank: %1", 1, true), "no Plank row")
-end)
-
--- Settings: rows nudge in place (a reopen flashes the screen), the heading's
--- two controls share a row, and small covers drop their badges.
 t.test("the Shelf module's settings nudge rows in place", function()
     local card = src("micromodules/shelf.lua")
     local dlg = card:match("\nlocal function showSettings%(ctx%)\n(.-)\nend\n")

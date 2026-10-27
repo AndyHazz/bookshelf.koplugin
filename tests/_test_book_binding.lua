@@ -159,24 +159,6 @@ t.test("series binding is absent in covers/list views and on non-series groups",
     eq(F.flushes,flushes)
 end)
 
-t.test("binding and series boxes share a row, with independent live-applied toggles", function()
-    local src=F.source("lib/bookshelf_chip_editor.lua")
-    local block=assert(src:match('if show_spines then\n(.-)\n%s*%-%- The spine view'))
-    local draft, applied={id="soft"},0
-    local rows=F.compile("local rows={}\n"..block.."\nreturn rows", {
-        draft=draft, _=function(s) return s end, T=function(s,v) return s:gsub("%%1",v) end,
-        pick=function(fn) return function() fn(); applied=applied+1 end end,
-    })()
-    eq(#rows,1); eq(#rows[1],2)
-    local binding, boxes=rows[1][1],rows[1][2]
-    eq(binding.text_func(),"Book binding: Hardback")
-    eq(boxes.text_func(),"Series boxes: Off")
-    binding.callback(); eq(draft.book_binding,"paperback"); eq(draft.series_boxes,nil)
-    boxes.callback(); eq(draft.series_boxes,true); eq(draft.book_binding,"paperback")
-    binding.callback(); eq(draft.book_binding,nil); eq(draft.series_boxes,true)
-    boxes.callback(); eq(draft.series_boxes,nil); eq(applied,4)
-end)
-
 t.test("warm planning caches follow shelf and series changes without changing geometry", function()
     local books={{filepath="one.cbz",title="One",has_cover=false,series_name="Saga",page_count=200}}
     local opts={content_w=800,row_h=300,n_rows=2,face_out="all"}

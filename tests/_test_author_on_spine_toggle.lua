@@ -22,53 +22,10 @@
 package.path = "./?.lua;./?/init.lua;" .. package.path
 local helpers = dofile("tests/_helpers.lua")
 local t  = helpers.runner()
-local eq = helpers.eq
 local src = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
 
--- The reader, and the decision it drives, lifted out by name.
-local read = src:match("(local function authorOn%(%).-\n            end)")
-assert(read, "authorOn moved or was renamed")
-local decide = src:match("(if authorOn%(%) then\n.-\n                      end)")
-assert(decide, "the Author on spine callback moved or was renamed")
-
-local function tapper()
-    local draft = {}
-    local env = { draft = draft }
-    local body = read .. "\n" .. decide
-    local tap = assert(load("return function()\n" .. body .. "\nend",
-                            "toggle", "t", env))()
-    local on = assert(load("return function()\n" .. read
-                           .. "\nreturn authorOn()\nend", "read", "t", env))()
-    return draft, tap, on
-end
-
-t.test("a tap turns it off, and the next turns it back on", function()
-    local draft, tap, on = tapper()
-    eq(on(), true, "unset should read as on, which is the default")
-    tap()
-    eq(draft.spine_show_author, false, "the tap has to PIN it off")
-    eq(on(), false, "the tick should have cleared")
-    tap()
-    eq(on(), true, "and come back")
-end)
-
-t.test("it keeps alternating, which is all the reader asked for", function()
-    local draft, tap, on = tapper()
-    local seen = {}
-    for i = 1, 6 do tap(); seen[#seen + 1] = on() and "on" or "off" end
-    eq(table.concat(seen, ","), "off,on,off,on,off,on",
-       "the row stopped responding after " .. tostring(#seen) .. " taps")
-end)
-
-t.test("off is stored as false, not as absence", function()
-    -- nil means "follow the default" everywhere else in this editor, and the
-    -- default is on, so absence cannot express off.
-    local draft, tap = tapper()
-    tap()
-    assert(draft.spine_show_author == false,
-        "stored " .. tostring(draft.spine_show_author) .. "; nil would follow "
-        .. "the default straight back to on")
-end)
+-- The toggle itself is driven in _test_chip_editor (shelf style: Author on
+-- spine can be turned off and back on).
 
 t.test("the idiom that could not express it is gone", function()
     -- Code only: the fix quotes the old line in a comment, on purpose, so

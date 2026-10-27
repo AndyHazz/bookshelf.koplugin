@@ -143,21 +143,28 @@ t.test("adding a module offers to create a shelf first, then the shelves", funct
     assert(body:find("on_discard = function() end", 1, true))
 end)
 
+-- What _pickSource's page offers a module's own shelf: its card_only branches.
+local function cardBranches()
+    local ed = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
+    local body = ed:match("\nfunction Editor:_pickSource%(draft, on_close%)\n(.-)\nend\n")
+    local out = {}
+    for seg in body:gmatch("if card_only then\n(.-)\n        else\n") do out[#out + 1] = seg end
+    assert(#out > 0, "the picker is the same for a module's shelf")
+    return table.concat(out, "\n"), body
+end
+
 t.test("a module's own shelf is offered only sources the module can show", function()
     -- A grouped source (Series, Authors, Shelf of shelves) or an online one
     -- made a module that could only say "Choose a shelf".
-    local ed = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
-    local body = ed:match("\nfunction Editor:_pickSource%(draft, on_close%)\n(.-)\nend\n")
-    local card = body:match("if TabModel.isCardOnly%(draft%) then\n(.-)\n    end\n")
-    assert(card, "the picker is the same for a module's shelf")
-    for _i, s in ipairs({ 'btn("series"', 'btn("authors"', 'btn("genres"', 'btn("tags"',
-            'btn("shelves"', '"opds"' }) do
+    local card, body = cardBranches()
+    for _i, s in ipairs({ "stack(", '"shelves"', "open_opds_picker" }) do
         assert(not card:find(s, 1, true), s .. " offered to a module's shelf")
     end
-    for _i, s in ipairs({ '"single_series"', '"author"', '"genre"', '"collection"', '"format"',
-            '"rating"', '"language"', 'btn("recent"', '"folder_flat"' }) do
+    for _i, s in ipairs({ '"single_series"', '"author"', '"genre"', "open_tag_picker", '"format"',
+            "open_rating_picker", '"language"', '"folder_flat"' }) do
         assert(card:find(s, 1, true), s .. " missing for a module's shelf")
     end
+    assert(body:find('chip("recent"', 1, true), "Recently read missing")
 end)
 
 t.test("a module's own shelf is edited without the shelf menu's controls", function()
@@ -171,20 +178,18 @@ end)
 
 t.test("a module's shelf's source list says what it is choosing", function()
     local ed = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
-    assert(ed:find('title   = TabModel.isCardOnly(draft) and _("Shelf module source") or _("Shelf source or grouping"),', 1, true),
+    assert(ed:find('title   = TabModel.isCardOnly(draft) and _("Shelf module source") or _("Source"),', 1, true),
         "titled Shelf source or grouping with no grouping offered")
 end)
 
 t.test("a module's shelf is offered each folder source once, flattened", function()
     -- The module shows a folder shelf's books flattened (bookSource), so
     -- "Home (folders)" and "Specific folder" were the flattened ones twice.
-    local ed = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
-    local body = ed:match("\nfunction Editor:_pickSource%(draft, on_close%)\n(.-)\nend\n")
-    local card = body:match("if TabModel.isCardOnly%(draft%) then\n(.-)\n    end\n")
-    assert(not card:find('btn("all"', 1, true), "Home (folders) offered")
-    assert(not card:find('specific_btn("folder",', 1, true), "the folder tree offered")
-    assert(card:find('btn("library",   _("Home"))', 1, true), "no Home")
-    assert(card:find('specific_btn("folder_flat", _("Specific folder\\xE2\\x80\\xA6"),', 1, true), "no folder")
+    local card = cardBranches()
+    assert(not card:find('set_simple("all")', 1, true), "Home (folders) offered")
+    assert(not card:find('open_folder_picker("folder")', 1, true), "the folder tree offered")
+    assert(card:find('set_simple("library")', 1, true), "no Home")
+    assert(card:find('open_folder_picker("folder_flat")', 1, true), "no folder")
 end)
 
 t.test("a module's shelf's editor says Source, not Source / grouping", function()

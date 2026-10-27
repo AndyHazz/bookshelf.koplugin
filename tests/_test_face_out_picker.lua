@@ -20,43 +20,17 @@
 package.path = "./?.lua;./?/init.lua;" .. package.path
 local helpers = dofile("tests/_helpers.lua")
 local t  = helpers.runner()
-local eq = helpers.eq
 local src = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
 
--- The picker lives inside the "Face out" row's callback in _pickGroupDisplay.
-local a = src:find("text_func = faceOutShown,", 1, true)
-assert(a, "face-out row not found")
-local b = src:find("local function authorOn()", a, true)
-assert(b, "end of the face-out block not found")  -- anchored on code, not a comment
-local raw   = src:sub(a, b)
-local block = raw:gsub("%-%-[^\n]*", "")
-
-t.test("toggles rewrite labels in place instead of closing and reopening the picker", function()
-    assert(block:find("getButtonById(", 1, true), "labels must be reached through getButtonById")
-    assert(block:find(":setText(", 1, true), "labels must be rewritten with setText")
-    local closes = select(2, block:gsub("Editor%._closeMenu%(sub%)", ""))
-    -- The count picker, the collection picker (issue 470) and Done.
-    eq(closes, 3, "only the count picker, the collection picker and Done may close the picker; found " .. closes .. " closes")
-    assert(not block:find("UIManager:close(sub); show()", 1, true) or closes == 3)
-end)
-
-t.test("the repaint after a toggle is a plain ui refresh of the dialog's own rectangle", function()
-    assert(block:find('return "ui", sub.movable.dimen', 1, true), "expected a region-scoped ui refresh of the picker")
-    assert(not block:find("flashui", 1, true))
-end)
-
-t.test("fixed shape: two toggles per row, a count button that is disabled rather than absent, All/None as a pair, Back", function()
-    assert(block:find('toggle("favorites"', 1, true) and block:find('toggle("reading"', 1, true), "reason toggles")
-    assert(block:find('id = "face_count"', 1, true), "the count button must always exist")
-    assert(block:find("enabled = ", 1, true), "the count button is disabled, not hidden, when Recent is off")
-    assert(block:find('_("Back")', 1, true), "the closing button is Back (to Shelf style); nothing here is cancelled")
-    assert(not block:find('_("Cancel")', 1, true), "Cancel misdescribed a picker whose changes are already saved")
-    assert(not block:find("if spec.recent then\n", 1, true), "no structural change on toggle")
-end)
+-- The picker is a page of its own now (Editor:_openFaceOut), laid out again
+-- in place after each tap; its behaviour is tested in _test_chip_editor.
+local raw = src:match("\nfunction Editor:_openFaceOut%b()(.-)\nend\n")
+assert(raw, "Editor:_openFaceOut not found")
 
 t.test("source strings use American spelling", function()
-    -- raw, not block: a "--" inside the old string made the stripper eat the rest of its line.
-    assert(not raw:find("favourite that", 1, true), "the help text said 'favourite'; British belongs only in en_GB.po")
+    for str in raw:gmatch('_%("(.-)"%)') do
+        assert(not str:find("favourite", 1, true), "British spelling belongs only in en_GB.po: " .. str)
+    end
 end)
 
 t.test("the parent editor's rebuild does not mark a hidden dialog dirty", function()

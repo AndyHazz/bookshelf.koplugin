@@ -141,15 +141,4 @@ end)
 
 -- ── the dialog ──────────────────────────────────────────────────────────────
 
-t.test("Shelf style offers a headed set per level only when both levels list", function()
-    local ed = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
-    local block = ed:match("        if show_list then\n(.-)\n        end\n\n        if show_spines then")
-    assert(block, "could not find the show_list block in Shelf style")
-    assert(block:find('local split = ViewMode.listLevelsSplit(draft)', 1, true))
-    assert(block:find('header(_("Level 1"))', 1, true) and block:find('header(_("Level 2"))', 1, true))
-    assert(block:find('listRows(ViewMode.LEVEL2_SUFFIX, true)', 1, true))
-    -- an unset Level 2 number shows the Level 1 number it follows
-    assert(ed:find('if v == nil and inherit_key then v = draft[inherit_key] end', 1, true))
-end)
-
 t.done()

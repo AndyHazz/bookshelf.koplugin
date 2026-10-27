@@ -191,34 +191,6 @@ t.test("restart intersects saved file identifiers with current membership and ne
     Repo.findGroup=nil
 end)
 
-t.test("the editor toggle changes only its own draft and uses the existing live-apply callback", function()
-    local editor=source("bookshelf_chip_editor")
-    local body=assert(editor:match('if show_spines then\n(.-)\n%s*%-%- The spine view'))
-    local a,b={},{}
-    local function toggle(draft)
-        local changes=0
-        local rows={}
-        compile(body,{rows=rows,draft=draft,_=function(s) return s end,
-            T=function(s,v) return (s:gsub("%%1",v)) end,
-            pick=function(fn) return function() fn(); changes=changes+1 end end})()
-        local button
-        for _,row in ipairs(rows) do
-            for _,cell in ipairs(row) do
-                if cell.text_func():match("^Series boxes:") then button=cell; break end
-            end
-        end
-        assert(button,"series-box toggle missing")
-        local old=button.text_func()
-        button.callback()
-        eq(changes,1)
-        return old,button.text_func()
-    end
-    local before,after=toggle(a)
-    eq(before,"Series boxes: Off"); eq(after,"Series boxes: On")
-    eq(a.series_boxes,true); eq(b.series_boxes,nil)
-    toggle(a); eq(a.series_boxes,nil)
-end)
-
 t.test("inside a drilled box set every book faces out; elsewhere the shelf's choice holds", function()
     -- The shelf's own choice comes from SpineShelf.faceOutFor (tested on its
     -- own); what is tested here is the box set's override.

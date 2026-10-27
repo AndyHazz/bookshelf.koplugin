@@ -274,7 +274,8 @@ t.test("the editor deletes a shelf's whole tree and moves among siblings", funct
         "delete leaves a shelf of shelves' shelves behind")
     local _, n = ed:gsub("TabModel%.isSibling%(", "")
     assert(n >= 2, "the move arrows and their enabled state do not both walk siblings")
-    assert(ed:find('btn("shelves", _("Shelf of shelves"))', 1, true), "no Shelf of shelves source")
+    assert(ed:find('_("Shelf of shelves"),', 1, true) and ed:find('set_simple("shelves")', 1, true),
+        "no Shelf of shelves source")
 end)
 
 t.test("go home climbs out of a shelf of shelves on both paths", function()

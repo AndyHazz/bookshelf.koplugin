@@ -232,7 +232,7 @@ end)
 
 t.test("a collection that has gone says so in the picker", function()
     local ed = io.open("lib/bookshelf_chip_editor.lua"):read("a")
-    local fn = ed:match("local function whichLabel%(spec%)(.-)\n%s+end\n")
+    local fn = ed:match("\nfunction Editor:_openFaceOut%b()(.-)\nend\n")
     assert(fn and fn:find("not found", 1, true),
         "a deleted or renamed collection still reads as chosen, and the shelf silently faces nothing out")
 end)

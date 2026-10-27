@@ -44,7 +44,7 @@ t.test("on hold is one too", function()
     eq(SS.faceOutSpec{ on_hold = true, finished = true }.finished, true)
     assert(shelf:find('or (face_spec.on_hold and (src.status == "on_hold" or src.status == "abandoned"))', 1, true),
         "the plan no longer tests books on hold")
-    local labels = editor:match("local FACE_LABELS = (%b{})")
+    local labels = editor:match("local function _faceLabels%(%)\n    return (%b{})")
     assert(labels and labels:find('on_hold   = _("On hold")', 1, true), "no On hold label")
 end)
 
@@ -56,9 +56,9 @@ t.test("it faces out books marked finished", function()
 end)
 
 t.test("the picker labels it, beside the other reading states", function()
-    local labels = editor:match("local FACE_LABELS = (%b{})")
+    local labels = editor:match("local function _faceLabels%(%)\n    return (%b{})")
     assert(labels and labels:find('finished  = _("Finished")', 1, true), "no Finished label")
-    assert(editor:find('{ toggle("unread"), toggle("reading"), toggle("on_hold"), toggle("finished") }', 1, true))
+    assert(editor:find('toggle%("unread"%), toggle%("reading"%),%s+toggle%("on_hold"%), toggle%("finished"%)'))
 end)
 
 t.test("a face-out favourite keeps its heart, top-right", function()

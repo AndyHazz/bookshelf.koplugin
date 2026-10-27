@@ -52,7 +52,7 @@ t.test("Shelf style has the shelf's Theme row, sub-shelves too, previewed live",
     -- Every shelf, a sub-shelf included (Reddit, after 5.4): no gate on
     -- draft.parent, and a sub-shelf following its shelf of shelves says so.
     local row = pick:match("\n        do\n(.-)\n        end\n")
-    assert(row and row:find('_("Theme: %1")', 1, true), "no Theme row")
+    assert(row and row:find('label = _("Theme")', 1, true), "no Theme row")
     assert(not pick:find("if draft.parent == nil then", 1, true), "the Theme row is still top-level shelves only")
     assert(row:find("local follow = draft.parent ~= nil and TP.followOf(draft.id) or nil", 1, true)
         and row:find("follow = follow,", 1, true),
@@ -60,12 +60,12 @@ t.test("Shelf style has the shelf's Theme row, sub-shelves too, previewed live",
     -- Following the default reads "Theme: Default theme", as the Theme
     -- menu's shelf rows do; "library" is the Theme library's own name, and
     -- a bare "Default" was not enough (maintainer, 2026-10-09).
-    assert(row:find('T(_("Theme: %1"), TP.choiceLabel(v))', 1, true),
+    assert(row:find("(v == nil and follow) and follow.title or TP.choiceLabel(v)", 1, true),
         "Shelf style does not name following the default Default theme")
     assert(not row:find("as library", 1, true), "Shelf style's Theme row still says library")
     assert(row:find('require("lib/bookshelf_theme_library").show{', 1, true),
         "the row does not open the Theme library the menus open")
-    assert(row:find("current = cur,", 1, true), "the picker does not mark the draft's choice")
+    assert(row:find("current = function() return draft.theme end,", 1, true), "the picker does not mark the draft's choice")
     assert(row:find("choose = function(value) draft.theme = value end,", 1, true)
         and row:find("apply = function() on_change(true) end,", 1, true),
         "a pick does not reach the draft, or is not previewed on the shelf behind at once")
@@ -75,11 +75,11 @@ t.test("Shelf style has the shelf's Theme row, sub-shelves too, previewed live",
     local open_ed = ed:gsub("%-%-[^\n]*", "")
     assert(open_ed:find("Editor:_pickGroupDisplay%(draft, function%(now%)\n%s*commit%(%)\n%s*if now then settlePreview%(%) end\n%s*rebuild%(%)"),
         "the Theme library's apply leaves the shelf's rebuild on the debounce: two flashes")
-    assert(row:find("on_closed = show,", 1, true), "Shelf style does not come back after the picker")
+    assert(row:find("on_closed = function() if d and d.refresh then d:refresh() end end,", 1, true), "Shelf style does not come back after the picker")
     -- First, above Show as: the theme sits behind the layout style
     -- (maintainer, 2026-10-09).
     local th = pick:find("local follow = draft.parent", 1, true)
-    local sa = pick:find('rows[#rows + 1] = header(_("Show as"))', 1, true)
+    local sa = pick:find("add(show_as)", 1, true)
     assert(th and sa and th < sa, "the Theme row is not above Show as")
     local tm = read("lib/bookshelf_theme_menu.lua")
     local open = tm:match("function M%.openLibrary%(S, id, touchmenu_instance, after%)(.-)\nend\n")

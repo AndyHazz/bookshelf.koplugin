@@ -245,8 +245,7 @@ t.test("the sort picker offers Collection order on a collection chip only", func
     UI.close = function() end
     local function offered(kind)
         captured = nil
-        Editor:_pickSortLevel({ source = { kind = kind }, sort_priority = {} },
-                              1, function() end)
+        Editor:_openSort({ source = { kind = kind }, sort_priority = {} })
         local texts = {}
         for _i, row in ipairs(captured and captured.buttons or {}) do
             for _j, btn in ipairs(row) do texts[#texts + 1] = btn.text end
@@ -281,14 +280,21 @@ local function pickerFor(source, order_stub)
         end,
     }
     calls.on_arranged = function() calls.arranged_fired = true end
-    Editor:_pickSortLevel({ source = source, sort_priority = {} }, 1,
-                          function() end, calls.on_arranged)
+    Editor:_openSort({ source = source, sort_priority = {} }, nil, calls.on_arranged)
     return captured, calls
+end
+
+-- The row of the page holding the Collection order key.
+local function keyRow(d)
+    for _i, row in ipairs(d.buttons) do
+        if row[1].text and row[1].text:find("Collection order", 1, true) then return row end
+    end
+    error("no Collection order row")
 end
 
 t.test("a collection chip can arrange its collection from beside the key", function()
     local d, calls = pickerFor({ kind = "collection", id = "discworld" })
-    local row = d.buttons[1]
+    local row = keyRow(d)
     eq(#row, 2, "the edit button is not beside the Collection order key")
     assert(row[1].text:find("Collection order", 1, true), "row 1 is not the key")
     assert(row[2].text:find("Edit collection order", 1, true),
@@ -304,7 +310,7 @@ t.test("a confirmed arrangement is reported back to the editor", function()
     -- so the editor has to hear about it to repaint the shelf -- Cancel
     -- included, because backing out of the editor does not undo it.
     local d, calls = pickerFor({ kind = "collection", id = "discworld" })
-    d.buttons[1][2].callback()
+    keyRow(d)[2].callback()
     assert(calls.on_saved, "the picker gave the arrange window nothing to call")
     calls.on_saved()
     eq(calls.arranged_fired, true, "the editor was never told the order changed")
@@ -336,17 +342,17 @@ t.test("onArranged is declared below the preview it schedules", function()
     assert(arr > sched, "onArranged would call a nil schedulePreview")
 end)
 
-t.test("all three sort levels hand the picker the arrangement hook", function()
+t.test("the Sort page is handed the arrangement hook", function()
     local n = select(2, editor_src:gsub(
-        "Editor:_pickSortLevel%(draft, %d, function%(%) commit%(%); rebuild%(%) end, onArranged%)", ""))
-    eq(n, 3, "a sort level opens the picker without the arrangement hook")
+        "Editor:_openSort%(draft, function%(%) commit%(%) end, onArranged", ""))
+    eq(n, 1, "the Sort page opens without the arrangement hook")
 end)
 
 t.test("no edit button when there is no collection behind the chip", function()
     -- A pinned TAG is kind "collection" with the tag as its id. The key still
     -- shows -- it ties harmlessly -- but there is nothing to arrange.
     local d = pickerFor({ kind = "collection", id = "sci-fi" })
-    eq(#d.buttons[1], 1, "an arrange button was offered for a tag")
+    eq(#keyRow(d), 1, "an arrange button was offered for a tag")
 end)
 
 t.test("no edit button off a collection source", function()
@@ -473,7 +479,7 @@ end
 
 for _, name in ipairs({
     "_pickSource", "_openFilters", "_pickChoiceFilter",
-    "_pickMultiFilter", "_pickFolderFilter", "_pickSortLevel",
+    "_pickMultiFilter", "_pickFolderFilter", "_openSort",
 }) do
     t.test(name .. " anchors its dialog above the shelf", function()
         local body = bodyOf(name)
@@ -510,24 +516,156 @@ t.test("the placement is shared, not copy-pasted per dialog", function()
     assert(uses >= 7, "expected every picker to use it, found " .. uses)
 end)
 
-t.test("the face-out chooser says what it is choosing between", function()
-    -- Five bare labels with no heading: once the row that named the setting
-    -- has closed behind them, "Favorites" / "First in series" could be
-    -- choosing anything.
-    local body = bodyOf("_pickGroupDisplay")
-    local sub = body:match("sub = Editor._menu{(.-)\n%s+}")
-    assert(sub, "the face-out sub-dialog moved or was renamed")
-    assert(sub:find('title%s*=%s*_%("Face out"%)'), "no heading")
-    assert(sub:find("_helpParagraph", 1, true), "no explanatory line")
-    assert(sub:find("_highAnchor", 1, true), "not anchored above the shelf")
+-- ── Face out, a page of toggles ────────────────────────────────────────────
+-- The real face-out shape helpers, pulled out of the spine shelf (which needs
+-- widgets to load).
+local function spineFaceHelpers()
+    local ss = io.open("lib/bookshelf_spine_shelf.lua"):read("*a")
+    local a = ss:find("SpineShelf.FACE_REASONS = ", 1, true)
+    local b = ss:find("\nend\n", ss:find("function SpineShelf.faceOutEmpty", a, true), true)
+    local chunk = "local SpineShelf = {}\n"
+        .. ss:sub(a, b + 4):gsub("function SpineShelf%.faceOutFor.-\nend\n", "")
+        .. "\nreturn SpineShelf"
+    return assert(load(chunk))()
+end
+
+-- Open the page on a host that records it: the spec, and how many times it
+-- was laid out again.
+local function openFaceOut(draft)
+    package.loaded["lib/bookshelf_spine_shelf"] = spineFaceHelpers()
+    local spec, refreshed, changes = nil, 0, 0
+    Editor._host = { push = function(sp)
+        spec = sp
+        return { refresh = function() refreshed = refreshed + 1 end }
+    end }
+    Editor:_openFaceOut(draft, function() changes = changes + 1 end)
+    Editor._host = nil
+    local function chip(text)
+        for _i, b in ipairs(spec.page().blocks) do
+            for _j, it in ipairs(b.items or {}) do
+                if it.text == text then return it end
+            end
+        end
+        error("no " .. text .. " chip")
+    end
+    return { spec = spec, chip = chip,
+             refreshed = function() return refreshed end,
+             changes = function() return changes end }
+end
+
+t.test("face out: a tap toggles a reason, saves it and lays the page out in place", function()
+    local draft = {}
+    local p = openFaceOut(draft)
+    eq(p.spec.title, "Face out")
+    assert(p.chip("Favorites").on, "Favorites is the default and not shown on")
+    p.chip("Reading").callback()
+    eq(type(draft.spine_face_out), "table", "two reasons are stored as a set")
+    assert(draft.spine_face_out.reading and draft.spine_face_out.favorites)
+    eq(p.refreshed(), 1, "the page was not laid out again")
+    eq(p.changes(), 1, "the change was not saved")
+    p.chip("Favorites").callback()
+    eq(draft.spine_face_out, "reading", "one reason is stored as the plain string")
 end)
 
-t.test("the help paragraph is shared too", function()
-    local defs = select(2, editor_src:gsub("local function _helpParagraph", ""))
-    eq(defs, 1)
-    -- Filters had the only copy of this width arithmetic; it now has a caller.
-    local uses = select(2, editor_src:gsub("_helpParagraph%(", ""))
-    assert(uses >= 2, "expected at least Filters and Face out, found " .. uses)
+t.test("face out: All and None are the whole-shelf answers", function()
+    local draft = { spine_face_out = "reading" }
+    local p = openFaceOut(draft)
+    p.chip("All books").callback()
+    eq(draft.spine_face_out, "all")
+    assert(not p.chip("Reading").on, "a reason still shows on under All")
+    p.chip("None").callback()
+    eq(draft.spine_face_out, false)
+    p.chip("Unread").callback()
+    eq(draft.spine_face_out, "unread", "a reason picked after None is not stored on its own")
+end)
+
+t.test("face out: no tap closes the page", function()
+    local body = bodyOf("_openFaceOut")
+    assert(not body:find("Editor._closeMenu(", 1, true), "a toggle closes and reopens the page")
+    assert(body:find("_highAnchor", 1, true), "not anchored above the shelf")
+end)
+
+-- ── Shelf style, a page of controls ────────────────────────────────────────
+-- Opened on a host that records the page; each control is driven the way a
+-- tap would, and the draft checked.
+local function openStyle(draft, chrome)
+    package.loaded["lib/bookshelf_stack_display"] = {
+        pinned = function(v) return v end, FOLLOW_DEFAULT = "default",
+        CHIP_OPTIONS = { { value = "default", label_func = function() return "Default setting" end },
+                         { value = "ribbon", label_func = function() return "Ribbon" end } },
+    }
+    package.loaded["lib/bookshelf_theme_pack"] = {
+        followOf = function() return nil end, choiceLabel = function() return "Default theme" end,
+    }
+    package.loaded["lib/bookshelf_book_binding"] = {
+        label = function(v) return v == "paperback" and "Paperback" or "Hardback" end,
+    }
+    package.loaded["lib/bookshelf_ornaments"] = { FREQ_DEFAULT = 1 }
+    package.loaded["lib/bookshelf_spine_shelf"] = spineFaceHelpers()
+    package.loaded["lib/bookshelf_tab_model"].isShelves = function() return false end
+    local spec, changes = nil, 0
+    Editor._host = { push = function(sp) spec = sp; return { refresh = function() end } end }
+    Editor:_pickGroupDisplay(draft, function() changes = changes + 1 end, chrome)
+    Editor._host = nil
+    local p = {}
+    function p.blocks() return spec.page().blocks end
+    function p.find(label)
+        for _i, b in ipairs(p.blocks()) do
+            if b.label == label or b.text == label then return b end
+        end
+    end
+    function p.changes() return changes end
+    return p
+end
+
+t.test("shelf style: binding and series boxes are independent, applied as picked", function()
+    local draft = { view_mode = "spines" }
+    local p = openStyle(draft)
+    p.find("Book binding").on_pick("paperback")
+    eq(draft.book_binding, "paperback"); eq(draft.series_boxes, nil)
+    p.find("Series boxes").on_pick(true)
+    eq(draft.series_boxes, true); eq(draft.book_binding, "paperback")
+    p.find("Book binding").on_pick("hardcover")
+    eq(draft.book_binding, nil, "the default binding is stored as absence")
+    p.find("Series boxes").on_pick(false)
+    eq(draft.series_boxes, nil)
+    eq(p.changes(), 4, "a pick was not applied")
+end)
+
+t.test("shelf style: Author on spine can be turned off and back on (#439)", function()
+    local draft = { view_mode = "spines" }
+    local p = openStyle(draft)
+    eq(p.find("Author on spine").active, true, "on by default")
+    p.find("Author on spine").on_pick(false)
+    eq(draft.spine_show_author, false)
+    p.find("Author on spine").on_pick(true)
+    eq(draft.spine_show_author, nil)
+end)
+
+t.test("shelf style: ornaments step through four stops", function()
+    local draft = { view_mode = "spines" }
+    local p = openStyle(draft)
+    eq(#p.find("Ornaments").items, 4)
+    p.find("Ornaments").on_pick(1)
+    eq(draft.ornament_frequency, 0)
+end)
+
+t.test("shelf style: a plank for card shelves only", function()
+    assert(not openStyle({ view_mode = "spines" }).find("Plank"), "a main shelf was offered a plank")
+    assert(openStyle({ view_mode = "spines", card_only = true }).find("Plank"), "no Plank row for a card shelf")
+end)
+
+t.test("shelf style: a headed set of list numbers per level only when both levels list", function()
+    local split = openStyle({ view_mode = "auto", view_level1 = "list", view_level2 = "list" })
+    assert(split.find("List, top level") and split.find("List, inside"), "no set per level")
+    local one = openStyle({ view_mode = "list" })
+    assert(one.find("List") and not one.find("List, inside"))
+    -- An unset Level 2 number shows the Level 1 number it follows.
+    local inherit = openStyle({ view_mode = "auto", view_level1 = "list", view_level2 = "list",
+                                list_rows = 6 })
+    local rows = {}
+    for _i, b in ipairs(inherit.blocks()) do if b.label == "Rows" then rows[#rows + 1] = b.value end end
+    eq(rows[2], "6")
 end)
 
 t.done()

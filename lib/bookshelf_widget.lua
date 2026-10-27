@@ -23176,8 +23176,12 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
     local side_pad  = (show_parent and show_parent._side_pad) or Space.px(28)
     local content_w = avail_w - 2 * side_pad
 
+    local _gettime = require("lib/bookshelf_gettime")
+    local t0 = _gettime()
     if not state.local_candidates then
         state.local_candidates = CoverApply.localCandidates(book)
+        logger.dbg(string.format("[bookshelf perf] Cover tab: localCandidates %.0fms (%d)",
+            (_gettime() - t0) * 1000, #state.local_candidates))
     end
     local candidates = {}
     local seen_local = {}
@@ -23369,6 +23373,8 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
     }
     -- The controls strip runs edge to edge above the inset column.
     framed = VerticalGroup:new{ align = "left", strip, framed }
+    logger.dbg(string.format("[bookshelf perf] Cover tab: build %.0fms (%d covers)",
+        (_gettime() - t0) * 1000, total))
     framed.focus_tables = focus_tables
     -- Expose the grid's pagination so the modal's horizontal swipe pages the
     -- covers first and only cycles tabs once you're off the end (see

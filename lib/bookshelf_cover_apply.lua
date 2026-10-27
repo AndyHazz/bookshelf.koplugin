@@ -158,7 +158,11 @@ function CoverApply.localCandidates(book)
 
     -- Embedded (native) cover. Tapping this reverts to it (removes the custom
     -- cover); the extracted PNG is only for display.
+    local _gettime = require("lib/bookshelf_gettime")
+    local t0 = _gettime()
     local emb = _extractEmbedded(book)
+    logger.dbg(string.format("[bookshelf perf] Cover tab: embedded extract %.0fms",
+        (_gettime() - t0) * 1000))
     if emb then
         local sw, sh = _parseSizetag(book.cover_sizetag)
         local w, h = CoverApply.imageDims(emb)

@@ -649,7 +649,7 @@ function StartMenu:_buildRow(entry, w, focused, in_flyout)
                 -- Just below the vertically-centred label baseline.
                 local cy = y + focus_border
                     + math.floor((ul_row_h + ul_h) / 2) + Screen:scaleBySize(1)
-                bb:paintRect(x + ul_x_off, cy, ul_w, th, ul_fg)
+                require("lib/bookshelf_color").paintRect(bb, x + ul_x_off, cy, ul_w, th, ul_fg)
             end
         end
     end

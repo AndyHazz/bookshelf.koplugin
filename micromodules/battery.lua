@@ -87,7 +87,7 @@ local function meter(w, h, fraction, upright)
             nx, ny = x + w - nw, y + math.floor((h - nh) / 2)
             bx, by, bw, bh = x, y, w - nw, h
         end
-        bb:paintBorder(bx, by, bw, bh, t, ink, t * 2)
+        Color.paintBorder(bb, bx, by, bw, bh, t, ink, t * 2)
         Color.paintRect(bb, nx, ny, nw, nh, ink)
         local ix, iy = bx + t + gap, by + t + gap
         local iw, ih = bw - 2 * (t + gap), bh - 2 * (t + gap)

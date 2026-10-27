@@ -378,7 +378,7 @@ function M.scrim(bb, x, y, w, h, colour, strength, radius)
         if not opaque and M._blendInCopy(bb, spans, tint, Blitbuffer) then return end
         for _i, s in ipairs(spans) do
             if opaque then
-                bb:paintRect(s.x, s.y, s.w, s.h, colour)
+                require("lib/bookshelf_color").paintRect(bb, s.x, s.y, s.w, s.h, colour)
             else
                 bb:blendRectRGB32(s.x, s.y, s.w, s.h, tint)
             end

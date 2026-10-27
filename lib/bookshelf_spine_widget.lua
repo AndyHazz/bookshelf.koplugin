@@ -739,7 +739,7 @@ function RoundedCornerCard:paintTo(bb, x, y)
             local c = colour
             if type(c) == "nil" then c = bg end
             if type(c) == "nil" then c = Blitbuffer.COLOR_WHITE end
-            bb:paintRect(cx, cy, cw, 1, c)
+            require("lib/bookshelf_color").paintRect(bb, cx, cy, cw, 1, c)
         end
         local r_sq    = r * r
         -- Resolve the shadow grey LIVE here, not from self.shadow_color

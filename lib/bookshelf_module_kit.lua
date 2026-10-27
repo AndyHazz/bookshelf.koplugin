@@ -98,16 +98,37 @@ function Kit.settingsReopen(ctx, dialog, show_settings)
     if show_settings then show_settings(ctx) end
 end
 
--- Kit.withClose(spec) -> a module settings ButtonDialog's spec with a Close
--- row at the foot: tapping outside closed it, but nothing on it said so.
--- Close is the same as that tap (onClose, so a tap_close_callback runs).
--- ButtonDialog:new keeps the spec table as the dialog, hence spec:onClose.
+-- Kit.withClose(spec) -> a module settings ButtonDialog's spec with a close X
+-- at the right end of its title: tapping outside closed it, but nothing on
+-- it said so. The X does what that tap does (onClose, so a
+-- tap_close_callback runs). ButtonDialog has no place for one, so the
+-- spec's own init (which Widget:new calls in place of the class's) builds
+-- the dialog as usual, then lays the X over the title line, the same size,
+-- so nothing below moves. With no title, a Close row at the foot instead.
 function Kit.withClose(spec)
-    local _ = require("lib/bookshelf_i18n").gettext
-    spec.buttons = spec.buttons or {}
-    table.insert(spec.buttons, { { text = _("Close"), callback = function()
-        if spec.onClose then spec:onClose() else require("ui/uimanager"):close(spec) end
-    end } })
+    if not spec.title then
+        local _ = require("lib/bookshelf_i18n").gettext
+        spec.buttons = spec.buttons or {}
+        table.insert(spec.buttons, { { text = _("Close"), callback = function()
+            if spec.onClose then spec:onClose() else require("ui/uimanager"):close(spec) end
+        end } })
+        return spec
+    end
+    function spec:init()
+        require("ui/widget/buttondialog").init(self)
+        local group = self.title_group and self.title_group[1]
+        local title = group and group[1]
+        if not (title and title.getSize) then return end
+        local sz = title:getSize()
+        local Geom = require("ui/geometry")
+        local dimen = Geom:new{ w = sz.w, h = sz.h }
+        local x = require("ui/widget/iconbutton"):new{
+            icon = "close", width = sz.h, height = sz.h,
+            callback = function() self:onClose() end,
+        }
+        group[1] = require("ui/widget/overlapgroup"):new{ dimen = dimen, title,
+            require("ui/widget/container/rightcontainer"):new{ dimen = dimen, x } }
+    end
     return spec
 end
 

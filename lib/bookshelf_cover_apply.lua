@@ -130,6 +130,20 @@ local function _extractEmbedded(book)
     return bb, w, h
 end
 
+-- The cover the shelf already holds for the book (the cover browser's stored
+-- thumbnail), owned by the caller: a few ms against opening the document to
+-- read its cover, which took 1-3 s on a PW5. Only right when that thumbnail
+-- IS the embedded cover -- no custom cover, no external cover image -- and
+-- only used when the full cover's size is known (cover_sizetag) for the
+-- caption.
+local function _shelfThumb(book)
+    if book.cover_image_path then return nil end
+    local ok, Repo = pcall(require, "lib/bookshelf_book_repository")
+    if not (ok and Repo and Repo.getCoverBB) then return nil end
+    local ok_b, bb = pcall(Repo.getCoverBB, book.filepath)
+    return ok_b and bb or nil
+end
+
 -- Drop candidates whose (width,height,filesize) triple already appeared, so the
 -- same underlying image (e.g. an active sidecar cover that originally came from
 -- Hardcover, still also present in the Hardcover cache) shows once. Earliest
@@ -163,11 +177,14 @@ function CoverApply.localCandidates(book)
     -- cover); the decoded image is only for display.
     local _gettime = require("lib/bookshelf_gettime")
     local t0 = _gettime()
-    local emb, ew, eh = _extractEmbedded(book)
-    logger.dbg(string.format("[bookshelf perf] Cover tab: embedded extract %.0fms",
-        (_gettime() - t0) * 1000))
+    local sw, sh = _parseSizetag(book.cover_sizetag)
+    local emb, ew, eh
+    if book.has_cover and not active and sw and sh then emb = _shelfThumb(book) end
+    local from_shelf = emb ~= nil
+    if not emb then emb, ew, eh = _extractEmbedded(book) end
+    logger.dbg(string.format("[bookshelf perf] Cover tab: embedded cover %.0fms (%s)",
+        (_gettime() - t0) * 1000, from_shelf and "shelf thumbnail" or "from the book"))
     if emb then
-        local sw, sh = _parseSizetag(book.cover_sizetag)
         out[#out + 1] = {
             kind = "embedded", source_label = _("Embedded"),
             image = emb, width = sw or ew, height = sh or eh,

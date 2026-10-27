@@ -150,4 +150,14 @@ t.test("resetWorkingCache tolerates an unreadable subdirectory", function()
     assert(FS[ROOT .. "/opds/srvkey1/aaaa.img"] == "file", "opds/ still exempt")
 end)
 
+t.test("the embedded cover is kept in memory, not written out as a PNG", function()
+    -- Writing a 1400 x 2100 cover as PNG took 2 s on a desktop; the Cover
+    -- tab's first visit waited for it. The grid cell shows candidate.image.
+    local f = assert(io.open("lib/bookshelf_cover_apply.lua")); local src = f:read("*a"); f:close()
+    assert(not src:find("writePNG", 1, true), "embedded cover written to disk again")
+    assert(src:find("image = emb,", 1, true))
+    f = assert(io.open("lib/bookshelf_cover_grid_cell.lua")); src = f:read("*a"); f:close()
+    assert(src:find("local bb = c.image or", 1, true))
+end)
+
 t.done()

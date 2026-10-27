@@ -5,9 +5,8 @@
 -- (SpineWidget.BorderOverlay), so "selected here" reads identically to
 -- "selected on the shelf". Tapping fires on_tap(candidate).
 --
--- The tile renders from candidate.local_path (every candidate is a local file
--- by the time it reaches the grid -- online results are downloaded first, the
--- embedded cover is extracted to a PNG). Decoding goes through ImageSource's
+-- The tile renders from candidate.local_path (online results are downloaded
+-- first), or candidate.image for the embedded cover (decoded in memory). Decoding goes through ImageSource's
 -- shared cache, so the dimension probe done when the candidate was built is a
 -- cache hit here.
 
@@ -123,7 +122,7 @@ function CoverGridCell.new(opts)
     local box_h = height - cap_h - gap - 2 * RING
     if box_h < Screen:scaleBySize(24) then box_h = Screen:scaleBySize(24) end
 
-    local bb = c.local_path and ImageSource.loadImageNative(c.local_path) or nil
+    local bb = c.image or (c.local_path and ImageSource.loadImageNative(c.local_path)) or nil
     local inner
     if bb then
         inner = ImageWidget:new{

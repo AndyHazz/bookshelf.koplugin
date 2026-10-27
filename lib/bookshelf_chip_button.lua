@@ -31,7 +31,7 @@ local Space           = require("lib/bookshelf_space")
 local ChipFrame = FrameContainer:extend{}
 function ChipFrame:paintTo(bb, x, y)
     FrameContainer.paintTo(self, bb, x, y)
-    if self.inverted and self.dimen then
+    if (self.inverted or self._pressed) and self.dimen then
         require("lib/bookshelf_popup_kit").invertRounded(bb, x, y,
             self.dimen.w, self.dimen.h, self.radius)
     end
@@ -118,8 +118,12 @@ function ChipButton.build(opts)
     local btn_w = frame:getSize().w
     local btn = InputContainer:new{ dimen = Geom:new{ w = btn_w, h = height }, frame }
     btn.ges_events = { TapSelect = { GestureRange:new{ ges = "tap", range = btn.dimen } } }
+    -- Shown pressed (inverted) at once, then the tap acts: a slow action
+    -- still shows it was taken.
     btn.onTapSelect = function()
-        if opts.on_tap and opts.enabled ~= false then opts.on_tap() end
+        if opts.on_tap and opts.enabled ~= false then
+            require("lib/bookshelf_popup_kit").pressThen(btn, frame, opts.on_tap)
+        end
         return true
     end
     -- Dpad/keyboard focus highlight. Restores to the caller's own `inverted`

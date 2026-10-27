@@ -22761,7 +22761,6 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                 content_h = math.max(content_h, content:getSize().h)
             end
             local tile_h = content_h + 2 * pad_v + 2 * tile_border
-            local card_shadow = PopupKit.shadowSize()
             local grid = VerticalGroup:new{ align = "left" }
             local line, line_cells
             for i, a in ipairs(tile_specs) do
@@ -22776,28 +22775,20 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                     line[#line + 1] = HorizontalSpan:new{ width = gap }
                 end
                 -- The picked card, while arranging, gets a heavy outline.
-                local frame = FrameContainer:new{
-                    bordersize = 0, radius = tile_radius, margin = 0,
-                    padding = 0, padding_top = pad_v + tile_border,
-                    background = (a.on and not arranging) and Blitbuffer.COLOR_BLACK or PopupKit.STRIP_BG,
+                -- The kit's card: a hairline shadow (the light grey alone is
+                -- faint on e-ink with no border), shown pressed while its tap
+                -- acts. The picked card, while arranging, is outlined.
+                local frame = PopupKit.card{
+                    padding_top = pad_v + tile_border,
+                    on = a.on and not arranging,
                     width = tile_w, height = tile_h,
+                    outline = arranging and arranging.sel == a.id,
                     CenterContainer:new{
                         dimen = Geom:new{ w = tile_w,
                                           h = built[i]:getSize().h },
                         built[i],
                     },
                 }
-                -- A hairline shadow under each card: the light grey alone is
-                -- faint on e-ink with no border.
-                local picked = arranging and arranging.sel == a.id
-                function frame:paintTo(bb, x, y)
-                    bb:paintRoundedRect(x + card_shadow, y + card_shadow, tile_w, tile_h,
-                        PopupKit.SHADOW, tile_radius)
-                    FrameContainer.paintTo(self, bb, x, y)
-                    if picked then
-                        bb:paintBorder(x, y, tile_w, tile_h, Space.px(4), Blitbuffer.COLOR_BLACK, tile_radius)
-                    end
-                end
                 local id = a.id
                 local cell
                 if arranging then

@@ -996,8 +996,10 @@ function LibraryModal:_renderGridArea(content_width, area_height)
                     ic.ges_events.TapSelect = {
                         GestureRange:new{ ges = "tap", range = ic.dimen }
                     }
+                    -- The card shows pressed at once, then the tap acts.
                     ic.onTapSelect = function()
-                        self.config.on_cell_tap(item)
+                        PopupKit.pressThen(ic, PopupKit.findCard(cell_widget),
+                            function() self.config.on_cell_tap(item) end)
                         return true
                     end
                 end

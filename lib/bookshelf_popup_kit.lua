@@ -37,7 +37,9 @@ function Kit.tapCell(widget, w, h, on_tap, enabled, on_hold)
     local cell = InputContainer:new{ dimen = Geom:new{ w = w, h = h }, widget }
     cell.ges_events = { Tap = { GestureRange:new{ ges = "tap", range = cell.dimen } } }
     cell.onTap = function()
-        if enabled ~= false and on_tap then on_tap() end
+        if enabled ~= false and on_tap then
+            Kit.pressThen(cell, Kit.findCard(widget), on_tap)
+        end
         return true
     end
     if on_hold then
@@ -70,6 +72,19 @@ function Kit.invertRounded(bb, x, y, w, h, r)
             bb:invertRect(x + w - out, y + h - 1 - i, out, 1)
         end
     end
+end
+
+-- findCard(widget) -> the kit card in widget (itself, or a few levels in),
+-- or nil: what a tap shows pressed.
+function Kit.findCard(widget, depth)
+    depth = depth or 0
+    if type(widget) ~= "table" or depth > 4 then return nil end
+    if widget._kit_card then return widget end
+    for i = 1, #widget do
+        local c = Kit.findCard(widget[i], depth + 1)
+        if c then return c end
+    end
+    return nil
 end
 
 -- segmented(o) -> widget, focus_rows: one rounded control split into cells,
@@ -320,6 +335,56 @@ function Kit.segmentedGrid(o)
     return grid, focus_rows
 end
 
+-- paintCard(frame, bb, x, y, outline): a kit card. Raised: a hairline
+-- shadow down and right. Pressed (frame._pressed, while its tap's action
+-- runs): the shade moves inside along the top and left and the content sits
+-- down by as much, so a slow action shows it was taken at once.
+local function paintCard(frame, bb, x, y, outline)
+    local sz = frame:getSize()
+    local r, s = Kit.RADIUS, Kit.shadowSize()
+    if frame._pressed then
+        local d = 2 * s
+        local bg = frame.background
+        bb:paintRoundedRect(x, y, sz.w, sz.h, Kit.SHADOW, r)
+        bb:paintRoundedRect(x + d, y + d, sz.w - d, sz.h - d, bg, r)
+        frame.background = nil
+        FrameContainer.paintTo(frame, bb, x + d, y + d)
+        frame.background = bg
+    else
+        bb:paintRoundedRect(x + s, y + s, sz.w, sz.h, Kit.SHADOW, r)
+        FrameContainer.paintTo(frame, bb, x, y)
+    end
+    if outline then
+        bb:paintBorder(x, y, sz.w, sz.h, Space.px(4), Blitbuffer.COLOR_BLACK, r)
+    end
+end
+
+-- pressThen(cell, card, action): show card pressed at once (repainted and
+-- refreshed in place), run action on the next tick, then let it up. Without
+-- dimen yet (not painted, or headless), just the action.
+function Kit.pressThen(cell, card, action)
+    if not action then return end
+    local d = cell and cell.dimen
+    if not (card and d and d.x) then return action() end
+    local UIManager = require("ui/uimanager")
+    local Geom_ = Geom
+    local box = Geom_:new{ x = d.x, y = d.y, w = d.w + 2, h = d.h + 2 }
+    card._pressed = true
+    UIManager:widgetRepaint(cell, d.x, d.y)
+    UIManager:setDirty(nil, "fast", box)
+    UIManager:forceRePaint()
+    local top = UIManager:getTopmostVisibleWidget()
+    UIManager:tickAfterNext(function()
+        action()
+        card._pressed = false
+        -- Let it up where it still shows (the action may have closed or
+        -- covered it, or rebuilt it already).
+        if top and UIManager:getTopmostVisibleWidget() == top then
+            UIManager:setDirty(top, "ui", box)
+        end
+    end)
+end
+
 -- card(o) -> a light grey card with a hairline shadow down and right: the
 -- book popup's action cards and the start menu's module rows. Black when on.
 --   o[1] the content, o.width/o.height (optional; else sized to content),
@@ -336,15 +401,8 @@ function Kit.card(o)
         width = o.width, height = o.height,
         o[1],
     }
-    local s = Kit.shadowSize()
-    function card:paintTo(bb, x, y)
-        local sz = self:getSize()
-        bb:paintRoundedRect(x + s, y + s, sz.w, sz.h, Kit.SHADOW, radius)
-        FrameContainer.paintTo(self, bb, x, y)
-        if o.outline then
-            bb:paintBorder(x, y, sz.w, sz.h, Space.px(4), Blitbuffer.COLOR_BLACK, radius)
-        end
-    end
+    card._kit_card = true
+    function card:paintTo(bb, x, y) paintCard(self, bb, x, y, o.outline) end
     return card
 end
 
@@ -356,15 +414,8 @@ function Kit.cardify(frame, o)
     frame.bordersize = 0
     frame.radius = Kit.RADIUS
     if not o.keep_bg then frame.background = Kit.STRIP_BG end
-    local paint, s = frame.paintTo, Kit.shadowSize()
-    function frame:paintTo(bb, x, y)
-        local sz = self:getSize()
-        bb:paintRoundedRect(x + s, y + s, sz.w, sz.h, Kit.SHADOW, Kit.RADIUS)
-        paint(self, bb, x, y)
-        if o.outline then
-            bb:paintBorder(x, y, sz.w, sz.h, Space.px(4), Blitbuffer.COLOR_BLACK, Kit.RADIUS)
-        end
-    end
+    frame._kit_card = true
+    function frame:paintTo(bb, x, y) paintCard(self, bb, x, y, o.outline) end
     return frame
 end
 

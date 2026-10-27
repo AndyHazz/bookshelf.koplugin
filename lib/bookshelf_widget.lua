@@ -22446,6 +22446,8 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     -- the tab's rebuilds; each change is saved as it happens, flushed on Done.
     local Arr = require("lib/bookshelf_book_actions_layout")
     local arranging = modal and modal._actions_edit
+    local default_order = {}
+    for i, a in ipairs(tile_specs) do default_order[i] = a.id end
     tile_specs = Arr.arrange(tile_specs, arranging or BookshelfSettings.read(Arr.KEY) or {})
     local all_tiles = tile_specs
     if not arranging then tile_specs = Arr.visible(tile_specs) end
@@ -22759,7 +22761,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                 content_h = math.max(content_h, content:getSize().h)
             end
             local tile_h = content_h + 2 * pad_v + 2 * tile_border
-            local card_shadow = Space.px(1)
+            local card_shadow = PopupKit.shadowSize()
             local grid = VerticalGroup:new{ align = "left" }
             local line, line_cells
             for i, a in ipairs(tile_specs) do
@@ -22790,7 +22792,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                 local picked = arranging and arranging.sel == a.id
                 function frame:paintTo(bb, x, y)
                     bb:paintRoundedRect(x + card_shadow, y + card_shadow, tile_w, tile_h,
-                        Blitbuffer.COLOR_GRAY, tile_radius)
+                        PopupKit.SHADOW, tile_radius)
                     FrameContainer.paintTo(self, bb, x, y)
                     if picked then
                         bb:paintBorder(x, y, tile_w, tile_h, Space.px(4), Blitbuffer.COLOR_BLACK, tile_radius)
@@ -22884,6 +22886,14 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                 end
                 keepArrangement(false); rebuildTab()
             end }
+        -- Reset: the default order with nothing hidden.
+        local reset = PopupKit.headerButton{ text = _("Reset"), font_size = font_size,
+            on_tap = function()
+                local order = {}
+                for i, id in ipairs(default_order) do order[i] = id end
+                arranging.order, arranging.hidden = order, {}
+                keepArrangement(false); rebuildTab()
+            end }
         local done = PopupKit.headerButton{ text = _("Done"), font_size = font_size, inverted = true,
             on_tap = function()
                 keepArrangement(true)
@@ -22895,8 +22905,8 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             left = HorizontalGroup:new{ align = "center",
                 back, HorizontalSpan:new{ width = gap }, fwd,
                 HorizontalSpan:new{ width = gap }, hide },
-            buttons = { done } }
-        strip_focus = focusRow({ { back, fwd, hide, done } })
+            buttons = { reset, done } }
+        strip_focus = focusRow({ { back, fwd, hide, reset, done } })
     end
     local body_h = avail_h - (strip and strip:getSize().h or 0)
     local body, focus_tables = buildBody(avail_w)
@@ -23017,13 +23027,13 @@ function BookshelfWidget:_buildReviewsHeader(tab, modal, avail_w, refreshReviews
             HorizontalSpan:new{ width = math.max(0, content_w - right_w) }, refresh_btn }
     end
 
-    return FrameContainer:new{
+    return PopupKit.withShadow(FrameContainer:new{
         bordersize = 0, margin = 0, width = avail_w,
         background = PopupKit.STRIP_BG,
         padding_left = inset, padding_right = inset,
         padding_top = Space.px(10), padding_bottom = Space.px(10),
         row,
-    }
+    }, avail_w)
 end
 
 -- _buildReviewsTab: the Reviews tab's body -- the native header above, then

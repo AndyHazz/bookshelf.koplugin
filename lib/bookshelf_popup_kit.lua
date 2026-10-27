@@ -162,6 +162,20 @@ end
 -- The light grey strip a tab's controls sit in, edge to edge under the tabs.
 Kit.STRIP_BG = Blitbuffer.COLOR_GRAY_E
 
+-- The hairline shadow under a strip and the action cards: the light grey
+-- alone is faint on e-ink with no border.
+Kit.SHADOW = Blitbuffer.COLOR_GRAY
+function Kit.shadowSize() return Space.px(1) end
+
+-- withShadow(strip, w) -> the strip with a shadow line under it, w wide.
+function Kit.withShadow(strip, w)
+    local VerticalGroup = require("ui/widget/verticalgroup")
+    local LineWidget    = require("ui/widget/linewidget")
+    return VerticalGroup:new{ align = "left", strip,
+        LineWidget:new{ background = Kit.SHADOW,
+            dimen = Geom:new{ w = w, h = Kit.shadowSize() } } }
+end
+
 -- headerRow(o) -> a tab's controls strip: o.left (a source switch; optional)
 -- at the content edge, o.buttons (headerButtons) at the right end, on the
 -- grey strip the tab's full width. Stacks the two when they don't fit side
@@ -189,13 +203,13 @@ function Kit.headerRow(o)
         row[#row + 1] = HorizontalSpan:new{ width = math.max(0, content_w - lw - bw) }
         row[#row + 1] = btns
     end
-    return FrameContainer:new{
+    return Kit.withShadow(FrameContainer:new{
         bordersize = 0, margin = 0, width = o.width,
         background = Kit.STRIP_BG,
         padding_left = o.inset, padding_right = o.inset,
         padding_top = o.pad_top or Space.px(10), padding_bottom = o.pad_bottom or Space.px(10),
         row,
-    }
+    }, o.width)
 end
 
 return Kit

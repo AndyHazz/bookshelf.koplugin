@@ -77,6 +77,15 @@ t.test("a long-press on an action card starts arranging", function()
     assert(edit:find("Arr.arrange(tile_specs", 1, true))
     -- Hidden cards stay out of the normal view.
     assert(edit:find("if not arranging then tile_specs = Arr.visible(tile_specs) end", 1, true))
+    -- Reset puts back the default order with nothing hidden.
+    assert(edit:find("arranging.order, arranging.hidden = order, {}", 1, true))
+end)
+
+t.test("the grey strips have a shadow line under them", function()
+    local kit = read("lib/bookshelf_popup_kit.lua")
+    local row = assert(kit:match("function Kit%.headerRow.-\nend\n"))
+    assert(row:find("Kit.withShadow(", 1, true))
+    assert(method(widget, "_buildReviewsHeader"):find("PopupKit.withShadow(", 1, true))
 end)
 
 t.done()

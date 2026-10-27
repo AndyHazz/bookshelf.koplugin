@@ -19,15 +19,19 @@ them rather than drawing a control by hand, so a change lands everywhere.
 - Content shares one left edge, the popup's inset.
 - A footer runs edge to edge under a full-width line, its separators the
   full height of its buttons, and closes the frame. It holds only the way
-  out: Close, Cancel and Save, Apply.
+  out: Close, Cancel and Save, Apply. Round the end buttons' corners as the
+  frame's (`frame.radius`); never clear a stock Button's background, its
+  tap feedback inverts it (that crashed the PW5).
 
 ## Controls
 
 - Anything tappable is a closed rounded shape with the kit's corner
   (`Kit.RADIUS`). Nothing gets an outline unless it is tappable.
 - Black means only "on": selected, current, in use. Never decoration.
-- Picking one of a few (a source, a status, a filter): `Kit.segmented`.
-  The active cell is black with a bold white label.
+- Picking one of a few that changes what a screen shows (a source, a
+  status, a filter): `Kit.segmented`. The active cell is black with a bold
+  white label. A form to fill in and submit (Extract page counts) keeps
+  KOReader's checkboxes and radio buttons.
 - More options than one line holds: `Kit.segmentedWrap`. Two rows at most,
   split evenly, joined into one control (`Kit.segmentedGrid`: rows stretched
   to one width inside one outline). Past two rows the last cell is More, a

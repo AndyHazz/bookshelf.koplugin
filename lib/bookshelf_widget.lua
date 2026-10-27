@@ -23005,11 +23005,25 @@ function BookshelfWidget:_buildReviewsHeader(tab, modal, avail_w, refreshReviews
     }
 
     local left_w, right_w = left:getSize().w, refresh_btn:getSize().w
-    -- Under the source chips with no summary to show: Refresh joins the chips'
-    -- own row. (The caller then skips its separate `above`.)
-    if above and left_w == 0 then
+    -- Under the source chips: Refresh joins the chips' own row, and stays
+    -- there once the summary arrives -- the summary is a second line on the
+    -- same strip. (The caller then skips its separate `above`.)
+    if above then
         local merged = self:_chipsWithButton(above, refresh_btn, avail_w, inset)
-        if merged then return merged, true end
+        if merged and left_w == 0 then return merged, true end
+        local seg = above.seg
+        if merged and seg then
+            local chips_row = HorizontalGroup:new{ align = "center", seg,
+                HorizontalSpan:new{ width = content_w - seg:getSize().w - right_w }, refresh_btn }
+            return PopupKit.withShadow(FrameContainer:new{
+                bordersize = 0, margin = 0, width = avail_w,
+                background = PopupKit.STRIP_BG,
+                padding_left = inset, padding_right = inset,
+                padding_top = Space.px(10), padding_bottom = Space.px(10),
+                VerticalGroup:new{ align = "left",
+                    chips_row, VerticalSpan:new{ width = Space.px(10) }, left },
+            }, avail_w), true
+        end
     end
     local gap = Space.px(10)
     local row

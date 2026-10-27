@@ -540,46 +540,4 @@ function Kit.headerRow(o)
     }, o.width)
 end
 
--- ── Scrim: what is under a popup, faded ────────────────────────────────────
--- A popup opened over another (a picker over the shelf editor) lined up with
--- it and read as one badly drawn menu. Faded, what is underneath reads as
--- underneath. The scrim is a window of its own slotted just below the popup,
--- so UIManager paints it after everything under it and before the popup: a
--- repaint of the popup alone leaves it be, and a repaint from below (the
--- shelf behind rebuilding) paints it again over fresh pixels, so it never
--- fades the same pixels twice.
-Kit.SCRIM = 0.5   -- how far towards white (lightenRect's by)
-
-local Scrim = WidgetContainer:extend{}
-function Scrim:paintTo(bb)
-    bb:lightenRect(0, 0, bb:getWidth(), bb:getHeight(), Kit.SCRIM)
-end
-
--- scrimUnder(popup): fade the screen under popup, which was just shown.
-function Kit.scrimUnder(popup)
-    local UIManager = require("ui/uimanager")
-    local Screen = require("device").screen
-    local stack = UIManager._window_stack
-    if type(stack) ~= "table" then return end
-    for i = #stack, 1, -1 do
-        if stack[i].widget == popup then
-            local scrim = Scrim:new{ dimen = Geom:new{ x = 0, y = 0,
-                w = Screen:getWidth(), h = Screen:getHeight() } }
-            table.insert(stack, i, { x = 0, y = 0, widget = scrim })
-            popup._scrim = scrim
-            UIManager:setDirty(scrim, "ui", scrim.dimen)
-            return
-        end
-    end
-end
-
--- dropScrim(popup): take it away with the popup. The caller repaints the
--- screen under it (a closing popup already asks for that).
-function Kit.dropScrim(popup)
-    local scrim = popup and popup._scrim
-    if not scrim then return end
-    popup._scrim = nil
-    require("ui/uimanager"):close(scrim)
-end
-
 return Kit

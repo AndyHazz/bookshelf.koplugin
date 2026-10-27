@@ -22,6 +22,7 @@ local Size = require("ui/size")
 local UIManager = require("ui/uimanager")
 local VerticalGroup = require("ui/widget/verticalgroup")
 local VerticalSpan = require("ui/widget/verticalspan")
+local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local Space = require("lib/bookshelf_space")
 local BFont = require("lib/bookshelf_fonts")
 local PopupKit = require("lib/bookshelf_popup_kit")
@@ -158,19 +159,27 @@ end
 -- every tap and KOReader looked frozen until restarted (the same bug bookends
 -- fixed in its own copy, 5.30.0). Doing it here covers every close path at
 -- once: cell and footer taps, the title's X, Back.
--- Shown: what is under it faded, so it reads as a layer over the menu it
--- opened from, not part of it (popup kit's scrim).
+-- config.over: open as a page of the menu underneath rather than a window
+-- over it: in that menu's frame (over.rect(), at least its height), titled
+-- with its breadcrumb (over.crumbs) and a back chevron, the X leaving the
+-- whole menu (over.on_exit). The back chevron is the footer's lone Close or
+-- Back. Only that box is refreshed as it opens and closes.
 function LibraryModal:onShow()
-    require("lib/bookshelf_popup_kit").scrimUnder(self)
+    if self.config and self.config.over and self._shown_rect then
+        UIManager:setDirty(self, "ui", Geom:new(self._shown_rect))
+    end
 end
 
 function LibraryModal:onCloseWidget()
-    if self._scrim then require("lib/bookshelf_popup_kit").dropScrim(self) end
     local input = self._search_input
     if input and input.isKeyboardVisible and input:isKeyboardVisible() then
         input:onCloseKeyboard()
     end
-    UIManager:setDirty("all", "ui")
+    if self.config and self.config.over and self._shown_rect then
+        UIManager:setDirty("all", "ui", Geom:new(self._shown_rect))
+    else
+        UIManager:setDirty("all", "ui")
+    end
     -- config.on_closed: the caller's once-per-close hook, however the modal
     -- was closed (a footer button, the title's X, Back).
     if self.config and self.config.on_closed then pcall(self.config.on_closed) end
@@ -367,7 +376,10 @@ function LibraryModal:onTapDismissKeyboard(_arg, ges)
     -- gap *inside* the frame (e.g. between pagination buttons) don't close.
     if self.frame and self.frame.dimen and ges and ges.pos
             and ges.pos:notIntersectWith(self.frame.dimen) then
-        UIManager:close(self)
+        -- A page of the menu underneath: outside it is going back, as the
+        -- chevron does.
+        local back = self.config.over and self:_closeOnlyAction()
+        if back then back.on_tap() else UIManager:close(self) end
         return true
     end
     return false
@@ -386,7 +398,9 @@ function LibraryModal:_buildFrame()
     local Screen = Device.screen
     -- Modal width: 85% of screen. Less wide than the 90% it was — visible
     -- breathing room around the dialog for context.
-    self.modal_w = math.floor(Screen:getWidth() * 0.85)
+    local over = self.config.over and self.config.over.rect()
+    self._over_rect = over
+    self.modal_w = over and over.w or math.floor(Screen:getWidth() * 0.85)
     -- Width of inner content (search box, chip strip, cards, etc.) once the
     -- per-section MARGIN insets are applied in refresh().
     self.content_w = self.modal_w - 2 * MARGIN
@@ -415,14 +429,40 @@ function LibraryModal:_buildFrame()
         local sz = self:getSize()
         bb:paintBorder(x, y, sz.w, sz.h, self.bordersize, Blitbuffer.COLOR_BLACK, self.radius)
     end
-    self[1] = CenterContainer:new{
-        dimen = Geom:new{ w = Screen:getWidth(), h = Screen:getHeight() },
-        self.frame,
-    }
+    if over then
+        -- Where the menu underneath is, not centred.
+        local holder = WidgetContainer:new{
+            dimen = Geom:new{ w = Screen:getWidth(), h = Screen:getHeight() }, self.frame }
+        function holder:paintTo(bb) frame:paintTo(bb, over.x, over.y) end
+        self[1] = holder
+    else
+        self[1] = CenterContainer:new{
+            dimen = Geom:new{ w = Screen:getWidth(), h = Screen:getHeight() },
+            self.frame,
+        }
+    end
     self:refresh()
 end
 
 function LibraryModal:_renderTitleBar(content_width, modal_w)
+    local over = self.config.over
+    if over then
+        -- The menu's own title bar: its breadcrumb, back, and X.
+        local back = self:_closeOnlyAction()
+        return require("ui/widget/titlebar"):new{
+            width            = modal_w,
+            title            = over.crumbs or self.config.title,
+            with_bottom_line = true,
+            bottom_v_padding = 0,
+            left_icon        = "chevron.left",
+            left_icon_tap_callback = function() if back then back.on_tap() end end,
+            close_callback   = function()
+                UIManager:close(self)
+                if over.on_exit then over.on_exit() end
+            end,
+            show_parent      = self,
+        }
+    end
     local Font = require("ui/font")
     local HorizontalGroup = require("ui/widget/horizontalgroup")
     local LeftContainer = require("ui/widget/container/leftcontainer")
@@ -498,7 +538,8 @@ function LibraryModal:_closeOnlyAction()
             only = a
         end
     end
-    if only and (only.key == "close" or only.label == _("Close")) then return only end
+    if only and (only.key == "close" or only.label == _("Close")
+            or (self.config.over and only.label == _("Back"))) then return only end
     return nil
 end
 
@@ -1198,8 +1239,9 @@ end
 function LibraryModal:_repaintIfResized(old)
     local size = self.frame:getSize()
     local Screen = Device.screen
-    self._shown_rect = { x = math.floor((Screen:getWidth() - size.w) / 2),
-                         y = math.floor((Screen:getHeight() - size.h) / 2),
+    local at = self._over_rect
+    self._shown_rect = { x = at and at.x or math.floor((Screen:getWidth() - size.w) / 2),
+                         y = at and at.y or math.floor((Screen:getHeight() - size.h) / 2),
                          w = size.w, h = size.h }
     if not old or (size.w == old.w and size.h == old.h) then return end
     self.frame.dimen = nil
@@ -1317,6 +1359,14 @@ function LibraryModal:refresh()
         self.frame.padding_bottom = MARGIN + math.floor(MARGIN / 2)
     end
 
+    -- A page of the menu underneath covers all of it.
+    if self._over_rect then
+        local pad = self.frame.padding_bottom + 2 * self.frame.bordersize
+        local short = self._over_rect.h - (body:getSize().h + pad)
+        if short > 0 then
+            body = VerticalGroup:new{ align = "left", body, VerticalSpan:new{ width = short } }
+        end
+    end
     self.frame[1] = body
     self:_repaintIfResized(old)
     -- The grid highlights its own focused cell inline (cell_renderer reads

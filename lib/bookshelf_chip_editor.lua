@@ -481,6 +481,14 @@ function Editor._menu(spec)
     return d
 end
 
+-- _over(tail) -> a LibraryModal's config.over while the editor is up, so a
+-- picker opens as a page of it (its breadcrumb + tail), else nil.
+function Editor._over(tail)
+    local host = Editor._host
+    if not (host and host.rect and host.rect()) then return nil end
+    return { rect = host.rect, crumbs = host.crumbs(tail), on_exit = host.exit }
+end
+
 function Editor._closeMenu(d)
     if type(d) == "table" and d._fallback then
         if d.d then UIManager:close(d.d) end
@@ -992,6 +1000,22 @@ function Editor:editTab(tab_id, opts)
             end
             rebuild()
         end,
+        -- For a picker opened as a page of the editor (LibraryModal's
+        -- config.over): where the editor is, the breadcrumb so far plus
+        -- tail, and leaving the editor.
+        rect = function()
+            local d = (frame and frame.dimen and frame.dimen.x) and frame.dimen or last_rect
+            local size = frame:getSize()
+            if not d then return nil end
+            return { x = d.x, y = d.y, w = size.w, h = math.max(d.h or 0, size.h) }
+        end,
+        crumbs = function(tail)
+            local out = { (draft.label and draft.label ~= "") and draft.label or _("Shelf") }
+            for _i, p in ipairs(pages) do out[#out + 1] = p.spec.title or "\xE2\x80\xA6" end
+            for _i, t in ipairs(tail or {}) do out[#out + 1] = t end
+            return table.concat(out, " \xE2\x80\xBA ")
+        end,
+        exit = function() finish() end,
     }
     local EditorPage = require("lib/bookshelf_editor_page")
     -- A page of blocks (spec.page(), lib/bookshelf_editor_page): its strip
@@ -2811,6 +2835,13 @@ function Editor:_pickSource(draft, on_close)
     -- Uses bookshelf_library_modal (ported from bookends) so bookshelf
     -- works standalone. ButtonDialog fallback retained as a safety net
     -- in case the LibraryModal require ever fails.
+    -- The picker's breadcrumb, by kind.
+    local PICK_CRUMB = {
+        series = _("Series"), author = _("Author"), genre = _("Genre"),
+        format = _("Format"), language = _("Language"), rating = _("Rating"),
+        collection = _("Collection"), folder = _("Folder"),
+        ["OPDS catalog"] = _("OPDS catalog"),
+    }
     local function pickById(kind, choices, on_pick, opts)
         local ok_lm, LibraryModal = pcall(require, "lib/bookshelf_library_modal")
         if ok_lm and LibraryModal and LibraryModal.new then
@@ -2844,6 +2875,10 @@ function Editor:_pickSource(draft, on_close)
             modal = LibraryModal:new{
                 config = {
                     title              = (opts and opts.title) or (_("Choose ") .. kind),
+                    -- A page of the editor: Home > Source > Series.
+                    over               = Editor._over({
+                        TabModel.isCardOnly(draft) and _("Shelf module source") or _("Source"),
+                        PICK_CRUMB[kind] or kind }),
                     search_placeholder = function() return _("Search\xE2\x80\xA6") end,
                     on_search_submit   = function(q)
                         query = q
@@ -3528,6 +3563,8 @@ function Editor:_pickMultiFilter(draft, dim_key, on_close)
         modal = LibraryModal:new{
             config = {
                 title              = title,
+                -- A page of the editor, over the Filters page it came from.
+                over               = Editor._over({ title }),
                 search_placeholder = function() return _("Search\xE2\x80\xA6") end,
                 on_search_submit   = function(q)
                     query = q

@@ -530,6 +530,13 @@ test("reviewsHtml marks a spoiler review in its byline", function()
     assert(not plain:find("Spoiler", 1, true), plain)
 end)
 
+test("reviewsHtml says 1 like, not 1 likes", function()
+    local one = Tokens.reviewsHtml{ reviews = { { user_name = "R", text = "<p>x</p>", likes_count = 1 } } }
+    assert(one:find("1 like", 1, true) and not one:find("1 likes", 1, true), one)
+    local two = Tokens.reviewsHtml{ reviews = { { user_name = "R", text = "<p>x</p>", likes_count = 2 } } }
+    assert(two:find("2 likes", 1, true), two)
+end)
+
 test("reviewsHtml italicises reviewer names and escapes them", function()
     local html = Tokens.reviewsHtml{
         title = "Dune", rating = 4, ratings_count = 10, reviews_count = 1,

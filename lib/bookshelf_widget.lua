@@ -22985,10 +22985,12 @@ function BookshelfWidget:_buildReviewsHeader(tab, modal, avail_w, refreshReviews
         left[#left + 1] = TextWidget:new{ text = text, face = text_face, fgcolor = Blitbuffer.COLOR_BLACK }
     end
     if data and tonumber(data.ratings_count) and tonumber(data.ratings_count) > 0 then
-        addStat(string.format(_("%d ratings"), tonumber(data.ratings_count)))
+        local n = tonumber(data.ratings_count)
+        addStat(n == 1 and _("1 rating") or string.format(_("%d ratings"), n))
     end
     if data and tonumber(data.reviews_count) and tonumber(data.reviews_count) > 0 then
-        addStat(string.format(_("%d reviews"), tonumber(data.reviews_count)))
+        local n = tonumber(data.reviews_count)
+        addStat(n == 1 and _("1 review") or string.format(_("%d reviews"), n))
     end
 
     -- Refresh chip: sized to the summary text's own line height so it reads as

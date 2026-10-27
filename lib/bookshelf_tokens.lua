@@ -679,7 +679,8 @@ function Tokens.reviewsHtml(payload)
         local d = _formatReviewDate(review.reviewed_at)
         if d then byline[#byline + 1] = "<i>" .. _escHtml(d) .. "</i>" end
         if tonumber(review.likes_count) and tonumber(review.likes_count) > 0 then
-            byline[#byline + 1] = string.format("%d likes", tonumber(review.likes_count))
+            local n = tonumber(review.likes_count)
+            byline[#byline + 1] = (n == 1) and _("1 like") or string.format(_("%d likes"), n)
         end
         out[#out + 1] = '<p class="byline">' .. table.concat(byline, " \xC2\xB7 ") .. "</p>"
         local body = Tokens.sanitiseReviewHtml(review.text or "")

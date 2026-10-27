@@ -82,6 +82,16 @@ end
 -- nil when the chip follows the global settings, NOT "Default": the callers
 -- want to fall through to naming the tile style instead, and a caller that
 -- genuinely wants the word supplies it.
+-- _shownMode(value, no_spines) -> a stored style as the shelf shows it. A
+-- catalogue (OPDS, or a source that fetches its own pages) has no spines,
+-- and shows a spines pin set before its source changed as covers, the
+-- default; the pin is kept for a source that can show it again.
+function Editor._shownMode(value, no_spines)
+    local v = ViewMode.chipOverride(value)
+    if no_spines and v == ViewMode.SPINES then return nil end
+    return v
+end
+
 function Editor._chipModeLabel(value)
     local v = ViewMode.chipOverride(value)
     if v == ViewMode.LIST   then return _("List")   end
@@ -1432,7 +1442,8 @@ function Editor:editTab(tab_id, opts)
                 -- chipLabelFor, not labelFor: a chip has a state labelFor
                 -- cannot express -- "not set", which is not the same as "set to
                 -- Divider card".
-                local mode = Editor._chipModeLabel(draft[ViewMode.CHIP_KEY])
+                local mode = Editor._chipModeLabel(Editor._shownMode(draft[ViewMode.CHIP_KEY],
+                    is_opds_src or is_paged_src))
                 return _("Shelf style: ")
                     .. (mode or SD.chipLabelFor(draft.group_display))
             end,
@@ -2314,7 +2325,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         -- did. A shelf of shelves is never drilled into, so Auto's levels
         -- would be one level: not offered there (maintainer, 2026-10-11),
         -- and one stored before shows as the style it gives.
-        local mode = ViewMode.chipOverride(draft[ViewMode.CHIP_KEY])
+        local mode = Editor._shownMode(draft[ViewMode.CHIP_KEY], no_spines)
         local is_shelves = TabModel.isShelves(draft)
         if is_shelves and mode == ViewMode.AUTO then
             mode = ViewMode.auto(draft, false)
@@ -2392,9 +2403,11 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                     { key = ViewMode.LIST, label = _("List") },
                 }
                 if not no_spines then items[#items + 1] = { key = ViewMode.SPINES, label = _("Spines") } end
+                local shown = ViewMode.levelMode(draft[key], level)
+                if no_spines and shown == ViewMode.SPINES then shown = ViewMode.COVERS end
                 add({ type = "segmented",
                     label = (level == 1) and _("Top level") or _("Inside folders and stacks"),
-                    items = items, active = ViewMode.levelMode(draft[key], level),
+                    items = items, active = shown,
                     on_pick = function(m) pick(function()
                         draft[key] = (m ~= ViewMode.LEVEL_DEFAULTS[level]) and m or nil
                     end)() end })

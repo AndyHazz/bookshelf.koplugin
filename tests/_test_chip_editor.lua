@@ -690,4 +690,17 @@ t.test("shelf style: a headed set of list numbers per level only when both level
     eq(rows[2], "6")
 end)
 
+t.test("shelf style: a spines shelf whose source became a catalogue shows covers", function()
+    -- A catalogue has no spines; the shelf draws covers. The page showed Show
+    -- as with nothing picked, and the editor's card still said Spines.
+    local draft = { view_mode = "spines" }
+    local p = openStyle(draft, { is_opds = true })
+    eq(p.find("Show as").active, "covers")
+    eq(draft.view_mode, "spines", "the pin is kept for a source that can show it")
+    eq(Editor._chipModeLabel(Editor._shownMode("spines", true)), nil)
+    eq(Editor._chipModeLabel(Editor._shownMode("spines", false)), "Spines")
+    local auto = openStyle({ view_mode = "auto", view_level1 = "spines" }, { is_opds = true })
+    eq(auto.find("Top level").active, "covers")
+end)
+
 t.done()

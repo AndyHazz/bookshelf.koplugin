@@ -44,8 +44,11 @@ end)
 t.test("an inverted chip button keeps its rounded corners", function()
     local chip = read("lib/bookshelf_chip_button.lua")
     local paint = assert(chip:match("function ChipFrame:paintTo.-\nend\n"))
+    assert(paint:find("invertRounded(", 1, true), "the chip inverts square")
+    local kit = read("lib/bookshelf_popup_kit.lua")
+    local inv = assert(kit:match("function Kit%.invertRounded.-\nend\n"))
     -- invertRect once for the box, then again for the corners.
-    local _, n = paint:gsub("invertRect", "")
+    local _, n = inv:gsub("invertRect", "")
     assert(n > 1, "corners outside the radius are not restored")
 end)
 

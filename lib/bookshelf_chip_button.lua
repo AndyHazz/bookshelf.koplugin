@@ -32,21 +32,8 @@ local ChipFrame = FrameContainer:extend{}
 function ChipFrame:paintTo(bb, x, y)
     FrameContainer.paintTo(self, bb, x, y)
     if self.inverted and self.dimen then
-        local w, h = self.dimen.w, self.dimen.h
-        bb:invertRect(x, y, w, h)
-        -- Flip the corners outside the rounded border back, or the inverted
-        -- box shows square black corners past its own outline.
-        local r = math.min(self.radius or 0, math.floor(w / 2), math.floor(h / 2))
-        for i = 0, r - 1 do
-            local dy = r - i - 0.5
-            local out = math.floor(r - math.sqrt(r * r - dy * dy) + 0.5)
-            if out > 0 then
-                bb:invertRect(x, y + i, out, 1)
-                bb:invertRect(x + w - out, y + i, out, 1)
-                bb:invertRect(x, y + h - 1 - i, out, 1)
-                bb:invertRect(x + w - out, y + h - 1 - i, out, 1)
-            end
-        end
+        require("lib/bookshelf_popup_kit").invertRounded(bb, x, y,
+            self.dimen.w, self.dimen.h, self.radius)
     end
 end
 
@@ -72,7 +59,9 @@ local ChipButton = {}
 --   opts.icon_after put the icon after the label instead of before (default false)
 --   opts.inverted   render pixel-inverted (busy/active state)
 --   opts.on_tap     function() fired on tap
+--   opts.enabled    false: grey label and icon, and a tap does nothing
 function ChipButton.build(opts)
+    local fg = opts.enabled == false and Blitbuffer.COLOR_DARK_GRAY or Blitbuffer.COLOR_BLACK
     local border = opts.border or Size.border.default
     local pad_h  = opts.pad_h or Space.px(12)
     local gap    = opts.gap or Space.px(6)
@@ -81,7 +70,7 @@ function ChipButton.build(opts)
     local icon_widget
     if opts.icon_glyph then
         icon_widget = TextWidget:new{
-            text = opts.icon_glyph, face = opts.icon_face, fgcolor = Blitbuffer.COLOR_BLACK,
+            text = opts.icon_glyph, face = opts.icon_face, fgcolor = fg,
         }
     elseif opts.icon then
         icon_widget = IconWidget:new{
@@ -92,7 +81,7 @@ function ChipButton.build(opts)
     if opts.text then
         label_widget = require("lib/bookshelf_cap_centre").centre(TextWidget:new{
             text = opts.text, face = opts.face, bold = opts.bold or false,
-            fgcolor = Blitbuffer.COLOR_BLACK,
+            fgcolor = fg,
         })
     end
     local content = {}
@@ -130,7 +119,7 @@ function ChipButton.build(opts)
     local btn = InputContainer:new{ dimen = Geom:new{ w = btn_w, h = height }, frame }
     btn.ges_events = { TapSelect = { GestureRange:new{ ges = "tap", range = btn.dimen } } }
     btn.onTapSelect = function()
-        if opts.on_tap then opts.on_tap() end
+        if opts.on_tap and opts.enabled ~= false then opts.on_tap() end
         return true
     end
     -- Dpad/keyboard focus highlight. Restores to the caller's own `inverted`

@@ -145,7 +145,9 @@ local function renderCell(key, item, dimen)
     local VerticalSpan    = require("ui/widget/verticalspan")
     local T               = require("ffi/util").template
     local pad = Space.padding.small
-    local inner_w, inner_h = dimen.w - 2 * pad, dimen.h - 2 * pad
+    -- A tappable card: the popup kit's outline (STYLE.md).
+    local Kit = require("lib/bookshelf_popup_kit")
+    local inner_w, inner_h = dimen.w - 2 * (pad + Kit.BORDER), dimen.h - 2 * (pad + Kit.BORDER)
     local name = item.label
     if item.kind == "pack" then name = T(_("%1 pack"), item.label) end
     -- The title row, aligned left as the plank picker's: the radio mark
@@ -183,7 +185,7 @@ local function renderCell(key, item, dimen)
         }
     end
     return FrameContainer:new{
-        bordersize = 0, padding = pad, margin = 0,
+        bordersize = Kit.BORDER, radius = Kit.RADIUS, padding = pad, margin = 0,
         background = Blitbuffer.COLOR_WHITE,
         VerticalGroup:new{ align = "left",
             lines,

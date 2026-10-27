@@ -299,6 +299,7 @@ end
 -- Glyphs always render through the "symbols" face (KOReader's bundled
 -- Symbols Nerd Font); labels follow the bookshelf UI font.
 function IconsLibrary._renderCell(item, dimen)
+    local Kit = require("lib/bookshelf_popup_kit")
     local Font = require("ui/font")
     local TextWidget = require("lib/bookshelf_colour_text")
     local BFont = require("lib/bookshelf_fonts")
@@ -333,13 +334,13 @@ function IconsLibrary._renderCell(item, dimen)
         label_w,
     }
     return FrameContainer:new{
-        bordersize = Size.border.thin,
-        radius = Space.radius.default,
+        bordersize = Kit.BORDER,
+        radius = Kit.RADIUS,
         padding = 0,
         margin = 0,
         background = Blitbuffer.COLOR_WHITE,
         CenterContainer:new{
-            dimen = Geom:new{ w = dimen.w, h = dimen.h },
+            dimen = Geom:new{ w = dimen.w - 2 * Kit.BORDER, h = dimen.h - 2 * Kit.BORDER },
             stack,
         },
     }

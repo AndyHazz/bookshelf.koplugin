@@ -425,7 +425,7 @@ function TL._renderCard(item, dimen, current, all)
     local Space           = require("lib/bookshelf_space")
     local TextWidget      = require("lib/bookshelf_colour_text")
     local VerticalGroup   = require("ui/widget/verticalgroup")
-    local border = current and Size.border.thick or Size.border.thin
+    local border = current and Size.border.thick or require("lib/bookshelf_popup_kit").BORDER
     -- Little padding above and below: three lines have to fit, also inside
     -- the keys' focus ring, which takes its width off the card.
     local pad, pad_v = Space.padding.default, Space.padding.small
@@ -457,7 +457,7 @@ function TL._renderCard(item, dimen, current, all)
     local e = (not item.missing) and TL.hero(item.shows, all) or nil
     local hero = e and TL.heroWidget(e, hero_w, inner_h)
     return FrameContainer:new{
-        bordersize = border, radius = Space.radius.default, margin = 0,
+        bordersize = border, radius = require("lib/bookshelf_popup_kit").RADIUS, margin = 0,
         padding = 0, padding_left = pad, padding_right = pad, padding_top = pad_v, padding_bottom = pad_v,
         -- 0xEE: one exact e-ink level (238), so it does not speckle.
         background = current and Blitbuffer.Color8(0xEE) or Blitbuffer.COLOR_WHITE,
@@ -572,7 +572,9 @@ function TL.show(opts)
         end,
         item_count = function() return #self.items end,
         item_at = function(i) return self.items[i] end,
-        footer_rows = { {
+        -- Add theme pack and Reset: the screen's own actions, on the strip
+        -- under the title (STYLE.md); the footer keeps Close.
+        header_actions = {
             { key = "add", label = tp.addThemeLabel(), on_tap = function() tp.showAddThemeInfo() end },
             -- The theme marked, whatever page is shown: the one in use where
             -- the picker was opened from (maintainer, 2026-10-09). Greyed for
@@ -585,6 +587,8 @@ function TL.show(opts)
                   if not TL.canReset(item) then return end
                   tp.confirmReset(item.value, function() reset(item.value) end)
               end },
+        },
+        footer_rows = { {
             { key = "close", label = _("Close"), on_tap = close },
         } },
         on_closed = function()

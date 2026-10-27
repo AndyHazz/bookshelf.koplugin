@@ -2868,12 +2868,13 @@ function Editor:_pickSource(draft, on_close)
                         UIManager:close(modal)
                         opts.on_cell_hold(item)
                     end or nil,
-                    footer_actions = (function()
-                        -- Extra actions (e.g. the folder picker's "Browse
-                        -- device") sit to the LEFT of Close. Each is wrapped
-                        -- so the modal is torn down before the handler runs --
-                        -- the handler typically opens another widget and
-                        -- shouldn't have to juggle this modal's handle.
+                    -- Extra actions (e.g. the folder picker's "Browse
+                    -- device") are the screen's own: on the strip under the
+                    -- title. Each is wrapped so the modal is torn down
+                    -- before the handler runs -- the handler typically opens
+                    -- another widget and shouldn't have to juggle this
+                    -- modal's handle.
+                    header_actions = (function()
                         local actions = {}
                         if opts and opts.extra_footer_actions then
                             for _i, a in ipairs(opts.extra_footer_actions) do
@@ -2886,6 +2887,10 @@ function Editor:_pickSource(draft, on_close)
                                 }
                             end
                         end
+                        return actions
+                    end)(),
+                    footer_actions = (function()
+                        local actions = {}
                         actions[#actions + 1] = {
                             label  = _("Close"),
                             -- Signal cancel via nil so the caller can
@@ -3584,7 +3589,8 @@ function Editor:_pickMultiFilter(draft, dim_key, on_close)
                     end
                     modal:refresh()
                 end,
-                footer_actions = {
+                -- Clear: the screen's own action, on the strip under the title.
+                header_actions = {
                     {
                         label  = _("Clear"),
                         on_tap = function()
@@ -3595,6 +3601,8 @@ function Editor:_pickMultiFilter(draft, dim_key, on_close)
                             modal:refresh()
                         end,
                     },
+                },
+                footer_actions = {
                     {
                         -- Back to the Filters list, which this was opened from.
                         label  = _("Back"),

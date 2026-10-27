@@ -112,7 +112,8 @@ end
 
 function Browser._renderCell(item, dimen)
     local e = item.entry
-    local border = Size.border.default
+    local Kit = require("lib/bookshelf_popup_kit")
+    local border = Kit.BORDER
     local pad = Space.padding.default
     local label_face = Font:getFace("cfont", 16)
     local state_face = Font:getFace("cfont", 13)
@@ -142,7 +143,7 @@ function Browser._renderCell(item, dimen)
     -- ignores them), so every card fills its grid slot exactly.
     local card = FrameContainer:new{
         bordersize = border,
-        radius = Space.radius.default,
+        radius = Kit.RADIUS,
         padding = pad,
         margin = 0,
         background = Blitbuffer.COLOR_WHITE,
@@ -326,17 +327,21 @@ function Browser:_setAll(on)
     self:_changed()
 end
 
--- _footerRows() -> the footer, one row: Select all, Select none and Apply
--- (Add ornaments first on the All tab; Cancel alone when picking a
--- replacement). A theme is chosen in the Theme menu, not here.
+-- _headerActions() -> the screen's own actions, on the strip under the title:
+-- Select all and Select none (Add ornaments first on the All tab). Nothing
+-- when picking a replacement. A theme is chosen in the Theme menu, not here.
+function Browser:_headerActions()
+    if self.opts.pick then return {} end
+    if self:_isPack(self.chip) then
+        return { self:_selectButton(true), self:_selectButton(false) }
+    end
+    return { self:_addButton(), self:_selectButton(true), self:_selectButton(false) }
+end
+
+-- _footerRows() -> the footer: Apply (Cancel when picking a replacement).
 function Browser:_footerRows()
     local close = { key = "close", label = self.opts.pick and _("Cancel") or _("Apply"), on_tap = self._close }
-    -- Choosing a replacement: nothing to switch here, only a way out.
-    if self.opts.pick then return { { close } } end
-    if self:_isPack(self.chip) then
-        return { { self:_selectButton(true), self:_selectButton(false), close } }
-    end
-    return { { self:_addButton(), self:_selectButton(true), self:_selectButton(false), close } }
+    return { { close } }
 end
 
 -- show(on_change, opts): on_change() runs once when the browser closes, if
@@ -408,6 +413,7 @@ function Browser._open(on_change, opts)
                 },
             }
         end,
+        header_actions = function() return self:_headerActions() end,
         footer_rows = {},
         on_closed = closed,
     }

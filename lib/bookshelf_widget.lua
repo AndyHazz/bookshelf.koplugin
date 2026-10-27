@@ -24026,10 +24026,10 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                         if sel[k] then sel[k] = nil else sel[k] = item.value end
                                         if modal2 then modal2:refresh() end
                                     end,
-                                    -- Same bottom layout as the collection editor:
-                                    -- a full-width "+ New tag" above a Cancel/Save pair.
+                                    -- Same layout as the collection editor: "+ New
+                                    -- tag" on the strip, Cancel/Save in the footer.
+                                    header_actions = { { label = "+ " .. _("New tag"), on_tap = promptNewTag } },
                                     footer_rows = {
-                                        { { label = "+ " .. _("New tag"), on_tap = promptNewTag } },
                                         {
                                             { label = _("Cancel"),
                                               on_tap = function() UIManager:close(modal2) end },

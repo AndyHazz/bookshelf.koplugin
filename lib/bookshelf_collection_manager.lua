@@ -505,13 +505,12 @@ function CollectionManager.show(opts)
         end
     end
 
-    -- Footer: + New collection on its own row above Cancel/Save so the
-    -- discard / commit pair stays paired at the bottom. Manage mode has
-    -- nothing to discard: + New collection sits beside Close.
+    -- + New collection is the screen's own action: on the strip under the
+    -- title. The footer keeps Cancel/Save (or Close in manage mode).
+    local header_actions = { { label = "+ " .. _("New collection"), on_tap = newCollection } }
     local footer_rows
     if book_mode or bulk_mode then
         footer_rows = {
-            { { label = "+ " .. _("New collection"), on_tap = newCollection } },
             {
                 { label = _("Cancel"), on_tap = function()
                     UIManager:close(modal)
@@ -522,10 +521,7 @@ function CollectionManager.show(opts)
         }
     else
         footer_rows = {
-            {
-                { label = "+ " .. _("New collection"), on_tap = newCollection },
-                { label = _("Close"), on_tap = function() UIManager:close(modal) end },
-            },
+            { { label = _("Close"), on_tap = function() UIManager:close(modal) end } },
         }
     end
 
@@ -567,6 +563,7 @@ function CollectionManager.show(opts)
         cell_renderer  = function(name, dimen) return renderCell(name, dimen) end,
         on_cell_tap    = onTap,
         cell_long_tap  = holdMenu,
+        header_actions = header_actions,
         footer_rows    = footer_rows,
         on_closed      = function()
             if opts.on_close then opts.on_close() end

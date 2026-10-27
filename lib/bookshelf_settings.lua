@@ -328,12 +328,14 @@ Wrap content in [if:foo]…[/if] to show it only when the token has a value. Add
                 end
                 return row
             end,
+            header_actions = {
+                { key = "help", label = _("Help"), on_tap = function()
+                    if modal then modal:_showHelp() end
+                end },
+            },
             footer_actions = {
                 { key = "close", label = _("Close"), on_tap = function()
                     if modal then UIManager:close(modal); modal = nil end
-                end },
-                { key = "help", label = _("Help"), on_tap = function()
-                    if modal then modal:_showHelp() end
                 end },
             },
         },

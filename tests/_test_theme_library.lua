@@ -333,9 +333,11 @@ t.test("the default's picker: titled Default theme, opens on page 1 always, Add 
     -- read as the in-use mark (review, 2026-10-09).
     eq(m._dpad_idx, nil, "the keys' focus ring shows before any key is pressed")
     eq(c.focus_on_key(), 5, "the first key press does not look for the choice in use")
-    local f = c.footer_rows[1]
-    -- Reset between them (maintainer, 2026-10-09).
-    eq(#f, 3); eq(f[1].label, "Add theme pack\xE2\x80\xA6"); eq(f[2].label, "Reset"); eq(f[3].label, "Close")
+    -- Add theme pack, then Reset (maintainer, 2026-10-09), on the strip
+    -- under the title; Close in the footer.
+    local f = c.header_actions
+    eq(#f, 2); eq(f[1].label, "Add theme pack\xE2\x80\xA6"); eq(f[2].label, "Reset")
+    eq(#c.footer_rows[1], 1); eq(c.footer_rows[1][1].label, "Close")
     f[1].on_tap(); eq(TP.add_info, 1)
     eq(shown[1], m)
     library = "plain"
@@ -403,7 +405,7 @@ t.test("a choice still waiting is applied when the picker closes, before the cal
                        apply = function() order[#order + 1] = "apply:" .. tostring(library) end,
                        on_closed = function() order[#order + 1] = "back" end }
     c.on_cell_tap(c.item_at(3))
-    c.footer_rows[1][3].on_tap()
+    c.footer_rows[1][1].on_tap()
     eq(m.closed, true)
     eq(table.concat(order, ","), "apply:Macabre,back", "the menu came back before the shelf followed the choice")
     eq(runTasks(), 0, "a rebuild was left waiting after the picker closed")
@@ -475,7 +477,7 @@ t.test("a shelf's picker is titled for it, and Close brings the caller back once
                        on_closed = function() back = back + 1 end }
     eq(c.title, "Theme: Home")
     eq(c.item_at(1).same, true)
-    c.footer_rows[1][3].on_tap()
+    c.footer_rows[1][1].on_tap()
     eq(m.closed, true); eq(back, 1)
 end)
 
@@ -582,7 +584,7 @@ t.test("the choice in use is a heavier frame on a light ground, not a radio mark
     local card = src:match("function TL%._renderCard%(.-\nend\n")
     assert(card, "_renderCard moved")
     assert(not card:find("Marks.Radio", 1, true), "the radio mark is back")
-    assert(card:find("current and Size.border.thick or Size.border.thin", 1, true), "no heavier frame for the choice in use")
+    assert(card:find('current and Size.border.thick or require("lib/bookshelf_popup_kit").BORDER', 1, true), "no heavier frame for the choice in use")
     assert(card:find("current and Blitbuffer.Color8(0xEE)", 1, true), "no light ground for the choice in use")
 end)
 
@@ -597,7 +599,7 @@ t.test("the footer's Reset: the marked theme, greyed unless an edited pack or Pl
     local built = 0
     local m, c = open{ current = function() return library end, choose = function(v) library = v end,
                        apply = function() built = built + 1 end }
-    local reset = c.footer_rows[1][2]
+    local reset = c.header_actions[2]
     eq(reset.key, "reset")
     -- As original: greyed, and a tap (keys can still reach it) does nothing.
     eq(reset.enabled_when(), false, "Reset is not greyed on a theme as original")
@@ -635,11 +637,11 @@ t.test("the footer's Reset: the marked theme, greyed unless an edited pack or Pl
     library = "mine"
     eq(reset.enabled_when(), false, "Custom theme offered a reset")
     local _m2, c2 = open{ shelf = "Home", current = function() return nil end, choose = function() end }
-    eq(c2.footer_rows[1][2].enabled_when(), false, "the Default theme card offered a reset")
-    c2.footer_rows[1][2].on_tap(); eq(#asked, 2, "a greyed Reset asked")
+    eq(c2.header_actions[2].enabled_when(), false, "the Default theme card offered a reset")
+    c2.header_actions[2].on_tap(); eq(#asked, 2, "a greyed Reset asked")
     -- A shelf's picker, its own pack marked and edited: Reset.
     local _m3, c3 = open{ shelf = "Home", current = function() return "Macabre" end, choose = function() end }
-    eq(c3.footer_rows[1][2].enabled_when(), true)
+    eq(c3.header_actions[2].enabled_when(), true)
     edits.mine, edits.Macabre = nil, nil
     TP.confirmReset, TP.shelfTheme = nil, nil
 end)
@@ -657,6 +659,9 @@ t.test("LibraryModal greys a footer button whose enabled_when says so, and a pre
         < tl:find('{ key = "reset", label = _("Reset"),', 1, true)
         and tl:find('{ key = "reset", label = _("Reset"),', 1, true) < tl:find('{ key = "close", label = _("Close")', 1, true),
         "Reset is not between Add theme pack and Close")
+    -- Header buttons grey the same way.
+    assert(lm:find("btns[#btns + 1] = PopupKit.headerButton{ text = a.label, icon = a.icon,\n            font_size = 16, enabled = enabled,", 1, true),
+        "a header button ignores enabled_when")
 end)
 
 t.test("a long-press on a pack's or Plain's card offers Reset to original, greyed unless it is edited", function()

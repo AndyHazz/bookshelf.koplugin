@@ -124,13 +124,17 @@ t.test("choosing a plain plank colour comes back to the plank picker, not the me
     assert(pp and pp:find("on_done = on_done", 1, true), "the plank colour dialog does not pass it on")
 end)
 
-t.test("the collection's footer: Select all and Select none, Add ornaments on All", function()
+t.test("the collection's strip: Select all and Select none, Add ornaments on All", function()
     -- Maintainer, 2026-10-02: Select all / Select none read more simply than
     -- Switch pack on/off; the whole-pack switch is the theme packs' now.
+    -- They are the screen's own actions: on the strip under the title
+    -- (STYLE.md), the footer keeps Apply.
+    local head = browser:match("function Browser:_headerActions%(%)(.-)\nend\n")
+    assert(head:find("if self.opts.pick then return {} end", 1, true), "picking offers Select all")
+    assert(head:find("self:_selectButton(true), self:_selectButton(false)", 1, true), "no Select all / Select none")
+    assert(head:find("self:_addButton()", 1, true), "Add ornaments is gone")
     local foot = browser:match("function Browser:_footerRows%(%)(.-)\nend\n")
-    assert(foot:find("if self.opts.pick then return { { close } } end", 1, true), "picking lost its Cancel-only footer")
-    assert(foot:find("self:_selectButton(true), self:_selectButton(false)", 1, true), "no Select all / Select none")
-    assert(foot:find("self:_addButton()", 1, true), "Add ornaments is gone")
+    assert(foot:find("return { { close } }", 1, true), "the footer is more than Apply")
     assert(browser:find('_("Select all")', 1, true) and browser:find('_("Select none")', 1, true))
 end)
 

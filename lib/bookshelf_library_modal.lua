@@ -1,7 +1,9 @@
 --- bookshelf_library_modal -- shared chrome widget for the source pickers
 --- (collection, genre, author). Renders header, optional tabs, search input,
 --- chip strip (with two-row wrap), paginated list-or-grid result area, and
---- footer. Domain-specific data and per-row rendering are supplied by the
+--- footer. Laid out to the popup style guide (STYLE.md): search, chips and the
+--- screen's own actions (config.header_actions) on one grey strip under the
+--- title; the footer edge to edge, closing the frame. Domain-specific data and per-row rendering are supplied by the
 --- caller via a config table.
 ---
 --- Ported from bookends.koplugin/menu/library_modal.lua so bookshelf works
@@ -22,6 +24,7 @@ local VerticalGroup = require("ui/widget/verticalgroup")
 local VerticalSpan = require("ui/widget/verticalspan")
 local Space = require("lib/bookshelf_space")
 local BFont = require("lib/bookshelf_fonts")
+local PopupKit = require("lib/bookshelf_popup_kit")
 local _ = require("lib/bookshelf_i18n").gettext
 
 -- Uniform gap applied everywhere below the title bar separator.
@@ -545,6 +548,8 @@ function LibraryModal:_onTabSelect(tab_key)
     self:refresh()
 end
 
+-- _renderSearchInput(content_width) -> the search row: field, Search, clear.
+-- content_width is what the row may take (less any header buttons beside it).
 function LibraryModal:_renderSearchInput(content_width)
     local Font = require("ui/font")
     local GestureRange = require("ui/gesturerange")
@@ -571,7 +576,7 @@ function LibraryModal:_renderSearchInput(content_width)
     -- Input + button borders. Use Size.border.default (thicker than thin)
     -- so the focused-black border reads as a strong outline rather than a
     -- hairline that could pass for unfocused-gray on glance.
-    local input_border = Size.border.default
+    local input_border = PopupKit.BORDER
     local input_padding = Space.padding.default
     local input_overhead = 2 * (input_border + input_padding)
 
@@ -640,7 +645,9 @@ function LibraryModal:_renderSearchInput(content_width)
         -- search row from the segmented (square) chip strip below. The
         -- inner FrameContainer is what InputText renders the border
         -- through (inputtext.lua:569), so set radius there before paint.
-        input._frame_textwidget.radius = Space.radius.default
+        input._frame_textwidget.radius = PopupKit.RADIUS
+        -- It sits on the grey strip: a white field.
+        input._frame_textwidget.background = Blitbuffer.COLOR_WHITE
     else
         local desired = self.search_query or ""
         if self._search_input:getText() ~= desired then
@@ -653,36 +660,17 @@ function LibraryModal:_renderSearchInput(content_width)
     -- content size, so we shrink the inner CenterContainer.dimen.h by that
     -- amount to keep the button's outer rendered height == row_h.
     local row_h = self._search_input:getSize().h
-    local function chipButton(tw, btn_w, on_tap)
-        local inner_h = row_h - 2 * input_border
-        local fc = FrameContainer:new{
-            bordersize = input_border,    -- match input border for visual unity
-            padding = 0,
-            padding_left = btn_pad_h, padding_right = btn_pad_h,
-            padding_top = 0, padding_bottom = 0,
-            margin = 0,
-            -- Slightly rounded corners — same radius as the InputText so
-            -- the search row reads as a unit, distinct from the square
-            -- (segmented) chip strip below.
-            radius = Space.radius.default,
-            background = Blitbuffer.COLOR_WHITE,
-            CenterContainer:new{
-                dimen = Geom:new{ w = btn_w - 2 * btn_pad_h - 2 * input_border, h = inner_h },
-                tw,
-            },
-        }
-        local ic = InputContainer:new{ dimen = Geom:new{ w = btn_w, h = row_h }, fc }
-        ic.ges_events = { TapSelect = { GestureRange:new{ ges = "tap", range = ic.dimen } } }
-        ic.onTapSelect = function() on_tap(); return true end
-        return ic
+    local function chipButton(label, on_tap)
+        return PopupKit.button{ text = label, face = btn_face, height = row_h,
+            pad_h = btn_pad_h, on_tap = on_tap }
     end
 
-    local search_btn = chipButton(search_label, search_btn_w, function()
+    local search_btn = chipButton(_("Search"), function()
         local q = self._search_input and self._search_input:getText() or ""
         self:_dismissKeyboard()
         self:_onSearchSubmit(q)
     end)
-    local clear_btn = chipButton(clear_label, clear_btn_w, function()
+    local clear_btn = chipButton("\xE2\x9C\x95", function()
         self:_dismissKeyboard()
         if self._search_input then self._search_input:setText("") end
         self:_onSearchSubmit("")
@@ -710,138 +698,103 @@ function LibraryModal:_onSearchSubmit(q)
 end
 
 function LibraryModal:_renderChipStrip(content_width)
-    local Font = require("ui/font")
-    local GestureRange = require("ui/gesturerange")
     local HorizontalGroup = require("ui/widget/horizontalgroup")
     local TextWidget = require("lib/bookshelf_colour_text")
-    local Screen = Device.screen
 
     if not self.config.chip_strip then return nil end
     local chips = self.config.chip_strip(self.active_tab)
     if not chips or #chips == 0 then return nil end
 
-    local pad_h = Space.px(10)
-    local pad_v = Space.px(4)
-    -- Zero gap so chips butt together into a segmented-control strip.
-    local chip_gap = 0
-    local row_gap = MARGIN
-
-    local function buildChip(chip)
-        -- Honor chip.is_active from the config callback when present (lets
-        -- the domain show NO chip as selected — e.g. cold gallery state
-        -- where neither Latest nor Popular has been engaged yet). Fall back
-        -- to widget-tracked active_chip when the callback omits the flag.
-        local is_active
-        if chip.is_active ~= nil then
-            is_active = chip.is_active
-        else
-            is_active = chip.key == self.active_chip
-        end
-        local fg = is_active and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
-        local bg = is_active and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_WHITE
-        local chip_face, chip_bold = BFont:getFace("cfont", 13, { bold = is_active })
-        local tw = TextWidget:new{
-            text = chip.label, face = chip_face, bold = chip_bold, fgcolor = fg,
-        }
-        -- Border thickness stays constant across active/inactive so the chip
-        -- widths don't shift when selection changes (avoids the "jiggle" of
-        -- adjacent chips contracting/expanding by ~3px on tap). Active chip
-        -- uses black border color which merges into its black fill, so the
-        -- border is invisible there but still occupies the same space.
-        local fc = FrameContainer:new{
-            bordersize = Size.border.thin,
-            color = Blitbuffer.COLOR_BLACK,
-            padding = 0,
-            padding_left = pad_h, padding_right = pad_h,
-            padding_top = pad_v, padding_bottom = pad_v,
-            -- Square corners: with chip_gap=0 the chips share a vertical edge,
-            -- so we square them off to read as one continuous segmented control.
-            -- Rounded outer corners would require per-corner radius which the
-            -- FrameContainer doesn't support.
-            margin = 0, background = bg, radius = 0,
-            tw,
-        }
-        local ic = InputContainer:new{ dimen = Geom:new{ w = fc:getSize().w, h = fc:getSize().h }, fc }
-        ic.ges_events = { TapSelect = { GestureRange:new{ ges = "tap", range = ic.dimen } } }
-        ic.onTapSelect = function() self:_onChipTap(chip.key); return true end
-        return ic
+    -- chip.is_active from the config callback wins when present (lets the
+    -- domain show NO chip as selected, e.g. the cold gallery state);
+    -- otherwise the widget-tracked active_chip.
+    local items, active = {}, nil
+    for _i, chip in ipairs(chips) do
+        items[#items + 1] = { key = chip.key, label = chip.label }
+        local on
+        if chip.is_active ~= nil then on = chip.is_active else on = chip.key == self.active_chip end
+        if on then active = chip.key end
     end
+    -- The popup's segmented control, wrapped to at most two rows: options
+    -- that would need a third are left out.
+    local face = BFont:getFace("cfont", 14)
+    local strip = PopupKit.segmentedWrap{
+        items = items, active = active, face = face,
+        pad_h = Space.px(12), pad_v = Space.px(6),
+        max_w = content_width, max_rows = 2, gap = MARGIN,
+        on_pick = function(key) self:_onChipTap(key) end,
+    }
 
-    -- Chip strip wraps to at most MAX_ROWS rows; chips that would land on
-    -- a third row are silently dropped. The previous shape -- a bottom-of-
-    -- loop `if #rows >= 2 then break end` plus an unconditional post-loop
-    -- insert -- could produce a 3rd row containing the single chip that
-    -- triggered the second overflow: the overflow branch pushed row 2,
-    -- started a fresh current_row with that chip, the bottom check then
-    -- broke, and the trailing insert appended current_row as row 3.
-    local MAX_ROWS = 2
-    local rows = {}
-    local current_row = HorizontalGroup:new{ align = "center" }
-    local current_w = 0
-    local capped = false
-    for i, chip in ipairs(chips) do
-        local cw = buildChip(chip)
-        local cw_w = cw:getSize().w
-        local needed = (i == 1) and cw_w or (current_w + chip_gap + cw_w)
-        if needed > content_width and #current_row > 0 then
-            table.insert(rows, current_row)
-            if #rows >= MAX_ROWS then
-                -- Don't even start a row that would overflow the cap;
-                -- this chip and any beyond it are dropped from the strip.
-                capped = true
-                break
-            end
-            current_row = HorizontalGroup:new{ align = "center", cw }
-            current_w = cw_w
-        else
-            if i > 1 and current_w > 0 then
-                table.insert(current_row, HorizontalSpan:new{ width = chip_gap })
-                current_w = current_w + chip_gap
-            end
-            table.insert(current_row, cw)
-            current_w = current_w + cw_w
-        end
-    end
-    if not capped then
-        table.insert(rows, current_row)
-    end
-
-    -- Optional inline status text rendered alongside the chips on the first
-    -- row, in the empty space to their right. The domain returns a string
-    -- (or nil) via `chip_strip_status` — used for transient feedback like
-    -- "Loading gallery…" so the message reads as part of the modal chrome
-    -- rather than a separate KOReader popup. Matches the slot the legacy
-    -- bespoke chrome used for the approval-queue count.
+    -- Optional status text beside the chips (config.chip_strip_status), for
+    -- transient feedback like "Loading gallery…", so it reads as part of the
+    -- modal rather than a separate popup.
     local status_text = self.config.chip_strip_status
         and self.config.chip_strip_status(self.active_tab) or nil
-    if status_text and #status_text > 0 and rows[1] then
-        local row1 = rows[1]
-        local row1_w = 0
-        for _i, child in ipairs(row1) do
-            local sz = child.getSize and child:getSize() or { w = 0 }
-            row1_w = row1_w + (sz.w or 0)
-        end
+    if status_text and #status_text > 0 then
         local status_gap = Space.px(12)
-        local status_max = content_width - row1_w - status_gap
+        local status_max = content_width - strip:getSize().w - status_gap
         if status_max > 0 then
-            table.insert(row1, HorizontalSpan:new{ width = status_gap })
-            local status_face, status_bold = BFont:getFace("cfont", 13)
-            table.insert(row1, TextWidget:new{
-                text = status_text,
-                face = status_face,
-                bold = status_bold,
-                max_width = status_max,
-                fgcolor = Blitbuffer.COLOR_DARK_GRAY,
-            })
+            local status_face = BFont:getFace("cfont", 13)
+            strip = HorizontalGroup:new{ align = "center", strip,
+                HorizontalSpan:new{ width = status_gap },
+                TextWidget:new{ text = status_text, face = status_face,
+                    max_width = status_max, fgcolor = Blitbuffer.COLOR_DARK_GRAY } }
         end
     end
+    return strip
+end
 
-    local vg = VerticalGroup:new{ align = "left" }
-    for i, row in ipairs(rows) do
-        if i > 1 then table.insert(vg, VerticalSpan:new{ width = row_gap }) end
-        table.insert(vg, row)
+-- _renderHeaderButtons() -> the screen's own actions (config.header_actions:
+-- an array, or a function returning one, of { label, icon, on_tap,
+-- enabled_when }) as the kit's header buttons, or nil.
+function LibraryModal:_renderHeaderButtons()
+    local actions = self.config.header_actions
+    if type(actions) == "function" then actions = actions(self.active_tab) end
+    if not actions or #actions == 0 then return nil end
+    local btns = {}
+    for _i, a in ipairs(actions) do
+        local enabled = true
+        if a.enabled_when then enabled = a.enabled_when() end
+        btns[#btns + 1] = PopupKit.headerButton{ text = a.label, icon = a.icon,
+            font_size = 16, enabled = enabled,
+            on_tap = function()
+                self:_dismissKeyboard()
+                a.on_tap()
+            end }
     end
-    return vg
+    return btns
+end
+
+-- _renderStrip(cw) -> the grey strip under the title: the search box, then
+-- the chips with the header buttons at the right end (stacked when they
+-- don't fit), edge to edge with the kit's shadow. nil when it would be empty.
+function LibraryModal:_renderStrip(cw)
+    local chips = self:_renderChipStrip(cw)
+    local buttons = self:_renderHeaderButtons()
+    local search
+    if not self.config.no_search then
+        -- No chips: the header buttons share the search row, while that
+        -- leaves the field at least half the row (one strip line, not two).
+        local bw = 0
+        if buttons and not chips then
+            for _i, b in ipairs(buttons) do bw = bw + b:getSize().w + MARGIN end
+        end
+        if bw > 0 and cw - bw >= cw / 2 then
+            -- The row is rebuilt when it changes width (it keeps the field).
+            if self._search_row_w ~= cw - bw then self._search_input = nil end
+            self._search_row_w = cw - bw
+            search = self:_renderSearchInput(cw - bw)
+            return PopupKit.headerRow{ width = self.modal_w, inset = MARGIN,
+                left = search, buttons = buttons, pad_top = MARGIN, pad_bottom = MARGIN }
+        end
+        if self._search_row_w ~= cw then self._search_input = nil end
+        self._search_row_w = cw
+        search = self:_renderSearchInput(cw)
+    end
+    if not (search or chips or buttons) then return nil end
+    return PopupKit.headerRow{ width = self.modal_w, inset = MARGIN,
+        top = search, left = chips, buttons = buttons,
+        pad_top = MARGIN, pad_bottom = MARGIN }
 end
 
 function LibraryModal:_onChipTap(chip_key)
@@ -1059,42 +1012,15 @@ function LibraryModal:_renderPagination(content_width)
         on_goto     = function(p) self.page = p; self:refresh() end,
     }
 
-    local function divider()
-        -- Fresh widget per slot; sharing one across paint positions corrupts
-        -- KOReader's geometry calculations. Line spans the full content_width
-        -- so its endpoints align with the card rows above and below.
-        return LineWidget:new{
-            background = Blitbuffer.COLOR_DARK_GRAY,
-            dimen = Geom:new{ w = content_width, h = Size.line.thin },
-        }
-    end
-
-    -- Single-page lists (incl. empty / cold-gallery / single-page-fits-all)
-    -- hide the chevrons + top divider but keep the BOTTOM divider so the
-    -- footer (Close/Manage/Install) still has a separator line above it.
-    -- Reserve equivalent total height so the modal stays the same size.
+    -- No rules around it: the footer's own line closes the content.
+    -- Single-page lists hide the chevrons but keep their height, so the
+    -- modal stays the same size.
     if total_pages <= 1 then
-        local nav_h = page_nav:getSize().h
-        return VerticalGroup:new{
-            align = "left",
-            VerticalSpan:new{ width = Size.line.thin + MARGIN + nav_h + MARGIN },
-            divider(),
-        }
+        return VerticalSpan:new{ width = page_nav:getSize().h }
     end
-
-    -- Pagination: divider above + MARGIN breathing room + chevron row + MARGIN
-    -- + divider below. The lower divider visually separates the pagination
-    -- from the footer action buttons.
-    return VerticalGroup:new{
-        align = "left",
-        divider(),
-        VerticalSpan:new{ width = MARGIN },
-        CenterContainer:new{
-            dimen = Geom:new{ w = content_width, h = page_nav:getSize().h },
-            page_nav,
-        },
-        VerticalSpan:new{ width = MARGIN },
-        divider(),
+    return CenterContainer:new{
+        dimen = Geom:new{ w = content_width, h = page_nav:getSize().h },
+        page_nav,
     }
 end
 
@@ -1103,6 +1029,8 @@ end
 -- targets; see onGridFocusUp/Down/Left/Right's footer handoff below). nil
 -- when there's no footer, so navigation code can just check its presence.
 function LibraryModal:_renderFooter(content_width)
+    -- content_width is the modal's full inner width: the footer runs edge to
+    -- edge under a full-width line, so its separators meet the frame.
     local Button = require("ui/widget/button")
     local Font = require("ui/font")
     local HorizontalGroup = require("ui/widget/horizontalgroup")
@@ -1154,11 +1082,12 @@ function LibraryModal:_renderFooter(content_width)
         end
         if #btns == 1 then return btns[1], btns end
         local hg = HorizontalGroup:new{ align = "center" }
+        local btn_h = btns[1]:getSize().h
         for i, btn in ipairs(btns) do
             if i > 1 then
                 table.insert(hg, LineWidget:new{
                     background = Blitbuffer.COLOR_DARK_GRAY,
-                    dimen = Geom:new{ w = Size.line.thin, h = Device.screen:scaleBySize(28) },
+                    dimen = Geom:new{ w = Size.line.thin, h = btn_h },
                 })
             end
             table.insert(hg, btn)
@@ -1166,29 +1095,18 @@ function LibraryModal:_renderFooter(content_width)
         return hg, btns
     end
 
-    if #nonempty == 1 then
-        local widget, btns = buildRow(nonempty[1])
-        self._footer_layout = { btns }
-        return widget
+    local function rule()
+        return LineWidget:new{ background = Blitbuffer.COLOR_DARK_GRAY,
+            dimen = Geom:new{ w = content_width, h = Size.line.thin } }
     end
 
     local VerticalGroup = require("ui/widget/verticalgroup")
     local VerticalSpan  = require("ui/widget/verticalspan")
+    -- A full-width rule above every row (like ButtonDialog's).
     local vg = VerticalGroup:new{ align = "center" }
     self._footer_layout = {}
     for i = 1, #nonempty do
-        if i > 1 then
-            -- Full-width rule between rows (like ButtonDialog's row separators),
-            -- with a MARGIN of breathing room on EACH side. The caller adds a
-            -- matching MARGIN above the first row, so every row sits with equal
-            -- space above and below instead of squashed against a divider.
-            vg[#vg + 1] = VerticalSpan:new{ width = MARGIN }
-            vg[#vg + 1] = LineWidget:new{
-                background = Blitbuffer.COLOR_DARK_GRAY,
-                dimen = Geom:new{ w = content_width, h = Size.line.thin },
-            }
-            vg[#vg + 1] = VerticalSpan:new{ width = MARGIN }
-        end
+        vg[#vg + 1] = rule()
         local widget, btns = buildRow(nonempty[i])
         vg[#vg + 1] = widget
         self._footer_layout[#self._footer_layout + 1] = btns
@@ -1242,10 +1160,9 @@ function LibraryModal:refresh()
     local title = self:_renderTitleBar(cw, self.modal_w)
     -- Domains with a handful of items (e.g. the module picker) can opt out
     -- of the search row entirely via config.no_search.
-    local search = not self.config.no_search and self:_renderSearchInput(cw) or nil
-    local chips = self:_renderChipStrip(cw)
+    local strip = self:_renderStrip(cw)
     local pagination = self:_renderPagination(cw)
-    local footer = self:_renderFooter(cw)
+    local footer = self:_renderFooter(self.modal_w)
     -- Where the modal was, for _repaintIfResized below.
     local old = self._shown_rect
 
@@ -1300,32 +1217,27 @@ function LibraryModal:refresh()
     local body = VerticalGroup:new{
         align = "left",
         title,                                       -- spans full modal_w (separator inside)
-        VerticalSpan:new{ width = MARGIN },
     }
-    -- config.intro: a line or two under the title saying what a tap does
-    -- (the collection editor's manage and bulk modes).
+    if strip then table.insert(body, strip) end      -- spans full modal_w
+    table.insert(body, VerticalSpan:new{ width = MARGIN })
+    -- config.intro: a line or two saying what a tap does (the collection
+    -- editor's manage and bulk modes), as grey hint text.
     local intro = self.config.intro
     if type(intro) == "function" then intro = intro() end
     if intro and intro ~= "" then
-        local TextBoxWidget = require("ui/widget/textboxwidget")
-        local face, bold = BFont:getFace("infofont", 16)
-        table.insert(body, padded(TextBoxWidget:new{ text = intro, face = face, bold = bold, width = cw }))
-        table.insert(body, VerticalSpan:new{ width = MARGIN })
-    end
-    if search then
-        table.insert(body, padded(search))
-        table.insert(body, VerticalSpan:new{ width = MARGIN })
-    end
-    if chips then
-        table.insert(body, padded(chips))
+        table.insert(body, padded(PopupKit.hintText(intro, 19, cw)))
         table.insert(body, VerticalSpan:new{ width = MARGIN })
     end
     table.insert(body, padded(result_area))
     table.insert(body, VerticalSpan:new{ width = MARGIN })
     table.insert(body, padded(pagination))
+    table.insert(body, VerticalSpan:new{ width = MARGIN })
     if footer then
-        table.insert(body, VerticalSpan:new{ width = MARGIN })
-        table.insert(body, padded(footer))
+        -- Edge to edge, down to the frame's bottom border.
+        table.insert(body, footer)
+        self.frame.padding_bottom = 0
+    else
+        self.frame.padding_bottom = MARGIN
     end
 
     self.frame[1] = body

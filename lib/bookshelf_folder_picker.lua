@@ -112,8 +112,8 @@ function Picker.show(opts)
     }
 
     -- LibraryModal grid (searchable, paginated), pickById's shape.
-    local ok_lm, LibraryModal = pcall(require, "lib/bookshelf_library_modal")
-    if ok_lm and LibraryModal and LibraryModal.new then
+    local LibraryModal = require("lib/bookshelf_library_modal")
+    do
         local Screen_ = require("device").screen
         local query = nil
         local visible = choices
@@ -153,7 +153,9 @@ function Picker.show(opts)
                     UIManager:close(modal)
                     pick(item.value)
                 end,
-                footer_actions = (function()
+                -- New folder and Browse device: the screen's own actions,
+                -- on the strip under the title.
+                header_actions = (function()
                     local actions = {}
                     for _i, a in ipairs(extra_actions) do
                         actions[#actions + 1] = {
@@ -164,46 +166,21 @@ function Picker.show(opts)
                             end,
                         }
                     end
-                    actions[#actions + 1] = {
+                    return actions
+                end)(),
+                footer_actions = {
+                    {
                         label  = _("Close"),
                         on_tap = function()
                             UIManager:close(modal)
                             cancel()
                         end,
-                    }
-                    return actions
-                end)(),
+                    },
+                },
             },
         }
         UIManager:show(modal)
-        return
     end
-
-    -- Fallback: flat ButtonDialog (works without bookends' modal).
-    local ButtonDialog = require("ui/widget/buttondialog")
-    local k
-    local rows = {}
-    for _i, c in ipairs(choices) do
-        rows[#rows + 1] = {{
-            text     = c.label,
-            callback = function() UIManager:close(k); pick(c.value) end,
-        }}
-    end
-    for _i, a in ipairs(extra_actions) do
-        rows[#rows + 1] = {{
-            text     = a.label,
-            callback = function() UIManager:close(k); a.on_tap() end,
-        }}
-    end
-    rows[#rows + 1] = {{
-        text     = _("Cancel"),
-        callback = function() UIManager:close(k); cancel() end,
-    }}
-    k = ButtonDialog:new{
-        title   = opts.title or _("Move to\xE2\x80\xA6"),
-        buttons = rows,
-    }
-    UIManager:show(k)
 end
 
 return Picker

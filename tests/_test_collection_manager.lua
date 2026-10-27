@@ -116,7 +116,7 @@ t.test("book mode: a tap toggles in place, and Save writes the draft", function(
     assert(modal.refreshes > before, "the tap didn't redraw in place")
     eq(cell("Zoology").selected, true)
     eq(RC.written, 0, "a tap wrote before Save")
-    modal.config.footer_rows[2][2].on_tap()          -- Save
+    modal.config.footer_rows[1][2].on_tap()          -- Save
     assert(RC.saved and RC.saved.target["Zoology"] and RC.saved.target["Book club 2025"])
     eq(RC.written, 1)
 end)
@@ -126,14 +126,14 @@ t.test("book mode: a toggle survives a search that hides it", function()
     CM.show{ book = { filepath = "/b/one.epub" } }
     modal.config.on_cell_tap("Zoology")
     modal.config.on_search_submit("club")
-    modal.config.footer_rows[2][2].on_tap()
+    modal.config.footer_rows[1][2].on_tap()
     assert(RC.saved.target["Zoology"], "the hidden toggle was lost")
 end)
 
 t.test("book mode: Save keeps the book's Favorites", function()
     reset()
     CM.show{ book = { filepath = "/b/fav.epub" } }
-    modal.config.footer_rows[2][2].on_tap()
+    modal.config.footer_rows[1][2].on_tap()
     assert(RC.saved.target.favorites, "Save un-favourited the book")
 end)
 
@@ -149,7 +149,7 @@ t.test("bulk: a tap cycles add to all > remove from all > no change", function()
     modal.config.on_cell_tap("Alpha")
     eq(cell("Alpha").subtitle, nil)
     modal.config.on_cell_tap("Zoology")
-    modal.config.footer_rows[2][2].on_tap()
+    modal.config.footer_rows[1][2].on_tap()
     assert(diff and diff.add and diff.add.Zoology and diff.remove == nil)
     eq(RC.written, 0, "bulk wrote collections itself")
 end)
@@ -166,7 +166,7 @@ t.test("a new collection clears the search and is ticked in book mode", function
     reset()
     CM.show{ book = { filepath = "/b/one.epub" } }
     modal.config.on_search_submit("club")
-    modal.config.footer_rows[1][1].on_tap()          -- + New collection
+    modal.config.header_actions[1].on_tap()       -- + New collection
     local dlg = shown[#shown]
     dlg._typed = "Gothic"
     dlg.buttons[1][2].callback()                     -- Create
@@ -178,7 +178,7 @@ t.test("on_close runs once, however the dialog closes", function()
     reset()
     local n = 0
     CM.show{ book = { filepath = "/b/one.epub" }, on_close = function() n = n + 1 end }
-    modal.config.footer_rows[2][1].on_tap()          -- Cancel
+    modal.config.footer_rows[1][1].on_tap()          -- Cancel
     eq(n, 1)
 end)
 

@@ -8,7 +8,7 @@
 --   * bookshelf_collection_manager (book-tag toggle + manage modes).
 --
 -- Cell anatomy:
---   * FrameContainer with thin border + slight radius + white background.
+--   * FrameContainer with the popup kit's border and corner, white background.
 --   * CenterContainer wraps a VerticalGroup of:
 --       - bold label (single line, truncated with an ellipsis if too long)
 --       - optional secondary count ("n book(s)") OR a freeform subtitle
@@ -114,18 +114,30 @@ function PickerCell.render(item, dimen, opts)
     -- black).
     local bg     = opts.tint and Blitbuffer.COLOR_LIGHT_GRAY or Blitbuffer.COLOR_WHITE
     local invert = opts.selected and not opts.tint
-    return FrameContainer:new{
-        bordersize = Size.border.thin,
-        radius     = Space.radius.default,
+    -- The popup kit's border and corner (STYLE.md), inside the slot.
+    local Kit    = require("lib/bookshelf_popup_kit")
+    local border = Kit.BORDER
+    local frame = FrameContainer:new{
+        bordersize = border,
+        radius     = Kit.RADIUS,
         padding    = 0,
         margin     = 0,
         background = bg,
-        invert     = invert,
         CenterContainer:new{
-            dimen = Geom:new{ w = dimen.w, h = dimen.h },
+            dimen = Geom:new{ w = dimen.w - 2 * border, h = dimen.h - 2 * border },
             stack,
         },
     }
+    if invert then
+        function frame:paintTo(bb, x, y)
+            FrameContainer.paintTo(self, bb, x, y)
+            local sz = self:getSize()
+            Kit.invertRounded(bb, x, y, sz.w, sz.h, Kit.RADIUS)
+            -- The border inverted white: put it back, black on black.
+            bb:paintBorder(x, y, sz.w, sz.h, border, Blitbuffer.COLOR_BLACK, Kit.RADIUS)
+        end
+    end
+    return frame
 end
 
 return PickerCell

@@ -74,7 +74,7 @@ end
 function ModulePicker._renderCell(item, dimen)
     local TextWidget = require("lib/bookshelf_colour_text")
     local card_pad = Space.px(10)
-    local border   = Size.border.thin
+    local border   = require("lib/bookshelf_popup_kit").BORDER
     local card_w = item.solo
         and math.min(dimen.w, Screen:scaleBySize(300)) or dimen.w
     local card_h = dimen.h
@@ -150,7 +150,7 @@ function ModulePicker._renderCell(item, dimen)
     end
     local grey_card = FrameContainer:new{
         background = Modules.CARD_BG,
-        radius     = Space.px(4),
+        radius     = require("lib/bookshelf_popup_kit").RADIUS,
         bordersize = 0,
         padding    = 0,
         -- Preview centred in the capped grey area; ClipContainer bounds it to
@@ -173,7 +173,7 @@ function ModulePicker._renderCell(item, dimen)
     }
     local card = FrameContainer:new{
         bordersize = border,
-        radius = Space.radius.default,
+        radius = require("lib/bookshelf_popup_kit").RADIUS,
         padding = card_pad,
         margin = 0,
         background = Blitbuffer.COLOR_WHITE,

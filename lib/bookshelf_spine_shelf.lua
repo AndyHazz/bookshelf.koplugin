@@ -3527,27 +3527,33 @@ function PlankDesign:paintTo(bb, x, y)
         end
     end
 end
--- plankPreview(design, w, row_h) -> a Blitbuffer of the plank as a row
--- row_h tall paints it, cropped to the plank and whatever the design paints
--- above and below it (design nil: the plain colour plank). For the plank picker; drawn
--- offscreen, so the design's ends sit at the preview's own edges. The caller
--- frees it.
-function SpineShelf.plankPreview(design, w, row_h)
+
+-- plankPreview(design, w, row_h, ground) -> a Blitbuffer of the plank as a
+-- row row_h tall paints it, cropped to the plank and whatever the design
+-- paints above and below it (design nil: the plain colour plank). For the
+-- plank picker; drawn offscreen, so the design's ends sit at the preview's
+-- own edges. On ground (default white): the card it is shown on, so a
+-- design's transparent parts and the plain plank's bevels show the card.
+-- The caller frees it.
+function SpineShelf.plankPreview(design, w, row_h, ground)
     local p = SpineShelf.plankSurface(row_h) + SpineShelf.plankFace(row_h)
     local canvas = Blitbuffer.new(w, row_h + p, Blitbuffer.TYPE_BBRGB32)
-    canvas:fill(Blitbuffer.COLOR_WHITE)
+    canvas:fill(ground or Blitbuffer.COLOR_WHITE)
+    local g = canvas:getPixel(0, 0):getColorRGB32()
     if design then
         PlankDesign:new{ dimen = Geom:new{ w = w, h = row_h }, design = design }:paintTo(canvas, 0, 0)
     else
-        ShelfPlank:new{ dimen = Geom:new{ w = w, h = row_h } }:paintTo(canvas, 0, 0)
+        ShelfPlank:new{ dimen = Geom:new{ w = w, h = row_h }, keep_ground = true }:paintTo(canvas, 0, 0)
     end
     -- Trimmed to the rows anything was painted on: most designs leave the
     -- bands above and below the plank empty, and a picker of planks is
-    -- tighter without them. Sampled every few columns; the ground is white.
+    -- tighter without them. Sampled every few columns against the ground.
     local function painted(y)
         for x = 0, w - 1, 6 do
             local c = canvas:getPixel(x, y):getColorRGB32()
-            if c.r < 250 or c.g < 250 or c.b < 250 then return true end
+            if math.abs(c.r - g.r) > 5 or math.abs(c.g - g.g) > 5 or math.abs(c.b - g.b) > 5 then
+                return true
+            end
         end
         return false
     end

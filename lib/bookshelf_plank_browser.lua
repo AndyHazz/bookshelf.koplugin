@@ -76,8 +76,11 @@ end
 local _previews, _order = {}, {}
 local PREVIEW_KEEP = 12
 local function render(design, w, row_h)
+    -- On the card's grey (the popup kit's card), not a white box.
+    local ok_k, Kit = pcall(require, "lib/bookshelf_popup_kit")
+    local ground = ok_k and Kit and Kit.STRIP_BG or nil
     local ok, bb = pcall(function()
-        return require("lib/bookshelf_spine_shelf").plankPreview(design, w, row_h)
+        return require("lib/bookshelf_spine_shelf").plankPreview(design, w, row_h, ground)
     end)
     return ok and bb or nil
 end

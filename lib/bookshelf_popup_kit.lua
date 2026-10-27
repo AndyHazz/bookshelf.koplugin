@@ -186,6 +186,28 @@ function Kit.segmentedWrap(o)
     end
     local items = o.items
     local rows, hidden = pack(items, o.max_w)
+    -- Two rows with everything shown: split them evenly (as many options
+    -- on each, then as near the same width), not a full row over a stub.
+    if #rows == 2 and #hidden == 0 then
+        local n, best, best_i = #items, nil, nil
+        for i = 1, n - 1 do
+            local w1, w2 = 0, 0
+            for j = 1, n do
+                if j <= i then w1 = w1 + width(items[j]) else w2 = w2 + width(items[j]) end
+            end
+            if w1 <= o.max_w and w2 <= o.max_w then
+                local score = math.abs(2 * i - n) * o.max_w + math.abs(w1 - w2)
+                if not best or score < best then best, best_i = score, i end
+            end
+        end
+        if best_i then
+            local r1, r2 = {}, {}
+            for j = 1, n do
+                if j <= best_i then r1[#r1 + 1] = items[j] else r2[#r2 + 1] = items[j] end
+            end
+            rows = { r1, r2 }
+        end
+    end
     local more
     if #hidden > 0 and o.on_more then
         more = { key = "\0more", label = o.more_label or "More" }

@@ -935,8 +935,10 @@ function LibraryModal:_renderGridArea(content_width, area_height)
             local cell_dimen = Geom:new{ w = cell_w, h = cell_h }
             local cell_widget = self.config.cell_renderer(item, render_dimen, focused)
             if focused then
+                -- Rounded round the card's own corner (the kit's).
                 cell_widget = FrameContainer:new{
                     bordersize = FOCUS,
+                    radius     = PopupKit.RADIUS + FOCUS,
                     padding    = 0,
                     margin     = 0,
                     cell_widget,

@@ -115,10 +115,19 @@ end)
 
 t.test("the plank design goes UNDER the recess, so the books' shadows fall on it", function()
     local rw = src:match("function SpineShelf%.rowWidget%(.-\nend\n")
-    local d  = rw:find("children[#children + 1] = design", 1, true)
+    -- The design stands in for the colour plank, first in the row.
+    assert(rw:find("local plank = design or ShelfPlank:new{", 1, true))
+    local d  = rw:find("local children = { dimen = dimen, plank }", 1, true)
     local r  = rw:find("children[#children + 1] = recess", 1, true)
     local g  = rw:find("children[#children + 1] = group", 1, true)
-    assert(d and r and g and d < r and r < g, "order must be plank, design, recess, books")
+    assert(d and r and g and d < r and r < g, "order must be plank (or design), recess, books")
+end)
+
+t.test("no colour plank is painted under a plank design", function()
+    local orow = src:match("function SpineShelf%.ornamentRow%(.-\nend\n")
+    assert(orow:find("design or ShelfPlank:new{", 1, true))
+    local prev = src:match("function SpineShelf%.plankPreview%(.-\nend\n")
+    assert(prev:find("else\n        ShelfPlank:new{", 1, true))
 end)
 
 

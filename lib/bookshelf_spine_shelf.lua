@@ -3536,9 +3536,10 @@ function SpineShelf.plankPreview(design, w, row_h)
     local p = SpineShelf.plankSurface(row_h) + SpineShelf.plankFace(row_h)
     local canvas = Blitbuffer.new(w, row_h + p, Blitbuffer.TYPE_BBRGB32)
     canvas:fill(Blitbuffer.COLOR_WHITE)
-    ShelfPlank:new{ dimen = Geom:new{ w = w, h = row_h } }:paintTo(canvas, 0, 0)
     if design then
         PlankDesign:new{ dimen = Geom:new{ w = w, h = row_h }, design = design }:paintTo(canvas, 0, 0)
+    else
+        ShelfPlank:new{ dimen = Geom:new{ w = w, h = row_h } }:paintTo(canvas, 0, 0)
     end
     -- Trimmed to the rows anything was painted on: most designs leave the
     -- bands above and below the plank empty, and a picker of planks is
@@ -4973,10 +4974,11 @@ function SpineShelf.ornamentRow(opts)
     local fh      = SpineShelf.plankFace(h)
     local inset   = SpineShelf.plankInset(SpineShelf.plankUnit(h))
     local stand_h = math.max(1, h - fh - inset)
-    local kids = { dimen = Geom:new{ w = w, h = h },
-                   ShelfPlank:new{ dimen = Geom:new{ w = w, h = h } } }
+    -- A pack's plank design covers the plank, so the colour plank is not
+    -- painted under it (its transparent parts show the row's ground).
     local design = SpineShelf.plankDesignWidget(w, h)
-    if design then kids[#kids + 1] = design end
+    local kids = { dimen = Geom:new{ w = w, h = h },
+                   design or ShelfPlank:new{ dimen = Geom:new{ w = w, h = h } } }
     local hanging, spans = {}, {}
     for _i, it in ipairs(opts.items or {}) do
         local pl = it.pl
@@ -5069,8 +5071,11 @@ function SpineShelf.rowWidget(opts)
     local OverlapGroup    = require("ui/widget/overlapgroup")
 
     local dimen = Geom:new{ w = opts.width, h = opts.height }
-    local plank = ShelfPlank:new{ dimen = Geom:new{ w = opts.width, h = opts.height },
-                                  keep_ground = opts.keep_ground }
+    -- A pack's plank design covers the plank, so the colour plank is not
+    -- painted under it (its transparent parts show the row's ground).
+    local design = SpineShelf.plankDesignWidget(opts.width, opts.height)
+    local plank = design or ShelfPlank:new{ dimen = Geom:new{ w = opts.width, h = opts.height },
+                                            keep_ground = opts.keep_ground }
     if not opts.row then
         -- A bare plank under the last books takes a piece when its shelf's
         -- turn comes round, like any other shelf (user ask: an empty shelf
@@ -5093,9 +5098,7 @@ function SpineShelf.rowWidget(opts)
             if not opts.no_pin then w_.pin_after_idx = math.huge end
             ornament = w_
         end)
-        local design = SpineShelf.plankDesignWidget(opts.width, opts.height)
         local kids = { dimen = dimen, plank }
-        if design then kids[#kids + 1] = design end
         local hanging = {}
         local orn_list = {}
         if ornament and SpineShelf.behindAbove(ornament.placement, ornament.overlap_offset[2], opts) then
@@ -6046,8 +6049,6 @@ function SpineShelf.rowWidget(opts)
     -- keeps the books' shadows; the design's top band (drifts up the back)
     -- still stands behind the books.
     local children = { dimen = dimen, plank }
-    local design = SpineShelf.plankDesignWidget(opts.width, opts.height)
-    if design then children[#children + 1] = design end
     if recess then children[#children + 1] = recess end
     -- The pieces BEFORE the books: a piece tightened with negative padding
     -- goes behind the books beside it (maintainer). After the recess, so the

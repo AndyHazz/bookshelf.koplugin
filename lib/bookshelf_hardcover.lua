@@ -1977,7 +1977,7 @@ local function _normaliseReviewsPayload(book)
     local reviews = _normaliseReviews(book.user_books)
     return {
         -- Reviews marked as spoilers, kept apart: the popup shows them only
-        -- when the reader ticks "Show spoilers".
+        -- when the reader ticks "Include spoilers".
         spoiler_reviews = _normaliseReviews(book.spoiler_books),
         book_id = book.id,
         title = book.title,

@@ -23004,7 +23004,7 @@ function BookshelfWidget:_buildReviewsHeader(tab, modal, avail_w, refreshReviews
         on_tap    = function() if not tab.busy then refreshReviews() end end,
     }
 
-    -- "Show spoilers": only when Hardcover has spoiler reviews for the book;
+    -- "Include spoilers": only when Hardcover has spoiler reviews for the book;
     -- off with every popup (tab.show_spoilers is never saved).
     local spoilers = data and type(data.spoiler_reviews) == "table" and #data.spoiler_reviews > 0
     local spoiler_cell
@@ -23013,7 +23013,7 @@ function BookshelfWidget:_buildReviewsHeader(tab, modal, avail_w, refreshReviews
             TextWidget:new{ text = tab.show_spoilers and "\xEE\xA0\xB1" or "\xEE\xA0\xB0", -- checkbox marked / blank
                 face = BFont:getFace("symbols", font_size + 4), fgcolor = Blitbuffer.COLOR_BLACK },
             HorizontalSpan:new{ width = Space.px(8) },
-            TextWidget:new{ text = _("Show spoilers"), face = text_face, fgcolor = Blitbuffer.COLOR_BLACK },
+            TextWidget:new{ text = _("Include spoilers"), face = text_face, fgcolor = Blitbuffer.COLOR_BLACK },
         }
         local bs = box:getSize()
         spoiler_cell = PopupKit.tapCell(box, bs.w, bs.h, function() tab.toggleSpoilers() end)
@@ -24288,7 +24288,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
     -- No title: the popup header already shows the book title/author. The
     -- rating/counts summary is a native row (_buildReviewsHeader), not part
     -- of this HTML -- only the review list itself renders here.
-    -- With "Show spoilers" ticked, the spoiler reviews join the list, most
+    -- With "Include spoilers" ticked, the spoiler reviews join the list, most
     -- liked first like the rest.
     local function reviewsListHtml(result, with_spoilers)
         local list = result and result.reviews

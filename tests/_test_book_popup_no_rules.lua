@@ -88,7 +88,7 @@ t.test("the Cover tab's page nav counts the strip above its column", function()
     assert(cover:find("local used = toolbar_h   -- the strip above the column\n        for", 1, true))
 end)
 
-t.test("Show spoilers starts off with every popup and is never saved", function()
+t.test("Include spoilers starts off with every popup and is never saved", function()
     assert(widget:find("reviews_tab = { data = data, html = html, show_spoilers = false }", 1, true))
     assert(not widget:find("Settings%.[%w_]+%([^)]*spoiler"), "the spoiler switch is saved")
     -- Only offered when Hardcover has spoiler reviews for the book.

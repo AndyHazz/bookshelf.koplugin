@@ -300,7 +300,7 @@ test("fetchReviews loads and caches non-spoiler Hardcover reviews", function()
     assert(result.reviews[1].user_name == "Reader One", "missing reviewer")
     assert(result.reviews[1].text == "<p>Sharp and strange.</p>", "missing review text")
     -- Spoiler reviews come in the same request, kept apart for the popup's
-    -- "Show spoilers" switch.
+    -- "Include spoilers" switch.
     assert(type(result.spoiler_reviews) == "table" and #result.spoiler_reviews == 1,
         "expected one spoiler review kept apart")
     assert(result.spoiler_reviews[1].spoiler == true)

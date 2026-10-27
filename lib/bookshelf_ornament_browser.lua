@@ -149,6 +149,7 @@ function Browser._renderCell(item, dimen)
         background = Blitbuffer.COLOR_WHITE,
         CenterContainer:new{ dimen = Geom:new{ w = inner_w, h = inner_h }, body },
     }
+    Kit.cardify(card)
     -- The checkbox, over the card's top right corner: ticked when the piece
     -- is on, grey when its pack is off (a tap switches the pack on too).
     local Marks = require("lib/bookshelf_marks")

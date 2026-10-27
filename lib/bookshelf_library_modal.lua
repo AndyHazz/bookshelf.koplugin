@@ -715,14 +715,16 @@ function LibraryModal:_renderChipStrip(content_width)
         if chip.is_active ~= nil then on = chip.is_active else on = chip.key == self.active_chip end
         if on then active = chip.key end
     end
-    -- The popup's segmented control, wrapped to at most two rows: options
-    -- that would need a third are left out.
+    -- The popup's segmented control, wrapped to at most two rows; the rest
+    -- behind More, a list (the chip picked from it then shows in the strip).
     local face = BFont:getFace("cfont", 14)
     local strip = PopupKit.segmentedWrap{
         items = items, active = active, face = face,
         pad_h = Space.px(12), pad_v = Space.px(6),
         max_w = content_width, max_rows = 2, gap = MARGIN,
         on_pick = function(key) self:_onChipTap(key) end,
+        more_label = _("More\xE2\x80\xA6"),
+        on_more = function(hidden) self:_showMoreChips(hidden) end,
     }
 
     -- Optional status text beside the chips (config.chip_strip_status), for
@@ -795,6 +797,22 @@ function LibraryModal:_renderStrip(cw)
     return PopupKit.headerRow{ width = self.modal_w, inset = MARGIN,
         top = search, left = chips, buttons = buttons,
         pad_top = MARGIN, pad_bottom = MARGIN }
+end
+
+-- _showMoreChips(hidden): the chips past the strip's two rows, as a list.
+function LibraryModal:_showMoreChips(hidden)
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local d
+    local buttons = {}
+    for _i, it in ipairs(hidden) do
+        local key = it.key
+        buttons[#buttons + 1] = { { text = it.label, callback = function()
+            UIManager:close(d)
+            self:_onChipTap(key)
+        end } }
+    end
+    d = ButtonDialog:new{ buttons = buttons }
+    UIManager:show(d)
 end
 
 function LibraryModal:_onChipTap(chip_key)

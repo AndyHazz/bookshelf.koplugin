@@ -149,33 +149,153 @@ end
 -- segmentedWrap(o) -> widget, focus_rows: Kit.segmented, split into as many
 -- rows as it takes to fit o.max_w (each row its own rounded control), for a
 -- choice with more options than one line holds (a picker's filter chips).
--- Takes Kit.segmented's options (sized to labels) plus o.max_w, o.max_rows
--- (options past the last row are left out) and o.gap (between rows).
+-- Takes Kit.segmented's options (sized to labels) plus o.max_w, o.gap
+-- (between rows) and o.max_rows. Past max_rows the last cell is "More"
+-- (o.more_label), which calls o.on_more(hidden_items); the active option is
+-- always among the ones shown.
 function Kit.segmentedWrap(o)
     local VerticalGroup = require("ui/widget/verticalgroup")
     local VerticalSpan  = require("ui/widget/verticalspan")
     local pad_h = o.pad_h or Space.px(16)
-    local rows, row, row_w = {}, {}, 0
-    for _i, it in ipairs(o.items) do
+    local function width(it)
         -- The bold (active) width, so a row can't overflow once picked.
-        local w = TextWidget:new{ text = it.label or "", face = o.face, bold = true }:getSize().w
+        return TextWidget:new{ text = it.label or "", face = o.face, bold = true }:getSize().w
             + 2 * pad_h
-        if #row > 0 and row_w + w > o.max_w then
-            rows[#rows + 1], row, row_w = row, {}, 0
+    end
+    -- pack(list, last_cap) -> rows, hidden: greedy rows; past max_rows the
+    -- last row holds only last_cap (room left for More).
+    local function pack(list, last_cap)
+        local rows, row, row_w, hidden = {}, {}, 0, {}
+        for _i, it in ipairs(list) do
+            local w = width(it)
+            local cap = (o.max_rows and #rows == o.max_rows - 1) and last_cap or o.max_w
+            if #hidden > 0 then
+                hidden[#hidden + 1] = it
+            elseif #row > 0 and row_w + w > cap then
+                if o.max_rows and #rows + 1 >= o.max_rows then
+                    hidden[#hidden + 1] = it
+                else
+                    rows[#rows + 1], row, row_w = row, { it }, w
+                end
+            else
+                row[#row + 1], row_w = it, row_w + w
+            end
         end
-        row[#row + 1], row_w = it, row_w + w
+        if #row > 0 then rows[#rows + 1] = row end
+        return rows, hidden
     end
-    if #row > 0 then rows[#rows + 1] = row end
-    local vg, focus_rows = VerticalGroup:new{ align = "left" }, {}
-    for i, items in ipairs(rows) do
-        if o.max_rows and i > o.max_rows then break end
-        if i > 1 then vg[#vg + 1] = VerticalSpan:new{ width = o.gap or Space.px(8) } end
-        local seg, fr = Kit.segmented{ items = items, active = o.active, on_pick = o.on_pick,
-            face = o.face, pad_h = pad_h, pad_v = o.pad_v }
-        vg[#vg + 1] = seg
-        focus_rows[#focus_rows + 1] = fr[1]
+    local items = o.items
+    local rows, hidden = pack(items, o.max_w)
+    local more
+    if #hidden > 0 and o.on_more then
+        more = { key = "\0more", label = o.more_label or "More" }
+        rows, hidden = pack(items, o.max_w - width(more))
+        -- Keep the active option in sight: it takes the last shown place.
+        local active_hidden
+        for _i, it in ipairs(hidden) do if it.key == o.active then active_hidden = it end end
+        if active_hidden and #rows > 0 then
+            local shown = {}
+            for _r, row in ipairs(rows) do for _i, it in ipairs(row) do shown[#shown + 1] = it end end
+            local list = {}
+            for i = 1, #shown - 1 do list[#list + 1] = shown[i] end
+            list[#list + 1] = active_hidden
+            for _i, it in ipairs(items) do
+                local seen = it == active_hidden
+                for _j, sh in ipairs(list) do if sh == it then seen = true end end
+                if not seen then list[#list + 1] = it end
+            end
+            rows, hidden = pack(list, o.max_w - width(more))
+        end
+        local last = rows[#rows]
+        last[#last + 1] = more
     end
-    return vg, focus_rows
+    local function pick(key)
+        if more and key == more.key then o.on_more(hidden) else o.on_pick(key) end
+    end
+    if #rows <= 1 then
+        return Kit.segmented{ items = rows[1] or {}, active = o.active,
+            face = o.face, pad_h = pad_h, pad_v = o.pad_v, on_pick = pick }
+    end
+    return Kit.segmentedGrid{ rows = rows, active = o.active, face = o.face,
+        width = o.max_w, pad_h = pad_h, pad_v = o.pad_v, on_pick = pick }
+end
+
+-- segmentedGrid(o) -> widget, focus_rows: Kit.segmented over several rows
+-- as ONE control: every row stretched to o.width, one rounded outline round
+-- the lot, a line between rows (a wrapped bar of separate rows read as two
+-- unconnected controls). Only the control's own corners are rounded.
+--   o.rows { { {key=, label=}, ... }, ... }, o.active, o.on_pick, o.face,
+--   o.width, o.pad_h, o.pad_v
+function Kit.segmentedGrid(o)
+    local pad_h = o.pad_h or Space.px(16)
+    local pad_v = o.pad_v or Space.px(12)
+    local W, B, r = o.width, Kit.BORDER, Kit.RADIUS
+    local black, white = Blitbuffer.COLOR_BLACK, Blitbuffer.COLOR_WHITE
+    local label_h = 0
+    local built = {}
+    for ri, items in ipairs(o.rows) do
+        local labels, natural, sum = {}, {}, 0
+        for i, it in ipairs(items) do
+            local on = it.key == o.active
+            labels[i] = TextWidget:new{ text = it.label or "", face = o.face, bold = on,
+                fgcolor = on and white or black }
+            natural[i] = labels[i]:getSize().w + 2 * pad_h
+            sum = sum + natural[i]
+            label_h = math.max(label_h, labels[i]:getSize().h)
+        end
+        -- Stretch the row to the full width, the slack shared out evenly.
+        local n, extra = #items, math.max(0, W - sum)
+        local each = math.floor(extra / n)
+        local widths = {}
+        for i = 1, n do widths[i] = natural[i] + each + ((i == n) and (extra - each * n) or 0) end
+        built[ri] = { items = items, labels = labels, widths = widths }
+    end
+    local h = label_h + 2 * pad_v
+    local VerticalGroup = require("ui/widget/verticalgroup")
+    local vg, focus_rows, cells = VerticalGroup:new{ align = "left" }, {}, {}
+    for ri, row in ipairs(built) do
+        local hg, fr = HorizontalGroup:new{ align = "top" }, {}
+        local cx = 0
+        for i, it in ipairs(row.items) do
+            local key, w = it.key, row.widths[i]
+            local cell = Kit.tapCell(
+                CenterContainer:new{ dimen = Geom:new{ w = w, h = h }, row.labels[i] },
+                w, h, function()
+                    if key ~= o.active and o.on_pick then o.on_pick(key) end
+                end)
+            hg[#hg + 1], fr[#fr + 1] = cell, cell
+            cells[#cells + 1] = { x = cx, y = (ri - 1) * h, w = w, on = key == o.active,
+                last = i == #row.items }
+            cx = cx + w
+        end
+        vg[#vg + 1], focus_rows[#focus_rows + 1] = hg, fr
+    end
+    local H = h * #built
+    local grid = WidgetContainer:new{ dimen = Geom:new{ w = W, h = H }, vg }
+    function grid:paintTo(bb, x, y)
+        self.dimen.x, self.dimen.y = x, y
+        bb:paintRoundedRect(x, y, W, H, white, r)
+        for _i, c in ipairs(cells) do
+            if c.on then
+                local cx, cy = x + c.x, y + c.y
+                bb:paintRoundedRect(cx, cy, c.w, h, black, r)
+                -- Square every corner that is not one of the control's own.
+                local left, right = c.x == 0, c.x + c.w >= W
+                local top, bottom = c.y == 0, c.y + h >= H
+                if not (left and top) then bb:paintRect(cx, cy, r, r, black) end
+                if not (right and top) then bb:paintRect(cx + c.w - r, cy, r, r, black) end
+                if not (left and bottom) then bb:paintRect(cx, cy + h - r, r, r, black) end
+                if not (right and bottom) then bb:paintRect(cx + c.w - r, cy + h - r, r, r, black) end
+            end
+        end
+        for _i, c in ipairs(cells) do
+            if not c.last then bb:paintRect(x + c.x + c.w, y + c.y, B, h, black) end
+        end
+        for ri = 1, #built - 1 do bb:paintRect(x, y + ri * h, W, B, black) end
+        bb:paintBorder(x, y, W, H, B, black, r)
+        vg:paintTo(bb, x, y)
+    end
+    return grid, focus_rows
 end
 
 -- card(o) -> a light grey card with a hairline shadow down and right: the
@@ -204,6 +324,26 @@ function Kit.card(o)
         end
     end
     return card
+end
+
+-- cardify(frame, o) -> frame as a Kit.card: no border, light grey (unless
+-- o.keep_bg), the kit's corner and hairline shadow, and a heavy outline
+-- when o.outline (the one in use). For a picker's own card builder.
+function Kit.cardify(frame, o)
+    o = o or {}
+    frame.bordersize = 0
+    frame.radius = Kit.RADIUS
+    if not o.keep_bg then frame.background = Kit.STRIP_BG end
+    local paint, s = frame.paintTo, Kit.shadowSize()
+    function frame:paintTo(bb, x, y)
+        local sz = self:getSize()
+        bb:paintRoundedRect(x + s, y + s, sz.w, sz.h, Kit.SHADOW, Kit.RADIUS)
+        paint(self, bb, x, y)
+        if o.outline then
+            bb:paintBorder(x, y, sz.w, sz.h, Space.px(4), Blitbuffer.COLOR_BLACK, Kit.RADIUS)
+        end
+    end
+    return frame
 end
 
 -- hintText(text, font_size, width) -> grey secondary text: a hint or a

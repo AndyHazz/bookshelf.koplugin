@@ -143,9 +143,10 @@ local function renderCell(o, dimen)
     local VerticalSpan    = require("ui/widget/verticalspan")
     local T               = require("ffi/util").template
     local pad = Space.padding.small
-    -- A tappable card: the popup kit's outline (STYLE.md).
+    -- The kit's grey card (STYLE.md), the plank set in from its sides.
     local Kit = require("lib/bookshelf_popup_kit")
-    local inner_w, inner_h = dimen.w - 2 * (pad + Kit.BORDER), dimen.h - 2 * (pad + Kit.BORDER)
+    local pad_h = Space.px(16)
+    local inner_w, inner_h = dimen.w - 2 * pad_h, dimen.h - 2 * pad
     local name = nameOf(o)
     if o.kind == "pack" then name = T(_("%1 (%2 pack)"), name, o.pack) end
     -- The title row, aligned left: the radio mark (filled for the plank in
@@ -175,8 +176,9 @@ local function renderCell(o, dimen)
     -- The title row above its plank, the pair packed to the top of the card,
     -- so each name reads with the plank under it and not the next one.
     local TopContainer = require("ui/widget/container/topcontainer")
-    return FrameContainer:new{
-        bordersize = Kit.BORDER, radius = Kit.RADIUS, padding = pad, margin = 0,
+    return require("lib/bookshelf_popup_kit").cardify(FrameContainer:new{
+        bordersize = 0, radius = Kit.RADIUS, padding = pad, margin = 0,
+        padding_left = pad_h, padding_right = pad_h,
         background = Blitbuffer.COLOR_WHITE,
         TopContainer:new{ dimen = Geom:new{ w = inner_w, h = inner_h },
             VerticalGroup:new{ align = "left",
@@ -184,7 +186,7 @@ local function renderCell(o, dimen)
                 VerticalSpan:new{ width = Space.padding.small },
                 pic or VerticalSpan:new{ width = 1 },
             } },
-    }
+    })
 end
 
 -- show(opts): the picker.

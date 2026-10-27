@@ -112,4 +112,16 @@ t.test("the grey strips have a shadow line under them", function()
     assert(method(widget, "_buildReviewsHeader"):find("PopupKit.withShadow(", 1, true))
 end)
 
+t.test("pickers: chips past two rows go behind More, wrapped rows are one control", function()
+    local lm = read("lib/bookshelf_library_modal.lua")
+    assert(lm:find("on_more = function(hidden) self:_showMoreChips(hidden) end,", 1, true),
+        "chips past the second row are dropped")
+    local kit = read("lib/bookshelf_popup_kit.lua")
+    local wrap = assert(kit:match("function Kit%.segmentedWrap.-\nend\n"))
+    assert(wrap:find("-- Keep the active option in sight", 1, true), "the active chip can hide behind More")
+    assert(wrap:find("return Kit.segmentedGrid{", 1, true), "wrapped rows are separate controls")
+    -- The screen's own actions are header buttons on the strip.
+    assert(lm:find("function LibraryModal:_renderHeaderButtons()", 1, true))
+end)
+
 t.done()

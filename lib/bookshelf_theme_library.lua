@@ -456,7 +456,8 @@ function TL._renderCard(item, dimen, current, all)
     line(item.description, 13, Blitbuffer.COLOR_DARK_GRAY)
     local e = (not item.missing) and TL.hero(item.shows, all) or nil
     local hero = e and TL.heroWidget(e, hero_w, inner_h)
-    return FrameContainer:new{
+    -- The kit's grey card; the one in use outlined (a heavier frame).
+    return require("lib/bookshelf_popup_kit").cardify(FrameContainer:new{
         bordersize = border, radius = require("lib/bookshelf_popup_kit").RADIUS, margin = 0,
         padding = 0, padding_left = pad, padding_right = pad, padding_top = pad_v, padding_bottom = pad_v,
         -- 0xEE: one exact e-ink level (238), so it does not speckle.
@@ -467,7 +468,7 @@ function TL._renderCard(item, dimen, current, all)
             CenterContainer:new{ dimen = Geom:new{ w = hero_w, h = inner_h },
                                  hero or HorizontalSpan:new{ width = 1 } },
         },
-    }
+    }, { outline = current })
 end
 
 -- How long after a tap the shelf behind is rebuilt: long enough for the

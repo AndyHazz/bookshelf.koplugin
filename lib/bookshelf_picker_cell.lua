@@ -8,7 +8,7 @@
 --   * bookshelf_collection_manager (book-tag toggle + manage modes).
 --
 -- Cell anatomy:
---   * FrameContainer with the popup kit's border and corner, white background.
+--   * The popup kit's grey card with a hairline shadow.
 --   * CenterContainer wraps a VerticalGroup of:
 --       - bold label (single line, truncated with an ellipsis if too long)
 --       - optional secondary count ("n book(s)") OR a freeform subtitle
@@ -112,32 +112,26 @@ function PickerCell.render(item, dimen, opts)
     -- gray background literally rather than relying on invert (so it
     -- reads as a third, distinct state next to plain white and inverted
     -- black).
-    local bg     = opts.tint and Blitbuffer.COLOR_LIGHT_GRAY or Blitbuffer.COLOR_WHITE
-    local invert = opts.selected and not opts.tint
-    -- The popup kit's border and corner (STYLE.md), inside the slot.
+    -- The popup kit's card (STYLE.md): light grey with a hairline shadow,
+    -- black when selected. tint: a third state, mid grey.
     local Kit    = require("lib/bookshelf_popup_kit")
-    local border = Kit.BORDER
-    local frame = FrameContainer:new{
-        bordersize = border,
-        radius     = Kit.RADIUS,
-        padding    = 0,
-        margin     = 0,
-        background = bg,
+    local invert = opts.selected and not opts.tint
+    local card = Kit.card{
+        background = opts.tint and Blitbuffer.COLOR_LIGHT_GRAY or nil,
         CenterContainer:new{
-            dimen = Geom:new{ w = dimen.w - 2 * border, h = dimen.h - 2 * border },
+            dimen = Geom:new{ w = dimen.w - Kit.shadowSize(), h = dimen.h - Kit.shadowSize() },
             stack,
         },
     }
     if invert then
-        function frame:paintTo(bb, x, y)
-            FrameContainer.paintTo(self, bb, x, y)
+        local paint = card.paintTo
+        function card:paintTo(bb, x, y)
+            paint(self, bb, x, y)
             local sz = self:getSize()
             Kit.invertRounded(bb, x, y, sz.w, sz.h, Kit.RADIUS)
-            -- The border inverted white: put it back, black on black.
-            bb:paintBorder(x, y, sz.w, sz.h, border, Blitbuffer.COLOR_BLACK, Kit.RADIUS)
         end
     end
-    return frame
+    return card
 end
 
 return PickerCell

@@ -578,14 +578,16 @@ t.test("the ornaments are scanned once per open, not per card, page or tap", fun
     TP.choiceList, TL._renderCard = list0, render0
 end)
 
-t.test("the choice in use is a heavier frame on a light ground, not a radio mark", function()
+t.test("the choice in use is a heavier frame, not a radio mark", function()
     -- Maintainer, 2026-10-07: the radio mark did not look good on a card.
     local src = io.open("lib/bookshelf_theme_library.lua"):read("*a")
     local card = src:match("function TL%._renderCard%(.-\nend\n")
     assert(card, "_renderCard moved")
     assert(not card:find("Marks.Radio", 1, true), "the radio mark is back")
-    assert(card:find('current and Size.border.thick or require("lib/bookshelf_popup_kit").BORDER', 1, true), "no heavier frame for the choice in use")
-    assert(card:find("current and Blitbuffer.Color8(0xEE)", 1, true), "no light ground for the choice in use")
+    -- Every card is the popup kit's grey card (STYLE.md); the one in use
+    -- has the kit's heavy outline.
+    assert(card:find(".cardify(FrameContainer:new{", 1, true), "not the kit's card")
+    assert(card:find("}, { outline = current })", 1, true), "no heavier frame for the choice in use")
 end)
 
 t.test("the footer's Reset: the marked theme, greyed unless an edited pack or Plain, asked first", function()

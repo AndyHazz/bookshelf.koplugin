@@ -179,6 +179,7 @@ function ModulePicker._renderCell(item, dimen)
         background = Blitbuffer.COLOR_WHITE,
         stack,
     }
+    require("lib/bookshelf_popup_kit").cardify(card)
     if item.solo then
         -- Centre the compact card in the (full-width) grid slot.
         return CenterContainer:new{

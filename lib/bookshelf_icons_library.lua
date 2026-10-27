@@ -333,7 +333,7 @@ function IconsLibrary._renderCell(item, dimen)
         VerticalSpan:new{ width = Space.span.vertical_default or 4 },
         label_w,
     }
-    return FrameContainer:new{
+    return require("lib/bookshelf_popup_kit").cardify(FrameContainer:new{
         bordersize = Kit.BORDER,
         radius = Kit.RADIUS,
         padding = 0,
@@ -343,7 +343,7 @@ function IconsLibrary._renderCell(item, dimen)
             dimen = Geom:new{ w = dimen.w - 2 * Kit.BORDER, h = dimen.h - 2 * Kit.BORDER },
             stack,
         },
-    }
+    })
 end
 
 -- Brief notification with the canonical name + codepoint on long-tap.

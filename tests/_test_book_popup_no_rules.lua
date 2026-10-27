@@ -81,6 +81,13 @@ t.test("a long-press on an action card starts arranging", function()
     assert(edit:find("arranging.order, arranging.hidden = order, {}", 1, true))
 end)
 
+t.test("the Cover tab's page nav counts the strip above its column", function()
+    -- The strip sits outside the column; leaving it out of the sum put the
+    -- nav a strip's height low and pushed the popup off the screen.
+    local cover = method(widget, "_buildBookCoverTab")
+    assert(cover:find("local used = toolbar_h   -- the strip above the column\n        for", 1, true))
+end)
+
 t.test("the grey strips have a shadow line under them", function()
     local kit = read("lib/bookshelf_popup_kit.lua")
     local row = assert(kit:match("function Kit%.headerRow.-\nend\n"))

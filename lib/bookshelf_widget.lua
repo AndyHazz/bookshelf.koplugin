@@ -23340,7 +23340,7 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
         -- always sits exactly nav_bottom_pad above the footer, instead of the
         -- trailing fill piling up below it when the covers don't fill the
         -- height (which was making the gap balloon).
-        local used = 0
+        local used = toolbar_h   -- the strip above the column
         for _i, ch in ipairs(col) do used = used + (ch.getSize and ch:getSize().h or 0) end
         local slack = avail_h - used - nav_h - nav_bottom_pad
         if slack > 0 then col[#col + 1] = VerticalSpan:new{ width = slack } end

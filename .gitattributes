@@ -3,6 +3,7 @@
 tests/          export-ignore
 tools/          export-ignore
 docs/           export-ignore
+STYLE.md        export-ignore
 .github/        export-ignore
 *.pot           export-ignore
 .gitattributes  export-ignore

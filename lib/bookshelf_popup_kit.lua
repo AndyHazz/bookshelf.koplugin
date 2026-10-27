@@ -1,4 +1,4 @@
--- bookshelf_popup_kit.lua
+-- bookshelf_popup_kit.lua (see STYLE.md for how the pieces are used)
 -- The book popup's controls, shared by its tabs so they read as one set:
 -- every tappable thing is a closed rounded shape with the button border and
 -- corner, set in from the frame, and black fill means only "this is on". No

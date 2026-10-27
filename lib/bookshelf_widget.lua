@@ -23786,6 +23786,36 @@ function BookshelfWidget:_showBookDetail(book, opts)
                         }
                     end
                 end
+                -- Author(s) and Series side by side, each under its own
+                -- heading, when both sit on one line and fit across; nil
+                -- otherwise (they stack as the other sections do).
+                local series_paired = false
+                local function sideBySide(title_a, list_a, title_b, list_b)
+                    if not (list_b and #list_b > 0) then return nil end
+                    local gap = Space.px(40)
+                    local ink = tags_editing and Blitbuffer.COLOR_DARK_GRAY or nil
+                    local function block(title, list)
+                        local pills, rows = self:_buildPillGroup(
+                            tags_editing and inertSpecs(list) or list, pills_w, 9999, base, "left",
+                            Space.px(8), nil, ink, PopupKit.BORDER)
+                        if rows and #rows > 1 then return nil end
+                        return VerticalGroup:new{ align = "left",
+                            self:_sectionHeadingBar(title, pills_w, base, 0), pills }, rows
+                    end
+                    local a, rows_a = block(title_a, list_a)
+                    local b, rows_b = block(title_b, list_b)
+                    if not (a and b) or a:getSize().w + gap + b:getSize().w > pills_w then return nil end
+                    local row = {}
+                    for _i, w in ipairs(rows_a and rows_a[1] or {}) do row[#row + 1] = w end
+                    for _i, w in ipairs(rows_b and rows_b[1] or {}) do row[#row + 1] = w end
+                    if #row > 0 then focus_tables[#focus_tables + 1] = focusRow({ row }) end
+                    return FrameContainer:new{
+                        bordersize = 0, margin = 0,
+                        padding_left = lpad, padding_right = lpad,
+                        padding_top = 0, padding_bottom = Space.px(4),
+                        HorizontalGroup:new{ align = "top", a, HorizontalSpan:new{ width = gap }, b },
+                    }
+                end
                 -- The strip stays put above the scrolling sections, as on
                 -- the other tabs.
                 local strip = editStrip()
@@ -24229,7 +24259,12 @@ function BookshelfWidget:_showBookDetail(book, opts)
                         end
                     else
                         local specs = by_cat[sec.cat]
-                        if specs and #specs > 0 then
+                        local pair = sec.cat == "author" and specs and #specs > 0
+                            and sideBySide(sec.title, specs, _("Series"), by_cat.series)
+                        if pair then
+                            vg[#vg + 1] = pair
+                            series_paired = true
+                        elseif specs and #specs > 0 and not (sec.cat == "series" and series_paired) then
                             vg[#vg + 1] = heading(sec.title)
                             if tags_editing then
                                 vg[#vg + 1] = pillsFrame(inertSpecs(specs), nil, Blitbuffer.COLOR_DARK_GRAY)

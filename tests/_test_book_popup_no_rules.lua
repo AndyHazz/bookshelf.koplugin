@@ -95,6 +95,13 @@ t.test("Include spoilers starts off with every popup and is never saved", functi
     assert(method(widget, "_buildReviewsHeader"):find("if spoilers and tab.toggleSpoilers then", 1, true))
 end)
 
+t.test("Author(s) and Series share a row when both fit on one line", function()
+    assert(widget:find('and sideBySide(sec.title, specs, _("Series"), by_cat.series)', 1, true))
+    assert(widget:find("if not (a and b) or a:getSize().w + gap + b:getSize().w > pills_w then return nil end", 1, true))
+    -- Series is not listed twice once it has joined the author row.
+    assert(widget:find('not (sec.cat == "series" and series_paired)', 1, true))
+end)
+
 t.test("the grey strips have a shadow line under them", function()
     local kit = read("lib/bookshelf_popup_kit.lua")
     local row = assert(kit:match("function Kit%.headerRow.-\nend\n"))

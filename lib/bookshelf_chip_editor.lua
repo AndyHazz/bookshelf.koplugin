@@ -2034,8 +2034,8 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         end
     end
     local CHEV = " \xE2\x80\xBA"
-    local function onOff(label, on, set)
-        return { type = "segmented", label = label,
+    local function onOff(label, on, half, set)
+        return { type = "segmented", label = label, half = half,
             items = { { key = true, label = _("On") }, { key = false, label = _("Off") } },
             active = on and true or false,
             on_pick = function(v) pick(function() set(v) end)() end }
@@ -2170,14 +2170,19 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         if show_list then
             local split = ViewMode.listLevelsSplit(draft)
             local function listRows(sfx, inherit)
-                add(stepper(_("Columns"), "list_columns" .. sfx, 1, 3,
+                local cols = stepper(_("Columns"), "list_columns" .. sfx, 1, 3,
                     bw and function() return bw:_listCols() end,
-                    inherit and "list_columns" or nil))
-                add(stepper(_("Rows"), "list_rows" .. sfx, 1, 12,
+                    inherit and "list_columns" or nil)
+                cols.half = true
+                add(cols)
+                local rows_st
+                rows_st = stepper(_("Rows"), "list_rows" .. sfx, 1, 12,
                     bw and function()
                         local ok, plan = pcall(bw._listBandPlan, bw, false, bw._chip_bar_hidden)
                         return ok and plan and plan.rows or 4
-                    end, inherit and "list_rows" or nil))
+                    end, inherit and "list_rows" or nil)
+                rows_st.half = true
+                add(rows_st)
             end
             if split then
                 add({ type = "heading", text = _("List, top level") })
@@ -2193,11 +2198,13 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         if show_spines then
             local Binding = require("lib/bookshelf_book_binding")
             add({ type = "heading", text = _("Spines") })
-            add(stepper(_("Rows"), "spine_rows", 1, 6,
+            local rows_st = stepper(_("Rows"), "spine_rows", 1, 6,
                 bw and function()
                     local ok, n = pcall(bw._nShelves, bw)
                     return ok and n or 2
-                end))
+                end)
+            rows_st.half = true
+            add(rows_st)
             -- Thickness: a multiplier on the page-count width, in steps of
             -- 10%; 100 is the default and stores nothing.
             do
@@ -2209,10 +2216,20 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                     end)
                 end
                 local v = draft.spine_thickness_pct
-                add({ type = "stepper", label = _("Thickness"),
+                add({ type = "stepper", label = _("Thickness"), half = true,
                     value = v and (tostring(v) .. "%") or _("Auto"),
                     on_dec = step(-1), on_inc = step(1) })
             end
+            add(onOff(_("Series boxes"), draft.series_boxes, true, function(v)
+                draft.series_boxes = v or nil
+            end))
+            -- Stored as false only, nil meaning the default (on). Not
+            -- `on and false or nil`: in Lua that is always nil (#439).
+            local author_on = draft.spine_show_author
+            if author_on == nil then author_on = true end
+            add(onOff(_("Author on spine"), author_on, true, function(v)
+                if v then draft.spine_show_author = nil else draft.spine_show_author = false end
+            end))
             add({ type = "row", label = _("Face out"), value = Editor._faceOutText(draft),
                 callback = function() Editor:_openFaceOut(draft, on_change) end })
             add({ type = "segmented", label = _("Book binding"),
@@ -2222,16 +2239,6 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                 on_pick = function(v) pick(function()
                     draft.book_binding = (v == "paperback") and "paperback" or nil
                 end)() end })
-            add(onOff(_("Series boxes"), draft.series_boxes, function(v)
-                draft.series_boxes = v or nil
-            end))
-            -- Stored as false only, nil meaning the default (on). Not
-            -- `on and false or nil`: in Lua that is always nil (#439).
-            local author_on = draft.spine_show_author
-            if author_on == nil then author_on = true end
-            add(onOff(_("Author on spine"), author_on, function(v)
-                if v then draft.spine_show_author = nil else draft.spine_show_author = false end
-            end))
             -- Ornaments: only ever on a spine shelf. Four stops picked for
             -- what they look like (Often and Lots once drew the same shelf);
             -- the nearest stop shows, so an unpinned shelf reads its
@@ -2270,18 +2277,16 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             add({ type = "heading", text = _("Covers") })
             if not (chrome and chrome.is_opds) then
                 local cur = StackDisplay.pinned(draft.group_display) or StackDisplay.FOLLOW_DEFAULT
-                local items = {}
+                local value
                 for _i, opt in ipairs(StackDisplay.CHIP_OPTIONS) do
-                    local value = opt.value
-                    items[#items + 1] = { text = opt.label_func(), on = value == cur,
-                        callback = pick(function() draft.group_display = value end) }
+                    if opt.value == cur then value = opt.label_func() end
                 end
-                add({ type = "hint", text = _("Folder tiles") })
-                add({ type = "chips", items = items })
+                add({ type = "row", label = _("Folder tiles"), value = value, half = true,
+                    callback = function() Editor:_pickFolderTiles(draft, on_change) end })
             end
             -- Text below covers, this shelf's own (Reddit, after 5.4). Its
             -- own page, since Custom opens the line editor.
-            add({ type = "row", label = _("Cover captions"),
+            add({ type = "row", label = _("Cover captions"), half = true,
                 value = Editor._coverTextLabel(draft, draft.cover_text),
                 callback = function()
                     Editor:_pickCoverText(draft, function()
@@ -2300,6 +2305,35 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         -- a change to the shelf, so covering it defeats it.
         anchor  = _highAnchor(function() return d end),
     }
+end
+
+-- _pickFolderTiles: how this shelf draws folder and group tiles, every style
+-- in view, the shelf behind showing each as it is tapped.
+function Editor:_pickFolderTiles(draft, on_change)
+    local StackDisplay = require("lib/bookshelf_stack_display")
+    local d
+    local function page()
+        local cur = StackDisplay.pinned(draft.group_display) or StackDisplay.FOLLOW_DEFAULT
+        local items = {}
+        for _i, opt in ipairs(StackDisplay.CHIP_OPTIONS) do
+            local value = opt.value
+            items[#items + 1] = { text = opt.label_func(), on = value == cur, callback = function()
+                draft.group_display = value
+                if on_change then on_change() end
+                if d and d.refresh then d:refresh() end
+            end }
+        end
+        return { blocks = {
+            { type = "hint", text = _("How folders and groups are drawn on this shelf. Default setting follows the library's.") },
+            { type = "chips", items = items },
+        } }
+    end
+    d = Editor._menu{
+        title  = _("Folder tiles"),
+        page   = page,
+        anchor = _highAnchor(function() return d end),
+    }
+    return d
 end
 
 -- The Face out reasons as the page and the Shelf style row name them.
@@ -2383,9 +2417,9 @@ function Editor:_openFaceOut(draft, on_change)
             if on_change then on_change() end
         end, function() end)
     end
-    local function toggle(k)
+    local function toggle(k, icon)
         local sp = spec()
-        return { text = L[k], on = (not sp.all) and isOn(sp, k), callback = function()
+        return { text = L[k], icon = icon, on = (not sp.all) and isOn(sp, k), callback = function()
             local n = spec()
             -- Switching the collection reason ON needs a name first.
             if k == "collection" and not n.collection then return pickCollection() end
@@ -2420,7 +2454,8 @@ function Editor:_openFaceOut(draft, on_change)
             { type = "heading", text = _("Series") },
             { type = "chips", items = { toggle("first"), toggle("first_unread"), toggle("standalone") } },
             { type = "heading", text = _("Other") },
-            { type = "chips", items = { toggle("favorites"), toggle("recent"), toggle("collection") } },
+            { type = "chips", items = { toggle("favorites", Editor._favGlyph()),
+                toggle("recent"), toggle("collection") } },
         }
         if sp.recent and not sp.all then
             -- How many count as recently added: a 20-book shelf and a
@@ -3172,7 +3207,8 @@ function Editor:_pickSource(draft, on_close)
         add({ type = "chips", items = {
             chip("recent", _("Recently read")),
             chip("latest", _("Latest added")),
-            chip("favorites", _("\xE2\x98\x85 Favorites")),
+            { text = _("Favorites"), icon = Editor._favGlyph(), on = cur == "favorites",
+              callback = set_simple("favorites") },
         } })
         if card_only then
             -- It shows books, so no stacks (series, authors, a shelf of
@@ -3620,6 +3656,14 @@ local function _dirLabels(key)
     return "A-Z", "Z-A"
 end
 Editor._dirLabels = _dirLabels
+
+-- _favGlyph() -> the reader's favourites mark (Favorites icon setting:
+-- a heart unless they chose the star), for a Favorites chip.
+function Editor._favGlyph()
+    local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
+    if not ok or not CP or not CP.favoriteIcon then return nil end
+    return CP.favoriteIcon() == "star" and CP.FAV_GLYPH_STAR or CP.FAV_GLYPH_HEART
+end
 
 -- _sortSummary(draft) -> the shelf's order as a sentence, for the Sort
 -- page's strip and the editor's Sort card.

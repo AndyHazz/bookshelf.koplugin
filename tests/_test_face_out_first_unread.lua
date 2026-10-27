@@ -130,7 +130,7 @@ t.test("the picker groups the reasons the way a reader thinks", function()
     local rows = ed:match("\nfunction Editor:_openFaceOut%b()(.-)\nend\n")
     assert(rows, "the picker's rows moved")
     local order = {}
-    for name in rows:gmatch('toggle%("([%a_]+)"%)') do order[#order + 1] = name end
+    for name in rows:gmatch('toggle%("([%a_]+)"[,%)]') do order[#order + 1] = name end
     eq(table.concat(order, ","), "unread,reading,on_hold,finished,first,first_unread,standalone,favorites,recent,collection",
        "the picker's row order changed")
     assert(rows:find('toggle%("unread"%), toggle%("reading"%),%s+toggle%("on_hold"%), toggle%("finished"%)'),

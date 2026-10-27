@@ -9,8 +9,9 @@
 --   summary   text: what the shelf will do, in a sentence (the strip's lead)
 --   heading   text
 --   hint      text: grey
---   chips     items { {text, on, enabled, callback} }: cards sized to their
---             labels, wrapping; the one(s) on are black
+--   chips     items { {text, icon, on, enabled, callback} }: cards sized to
+--             their labels (icon: a symbols-font glyph before it), wrapping;
+--             the one(s) on are black
 --   segmented label (optional), items { {key, label} }, active, on_pick(key):
 --             label at the left, the control at the right (full width with
 --             no label)
@@ -21,6 +22,7 @@
 --   option    text, desc, on, callback, links { {text, on, callback} },
 --             half: a card with a title and a grey line saying what it does,
 --             and small buttons at its right (Pick one >)
+--   Any block with half = true pairs with the next one, two to a line.
 --   slot      badge, text, selected, callback, seg {items, active,
 --             on_pick}, on_clear: a numbered line (a sort level), outlined
 --             when selected
@@ -104,7 +106,7 @@ end
 -- The height of a one-line card: the body face and its padding.
 function Ctx:cardH()
     if not self._card_h then
-        self._card_h = self:text("Hg"):getSize().h + 2 * Space.px(14)
+        self._card_h = self:text("Hg"):getSize().h + 2 * Space.px(10)
     end
     return self._card_h
 end
@@ -142,6 +144,14 @@ function R.chips(ctx, b)
         local enabled = it.enabled ~= false
         local label = ctx:text(it.text, { bold = it.on, fgcolor = ctx:ink(it.on, enabled),
             max_width = ctx.w - 2 * pad, face = face })
+        if it.icon then
+            -- A glyph from the symbols font before the label (the reader's
+            -- favourites mark).
+            label = HorizontalGroup:new{ align = "center",
+                ctx:text(it.icon, { face = Font:getFace("symbols", math.max(10, ctx.fs - 2)),
+                    fgcolor = ctx:ink(it.on, enabled) }),
+                HorizontalSpan:new{ width = Space.px(8) }, label }
+        end
         local cw = label:getSize().w + 2 * pad
         if line and line_w + ctx.gap + cw > ctx.w then
             vg[#vg + 1] = line
@@ -164,52 +174,87 @@ function R.chips(ctx, b)
     return vg
 end
 
+-- labelled(ctx, label, ctl): the label at the left and the control at the
+-- right end; the label above the control when the two do not fit side by
+-- side (a half-width pair).
+local function labelled(ctx, label, ctl)
+    local cw = ctl:getSize().w
+    local lt = ctx:text(label)
+    if lt:getSize().w + ctx.gap + cw <= ctx.w then return leftRight(lt, ctl, ctx.w) end
+    return VerticalGroup:new{ align = "left",
+        ctx:text(label, { max_width = ctx.w }), VerticalSpan:new{ width = Space.px(6) }, ctl }
+end
+
 function R.segmented(ctx, b)
     local face = Font:getFace("cfont", math.max(10, ctx.fs - 2))
     if not b.label then
         local seg, rows = Kit.segmented{ items = b.items, active = b.active,
-            on_pick = b.on_pick, face = face, width = ctx.w, pad_v = Space.px(10) }
+            on_pick = b.on_pick, face = face, width = ctx.w, pad_v = Space.px(8) }
         for _i, r in ipairs(rows) do ctx.layout[#ctx.layout + 1] = r end
         return seg
     end
     local seg, rows = Kit.segmented{ items = b.items, active = b.active,
-        on_pick = b.on_pick, face = face, pad_v = Space.px(10), pad_h = Space.px(14) }
+        on_pick = b.on_pick, face = face, pad_v = Space.px(8), pad_h = Space.px(14) }
     for _i, r in ipairs(rows) do ctx.layout[#ctx.layout + 1] = r end
-    local sw = seg:getSize().w
-    return leftRight(ctx:text(b.label, { max_width = math.max(Space.px(40), ctx.w - sw - ctx.gap) }),
-        seg, ctx.w)
+    return labelled(ctx, b.label, seg)
 end
 
 function R.stepper(ctx, b)
-    local h = ctx:cardH() - Space.px(12)
+    local h = ctx:cardH() - Space.px(8)
     local minus = ctx:smallButton("\u{2212}", false, b.on_dec, h)
     local plus = ctx:smallButton("+", false, b.on_inc, h)
-    local value = CenterContainer:new{ dimen = Geom:new{ w = Space.px(110), h = h },
+    local value = CenterContainer:new{ dimen = Geom:new{ w = Space.px(84), h = h },
         ctx:text(b.value, { bold = true }) }
     ctx.layout[#ctx.layout + 1] = { minus, plus }
     local ctl = HorizontalGroup:new{ align = "center", minus, value, plus }
-    return leftRight(ctx:text(b.label, { max_width = ctx.w - ctl:getSize().w - ctx.gap }),
-        ctl, ctx.w)
+    return labelled(ctx, b.label, ctl)
 end
 
 -- row(b, w) -> the card, and the cross beside it when the row can be cleared.
-function Ctx:row(b, w)
+-- rowParts(b, w) -> the row's inner width, ink, and whether its label and
+-- value fit side by side.
+function Ctx:rowParts(b, w)
+    if b.on and b.on_clear then w = w - self:cardH() - Space.px(6) end
+    local inner = w - 2 * Space.px(12)
+    local ink = self:ink(b.on, b.enabled ~= false)
+    local vt = b.value and (b.value .. (b.callback and CHEVRON or ""))
+    local fits = true
+    if vt then
+        fits = self:text(b.label):getSize().w + self.gap
+            + self:text(vt, { bold = true }):getSize().w <= inner
+    end
+    return inner, ink, vt, fits
+end
+
+-- row(b, w, stacked) -> the card, and the cross beside it when the row can
+-- be cleared. Stacked (too narrow for both, or its pair is): the label as a
+-- heading over the value, as the editor's own cards read.
+function Ctx:row(b, w, stacked)
     local h = self:cardH()
     local enabled = b.enabled ~= false
+    local inner, ink, vt, fits = self:rowParts(b, w)
+    if stacked == nil then stacked = not fits end
     local cross
     if b.on and b.on_clear then
         cross = tapCard(self:text(CROSS, { bold = true }), h, h, false, b.on_clear, true, nil,
             math.floor((h - self:text(CROSS):getSize().w) / 2))
         w = w - h - Space.px(6)
     end
-    local pad = Space.px(12)
-    local inner = w - 2 * pad
-    local ink = self:ink(b.on, enabled)
-    local value = b.value and self:text(b.value .. (b.callback and CHEVRON or ""),
-        { bold = true, fgcolor = ink, max_width = math.floor(inner * 0.6) })
-    local label = self:text(b.label, { fgcolor = ink,
-        max_width = inner - (value and value:getSize().w + self.gap or 0) })
-    local cell = tapCard(leftRight(label, value, inner), w, h, b.on, b.callback, enabled)
+    local body
+    if stacked and vt then
+        body = VerticalGroup:new{ align = "left",
+            Kit.heading(b.label, self.fs),
+            VerticalSpan:new{ width = Space.px(4) },
+            self:text(vt, { bold = true, fgcolor = ink, max_width = inner }) }
+        h = body:getSize().h + 2 * Space.px(10)
+    else
+        local value = vt and self:text(vt, { bold = true, fgcolor = ink,
+            max_width = math.floor(inner * 0.6) })
+        local label = self:text(b.label, { fgcolor = ink,
+            max_width = inner - (value and value:getSize().w + self.gap or 0) })
+        body = leftRight(label, value, inner)
+    end
+    local cell = tapCard(body, w, h, b.on, b.callback, enabled)
     if not cross then return cell, { cell } end
     return HorizontalGroup:new{ align = "center", cell, HorizontalSpan:new{ width = Space.px(6) }, cross },
         { cell, cross }
@@ -254,7 +299,7 @@ local function halves(ctx, list, build)
     for i = 1, #list, 2 do
         if i > 1 then vg[#vg + 1] = VerticalSpan:new{ width = ctx.gap } end
         local a, fa = build(list[i], w)
-        local hg = HorizontalGroup:new{ align = "top", a }
+        local hg = HorizontalGroup:new{ align = "center", a }
         local focus = fa
         if list[i + 1] then
             local bw_, fb = build(list[i + 1], ctx.w - w - ctx.gap)
@@ -263,7 +308,7 @@ local function halves(ctx, list, build)
             for _j, f in ipairs(fb) do focus[#focus + 1] = f end
         end
         vg[#vg + 1] = hg
-        ctx.layout[#ctx.layout + 1] = focus
+        if #focus > 0 then ctx.layout[#ctx.layout + 1] = focus end
     end
     return vg
 end
@@ -329,13 +374,36 @@ local function stack(ctx, blocks, spacing)
     while i <= #blocks do
         local b = blocks[i]
         local wdg
-        if b.half and (b.type == "row" or b.type == "option") then
+        if b.half then
+            -- Half-width blocks pair up, two to a line: rows and options
+            -- sized to the half, other controls laid out in it (their own
+            -- keys rows).
             local run = {}
-            while blocks[i] and blocks[i].half and blocks[i].type == b.type do
+            while blocks[i] and blocks[i].half do
                 run[#run + 1] = blocks[i]; i = i + 1
             end
-            local method = (b.type == "row") and Ctx.row or Ctx.option
-            wdg = halves(ctx, run, function(x, w) return method(ctx, x, w) end)
+            -- A pair of rows stacks its labels together, or not at all,
+            -- so the two cards are one height.
+            local half_w = math.floor((ctx.w - ctx.gap) / 2)
+            local stacked = {}
+            for j = 1, #run, 2 do
+                local a_, b_ = run[j], run[j + 1]
+                local s_ = false
+                for _k, x in ipairs({ a_, b_ }) do
+                    if x and x.type == "row" and not select(4, ctx:rowParts(x, half_w)) then s_ = true end
+                end
+                stacked[a_] = s_
+                if b_ then stacked[b_] = s_ end
+            end
+            wdg = halves(ctx, run, function(x, w)
+                if x.type == "row" then return ctx:row(x, w, stacked[x]) end
+                if x.type == "option" then return ctx:option(x, w) end
+                local saved = ctx.w
+                ctx.w = w
+                local out = R[x.type](ctx, x)
+                ctx.w = saved
+                return out, {}
+            end)
         else
             local r = R[b.type]
             wdg = r and r(ctx, b)

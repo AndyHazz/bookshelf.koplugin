@@ -911,7 +911,8 @@ function Editor:editTab(tab_id, opts)
             if not _isDefaultDirection(lv.key, lv.reverse) then
                 lbl = lbl .. " " .. "\xE2\x86\x91"
             end
-            return level_index .. ": " .. lbl
+            -- "Sort 1: Added": the card shows "Sort 1" as its heading.
+            return _("Sort ") .. level_index .. ": " .. lbl
         end
 
         local function move_tab(delta)
@@ -1357,44 +1358,161 @@ function Editor:editTab(tab_id, opts)
             buttons[#buttons] = {}
         end
 
-        -- Strip empty rows. The conditional delete row's IIFE returns {}
-        -- for built-in tabs; ButtonTable renders a zero-cell row as a
-        -- thin separator strip which visually doubles with the adjacent
-        -- row borders. Filtering keeps the dialog cleanly grid-shaped.
-        local non_empty_buttons = {}
-        for _i,row in ipairs(buttons) do
+        -- Laid out to the popup style guide (STYLE.md), from the same rows:
+        -- the first row (move left, Edit label, move right) and the last
+        -- (Delete, Copy, Move to, Add) are the screen's own actions, on the
+        -- grey strip; every row between is a setting, shown as grey cards
+        -- with a heading and its value; a row that can't be tapped and only
+        -- says something is grey hint text.
+        local top_row, action_row = buttons[1], buttons[#buttons]
+        local middle = {}
+        for i = 2, #buttons - 1 do
+            local row = buttons[i]
             if row == sort_row and src_rows then
-                for _r, r in ipairs(src_rows) do non_empty_buttons[#non_empty_buttons + 1] = r end
-            elseif #row > 0 then non_empty_buttons[#non_empty_buttons + 1] = row end
+                for _r, r in ipairs(src_rows) do middle[#middle + 1] = r end
+            elseif #row > 0 then middle[#middle + 1] = row end
         end
-        -- The frame's full width: the grid's separators meet its border
-        -- (STYLE.md: a line set in from the frame ends nowhere).
-        local button_table = ButtonTable:new{
-            width   = dialog_w,
-            buttons = non_empty_buttons,
-            zero_sep = true,
-        }
-        -- Rounded as the frame is, so the bottom row's white boxes don't
-        -- square off its corners. (Not a nil background: a Button's tap
-        -- feedback inverts it, and crashed on nil.)
-        for _r, row in ipairs(button_table.buttons_layout or {}) do
-            for _c, b in ipairs(row) do
-                if b.frame then b.frame.radius = Space.radius.window end
+        local Kit = require("lib/bookshelf_popup_kit")
+        local FocusManager = require("ui/widget/focusmanager")
+        local TextWidget = require("lib/bookshelf_colour_text")
+        local Font = require("ui/font")
+        local LeftContainer = require("ui/widget/container/leftcontainer")
+        local HorizontalSpan = require("ui/widget/horizontalspan")
+        local VerticalSpan = require("ui/widget/verticalspan")
+        local FS = 20
+        local inset = Space.px(16)
+        local content_w = dialog_w - 2 * inset
+        local function cellText(c)
+            if c.text_func then return c.text_func() end
+            return c.text or ""
+        end
+        local function cellEnabled(c)
+            if c.enabled_func then return c.enabled_func() end
+            return c.enabled ~= false
+        end
+        local function stripButton(c)
+            if c.font_face == "symbols" then
+                return Kit.iconButton{ icon = cellText(c), font_size = FS,
+                    enabled = cellEnabled(c), on_tap = c.callback }
+            end
+            return Kit.headerButton{ text = cellText(c), font_size = FS,
+                enabled = cellEnabled(c), on_tap = c.callback }
+        end
+        local layout = {}
+        local function group(cells)
+            local hg, focus = HorizontalGroup:new{ align = "center" }, {}
+            for i, c in ipairs(cells or {}) do
+                if i > 1 then hg[#hg + 1] = HorizontalSpan:new{ width = Space.px(10) } end
+                local btn = stripButton(c)
+                hg[#hg + 1], focus[#focus + 1] = btn, btn
+            end
+            return (#cells or 0) > 0 and hg or nil, focus
+        end
+        local left, left_focus = group(top_row)
+        local right, right_focus = group(action_row ~= top_row and action_row or {})
+        local strip_focus = {}
+        for _i, w in ipairs(left_focus) do strip_focus[#strip_focus + 1] = w end
+        for _i, w in ipairs(right_focus) do strip_focus[#strip_focus + 1] = w end
+        if #strip_focus > 0 then layout[#layout + 1] = strip_focus end
+        local strip = Kit.headerRow{ width = dialog_w, inset = inset,
+            left = left, buttons = right and { right } or nil }
+
+        -- A setting's card: "Heading: value" splits into a grey heading over
+        -- the value; a leading tick is a checkbox.
+        local value_face = Font:getFace("cfont", FS)
+        local CHECKED, UNCHECKED = "\xEE\xA0\xB1", "\xEE\xA0\xB0"
+        local function card(c, w)
+            local text = cellText(c)
+            local enabled = cellEnabled(c)
+            local ink = enabled and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_DARK_GRAY
+            local pad = Space.px(12)
+            local inner_w = w - 2 * pad
+            local body
+            local tick = text:match("^\xE2\x9C\x93 (.*)$")
+            local untick = not tick and text:match("^  (.*)$")
+            if tick or untick then
+                body = HorizontalGroup:new{ align = "center",
+                    TextWidget:new{ text = tick and CHECKED or UNCHECKED,
+                        face = Font:getFace("symbols", FS + 4), fgcolor = ink },
+                    HorizontalSpan:new{ width = Space.px(8) },
+                    TextWidget:new{ text = tick or untick, face = value_face, fgcolor = ink,
+                        max_width = inner_w - Space.px(40) } }
+            else
+                local head, value = text:match("^(.-):%s+(.+)$")
+                if head and #head <= 24 then
+                    body = VerticalGroup:new{ align = "left",
+                        Kit.heading(head, FS),
+                        VerticalSpan:new{ width = Space.px(4) },
+                        TextWidget:new{ text = value, face = value_face, bold = true,
+                            fgcolor = ink, max_width = inner_w } }
+                else
+                    body = TextWidget:new{ text = text, face = value_face, bold = true,
+                        fgcolor = ink, max_width = inner_w }
+                end
+            end
+            return body, pad, enabled
+        end
+        local rows_vg = VerticalGroup:new{ align = "left" }
+        local gap = Space.px(10)
+        for ri, row in ipairs(middle) do
+            if ri > 1 then rows_vg[#rows_vg + 1] = VerticalSpan:new{ width = gap } end
+            -- A row of notes only (nothing to tap): hint text.
+            local all_notes = true
+            for _i, c in ipairs(row) do
+                if c.callback or cellEnabled(c) then all_notes = false end
+            end
+            if all_notes then
+                local t = {}
+                for _i, c in ipairs(row) do t[#t + 1] = cellText(c) end
+                rows_vg[#rows_vg + 1] = Kit.hintText(table.concat(t, "  "), FS, content_w)
+            else
+                local n = #row
+                local w = math.floor((content_w - (n - 1) * gap) / n)
+                local built, h = {}, 0
+                for i, c in ipairs(row) do
+                    local body, pad, enabled = card(c, w)
+                    built[i] = { body = body, pad = pad, enabled = enabled, c = c }
+                    h = math.max(h, body:getSize().h + 2 * pad)
+                end
+                local hg, focus = HorizontalGroup:new{ align = "top" }, {}
+                for i, b in ipairs(built) do
+                    if i > 1 then hg[#hg + 1] = HorizontalSpan:new{ width = gap } end
+                    local cw = (i == n) and (content_w - (n - 1) * (w + gap)) or w
+                    local frame_c = Kit.card{ width = cw, height = h,
+                        padding_left = b.pad, padding_right = b.pad,
+                        LeftContainer:new{ dimen = Geom:new{ w = cw - 2 * b.pad, h = h }, b.body } }
+                    local cell = Kit.tapCell(frame_c, cw, h, b.c.callback, b.enabled)
+                    cell.focus_radius = Kit.RADIUS
+                    hg[#hg + 1], focus[#focus + 1] = cell, cell
+                end
+                rows_vg[#rows_vg + 1] = hg
+                layout[#layout + 1] = focus
             end
         end
+
+        -- One FocusManager over the strip and the cards, so keys move through
+        -- them (GitHub issue 361); it repaints the dialog when focus moves.
+        local button_table = FocusManager:new{
+            layout = layout,
+            show_parent = dialog,
+            VerticalGroup:new{ align = "left",
+                strip,
+                VerticalSpan:new{ width = inset },
+                FrameContainer:new{ bordersize = 0, padding = 0,
+                    padding_left = inset, padding_right = inset, padding_bottom = inset,
+                    rows_vg },
+            },
+        }
         -- FocusManager repaints `show_parent or self` on a D-pad move, and the
-        -- table is not on the window stack, so without this the highlight never
-        -- moved on screen (GitHub issue 361). Set after new{} so the Buttons
-        -- keep their touch flash path exactly as before. The first build runs
-        -- before the dialog exists: its creation below catches that one up.
+        -- body is not on the window stack, so without this the highlight never
+        -- moved on screen (GitHub issue 361). The first build runs before the
+        -- dialog exists: its creation below catches that one up.
         button_table.show_parent = dialog
         current_bt = button_table
 
         -- Dynamic title: shows the tab's current label so the user can see
-        -- which tab they're editing at a glance, even while the Label
-        -- button below is being edited. Falls back to a generic string
-        -- when the label is empty / nil. with_bottom_line is off so the
-        -- titlebar separator doesn't double with the top_row's top border.
+        -- which tab they're editing at a glance. Falls back to a generic
+        -- string when the label is empty / nil.
         local title_text = _("Edit shelf")
         if draft.label and draft.label ~= "" then
             title_text = _("Editing: ") .. draft.label
@@ -1402,18 +1520,16 @@ function Editor:editTab(tab_id, opts)
         local title_bar = TitleBar:new{
             width             = dialog_w,
             title             = title_text,
-            with_bottom_line  = false,
+            with_bottom_line  = true,
+            bottom_v_padding  = 0,
             -- The X is Close.
             close_callback    = function() finish() end,
         }
 
         frame[1] = VerticalGroup:new{
-            align = "center",
+            align = "left",
             title_bar,
-            CenterContainer:new{
-                dimen = Geom:new{ w = dialog_w, h = button_table:getSize().h },
-                button_table,
-            },
+            button_table,
         }
 
         -- Only a dialog that is on screen gets marked dirty. While a picker

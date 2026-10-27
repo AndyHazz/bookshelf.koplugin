@@ -49,7 +49,11 @@ function Kit.tapCell(widget, w, h, on_tap, enabled, on_hold)
     cell._focused = false
     function cell:paintTo(bb, x, y)
         InputContainer.paintTo(self, bb, x, y)
-        if self._focused then bb:invertRect(x, y, w, h) end
+        if self._focused then
+            -- focus_radius: round the highlight to a rounded card's corner.
+            if self.focus_radius then Kit.invertRounded(bb, x, y, w, h, self.focus_radius)
+            else bb:invertRect(x, y, w, h) end
+        end
     end
     cell.onFocus = function() cell._focused = true; return true end
     cell.onUnfocus = function() cell._focused = false; return true end

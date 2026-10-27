@@ -13,9 +13,11 @@ local t  = dofile("tests/_helpers.lua").runner()
 
 local src = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
 
-t.test("each rebuilt ButtonTable is pointed at the dialog", function()
-    local bt = src:find("local button_table = ButtonTable:new{", 1, true)
-    assert(bt, "editor ButtonTable not found")
+t.test("each rebuilt focus manager is pointed at the dialog", function()
+    -- The editor's body is one FocusManager over the strip and the cards
+    -- (STYLE.md layout), in place of the stock ButtonTable.
+    local bt = src:find("local button_table = FocusManager:new{", 1, true)
+    assert(bt, "editor focus manager not found")
     local after = src:sub(bt, bt + 1200)
     assert(after:find("button_table.show_parent = dialog", 1, true),
         "a rebuilt ButtonTable is not given the dialog as show_parent")

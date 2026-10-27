@@ -22402,13 +22402,14 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     -- ── Action tiles ─────────────────────────────────────────────────────────
     -- Most used first. Icons are the bundled symbols font's Material Design
     -- glyphs (PUA, so safe in any UI font).
+    -- Each has a stable id for the reader's own order (long-press a card).
     local tile_specs = {
-        { text = _("Favorite"), icon = inFav() and "\xEE\xA7\x90" or "\xEE\xA7\x94", -- heart / heart-outline
+        { id = "favorite", text = _("Favorite"), icon = inFav() and "\xEE\xA7\x90" or "\xEE\xA7\x94", -- heart / heart-outline
           on = inFav(), callback = fav.callback },
-        { text = remove_history.text, icon = "\xEE\xA7\x99", callback = remove_history.callback }, -- history
-        { text = show_info.text,   icon = "\xEE\xA7\xBC", callback = show_info.callback },   -- information-outline
-        { text = select_btn.text,  icon = "\xEE\xA0\xB8", callback = select_btn.callback },  -- checkbox-multiple-marked-outline
-        { text = refresh_btn.text, icon = "\xEE\xAD\x8F", callback = refresh_btn.callback }, -- refresh
+        { id = "history", text = remove_history.text, icon = "\xEE\xA7\x99", callback = remove_history.callback }, -- history
+        { id = "info",    text = show_info.text,   icon = "\xEE\xA7\xBC", callback = show_info.callback },   -- information-outline
+        { id = "select",  text = select_btn.text,  icon = "\xEE\xA0\xB8", callback = select_btn.callback },  -- checkbox-multiple-marked-outline
+        { id = "refresh", text = refresh_btn.text, icon = "\xEE\xAD\x8F", callback = refresh_btn.callback }, -- refresh
     }
     -- A record from a device library (Kindle #355, Kobo) is not a file the user
     -- put on the device: its path is the reader's own library entry, or a
@@ -22416,11 +22417,11 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     -- Kindle, and Move would break the catalogue's idea of where it lives, so
     -- those actions go rather than being offered and failing.
     if not (book.is_kindle or book.is_kobo) then
-        tile_specs[#tile_specs + 1] = { text = move_btn.text, icon = "\xEE\xA5\x91", -- folder-move
+        tile_specs[#tile_specs + 1] = { id = "move", text = move_btn.text, icon = "\xEE\xA5\x91", -- folder-move
             enabled = move_btn.enabled, callback = move_btn.callback }
-        tile_specs[#tile_specs + 1] = { text = reset_btn.text, icon = "\xEE\x9D\xAE", -- backup-restore
+        tile_specs[#tile_specs + 1] = { id = "reset", text = reset_btn.text, icon = "\xEE\x9D\xAE", -- backup-restore
             callback = reset_btn.callback }
-        tile_specs[#tile_specs + 1] = { text = _("Delete"), icon = "\xEE\xA2\xBF", -- delete
+        tile_specs[#tile_specs + 1] = { id = "delete", text = _("Delete"), icon = "\xEE\xA2\xBF", -- delete
             callback = delete_btn.callback }
     end
 
@@ -22430,12 +22431,44 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         for _ci, spec in ipairs(row) do
             local enabled = spec.enabled
             if spec.enabled_func then enabled = spec.enabled_func() end
+            local text = (spec.text_func and spec.text_func()) or spec.text or ""
             tile_specs[#tile_specs + 1] = {
-                text = (spec.text_func and spec.text_func()) or spec.text or "",
+                id = "plugin:" .. text, text = text,
                 icon = "\xEE\xAC\xB0", -- mdi-puzzle
                 enabled = enabled ~= false, callback = spec.callback,
             }
         end
+    end
+
+    -- The reader's own order. A long-press on any card starts arranging:
+    -- every card shows (hidden ones greyed), a tap picks one, and the strip
+    -- above moves or hides it. The state lives on the modal, so it survives
+    -- the tab's rebuilds; each change is saved as it happens, flushed on Done.
+    local Arr = require("lib/bookshelf_book_actions_layout")
+    local arranging = modal and modal._actions_edit
+    tile_specs = Arr.arrange(tile_specs, arranging or BookshelfSettings.read(Arr.KEY) or {})
+    local all_tiles = tile_specs
+    if not arranging then tile_specs = Arr.visible(tile_specs) end
+    local function rebuildTab()
+        if modal and modal.rebuildTab then modal:rebuildTab() end
+    end
+    local function keepArrangement(final)
+        local val = { order = arranging.order, hidden = arranging.hidden }
+        if final then BookshelfSettings.save(Arr.KEY, val)
+        else BookshelfSettings.saveDeferred(Arr.KEY, val) end
+    end
+    local function startArranging(id)
+        if not modal then return end
+        local saved = BookshelfSettings.read(Arr.KEY) or {}
+        local order, hidden = {}, {}
+        for i, a in ipairs(all_tiles) do order[i] = a.id end
+        for k, v in pairs(saved.hidden or {}) do hidden[k] = v end
+        modal._actions_edit = { order = order, hidden = hidden, sel = id }
+        rebuildTab()
+    end
+    local function pick(id)
+        arranging.sel = id
+        rebuildTab()
     end
 
     -- The popup's shared controls (lib/bookshelf_popup_kit): the button
@@ -22672,6 +22705,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         -- 3. Actions: the home screen's Action card look, an icon over a
         -- short label on a light grey card, in an even grid. "On" (a
         -- favourite) fills the card black.
+        local actions_from, actions_focus_from = #vg + 1, #focus_tables + 1
         vg[#vg + 1] = heading(_("Actions"))
         do
             local w   = content_w - 2 * inset
@@ -22706,12 +22740,16 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             -- tallest one's height, so the rows line up.
             local built, content_h = {}, 0
             for _i, a in ipairs(tile_specs) do
-                local fg = (a.enabled == false) and Blitbuffer.COLOR_DARK_GRAY
-                    or (a.on and Blitbuffer.COLOR_WHITE) or Blitbuffer.COLOR_BLACK
+                -- Arranging: every card plain (no "on" fill), hidden ones grey.
+                local on = a.on and not arranging
+                local fg = (arranging and a.hidden and Blitbuffer.COLOR_GRAY)
+                    or (arranging and Blitbuffer.COLOR_BLACK)
+                    or ((a.enabled == false) and Blitbuffer.COLOR_DARK_GRAY)
+                    or (on and Blitbuffer.COLOR_WHITE) or Blitbuffer.COLOR_BLACK
                 local icon = TextWidget:new{ text = a.icon, face = icon_face, fgcolor = fg }
                 local label = TextBoxWidget:new{ text = a.text, face = label_face,
                     width = inner_w, alignment = "center", fgcolor = fg,
-                    bgcolor = a.on and Blitbuffer.COLOR_BLACK or PopupKit.STRIP_BG }
+                    bgcolor = on and Blitbuffer.COLOR_BLACK or PopupKit.STRIP_BG }
                 local content = VerticalGroup:new{ align = "center",
                     CenterContainer:new{ dimen = Geom:new{ w = inner_w, h = icon:getSize().h }, icon },
                     VerticalSpan:new{ width = Space.px(4) },
@@ -22734,10 +22772,11 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                 else
                     line[#line + 1] = HorizontalSpan:new{ width = gap }
                 end
+                -- The picked card, while arranging, gets a heavy outline.
                 local frame = FrameContainer:new{
                     bordersize = 0, radius = tile_radius, margin = 0,
                     padding = 0, padding_top = pad_v + tile_border,
-                    background = a.on and Blitbuffer.COLOR_BLACK or PopupKit.STRIP_BG,
+                    background = (a.on and not arranging) and Blitbuffer.COLOR_BLACK or PopupKit.STRIP_BG,
                     width = tile_w, height = tile_h,
                     CenterContainer:new{
                         dimen = Geom:new{ w = tile_w,
@@ -22745,7 +22784,22 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                         built[i],
                     },
                 }
-                local cell = tapCell(frame, tile_w, tile_h, a.callback, a.enabled)
+                if arranging and arranging.sel == a.id then
+                    local sel_b = Space.px(4)
+                    function frame:paintTo(bb, x, y)
+                        FrameContainer.paintTo(self, bb, x, y)
+                        bb:paintBorder(x, y, tile_w, tile_h, sel_b, Blitbuffer.COLOR_BLACK, tile_radius)
+                    end
+                end
+                local id = a.id
+                local cell
+                if arranging then
+                    cell = tapCell(frame, tile_w, tile_h, function() pick(id) end, true,
+                        function() pick(id) end)
+                else
+                    cell = tapCell(frame, tile_w, tile_h, a.callback, a.enabled,
+                        function() startArranging(id) end)
+                end
                 line[#line + 1] = cell
                 line_cells[#line_cells + 1] = cell
             end
@@ -22756,6 +22810,14 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             vg[#vg + 1] = padded(grid, 0, 0)
         end
 
+
+        -- Arranging shows the Actions alone, right under the strip.
+        if arranging then
+            local only, only_focus = VerticalGroup:new{ align = "left" }, {}
+            for i = actions_from, #vg do only[#only + 1] = vg[i] end
+            for i = actions_focus_from, #focus_tables do only_focus[#only_focus + 1] = focus_tables[i] end
+            return only, only_focus
+        end
 
         -- 4. Hardcover link (brand name -> heading not translated). Edition text
         -- + inline Edit/Link button, below File & metadata. (Collections live on
@@ -22789,10 +22851,54 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     -- which case pays: this tab FITS here (939px into 1089px), so wide-first
     -- is the single-build path and inverting it made the common case slower.
     -- Leave it alone.
+    -- Arranging: the move / hide / Done controls on the tab's strip, which
+    -- stays put above the scrolling body.
+    local strip, strip_focus
+    if arranging then
+        local sel = arranging.sel
+        local function move(d)
+            if not sel then return end
+            arranging.order = Arr.move(arranging.order, sel, d)
+            keepArrangement(false); rebuildTab()
+        end
+        local hidden_now = sel and arranging.hidden[sel]
+        local back = PopupKit.headerButton{ icon = "\xEE\xA1\x80", font_size = font_size, -- mdi-chevron-left
+            icon_size = font_size + 8, on_tap = function() move(-1) end }
+        local fwd = PopupKit.headerButton{ icon = "\xEE\xA1\x81", font_size = font_size, -- mdi-chevron-right
+            icon_size = font_size + 8, on_tap = function() move(1) end }
+        local hide = PopupKit.headerButton{ text = hidden_now and _("Show") or _("Hide"),
+            font_size = font_size,
+            on_tap = function()
+                if not sel then return end
+                if hidden_now then
+                    arranging.hidden[sel] = nil
+                elseif Arr.canHide(all_tiles, arranging.hidden, sel) then
+                    arranging.hidden[sel] = true
+                else
+                    return
+                end
+                keepArrangement(false); rebuildTab()
+            end }
+        local done = PopupKit.headerButton{ text = _("Done"), font_size = font_size, inverted = true,
+            on_tap = function()
+                keepArrangement(true)
+                modal._actions_edit = nil
+                rebuildTab()
+            end }
+        local gap = Space.px(10)
+        strip = PopupKit.headerRow{ width = avail_w, inset = inset,
+            left = HorizontalGroup:new{ align = "center",
+                back, HorizontalSpan:new{ width = gap }, fwd,
+                HorizontalSpan:new{ width = gap }, hide },
+            buttons = { done } }
+        strip_focus = focusRow({ { back, fwd, hide, done } })
+    end
+    local body_h = avail_h - (strip and strip:getSize().h or 0)
     local body, focus_tables = buildBody(avail_w)
-    if body:getSize().h + pad_top + pad_bottom > avail_h then
+    if body:getSize().h + pad_top + pad_bottom > body_h then
         body, focus_tables = buildBody(avail_w - sb)
     end
+    if strip_focus then table.insert(focus_tables, 1, strip_focus) end
     local padded_body = FrameContainer:new{
         bordersize = 0, margin = 0,
         padding_left = 0, padding_right = 0,
@@ -22800,16 +22906,17 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         body,
     }
     local scroll = SnugScroll:new{
-        dimen = Geom:new{ w = avail_w, h = avail_h },
+        dimen = Geom:new{ w = avail_w, h = body_h },
         scroll_bar_width = bar_w,
         show_parent = modal,
         padded_body,
     }
+    local out = strip and VerticalGroup:new{ align = "left", strip, scroll } or scroll
     -- Every section's focusable row(s), in visual order, so the modal's
     -- FocusManager can chain dpad nav across the whole tab (see
     -- ReviewsModal:_assemble's handling of an ARRAY focus_tables).
-    scroll.focus_tables = focus_tables
-    return scroll
+    out.focus_tables = focus_tables
+    return out
 end
 
 -- Native "★★★★☆ 3.6 · 54 ratings · 14 reviews  [reload Refresh]" header row for

@@ -30,14 +30,19 @@ function Kit.sourceFace(font_size)
     return require("ui/font"):getFace("cfont", math.max(10, (font_size or 20) - 2))
 end
 
--- tapCell(widget, w, h, on_tap, enabled) -> widget as a w x h tap target
--- that inverts when the dpad focuses it. enabled == false swallows the tap.
-function Kit.tapCell(widget, w, h, on_tap, enabled)
+-- tapCell(widget, w, h, on_tap, enabled, on_hold) -> widget as a w x h tap
+-- target that inverts when the dpad focuses it. enabled == false swallows the
+-- tap (not the hold).
+function Kit.tapCell(widget, w, h, on_tap, enabled, on_hold)
     local cell = InputContainer:new{ dimen = Geom:new{ w = w, h = h }, widget }
     cell.ges_events = { Tap = { GestureRange:new{ ges = "tap", range = cell.dimen } } }
     cell.onTap = function()
         if enabled ~= false and on_tap then on_tap() end
         return true
+    end
+    if on_hold then
+        cell.ges_events.Hold = { GestureRange:new{ ges = "hold", range = cell.dimen } }
+        cell.onHold = function() on_hold(); return true end
     end
     cell._focused = false
     function cell:paintTo(bb, x, y)
@@ -135,8 +140,9 @@ end
 -- a small rounded button, label then icon, the same height as a source
 -- switch, so every tab's top row holds the same control. Tabs put these at
 -- the right end of their first row (headerRow).
---   o.text, o.icon (a symbols-font glyph, optional), o.font_size (the
---   popup's), o.inverted (busy or on), o.on_tap
+--   o.text, o.icon (a symbols-font glyph, optional), o.icon_size (its face
+--   size, default font_size - 2), o.font_size (the popup's), o.inverted
+--   (busy or on), o.on_tap
 function Kit.headerButton(o)
     local face = Kit.sourceFace(o.font_size)
     local probe = TextWidget:new{ text = "Hg", face = face }
@@ -145,7 +151,7 @@ function Kit.headerButton(o)
         face       = face,
         icon_glyph = o.icon,
         icon_face  = o.icon and require("ui/font"):getFace("symbols",
-            math.max(10, (o.font_size or 20) - 2)) or nil,
+            o.icon_size or math.max(10, (o.font_size or 20) - 2)) or nil,
         icon_after = true,
         height     = probe:getSize().h + 2 * Kit.SOURCE_PAD_V,
         inverted   = o.inverted or false,

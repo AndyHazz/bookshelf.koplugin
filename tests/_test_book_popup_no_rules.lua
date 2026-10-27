@@ -71,4 +71,12 @@ t.test("tab controls sit on one grey strip, edge to edge", function()
     assert(method(widget, "_buildReviewsHeader"):find("PopupKit.STRIP_BG", 1, true))
 end)
 
+t.test("a long-press on an action card starts arranging", function()
+    local edit = method(widget, "_buildBookEditTab")
+    assert(edit:find("function() startArranging(id) end", 1, true))
+    assert(edit:find("Arr.arrange(tile_specs", 1, true))
+    -- Hidden cards stay out of the normal view.
+    assert(edit:find("if not arranging then tile_specs = Arr.visible(tile_specs) end", 1, true))
+end)
+
 t.done()

@@ -757,7 +757,8 @@ end
 
 -- _renderHeaderButtons() -> the screen's own actions (config.header_actions:
 -- an array, or a function returning one, of { label, icon, on_tap,
--- enabled_when }) as the kit's header buttons, or nil.
+-- enabled_when, on_when }) as the kit's header buttons, or nil. on_when:
+-- black while it is the choice in use.
 function LibraryModal:_renderHeaderButtons()
     local actions = self.config.header_actions
     if type(actions) == "function" then actions = actions(self.active_tab) end
@@ -767,7 +768,7 @@ function LibraryModal:_renderHeaderButtons()
         local enabled = true
         if a.enabled_when then enabled = a.enabled_when() end
         btns[#btns + 1] = PopupKit.headerButton{ text = a.label, icon = a.icon,
-            font_size = 16, enabled = enabled,
+            font_size = 16, enabled = enabled, inverted = a.on_when and a.on_when() or false,
             on_tap = function()
                 self:_dismissKeyboard()
                 a.on_tap()
@@ -1108,10 +1109,11 @@ function LibraryModal:_renderFooter(content_width)
                 callback = function() if enabled then action.on_tap() end end,
                 enabled = enabled,
             })
-            -- No square white box of its own: the frame's rounded white is
-            -- the ground, so the end buttons don't square off its corners.
+            -- Rounded as the frame is, so the end buttons' white boxes don't
+            -- square off its corners. (Not a nil background: a Button's tap
+            -- feedback inverts it.)
             local b = btns[#btns]
-            if b.frame then b.frame.background = nil end
+            if b.frame then b.frame.radius = Space.px(8) end
         end
         if #btns == 1 then return btns[1], btns end
         local hg = HorizontalGroup:new{ align = "center" }

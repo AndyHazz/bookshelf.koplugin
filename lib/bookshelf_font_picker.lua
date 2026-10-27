@@ -290,10 +290,12 @@ function FontPicker.show(current_face, on_select, default_face)
             zero_sep = true,
             show_parent = picker,
         }
-        -- No square white boxes: they would square off the frame's corners.
+        -- Rounded as the frame is, so the end buttons' white boxes don't
+        -- square off its bottom corners. (Not a nil background: a Button's
+        -- tap feedback inverts it, and crashed on nil.)
         for _r, row in ipairs(actions.buttons_layout or {}) do
             for _c, b in ipairs(row) do
-                if b.frame then b.frame.background = nil end
+                if b.frame then b.frame.radius = Space.radius.window end
             end
         end
 

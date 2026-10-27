@@ -1374,11 +1374,12 @@ function Editor:editTab(tab_id, opts)
             buttons = non_empty_buttons,
             zero_sep = true,
         }
-        -- No square white boxes of their own: the frame's rounded white is
-        -- the ground, so the bottom row doesn't square off its corners.
+        -- Rounded as the frame is, so the bottom row's white boxes don't
+        -- square off its corners. (Not a nil background: a Button's tap
+        -- feedback inverts it, and crashed on nil.)
         for _r, row in ipairs(button_table.buttons_layout or {}) do
             for _c, b in ipairs(row) do
-                if b.frame then b.frame.background = nil end
+                if b.frame then b.frame.radius = Space.radius.window end
             end
         end
         -- FocusManager repaints `show_parent or self` on a D-pad move, and the

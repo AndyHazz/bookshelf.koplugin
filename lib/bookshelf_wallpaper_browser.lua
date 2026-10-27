@@ -199,19 +199,18 @@ end
 -- buttons hand them to choose().
 WB.NONE, WB.SAME = { kind = "none" }, { kind = "same" }
 
--- footerActions(key, pick, close) -> the footer's one row: Same as wallpaper
--- (the full screen picker only), No wallpaper, Close. A button is greyed
--- while it is the choice in use, so it also shows which is chosen.
--- pick(item) is what a card tap does.
-function WB.footerActions(key, pick, close)
+-- headerActions(key, pick) -> the choices that are not a picture, on the
+-- strip under the title (STYLE.md): Same as wallpaper (the full screen
+-- picker only) and No wallpaper. Black while it is the choice in use, as a
+-- picked option is. pick(item) is what a card tap does.
+function WB.headerActions(key, pick)
     local row = {}
     local function choice(k, label, item)
         row[#row + 1] = { key = k, label = label, on_tap = function() pick(item) end,
-                          enabled_when = function() return not WB.inUse(key, item) end }
+                          on_when = function() return WB.inUse(key, item) end }
     end
     if key == WP().FULL_SETTING then choice("same", _("Same as wallpaper"), WB.SAME) end
     choice("none", _("No wallpaper"), WB.NONE)
-    row[#row + 1] = { key = "close", label = _("Close"), on_tap = close }
     return row
 end
 
@@ -268,7 +267,8 @@ function WB.show(key, on_change, on_closed)
         end,
         item_count = function() return #self.items end,
         item_at = function(i) return self.items[i] end,
-        footer_rows = { WB.footerActions(key, function(item) pick(item) end, close) },
+        header_actions = function() return WB.headerActions(key, function(item) pick(item) end) end,
+        footer_rows = { { { key = "close", label = _("Close"), on_tap = close } } },
         -- No pictures on this tab: where they come from, the one place the
         -- picker names the folder.
         empty_state = function(w, h)

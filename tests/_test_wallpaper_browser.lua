@@ -57,26 +57,25 @@ local function labels(row)
     return table.concat(o, ",")
 end
 
-t.test("the footer: No wallpaper (and Same as wallpaper for full screen) beside Close", function()
-    local picked, closed = {}, 0
-    local row = WB.footerActions("wallpaper_default", function(it) picked[#picked + 1] = it end, function() closed = closed + 1 end)
-    eq(labels(row), "No wallpaper,Close")
+t.test("the strip: No wallpaper (and Same as wallpaper for full screen)", function()
+    local picked = {}
+    local row = WB.headerActions("wallpaper_default", function(it) picked[#picked + 1] = it end)
+    eq(labels(row), "No wallpaper")
     row[1].on_tap(); eq(picked[1].kind, "none", "No wallpaper did not choose none as a card tap does")
-    row[2].on_tap(); eq(closed, 1)
-    eq(labels(WB.footerActions("wallpaper_full", function() end, function() end)), "Same as wallpaper,No wallpaper,Close")
+    eq(labels(WB.headerActions("wallpaper_full", function() end)), "Same as wallpaper,No wallpaper")
 end)
 
-t.test("a footer button is greyed while it is the choice in use", function()
+t.test("a strip button is on (black) while it is the choice in use", function()
     store = {}
-    local d = WB.footerActions("wallpaper_default", function() end, function() end)
-    eq(d[1].enabled_when(), false, "nothing set: No wallpaper is the choice already")
+    local d = WB.headerActions("wallpaper_default", function() end)
+    eq(d[1].on_when(), true, "nothing set: No wallpaper is the choice already")
     store.wallpaper_default = "leaves.png"
-    eq(d[1].enabled_when(), true)
-    local f = WB.footerActions("wallpaper_full", function() end, function() end)
+    eq(d[1].on_when(), false)
+    local f = WB.headerActions("wallpaper_full", function() end)
     store.wallpaper_full = nil
-    eq(f[1].enabled_when(), false, "full unset: Same as wallpaper"); eq(f[2].enabled_when(), true)
+    eq(f[1].on_when(), true, "full unset: Same as wallpaper"); eq(f[2].on_when(), false)
     store.wallpaper_full = false
-    eq(f[1].enabled_when(), true); eq(f[2].enabled_when(), false, "full false: No wallpaper")
+    eq(f[1].on_when(), false); eq(f[2].on_when(), true, "full false: No wallpaper")
 end)
 
 t.test("which picture reads as in use", function()

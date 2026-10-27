@@ -124,4 +124,13 @@ t.test("pickers: chips past two rows go behind More, wrapped rows are one contro
     assert(lm:find("function LibraryModal:_renderHeaderButtons()", 1, true))
 end)
 
+t.test("a stock Button's frame keeps its background (its tap feedback inverts it)", function()
+    -- PW5 crash: footer buttons given a nil background to keep the frame's
+    -- round corners; Button:_doFeedbackHighlight indexed it on the first tap.
+    for _i, f in ipairs({ "lib/bookshelf_library_modal.lua", "lib/bookshelf_chip_editor.lua",
+                          "lib/bookshelf_font_picker.lua", "lib/bookshelf_module_card_menu.lua" }) do
+        assert(not read(f):find("frame.background = nil", 1, true), f .. " clears a Button's background")
+    end
+end)
+
 t.done()

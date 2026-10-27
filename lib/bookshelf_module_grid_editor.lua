@@ -84,7 +84,7 @@ function Editor:init()
             local t = Perf.now()
             editor:_buildBands()
             Perf.part("bars", t)
-            UIManager:setDirty(editor, "ui")
+            editor:_dirty()
             return true
         end,
         render = function(_r, edit)
@@ -96,7 +96,7 @@ function Editor:init()
             t = Perf.now()
             editor:_buildBands()
             Perf.part("bars", t)
-            UIManager:setDirty(editor, "ui")
+            editor:_dirty()
         end,
     }
     self.session = Session.new{
@@ -263,15 +263,21 @@ function Editor:_buildToolbar()
     end
     local title_row = self:_titleRow(title, face, width - 2 * self.margin, entry)
     self._palette = type(title_row) == "table" and title_row.palette_button or nil
+    -- The title is set in; the button grid runs the frame's full width, so
+    -- its separators meet the frame's border (STYLE.md: a line set in from
+    -- the frame ends nowhere).
+    local inner_w = width - 2 * Size.border.window
     local vg = VerticalGroup:new{
         align = "center",
-        title_row,
+        FrameContainer:new{ bordersize = 0, padding = Size.padding.default, title_row },
     }
     self._bar_table = nil
     if rows then
-        vg[#vg + 1] = VerticalSpan:new{ width = Screen:scaleBySize(6) }
+        local LineWidget = require("ui/widget/linewidget")
+        vg[#vg + 1] = LineWidget:new{ background = Blitbuffer.COLOR_DARK_GRAY,
+            dimen = Geom:new{ w = inner_w, h = Size.line.thin } }
         self._bar_table = ButtonTable:new{
-            width = width - 2 * Size.border.window - 2 * Size.padding.default,
+            width = inner_w,
             buttons = rows,
             zero_sep = true,
             show_parent = self,
@@ -285,7 +291,7 @@ function Editor:_buildToolbar()
         background = Blitbuffer.COLOR_WHITE,
         bordersize = Size.border.window,
         radius     = Size.radius.window,
-        padding    = Size.padding.default,
+        padding    = 0,
         width      = width,
         vg,
     }
@@ -356,6 +362,30 @@ function Editor:_buildBands()
             UIManager:nextTick(function() pcall(function() w:free() end) end)
         end
     end
+end
+
+-- _dirty(): repaint the editor and refresh only what a change can touch:
+-- the toolbar where it was and where it is now, the footer, the grid (with
+-- room for its rings and shadows) and what modules drew past it, before and
+-- after. The screen outside stays as faded; a whole-screen refresh for
+-- every tap and arrow was e-ink time for nothing.
+function Editor:_dirty()
+    local before = { self._bar_rect }
+    for _i, o in ipairs(self._last_overs or {}) do before[#before + 1] = o end
+    UIManager:setDirty(self, function()
+        local rects = { self._bar_rect, self._footer_rect }
+        for _i, r in ipairs(before) do rects[#rects + 1] = r end
+        for _i, o in ipairs(self._last_overs or {}) do rects[#rects + 1] = o end
+        local info = self.host:gridInfo()
+        local d = info and info.container and info.container.dimen
+        if not (d and d.x) then return "ui" end
+        local pad = Screen:scaleBySize(8)
+        local u = Geom:new{ x = d.x - pad, y = d.y - pad, w = d.w + 2 * pad, h = d.h + 2 * pad }
+        for _i, r in ipairs(rects) do
+            if r and r.w and r.w > 0 then u = u:combine(Geom:new{ x = r.x, y = r.y, w = r.w, h = r.h }) end
+        end
+        return "ui", u
+    end)
 end
 
 -- Screen rect of the selected module, or nil.
@@ -450,6 +480,7 @@ function Editor:_fadeAround(bb)
         -- kept in the stored fade: a heading hidden since stayed painted
         -- there, put back with every repaint (maintainer).
         overs = Editor._overhangCopies(bb, x0, y0, w, h)
+        self._last_overs = overs
         -- Where they are is in the key: the stored fade was made with them on
         -- screen, so a heading hidden since left its faded ghost in it.
         local where = {}
@@ -724,13 +755,13 @@ function Editor:_applyKeyFocus()
     local f = self._key_focus
     if self._focused_btn and self._focused_btn.onUnfocus then self._focused_btn:onUnfocus() end
     self._focused_btn = nil
-    if not f or #rows == 0 then self._key_focus = nil; UIManager:setDirty(self, "ui"); return end
+    if not f or #rows == 0 then self._key_focus = nil; self:_dirty(); return end
     f.row = math.max(1, math.min(f.row, #rows))
     f.col = math.max(1, math.min(f.col, #rows[f.row]))
     local b = rows[f.row][f.col]
     if b and b.onFocus then b:onFocus() end
     self._focused_btn = b
-    UIManager:setDirty(self, "ui")
+    self:_dirty()
 end
 -- The first button that does something, from the toolbar's first row (the
 -- palette above it is one Up away), else the footer.

@@ -173,6 +173,9 @@ function M.titleRow(title, face, w, entry, show_parent, on_tap)
         show_parent = show_parent,
         callback = on_tap,
     }
+    -- No ground of its own: the large icon reaches past the row, and its
+    -- white box showed above the editor's toolbar.
+    if icon.frame then icon.frame.background = nil end
     local iw, ih = icon:getSize().w, icon:getSize().h
     local holder = { dimen = Geom:new{ w = iw, h = row_h } }
     function holder:getSize() return { w = iw, h = row_h } end

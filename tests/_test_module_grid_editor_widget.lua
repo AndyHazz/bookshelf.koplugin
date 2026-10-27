@@ -64,7 +64,8 @@ package.preload["device"] = function()
 end
 
 for _, name in ipairs({ "ui/widget/buttontable", "ui/widget/buttondialog",
-                        "ui/widget/notification", "ui/widget/textwidget" }) do
+                        "ui/widget/notification", "ui/widget/textwidget",
+                        "ui/widget/linewidget" }) do
     package.preload[name] = function() return make_widget_base() end
 end
 package.preload["lib/bookshelf_colour_text"] = function() return make_widget_base() end

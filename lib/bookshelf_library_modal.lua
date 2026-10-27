@@ -399,6 +399,15 @@ function LibraryModal:_buildFrame()
         background = Blitbuffer.COLOR_WHITE,
         VerticalGroup:new{ align = "left" },
     }
+    -- The footer's buttons run to the frame's edge and paint square white
+    -- boxes: draw the rounded border again over them, or its bottom corners
+    -- are cut off.
+    local frame = self.frame
+    function frame:paintTo(bb, x, y)
+        FrameContainer.paintTo(self, bb, x, y)
+        local sz = self:getSize()
+        bb:paintBorder(x, y, sz.w, sz.h, self.bordersize, Blitbuffer.COLOR_BLACK, self.radius)
+    end
     self[1] = CenterContainer:new{
         dimen = Geom:new{ w = Screen:getWidth(), h = Screen:getHeight() },
         self.frame,
@@ -1099,6 +1108,10 @@ function LibraryModal:_renderFooter(content_width)
                 callback = function() if enabled then action.on_tap() end end,
                 enabled = enabled,
             })
+            -- No square white box of its own: the frame's rounded white is
+            -- the ground, so the end buttons don't square off its corners.
+            local b = btns[#btns]
+            if b.frame then b.frame.background = nil end
         end
         if #btns == 1 then return btns[1], btns end
         local hg = HorizontalGroup:new{ align = "center" }

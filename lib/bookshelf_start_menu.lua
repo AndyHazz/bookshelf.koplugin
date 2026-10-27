@@ -854,6 +854,14 @@ function StartMenu:_buildModuleRow(entry, w, focused, in_flyout)
         padding    = card_pad,
         content,
     }
+    -- A hairline shadow, down and right: the light grey alone is faint on
+    -- e-ink with no border (the book popup's action cards have the same).
+    local shadow = Space.px(1)
+    function card:paintTo(bb, x, y)
+        local sz = self:getSize()
+        bb:paintRoundedRect(x + shadow, y + shadow, sz.w, sz.h, Blitbuffer.COLOR_GRAY, self.radius)
+        FrameContainer.paintTo(self, bb, x, y)
+    end
     -- Spans pad the card row out to inner_w_frame so the margin/border swap
     -- on the outer frame keeps the total row width at exactly w.
     local card_row = HorizontalGroup:new{

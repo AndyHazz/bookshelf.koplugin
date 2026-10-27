@@ -75,7 +75,7 @@ t.test("Shelf style has the shelf's Theme row, sub-shelves too, previewed live",
     local open_ed = ed:gsub("%-%-[^\n]*", "")
     assert(open_ed:find("Editor:_pickGroupDisplay%(draft, function%(now%)\n%s*commit%(%)\n%s*if now then settlePreview%(%) end\n%s*rebuild%(%)"),
         "the Theme library's apply leaves the shelf's rebuild on the debounce: two flashes")
-    assert(row:find("on_closed = function() if d and d.refresh then d:refresh() end end,", 1, true), "Shelf style does not come back after the picker")
+    assert(row:find("on_closed = pick(function() end),", 1, true), "Shelf style does not come back after the picker")
     -- First, above Show as: the theme sits behind the layout style
     -- (maintainer, 2026-10-09).
     local th = pick:find("local follow = draft.parent", 1, true)

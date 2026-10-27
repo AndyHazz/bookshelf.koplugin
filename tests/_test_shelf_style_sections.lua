@@ -37,7 +37,7 @@ local ViewMode = require("lib/bookshelf_view_mode")
 
 local src = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
 -- The three consecutive `local show_* = ...` lines, taken verbatim.
-local gates = src:match("(local pin = .-local show_spines = .-\n.-)\n%s*local bw")
+local gates = src:match("(local pin = .-local show_levels = [^\n]+)")
 assert(gates, "could not find the show_covers/show_list/show_spines block "
     .. "in Editor:_pickGroupDisplay - renamed or reordered?")
 

@@ -16,10 +16,10 @@
 --             label at the left, the control at the right (full width with
 --             no label)
 --   stepper   label, value (text), on_dec, on_inc: label, then  -  value  +
---   row       label, value, callback, on, on_clear, half: a card reading
+--   row       label, value, icon, callback, on, on_clear, half: a card reading
 --             "label   value >"; on (a setting made) turns it black and
 --             on_clear adds a cross beside it; half rows pair up two a line
---   option    text, desc, on, callback, links { {text, on, callback} },
+--   option    text, desc, icon, on, callback, links { {text, on, callback} },
 --             half: a card with a title and a grey line saying what it does,
 --             and small buttons at its right (Pick one >)
 --   Any block with half = true pairs with the next one, two to a line.
@@ -116,6 +116,18 @@ function Ctx:smallButton(text, on, callback, h)
     return Kit.button{ text = text, face = Font:getFace("cfont", math.max(10, self.fs - 2)),
         height = h or (self:cardH() - Space.px(12)), inverted = on or false,
         bold = on or false, on_tap = callback }
+end
+
+-- icon(glyph, ink) -> a symbols-font glyph a step larger than the body,
+-- for a row's or option's icon.
+function Ctx:icon(glyph, ink)
+    return TextWidget:new{ text = glyph, face = Font:getFace("symbols", self.fs + 2),
+        fgcolor = ink or Blitbuffer.COLOR_BLACK }
+end
+-- iconW() -> an icon's width and the gap after it.
+function Ctx:iconW()
+    if not self._icon_w then self._icon_w = self:icon("\u{EA31}"):getSize().w + Space.px(12) end
+    return self._icon_w
 end
 
 local R = {}
@@ -220,7 +232,7 @@ function Ctx:rowParts(b, w)
     local vt = b.value and (b.value .. (b.callback and CHEVRON or ""))
     local fits = true
     if vt then
-        fits = self:text(b.label):getSize().w + self.gap
+        fits = (b.icon and self:iconW() or 0) + self:text(b.label):getSize().w + self.gap
             + self:text(vt, { bold = true }):getSize().w <= inner
     end
     return inner, ink, vt, fits
@@ -242,16 +254,26 @@ function Ctx:row(b, w, stacked)
     end
     local body
     if stacked and vt then
+        local iw = b.icon and self:iconW() or 0
         body = VerticalGroup:new{ align = "left",
             Kit.heading(b.label, self.fs),
             VerticalSpan:new{ width = Space.px(4) },
-            self:text(vt, { bold = true, fgcolor = ink, max_width = inner }) }
+            self:text(vt, { bold = true, fgcolor = ink, max_width = inner - iw }) }
         h = body:getSize().h + 2 * Space.px(10)
+        if b.icon then
+            body = HorizontalGroup:new{ align = "center", self:icon(b.icon, ink),
+                HorizontalSpan:new{ width = Space.px(12) }, body }
+        end
     else
+        local iw = b.icon and self:iconW() or 0
         local value = vt and self:text(vt, { bold = true, fgcolor = ink,
             max_width = math.floor(inner * 0.6) })
         local label = self:text(b.label, { fgcolor = ink,
-            max_width = inner - (value and value:getSize().w + self.gap or 0) })
+            max_width = inner - iw - (value and value:getSize().w + self.gap or 0) })
+        if b.icon then
+            label = HorizontalGroup:new{ align = "center", self:icon(b.icon, ink),
+                HorizontalSpan:new{ width = Space.px(12) }, label }
+        end
         body = leftRight(label, value, inner)
     end
     local cell = tapCard(body, w, h, b.on, b.callback, enabled)
@@ -275,7 +297,7 @@ function Ctx:option(b, w)
     end
     local links_w = (#links > 0) and (links:getSize().w + self.gap) or 0
     local ink = self:ink(b.on, b.enabled)
-    local text_w = inner - links_w
+    local text_w = inner - links_w - (b.icon and self:iconW() or 0)
     local vg = VerticalGroup:new{ align = "left",
         self:text(b.text, { bold = true, fgcolor = ink, max_width = text_w }) }
     if b.desc then
@@ -286,7 +308,12 @@ function Ctx:option(b, w)
     end
     local h = math.max(vg:getSize().h, links:getSize().h) + 2 * Space.px(b.desc and 12 or 6)
     if not b.desc then h = math.max(h, self:cardH()) end
-    local body = (#links > 0) and leftRight(vg, links, inner) or vg
+    local left = vg
+    if b.icon then
+        left = HorizontalGroup:new{ align = "center", self:icon(b.icon, ink),
+            HorizontalSpan:new{ width = Space.px(12) }, vg }
+    end
+    local body = (#links > 0) and leftRight(left, links, inner) or left
     local cell = tapCard(body, w, h, b.on, b.callback, b.enabled)
     table.insert(focus, 1, cell)
     return cell, focus
@@ -424,9 +451,52 @@ local function stack(ctx, blocks, spacing)
     return vg
 end
 
--- render(model, o) -> strip (nil without one), body, layout
+-- units(blocks) -> the blocks in runs that stay together on a page: a
+-- heading (and a hint under it) with what follows, a run of half blocks.
+local function units(blocks)
+    local out, cur = {}, nil
+    local glue = false
+    local halves_in = 0   -- half blocks in the current unit's pair so far
+    for i, b in ipairs(blocks) do
+        local prev = blocks[i - 1]
+        -- The second of a pair joins the first; a page may break between
+        -- pairs, as it may between any two lines.
+        local join = cur and (glue or (b.half and prev and prev.half and halves_in % 2 == 1))
+        if not join then
+            cur = {}
+            out[#out + 1] = cur
+            halves_in = 0
+        end
+        cur[#cur + 1] = b
+        if b.half then halves_in = halves_in + 1 else halves_in = 0 end
+        glue = (b.type == "heading") or (b.type == "hint" and prev and prev.type == "heading")
+    end
+    return out
+end
+
+Page._units = units   -- for tests
+
+-- pager(ctx, n, of, on_page) -> the page row: < n of m >, the ends greyed.
+local function pager(ctx, n, of, on_page)
+    local h = ctx:cardH() - Space.px(8)
+    local isz = h - Space.px(16)
+    local prev = Kit.button{ icon = "chevron.left", icon_size = isz, height = h,
+        pad_h = Space.px(20), enabled = n > 1, on_tap = function() on_page(n - 1) end }
+    local nxt = Kit.button{ icon = "chevron.right", icon_size = isz, height = h,
+        pad_h = Space.px(20), enabled = n < of, on_tap = function() on_page(n + 1) end }
+    ctx.layout[#ctx.layout + 1] = { prev, nxt }
+    local label = CenterContainer:new{ dimen = Geom:new{ w = Space.px(160), h = h },
+        ctx:text(require("ffi/util").template(require("lib/bookshelf_i18n").gettext("%1 of %2"), n, of)) }
+    return CenterContainer:new{ dimen = Geom:new{ w = ctx.w, h = h },
+        HorizontalGroup:new{ align = "center", prev, label, nxt } }
+end
+
+-- render(model, o) -> strip (nil without one), body, layout, pages
 --   model { strip = {blocks}, blocks = {blocks} }
---   o { width (the popup's), inset, font_size }
+--   o { width (the popup's), inset, font_size, max_h (the most the body may
+--   take; past it the blocks go onto pages), page (1-based), on_page(n) }
+-- A page break never splits a unit (units()), so a heading stays with what
+-- it heads; a unit taller than a whole page has one to itself.
 function Page.render(model, o)
     loadDeps()
     local ctx = newCtx(o)
@@ -442,11 +512,74 @@ function Page.render(model, o)
         }, o.width)
         ctx.bg = nil
     end
+    local spacing = Space.px(10)
+    local pad_top, pad_bottom = Space.px(14), o.inset
+    -- Each unit laid out on its own, with the keys rows it adds.
+    -- under: the heading a unit sits under, repeated at the top of a page
+    -- the section carries on to.
+    local built = {}
+    local strip_layout = ctx.layout
+    local under
+    for _i, u in ipairs(units(model.blocks or {})) do
+        ctx.layout = {}
+        local w = stack(ctx, u, spacing)
+        if u[1].type == "heading" then under = u[1].text end
+        built[#built + 1] = { w = w, h = w:getSize().h, layout = ctx.layout, under = under,
+            head = u[1].type == "heading",
+            gap = (u[1].type == "heading") and math.floor(spacing * 1.8) or spacing }
+    end
+    local cont_h = Kit.heading("Hg", ctx.fs):getSize().h + Space.px(6)
+    -- What a page starting at unit i spends before it on the carried heading.
+    local function carried(i)
+        return (not built[i].head and built[i].under) and cont_h or 0
+    end
+    ctx.layout = strip_layout
+    local function total(from, to)
+        local h = 0
+        for i = from, to do h = h + built[i].h + ((i > from) and built[i].gap or 0) end
+        return h
+    end
+    -- Greedy pages within the room left.
+    local room = o.max_h and (o.max_h - (strip and strip:getSize().h or 0) - pad_top - pad_bottom)
+        or math.huge
+    local pages = { { 1, #built } }
+    if #built > 0 and total(1, #built) > room then
+        local pager_h = ctx:cardH() - Space.px(8) + spacing
+        local fit = room - pager_h
+        pages = {}
+        local first = 1
+        while first <= #built do
+            local last = first
+            while last < #built and carried(first) + total(first, last + 1) <= fit do last = last + 1 end
+            pages[#pages + 1] = { first, last }
+            first = last + 1
+        end
+    end
+    local n = math.max(1, math.min(o.page or 1, #pages))
+    local vg = VerticalGroup:new{ align = "left" }
+    local span = pages[n]
+    if span and span[1] <= span[2] then
+        if #pages > 1 and carried(span[1]) > 0 then
+            vg[#vg + 1] = Kit.heading(built[span[1]].under, ctx.fs)
+            vg[#vg + 1] = VerticalSpan:new{ width = Space.px(6) }
+        end
+        for i = span[1], span[2] do
+            if i > span[1] then vg[#vg + 1] = VerticalSpan:new{ width = built[i].gap } end
+            vg[#vg + 1] = built[i].w
+            for _j, row in ipairs(built[i].layout) do ctx.layout[#ctx.layout + 1] = row end
+        end
+    end
+    if #pages > 1 then
+        -- The page row at the foot, the same place on every page.
+        local used = (span and span[1] <= span[2]) and (carried(span[1]) + total(span[1], span[2])) or 0
+        local pager_h = ctx:cardH() - Space.px(8)
+        vg[#vg + 1] = VerticalSpan:new{ width = math.max(spacing, room - used - pager_h) }
+        vg[#vg + 1] = pager(ctx, n, #pages, o.on_page or function() end)
+    end
     local body = FrameContainer:new{ bordersize = 0, margin = 0,
         padding_left = o.inset, padding_right = o.inset,
-        padding_top = Space.px(14), padding_bottom = o.inset,
-        stack(ctx, model.blocks or {}, Space.px(10)) }
-    return strip, body, ctx.layout
+        padding_top = pad_top, padding_bottom = pad_bottom, vg }
+    return strip, body, ctx.layout, #pages
 end
 
 -- toButtons(model) -> ButtonDialog rows for the same page: a button for

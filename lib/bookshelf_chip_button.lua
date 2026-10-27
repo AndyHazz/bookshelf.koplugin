@@ -75,6 +75,8 @@ function ChipButton.build(opts)
     elseif opts.icon then
         icon_widget = IconWidget:new{
             icon = opts.icon, width = opts.icon_size, height = opts.icon_size,
+            -- Greyed with the label when the button can't act.
+            dim = opts.enabled == false or nil,
         }
     end
     local label_widget

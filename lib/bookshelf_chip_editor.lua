@@ -845,6 +845,13 @@ function Editor:editTab(tab_id, opts)
         local enabled = cellEnabled(c)
         local pad = Space.px(12)
         local inner_w = w - 2 * pad
+        local icon
+        if c.icon then
+            -- What the card is about, at a glance (Source, Filters, Sort...).
+            icon = TextWidget:new{ text = c.icon, face = Font:getFace("symbols", FS + 6),
+                fgcolor = enabled and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_DARK_GRAY }
+            inner_w = inner_w - icon:getSize().w - Space.px(14)
+        end
         local tick = text:match("^\xE2\x9C\x93%s+(.*)$") or text:match("^\xE2\x97\x8F%s+(.*)$")
         -- Unticked: a hollow dot, or blank padding (spaces, or an em space
         -- as Face out pads its labels).
@@ -874,6 +881,10 @@ function Editor:editTab(tab_id, opts)
                 body = TextWidget:new{ text = text, face = value_face, bold = not as_choice or on,
                     fgcolor = ink, max_width = inner_w }
             end
+        end
+        if icon then
+            body = HorizontalGroup:new{ align = "center", icon,
+                HorizontalSpan:new{ width = Space.px(14) }, body }
         end
         return body, pad, enabled, on
     end
@@ -985,9 +996,15 @@ function Editor:editTab(tab_id, opts)
     local EditorPage = require("lib/bookshelf_editor_page")
     -- A page of blocks (spec.page(), lib/bookshelf_editor_page): its strip
     -- under the breadcrumb, then its body.
-    local function renderBlocks(page)
+    -- Past the room under the title on this screen, in this orientation, the
+    -- blocks go onto pages of their own (page.pg, from 1).
+    local function renderBlocks(page, title_h)
+        local max_h = Screen:getHeight() - Space.px(96) - Space.px(16) - title_h
+            - 2 * Size.border.window
         local strip, body_w, layout = EditorPage.render(page.spec.page(),
-            { width = dialog_w, inset = inset, font_size = FS })
+            { width = dialog_w, inset = inset, font_size = FS, max_h = max_h,
+              page = page.pg or 1,
+              on_page = function(n) page.pg = n; rebuild() end })
         page.back = page.spec.on_back
         local vg = VerticalGroup:new{ align = "left" }
         if strip then vg[#vg + 1] = strip end
@@ -1009,8 +1026,19 @@ function Editor:editTab(tab_id, opts)
             end
             if #out > 0 then rows[#rows + 1] = out end
         end
+        local crumbs = { (draft.label and draft.label ~= "") and draft.label or _("Shelf") }
+        for _i, p in ipairs(pages) do crumbs[#crumbs + 1] = p.spec.title or "\xE2\x80\xA6" end
+        local title_bar = TitleBar:new{
+            width            = dialog_w,
+            title            = table.concat(crumbs, " \xE2\x80\xBA "),
+            with_bottom_line = true,
+            bottom_v_padding = 0,
+            left_icon        = "chevron.left",
+            left_icon_tap_callback = goBack,
+            close_callback   = function() finish() end,
+        }
         local blocks_vg, blocks_layout
-        if spec.page then blocks_vg, blocks_layout = renderBlocks(page) end
+        if spec.page then blocks_vg, blocks_layout = renderBlocks(page, title_bar:getSize().h) end
         if not spec.page then page.back = back end
         -- A long list of single-card rows (Filters) two to a row, so the
         -- page fits the screen.
@@ -1036,17 +1064,6 @@ function Editor:editTab(tab_id, opts)
             vg[#vg + 1] = VerticalSpan:new{ width = Space.px(10) }
         end
         vg[#vg + 1] = buildCards(rows, layout, true)
-        local crumbs = { (draft.label and draft.label ~= "") and draft.label or _("Shelf") }
-        for _i, p in ipairs(pages) do crumbs[#crumbs + 1] = p.spec.title or "\xE2\x80\xA6" end
-        local title_bar = TitleBar:new{
-            width            = dialog_w,
-            title            = table.concat(crumbs, " \xE2\x80\xBA "),
-            with_bottom_line = true,
-            bottom_v_padding = 0,
-            left_icon        = "chevron.left",
-            left_icon_tap_callback = goBack,
-            close_callback   = function() finish() end,
-        }
         local body = FocusManager:new{
             layout = blocks_layout or layout,
             show_parent = dialog,
@@ -1276,6 +1293,7 @@ function Editor:editTab(tab_id, opts)
             sort_row = {
                 {
                     text_func = function() return _sortButtonText(draft) end,
+                    icon = "\u{EBB9}",   -- sort
                     callback = function()
                         Editor:_openSort(draft, function() commit() end, onArranged,
                             function() rebuild() end)
@@ -1309,6 +1327,7 @@ function Editor:editTab(tab_id, opts)
                     end
                     return _("Source / grouping: ") .. _resolveSourceLabel(draft.source)
                 end,
+                icon = "\u{EA31}",   -- library-books
                 callback = function()
                     Editor:_pickSource(draft, sourceChosen)
                 end,
@@ -1340,6 +1359,7 @@ function Editor:editTab(tab_id, opts)
                 text_func = function()
                     return _("Filters: ") .. Filter.summary(draft.filter or {})
                 end,
+                icon = "\u{E931}",   -- filter
                 callback = function()
                     Editor:_openFilters(draft, function() commit(); rebuild() end)
                 end,
@@ -1392,6 +1412,7 @@ function Editor:editTab(tab_id, opts)
                 return _("Shelf style: ")
                     .. (mode or SD.chipLabelFor(draft.group_display))
             end,
+            icon = "\u{E7E2}",   -- brush
             callback = function()
                 -- now: the shelf behind rebuilt at once, not on the
                 -- debounce; the Theme library debounces its taps itself and
@@ -1472,6 +1493,7 @@ function Editor:editTab(tab_id, opts)
                 and require("lib/bookshelf_settings_store").microOnShelf()
                 and opts.bw._editShelfModules and not opts.bw:_isListMode()) and {{
                 text = _("Add a module to this shelf\xE2\x80\xA6"),
+                icon = "\u{EB94}",   -- shape-plus
                 callback = function()
                     finish()
                     opts.bw:_editShelfModules(nil, { add = true })
@@ -2020,28 +2042,245 @@ end
 -- only repaints the region it occupied (which is what reveals the shelf), and
 -- nothing is freed, so the same widget re-shows intact and keeps the position
 -- it was anchored to.
+-- _capFirst(s) -> s with its first letter capitalised (a summary built from
+-- lower-case parts).
+function Editor._capFirst(s)
+    return (s:gsub("^%l", string.upper))
+end
+
 function Editor:_pickGroupDisplay(draft, on_change, chrome)
     local StackDisplay = require("lib/bookshelf_stack_display")
-    local d
-    -- Every pick is applied and saved at once (on_change), and the page laid
-    -- out again from the draft: there is nothing to confirm, and the shelf
-    -- behind shows each change.
-    local function pick(apply)
-        return function()
-            apply()
-            if on_change then on_change() end
-            if d and d.refresh then d:refresh() end
-        end
-    end
     local CHEV = " \xE2\x80\xBA"
-    local function onOff(label, on, half, set)
-        return { type = "segmented", label = label, half = half,
+    local no_spines = (chrome and chrome.is_opds) and true or false
+    local bw = chrome and chrome.bw
+
+    -- open(title, build, on_back) -> a page whose controls apply at once:
+    -- each pick is saved (on_change), so the shelf behind shows it, and the
+    -- page is laid out again from the draft. build(pick) -> its model.
+    local function open(title, build, on_back)
+        local d
+        local function pick(apply)
+            return function()
+                apply()
+                if on_change then on_change() end
+                if d and d.refresh then d:refresh() end
+            end
+        end
+        d = Editor._menu{
+            title   = title,
+            page    = function() return build(pick) end,
+            on_back = on_back,
+            -- HIGH, over the hero rather than the shelf: the page exists to
+            -- show a change to the shelf, so covering it defeats it.
+            anchor  = _highAnchor(function() return d end),
+        }
+        return d
+    end
+    local function onOff(pick, label, on, set)
+        return { type = "segmented", label = label,
             items = { { key = true, label = _("On") }, { key = false, label = _("Off") } },
             active = on and true or false,
             on_pick = function(v) pick(function() set(v) end)() end }
     end
+    -- A number: nil is Auto, the automatic count. The first step seeds from
+    -- live(), the number on screen, so + from Auto shows one more of what the
+    -- reader sees; below lo goes back to Auto. inherit_key: unset shows that
+    -- key's value (Level 2's list numbers follow Level 1's).
+    local function stepper(pick, label, key, lo, hi, live, inherit_key)
+        local v = draft[key]
+        if v == nil and inherit_key then v = draft[inherit_key] end
+        local function step(delta)
+            return pick(function()
+                local cur = draft[key]
+                if not cur then
+                    local base = live and live() or lo
+                    draft[key] = math.max(lo, math.min(hi, base + delta))
+                else
+                    local n = cur + delta
+                    if n < lo then draft[key] = nil
+                    else draft[key] = math.min(hi, n) end
+                end
+            end)
+        end
+        return { type = "stepper", label = label, value = v and tostring(v) or _("Auto"),
+            on_dec = step(-1), on_inc = step(1) }
+    end
+    local function numText(v) return v and tostring(v) or _("Auto") end
 
-    local function page()
+    -- ── The three styles' own settings, each a page of its own ─────────────
+    -- List numbers only: cover columns change the whole screen's layout (hero
+    -- size, chip bar), so they stay global. With Auto listing on both levels,
+    -- a set per level (ViewMode.listLevelsSplit).
+    local function listBlocks(pick, add)
+        local split = ViewMode.listLevelsSplit(draft)
+        local function listRows(sfx, inherit)
+            add(stepper(pick, _("Columns"), "list_columns" .. sfx, 1, 3,
+                bw and function() return bw:_listCols() end,
+                inherit and "list_columns" or nil))
+            add(stepper(pick, _("Rows"), "list_rows" .. sfx, 1, 12,
+                bw and function()
+                    local ok, plan = pcall(bw._listBandPlan, bw, false, bw._chip_bar_hidden)
+                    return ok and plan and plan.rows or 4
+                end, inherit and "list_rows" or nil))
+        end
+        if split then
+            add({ type = "heading", text = _("Top level") })
+            listRows("")
+            add({ type = "heading", text = _("Inside folders and stacks") })
+            listRows(ViewMode.LEVEL2_SUFFIX, true)
+        else
+            listRows("")
+        end
+    end
+    local function listSummary()
+        local function one(sfx, inherit)
+            local c = draft["list_columns" .. sfx]
+            local r = draft["list_rows" .. sfx]
+            if inherit then c = c or draft.list_columns; r = r or draft.list_rows end
+            return T(_("%1 columns, %2 rows"), numText(c), numText(r))
+        end
+        if ViewMode.listLevelsSplit(draft) then
+            return Editor._capFirst(one("") .. "; " .. T(_("inside: %1"), one(ViewMode.LEVEL2_SUFFIX, true)))
+        end
+        return Editor._capFirst(one(""))
+    end
+
+    -- Ornaments: only ever on a spine shelf. Four stops picked for what they
+    -- look like (Often and Lots once drew the same shelf); the nearest stop
+    -- shows, so an unpinned shelf reads its default's word and a value from
+    -- an older build cannot fall off the list.
+    local function ornamentStop()
+        local Orn = require("lib/bookshelf_ornaments")
+        local ORN_STOPS = { { 0, _("None") }, { 0.5, _("Rarely") }, { 1, _("Often") }, { 2, _("Always") } }
+        local v = draft.ornament_frequency
+        if v == nil then v = Orn.FREQ_DEFAULT end
+        local best, dist = 1, math.huge
+        for i, st in ipairs(ORN_STOPS) do
+            if math.abs(st[1] - v) < dist then best, dist = i, math.abs(st[1] - v) end
+        end
+        return ORN_STOPS, best
+    end
+    local function authorOn()
+        local v = draft.spine_show_author
+        if v == nil then return true end
+        return v and true or false
+    end
+    local function spinesBlocks(pick, add)
+        local Binding = require("lib/bookshelf_book_binding")
+        add(stepper(pick, _("Rows"), "spine_rows", 1, 6,
+            bw and function()
+                local ok, n = pcall(bw._nShelves, bw)
+                return ok and n or 2
+            end))
+        -- Thickness: a multiplier on the page-count width, in steps of 10%;
+        -- 100 is the default and stores nothing.
+        local function thick(delta)
+            return pick(function()
+                local n = (draft.spine_thickness_pct or 100) + delta * 10
+                n = math.max(60, math.min(200, n))
+                draft.spine_thickness_pct = (n ~= 100) and n or nil
+            end)
+        end
+        local tv = draft.spine_thickness_pct
+        add({ type = "stepper", label = _("Thickness"),
+            value = tv and (tostring(tv) .. "%") or _("Auto"),
+            on_dec = thick(-1), on_inc = thick(1) })
+        add({ type = "row", label = _("Face out"), value = Editor._faceOutText(draft),
+            icon = "\u{E7BD}",   -- book-open-variant
+            callback = function() Editor:_openFaceOut(draft, on_change) end })
+        add({ type = "segmented", label = _("Book binding"),
+            items = { { key = "hardcover", label = Binding.label("hardcover") },
+                      { key = "paperback", label = Binding.label("paperback") } },
+            active = (draft.book_binding == "paperback") and "paperback" or "hardcover",
+            on_pick = function(v) pick(function()
+                draft.book_binding = (v == "paperback") and "paperback" or nil
+            end)() end })
+        add(onOff(pick, _("Series boxes"), draft.series_boxes, function(v)
+            draft.series_boxes = v or nil
+        end))
+        -- Stored as false only, nil meaning the default (on). Not
+        -- `on and false or nil`: in Lua that is always nil (#439).
+        add(onOff(pick, _("Author on spine"), authorOn(), function(v)
+            if v then draft.spine_show_author = nil else draft.spine_show_author = false end
+        end))
+        local ORN_STOPS, best = ornamentStop()
+        local items = {}
+        for i, st in ipairs(ORN_STOPS) do items[i] = { key = i, label = st[2] } end
+        add({ type = "segmented", label = _("Ornaments"), items = items, active = best,
+            on_pick = function(i) pick(function() draft.ornament_frequency = ORN_STOPS[i][1] end)() end })
+        -- A card's own shelf stands on a plank of its own (6.0); unset
+        -- follows the main shelf's.
+        if draft.card_only then
+            add({ type = "row", label = _("Plank"), value = Editor._plankLabel(draft.plank),
+                callback = function()
+                    Editor:_pickCardPlank(draft, function()
+                        if on_change then on_change() end
+                    end)
+                end })
+        end
+    end
+    local function spinesSummary()
+        local parts = { T(_("%1 rows"), numText(draft.spine_rows)) }
+        if draft.spine_thickness_pct then parts[#parts + 1] = T(_("%1% thick"), draft.spine_thickness_pct) end
+        parts[#parts + 1] = T(_("face out: %1"), Editor._faceOutText(draft))
+        if draft.book_binding == "paperback" then parts[#parts + 1] = _("paperbacks") end
+        if draft.series_boxes then parts[#parts + 1] = _("series boxes") end
+        if not authorOn() then parts[#parts + 1] = _("no authors") end
+        local ORN_STOPS, best = ornamentStop()
+        parts[#parts + 1] = T(_("ornaments: %1"), ORN_STOPS[best][2])
+        return Editor._capFirst(table.concat(parts, ", "))
+    end
+
+    -- Folder tiles: how group tiles are drawn, every style in view so the
+    -- shelf behind shows each as it is tapped. Not for a catalogue (its
+    -- subcatalogs have no artwork: every style is the same text tile). Cover
+    -- captions: text below covers, this shelf's own (Reddit, after 5.4), on
+    -- a page of its own since Custom opens the line editor.
+    local function tilesLabel()
+        local cur = StackDisplay.pinned(draft.group_display) or StackDisplay.FOLLOW_DEFAULT
+        for _i, opt in ipairs(StackDisplay.CHIP_OPTIONS) do
+            if opt.value == cur then return opt.label_func(), cur end
+        end
+        return "", cur
+    end
+    local function coversBlocks(pick, add)
+        if not no_spines then
+            local _l, cur = tilesLabel()
+            local items = {}
+            for _i, opt in ipairs(StackDisplay.CHIP_OPTIONS) do
+                local value = opt.value
+                items[#items + 1] = { text = opt.label_func(), on = value == cur,
+                    callback = pick(function() draft.group_display = value end) }
+            end
+            add({ type = "heading", text = _("Folder tiles") })
+            add({ type = "chips", items = items })
+        end
+        add({ type = "row", label = _("Cover captions"),
+            value = Editor._coverTextLabel(draft, draft.cover_text),
+            callback = function()
+                Editor:_pickCoverText(draft, function()
+                    if on_change then on_change() end
+                end, function() end, bw)
+            end })
+    end
+    local function coversSummary()
+        local parts = {}
+        if not no_spines then parts[#parts + 1] = T(_("folder tiles: %1"), (tilesLabel())) end
+        parts[#parts + 1] = T(_("captions: %1"), Editor._coverTextLabel(draft, draft.cover_text))
+        return Editor._capFirst(table.concat(parts, ", "))
+    end
+
+    local function section(title, build)
+        return function()
+            open(title, function(pick)
+                local blocks = {}
+                build(pick, function(b) blocks[#blocks + 1] = b end)
+                return { blocks = blocks }
+            end)
+        end
+    end
+
+    open(_("Shelf style"), function(pick)
         local blocks = {}
         local function add(b) blocks[#blocks + 1] = b end
 
@@ -2077,12 +2316,12 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                     or (key == "spines" and ViewMode.SPINES) or nil
             end)() end }
 
-        -- Which sections to show: the styles this shelf can show, its pin or
+        -- Which sections to offer: the styles this shelf can show, its pin or
         -- under Auto each level's. chipPin, not `mode`: Covers is stored as
         -- ABSENCE, so mode is nil for a Covers shelf (a Covers shelf was once
         -- offered List columns that way).
         local pin = ViewMode.chipPin(mode)
-        local no_spines  = (chrome and chrome.is_opds) and true or false
+        local no_spines = (chrome and chrome.is_opds) and true or false
         local shows = {}
         if pin == ViewMode.AUTO then
             shows[ViewMode.auto(draft, false)] = true
@@ -2094,7 +2333,6 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         local show_list   = shows[ViewMode.LIST] == true
         local show_spines = shows[ViewMode.SPINES] == true and not no_spines
         local show_levels = (pin == ViewMode.AUTO)
-        local bw = chrome and chrome.bw
 
         -- Theme: first, behind the layout (maintainer, 2026-10-09). The
         -- shelf's own, in the Theme library; a sub-shelf with none of its
@@ -2104,7 +2342,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             local TP = require("lib/bookshelf_theme_pack")
             local follow = draft.parent ~= nil and TP.followOf(draft.id) or nil
             local v = draft.theme
-            add({ type = "row", label = _("Theme"),
+            add({ type = "row", label = _("Theme"), icon = "\u{EAD7}",   -- palette
                 value = (v == nil and follow) and follow.title or TP.choiceLabel(v),
                 callback = function()
                     require("lib/bookshelf_theme_library").show{
@@ -2113,7 +2351,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                         follow = follow,
                         choose = function(value) draft.theme = value end,
                         apply = function() on_change(true) end,
-                        on_closed = function() if d and d.refresh then d:refresh() end end,
+                        on_closed = pick(function() end),
                     }
                 end })
         end
@@ -2123,7 +2361,6 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         -- expanded; Level 2 everything drilled into. A level on its default
         -- stores nothing.
         if show_levels then
-            add({ type = "heading", text = _("Auto") })
             for level = 1, 2 do
                 local key = ViewMode.LEVEL_KEYS[level]
                 local items = {
@@ -2140,200 +2377,27 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             end
         end
 
-        -- A number: nil is Auto, the automatic count. The first step seeds
-        -- from live(), the number on screen, so + from Auto shows one more
-        -- of what the reader sees; below lo goes back to Auto.
-        -- inherit_key: unset shows that key's value (Level 2's list numbers
-        -- follow Level 1's).
-        local function stepper(label, key, lo, hi, live, inherit_key)
-            local v = draft[key]
-            if v == nil and inherit_key then v = draft[inherit_key] end
-            local function step(delta)
-                return pick(function()
-                    local cur = draft[key]
-                    if not cur then
-                        local base = live and live() or lo
-                        draft[key] = math.max(lo, math.min(hi, base + delta))
-                    else
-                        local n = cur + delta
-                        if n < lo then draft[key] = nil
-                        else draft[key] = math.min(hi, n) end
-                    end
-                end)
-            end
-            return { type = "stepper", label = label, value = v and tostring(v) or _("Auto"),
-                on_dec = step(-1), on_inc = step(1) }
+        -- Each style in use: what it is set to, in a line, and its own page.
+        if show_spines or show_list or show_covers then
+            add({ type = "heading", text = _("Settings") })
         end
-
-        -- List numbers only: cover columns change the whole screen's layout
-        -- (hero size, chip bar), so they stay global.
-        if show_list then
-            local split = ViewMode.listLevelsSplit(draft)
-            local function listRows(sfx, inherit)
-                local cols = stepper(_("Columns"), "list_columns" .. sfx, 1, 3,
-                    bw and function() return bw:_listCols() end,
-                    inherit and "list_columns" or nil)
-                cols.half = true
-                add(cols)
-                local rows_st
-                rows_st = stepper(_("Rows"), "list_rows" .. sfx, 1, 12,
-                    bw and function()
-                        local ok, plan = pcall(bw._listBandPlan, bw, false, bw._chip_bar_hidden)
-                        return ok and plan and plan.rows or 4
-                    end, inherit and "list_rows" or nil)
-                rows_st.half = true
-                add(rows_st)
-            end
-            if split then
-                add({ type = "heading", text = _("List, top level") })
-                listRows("")
-                add({ type = "heading", text = _("List, inside") })
-                listRows(ViewMode.LEVEL2_SUFFIX, true)
-            else
-                add({ type = "heading", text = _("List") })
-                listRows("")
-            end
-        end
-
         if show_spines then
-            local Binding = require("lib/bookshelf_book_binding")
-            add({ type = "heading", text = _("Spines") })
-            local rows_st = stepper(_("Rows"), "spine_rows", 1, 6,
-                bw and function()
-                    local ok, n = pcall(bw._nShelves, bw)
-                    return ok and n or 2
-                end)
-            rows_st.half = true
-            add(rows_st)
-            -- Thickness: a multiplier on the page-count width, in steps of
-            -- 10%; 100 is the default and stores nothing.
-            do
-                local function step(delta)
-                    return pick(function()
-                        local n = (draft.spine_thickness_pct or 100) + delta * 10
-                        n = math.max(60, math.min(200, n))
-                        draft.spine_thickness_pct = (n ~= 100) and n or nil
-                    end)
-                end
-                local v = draft.spine_thickness_pct
-                add({ type = "stepper", label = _("Thickness"), half = true,
-                    value = v and (tostring(v) .. "%") or _("Auto"),
-                    on_dec = step(-1), on_inc = step(1) })
-            end
-            add(onOff(_("Series boxes"), draft.series_boxes, true, function(v)
-                draft.series_boxes = v or nil
-            end))
-            -- Stored as false only, nil meaning the default (on). Not
-            -- `on and false or nil`: in Lua that is always nil (#439).
-            local author_on = draft.spine_show_author
-            if author_on == nil then author_on = true end
-            add(onOff(_("Author on spine"), author_on, true, function(v)
-                if v then draft.spine_show_author = nil else draft.spine_show_author = false end
-            end))
-            add({ type = "row", label = _("Face out"), value = Editor._faceOutText(draft),
-                callback = function() Editor:_openFaceOut(draft, on_change) end })
-            add({ type = "segmented", label = _("Book binding"),
-                items = { { key = "hardcover", label = Binding.label("hardcover") },
-                          { key = "paperback", label = Binding.label("paperback") } },
-                active = (draft.book_binding == "paperback") and "paperback" or "hardcover",
-                on_pick = function(v) pick(function()
-                    draft.book_binding = (v == "paperback") and "paperback" or nil
-                end)() end })
-            -- Ornaments: only ever on a spine shelf. Four stops picked for
-            -- what they look like (Often and Lots once drew the same shelf);
-            -- the nearest stop shows, so an unpinned shelf reads its
-            -- default's word and an older value cannot fall off the list.
-            do
-                local Orn = require("lib/bookshelf_ornaments")
-                local ORN_STOPS = { { 0, _("None") }, { 0.5, _("Rarely") }, { 1, _("Often") }, { 2, _("Always") } }
-                local v = draft.ornament_frequency
-                if v == nil then v = Orn.FREQ_DEFAULT end
-                local best, dist = 1, math.huge
-                for i, st in ipairs(ORN_STOPS) do
-                    if math.abs(st[1] - v) < dist then best, dist = i, math.abs(st[1] - v) end
-                end
-                local items = {}
-                for i, st in ipairs(ORN_STOPS) do items[i] = { key = i, label = st[2] } end
-                add({ type = "segmented", label = _("Ornaments"), items = items, active = best,
-                    on_pick = function(i) pick(function() draft.ornament_frequency = ORN_STOPS[i][1] end)() end })
-            end
-            -- A card's own shelf stands on a plank of its own (6.0); unset
-            -- follows the main shelf's.
-            if draft.card_only then
-                add({ type = "row", label = _("Plank"), value = Editor._plankLabel(draft.plank),
-                    callback = function()
-                        Editor:_pickCardPlank(draft, function()
-                            if on_change then on_change() end
-                        end)
-                    end })
-            end
+            add({ type = "option", text = _("Spines") .. CHEV, desc = spinesSummary(),
+                icon = "\u{EA30}",   -- library
+                callback = section(_("Spines"), spinesBlocks) })
         end
-
-        -- Folder tiles: how group tiles are drawn, every style in view so
-        -- the shelf behind shows each as it is tapped. Not for a catalogue
-        -- (its subcatalogs have no artwork: every style is the same text
-        -- tile) nor for a list (its group rows draw a deck of covers).
+        if show_list then
+            add({ type = "option", text = _("List") .. CHEV, desc = listSummary(),
+                icon = "\u{EC71}",   -- view-list
+                callback = section(_("List"), listBlocks) })
+        end
         if show_covers then
-            add({ type = "heading", text = _("Covers") })
-            if not (chrome and chrome.is_opds) then
-                local cur = StackDisplay.pinned(draft.group_display) or StackDisplay.FOLLOW_DEFAULT
-                local value
-                for _i, opt in ipairs(StackDisplay.CHIP_OPTIONS) do
-                    if opt.value == cur then value = opt.label_func() end
-                end
-                add({ type = "row", label = _("Folder tiles"), value = value, half = true,
-                    callback = function() Editor:_pickFolderTiles(draft, on_change) end })
-            end
-            -- Text below covers, this shelf's own (Reddit, after 5.4). Its
-            -- own page, since Custom opens the line editor.
-            add({ type = "row", label = _("Cover captions"), half = true,
-                value = Editor._coverTextLabel(draft, draft.cover_text),
-                callback = function()
-                    Editor:_pickCoverText(draft, function()
-                        if on_change then on_change() end
-                    end, function() end, bw)
-                end })
+            add({ type = "option", text = _("Covers") .. CHEV, desc = coversSummary(),
+                icon = "\u{EC72}",   -- view-module
+                callback = section(_("Covers"), coversBlocks) })
         end
         return { blocks = blocks }
-    end
-
-    d = Editor._menu{
-        title   = _("Shelf style"),
-        page    = page,
-        on_back = function() if chrome and chrome.show then chrome.show() end end,
-        -- HIGH, over the hero rather than the shelf: the page exists to show
-        -- a change to the shelf, so covering it defeats it.
-        anchor  = _highAnchor(function() return d end),
-    }
-end
-
--- _pickFolderTiles: how this shelf draws folder and group tiles, every style
--- in view, the shelf behind showing each as it is tapped.
-function Editor:_pickFolderTiles(draft, on_change)
-    local StackDisplay = require("lib/bookshelf_stack_display")
-    local d
-    local function page()
-        local cur = StackDisplay.pinned(draft.group_display) or StackDisplay.FOLLOW_DEFAULT
-        local items = {}
-        for _i, opt in ipairs(StackDisplay.CHIP_OPTIONS) do
-            local value = opt.value
-            items[#items + 1] = { text = opt.label_func(), on = value == cur, callback = function()
-                draft.group_display = value
-                if on_change then on_change() end
-                if d and d.refresh then d:refresh() end
-            end }
-        end
-        return { blocks = {
-            { type = "hint", text = _("How folders and groups are drawn on this shelf. Default setting follows the library's.") },
-            { type = "chips", items = items },
-        } }
-    end
-    d = Editor._menu{
-        title  = _("Folder tiles"),
-        page   = page,
-        anchor = _highAnchor(function() return d end),
-    }
-    return d
+    end, function() if chrome and chrome.show then chrome.show() end end)
 end
 
 -- The Face out reasons as the page and the Shelf style row name them.
@@ -3148,9 +3212,9 @@ function Editor:_pickSource(draft, on_close)
     end
     -- A stack source and the one-of-them source beside it: the card makes the
     -- stacks, its Pick one link a shelf of one (and names it once picked).
-    local function stack(kind_value, label, specific, on_pick)
+    local function stack(kind_value, label, specific, on_pick, icon)
         local on_specific = cur == specific
-        return { type = "option", half = true, text = label,
+        return { type = "option", half = true, text = label, icon = icon,
             on = cur == kind_value, callback = set_simple(kind_value),
             links = { { text = (on_specific and idText(cur_id) or _("Pick one")) .. CHEV,
                         on = on_specific, callback = on_pick } } }
@@ -3188,12 +3252,14 @@ function Editor:_pickSource(draft, on_close)
                 on = cur == "folder_flat", callback = function() open_folder_picker("folder_flat") end })
         else
             add({ type = "option", half = true, text = _("Home (flattened)"), desc = DESC.library,
+                icon = "\u{EA31}",
                 on = cur == "library", callback = set_simple("library") })
             add({ type = "option", half = true, text = _("Home (folders)"), desc = DESC.all,
+                icon = "\u{E952}",
                 on = cur == "all", callback = set_simple("all") })
             -- One folder, as folders or flattened (#76): the same picker,
             -- differing only in how the shelf draws it.
-            add({ type = "option", text = _("A folder"),
+            add({ type = "option", text = _("A folder"), icon = "\u{E94A}",
                 desc = ((cur == "folder" or cur == "folder_flat") and idText(cur_id)) or _("Any folder on the device."),
                 on = cur == "folder" or cur == "folder_flat",
                 callback = function() open_folder_picker("folder") end,
@@ -3226,13 +3292,13 @@ function Editor:_pickSource(draft, on_close)
             -- "Source" (maintainer).
             add({ type = "heading", text = _("Grouped") })
             add({ type = "hint", text = _("A stack for each, or Pick one for a shelf of just its books.") })
-            add(stack("series", _("Series"), "single_series", group_pick("series")))
-            add(stack("authors", _("Authors"), "author", group_pick("author")))
-            add(stack("genres", _("Genres"), "genre", group_pick("genre")))
-            add(stack("tags", _("Collections"), "collection", open_tag_picker))
-            add(stack("formats", _("Formats"), "format", group_pick("format")))
-            add(stack("ratings", _("Ratings"), "rating", open_rating_picker))
-            add(stack("languages", _("Languages"), "language", group_pick("language")))
+            add(stack("series", _("Series"), "single_series", group_pick("series"), "\u{E97A}"))
+            add(stack("authors", _("Authors"), "author", group_pick("author"), "\u{E703}"))
+            add(stack("genres", _("Genres"), "genre", group_pick("genre"), "\u{EA14}"))
+            add(stack("tags", _("Collections"), "collection", open_tag_picker, "\u{E7BF}"))
+            add(stack("formats", _("Formats"), "format", group_pick("format"), "\u{E918}"))
+            add(stack("ratings", _("Ratings"), "rating", open_rating_picker, "\u{EBCD}"))
+            add(stack("languages", _("Languages"), "language", group_pick("language"), "\u{ECC9}"))
             add({ type = "heading", text = _("More") })
             -- Shelf of shelves (5.4): tiles that are shelves of their own.
             -- OPDS always offered, even with no catalog set up yet: its
@@ -3288,6 +3354,18 @@ function Editor:_pickSource(draft, on_close)
 end
 -- Filters list: one row per dimension showing its current selection, plus a
 -- Clear-all row. Re-opens itself after each sub-picker so the summary updates.
+-- Each filter's icon on the Filters page.
+local FILTER_ICONS = {
+    statuses = "\u{ECDF}",          -- check-circle
+    genres = "\u{EA14}",            -- label
+    langs = "\u{ECC9}",             -- translate
+    formats = "\u{E918}",           -- file-document
+    ratings = "\u{EBCD}",           -- star
+    collections = "\u{E7BF}",       -- bookmark
+    series_membership = "\u{E97A}", -- format-list-numbers
+    folders = "\u{E94A}",           -- folder
+}
+
 function Editor:_openFilters(draft, on_close)
     draft.filter = draft.filter or {}
     local d
@@ -3318,7 +3396,7 @@ function Editor:_openFilters(draft, on_close)
             local key = dim.key
             local on = dimOn(key)
             if on then set[#set + 1] = T("%1: %2", dim.label, Filter.dimSummary(draft.filter, key)) end
-            rows[#rows + 1] = { type = "row", half = true, label = dim.label,
+            rows[#rows + 1] = { type = "row", half = true, label = dim.label, icon = FILTER_ICONS[key],
                 value = Filter.dimSummary(draft.filter, key), on = on,
                 callback = function() openDim(dim) end,
                 on_clear = function()

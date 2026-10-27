@@ -588,7 +588,7 @@ end)
 -- ── Shelf style, a page of controls ────────────────────────────────────────
 -- Opened on a host that records the page; each control is driven the way a
 -- tap would, and the draft checked.
-local function openStyle(draft, chrome)
+local function openStyle(draft, chrome, section)
     package.loaded["lib/bookshelf_stack_display"] = {
         pinned = function(v) return v end, FOLLOW_DEFAULT = "default",
         CHIP_OPTIONS = { { value = "default", label_func = function() return "Default setting" end },
@@ -606,6 +606,14 @@ local function openStyle(draft, chrome)
     local spec, changes = nil, 0
     Editor._host = { push = function(sp) spec = sp; return { refresh = function() end } end }
     Editor:_pickGroupDisplay(draft, function() changes = changes + 1 end, chrome)
+    -- A style's own settings: the page its summary card on the main page opens.
+    if section then
+        local opened = false
+        for _i, b in ipairs(spec.page().blocks) do
+            if b.type == "option" and b.text:find(section, 1, true) == 1 then b.callback(); opened = true end
+        end
+        if not opened then spec = { page = function() return { blocks = {} } end } end
+    end
     Editor._host = nil
     local p = {}
     function p.blocks() return spec.page().blocks end
@@ -620,7 +628,7 @@ end
 
 t.test("shelf style: binding and series boxes are independent, applied as picked", function()
     local draft = { view_mode = "spines" }
-    local p = openStyle(draft)
+    local p = openStyle(draft, nil, "Spines")
     p.find("Book binding").on_pick("paperback")
     eq(draft.book_binding, "paperback"); eq(draft.series_boxes, nil)
     p.find("Series boxes").on_pick(true)
@@ -634,7 +642,7 @@ end)
 
 t.test("shelf style: Author on spine can be turned off and back on (#439)", function()
     local draft = { view_mode = "spines" }
-    local p = openStyle(draft)
+    local p = openStyle(draft, nil, "Spines")
     eq(p.find("Author on spine").active, true, "on by default")
     p.find("Author on spine").on_pick(false)
     eq(draft.spine_show_author, false)
@@ -644,25 +652,39 @@ end)
 
 t.test("shelf style: ornaments step through four stops", function()
     local draft = { view_mode = "spines" }
-    local p = openStyle(draft)
+    local p = openStyle(draft, nil, "Spines")
     eq(#p.find("Ornaments").items, 4)
     p.find("Ornaments").on_pick(1)
     eq(draft.ornament_frequency, 0)
 end)
 
 t.test("shelf style: a plank for card shelves only", function()
-    assert(not openStyle({ view_mode = "spines" }).find("Plank"), "a main shelf was offered a plank")
-    assert(openStyle({ view_mode = "spines", card_only = true }).find("Plank"), "no Plank row for a card shelf")
+    assert(not openStyle({ view_mode = "spines" }, nil, "Spines").find("Plank"), "a main shelf was offered a plank")
+    assert(openStyle({ view_mode = "spines", card_only = true }, nil, "Spines").find("Plank"),
+        "no Plank row for a card shelf")
+end)
+
+t.test("shelf style: each style in use has its own page, and only those", function()
+    local p = openStyle({ view_mode = "auto", view_level1 = "spines", view_level2 = "covers" })
+    local seen = {}
+    for _i, b in ipairs(p.blocks()) do
+        if b.type == "option" then seen[#seen + 1] = b.text:match("^(%a+)") end
+    end
+    eq(table.concat(seen, ","), "Spines,Covers")
+    local opds = openStyle({ view_mode = "spines" }, { is_opds = true })
+    for _i, b in ipairs(opds.blocks()) do
+        assert(not (b.type == "option" and b.text:find("Spines", 1, true)), "a catalogue was offered spines")
+    end
 end)
 
 t.test("shelf style: a headed set of list numbers per level only when both levels list", function()
-    local split = openStyle({ view_mode = "auto", view_level1 = "list", view_level2 = "list" })
-    assert(split.find("List, top level") and split.find("List, inside"), "no set per level")
-    local one = openStyle({ view_mode = "list" })
-    assert(one.find("List") and not one.find("List, inside"))
+    local split = openStyle({ view_mode = "auto", view_level1 = "list", view_level2 = "list" }, nil, "List")
+    assert(split.find("Top level") and split.find("Inside folders and stacks"), "no set per level")
+    local one = openStyle({ view_mode = "list" }, nil, "List")
+    assert(one.find("Columns") and not one.find("Inside folders and stacks"))
     -- An unset Level 2 number shows the Level 1 number it follows.
     local inherit = openStyle({ view_mode = "auto", view_level1 = "list", view_level2 = "list",
-                                list_rows = 6 })
+                                list_rows = 6 }, nil, "List")
     local rows = {}
     for _i, b in ipairs(inherit.blocks()) do if b.label == "Rows" then rows[#rows + 1] = b.value end end
     eq(rows[2], "6")

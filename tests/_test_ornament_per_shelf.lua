@@ -123,10 +123,8 @@ t.test("an untouched chip shows its default's word, by nearest stop", function()
 end)
 
 t.test("the row sits in the spine block", function()
-    local spines_at = editor:find("if show_spines then", 1, true)
-    local stops_at  = editor:find("local ORN_STOPS", 1, true)
-    local covers_at = editor:find("if show_covers then", stops_at or 1, true)
-    assert(spines_at and stops_at and covers_at and spines_at < stops_at and stops_at < covers_at,
+    local spines = editor:match("local function spinesBlocks%(pick, add%)\n(.-)\n    end\n")
+    assert(spines and spines:find("ornamentStop()", 1, true) and spines:find('_("Ornaments")', 1, true),
         "the row belongs in the spine block, not the general one")
 end)
 

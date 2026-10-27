@@ -675,6 +675,7 @@ function Tokens.reviewsHtml(payload)
             out[#out + 1] = '<p class="stars">' .. Tokens.starString(rr) .. "</p>"
         end
         local byline = { "<b>Review by</b> <i>" .. _escHtml(name) .. "</i>" }
+        if review.spoiler then byline[#byline + 1] = "<b>Spoiler</b>" end
         local d = _formatReviewDate(review.reviewed_at)
         if d then byline[#byline + 1] = "<i>" .. _escHtml(d) .. "</i>" end
         if tonumber(review.likes_count) and tonumber(review.likes_count) > 0 then

@@ -1952,10 +1952,9 @@ function Hardcover.refreshBookOnline(book, opts, callback)
 end
 
 
-local function _normaliseReviewsPayload(book)
-    if type(book) ~= "table" then return nil end
+local function _normaliseReviews(rows)
     local reviews = {}
-    for _, row in ipairs(type(book.user_books) == "table" and book.user_books or {}) do
+    for _, row in ipairs(type(rows) == "table" and rows or {}) do
         local text = row.review or row.review_raw
         if type(text) == "string" and text ~= "" then
             reviews[#reviews + 1] = {
@@ -1970,7 +1969,16 @@ local function _normaliseReviewsPayload(book)
             }
         end
     end
+    return reviews
+end
+
+local function _normaliseReviewsPayload(book)
+    if type(book) ~= "table" then return nil end
+    local reviews = _normaliseReviews(book.user_books)
     return {
+        -- Reviews marked as spoilers, kept apart: the popup shows them only
+        -- when the reader ticks "Show spoilers".
+        spoiler_reviews = _normaliseReviews(book.spoiler_books),
         book_id = book.id,
         title = book.title,
         rating = tonumber(book.rating),
@@ -2017,6 +2025,24 @@ function Hardcover.fetchReviews(book_id, opts)
             reviews_count
             user_books(
               where: { has_review: { _eq: true }, review_has_spoilers: { _eq: false } },
+              order_by: [{ likes_count: desc_nulls_last }, { reviewed_at: desc_nulls_last }],
+              limit: $limit
+            ) {
+              id
+              rating
+              review
+              review_raw
+              review_has_spoilers
+              reviewed_at
+              likes_count
+              user {
+                id
+                name
+                username
+              }
+            }
+            spoiler_books: user_books(
+              where: { has_review: { _eq: true }, review_has_spoilers: { _eq: true } },
               order_by: [{ likes_count: desc_nulls_last }, { reviewed_at: desc_nulls_last }],
               limit: $limit
             ) {

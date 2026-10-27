@@ -521,6 +521,15 @@ test("sanitiseReviewHtml returns empty for nil/empty", function()
     eq(Tokens.sanitiseReviewHtml(""), "")
 end)
 
+test("reviewsHtml marks a spoiler review in its byline", function()
+    local html = Tokens.reviewsHtml{
+        reviews = { { user_name = "Reader Two", text = "<p>x</p>", spoiler = true } },
+    }
+    assert(html:find("<b>Spoiler</b>", 1, true), html)
+    local plain = Tokens.reviewsHtml{ reviews = { { user_name = "R", text = "<p>x</p>" } } }
+    assert(not plain:find("Spoiler", 1, true), plain)
+end)
+
 test("reviewsHtml italicises reviewer names and escapes them", function()
     local html = Tokens.reviewsHtml{
         title = "Dune", rating = 4, ratings_count = 10, reviews_count = 1,

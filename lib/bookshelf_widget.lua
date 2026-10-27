@@ -23004,13 +23004,43 @@ function BookshelfWidget:_buildReviewsHeader(tab, modal, avail_w, refreshReviews
         on_tap    = function() if not tab.busy then refreshReviews() end end,
     }
 
+    -- "Show spoilers": only when Hardcover has spoiler reviews for the book;
+    -- off with every popup (tab.show_spoilers is never saved).
+    local spoilers = data and type(data.spoiler_reviews) == "table" and #data.spoiler_reviews > 0
+    local spoiler_cell
+    if spoilers and tab.toggleSpoilers then
+        local box = HorizontalGroup:new{ align = "center",
+            TextWidget:new{ text = tab.show_spoilers and "\xEE\xA0\xB1" or "\xEE\xA0\xB0", -- checkbox marked / blank
+                face = BFont:getFace("symbols", font_size + 4), fgcolor = Blitbuffer.COLOR_BLACK },
+            HorizontalSpan:new{ width = Space.px(8) },
+            TextWidget:new{ text = _("Show spoilers"), face = text_face, fgcolor = Blitbuffer.COLOR_BLACK },
+        }
+        local bs = box:getSize()
+        spoiler_cell = PopupKit.tapCell(box, bs.w, bs.h, function() tab.toggleSpoilers() end)
+    end
+    -- withSpoilers(line): the line with the switch at its right end, or
+    -- under it when they don't fit side by side.
+    local function withSpoilers(line)
+        if not spoiler_cell then return line end
+        local lw, bw = line and line:getSize().w or 0, spoiler_cell:getSize().w
+        if lw == 0 then
+            return HorizontalGroup:new{ align = "center",
+                HorizontalSpan:new{ width = math.max(0, content_w - bw) }, spoiler_cell }
+        end
+        if lw + Space.px(20) + bw <= content_w then
+            return HorizontalGroup:new{ align = "center", line,
+                HorizontalSpan:new{ width = content_w - lw - bw }, spoiler_cell }
+        end
+        return VerticalGroup:new{ align = "left", line,
+            VerticalSpan:new{ width = Space.px(6) }, spoiler_cell }
+    end
     local left_w, right_w = left:getSize().w, refresh_btn:getSize().w
     -- Under the source chips: Refresh joins the chips' own row, and stays
     -- there once the summary arrives -- the summary is a second line on the
     -- same strip. (The caller then skips its separate `above`.)
     if above then
         local merged = self:_chipsWithButton(above, refresh_btn, avail_w, inset)
-        if merged and left_w == 0 then return merged, true end
+        if merged and left_w == 0 and not spoiler_cell then return merged, true end
         local seg = above.seg
         if merged and seg then
             local chips_row = HorizontalGroup:new{ align = "center", seg,
@@ -23021,7 +23051,7 @@ function BookshelfWidget:_buildReviewsHeader(tab, modal, avail_w, refreshReviews
                 padding_left = inset, padding_right = inset,
                 padding_top = Space.px(10), padding_bottom = Space.px(10),
                 VerticalGroup:new{ align = "left",
-                    chips_row, VerticalSpan:new{ width = Space.px(10) }, left },
+                    chips_row, VerticalSpan:new{ width = Space.px(10) }, withSpoilers(left_w > 0 and left or nil) },
             }, avail_w), true
         end
     end
@@ -23039,6 +23069,11 @@ function BookshelfWidget:_buildReviewsHeader(tab, modal, avail_w, refreshReviews
         -- where it'll end up once the summary text appears.
         row = HorizontalGroup:new{ align = "center",
             HorizontalSpan:new{ width = math.max(0, content_w - right_w) }, refresh_btn }
+    end
+    -- The switch on its own line under the summary and Refresh.
+    if spoiler_cell then
+        row = VerticalGroup:new{ align = "left", row,
+            VerticalSpan:new{ width = Space.px(10) }, withSpoilers(nil) }
     end
 
     return PopupKit.withShadow(FrameContainer:new{
@@ -24253,8 +24288,21 @@ function BookshelfWidget:_showBookDetail(book, opts)
     -- No title: the popup header already shows the book title/author. The
     -- rating/counts summary is a native row (_buildReviewsHeader), not part
     -- of this HTML -- only the review list itself renders here.
-    local function reviewsListHtml(result)
-        return Tokens.reviewsHtml{ reviews = result and result.reviews }
+    -- With "Show spoilers" ticked, the spoiler reviews join the list, most
+    -- liked first like the rest.
+    local function reviewsListHtml(result, with_spoilers)
+        local list = result and result.reviews
+        local spoilers = result and result.spoiler_reviews
+        if with_spoilers and type(spoilers) == "table" and #spoilers > 0 then
+            local all = {}
+            for _i, r in ipairs(list or {}) do all[#all + 1] = r end
+            for _i, r in ipairs(spoilers) do all[#all + 1] = r end
+            table.sort(all, function(a, b)
+                return (tonumber(a.likes_count) or 0) > (tonumber(b.likes_count) or 0)
+            end)
+            list = all
+        end
+        return Tokens.reviewsHtml{ reviews = list }
     end
     local reviews_tab  -- forward ref: refreshReviews mutates it, its
                         -- widget_builder (below) reads it back each rebuild.
@@ -24283,7 +24331,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
             reviews_tab.busy = false
             if ok and type(result) == "table" then
                 reviews_tab.data = result
-                reviews_tab.html = reviewsListHtml(result)
+                reviews_tab.html = reviewsListHtml(result, reviews_tab.show_spoilers)
             else
                 reviews_tab.html = "<p>" .. _("Reviews couldn't be fetched.") .. "</p>"
             end
@@ -24304,7 +24352,15 @@ function BookshelfWidget:_showBookDetail(book, opts)
             html = "<p>" .. _("Tap Refresh to load reviews.") .. "</p>"
         end
         -- Hardcover's state: its fetched data, list HTML and busy flag.
-        reviews_tab = { data = data, html = html }
+        -- show_spoilers starts off with every popup and is never saved.
+        reviews_tab = { data = data, html = html, show_spoilers = false }
+        reviews_tab.toggleSpoilers = function()
+            reviews_tab.show_spoilers = not reviews_tab.show_spoilers
+            if reviews_tab.data then
+                reviews_tab.html = reviewsListHtml(reviews_tab.data, reviews_tab.show_spoilers)
+            end
+            if modal and modal.rebuildTab then modal:rebuildTab() end
+        end
     end
     -- The Reviews tab: the reader's own review, and Hardcover's when linked,
     -- switched by the same chip bar the Description tab uses. With only one

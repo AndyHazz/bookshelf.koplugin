@@ -158,7 +158,14 @@ end
 -- every tap and KOReader looked frozen until restarted (the same bug bookends
 -- fixed in its own copy, 5.30.0). Doing it here covers every close path at
 -- once: cell and footer taps, the title's X, Back.
+-- Shown: what is under it faded, so it reads as a layer over the menu it
+-- opened from, not part of it (popup kit's scrim).
+function LibraryModal:onShow()
+    require("lib/bookshelf_popup_kit").scrimUnder(self)
+end
+
 function LibraryModal:onCloseWidget()
+    if self._scrim then require("lib/bookshelf_popup_kit").dropScrim(self) end
     local input = self._search_input
     if input and input.isKeyboardVisible and input:isKeyboardVisible() then
         input:onCloseKeyboard()

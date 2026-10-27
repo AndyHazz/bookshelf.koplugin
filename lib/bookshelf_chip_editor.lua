@@ -3179,45 +3179,24 @@ function Editor:_pickSource(draft, on_close)
         return id:match("([^/]+)/?$") or id
     end
     local CHEV = " \xE2\x80\xBA"
-    -- What each source shows, in a line: on its card, and in the strip for
-    -- the one in use.
+    -- What the Home and folder sources show, in a line on their cards.
     local DESC = {
         library   = _("Every book on one shelf, no folders."),
         all       = _("Folders as tiles, books beside them."),
-        folder    = _("One folder, its subfolders as tiles."),
         folder_flat = _("Every book in one folder and its subfolders."),
-        recent    = _("Books you have opened, the latest first."),
-        latest    = _("The newest books in your library first."),
-        favorites = _("The books you marked as favorites."),
-        series    = _("A stack for each series."),
-        authors   = _("A stack for each author."),
-        genres    = _("A stack for each genre."),
-        tags      = _("A stack for each collection."),
-        formats   = _("A stack for each format."),
-        ratings   = _("A stack for each star rating."),
-        languages = _("A stack for each language."),
-        single_series = _("The books in one series."),
-        author    = _("One author's books."),
-        genre     = _("The books in one genre."),
-        collection = _("The books in one collection."),
-        format    = _("The books in one format."),
-        rating    = _("The books with one rating."),
-        language  = _("The books in one language."),
-        shelves   = _("Shelves of their own, as tiles: each opens to its shelf."),
-        opds      = _("Books from an online OPDS catalog."),
     }
-
     local function chip(kind_value, label)
         return { text = label, on = cur == kind_value, callback = set_simple(kind_value) }
     end
-    -- A stack source and the one-of-them source beside it: the card makes the
-    -- stacks, its Pick one link a shelf of one (and names it once picked).
-    local function stack(kind_value, label, specific, on_pick, icon)
-        local on_specific = cur == specific
-        return { type = "option", half = true, text = label, icon = icon,
-            on = cur == kind_value, callback = set_simple(kind_value),
-            links = { { text = (on_specific and idText(cur_id) or _("Pick one")) .. CHEV,
-                        on = on_specific, callback = on_pick } } }
+    -- A stack source: a tile for each series, author...
+    local function stackChip(kind_value, label, icon)
+        return { text = label, icon = icon, on = cur == kind_value, callback = set_simple(kind_value) }
+    end
+    -- A shelf of one of them, picked from a list; once picked it names it.
+    local function oneChip(specific, label, on_pick)
+        local on = cur == specific
+        return { text = (on and idText(cur_id) and (label .. ": " .. idText(cur_id)) or label) .. CHEV,
+            on = on, callback = on_pick }
     end
     -- A module's shelf: one of a kind only.
     local function one(specific, label, on_pick)
@@ -3231,12 +3210,6 @@ function Editor:_pickSource(draft, on_close)
     end
 
     local function page()
-        local summary
-        if cur and cur ~= TabModel.NO_SOURCE then
-            summary = _resolveSourceLabel(draft.source) .. ". " .. (DESC[cur] or "")
-        else
-            summary = _("Choose what this shelf shows.")
-        end
         local blocks = {}
         local function add(b) blocks[#blocks + 1] = b end
         local card_only = TabModel.isCardOnly(draft)
@@ -3289,16 +3262,28 @@ function Editor:_pickSource(draft, on_close)
             add(one("language", _("Language"), group_pick("language")))
         else
             -- Grouped: what readers looked for and did not find under
-            -- "Source" (maintainer).
-            add({ type = "heading", text = _("Grouped") })
-            add({ type = "hint", text = _("A stack for each, or Pick one for a shelf of just its books.") })
-            add(stack("series", _("Series"), "single_series", group_pick("series"), "\u{E97A}"))
-            add(stack("authors", _("Authors"), "author", group_pick("author"), "\u{E703}"))
-            add(stack("genres", _("Genres"), "genre", group_pick("genre"), "\u{EA14}"))
-            add(stack("tags", _("Collections"), "collection", open_tag_picker, "\u{E7BF}"))
-            add(stack("formats", _("Formats"), "format", group_pick("format"), "\u{E918}"))
-            add(stack("ratings", _("Ratings"), "rating", open_rating_picker, "\u{EBCD}"))
-            add(stack("languages", _("Languages"), "language", group_pick("language"), "\u{ECC9}"))
+            -- "Source" (maintainer). Stacks and a shelf of one of them are
+            -- two sections, so each reads as a choice of its own.
+            add({ type = "heading", text = _("Grouped: a stack for each") })
+            add({ type = "chips", items = {
+                stackChip("series", _("Series"), "\u{E97A}"),
+                stackChip("authors", _("Authors"), "\u{E703}"),
+                stackChip("genres", _("Genres"), "\u{EA14}"),
+                stackChip("tags", _("Collections"), "\u{E7BF}"),
+                stackChip("formats", _("Formats"), "\u{E918}"),
+                stackChip("ratings", _("Ratings"), "\u{EBCD}"),
+                stackChip("languages", _("Languages"), "\u{ECC9}"),
+            } })
+            add({ type = "heading", text = _("Just one") })
+            add({ type = "chips", items = {
+                oneChip("single_series", _("A series"), group_pick("series")),
+                oneChip("author", _("An author"), group_pick("author")),
+                oneChip("genre", _("A genre"), group_pick("genre")),
+                oneChip("collection", _("A collection"), open_tag_picker),
+                oneChip("format", _("A format"), group_pick("format")),
+                oneChip("rating", _("A rating"), open_rating_picker),
+                oneChip("language", _("A language"), group_pick("language")),
+            } })
             add({ type = "heading", text = _("More") })
             -- Shelf of shelves (5.4): tiles that are shelves of their own.
             -- OPDS always offered, even with no catalog set up yet: its
@@ -3340,7 +3325,7 @@ function Editor:_pickSource(draft, on_close)
             if card_only then add({ type = "heading", text = _("More") }) end
             add({ type = "chips", items = more })
         end
-        return { strip = { { type = "summary", text = summary } }, blocks = blocks }
+        return { blocks = blocks }
     end
 
     d = Editor._menu{

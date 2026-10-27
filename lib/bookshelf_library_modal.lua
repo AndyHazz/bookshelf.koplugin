@@ -1295,13 +1295,17 @@ function LibraryModal:refresh()
     table.insert(body, padded(result_area))
     table.insert(body, VerticalSpan:new{ width = MARGIN })
     table.insert(body, padded(pagination))
-    table.insert(body, VerticalSpan:new{ width = MARGIN })
+    -- The same gap under the page row as over it: before the footer, or
+    -- (no footer) the frame's own bottom padding alone.
     if footer then
+        table.insert(body, VerticalSpan:new{ width = MARGIN })
         -- Edge to edge, down to the frame's bottom border.
         table.insert(body, footer)
         self.frame.padding_bottom = 0
     else
-        self.frame.padding_bottom = MARGIN
+        -- A little over MARGIN: the gap above the row also holds the grid's
+        -- slack and the cards' shadow (measured 38 px over, 31 under).
+        self.frame.padding_bottom = MARGIN + math.floor(MARGIN / 2)
     end
 
     self.frame[1] = body

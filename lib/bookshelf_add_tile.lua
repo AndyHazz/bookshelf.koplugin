@@ -120,12 +120,12 @@ function AddTile:paintTo(bb, x, y)
     local dash, gap = Screen:scaleBySize(9), Screen:scaleBySize(6)
     local ink = self._ink or Blitbuffer.COLOR_DARK_GRAY
     for _i, d in ipairs(AddTile.dashes(w, dash, gap)) do
-        bb:paintRect(x + d[1], y, d[2], t, ink)
-        bb:paintRect(x + d[1], y + h - t, d[2], t, ink)
+        require("lib/bookshelf_color").paintRect(bb, x + d[1], y, d[2], t, ink)
+        require("lib/bookshelf_color").paintRect(bb, x + d[1], y + h - t, d[2], t, ink)
     end
     for _i, d in ipairs(AddTile.dashes(h, dash, gap)) do
-        bb:paintRect(x, y + d[1], t, d[2], ink)
-        bb:paintRect(x + w - t, y + d[1], t, d[2], ink)
+        require("lib/bookshelf_color").paintRect(bb, x, y + d[1], t, d[2], ink)
+        require("lib/bookshelf_color").paintRect(bb, x + w - t, y + d[1], t, d[2], ink)
     end
     local ts = self._text:getSize()
     self._text:paintTo(bb, x + math.floor((w - ts.w) / 2), y + math.floor((h - ts.h) / 2))

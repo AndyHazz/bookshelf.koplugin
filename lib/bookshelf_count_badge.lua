@@ -60,7 +60,7 @@ function CountBadge.render(total, selected_count, finished_count, finished_total
     end
     local colors = CoverProgress.resolvedColors()
     local face, bold = BFont:getFace("smallinfofont", _badgeSize(12), { bold = true })
-    local badge = FrameContainer:new{
+    local badge = require("lib/bookshelf_color").colourBorder(FrameContainer:new{
         bordersize     = Size.border.thin,
         background     = colors.badge_bg,
         color          = colors.badge_fg,
@@ -75,7 +75,7 @@ function CountBadge.render(total, selected_count, finished_count, finished_total
             bold = bold,
             fgcolor = colors.badge_fg,
         },
-    }
+    })
     -- Re-coloured in place on a night-mode flip rather than waiting for the
     -- shelf rebuild. FrameContainer reads background / color at paint time and
     -- TextWidget reads fgcolor at paint time, so all three are assignments.

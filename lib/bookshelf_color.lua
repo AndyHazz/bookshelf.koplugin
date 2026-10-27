@@ -225,6 +225,59 @@ function Color.paintRect(bb, x, y, w, h, c)
     return bb:paintRect(x, y, w, h, c)
 end
 
+-- Color.paintRoundedRect: paintRoundedRect, keeping a picked colour (the same
+-- dispatch as paintRect above).
+function Color.paintRoundedRect(bb, x, y, w, h, c, r)
+    if type(c) == "nil" then return end   -- not c == nil: see parseColorValue
+    if bb.paintRoundedRectRGB32 and Blitbuffer.isColor8 and not Blitbuffer.isColor8(c) then
+        return bb:paintRoundedRectRGB32(x, y, w, h, c, r)
+    end
+    return bb:paintRoundedRect(x, y, w, h, c, r)
+end
+
+-- Color.paintBorder: paintBorder, keeping a picked colour. Plain paintBorder
+-- draws its straight edges with paintRect, which takes the colour's grey on
+-- a screen with KOReader's C blitter (a colour Kobo, a Kindle Colorsoft): a
+-- blue border came out grey with only its corners blue.
+-- On Android with the screen inverted, the RGB32 border's corner arcs apply
+-- their own night invert on top of the frame's (#217): suppressed for the
+-- call, as the spine widget's colour-safe frame does.
+function Color.paintBorder(bb, x, y, w, h, bw, c, r, anti_alias)
+    if type(c) == "nil" or not bw or bw <= 0 then return end   -- not c == nil: see parseColorValue
+    if bb.paintBorderRGB32 and Blitbuffer.isColor8 and not Blitbuffer.isColor8(c) then
+        local ok_d, Device = pcall(require, "device")
+        local suppress = ok_d and Device.isAndroid and Device:isAndroid()
+            and bb.getInverse and bb:getInverse() == 1
+        if suppress then bb:setInverse(0) end
+        bb:paintBorderRGB32(x, y, w, h, bw, c, r, anti_alias)
+        if suppress then bb:setInverse(1) end
+        return
+    end
+    return bb:paintBorder(x, y, w, h, bw, c, r, anti_alias)
+end
+
+-- Color.colourBorder(frame) -> frame: a FrameContainer whose border keeps a
+-- picked colour. KOReader's FrameContainer paints its background in colour
+-- but its border through plain paintBorder (above), so the border is drawn
+-- again over itself, at the same place, in colour.
+function Color.colourBorder(frame)
+    local paint = frame.paintTo
+    function frame:paintTo(bb, x, y)
+        paint(self, bb, x, y)
+        local c = self.color
+        if (self.bordersize or 0) > 0 and type(c) ~= "nil" and bb.paintBorderRGB32
+                and Blitbuffer.isColor8 and not Blitbuffer.isColor8(c) then
+            local sz = self:getSize()
+            local w, h = self.width or sz.w, self.height or sz.h
+            local m = self.margin or 0
+            local aa = G_reader_settings and G_reader_settings:nilOrTrue("anti_alias_ui")
+            Color.paintBorder(bb, x + m, y + m, w - 2 * m, h - 2 * m, self.bordersize, c,
+                self.radius, aa)
+        end
+    end
+    return frame
+end
+
 function Color.flushCache()
     _hex_cache = {}
     _last_color_mode = nil  -- reset so next parseColorValue re-seeds the mode

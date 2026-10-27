@@ -16,6 +16,8 @@ package.loaded["ui/size"] = {
     padding = { default = 4, small = 2 },
 }
 package.loaded["ui/font"] = { getFace = function() return {} end }
+-- The colour-safe border (tests/_test_colour_borders.lua covers it): here the frame as built.
+package.loaded["lib/bookshelf_color"] = { colourBorder = function(f) return f end }
 package.loaded["lib/bookshelf_fonts"] = {
     getFace = function(_self, _name, _size, _opts) return {}, true end,
 }

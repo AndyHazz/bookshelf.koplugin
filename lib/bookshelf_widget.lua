@@ -8849,11 +8849,11 @@ function BookshelfWidget:_buildBucketIcon(focused, frame_width)
         local top_cy   = bucket_y + cap_r
         local bot_cy   = bucket_y + bucket_h - cap_r - 1
         -- Three-stroke U with rounded caps + corner fillets.
-        bb:paintRect(left_cx - cap_r,  top_cy,
+        require("lib/bookshelf_color").paintRect(bb, left_cx - cap_r,  top_cy,
                      stroke_w, bot_cy - top_cy + 1, color)
-        bb:paintRect(right_cx - cap_r, top_cy,
+        require("lib/bookshelf_color").paintRect(bb, right_cx - cap_r, top_cy,
                      stroke_w, bot_cy - top_cy + 1, color)
-        bb:paintRect(left_cx, bot_cy - cap_r,
+        require("lib/bookshelf_color").paintRect(bb, left_cx, bot_cy - cap_r,
                      right_cx - left_cx + 1, stroke_w, color)
         bb:paintCircle(left_cx,  top_cy, cap_r, color)
         bb:paintCircle(right_cx, top_cy, cap_r, color)
@@ -8912,7 +8912,7 @@ function BookshelfWidget:_buildStartMenuIcon(focused, frame_width)
     function BarsWidget:paintTo(bb, x, y)
         local top = y + math.floor((art_size - span) / 2)
         for i = 0, 2 do
-            bb:paintRect(x, top + i * (bar_t + gap), bar_w, bar_t, bars_ink)
+            require("lib/bookshelf_color").paintRect(bb, x, top + i * (bar_t + gap), bar_w, bar_t, bars_ink)
         end
     end
     local bw_ref = self
@@ -10768,7 +10768,7 @@ function BookshelfWidget:_paintOpeningEffect(fp)
             if w <= 0 or h <= 0 then return end
             if ok_wp and Wallpaper and Wallpaper.restore
                     and Wallpaper.restore(bb, x, y, w, h) then return end
-            bb:paintRect(x, y, w, h, W)
+            require("lib/bookshelf_color").paintRect(bb, x, y, w, h, W)
         end
         -- Full-band erase; badge glyphs that overhang into the bands are
         -- REPAINTED after the flex (their widgets are stashed with painted
@@ -11026,7 +11026,7 @@ function BookshelfWidget.squashCoverOpen(rect, opts)
         src:blitFrom(require("lib/bookshelf_clip_bb").real(bb), 0, 0, ix, iy, iw, ih)
         local scaled = src:scale(new_w, ih)
         bb:blitFrom(scaled, ix, iy, 0, 0, new_w, ih)
-        bb:paintRect(ix + new_w, iy, iw - new_w, ih, page_color)
+        require("lib/bookshelf_color").paintRect(bb, ix + new_w, iy, iw - new_w, ih, page_color)
         src:free()
         scaled:free()
     end)
@@ -11129,11 +11129,11 @@ function BookshelfWidget.flexCoverOpen(rect, opts)
         local strip_x = ax + new_w
         local strip_w = rect.x + rect.w - strip_x
         if strip_w > 0 then
-            bb:paintRect(strip_x, rect.y, strip_w, rh, page_color)
+            require("lib/bookshelf_color").paintRect(bb, strip_x, rect.y, strip_w, rh, page_color)
             local hair = math.max(1, Screen:scaleBySize(1))
-            bb:paintRect(strip_x, rect.y, strip_w, hair, ink_color)
-            bb:paintRect(strip_x, rect.y + rh - hair, strip_w, hair, ink_color)
-            bb:paintRect(rect.x + rect.w - hair, rect.y, hair, rh, ink_color)
+            require("lib/bookshelf_color").paintRect(bb, strip_x, rect.y, strip_w, hair, ink_color)
+            require("lib/bookshelf_color").paintRect(bb, strip_x, rect.y + rh - hair, strip_w, hair, ink_color)
+            require("lib/bookshelf_color").paintRect(bb, rect.x + rect.w - hair, rect.y, hair, rh, ink_color)
         end
         src_bb:free()
     end)
@@ -21543,7 +21543,8 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
         -- can't be flipped). Matches KOReader's Button feedback pattern.
         -- Over a ground there is deliberately NO fill, so what is behind
         -- the pill shows through; the tap feedback fills with the ink then.
-        local frame = FrameContainer_:new{
+        -- The border in the picked ink on every colour screen (Color.colourBorder).
+        local frame = require("lib/bookshelf_color").colourBorder(FrameContainer_:new{
             bordersize     = link_style and 0 or Size.border.thin,
             background     = (not ink) and Blitbuffer.COLOR_WHITE or nil,
             color          = ink,  -- nil: FrameContainer's own black
@@ -21554,7 +21555,7 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
             padding_bottom = pill_pad_v,
             margin         = 0,
             label_w,
-        }
+        })
         local frame_size = frame:getSize()
         -- link_style paints the underline as an overlay inside the frame's
         -- own bottom padding (the same padding a bordered pill already
@@ -21573,7 +21574,8 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
             local ul_y_off = frame_size.h - ul_h
             function frame:paintTo(bb, x, y)
                 FrameContainer_.paintTo(self, bb, x, y)
-                bb:paintRect(x + ul_x_off, y + ul_y_off, ul_w, ul_h, ink or Blitbuffer.COLOR_BLACK)
+                require("lib/bookshelf_color").paintRect(bb, x + ul_x_off, y + ul_y_off, ul_w, ul_h,
+                    ink or Blitbuffer.COLOR_BLACK)
             end
         end
         local pill = InputContainer_:new{
@@ -22534,7 +22536,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                 function frame:paintTo(bb, x, y)
                     orig_paintTo(self, bb, x, y)
                     local sz = self:getSize()
-                    bb:paintRect(x, y + sz.h, sz.w, fill_extend, self.background)
+                    require("lib/bookshelf_color").paintRect(bb, x, y + sz.h, sz.w, fill_extend, self.background)
                     local label_sz = selected_btn.label_widget:getSize()
                     local ux = x + math.floor((sz.w - label_sz.w) / 2)
                     local uy = y + math.floor((sz.h + label_sz.h) / 2) + underline_gap

@@ -428,7 +428,9 @@ function TL._renderCard(item, dimen, current, all)
     local border = current and Size.border.thick or require("lib/bookshelf_popup_kit").BORDER
     -- Little padding above and below: three lines have to fit, also inside
     -- the keys' focus ring, which takes its width off the card.
-    local pad, pad_v = Space.padding.default, Space.padding.small
+    -- Side padding as the editor's cards have, so the name does not touch
+    -- the card's edge.
+    local pad, pad_v = Space.px(12), Space.padding.small
     local gap = Space.padding.default
     local inner_w = dimen.w - 2 * (border + pad)
     local inner_h = dimen.h - 2 * (border + pad_v)
@@ -546,6 +548,9 @@ function TL.show(opts)
     end
     local config = {
         title = opts.shelf and T(_("Theme: %1"), opts.shelf) or tp.choiceLabel(nil),
+        -- opts.over: opened from the shelf editor, a page of it (its frame,
+        -- its breadcrumb, Close as the back chevron); LibraryModal config.over.
+        over = opts.over,
         no_search = true,
         grid_cols = function() return 1 end,
         cells_per_page = function() return TL.PER_PAGE end,

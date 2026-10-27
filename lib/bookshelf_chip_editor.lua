@@ -2382,6 +2382,8 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                 callback = function()
                     require("lib/bookshelf_theme_library").show{
                         shelf = draft.label or "",
+                        -- A page of the editor: Home > Shelf style > Theme.
+                        over = Editor._over({ _("Theme") }),
                         current = function() return draft.theme end,
                         follow = follow,
                         choose = function(value) draft.theme = value end,

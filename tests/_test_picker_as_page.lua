@@ -33,8 +33,8 @@ t.test("a page refreshes its own box opening and closing, not the whole screen",
     assert(not lm:find("scrimUnder", 1, true), "the fade is back")
 end)
 
-t.test("both of the editor's pickers open as its pages", function()
-    eq(select(2, ed:gsub("over%s*= Editor%._over%(", "")), 2)
+t.test("the editor's pickers and the Theme library open as its pages", function()
+    eq(select(2, ed:gsub("over%s*= Editor%._over%(", "")), 3)
 end)
 
 t.done()

@@ -65,7 +65,19 @@ function Session.new(o)
     s.min_for       = o.min_for or function() return 1, 1 end
     s.title_for     = o.title_for or function(entry) return entry.module end
     s.max_pages     = o.max_pages   -- a host with its own page count (a shelf)
+    s:_closeGaps()
     return s
+end
+
+-- _closeGaps(): number the pages in use 1, 2, 3... with no gap, the page
+-- shown kept among them: a page whose last module moved away or was removed
+-- left pages 1 and 3 (maintainer). Not on a shelf, whose pages are its own.
+function Session:_closeGaps()
+    if self.max_pages then return end
+    local map = {}
+    for i, p in ipairs(Grid.pages(self.boxes, self.page)) do map[p] = i end
+    for _i, b in ipairs(self.boxes) do b.page = map[b.page] or b.page end
+    self.page = map[self.page] or self.page
 end
 
 function Session:edit()
@@ -74,6 +86,7 @@ function Session:edit()
 end
 
 function Session:_render()
+    self:_closeGaps()
     if self.host and self.host.render then self.host:render(self:edit()) end
 end
 

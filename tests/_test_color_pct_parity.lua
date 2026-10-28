@@ -107,7 +107,7 @@ local function helpers_env(colour, night)
     }, { __index = _G })
     local code = "local function _isNight() return " .. tostring(night) .. " end\n"
         .. grab("_byteToScreenPct") .. grab("_rawToScreenPct") .. grab("_colorScreen")
-        .. grab("_shownHex") .. grab("_valueText")
+        .. grab("_shownHex") .. grab("_shadeName") .. grab("_valueText")
         .. "return _valueText, _colorScreen"
     return assert(load(code, "vt", "t", env))()
 end
@@ -115,12 +115,15 @@ end
 t.test("a colour screen shows every value as the palette's hex, a grey too", function()
     local vt = helpers_env(true, false)
     eq(vt({ grey = 0xFF }), "#FFFFFF"); eq(vt({ grey = 0x40 }), "#404040")
-    eq(vt({ hex = "#228b22" }), "#228B22"); eq(vt(nil), "default")
+    eq(vt({ hex = "#228b22" }), "#228B22"); eq(vt(nil), "Default")
 end)
 
-t.test("a greyscale screen shows every value as % black, a hex too", function()
+t.test("a greyscale screen names every value's grey in a word, a hex too", function()
+    -- Its picker is chips of grey now, so no "% black" number: a word.
     local vt = helpers_env(false, false)
-    eq(vt({ grey = 0x00 }), "100%"); eq(vt({ hex = "#B08050" }), "46%")
+    eq(vt({ grey = 0x00 }), "Black"); eq(vt({ grey = 0xFF }), "White")
+    eq(vt({ hex = "#B08050" }), "Gray", "a colour's grey (46% black)")
+    eq(vt({ grey = 0x40 }), "Dark gray"); eq(vt({ grey = 0xE0 }), "Light gray")
 end)
 
 t.test("the night slot shows what the picker shows: the stored colour turned back", function()

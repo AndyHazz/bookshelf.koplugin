@@ -1823,7 +1823,7 @@ function Settings:_wallpaperMenu()
             callback = function(touchmenu_instance)
                 self:_shelfSlot()
                 self:_pickColor(Wallpaper.BG_SETTING, "wallpaper_bg", 0,
-                    { _("Color behind wallpaper"), _("Color behind wallpaper (% black)") }, touchmenu_instance)
+                    _("Color behind wallpaper"), touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance)
                 local CoverProgress = require("lib/bookshelf_cover_progress")
@@ -2115,7 +2115,7 @@ function Settings:_panelColorItems(outside)
             callback = function(touchmenu_instance)
                 slot()
                 self:_pickColor("panel_color", "panel_color", 0,
-                    { _("Panel color"), _("Panel color (% black)") }, touchmenu_instance)
+                    _("Panel color"), touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance) clear("panel_color", touchmenu_instance) end,
         },
@@ -2136,7 +2136,7 @@ function Settings:_panelColorItems(outside)
             callback = function(touchmenu_instance)
                 slot()
                 self:_pickColor("panel_ink", "panel_ink", 100,
-                    { _("Panel text"), _("Panel text (% black)") }, touchmenu_instance)
+                    _("Panel text"), touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance) clear("panel_ink", touchmenu_instance) end,
             separator = true,   -- end of the panel band
@@ -2205,9 +2205,8 @@ local function _rawToScreenPct(raw)
 end
 
 -- _colorScreen() -> the screen shows colour: the ONE check that picks the
--- palette over the "% black" dialog, the title over it, and the form a row
--- prints its value in, so the three cannot disagree (the palette came up
--- under a "(% black)" title).
+-- palette's colours over its greys and the form a row prints its value in
+-- (a hex, or a grey's name), so the two cannot disagree.
 local function _colorScreen()
     local Screen = require("device").screen
     return (Screen.isColorEnabled and Screen:isColorEnabled()) and true or false
@@ -2236,14 +2235,26 @@ end
 -- field), "% black" elsewhere (the dialog), whether it was stored as a grey
 -- or a hex. A hex beside a percentage in one list read as two kinds of
 -- setting (maintainer, 2026-10-08).
+-- _shadeName(pct) -> a grey said in a word, from "% black on screen": what
+-- a greyscale screen's rows show now its picker is chips of grey, not a "%
+-- black" number that read the wrong way round in night mode.
+local function _shadeName(pct)
+    if pct <= 4 then return _("White") end
+    if pct <= 29 then return _("Light gray") end
+    if pct <= 69 then return _("Gray") end
+    if pct <= 94 then return _("Dark gray") end
+    return _("Black")
+end
+Settings._shadeName = _shadeName   -- for tests
+
 local function _valueText(raw, raw_key)
-    if type(raw) ~= "table" then return _("default") end
+    if type(raw) ~= "table" then return _("Default") end
     if _colorScreen() then
         local hex = _shownHex(raw, raw_key)
         if hex then return hex end
     end
     local p = _rawToScreenPct(raw)
-    return p and (p .. "%") or _("default")
+    return p and _shadeName(p) or _("Default")
 end
 
 -- The row label for a stored colour ("default", "#RRGGBB", "40%"), for the
@@ -2303,7 +2314,7 @@ function Settings:_pickPlank(touchmenu_instance, refresh, before, on_done)
     refresh = refresh or function() self:_markDirty() end
     before = before or TP.plankChoice()
     return self:_pickColor("spine_plank_color", "plank", 45,
-        { _("Shelf plank color"), _("Shelf plank color (% black)") }, touchmenu_instance, refresh, nil, {
+        _("Shelf plank color"), touchmenu_instance, refresh, nil, {
             on_colour = function() TP.choosePlank("colour") end,
             revert = function() TP.choosePlank(before) end,
             on_done = on_done,
@@ -2655,8 +2666,8 @@ function Settings:_colorsSubItems()
     -- field     : the bookshelf_color DEFAULT_HEX field name (e.g. "fill").
     --             Decoupled from raw_key so the color-picker default tile
     --             can stay stable even as new storage keys are introduced.
-    -- default_pct: greyscale nudge dialog default (% black) for the
-    --             pre-color-mode picker path on Kindle / older Kobo.
+    -- default_pct: the grey a greyscale screen's picker marks when nothing
+    --             is stored and the shelf paints nothing of its own (% black).
     -- Chip-bar colours change how ONE strip is painted, nothing else, so they
     -- must not go through markDirty() -> _bw:_rebuild(): that re-reads the
     -- library and re-renders every cover, per nudge step, which is why adjusting
@@ -2780,7 +2791,7 @@ function Settings:_colorsSubItems()
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 pickColor("ink_color", "ink", _byteToScreenPct(0x00),
-                    { _("Text ink"), _("Text ink (% black)") }, touchmenu_instance)
+                    _("Text ink"), touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance)
                 deleteModeKey("ink_color")
@@ -2796,7 +2807,7 @@ function Settings:_colorsSubItems()
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 pickColor("progress_fill", "fill", 75,
-                    { _("Progress bar"), _("Progress bar (% black)") }, touchmenu_instance)
+                    _("Progress bar"), touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance)
                 deleteModeKey("progress_fill")
@@ -2811,7 +2822,7 @@ function Settings:_colorsSubItems()
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 pickColor("progress_track", "track", 25,
-                    { _("Progress bar track"), _("Progress bar track (% black)") }, touchmenu_instance)
+                    _("Progress bar track"), touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance)
                 deleteModeKey("progress_track")
@@ -2827,7 +2838,7 @@ function Settings:_colorsSubItems()
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 pickColor("bookmark_color", "bookmark", 75,
-                    { _("Bookmark color"), _("Bookmark color (% black)") }, touchmenu_instance)
+                    _("Bookmark color"), touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance)
                 deleteModeKey("bookmark_color")
@@ -2843,7 +2854,7 @@ function Settings:_colorsSubItems()
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 pickColor("complete_bookmark_color", "complete_bookmark", 0,
-                    { _("Finished bookmark color"), _("Finished bookmark color (% black)") }, touchmenu_instance)
+                    _("Finished bookmark color"), touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance)
                 deleteModeKey("complete_bookmark_color")
@@ -2866,10 +2877,10 @@ function Settings:_colorsSubItems()
                 local is_heart = require("lib/bookshelf_cover_progress").badgeMode() == "heart"
                 if is_heart then
                     pickColor("favorite_heart_color", "favorite_heart", 15,
-                        { _("Favorite heart color"), _("Favorite heart color (% black)") }, touchmenu_instance)
+                        _("Favorite heart color"), touchmenu_instance)
                 else
                     pickColor("favorite_star_color", "favorite_star", 15,
-                        { _("Favorite star color"), _("Favorite star color (% black)") }, touchmenu_instance)
+                        _("Favorite star color"), touchmenu_instance)
                 end
             end,
             hold_callback = function(touchmenu_instance)
@@ -2887,7 +2898,7 @@ function Settings:_colorsSubItems()
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 pickColor("badge_fg", "badge_fg", 100,
-                    { _("Badge foreground"), _("Badge foreground (% black)") }, touchmenu_instance)
+                    _("Badge foreground"), touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance)
                 deleteModeKey("badge_fg")
@@ -2902,7 +2913,7 @@ function Settings:_colorsSubItems()
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 pickColor("badge_bg", "badge_bg", 0,
-                    { _("Badge background"), _("Badge background (% black)") }, touchmenu_instance)
+                    _("Badge background"), touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance)
                 deleteModeKey("badge_bg")
@@ -2923,7 +2934,7 @@ function Settings:_colorsSubItems()
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 pickColor("module_bg", "module_bg", 0,
-                    { _("Micro-module background"), _("Micro-module background (% black)") }, touchmenu_instance)
+                    _("Micro-module background"), touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance)
                 deleteModeKey("module_bg")
@@ -2940,7 +2951,7 @@ function Settings:_colorsSubItems()
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 pickColor("module_border", "module_border", 100,
-                    { _("Micro-module border"), _("Micro-module border (% black)") }, touchmenu_instance)
+                    _("Micro-module border"), touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance)
                 deleteModeKey("module_border")
@@ -2958,7 +2969,7 @@ function Settings:_colorsSubItems()
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 pickColor("border_color", "border", 100,
-                    { _("Border color"), _("Border color (% black)") }, touchmenu_instance)
+                    _("Border color"), touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance)
                 deleteModeKey("border_color")
@@ -2975,7 +2986,7 @@ function Settings:_colorsSubItems()
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 pickColor("selection_color", "selection", 100,
-                    { _("Selection outline color"), _("Selection outline color (% black)") }, touchmenu_instance)
+                    _("Selection outline color"), touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance)
                 deleteModeKey("selection_color")
@@ -2993,7 +3004,7 @@ function Settings:_colorsSubItems()
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 pickColor("card_shadow_color", "card_shadow", 50,
-                    { _("Cover shadow color"), _("Cover shadow color (% black)") }, touchmenu_instance)
+                    _("Cover shadow color"), touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance)
                 deleteModeKey("card_shadow_color")
@@ -3009,7 +3020,7 @@ function Settings:_colorsSubItems()
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 pickColor("folder_overlay_bg", "folder_bg", 20,
-                    { _("Folder overlay background"), _("Folder overlay background (% black)") }, touchmenu_instance)
+                    _("Folder overlay background"), touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance)
                 deleteModeKey("folder_overlay_bg")
@@ -3028,7 +3039,7 @@ function Settings:_colorsSubItems()
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 pickColor("folder_overlay_fg", "folder_fg", 100,
-                    { _("Folder text color"), _("Folder text color (% black)") }, touchmenu_instance)
+                    _("Folder text color"), touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance)
                 deleteModeKey("folder_overlay_fg")
@@ -3059,7 +3070,7 @@ function Settings:_colorsSubItems()
                 local was = TP.partSnapshot(TRANSPARENT_KEY)
                 local function off() if transparentBar() then TP.partSave(TRANSPARENT_KEY, false) end end
                 pickColor("chrome_bg", "chrome_bg", 0,
-                    { _("Shelf menu background"), _("Shelf menu background (% black)") }, touchmenu_instance,
+                    _("Shelf menu background"), touchmenu_instance,
                     nil, nil, {
                         -- A colour, or Default, brings the bar back.
                         on_colour = off,
@@ -3096,7 +3107,7 @@ function Settings:_colorsSubItems()
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 pickColor("chip_selected_bg", "chip_selected_bg", 100,
-                    { _("Selected shelf background"), _("Selected shelf background (% black)") }, touchmenu_instance,
+                    _("Selected shelf background"), touchmenu_instance,
                     refreshChipBar, chipBarAnchor)
             end,
             hold_callback = function(touchmenu_instance)
@@ -3114,7 +3125,7 @@ function Settings:_colorsSubItems()
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 pickColor("chip_selected_fg", "chip_selected_fg", 0,
-                    { _("Selected shelf text"), _("Selected shelf text (% black)") }, touchmenu_instance,
+                    _("Selected shelf text"), touchmenu_instance,
                     refreshChipBar, chipBarAnchor)
             end,
             hold_callback = function(touchmenu_instance)

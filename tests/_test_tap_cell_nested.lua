@@ -96,7 +96,7 @@ t.test("a cell that goes somewhere is still shown pressed", function()
     cell.dimen.x, cell.dimen.y = 10, 10
     stack = { "page" }
     cell.onTap(cell, nil, { pos = { x = 20, y = 20 } })
-    eq(dirty[1] and dirty[1].mode, "fast")
+    eq(dirty[1] and dirty[1].mode, "ui")
 end)
 
 t.done()

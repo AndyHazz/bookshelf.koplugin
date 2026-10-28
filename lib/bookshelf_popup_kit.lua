@@ -374,8 +374,8 @@ end
 
 -- paintCard(frame, bb, x, y, outline): a kit card. Raised: a hairline
 -- shadow down and right. Pressed (frame._pressed, while its tap's action
--- runs): the shade moves inside along the top and left and the content sits
--- down by as much, so a slow action shows it was taken at once.
+-- runs): the shadow flips inside, along the top and left, and nothing else
+-- changes (maintainer), so a slow action shows it was taken at once.
 local function paintCard(frame, bb, x, y, outline)
     local sz = frame:getSize()
     local r, s = Kit.RADIUS, Kit.shadowSize()
@@ -385,7 +385,7 @@ local function paintCard(frame, bb, x, y, outline)
         bb:paintRoundedRect(x, y, sz.w, sz.h, Kit.SHADOW, r)
         require("lib/bookshelf_color").paintRoundedRect(bb, x + d, y + d, sz.w - d, sz.h - d, bg, r)
         frame.background = nil
-        FrameContainer.paintTo(frame, bb, x + d, y + d)
+        FrameContainer.paintTo(frame, bb, x, y)
         frame.background = bg
     else
         bb:paintRoundedRect(x + s, y + s, sz.w, sz.h, Kit.SHADOW, r)
@@ -408,7 +408,10 @@ function Kit.pressThen(cell, card, action)
     local box = Geom_:new{ x = d.x, y = d.y, w = d.w + 2, h = d.h + 2 }
     card._pressed = true
     UIManager:widgetRepaint(cell, d.x, d.y)
-    UIManager:setDirty(nil, "fast", box)
+    -- A grey card needs "ui": "fast" is black and white only on e-ink and
+    -- turned the card white (maintainer, PW5). A button pressed black is
+    -- fine with fast, which shows sooner.
+    UIManager:setDirty(nil, card._kit_card and "ui" or "fast", box)
     UIManager:forceRePaint()
     local top = UIManager:getTopmostVisibleWidget()
     UIManager:tickAfterNext(function()

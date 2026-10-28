@@ -1514,17 +1514,10 @@ function Editor:editTab(tab_id, opts)
             -- text, insert nerd-font glyphs via 'Insert icon...', and remove
             -- them by editing the field as usual. One field for both text
             -- and icons; no separate icon picker on the main dialog.
-            -- The name, then the nudges side by side under a Move label
-            -- (maintainer): they no longer wrap the name's button.
+            -- The nudges side by side after a Position label, then the
+            -- name (maintainer): they no longer wrap the name's button.
             {
-                {
-                    -- Title bar already shows the live label ("Editing: ..."),
-                    -- so the button just describes its action -- no need to
-                    -- repeat the label text.
-                    text     = _("Edit shelf name"),
-                    callback = open_label_dialog,
-                },
-                { label_text = _("Move") },
+                { label_text = _("Position") },
                 {
                     text           = CHEV_LEFT,
                     font_face      = "symbols",
@@ -1540,6 +1533,14 @@ function Editor:editTab(tab_id, opts)
                     font_bold      = false,
                     enabled_func   = function() return not at_right end,
                     callback       = function() move_tab(1) end,
+                },
+                {
+                    -- Title bar already shows the live label ("Editing: ..."),
+                    -- so the button just describes its action -- no need to
+                    -- repeat the label text.
+                    text     = _("Edit shelf name"),
+                    gap_before = Space.px(24),   -- apart from Position's arrows
+                    callback = open_label_dialog,
                 },
             },
             -- Row 1a: source, full width.
@@ -1717,7 +1718,7 @@ function Editor:editTab(tab_id, opts)
         -- Copy, Move to or new shelf beside it. The first row keeps Edit
         -- label between the arrows; the last row is the actions.
         if draft.card_only then
-            buttons[1] = { buttons[1][1] }
+            buttons[1] = { buttons[1][#buttons[1]] }
             buttons[#buttons] = {}
         end
 
@@ -1747,7 +1748,7 @@ function Editor:editTab(tab_id, opts)
         local function group(cells)
             local hg, focus = HorizontalGroup:new{ align = "center" }, {}
             for i, c in ipairs(cells or {}) do
-                if i > 1 then hg[#hg + 1] = HorizontalSpan:new{ width = Space.px(10) } end
+                if i > 1 then hg[#hg + 1] = HorizontalSpan:new{ width = c.gap_before or Space.px(10) } end
                 if c.label_text then
                     -- A grey word naming the buttons after it (Move).
                     hg[#hg + 1] = TextWidget:new{ text = c.label_text,

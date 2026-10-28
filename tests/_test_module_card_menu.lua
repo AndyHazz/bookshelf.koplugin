@@ -29,6 +29,8 @@ package.loaded["lib/bookshelf_settings"] = {
 }
 local DEF = { title = "Quote", colors = { { id = "bar", text = "Bar" } } }
 package.loaded["lib/bookshelf_start_menu_modules"] = { get = function() return DEF end }
+-- The title's X (withClose) is tested with the kit; here the spec as built.
+package.loaded["lib/bookshelf_module_kit"] = { withClose = function(spec) return spec end }
 package.loaded["ui/uimanager"] = {
     show = function(_s, d) shown = d end,
     close = function() closed = closed + 1 end,
@@ -64,7 +66,8 @@ t.test("its rows: the card's four, then the spec's, labelled for the look on scr
     for _r, row in ipairs(shown.buttons) do
         for _i, b in ipairs(row) do ids[#ids + 1] = b.id or b.text end
     end
-    assert(table.concat(ids, ",") == "bg,border,border_color,ink,bar,Reset,Close", table.concat(ids, ","))
+    -- Close is the title's X (withClose), not a row.
+    assert(table.concat(ids, ",") == "bg,border,border_color,ink,bar,Reset", table.concat(ids, ","))
     assert(shown:getButtonById("bg").text == "Card background: default", shown:getButtonById("bg").text)
     assert(shown:getButtonById("border").text == "Card border: On")
     -- No background of its own: the text is the shared ink, so "default".

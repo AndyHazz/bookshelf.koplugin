@@ -112,19 +112,19 @@ function M.show(ctx)
             end,
         } }
     end
+    -- Reset a row of its own; Close is the title's X (withClose).
     buttons[#buttons + 1] = {
         { text = _("Reset"), callback = function()
             for _j, row in ipairs(rows) do Card.set(entry, row.key, nil) end
             changed()
         end },
-        { text = _("Close"), callback = function() UIManager:close(d) end },
     }
     local title = (def and def.title) or entry.module
-    d = ButtonDialog:new{
+    d = ButtonDialog:new(require("lib/bookshelf_module_kit").withClose{
         title = T(_("%1 · colors for %2"), title, (sfx ~= "") and _("Dark") or _("Light")),
         title_align = "center",
         buttons = buttons,
-    }
+    })
     -- The changes made in memory (ctx.saveDeferred) go to the file once, as
     -- the menu closes, however it closes.
     local closed = d.onCloseWidget

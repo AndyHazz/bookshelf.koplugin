@@ -178,12 +178,11 @@ function Edit.show(menu, entry)
                     UIManager:close(chooser); clearIcon()
                 end } }
             end
-            crows[#crows + 1] = { { text = _("Cancel"), id = "close",
-                callback = function() UIManager:close(chooser) end } }
-            chooser = ButtonDialog:new{
+            -- No Cancel row: the title's X (withClose) is the way out.
+            chooser = ButtonDialog:new(require("lib/bookshelf_module_kit").withClose{
                 title = _("Icon"), title_align = "center",
                 width_factor = 0.65, buttons = crows,
-            }
+            })
             UIManager:show(chooser)
         end
 
@@ -290,12 +289,11 @@ function Edit.show(menu, entry)
                                 end },
                             }
                         end
-                        srows[#srows + 1] = { { text = _("Cancel"), id = "close",
-                            callback = function() UIManager:close(sub) end } }
-                        sub = ButtonDialog:new{
+                        -- No Cancel row: the title's X (withClose).
+                        sub = ButtonDialog:new(require("lib/bookshelf_module_kit").withClose{
                             title = _("Move to folder"), title_align = "center",
                             width_factor = 0.65, buttons = srows,
-                        }
+                        })
                         UIManager:show(sub)
                     end) },
                 }
@@ -355,10 +353,9 @@ function Edit.show(menu, entry)
                           end },
                     }
                 end
-                srows[#srows + 1] = { { text = _("Cancel"), id = "close",
-                    callback = function() UIManager:close(sub) end } }
-                sub = ButtonDialog:new{ title = _("Show in"), title_align = "center",
-                    width_factor = 0.65, buttons = srows }
+                -- No Cancel row: the title's X (withClose).
+                sub = ButtonDialog:new(require("lib/bookshelf_module_kit").withClose{ title = _("Show in"), title_align = "center",
+                    width_factor = 0.65, buttons = srows })
                 UIManager:show(sub)
             end) },
         }

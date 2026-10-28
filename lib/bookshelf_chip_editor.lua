@@ -887,9 +887,10 @@ function Editor:editTab(tab_id, opts)
         local pad = Space.px(12)
         local inner_w = w - 2 * pad
         local icon
-        if c.icon then
+        local glyph = c.icon_func and c.icon_func() or c.icon
+        if glyph then
             -- What the card is about, at a glance (Source, Filters, Sort...).
-            icon = TextWidget:new{ text = c.icon, face = Font:getFace("symbols", FS + 6),
+            icon = TextWidget:new{ text = glyph, face = Font:getFace("symbols", FS + 6),
                 fgcolor = enabled and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_DARK_GRAY }
             inner_w = inner_w - icon:getSize().w - Space.px(14)
         end
@@ -913,11 +914,19 @@ function Editor:editTab(tab_id, opts)
         else
             local head, value = text:match("^(.-):%s+(.+)$")
             if head and #head <= 24 then
+                -- The heading at the card's left edge, the icon under it
+                -- beside the value (maintainer).
+                local line = TextWidget:new{ text = value, face = value_face, bold = true,
+                    fgcolor = ink, max_width = inner_w }
+                if icon then
+                    line = HorizontalGroup:new{ align = "center", icon,
+                        HorizontalSpan:new{ width = Space.px(14) }, line }
+                    icon = nil
+                end
                 body = VerticalGroup:new{ align = "left",
                     Kit.heading(head, FS),
                     VerticalSpan:new{ width = Space.px(4) },
-                    TextWidget:new{ text = value, face = value_face, bold = true,
-                        fgcolor = ink, max_width = inner_w } }
+                    line }
             else
                 body = TextWidget:new{ text = text, face = value_face, bold = not as_choice or on,
                     fgcolor = ink, max_width = inner_w }
@@ -1384,7 +1393,7 @@ function Editor:editTab(tab_id, opts)
                     end
                     return _("Source / grouping: ") .. _resolveSourceLabel(draft.source)
                 end,
-                icon = "\u{EA31}",   -- library-books
+                icon_func = function() return Editor._sourceIcon(draft.source) end,
                 callback = function()
                     Editor:_pickSource(draft, sourceChosen)
                 end,
@@ -3715,6 +3724,28 @@ function Editor._favGlyph()
     local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
     if not ok or not CP or not CP.favoriteIcon then return nil end
     return CP.favoriteIcon() == "star" and CP.FAV_GLYPH_STAR or CP.FAV_GLYPH_HEART
+end
+
+-- _sourceIcon(source) -> the glyph for the editor's Source card: the one
+-- the source has on the Source page (a star for ratings), so the card shows
+-- what the shelf holds at a glance. Anything else: the library's.
+local SOURCE_ICONS = {
+    library = "\u{EA31}", all = "\u{E952}",                     -- library-books, folder-multiple
+    folder = "\u{E94A}", folder_flat = "\u{E94A}",              -- folder
+    recent = "\u{E9D9}", latest = "\u{EA93}",                   -- history, new-box
+    series = "\u{E97A}", single_series = "\u{E97A}",            -- format-list-numbers
+    authors = "\u{E703}", author = "\u{E703}",                  -- account
+    genres = "\u{EA14}", genre = "\u{EA14}",
+    tags = "\u{E7BF}", collection = "\u{E7BF}",
+    formats = "\u{E918}", format = "\u{E918}",
+    ratings = "\u{EBCD}", rating = "\u{EBCD}",                  -- star
+    languages = "\u{ECC9}", language = "\u{ECC9}",
+    shelves = "\u{EC6F}", opds = "\u{EC9E}",                    -- view-grid, web
+}
+function Editor._sourceIcon(source)
+    local kind = type(source) == "table" and source.kind
+    if kind == "favorites" then return Editor._favGlyph() or SOURCE_ICONS.library end
+    return SOURCE_ICONS[kind or ""] or SOURCE_ICONS.library
 end
 
 -- _sortSummary(draft) -> the shelf's order as a sentence, for the Sort

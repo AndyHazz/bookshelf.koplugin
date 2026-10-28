@@ -796,4 +796,16 @@ t.test("the editor window's box follows the page, and the page doesn't move it",
     assert(not shell:find("align", 1, true), "the shell centres the window on its size")
 end)
 
+-- The editor's Source card shows the source's own icon, the one its option
+-- or chip has on the Source page (maintainer: "a star for ratings").
+t.test("the Source card's icon is the source's own", function()
+    eq(Editor._sourceIcon({ kind = "ratings" }), "\u{EBCD}", "ratings: star")
+    eq(Editor._sourceIcon({ kind = "rating" }), "\u{EBCD}", "one rating: star")
+    eq(Editor._sourceIcon({ kind = "series" }), "\u{E97A}")
+    eq(Editor._sourceIcon({ kind = "folder_flat" }), "\u{E94A}")
+    eq(Editor._sourceIcon({ kind = "all" }), "\u{E952}")
+    eq(Editor._sourceIcon({ kind = "something_registered" }), "\u{EA31}", "fallback: library")
+    eq(Editor._sourceIcon(nil), "\u{EA31}")
+end)
+
 t.done()

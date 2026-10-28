@@ -42,7 +42,9 @@ local LEGACY_KEY  = "chips_disabled"
 -- below -- the enabled flags here only affect first-launch installs.
 function TabModel.BUILTINS()
     return {
-        -- HOME ships as a spine shelf, newest first, with ornaments on.
+        -- HOME ships as a spine shelf, newest added or opened first (so a
+        -- book picked up again comes back to the front, maintainer), with
+        -- ornaments on.
         -- These are the maintainer's own settings, adopted as defaults for the
         -- sake of the first launch: a grid of covers sorted by FILENAME is
         -- what the shelf could do on day one, not what it is for. Newest-first
@@ -54,7 +56,7 @@ function TabModel.BUILTINS()
         -- Every one of these is a normal pin the reader can change; none of
         -- them is a new kind of setting.
         { id = "all",       label = tr("Home"),       source = { kind = "all"       },
-          filter = {}, sort_priority = { { key = "date_added",  reverse = true  } },
+          filter = {}, sort_priority = { { key = "added_or_opened", reverse = true } },
           view_mode = "spines", ornament_frequency = 2,
           spine_face_out = { favorites = true, reading = true, recent = 5 },
           enabled = true  },

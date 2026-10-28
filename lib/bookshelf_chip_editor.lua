@@ -3778,7 +3778,9 @@ function Editor:_openSort(draft, on_change, on_arranged, on_back)
         local list = levels()
         if sel > #list + 1 then sel = #list + 1 end
         if sel > MAX then sel = MAX end
-        local strip = { { type = "summary", text = Editor._sortSummary(draft) } }
+        -- No summary sentence: the levels say it, and the page is tall
+        -- enough already (maintainer).
+        local strip = {}
         for i, lv in ipairs(list) do
             local asc, desc = _dirLabels(lv.key)
             local items = { { key = false, label = asc }, { key = true, label = desc } }
@@ -3840,14 +3842,14 @@ function Editor:_openSort(draft, on_change, on_arranged, on_back)
             add(chips({ "title", "author_name", "author_surname", "filename" }))
             add({ type = "heading", text = _("Series") })
             add(chips({ "series_name", "series_index", "series_combined", "series_or_title" }))
+            -- Added/opened first: Home's own sort (maintainer).
             add({ type = "heading", text = _("Reading") })
-            add(chips({ "date_added", "last_opened", "added_or_opened", "percent_read", "rating" }))
+            add(chips({ "added_or_opened", "date_added", "last_opened", "percent_read", "rating" }))
             add({ type = "heading", text = _("Status") })
             add(chips({ "read_status", "read_status_active", "favorites_first" }))
             add({ type = "heading", text = _("Size") })
             add(chips({ "page_count", "size", "book_count" }))
         end
-        add({ type = "hint", text = _("Tap a level above, then what it sorts by.") })
         return { strip = strip, blocks = blocks }
     end
 

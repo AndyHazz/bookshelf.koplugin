@@ -89,7 +89,10 @@ a control by hand, so a change lands everywhere.
   or chips at the left inset, the header buttons at the right end, and a
   1 px shadow line under it (`Kit.withShadow`; grey alone is too faint on
   e-ink). With no chips, the header buttons share the search row while the
-  field keeps at least half of it.
+  field keeps at least half of it. With neither chips nor a search box, the
+  screen's main action (Add theme pack) sits at the left end
+  (`at_left`), so the strip isn't half empty. A lone Edit stays at the
+  right, where it is on every tab.
 - The strip doesn't move or split when content loads. Extra lines (a
   summary, a checkbox) go inside the same strip.
 

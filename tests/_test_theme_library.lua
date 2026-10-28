@@ -336,7 +336,7 @@ t.test("the default's picker: titled Default theme, opens on page 1 always, Add 
     -- Add theme pack, then Reset (maintainer, 2026-10-09), on the strip
     -- under the title; Close in the footer.
     local f = c.header_actions
-    eq(#f, 2); eq(f[1].label, "Add theme pack\xE2\x80\xA6"); eq(f[2].label, "Reset")
+    eq(#f, 2); eq(f[1].label, "Add theme pack\xE2\x80\xA6"); eq(f[2].label, "Reset edited theme"); eq(f[1].at_left, true)
     eq(#c.footer_rows[1], 1); eq(c.footer_rows[1][1].label, "Close")
     f[1].on_tap(); eq(TP.add_info, 1)
     eq(shown[1], m)
@@ -671,11 +671,11 @@ t.test("LibraryModal greys a footer button whose enabled_when says so, and a pre
         and lm:find("enabled = enabled,", 1, true), "a greyed footer button still acts")
     local tl = io.open("lib/bookshelf_theme_library.lua"):read("*a")
     assert(tl:find('{ key = "add", label = tp.addThemeLabel()', 1, true)
-        < tl:find('{ key = "reset", label = _("Reset"),', 1, true)
-        and tl:find('{ key = "reset", label = _("Reset"),', 1, true) < tl:find('{ key = "close", label = _("Close")', 1, true),
+        < tl:find('{ key = "reset", label = _("Reset edited theme"),', 1, true)
+        and tl:find('{ key = "reset", label = _("Reset edited theme"),', 1, true) < tl:find('{ key = "close", label = _("Close")', 1, true),
         "Reset is not between Add theme pack and Close")
     -- Header buttons grey the same way.
-    assert(lm:find("btns[#btns + 1] = PopupKit.headerButton{ text = a.label, icon = a.icon,\n            font_size = 16, enabled = enabled,", 1, true),
+    assert(lm:find("into[#into + 1] = PopupKit.headerButton{ text = a.label, icon = a.icon,\n            font_size = 16, enabled = enabled,", 1, true),
         "a header button ignores enabled_when")
 end)
 

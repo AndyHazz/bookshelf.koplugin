@@ -848,24 +848,28 @@ end
 
 -- _renderHeaderButtons() -> the screen's own actions (config.header_actions:
 -- an array, or a function returning one, of { label, icon, on_tap,
--- enabled_when, on_when }) as the kit's header buttons, or nil. on_when:
--- black while it is the choice in use.
+-- enabled_when, on_when, at_left }) as the kit's header buttons, or nil.
+-- on_when: black while it is the choice in use. at_left: at the strip's
+-- left end when nothing else is there (no chips, no search beside it), so
+-- a strip of actions alone is not all at one end (the Theme library's Add
+-- theme pack, maintainer). Returns the right-hand buttons, then the left.
 function LibraryModal:_renderHeaderButtons()
     local actions = self.config.header_actions
     if type(actions) == "function" then actions = actions(self.active_tab) end
     if not actions or #actions == 0 then return nil end
-    local btns = {}
+    local btns, left = {}, {}
     for _i, a in ipairs(actions) do
         local enabled = true
         if a.enabled_when then enabled = a.enabled_when() end
-        btns[#btns + 1] = PopupKit.headerButton{ text = a.label, icon = a.icon,
+        local into = a.at_left and left or btns
+        into[#into + 1] = PopupKit.headerButton{ text = a.label, icon = a.icon,
             font_size = 16, enabled = enabled, inverted = a.on_when and a.on_when() or false,
             on_tap = function()
                 self:_dismissKeyboard()
                 a.on_tap()
             end }
     end
-    return btns
+    return btns, (#left > 0) and left or nil
 end
 
 -- _renderStrip(cw) -> the grey strip under the title: the search box, then
@@ -873,7 +877,21 @@ end
 -- don't fit), edge to edge with the kit's shadow. nil when it would be empty.
 function LibraryModal:_renderStrip(cw)
     local chips = self:_renderChipStrip(cw)
-    local buttons = self:_renderHeaderButtons()
+    local buttons, at_left = self:_renderHeaderButtons()
+    if at_left then
+        if chips or not self.config.no_search then
+            -- Something is at the left already: they join the others.
+            for i, b in ipairs(at_left) do table.insert(buttons, i, b) end
+        else
+            local row = require("ui/widget/horizontalgroup"):new{ align = "center" }
+            for i, b in ipairs(at_left) do
+                if i > 1 then row[#row + 1] = HorizontalSpan:new{ width = Space.px(10) } end
+                row[#row + 1] = b
+            end
+            return PopupKit.headerRow{ width = self.modal_w, inset = MARGIN,
+                left = row, buttons = buttons, pad_top = MARGIN, pad_bottom = MARGIN }
+        end
+    end
     local search
     if not self.config.no_search then
         -- No chips: the header buttons share the search row, while that

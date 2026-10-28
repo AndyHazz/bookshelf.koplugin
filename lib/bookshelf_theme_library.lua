@@ -594,12 +594,16 @@ function TL.show(opts)
         -- Add theme pack and Reset: the screen's own actions, on the strip
         -- under the title (STYLE.md); the footer keeps Close.
         header_actions = {
-            { key = "add", label = tp.addThemeLabel(), on_tap = function() tp.showAddThemeInfo() end },
+            -- At the left: with no chips, both at the right left the strip
+            -- looking half empty (maintainer).
+            { key = "add", label = tp.addThemeLabel(), at_left = true,
+              on_tap = function() tp.showAddThemeInfo() end },
             -- The theme marked, whatever page is shown: the one in use where
             -- the picker was opened from (maintainer, 2026-10-09). Greyed for
             -- Custom theme and Default theme, and for a theme as original;
             -- asked first, as the long-press asks (TP.confirmReset).
-            { key = "reset", label = _("Reset"),
+            -- Says what it resets, now there is room (maintainer).
+            { key = "reset", label = _("Reset edited theme"),
               enabled_when = function() return TL.canReset(TL.marked(self.items, opts.current())) end,
               on_tap = function()
                   local item = TL.marked(self.items, opts.current())

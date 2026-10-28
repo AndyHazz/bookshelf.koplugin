@@ -528,7 +528,8 @@ end
 function BorderOverlay:paintTo(bb, x, y)
     local t = self.thickness
     if self.ring_only then
-        bb:paintBorder(x - t, y - t, self.width + 2 * t, self.height + 2 * t, t,
+        -- Colour-safe, as the ring below: the selection colour is a pick.
+        _paintColorSafeBorder(bb, x - t, y - t, self.width + 2 * t, self.height + 2 * t, t,
                        self.color or _selectionColor(), (self.radius or 0) + t)
         return
     end

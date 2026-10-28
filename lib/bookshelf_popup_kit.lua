@@ -365,7 +365,7 @@ local function paintCard(frame, bb, x, y, outline)
         local d = 2 * s
         local bg = frame.background
         bb:paintRoundedRect(x, y, sz.w, sz.h, Kit.SHADOW, r)
-        bb:paintRoundedRect(x + d, y + d, sz.w - d, sz.h - d, bg, r)
+        require("lib/bookshelf_color").paintRoundedRect(bb, x + d, y + d, sz.w - d, sz.h - d, bg, r)
         frame.background = nil
         FrameContainer.paintTo(frame, bb, x + d, y + d)
         frame.background = bg

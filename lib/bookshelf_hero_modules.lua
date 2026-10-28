@@ -936,6 +936,7 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
             padding     = 0,
             frame,
         }
+        require("lib/bookshelf_color").colourBorder(outer)
     end
     local cell = InputContainer:new{ dimen = outer:getSize(), outer }
     if Device:isTouchDevice() then
@@ -1046,6 +1047,7 @@ function HeroModules._emptyState(bw, content_w, hero_h)
             },
         },
     }
+    require("lib/bookshelf_color").colourBorder(frame)
     local cell = InputContainer:new{ dimen = frame:getSize(), frame }
     if Device:isTouchDevice() then
         cell.ges_events = {

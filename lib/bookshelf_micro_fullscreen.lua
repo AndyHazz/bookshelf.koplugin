@@ -146,8 +146,9 @@ local function _closeGlyph(bw, button_dimen, reserve_ring, focused, exact)
     function XWidget:paintTo(b, x, y)
         local last = xspan - stroke
         for t = 0, last do
-            b:paintRect(x + t,        y + t, stroke, stroke, ink)
-            b:paintRect(x + last - t, y + t, stroke, stroke, ink)
+            -- Through Color.paintRect: the ink is the Panel text pick.
+            require("lib/bookshelf_color").paintRect(b, x + t,        y + t, stroke, stroke, ink)
+            require("lib/bookshelf_color").paintRect(b, x + last - t, y + t, stroke, stroke, ink)
         end
     end
     -- Focus ring (border-swap, dimen-constant — matches the grid cells). Reserved

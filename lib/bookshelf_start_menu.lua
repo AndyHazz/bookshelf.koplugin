@@ -1456,8 +1456,9 @@ function StartMenu:_build()
             -- Clamp so every square stays inside the art box.
             local last = xspan - stroke
             for t = 0, last do
-                bb:paintRect(x + t, y + t, stroke, stroke, ink)  -- ↘ diagonal
-                bb:paintRect(x + last - t, y + t, stroke, stroke, ink)  -- ↙
+                -- Through Color.paintRect: the ink is the Panel text pick.
+                require("lib/bookshelf_color").paintRect(bb, x + t, y + t, stroke, stroke, ink)  -- ↘ diagonal
+                require("lib/bookshelf_color").paintRect(bb, x + last - t, y + t, stroke, stroke, ink)  -- ↙
             end
         end
         local glyph = XWidget:new{}

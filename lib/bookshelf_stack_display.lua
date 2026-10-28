@@ -1184,8 +1184,10 @@ function M.collageBB(filepaths, width, height)
         local stroke = math.max(1, Screen:scaleBySize(1))
         local edge = cardBorder()
         pcall(function()
-            out:paintRect(hw - math.floor(stroke / 2), 0, stroke, height, edge)
-            out:paintRect(0, hh - math.floor(stroke / 2), width, stroke, edge)
+            -- The Border color pick: through Color.paintRect.
+            local paint = require("lib/bookshelf_color").paintRect
+            paint(out, hw - math.floor(stroke / 2), 0, stroke, height, edge)
+            paint(out, 0, hh - math.floor(stroke / 2), width, stroke, edge)
         end)
     end
 

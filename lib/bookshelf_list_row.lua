@@ -2450,6 +2450,8 @@ function ListRow.new(opts)
         padding    = card_pad,
         group,
     }
+    -- Its border in the row ink on every colour screen (Color.colourBorder).
+    require("lib/bookshelf_color").colourBorder(content)
     -- No ring. Selection is the tint (focus) and the checkbox (bulk); a
     -- rectangle round the row as well was too much ink for a soft state,
     -- competed with the hairline rules, and read as a box round the PAIR on a

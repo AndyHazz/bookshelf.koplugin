@@ -8961,11 +8961,13 @@ function BookshelfWidget:_buildMicroModuleIcon(focused, frame_width)
     function GridWidget:getSize() return Geom:new{ w = art_size, h = art_size } end
     function GridWidget:paintTo(bb, x, y)
         local oy = y + math.floor((art_size - H) / 2)  -- centre the ink like the bars
+        -- Through Color.paintRect, as the bars beside it: the ink is a pick.
+        local paint = require("lib/bookshelf_color").paintRect
         local function box(rx, ry)
-            bb:paintRect(rx, ry, cw, t, grid_ink)          -- top
-            bb:paintRect(rx, ry + ch - t, cw, t, grid_ink) -- bottom
-            bb:paintRect(rx, ry, t, ch, grid_ink)          -- left
-            bb:paintRect(rx + cw - t, ry, t, ch, grid_ink) -- right
+            paint(bb, rx, ry, cw, t, grid_ink)          -- top
+            paint(bb, rx, ry + ch - t, cw, t, grid_ink) -- bottom
+            paint(bb, rx, ry, t, ch, grid_ink)          -- left
+            paint(bb, rx + cw - t, ry, t, ch, grid_ink) -- right
         end
         for r = 0, 1 do
             for c = 0, 1 do

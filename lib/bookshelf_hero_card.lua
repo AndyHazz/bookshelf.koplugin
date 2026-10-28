@@ -217,7 +217,8 @@ function HeroCard:init()
 end
 
 function HeroCard:_renderEmpty()
-    return FrameContainer:new{
+    -- Its border in the ink on every colour screen (Color.colourBorder).
+    return require("lib/bookshelf_color").colourBorder(FrameContainer:new{
         width      = self.width,
         height     = self.height,
         bordersize = Size.border.thin,
@@ -228,14 +229,14 @@ function HeroCard:_renderEmpty()
         CenterContainer:new{
             dimen = Geom:new{ w = self.width, h = self.height },
             (self.has_wallpaper and TransparentTextBox or TextBoxWidget):new{
-                text      = "Welcome to Bookshelf · Tap a cover to start reading",
+                text      = require("lib/bookshelf_i18n").gettext("Welcome to Bookshelf · Tap a cover to start reading"),
                 face      = fontFace("infofont", 14),
                 fgcolor   = _ink(),
                 width     = self.width - Space.padding.large * 2,
                 alignment = "center",
             },
         },
-    }
+    })
 end
 
 -- Resolve a region's face: honour the user's saved font_face when set,

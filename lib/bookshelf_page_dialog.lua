@@ -152,6 +152,25 @@ function PageDialog:refresh()
     end)
 end
 
+-- over(tail) -> a LibraryModal config.over: a picker opened from this page
+-- opens as a page of it, in its frame, titled "title > tail", its X closing
+-- the whole dialog.
+function PageDialog:over(tail)
+    local dialog = self
+    local crumbs = { self.title }
+    for _i, t in ipairs(tail or {}) do crumbs[#crumbs + 1] = t end
+    return {
+        rect = function()
+            local d = dialog.frame.dimen
+            if not (d and d.x) then return nil end
+            local size = dialog.frame:getSize()
+            return { x = d.x, y = d.y, w = size.w, h = size.h }
+        end,
+        crumbs = table.concat(crumbs, " \xE2\x80\xBA "),
+        on_exit = function() dialog:_dismiss() end,
+    }
+end
+
 function PageDialog:_dismiss()
     UIManager:close(self)
     if self.on_close then self.on_close() end

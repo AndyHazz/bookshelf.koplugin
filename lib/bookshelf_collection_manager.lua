@@ -463,6 +463,9 @@ function CollectionManager.show(opts)
                 subtitle = _("Remove from all") .. " \xE2\x88\x92"  -- −
             elseif baseline == "some" then
                 subtitle = _("Mixed")
+            elseif baseline == "all" then
+                -- Black for "in it" needs saying: it is not a pick.
+                subtitle = _("All in it")
             end
         end
         return PickerCell.render({
@@ -528,9 +531,8 @@ function CollectionManager.show(opts)
     local title, intro
     if bulk_mode then
         title = string.format(_("Collections \xC2\xB7 %d books"), opts.paths and #opts.paths or 0)
-        intro = _("Tap a collection to cycle through: no change, "
-            .. "add to all, remove from all. Save returns the diff "
-            .. "to the bulk menu.")
+        intro = _("Tap a collection to add the books to it, again to "
+            .. "remove them from it, and again to leave it as it is.")
     elseif book_mode then
         title = _("Edit collections")
     else
@@ -568,6 +570,8 @@ function CollectionManager.show(opts)
         cell_long_tap  = holdMenu,
         header_actions = header_actions,
         footer_rows    = footer_rows,
+        -- Opened from a page (the bulk menu): a page of it.
+        over           = opts.over,
         on_closed      = function()
             if opts.on_close then opts.on_close() end
         end,

@@ -380,7 +380,7 @@ function LibraryModal:onTapDismissKeyboard(_arg, ges)
             and ges.pos:notIntersectWith(self.frame.dimen) then
         -- A page of the menu underneath: outside it is going back, as the
         -- chevron does.
-        local back = self.config.over and self:_closeOnlyAction()
+        local back = self.config.over and self:_backAction()
         if back then back.on_tap() else UIManager:close(self) end
         return true
     end
@@ -450,7 +450,7 @@ function LibraryModal:_renderTitleBar(content_width, modal_w)
     local over = self.config.over
     if over then
         -- The menu's own title bar: its breadcrumb, back, and X.
-        local back = self:_closeOnlyAction()
+        local back = self:_backAction()
         return require("ui/widget/titlebar"):new{
             width            = modal_w,
             title            = over.crumbs or self.config.title,
@@ -542,6 +542,20 @@ function LibraryModal:_closeOnlyAction()
     end
     if only and (only.key == "close" or only.label == _("Close")
             or (self.config.over and only.label == _("Back"))) then return only end
+    return nil
+end
+
+-- _backAction() -> what going back a page runs (config.over): the footer's
+-- lone Close or Back, else its Cancel (a Cancel | Save picker: back leaves
+-- what was picked, as Cancel does).
+function LibraryModal:_backAction()
+    local only = self:_closeOnlyAction()
+    if only then return only end
+    for _i, row in ipairs(self.config.footer_rows or { self.config.footer_actions or {} }) do
+        for _j, a in ipairs(row) do
+            if a.label == _("Cancel") then return a end
+        end
+    end
     return nil
 end
 
@@ -1354,8 +1368,6 @@ function LibraryModal:refresh()
     -- (no footer) the frame's own bottom padding alone.
     if footer then
         table.insert(body, VerticalSpan:new{ width = MARGIN })
-        -- Edge to edge, down to the frame's bottom border.
-        table.insert(body, footer)
         self.frame.padding_bottom = 0
     else
         -- A little over MARGIN: the gap above the row also holds the grid's
@@ -1363,14 +1375,17 @@ function LibraryModal:refresh()
         self.frame.padding_bottom = MARGIN + math.floor(MARGIN / 2)
     end
 
-    -- A page of the menu underneath covers all of it.
+    -- A page of the menu underneath covers all of it, the spare height above
+    -- the footer so the footer still closes the frame.
     if self._over_rect then
         local pad = self.frame.padding_bottom + 2 * self.frame.bordersize
-        local short = self._over_rect.h - (body:getSize().h + pad)
+        local short = self._over_rect.h - (body:getSize().h + (footer and footer:getSize().h or 0) + pad)
         if short > 0 then
             body = VerticalGroup:new{ align = "left", body, VerticalSpan:new{ width = short } }
         end
     end
+    -- Edge to edge, down to the frame's bottom border.
+    if footer then table.insert(body, footer) end
     self.frame[1] = body
     self:_repaintIfResized(old)
     -- The grid highlights its own focused cell inline (cell_renderer reads

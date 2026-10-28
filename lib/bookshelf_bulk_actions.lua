@@ -79,6 +79,7 @@ function BulkActions.show(opts)
             local CollectionManager = require("lib/bookshelf_collection_manager")
             CollectionManager.show{
                 bulk           = true,
+                over           = dialog and dialog:over({ _("Collections") }),
                 paths          = selection:paths(),
                 bw             = bw,
                 initial_add    = draft.collections_add,

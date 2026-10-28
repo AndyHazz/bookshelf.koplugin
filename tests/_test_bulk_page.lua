@@ -29,4 +29,16 @@ t.test("a segmented control un-picks its active cell only with allow_none", func
     assert(c == 2, "the page's segmented block does not pass allow_none (both forms)")
 end)
 
+t.test("the bulk Collections picker opens as a page of the bulk menu", function()
+    local s = read("lib/bookshelf_bulk_actions.lua")
+    assert(s:find('over           = dialog and dialog:over({ _("Collections") }),', 1, true),
+        "the picker is not opened over the page")
+    local cm = read("lib/bookshelf_collection_manager.lua")
+    assert(cm:find("over           = opts.over,", 1, true), "the collection manager drops over")
+    assert(not cm:find("to the bulk menu.\")", 1, true), "the hint still talks about a diff")
+    local lm = read("lib/bookshelf_library_modal.lua")
+    assert(lm:find("local back = self:_backAction()", 1, true),
+        "back on a Cancel | Save page does nothing")
+end)
+
 t.done()

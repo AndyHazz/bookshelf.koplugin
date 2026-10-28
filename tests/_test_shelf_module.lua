@@ -173,7 +173,7 @@ t.test("a module's own shelf is edited without the shelf menu's controls", funct
     assert(cut, "arrows, Delete, Copy, Move to and + still shown for a module's shelf")
     -- Edit label is the middle of the first row; the actions the last.
     local first = ed:match("local buttons = {\n(.-)%-%- Row 1a: source")
-    assert(first and first:find('_("Edit label")', 1, true))
+    assert(first and first:find('_("Edit shelf name")', 1, true))
 end)
 
 t.test("a module's shelf's source list says what it is choosing", function()

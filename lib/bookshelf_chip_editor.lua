@@ -1527,7 +1527,7 @@ function Editor:editTab(tab_id, opts)
                     -- Title bar already shows the live label ("Editing: ..."),
                     -- so the button just describes its action -- no need to
                     -- repeat the label text.
-                    text     = _("Edit label"),
+                    text     = _("Edit shelf name"),
                     callback = open_label_dialog,
                 },
                 {

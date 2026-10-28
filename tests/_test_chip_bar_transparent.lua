@@ -29,13 +29,17 @@ t.test("the chip bar drops its ground when the row is on", function()
         "Transparent does nothing")
 end)
 
-t.test("Shelf menu background offers it: a palette tile, a greyscale button, through the seam", function()
+t.test("Shelf menu background offers it: a palette tile, on every screen, through the seam", function()
     -- A choice in the picker, not a row of its own (maintainer, 2026-10-09).
     assert(not st:find('text = _("Transparent shelf menu")', 1, true), "Transparent is a row again")
     local row = st:match('Shelf menu background"%) %.%. ": " %.%. _%("Transparent"%)(.-)hold_callback')
     assert(row, "the Shelf menu background row does not say Transparent when it is")
     assert(row:find("special_tile = {", 1, true) and row:find('label = _("Transparent")', 1, true), "no Transparent tile in the palette")
-    assert(row:find("extra_button = {", 1, true) and row:find("no_change = true", 1, true), "no Transparent button in the greyscale dialog")
+    -- A greyscale screen picks from the palette too (its greys), so the same
+    -- tile serves it.
+    local picker = st:match("function Settings:_pickColor%(raw_key, field, default_pct, title,(.-)\nend\n")
+    assert(picker and picker:find("wood and wood.special_tile or nil, nil,\n            { greys = true", 1, true),
+        "no Transparent tile on a greyscale screen")
     assert(row:find("TP.partSave(TRANSPARENT_KEY, true)", 1, true), "the tile does not set it through the seam")
     assert(row:find("on_colour = off,", 1, true) and row:find("on_default = off,", 1, true),
         "picking a colour or Default leaves the bar out")

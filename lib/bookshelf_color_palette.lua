@@ -49,6 +49,21 @@ local PALETTE = {
     { "#87CEEB", "#98FB98", "#DDA0DD", "#B0E0E6", "#FFB6C1" },
 }
 
+-- A greyscale screen's palette (greys): fifteen shades, white to black, light
+-- to dark, as they LOOK on screen. One step (about 18) is wider than a PW5's
+-- grey band (16), so no two chips show the same grey. In place of the "% black"
+-- dialog, where it was hard to tell in night mode whether the number was the
+-- darkness or the brightness (maintainer).
+local GREYS = {}
+do
+    local row
+    for i = 0, 14 do
+        if i % 5 == 0 then row = {}; GREYS[#GREYS + 1] = row end
+        local v = math.floor(255 - 255 * i / 14 + 0.5)
+        row[#row + 1] = string.format("#%02X%02X%02X", v, v, v)
+    end
+end
+
 local SWATCH_SIDE  = Screen:scaleBySize(60)
 local SWATCH_GAP   = Space.px(8)
 
@@ -59,6 +74,9 @@ local Swatch = WidgetContainer:extend{
     hex      = nil,
     selected = false,
     side     = nil,
+    -- seen: the swatch shows its grey as it looks on screen, in night mode
+    -- too (painted pre-inverted on an inverted buffer).
+    seen     = false,
 }
 
 function Swatch:init()
@@ -84,7 +102,12 @@ function Swatch:paintTo(bb, x, y)
         self.selected and Blitbuffer.COLOR_BLACK or Kit.STRIP_BG, r)
     local m = Space.px(6)
     local inner = side - 2 * m
-    bb:paintRoundedRectRGB32(x + m, y + m, inner, inner, self._fill, math.max(0, r - Space.px(2)))
+    local fill = self._fill
+    if self.seen and bb.getInverse and bb:getInverse() == 1 then
+        local v = 0xFF - fill:getR()
+        fill = Blitbuffer.ColorRGB32(v, v, v, 0xFF)
+    end
+    bb:paintRoundedRectRGB32(x + m, y + m, inner, inner, fill, math.max(0, r - Space.px(2)))
     -- A hairline round the colour, so white and the palest shades read on
     -- the grey card.
     bb:paintBorder(x + m, y + m, inner, inner, Size.border.thin, Blitbuffer.COLOR_GRAY,
@@ -173,8 +196,8 @@ local function nullTile(label, selected, side, on_tap, image_path, fit)
 end
 
 -- swatchTile: InputContainer wrapping a Swatch for gesture handling.
-local function swatchTile(hex, selected, side, on_tap)
-    local swatch = Swatch:new{ hex = hex, selected = selected, side = side }
+local function swatchTile(hex, selected, side, on_tap, seen)
+    local swatch = Swatch:new{ hex = hex, selected = selected, side = side, seen = seen }
     local container = InputContainer:new{
         dimen = Geom:new{ w = side, h = side },
         swatch,
@@ -239,6 +262,13 @@ local ColorPaletteWidget = FocusManager:extend{
     -- a fixed color rather than off). Used by the background-color picker
     -- as a shortcut to the page-background color.
     white_callback   = nil,
+    -- greys: a greyscale screen's picker, the GREYS chips and no hex field;
+    -- a tap hands apply_callback the grey as it looks ("#RRGGBB").
+    greys            = false,
+    -- anchor: where to open (MovableContainer's), below the chip bar for the
+    -- selected-chip colours so the strip being coloured stays in view;
+    -- centred when nil.
+    anchor           = nil,
 }
 
 function ColorPaletteWidget:init()
@@ -320,7 +350,21 @@ function ColorPaletteWidget:update()
     -- VerticalSpan uses `width` as its extent along the group's axis — using
     -- `height` gives a zero-extent span, collapsing the row gap.
     local palette_vgroup = VerticalGroup:new{ align = "center" }
-    for row_idx, row_hexes in ipairs(PALETTE) do
+    local rows = self.greys and GREYS or PALETTE
+    -- Greys: the chip nearest the current shade is the one marked (a value
+    -- set with the old % dialog need not be one of the fifteen).
+    local selected_hex = self.selected_hex
+    if self.greys and selected_hex then
+        local want, best, dist = tonumber(selected_hex:sub(2, 3), 16) or 0, nil, math.huge
+        for _r, row in ipairs(GREYS) do
+            for _c, hex in ipairs(row) do
+                local d = math.abs((tonumber(hex:sub(2, 3), 16) or 0) - want)
+                if d < dist then best, dist = hex, d end
+            end
+        end
+        selected_hex = (dist <= 9) and best or nil
+    end
+    for row_idx, row_hexes in ipairs(rows) do
         local hgroup = HorizontalGroup:new{ align = "center" }
         -- Prepend the null tile at grid position [0,0] of the first row only.
         if row_idx == 1 and self.null_tile then
@@ -339,13 +383,13 @@ function ColorPaletteWidget:update()
             if col_idx > 1 then
                 hgroup[#hgroup + 1] = HorizontalSpan:new{ width = gap }
             end
-            local is_selected = (hex == self.selected_hex)
+            local is_selected = (hex == selected_hex)
             hgroup[#hgroup + 1] = swatchTile(hex, is_selected, side, function(tapped_hex)
                 self.selected_hex = tapped_hex
                 if self.special_tile then self.special_tile.selected = false end
                 if self.apply_callback then self.apply_callback(tapped_hex) end
                 self:update()
-            end)
+            end, self.greys)
         end
         if row_idx > 1 then
             palette_vgroup[#palette_vgroup + 1] = VerticalSpan:new{ width = gap }
@@ -474,20 +518,35 @@ function ColorPaletteWidget:update()
     local vgroup = VerticalGroup:new{
         align = "center",
         title_bar,
-        VerticalSpan:new{ width = Space.padding.large },
-        LeftContainer:new{
+    }
+    -- Greys: no hex field (a grey is picked by eye); the plank's wood tile
+    -- alone, when there is one.
+    if self.greys then
+        hex_row = nil
+        if self.special_tile then
+            local st = self.special_tile
+            hex_row = HorizontalGroup:new{ align = "center",
+                HorizontalSpan:new{ width = Space.padding.fullscreen },
+                nullTile(st.label, st.selected, side, function() st.on_tap() end, st.image, true) }
+        end
+    end
+    if hex_row then
+        vgroup[#vgroup + 1] = VerticalSpan:new{ width = Space.padding.large }
+        vgroup[#vgroup + 1] = LeftContainer:new{
             dimen = Geom:new{ w = iw, h = Screen:scaleBySize(60) },
             hex_row,
-        },
+        }
+    end
+    for _i, w in ipairs({
         VerticalSpan:new{ width = Space.padding.fullscreen },
         CenterContainer:new{
-            dimen = Geom:new{ w = iw, h = side * 5 + gap * 4 },
+            dimen = Geom:new{ w = iw, h = side * #rows + gap * (#rows - 1) },
             palette_vgroup,
         },
         VerticalSpan:new{ width = Space.padding.fullscreen },
         footer_separator,
         footer_row,
-    }
+    }) do vgroup[#vgroup + 1] = w end
 
     -- Match the preset-library modal's outer frame (preset_manager_modal.lua:580)
     -- so the picker reads as part of the same dialog family — Size.border.thin
@@ -501,7 +560,7 @@ function ColorPaletteWidget:update()
         vgroup,
     }
 
-    local movable = MovableContainer:new{ frame }
+    local movable = MovableContainer:new{ frame, anchor = self.anchor }
 
     -- CenterContainer dimen is set once at construction and never reassigned
     -- post-paint (see feedback_centercontainer_dimen.md).
@@ -569,7 +628,9 @@ end
 -- before the hex field ("[tile] or # RRGGBB") that is not a colour: the
 -- plank's built-in wood. Tapping
 -- it runs on_tap and closes; it shows selected while `selected` is true.
-local function showColorPicker(bookshelf, title, current_hex, default_hex, on_apply, on_default, on_revert, touchmenu_instance, null_tile_label, white_hex, special_tile, hex_text)
+-- opts (optional): { greys = true } -- a greyscale screen's picker (GREYS);
+-- { anchor = fn } -- open there rather than centred.
+local function showColorPicker(bookshelf, title, current_hex, default_hex, on_apply, on_default, on_revert, touchmenu_instance, null_tile_label, white_hex, special_tile, hex_text, opts)
     local restoreMenu = bookshelf:hideMenu(touchmenu_instance)
 
     local closed = false
@@ -584,6 +645,8 @@ local function showColorPicker(bookshelf, title, current_hex, default_hex, on_ap
         title            = title or _("Pick a color"),
         selected_hex     = current_hex,
         hex_text         = hex_text,
+        greys            = (opts and opts.greys) and true or false,
+        anchor           = opts and opts.anchor or nil,
         apply_callback   = on_apply,
         default_callback = function()
             UIManager:close(widget, "ui")
@@ -628,8 +691,8 @@ end
 
 local M = {}
 function M.attach(Bookshelf)
-    function Bookshelf:showColorPicker(title, current_hex, default_hex, on_apply, on_default, on_revert, touchmenu_instance, null_tile_label, white_hex, special_tile, hex_text)
-        showColorPicker(self, title, current_hex, default_hex, on_apply, on_default, on_revert, touchmenu_instance, null_tile_label, white_hex, special_tile, hex_text)
+    function Bookshelf:showColorPicker(title, current_hex, default_hex, on_apply, on_default, on_revert, touchmenu_instance, null_tile_label, white_hex, special_tile, hex_text, opts)
+        showColorPicker(self, title, current_hex, default_hex, on_apply, on_default, on_revert, touchmenu_instance, null_tile_label, white_hex, special_tile, hex_text, opts)
     end
 end
 return M

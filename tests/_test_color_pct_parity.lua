@@ -132,8 +132,9 @@ end)
 t.test("the picker's title, its palette and the rows ask one question of the screen", function()
     local picker = src:match("function Settings:_pickColor%(raw_key, field, default_pct, title,(.-)\nend\n")
     assert(picker:find("local colour = _colorScreen()", 1, true), "the picker asks the screen its own way")
-    assert(picker:find("if type(title) == \"table\" then title = colour and title[1] or title[2] end", 1, true),
-        "the title does not follow the palette")
+    -- Both screens pick from the palette now, so both take the name.
+    assert(picker:find("if type(title) == \"table\" then title = title[1] end", 1, true),
+        "the title is not the palette's")
     assert(picker:find("if colour then", 1, true), "the palette branch does not use the same answer")
     assert(not src:find('_pickColor%([^\n]*\n[^\n]*_%("[^"]+ %(%% black%)"%), touchmenu'),
         "a colour row still passes only a (% black) title")
@@ -149,18 +150,19 @@ t.test("an untouched colour's hex field opens on the colour its row shows", func
     local picker = src:match("function Settings:_pickColor%(raw_key, field, default_pct, title,(.-)\nend\n")
     assert(picker:find("hex_text = _shownHex(CoverProgress.rawColors()[field], raw_key)", 1, true),
         "the field is not seeded from the row's own value")
-    assert(picker:find("wood and wood.special_tile or nil, hex_text)", 1, true),
+    assert(picker:find("wood and wood.special_tile or nil, hex_text,", 1, true),
         "the seed is not passed to the palette")
     local pal = io.open("lib/bookshelf_color_palette.lua"):read("*a")
     assert(pal:find("local initial_text = self.selected_hex or self.hex_text or \"\"", 1, true),
         "the palette does not start its hex field from hex_text")
-    assert(pal:find("special_tile, hex_text)\n        showColorPicker(self, title, current_hex, default_hex, on_apply, on_default, on_revert, touchmenu_instance, null_tile_label, white_hex, special_tile, hex_text)", 1, true),
+    assert(pal:find("special_tile, hex_text, opts)\n        showColorPicker(self, title, current_hex, default_hex, on_apply, on_default, on_revert, touchmenu_instance, null_tile_label, white_hex, special_tile, hex_text, opts)", 1, true),
         "the installed method drops hex_text")
     -- Seeding the field must not mark a swatch: only selected_hex does.
-    assert(pal:find("local is_selected = (hex == self.selected_hex)", 1, true))
+    assert(pal:find("local selected_hex = self.selected_hex", 1, true)
+        and pal:find("local is_selected = (hex == selected_hex)", 1, true))
 end)
 
-t.test("an untouched colour's % dialog opens on what is painted, not on the row's number", function()
+t.test("an untouched colour's greys open on what is painted, not on the row's number", function()
     -- The palette got this right (above) and the greyscale dialog did not: it
     -- opened on the default_pct each row passes in, and several of those had
     -- drifted from the painted defaults. Progress bar track: dialog 25%, shelf
@@ -171,8 +173,8 @@ t.test("an untouched colour's % dialog opens on what is painted, not on the row'
         "the % dialog's default is not derived from the painted colour")
     assert(picker:find("local current = _rawToScreenPct(raw) or shown_default", 1, true),
         "an untouched colour still opens on the row's hardcoded number")
-    assert(picker:find("self:showNudgeDialog(title, current, 0, 100, shown_default,", 1, true),
-        "the dialog's Default button still offers the hardcoded number")
+    assert(picker:find("title, (not wood_on) and seenHex(current) or nil, nil,", 1, true),
+        "the greys do not open on the painted colour")
     -- The values that had drifted, through the same derivation:
     eq(pct({ grey = 0xFF }, false), 0, "the track paints white: 0% black, not 25")
     eq(pct({ grey = 0xEE }, false), 7, "the module background paints 0xEE: 7%, not 0")

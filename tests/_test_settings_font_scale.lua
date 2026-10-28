@@ -143,6 +143,13 @@ local function makePlugin(opts)
     plugin.hideMenu = function(self, _touchmenu_instance)
         return function() self.restore_count = self.restore_count + 1 end
     end
+    -- The colour palette (colour and greyscale screens alike): the call is
+    -- recorded, its callbacks driven by the tests.
+    plugin.showColorPicker = function(self, title, current_hex, default_hex, on_apply, on_default,
+                                      on_revert, menu, null_label, white_hex, special_tile, hex_text, popts)
+        self.picker = { title = title, current = current_hex, apply = on_apply, default = on_default,
+                        revert = on_revert, opts = popts or {} }
+    end
     plugin._openReaderStartMenu = function(self)
         self.reader_open_count = self.reader_open_count + 1
         StartMenuStub._live = makePreview()
@@ -513,11 +520,8 @@ local function openChipColourDialog(row_label)
     end
     assert(row, "no colour row matching " .. row_label)
     row.callback(tm)
-    local dialog
-    for _, c in ipairs(ui_calls) do
-        if c.op == "show" and c.w and c.w.buttons then dialog = c.w end
-    end
-    assert(dialog, row_label .. ": no nudge dialog was shown")
+    local dialog = Settings._plugin.picker
+    assert(dialog, row_label .. ": no colour picker was shown")
     return dialog, bw, row, tm
 end
 
@@ -525,7 +529,7 @@ for _, row_label in ipairs({ "Selected shelf background", "Selected shelf text" 
     t.test(row_label .. ": nudging recolours the strip, never rebuilds the shelf",
     function()
         local dialog, bw = openChipColourDialog(row_label)
-        findButton(dialog, "+10").callback()
+        dialog.apply("#808080")
         assert(bw._chip_bar.recolour_count > 0,
             "the strip must be rebuilt in place so the new colour is painted")
         eq(bw.rebuild_count, 0,
@@ -534,7 +538,7 @@ for _, row_label in ipairs({ "Selected shelf background", "Selected shelf text" 
 
     t.test(row_label .. ": the refresh is scoped to the strip's rect", function()
         local dialog, _bw = openChipColourDialog(row_label)
-        findButton(dialog, "+10").callback()
+        dialog.apply("#808080")
         local scoped
         for _, c in ipairs(ui_calls) do
             if c.op == "setDirty" and type(c.kind) == "function" then
@@ -548,9 +552,9 @@ for _, row_label in ipairs({ "Selected shelf background", "Selected shelf text" 
 
     t.test(row_label .. ": the dialog opens below the strip, not over it", function()
         local dialog = openChipColourDialog(row_label)
-        assert(type(dialog.anchor) == "function",
-            "dialog must anchor to the chip bar rather than centring")
-        local rect, prefers_pop_down = dialog.anchor()
+        assert(type(dialog.opts.anchor) == "function",
+            "the picker must anchor to the chip bar rather than centring")
+        local rect, prefers_pop_down = dialog.opts.anchor()
         eq(rect, { x = CHIP_RECT.x, y = CHIP_RECT.y, w = CHIP_RECT.w, h = CHIP_RECT.h })
         assert(prefers_pop_down == true,
             "must ask MovableContainer to open BELOW -- above the bar is the bar")
@@ -593,11 +597,7 @@ t.test("a colour nudge with no live chip bar falls back to a shelf rebuild", fun
         end
     end
     row.callback(makeTouchMenu())
-    local dialog
-    for _, c in ipairs(ui_calls) do
-        if c.op == "show" and c.w and c.w.buttons then dialog = c.w end
-    end
-    findButton(dialog, "+10").callback()
+    Settings._plugin.picker.apply("#808080")
     assert(bw.rebuild_count > 0,
         "with nothing to recolour in place, the shelf rebuild is the fallback")
 end)

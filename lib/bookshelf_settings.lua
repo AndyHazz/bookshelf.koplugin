@@ -2387,11 +2387,11 @@ end
 -- partRestore } in place of the theme's, for a colour kept elsewhere.
 -- wood.on_done (optional): runs once when the dialog closes, however, and the
 -- menu is then left alone (the caller keeps it hidden): the palette is handed
--- a stand-in menu whose refresh is on_done, the % dialog an on_close.
+-- a stand-in menu whose refresh is on_done.
 -- wood (optional, the plank only): { on_colour = fn, revert = fn } -- picking
 -- a colour makes the plank the colour (on_colour), Revert restores the plank
--- that was there. special_tile / extra_button (a palette tile, a button in
--- the greyscale dialog) are still passed through when given; on_default runs
+-- that was there. special_tile (a palette tile: Transparent) is passed
+-- through when given, on colour and greyscale screens alike; on_default runs
 -- when Default is chosen (Shelf menu background: Default is the bar again).
 function Settings:_pickColor(raw_key, field, default_pct, title,
                              touchmenu_instance, refresh, anchor, wood)
@@ -2412,9 +2412,6 @@ function Settings:_pickColor(raw_key, field, default_pct, title,
             end
             menu_for_dialog = { updateItems = on_done }
         end
-        -- The % dialog closes through on_done instead, and is given no menu.
-        local nudge_menu = touchmenu_instance
-        if on_done then nudge_menu = nil end
         -- Suffix routes day vs night-mode storage to separate keys so
         -- editing in night mode doesn't clobber the user's day colors
         -- and vice versa. Mirrors CoverProgress.resolvedColors().
@@ -2430,7 +2427,8 @@ function Settings:_pickColor(raw_key, field, default_pct, title,
         local before   = TP.partSnapshot(key)
 
         local colour = _colorScreen()
-        if type(title) == "table" then title = colour and title[1] or title[2] end
+        -- The name: no "(% black)" now a greyscale screen picks from chips too.
+        if type(title) == "table" then title = title[1] end
         if colour then
             -- The night slot is stored PRE-INVERTED, for a frame that flips it
             -- (the "% black on screen" dialog below does the same through
@@ -2470,43 +2468,50 @@ function Settings:_pickColor(raw_key, field, default_pct, title,
                     if wood and wood.revert then wood.revert() end
                     refresh()
                 end,
-                menu_for_dialog, nil, nil, wood and wood.special_tile or nil, hex_text)
+                menu_for_dialog, nil, nil, wood and wood.special_tile or nil, hex_text,
+            { anchor = anchor })
             return
         end
 
-        -- Nudge dialog speaks in "% black on screen". _byteToScreenPct
-        -- handles the inversion in night mode so the user picks what
-        -- they want to SEE; _screenPctToByte does the inverse when we
-        -- write back, so the paint byte stored is whatever produces
-        -- that on-screen result through the framework's render path.
+        -- A greyscale screen: the same palette, its chips the greys from
+        -- white to black as they LOOK on screen (the palette's greys mode),
+        -- in place of the "% black" dialog, whose number was hard to read the
+        -- right way round in night mode (darkness, or brightness?). It hands
+        -- back the grey as seen; _screenPctToByte stores what paints it,
+        -- night slot included, as the dialog did.
         --
-        -- Through the same derivation the ROW used to print, or the dialog
-        -- opens on a different number from the one that was tapped.
-        --
-        -- Nothing stored: open on what the shelf PAINTS, as the palette does
-        -- (its hex field above), not on the caller's default_pct. Those
-        -- numbers had drifted from the painted defaults (track 25 vs white,
-        -- module background 0 vs 0xEE), and the Default button offered the
-        -- wrong one too. default_pct stays only for the colours rawColors()
-        -- leaves nil on purpose (unset has its own meaning there) and for
-        -- keys it doesn't carry (wallpaper_bg).
+        -- Nothing stored: the chip marked is what the shelf PAINTS (as the
+        -- palette's hex field does), not the caller's default_pct, which had
+        -- drifted from the painted defaults; default_pct stays for the
+        -- colours rawColors() leaves nil on purpose and keys it lacks.
         local shown_default = _rawToScreenPct(CoverProgress.rawColors()[field]) or default_pct
         local current = _rawToScreenPct(raw) or shown_default
-        self:showNudgeDialog(title, current, 0, 100, shown_default, "%",
-            function(val)
-                TP.partSave(key, { grey = _screenPctToByte(val) })
-                -- A nudge picks a grey, so the wood goes off -- except when the
-                -- nudge is the wood button's own re-apply (wood.toggling).
-                if wood and wood.on_colour and not wood.toggling then wood.on_colour() end
+        local function seenHex(pct)
+            local v = math.floor(0xFF * (100 - pct) / 100 + 0.5)
+            return string.format("#%02X%02X%02X", v, v, v)
+        end
+        local wood_on = wood and wood.special_tile and wood.special_tile.selected
+        self._plugin:showColorPicker(
+            title, (not wood_on) and seenHex(current) or nil, nil,
+            function(seen_hex)
+                local v = tonumber(seen_hex:sub(2, 3), 16) or 0
+                local pct = math.floor((0xFF - v) * 100 / 0xFF + 0.5)
+                TP.partSave(key, { grey = _screenPctToByte(pct) })
+                if wood and wood.on_colour then wood.on_colour() end
                 refresh()
             end,
-            on_done, nil, nil, nudge_menu,
             function()
                 TP.partDelete(key)
                 if wood and wood.on_default then wood.on_default() end
                 refresh()
             end,
-            _("Default"), wood and wood.extra_button or nil, anchor)
+            function()
+                TP.partRestore(key, before)
+                if wood and wood.revert then wood.revert() end
+                refresh()
+            end,
+            menu_for_dialog, nil, nil, wood and wood.special_tile or nil, nil,
+            { greys = true, anchor = anchor })
     end
 
 -- Ornaments: where the pieces come from, and how many are installed. There is
@@ -3049,16 +3054,6 @@ function Settings:_colorsSubItems()
                                 TP.partSave(TRANSPARENT_KEY, true)
                                 markDirty()
                                 if touchmenu_instance then touchmenu_instance:updateItems() end
-                            end,
-                        },
-                        extra_button = {
-                            text_func = function()
-                                return (transparentBar() and "\xE2\x9C\x93 " or "") .. _("Transparent")
-                            end,
-                            no_change = true,
-                            callback = function()
-                                TP.partSave(TRANSPARENT_KEY, not transparentBar())
-                                markDirty()
                             end,
                         },
                     })

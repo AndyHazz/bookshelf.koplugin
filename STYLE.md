@@ -1,12 +1,16 @@
 # Popup style guide
 
-How Bookshelf's own popups look: the book popup, the library pickers
-(collections, folders, ornaments, themes, wallpapers, planks, icons,
-modules) and anything new. Stock KOReader dialogs (ButtonDialog, InputDialog,
-ConfirmBox, Menu) are left as KOReader draws them.
+How Bookshelf's own popups look: the book popup, the shelf editor and its
+pages, the library pickers (collections, folders, ornaments, themes,
+wallpapers, planks, icons, modules), the colour picker and anything new.
+Stock KOReader dialogs (ButtonDialog, InputDialog, ConfirmBox, Menu) are left
+as KOReader draws them, but a Bookshelf screen should not reach for one when
+a page or a picker below does the job.
 
-The shared pieces live in `lib/bookshelf_popup_kit.lua` (`Kit` below). Use
-them rather than drawing a control by hand, so a change lands everywhere.
+The shared pieces live in `lib/bookshelf_popup_kit.lua` (`Kit` below), the
+page blocks in `lib/bookshelf_editor_page.lua` (`Page`) and the colour-safe
+painting in `lib/bookshelf_color.lua` (`Color`). Use them rather than drawing
+a control by hand, so a change lands everywhere.
 
 ## Lines and edges
 
@@ -19,9 +23,15 @@ them rather than drawing a control by hand, so a change lands everywhere.
 - Content shares one left edge, the popup's inset.
 - A footer runs edge to edge under a full-width line, its separators the
   full height of its buttons, and closes the frame. It holds only the way
-  out: Close, Cancel and Save, Apply. Round the end buttons' corners as the
+  out: Cancel and Save, Apply. Round the end buttons' corners as the
   frame's (`frame.radius`); never clear a stock Button's background, its
   tap feedback inverts it (that crashed the PW5).
+- Close alone is not a footer: it is the X at the right of the title (a
+  thin row of one button reads as an afterthought). A stock ButtonDialog
+  gets the X with `ModuleKit.withClose`; a LibraryModal whose footer is
+  Close alone draws it there itself.
+- Rows of a stock button table are the same height; the last one is not
+  squeezed against the frame (give it the X above instead of a Close row).
 
 ## Controls
 
@@ -39,11 +49,19 @@ them rather than drawing a control by hand, so a change lands everywhere.
 - A screen's own actions (Edit, Refresh, Add, New collection, Select all,
   Reset, Help): `Kit.headerButton`, label then icon, all the same height.
   `Kit.iconButton` for an icon alone. Greyed (`enabled = false`) when they
-  can't act now.
+  can't act now; a greyed button's icon greys with its label.
 - A yes/no that only changes what is shown (Include spoilers): a checkbox
   glyph and label on `Kit.tapCell`. Not saved unless it is a real setting.
+  A saved on/off is an On | Off segmented control (`Page` segmented).
+- A number: a stepper, − value + (`Page` stepper), Auto below the minimum.
 - Hints and notes: `Kit.hintText`, grey. Never a greyed-out button used as
   a label.
+- Icons from the bundled symbols font (Private Use Area glyphs only) mark
+  what a card or row is about: Source, Filters, Sort, Shelf style, each
+  filter and grouped source, each style. The same thing has the same icon
+  everywhere it appears. The favourites mark follows the reader's
+  Favorites icon setting (heart unless they chose the star), never a fixed
+  star.
 
 ## Strips
 
@@ -62,11 +80,45 @@ them rather than drawing a control by hand, so a change lands everywhere.
   (`Kit.card`, or `Kit.cardify` on a card a picker builds itself). Black
   when selected (`Kit.invertRounded` keeps the corners), a heavy outline
   when it is the one in use and black would hide a picture.
+- A card built with `cardify` has no border: size its content without one,
+  or the card in use (a thicker border) comes out narrower than the rest.
 - A picture on a card is drawn on the card's grey, so transparent parts
   show the card and not a white box.
 - The keys' focus ring follows the card's corner.
 - Grids of actions: icon over a short label, an even grid (four columns,
   fewer when a label would need three lines). Long-press arranges them.
+- Colour chips (the colour picker) are cards too: the colour set in a grey
+  card, the picked one's card black.
+
+## Pages (the shelf editor and anything like it)
+
+- A menu inside a menu is a page of it, not a window over it: the same
+  frame, a breadcrumb title (Home › Shelf style › Theme), a back chevron at
+  the left and the X at the right that leaves the whole menu. Back on the
+  keys goes back a page.
+- A page is a list of blocks (`Page`): summary, heading, hint, chips,
+  segmented, stepper, row, option, slot. Lay a page out by what it holds,
+  not as a grid of equal buttons.
+- Say what the setting does: a summary sentence in the strip that reads the
+  result ("Newest added first, then A-Z by title"), a line under an option
+  saying what it shows, a row's value in words. No bare percentages where
+  a picture or a word will do.
+- Group by meaning under headings, a short heading close to what it heads.
+- A page fits any screen, any shape, either way round: past the room it
+  pages (‹ 2 of 3 ›), never splitting a heading from what it heads, a
+  section's heading repeated where it carries on. Squeezing controls to fit
+  one tall portrait screen is not the fix.
+- Keep pages short: a style or a group with several settings is a card on
+  its page ("Spines › Auto rows, face out: Favorites") that opens a page of
+  its own; one with a single setting has it inline instead.
+- Show only what applies: a catalogue offers no spines; a setting stored for
+  a style the source cannot show is shown as what the shelf actually draws.
+- A library picker opened from a page opens as a page too (LibraryModal
+  `config.over`), not as a window lined up over the menu, and needs no fade
+  behind it.
+- Two short controls may pair on a line (`half`); a row too narrow for its
+  label and value puts the label as a heading over the value, and a pair
+  does it together.
 
 ## Headings and text
 
@@ -77,6 +129,26 @@ them rather than drawing a control by hand, so a change lands everywhere.
   Series), stacked otherwise.
 - Counts: "1 like" and "%d likes" as two strings (ngettext is a stub).
   Source strings in American English; British only in en_GB.po.
+- A summary built of lower-case parts starts with a capital.
+
+## Colour
+
+- A picked colour is painted through `Color.paintRect`,
+  `Color.paintRoundedRect`, `Color.paintBorder`, or a frame wrapped with
+  `Color.colourBorder`. KOReader's plain calls, and FrameContainer's border,
+  keep only a colour's grey on a screen with the C blitter (colour Kobo,
+  Kindle Colorsoft), and `fill()` keeps only the grey everywhere.
+- Every colour buffer type is a colour buffer: RGB16, RGB24 (PocketBook)
+  and RGB32. A test for RGB32 alone made PocketBook cards grey.
+- Never compare a colour with nil or `==` it against a maybe-nil value:
+  test `type(c) == "nil"` first (a colour's `__eq` indexes the other side).
+- A greyscale screen picks a colour from the same picker, its chips greys
+  from white to black painted as they look (night mode too). Not a
+  "% black" number.
+- Auto text (black or white on a picked background) is whichever has the
+  more contrast (WCAG), not a half-way switch.
+- A picker opens on what is drawn now, an Auto value included, not on a
+  default number.
 
 ## Editing
 
@@ -89,3 +161,11 @@ them rather than drawing a control by hand, so a change lands everywhere.
 - Rebuild in place and refresh only the popup's own box. Opening, closing
   or backing out of a popup shouldn't flash the whole screen unless what is
   underneath really changed.
+- One paint per tap. A tap that selects (a theme, a colour chip) shows the
+  selection at once and nothing else first: no pressed look before it. A
+  pressed look (`Kit.pressThen`) is for a tap whose action is slow to show.
+- A preview of a change behind a picker (a theme on the shelf) refreshes as
+  ui while the picker is up; the one full refresh that clears e-ink ghosts
+  comes when it closes, and only if something changed.
+- No fade or scrim behind a popup: it costs a whole-screen refresh. A popup
+  over a menu should be a page of it instead.

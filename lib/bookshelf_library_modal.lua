@@ -540,20 +540,23 @@ function LibraryModal:_closeOnlyAction()
             only = a
         end
     end
+    -- A `done` action is the way on after a multi-select: a real button.
+    if only and only.done then return nil end
     if only and (only.key == "close" or only.label == _("Close")
             or (self.config.over and only.label == _("Back"))) then return only end
     return nil
 end
 
 -- _backAction() -> what going back a page runs (config.over): the footer's
--- lone Close or Back, else its Cancel (a Cancel | Save picker: back leaves
--- what was picked, as Cancel does).
+-- lone Close or Back, else its Done (a multi-select: back keeps the ticks,
+-- as Done does), else its Cancel (a Cancel | Save picker: back leaves what
+-- was picked, as Cancel does).
 function LibraryModal:_backAction()
     local only = self:_closeOnlyAction()
     if only then return only end
     for _i, row in ipairs(self.config.footer_rows or { self.config.footer_actions or {} }) do
         for _j, a in ipairs(row) do
-            if a.label == _("Cancel") then return a end
+            if a.done or a.label == _("Cancel") then return a end
         end
     end
     return nil
@@ -1402,8 +1405,11 @@ function LibraryModal:refresh()
             body = VerticalGroup:new{ align = "left", body, VerticalSpan:new{ width = short } }
         end
     end
-    -- Edge to edge, down to the frame's bottom border.
-    if footer then table.insert(body, footer) end
+    -- Edge to edge, down to the frame's bottom border. In a group of its
+    -- own: body may have been measured above, and a VerticalGroup keeps the
+    -- offsets it measured, so a child added after paints from a nil one (a
+    -- page of the editor with a footer crashed).
+    if footer then body = VerticalGroup:new{ align = "left", body, footer } end
     self.frame[1] = body
     self:_repaintIfResized(old)
     -- The grid highlights its own focused cell inline (cell_renderer reads

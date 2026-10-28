@@ -3585,8 +3585,13 @@ function Editor:_pickMultiFilter(draft, dim_key, on_close)
                 },
                 footer_actions = {
                     {
-                        -- Back to the Filters list, which this was opened from.
-                        label  = _("Back"),
+                        -- Back to the Filters list, which this was opened
+                        -- from. A button of its own: with several to tick,
+                        -- the chevron or a tap outside wasn't an obvious
+                        -- way on (maintainer). The chevron runs it too.
+                        label  = _("Apply"),
+                        done   = true,
+                        primary = true,
                         on_tap = function()
                             UIManager:close(modal)
                             on_close()

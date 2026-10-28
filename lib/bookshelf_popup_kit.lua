@@ -30,10 +30,12 @@ function Kit.sourceFace(font_size)
     return require("ui/font"):getFace("cfont", math.max(10, (font_size or 20) - 2))
 end
 
--- tapCell(widget, w, h, on_tap, enabled, on_hold) -> widget as a w x h tap
--- target that inverts when the dpad focuses it. enabled == false swallows the
--- tap (not the hold).
-function Kit.tapCell(widget, w, h, on_tap, enabled, on_hold)
+-- tapCell(widget, w, h, on_tap, enabled, on_hold, instant) -> widget as a
+-- w x h tap target that inverts when the dpad focuses it. enabled == false
+-- swallows the tap (not the hold). instant: a choice on a page that is drawn
+-- again to show it (a sort key, an option), so no pressed frame first: that
+-- was one more state for every tap to pass through (maintainer, PW5).
+function Kit.tapCell(widget, w, h, on_tap, enabled, on_hold, instant)
     local cell = InputContainer:new{ dimen = Geom:new{ w = w, h = h }, widget }
     cell.ges_events = { Tap = { GestureRange:new{ ges = "tap", range = cell.dimen } } }
     cell.onTap = function(_self, _arg, ges)
@@ -47,7 +49,8 @@ function Kit.tapCell(widget, w, h, on_tap, enabled, on_hold)
             return false
         end
         if enabled ~= false and on_tap then
-            Kit.pressThen(cell, Kit.findCard(widget), on_tap)
+            if instant then on_tap()
+            else Kit.pressThen(cell, Kit.findCard(widget), on_tap) end
         end
         return true
     end

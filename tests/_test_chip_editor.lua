@@ -258,6 +258,29 @@ t.test("the sort picker offers Collection order on a collection chip only", func
         "Collection order offered on a source that has none")
 end)
 
+-- Picking a level in the strip changes nothing saved: it redraws the page
+-- only. It went through the commit too, so the shelf behind was rebuilt and
+-- the whole screen refreshed again after every pick (maintainer, PW5).
+t.test("picking a sort level does not save the shelf", function()
+    local BD = package.loaded["ui/widget/buttondialog"]
+    local UI = package.loaded["ui/uimanager"]
+    local captured
+    BD.new   = function(_self, o) captured = o; return o end
+    UI.show  = function() end
+    UI.close = function() end
+    local saves = 0
+    Editor:_openSort({ source = { kind = "all" },
+        sort_priority = { { key = "title" }, { key = "date_added" } } },
+        function() saves = saves + 1 end)
+    local level2
+    for _i, row in ipairs(captured.buttons) do
+        if row[1].text and row[1].text:find("^.-2 ") then level2 = row[1] end
+    end
+    assert(level2, "no level 2 in the strip")
+    level2.callback()
+    eq(saves, 0, "picking level 2 saved the shelf")
+end)
+
 -- ── Arranging the collection from beside its key ───────────────────────────
 --
 -- The maintainer's request, straight after trying the key on a device:

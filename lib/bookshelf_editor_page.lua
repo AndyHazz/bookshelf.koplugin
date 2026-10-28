@@ -79,14 +79,15 @@ local function leftRight(left, right, w)
     return hg
 end
 
--- tapCard(content, w, h, on, callback, enabled, outline) -> a Kit.card as a
--- w x h tap target, its focus ring the card's corner.
-local function tapCard(content, w, h, on, callback, enabled, outline, pad)
+-- tapCard(content, w, h, on, callback, enabled, outline, pad, instant) -> a
+-- Kit.card as a w x h tap target, its focus ring the card's corner. instant:
+-- a choice, shown by the page drawn again rather than pressed (Kit.tapCell).
+local function tapCard(content, w, h, on, callback, enabled, outline, pad, instant)
     pad = pad or Space.px(12)
     local card = Kit.card{ width = w, height = h, on = on, outline = outline,
         padding_left = pad, padding_right = pad,
         LeftContainer:new{ dimen = Geom:new{ w = w - 2 * pad, h = h }, content } }
-    local cell = Kit.tapCell(card, w, h, callback, enabled)
+    local cell = Kit.tapCell(card, w, h, callback, enabled, nil, instant)
     cell.focus_radius = Kit.RADIUS
     return cell
 end
@@ -178,7 +179,9 @@ function R.chips(ctx, b)
             line[#line + 1] = HorizontalSpan:new{ width = ctx.gap }
             line_w = line_w + ctx.gap
         end
-        local cell = tapCard(label, cw, h, it.on, it.callback, enabled, nil, pad)
+        -- A chip that is on or off is a choice; one without (Edit collection
+        -- order >) goes somewhere and is shown pressed.
+        local cell = tapCard(label, cw, h, it.on, it.callback, enabled, nil, pad, it.on ~= nil)
         line[#line + 1] = cell
         focus[#focus + 1] = cell
         line_w = line_w + cw
@@ -317,7 +320,7 @@ function Ctx:option(b, w)
             HorizontalSpan:new{ width = Space.px(12) }, vg }
     end
     local body = (#links > 0) and leftRight(left, links, inner) or left
-    local cell = tapCard(body, w, h, b.on, b.callback, b.enabled)
+    local cell = tapCard(body, w, h, b.on, b.callback, b.enabled, nil, nil, true)
     table.insert(focus, 1, cell)
     return cell, focus
 end
@@ -389,7 +392,7 @@ function R.slot(ctx, b)
         outline = b.selected, padding_left = pad, padding_right = pad,
         LeftContainer:new{ dimen = Geom:new{ w = inner, h = h },
             leftRight(left, (#right > 0) and right or nil, inner) } }
-    local cell = Kit.tapCell(card, ctx.w, h, b.callback, b.callback ~= nil)
+    local cell = Kit.tapCell(card, ctx.w, h, b.callback, b.callback ~= nil, nil, true)
     cell.focus_radius = Kit.RADIUS
     table.insert(focus, 1, cell)
     ctx.layout[#ctx.layout + 1] = focus

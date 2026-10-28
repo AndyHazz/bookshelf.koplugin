@@ -204,6 +204,10 @@ a control by hand, so a change lands everywhere.
 - One paint per tap. A tap that selects (a theme, a colour chip) shows the
   selection at once and nothing else first: no pressed look before it. A
   pressed look (`Kit.pressThen`) is for a tap whose action is slow to show.
+  A tap cell for a choice passes `instant` (`Kit.tapCell`'s last argument);
+  on editor pages, on/off chips, options and slots are instant, and a chip
+  that opens something (Edit collection order >) is not. A tap that changes
+  nothing saved (picking a sort level) redraws the page, not the shelf.
 - A preview of a change behind a picker (a theme on the shelf) refreshes as
   ui while the picker is up; the one full refresh that clears e-ink ghosts
   comes when it closes, and only if something changed.

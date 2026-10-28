@@ -3749,6 +3749,11 @@ function Editor:_openSort(draft, on_change, on_arranged, on_back)
         if on_change then on_change() end
         if d and d.refresh then d:refresh() end
     end
+    -- pick(): a level picked in the strip changes nothing saved, so the page
+    -- alone is drawn again, not the shelf behind it too.
+    local function pick()
+        if d and d.refresh then d:refresh() end
+    end
     local function levels()
         draft.sort_priority = draft.sort_priority or {}
         return draft.sort_priority
@@ -3789,7 +3794,7 @@ function Editor:_openSort(draft, on_change, on_arranged, on_back)
                 type = "slot", badge = tostring(i),
                 text = _resolveSortLabel(i, lv.key, kind),
                 selected = (sel == i),
-                callback = function() sel = i; changed() end,
+                callback = function() sel = i; pick() end,
                 seg = { items = items, active = lv.reverse == true,
                     on_pick = function(rev) lv.reverse = rev; changed() end },
                 on_clear = not (is_group and i == 1) and function()
@@ -3806,7 +3811,7 @@ function Editor:_openSort(draft, on_change, on_arranged, on_back)
                     or (is_group and #list == 1) and _("Sort the books inside each")
                     or _("Add a tie-breaker"),
                 selected = (sel == #list + 1),
-                callback = function() sel = #list + 1; changed() end,
+                callback = function() sel = #list + 1; pick() end,
             }
         end
 

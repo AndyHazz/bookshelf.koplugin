@@ -70,4 +70,33 @@ t.test("a tap with no position (sent by code, not a finger) still acts", functio
     eq(hits(), 1)
 end)
 
+-- A choice (a sort key, an option) shows itself picked once the page is
+-- drawn again. Shown pressed first as well, each tap went through a black
+-- and white "fast" frame, the page, then the shelf (maintainer, PW5: "each
+-- card style button goes through several states before settling").
+t.test("an instant cell acts with no pressed frame", function()
+    dirty = {}
+    local card = { _kit_card = true }
+    local hits = 0
+    local cell = Kit.tapCell({ card }, 100, 50, function()
+        hits = hits + 1
+        assert(not card._pressed, "shown pressed while acting")
+    end, true, nil, true)
+    cell.dimen.x, cell.dimen.y = 10, 10
+    stack = { "page" }
+    assert(cell.onTap(cell, nil, { pos = { x = 20, y = 20 } }))
+    eq(hits, 1)
+    eq(#dirty, 0, "a refresh of its own")
+end)
+
+t.test("a cell that goes somewhere is still shown pressed", function()
+    dirty = {}
+    local card = { _kit_card = true }
+    local cell = Kit.tapCell({ card }, 100, 50, function() end)
+    cell.dimen.x, cell.dimen.y = 10, 10
+    stack = { "page" }
+    cell.onTap(cell, nil, { pos = { x = 20, y = 20 } })
+    eq(dirty[1] and dirty[1].mode, "fast")
+end)
+
 t.done()

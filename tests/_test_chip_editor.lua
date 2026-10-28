@@ -630,13 +630,12 @@ local function openStyle(draft, chrome, section)
     local spec, changes = nil, 0
     Editor._host = { push = function(sp) spec = sp; return { refresh = function() end } end }
     Editor:_pickGroupDisplay(draft, function() changes = changes + 1 end, chrome)
-    -- A style's own settings: the page its summary card on the main page opens.
+    -- Under Auto, a level's settings: the page its card opens ("Top level:
+    -- Spines"). A shelf with one style has them on the main page.
     if section then
-        local opened = false
         for _i, b in ipairs(spec.page().blocks) do
-            if b.type == "option" and b.text:find(section, 1, true) == 1 then b.callback(); opened = true end
+            if b.type == "option" and b.text:find(section, 1, true) == 1 then b.callback(); break end
         end
-        if not opened then spec = { page = function() return { blocks = {} } end } end
     end
     Editor._host = nil
     local p = {}
@@ -688,30 +687,44 @@ t.test("shelf style: a plank for card shelves only", function()
         "no Plank row for a card shelf")
 end)
 
-t.test("shelf style: each style in use has its own page, and only those", function()
-    local p = openStyle({ view_mode = "auto", view_level1 = "spines", view_level2 = "covers" })
+-- One style: its settings on the View mode page itself. Auto: a card per
+-- level, named for the level and its style, even when both levels show the
+-- same style (maintainer).
+local function optionTexts(p)
     local seen = {}
     for _i, b in ipairs(p.blocks()) do
-        if b.type == "option" then seen[#seen + 1] = b.text:match("^(%a+)") end
+        if b.type == "option" then seen[#seen + 1] = b.text:gsub(" \xE2\x80\xBA$", "") end
     end
-    eq(table.concat(seen, ","), "Spines,Covers")
-    local opds = openStyle({ view_mode = "spines" }, { is_opds = true })
-    for _i, b in ipairs(opds.blocks()) do
-        assert(not (b.type == "option" and b.text:find("Spines", 1, true)), "a catalogue was offered spines")
-    end
+    return table.concat(seen, ",")
+end
+
+t.test("shelf style: one style's settings are on the page, with no cards", function()
+    local p = openStyle({ view_mode = "spines" })
+    eq(optionTexts(p), "")
+    assert(p.find("Book binding"), "spines settings are not on the page")
+    assert(openStyle({}).find("Cover captions"), "covers settings are not on the page")
+    assert(openStyle({ view_mode = "list" }).find("Columns"), "list settings are not on the page")
 end)
 
-t.test("shelf style: a headed set of list numbers per level only when both levels list", function()
-    local split = openStyle({ view_mode = "auto", view_level1 = "list", view_level2 = "list" }, nil, "List")
-    assert(split.find("Top level") and split.find("Inside folders and stacks"), "no set per level")
-    local one = openStyle({ view_mode = "list" }, nil, "List")
-    assert(one.find("Columns") and not one.find("Inside folders and stacks"))
-    -- An unset Level 2 number shows the Level 1 number it follows.
-    local inherit = openStyle({ view_mode = "auto", view_level1 = "list", view_level2 = "list",
-                                list_rows = 6 }, nil, "List")
-    local rows = {}
-    for _i, b in ipairs(inherit.blocks()) do if b.label == "Rows" then rows[#rows + 1] = b.value end end
-    eq(rows[2], "6")
+t.test("shelf style: Auto has a card per level, even for the same style", function()
+    eq(optionTexts(openStyle({ view_mode = "auto", view_level1 = "spines", view_level2 = "covers" })),
+        "Top level: Spines,Inside folders and stacks: Covers")
+    eq(optionTexts(openStyle({ view_mode = "auto", view_level1 = "covers", view_level2 = "covers" })),
+        "Top level: Covers,Inside folders and stacks: Covers")
+    local p = openStyle({ view_mode = "auto", view_level1 = "spines", view_level2 = "covers" }, nil, "Top level")
+    assert(p.find("Book binding") and not p.find("Cover captions"), "the card's page is not its level's style")
+    local opds = openStyle({ view_mode = "auto", view_level1 = "spines" }, { is_opds = true })
+    assert(not optionTexts(opds):find("Spines", 1, true), "a catalogue was offered spines")
+end)
+
+t.test("shelf style: under Auto, each listing level's card has its own numbers", function()
+    local draft = { view_mode = "auto", view_level1 = "list", view_level2 = "list", list_rows = 6 }
+    local top = openStyle(draft, nil, "Top level")
+    assert(top.find("Columns") and not top.find("Inside folders and stacks"))
+    local inside = openStyle(draft, nil, "Inside folders and stacks")
+    eq(inside.find("Rows").value, "6", "an unset Level 2 number does not show Level 1's")
+    inside.find("Rows").on_inc()
+    eq(draft.list_rows_l2, 7); eq(draft.list_rows, 6)
 end)
 
 t.test("shelf style: a spines shelf whose source became a catalogue shows covers", function()
@@ -725,16 +738,6 @@ t.test("shelf style: a spines shelf whose source became a catalogue shows covers
     eq(Editor._chipModeLabel(Editor._shownMode("spines", false)), "Spines")
     local auto = openStyle({ view_mode = "auto", view_level1 = "spines" }, { is_opds = true })
     eq(auto.find("Top level").active, "covers")
-end)
-
-t.test("shelf style: a style with one setting has it on the main page", function()
-    -- A catalogue's covers have captions only (no folder tiles): no page of one row.
-    local p = openStyle({}, { is_opds = true })
-    assert(p.find("Cover captions"), "the one setting is not on the main page")
-    for _i, b in ipairs(p.blocks()) do
-        assert(not (b.type == "option" and b.text:find("Covers", 1, true)), "a page for one row")
-    end
-    assert(not openStyle({}).find("Cover captions"), "a local shelf's covers lost their page")
 end)
 
 -- ── Catalog settings and the folder filter, as pages ───────────────────────

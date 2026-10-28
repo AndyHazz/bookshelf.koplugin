@@ -2237,7 +2237,8 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             return pick(function()
                 local cur = draft[key]
                 if not cur then
-                    local base = live and live() or lo
+                    -- From the number shown: the one followed, else live.
+                    local base = (inherit_key and draft[inherit_key]) or (live and live()) or lo
                     draft[key] = math.max(lo, math.min(hi, base + delta))
                 else
                     local n = cur + delta
@@ -2251,11 +2252,14 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
     end
     local function numText(v) return v and tostring(v) or _("Auto") end
 
-    -- ── The three styles' own settings, each a page of its own ─────────────
+    -- ── The three styles' own settings ──────────────────────────────────
+    -- On the View mode page itself for a shelf with one style; under Auto,
+    -- one page per level, reached from that level's card.
     -- List numbers only: cover columns change the whole screen's layout (hero
     -- size, chip bar), so they stay global. With Auto listing on both levels,
-    -- a set per level (ViewMode.listLevelsSplit).
-    local function listBlocks(pick, add)
+    -- a set per level (ViewMode.listLevelsSplit); level (1 or 2, nil for a
+    -- shelf with no levels) picks which.
+    local function listBlocks(pick, add, level)
         local split = ViewMode.listLevelsSplit(draft)
         local function listRows(sfx, inherit)
             add(stepper(pick, _("Columns"), "list_columns" .. sfx, 1, 3,
@@ -2267,24 +2271,21 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                     return ok and plan and plan.rows or 4
                 end, inherit and "list_rows" or nil))
         end
-        if split then
-            add({ type = "heading", text = _("Top level") })
-            listRows("")
-            add({ type = "heading", text = _("Inside folders and stacks") })
+        if split and level == 2 then
             listRows(ViewMode.LEVEL2_SUFFIX, true)
         else
             listRows("")
         end
     end
-    local function listSummary()
+    local function listSummary(level)
         local function one(sfx, inherit)
             local c = draft["list_columns" .. sfx]
             local r = draft["list_rows" .. sfx]
             if inherit then c = c or draft.list_columns; r = r or draft.list_rows end
             return T(_("%1 columns, %2 rows"), numText(c), numText(r))
         end
-        if ViewMode.listLevelsSplit(draft) then
-            return Editor._capFirst(one("") .. "; " .. T(_("inside: %1"), one(ViewMode.LEVEL2_SUFFIX, true)))
+        if ViewMode.listLevelsSplit(draft) and level == 2 then
+            return Editor._capFirst(one(ViewMode.LEVEL2_SUFFIX, true))
         end
         return Editor._capFirst(one(""))
     end
@@ -2420,11 +2421,11 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         return Editor._capFirst(table.concat(parts, ", "))
     end
 
-    local function section(title, build)
+    local function section(title, build, level)
         return function()
             open(title, function(pick)
                 local blocks = {}
-                build(pick, function(b) blocks[#blocks + 1] = b end)
+                build(pick, function(b) blocks[#blocks + 1] = b end, level)
                 return { blocks = blocks }
             end)
         end
@@ -2508,27 +2509,32 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             end
         end
 
-        -- Each style in use: what it is set to, in a line, and its own page.
-        if show_spines or show_list or show_covers then
+        -- One style: its settings right here (maintainer). Under Auto, a
+        -- card per level, "Top level: Spines", each with its own page: two
+        -- cards even when both levels show the same style, as a level can
+        -- have settings of its own (List's columns and rows).
+        local STYLES = {
+            [ViewMode.SPINES] = { _("Spines"), spinesSummary, spinesBlocks },
+            [ViewMode.LIST]   = { _("List"), listSummary, listBlocks },
+            [ViewMode.COVERS] = { _("Covers"), coversSummary, coversBlocks },
+        }
+        if show_levels then
             add({ type = "heading", text = _("Settings") })
-        end
-        -- A style with one setting (a catalogue's covers: captions only)
-        -- has it here, not a page holding one row.
-        local function styleCard(title, icon, summary, build)
-            local own = {}
-            build(pick, function(b) own[#own + 1] = b end)
-            if #own == 1 then return add(own[1]) end
-            add({ type = "option", text = title .. CHEV, desc = summary(), icon = icon,
-                callback = section(title, build) })
-        end
-        if show_spines then
-            styleCard(_("Spines"), "\u{EE26}", spinesSummary, spinesBlocks)   -- view-parallel
-        end
-        if show_list then
-            styleCard(_("List"), "\u{EC71}", listSummary, listBlocks)         -- view-list
-        end
-        if show_covers then
-            styleCard(_("Covers"), "\u{EC72}", coversSummary, coversBlocks)   -- view-module
+            for level = 1, 2 do
+                local style = ViewMode.auto(draft, level == 2)
+                if no_spines and style == ViewMode.SPINES then style = ViewMode.COVERS end
+                local st = STYLES[style] or STYLES[ViewMode.COVERS]
+                local title = T(_("%1: %2"),
+                    (level == 1) and _("Top level") or _("Inside folders and stacks"), st[1])
+                add({ type = "option", text = title .. CHEV, desc = st[2](level),
+                    icon = Editor._modeIcon(style, no_spines),
+                    callback = section(title, st[3], level) })
+            end
+        else
+            local st = (show_spines and STYLES[ViewMode.SPINES])
+                or (show_list and STYLES[ViewMode.LIST]) or STYLES[ViewMode.COVERS]
+            add({ type = "heading", text = st[1] })
+            st[3](pick, add)
         end
         return { blocks = blocks }
     end, function() if chrome and chrome.show then chrome.show() end end)

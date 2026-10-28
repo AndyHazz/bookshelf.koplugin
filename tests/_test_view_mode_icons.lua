@@ -7,16 +7,11 @@ local t = dofile("tests/_helpers.lua").runner()
 
 local src = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
 
-t.test("each style card's icon is the one the View mode card shows", function()
-    local mode = src:match("\nfunction Editor%._modeIcon%(.-\nend\n")
-    assert(mode, "no _modeIcon")
-    for _i, pair in ipairs({ { "Spines", "SPINES" }, { "List", "LIST" } }) do
-        local want = mode:match("ViewMode%." .. pair[2] .. " then return \"(.-)\"")
-        local got = src:match('styleCard%(_%("' .. pair[1] .. '"%), "(.-)"')
-        assert(want and got == want, pair[1] .. ": " .. tostring(got) .. " vs " .. tostring(want))
-    end
-    local covers = src:match('styleCard%(_%("Covers"%), "(.-)"')
-    assert(covers and mode:find('return "' .. covers .. '"', 1, true), "Covers")
+t.test("the level cards take the View mode card's icons", function()
+    local page = src:match("\nfunction Editor:_pickGroupDisplay%(.-\nend\n")
+    assert(page, "no _pickGroupDisplay")
+    assert(page:find("icon = Editor._modeIcon(style, no_spines)", 1, true),
+        "a level card picks its own icon")
 end)
 
 t.done()

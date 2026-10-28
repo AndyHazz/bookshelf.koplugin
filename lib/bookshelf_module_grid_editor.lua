@@ -195,19 +195,6 @@ local function line(items, gap)
     return hg
 end
 
--- spread(left, right, w) -> left at the start, right flush with the end.
-local function spread(left, right, w)
-    local HorizontalGroup = require("ui/widget/horizontalgroup")
-    local HorizontalSpan  = require("ui/widget/horizontalspan")
-    local lw = left and left:getSize().w or 0
-    local rw = right and right:getSize().w or 0
-    local hg = HorizontalGroup:new{ align = "center" }
-    if left then hg[#hg + 1] = left end
-    hg[#hg + 1] = HorizontalSpan:new{ width = math.max(0, w - lw - rw) }
-    if right then hg[#hg + 1] = right end
-    return hg
-end
-
 function Editor:_toolbarWidth()
     return self._built_w - 2 * self.margin
 end
@@ -226,7 +213,6 @@ function Editor:_buildToolbar()
     local Space = require("lib/bookshelf_space")
     local inset = Space.px(16)
     local gap   = Space.px(10)
-    local inner = width - 2 * Size.border.window - 2 * inset
     local face  = Font:getFace("cfont", FS)
     local h = TextWidget:new{ text = "Hg", face = face }:getSize().h + 2 * Space.px(10)
     local def = Modules.get(entry.module)
@@ -250,12 +236,9 @@ function Editor:_buildToolbar()
     end
     local width_ctl, wf = stepper(_("Width"), "w", box.w)
     local height_ctl, hf = stepper(_("Height"), "h", box.h)
-    local size_row = {}
-    for _i, b in ipairs(wf) do size_row[#size_row + 1] = b end
-    for _i, b in ipairs(hf or {}) do size_row[#size_row + 1] = b end
-    rows[#rows + 1] = size_row
-    -- Move by a cell, and to the previous or next page: the footer's page
-    -- dots also take the selection there, but nothing said so (maintainer).
+    -- Move by a cell on a d-pad, and to the previous or next page: the
+    -- footer's page numbers also take the selection there, but nothing said
+    -- so (maintainer).
     local function chev(glyph, dx, dy)
         return kbutton{ glyph = glyph, h = h, pad_h = Space.px(14),
             on_tap = function() s:moveBy(dx, dy) end }
@@ -265,13 +248,9 @@ function Editor:_buildToolbar()
         return kbutton{ glyph = glyph, h = h, pad_h = Space.px(14), enabled = p ~= nil,
             on_tap = function() if p then s:moveToPage(p) end end }
     end
-    local moves = { chev(Session.CHEV_LEFT, -1, 0), chev(Session.CHEV_UP, 0, -1),
-                    chev(Session.CHEV_DOWN, 0, 1), chev(Session.CHEV_RIGHT, 1, 0) }
-    local pages = { pageButton(Session.PAGE_PREV, -1), pageButton(Session.PAGE_NEXT, 1) }
-    local move_row = {}
-    for _i, b in ipairs(moves) do move_row[#move_row + 1] = b end
-    for _i, b in ipairs(pages) do move_row[#move_row + 1] = b end
-    rows[#rows + 1] = move_row
+    local up, left = chev(Session.CHEV_UP, 0, -1), chev(Session.CHEV_LEFT, -1, 0)
+    local right, down = chev(Session.CHEV_RIGHT, 1, 0), chev(Session.CHEV_DOWN, 0, 1)
+    local prev, nxt = pageButton(Session.PAGE_PREV, -1), pageButton(Session.PAGE_NEXT, 1)
     local actions = {}
     if def and type(def.show_settings) == "function" then
         actions[#actions + 1] = kbutton{ text = _("Settings"), glyph = "\xEF\x80\x93", glyph_size = FS,
@@ -279,7 +258,65 @@ function Editor:_buildToolbar()
     end
     actions[#actions + 1] = kbutton{ text = _("Remove"), glyph = "\xEE\xA2\xBF", glyph_size = FS,
         h = h, on_tap = function() s:remove() end }
-    rows[#rows + 1] = actions
+    -- The keys' rows in reading order, one per line of the d-pad (the
+    -- arrows move by where the buttons are, _keyMove).
+    local function join(...)
+        local out = {}
+        for _i, t in ipairs({ ... }) do
+            for _j, b in ipairs(t) do out[#out + 1] = b end
+        end
+        return out
+    end
+    rows[#rows + 1] = join({ up }, wf)
+    rows[#rows + 1] = join({ left, right }, hf or {})
+    rows[#rows + 1] = join({ down, prev, nxt }, actions)
+
+
+    -- The d-pad at the left: three rows of square cells, the arrows round
+    -- an empty middle. Beside it, a line for each of its rows: Width,
+    -- Height, then the page buttons with Settings and Remove.
+    local CenterContainer = require("ui/widget/container/centercontainer")
+    local HorizontalSpan  = require("ui/widget/horizontalspan")
+    local cell = h
+    for _i, b in ipairs({ up, left, right, down }) do cell = math.max(cell, b:getSize().w) end
+    local dgap = Space.px(4)
+    local function slot(b)
+        if b then return CenterContainer:new{ dimen = Geom:new{ w = cell, h = h }, b } end
+        return HorizontalSpan:new{ width = cell }
+    end
+    local dpad = VerticalGroup:new{ align = "left",
+        line({ slot(), slot(up), slot() }, dgap),
+        VerticalSpan:new{ width = dgap },
+        line({ slot(left), slot(), slot(right) }, dgap),
+        VerticalSpan:new{ width = dgap },
+        line({ slot(), slot(down), slot() }, dgap),
+    }
+    -- Width and Height share one label width, so their steppers line up.
+    local lw = 0
+    for _i, it in ipairs({ width_ctl, height_ctl }) do
+        if it then
+            local t = TextWidget:new{ text = it.label, face = face }
+            lw = math.max(lw, t:getSize().w)
+            if t.free then t:free() end
+        end
+    end
+    local LeftContainer = require("ui/widget/container/leftcontainer")
+    local function labelled(it)
+        if not it then return VerticalSpan:new{ width = h } end
+        return line({ LeftContainer:new{ dimen = Geom:new{ w = lw, h = h },
+            TextWidget:new{ text = it.label, face = face } }, it.ctl }, gap)
+    end
+    local side = VerticalGroup:new{ align = "left",
+        labelled(width_ctl),
+        VerticalSpan:new{ width = dgap },
+        labelled(height_ctl),
+        VerticalSpan:new{ width = dgap },
+        line({ line({ prev, nxt }, gap), line(actions, gap) }, Space.px(24)),
+    }
+    local body = line({ dpad, side }, Space.px(32))
+    -- As wide as its controls, not the screen, so it covers less of the
+    -- grid (maintainer); centred over it (paintTo).
+    width = math.min(width, body:getSize().w + 2 * inset + 2 * Size.border.window)
 
     -- Title: the module's name, its palette when it has colours, the X
     -- that closes the toolbar (Close alone is the X, STYLE.md).
@@ -294,34 +331,7 @@ function Editor:_buildToolbar()
     self._palette = type(title_row) == "table" and title_row.palette_button or nil
     local head = rows
     table.insert(head, 1, self._palette and { self._palette, xb } or { xb })
-
-    local VG = VerticalGroup:new{ align = "left" }
-    -- Two columns, each a label and its controls: Width over Move at the
-    -- left, Height over Page at the right, the labels one width per column.
-    local function col(list)
-        local lw = 0
-        for _i, it in ipairs(list) do
-            if it then
-                local t = TextWidget:new{ text = it.label, face = face }
-                lw = math.max(lw, t:getSize().w)
-                if t.free then t:free() end
-            end
-        end
-        local LeftContainer = require("ui/widget/container/leftcontainer")
-        local out = {}
-        for i, it in ipairs(list) do
-            out[i] = it and line({ LeftContainer:new{ dimen = Geom:new{ w = lw, h = h },
-                TextWidget:new{ text = it.label, face = face } }, it.ctl }, gap)
-        end
-        return out
-    end
-    local L = col({ width_ctl, { label = _("Move"), ctl = line(moves, gap) } })
-    local Rt = col({ height_ctl, { label = _("Page"), ctl = line(pages, gap) } })
-    VG[#VG + 1] = spread(L[1], Rt[1], inner)
-    VG[#VG + 1] = VerticalSpan:new{ width = gap }
-    VG[#VG + 1] = spread(L[2], Rt[2], inner)
-    VG[#VG + 1] = VerticalSpan:new{ width = gap }
-    VG[#VG + 1] = line(actions, gap)
+    local VG = VerticalGroup:new{ align = "left", body }
     local LineWidget = require("ui/widget/linewidget")
     local inner_w = width - 2 * Size.border.window
     local vg = VerticalGroup:new{
@@ -685,8 +695,10 @@ function Editor:paintTo(bb, x, y)
     else
         ty = self.margin
     end
-    bar:paintTo(bb, self.margin, ty)
-    self._bar_rect = Geom:new{ x = self.margin, y = ty, w = self:_toolbarWidth(), h = bh }
+    local bw = bar:getSize().w
+    local tx = math.floor((self._built_w - bw) / 2)
+    bar:paintTo(bb, tx, ty)
+    self._bar_rect = Geom:new{ x = tx, y = ty, w = bw, h = bh }
     Perf.part("paint editor", t_paint)
     Perf.finish("editor painted")
 end
@@ -861,9 +873,48 @@ function Editor:_enterKeyFocus()
     end
     return false
 end
+-- The arrows go to the nearest button that way on screen, so the d-pad is
+-- walked as it looks. Before the buttons have been painted (no position
+-- yet), by row and column.
+local function centre(b)
+    local d = b and b.dimen
+    if not (d and d.x and d.w) then return nil end
+    return d.x + d.w / 2, d.y + d.h / 2
+end
 function Editor:_keyMove(dr, dc)
     local f = self._key_focus
-    f.row, f.col = f.row + dr, f.col + dc
+    local rows = self:_keyRows()
+    local cur = rows[f.row] and rows[f.row][f.col]
+    local cx, cy = centre(cur)
+    local placed = cx ~= nil
+    for _i, r in ipairs(rows) do
+        for _j, b in ipairs(r) do
+            if not centre(b) then placed = false end
+        end
+    end
+    if not placed then
+        f.row, f.col = f.row + dr, f.col + dc
+        self:_applyKeyFocus()
+        return true
+    end
+    local best, best_score
+    for ri, r in ipairs(rows) do
+        for ci, b in ipairs(r) do
+            local bx, by = centre(b)
+            local along = dc ~= 0 and (bx - cx) * dc or (by - cy) * dr
+            if b ~= cur and usable(b) and along > 0 then
+                local across = dc ~= 0 and math.abs(by - cy) or math.abs(bx - cx)
+                -- Off to the side counts three times over: Down from Up is
+                -- Down, not Left, which is nearer but not below it, and Right
+                -- from Down goes along its line, not up to the d-pad's Right.
+                local score = along + 3 * across
+                if not best_score or score < best_score then
+                    best, best_score = { ri, ci }, score
+                end
+            end
+        end
+    end
+    if best then f.row, f.col = best[1], best[2] end
     self:_applyKeyFocus()
     return true
 end

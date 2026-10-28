@@ -306,6 +306,46 @@ t.test("keys: Enter focuses the toolbar, arrows move along it, Enter presses", f
     ed:onEdDown(); ed:onEdPress(); eq(log.pressed, "narrower")
 end)
 
+-- The toolbar's d-pad: the arrows move by where the buttons are on screen,
+-- so Left from Right reaches Left over the empty middle, and Down from Up
+-- reaches Down, not the next button in the row's list.
+t.test("keys: the arrows walk the d-pad as it looks", function()
+    -- Where the rig's portrait toolbar puts them.
+    local log = {}
+    local function at(name, x, y, w)
+        local b = btn(name, log)
+        b.dimen = { x = x, y = y, w = w or 92, h = 83 }
+        return b
+    end
+    local ed = setmetatable({
+        session = { selected_id = "a" },
+        _bar_rows = { { at("palette", 1000, 1101, 71), at("close", 1071, 1122, 63) },
+                      { at("up", 218, 1235), at("wminus", 574, 1235), at("wplus", 746, 1235) },
+                      { at("left", 119, 1325), at("right", 317, 1325),
+                        at("hminus", 574, 1325), at("hplus", 746, 1325) },
+                      { at("down", 218, 1415), at("prev", 462, 1415), at("next", 571, 1415),
+                        at("settings", 703, 1415, 198), at("remove", 918, 1415, 198) } },
+        _foot_rows = { { at("add", 27, 1563, 139), at("newpage", 512, 1563, 187),
+                         at("done", 1046, 1563, 163) } },
+    }, { __index = Editor })
+    ed._buildBands = function() end
+    ed:onEdPress();  eq(log.focus, "up")
+    ed:onEdDown();   eq(log.focus, "down", "Down from Up skipped the d-pad's middle")
+    ed:onEdRight();  eq(log.focus, "prev", "Right from Down left its line")
+    ed:onEdLeft();   eq(log.focus, "down")
+    ed:onEdUp();     ed:onEdLeft(); eq(log.focus, "left")
+    ed:onEdDown();   eq(log.focus, "down", "Down from Left went past the d-pad")
+    ed:onEdUp();     ed:onEdLeft(); ed:onEdRight()
+    eq(log.focus, "right", "Right from Left crossed the middle")
+    ed:onEdRight();  eq(log.focus, "hminus", "Right from the d-pad reached Height")
+    ed:onEdUp();     eq(log.focus, "wminus")
+    ed:onEdDown(); ed:onEdDown(); eq(log.focus, "next", "the page buttons are below Height")
+    ed:onEdRight(); ed:onEdRight(); eq(log.focus, "remove")
+    ed:onEdDown();   eq(log.focus, "done", "the footer is below the toolbar")
+    ed:onEdUp(); ed:onEdUp(); eq(log.focus, "palette", "the title is above the toolbar")
+    ed:onEdRight();  eq(log.focus, "close")
+end)
+
 t.test("keys: Back leaves the toolbar for the grid, not the editor", function()
     local ed = keyEd()
     ed:onEdPress()

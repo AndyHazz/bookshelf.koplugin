@@ -36,6 +36,11 @@ a control by hand, so a change lands everywhere.
   Add | pages | Done) is a row of kit buttons at the inset under a
   full-width line, not a borderless button table whose separators end
   nowhere. Its hint is grey text between them, not a greyed button.
+- A panel over content (the layout editor's toolbar) is as wide as its
+  controls, not the screen, so it hides as little as it can. Moves are a
+  d-pad, not a row of arrows.
+- Keys move by where the buttons are on screen: the nearest that way, so
+  a d-pad or two columns are walked as they look, not in list order.
 
 ## Controls
 

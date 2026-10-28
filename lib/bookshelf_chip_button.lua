@@ -16,6 +16,7 @@ local HorizontalGroup = require("ui/widget/horizontalgroup")
 local HorizontalSpan  = require("ui/widget/horizontalspan")
 local IconWidget      = require("ui/widget/iconwidget")
 local InputContainer  = require("ui/widget/container/inputcontainer")
+local LeftContainer   = require("ui/widget/container/leftcontainer")
 local Size            = require("ui/size")
 local TextWidget      = require("lib/bookshelf_colour_text")
 local Device          = require("device")
@@ -57,8 +58,8 @@ local ChipButton = {}
 --   opts.pad_h      horizontal inner padding (default Screen:scaleBySize(12))
 --   opts.gap        icon/label gap when both are set (default Screen:scaleBySize(6))
 --   opts.icon_after put the icon after the label instead of before (default false)
---   opts.width      at least this wide, the content centred (buttons stacked
---                   in a column, one width)
+--   opts.width      at least this wide (buttons stacked in a column, one
+--                   width); an icon and a label start at the left, else centred
 --   opts.inverted   render pixel-inverted (busy/active state)
 --   opts.on_tap     function() fired on tap
 --   opts.enabled    false: grey label and icon, and a tap does nothing
@@ -114,7 +115,9 @@ function ChipButton.build(opts)
         radius         = opts.radius or Space.radius.default,
         background     = Blitbuffer.COLOR_WHITE,
         inverted       = opts.inverted or false,
-        CenterContainer:new{
+        -- An icon and a label start at the left, so a column of them lines
+        -- up (maintainer); a label or an icon alone is centred.
+        ((icon_widget and label_widget) and LeftContainer or CenterContainer):new{
             dimen = Geom:new{ w = math.max(row_size.w,
                 (opts.width or 0) - 2 * pad_h - 2 * border), h = inner_h },
             row,

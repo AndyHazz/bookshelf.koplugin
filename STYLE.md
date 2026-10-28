@@ -63,6 +63,8 @@ a control by hand, so a change lands everywhere.
   glyph and label on `Kit.tapCell`. Not saved unless it is a real setting.
   A saved on/off is an On | Off segmented control (`Page` segmented).
 - A number: a stepper, − value + (`Page` stepper), Auto below the minimum.
+- A button with an icon and a label has them at its left, not centred, so
+  buttons stacked in a column (one width) line up.
 - Hints and notes: `Kit.hintText`, grey. Never a greyed-out button used as
   a label.
 - Icons from the bundled symbols font (Private Use Area glyphs only) mark

@@ -36,7 +36,16 @@ end
 function Kit.tapCell(widget, w, h, on_tap, enabled, on_hold)
     local cell = InputContainer:new{ dimen = Geom:new{ w = w, h = h }, widget }
     cell.ges_events = { Tap = { GestureRange:new{ ges = "tap", range = cell.dimen } } }
-    cell.onTap = function()
+    cell.onTap = function(_self, _arg, ges)
+        -- Only a tap inside it. A card that is a tap cell itself re-sends its
+        -- matched tap as "Tap" to its children first, and a cell inside it
+        -- (a sort level's direction switch) took every tap on the card
+        -- (maintainer, PW5). Left alone, the tap goes on to the card.
+        local p, d = ges and ges.pos, cell.dimen
+        if p and p.x and d and d.x and (p.x < d.x or p.x >= d.x + d.w
+                or p.y < d.y or p.y >= d.y + d.h) then
+            return false
+        end
         if enabled ~= false and on_tap then
             Kit.pressThen(cell, Kit.findCard(widget), on_tap)
         end

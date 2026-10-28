@@ -10,10 +10,11 @@ package.path = "./?.lua;./?/init.lua;" .. package.path
 local H = dofile("tests/_helpers.lua")
 local t, eq = H.runner(), H.eq
 
-local stack, dirty = {}, {}
+local stack, dirty, seq = {}, {}, {}
 package.loaded["ui/uimanager"] = {
     widgetRepaint = function() end,
-    forceRePaint = function() end,
+    forceRePaint = function() seq[#seq + 1] = "flush" end,
+    yieldToEPDC = function() seq[#seq + 1] = "yield" end,
     setDirty = function(_s, w, mode, box) dirty[#dirty + 1] = { w = w, mode = mode, box = box } end,
     getTopmostVisibleWidget = function() return stack[#stack] end,
     isWidgetShown = function(_s, w)
@@ -93,6 +94,16 @@ end)
 
 t.test("a button pressed black keeps its smooth corners", function()
     eq(pressMode({}), "ui")
+end)
+
+-- The Modules card closes the editor: the shelf behind showed through the
+-- card for a moment (maintainer, PW5). The panel had not finished reading
+-- the pressed card's refresh when the close painted the shelf under it.
+-- KOReader's Button yields to the EPDC between the two; so does this.
+t.test("the panel gets a moment between the press and the action", function()
+    for i = #seq, 1, -1 do seq[i] = nil end
+    press(function() seq[#seq + 1] = "act" end)
+    eq(table.concat(seq, ","), "flush,yield,act")
 end)
 
 t.done()

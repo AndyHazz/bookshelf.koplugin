@@ -15,6 +15,7 @@ local stack, dirty = {}, {}
 package.loaded["ui/uimanager"] = {
     widgetRepaint = function() end,
     forceRePaint = function() end,
+    yieldToEPDC = function() end,
     setDirty = function(_s, w, mode, box) dirty[#dirty + 1] = { w = w, mode = mode, box = box } end,
     getTopmostVisibleWidget = function() return stack[#stack] end,
     isWidgetShown = function(_s, w)

@@ -413,6 +413,11 @@ function Kit.pressThen(cell, card, action)
     -- (maintainer, PW5).
     UIManager:setDirty(nil, "ui", box)
     UIManager:forceRePaint()
+    -- As KOReader's Button does: let the EPDC finish reading the pressed
+    -- card before the action paints. Closing the window (the editor's
+    -- Modules card) otherwise put the shelf behind into the card's refresh
+    -- now and then (maintainer, PW5).
+    UIManager:yieldToEPDC()
     local top = UIManager:getTopmostVisibleWidget()
     UIManager:tickAfterNext(function()
         action()

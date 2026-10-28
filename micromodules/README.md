@@ -145,6 +145,9 @@ fields `render` reads:
   `"shelf"` (among a shelf's books), `"start_menu"`, or `"picker"` (the Add
   preview). Adapt layout if you need to;
   most modules ignore it.
+- `ctx.shelf_view` - on a shelf, `"covers"` or `"spines"`; `nil` on every
+  other surface. A bare module can stand on a spine shelf's plank (align to
+  the bottom of `ctx.height`) and sit centred among covers.
 - `ctx.bw`, `ctx.menu` — the bookshelf widget and start menu when available (may
   be `nil`, e.g. in the picker). Their methods with a leading underscore are
   internal and can change in any release: use the calls below instead.

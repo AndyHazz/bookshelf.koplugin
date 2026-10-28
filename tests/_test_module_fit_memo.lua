@@ -19,7 +19,8 @@ local chunk_src = src:sub(from, to) .. "\nreturn _renderFitted\n"
 
 local store = {}
 local function load_fit()
-    local HM = { _hostOf = function() return nil end, bookHelpers = function(c) return c end }
+    local HM = { _hostOf = function() return nil end, bookHelpers = function(c) return c end,
+                 _shelfView = function() return nil end }
     local env = setmetatable({
         HeroModules = HM,
         BookshelfSettings = {

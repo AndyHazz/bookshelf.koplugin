@@ -914,19 +914,16 @@ function Editor:editTab(tab_id, opts)
         else
             local head, value = text:match("^(.-):%s+(.+)$")
             if head and #head <= 24 then
-                -- The heading at the card's left edge, the icon under it
-                -- beside the value (maintainer).
-                local line = TextWidget:new{ text = value, face = value_face, bold = true,
-                    fgcolor = ink, max_width = inner_w }
-                if icon then
-                    line = HorizontalGroup:new{ align = "center", icon,
-                        HorizontalSpan:new{ width = Space.px(14) }, line }
-                    icon = nil
-                end
+                -- The icon beside the heading on a line of their own, the
+                -- value under them across the card's whole width, as the
+                -- editor's pages show a row too long for one line
+                -- (maintainer).
+                icon = nil
                 body = VerticalGroup:new{ align = "left",
-                    Kit.heading(head, FS),
+                    Kit.iconHeading(glyph, head, FS, ink),
                     VerticalSpan:new{ width = Space.px(4) },
-                    line }
+                    TextWidget:new{ text = value, face = value_face, bold = true,
+                        fgcolor = ink, max_width = w - 2 * pad } }
             else
                 body = TextWidget:new{ text = text, face = value_face, bold = not as_choice or on,
                     fgcolor = ink, max_width = inner_w }

@@ -252,24 +252,17 @@ function Ctx:row(b, w, stacked)
     local enabled = b.enabled ~= false
     local inner, ink, vt, fits = self:rowParts(b, w)
     if stacked == nil then stacked = not fits end
-    local cross
-    if b.on and b.on_clear then
-        cross = tapCard(self:text(CROSS, { bold = true }), h, h, false, b.on_clear, true, nil,
-            math.floor((h - self:text(CROSS):getSize().w) / 2))
-        w = w - h - Space.px(6)
-    end
+    local cross_w = h
+    if b.on and b.on_clear then w = w - cross_w - Space.px(6) end
     local body
     if stacked and vt then
-        local iw = b.icon and self:iconW() or 0
+        -- The icon beside the label on a line of their own, the value under
+        -- them across the card's whole width (maintainer).
         body = VerticalGroup:new{ align = "left",
-            Kit.heading(b.label, self.fs),
+            Kit.iconHeading(b.icon, b.label, self.fs, ink),
             VerticalSpan:new{ width = Space.px(4) },
-            self:text(vt, { bold = true, fgcolor = ink, max_width = inner - iw }) }
+            self:text(vt, { bold = true, fgcolor = ink, max_width = inner }) }
         h = body:getSize().h + 2 * Space.px(10)
-        if b.icon then
-            body = HorizontalGroup:new{ align = "center", self:icon(b.icon, ink),
-                HorizontalSpan:new{ width = Space.px(12) }, body }
-        end
     else
         local iw = b.icon and self:iconW() or 0
         local value = vt and self:text(vt, { bold = true, fgcolor = ink,
@@ -283,6 +276,13 @@ function Ctx:row(b, w, stacked)
         body = leftRight(label, value, inner)
     end
     local cell = tapCard(body, w, h, b.on, b.callback, enabled)
+    -- The cross as tall as the card beside it (maintainer), as wide as a
+    -- one-line card is tall.
+    local cross
+    if b.on and b.on_clear then
+        cross = tapCard(self:text(CROSS, { bold = true }), cross_w, h, false, b.on_clear, true, nil,
+            math.floor((cross_w - self:text(CROSS):getSize().w) / 2))
+    end
     if not cross then return cell, { cell } end
     return HorizontalGroup:new{ align = "center", cell, HorizontalSpan:new{ width = Space.px(6) }, cross },
         { cell, cross }

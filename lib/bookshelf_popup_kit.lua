@@ -470,6 +470,21 @@ function Kit.heading(text, font_size)
         face = face, bold = bold, fgcolor = Blitbuffer.COLOR_DARK_GRAY }
 end
 
+-- iconHeading(glyph, text, font_size, ink) -> a card's heading with its
+-- icon before it, on a line of their own, so the value under them has the
+-- card's whole width (maintainer). glyph nil: the heading alone.
+function Kit.iconHeading(glyph, text, font_size, ink)
+    local head = Kit.heading(text, font_size)
+    if not glyph then return head end
+    local HorizontalGroup = require("ui/widget/horizontalgroup")
+    local HorizontalSpan = require("ui/widget/horizontalspan")
+    local icon = TextWidget:new{ text = glyph,
+        face = require("ui/font"):getFace("symbols", math.max(10, (font_size or 20) - 2)),
+        fgcolor = ink or Blitbuffer.COLOR_BLACK }
+    return HorizontalGroup:new{ align = "center", icon,
+        HorizontalSpan:new{ width = Space.px(8) }, head }
+end
+
 -- hintText(text, font_size, width) -> grey secondary text: a hint or a
 -- note, never a greyed-out button (a border says "tap me").
 function Kit.hintText(text, font_size, width)

@@ -113,8 +113,9 @@ function LibraryModal:init()
     -- rather than moving it. For a picker that marks its choice with a frame
     -- of its own, where a ring seeded on another cell looked like that mark.
     if Device:hasDPad() and self.config.cell_renderer then
-        local total = self.config.item_count and self.config.item_count() or 0
-        if total > 0 and not self.config.focus_on_key then self._dpad_idx = 1 end
+        -- No ring until the first key press, on any picker: seeded on the
+        -- first card, it looked like that card was the one chosen (the
+        -- outline that marks the one in use). The first press shows it.
         self._focus_zone = "grid"  -- or "footer", see onGridFocusUp/Down
         self.key_events = self.key_events or {}
         self.key_events.GridFocusUp    = { { "Up" } }
@@ -200,16 +201,17 @@ function LibraryModal:onClose()
     return true
 end
 
--- _revealFocus() -> true when the focus ring was hidden (config.focus_on_key)
--- and this key press showed it instead of moving it.
+-- _revealFocus() -> true when the focus ring was hidden (every picker opens
+-- with it hidden) and this key press showed it instead of moving it: on the
+-- cell config.focus_on_key() names when it is on the page, else the first.
 function LibraryModal:_revealFocus()
-    if self._dpad_idx ~= nil or not self.config.focus_on_key then return false end
+    if self._dpad_idx ~= nil then return false end
     local total = self.config.item_count and self.config.item_count() or 0
     if total == 0 then return false end
     local per = self.config.cells_per_page and self.config.cells_per_page(self.content_w) or 1
     local first = ((self.page or 1) - 1) * per + 1
     local last = math.min(total, first + per - 1)
-    local want = self.config.focus_on_key()
+    local want = self.config.focus_on_key and self.config.focus_on_key()
     if not (want and want >= first and want <= last) then want = first end
     self._dpad_idx = want
     self._focus_zone = "grid"
@@ -1001,10 +1003,6 @@ function LibraryModal:_renderGridArea(content_width, area_height)
     local start_idx = (self.page - 1) * cells_per_page + 1
     local end_idx = math.min(start_idx + cells_per_page - 1, total)
 
-    -- Focus ring: a thin border frame applied around the focused cell.
-    -- The cell renderer receives a dimen shrunk by the border width on each
-    -- side so the outer cell slot stays exactly cell_w × cell_h.
-    local FOCUS = Device.screen:scaleBySize(2)
 
     local HorizontalGroup = require("ui/widget/horizontalgroup")
     local vg = VerticalGroup:new{ align = "left" }
@@ -1014,20 +1012,19 @@ function LibraryModal:_renderGridArea(content_width, area_height)
         local item = self.config.item_at(idx)
         if item then
             local focused = self._dpad_idx ~= nil and idx == self._dpad_idx
-            local render_dimen = focused
-                and Geom:new{ w = cell_w - 2 * FOCUS, h = cell_h - 2 * FOCUS }
-                or  Geom:new{ w = cell_w, h = cell_h }
+            local render_dimen = Geom:new{ w = cell_w, h = cell_h }
             local cell_dimen = Geom:new{ w = cell_w, h = cell_h }
             local cell_widget = self.config.cell_renderer(item, render_dimen, focused)
             if focused then
-                -- Rounded round the card's own corner (the kit's).
-                cell_widget = FrameContainer:new{
-                    bordersize = FOCUS,
-                    radius     = PopupKit.RADIUS + FOCUS,
-                    padding    = 0,
-                    margin     = 0,
-                    cell_widget,
-                }
+                -- The kit's focus ring, inverted inside the card's edge at its
+                -- corner: a heavy outline round it read as the card in use.
+                local inner = cell_widget
+                cell_widget = WidgetContainer:new{ dimen = Geom:new{ w = cell_w, h = cell_h }, inner }
+                function cell_widget:paintTo(bb, x, y)
+                    inner:paintTo(bb, x, y)
+                    local sz = inner:getSize()
+                    PopupKit.invertRing(bb, x, y, sz.w, sz.h, PopupKit.focusWidth(), PopupKit.RADIUS)
+                end
             end
             -- Always wrap cells in an InputContainer so tap (and optional
             -- long-tap) gestures route through to the domain handlers.

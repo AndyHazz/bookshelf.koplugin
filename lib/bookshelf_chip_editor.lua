@@ -3516,6 +3516,8 @@ function Editor:_pickMultiFilter(draft, dim_key, on_close)
                     return require("lib/bookshelf_picker_cell").render(
                         item, dimen, { selected = sel[item.value] == true })
                 end,
+                -- A tick marks the value at once (no pressed look first).
+                select_on_tap = true,
                 on_cell_tap = function(item)
                     -- Toggle in place; never close/reopen (that's the old
                     -- scroll-reset bug). refresh() re-renders the current

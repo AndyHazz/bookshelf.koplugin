@@ -74,7 +74,9 @@ end
 function ModulePicker._renderCell(item, dimen)
     local TextWidget = require("lib/bookshelf_colour_text")
     local card_pad = Space.px(10)
-    local border   = require("lib/bookshelf_popup_kit").BORDER
+    -- No border in the sizes: the kit's card (cardify) has none, so counted,
+    -- the card came out short of its slot by twice the border.
+    local border   = 0
     local card_w = item.solo
         and math.min(dimen.w, Screen:scaleBySize(300)) or dimen.w
     local card_h = dimen.h

@@ -13,7 +13,8 @@ t.test("the browser has a pick mode", function()
     assert(b:find('sw.setPackOff(item.entry.pack, false)', 1, true), "a picked piece's off pack stays off")
     assert(b:find("self.opts.pick(item.entry)", 1, true))
     assert(b:find("self._close()", 1, true), "picking does not close the browser")
-    assert(src:find('self.opts.pick and _("Cancel") or _("Apply")', 1, true), "the pick footer still says Apply")
+    -- Close, which the modal turns into the title's X; Cancel when picking.
+    assert(src:find('self.opts.pick and _("Cancel") or _("Close")', 1, true), "the footer is not Close (or Cancel when picking)")
 end)
 
 t.test("the browser's title is the collection, as its settings row", function()

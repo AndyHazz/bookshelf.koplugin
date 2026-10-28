@@ -113,7 +113,9 @@ end
 function Browser._renderCell(item, dimen)
     local e = item.entry
     local Kit = require("lib/bookshelf_popup_kit")
-    local border = Kit.BORDER
+    -- No border in the sizes: the kit's card (cardify) has none, so counted,
+    -- the card came out short of its slot by twice the border.
+    local border = 0
     local pad = Space.padding.default
     local label_face = Font:getFace("cfont", 16)
     local state_face = Font:getFace("cfont", 13)
@@ -339,9 +341,11 @@ function Browser:_headerActions()
     return { self:_addButton(), self:_selectButton(true), self:_selectButton(false) }
 end
 
--- _footerRows() -> the footer: Apply (Cancel when picking a replacement).
+-- _footerRows() -> the footer: Close, which the modal makes the title's X
+-- (switches are live and written as it closes, however it closes, so
+-- "Apply" promised a step there is not); Cancel when picking a replacement.
 function Browser:_footerRows()
-    local close = { key = "close", label = self.opts.pick and _("Cancel") or _("Apply"), on_tap = self._close }
+    local close = { key = "close", label = self.opts.pick and _("Cancel") or _("Close"), on_tap = self._close }
     return { { close } }
 end
 
@@ -399,6 +403,9 @@ function Browser._open(on_change, opts)
         on_cell_tap = function(item)
             if self.opts.pick then self:_pick(item) else self:_toggle(item) end
         end,
+        -- Switching a piece on or off marks it at once, its own feedback (no
+        -- pressed look first); picking one closes, so it keeps the press.
+        select_on_tap = not self.opts.pick,
         cell_long_tap = function(item) self:_longTap(item) end,
         item_count = function() return #self.items end,
         item_at = function(idx) return self.items[idx] end,

@@ -244,6 +244,9 @@ function PB.show(opts)
         chip_strip = chips,
         on_chip_tap = function(k) self.chip = k; self.items = items() end,
         cell_renderer = renderCell,
+        -- A tap marks the choice at once, its own feedback: no pressed
+        -- look first (LibraryModal select_on_tap, STYLE.md).
+        select_on_tap = true,
         -- A tap uses the plank at once, on the shelf behind, and the picker
         -- stays open for the next (Close, or a tap outside it, when done).
         -- The plain colour closes the picker for its colour dialog.

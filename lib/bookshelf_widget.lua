@@ -24020,6 +24020,8 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                         return require("lib/bookshelf_picker_cell").render(item, dimen,
                                             { selected = sel[(item.value or ""):lower()] ~= nil })
                                     end,
+                                    -- A tick marks it at once (no pressed look first).
+                                    select_on_tap = true,
                                     on_cell_tap = function(item)
                                         local k = (item.value or ""):lower()
                                         if sel[k] then sel[k] = nil else sel[k] = item.value end

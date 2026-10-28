@@ -35,9 +35,16 @@ local function modal(focus, page, idx)
     return m
 end
 
-t.test("init leaves the ring hidden when the caller asks for focus on the first key", function()
-    assert(src:find("if total > 0 and not self.config.focus_on_key then self._dpad_idx = 1 end", 1, true),
-        "the focus is seeded at open even with focus_on_key")
+t.test("init leaves the ring hidden on every picker, until the first key", function()
+    -- Seeded on the first card, it read as that card chosen (the outline that
+    -- marks the one in use).
+    assert(not src:find("self._dpad_idx = 1", 1, true), "the focus is seeded at open")
+end)
+
+t.test("with no focus_on_key the first key shows the ring on the page's first card", function()
+    local m = modal(nil)
+    m:onGridFocusDown()
+    eq(m._dpad_idx, 1)
 end)
 
 t.test("the first key press shows the focus on the caller's cell, without moving", function()

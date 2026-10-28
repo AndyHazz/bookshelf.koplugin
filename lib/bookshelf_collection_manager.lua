@@ -562,6 +562,9 @@ function CollectionManager.show(opts)
         item_at        = function(idx) return visible[idx] end,
         cell_renderer  = function(name, dimen) return renderCell(name, dimen) end,
         on_cell_tap    = onTap,
+        -- Ticking a collection marks it at once (no pressed look first);
+        -- managing one opens its menu, so it keeps the press.
+        select_on_tap  = book_mode or bulk_mode,
         cell_long_tap  = holdMenu,
         header_actions = header_actions,
         footer_rows    = footer_rows,

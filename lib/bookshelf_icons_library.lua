@@ -333,14 +333,16 @@ function IconsLibrary._renderCell(item, dimen)
         VerticalSpan:new{ width = Space.span.vertical_default or 4 },
         label_w,
     }
+    -- No border: the kit's card (cardify) has none, so the content fills the
+    -- slot (counted, every card came out short of it).
     return require("lib/bookshelf_popup_kit").cardify(FrameContainer:new{
-        bordersize = Kit.BORDER,
+        bordersize = 0,
         radius = Kit.RADIUS,
         padding = 0,
         margin = 0,
         background = Blitbuffer.COLOR_WHITE,
         CenterContainer:new{
-            dimen = Geom:new{ w = dimen.w - 2 * Kit.BORDER, h = dimen.h - 2 * Kit.BORDER },
+            dimen = Geom:new{ w = dimen.w, h = dimen.h },
             stack,
         },
     })

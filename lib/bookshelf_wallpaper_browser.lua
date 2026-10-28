@@ -259,6 +259,9 @@ function WB.show(key, on_change, on_closed)
         -- A tap uses the picture at once, behind the picker, which stays open
         -- for the next (Close, or a tap outside it, when done).
         on_cell_tap = function(item) pick(item) end,
+        -- A tap marks the choice at once, its own feedback: no pressed
+        -- look first (LibraryModal select_on_tap, STYLE.md).
+        select_on_tap = true,
         -- However it closes: one full refresh if the picture changed, to
         -- clear what the quick per-tap updates leave on e-ink.
         on_closed = function()

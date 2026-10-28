@@ -25406,8 +25406,9 @@ function BookshelfWidget:_openGroupMenu(group, kind)
     --   | Pin this series to the chip bar for quick access,   |  <- prompt
     --   |   or add its 37 books to a selection for bulk edits.|
     --   +-----------------------------------------------------+
-    --   |   Cancel    |     Pin     |      Select             |
+    --   |          Pin          |          Select             |
     --   +-----------------------------------------------------+
+    -- The way out is the title's X (withClose), not a Cancel among actions.
     local ButtonDialog  = require("ui/widget/buttondialog")
     local Font          = require("ui/font")
     local TextBoxWidget = require("ui/widget/textboxwidget")
@@ -25418,7 +25419,6 @@ function BookshelfWidget:_openGroupMenu(group, kind)
     local bw_ref = self
     local buttons = {
         {
-            { text = _("Cancel"), callback = close_dialog },
             { text = _("Pin"),    callback = function()
                 close_dialog()
                 create_chip()
@@ -25624,12 +25624,12 @@ function BookshelfWidget:_openGroupMenu(group, kind)
         end },
     })
 
-    dialog = ButtonDialog:new{
+    dialog = ButtonDialog:new(require("lib/bookshelf_module_kit").withClose{
         title          = display_name,
         title_align    = "center",
         use_info_style = false,  -- use the bold title face, not infofont
         buttons        = buttons,
-    }
+    })
     -- Subtitle prompt: explains both actions so the user knows what
     -- each button does. Sits between the title and the button row.
     local prompt_face, prompt_bold = BFont:getFace("infofont", 16)

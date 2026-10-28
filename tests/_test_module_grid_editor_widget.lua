@@ -33,7 +33,7 @@ for _, name in ipairs({
     "ui/widget/container/centercontainer",
     "ui/widget/container/widgetcontainer",
     "ui/widget/container/inputcontainer",
-    -- The toolbar title's palette icon (bookshelf_module_card_menu.titleRow).
+    -- Buttons in the toolbar (stock Button stubs).
     "ui/widget/button",
     "ui/widget/horizontalgroup",
     "ui/widget/horizontalspan",
@@ -269,7 +269,7 @@ t.test("a pinch off any module does nothing", function()
     assert(ed.session:box("a").w == 1)
 end)
 
--- Keys: Enter puts focus on the toolbar on screen (its buttons, the palette
+-- Keys: Enter puts focus on the toolbar on screen (its buttons, the X
 -- icon above them, the footer below), the arrows move along it, Enter presses
 -- the focused button and Back goes back to the grid (maintainer: on the
 -- desktop emulator keys could not reach the toolbar).
@@ -283,8 +283,8 @@ local function keyEd()
     local log = {}
     local ed = setmetatable({
         session = { selected_id = "a" },
-        -- The title's row (palette, X), then the toolbar's own rows.
-        _bar_rows = { { btn("palette", log), btn("close", log) },
+        -- The title's row (its X), then the toolbar's own rows.
+        _bar_rows = { { btn("close", log) },
                       { btn("narrower", log), btn("wider", log) },
                       { btn("settings", log), btn("remove", log) } },
         _foot_rows = { { btn("add", log), btn("done", log) } },
@@ -302,7 +302,6 @@ t.test("keys: Enter focuses the toolbar, arrows move along it, Enter presses", f
     ed:onEdDown();  eq(log.focus, "remove")
     ed:onEdDown();  eq(log.focus, "done", "the footer is below the toolbar")
     ed:onEdUp(); ed:onEdUp(); ed:onEdUp(); eq(log.focus, "close", "the title's X is above the toolbar")
-    ed:onEdLeft(); eq(log.focus, "palette", "the palette icon is beside the X")
     ed:onEdDown(); ed:onEdPress(); eq(log.pressed, "narrower")
 end)
 
@@ -319,12 +318,14 @@ t.test("keys: the arrows walk the d-pad as it looks", function()
     end
     local ed = setmetatable({
         session = { selected_id = "a" },
-        _bar_rows = { { at("palette", 1000, 1101, 71), at("close", 1071, 1122, 63) },
-                      { at("up", 218, 1235), at("wminus", 574, 1235), at("wplus", 746, 1235) },
-                      { at("left", 119, 1325), at("right", 317, 1325),
-                        at("hminus", 574, 1325), at("hplus", 746, 1325) },
-                      { at("down", 218, 1415), at("prev", 462, 1415), at("next", 571, 1415),
-                        at("settings", 703, 1415, 198), at("remove", 918, 1415, 198) } },
+        _bar_rows = { { at("close", 1068, 1122, 63) },
+                      { at("up", 233, 1236), at("wminus", 589, 1236), at("wplus", 761, 1236),
+                        at("settings", 906, 1236, 196) },
+                      { at("left", 134, 1326), at("right", 332, 1326),
+                        at("hminus", 589, 1326), at("hplus", 761, 1326),
+                        at("style", 906, 1326, 196) },
+                      { at("down", 233, 1416), at("prev", 589, 1416), at("next", 761, 1416),
+                        at("remove", 906, 1416, 196) } },
         _foot_rows = { { at("add", 27, 1563, 139), at("newpage", 512, 1563, 187),
                          at("done", 1046, 1563, 163) } },
     }, { __index = Editor })
@@ -333,17 +334,22 @@ t.test("keys: the arrows walk the d-pad as it looks", function()
     ed:onEdDown();   eq(log.focus, "down", "Down from Up skipped the d-pad's middle")
     ed:onEdRight();  eq(log.focus, "prev", "Right from Down left its line")
     ed:onEdLeft();   eq(log.focus, "down")
-    ed:onEdUp();     ed:onEdLeft(); eq(log.focus, "left")
+    ed:onEdUp();     ed:onEdLeft(); eq(log.focus, "left", "Left from Up is the d-pad's Left")
     ed:onEdDown();   eq(log.focus, "down", "Down from Left went past the d-pad")
     ed:onEdUp();     ed:onEdLeft(); ed:onEdRight()
     eq(log.focus, "right", "Right from Left crossed the middle")
     ed:onEdRight();  eq(log.focus, "hminus", "Right from the d-pad reached Height")
-    ed:onEdUp();     eq(log.focus, "wminus")
-    ed:onEdDown(); ed:onEdDown(); eq(log.focus, "next", "the page buttons are below Height")
-    ed:onEdRight(); ed:onEdRight(); eq(log.focus, "remove")
-    ed:onEdDown();   eq(log.focus, "done", "the footer is below the toolbar")
-    ed:onEdUp(); ed:onEdUp(); eq(log.focus, "palette", "the title is above the toolbar")
-    ed:onEdRight();  eq(log.focus, "close")
+    ed:onEdRight(); ed:onEdRight(); eq(log.focus, "style", "Style is level with Height")
+    ed:onEdDown();   eq(log.focus, "remove", "Remove is under Style")
+    ed:onEdUp(); ed:onEdUp(); eq(log.focus, "settings", "Settings is over Style")
+    ed:onEdLeft();   eq(log.focus, "wplus")
+    ed:onEdDown(); ed:onEdDown(); eq(log.focus, "next", "Page is below Height")
+    ed:onEdRight();  eq(log.focus, "remove", "Remove is level with Page")
+    ed:onEdLeft(); ed:onEdLeft(); eq(log.focus, "prev")
+    ed:onEdDown();   eq(log.focus, "newpage", "the footer is below the toolbar")
+    ed:onEdUp(); ed:onEdUp(); ed:onEdUp(); ed:onEdUp()
+    eq(log.focus, "close", "the title's X is above the toolbar")
+    ed:onEdRight();  eq(log.focus, "close", "Right from the X went to another line")
 end)
 
 t.test("keys: Back leaves the toolbar for the grid, not the editor", function()

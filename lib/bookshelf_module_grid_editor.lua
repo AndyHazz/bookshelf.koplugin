@@ -117,7 +117,7 @@ function Editor:init()
                 if not ok then logger.warn("[bookshelf] module settings failed:", entry.module, err) end
             end
         end,
-        -- The palette icon: the module's card and colours, saved on it.
+        -- Style: the module's card and colours, saved on it.
         -- host.ctx_for (optional) is how the host saves a module (a shelf
         -- saves its own list); else the module's own ctx.
         open_colors = function(entry)
@@ -166,7 +166,7 @@ end
 local FS = 18
 
 -- kbutton(o) -> a kit button the keys can press too: o.text and/or o.glyph
--- (symbols font), o.on_tap, o.enabled, o.bold, o.inverted, o.h, o.pad_h.
+-- (symbols font), o.on_tap, o.enabled, o.bold, o.inverted, o.h, o.pad_h, o.width.
 -- callback and enabled are what the editor's keys read (_keyRows).
 local function kbutton(o)
     local Kit  = require("lib/bookshelf_popup_kit")
@@ -176,7 +176,7 @@ local function kbutton(o)
         bold = o.bold, inverted = o.inverted,
         icon_glyph = o.glyph,
         icon_face = o.glyph and Font:getFace("symbols", o.glyph_size or (FS + 6)) or nil,
-        height = o.h, pad_h = o.pad_h, enabled = enabled, on_tap = o.on_tap,
+        height = o.h, pad_h = o.pad_h, width = o.width, enabled = enabled, on_tap = o.on_tap,
     }
     btn.callback = o.on_tap
     btn.enabled = enabled
@@ -251,13 +251,28 @@ function Editor:_buildToolbar()
     local up, left = chev(Session.CHEV_UP, 0, -1), chev(Session.CHEV_LEFT, -1, 0)
     local right, down = chev(Session.CHEV_RIGHT, 1, 0), chev(Session.CHEV_DOWN, 0, 1)
     local prev, nxt = pageButton(Session.PAGE_PREV, -1), pageButton(Session.PAGE_NEXT, 1)
-    local actions = {}
-    if def and type(def.show_settings) == "function" then
-        actions[#actions + 1] = kbutton{ text = _("Settings"), glyph = "\xEF\x80\x93", glyph_size = FS,
-            h = h, on_tap = function() s:settings() end }
+    -- Settings, Style (its colours: the palette, out of the title,
+    -- maintainer) and Remove, one width: built once to measure, then at the
+    -- widest one's width.
+    local CardMenu = require("lib/bookshelf_module_card_menu")
+    local function actionButtons(w)
+        local out = {}
+        if def and type(def.show_settings) == "function" then
+            out[#out + 1] = kbutton{ text = _("Settings"), glyph = "\xEF\x80\x93", glyph_size = FS,
+                h = h, width = w, on_tap = function() s:settings() end }
+        end
+        if CardMenu.hasColours(entry) then
+            out[#out + 1] = kbutton{ text = _("Style"), glyph = require("lib/bookshelf_menu_icons").COLORS,
+                glyph_size = FS, h = h, width = w, on_tap = function() s:colors() end }
+        end
+        out[#out + 1] = kbutton{ text = _("Remove"), glyph = "\xEE\xA2\xBF", glyph_size = FS,
+            h = h, width = w, on_tap = function() s:remove() end }
+        return out
     end
-    actions[#actions + 1] = kbutton{ text = _("Remove"), glyph = "\xEE\xA2\xBF", glyph_size = FS,
-        h = h, on_tap = function() s:remove() end }
+    local actions = actionButtons()
+    local aw = 0
+    for _i, b in ipairs(actions) do aw = math.max(aw, b:getSize().w) end
+    if #actions > 1 then actions = actionButtons(aw) end
     -- The keys' rows in reading order, one per line of the d-pad (the
     -- arrows move by where the buttons are, _keyMove).
     local function join(...)
@@ -267,14 +282,14 @@ function Editor:_buildToolbar()
         end
         return out
     end
-    rows[#rows + 1] = join({ up }, wf)
-    rows[#rows + 1] = join({ left, right }, hf or {})
-    rows[#rows + 1] = join({ down, prev, nxt }, actions)
+    rows[#rows + 1] = join({ up }, wf, { actions[1] })
+    rows[#rows + 1] = join({ left, right }, hf or {}, { actions[2] })
+    rows[#rows + 1] = join({ down, prev, nxt }, { actions[3] })
 
 
     -- The d-pad at the left: three rows of square cells, the arrows round
     -- an empty middle. Beside it, a line for each of its rows: Width,
-    -- Height, then the page buttons with Settings and Remove.
+    -- Height and Page; then Settings, Style and Remove.
     local CenterContainer = require("ui/widget/container/centercontainer")
     local HorizontalSpan  = require("ui/widget/horizontalspan")
     local cell = h
@@ -291,9 +306,14 @@ function Editor:_buildToolbar()
         VerticalSpan:new{ width = dgap },
         line({ slot(), slot(down), slot() }, dgap),
     }
-    -- Width and Height share one label width, so their steppers line up.
+    -- Page: « number » under the steppers' − value +, so the three line up.
+    local page_ctl = { label = _("Page"), ctl = line({ prev,
+        CenterContainer:new{ dimen = Geom:new{ w = Space.px(48), h = h },
+            TextWidget:new{ text = tostring(s.page or 1), face = face, bold = true } },
+        nxt }, 0) }
+    -- Width, Height and Page share one label width, so their controls line up.
     local lw = 0
-    for _i, it in ipairs({ width_ctl, height_ctl }) do
+    for _i, it in ipairs({ width_ctl, height_ctl, page_ctl }) do
         if it then
             local t = TextWidget:new{ text = it.label, face = face }
             lw = math.max(lw, t:getSize().w)
@@ -311,15 +331,23 @@ function Editor:_buildToolbar()
         VerticalSpan:new{ width = dgap },
         labelled(height_ctl),
         VerticalSpan:new{ width = dgap },
-        line({ line({ prev, nxt }, gap), line(actions, gap) }, Space.px(24)),
+        labelled(page_ctl),
     }
-    local body = line({ dpad, side }, Space.px(32))
+    -- Settings, Style and Remove at the right, level with the d-pad's rows.
+    local stack = VerticalGroup:new{ align = "left" }
+    for i, b in ipairs(actions) do
+        if i > 1 then stack[#stack + 1] = VerticalSpan:new{ width = dgap } end
+        stack[#stack + 1] = b
+    end
+    local body = require("ui/widget/horizontalgroup"):new{ align = "top",
+        dpad, HorizontalSpan:new{ width = Space.px(32) },
+        side, HorizontalSpan:new{ width = Space.px(32) }, stack }
     -- As wide as its controls, not the screen, so it covers less of the
     -- grid (maintainer); centred over it (paintTo).
     width = math.min(width, body:getSize().w + 2 * inset + 2 * Size.border.window)
 
-    -- Title: the module's name, its palette when it has colours, the X
-    -- that closes the toolbar (Close alone is the X, STYLE.md).
+    -- Title: the module's name, centred, and the X that closes the toolbar
+    -- (Close alone is the X, STYLE.md).
     local xb = require("ui/widget/iconbutton"):new{
         icon = "close", width = math.floor(h * 0.6), height = math.floor(h * 0.6),
         padding = Space.px(4), show_parent = self,
@@ -327,10 +355,12 @@ function Editor:_buildToolbar()
     }
     xb.enabled = true
     local tw = width - 2 * Size.border.window - 2 * Size.padding.default - xb:getSize().w
-    local title_row = self:_titleRow(title, Font:getFace("cfont", FS), tw, entry)
-    self._palette = type(title_row) == "table" and title_row.palette_button or nil
+    local xw = xb:getSize().w
+    local title_row = line({ HorizontalSpan:new{ width = xw },
+        CenterContainer:new{ dimen = Geom:new{ w = math.max(1, tw - xw), h = h },
+            TextWidget:new{ text = title, face = face, max_width = math.max(1, tw - xw) } } }, 0)
     local head = rows
-    table.insert(head, 1, self._palette and { self._palette, xb } or { xb })
+    table.insert(head, 1, { xb })
     local VG = VerticalGroup:new{ align = "left", body }
     local LineWidget = require("ui/widget/linewidget")
     local inner_w = width - 2 * Size.border.window
@@ -353,14 +383,6 @@ function Editor:_buildToolbar()
         width      = width,
         vg,
     }
-end
-
--- _titleRow(title, face, w, entry): the toolbar's title, with the palette
--- icon when the module has colours to set (bookshelf_module_card_menu).
-function Editor:_titleRow(title, face, w, entry)
-    local s = self.session
-    return require("lib/bookshelf_module_card_menu").titleRow(title, face, w, entry, self,
-        function() s:colors() end)
 end
 
 function Editor:_buildFooter(rect_w, rect_h)
@@ -443,7 +465,6 @@ function Editor:_buildBands()
     local old1, old2 = self[1], self[2]
     local fr = self:_footerRect()
     -- [1] the footer (always), [2] the toolbar (only with a selection).
-    self._palette = nil
     self[1] = self:_buildFooter(fr.w, fr.h)
     self[2] = self:_buildToolbar()
     -- Rebuilt after every change: key focus goes back on the same button.
@@ -832,8 +853,8 @@ function Editor:_nav(dir)
     return true
 end
 -- ── Keys on the toolbar ──────────────────────────────────────────────────
--- Press puts key focus on the toolbar on screen: the palette icon in its
--- title, its rows of buttons and the footer below, a grid the arrows move
+-- Press puts key focus on the toolbar on screen: the X in its title, its
+-- rows of buttons and the footer below, a grid the arrows move
 -- along. Press then presses the focused button and Back goes back to the
 -- grid, where the arrows select modules (maintainer: on the desktop emulator
 -- keys could not reach the toolbar). _key_focus = { row, col } in _keyRows.
@@ -861,10 +882,9 @@ function Editor:_applyKeyFocus()
     self:_dirty()
 end
 -- The first button that does something, from the toolbar's first row (the
--- palette above it is one Up away), else the footer.
+-- title's X above it is one Up away), else the footer.
 function Editor:_enterKeyFocus()
     local rows = self:_keyRows()
-    -- The title's row (the palette, the X) is one Up away.
     local start = (self._bar_rows and #rows > 1) and 2 or 1
     for r = start, #rows do
         for c, b in ipairs(rows[r]) do
@@ -873,9 +893,9 @@ function Editor:_enterKeyFocus()
     end
     return false
 end
--- The arrows go to the nearest button that way on screen, so the d-pad is
--- walked as it looks. Before the buttons have been painted (no position
--- yet), by row and column.
+-- The arrows go to the nearest button that way on screen, Left and Right
+-- along the line first, so the d-pad is walked as it looks. Before the buttons
+-- have been painted (no position yet), by row and column.
 local function centre(b)
     local d = b and b.dimen
     if not (d and d.x and d.w) then return nil end
@@ -897,16 +917,31 @@ function Editor:_keyMove(dr, dc)
         self:_applyKeyFocus()
         return true
     end
+    -- Left and Right stay on the line first: a keys row is a line on screen
+    -- (the d-pad's row, then what sits level with it). Past its end only a
+    -- line next to it, as Left from the d-pad's Up is its Left, never a
+    -- jump across the toolbar (Right from the title's X went to Done, rig).
+    if dc ~= 0 then
+        local best, best_d
+        for ci, b in ipairs(rows[f.row]) do
+            local bx = centre(b)
+            local d = (bx - cx) * dc
+            if b ~= cur and usable(b) and d > 0 and (not best_d or d < best_d) then
+                best, best_d = ci, d
+            end
+        end
+        if best then f.col = best; self:_applyKeyFocus(); return true end
+    end
+    local reach = dc ~= 0 and 1.5 * cur.dimen.h or math.huge
     local best, best_score
     for ri, r in ipairs(rows) do
         for ci, b in ipairs(r) do
             local bx, by = centre(b)
             local along = dc ~= 0 and (bx - cx) * dc or (by - cy) * dr
-            if b ~= cur and usable(b) and along > 0 then
-                local across = dc ~= 0 and math.abs(by - cy) or math.abs(bx - cx)
+            local across = dc ~= 0 and math.abs(by - cy) or math.abs(bx - cx)
+            if b ~= cur and usable(b) and along > 0 and across <= reach then
                 -- Off to the side counts three times over: Down from Up is
-                -- Down, not Left, which is nearer but not below it, and Right
-                -- from Down goes along its line, not up to the d-pad's Right.
+                -- Down, not Left, which is nearer but not below it.
                 local score = along + 3 * across
                 if not best_score or score < best_score then
                     best, best_score = { ri, ci }, score

@@ -57,6 +57,8 @@ local ChipButton = {}
 --   opts.pad_h      horizontal inner padding (default Screen:scaleBySize(12))
 --   opts.gap        icon/label gap when both are set (default Screen:scaleBySize(6))
 --   opts.icon_after put the icon after the label instead of before (default false)
+--   opts.width      at least this wide, the content centred (buttons stacked
+--                   in a column, one width)
 --   opts.inverted   render pixel-inverted (busy/active state)
 --   opts.on_tap     function() fired on tap
 --   opts.enabled    false: grey label and icon, and a tap does nothing
@@ -113,7 +115,8 @@ function ChipButton.build(opts)
         background     = Blitbuffer.COLOR_WHITE,
         inverted       = opts.inverted or false,
         CenterContainer:new{
-            dimen = Geom:new{ w = row_size.w, h = inner_h },
+            dimen = Geom:new{ w = math.max(row_size.w,
+                (opts.width or 0) - 2 * pad_h - 2 * border), h = inner_h },
             row,
         },
     }

@@ -136,6 +136,14 @@ function M.show(ctx)
     return d
 end
 
+--- hasColours(entry) -> whether the module has colours to set here (a card,
+--- or colours its spec declares): what the palette icon and the layout
+--- editor's Style button are shown for.
+function M.hasColours(entry)
+    local def = entry and require("lib/bookshelf_start_menu_modules").get(entry.module)
+    return #Card.rows(def) > 0
+end
+
 --- titleRow(title, face, w, entry, show_parent, on_tap) -> a menu's title
 --- with the palette icon at its right, when the module has colours to set (a
 --- card, or colours its spec declares); else the plain title. The icon opens
@@ -143,10 +151,8 @@ end
 --- collection (maintainer). An equal blank on the left keeps the title
 --- centred.
 function M.titleRow(title, face, w, entry, show_parent, on_tap)
-    local Modules    = require("lib/bookshelf_start_menu_modules")
     local TextWidget = require("lib/bookshelf_colour_text")
-    local def = entry and Modules.get(entry.module)
-    if #Card.rows(def) == 0 then
+    if not M.hasColours(entry) then
         return TextWidget:new{ text = title, face = face, max_width = w }
     end
     local Button          = require("ui/widget/button")

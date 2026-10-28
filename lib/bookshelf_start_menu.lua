@@ -973,7 +973,7 @@ function StartMenu:_buildPanel(entries, w, folder_id)
         rows[#rows + 1] = { row = row, entry = add_entry }
     end
     for _i, entry in ipairs(entries) do
-        local is_focused = self._focus and self._focus.entry_id == entry.id
+        local is_focused = self._focus and self._cursor_shown and self._focus.entry_id == entry.id
         local row
         if entry.type == "divider" then
             row = self:_buildDividerRow(entry, w)
@@ -1872,8 +1872,19 @@ end
 
 -- ── Key-nav event handlers ────────────────────────────────────────────────────
 
+-- _revealCursor() -> true when the keys' cursor was hidden and this press
+-- showed it (on the row it was seeded on) instead of acting. Opened by a
+-- tap, the menu shows no cursor: an outlined row looked picked (STYLE.md).
+function StartMenu:_revealCursor()
+    if self._cursor_shown then return false end
+    self._cursor_shown = true
+    self:_rebuild_only()
+    return true
+end
+
 function StartMenu:onSMFocusDown()
     if not self._focus then return true end
+    if self:_revealCursor() then return true end
     local panel = self._focus.panel
     local entries = self:_panelEntries(panel)
     -- Find current position (nil when page has no focusables).
@@ -1928,6 +1939,7 @@ end
 
 function StartMenu:onSMFocusUp()
     if not self._focus then return true end
+    if self:_revealCursor() then return true end
     local panel = self._focus.panel
     local entries = self:_panelEntries(panel)
     local idx = nil
@@ -1974,6 +1986,7 @@ end
 
 function StartMenu:onSMFocusRight()
     if not self._focus then return true end
+    if self:_revealCursor() then return true end
     if self._focus.panel ~= "root" then return true end
     local entry = self:_focusedEntry()
     if not entry or entry.type ~= "folder" then return true end
@@ -1992,6 +2005,7 @@ end
 
 function StartMenu:onSMFocusLeft()
     if not self._focus then return true end
+    if self:_revealCursor() then return true end
     if self._focus.panel ~= "flyout" then return true end
     -- Close the flyout, return focus to the folder entry in root.
     local folder_id = self._flyout_for
@@ -2005,6 +2019,7 @@ end
 
 function StartMenu:onSMPress()
     if not self._focus then return true end
+    if self:_revealCursor() then return true end
     local entry = self:_focusedEntry()
     if not entry then return true end
     if entry.id == "__add" then
@@ -2020,6 +2035,7 @@ end
 
 function StartMenu:onSMHold()
     if not self._focus then return true end
+    if self:_revealCursor() then return true end
     local entry = self:_focusedEntry()
     if entry and entry.id ~= "__add" then
         self:_editEntry(entry)

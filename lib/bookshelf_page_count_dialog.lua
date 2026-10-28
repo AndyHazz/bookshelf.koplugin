@@ -413,4 +413,14 @@ function M.showScoped(label, paths, bw)
     end, { label = label, paths = paths })
 end
 
+-- KOReader's own gestures (the menu, brightness) keep working around it,
+-- as over the shelf (GestureZones.overlayEvent; maintainer, PW5).
+function Dialog:handleEvent(event)
+    return require("lib/bookshelf_gesture_zones").overlayEvent(self, event, InputContainer,
+        function(pos)
+            local d = self.frame and self.frame.dimen
+            return not (d and d.x) or not pos:notIntersectWith(d)
+        end)
+end
+
 return M

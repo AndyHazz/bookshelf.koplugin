@@ -261,6 +261,13 @@ function Editor:onSwipe(_arg, ges)
     return true
 end
 
+-- KOReader's own gestures (the menu, brightness) keep working over it: it
+-- covers the screen, so they get what its own handlers leave
+-- (GestureZones.overlayEvent; maintainer, PW5).
+function Editor:handleEvent(event)
+    return require("lib/bookshelf_gesture_zones").overlayEvent(self, event, InputContainer)
+end
+
 function Editor:onClose()
     UIManager:close(self)
     return true

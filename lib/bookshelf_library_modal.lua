@@ -1439,4 +1439,17 @@ function LibraryModal:_dirty()
     end)
 end
 
+-- KOReader's own gestures (the menu, brightness) keep working around it,
+-- as over the shelf (GestureZones.overlayEvent; maintainer, PW5).
+function LibraryModal:handleEvent(event)
+    return require("lib/bookshelf_gesture_zones").overlayEvent(self, event, InputContainer,
+        function(pos)
+            -- The keyboard up: every tap is the search box's business.
+            local input = self._search_input
+            if input and input.isKeyboardVisible and input:isKeyboardVisible() then return true end
+            local d = self.frame and self.frame.dimen
+            return not (d and d.x) or not pos:notIntersectWith(d)
+        end)
+end
+
 return LibraryModal

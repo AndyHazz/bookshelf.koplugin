@@ -1871,12 +1871,8 @@ function Editor:editTab(tab_id, opts)
         return true
     end
     function dialog:handleEvent(event)
-        if InputContainer.handleEvent(self, event) then return true end
-        if event.handler == "onGesture" then
-            local ev = event.args and event.args[1]
-            return outside(ev) and GestureZones.tryLiveZones(ev) or false
-        end
-        return GestureZones.forwardToLive(event, self)
+        return GestureZones.overlayEvent(self, event, InputContainer,
+            function(pos) return not outside({ pos = pos }) end)
     end
     dialog.onClose = function()
         if #pages > 0 then goBack() else finish() end

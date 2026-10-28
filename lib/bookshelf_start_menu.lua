@@ -2096,4 +2096,15 @@ function StartMenu:onTapDismiss(_arg, ges)
     self:_close()
     return true
 end
+-- KOReader's own gestures (the menu, brightness) keep working around it,
+-- as over the shelf (GestureZones.overlayEvent; maintainer, PW5).
+function StartMenu:handleEvent(event)
+    return require("lib/bookshelf_gesture_zones").overlayEvent(self, event, InputContainer,
+        function(pos)
+            local r, f = self._root_region, self._flyout_region
+            if not r then return true end
+            return pos:intersectWith(r) or (f and pos:intersectWith(f)) or false
+        end)
+end
+
 return StartMenu

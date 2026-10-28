@@ -512,4 +512,68 @@ t.test("inside a book, the reader's own menu zone opens its menu", function()
     restore()
 end)
 
+-- overlayEvent: one of our windows over the shelf (a picker, the start
+-- menu) took every event, so KOReader's gestures were dead while it was up
+-- (maintainer, PW5). A gesture off the window goes to KOReader's zones
+-- first; one on it is the window's; KOReader's actions are passed on.
+do
+    local function withZones(hit, fn)
+        local tl, fl = Zones.tryLiveZones, Zones.forwardToLive
+        local calls = { zones = 0, fwd = 0 }
+        Zones.tryLiveZones = function() calls.zones = calls.zones + 1; return hit end
+        Zones.forwardToLive = function() calls.fwd = calls.fwd + 1; return true end
+        local ok, err = pcall(fn, calls)
+        Zones.tryLiveZones, Zones.forwardToLive = tl, fl
+        assert(ok, err)
+    end
+    local function base(handled)
+        local b = { got = 0 }
+        function b.handleEvent() b.got = b.got + 1; return handled end
+        return b
+    end
+    local gesture = { handler = "onGesture", args = { { ges = "swipe", pos = { x = 1, y = 1 } } } }
+    local on = function() return true end
+    local off = function() return false end
+
+    t.test("overlayEvent: a gesture off the window goes to KOReader first", function()
+        withZones(true, function(calls)
+            local b = base(true)
+            eq(Zones.overlayEvent({}, gesture, b, off), true)
+            eq(calls.zones, 1); eq(b.got, 0, "the window took it before KOReader")
+        end)
+    end)
+
+    t.test("overlayEvent: off the window, no KOReader gesture there: the window's (tap outside closes)", function()
+        withZones(false, function(calls)
+            local b = base(true)
+            eq(Zones.overlayEvent({}, gesture, b, off), true)
+            eq(b.got, 1)
+        end)
+    end)
+
+    t.test("overlayEvent: a gesture on the window is the window's alone", function()
+        withZones(true, function(calls)
+            local b = base(false)
+            eq(Zones.overlayEvent({}, gesture, b, on), false)
+            eq(calls.zones, 0)
+        end)
+    end)
+
+    t.test("overlayEvent: a full-screen window gives KOReader what it leaves", function()
+        withZones(true, function(calls)
+            eq(Zones.overlayEvent({}, gesture, base(true), nil), true)
+            eq(calls.zones, 0, "KOReader took one the window handles")
+            eq(Zones.overlayEvent({}, gesture, base(false), nil), true)
+            eq(calls.zones, 1)
+        end)
+    end)
+
+    t.test("overlayEvent: KOReader's actions are passed on", function()
+        withZones(false, function(calls)
+            eq(Zones.overlayEvent({}, { handler = "onIncreaseFlIntensity" }, base(false), on), true)
+            eq(calls.fwd, 1)
+        end)
+    end)
+end
+
 t.done()

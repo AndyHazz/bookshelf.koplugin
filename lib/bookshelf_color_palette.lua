@@ -704,4 +704,15 @@ function M.attach(Bookshelf)
         showColorPicker(self, title, current_hex, default_hex, on_apply, on_default, on_revert, touchmenu_instance, null_tile_label, white_hex, special_tile, hex_text, opts)
     end
 end
+-- KOReader's own gestures (the menu, brightness) keep working around it,
+-- as over the shelf (GestureZones.overlayEvent; maintainer, PW5).
+function ColorPaletteWidget:handleEvent(event)
+    return require("lib/bookshelf_gesture_zones").overlayEvent(self, event, FocusManager,
+        function(pos)
+            if self:_keyboardVisible() then return true end
+            local d = self._frame and self._frame.dimen
+            return not (d and d.x) or not pos:notIntersectWith(d)
+        end)
+end
+
 return M

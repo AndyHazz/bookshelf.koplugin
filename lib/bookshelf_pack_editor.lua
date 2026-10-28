@@ -308,8 +308,9 @@ function M.choose(bw)
     for _i, p in ipairs(packs) do
         rows[#rows + 1] = {{ text = p, callback = function() UIManager:close(d); M.open(p, bw) end }}
     end
-    rows[#rows + 1] = {{ text = _("Cancel"), callback = function() UIManager:close(d) end }}
-    d = ButtonDialog:new{ title = _("Pack editor"), title_align = "center", buttons = rows }
+    -- The title's X, not a lone Cancel row (STYLE.md).
+    d = ButtonDialog:new(require("lib/bookshelf_module_kit").withClose{
+        title = _("Pack editor"), title_align = "center", buttons = rows })
     UIManager:show(d)
 end
 

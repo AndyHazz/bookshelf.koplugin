@@ -1574,6 +1574,7 @@ function Editor:editTab(tab_id, opts)
             {
                 {
                     text           = "\xEE\xA2\xBF",  -- U+E8BF mdi-delete
+                    footer_text    = _("Delete"),   -- in the bottom row
                     font_face      = "symbols",
                     font_size      = CHEV_SIZE,
                     font_bold      = false,
@@ -1637,6 +1638,7 @@ function Editor:editTab(tab_id, opts)
                     -- Add button placed last in the row to balance the
                     -- destructive Delete on the far left.
                     text           = "\xEF\x81\x95",  -- U+F055 fa-plus-circle
+                    footer_text    = _("New shelf"),   -- in the bottom row
                     font_face      = "symbols",
                     font_bold      = false,
                     font_size  = CHEV_SIZE,
@@ -1748,8 +1750,15 @@ function Editor:editTab(tab_id, opts)
             end
             return (#cells or 0) > 0 and hg or nil, focus
         end
+        -- Delete and New shelf go to a button row at the foot with Close: the
+        -- strip was crowded (maintainer). Copy and Move to stay on it.
+        local strip_cells, foot_cells = {}, {}
+        for _i, c in ipairs(action_row ~= top_row and action_row or {}) do
+            if c.footer_text then foot_cells[#foot_cells + 1] = c
+            else strip_cells[#strip_cells + 1] = c end
+        end
         local left, left_focus = group(top_row)
-        local right, right_focus = group(action_row ~= top_row and action_row or {})
+        local right, right_focus = group(strip_cells)
         local strip_focus = {}
         for _i, w in ipairs(left_focus) do strip_focus[#strip_focus + 1] = w end
         for _i, w in ipairs(right_focus) do strip_focus[#strip_focus + 1] = w end
@@ -1758,6 +1767,22 @@ function Editor:editTab(tab_id, opts)
             left = left, buttons = right and { right } or nil }
 
         local rows_vg = buildCards(middle, layout, false)
+
+        -- The foot: KOReader's own button row, edge to edge (as a
+        -- ButtonDialog's), Delete | New shelf | Close.
+        local foot_row = {}
+        for _i, c in ipairs(foot_cells) do
+            foot_row[#foot_row + 1] = { text = c.footer_text, enabled = cellEnabled(c),
+                callback = c.callback }
+        end
+        foot_row[#foot_row + 1] = { text = _("Close"), callback = function() finish() end }
+        local foot = require("ui/widget/buttontable"):new{
+            width = dialog_w, buttons = { foot_row }, zero_sep = true, show_parent = dialog }
+        local foot_focus = {}
+        for _i, row in ipairs(foot.layout or {}) do
+            for _j, b in ipairs(row) do foot_focus[#foot_focus + 1] = b end
+        end
+        if #foot_focus > 0 then layout[#layout + 1] = foot_focus end
 
         -- One FocusManager over the strip and the cards, so keys move through
         -- them (GitHub issue 361); it repaints the dialog when focus moves.
@@ -1770,6 +1795,9 @@ function Editor:editTab(tab_id, opts)
                 FrameContainer:new{ bordersize = 0, padding = 0,
                     padding_left = inset, padding_right = inset, padding_bottom = inset,
                     rows_vg },
+                require("ui/widget/linewidget"):new{ background = Blitbuffer.COLOR_GRAY,
+                    dimen = Geom:new{ w = dialog_w, h = Size.line.medium } },
+                foot,
             },
         }
         -- FocusManager repaints `show_parent or self` on a D-pad move, and the
@@ -1791,8 +1819,7 @@ function Editor:editTab(tab_id, opts)
             title             = title_text,
             with_bottom_line  = true,
             bottom_v_padding  = 0,
-            -- The X is Close.
-            close_callback    = function() finish() end,
+            -- No X: Close is in the button row at the foot.
         }
 
         frame[1] = VerticalGroup:new{

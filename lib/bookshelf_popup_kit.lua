@@ -50,9 +50,12 @@ function Kit.tapCell(widget, w, h, on_tap, enabled, on_hold)
     function cell:paintTo(bb, x, y)
         InputContainer.paintTo(self, bb, x, y)
         if self._focused then
-            -- focus_radius: round the highlight to a rounded card's corner.
-            if self.focus_radius then Kit.invertRounded(bb, x, y, w, h, self.focus_radius)
-            else bb:invertRect(x, y, w, h) end
+            -- A ring, not the whole cell inverted: inverted, a focused cell
+            -- looked exactly like a selected one (black means "on"), and a
+            -- tab strip showed two tabs picked. The ring inverts what is
+            -- under it, so it shows on a black (selected) cell as on a white
+            -- one. focus_radius: round it to a rounded card's corner.
+            Kit.invertRing(bb, x, y, w, h, Kit.focusWidth(), self.focus_radius or 0)
         end
     end
     cell.onFocus = function() cell._focused = true; return true end
@@ -76,6 +79,18 @@ function Kit.invertRounded(bb, x, y, w, h, r)
             bb:invertRect(x + w - out, y + h - 1 - i, out, 1)
         end
     end
+end
+
+-- focusWidth() -> the keys' focus ring's width.
+function Kit.focusWidth() return Space.px(4) end
+
+-- invertRing(bb, x, y, w, h, t, r): invert a ring t wide inside the box,
+-- its corners rounded to r (the cell's own inverted twice inside the ring,
+-- so the middle is left as it was).
+function Kit.invertRing(bb, x, y, w, h, t, r)
+    if w <= 2 * t or h <= 2 * t then return bb:invertRect(x, y, w, h) end
+    Kit.invertRounded(bb, x, y, w, h, r)
+    Kit.invertRounded(bb, x + t, y + t, w - 2 * t, h - 2 * t, math.max(0, r - t))
 end
 
 -- findCard(widget) -> the kit card in widget (itself, or a few levels in),

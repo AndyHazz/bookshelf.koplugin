@@ -128,11 +128,20 @@ function ChipButton.build(opts)
         end
         return true
     end
-    -- Dpad/keyboard focus highlight. Restores to the caller's own `inverted`
-    -- baseline (not unconditionally false) on unfocus, so focusing away from
-    -- a button that's mid-refresh doesn't clear its busy indicator.
-    btn.onFocus = function() frame.inverted = true; return true end
-    btn.onUnfocus = function() frame.inverted = opts.inverted or false; return true end
+    -- Dpad/keyboard focus: the kit's ring inside the button (popup kit's
+    -- invertRing), not the button inverted, which looked like a button that
+    -- is on (an active header button is inverted too).
+    local focused = false
+    function btn:paintTo(bb, x, y)
+        InputContainer.paintTo(self, bb, x, y)
+        if focused then
+            local Kit = require("lib/bookshelf_popup_kit")
+            local sz = frame:getSize()
+            Kit.invertRing(bb, x, y, sz.w, sz.h, Kit.focusWidth(), frame.radius or 0)
+        end
+    end
+    btn.onFocus = function() focused = true; return true end
+    btn.onUnfocus = function() focused = false; return true end
     return btn
 end
 

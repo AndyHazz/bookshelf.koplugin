@@ -431,9 +431,10 @@ t.test("series filter picker marks what UNSET actually does (#350)", function()
         shown_buttons = nil
         Editor._pickChoiceFilter(Editor, draft, "series_membership", function() end)
         assert(shown_buttons, "the picker never built its dialog")
+        -- The page's card in force is ticked in its button form.
         for _i, row in ipairs(shown_buttons) do
             local text = row[1].text
-            if text:find("\xE2\x97\x8F", 1, true) then return text end
+            if text and text:find("\xE2\x9C\x93", 1, true) then return text end
         end
         return nil
     end
@@ -711,6 +712,52 @@ t.test("shelf style: a style with one setting has it on the main page", function
         assert(not (b.type == "option" and b.text:find("Covers", 1, true)), "a page for one row")
     end
     assert(not openStyle({}).find("Cover captions"), "a local shelf's covers lost their page")
+end)
+
+-- ── Catalog settings and the folder filter, as pages ───────────────────────
+local function openPage(fn)
+    local spec, refreshed = nil, 0
+    Editor._host = { push = function(sp) spec = sp; return { refresh = function() refreshed = refreshed + 1 end } end }
+    fn()
+    Editor._host = nil
+    return spec, function() return refreshed end
+end
+
+t.test("catalog settings: the refresh in force is marked, a tap sets it in place", function()
+    package.loaded["lib/bookshelf_opds_prefs"] = { REFRESH_OPTIONS = {
+        { value = 0, label_func = function() return "Only when I swipe down" end },
+        { value = 3600, label_func = function() return "If it's over an hour old" end } } }
+    package.loaded["lib/bookshelf_folder_picker"] = {}
+    local draft, closes = { source = { kind = "opds", id = "k1", feed_url = "u", feed_label = "Fiction" } }, 0
+    local spec, refreshed = openPage(function() Editor:_openCatalogSettings(draft, function() closes = closes + 1 end) end)
+    eq(spec.title, "Catalog settings")
+    local function find(text)
+        for _i, b in ipairs(spec.page().blocks) do if b.text == text then return b end end
+    end
+    assert(find("Only when I swipe down").on, "unset does not mark what the catalog does")
+    find("If it's over an hour old").callback()
+    eq(draft.opds_refresh_age, 3600); eq(closes, 1); eq(refreshed(), 1)
+    local start = find("Fiction")
+    assert(start and start.links, "the start folder has no way back to the top")
+    start.links[1].callback()
+    eq(draft.source.feed_url, nil); eq(draft.source.feed_label, nil)
+    assert(find("The top of the catalog"), "the page does not say it starts at the top")
+end)
+
+t.test("folder filter: each folder has a cross, and both lists can be added to", function()
+    package.loaded["ui/widget/pathchooser"] = {}
+    local draft, closes = { filter = { folders = { include = { ["/a/Fiction"] = true }, exclude = {} } } }, 0
+    local spec = openPage(function() Editor:_pickFolderFilter(draft, function() closes = closes + 1 end) end)
+    local blocks = spec.page().blocks
+    local row, adds = nil, 0
+    for _i, b in ipairs(blocks) do
+        if b.type == "row" and b.label == "/a/Fiction" then row = b end
+        if b.type == "chips" then adds = adds + 1 end
+    end
+    assert(row and row.on_clear, "an included folder cannot be dropped")
+    eq(adds, 2, "not a way to add to each list")
+    row.on_clear()
+    eq(draft.filter.folders.include["/a/Fiction"], nil); eq(closes, 1)
 end)
 
 t.done()

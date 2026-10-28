@@ -705,26 +705,42 @@ function Editor:editTab(tab_id, opts)
         if closed then return end
         local targets = TabModel.moveTargets(TabModel.load(), tab_id)
         local picker
-        local rows = {}
-        for _i, t in ipairs(targets) do
-            local here = (t.id == draft.parent)
-            local name = t.id and plainName(t) or _("Shelf menu")
-            rows[#rows + 1] = {{
-                text     = (here and "\u{2713} " or "") .. name,
-                enabled  = not here,
-                callback = function()
-                    Editor._closeMenu(picker)
-                    TabModel.flush()
-                    local tabs = TabModel.load()
-                    if not TabModel.moveTree(tabs, tab_id, t.id) then return end
-                    TabModel.save(tabs)
-                    leaveFor(tab_id)
-                end,
-            }}
+        local function moveTo(t)
+            return function()
+                Editor._closeMenu(picker)
+                TabModel.flush()
+                local tabs = TabModel.load()
+                if not TabModel.moveTree(tabs, tab_id, t.id) then return end
+                TabModel.save(tabs)
+                leaveFor(tab_id)
+            end
         end
+        -- A page: where the shelf is now (black, nothing to do) and where it
+        -- can go, the shelf menu first, then each shelf of shelves.
         picker = Editor._menu{
-            title = _("Move to"), title_align = "center",
-            buttons = rows,
+            title = _("Move to"),
+            page = function()
+                local here_name
+                local top, inside = {}, {}
+                for _i, t in ipairs(targets) do
+                    local here = (t.id == draft.parent)
+                    local name = t.id and plainName(t) or _("Shelf menu")
+                    if here then here_name = name end
+                    local b = { type = "option", text = name, on = here,
+                        icon = t.id and "\u{EA30}" or nil,   -- library: a shelf of shelves
+                        callback = (not here) and moveTo(t) or nil }
+                    if t.id then b.half = true; inside[#inside + 1] = b else top[#top + 1] = b end
+                end
+                local blocks = {}
+                for _i, b in ipairs(top) do blocks[#blocks + 1] = b end
+                if #inside > 0 then
+                    blocks[#blocks + 1] = { type = "heading", text = _("Into a shelf of shelves") }
+                    for _i, b in ipairs(inside) do blocks[#blocks + 1] = b end
+                end
+                return { strip = { { type = "summary", text = here_name
+                    and T(_("Now on %1. Tap where it should go."), here_name)
+                    or _("Tap where it should go.") } }, blocks = blocks }
+            end,
         }
     end
 
@@ -1917,86 +1933,71 @@ end
 -- Every pick hands back through on_close, which saves it (the caller passes
 -- commit + rebuild), and the menu reopens on its new value.
 function Editor:_openCatalogSettings(draft, on_close)
-    local UIManager    = require("ui/uimanager")
-    local ButtonDialog = require("ui/widget/buttondialog")
-    local Prefs        = require("lib/bookshelf_opds_prefs")
+    local Prefs  = require("lib/bookshelf_opds_prefs")
+    local Picker = require("lib/bookshelf_folder_picker")
     local d
-    -- Re-entry after any sub-pick, so the row under the finger shows its new
-    -- value and the user stays in the menu they were working in.
-    local function reopen()
-        if d then Editor._closeMenu(d) end
-        self:_openCatalogSettings(draft, on_close)
+    local function changed()
+        if on_close then on_close() end
+        if d and d.refresh then d:refresh() end
     end
-    local function row(label, value, on_tap)
-        return {{ text = label .. ": " .. value, callback = on_tap }}
-    end
-    local function optionRow(label, title, field, options)
-        return row(label, Prefs.labelFor(options, draft[field]), function()
-            self:_pickOpdsOption(draft, field, options, title, function()
-                if on_close then on_close() end
-                reopen()
-            end)
-        end)
-    end
+    -- A page: where the catalog starts, where its books are saved, and how
+    -- often it is fetched again, each said in words and changed in place.
+    local function page()
+        local blocks = {}
+        local function add(b) blocks[#blocks + 1] = b end
 
-    local dir = draft.download_dir
-    local dir_label = (type(dir) == "string" and dir ~= "")
-        and (dir:match("([^/]+)/?$") or dir)
-        or _("KOReader folder")
-
-    -- THE START FOLDER, as a row that shows it and clears it.
-    --
-    -- Setting one is a long-press on the subcatalog itself out on the shelf,
-    -- which is where the reader can see what they are choosing; walking a
-    -- catalogue inside a settings dialog would be a second, worse browser for
-    -- a structure the shelf already browses. What belongs HERE is the two
-    -- things the shelf cannot say: what the start folder currently IS, and how
-    -- to get back above it -- which is the same clear, reachable without
-    -- having to find a row first.
-    local start_url   = draft.source and draft.source.feed_url
-    local start_label = draft.source and draft.source.feed_label
-    local start_row
-    if start_url then
-        start_row = row(_("Starts at"), start_label or _("a subcatalog"),
-            function()
+        -- THE START FOLDER. Setting one is a long-press on the subcatalog out
+        -- on the shelf, where the reader can see what they are choosing; what
+        -- belongs here is what it is now, and the way back above it.
+        local start_url   = draft.source and draft.source.feed_url
+        local start_label = draft.source and draft.source.feed_label
+        add({ type = "heading", text = _("Starts at") })
+        add({ type = "option", icon = "\u{E94A}",   -- folder
+            text = start_url and (start_label or _("a subcatalog")) or _("The top of the catalog"),
+            desc = _("Long-press a subcatalog on the shelf to start there."),
+            links = start_url and { { text = _("Back to the top"), callback = function()
                 draft.source.feed_url   = nil
                 draft.source.feed_label = nil
-                if on_close then on_close() end
-                reopen()
-            end)
-    else
-        start_row = {{
-            text = _("Starts at: the top of the catalog"),
-            -- Nothing to clear and nothing to pick here: the pick is a
-            -- long-press on the shelf. Enabled would promise an action.
-            enabled = false,
-        }}
-    end
+                changed()
+            end } } or nil })
 
+        -- WHERE DOWNLOADS GO: KOReader's own folder, or one the reader picks.
+        local dir = draft.download_dir
+        local own = type(dir) == "string" and dir ~= ""
+        add({ type = "heading", text = _("Saves downloads to") })
+        add({ type = "option", half = true, text = _("KOReader's download folder"), on = not own,
+            callback = (own and function() draft.download_dir = nil; changed() end) or nil })
+        add({ type = "option", half = true, icon = "\u{E94A}",
+            text = (own and (dir:match("([^/]+)/?$") or dir) or _("A folder of your own")) .. " \xE2\x80\xBA",
+            on = own,
+            callback = function()
+                Picker.show{
+                    title     = _("Save downloads to\xE2\x80\xA6"),
+                    on_cancel = function() end,
+                    on_pick   = function(picked)
+                        draft.download_dir = picked
+                        changed()
+                    end,
+                }
+            end })
+
+        -- HOW OFTEN IT IS FETCHED AGAIN. Unset is options[1] (Prefs): tick
+        -- what the catalog DOES, not what is stored.
+        local current = draft.opds_refresh_age
+        if current == nil and Prefs.REFRESH_OPTIONS[1] then current = Prefs.REFRESH_OPTIONS[1].value end
+        add({ type = "heading", text = _("Refresh this catalog") })
+        for _i, opt in ipairs(Prefs.REFRESH_OPTIONS) do
+            local value = opt.value
+            add({ type = "option", half = true, text = opt.label_func(), on = current == value,
+                callback = function() draft.opds_refresh_age = value; changed() end })
+        end
+        return { blocks = blocks }
+    end
     d = Editor._menu{
-        title       = _("Catalog settings"),
-        title_align = "center",
-        buttons = {
-            start_row,
-            row(_("Saves to"), dir_label, function()
-                Editor._closeMenu(d)
-                d = nil
-                self:_pickDownloadDir(draft, function()
-                    if on_close then on_close() end
-                    reopen()
-                end)
-            end),
-            optionRow(_("Refresh"), _("Refresh this catalog"),
-                      "opds_refresh_age", Prefs.REFRESH_OPTIONS),
-            {{
-                text = _("Close"),
-                callback = function()
-                    Editor._closeMenu(d)
-                    d = nil
-                    if on_close then on_close() end
-                end,
-            }},
-        },
+        title   = _("Catalog settings"),
+        page    = page,
+        on_back = on_close,
+        anchor  = _highAnchor(function() return d end),
     }
 end
 
@@ -2007,7 +2008,6 @@ end
 -- the face-out dialog.
 function Editor:_pickFaceCollection(draft, on_change, back)
     local SS = require("lib/bookshelf_spine_shelf")
-    local Kit = require("lib/bookshelf_module_kit")
     local d
     local cur = SS.faceOutSpec(draft.spine_face_out).collection
     local names = {}
@@ -2019,15 +2019,15 @@ function Editor:_pickFaceCollection(draft, on_change, back)
         end
     end
     table.sort(names, function(a, b) return a:lower() < b:lower() end)
-    local rows = {}
-    if #names == 0 then
-        rows[#rows + 1] = {{ text = _("No collections yet"), enabled = false }}
-    end
-    for _i, name in ipairs(names) do
-        rows[#rows + 1] = { Kit.radioRow{
-            label   = name,
-            active  = (cur == name),
-            on_pick = function()
+    -- A page of the collections, the one in use black; a tap picks it and
+    -- goes back to Face out, where the reason now reads it.
+    local function page()
+        if #names == 0 then
+            return { blocks = { { type = "hint", text = _("No collections yet. Make one from a book's menu.") } } }
+        end
+        local items = {}
+        for _i, name in ipairs(names) do
+            items[#items + 1] = { text = name, icon = "\u{E7BF}", on = cur == name, callback = function()
                 local spec = SS.faceOutSpec(draft.spine_face_out)
                 spec.collection = name
                 spec.all = nil
@@ -2035,22 +2035,18 @@ function Editor:_pickFaceCollection(draft, on_change, back)
                 if on_change then on_change() end
                 Editor._closeMenu(d)
                 if back then back() end
-            end,
+            end }
+        end
+        return { blocks = {
+            { type = "hint", text = _("Books in this collection stand face out.") },
+            { type = "chips", items = items },
         } }
     end
-    rows[#rows + 1] = {{
-        text = _("Back"),
-        callback = function()
-            Editor._closeMenu(d)
-            if back then back() end
-        end,
-    }}
     d = Editor._menu{
-        title          = _("In a collection"),
-        title_align    = "left",
-        use_info_style = false,
-        buttons        = rows,
-        anchor         = _highAnchor(function() return d end),
+        title   = _("In a collection"),
+        page    = page,
+        on_back = back,
+        anchor  = _highAnchor(function() return d end),
     }
 end
 
@@ -2616,33 +2612,36 @@ end
 -- as the plank picker (ThemePack.plankOptions), plus following the main
 -- shelf. done() after a pick or a close.
 function Editor:_pickCardPlank(draft, done)
-    local ButtonDialog = require("ui/widget/buttondialog")
-    local Kit = require("lib/bookshelf_module_kit")
     local PB = require("lib/bookshelf_plank_browser")
     local TP = require("lib/bookshelf_theme_pack")
-    local dlg
+    local d
+    -- A page of the planks, the one in use black; a tap picks it, shows on
+    -- the shelf behind (done), and the page stays for another try.
     local function choose(v)
         return function()
             draft.plank = v
-            Editor._closeMenu(dlg)
             done()
+            if d and d.refresh then d:refresh() end
         end
     end
-    local rows = {
-        { Kit.radioRow{ label = Editor._plankLabel(nil), active = draft.plank == nil, on_pick = choose(nil) } },
-    }
-    for _i, o in ipairs(TP.plankOptions()) do
-        local v = PB.choiceOf(o)
-        if v ~= nil then
-            rows[#rows + 1] = { Kit.radioRow{ label = Editor._plankLabel(v),
-                active = draft.plank == v, on_pick = choose(v) } }
+    local function page()
+        local items = { { text = Editor._plankLabel(nil), on = draft.plank == nil, callback = choose(nil) } }
+        for _i, o in ipairs(TP.plankOptions()) do
+            local v = PB.choiceOf(o)
+            if v ~= nil then
+                items[#items + 1] = { text = Editor._plankLabel(v), on = draft.plank == v, callback = choose(v) }
+            end
         end
+        return { blocks = {
+            { type = "hint", text = _("The plank this module's shelf stands on.") },
+            { type = "chips", items = items },
+        } }
     end
-    dlg = Editor._menu{
-        title = _("Plank"), title_align = "center",
-        buttons = rows,
-        rows_per_page = 8,
-        tap_close_callback = done,
+    d = Editor._menu{
+        title   = _("Plank"),
+        page    = page,
+        on_back = done,
+        anchor  = _highAnchor(function() return d end),
     }
 end
 
@@ -2692,63 +2691,51 @@ end
 -- choice, as in Cover display. Back returns unchanged.
 function Editor:_pickCoverText(draft, on_change, back, bw)
     local CL = require("lib/bookshelf_cover_label")
-    local Kit = require("lib/bookshelf_module_kit")
     local d
-    local function set(v)
-        return function()
-            draft.cover_text = v
-            on_change()
-            Editor._closeMenu(d)
-            back()
-        end
-    end
-    local cur = draft.cover_text
-    local function customBtn()
-        return {
-            text = (cur == "custom" and "\xE2\x9C\x93 " or "") .. _("Custom\xE2\x80\xA6"),
-            callback = function()
-                Editor._closeMenu(d)
-                -- Starts from the shelf's own line, else the one it shows
-                -- now, so Custom changes nothing until it is edited.
-                require("lib/bookshelf_cover_label_editor").showForShelf(bw, {
-                    line = draft.cover_text_line or CL.lineFor(draft.id),
-                    save = function(l)
-                        draft.cover_text_line = CL.normalise(l)
-                        draft.cover_text = "custom"
-                        on_change()
-                    end,
-                    on_closed = back,
-                })
-            end,
-        }
-    end
-    local rows = {}
-    for _i, layout_row in ipairs(COVER_TEXT_LAYOUT) do
-        local row = {}
-        for _j, v in ipairs(layout_row) do
-            if v == "custom" then
-                row[#row + 1] = customBtn()
-            else
-                local value = (v ~= "follow") and v or nil
-                row[#row + 1] = Kit.radioRow{ label = Editor._coverTextLabel(draft, value),
-                                              active = cur == value, on_pick = set(value) }
+    -- A page: the lines a cover can carry as chips (the one in use black),
+    -- and a line of the reader's own, which opens its editor. A pick shows on
+    -- the shelf behind at once (on_change) and the page stays.
+    local function page()
+        local cur = draft.cover_text
+        local items = {}
+        for _i, layout_row in ipairs(COVER_TEXT_LAYOUT) do
+            for _j, v in ipairs(layout_row) do
+                if v ~= "custom" then
+                    local value = (v ~= "follow") and v or nil
+                    items[#items + 1] = { text = Editor._coverTextLabel(draft, value), on = cur == value,
+                        callback = function()
+                            draft.cover_text = value
+                            on_change()
+                            if d and d.refresh then d:refresh() end
+                        end }
+                end
             end
         end
-        rows[#rows + 1] = row
+        return { blocks = {
+            { type = "hint", text = _("The text under each cover on this shelf.") },
+            { type = "chips", items = items },
+            { type = "option", text = _("A line of your own") .. " \xE2\x80\xBA", on = cur == "custom",
+              desc = _("Choose what it shows, from the book's details."),
+              callback = function()
+                  -- Starts from the shelf's own line, else the one it shows
+                  -- now, so Custom changes nothing until it is edited.
+                  require("lib/bookshelf_cover_label_editor").showForShelf(bw, {
+                      line = draft.cover_text_line or CL.lineFor(draft.id),
+                      save = function(l)
+                          draft.cover_text_line = CL.normalise(l)
+                          draft.cover_text = "custom"
+                          on_change()
+                      end,
+                      on_closed = function() if d and d.refresh then d:refresh() end end,
+                  })
+              end },
+        } }
     end
-    rows[#rows + 1] = {{
-        text = _("Back"),
-        callback = function()
-            Editor._closeMenu(d)
-            back()
-        end,
-    }}
     d = Editor._menu{
-        title       = _("Cover captions"),
-        title_align = "center",
-        buttons     = rows,
-        anchor      = _highAnchor(function() return d end),
-        tap_close_callback = back,
+        title   = _("Cover captions"),
+        page    = page,
+        on_back = back,
+        anchor  = _highAnchor(function() return d end),
     }
 end
 
@@ -2759,40 +2746,7 @@ end
 -- The default option carries no value at all (Lua stores no key for
 -- `{ value = nil }`), so picking it clears the field back to unset rather than
 -- writing a "default" marker that a later build would have to keep honouring.
-function Editor:_pickOpdsOption(draft, field, options, title, on_close)
-    local UIManager    = require("ui/uimanager")
-    local ButtonDialog = require("ui/widget/buttondialog")
-    local Kit          = require("lib/bookshelf_module_kit")
-    local d
-    local rows = {}
-    -- Tick what the chip DOES, not what it has stored. An untouched chip has
-    -- no value in this field, nothing equals nil, and the list opened with no
-    -- row ticked at all - reading as "no setting" over a catalog that is very
-    -- much doing something. options[1] is the default by construction: every
-    -- option list here leads with it, labelFor already renders an unset chip
-    -- as options[1], and bookshelf_opds_prefs has a test holding that.
-    local current = draft[field]
-    if current == nil and options[1] then current = options[1].value end
-    for _i, opt in ipairs(options) do
-        rows[#rows + 1] = {Kit.radioRow{
-            label  = opt.label_func(),
-            active = current == opt.value,
-            on_pick = function()
-                draft[field] = opt.value
-                Editor._closeMenu(d)
-                if on_close then on_close() end
-            end,
-        }}
-    end
-    rows[#rows + 1] = {{
-        text = _("Cancel"),
-        callback = function()
-            Editor._closeMenu(d)
-            if on_close then on_close() end
-        end,
-    }}
-    d = Editor._menu{ title = title, title_align = "center", buttons = rows }
-end
+
 
 -- _pickDownloadDir(draft, on_close) - where THIS catalog chip saves its
 -- downloads (issue #319). Reuses the move flow's folder picker so the choices
@@ -2800,49 +2754,7 @@ end
 -- Browse device). A "Follow KOReader" row clears the per-chip choice, which is
 -- also the unset default. on_close saves the pick with the rest of the
 -- shelf.
-function Editor:_pickDownloadDir(draft, on_close)
-    local UIManager = require("ui/uimanager")
-    local ButtonDialog = require("ui/widget/buttondialog")
-    local Picker = require("lib/bookshelf_folder_picker")
-    local d
-    d = Editor._menu{
-        title       = _("Save downloads from this catalog to\xE2\x80\xA6"),
-        title_align = "center",
-        buttons = {
-            {{
-                text = _("Choose folder\xE2\x80\xA6"),
-                callback = function()
-                    Editor._closeMenu(d)
-                    Picker.show{
-                        title     = _("Save downloads to\xE2\x80\xA6"),
-                        on_cancel = on_close,
-                        on_pick   = function(dir)
-                            draft.download_dir = dir
-                            if on_close then on_close() end
-                        end,
-                    }
-                end,
-            }},
-            {{
-                text = (draft.download_dir == nil or draft.download_dir == "")
-                    and ("\xE2\x9C\x93 " .. _("KOReader's download folder"))
-                    or  ("  " .. _("KOReader's download folder")),
-                callback = function()
-                    draft.download_dir = nil
-                    Editor._closeMenu(d)
-                    if on_close then on_close() end
-                end,
-            }},
-            {{
-                text = _("Cancel"),
-                callback = function()
-                    Editor._closeMenu(d)
-                    if on_close then on_close() end
-                end,
-            }},
-        },
-    }
-end
+
 
 function Editor:_pickSource(draft, on_close)
     local Repo = require("lib/bookshelf_book_repository")
@@ -3470,40 +3382,40 @@ end
 -- Any dismissal (tap-outside included) reopens the filter list via on_close.
 function Editor:_pickChoiceFilter(draft, dim_key, on_close)
     draft.filter = draft.filter or {}
-    local ButtonDialog = require("ui/widget/buttondialog")
     local values = (dim_key == "series_membership") and Filter.seriesValues() or {}
     -- The UNSET marker must show what unset actually DOES (issue 350). On a
     -- book-list chip an absent value compiles to no effect, i.e. "both"; but
     -- the SERIES source reads absent as its historical stacks-only mode, so
-    -- marking "both" there claimed a state the shelf was not in - and the
-    -- user had to tap the already-ticked row to make the dialog true.
+    -- marking "both" there claimed a state the shelf was not in.
     local unset_means = "both"
     if dim_key == "series_membership"
             and draft.source and draft.source.kind == "series" then
         unset_means = "in_series"
     end
-    local current = draft.filter[dim_key] or unset_means
     local d
-    local buttons = {}
-    for _i, v in ipairs(values) do
-        -- ● (U+25CF) selected / ○ (U+25CB) unselected -- a plain radio marker.
-        local mark = (v.value == current) and "\xE2\x97\x8F  " or "\xE2\x97\x8B  "
-        buttons[#buttons + 1] = {{
-            text  = mark .. v.label,
-            align = "left",
-            callback = function()
-                draft.filter[dim_key] = v.value
-                Editor._closeMenu(d)
-                on_close()
-            end,
-        }}
+    -- A page: one card per choice, the one in force black; a tap sets it and
+    -- goes back to Filters, where its row now reads it.
+    local function page()
+        local current = draft.filter[dim_key] or unset_means
+        local blocks = {}
+        for _i, v in ipairs(values) do
+            local value = v.value
+            blocks[#blocks + 1] = { type = "option", text = v.label, on = value == current,
+                callback = function()
+                    draft.filter[dim_key] = value
+                    Editor._closeMenu(d)
+                    on_close()
+                end }
+        end
+        return { blocks = blocks }
     end
     d = Editor._menu{
-        title             = _("Series filter"),
-        title_align       = "center",
-        buttons           = buttons,
-        anchor            = _highAnchor(function() return d end),
-        tap_close_callback = function() on_close() end,
+        -- The filter's own name, as its row on Filters says it: the
+        -- breadcrumb reads Home > Filters > Series.
+        title   = _("Series"),
+        page    = page,
+        on_back = on_close,
+        anchor  = _highAnchor(function() return d end),
     }
 end
 
@@ -3521,6 +3433,9 @@ function Editor:_pickMultiFilter(draft, dim_key, on_close)
         collections = _("Collection filter"),
     }
     local title = titles[dim_key] or _("Filter")
+    local function dimLabel(key)
+        for _i, dim in ipairs(Filter.dimensions()) do if dim.key == key then return dim.label end end
+    end
 
     -- Build choices list.
     local choices
@@ -3582,7 +3497,9 @@ function Editor:_pickMultiFilter(draft, dim_key, on_close)
             config = {
                 title              = title,
                 -- A page of the editor, over the Filters page it came from.
-                over               = Editor._over({ title }),
+                -- A page of the editor, over the Filters page it came from,
+                -- named as its row there names it (Home > Filters > Genre).
+                over               = Editor._over({ dimLabel(dim_key) or title }),
                 search_placeholder = function() return _("Search\xE2\x80\xA6") end,
                 on_search_submit   = function(q)
                     query = q
@@ -3705,52 +3622,52 @@ function Editor:_pickFolderFilter(draft, on_close)
     folders.include = folders.include or {}
     folders.exclude = folders.exclude or {}
     local d
-    local function reopen() Editor._closeMenu(d); Editor:_pickFolderFilter(draft, on_close) end
-
+    local function changed()
+        if on_close then on_close() end
+        if d and d.refresh then d:refresh() end
+    end
+    -- KOReader's folder browser over this page; the page reads the folder
+    -- added when it closes.
     local function add_via_chooser(set)
-        local confirmed = false
         UIManager:show(PathChooser:new{
             path             = require("lib/bookshelf_home_dir").get() or "/",
             select_directory = true,
             select_file      = false,
             show_files       = false,
             onConfirm        = function(folder)
-                confirmed = true
                 folder = (folder == "/") and "/" or folder:gsub("/+$", "")
                 set[folder] = true
-                Editor:_pickFolderFilter(draft, on_close)
-            end,
-            close_callback   = function()
-                if not confirmed then Editor:_pickFolderFilter(draft, on_close) end
+                changed()
             end,
         })
     end
-
-    local rows = {}
-    local function entry_rows(set, sign)
-        local keys = {}
-        for p in pairs(set) do keys[#keys + 1] = p end
-        table.sort(keys)
-        for _i, p in ipairs(keys) do
-            rows[#rows + 1] = { { text = sign .. " " .. p,
-                callback = function() set[p] = nil; reopen() end } }
+    -- A page: the folders the shelf keeps to and the ones it leaves out, each
+    -- with a cross to drop it, and a way to add one under each.
+    local function page()
+        local blocks = {}
+        local function section(heading, set, add_label)
+            blocks[#blocks + 1] = { type = "heading", text = heading }
+            local keys = {}
+            for p in pairs(set) do keys[#keys + 1] = p end
+            table.sort(keys)
+            for _i, p in ipairs(keys) do
+                blocks[#blocks + 1] = { type = "row", icon = "\u{E94A}",   -- folder
+                    label = p, on = true,
+                    on_clear = function() set[p] = nil; changed() end }
+            end
+            blocks[#blocks + 1] = { type = "chips", items = { { text = "+ " .. add_label,
+                callback = function() add_via_chooser(set) end } } }
         end
+        section(_("Only books in these folders"), folders.include, _("Add a folder"))
+        section(_("Leave out these folders"), folders.exclude, _("Add a folder to leave out"))
+        blocks[#blocks + 1] = { type = "hint",
+            text = _("With none in the first list, every folder counts but those left out.") }
+        return { blocks = blocks }
     end
-    entry_rows(folders.include, "+")
-    entry_rows(folders.exclude, "-")
-    if not next(folders.include) and not next(folders.exclude) then
-        rows[#rows + 1] = { { text = _("(no folder filters - tap to remove once added)"),
-            callback = function() end } }
-    end
-    rows[#rows + 1] = {
-        { text = _("Add folder to include"), callback = function() Editor._closeMenu(d); add_via_chooser(folders.include) end },
-        { text = _("Add folder to exclude"), callback = function() Editor._closeMenu(d); add_via_chooser(folders.exclude) end },
-    }
-    rows[#rows + 1] = { { text = _("Back"), callback = function() Editor._closeMenu(d); on_close() end } }
-
     d = Editor._menu{
-        title   = _("Folder filter"),
-        buttons = rows,
+        title   = _("Folders"),
+        page    = page,
+        on_back = on_close,
         anchor  = _highAnchor(function() return d end),
     }
 end

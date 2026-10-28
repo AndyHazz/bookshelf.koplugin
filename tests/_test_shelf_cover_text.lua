@@ -87,7 +87,7 @@ t.test("the row names the choice: Default, or Same as for a sub-shelf", function
        "Cover captions: Same as Series")
 end)
 
-t.test("a pick is written to the shelf, shown, and hands back to Shelf style", function()
+t.test("a pick is written to the shelf and shown; the page stays for another", function()
     local draft = { id = "series", label = "Series" }
     local changes, backs = 0, 0
     shown = {}
@@ -96,13 +96,13 @@ t.test("a pick is written to the shelf, shown, and hands back to Shelf style", f
     row[1].callback()
     local d = shown[#shown]
     eq(d.title, "Cover captions")
-    eq(texts(d.buttons), "Default | None | Title | Author | Series | Custom… | Back")
+    eq(texts(d.buttons), "The text under each cover on this shelf. | Default | None | Title | Author | Series | A line of your own › | Back")
+    -- The choices as one row of chips, not a column of seven (PW5, 2026-10-10).
     local shape = {}
     for i, r in ipairs(d.buttons) do shape[i] = #r end
-    -- A grid, not a column of seven (PW5, 2026-10-10).
-    eq(table.concat(shape, ","), "2,3,1,1", "the picker is not laid out as a grid")
+    eq(table.concat(shape, ","), "1,5,1,1", "the choices are not one row of chips")
     find(d.buttons, "Series").callback()
-    eq(draft.cover_text, "series"); eq(changes, 1); eq(backs, 1)
+    eq(draft.cover_text, "series"); eq(changes, 1); eq(backs, 0, "a pick left the page")
     -- Default clears it: the shelf follows again.
     row[1].callback()
     find(shown[#shown].buttons, "Default").callback()
@@ -110,16 +110,17 @@ t.test("a pick is written to the shelf, shown, and hands back to Shelf style", f
     row[1].callback()
     find(shown[#shown].buttons, "Back").callback()
     eq(draft.cover_text, nil, "Back changed the choice")
+    eq(backs, 1, "Back did not hand back to Shelf style")
 end)
 
-t.test("Custom… edits the shelf's own line; Save makes Custom its choice", function()
+t.test("a line of your own edits the shelf's line; Save makes it the choice", function()
     local draft = { id = "series", label = "Series", cover_text_line = { template = "%series" } }
     local changes, backs = 0, 0
     local row = Editor:_coverTextRow(draft, function() changes = changes + 1 end,
         function() end, function() backs = backs + 1 end)
     row[1].callback()
     LE_SPEC = nil
-    find(shown[#shown].buttons, "Custom").callback()
+    find(shown[#shown].buttons, "A line of your own").callback()
     assert(LE_SPEC, "Custom… did not open the line editor")
     eq(LE_SPEC.line.template, "%series", "the editor does not start from the shelf's line")
     eq(draft.cover_text, nil, "opening the editor chose Custom before Save")
@@ -128,7 +129,7 @@ t.test("Custom… edits the shelf's own line; Save makes Custom its choice", fun
     eq(draft.cover_text_line.template, "%series_name #%series_num"); eq(draft.cover_text_line.bold, true)
     eq(changes, 1)
     LE_SPEC.on_closed()
-    eq(backs, 1, "Shelf style did not come back after the editor")
+    eq(backs, 0, "closing the line editor left the page")
 end)
 
 t.done()

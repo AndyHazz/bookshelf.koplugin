@@ -84,7 +84,10 @@ a control by hand, so a change lands everywhere.
   or the card in use (a thicker border) comes out narrower than the rest.
 - A picture on a card is drawn on the card's grey, so transparent parts
   show the card and not a white box.
-- The keys' focus ring follows the card's corner.
+- The keys' focus ring follows the card's corner. It is a ring, not the
+  cell inverted (inverted reads as selected), and it stays hidden until the
+  first key: a menu opened by a tap shows no cursor, and the first key shows
+  it where it was seeded rather than moving it or pressing the row.
 - Grids of actions: icon over a short label, an even grid (four columns,
   fewer when a label would need three lines). Long-press arranges them.
 - Colour chips (the colour picker) are cards too: the colour set in a grey
@@ -115,7 +118,16 @@ a control by hand, so a change lands everywhere.
   a style the source cannot show is shown as what the shelf actually draws.
 - A library picker opened from a page opens as a page too (LibraryModal
   `config.over`), not as a window lined up over the menu, and needs no fade
-  behind it.
+  behind it. Its back is its lone Close or Back, else its Cancel; a page
+  shorter than the menu under it puts the spare height above its footer.
+- A screen of its own that would be a stock button grid (the bulk Edit
+  selected) is a `PageDialog` (`lib/bookshelf_page_dialog.lua`): the title
+  with its X, the same page blocks, a Cancel | Apply footer when changes are
+  staged, and `dialog:over(tail)` for the pickers it opens.
+- Staged changes show as what they will be: the choice black at once, a
+  summary sentence saying what Apply will do, Apply greyed until something
+  is staged. A choice that can be left as it is takes `allow_none`: tapping
+  the picked cell again un-picks it.
 - Two short controls may pair on a line (`half`); a row too narrow for its
   label and value puts the label as a heading over the value, and a pair
   does it together.
@@ -127,6 +139,9 @@ a control by hand, so a change lands everywhere.
 - Secondary details (page, date, counts): grey, a step smaller.
 - Two short sections side by side when both fit on one line (Author(s) and
   Series), stacked otherwise.
+- One word for one thing on a page: "Default" for following the library,
+  not "Default" in one place and "Default setting" beside it. No internal
+  words in hints ("diff", "draft", "staged").
 - Counts: "1 like" and "%d likes" as two strings (ngettext is a stub).
   Source strings in American English; British only in en_GB.po.
 - A summary built of lower-case parts starts with a capital.

@@ -7252,7 +7252,9 @@ function BookshelfWidget:_addSpineModule()
                 for _j, m in ipairs(t.shelf_modules) do
                     if (tonumber(m.after) or 0) < before then before = before - 1 end
                 end
-                entry.after, entry.w = math.max(0, before), 2
+                local def = require("lib/bookshelf_start_menu_modules").get(entry.module)
+                entry.after = math.max(0, before)
+                entry.w = require("lib/bookshelf_shelf_modules").startWidth(def)
                 t.shelf_modules[#t.shelf_modules + 1] = entry
             end
         end

@@ -80,6 +80,16 @@ function M.canStep(mods, id, dir)
     return stepTo(M.ordered(mods), id, dir) ~= nil
 end
 
+-- startWidth(def) -> the width in slots a module is added at: its own start_w
+-- when it says (a frameless figure, one book wide), else 2; never below its
+-- min_w. The grid editor's add (HeroModules._sizeFor) reads the same fields.
+function M.startWidth(def)
+    local w = 2
+    if def and type(def.start_w) == "number" then w = math.max(1, math.floor(def.start_w)) end
+    if def and type(def.min_w) == "number" then w = math.max(w, math.floor(def.min_w)) end
+    return w
+end
+
 -- width(m, cols) -> a module's width in slots, 1 to the row's width.
 function M.width(m, cols)
     return math.max(1, math.min(math.floor(tonumber(m.w) or 2), cols or 1))

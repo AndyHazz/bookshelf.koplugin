@@ -153,7 +153,9 @@ t.test("night on a theme: dark variant and pre-inverted night colours", function
     eq(night and night.hex, TP.invertHex("#445566"))
 end)
 
-t.test("parts a theme lacks are the reader's own, never another theme's", function()
+-- A part a pack lacks is Plain's: no wallpaper, the built-in Oak, the
+-- default colours (maintainer, 2026-10-28). Light or dark stays the reader's.
+t.test("parts a theme lacks are Plain's, never another theme's or Custom theme's", function()
     local TP, d, settings, _po, _o, tabs = setup()
     TP._plugin_root = "."
     halloween(d); touch(d .. "/Gallery/frame.png"); TP.invalidate()
@@ -164,9 +166,10 @@ t.test("parts a theme lacks are the reader's own, never another theme's", functi
     tabs.art = { id = "art", theme = "Gallery" }        -- ornaments only
     TP.setShelf("art")
     eq(TP.shelfKey(), "t:Gallery")
-    eq(TP.shownWallpaper(false, false), "green.jpg", "the library theme's wallpaper leaked onto another theme")
+    eq(TP.shownWallpaper(false, false), nil, "a wallpaper (Custom theme's or the library theme's) on a pack without one")
     eq(TP.colour("ink_color"), nil, "the library theme's colours leaked")
-    eq(TP.activePlank(), nil, "the library theme's plank leaked")
+    local pl = TP.activePlank()
+    eq(pl and pl.id, "builtin:oak", "not Plain's plank")
     eq(TP.shelfLook(), "light")
 end)
 

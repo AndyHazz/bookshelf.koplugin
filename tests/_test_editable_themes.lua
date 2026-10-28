@@ -277,8 +277,10 @@ t.test("a picker's Cancel puts an unedited part back unedited, an edited one as 
     TP.partSave("progress_fill", { hex = "#00AA00" })   -- the live pick
     TP.partRestore("progress_fill", snap)
     eq(TP.hasEdits("Macabre"), false, "Cancel pinned the part to Custom theme's value")
+    -- Unedited, a part the pack lacks is Plain's (the default), whatever
+    -- Custom theme has.
     settings.progress_fill = { hex = "#BBBBBB" }; on(TP, "home")
-    eq(paint(TP, "progress_fill"), "#BBBBBB")
+    eq(paint(TP, "progress_fill"), "-")
     TP.partSave("badge_bg", { hex = "#010101" })
     snap = TP.partSnapshot("badge_bg")
     TP.partSave("badge_bg", { hex = "#020202" })
@@ -664,6 +666,33 @@ t.test("Add theme pack says any theme can be edited and reset; the shop link sta
     end)
     local src = io.open("lib/bookshelf_theme_pack.lua"):read("*a")
     assert(not src:find('_("[^"]*ko%-fi'), "the shop link is inside a msgid, where a translation can break it")
+end)
+
+-- A part a pack lacks is Plain's, not Custom theme's: Autumn (pieces and
+-- colours, no wallpaper or planks), reset on the PW5, came back with the
+-- Macabre planks and the Belle Epoque wallpaper Custom theme had
+-- (maintainer: "How come, when I reset the autumn theme ..."). A theme looks
+-- the same for every reader. Light or dark stays the reader's.
+t.test("a part a pack lacks is Plain's, not Custom theme's", function()
+    local TP, d, settings, tabs = setup()
+    world(d, settings)
+    touch(d .. "/Autumn/theme/colours.json", '{"day":{"text":"#8B3A1A"},"night":{"text":"#F0B56A"}}')
+    touch(d .. "/Autumn/leaf.png")
+    settings.theme_plank_pack = "Macabre/theme/plank.Ash"
+    settings.shelf_theme = "dark"
+    tabs.home = { id = "home", theme = "Autumn" }
+    on(TP, "home")
+    eq(TP.partRead("wallpaper_default"), nil, "Custom theme's wallpaper showed on a pack without one")
+    local pl = TP.activePlank()
+    eq(pl and pl.id, "builtin:oak", "Custom theme's planks showed on a pack without any")
+    eq(paint(TP, "progress_fill"), "-", "a colour the pack doesn't name came from Custom theme")
+    eq(paint(TP, "ink_color"), "#8B3A1A", "the pack's own colour")
+    eq(TP.shelfLook(), "dark", "light or dark is the reader's")
+    tabs.home = { id = "home", theme = "Ukiyo-e" }
+    on(TP, "home")
+    pl = TP.activePlank()
+    eq(pl and pl.id, "builtin:oak", "a pack with a wallpaper but no planks took Custom theme's")
+    eq(paint(TP, "progress_fill"), "-")
 end)
 
 t.done()

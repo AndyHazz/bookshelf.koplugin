@@ -5,8 +5,8 @@
 -- in both slots. Table-driven, so the readers can be folded into one
 -- resolver (bookshelf_theme_pack) without a single answer changing: the
 -- night slot pre-inverted, the plank the exception (display space), Plain
--- the defaults, Custom the reader's own, an edit over everything, UNSET the
--- default.
+-- the defaults, Custom the reader's own, a colour a pack lacks the default
+-- (as Plain's), an edit over everything, UNSET the default.
 -- Run from the plugin root: lua tests/_test_colour_resolver.lua
 package.path = "./?.lua;./?/init.lua;" .. package.path
 package.loaded["logger"] = { dbg = function() end, info = function() end,
@@ -107,7 +107,9 @@ t.test("every theme kind x part state x slot paints as before", function()
                     elseif kind == "mine" then want = own(key, night)
                     elseif kind == "plain" then want = "default"
                     elseif kind == "Lends" and LENDS[key] then want = LENDS[key][night and 2 or 1]
-                    else want = own(key, night) end
+                    -- A colour a pack lacks is Plain's (the default), not
+                    -- Custom theme's (maintainer, 2026-10-28).
+                    else want = "default" end
                     eq(shown(k), want, table.concat({ kind, state, key, night and "night" or "day" }, " / "))
                     rows = rows + 1
                 end

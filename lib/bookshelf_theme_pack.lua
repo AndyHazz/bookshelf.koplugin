@@ -1130,12 +1130,16 @@ end
 
 -- ownPart(theme, key) -> true, value when that theme has that part of its
 -- own, in the stored convention: Plain's fixed parts (no wallpaper, the
--- built-in Oak, the default colours), a pack's own (a colours.json lends
--- only the colours it names; its wallpaper by name, so the full screen and
--- dark variants come with it). false for a part it takes from Custom theme:
--- light or dark and invert on Plain, whatever a pack lacks, and full screen
--- None, the reader's view preference over a pack's wallpaper.
-local function ownPart(theme, key)
+-- built-in Oak, the default colours), a pack's own (a colours.json names
+-- the colours it sets; its wallpaper by name, so the full screen and dark
+-- variants come with it), and what a pack lacks, as Plain has it: a theme
+-- looks the same for every reader. Taking those from Custom theme, Autumn
+-- (no wallpaper, no planks) reset came back with whatever Custom theme had,
+-- Macabre's planks and another pack's wallpaper (maintainer, PW5). false
+-- for a part that is the reader's preference, from Custom theme: light or
+-- dark, invert, and full screen None over a pack's wallpaper.
+local ownPart
+ownPart = function(theme, key)
     local slot = COLOUR_SLOT[key]
     if theme == M.PLAIN then
         if slot or key == "wallpaper_default" or key == "wallpaper_full" then return true, nil end
@@ -1153,12 +1157,12 @@ local function ownPart(theme, key)
         if key == P.buttons and m.panel_shading ~= nil then return true, (m.panel_shading <= 0) or nil end
         if key == P.blur and m.panel_blur ~= nil then return true, m.panel_blur or nil end
         if key == P.covers and m.covers_panel ~= nil then return true, m.covers_panel or nil end
-        return false
+        return ownPart(M.PLAIN, key)
     end
     if slot then
         local c = th.colours and packColour(theme, slot[1], slot[2])
         if c then return true, c end
-        return false
+        return ownPart(M.PLAIN, key)
     end
     if key == M.SHELF_SETTING then
         if th.manifest and th.manifest.shelf then return true, th.manifest.shelf end
@@ -1175,7 +1179,7 @@ local function ownPart(theme, key)
         local pl = M.themePlank(theme)
         return true, pl and pl.id or nil
     end
-    return false
+    return ownPart(M.PLAIN, key)
 end
 
 -- originalPart(theme, key) -> that part as the theme shows it unedited: its

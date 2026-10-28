@@ -167,7 +167,9 @@ t.test("Custom / Plain / pack with keys / pack without, unedited and edited: sha
         { theme = "mine",    before = { 0.6,  true,  true  }, after = { 1, false, false } },
         { theme = "plain",   before = { 0.85, false, false }, after = { 1, true,  true  } },
         { theme = "Macabre", before = { 0.35, false, false }, after = { 1, true,  true  } },
-        { theme = "Ukiyo-e", before = { 0.6,  true,  true  }, after = { 1, false, false } },
+        -- A pack without panel keys has Plain's, not Custom theme's
+        -- (maintainer, 2026-10-28).
+        { theme = "Ukiyo-e", before = { 0.85, false, false }, after = { 1, true,  true  } },
     }
     for _i, c in ipairs(cases) do
         local TP, d, settings, tabs = setup()
@@ -224,7 +226,7 @@ t.test("Transparent on a pack: its shading and buttons together, and Custom them
     on(TP, "home")
     eq(W.scrimStrength(W.partRead), 0.35, "Custom theme's transparent buttons cut Macabre's Low to nothing")
     on(TP, "uk")
-    eq(W.scrimStrength(W.partRead), 0, "a pack without shading does not follow Custom theme's")
+    eq(W.scrimStrength(W.partRead), 0.85, "a pack without shading has Plain's Heavy, not Custom theme's Transparent")
     on(TP, "home")
     TP.partSave(BU, true); TP.partSave(SH, 0)
     on(TP, "home")

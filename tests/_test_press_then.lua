@@ -76,10 +76,10 @@ t.test("a button whose window closed is left alone", function()
     assert(not letUp(editor), "repainted a window that had closed")
 end)
 
--- A grey card pressed with a "fast" refresh lost its grey on the PW5: fast
--- shows black and white only (maintainer: the module card "loses its grey
--- background on tap"). A card presses with "ui"; a kit button, which
--- presses black, keeps "fast".
+-- A press refreshed "fast" is black and white only on e-ink: a grey card
+-- went white (maintainer: the module card "loses its grey background on
+-- tap"), and a black button's rounded corners went jagged ("ugly
+-- corners"). Every press refreshes with "ui".
 local function pressMode(card)
     stack = { { name = "editor" } }
     for i = #dirty, 1, -1 do dirty[i] = nil end
@@ -91,8 +91,8 @@ t.test("a grey card is pressed with a refresh that keeps its grey", function()
     eq(pressMode({ _kit_card = true }), "ui")
 end)
 
-t.test("a button that presses black keeps the fast refresh", function()
-    eq(pressMode({}), "fast")
+t.test("a button pressed black keeps its smooth corners", function()
+    eq(pressMode({}), "ui")
 end)
 
 t.done()

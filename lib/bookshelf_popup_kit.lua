@@ -408,10 +408,10 @@ function Kit.pressThen(cell, card, action)
     local box = Geom_:new{ x = d.x, y = d.y, w = d.w + 2, h = d.h + 2 }
     card._pressed = true
     UIManager:widgetRepaint(cell, d.x, d.y)
-    -- A grey card needs "ui": "fast" is black and white only on e-ink and
-    -- turned the card white (maintainer, PW5). A button pressed black is
-    -- fine with fast, which shows sooner.
-    UIManager:setDirty(nil, card._kit_card and "ui" or "fast", box)
+    -- "ui", not "fast": fast is black and white only on e-ink, which turned
+    -- a grey card white and a black button's rounded corners jagged
+    -- (maintainer, PW5).
+    UIManager:setDirty(nil, "ui", box)
     UIManager:forceRePaint()
     local top = UIManager:getTopmostVisibleWidget()
     UIManager:tickAfterNext(function()

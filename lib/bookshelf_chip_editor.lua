@@ -3170,8 +3170,8 @@ function Editor:_pickSource(draft, on_close)
     local CHEV = " \xE2\x80\xBA"
     -- What the Home and folder sources show, in a line on their cards.
     local DESC = {
-        library   = _("Every book on one shelf, no folders."),
-        all       = _("Folders as tiles, books beside them."),
+        library   = _("Every book, ungrouped"),
+        all       = _("Grouped by folder"),
         folder_flat = _("Every book in one folder and its subfolders."),
     }
     local function chip(kind_value, label)

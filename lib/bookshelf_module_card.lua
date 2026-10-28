@@ -56,12 +56,23 @@ local function lum(c)
     return ok and type(a) == "number" and a or nil
 end
 
+-- whiteReads(l) -> white text has more contrast than black on a grey of
+-- luminance l (0..255): WCAG's ratio on relative luminance, so black down to
+-- about 118, not just to half way (128), where a mid grey panel got white
+-- text that read worse than black would have (maintainer, PW5).
+local function whiteReads(l)
+    local c = l / 0xFF
+    local lin = (c <= 0.03928) and (c / 12.92) or (((c + 0.055) / 1.055) ^ 2.4)
+    return 1.05 / (lin + 0.05) > (lin + 0.05) / 0.05
+end
+M._whiteReads = whiteReads   -- for tests
+
 --- isDark(bg) -> true for a card dark enough to take white ink (autoInk's
---- own threshold); false for a light one or none.
+--- own rule); false for a light one or none.
 function M.isDark(bg)
     if type(bg) == "nil" then return false end
     local l = lum(bg)
-    return l ~= nil and l < 128
+    return l ~= nil and whiteReads(l)
 end
 
 --- autoInk(bg) -> ink, muted: black or white, whichever reads on bg, and a
@@ -71,7 +82,8 @@ end
 function M.autoInk(bg)
     local Blitbuffer = require("ffi/blitbuffer")
     local l = lum(bg) or 0xFF
-    local ink = (l < 128) and 0xFF or 0x00
+    -- Whichever of black and white has the more contrast (whiteReads).
+    local ink = whiteReads(l) and 0xFF or 0x00
     local muted = math.floor(ink + (l - ink) / 3 + 0.5)
     return Blitbuffer.Color8(ink), Blitbuffer.Color8(muted)
 end

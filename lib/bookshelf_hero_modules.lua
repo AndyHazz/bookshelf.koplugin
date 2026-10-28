@@ -275,6 +275,14 @@ function HeroModules.bookHelpers(ctx)
     return ctx
 end
 
+-- _shelfView(surface, bw) -> on a shelf, "covers" or "spines" (ctx.shelf_view);
+-- nil anywhere else. A bare module stands on a spine shelf's plank but sits
+-- centred among covers, and both draw their modules through the same cell.
+function HeroModules._shelfView(surface, bw)
+    if surface ~= "shelf" or not (bw and bw._isSpineMode) then return nil end
+    return bw:_isSpineMode() and "spines" or "covers"
+end
+
 function HeroModules._ctx(bw, refresh, entry)
     local host = HeroModules._hostOf(entry)
     local reload = refresh or (host and host.refresh) or function() HeroModules._rebuild(bw) end
@@ -286,7 +294,8 @@ function HeroModules._ctx(bw, refresh, entry)
     local surface = (host and host.surface)
         or (bw and bw._micro_fullscreen and "fullscreen")
         or "hero"
-    local ctx = { bw = bw, menu = shim, entry = entry, surface = surface }
+    local ctx = { bw = bw, menu = shim, entry = entry, surface = surface,
+                  shelf_view = HeroModules._shelfView(surface, bw) }
     HeroModules.bookHelpers(ctx)
     -- Persist a per-instance change a module made to ctx.entry, then reload
     -- this cell (or rebuild the hero). No-op when the module has no entry or
@@ -485,6 +494,7 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, 
             width = inner_w, height = inner_h, scale = s, preview = false,
             refresh = refresh, shape = shape, entry = entry,
             surface = _surfaceOf(entry), bw = bw, menu = nil, config = cfg,
+            shelf_view = HeroModules._shelfView(_surfaceOf(entry), bw),
             -- The colours the spec declares (spec.colors), as the reader set
             -- them for the look on screen, else their defaults.
             colors = colors or {},

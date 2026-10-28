@@ -25,7 +25,7 @@ t.test("an adopted entry saves through its host, not the top panel's list", func
             return { load = function() return {} end, findById = function() end, save = function() end }
         end,
         HeroModules = { _rebuild = function() end, _hostOf = function(e) return e == entry and host or nil end,
-                        bookHelpers = function(c) return c end },
+                        bookHelpers = function(c) return c end, _shelfView = function() return nil end },
     }
     local ctx = load("local bw, refresh, entry = ...\n" .. ctx_body, "ctx", "t", env)({}, nil, entry)
     ctx.config:set("rows", 2)
@@ -33,6 +33,20 @@ t.test("an adopted entry saves through its host, not the top panel's list", func
     assert(reloaded == 1, "not refreshed through the host")
     assert(not hero_saved, "written to the top panel's list as well")
     assert(ctx.surface == "shelf")
+end)
+
+t.test("a shelf module is told which kind of shelf it is on", function()
+    local body = hm:match("\nfunction HeroModules%._shelfView%(surface, bw%)\n(.-)\nend\n")
+    assert(body, "_shelfView not found")
+    local view = load("local surface, bw = ...\n" .. body, "view", "t", {})
+    local function bw(spines) return { _isSpineMode = function() return spines end } end
+    assert(view("shelf", bw(true)) == "spines")
+    assert(view("shelf", bw(false)) == "covers")
+    assert(view("hero", bw(true)) == nil, "named a shelf off the shelf")
+    assert(view("shelf", nil) == nil)
+    -- Both contexts a module sees carry it: render's and tap/settings'.
+    local n = select(2, hm:gsub("shelf_view = HeroModules%._shelfView%(", ""))
+    assert(n == 2, "shelf_view is in " .. n .. " of the 2 contexts")
 end)
 
 t.test("an entry nobody adopted saves as before", function()

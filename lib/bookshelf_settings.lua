@@ -2393,6 +2393,24 @@ end
 -- that was there. special_tile (a palette tile: Transparent) is passed
 -- through when given, on colour and greyscale screens alike; on_default runs
 -- when Default is chosen (Shelf menu background: Default is the bar again).
+-- _paintedRaw(field) -> what the shelf paints for a colour left unset, in the
+-- stored shape ({ grey } / { hex }), or nil. rawColors() has it for most;
+-- Panel text left unset with a panel colour is Auto, black or white, whichever
+-- reads on the panel (CoverProgress.panelInk), which rawColors() leaves nil.
+-- The picker opened on 100% black over a mid grey panel whose text was white.
+local function _paintedRaw(field)
+    local CoverProgress = require("lib/bookshelf_cover_progress")
+    local raw = CoverProgress.rawColors()[field]
+    if type(raw) ~= "nil" or field ~= "panel_ink" or not CoverProgress.panelInk then return raw end
+    local ok, c = pcall(CoverProgress.panelInk)
+    if not ok or type(c) == "nil" then return nil end
+    local Blitbuffer = require("ffi/blitbuffer")
+    if Blitbuffer.isColor8 and Blitbuffer.isColor8(c) then return { grey = c:getColor8().a } end
+    local ok_rgb, rgb = pcall(function() return c:getColorRGB32() end)
+    if not ok_rgb then return nil end
+    return { hex = string.format("#%02X%02X%02X", rgb:getR(), rgb:getG(), rgb:getB()) }
+end
+
 function Settings:_pickColor(raw_key, field, default_pct, title,
                              touchmenu_instance, refresh, anchor, wood)
     local CoverProgress = require("lib/bookshelf_cover_progress")
@@ -2447,7 +2465,7 @@ function Settings:_pickColor(raw_key, field, default_pct, title,
             -- shows (its default), not empty. The wood has no hex to show.
             local hex_text
             if not current_hex and not wood_on then
-                hex_text = _shownHex(CoverProgress.rawColors()[field], raw_key)
+                hex_text = _shownHex(_paintedRaw(field), raw_key)
             end
             self._plugin:showColorPicker(
                 title, current_hex, Color.defaultHexFor(field),
@@ -2484,7 +2502,7 @@ function Settings:_pickColor(raw_key, field, default_pct, title,
         -- palette's hex field does), not the caller's default_pct, which had
         -- drifted from the painted defaults; default_pct stays for the
         -- colours rawColors() leaves nil on purpose and keys it lacks.
-        local shown_default = _rawToScreenPct(CoverProgress.rawColors()[field]) or default_pct
+        local shown_default = _rawToScreenPct(_paintedRaw(field)) or default_pct
         local current = _rawToScreenPct(raw) or shown_default
         local function seenHex(pct)
             local v = math.floor(0xFF * (100 - pct) / 100 + 0.5)

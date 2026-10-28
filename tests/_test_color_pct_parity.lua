@@ -148,7 +148,7 @@ t.test("an untouched colour's hex field opens on the colour its row shows", func
     -- The row read "Progress bar: #404040" and the field opened empty: the
     -- picker was only handed what was STORED, and a default is not stored.
     local picker = src:match("function Settings:_pickColor%(raw_key, field, default_pct, title,(.-)\nend\n")
-    assert(picker:find("hex_text = _shownHex(CoverProgress.rawColors()[field], raw_key)", 1, true),
+    assert(picker:find("hex_text = _shownHex(_paintedRaw(field), raw_key)", 1, true),
         "the field is not seeded from the row's own value")
     assert(picker:find("wood and wood.special_tile or nil, hex_text,", 1, true),
         "the seed is not passed to the palette")
@@ -169,7 +169,7 @@ t.test("an untouched colour's greys open on what is painted, not on the row's nu
     -- white (DEFAULT_TRACK grey 0xFF). Micro-module background: dialog 0%,
     -- shelf 0xEE. Its "Default N%" button said the same wrong number.
     local picker = src:match("function Settings:_pickColor%(raw_key, field, default_pct, title,(.-)\nend\n")
-    assert(picker:find("local shown_default = _rawToScreenPct(CoverProgress.rawColors()[field]) or default_pct", 1, true),
+    assert(picker:find("local shown_default = _rawToScreenPct(_paintedRaw(field)) or default_pct", 1, true),
         "the % dialog's default is not derived from the painted colour")
     assert(picker:find("local current = _rawToScreenPct(raw) or shown_default", 1, true),
         "an untouched colour still opens on the row's hardcoded number")

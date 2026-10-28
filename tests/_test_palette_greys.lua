@@ -49,4 +49,26 @@ t.test("in night mode a chip is painted to look the grey it stands for", functio
     assert(pal:find("if self.seen and bb.getInverse and bb:getInverse() == 1 then", 1, true))
 end)
 
+t.test("Panel text left on Auto opens on the text colour drawn, not on black", function()
+    -- Over a mid grey panel Auto draws white text; the picker marked black.
+    local st = io.open("lib/bookshelf_settings.lua"):read("*a")
+    local body = assert(st:match("\nlocal function _paintedRaw%(field%)\n(.-)\nend\n"), "_paintedRaw moved")
+    local ink, raw_colors = nil, {}
+    local stubs = {
+        ["lib/bookshelf_cover_progress"] = { rawColors = function() return raw_colors end,
+                                             panelInk = function() return ink end },
+        ["ffi/blitbuffer"] = { isColor8 = function(c) return c.grey ~= nil end },
+    }
+    local env = setmetatable({ require = function(n) return stubs[n] end }, { __index = _G })
+    local f = assert(load("local field = ...\n" .. body, "paintedRaw", "t", env))
+    ink = { grey = 255, getColor8 = function(self) return { a = self.grey } end }
+    eq(f("panel_ink").grey, 255, "Auto's white not offered")
+    raw_colors.panel_ink = { grey = 0 }
+    eq(f("panel_ink").grey, 0, "a picked Panel text is not what opens")
+    raw_colors = {}
+    eq(f("panel_color"), nil, "another colour borrowed the panel text's Auto")
+    ink = nil
+    eq(f("panel_ink"), nil)
+end)
+
 t.done()

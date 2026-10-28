@@ -2296,7 +2296,13 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
     end
     local function coversSummary()
         local parts = {}
-        if not no_spines then parts[#parts + 1] = T(_("folder tiles: %1"), (tilesLabel())) end
+        if not no_spines then
+            -- Following the library reads "Default", as captions does: the
+            -- chip says "Default setting" to stand apart from the styles.
+            local label, cur = tilesLabel()
+            if cur == StackDisplay.FOLLOW_DEFAULT then label = _("Default") end
+            parts[#parts + 1] = T(_("folder tiles: %1"), label)
+        end
         parts[#parts + 1] = T(_("captions: %1"), Editor._coverTextLabel(draft, draft.cover_text))
         return Editor._capFirst(table.concat(parts, ", "))
     end

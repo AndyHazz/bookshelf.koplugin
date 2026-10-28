@@ -808,4 +808,19 @@ t.test("the Source card's icon is the source's own", function()
     eq(Editor._sourceIcon(nil), "\u{EA31}")
 end)
 
+-- KOReader only hands events to the top window, so with the shelf editor
+-- up the menu tap and brightness swipes were dead (maintainer, PW5). A
+-- gesture outside it goes to KOReader's zones first, and KOReader's actions
+-- are passed on, as the book popup does.
+t.test("the shelf editor passes KOReader's gestures and actions on", function()
+    local src = assert(io.open("lib/bookshelf_chip_editor.lua")):read("*a")
+    local tap = src:match("dialog%.onTapClose = function.-\n    end\n")
+    assert(tap and tap:find("GestureZones.tryLiveZones(ges_ev)", 1, true),
+        "a tap outside closes the editor before KOReader's zones get it")
+    local he = src:match("function dialog:handleEvent%(event%).-\n    end\n")
+    assert(he, "the editor's window keeps every event")
+    assert(he:find("tryLiveZones", 1, true), "gestures outside are dropped")
+    assert(he:find("forwardToLive", 1, true), "KOReader's actions are dropped")
+end)
+
 t.done()

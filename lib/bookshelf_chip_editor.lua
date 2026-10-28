@@ -1855,11 +1855,28 @@ function Editor:editTab(tab_id, opts)
 
     -- A tap outside and Back are Close too. Back used to close the window
     -- and nothing else, which kept a half-made new shelf.
+    -- KOReader's own gestures (the menu, brightness, a reader's own) work
+    -- outside it as they do over the shelf: UIManager hands every event to
+    -- the top window only, so they were dead while it was up (maintainer,
+    -- PW5). The same walk as the book popup (GestureZones).
+    local GestureZones = require("lib/bookshelf_gesture_zones")
+    local function outside(ev)
+        return ev and ev.pos and (not frame.dimen or ev.pos:notIntersectWith(frame.dimen))
+    end
     dialog.onTapClose = function(_self_d, _arg, ges_ev)
-        if not frame.dimen or ges_ev.pos:notIntersectWith(frame.dimen) then
+        if outside(ges_ev) then
+            if GestureZones.tryLiveZones(ges_ev) then return true end
             finish()
         end
         return true
+    end
+    function dialog:handleEvent(event)
+        if InputContainer.handleEvent(self, event) then return true end
+        if event.handler == "onGesture" then
+            local ev = event.args and event.args[1]
+            return outside(ev) and GestureZones.tryLiveZones(ev) or false
+        end
+        return GestureZones.forwardToLive(event, self)
     end
     dialog.onClose = function()
         if #pages > 0 then goBack() else finish() end

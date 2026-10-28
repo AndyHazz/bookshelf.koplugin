@@ -112,6 +112,7 @@ end
 --   o.items   { { key=, label= }, ... }
 --   o.active  the key shown selected (may match none)
 --   o.on_pick function(key), fired for a tap on an inactive cell
+--   o.allow_none  a tap on the active cell un-picks it: on_pick(nil)
 --   o.face    label face
 --   o.width   total width, split evenly; nil sizes each cell to its label
 --   o.pad_h   label side padding when sized to labels (default Space.px(16))
@@ -150,7 +151,9 @@ function Kit.segmented(o)
         local cell = Kit.tapCell(
             CenterContainer:new{ dimen = Geom:new{ w = widths[i], h = h }, labels[i] },
             widths[i], h, function()
-                if key ~= o.active and o.on_pick then o.on_pick(key) end
+                if not o.on_pick then return end
+                if key ~= o.active then o.on_pick(key)
+                elseif o.allow_none then o.on_pick(nil) end
             end)
         row[#row + 1] = cell
         cells[#cells + 1] = cell

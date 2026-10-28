@@ -11,16 +11,12 @@
 -- remain immediate-with-confirm but surface a "Pending changes
 -- discarded" toast when fired while the draft was dirty.
 --
--- Every dynamic-content button uses text_func (not static `text =`);
--- Apply uses enabled_func. Static fields are snapshotted at
--- construction time with the draft fresh and empty, and never
--- re-evaluate on dialog:reinit -- this was the Task 9 critical bug
--- that left Apply permanently disabled and stage markers invisible.
+-- The menu is a page (lib/bookshelf_page_dialog, STYLE.md), laid out
+-- again from the draft after every tap, so what is staged shows black at
+-- once and Apply greys until something is.
 
 local BulkActions = {}
 local _ = require("lib/bookshelf_i18n").gettext
-local Blitbuffer = require("ffi/blitbuffer")
-local Focus = require("lib/bookshelf_focus")
 
 local function _resolveLabel(count)
     return string.format(_("Edit selected (%d)"), count)
@@ -31,7 +27,6 @@ function BulkActions.show(opts)
     local bw        = opts.bw
     local on_done   = opts.on_done
 
-    local ButtonDialog = require("ui/widget/buttondialog")
     local UIManager    = require("ui/uimanager")
     local count        = selection:count()
     if count == 0 then return end
@@ -58,12 +53,8 @@ function BulkActions.show(opts)
             or draft.remove_from_history
             or draft.favorite ~= nil
     end
-    -- Staged buttons get a light-gray background fill (mutated on tap +
-    -- propagated via dialog:reinit). Matches the per-book menu's
-    -- staging visual so the language is consistent across single-book
-    -- and bulk edits.
-    local STAGED_BG = Blitbuffer.COLOR_LIGHT_GRAY
-
+    -- What has been staged shows at once: the page is laid out again from
+    -- the draft (dialog:refresh()).
     local dialog
     local function close(fn)
         return function()
@@ -73,146 +64,17 @@ function BulkActions.show(opts)
         end
     end
 
-    -- Status row: four staged buttons. Bulk has no current_status
-    -- concept (different books may have different statuses), so unlike
-    -- the per-book menu there's no "  ✓" current marker — the staged
-    -- value is signalled by the gray-fill background. Status is
-    -- mutually-exclusive: every tap must update ALL four backgrounds
-    -- so the previously-staged button loses its fill.
-    local status_buttons = {}
-    local function _refresh_status_backgrounds()
-        for _i, b in ipairs(status_buttons) do
-            b.background = (draft.status == b._status_value) and STAGED_BG or nil
-        end
+    local function restage()
+        if dialog then dialog:refresh() end
     end
-    local function status_button(label, status_value)
-        local btn
-        btn = {
-            text = label,
-            background = (draft.status == status_value) and STAGED_BG or nil,
-            callback = function()
-                if draft.status == status_value then
-                    draft.status = nil  -- tap-again un-stages
-                else
-                    draft.status = status_value
-                end
-                _refresh_status_backgrounds()
-                if dialog and dialog.reinit then
-                    Focus.reinit(dialog)
-                    UIManager:setDirty(dialog, "ui")
-                end
-            end,
-        }
-        btn._status_value = status_value
-        status_buttons[#status_buttons + 1] = btn
-        return btn
-    end
-    local status_row = {
-        status_button(_("Unopened"), "new"),
-        status_button(_("Reading"),  "reading"),
-        status_button(_("On hold"),  "abandoned"),
-        status_button(_("Finished"), "complete"),
-    }
-
-    -- Rating button + sub-dialog. Sub-dialog writes to draft.rating
-    -- instead of persisting; outer button's text_func reflects the
-    -- staged target (or "(clear)" when nil is staged). Staged state
-    -- signalled by the gray-fill background, mutated by rating_close.
-    local rating_button
-    rating_button = {
-        text_func = function()
-            if draft.rating == false then
-                return _("Rating")
-            elseif draft.rating == nil then
-                return _("Rating") .. " " .. _("(clear)")
-            else
-                local r = draft.rating
-                if r < 0 then r = 0 end
-                if r > 5 then r = 5 end
-                r = math.floor(r)
-                return ("\xE2\x98\x85"):rep(r) .. ("\xE2\x98\x86"):rep(5 - r)
-            end
-        end,
-        background = draft.rating ~= false and STAGED_BG or nil,
-        callback = function()
-            local rating_dialog
-            local function rating_close(fn)
-                return function()
-                    if fn then fn() end
-                    UIManager:close(rating_dialog)
-                    rating_button.background = draft.rating ~= false and STAGED_BG or nil
-                    if dialog and dialog.reinit then
-                        Focus.reinit(dialog)
-                        UIManager:setDirty(dialog, "ui")
-                    end
-                end
-            end
-            local rows = {}
-            for i = 1, 5 do
-                local star_label = ("\xE2\x98\x85"):rep(i) .. ("\xE2\x98\x86"):rep(5 - i)
-                rows[#rows + 1] = {
-                    { text = star_label, callback = rating_close(function()
-                        draft.rating = i
-                    end) },
-                }
-            end
-            rows[#rows + 1] = {
-                { text = _("Clear"), callback = rating_close(function()
-                    draft.rating = nil  -- nil = "clear" target on Apply
-                end) },
-            }
-            rows[#rows + 1] = {
-                { text = _("Cancel"), callback = rating_close() },
-            }
-            rating_dialog = require("ui/widget/buttondialog"):new{
-                title   = _("Set rating"),
-                buttons = rows,
-            }
-            UIManager:show(rating_dialog)
-        end,
-    }
-
-    -- Favourite: 3-state cycle button (no change → add → remove → none).
-    -- Mirrors the long-press menu's ± Favourite toggle but stages across
-    -- the whole selection. The default ReadCollection name is "favorites"
-    -- (the same key the spine widget's star checks), so add/remove maps
-    -- directly to ReadCollection:addItem / :removeItem on apply.
-    local favorite_button
-    favorite_button = {
-        text_func = function()
-            if draft.favorite == "add" then
-                return "+ " .. _("Favorite")
-            elseif draft.favorite == "remove" then
-                return "\xE2\x88\x92 " .. _("Favorite")  -- U+2212 minus
-            end
-            return _("Favorite")
-        end,
-        background = draft.favorite and STAGED_BG or nil,
-        callback = function()
-            if draft.favorite == nil then
-                draft.favorite = "add"
-            elseif draft.favorite == "add" then
-                draft.favorite = "remove"
-            else
-                draft.favorite = nil
-            end
-            favorite_button.background = draft.favorite and STAGED_BG or nil
-            if dialog and dialog.reinit then
-                Focus.reinit(dialog)
-                UIManager:setDirty(dialog, "ui")
-            end
-        end,
-    }
 
     -- Collections: opens the collection manager in bulk mode. Manager
     -- renders tri-state cells against the selection (all / some / none)
     -- and returns a {add, remove} diff via on_save. Cancel leaves the
-    -- existing staged diff unchanged. Staged state signalled by the
-    -- gray-fill background, mutated when on_save updates the draft.
+    -- existing staged diff unchanged.
     local collections_button
     collections_button = {
         text = _("Collections") .. "\xE2\x80\xA6",
-        background = (draft.collections_add or draft.collections_remove) and STAGED_BG or nil,
         callback = function()
             local CollectionManager = require("lib/bookshelf_collection_manager")
             CollectionManager.show{
@@ -224,47 +86,12 @@ function BulkActions.show(opts)
                 on_save        = function(diff)
                     draft.collections_add    = diff and diff.add    or nil
                     draft.collections_remove = diff and diff.remove or nil
-                    collections_button.background =
-                        (draft.collections_add or draft.collections_remove)
-                        and STAGED_BG or nil
-                    if dialog and dialog.reinit then
-                        Focus.reinit(dialog)
-                        UIManager:setDirty(dialog, "ui")
-                    end
+                    restage()
                 end,
                 on_cancel      = function()
                     -- Draft preserved; nothing to do.
                 end,
             }
-        end,
-    }
-
-    -- Refresh metadata / Remove from history: boolean toggles.
-    -- Staged state signalled by gray-fill background.
-    local refresh_button
-    refresh_button = {
-        text = _("Refresh metadata"),
-        background = draft.refresh_metadata and STAGED_BG or nil,
-        callback = function()
-            draft.refresh_metadata = not draft.refresh_metadata
-            refresh_button.background = draft.refresh_metadata and STAGED_BG or nil
-            if dialog and dialog.reinit then
-                Focus.reinit(dialog)
-                UIManager:setDirty(dialog, "ui")
-            end
-        end,
-    }
-    local remove_history_button
-    remove_history_button = {
-        text = _("Remove from history"),
-        background = draft.remove_from_history and STAGED_BG or nil,
-        callback = function()
-            draft.remove_from_history = not draft.remove_from_history
-            remove_history_button.background = draft.remove_from_history and STAGED_BG or nil
-            if dialog and dialog.reinit then
-                Focus.reinit(dialog)
-                UIManager:setDirty(dialog, "ui")
-            end
         end,
     }
 
@@ -666,22 +493,128 @@ function BulkActions.show(opts)
         end,
     }
 
-    local buttons = {
-        { select_all_button },
-        { collections_button, rating_button },
-        status_row,
-        { favorite_button, refresh_button },
-        { remove_history_button, move_button },
-        { reset_button, delete_button },
-        { cancel_button, apply_button },
-    }
 
-    dialog = ButtonDialog:new{
-        title       = _resolveLabel(count),
-        title_align = "center",
-        buttons     = buttons,
+    -- The page (STYLE.md): what Apply will do in a sentence, then each
+    -- staged change as the book popup's Edit tab shows it, then the actions
+    -- that happen at once. Nothing is black until it is staged; tapping a
+    -- staged choice again un-stages it.
+    local STAR = "\xE2\x98\x85"   -- ★
+    local function stars(n) return STAR:rep(n) end
+    local function collectionsValue()
+        local add, rem = 0, 0
+        for _k in pairs(draft.collections_add or {}) do add = add + 1 end
+        for _k in pairs(draft.collections_remove or {}) do rem = rem + 1 end
+        if add == 0 and rem == 0 then return _("Leave as is") end
+        local parts = {}
+        if add > 0 then parts[#parts + 1] = string.format(_("add to %d"), add) end
+        if rem > 0 then parts[#parts + 1] = string.format(_("remove from %d"), rem) end
+        return table.concat(parts, ", ")
+    end
+    local STATUS_LABELS = { new = _("Unopened"), reading = _("Reading"),
+        abandoned = _("On hold"), complete = _("Finished") }
+    local function summary()
+        local parts = {}
+        if draft.status then
+            parts[#parts + 1] = string.format(_("mark %s"), STATUS_LABELS[draft.status]:lower())
+        end
+        if draft.rating == nil then
+            parts[#parts + 1] = _("clear the rating")
+        elseif draft.rating then
+            parts[#parts + 1] = string.format(_("rate %s"), stars(draft.rating))
+        end
+        if draft.favorite == "add" then parts[#parts + 1] = _("add to Favorites")
+        elseif draft.favorite == "remove" then parts[#parts + 1] = _("remove from Favorites") end
+        if draft.collections_add or draft.collections_remove then
+            parts[#parts + 1] = _("change collections")
+        end
+        if draft.refresh_metadata then parts[#parts + 1] = _("refresh metadata") end
+        if draft.remove_from_history then parts[#parts + 1] = _("remove from history") end
+        if #parts == 0 then return _("Pick what to change, then Apply.") end
+        local s = table.concat(parts, ", ")
+        return string.format(_("Apply will %s."), s)
+    end
+    local function stage(field, value)
+        return function(key)
+            if field == "rating" then
+                -- No key: the staged one tapped again, leave ratings as they are.
+                if key == nil then draft.rating = false
+                elseif key == "clear" then draft.rating = nil
+                else draft.rating = tonumber(key) end
+            else
+                draft[field] = key
+            end
+            restage()
+        end
+    end
+    local function ratingActive()
+        if draft.rating == false then return nil end
+        if draft.rating == nil then return "clear" end
+        return tostring(draft.rating)
+    end
+    local function toggle(field)
+        return function() draft[field] = not draft[field]; restage() end
+    end
+
+    local function page()
+        local rating_items = {}
+        -- "3 ★", not three stars: five stars do not fit a sixth of the line.
+        for i = 1, 5 do rating_items[i] = { key = tostring(i), label = i .. " " .. STAR } end
+        rating_items[6] = { key = "clear", label = _("None") }
+        return {
+            strip = {
+                { type = "summary", text = summary() },
+                { type = "chips", items = {
+                    { text = select_all_button.text, icon = "\xEE\xA0\xB8", -- checkbox-multiple-marked-outline
+                      callback = select_all_button.callback },
+                } },
+            },
+            blocks = {
+                { type = "heading", text = _("Reading status") },
+                { type = "segmented", items = {
+                    { key = "new",       label = _("Unopened") },
+                    { key = "reading",   label = _("Reading") },
+                    { key = "abandoned", label = _("On hold") },
+                    { key = "complete",  label = _("Finished") },
+                  }, active = draft.status, allow_none = true, on_pick = stage("status") },
+                { type = "heading", text = _("Rating") },
+                { type = "segmented", items = rating_items, active = ratingActive(),
+                  allow_none = true, on_pick = stage("rating") },
+                { type = "heading", text = _("Collections") },
+                { type = "segmented", label = _("Favorite"), items = {
+                    { key = "add",    label = _("Add") },
+                    { key = "remove", label = _("Remove") },
+                  }, active = draft.favorite, allow_none = true, on_pick = stage("favorite") },
+                { type = "row", label = _("Collections"), value = collectionsValue(),
+                  icon = "\u{E7BF}", -- bookmark (as the Collections filter)
+                  on = (draft.collections_add or draft.collections_remove) and true or false,
+                  callback = collections_button.callback },
+                { type = "heading", text = _("Also on Apply") },
+                { type = "chips", items = {
+                    { text = _("Refresh metadata"), on = draft.refresh_metadata,
+                      callback = toggle("refresh_metadata") },
+                    { text = _("Remove from history"), on = draft.remove_from_history,
+                      callback = toggle("remove_from_history") },
+                } },
+                { type = "heading", text = _("At once") },
+                { type = "chips", items = {
+                    { text = move_button.text, callback = move_button.callback },
+                    { text = reset_button.text, callback = reset_button.callback },
+                    { text = _("Delete\xE2\x80\xA6"), callback = delete_button.callback },
+                } },
+            },
+        }
+    end
+
+    dialog = require("lib/bookshelf_page_dialog").show{
+        title    = _resolveLabel(count),
+        page     = page,
+        footer   = {
+            { text = cancel_button.text, callback = cancel_button.callback },
+            { text = apply_button.text, primary = true,
+              enabled_func = apply_button.enabled_func, callback = apply_button.callback },
+        },
+        on_close = function() if on_done then on_done() end end,
     }
-    UIManager:show(dialog)
 end
 
 return BulkActions

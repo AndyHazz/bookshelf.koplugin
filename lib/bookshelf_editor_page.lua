@@ -12,9 +12,9 @@
 --   chips     items { {text, icon, on, enabled, callback} }: cards sized to
 --             their labels (icon: a symbols-font glyph before it), wrapping;
 --             the one(s) on are black
---   segmented label (optional), items { {key, label} }, active, on_pick(key):
---             label at the left, the control at the right (full width with
---             no label)
+--   segmented label (optional), items { {key, label} }, active, on_pick(key),
+--             allow_none (a tap on the active one un-picks it): label at the
+--             left, the control at the right (full width with no label)
 --   stepper   label, value (text), on_dec, on_inc: label, then  -  value  +
 --   row       label, value, icon, callback, on, on_clear, half: a card reading
 --             "label   value >"; on (a setting made) turns it black and
@@ -201,12 +201,14 @@ function R.segmented(ctx, b)
     local face = Font:getFace("cfont", math.max(10, ctx.fs - 2))
     if not b.label then
         local seg, rows = Kit.segmented{ items = b.items, active = b.active,
-            on_pick = b.on_pick, face = face, width = ctx.w, pad_v = Space.px(8) }
+            on_pick = b.on_pick, allow_none = b.allow_none, face = face, width = ctx.w,
+            pad_v = Space.px(8) }
         for _i, r in ipairs(rows) do ctx.layout[#ctx.layout + 1] = r end
         return seg
     end
     local seg, rows = Kit.segmented{ items = b.items, active = b.active,
-        on_pick = b.on_pick, face = face, pad_v = Space.px(8), pad_h = Space.px(14) }
+        on_pick = b.on_pick, allow_none = b.allow_none, face = face, pad_v = Space.px(8),
+        pad_h = Space.px(14) }
     for _i, r in ipairs(rows) do ctx.layout[#ctx.layout + 1] = r end
     return labelled(ctx, b.label, seg)
 end

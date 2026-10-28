@@ -1,0 +1,32 @@
+-- tests/_test_bulk_page.lua
+-- The bulk "Edit selected" menu is a page (lib/bookshelf_page_dialog), laid
+-- out like the book popup's Edit tab, not a stock button grid; a staged
+-- choice tapped again is un-staged (segmented allow_none).
+package.path = "./?.lua;./?/init.lua;" .. package.path
+local H = dofile("tests/_helpers.lua")
+local t = H.runner()
+
+local function read(p) return io.open(p):read("*a") end
+
+t.test("bulk edit opens a page dialog, not a ButtonDialog", function()
+    local s = read("lib/bookshelf_bulk_actions.lua")
+    assert(s:find('require("lib/bookshelf_page_dialog").show{', 1, true), "no page dialog")
+    assert(not s:find("ui/widget/buttondialog", 1, true), "still builds a ButtonDialog")
+    assert(not s:find("STAGED_BG", 1, true), "staging still shown as a grey fill")
+    for _i, f in ipairs({ "status", "rating", "favorite" }) do
+        assert(s:find('allow_none = true, on_pick = stage("' .. f .. '")', 1, true),
+            f .. " cannot be un-staged")
+    end
+end)
+
+t.test("a segmented control un-picks its active cell only with allow_none", function()
+    local s = read("lib/bookshelf_popup_kit.lua")
+    local body = s:match("function Kit%.segmented%(o%)(.-)\nend\n")
+    assert(body and body:find("elseif o.allow_none then o.on_pick(nil) end", 1, true),
+        "no allow_none un-pick")
+    local pg = read("lib/bookshelf_editor_page.lua")
+    local _n, c = pg:gsub("allow_none = b%.allow_none", "")
+    assert(c == 2, "the page's segmented block does not pass allow_none (both forms)")
+end)
+
+t.done()

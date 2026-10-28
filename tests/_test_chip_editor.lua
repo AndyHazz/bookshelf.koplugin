@@ -783,4 +783,17 @@ t.test("folder filter: each folder has a cross, and both lists can be added to",
     eq(draft.filter.folders.include["/a/Fiction"], nil); eq(closes, 1)
 end)
 
+-- A drag refreshes the window's box as MovableContainer recorded it, at
+-- first paint: a taller page (Sort, a pager at its foot) left that foot
+-- behind on e-ink (maintainer, PW5, landscape). The box follows each page,
+-- and the shell is not centred on it, which would move the window.
+t.test("the editor window's box follows the page, and the page doesn't move it", function()
+    local src = assert(io.open("lib/bookshelf_chip_editor.lua")):read("*a")
+    assert(src:find("mv.dimen.w, mv.dimen.h = size.w, size.h", 1, true),
+        "the movable keeps its first size")
+    local shell = src:match("dialog%[1%] = WidgetContainer:new(%b{})")
+    assert(shell, "no editor shell")
+    assert(not shell:find("align", 1, true), "the shell centres the window on its size")
+end)
+
 t.done()

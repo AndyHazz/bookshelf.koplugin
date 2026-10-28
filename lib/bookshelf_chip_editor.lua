@@ -838,7 +838,14 @@ function Editor:editTab(tab_id, opts)
             if prev and (prev.h > now.h or prev.w > now.w) then
                 UIManager:setDirty("all", "ui", Geom:new{ x = prev.x, y = prev.y, w = prev.w, h = prev.h })
             end
-            if prev and (prev.h ~= now.h or prev.w ~= now.w) then frame.dimen = nil end
+            if prev and (prev.h ~= now.h or prev.w ~= now.w) then
+                frame.dimen = nil
+                -- The window keeps its first size too, and a drag refreshes
+                -- that box: a page taller than the front one left its foot
+                -- (the pager) behind on e-ink (maintainer, PW5).
+                local mv = dialog.movable
+                if mv and mv.dimen then mv.dimen.w, mv.dimen.h = size.w, size.h end
+            end
             last_rect = now
         end
         UIManager:setDirty(dialog, editorRefresh)
@@ -1877,8 +1884,10 @@ function Editor:editTab(tab_id, opts)
         anchor = _highAnchor(function() return dialog end),
     }
     dialog.movable = movable
+    -- Not centred: the anchor places it, from the screen's corner. Centred,
+    -- its place hung on the window's size, so a page of another height
+    -- (the window's size kept up to date in markDirty) moved it.
     dialog[1] = WidgetContainer:new{
-        align = "center",
         dimen = Geom:new{ x = 0, y = 0, w = sw, h = sh },
         movable,
     }

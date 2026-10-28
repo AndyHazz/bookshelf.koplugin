@@ -43,7 +43,7 @@ function M.list(tr)
     { id = "book_hold",        text = _("Long-press a book for its details") },
     { id = "group_hold",       text = _("Long-press a series, author or folder for its menu") },
     { id = "double_tap",       text = _("Double-tap a book to open it"), sep = true },
-    { id = "style_cycle",      text = _("Long-press the page number to change the shelf style") },
+    { id = "style_cycle",      text = _("Long-press the page number to change the view mode") },
     { id = "page_jump",        text = _("Tap the page number to go to a page") },
     { id = "skip_ten",         text = _("Long-press the arrows to skip ten pages"), sep = true },
     { id = "module_hold",      text = _("Long-press a micro-module to edit it") },

@@ -1492,7 +1492,7 @@ function Settings:_listViewSubItems()
             enabled = false,
         },
         {
-            text = _("long-press a shelf, then open Shelf style."),
+            text = _("long-press a shelf, then open View mode."),
             enabled = false,
             separator = true,
         },

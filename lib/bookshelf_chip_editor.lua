@@ -101,6 +101,16 @@ function Editor._chipModeLabel(value)
     return nil
 end
 
+-- _modeIcon(value, no_spines) -> the View mode card's icon: the look the
+-- shelf has (maintainer). No mode of its own is Covers, the default.
+function Editor._modeIcon(value, no_spines)
+    local v = Editor._shownMode(value, no_spines)
+    if v == ViewMode.LIST then return "\u{EC71}" end     -- view-list
+    if v == ViewMode.SPINES then return "\u{EE26}" end   -- view-parallel
+    if v == ViewMode.AUTO then return "\u{EC6D}" end     -- view-dashboard
+    return "\u{EC72}"                                    -- view-module
+end
+
 -- Per-key default sort direction. Picking one of these auto-sets the
 -- matching reverse flag; the up-arrow indicator only renders when the
 -- saved direction differs from this default. So "Book count (most
@@ -1473,10 +1483,12 @@ function Editor:editTab(tab_id, opts)
                 -- Divider card".
                 local mode = Editor._chipModeLabel(Editor._shownMode(draft[ViewMode.CHIP_KEY],
                     is_opds_src or is_paged_src))
-                return _("Shelf style: ")
+                return _("View mode: ")
                     .. (mode or SD.chipLabelFor(draft.group_display))
             end,
-            icon = "\u{E7E2}",   -- brush
+            icon_func = function()
+                return Editor._modeIcon(draft[ViewMode.CHIP_KEY], is_opds_src or is_paged_src)
+            end,
             callback = function()
                 -- now: the shelf behind rebuilt at once, not on the
                 -- debounce; the Theme library debounces its taps itself and
@@ -1507,6 +1519,53 @@ function Editor:editTab(tab_id, opts)
                 })
             end,
         }
+
+        -- The shelf's Theme, on the front page beside its modules: out of
+        -- View mode, a level down before (maintainer). The shelf's own, in the
+        -- Theme library; a sub-shelf with none of its own reads "Same as
+        -- Fiction" (TP.followOf). Following the default reads "Default
+        -- theme", never "library" nor a bare "Default".
+        local look_row = {}
+        do
+            local TP = require("lib/bookshelf_theme_pack")
+            local follow = draft.parent ~= nil and TP.followOf(draft.id) or nil
+            look_row[#look_row + 1] = {
+                text_func = function()
+                    local v = draft.theme
+                    return _("Theme: ") .. ((v == nil and follow) and follow.title or TP.choiceLabel(v))
+                end,
+                icon = "\u{EAD7}",   -- palette
+                callback = function()
+                    require("lib/bookshelf_theme_library").show{
+                        shelf = draft.label or "",
+                        -- A page of the editor: Home > Theme.
+                        over = Editor._over({ _("Theme") }),
+                        current = function() return draft.theme end,
+                        follow = follow,
+                        choose = function(value) draft.theme = value end,
+                        -- The shelf behind at once: the library refreshes
+                        -- the whole screen as it applies (see View mode).
+                        apply = function() commit(); settlePreview() end,
+                        on_closed = function() rebuild() end,
+                    }
+                end,
+            }
+        end
+        -- A module among this shelf's books (covers or spines). The shelf
+        -- on screen only, never a module's own shelf, and not with Micro
+        -- modules > On the shelf off.
+        if opts.bw and opts.bw.chip == tab_id and not draft.card_only
+                and require("lib/bookshelf_settings_store").microOnShelf()
+                and opts.bw._editShelfModules and not opts.bw:_isListMode() then
+            look_row[#look_row + 1] = {
+                text = _("Modules: Add to this shelf\xE2\x80\xA6"),
+                icon = "\u{EB94}",   -- shape-plus
+                callback = function()
+                    finish()
+                    opts.bw:_editShelfModules(nil, { add = true })
+                end,
+            }
+        end
 
         local buttons = {
             -- Row 0: [chev_left] [Label] [chev_right]. Label is a tappable
@@ -1554,19 +1613,8 @@ function Editor:editTab(tab_id, opts)
             -- when earlier ones tie) -- or, for an OPDS source, the single
             -- disabled "Server order" row computed above.
             sort_row,
-            -- A module among this shelf's books (covers or spines). The shelf
-            -- on screen only, never a module's own shelf, and not with Micro
-            -- modules > On the shelf off. Empty rows are filtered out below.
-            (opts.bw and opts.bw.chip == tab_id and not draft.card_only
-                and require("lib/bookshelf_settings_store").microOnShelf()
-                and opts.bw._editShelfModules and not opts.bw:_isListMode()) and {{
-                text = _("Add a module to this shelf\xE2\x80\xA6"),
-                icon = "\u{EB94}",   -- shape-plus
-                callback = function()
-                    finish()
-                    opts.bw:_editShelfModules(nil, { add = true })
-                end,
-            }} or {},
+            -- The shelf's Theme, and a module among its books (look_row).
+            look_row,
             -- Row 2: actions [delete] [Close] [add]. One Close, not Cancel
             -- and Save: every change has already been applied and saved, so
             -- there is nothing left to keep or throw away (maintainer, 2026-10-08).
@@ -2382,7 +2430,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         end
     end
 
-    open(_("Shelf style"), function(pick)
+    open(_("View mode"), function(pick)
         local blocks = {}
         local function add(b) blocks[#blocks + 1] = b end
 
@@ -2436,29 +2484,6 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         local show_spines = shows[ViewMode.SPINES] == true and not no_spines
         local show_levels = (pin == ViewMode.AUTO)
 
-        -- Theme: first, behind the layout (maintainer, 2026-10-09). The
-        -- shelf's own, in the Theme library; a sub-shelf with none of its
-        -- own reads "Same as Fiction" (TP.followOf). Following the default
-        -- reads "Default theme", never "library" nor a bare "Default".
-        do
-            local TP = require("lib/bookshelf_theme_pack")
-            local follow = draft.parent ~= nil and TP.followOf(draft.id) or nil
-            local v = draft.theme
-            add({ type = "row", label = _("Theme"), icon = "\u{EAD7}",   -- palette
-                value = (v == nil and follow) and follow.title or TP.choiceLabel(v),
-                callback = function()
-                    require("lib/bookshelf_theme_library").show{
-                        shelf = draft.label or "",
-                        -- A page of the editor: Home > Shelf style > Theme.
-                        over = Editor._over({ _("Theme") }),
-                        current = function() return draft.theme end,
-                        follow = follow,
-                        choose = function(value) draft.theme = value end,
-                        apply = function() on_change(true) end,
-                        on_closed = pick(function() end),
-                    }
-                end })
-        end
         add(show_as)
 
         -- Auto's levels: Level 1 is the shelf's top level, collapsed or

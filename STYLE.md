@@ -76,7 +76,7 @@ a control by hand, so a change lands everywhere.
 - Hints and notes: `Kit.hintText`, grey. Never a greyed-out button used as
   a label.
 - Icons from the bundled symbols font (Private Use Area glyphs only) mark
-  what a card or row is about: Source, Filters, Sort, Shelf style, each
+  what a card or row is about: Source, Filters, Sort, View mode, each
   filter and grouped source, each style. The same thing has the same icon
   everywhere it appears. The favourites mark follows the reader's
   Favorites icon setting (heart unless they chose the star), never a fixed
@@ -124,7 +124,7 @@ a control by hand, so a change lands everywhere.
 ## Pages (the shelf editor and anything like it)
 
 - A menu inside a menu is a page of it, not a window over it: the same
-  frame, a breadcrumb title (Home › Shelf style › Theme), a back chevron at
+  frame, a breadcrumb title (Home › View mode › Covers), a back chevron at
   the left and the X at the right that leaves the whole menu. Back on the
   keys goes back a page.
 - A page is a list of blocks (`Page`): summary, heading, hint, chips,

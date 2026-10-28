@@ -39,7 +39,8 @@ package.loaded["ffi/blitbuffer"] = { COLOR_BLACK = 0, COLOR_WHITE = 1, COLOR_DAR
 package.loaded["ui/geometry"] = { new = function(_s, o) return o end }
 package.loaded["ui/gesturerange"] = { new = function(_s, o) return o end }
 package.loaded["ui/size"] = setmetatable({}, { __index = function() return setmetatable({}, { __index = function() return 1 end }) end })
-package.loaded["device"] = { screen = { scaleBySize = function(_s, v) return v end } }
+local screen = { scaleBySize = function(_s, v) return v end }
+package.loaded["device"] = { screen = screen }
 package.loaded["lib/bookshelf_space"] = setmetatable({ px = function(v) return v end },
     { __index = function() return setmetatable({}, { __index = function() return 1 end }) end })
 local Kit = require("lib/bookshelf_popup_kit")
@@ -104,6 +105,19 @@ t.test("the panel gets a moment between the press and the action", function()
     for i = #seq, 1, -1 do seq[i] = nil end
     press(function() seq[#seq + 1] = "act" end)
     eq(table.concat(seq, ","), "flush,yield,act")
+end)
+
+-- The 1 ms was not enough on the PW5 (a MediaTek Kindle): KOReader sends a
+-- refresh there without waiting for the panel to take it, and the close
+-- wrote the shelf back under the card 20 ms later (logged on the device).
+-- Where the screen can say when a refresh was taken, the press waits for it.
+t.test("the press waits until the panel has taken the pressed card", function()
+    for i = #seq, 1, -1 do seq[i] = nil end
+    screen.marker = 41
+    screen.mech_wait_update_submission = function(_fb, marker) seq[#seq + 1] = "taken " .. marker; return 0 end
+    press(function() seq[#seq + 1] = "act" end)
+    screen.marker, screen.mech_wait_update_submission = nil, nil
+    eq(table.concat(seq, ","), "flush,taken 41,act")
 end)
 
 t.done()

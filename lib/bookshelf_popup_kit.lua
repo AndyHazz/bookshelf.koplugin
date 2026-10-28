@@ -413,11 +413,19 @@ function Kit.pressThen(cell, card, action)
     -- (maintainer, PW5).
     UIManager:setDirty(nil, "ui", box)
     UIManager:forceRePaint()
-    -- As KOReader's Button does: let the EPDC finish reading the pressed
-    -- card before the action paints. Closing the window (the editor's
-    -- Modules card) otherwise put the shelf behind into the card's refresh
-    -- now and then (maintainer, PW5).
-    UIManager:yieldToEPDC()
+    -- Let the panel take the pressed card before the action paints: closing
+    -- the window (the editor's Modules card) otherwise put the shelf behind
+    -- into the card's refresh now and then (maintainer, PW5). KOReader's
+    -- Button yields 1 ms; on a MediaTek Kindle (the PW5) a refresh is sent
+    -- without waiting for the panel to take it, and the close wrote the
+    -- shelf back 20 ms later. Where the screen can wait for that (Kindles,
+    -- MediaTek Kobos), wait: milliseconds, not the refresh's whole run.
+    local Screen = require("device").screen
+    local wait = Screen and Screen.mech_wait_update_submission
+    if not (wait and Screen.marker and Screen.marker ~= 0
+            and pcall(wait, Screen, Screen.marker)) then
+        UIManager:yieldToEPDC()
+    end
     local top = UIManager:getTopmostVisibleWidget()
     UIManager:tickAfterNext(function()
         action()

@@ -179,6 +179,7 @@ end)
 local function keyed()
     local v = view()
     v._cursor_id = "m1"
+    v._cursor_shown = true   -- a key was pressed already (the first only shows the cursor)
     v._pencil_rect = { x = 40, y = 1600, w = 80, h = 60 }
     v._close_rect = { x = 1100, y = 1600, w = 80, h = 60 }
     v._navCell = function() return nil end      -- the cursor is on the grid's bottom row
@@ -212,6 +213,16 @@ t.test("keys: with no pencil (editing), left stays on the X", function()
     v._pencil_rect = nil
     v:onMFFocusDown(); v:onMFFocusLeft()
     assert(v._focus_close and not v._focus_pencil)
+end)
+
+t.test("keys: the cursor stays hidden until the first key, which only shows it", function()
+    -- Shown at open on the first module, it read as that module selected.
+    local v = view()
+    v._cursor_id = "m1"
+    v.rebuildGrid = function() end
+    v:onMFFocusDown()
+    assert(v._cursor_shown, "the first key did not show the cursor")
+    assert(not v._focus_close, "the first key moved the cursor as well")
 end)
 
 t.done()

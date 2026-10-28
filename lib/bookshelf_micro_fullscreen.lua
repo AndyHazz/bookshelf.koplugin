@@ -357,7 +357,10 @@ function MicroFullscreen:_build()
     end
     local ok, grid = pcall(HeroModules.build, self.bw, content_w, grid_h, PAD,
         { items = items, focusable = self._dpad or nil,
-          focused_id = (not self._focus_close and not self._focus_pencil) and self._cursor_id or nil,
+          -- Hidden until the first key press (_revealCursor): shown at open
+          -- on the first module, it read as that module selected.
+          focused_id = (self._cursor_shown and not self._focus_close and not self._focus_pencil)
+              and self._cursor_id or nil,
           surface = "fullscreen", page = self._page, edit = self._edit })
     if not ok or not grid then
         logger.warn("[bookshelf] micro modules: the grid failed to build:", tostring(grid))
@@ -742,20 +745,33 @@ end
 -- Up/Down cross between the grid and the footer (the close X, and the pencil
 -- beside it), so both are reachable by d-pad, not only by Back and a tap.
 -- Left/Right move within the grid, or along the footer.
+-- _revealCursor() -> true when the keys' cursor was hidden and this press
+-- showed it (where it is) instead of moving it.
+function MicroFullscreen:_revealCursor()
+    if self._cursor_shown then return false end
+    self._cursor_shown = true
+    self:rebuildGrid()
+    return true
+end
+
 function MicroFullscreen:onMFFocusUp()
+    if self:_revealCursor() then return true end
     if self._focus_close or self._focus_pencil then self:_setFocusClose(false) else self:_moveTo("up") end
     return true
 end
 function MicroFullscreen:onMFFocusDown()
+    if self:_revealCursor() then return true end
     if self._focus_close or self._focus_pencil then return true end
     if self:_navCell("down") then self:_moveTo("down") else self:_setFocusClose(true) end
     return true
 end
 function MicroFullscreen:onMFFocusLeft()
+    if self:_revealCursor() then return true end
     if self._focus_close or self._focus_pencil then self:_footerStep("left") else self:_moveTo("left") end
     return true
 end
 function MicroFullscreen:onMFFocusRight()
+    if self:_revealCursor() then return true end
     if self._focus_close or self._focus_pencil then self:_footerStep("right") else self:_moveTo("right") end
     return true
 end
@@ -766,6 +782,7 @@ function MicroFullscreen:_focusedRec()
         and self.bw._hero_cells[self._cursor_id] or nil
 end
 function MicroFullscreen:onMFPress()
+    if self:_revealCursor() then return true end
     if self._focus_pencil then return self:_openEditor() end
     if self._focus_close then return self:onTapClose() end
     local HeroModules = require("lib/bookshelf_hero_modules")

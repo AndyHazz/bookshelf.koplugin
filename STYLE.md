@@ -156,6 +156,9 @@ a control by hand, so a change lands everywhere.
 - Section headings: grey (COLOR_DARK_GRAY), bold, upper case, a step
   smaller than body, space above, no line.
 - Secondary details (page, date, counts): grey, a step smaller.
+- Grey text on a grey card or strip (a theme's description, an option's
+  line under it, a hint in the strip) is `Kit.DIM_ON_GREY` (0x55), not the
+  dark grey used on white: 0x88 on the cards' 0xEE is too faint to read.
 - Two short sections side by side when both fit on one line (Author(s) and
   Series), stacked otherwise.
 - One word for one thing on a page: "Default" for following the library,

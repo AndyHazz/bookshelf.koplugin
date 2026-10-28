@@ -457,7 +457,7 @@ function TL._renderCard(item, dimen, current, all)
     end
     line(item.title, 18, ink, true)
     line(item.summary, 14, ink)
-    line(item.description, 13, Blitbuffer.COLOR_DARK_GRAY)
+    line(item.description, 13, require("lib/bookshelf_popup_kit").DIM_ON_GREY)
     local e = (not item.missing) and TL.hero(item.shows, all) or nil
     local hero = e and TL.heroWidget(e, hero_w, inner_h)
     -- The kit's grey card; the one in use outlined (a heavier frame).

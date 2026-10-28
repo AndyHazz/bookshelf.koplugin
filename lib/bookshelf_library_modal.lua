@@ -840,7 +840,7 @@ function LibraryModal:_renderChipStrip(content_width)
             strip = HorizontalGroup:new{ align = "center", strip,
                 HorizontalSpan:new{ width = status_gap },
                 TextWidget:new{ text = status_text, face = status_face,
-                    max_width = status_max, fgcolor = Blitbuffer.COLOR_DARK_GRAY } }
+                    max_width = status_max, fgcolor = require("lib/bookshelf_popup_kit").DIM_ON_GREY } }
         end
     end
     return strip

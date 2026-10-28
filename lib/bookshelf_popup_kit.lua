@@ -505,6 +505,9 @@ end
 
 -- The light grey strip a tab's controls sit in, edge to edge under the tabs.
 Kit.STRIP_BG = Blitbuffer.COLOR_GRAY_E
+-- Secondary text (a summary, a description, a hint) on a grey card or
+-- strip: dark grey (0x88) on 0xEE was too faint to read (maintainer).
+Kit.DIM_ON_GREY = Blitbuffer.COLOR_GRAY_5
 
 -- The hairline shadow under a strip and the action cards: the light grey
 -- alone is faint on e-ink with no border.

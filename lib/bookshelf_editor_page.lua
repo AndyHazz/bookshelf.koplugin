@@ -143,7 +143,8 @@ end
 
 function R.hint(ctx, b)
     return require("ui/widget/textboxwidget"):new{ text = b.text or "", width = ctx.w,
-        face = ctx.small, fgcolor = Blitbuffer.COLOR_DARK_GRAY, bgcolor = ctx.bg }
+        face = ctx.small, fgcolor = ctx.bg and Kit.DIM_ON_GREY or Blitbuffer.COLOR_DARK_GRAY,
+        bgcolor = ctx.bg }
 end
 
 function R.chips(ctx, b)
@@ -305,7 +306,7 @@ function Ctx:option(b, w)
     if b.desc then
         vg[#vg + 1] = VerticalSpan:new{ width = Space.px(2) }
         vg[#vg + 1] = require("ui/widget/textboxwidget"):new{ text = b.desc, width = text_w,
-            face = self.small, fgcolor = b.on and Blitbuffer.COLOR_GRAY_E or Blitbuffer.COLOR_DARK_GRAY,
+            face = self.small, fgcolor = b.on and Blitbuffer.COLOR_GRAY_E or Kit.DIM_ON_GREY,
             bgcolor = b.on and Blitbuffer.COLOR_BLACK or Kit.STRIP_BG }
     end
     local h = math.max(vg:getSize().h, links:getSize().h) + 2 * Space.px(b.desc and 12 or 6)

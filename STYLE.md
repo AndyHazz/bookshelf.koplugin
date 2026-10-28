@@ -81,8 +81,10 @@ a control by hand, so a change lands everywhere.
   everywhere it appears. The favourites mark follows the reader's
   Favorites icon setting (heart unless they chose the star), never a fixed
   star.
-- A "Heading: value" card has its grey heading on its own line at the
-  card's left edge, and the icon under it beside the value. The editor's
+- A "Heading: value" card, and a row whose value doesn't fit beside its
+  label, is two lines: the icon beside the grey heading
+  (`Kit.iconHeading`), then the value across the card's whole width. A
+  clear cross beside a card is as tall as the card. The editor's
   Source card shows the source's own icon (`Editor._sourceIcon`), the one
   it has on the Source page.
 

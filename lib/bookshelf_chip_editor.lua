@@ -2535,7 +2535,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         else
             local st = (show_spines and STYLES[ViewMode.SPINES])
                 or (show_list and STYLES[ViewMode.LIST]) or STYLES[ViewMode.COVERS]
-            add({ type = "heading", text = st[1] })
+            -- No heading: Show as already names the style (maintainer).
             st[3](pick, add)
         end
         return { blocks = blocks }

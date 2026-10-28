@@ -1594,7 +1594,7 @@ function Editor:editTab(tab_id, opts)
                     callback       = function() move_tab(1) end,
                 },
                 {
-                    -- Title bar already shows the live label ("Editing: ..."),
+                    -- Title bar already shows the live label ("Editing shelf: ..."),
                     -- so the button just describes its action -- no need to
                     -- repeat the label text.
                     text     = _("Edit shelf name"),
@@ -1870,7 +1870,7 @@ function Editor:editTab(tab_id, opts)
         -- string when the label is empty / nil.
         local title_text = _("Edit shelf")
         if draft.label and draft.label ~= "" then
-            title_text = _("Editing: ") .. draft.label
+            title_text = _("Editing shelf: ") .. draft.label
         end
         local title_bar = TitleBar:new{
             width             = dialog_w,
@@ -2522,7 +2522,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                 callback = section(title, build) })
         end
         if show_spines then
-            styleCard(_("Spines"), "\u{EA30}", spinesSummary, spinesBlocks)   -- library
+            styleCard(_("Spines"), "\u{EE26}", spinesSummary, spinesBlocks)   -- view-parallel
         end
         if show_list then
             styleCard(_("List"), "\u{EC71}", listSummary, listBlocks)         -- view-list

@@ -47,6 +47,16 @@ t.test("the memo's key covers everything its answers depend on", function()
     assert(src:find("self%._ground_memo%s*=%s*nil"), "nothing resets the memo at a rebuild")
 end)
 
+-- Autumn on a PW5 with no wallpaper: the pack's rust panel was not drawn
+-- (only a painted ground got a panel) but its cream panel text was, on white.
+t.test("a theme's panel colour gets its panel drawn on a plain page", function()
+    local src = read("lib/bookshelf_widget.lua")
+    local b = body(src, "\nfunction BookshelfWidget:_groundState%(")
+    assert(b:find("_panelColourSet()", 1, true), "a panel colour does not count as a painted ground")
+    local cp = read("lib/bookshelf_cover_progress.lua")
+    assert(cp:find("\nfunction M.panelColourSet%("), "no panelColourSet")
+end)
+
 t.test("the chip strip's palette helpers memoise", function()
     local src = read("lib/bookshelf_chip_bar.lua")
     for _, name in ipairs{ "_chipThemeFlips", "_chipInk", "_stripGround", "_stripInk" } do

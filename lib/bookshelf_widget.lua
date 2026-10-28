@@ -4135,6 +4135,7 @@ function BookshelfWidget:_groundState()
     m.has_wallpaper = self:_wallpaperWidget() ~= nil
     m.flips         = self:_themeFlipsRaw()
     m.painted       = m.has_wallpaper or m.flips or self:_pageColourStored()
+                      or self:_panelColourSet()
     m.strength      = m.painted and self:_scrimStrengthRaw() or 0
     if m.strength > 0 and not m.has_wallpaper then
         local ok_cp, CP = pcall(require, "lib/bookshelf_cover_progress")
@@ -4311,6 +4312,15 @@ function BookshelfWidget:groundIsPainted()
 end
 
 -- _pageColourStored() -> has the reader chosen a page colour for this mode?
+-- _panelColourSet() -> a theme panel colour counts as a painted ground: the
+-- panel has to be drawn for the ink that comes with it to read.
+function BookshelfWidget:_panelColourSet()
+    local ok, set = pcall(function()
+        return require("lib/bookshelf_cover_progress").panelColourSet()
+    end)
+    return (ok and set) and true or false
+end
+
 function BookshelfWidget:_pageColourStored()
     local ok, set = pcall(function()
         local Wallpaper = require("lib/bookshelf_wallpaper")

@@ -938,6 +938,15 @@ function M.panelInk()
     return (require("lib/bookshelf_module_card").autoInk(colors.panel_tint))
 end
 
+-- panelColourSet() -> does the theme on screen give the panels a colour of
+-- their own (Colors > Panel color, or a pack's "panel")? Such a panel is
+-- drawn on a plain page too: its ink (panelInk) is chosen for it, and with
+-- no panel under it a pack's cream text sat on white paper (Autumn on a
+-- PW5, maintainer, 2026-10-28).
+function M.panelColourSet()
+    return type(_partRead("panel_color" .. _modeSuffix())) ~= "nil"
+end
+
 function M.resolvedColors()
     local gen      = BookshelfSettings.generation()
     local is_color = Screen:isColorEnabled()

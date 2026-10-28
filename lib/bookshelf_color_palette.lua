@@ -4,7 +4,8 @@ Bookshelf color palette picker.
 A grid of 25 curated swatches (5 families of 5 shades) plus a hex input for
 custom values. Tap-to-preview: every swatch tap applies immediately via the
 apply_callback, so the book repaints around the edges of the dialog; Apply
-just closes, Cancel reverts via revert_callback, Default clears the field.
+(or a tap outside) just closes, Cancel reverts via revert_callback, Default
+clears the field.
 
 Storage shape is always {hex = "#RRGGBB"} — the palette is pure UX; changing
 the palette in a future release doesn't invalidate any stored preset.
@@ -319,14 +320,21 @@ end
 function ColorPaletteWidget:onTapOutside(arg, ges)
     -- If the keyboard is up and the user tapped outside it, dismiss the
     -- keyboard rather than consuming the tap silently. Mirrors stock
-    -- InputDialog's behaviour (inputdialog.lua:562-576). The picker itself
-    -- stays open; non-keyboard taps outside the dialog frame are still
-    -- consumed silently to keep the picker non-dismissable.
+    -- InputDialog's behaviour (inputdialog.lua:562-576); the picker stays.
     if self:_keyboardVisible() then
         local kb_dimen = self.hex_input.keyboard and self.hex_input.keyboard.dimen
         if not kb_dimen or (ges and ges.pos and ges.pos:notIntersectWith(kb_dimen)) then
             self:_closeKeyboard()
         end
+        return true
+    end
+    -- Else a tap outside the frame closes the picker, keeping what it shows
+    -- (a swatch tap already previews; Apply keeps it). The old % dialog
+    -- took rapid taps, so it could not close on one that missed; the
+    -- picker's taps are one at a time (maintainer).
+    local d = self._frame and self._frame.dimen
+    if d and d.x and ges and ges.pos and ges.pos:notIntersectWith(d) then
+        if self.ok_callback then self.ok_callback() end
     end
     return true
 end
@@ -560,6 +568,7 @@ function ColorPaletteWidget:update()
         vgroup,
     }
 
+    self._frame = frame   -- its painted box: where a tap is outside (onTapOutside)
     local movable = MovableContainer:new{ frame, anchor = self.anchor }
 
     -- CenterContainer dimen is set once at construction and never reassigned

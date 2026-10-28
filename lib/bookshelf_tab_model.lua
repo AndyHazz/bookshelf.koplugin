@@ -55,7 +55,10 @@ function TabModel.BUILTINS()
         --
         -- Every one of these is a normal pin the reader can change; none of
         -- them is a new kind of setting.
-        { id = "all",       label = tr("Home"),       source = { kind = "all"       },
+        -- Flattened: a Calibre library keeps each book in its author's folder,
+        -- and Home with folders opened on a shelf of author folder names
+        -- (maintainer, from readers asking on Reddit).
+        { id = "all",       label = tr("Home"),       source = { kind = "library"   },
           filter = {}, sort_priority = { { key = "added_or_opened", reverse = true } },
           view_mode = "spines", ornament_frequency = 2,
           spine_face_out = { favorites = true, reading = true, recent = 5 },

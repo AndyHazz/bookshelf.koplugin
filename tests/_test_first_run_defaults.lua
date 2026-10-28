@@ -31,6 +31,10 @@ end
 t.test("Home opens as a spine shelf, newest added or opened first, with ornaments standing", function()
     local home = chip("all")
     assert(home, "the Home chip declaration moved")
+    -- Flattened: with folders, a Calibre library (a folder per author)
+    -- opened on a shelf of author names (maintainer, from Reddit).
+    assert(home:find('source = { kind = "library"', 1, true),
+        "Home should show the books flattened, not the library's folders")
     assert(home:find('view_mode = "spines"', 1, true),
         "Home no longer opens on spines, which is the view the shelf is for")
     -- Added or opened, so a book picked up again comes back to the front

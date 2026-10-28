@@ -1046,8 +1046,15 @@ function LibraryModal:_renderGridArea(content_width, area_height)
                     }
                     -- The card shows pressed at once, then the tap acts.
                     ic.onTapSelect = function()
-                        PopupKit.pressThen(ic, PopupKit.findCard(cell_widget),
-                            function() self.config.on_cell_tap(item) end)
+                        -- config.select_on_tap: a tap marks the card picked at
+                        -- once (the Theme library), which is its feedback; a
+                        -- pressed look first was one paint too many.
+                        if self.config.select_on_tap then
+                            self.config.on_cell_tap(item)
+                        else
+                            PopupKit.pressThen(ic, PopupKit.findCard(cell_widget),
+                                function() self.config.on_cell_tap(item) end)
+                        end
                         return true
                     end
                 end

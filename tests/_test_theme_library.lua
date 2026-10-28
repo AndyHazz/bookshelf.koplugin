@@ -375,11 +375,19 @@ t.test("a tap chooses and moves the mark, then the shelf behind is rebuilt; the 
     eq(tasks[1] and tasks[1].secs, TL.APPLY_DELAY, "the shelf behind is not rebuilt after a tap")
     runTasks()
     eq(table.concat(built, ","), "Macabre", "the shelf behind did not follow the choice while the picker is open")
-    eq(dirty[#dirty], "all:full", "a theme is the whole look: one full refresh, the picker repainted over it")
+    -- No full refresh of its own while the picker is up: it flashed the
+    -- picker after the card's outline (maintainer: one paint per tap). The
+    -- shelf's rebuild refreshes as ui (TL.previewing); one full refresh as
+    -- the picker closes clears what the previews left.
+    for _i, d in ipairs(dirty) do assert(d ~= "all:full", "a theme tap flashed the whole screen") end
+    eq(TL.previewing, true, "the shelf does not know the previews are the picker's")
     eq(m.closed, nil, "the picker closed on a choice")
     c.on_cell_tap(c.item_at(3))
     eq(#chosen, 1, "choosing the theme in use again did something")
     eq(runTasks(), 0, "choosing the theme in use again rebuilt the shelf")
+    c.on_closed()
+    eq(dirty[#dirty], "all:full", "no full refresh as the picker closed after a theme was applied")
+    eq(TL.previewing, false)
 end)
 
 t.test("a run of taps is one rebuild, for the last choice", function()
@@ -394,7 +402,11 @@ t.test("a run of taps is one rebuild, for the last choice", function()
     eq(table.concat(built, ","), "plain", "not one rebuild for the last choice")
     local full = 0
     for _i, d in ipairs(dirty) do if d == "all:full" then full = full + 1 end end
-    eq(full, 1, "more than one full refresh for a run of taps")
+    eq(full, 0, "a full refresh while the picker is up")
+    c.on_closed()
+    full = 0
+    for _i, d in ipairs(dirty) do if d == "all:full" then full = full + 1 end end
+    eq(full, 1, "not one full refresh for a run of taps, as the picker closes")
 end)
 
 t.test("a choice still waiting is applied when the picker closes, before the caller comes back", function()
@@ -622,7 +634,8 @@ t.test("the footer's Reset: the marked theme, greyed unless an edited pack or Pl
     eq(full, 0, "a full refresh before the shelf behind was rebuilt (a second flash)")
     runTasks()
     eq(built, 1, "the shelf behind showing that theme did not follow")
-    eq(dirty[#dirty], "all:full", "no full refresh for the whole look changing")
+    c.on_closed()
+    eq(dirty[#dirty], "all:full", "no full refresh as the picker closed after the look changed")
     full = 0
     for _i, d in ipairs(dirty) do if d == "all:full" then full = full + 1 end end
     eq(full, 1, "more than one full refresh for a reset")
@@ -701,7 +714,6 @@ t.test("a long-press on a pack's or Plain's card offers Reset to original, greye
     eq(m.refreshes, 1, "the cards were not redrawn")
     runTasks()
     eq(built, 1, "the shelf behind showing that theme did not follow")
-    eq(dirty[#dirty], "all:full")
     -- Unedited: greyed. Plain: the same dialog. The shelf behind on another
     -- theme: left alone.
     c.cell_long_tap(c.item_at(3))

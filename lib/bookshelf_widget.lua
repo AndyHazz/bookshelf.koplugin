@@ -1033,7 +1033,11 @@ function BookshelfWidget:_syncShelfTheme()
     local changed = TP.setShelf(self.chip)
     if changed and self._shelf_theme_seen then
         self._ground_memo = nil
-        UIManager:setDirty("all", "full")
+        -- While the Theme library is up, each theme tapped is a plain ui
+        -- refresh (no flash over the picker); it makes the full one as it
+        -- closes (TL.previewing).
+        local TL = package.loaded["lib/bookshelf_theme_library"]
+        UIManager:setDirty("all", (TL and TL.previewing) and "ui" or "full")
     end
     self._shelf_theme_seen = true
     return changed

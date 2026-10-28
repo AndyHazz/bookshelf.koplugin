@@ -16,7 +16,8 @@ t.test("_rebuild names the shelf first and refreshes the whole screen when the l
     assert(at < body:find("dropPlanCache", 1, true), "the shelf is named after the plan cache work began")
     local sync = w:match("\nfunction BookshelfWidget:_syncShelfTheme%(%)\n(.-)\nend\n")
     assert(sync and sync:find("TP.setShelf(self.chip)", 1, true), "_syncShelfTheme does not set the shelf")
-    assert(sync:find('UIManager:setDirty("all", "full")', 1, true), "a change of look is not a full refresh")
+    assert(sync:find('UIManager:setDirty("all", (TL and TL.previewing) and "ui" or "full")', 1, true),
+        "a change of look is not a full refresh (bar the Theme library's previews)")
 end)
 
 t.test("light/dark is read through the shelf", function()

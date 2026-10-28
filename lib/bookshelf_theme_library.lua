@@ -425,15 +425,17 @@ function TL._renderCard(item, dimen, current, all)
     local Space           = require("lib/bookshelf_space")
     local TextWidget      = require("lib/bookshelf_colour_text")
     local VerticalGroup   = require("ui/widget/verticalgroup")
-    local border = current and Size.border.thick or require("lib/bookshelf_popup_kit").BORDER
     -- Little padding above and below: three lines have to fit, also inside
     -- the keys' focus ring, which takes its width off the card.
     -- Side padding as the editor's cards have, so the name does not touch
     -- the card's edge.
     local pad, pad_v = Space.px(12), Space.padding.small
     local gap = Space.padding.default
-    local inner_w = dimen.w - 2 * (border + pad)
-    local inner_h = dimen.h - 2 * (border + pad_v)
+    -- No border in the sum: the kit's card (cardify) has none, and its "in
+    -- use" outline is drawn over the card's edge. Counted, the card in use
+    -- (a thicker border) came out narrower than the rest.
+    local inner_w = dimen.w - 2 * pad
+    local inner_h = dimen.h - 2 * pad_v
     -- The hero's box: square, the card's height, never more than a quarter
     -- of its width. Kept on every card, with or without a hero, so the names
     -- line up down the page.
@@ -460,7 +462,7 @@ function TL._renderCard(item, dimen, current, all)
     local hero = e and TL.heroWidget(e, hero_w, inner_h)
     -- The kit's grey card; the one in use outlined (a heavier frame).
     return require("lib/bookshelf_popup_kit").cardify(FrameContainer:new{
-        bordersize = border, radius = require("lib/bookshelf_popup_kit").RADIUS, margin = 0,
+        bordersize = 0, radius = require("lib/bookshelf_popup_kit").RADIUS, margin = 0,
         padding = 0, padding_left = pad, padding_right = pad, padding_top = pad_v, padding_bottom = pad_v,
         -- 0xEE: one exact e-ink level (238), so it does not speckle.
         background = current and Blitbuffer.Color8(0xEE) or Blitbuffer.COLOR_WHITE,
@@ -525,12 +527,21 @@ function TL.show(opts)
     -- The shelf behind follows the cards: one rebuild for a run of taps
     -- (the last choice wins), and none left waiting when the picker closes.
     local waiting = false
+    -- The shelf behind shows each theme tapped with a plain ui refresh, which
+    -- leaves the picker's unchanged pixels alone: a full one flashed the
+    -- picker too, after the card's own outline (maintainer: one paint per
+    -- tap). The full refresh that clears what the previews leave on e-ink
+    -- is made once, as the picker closes (on_closed), and only if a theme
+    -- was applied.
+    local applied = false
     local function apply()
         if not waiting then return end
         waiting = false
         UIManager:unschedule(apply)
         if opts.apply then opts.apply() end
-        UIManager:setDirty("all", "full")
+        -- No refresh of its own: the shelf's rebuild asks for one
+        -- (BookshelfWidget:_syncShelfTheme).
+        applied = true
     end
     -- reset(theme): once a theme's edits are gone, from the footer or a
     -- card's long-press. Its card loses Edited and the footer's Reset greys
@@ -552,6 +563,8 @@ function TL.show(opts)
         -- its breadcrumb, Close as the back chevron); LibraryModal config.over.
         over = opts.over,
         no_search = true,
+        -- The outline moving to the card is the tap's feedback.
+        select_on_tap = true,
         grid_cols = function() return 1 end,
         cells_per_page = function() return TL.PER_PAGE end,
         area_height = TL.areaHeight,
@@ -600,6 +613,8 @@ function TL.show(opts)
         on_closed = function()
             modal = nil
             apply()
+            TL.previewing = false
+            if applied then UIManager:setDirty("all", "full") end
             if own_defer then
                 own_defer = false
                 -- Once the close has painted: the write (~115ms on a PW5)
@@ -623,6 +638,9 @@ function TL.show(opts)
     -- own page (maintainer, 2026-10-08: opened on Ukiyo-e's page, the
     -- built-ins were out of sight).
     modal = LibraryModal:new{ config = config, page = 1 }
+    -- The shelf's own look-change refresh is a plain one while this is up
+    -- (BookshelfWidget:_syncShelfTheme).
+    TL.previewing = true
     own_defer = orn.beginDeferred ~= nil and not orn._defer
     if own_defer then orn.beginDeferred() end
     UIManager:show(modal)

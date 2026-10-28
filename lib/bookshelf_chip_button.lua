@@ -82,7 +82,9 @@ local ChipButton = {}
 --   opts.on_tap     function() fired on tap
 --   opts.enabled    false: grey border, label and icon, and a tap does nothing
 function ChipButton.build(opts)
-    local fg = opts.enabled == false and Blitbuffer.COLOR_DARK_GRAY or Blitbuffer.COLOR_BLACK
+    -- Can't act now: light grey all over, the border lighter still. Dark
+    -- grey read as nearly black on the PW5 (maintainer).
+    local fg = opts.enabled == false and Blitbuffer.COLOR_GRAY or Blitbuffer.COLOR_BLACK
     local border = opts.border or Size.border.default
     local pad_h  = opts.pad_h or Space.px(12)
     local gap    = opts.gap or Space.px(6)
@@ -134,7 +136,7 @@ function ChipButton.build(opts)
         background     = Blitbuffer.COLOR_WHITE,
         -- Greyed all over when it can't act: the border too, not the label
         -- alone, which was too easy to miss (maintainer).
-        color          = opts.enabled == false and Blitbuffer.COLOR_DARK_GRAY or nil,
+        color          = opts.enabled == false and Blitbuffer.COLOR_LIGHT_GRAY or nil,
         inverted       = opts.inverted or false,
         square_bottom  = opts.square_bottom or nil,
         -- An icon and a label start at the left, so a column of them lines

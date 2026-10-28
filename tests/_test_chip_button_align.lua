@@ -31,7 +31,8 @@ for _i, name in ipairs({ "ui/widget/container/centercontainer", "ui/widget/conta
         "lib/bookshelf_colour_text" }) do
     package.loaded[name] = widget(name)
 end
-package.loaded["ffi/blitbuffer"] = { COLOR_BLACK = 0, COLOR_WHITE = 1, COLOR_DARK_GRAY = 2 }
+package.loaded["ffi/blitbuffer"] = { COLOR_BLACK = 0, COLOR_WHITE = 1, COLOR_DARK_GRAY = 2,
+    COLOR_GRAY = 3, COLOR_LIGHT_GRAY = 4 }
 package.loaded["ui/geometry"] = { new = function(_s, o) return o end }
 package.loaded["ui/gesturerange"] = { new = function(_s, o) return o end }
 package.loaded["ui/size"] = { border = { default = 1 }, radius = { default = 4 } }
@@ -58,7 +59,7 @@ end)
 -- A greyed label alone was too easy to miss: a button that can't act has a
 -- grey border too, everywhere a kit button is used (maintainer).
 t.test("a disabled button's border is grey, an enabled one's is not", function()
-    eq(Chip.build{ text = "+", height = 40, enabled = false }[1].color, 2)
+    eq(Chip.build{ text = "+", height = 40, enabled = false }[1].color, 4)
     eq(Chip.build{ text = "+", height = 40 }[1].color, nil)
 end)
 

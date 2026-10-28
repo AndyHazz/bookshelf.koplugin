@@ -64,9 +64,9 @@ a control by hand, so a change lands everywhere.
   Reset, Help): `Kit.headerButton`, label then icon, all the same height.
   `Kit.iconButton` for an icon alone. Greyed (`enabled = false`) when they
   can't act now.
-- A button that can't act now is grey all over: its border, label and icon
-  (`enabled = false` on any kit button). A grey label in a black border is
-  too easy to miss.
+- A button that can't act now is grey all over: a light grey border, a grey
+  label and icon (`enabled = false` on any kit button). A grey label in a
+  black border is too easy to miss, and dark grey reads as black on e-ink.
 - A yes/no that only changes what is shown (Include spoilers): a checkbox
   glyph and label on `Kit.tapCell`. Not saved unless it is a real setting.
   A saved on/off is an On | Off segmented control (`Page` segmented).

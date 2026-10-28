@@ -109,22 +109,16 @@ t.test("a cover-shelf module is sized and framed like a cover", function()
 end)
 
 -- The editor's page buttons on a shelf: every shelf page is there to move
--- to, and the shelf follows the module to its new page; Shorter and Taller
--- are left out (one row tall), Narrower and Wider stay.
+-- to, and the shelf follows the module to its new page; Height is left out
+-- (one row tall), Width stays.
 t.test("the shelf editor moves modules page by page, and the shelf follows", function()
     local h = fn("_shelfModuleHost")
     assert(h and h:find("host.shelf = true", 1, true), "the editor is not told it is on a shelf")
     assert(h:find("function host.max_pages()", 1, true), "no shelf page count for the editor")
     assert(h:find("bw._cursor = (edit.page - 1) * bw:_viewSize() + 1", 1, true), "the shelf does not follow the editor's page")
     local ed = io.open("lib/bookshelf_module_grid_editor.lua"):read("*a")
-    assert(ed:find('if on_shelf and axis == "h" then return nil end', 1, true), "Shorter/Taller shown on a shelf")
-    assert(not ed:find("if on_shelf and not can then return nil end", 1, true), "Narrower hidden at its limit")
+    assert(ed:find('if on_shelf and axis == "h" then return nil end', 1, true), "Height shown on a shelf")
     assert(ed:find("pageButton(Session.PAGE_PREV, -1)", 1, true) and ed:find("pageButton(Session.PAGE_NEXT, 1)", 1, true), "no page buttons")
-    -- On a shelf: Narrower over Wider, two rows of four.
-    local shelf_rows = ed:match("if on_shelf then(.-)\n        else")
-    assert(shelf_rows, "no shelf layout")
-    local r1 = shelf_rows:match("compact%((.-)compact%(")
-    assert(r1 and r1:find("Narrower", 1, true) and not r1:find("Wider", 1, true), "Narrower and Wider share a row")
 end)
 
 -- The layout editor fades everything but the modules it can move, so it is

@@ -32,6 +32,10 @@ a control by hand, so a change lands everywhere.
   Close alone draws it there itself.
 - Rows of a stock button table are the same height; the last one is not
   squeezed against the frame (give it the X above instead of a Close row).
+- A bar over the screen that is not a dialog's footer (the layout editor's
+  Add | pages | Done) is a row of kit buttons at the inset under a
+  full-width line, not a borderless button table whose separators end
+  nowhere. Its hint is grey text between them, not a greyed button.
 
 ## Controls
 

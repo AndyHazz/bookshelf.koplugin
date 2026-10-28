@@ -342,11 +342,12 @@ end
 -- widget-only method must fail safe, not crash the reader.
 function HeroModules._hold(bw, entry)
     if not Gestures.on("module_hold") then return end
-    pcall(function()
+    local ok, err = pcall(function()
         local Editor = require("lib/bookshelf_module_grid_editor")
         local host = bw._micro_fullscreen or HeroModules.heroEditHost(bw)
         Editor.open{ bw = bw, host = host, select_id = entry and entry.id }
     end)
+    if not ok then require("logger").warn("[bookshelf] layout editor:", err) end
 end
 
 -- The top panel as a layout-editor host (see bookshelf_module_grid_editor):

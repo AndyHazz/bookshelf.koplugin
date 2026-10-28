@@ -40,7 +40,17 @@ for _, name in ipairs({
 }) do
     package.preload[name] = function() return make_widget_base() end
 end
-package.preload["ui/geometry"] = function() return { new = function(_, t) return t or {} end } end
+-- combine(): the union _dirty() builds its refresh region from.
+local GeomMT = {}
+GeomMT.__index = GeomMT
+function GeomMT:combine(o)
+    local x, y = math.min(self.x, o.x), math.min(self.y, o.y)
+    return setmetatable({ x = x, y = y, w = math.max(self.x + self.w, o.x + o.w) - x,
+        h = math.max(self.y + self.h, o.y + o.h) - y }, GeomMT)
+end
+package.preload["ui/geometry"] = function()
+    return { new = function(_, t) return setmetatable(t or {}, GeomMT) end }
+end
 package.preload["ui/size"] = function()
     return { padding = { fullscreen = 10, default = 5 }, border = { default = 1, window = 2 },
              radius = { window = 4 },
@@ -63,19 +73,32 @@ package.preload["device"] = function()
     }
 end
 
-for _, name in ipairs({ "ui/widget/buttontable", "ui/widget/buttondialog",
+for _, name in ipairs({ "ui/widget/iconbutton", "ui/widget/container/leftcontainer",
+                        "ui/widget/buttondialog",
                         "ui/widget/notification", "ui/widget/textwidget",
                         "ui/widget/linewidget" }) do
     package.preload[name] = function() return make_widget_base() end
 end
 package.preload["lib/bookshelf_colour_text"] = function() return make_widget_base() end
+-- The kit's buttons: a widget the keys can focus and press.
+package.preload["lib/bookshelf_popup_kit"] = function()
+    local W = make_widget_base()
+    return {
+        button = function(o) local b = W:new{}; b.on_tap = o.on_tap; return b end,
+        hintText = function() return W:new{} end,
+    }
+end
 package.preload["ui/gesturerange"] = function() return { new = function(_, t) return t end } end
 package.preload["ui/font"] = function() return { getFace = function() return {} end } end
 local shown, closed = {}, {}
+local dirty_fns = {}
 package.preload["ui/uimanager"] = function()
     return { show = function(_, w) shown[#shown + 1] = w end,
              close = function(_, w) closed[#closed + 1] = w end,
-             setDirty = function() end, nextTick = function(_, fn) fn() end }
+             setDirty = function(_, _w, fn)
+                 if type(fn) == "function" then dirty_fns[#dirty_fns + 1] = fn end
+             end,
+             nextTick = function(_, fn) fn() end }
 end
 package.preload["lib/bookshelf_settings_store"] = function()
     return { read = function(_k, d) return d end, flush = function() end }
@@ -260,10 +283,11 @@ local function keyEd()
     local log = {}
     local ed = setmetatable({
         session = { selected_id = "a" },
-        _bar_table = { buttons_layout = { { btn("narrower", log), btn("wider", log) },
-                                          { btn("settings", log), btn("remove", log) } } },
-        _foot_table = { buttons_layout = { { btn("add", log), btn("done", log) } } },
-        _palette = btn("palette", log),
+        -- The title's row (palette, X), then the toolbar's own rows.
+        _bar_rows = { { btn("palette", log), btn("close", log) },
+                      { btn("narrower", log), btn("wider", log) },
+                      { btn("settings", log), btn("remove", log) } },
+        _foot_rows = { { btn("add", log), btn("done", log) } },
     }, { __index = Editor })
     ed._buildBands = function() end
     return ed, log
@@ -277,7 +301,8 @@ t.test("keys: Enter focuses the toolbar, arrows move along it, Enter presses", f
     ed:onEdRight(); eq(log.focus, "wider")
     ed:onEdDown();  eq(log.focus, "remove")
     ed:onEdDown();  eq(log.focus, "done", "the footer is below the toolbar")
-    ed:onEdUp(); ed:onEdUp(); ed:onEdUp(); eq(log.focus, "palette", "the palette icon is above the toolbar")
+    ed:onEdUp(); ed:onEdUp(); ed:onEdUp(); eq(log.focus, "close", "the title's X is above the toolbar")
+    ed:onEdLeft(); eq(log.focus, "palette", "the palette icon is beside the X")
     ed:onEdDown(); ed:onEdPress(); eq(log.pressed, "narrower")
 end)
 
@@ -291,27 +316,35 @@ end)
 
 t.test("keys: the footer's Done finishes, even with the toolbar focused", function()
     local src = io.open("lib/bookshelf_module_grid_editor.lua"):read("*a")
-    assert(src:find('button("\\xE2\\x9C\\x93 " .. _("Done"), function() self:_finish() end)', 1, true),
+    assert(src:find('bold = true, on_tap = function() self:_finish() end }', 1, true),
         "the Done button only steps out of the toolbar")
     assert(src:find("on_done = function() self:_finish() end", 1, true), "the actions dialog's Done steps out")
 end)
 
-t.test("keys: the button tables leave the arrows to the editor", function()
-    -- KOReader offers a key to a container's children first, and a
-    -- ButtonTable is a FocusManager: the footer's took the arrows, so the
-    -- editor never knew its toolbar was focused and Back closed it (rig).
-    local src = io.open("lib/bookshelf_module_grid_editor.lua"):read("*a")
-    assert(src:find("self._bar_table.key_events = {}", 1, true), "the toolbar's table takes the arrows")
-    assert(src:find("self._foot_table.key_events = {}", 1, true), "the footer's table takes the arrows")
-end)
-
 t.test("keys: a greyed-out button is passed over by Enter", function()
     local ed, log = keyEd()
-    ed._bar_table.buttons_layout[1][1].enabled = false
+    ed._bar_rows[2][1].enabled = false
     ed:onEdPress()
     eq(log.focus, "wider", "focus started on a disabled button")
     ed:onEdLeft(); ed:onEdPress()
     eq(log.pressed, nil, "a disabled button was pressed")
+end)
+
+-- Closing the toolbar (its X): the refresh must cover where the toolbar
+-- was. The rects were a table literal starting with the toolbar's rect, nil
+-- once it had gone, and # of a table with a hole at 1 can be 0, so the old
+-- toolbar's place was left out and it stayed on screen (rig).
+t.test("closing the toolbar refreshes where it was", function()
+    local inf = info()
+    inf.container = { dimen = { x = 0, y = 0, w = 400, h = 300 } }
+    local ed = Editor.open{ bw = {}, host = host(inf), select_id = "a" }
+    ed._bar_rect = { x = 12, y = 1100, w = 1240, h = 400 }
+    ed._footer_rect = { x = 0, y = 1600, w = 1264, h = 80 }
+    for i = #dirty_fns, 1, -1 do dirty_fns[i] = nil end
+    ed:_dirty()
+    ed._bar_rect = nil   -- painted without a toolbar
+    local _mode, r = dirty_fns[#dirty_fns]()
+    assert(r and r.y <= 1100 and r.y + r.h >= 1500, "the old toolbar's place is not refreshed")
 end)
 
 t.done()

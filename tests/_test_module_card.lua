@@ -124,7 +124,7 @@ end)
 
 t.test("the palette icon is in the editor toolbar and the spine module menu", function()
     local ed = io.open("lib/bookshelf_module_grid_editor.lua"):read("*a")
-    assert(ed:find("self:_titleRow(title, face, width - 2 * self.margin, entry)", 1, true), "editor title")
+    assert(ed:find('self:_titleRow(title, Font:getFace("cfont", FS), tw, entry)', 1, true), "editor title")
     assert(ed:find('require("lib/bookshelf_module_card_menu").show(ctx)', 1, true), "editor opens the menu")
     local w = io.open("lib/bookshelf_widget.lua"):read("*a")
     assert(w:find("d:addWidget(CardMenu.titleRow(", 1, true), "spine module menu title")

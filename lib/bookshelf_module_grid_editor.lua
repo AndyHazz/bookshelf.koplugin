@@ -17,7 +17,6 @@ Host contract (HeroModules.heroEditHost, MicroFullscreen):
 ]]
 local Blitbuffer      = require("ffi/blitbuffer")
 local ButtonDialog    = require("ui/widget/buttondialog")
-local ButtonTable     = require("ui/widget/buttontable")
 local Device          = require("device")
 local FrameContainer  = require("ui/widget/container/framecontainer")
 local Geom            = require("ui/geometry")
@@ -159,134 +158,183 @@ function Editor:init()
 end
 
 -- ── Bands ────────────────────────────────────────────────────────────────────
+-- The toolbar and the edit footer are the popup kit's controls (STYLE.md):
+-- closed rounded buttons set in from the frame, steppers for a size, the X
+-- in the title for Close. A stock button grid's separators ran into the
+-- frame and, in the footer with no frame, ended nowhere.
 
-local function button(text, callback, enabled)
-    return { text = text, callback = callback, enabled = enabled ~= false }
+local FS = 18
+
+-- kbutton(o) -> a kit button the keys can press too: o.text and/or o.glyph
+-- (symbols font), o.on_tap, o.enabled, o.bold, o.inverted, o.h, o.pad_h.
+-- callback and enabled are what the editor's keys read (_keyRows).
+local function kbutton(o)
+    local Kit  = require("lib/bookshelf_popup_kit")
+    local enabled = o.enabled ~= false
+    local btn = Kit.button{
+        text = o.text, face = o.text and Font:getFace("cfont", o.font_size or FS) or nil,
+        bold = o.bold, inverted = o.inverted,
+        icon_glyph = o.glyph,
+        icon_face = o.glyph and Font:getFace("symbols", o.glyph_size or (FS + 6)) or nil,
+        height = o.h, pad_h = o.pad_h, enabled = enabled, on_tap = o.on_tap,
+    }
+    btn.callback = o.on_tap
+    btn.enabled = enabled
+    return btn
 end
 
--- A move chevron, in the symbols font at the size the other editors use.
-local function chevron(glyph, callback)
-    return { text = glyph, callback = callback,
-             font_face = "symbols", font_size = 28, font_bold = false }
+-- line(items, gap) -> items side by side, centred on one line.
+local function line(items, gap)
+    local HorizontalGroup = require("ui/widget/horizontalgroup")
+    local HorizontalSpan  = require("ui/widget/horizontalspan")
+    local hg = HorizontalGroup:new{ align = "center" }
+    for i, w in ipairs(items) do
+        if i > 1 then hg[#hg + 1] = HorizontalSpan:new{ width = gap } end
+        hg[#hg + 1] = w
+    end
+    return hg
+end
+
+-- spread(left, right, w) -> left at the start, right flush with the end.
+local function spread(left, right, w)
+    local HorizontalGroup = require("ui/widget/horizontalgroup")
+    local HorizontalSpan  = require("ui/widget/horizontalspan")
+    local lw = left and left:getSize().w or 0
+    local rw = right and right:getSize().w or 0
+    local hg = HorizontalGroup:new{ align = "center" }
+    if left then hg[#hg + 1] = left end
+    hg[#hg + 1] = HorizontalSpan:new{ width = math.max(0, w - lw - rw) }
+    if right then hg[#hg + 1] = right end
+    return hg
 end
 
 function Editor:_toolbarWidth()
     return self._built_w - 2 * self.margin
 end
 
+-- The keys' rows of the toolbar and the footer, top to bottom (_keyRows).
 function Editor:_buildToolbar()
     local s = self.session
     local width = self:_toolbarWidth()
     local id = s.selected_id
     local entry = id and s:item(id)
     local box = id and s:box(id)
+    self._bar_rows = nil
     -- Nothing selected: no toolbar at all (the hint lives in the footer), so
     -- the whole grid stays tappable.
     if not (entry and box) then return nil end
-    local face = Font:getFace("cfont", 18)
-    local rows
-    local title
-    do
-        local def = Modules.get(entry.module)
-        title = T(_("%1 · %2 × %3"), (def and def.title) or entry.module, box.w, box.h)
-        local bottom = {}
-        if def and type(def.show_settings) == "function" then
-            bottom[#bottom + 1] = button(_("Settings"), function() s:settings() end)
-        end
-        bottom[#bottom + 1] = button(_("Remove"), function() s:remove() end)
-        bottom[#bottom + 1] = button(_("Close"), function() s:select(nil) end)
-        -- A size button that would do nothing is greyed, so the toolbar
-        -- keeps its shape under the finger. On a shelf Shorter and Taller
-        -- are left out: a shelf module is one row tall, so they never apply
-        -- there (maintainer). Narrower and Wider stay, greyed at their limits.
-        local on_shelf = self.host.shelf
-        local function sizeButton(text, axis, delta)
-            if on_shelf and axis == "h" then return nil end
-            return button(text, function() s:resize(axis, delta) end, s:canResize(axis, delta))
-        end
-        -- Previous / next page, leading the two rows: the footer's page dots
-        -- also take the selection there, but nothing said so (maintainer).
-        local function pageButton(glyph, dir)
-            local p = s:adjacentPage(dir)
-            local b = chevron(glyph, function() if p then s:moveToPage(p) end end)
-            b.enabled = p ~= nil
-            return b
-        end
-        -- The row's buttons less the ones left out (nil). Counted with
-        -- select("#"): a table literal with holes has no reliable length.
-        local function compact(...)
-            local out = {}
-            for i = 1, select("#", ...) do
-                local b = select(i, ...)
-                if b then out[#out + 1] = b end
-            end
-            return out
-        end
-        if on_shelf then
-            -- No height buttons, so Narrower and Wider stand one above the
-            -- other: two rows of four, as the panels' rows are (maintainer).
-            rows = {
-                compact(
-                    pageButton(Session.PAGE_PREV, -1),
-                    sizeButton(_("Narrower"), "w", -1),
-                    chevron(Session.CHEV_LEFT,  function() s:moveBy(-1, 0) end),
-                    chevron(Session.CHEV_RIGHT, function() s:moveBy(1, 0) end)
-                ),
-                compact(
-                    pageButton(Session.PAGE_NEXT, 1),
-                    sizeButton(_("Wider"),    "w", 1),
-                    chevron(Session.CHEV_UP,    function() s:moveBy(0, -1) end),
-                    chevron(Session.CHEV_DOWN,  function() s:moveBy(0, 1) end)
-                ),
-                bottom,
-            }
-        else
-            rows = {
-                -- Page, then size, then position; each row one axis.
-                compact(
-                    pageButton(Session.PAGE_PREV, -1),
-                    sizeButton(_("Narrower"), "w", -1),
-                    sizeButton(_("Wider"),    "w", 1),
-                    chevron(Session.CHEV_LEFT,  function() s:moveBy(-1, 0) end),
-                    chevron(Session.CHEV_RIGHT, function() s:moveBy(1, 0) end)
-                ),
-                compact(
-                    pageButton(Session.PAGE_NEXT, 1),
-                    sizeButton(_("Shorter"),  "h", -1),
-                    sizeButton(_("Taller"),   "h", 1),
-                    chevron(Session.CHEV_UP,    function() s:moveBy(0, -1) end),
-                    chevron(Session.CHEV_DOWN,  function() s:moveBy(0, 1) end)
-                ),
-                bottom,
-            }
-        end
+    local Space = require("lib/bookshelf_space")
+    local inset = Space.px(16)
+    local gap   = Space.px(10)
+    local inner = width - 2 * Size.border.window - 2 * inset
+    local face  = Font:getFace("cfont", FS)
+    local h = TextWidget:new{ text = "Hg", face = face }:getSize().h + 2 * Space.px(10)
+    local def = Modules.get(entry.module)
+    local title = (def and def.title) or entry.module
+    -- A size button that would do nothing is greyed, so the toolbar keeps
+    -- its shape under the finger. On a shelf Height is left out: a shelf
+    -- module is one row tall, so it never applies there (maintainer).
+    local on_shelf = self.host.shelf
+    local rows = {}
+    -- stepper(label, axis, value) -> "Width  − 2 +", its two buttons a keys row.
+    local function stepper(label, axis, value)
+        if on_shelf and axis == "h" then return nil end
+        local minus = kbutton{ glyph = "\xEF\x81\xA8", h = h, pad_h = Space.px(14),
+            enabled = s:canResize(axis, -1), on_tap = function() s:resize(axis, -1) end }
+        local plus = kbutton{ glyph = "\xEF\x91\x8D", h = h, pad_h = Space.px(14),
+            enabled = s:canResize(axis, 1), on_tap = function() s:resize(axis, 1) end }
+        local CenterContainer = require("ui/widget/container/centercontainer")
+        local val = CenterContainer:new{ dimen = Geom:new{ w = Space.px(48), h = h },
+            TextWidget:new{ text = tostring(value), face = face, bold = true } }
+        return { label = label, ctl = line({ minus, val, plus }, 0) }, { minus, plus }
     end
-    local title_row = self:_titleRow(title, face, width - 2 * self.margin, entry)
+    local width_ctl, wf = stepper(_("Width"), "w", box.w)
+    local height_ctl, hf = stepper(_("Height"), "h", box.h)
+    local size_row = {}
+    for _i, b in ipairs(wf) do size_row[#size_row + 1] = b end
+    for _i, b in ipairs(hf or {}) do size_row[#size_row + 1] = b end
+    rows[#rows + 1] = size_row
+    -- Move by a cell, and to the previous or next page: the footer's page
+    -- dots also take the selection there, but nothing said so (maintainer).
+    local function chev(glyph, dx, dy)
+        return kbutton{ glyph = glyph, h = h, pad_h = Space.px(14),
+            on_tap = function() s:moveBy(dx, dy) end }
+    end
+    local function pageButton(glyph, dir)
+        local p = s:adjacentPage(dir)
+        return kbutton{ glyph = glyph, h = h, pad_h = Space.px(14), enabled = p ~= nil,
+            on_tap = function() if p then s:moveToPage(p) end end }
+    end
+    local moves = { chev(Session.CHEV_LEFT, -1, 0), chev(Session.CHEV_UP, 0, -1),
+                    chev(Session.CHEV_DOWN, 0, 1), chev(Session.CHEV_RIGHT, 1, 0) }
+    local pages = { pageButton(Session.PAGE_PREV, -1), pageButton(Session.PAGE_NEXT, 1) }
+    local move_row = {}
+    for _i, b in ipairs(moves) do move_row[#move_row + 1] = b end
+    for _i, b in ipairs(pages) do move_row[#move_row + 1] = b end
+    rows[#rows + 1] = move_row
+    local actions = {}
+    if def and type(def.show_settings) == "function" then
+        actions[#actions + 1] = kbutton{ text = _("Settings"), glyph = "\xEF\x80\x93", glyph_size = FS,
+            h = h, on_tap = function() s:settings() end }
+    end
+    actions[#actions + 1] = kbutton{ text = _("Remove"), glyph = "\xEE\xA2\xBF", glyph_size = FS,
+        h = h, on_tap = function() s:remove() end }
+    rows[#rows + 1] = actions
+
+    -- Title: the module's name, its palette when it has colours, the X
+    -- that closes the toolbar (Close alone is the X, STYLE.md).
+    local xb = require("ui/widget/iconbutton"):new{
+        icon = "close", width = math.floor(h * 0.6), height = math.floor(h * 0.6),
+        padding = Space.px(4), show_parent = self,
+        callback = function() s:select(nil) end,
+    }
+    xb.enabled = true
+    local tw = width - 2 * Size.border.window - 2 * Size.padding.default - xb:getSize().w
+    local title_row = self:_titleRow(title, Font:getFace("cfont", FS), tw, entry)
     self._palette = type(title_row) == "table" and title_row.palette_button or nil
-    -- The title is set in; the button grid runs the frame's full width, so
-    -- its separators meet the frame's border (STYLE.md: a line set in from
-    -- the frame ends nowhere).
+    local head = rows
+    table.insert(head, 1, self._palette and { self._palette, xb } or { xb })
+
+    local VG = VerticalGroup:new{ align = "left" }
+    -- Two columns, each a label and its controls: Width over Move at the
+    -- left, Height over Page at the right, the labels one width per column.
+    local function col(list)
+        local lw = 0
+        for _i, it in ipairs(list) do
+            if it then
+                local t = TextWidget:new{ text = it.label, face = face }
+                lw = math.max(lw, t:getSize().w)
+                if t.free then t:free() end
+            end
+        end
+        local LeftContainer = require("ui/widget/container/leftcontainer")
+        local out = {}
+        for i, it in ipairs(list) do
+            out[i] = it and line({ LeftContainer:new{ dimen = Geom:new{ w = lw, h = h },
+                TextWidget:new{ text = it.label, face = face } }, it.ctl }, gap)
+        end
+        return out
+    end
+    local L = col({ width_ctl, { label = _("Move"), ctl = line(moves, gap) } })
+    local Rt = col({ height_ctl, { label = _("Page"), ctl = line(pages, gap) } })
+    VG[#VG + 1] = spread(L[1], Rt[1], inner)
+    VG[#VG + 1] = VerticalSpan:new{ width = gap }
+    VG[#VG + 1] = spread(L[2], Rt[2], inner)
+    VG[#VG + 1] = VerticalSpan:new{ width = gap }
+    VG[#VG + 1] = line(actions, gap)
+    local LineWidget = require("ui/widget/linewidget")
     local inner_w = width - 2 * Size.border.window
     local vg = VerticalGroup:new{
         align = "center",
-        FrameContainer:new{ bordersize = 0, padding = Size.padding.default, title_row },
+        FrameContainer:new{ bordersize = 0, padding = Size.padding.default,
+            padding_top = Space.px(12), padding_bottom = Space.px(12),
+            line({ title_row, xb }, 0) },
+        LineWidget:new{ background = Blitbuffer.COLOR_DARK_GRAY,
+            dimen = Geom:new{ w = inner_w, h = Size.line.thin } },
+        FrameContainer:new{ bordersize = 0, padding = inset, padding_top = Space.px(14),
+            width = inner_w, VG },
     }
-    self._bar_table = nil
-    if rows then
-        local LineWidget = require("ui/widget/linewidget")
-        vg[#vg + 1] = LineWidget:new{ background = Blitbuffer.COLOR_DARK_GRAY,
-            dimen = Geom:new{ w = inner_w, h = Size.line.thin } }
-        self._bar_table = ButtonTable:new{
-            width = inner_w,
-            buttons = rows,
-            zero_sep = true,
-            show_parent = self,
-        }
-        -- The arrows are the editor's (_keyRows): a ButtonTable is a
-        -- FocusManager, and KOReader offers a key to children first.
-        self._bar_table.key_events = {}
-        vg[#vg + 1] = self._bar_table
-    end
+    self._bar_rows = head
     return FrameContainer:new{
         background = Blitbuffer.COLOR_WHITE,
         bordersize = Size.border.window,
@@ -305,39 +353,72 @@ function Editor:_titleRow(title, face, w, entry)
         function() s:colors() end)
 end
 
-function Editor:_buildFooter(rect_w)
+function Editor:_buildFooter(rect_w, rect_h)
     local s = self.session
+    local Space = require("lib/bookshelf_space")
+    local Kit   = require("lib/bookshelf_popup_kit")
+    local inset = Space.px(16)
+    local gap   = Space.px(10)
+    local h = TextWidget:new{ text = "Hg", face = Font:getFace("cfont", FS) }:getSize().h + 2 * Space.px(10)
     -- On a shelf the pages are the shelf's own, of books: no page dots, no
     -- New page (maintainer). A module moves a page with the toolbar's
     -- double chevrons.
     local info = self.host and self.host.gridInfo and self.host:gridInfo()
     local on_shelf = info and info.surface == "shelf"
     -- + Add first and Done last, where a dialog's confirm sits (maintainer).
-    local row = { button("+ " .. _("Add"), function() s:add() end) }
-    if not s.selected_id and (on_shelf or #s:pageList() <= 1) then
-        row[#row + 1] = button(_("Tap a module to select it"), nil, false)
-    end
+    local left = { kbutton{ text = _("Add"), glyph = "\xEF\x91\x8D", glyph_size = FS, h = h,
+        on_tap = function() s:add() end } }
+    local middle = {}
     local pages = s:pageList()
     if #pages > 1 and not on_shelf then
+        -- The page dots: the one shown black (on), a tap goes there or takes
+        -- the selection there.
         for _i, p in ipairs(pages) do
-            local label = (p == s.page) and "\xE2\x97\x8F" or "\xE2\x97\x8B"
-            row[#row + 1] = button(label, function()
-                if s.selected_id then s:moveToPage(p) else s:goPage(p) end
-            end)
+            middle[#middle + 1] = kbutton{ text = tostring(p), h = h, pad_h = Space.px(14),
+                inverted = p == s.page, bold = p == s.page,
+                on_tap = function()
+                    if s.selected_id then s:moveToPage(p) else s:goPage(p) end
+                end }
         end
     end
     local nxt = s.selected_id and not on_shelf and s:newPage()
     if nxt then
-        row[#row + 1] = button(_("New page"), function() s:moveToPage(nxt) end)
+        middle[#middle + 1] = kbutton{ text = _("New page"), h = h,
+            on_tap = function() s:moveToPage(nxt) end }
     end
-    row[#row + 1] = button("\xE2\x9C\x93 " .. _("Done"), function() self:_finish() end)
-    self._foot_table = ButtonTable:new{ width = rect_w, buttons = { row }, zero_sep = true, show_parent = self }
-    self._foot_table.key_events = {}   -- the arrows are the editor's (see the toolbar)
+    local done = kbutton{ text = _("Done"), glyph = "\xEE\xA0\xAB", glyph_size = FS, h = h,
+        bold = true, on_tap = function() self:_finish() end }
+    local inner = rect_w - 2 * inset
+    local mid
+    if #middle > 0 then
+        mid = line(middle, gap)
+    elseif not s.selected_id then
+        -- A hint, grey text: not a greyed-out button (STYLE.md).
+        mid = Kit.hintText(_("Tap a module to select it"), FS)
+    end
+    local lw = left[1]:getSize().w
+    local dw = done:getSize().w
+    local CenterContainer = require("ui/widget/container/centercontainer")
+    local row = line({ left[1],
+        CenterContainer:new{ dimen = Geom:new{ w = math.max(0, inner - lw - dw - 2 * gap), h = h },
+            mid or VerticalSpan:new{ width = 0 } },
+        done }, gap)
+    local keys = { left[1] }
+    for _i, b in ipairs(middle) do keys[#keys + 1] = b end
+    keys[#keys + 1] = done
+    self._foot_rows = { keys }
+    local LineWidget = require("ui/widget/linewidget")
+    local pad_v = math.max(Space.px(8), math.floor(((rect_h or 0) - h - Size.line.thin) / 2))
     return FrameContainer:new{
         background = Blitbuffer.COLOR_WHITE,
         bordersize = 0,
         padding    = 0,
-        self._foot_table,
+        VerticalGroup:new{ align = "left",
+            LineWidget:new{ background = Blitbuffer.COLOR_DARK_GRAY,
+                dimen = Geom:new{ w = rect_w, h = Size.line.thin } },
+            FrameContainer:new{ bordersize = 0, margin = 0, width = rect_w,
+                padding_left = inset, padding_right = inset,
+                padding_top = pad_v, padding_bottom = pad_v, row } },
     }
 end
 
@@ -353,7 +434,7 @@ function Editor:_buildBands()
     local fr = self:_footerRect()
     -- [1] the footer (always), [2] the toolbar (only with a selection).
     self._palette = nil
-    self[1] = self:_buildFooter(fr.w)
+    self[1] = self:_buildFooter(fr.w, fr.h)
     self[2] = self:_buildToolbar()
     -- Rebuilt after every change: key focus goes back on the same button.
     if self._key_focus then self:_applyKeyFocus() end
@@ -373,8 +454,13 @@ function Editor:_dirty()
     local before = { self._bar_rect }
     for _i, o in ipairs(self._last_overs or {}) do before[#before + 1] = o end
     UIManager:setDirty(self, function()
-        local rects = { self._bar_rect, self._footer_rect }
-        for _i, r in ipairs(before) do rects[#rects + 1] = r end
+        -- Added one by one: a literal starting with a nil (the toolbar just
+        -- closed) has a hole, and # past it can be 0 on LuaJIT, which left
+        -- where the toolbar was unrefreshed.
+        local rects = {}
+        local function add(r) if r then rects[#rects + 1] = r end end
+        add(self._bar_rect); add(self._footer_rect)
+        for _i, r in ipairs(before) do add(r) end
         for _i, o in ipairs(self._last_overs or {}) do rects[#rects + 1] = o end
         local info = self.host:gridInfo()
         local d = info and info.container and info.container.dimen
@@ -741,9 +827,8 @@ end
 -- keys could not reach the toolbar). _key_focus = { row, col } in _keyRows.
 function Editor:_keyRows()
     local rows = {}
-    if self._palette then rows[#rows + 1] = { self._palette } end
-    for _i, t in ipairs({ self._bar_table, self._foot_table }) do
-        for _j, r in ipairs(t and t.buttons_layout or {}) do
+    for _i, t in ipairs({ self._bar_rows or {}, self._foot_rows or {} }) do
+        for _j, r in ipairs(t) do
             if #r > 0 then rows[#rows + 1] = r end
         end
     end
@@ -767,7 +852,8 @@ end
 -- palette above it is one Up away), else the footer.
 function Editor:_enterKeyFocus()
     local rows = self:_keyRows()
-    local start = (self._palette and #rows > 1) and 2 or 1
+    -- The title's row (the palette, the X) is one Up away.
+    local start = (self._bar_rows and #rows > 1) and 2 or 1
     for r = start, #rows do
         for c, b in ipairs(rows[r]) do
             if usable(b) then self._key_focus = { row = r, col = c }; self:_applyKeyFocus(); return true end

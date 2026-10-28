@@ -399,9 +399,11 @@ function Kit.pressThen(cell, card, action)
     UIManager:tickAfterNext(function()
         action()
         card._pressed = false
-        -- Let it up where it still shows (the action may have closed or
-        -- covered it, or rebuilt it already).
-        if top and UIManager:getTopmostVisibleWidget() == top then
+        -- Let it up while its window is still open, also when the action
+        -- put something over it (a note, a menu): the windows above repaint
+        -- with it. Only the top one before left the layout editor's d-pad
+        -- and Settings black on the PW5 (maintainer).
+        if top and UIManager:isWidgetShown(top) then
             UIManager:setDirty(top, "ui", box)
         end
     end)

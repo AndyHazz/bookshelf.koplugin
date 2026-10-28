@@ -933,7 +933,9 @@ function LibraryModal:_showMoreChips(hidden)
             self:_onChipTap(key)
         end } }
     end
-    d = ButtonDialog:new{ buttons = buttons }
+    -- Sized to its labels, not the screen (maintainer): a short list of
+    -- filters in a full-width menu read as a different kind of window.
+    d = ButtonDialog:new{ buttons = buttons, shrink_unneeded_width = true }
     UIManager:show(d)
 end
 

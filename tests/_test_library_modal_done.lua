@@ -37,4 +37,12 @@ t.test("a lone Back on a page is still the chevron", function()
     eq(m:_closeOnlyAction(), back)
 end)
 
+
+-- The More... chip's menu: sized to its labels, not the screen (maintainer).
+t.test("the More menu is as wide as its labels", function()
+    local src = io.open("lib/bookshelf_library_modal.lua"):read("*a")
+    local b = src:match("\nfunction LibraryModal:_showMoreChips%(.-\nend\n")
+    assert(b and b:find("shrink_unneeded_width = true", 1, true), "the More menu is full width")
+end)
+
 t.done()

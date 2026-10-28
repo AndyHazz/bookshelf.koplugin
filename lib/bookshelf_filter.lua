@@ -360,7 +360,8 @@ function Filter.dimSummary(filter, dim_key, max_chars)
 end
 
 function Filter.summary(filter)
-    if not Filter.isActive(filter) then return tr("none") end
+    -- "None", as every other value on the editor's cards starts with a capital.
+    if not Filter.isActive(filter) then return tr("None") end
     local n = 0
     for _i, k in ipairs(MULTI_KEYS) do if anyKey(filter[k]) then n = n + 1 end end
     local f = filter.folders

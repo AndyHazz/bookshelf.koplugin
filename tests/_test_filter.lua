@@ -174,7 +174,7 @@ test("dimSummary folders in/out", function()
 end)
 
 test("summary counts active dimensions", function()
-    eq("none", Filter.summary({}), "none")
+    eq("none", Filter.summary({}), "None")
     eq("one", Filter.summary({ statuses = { unread = true } }), "1 active")
     eq("two", Filter.summary({ statuses = { unread = true }, langs = { en = true } }), "2 active")
 end)

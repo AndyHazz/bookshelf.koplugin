@@ -52,7 +52,7 @@ end)
 t.test("every built-in module's settings dialog has it", function()
     for _i, name in ipairs({ "clock", "last_books", "analogue_clock", "action", "countdown",
             "random_unread", "ornament", "quote_of_day", "weather", "reading_streak", "shelf",
-            "trivia", "reading_goal" }) do
+            "trivia", "reading_goal", "daily_fun" }) do
         local m = io.open("micromodules/" .. name .. ".lua"):read("*a")
         assert(m:find('ButtonDialog:new(require("lib/bookshelf_module_kit").withClose{', 1, true),
             name .. "'s settings have no close X")

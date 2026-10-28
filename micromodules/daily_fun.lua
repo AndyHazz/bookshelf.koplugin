@@ -290,16 +290,16 @@ local function showSettings(ctx)
         UIManager:show(center)
     end
     
-    dialog = ButtonDialog:new{
+    -- Closes from the title's X, as every module's settings do (withClose).
+    dialog = ButtonDialog:new(require("lib/bookshelf_module_kit").withClose{
         title = _("Daily Fun Settings"),
         title_align = "center",
         use_info_style = false,
         buttons = {
             { { text = _("Sources: uselessfacts.jsph.pl, jokeapi.dev, riddles-api.vercel.app"), enabled = false, callback = function() end } },
             { { text = _("Choose Categories"), font_bold = false, callback = close(showCatsMenu) } },
-            { { text = _("Close"), font_bold = true, callback = close() } },
         }
-    }
+    })
     UIManager:show(dialog)
 end
 

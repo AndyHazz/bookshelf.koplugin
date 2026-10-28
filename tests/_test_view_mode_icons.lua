@@ -14,4 +14,12 @@ t.test("the level cards take the View mode card's icons", function()
         "a level card picks its own icon")
 end)
 
+t.test("spines: Face out leads, with the book icon", function()
+    local b = src:match("\n    local function spinesBlocks%(.-\n    end\n")
+    assert(b, "no spinesBlocks")
+    local face, rows = b:find('_("Face out")', 1, true), b:find('_("Rows")', 1, true)
+    assert(face and rows and face < rows, "Face out is not above Rows")
+    assert(b:find('icon = "\\u{E7B9}"', 1, true), "Face out lost its book icon")
+end)
+
 t.done()

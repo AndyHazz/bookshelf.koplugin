@@ -2312,6 +2312,11 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
     end
     local function spinesBlocks(pick, add)
         local Binding = require("lib/bookshelf_book_binding")
+        -- Face out first: which books show their covers is the spine shelf's
+        -- biggest choice (maintainer).
+        add({ type = "row", label = _("Face out"), value = Editor._faceOutText(draft),
+            icon = "\u{E7B9}",   -- book
+            callback = function() Editor:_openFaceOut(draft, on_change) end })
         add(stepper(pick, _("Rows"), "spine_rows", 1, 6,
             bw and function()
                 local ok, n = pcall(bw._nShelves, bw)
@@ -2330,9 +2335,6 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         add({ type = "stepper", label = _("Thickness"),
             value = tv and (tostring(tv) .. "%") or _("Auto"),
             on_dec = thick(-1), on_inc = thick(1) })
-        add({ type = "row", label = _("Face out"), value = Editor._faceOutText(draft),
-            icon = "\u{E7BD}",   -- book-open-variant
-            callback = function() Editor:_openFaceOut(draft, on_change) end })
         add({ type = "segmented", label = _("Book binding"),
             items = { { key = "hardcover", label = Binding.label("hardcover") },
                       { key = "paperback", label = Binding.label("paperback") } },
@@ -2365,9 +2367,9 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         end
     end
     local function spinesSummary()
-        local parts = { T(_("%1 rows"), numText(draft.spine_rows)) }
+        local parts = { T(_("face out: %1"), Editor._faceOutText(draft)),
+            T(_("%1 rows"), numText(draft.spine_rows)) }
         if draft.spine_thickness_pct then parts[#parts + 1] = T(_("%1% thick"), draft.spine_thickness_pct) end
-        parts[#parts + 1] = T(_("face out: %1"), Editor._faceOutText(draft))
         if draft.book_binding == "paperback" then parts[#parts + 1] = _("paperbacks") end
         if draft.series_boxes then parts[#parts + 1] = _("series boxes") end
         if not authorOn() then parts[#parts + 1] = _("no authors") end

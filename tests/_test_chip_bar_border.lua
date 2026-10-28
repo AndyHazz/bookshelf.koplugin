@@ -478,7 +478,7 @@ t.test("the deepest crumb is outside the band", function()
     assert(build:match("outer%[#outer %+ 1%] = deepest_widget"),
         "the deepest crumb must be added OUTSIDE the framed band -- it is "
         .. "the name of where you are, not another control")
-    assert(build:match("HorizontalGroup:new{ band }"),
+    assert(build:match("HorizontalGroup:new{ allow_mirroring = false, band }"),
         "the outer row must carry the band and nothing else before the crumb")
     -- and the band must NOT frame itself: the chips band's frame is what
     -- gives its rows an edge, because a chip only draws one when filled.

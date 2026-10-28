@@ -1279,7 +1279,11 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
         return c.key == self.active
     end
 
-    local row = HorizontalGroup:new{}
+    -- Left to right whatever the language. KOReader reverses a HorizontalGroup
+    -- in a right-to-left UI (Arabic), but a tap is matched to a chip by the
+    -- offsets recorded below, and so are the pending flash, the roof and the
+    -- focus ring: mirrored, a tap opened the chip across the bar (issue 559).
+    local row = HorizontalGroup:new{ allow_mirroring = false }
     self._chip_dimens = {}
 
     -- A chip that draws an outline of its own. Its neighbours need to know:
@@ -1850,7 +1854,10 @@ function ChipBar:_initBreadcrumb()
         -- crumb is NOT in it -- it is the name of where you are, not another
         -- control, and the maintainer asked for it to sit on the shelf the
         -- way the status line does rather than on a slab of its own.
-        local band   = HorizontalGroup:new{}
+        -- Not mirrored in a right-to-left UI, as the chips row (issue 559):
+        -- the zones are left-to-right offsets, and each pill's tip overhangs
+        -- the pill to its right.
+        local band   = HorizontalGroup:new{ allow_mirroring = false }
         local row    = band
         local zones  = {}
         local cursor = 0
@@ -1876,7 +1883,7 @@ function ChipBar:_initBreadcrumb()
             cursor = cursor + cp.width
         end
         local band_w = cursor             -- where the trail ends
-        local outer = HorizontalGroup:new{ band }
+        local outer = HorizontalGroup:new{ allow_mirroring = false, band }
         if deepest_widget then
             -- Plain text for the active folder. Gap = tip_w + large
             -- inset so the text sits well clear of the last pill's

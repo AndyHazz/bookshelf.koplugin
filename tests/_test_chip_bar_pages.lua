@@ -144,6 +144,33 @@ test("warmKeys: paginated returns current + next page only (page-bounded)", func
     assert(set2[navKey(b._pages.pages[b._pages.num_pages].first)], "last-page chip warmable when on it")
 end)
 
+-- In a right-to-left language (Arabic) KOReader's HorizontalGroup paints its
+-- children in reverse. The strip finds the tapped chip from its own
+-- left-to-right offsets, so a tap opened the chip mirrored across the bar
+-- (issue 559). The rows it positions itself stay left to right.
+test("the chip row is not mirrored in a right-to-left language", function()
+    local b = bar({ "Home", "Recent" }, 2000)
+    local row = b[1] and b[1][1]
+    assert(row, "no chip row")
+    assert(row.allow_mirroring == false, "the chip row mirrors, so taps miss in RTL")
+end)
+
+test("a paged chip row is not mirrored either", function()
+    local b = bar({ "AUTHORS", "COLLECTIONS", "SCIENCE FICTION", "FAVOURITES", "HISTORY", "BIOGRAPHIES" }, 360)
+    b:_gotoPage(2)
+    assert(b[1][1].allow_mirroring == false, "the rebuilt row mirrors")
+end)
+
+test("the breadcrumb trail is not mirrored either", function()
+    local b = ChipBar:new{
+        chips = makeChips({ "Home" }), active = "Home", width = 2000, height = 40,
+        breadcrumb_path = { { label = "Home" }, { label = "Fiction" }, { label = "Poetry" } },
+    }
+    local outer = b[1]
+    assert(outer and outer.allow_mirroring == false, "the trail mirrors, so taps miss in RTL")
+    assert(outer[1] and outer[1].allow_mirroring == false, "the pill band mirrors")
+end)
+
 -- Issue 352: the strip paints inside a Size.border.thin frame, so its
 -- painted box is 2*border wider AND taller than self.dimen. The page-flip
 -- refresh region must cover the painted size, or the border band - with the

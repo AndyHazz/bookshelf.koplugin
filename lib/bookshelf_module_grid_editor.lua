@@ -166,7 +166,8 @@ end
 local FS = 18
 
 -- kbutton(o) -> a kit button the keys can press too: o.text and/or o.glyph
--- (symbols font), o.on_tap, o.enabled, o.bold, o.inverted, o.h, o.pad_h, o.width.
+-- (symbols font), o.on_tap, o.enabled, o.bold, o.inverted, o.h, o.pad_h, o.width,
+-- o.card (a kit card: grey, no outline, a hairline shadow), o.square_bottom.
 -- callback and enabled are what the editor's keys read (_keyRows).
 local function kbutton(o)
     local Kit  = require("lib/bookshelf_popup_kit")
@@ -177,7 +178,9 @@ local function kbutton(o)
         icon_glyph = o.glyph,
         icon_face = o.glyph and Font:getFace("symbols", o.glyph_size or (FS + 6)) or nil,
         height = o.h, pad_h = o.pad_h, width = o.width, enabled = enabled, on_tap = o.on_tap,
+        border = o.card and 0 or nil, square_bottom = o.square_bottom,
     }
+    if o.card then Kit.cardify(btn[1]) end
     btn.callback = o.on_tap
     btn.enabled = enabled
     return btn
@@ -238,9 +241,10 @@ function Editor:_buildToolbar()
     local height_ctl, hf = stepper(_("Height"), "h", box.h)
     -- Move by a cell on a d-pad, and to the previous or next page: the
     -- footer's page numbers also take the selection there, but nothing said
-    -- so (maintainer).
+    -- so (maintainer). The d-pad's keys are cards, grey with no outline,
+    -- so it reads as one pad beside the outlined buttons (maintainer).
     local function chev(glyph, dx, dy)
-        return kbutton{ glyph = glyph, h = h, pad_h = Space.px(14),
+        return kbutton{ glyph = glyph, h = h, pad_h = Space.px(14), card = true,
             on_tap = function() s:moveBy(dx, dy) end }
     end
     local function pageButton(glyph, dir)
@@ -356,9 +360,14 @@ function Editor:_buildToolbar()
     xb.enabled = true
     local tw = width - 2 * Size.border.window - 2 * Size.padding.default - xb:getSize().w
     local xw = xb:getSize().w
+    -- In a menu's title font, bold, and only as tall as it and the X
+    -- (the library pickers' title bar).
+    local title_face, title_bold = require("lib/bookshelf_fonts"):getFace("cfont", 22, { bold = true })
+    local title_w = TextWidget:new{ text = title, face = title_face, bold = title_bold,
+        max_width = math.max(1, tw - xw) }
+    local title_h = math.max(title_w:getSize().h, xb:getSize().h)
     local title_row = line({ HorizontalSpan:new{ width = xw },
-        CenterContainer:new{ dimen = Geom:new{ w = math.max(1, tw - xw), h = h },
-            TextWidget:new{ text = title, face = face, max_width = math.max(1, tw - xw) } } }, 0)
+        CenterContainer:new{ dimen = Geom:new{ w = math.max(1, tw - xw), h = title_h }, title_w } }, 0)
     local head = rows
     table.insert(head, 1, { xb })
     local VG = VerticalGroup:new{ align = "left", body }
@@ -367,7 +376,7 @@ function Editor:_buildToolbar()
     local vg = VerticalGroup:new{
         align = "center",
         FrameContainer:new{ bordersize = 0, padding = Size.padding.default,
-            padding_top = Space.px(12), padding_bottom = Space.px(12),
+            padding_top = Space.px(8), padding_bottom = Space.px(8),
             line({ title_row, xb }, 0) },
         LineWidget:new{ background = Blitbuffer.COLOR_DARK_GRAY,
             dimen = Geom:new{ w = inner_w, h = Size.line.thin } },
@@ -385,13 +394,20 @@ function Editor:_buildToolbar()
     }
 end
 
+-- _buildFooter(rect_w, rect_h): the edit footer, rect_w wide (the screen)
+-- and rect_h tall (from the shelf's footer to the bottom of the screen), its
+-- buttons flush with the bottom, square there: there is no room for a
+-- margin under them, and cut off they looked like a mistake (maintainer).
 function Editor:_buildFooter(rect_w, rect_h)
     local s = self.session
     local Space = require("lib/bookshelf_space")
     local Kit   = require("lib/bookshelf_popup_kit")
     local inset = Space.px(16)
     local gap   = Space.px(10)
+    local pad_top = Space.px(8)
     local h = TextWidget:new{ text = "Hg", face = Font:getFace("cfont", FS) }:getSize().h + 2 * Space.px(10)
+    h = math.min(h, math.max(Space.px(32), (rect_h or 0) - Size.line.thin - pad_top))
+    pad_top = math.max(pad_top, (rect_h or 0) - Size.line.thin - h)
     -- On a shelf the pages are the shelf's own, of books: no page dots, no
     -- New page (maintainer). A module moves a page with the toolbar's
     -- double chevrons.
@@ -399,7 +415,7 @@ function Editor:_buildFooter(rect_w, rect_h)
     local on_shelf = info and info.surface == "shelf"
     -- + Add first and Done last, where a dialog's confirm sits (maintainer).
     local left = { kbutton{ text = _("Add"), glyph = "\xEF\x91\x8D", glyph_size = FS, h = h,
-        on_tap = function() s:add() end } }
+        square_bottom = true, on_tap = function() s:add() end } }
     local middle = {}
     local pages = s:pageList()
     if #pages > 1 and not on_shelf then
@@ -407,7 +423,7 @@ function Editor:_buildFooter(rect_w, rect_h)
         -- the selection there.
         for _i, p in ipairs(pages) do
             middle[#middle + 1] = kbutton{ text = tostring(p), h = h, pad_h = Space.px(14),
-                inverted = p == s.page, bold = p == s.page,
+                square_bottom = true, inverted = p == s.page, bold = p == s.page,
                 on_tap = function()
                     if s.selected_id then s:moveToPage(p) else s:goPage(p) end
                 end }
@@ -415,11 +431,11 @@ function Editor:_buildFooter(rect_w, rect_h)
     end
     local nxt = s.selected_id and not on_shelf and s:newPage()
     if nxt then
-        middle[#middle + 1] = kbutton{ text = _("New page"), h = h,
+        middle[#middle + 1] = kbutton{ text = _("New page"), h = h, square_bottom = true,
             on_tap = function() s:moveToPage(nxt) end }
     end
     local done = kbutton{ text = _("Done"), glyph = "\xEE\xA0\xAB", glyph_size = FS, h = h,
-        bold = true, on_tap = function() self:_finish() end }
+        bold = true, square_bottom = true, on_tap = function() self:_finish() end }
     local inner = rect_w - 2 * inset
     local mid
     if #middle > 0 then
@@ -440,7 +456,6 @@ function Editor:_buildFooter(rect_w, rect_h)
     keys[#keys + 1] = done
     self._foot_rows = { keys }
     local LineWidget = require("ui/widget/linewidget")
-    local pad_v = math.max(Space.px(8), math.floor(((rect_h or 0) - h - Size.line.thin) / 2))
     return FrameContainer:new{
         background = Blitbuffer.COLOR_WHITE,
         bordersize = 0,
@@ -450,7 +465,7 @@ function Editor:_buildFooter(rect_w, rect_h)
                 dimen = Geom:new{ w = rect_w, h = Size.line.thin } },
             FrameContainer:new{ bordersize = 0, margin = 0, width = rect_w,
                 padding_left = inset, padding_right = inset,
-                padding_top = pad_v, padding_bottom = pad_v, row } },
+                padding_top = pad_top, padding_bottom = 0, row } },
     }
 end
 
@@ -465,7 +480,8 @@ function Editor:_buildBands()
     local old1, old2 = self[1], self[2]
     local fr = self:_footerRect()
     -- [1] the footer (always), [2] the toolbar (only with a selection).
-    self[1] = self:_buildFooter(fr.w, fr.h)
+    -- The footer runs the screen's width, from the shelf's footer down.
+    self[1] = self:_buildFooter(self._built_w, self._built_h - fr.y)
     self[2] = self:_buildToolbar()
     -- Rebuilt after every change: key focus goes back on the same button.
     if self._key_focus then self:_applyKeyFocus() end
@@ -693,12 +709,11 @@ function Editor:paintTo(bb, x, y)
     local t_paint = Perf.now()
     pcall(self._fadeAround, self, bb)
     Perf.part("fade", t_paint)
-    local fr = self:_footerRect()
     local footer = self[1]
     local fh = footer:getSize().h
-    local fy = math.max(fr.y, fr.y + fr.h - fh)
-    footer:paintTo(bb, fr.x, fy)
-    self._footer_rect = Geom:new{ x = fr.x, y = fy, w = fr.w, h = fh }
+    local fy = self._built_h - fh
+    footer:paintTo(bb, 0, fy)
+    self._footer_rect = Geom:new{ x = 0, y = fy, w = self._built_w, h = fh }
 
     local bar = self[2]
     if not bar then

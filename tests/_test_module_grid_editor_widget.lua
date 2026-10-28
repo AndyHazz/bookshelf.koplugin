@@ -86,10 +86,12 @@ package.preload["lib/bookshelf_popup_kit"] = function()
     return {
         button = function(o) local b = W:new{}; b.on_tap = o.on_tap; return b end,
         hintText = function() return W:new{} end,
+        cardify = function(f) return f end,
     }
 end
 package.preload["ui/gesturerange"] = function() return { new = function(_, t) return t end } end
 package.preload["ui/font"] = function() return { getFace = function() return {} end } end
+package.preload["lib/bookshelf_fonts"] = function() return { getFace = function() return {}, true end } end
 local shown, closed = {}, {}
 local dirty_fns = {}
 package.preload["ui/uimanager"] = function()
@@ -362,7 +364,7 @@ end)
 
 t.test("keys: the footer's Done finishes, even with the toolbar focused", function()
     local src = io.open("lib/bookshelf_module_grid_editor.lua"):read("*a")
-    assert(src:find('bold = true, on_tap = function() self:_finish() end }', 1, true),
+    assert(src:find('square_bottom = true, on_tap = function() self:_finish() end }', 1, true),
         "the Done button only steps out of the toolbar")
     assert(src:find("on_done = function() self:_finish() end", 1, true), "the actions dialog's Done steps out")
 end)

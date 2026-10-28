@@ -63,10 +63,11 @@ function Kit.tapCell(widget, w, h, on_tap, enabled, on_hold)
     return cell
 end
 
--- invertRounded(bb, x, y, w, h, r): invert a rounded box, leaving the
--- corners outside the radius as they were (a plain invertRect shows square
--- black corners past a rounded outline).
-function Kit.invertRounded(bb, x, y, w, h, r)
+-- invertRounded(bb, x, y, w, h, r, square_bottom): invert a rounded box,
+-- leaving the corners outside the radius as they were (a plain invertRect
+-- shows square black corners past a rounded outline). square_bottom: only
+-- the top corners are rounded (a button flush with the screen's bottom).
+function Kit.invertRounded(bb, x, y, w, h, r, square_bottom)
     bb:invertRect(x, y, w, h)
     r = math.min(r or 0, math.floor(w / 2), math.floor(h / 2))
     for i = 0, r - 1 do
@@ -75,8 +76,10 @@ function Kit.invertRounded(bb, x, y, w, h, r)
         if out > 0 then
             bb:invertRect(x, y + i, out, 1)
             bb:invertRect(x + w - out, y + i, out, 1)
-            bb:invertRect(x, y + h - 1 - i, out, 1)
-            bb:invertRect(x + w - out, y + h - 1 - i, out, 1)
+            if not square_bottom then
+                bb:invertRect(x, y + h - 1 - i, out, 1)
+                bb:invertRect(x + w - out, y + h - 1 - i, out, 1)
+            end
         end
     end
 end
@@ -84,13 +87,13 @@ end
 -- focusWidth() -> the keys' focus ring's width.
 function Kit.focusWidth() return Space.px(4) end
 
--- invertRing(bb, x, y, w, h, t, r): invert a ring t wide inside the box,
--- its corners rounded to r (the cell's own inverted twice inside the ring,
+-- invertRing(bb, x, y, w, h, t, r, square_bottom): invert a ring t wide
+-- inside the box, its corners rounded to r (the cell's own inverted twice inside the ring,
 -- so the middle is left as it was).
-function Kit.invertRing(bb, x, y, w, h, t, r)
+function Kit.invertRing(bb, x, y, w, h, t, r, square_bottom)
     if w <= 2 * t or h <= 2 * t then return bb:invertRect(x, y, w, h) end
-    Kit.invertRounded(bb, x, y, w, h, r)
-    Kit.invertRounded(bb, x + t, y + t, w - 2 * t, h - 2 * t, math.max(0, r - t))
+    Kit.invertRounded(bb, x, y, w, h, r, square_bottom)
+    Kit.invertRounded(bb, x + t, y + t, w - 2 * t, h - 2 * t, math.max(0, r - t), square_bottom)
 end
 
 -- findCard(widget) -> the kit card in widget (itself, or a few levels in),

@@ -32,9 +32,25 @@ local Space           = require("lib/bookshelf_space")
 local ChipFrame = FrameContainer:extend{}
 function ChipFrame:paintTo(bb, x, y)
     FrameContainer.paintTo(self, bb, x, y)
+    local r = self.radius or 0
+    if self.square_bottom and r > 0 and self.dimen then
+        -- Square bottom corners: the bottom r rows filled out to the edges
+        -- and the border drawn straight down and across.
+        local w, h, b = self.dimen.w, self.dimen.h, self.bordersize or 0
+        local Color = require("lib/bookshelf_color")
+        if self.background then
+            Color.paintRect(bb, x, y + h - r, w, r, self.background)
+        end
+        if b > 0 then
+            local ink = self.color or Blitbuffer.COLOR_BLACK
+            Color.paintRect(bb, x, y + h - r, b, r, ink)
+            Color.paintRect(bb, x + w - b, y + h - r, b, r, ink)
+            Color.paintRect(bb, x, y + h - b, w, b, ink)
+        end
+    end
     if (self.inverted or self._pressed) and self.dimen then
         require("lib/bookshelf_popup_kit").invertRounded(bb, x, y,
-            self.dimen.w, self.dimen.h, self.radius)
+            self.dimen.w, self.dimen.h, r, self.square_bottom)
     end
 end
 
@@ -61,8 +77,10 @@ local ChipButton = {}
 --   opts.width      at least this wide (buttons stacked in a column, one
 --                   width); an icon and a label start at the left, else centred
 --   opts.inverted   render pixel-inverted (busy/active state)
+--   opts.square_bottom only the top corners rounded: a button flush with the
+--                   bottom of the screen (the layout editor's footer)
 --   opts.on_tap     function() fired on tap
---   opts.enabled    false: grey label and icon, and a tap does nothing
+--   opts.enabled    false: grey border, label and icon, and a tap does nothing
 function ChipButton.build(opts)
     local fg = opts.enabled == false and Blitbuffer.COLOR_DARK_GRAY or Blitbuffer.COLOR_BLACK
     local border = opts.border or Size.border.default
@@ -114,7 +132,11 @@ function ChipButton.build(opts)
         margin         = 0,
         radius         = opts.radius or Space.radius.default,
         background     = Blitbuffer.COLOR_WHITE,
+        -- Greyed all over when it can't act: the border too, not the label
+        -- alone, which was too easy to miss (maintainer).
+        color          = opts.enabled == false and Blitbuffer.COLOR_DARK_GRAY or nil,
         inverted       = opts.inverted or false,
+        square_bottom  = opts.square_bottom or nil,
         -- An icon and a label start at the left, so a column of them lines
         -- up (maintainer); a label or an icon alone is centred.
         ((icon_widget and label_widget) and LeftContainer or CenterContainer):new{
@@ -143,7 +165,8 @@ function ChipButton.build(opts)
         if focused then
             local Kit = require("lib/bookshelf_popup_kit")
             local sz = frame:getSize()
-            Kit.invertRing(bb, x, y, sz.w, sz.h, Kit.focusWidth(), frame.radius or 0)
+            Kit.invertRing(bb, x, y, sz.w, sz.h, Kit.focusWidth(), frame.radius or 0,
+                frame.square_bottom)
         end
     end
     btn.onFocus = function() focused = true; return true end

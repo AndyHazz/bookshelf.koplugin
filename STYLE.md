@@ -35,10 +35,15 @@ a control by hand, so a change lands everywhere.
 - A bar over the screen that is not a dialog's footer (the layout editor's
   Add | pages | Done) is a row of kit buttons at the inset under a
   full-width line, not a borderless button table whose separators end
-  nowhere. Its hint is grey text between them, not a greyed button.
+  nowhere. Its hint is grey text between them, not a greyed button. It runs
+  the screen's full width, and with no room under its buttons they sit
+  flush on the bottom edge with square bottom corners (`square_bottom`),
+  rather than a margin that crops them.
 - A panel over content (the layout editor's toolbar) is as wide as its
   controls, not the screen, so it hides as little as it can. Moves are a
-  d-pad, not a row of arrows.
+  d-pad, not a row of arrows; its keys are grey cards (`card` on the
+  editor's buttons), so the pad reads as one thing beside the outlined
+  buttons. Its title is a menu's: bold, as tall as the text and the X.
 - Keys move by where the buttons are on screen: the nearest that way, so
   a d-pad or two columns are walked as they look, not in list order.
 
@@ -58,7 +63,10 @@ a control by hand, so a change lands everywhere.
 - A screen's own actions (Edit, Refresh, Add, New collection, Select all,
   Reset, Help): `Kit.headerButton`, label then icon, all the same height.
   `Kit.iconButton` for an icon alone. Greyed (`enabled = false`) when they
-  can't act now; a greyed button's icon greys with its label.
+  can't act now.
+- A button that can't act now is grey all over: its border, label and icon
+  (`enabled = false` on any kit button). A grey label in a black border is
+  too easy to miss.
 - A yes/no that only changes what is shown (Include spoilers): a checkbox
   glyph and label on `Kit.tapCell`. Not saved unless it is a real setting.
   A saved on/off is an On | Off segmented control (`Page` segmented).

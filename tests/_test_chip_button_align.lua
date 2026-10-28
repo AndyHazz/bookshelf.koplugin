@@ -55,4 +55,17 @@ t.test("a label or an icon alone is centred", function()
     eq(content{ icon_glyph = "G", height = 40, width = 200 }, "ui/widget/container/centercontainer")
 end)
 
+-- A greyed label alone was too easy to miss: a button that can't act has a
+-- grey border too, everywhere a kit button is used (maintainer).
+t.test("a disabled button's border is grey, an enabled one's is not", function()
+    eq(Chip.build{ text = "+", height = 40, enabled = false }[1].color, 2)
+    eq(Chip.build{ text = "+", height = 40 }[1].color, nil)
+end)
+
+-- The layout editor's footer buttons sit flush on the screen's bottom edge.
+t.test("square_bottom reaches the frame", function()
+    eq(Chip.build{ text = "Add", height = 40, square_bottom = true }[1].square_bottom, true)
+    eq(Chip.build{ text = "Add", height = 40 }[1].square_bottom, nil)
+end)
+
 t.done()

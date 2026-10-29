@@ -6,7 +6,6 @@ body:
     id: idea
     attributes:
       label: What would you like?
-      description: Describe what you'd like and how you'd use it. Sketches, photos and links to other apps are welcome.
     validations:
       required: true
   - type: dropdown
@@ -25,13 +24,3 @@ body:
         - Settings or gestures
         - Speed, memory, battery or storage
         - Not sure
-  - type: dropdown
-    id: device
-    attributes:
-      label: Device
-      options:
-        - Kindle
-        - Kobo
-        - PocketBook
-        - Android (including Boox)
-        - Other

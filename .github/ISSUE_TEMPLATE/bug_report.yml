@@ -6,17 +6,9 @@ body:
     id: what
     attributes:
       label: What happened?
-      description: What you did, what you expected, and what you saw instead. A photo or screenshot helps a lot.
+      description: What you did and what you saw. A photo or screenshot helps, and so does the end of crash.log if KOReader crashed.
     validations:
       required: true
-  - type: textarea
-    id: steps
-    attributes:
-      label: Steps to make it happen again
-      placeholder: |
-        1. Open Home
-        2. Long-press a book
-        3. ...
   - type: dropdown
     id: area
     attributes:
@@ -33,8 +25,6 @@ body:
         - Settings or gestures
         - Speed, memory, battery or storage
         - Not sure
-    validations:
-      required: true
   - type: dropdown
     id: device
     attributes:
@@ -45,28 +35,8 @@ body:
         - PocketBook
         - Android (including Boox)
         - Other
-    validations:
-      required: true
-  - type: input
-    id: model
-    attributes:
-      label: Device model
-      placeholder: e.g. Paperwhite 5, Libra Colour
   - type: input
     id: versions
     attributes:
-      label: Bookshelf and KOReader versions
-      description: Bookshelf's is shown at Bookshelf > Updates > Check for updates. KOReader's is under Help > Version.
-      placeholder: e.g. Bookshelf 6.0.4, KOReader 2026.10
-    validations:
-      required: true
-  - type: input
-    id: language
-    attributes:
-      label: Interface language, if not English
-  - type: textarea
-    id: log
-    attributes:
-      label: crash.log
-      description: If KOReader crashed or showed an error, paste the end of crash.log from the koreader folder.
-      render: text
+      label: Bookshelf version
+      description: Shown at Bookshelf > Updates > Check for updates.

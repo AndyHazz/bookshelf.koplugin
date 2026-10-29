@@ -7066,9 +7066,10 @@ end
 -- re-bucket explicitly.
 function Repo.filterValueCounts(dim, filter, source)
     if dim == "statuses" or dim == "folders" then return nil end
-    -- reduced = filter minus `dim`
+    -- reduced = filter minus `dim` (all its sets: a genre's any, all and not)
     local reduced = {}
-    for k, v in pairs(filter or {}) do if k ~= dim then reduced[k] = v end end
+    for k, v in pairs(filter or {}) do reduced[k] = v end
+    for _i, k in ipairs(Filter.dimKeys(dim)) do reduced[k] = nil end
     if not Filter.isActive(reduced) then return nil end  -- fast path: no other dim
     local compiled = Filter.compile(reduced, Repo.filterOpts())
 
@@ -7337,7 +7338,7 @@ _sourceFilterCounts = function(dim, compiled, source)
     if not records then return nil end
     -- Genres have to be on the records before either the filter or the tally
     -- can see them.
-    if dim == "genres" or compiled.genres then _enrichRecordGenres(records) end
+    if dim == "genres" or compiled.uses_genres then _enrichRecordGenres(records) end
     local kept = {}
     for i = 1, #records do
         if _recordMatches(records[i], compiled) then kept[#kept + 1] = records[i] end
@@ -8230,7 +8231,7 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
             -- genres, so an unfiltered or rating-only shelf still pays for one
             -- page. applyMetadata because it is what the light record path uses
             -- for exactly this; cache-only, and gated on the plugin and setting.
-            if compiled.genres then
+            if compiled.uses_genres then
                 local Hardcover = getHardcover()
                 if Hardcover and Hardcover.applyMetadata then
                     for i = 1, #books do pcall(Hardcover.applyMetadata, books[i]) end

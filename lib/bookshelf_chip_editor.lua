@@ -3483,6 +3483,8 @@ function Editor:_openFilters(draft, on_close)
         local back = function() if on_close then on_close() end end
         if dim.kind == "folder" then
             Editor:_pickFolderFilter(draft, back)
+        elseif #Filter.dimKeys(dim.key) > 1 then
+            Editor:_pickSetsFilter(draft, dim.key, back)
         elseif dim.kind == "choice" then
             Editor:_pickChoiceFilter(draft, dim.key, back)
         else
@@ -3501,7 +3503,7 @@ function Editor:_openFilters(draft, on_close)
                 value = Filter.dimSummary(draft.filter, key), on = on,
                 callback = function() openDim(dim) end,
                 on_clear = function()
-                    draft.filter[key] = nil
+                    for _j, k in ipairs(Filter.dimKeys(key)) do draft.filter[k] = nil end
                     changed()
                 end }
         end
@@ -3570,10 +3572,14 @@ function Editor:_pickChoiceFilter(draft, dim_key, on_close)
     }
 end
 
-function Editor:_pickMultiFilter(draft, dim_key, on_close)
+-- opts.set_key: the list of the filter it ticks (a genre's genres_all,
+-- genres_not; default its any-of list), opts.crumb: its name in the
+-- breadcrumb.
+function Editor:_pickMultiFilter(draft, dim_key, on_close, opts)
     draft.filter = draft.filter or {}
-    draft.filter[dim_key] = draft.filter[dim_key] or {}
-    local sel = draft.filter[dim_key]
+    local set_key = opts and opts.set_key or dim_key
+    draft.filter[set_key] = draft.filter[set_key] or {}
+    local sel = draft.filter[set_key]
 
     local titles = {
         statuses    = _("Reading status filter"),
@@ -3659,7 +3665,7 @@ function Editor:_pickMultiFilter(draft, dim_key, on_close)
                 -- A page of the editor, over the Filters page it came from.
                 -- A page of the editor, over the Filters page it came from,
                 -- named as its row there names it (Home > Filters > Genre).
-                over               = Editor._over({ dimLabel(dim_key) or title }),
+                over               = Editor._over({ opts and opts.crumb or dimLabel(dim_key) or title }),
                 search_placeholder = function() return _("Search\xE2\x80\xA6") end,
                 on_search_submit   = function(q)
                     query = q
@@ -3709,7 +3715,7 @@ function Editor:_pickMultiFilter(draft, dim_key, on_close)
                         label  = _("Clear"),
                         on_tap = function()
                             -- Empty the set in place so `sel` stays valid
-                            -- (reassigning draft.filter[dim_key] would
+                            -- (reassigning draft.filter[set_key] would
                             -- orphan the `sel` upvalue).
                             for k in pairs(sel) do sel[k] = nil end
                             modal:refresh()
@@ -3753,7 +3759,7 @@ function Editor:_pickMultiFilter(draft, dim_key, on_close)
         for _k in pairs(sel) do return false end
         return true
     end
-    local function reopen() Editor._closeMenu(d); Editor:_pickMultiFilter(draft, dim_key, on_close) end
+    local function reopen() Editor._closeMenu(d); Editor:_pickMultiFilter(draft, dim_key, on_close, opts) end
     local function toggle(value)
         if sel[value] then sel[value] = nil else sel[value] = true end
         reopen()
@@ -3761,7 +3767,7 @@ function Editor:_pickMultiFilter(draft, dim_key, on_close)
 
     local rows = {
         { { text = (any_checked() and "\xE2\x9C\x93 " or "  ") .. _("Any"),
-            callback = function() draft.filter[dim_key] = {}; reopen() end } },
+            callback = function() draft.filter[set_key] = {}; reopen() end } },
     }
     local i = 1
     while i <= #values do
@@ -3787,6 +3793,65 @@ function Editor:_pickMultiFilter(draft, dim_key, on_close)
     d = Editor._menu{
         title   = title,
         buttons = rows,
+        anchor  = _highAnchor(function() return d end),
+    }
+end
+
+-- Genre and Collection as pages of lists, as Folders is: what a book needs
+-- any of, all of (genres) and none of (GitHub issues 293, 453). Each list
+-- adds through the filter's own picker, ticking that list.
+local SET_SECTIONS = {
+    genres = {
+        { key = "genres",      heading = _("Any of these genres") },
+        { key = "genres_all",  heading = _("All of these genres") },
+        { key = "genres_not",  heading = _("Leave out these genres") },
+        add = _("Add genres"),
+        hint = _("A book needs one genre from the first list, every genre in the second and none from the third. An empty list doesn't count."),
+    },
+    collections = {
+        { key = "collections",     heading = _("In any of these collections") },
+        { key = "collections_not", heading = _("Leave out these collections") },
+        add = _("Add collections"),
+        hint = _("A book needs to be in one collection from the first list and in none from the second. An empty list doesn't count."),
+    },
+}
+
+function Editor:_pickSetsFilter(draft, dim_key, on_close)
+    draft.filter = draft.filter or {}
+    local sections = SET_SECTIONS[dim_key]
+    local label
+    for _i, dim in ipairs(Filter.dimensions()) do if dim.key == dim_key then label = dim.label end end
+    local d
+    local function changed()
+        if on_close then on_close() end
+        if d and d.refresh then d:refresh() end
+    end
+    local function page()
+        local blocks = {}
+        for _i, sec in ipairs(sections) do
+            local set = draft.filter[sec.key] or {}
+            blocks[#blocks + 1] = { type = "heading", text = sec.heading }
+            local keys = {}
+            for v in pairs(set) do keys[#keys + 1] = v end
+            table.sort(keys)
+            for _j, v in ipairs(keys) do
+                blocks[#blocks + 1] = { type = "row", icon = FILTER_ICONS[dim_key],
+                    label = tostring(v), on = true,
+                    on_clear = function() set[v] = nil; changed() end }
+            end
+            blocks[#blocks + 1] = { type = "chips", items = { { text = "+ " .. sections.add,
+                callback = function()
+                    Editor:_pickMultiFilter(draft, dim_key, changed,
+                        { set_key = sec.key, crumb = sec.heading })
+                end } } }
+        end
+        blocks[#blocks + 1] = { type = "hint", text = sections.hint }
+        return { blocks = blocks }
+    end
+    d = Editor._menu{
+        title   = label or dim_key,
+        page    = page,
+        on_back = on_close,
         anchor  = _highAnchor(function() return d end),
     }
 end

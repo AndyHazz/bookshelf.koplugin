@@ -529,4 +529,32 @@ function M.resolveFontNameToFile(name)
     return result
 end
 
+-- displayName(path) -> a font as people know it: the family name from the
+-- font itself ("Roboto Condensed"), as KOReader's own font menu shows it, not
+-- the file name ("RobotoCondensed-Regular", user test). The bold/italic
+-- variant is said too, since the family alone would name the regular face.
+-- Falls back to the file name, without its folder and extension.
+function M.displayName(path)
+    local base = tostring(path):gsub("^.*/", ""):gsub("%.%w+$", "")
+    local ok, FontList = pcall(require, "fontlist")
+    if not (ok and FontList) then return base end
+    if not FontList.fontinfo then pcall(FontList.getFontList, FontList) end
+    local info = FontList.fontinfo and FontList.fontinfo[path]
+    if not info and FontList.fontinfo then
+        -- The setting holds the name Font:getFace takes, which is not always
+        -- the full path FontList keys on: match the file name instead.
+        local file = "/" .. tostring(path):gsub("^.*/", "")
+        for f, arr in pairs(FontList.fontinfo) do
+            if f:sub(-#file) == file then info = arr; break end
+        end
+    end
+    local i1 = info and info[1]
+    if not (i1 and type(i1.name) == "string" and i1.name ~= "") then return base end
+    local _ = require("lib/bookshelf_i18n").gettext
+    if i1.bold and i1.italic then return i1.name .. " " .. _("Bold Italic") end
+    if i1.bold then return i1.name .. " " .. _("Bold") end
+    if i1.italic then return i1.name .. " " .. _("Italic") end
+    return i1.name
+end
+
 return M

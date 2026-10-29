@@ -1481,8 +1481,17 @@ function Editor:editTab(tab_id, opts)
                 -- chipLabelFor, not labelFor: a chip has a state labelFor
                 -- cannot express -- "not set", which is not the same as "set to
                 -- Divider card".
-                local mode = Editor._chipModeLabel(Editor._shownMode(draft[ViewMode.CHIP_KEY],
-                    is_opds_src or is_paged_src))
+                local shown = Editor._shownMode(draft[ViewMode.CHIP_KEY], is_opds_src or is_paged_src)
+                local mode = Editor._chipModeLabel(shown)
+                -- Spines with books face out read as covers on the shelf
+                -- behind, so the card says both (a fresh Home said "Spines"
+                -- over a row of covers).
+                if shown == ViewMode.SPINES then
+                    local SS = require("lib/bookshelf_spine_shelf")
+                    if not SS.faceOutEmpty(SS.faceOutSpec(draft.spine_face_out)) then
+                        mode = _("Spines, face out")
+                    end
+                end
                 return _("View mode: ")
                     .. (mode or SD.chipLabelFor(draft.group_display))
             end,
@@ -1683,8 +1692,16 @@ function Editor:editTab(tab_id, opts)
                 {
                     text         = _("Move to\xE2\x80\xA6"),
                     bordersize   = 0,
-                    enabled_func = function() return hasSource() and canMove() end,
-                    callback     = function() moveShelf() end,
+                    -- Not greyed when there is nowhere to go: a fresh install
+                    -- has no shelf of shelves, and a dead button said nothing
+                    -- about why (user test). A tap says how to make one.
+                    enabled_func = function() return hasSource() and not draft.card_only end,
+                    callback     = function()
+                        if canMove() then return moveShelf() end
+                        UIManager:show(require("ui/widget/infomessage"):new{
+                            text = _("There is no shelf of shelves to move this shelf into yet. Make one with New shelf > Shelf of shelves."),
+                        })
+                    end,
                 },
                 {
                     -- Add button placed last in the row to balance the
@@ -2579,7 +2596,8 @@ function Editor._faceOutText(draft, full)
             parts[#parts + 1] = L[k]
         end
     end
-    if #parts > 2 and not full then return T(_("%1 reasons"), #parts) end
+    -- Past two, the first and a count: "3 reasons" said nothing about which.
+    if #parts > 2 and not full then return T(_("%1 + %2 more"), parts[1], #parts - 1) end
     return table.concat(parts, " + ")
 end
 

@@ -2926,15 +2926,15 @@ function Settings:_colorsSubItems()
         panel_rows[2],
         {
             text_func = function()
-                return _("Micro-module background") .. ": " .. valueLabel("module_bg")
+                return _("Module background") .. ": " .. valueLabel("module_bg")
             end,
-            help_text = _("The card behind each micro-module. Kept solid: the "
+            help_text = _("The card behind each module. Kept solid: the "
                 .. "text inside a module draws its own opaque background, so a "
                 .. "see-through card shows a box behind every line."),
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 pickColor("module_bg", "module_bg", 0,
-                    _("Micro-module background"), touchmenu_instance)
+                    _("Module background"), touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance)
                 deleteModeKey("module_bg")
@@ -2944,14 +2944,14 @@ function Settings:_colorsSubItems()
         },
         {
             text_func = function()
-                return _("Micro-module border") .. ": " .. valueLabel("module_border")
+                return _("Module border") .. ": " .. valueLabel("module_border")
             end,
-            help_text = _("The thin line around each micro-module card. Left "
+            help_text = _("The thin line around each module card. Left "
                 .. "unset it follows the text color. Long-press to clear."),
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 pickColor("module_border", "module_border", 100,
-                    _("Micro-module border"), touchmenu_instance)
+                    _("Module border"), touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance)
                 deleteModeKey("module_border")
@@ -3296,7 +3296,7 @@ function Settings:_settingsSubItems()
             local Fonts = require("lib/bookshelf_fonts")
             local f = Fonts.getUIFontFace()
             local label = _("Follow KOReader")
-            if f then label = f:gsub("^.*/", ""):gsub("%.%w+$", "") end  -- basename, no extension
+            if f then label = Fonts.displayName(f) end
             return T(_("Bookshelf UI font: %1"), label)
         end,
         help_text = _("The font Bookshelf uses for its own UI text (shelf names, "
@@ -3321,18 +3321,18 @@ function Settings:_settingsSubItems()
     items[#items + 1] = {
         text_func = function()
             if not BookshelfSettings.microAnyEnabled() then
-                return _("Micro modules") .. ": " .. _("Off")
+                return _("Modules") .. ": " .. _("Off")
             end
-            return _("Micro modules")
+            return _("Modules")
         end,
-        help_text = _("Where micro-modules appear. Each surface is independent:"
+        help_text = _("Where modules appear. Each surface is independent:"
             .. " In start menu shows module cards in the start-menu launcher; In"
             .. " top panel adds a shelf-menu entry that swaps the book for the grid;"
             .. " Full-screen button adds a footer button opening a full-screen"
             .. " grid; On the shelf shows modules among a shelf's books (turn it off"
             .. " and the books take their space back). The top panel and full screen"
             .. " shelves keep their own module lists. Turn all four off to disable"
-            .. " micro-modules entirely."),
+            .. " modules entirely."),
         sub_item_table_func = function()
             -- Flip one surface. Snapshot the current (possibly still
             -- legacy-derived) state of all three and persist them explicitly, so
@@ -4269,7 +4269,7 @@ function Settings:_behaviourSubItems()
             end
             local labels = {
                 currently_reading = _("Currently reading"),
-                micro_modules     = _("Micro modules"),
+                micro_modules     = _("Modules"),
             }
             local function setMode(mode, touchmenu_instance)
                 BookshelfSettings.save("hero_area_mode", mode)
@@ -4307,7 +4307,7 @@ function Settings:_behaviourSubItems()
                 end,
                 help_text = _("What the top panel above the shelf"
                     .. " shows when it opens: the book you're currently"
-                    .. " reading, or a grid of micro-modules (clock, quote,"
+                    .. " reading, or a grid of modules (clock, quote,"
                     .. " random book, reading goals…). You can also switch"
                     .. " between them from the shelf menu."),
                 sub_item_table_func = function()
@@ -4882,8 +4882,8 @@ function Settings:_whileReadingSubItems()
         end,
     }
     items[#items + 1] = {
-        text = _("Show micro-modules button"),
-        help_text = _("Adds the micro-modules button to the reader, in the corner"
+        text = _("Show modules button"),
+        help_text = _("Adds the modules button to the reader, in the corner"
             .. " opposite the menu button. Takes effect the next time you open a"
             .. " book."),
         checked_func = function() return RB.showModules() end,
@@ -5405,7 +5405,7 @@ end
 -- smaller with more whitespace. Live preview = the bookshelf rebuild behind.
 function Settings:_pickHeroModuleFontScale(touchmenu_instance)
     self:_showScaleNudge(touchmenu_instance, {
-        key = "hero_module_font_scale", title = _("Micro-modules font scale"), max = 200, fine = 5,
+        key = "hero_module_font_scale", title = _("Modules font scale"), max = 200, fine = 5,
     })
 end
 
@@ -5609,7 +5609,7 @@ function Settings:_startMenuSubItems()
             return T(_("Minimum start menu width: %1 dp"), dp)
         end,
         help_text = _("The start menu is normally only as wide as its longest"
-            .. " label, so short menu text also narrows the micro-module cards."
+            .. " label, so short menu text also narrows the module cards."
             .. " Raise this to widen the panel without lengthening the text."),
         keep_menu_open = true,
         callback = function(touchmenu_instance)
@@ -5942,7 +5942,7 @@ function Settings:_textSizeSubItems()
         -- ── hero area ──
         row(HERO_BOOK .. _("Top panel"),         "font_scale",             100, "_pickFontScale"),
         (function()
-            local r = row(HERO_GRID .. _("Micro-modules"), "hero_module_font_scale", 100, "_pickHeroModuleFontScale")
+            local r = row(HERO_GRID .. _("Modules"), "hero_module_font_scale", 100, "_pickHeroModuleFontScale")
             r.separator = true  -- end the hero band
             return r
         end)(),

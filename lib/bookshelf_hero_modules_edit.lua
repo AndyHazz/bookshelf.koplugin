@@ -44,7 +44,7 @@ end
 function Edit.showAdd(bw, anchor_id, on_added)
     local keys = Modules.keys()
     if #keys == 0 then
-        UIManager:show(Notification:new{ text = _("No micro-modules available") })
+        UIManager:show(Notification:new{ text = _("No modules available") })
         return
     end
     -- Card-grid picker showing each module's live preview (shared with the

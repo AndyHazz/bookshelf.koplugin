@@ -476,11 +476,11 @@ function Edit.showAdd(menu, anchor_id, folder_id)
     -- "Bookshelf micro-module…" is hidden when the start-menu micro-module
     -- surface is off: no way to add one when module cards aren't shown there.
     if require("lib/bookshelf_settings_store").microInStartMenu() then
-        rows[#rows + 1] = { { text = _("Bookshelf micro-module…"), callback = close(function()
+        rows[#rows + 1] = { { text = _("Bookshelf module…"), callback = close(function()
             local keys = Modules.keys()
             if #keys == 0 then
                 UIManager:show(Notification:new{
-                    text = _("No micro-modules available"),
+                    text = _("No modules available"),
                 })
                 return
             end

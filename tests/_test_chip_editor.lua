@@ -825,4 +825,15 @@ t.test("the shelf editor passes KOReader's gestures and actions on", function()
     assert(he:find("GestureZones.overlayEvent", 1, true), "gestures outside are dropped")
 end)
 
+t.test("Move to says why when there is nowhere to move", function()
+    -- A fresh install has no shelf of shelves; a greyed button said nothing.
+    local ed = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
+    local i = ed:find('text         = _("Move to\\xE2\\x80\\xA6")', 1, true)
+    assert(i, "the Move to button moved")
+    local body = ed:sub(i, i + 900)
+    assert(not body:find("hasSource() and canMove()", 1, true), "Move to is greyed again when there is nowhere to go")
+    assert(body:find("if canMove() then return moveShelf() end", 1, true), "a tap no longer moves when it can")
+    assert(body:find("Shelf of shelves", 1, true), "no hint about how to make somewhere to move to")
+end)
+
 t.done()

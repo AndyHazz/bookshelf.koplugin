@@ -1210,7 +1210,7 @@ function Bookshelf:onDispatcherRegisterActions()
     Dispatcher:registerAction("bookshelf_open_micro_modules", {
         category = "none",
         event    = "BookshelfOpenMicroModules",
-        title    = _("Bookshelf: open micro-modules"),
+        title    = _("Bookshelf: open modules"),
         general  = true,
     })
     -- "Take me to the main screen" (#223). Distinct from "Bookshelf: open",

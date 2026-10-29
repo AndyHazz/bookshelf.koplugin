@@ -220,5 +220,19 @@ test("chosen font with no italic file: never asks Font for the missing sibling",
     package.loaded["libs/libkoreader-lfs"].attributes = real_attr
 end)
 
+test("displayName: the family name, not the file name", function()
+    -- Settings showed "Bookshelf UI font: RobotoCondensed-Regular" (user test).
+    package.loaded["lib/bookshelf_i18n"] = { gettext = function(s) return s end }
+    package.loaded["fontlist"] = { fontinfo = {
+        ["/f/RobotoCondensed-Regular.ttf"] = { { name = "Roboto Condensed" } },
+        ["/f/RobotoCondensed-Bold.ttf"] = { { name = "Roboto Condensed", bold = true } },
+    } }
+    eq(BFont.displayName("/f/RobotoCondensed-Regular.ttf"), "Roboto Condensed")
+    eq(BFont.displayName("/f/RobotoCondensed-Bold.ttf"), "Roboto Condensed Bold")
+    eq(BFont.displayName("RobotoCondensed-Regular.ttf"), "Roboto Condensed", "a bare file name, as the setting stores it")
+    eq(BFont.displayName("/f/Unknown-Font.otf"), "Unknown-Font", "no metadata: the file name")
+    package.loaded["fontlist"] = nil
+end)
+
 io.write(("bookshelf_fonts: %d passed, %d failed\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

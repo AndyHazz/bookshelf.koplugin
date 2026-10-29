@@ -246,7 +246,7 @@ function ModulePicker:show(on_select, opts)
         return Screen:getWidth() > Screen:getHeight() and 3 or 2
     end
     local config = {
-        title = _("Bookshelf micro-modules"),
+        title = _("Modules"),
         no_search = true, -- a handful of cards at most; search row is noise
         grid_cols = cols,
         cells_per_page = function() return cols() * 2 end,

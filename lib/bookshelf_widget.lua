@@ -7088,7 +7088,7 @@ function BookshelfWidget:_spineModuleMenu(entry)
         -- opened before pinning: the title says why.
         -- With colours to set, the title is a row of its own, with the
         -- palette icon (added below).
-        title = (not has_colors) and (pinned_piece and _("Ornament micro-module (pinned)")
+        title = (not has_colors) and (pinned_piece and _("Ornament module (pinned)")
             or (def and def.title) or entry.module) or nil, title_align = "center",
         -- Centred across the screen (it is nearly full width) and clear of
         -- the module by a gap: the module's rect grown by the gap above and
@@ -16378,7 +16378,7 @@ function BookshelfWidget:_showModulesOptions()
         return function() UIManager:close(dialog); if fn then fn() end end
     end
     dialog = ButtonDialog:new{
-        title        = _("Micro-modules"),
+        title        = _("Modules"),
         title_align  = "center",
         width_factor = 0.75,
         buttons = {
@@ -16391,7 +16391,7 @@ function BookshelfWidget:_showModulesOptions()
             -- surface (the start-menu and full-screen surfaces are independent
             -- now, toggled in Settings). Persist all three explicitly so we stop
             -- depending on the legacy placement key, mirroring the settings menu.
-            { { text = _("Remove micro-modules (re-enable in settings)"),
+            { { text = _("Remove modules (re-enable in settings)"),
                 callback = close(function()
                     BookshelfSettings.save("micro_in_start_menu", BookshelfSettings.microInStartMenu())
                     BookshelfSettings.save("micro_in_hero", false)

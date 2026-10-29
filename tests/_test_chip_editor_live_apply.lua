@@ -248,7 +248,7 @@ t.test("the actions are Delete, Copy, Move to, New shelf and Close: no Save or C
     assert(body:find('footer_text    = _("New shelf")', 1, true), "New shelf is not in the foot")
     assert(body:find('text         = _("Copy"),', 1, true), "no Copy")
     assert(body:find('callback     = function() copyShelf() end,', 1, true), "Copy does nothing")
-    assert(body:find('callback     = function() moveShelf() end,', 1, true), "no Move to")
+    assert(body:find('if canMove() then return moveShelf() end', 1, true), "no Move to")
     assert(not body:find('text       = _("Cancel"),', 1, true), "the editor still has a Cancel button")
 end)
 

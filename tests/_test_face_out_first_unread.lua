@@ -142,6 +142,15 @@ t.test("the picker groups the reasons the way a reader thinks", function()
         "the new reason has no label, so its button would be blank")
 end)
 
+t.test("the summaries say which books stand face out", function()
+    -- "3 reasons" named none of them, and the View mode card said "Spines"
+    -- over a shelf of covers (user test, fresh install).
+    local ed = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
+    assert(not ed:find('_("%1 reasons")', 1, true), "the count-only summary is back")
+    assert(ed:find('_("%1 + %2 more")', 1, true), "past two, the first reason and a count")
+    assert(ed:find('_("Spines, face out")', 1, true), "the View mode card should say face out")
+end)
+
 t.test("every reason survives the widget's own gate, stored as a bare string", function()
     -- THE BUG THAT MADE THE FEATURE DO NOTHING. faceOutSave stores a single
     -- ticked reason as a bare STRING, and the widget had its own hand-written

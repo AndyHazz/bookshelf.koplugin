@@ -369,6 +369,10 @@ function M.ensureTemplate()
         local f = io.open(d .. "/" .. seed.name, "w")
         if f then f:write(seed.svg); f:close() end
     end
+    -- A list taken before the seeds existed is empty and would hold for the
+    -- scan TTL: a fresh install's first page had no ornaments, then gained
+    -- them on the next turn and paged differently.
+    M.invalidate()
     logger.dbg("[bookshelf] ornaments folder created:", d)
 end
 

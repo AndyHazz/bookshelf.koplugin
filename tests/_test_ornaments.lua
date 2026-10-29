@@ -115,6 +115,20 @@ t.test("ensureTemplate creates the folder with the template, once", function()
     os.execute("rm -rf '" .. d .. "'")
 end)
 
+t.test("seeding a fresh folder drops a list taken before it", function()
+    -- A fresh install's first page dealt from an empty cached list, then
+    -- gained ornaments on the next turn and paged differently.
+    local O = fresh()
+    O.SCAN_TTL = 60
+    local d = scratch()
+    O._data_dir = d
+    O._lfs = lfs_shim
+    eq(#O.list(), 0, "nothing there before the seeds")
+    O.ensureTemplate()
+    assert(#O.list() > 0, "the seeds were not listed until the scan TTL ran out")
+    os.execute("rm -rf '" .. d .. "'")
+end)
+
 t.test("an icons folder a reader already has is left alone", function()
     -- The ornaments moved out of icons/ (v5.3): a reader's own icons folder
     -- is neither touched nor given an ornaments folder.

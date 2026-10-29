@@ -2888,6 +2888,15 @@ function Editor:_pickSource(draft, on_close)
             local Blitbuffer_   = require("ffi/blitbuffer")
             local Screen_       = require("device").screen
 
+            -- A-Z or most books first, when the choices carry book counts
+            -- (authors, series, genres...): a switch beside the search box.
+            -- The order picked lasts the session, for the next picker too.
+            local PickerSort = require("lib/bookshelf_picker_sort")
+            local sortable = PickerSort.hasCounts(choices)
+            if sortable then
+                choices = PickerSort.sort(choices, Editor._picker_order)
+            end
+
             local query = nil
             local function matches(label, q)
                 if not q or q == "" then return true end
@@ -2918,6 +2927,20 @@ function Editor:_pickSource(draft, on_close)
                         query = q
                         recompute()
                         if modal then modal.page = 1; modal:refresh() end
+                    end,
+                    chip_strip = sortable and function()
+                        local items = {}
+                        for _i, it in ipairs(PickerSort.items()) do
+                            items[#items + 1] = { key = it.key, label = it.label,
+                                is_active = it.key == (Editor._picker_order or "az") }
+                        end
+                        return items
+                    end or nil,
+                    chips_beside_search = true,
+                    on_chip_tap = function(key)
+                        Editor._picker_order = key
+                        choices = PickerSort.sort(choices, key)
+                        recompute()
                     end,
                     grid_cols    = 2,
                     cells_per_page = function()

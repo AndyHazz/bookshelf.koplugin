@@ -303,9 +303,17 @@ function Ctx:option(b, w)
     end
     local links_w = (#links > 0) and (links:getSize().w + self.gap) or 0
     local ink = self:ink(b.on, b.enabled)
-    local text_w = inner - links_w - (b.icon and self:iconW() or 0)
-    local vg = VerticalGroup:new{ align = "left",
-        self:text(b.text, { bold = true, fgcolor = ink, max_width = text_w }) }
+    -- The icon leads the title's line and the grey line runs under both,
+    -- the card's whole width (maintainer).
+    local text_w = inner - links_w
+    local icon_gap = Space.px(12)
+    local title = self:text(b.text, { bold = true, fgcolor = ink,
+        max_width = text_w - (b.icon and (self:iconW() + icon_gap) or 0) })
+    if b.icon then
+        title = HorizontalGroup:new{ align = "center", self:icon(b.icon, ink),
+            HorizontalSpan:new{ width = icon_gap }, title }
+    end
+    local vg = VerticalGroup:new{ align = "left", title }
     if b.desc then
         vg[#vg + 1] = VerticalSpan:new{ width = Space.px(2) }
         vg[#vg + 1] = require("ui/widget/textboxwidget"):new{ text = b.desc, width = text_w,
@@ -314,12 +322,7 @@ function Ctx:option(b, w)
     end
     local h = math.max(vg:getSize().h, links:getSize().h) + 2 * Space.px(b.desc and 12 or 6)
     if not b.desc then h = math.max(h, self:cardH()) end
-    local left = vg
-    if b.icon then
-        left = HorizontalGroup:new{ align = "center", self:icon(b.icon, ink),
-            HorizontalSpan:new{ width = Space.px(12) }, vg }
-    end
-    local body = (#links > 0) and leftRight(left, links, inner) or left
+    local body = (#links > 0) and leftRight(vg, links, inner) or vg
     local cell = tapCard(body, w, h, b.on, b.callback, b.enabled, nil, nil, true)
     table.insert(focus, 1, cell)
     return cell, focus

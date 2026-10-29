@@ -25,6 +25,7 @@ jobs:
               "Modules": "area: modules",
               "Start menu": "area: start menu",
               "Book menu": "area: book menu",
+              "Opening books": "area: opening & closing books",
               "Themes": "area: themes",
               "OPDS": "area: online & integrations",
               "Deleting": "area: file management",

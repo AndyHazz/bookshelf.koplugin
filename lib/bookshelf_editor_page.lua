@@ -181,7 +181,17 @@ function R.chips(ctx, b)
         end
         -- A chip that is on or off is a choice; one without (Edit collection
         -- order >) goes somewhere and is shown pressed.
-        local cell = tapCard(label, cw, h, it.on, it.callback, enabled, nil, pad, it.on ~= nil)
+        -- On the grey strip (Clear all filters) the strip's own button, as
+        -- the pickers' Clear: white, outlined, no shadow (maintainer).
+        local cell
+        if ctx.bg then
+            cell = Kit.button{ text = it.text, face = face, height = h, pad_h = pad,
+                inverted = it.on or false, bold = it.on or false, enabled = enabled,
+                on_tap = it.callback }
+            cw = cell:getSize().w
+        else
+            cell = tapCard(label, cw, h, it.on, it.callback, enabled, nil, pad, it.on ~= nil)
+        end
         line[#line + 1] = cell
         focus[#focus + 1] = cell
         line_w = line_w + cw

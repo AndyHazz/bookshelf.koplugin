@@ -29,6 +29,7 @@ jobs:
               "OPDS": "area: online & integrations",
               "Deleting": "area: file management",
               "Book info": "area: book info",
+              "Screen": "area: display",
               "Settings": "area: settings",
               "Speed": "area: performance",
             };

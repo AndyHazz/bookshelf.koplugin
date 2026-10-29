@@ -41,7 +41,9 @@ end
 -- Add a micro-module to the hero grid (after anchor_id, or appended when nil).
 -- on_added(entry), when given, receives the new entry instead of it being
 -- saved: the layout editor places it in its working copy.
-function Edit.showAdd(bw, anchor_id, on_added)
+-- pick (optional): the picker's options -- pick.key a module already chosen,
+-- pick.over to open as a page of the shelf editor.
+function Edit.showAdd(bw, anchor_id, on_added, pick)
     local keys = Modules.keys()
     if #keys == 0 then
         UIManager:show(Notification:new{ text = _("No modules available") })
@@ -72,7 +74,7 @@ function Edit.showAdd(bw, anchor_id, on_added)
         else
             insert()
         end
-    end, { for_hero = true })
+    end, { for_hero = true, key = pick and pick.key, over = pick and pick.over })
 end
 
 return Edit

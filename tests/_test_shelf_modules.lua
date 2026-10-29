@@ -106,7 +106,7 @@ t.test("a module is added at its own start_w on a spine shelf, else 2", function
     -- The spine add uses it rather than a fixed 2 (the cover add goes through
     -- the grid editor's _sizeFor, which reads start_w already).
     local src = io.open("lib/bookshelf_widget.lua"):read("*a")
-    local add = src:match("\nfunction BookshelfWidget:_addSpineModule%(%)\n(.-)\nend\n")
+    local add = src:match("\nfunction BookshelfWidget:_addSpineModule%(pick%)\n(.-)\nend\n")
     assert(add and add:find("startWidth(def)", 1, true), "spine add ignores the module's width")
     assert(not add:find("entry.w = math.max(0, before), 2", 1, true))
 end)

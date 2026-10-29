@@ -1569,9 +1569,15 @@ function Editor:editTab(tab_id, opts)
             look_row[#look_row + 1] = {
                 text = _("Modules: Add to this shelf\xE2\x80\xA6"),
                 icon = "\u{EB94}",   -- shape-plus
+                -- The picker as a page of the editor (Home > Modules), like
+                -- Theme: it was a window of its own over the editor, titled
+                -- differently, with no way back (user test). Picking closes
+                -- the editor and adds the module as before.
                 callback = function()
-                    finish()
-                    opts.bw:_editShelfModules(nil, { add = true })
+                    require("lib/bookshelf_module_picker"):show(function(key)
+                        finish()
+                        opts.bw:_editShelfModules(nil, { add = true, key = key })
+                    end, { for_hero = true, over = Editor._over({ _("Modules") }) })
                 end,
             }
         end

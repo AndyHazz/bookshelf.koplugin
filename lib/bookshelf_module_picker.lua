@@ -198,6 +198,12 @@ end
 --- them. Caller is responsible for the empty-registry case.
 function ModulePicker:show(on_select, opts)
     opts = opts or {}
+    -- opts.key: already chosen (the shelf editor's own Modules page picked
+    -- it): no second picker, straight on to adding it.
+    if opts.key then
+        if on_select then on_select(opts.key) end
+        return
+    end
     -- hero_only modules only make sense in the hero grid; hide them from the
     -- start-menu picker unless this picker was opened for the hero.
     local keys = {}
@@ -247,6 +253,9 @@ function ModulePicker:show(on_select, opts)
     end
     local config = {
         title = _("Modules"),
+        -- opts.over: a page of the shelf editor (Home > Modules), its Close
+        -- the back chevron; see LibraryModal config.over.
+        over = opts.over,
         no_search = true, -- a handful of cards at most; search row is noise
         grid_cols = cols,
         cells_per_page = function() return cols() * 2 end,

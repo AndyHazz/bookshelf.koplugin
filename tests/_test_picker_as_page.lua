@@ -33,8 +33,23 @@ t.test("a page refreshes its own box opening and closing, not the whole screen",
     assert(not lm:find("scrimUnder", 1, true), "the fade is back")
 end)
 
-t.test("the editor's pickers and the Theme library open as its pages", function()
-    eq(select(2, ed:gsub("over%s*= Editor%._over%(", "")), 3)
+t.test("the editor's pickers, the Theme library and Modules open as its pages", function()
+    eq(select(2, ed:gsub("over%s*= Editor%._over%(", "")), 4)
+end)
+
+-- Modules was a window of its own over the editor ("Bookshelf
+-- micro-modules"), with no way back to it (user test).
+t.test("Modules is a page of the editor, and its pick is not asked twice", function()
+    assert(ed:find('over = Editor._over({ _("Modules") })', 1, true), "Modules is not a page")
+    assert(ed:find('_editShelfModules(nil, { add = true, key = key })', 1, true),
+        "the pick is not handed on, so the picker would open again")
+    local mp = io.open("lib/bookshelf_module_picker.lua"):read("*a")
+    assert(mp:find("over = opts.over,", 1, true), "the picker ignores over")
+    assert(mp:find("if opts.key then\n        if on_select then on_select(opts.key) end\n        return", 1, true),
+        "a module already picked still opens the picker")
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    assert(w:find("ed.session:add(nil, nil, pick)", 1, true), "covers: the pick does not reach the layout editor")
+    assert(w:find("return self:_addSpineModule(pick)", 1, true), "spines: the pick does not reach the add")
 end)
 
 t.done()

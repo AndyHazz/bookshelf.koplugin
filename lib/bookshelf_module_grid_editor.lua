@@ -106,9 +106,9 @@ function Editor:init()
         max_pages = host.max_pages and host.max_pages() or nil,
         notify = function(text) UIManager:show(Notification:new{ text = text }) end,
         -- A host may bring its own (the shelf's cards number their own ids).
-        add_picker = host.add_picker or function(on_added)
+        add_picker = host.add_picker or function(on_added, pick)
             local ok, Edit = pcall(require, "lib/bookshelf_hero_modules_edit")
-            if ok and Edit then Edit.showAdd(bw, nil, on_added) end
+            if ok and Edit then Edit.showAdd(bw, nil, on_added, pick) end
         end,
         open_settings = host.open_settings or function(entry)
             local def = entry and Modules.get(entry.module)

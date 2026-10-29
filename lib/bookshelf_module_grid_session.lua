@@ -282,7 +282,7 @@ end
 --- Pick a module and place it: at (col, row) when given (a long-pressed empty
 --- cell) and it fits there, else at the first free spot on the current page,
 --- then the following pages up to the cap. It becomes the selection.
-function Session:add(col, row)
+function Session:add(col, row, pick)
     if not self.add_picker then return false end
     self.add_picker(function(entry)
         if not entry then return end
@@ -322,7 +322,7 @@ function Session:add(col, row)
             if tryPage(p) then return end
         end
         self:_refuse()
-    end)
+    end, pick)
     return true
 end
 

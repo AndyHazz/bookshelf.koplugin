@@ -6844,7 +6844,7 @@ function BookshelfWidget:_shelfModuleHost()
         if ok and x then return Geom:new{ x = x, y = y, w = w, h = h } end
     end
     -- New modules number their own ids on this shelf.
-    function host.add_picker(on_added)
+    function host.add_picker(on_added, pick)
         local Edit = require("lib/bookshelf_hero_modules_edit")
         Edit.showAdd(bw, nil, function(entry)
             local used = {}
@@ -6853,7 +6853,7 @@ function BookshelfWidget:_shelfModuleHost()
             while used["sm_" .. k] do k = k + 1 end
             entry.id = "sm_" .. k
             return on_added(entry)
-        end)
+        end, pick)
     end
     -- A module's ctx here saves to the shelf (the editor holds copies):
     -- its colours (the palette icon) go through it.
@@ -6873,15 +6873,17 @@ end
 
 -- _editShelfModules(select_id, opts) -> the layout editor over this cover
 -- shelf's modules; on a spine shelf, the module's own menu. opts.add: open
--- the add picker straight away.
+-- the add picker straight away; opts.key, a module already picked (the
+-- shelf editor's Modules page), added without a second picker.
 function BookshelfWidget:_editShelfModules(select_id, opts)
+    local pick = opts and opts.key and { key = opts.key } or nil
     if self:_isSpineMode() then
-        if opts and opts.add then return self:_addSpineModule() end
+        if opts and opts.add then return self:_addSpineModule(pick) end
         return nil
     end
     local Editor = require("lib/bookshelf_module_grid_editor")
     local ed = Editor.open{ bw = self, host = self:_shelfModuleHost(), select_id = select_id }
-    if ed and opts and opts.add then ed.session:add() end
+    if ed and opts and opts.add then ed.session:add(nil, nil, pick) end
     if not ed then
         local Notification = require("ui/widget/notification")
         UIManager:show(Notification:new{ text = _("Modules can only go on shelves shown as covers or spines") })
@@ -7250,7 +7252,7 @@ function BookshelfWidget:_spineShowModule(id)
     self:_spineShowFrom(from)
 end
 
-function BookshelfWidget:_addSpineModule()
+function BookshelfWidget:_addSpineModule(pick)
     local bw = self
     local TabModel = require("lib/bookshelf_tab_model")
     require("lib/bookshelf_hero_modules_edit").showAdd(self, nil, function(entry)
@@ -7277,7 +7279,7 @@ function BookshelfWidget:_addSpineModule()
         TabModel.save(tabs)
         bw:_shelfModuleOwner(bw.chip).refresh()
         bw:_spineModuleMenu(entry)
-    end)
+    end, pick)
 end
 
 -- _moduleRow(row, heads) -> the cover row with its modules drawn over the

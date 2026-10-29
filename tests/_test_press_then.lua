@@ -43,6 +43,10 @@ local screen = { scaleBySize = function(_s, v) return v end }
 package.loaded["device"] = { screen = screen }
 package.loaded["lib/bookshelf_space"] = setmetatable({ px = function(v) return v end },
     { __index = function() return setmetatable({}, { __index = function() return 1 end }) end })
+local FC = package.loaded["ui/widget/container/framecontainer"]
+function FC:new(o) return setmetatable(o or {}, { __index = FC }) end
+function FC:getSize() local c = self[1]:getSize(); return { w = c.w, h = c.h } end
+function FC.paintTo() end
 local Kit = require("lib/bookshelf_popup_kit")
 
 local function press(action)
@@ -71,6 +75,21 @@ t.test("a button lets up when its action does nothing", function()
     local editor, card = press(function() end)
     eq(card._pressed, false)
     assert(letUp(editor), "the button stayed pressed")
+end)
+
+-- The book popup's action cards are set to the row's height, so a one-line
+-- card is taller than its content. FrameContainer fills its set height but
+-- measures (getSize) its content, and the shadow followed the measure: it
+-- stopped part way down each card (maintainer, PW5).
+t.test("a card's shadow runs its whole set height", function()
+    local content = { getSize = function() return { w = 80, h = 40 } end }
+    local card = Kit.card{ content, width = 120, height = 100 }
+    local shadow
+    local bb = { paintRoundedRect = function(_s, x, y, w, h, c)
+        if c == Kit.SHADOW and not shadow then shadow = { w = w, h = h } end
+    end }
+    card:paintTo(bb, 0, 0)
+    eq(shadow.w, 120); eq(shadow.h, 100)
 end)
 
 t.test("a button whose window closed is left alone", function()

@@ -377,7 +377,10 @@ end
 -- runs): the shadow flips inside, along the top and left, and nothing else
 -- changes (maintainer), so a slow action shows it was taken at once.
 local function paintCard(frame, bb, x, y, outline)
+    -- A set width/height is what FrameContainer fills; getSize is only the
+    -- content's measure, so a card stretched to its row had a short shadow.
     local sz = frame:getSize()
+    sz = { w = frame.width or sz.w, h = frame.height or sz.h }
     local r, s = Kit.RADIUS, Kit.shadowSize()
     if frame._pressed then
         local d = 2 * s

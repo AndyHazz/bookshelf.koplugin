@@ -35,8 +35,3 @@ body:
         - PocketBook
         - Android (including Boox)
         - Other
-  - type: input
-    id: versions
-    attributes:
-      label: Bookshelf version
-      description: Shown at Bookshelf > Updates > Check for updates.

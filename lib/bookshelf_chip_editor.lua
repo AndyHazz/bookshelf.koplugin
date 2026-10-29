@@ -3831,7 +3831,7 @@ function Editor:_pickFolderFilter(draft, on_close)
             table.sort(keys)
             for _i, p in ipairs(keys) do
                 blocks[#blocks + 1] = { type = "row", icon = "\u{E94A}",   -- folder
-                    label = p, on = true,
+                    label = p, path = true, on = true,
                     on_clear = function() set[p] = nil; changed() end }
             end
             blocks[#blocks + 1] = { type = "chips", items = { { text = "+ " .. add_label,

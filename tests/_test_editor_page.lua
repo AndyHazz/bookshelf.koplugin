@@ -58,4 +58,24 @@ t.test("the fallback rows tick what is on and grey what only explains", function
     eq(rows[4][1].text, "\xE2\x9C\x93 Hardback")
 end)
 
+-- A folder's path shortened in the middle, so where it starts and the
+-- folder's own name both stay in sight, wherever on the device it is
+-- (maintainer: folders outside the home folder can be picked too).
+t.test("a long path drops the folders nearest its name first", function()
+    local function fitsIn(n) return function(s) return #s <= n end end
+    local p = "/mnt/us/ebooks/Fiction/Standard Ebooks"
+    eq(Page._shortenPath(p, fitsIn(100)), p)
+    eq(Page._shortenPath(p, fitsIn(35)), "/mnt/us/ebooks/\xE2\x80\xA6/Standard Ebooks")
+    eq(Page._shortenPath(p, fitsIn(28)), "/mnt/us/\xE2\x80\xA6/Standard Ebooks")
+    eq(Page._shortenPath(p, fitsIn(20)), "/\xE2\x80\xA6/Standard Ebooks")
+    -- Too narrow even for that: the shortest, and the text itself cuts it.
+    eq(Page._shortenPath(p, fitsIn(5)), "/\xE2\x80\xA6/Standard Ebooks")
+end)
+
+t.test("a short or one-folder path is left alone", function()
+    local function never() return false end
+    eq(Page._shortenPath("/books", never), "/books")
+    eq(Page._shortenPath("/", never), "/")
+end)
+
 t.done()

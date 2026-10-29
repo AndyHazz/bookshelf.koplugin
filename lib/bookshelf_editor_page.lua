@@ -131,6 +131,26 @@ function Ctx:iconW()
     return self._icon_w
 end
 
+-- shortenPath(path, fits) -> path, or with the folders nearest its name
+-- swapped for an ellipsis until fits(text) holds, so where it starts and the
+-- folder's own name both show (a folder filter's row; folders can be outside
+-- the home folder, so it is not made relative to it). The shortest is
+-- "/.../name"; past that the text widget cuts it.
+local function shortenPath(path, fits)
+    if fits(path) then return path end
+    local parts = {}
+    for seg in path:gmatch("[^/]+") do parts[#parts + 1] = seg end
+    if #parts < 2 then return path end
+    local name = table.remove(parts)
+    local out
+    repeat
+        table.remove(parts)
+        out = "/" .. table.concat(parts, "/") .. (#parts > 0 and "/" or "") .. "\xE2\x80\xA6/" .. name
+    until #parts == 0 or fits(out)
+    return out
+end
+Page._shortenPath = shortenPath   -- for tests
+
 local R = {}
 
 function R.summary(ctx, b)
@@ -277,8 +297,12 @@ function Ctx:row(b, w, stacked)
         local iw = b.icon and self:iconW() or 0
         local value = vt and self:text(vt, { bold = true, fgcolor = ink,
             max_width = math.floor(inner * 0.6) })
-        local label = self:text(b.label, { fgcolor = ink,
-            max_width = inner - iw - (value and value:getSize().w + self.gap or 0) })
+        local label_w = inner - iw - (value and value:getSize().w + self.gap or 0)
+        local text = b.label
+        if b.path and text then
+            text = shortenPath(text, function(t) return self:text(t):getSize().w <= label_w end)
+        end
+        local label = self:text(text, { fgcolor = ink, max_width = label_w })
         if b.icon then
             label = HorizontalGroup:new{ align = "center", self:icon(b.icon, ink),
                 HorizontalSpan:new{ width = Space.px(12) }, label }

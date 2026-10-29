@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions and help
+    url: https://github.com/AndyHazz/bookshelf.koplugin/discussions/categories/q-a
+    about: How do I...? Ask in Discussions.
+  - name: User guide
+    url: https://andyhazz.github.io/bookshelf-docs/
+    about: How everything works, with videos.

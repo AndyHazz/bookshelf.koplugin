@@ -1,0 +1,37 @@
+name: Feature idea
+description: Something new you'd like Bookshelf to do
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like?
+      description: Describe what you'd like and how you'd use it. Sketches, photos and links to other apps are welcome.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of Bookshelf?
+      options:
+        - Shelf views (covers, spines, list, folders, series)
+        - Shelf bar (chips, sources, grouping, sort, filters)
+        - Top panel or modules
+        - Start menu
+        - Book menu (long-press on a book)
+        - Themes, wallpapers, planks or ornaments
+        - OPDS, stores, Hardcover or updates
+        - Book info (metadata, covers, page counts, calibre)
+        - Settings or gestures
+        - Speed, memory, battery or storage
+        - Not sure
+  - type: dropdown
+    id: device
+    attributes:
+      label: Device
+      options:
+        - Kindle
+        - Kobo
+        - PocketBook
+        - Android (including Boox)
+        - Other

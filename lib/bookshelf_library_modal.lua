@@ -897,21 +897,26 @@ function LibraryModal:_renderStrip(cw)
     end
     local search
     -- config.chips_beside_search: a short switch (a picker's A-Z | Most books)
-    -- sits at the right end of the search row, as header buttons do, while
+    -- sits at the right end of the search row with any header buttons, while
     -- that leaves the field at least half the row.
-    if chips and not buttons and not self.config.no_search
-            and self.config.chips_beside_search then
-        -- The widest the switch has been: its bold active label changes its
+    if chips and not self.config.no_search and self.config.chips_beside_search then
+        local right = { chips }
+        local rw = chips:getSize().w + MARGIN
+        for _i, b in ipairs(buttons or {}) do
+            right[#right + 1] = b
+            rw = rw + b:getSize().w + MARGIN
+        end
+        -- The widest it has been: the switch's bold active label changes its
         -- width, and a field that changed width would be rebuilt, dropping
         -- what was typed in it.
-        self._beside_w = math.max(self._beside_w or 0, chips:getSize().w + MARGIN)
+        self._beside_w = math.max(self._beside_w or 0, rw)
         local sw = self._beside_w
         if cw - sw >= cw / 2 then
             if self._search_row_w ~= cw - sw then self._search_input = nil end
             self._search_row_w = cw - sw
             search = self:_renderSearchInput(cw - sw)
             return PopupKit.headerRow{ width = self.modal_w, inset = MARGIN,
-                left = search, buttons = { chips }, pad_top = MARGIN, pad_bottom = MARGIN }
+                left = search, buttons = right, pad_top = MARGIN, pad_bottom = MARGIN }
         end
     end
     if not self.config.no_search then

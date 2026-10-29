@@ -37,7 +37,10 @@ function Picker.buildChoices(choices, home, exclude)
     return out
 end
 
--- Picker.show{ title, exclude, on_pick(dir), on_cancel() }
+-- Picker.show{ title, exclude, on_pick(dir), on_cancel(), over, new_folder }
+--   over: a page of the shelf editor (LibraryModal config.over);
+--   new_folder = false: no New folder (choosing folders that exist, as
+--   Filters > Folders does).
 function Picker.show(opts)
     local UIManager = require("ui/uimanager")
     local FileOps = require("lib/bookshelf_file_ops")
@@ -106,10 +109,11 @@ function Picker.show(opts)
         })
     end
 
-    local extra_actions = {
-        { label = _("New folder\xE2\x80\xA6"),    on_tap = new_folder },
-        { label = _("Browse device\xE2\x80\xA6"), on_tap = browse_device },
-    }
+    local extra_actions = {}
+    if opts.new_folder ~= false then
+        extra_actions[#extra_actions + 1] = { label = _("New folder\xE2\x80\xA6"), on_tap = new_folder }
+    end
+    extra_actions[#extra_actions + 1] = { label = _("Browse device\xE2\x80\xA6"), on_tap = browse_device }
 
     -- LibraryModal grid (searchable, paginated), pickById's shape.
     local LibraryModal = require("lib/bookshelf_library_modal")
@@ -134,6 +138,7 @@ function Picker.show(opts)
         modal = LibraryModal:new{
             config = {
                 title              = opts.title or _("Move to\xE2\x80\xA6"),
+                over               = opts.over,
                 search_placeholder = function() return _("Search\xE2\x80\xA6") end,
                 on_search_submit   = function(q)
                     query = q

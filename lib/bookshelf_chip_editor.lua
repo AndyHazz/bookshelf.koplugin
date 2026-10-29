@@ -3796,7 +3796,6 @@ end
 -- KOReader folder chooser to add a path. Recursive matching + exclude-wins are
 -- enforced by Filter.matches; this screen only edits the path sets.
 function Editor:_pickFolderFilter(draft, on_close)
-    local PathChooser = require("ui/widget/pathchooser")
     draft.filter = draft.filter or {}
     draft.filter.folders = draft.filter.folders or { include = {}, exclude = {} }
     local folders = draft.filter.folders
@@ -3807,20 +3806,19 @@ function Editor:_pickFolderFilter(draft, on_close)
         if on_close then on_close() end
         if d and d.refresh then d:refresh() end
     end
-    -- KOReader's folder browser over this page; the page reads the folder
-    -- added when it closes.
-    local function add_via_chooser(set)
-        UIManager:show(PathChooser:new{
-            path             = require("lib/bookshelf_home_dir").get() or "/",
-            select_directory = true,
-            select_file      = false,
-            show_files       = false,
-            onConfirm        = function(folder)
-                folder = (folder == "/") and "/" or folder:gsub("/+$", "")
+    -- Bookshelf's folder list (Move to's), as a page of this one; Browse
+    -- device on its strip reaches a folder outside it.
+    local function add_via_chooser(set, label)
+        require("lib/bookshelf_folder_picker").show{
+            title      = label,
+            new_folder = false,
+            over       = Editor._over({ label }),
+            on_cancel  = function() end,
+            on_pick    = function(folder)
                 set[folder] = true
                 changed()
             end,
-        })
+        }
     end
     -- A page: the folders the shelf keeps to and the ones it leaves out, each
     -- with a cross to drop it, and a way to add one under each.
@@ -3837,7 +3835,7 @@ function Editor:_pickFolderFilter(draft, on_close)
                     on_clear = function() set[p] = nil; changed() end }
             end
             blocks[#blocks + 1] = { type = "chips", items = { { text = "+ " .. add_label,
-                callback = function() add_via_chooser(set) end } } }
+                callback = function() add_via_chooser(set, add_label) end } } }
         end
         section(_("Only books in these folders"), folders.include, _("Add a folder"))
         section(_("Leave out these folders"), folders.exclude, _("Add a folder to leave out"))

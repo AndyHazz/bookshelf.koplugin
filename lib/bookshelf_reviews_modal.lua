@@ -1011,6 +1011,9 @@ function ReviewsModal:_assemble()
         end
     end
     local had_body = #self.layout >= body_start
+    -- The body's rows, for bringing a focused one into view in its scroll.
+    self._body_rows = had_body and { from = body_start, to = #self.layout } or nil
+    self._focus_scroll = type(body) == "table" and body.focus_scroll or nil
     self:mergeLayoutInVertical(buttons)
     -- Default focus into the body when it has buttons (e.g. the Edit tab opens
     -- ready to act); otherwise the first row (tabs if present, else footer).
@@ -1030,6 +1033,38 @@ function ReviewsModal:_assemble()
         .. " buildButtons=%.0fms buildHeader=%.0fms layout=%.0fms TOTAL=%.0fms",
         (_t1 - _t0) * 1000, (_t2 - _t1) * 1000, (_t3 - _t2) * 1000,
         (_t4 - _t3) * 1000, (_t5 - _t4) * 1000, (_t5 - _t0) * 1000))
+end
+
+-- onFocusMove: FocusManager's, then the focused row brought into view in
+-- the body's scroll: the keys reached rows below the fold with no way to see
+-- them (maintainer, desktop).
+function ReviewsModal:onFocusMove(args)
+    local r = FocusManager.onFocusMove(self, args)
+    self:_scrollFocusIntoView()
+    return r
+end
+
+-- _scrollFocusIntoView(): scroll the body so the focused row shows whole,
+-- by as little as that takes, with a margin. Its rect is where it was last
+-- painted: inside the scroll a row paints at its place less the offset, so
+-- it is off the view when it is above or below the scroll's own rect.
+function ReviewsModal:_scrollFocusIntoView()
+    local scroll, rows = self._focus_scroll, self._body_rows
+    if not (scroll and rows and scroll._is_scrollable and scroll.dimen and scroll.dimen.y) then return end
+    local sel = self.selected
+    if not (sel and sel.y >= rows.from and sel.y <= rows.to) then return end
+    local item = self.layout[sel.y] and self.layout[sel.y][sel.x]
+    local d = item and item.dimen
+    if not (d and d.y and d.h) then return end
+    local top, bottom = scroll.dimen.y, scroll.dimen.y + scroll.dimen.h
+    local margin = Space.px(12)
+    local dy = 0
+    if d.y < top then
+        dy = d.y - top - margin
+    elseif d.y + d.h > bottom then
+        dy = d.y + d.h - bottom + margin
+    end
+    if dy ~= 0 then scroll:_scrollBy(0, dy) end
 end
 
 -- _fontSizeKey(): the Store key for the currently active tab's font size.

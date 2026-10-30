@@ -23035,6 +23035,9 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     -- FocusManager can chain dpad nav across the whole tab (see
     -- ReviewsModal:_assemble's handling of an ARRAY focus_tables).
     out.focus_tables = focus_tables
+    -- The scroll the keys bring a focused row into view in
+    -- (ReviewsModal:_scrollFocusIntoView).
+    out.focus_scroll = scroll
     return out
 end
 

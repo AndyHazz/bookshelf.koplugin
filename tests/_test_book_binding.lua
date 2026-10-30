@@ -55,32 +55,18 @@ t.test("drilled and pinned series supply identity for light members, not author 
     eq(M.resolve({}, {series_name="Saga"}, M.applyOptions({}, "plain")), "paperback")
 end)
 
+-- The stack long-press menu is a PageDialog (STYLE.md): Book binding is a
+-- segmented control on its page, saved and redrawn in place.
 local function groupMenu(mode, kind)
     local src = F.source("lib/bookshelf_widget.lua")
-    local state = {shown=0, closed=0, rebuilds=0, reinits=0, refocuses=0, dirty={}}
-    local function labels(dialog)
-        dialog.labels = {}
-        for _, row in ipairs(dialog.buttons) do
-            for _, b in ipairs(row) do dialog.labels[b] = b.text_func and b.text_func() or b.text end
-        end
-    end
+    local state = {shown=0, closed=0, rebuilds=0, refreshes=0, dirty={}}
     local mocks = {
-        ["ui/widget/buttondialog"] = {new=function(_, opts)
-            opts.title_group_width = 600
-            opts.layout = {}
-            function opts:addWidget(w) self.prompt = w end
-            function opts:reinit()
-                eq(self.layout, nil, "focus layout was not reset")
-                self.layout = {}; labels(self); state.reinits = state.reinits + 1
-            end
-            function opts:refocusWidget(next_tick)
-                eq(next_tick, true); state.refocuses = state.refocuses + 1
-            end
-            labels(opts)
-            return opts
+        ["lib/bookshelf_page_dialog"] = {show=function(spec)
+            state.spec = spec; state.shown = state.shown + 1
+            state.dialog = {refresh=function() state.refreshes = state.refreshes + 1 end}
+            return state.dialog
         end},
-        ["ui/font"] = {},
-        ["ui/widget/textboxwidget"] = {new=function(_, opts) return opts end},
+        ["ui/widget/buttondialog"] = {new=function() error("still a ButtonDialog") end},
         ["lib/bookshelf_image_source"] = {
             getStackImageOverride=function() end, resolveStackImage=function() end,
             getFolderImageOverride=function() end, resolveFolderImage=function() end,
@@ -89,13 +75,13 @@ local function groupMenu(mode, kind)
     }
     local env = {
         require=function(name) return mocks[name] or require(name) end,
-        _=function(s) return s end, T=function(s,v) return (s:gsub("%%1",v)) end,
+        _=function(s) return s end, T=function(s,a,b) return (s:gsub("%%1",tostring(a)):gsub("%%2",tostring(b))) end,
         GROUP_KINDS={series={source_id_field="series_name"}, author={source_id_field="series_name"},
             folder={source_id_field="path"}},
         ViewMode=require("lib/bookshelf_view_mode"), Focus=require("lib/bookshelf_focus"),
         BFont={getFace=function() return {} end},
         UIManager={
-            show=function(_, dialog) state.dialog=dialog; state.shown=state.shown+1 end,
+            show=function() end,
             close=function() state.closed=state.closed+1 end,
             setDirty=function(_, w, refresh)
                 eq(refresh,"ui"); state.dirty[w]=(state.dirty[w] or 0)+1
@@ -114,37 +100,39 @@ local function groupMenu(mode, kind)
     }
     method("_openGroupMenu", ", group, kind")(w, {series_name="Saga",path="/library"}, kind)
     state.widget = w
-    for _, row in ipairs(state.dialog.buttons) do
-        for _, button in ipairs(row) do
-            if state.dialog.labels[button]:match("^Book binding:") then state.button=button end
+    state.binding = function()
+        for _, b in ipairs(state.spec.page().blocks) do
+            if b.type == "segmented" and b.label == "Book binding" then return b end
         end
     end
     return state
 end
 
-t.test("series binding cycles in place, persists each step and refreshes shelf and dialog", function()
+t.test("series binding is a choice on the menu's page, saved and redrawn in place", function()
     M.setSeries("Saga",nil)
     local flushes, other = F.flushes, M.series("Other")
     local state = groupMenu("spines", "series")
-    local button, dialog = assert(state.button), state.dialog
-    local prompt = dialog.prompt
-    eq(dialog.labels[button],"Book binding: Follow shelf")
-    local values, names = {"hardcover","paperback",false}, {"Hardback","Paperback","Follow shelf"}
-    for i=1,6 do
-        local pick=(i-1)%3+1
-        button.callback()
-        eq(M.series("Saga"),values[pick] or nil)
-        eq(dialog.labels[button],"Book binding: "..names[pick])
-        eq(F.flushes,flushes+i)
-        eq(state.rebuilds,i); eq(state.reinits,i); eq(state.refocuses,i)
-        eq(state.dirty[state.widget],i); eq(state.dirty[dialog],i)
+    local seg = assert(state.binding(), "no Book binding on the page")
+    eq(seg.active, "follow")
+    local keys = {}
+    for i, it in ipairs(seg.items) do keys[i] = it.key .. "=" .. it.label end
+    eq(table.concat(keys, " "), "follow=Follow shelf hardcover=Hardback paperback=Paperback")
+    local picks = {"hardcover","paperback","follow","paperback"}
+    for i, key in ipairs(picks) do
+        state.binding().on_pick(key)
+        eq(M.series("Saga"), key ~= "follow" and key or nil)
+        eq(state.binding().active, key)
+        eq(F.flushes, flushes+i)
+        eq(state.rebuilds,i); eq(state.refreshes,i); eq(state.dirty[state.widget],i)
     end
-    eq(state.shown,1); eq(state.closed,0); eq(dialog.prompt,prompt)
+    -- The one picked again: nothing to save.
+    state.binding().on_pick("paperback")
+    eq(F.flushes, flushes+#picks); eq(state.rebuilds, #picks)
+    eq(state.shown,1); eq(state.closed,0)
     eq(M.series("Other"),other)
-    M.setSeries("Saga","paperback")
     local reopened=groupMenu("spines","series")
-    eq(reopened.dialog.labels[reopened.button],"Book binding: Paperback")
-    reopened.button.callback(); eq(M.series("Saga"),nil)
+    eq(reopened.binding().active,"paperback")
+    reopened.binding().on_pick("follow"); eq(M.series("Saga"),nil)
 end)
 
 t.test("series binding is absent in covers/list views and on non-series groups", function()
@@ -152,8 +140,8 @@ t.test("series binding is absent in covers/list views and on non-series groups",
     for _,mode in ipairs({"covers","list","spines"}) do
         for _,kind in ipairs({"series","author","folder"}) do
             local state=groupMenu(mode,kind)
-            eq(state.button~=nil,mode=="spines" and kind=="series")
-            eq(state.rebuilds,0); eq(state.reinits,0); eq(state.closed,0)
+            eq(state.binding()~=nil,mode=="spines" and kind=="series")
+            eq(state.rebuilds,0); eq(state.closed,0)
         end
     end
     eq(F.flushes,flushes)

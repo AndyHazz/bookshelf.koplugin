@@ -25297,19 +25297,6 @@ function BookshelfWidget:_openGroupMenu(group, kind)
     local display_name = group.label or group.series_name
         or (type(source_id) == "string" and source_id) or kind
 
-    -- Per-kind "this <thing>" fragment for the prompt. Translatable.
-    local this_kind
-    if     kind == "folder"   then this_kind = _("this folder")
-    elseif kind == "series"   then this_kind = _("this series")
-    elseif kind == "author"   then this_kind = _("this author")
-    elseif kind == "genre"    then this_kind = _("this genre")
-    elseif kind == "tag"      then this_kind = _("this collection")
-    elseif kind == "format"   then this_kind = _("this format")
-    elseif kind == "rating"   then this_kind = _("this rating")
-    elseif kind == "language" then this_kind = _("this language")
-    else                           this_kind = _("this group")
-    end
-
     -- Prompt + action buttons are state-aware. For "some" (the Venn
     -- middle), both Add and Remove are offered; for "all" only Remove;
     -- for "none" only Add.
@@ -25323,25 +25310,12 @@ function BookshelfWidget:_openGroupMenu(group, kind)
         end
     end
     local remaining_count = n_for_prompt - in_sel_count
-    -- Hard line break after the first action so each option reads as
-    -- its own line ("Pin …" / "or add/remove …") rather than wrapping
-    -- mid-phrase.
-    local prompt
-    if sel_state == "all" then
-        prompt = string.format(
-            _("Pin %s to the shelf menu for quick access,\nor remove its %d books from your selection."),
-            this_kind, n_for_prompt)
-    elseif sel_state == "some" then
-        -- Partial overlap: surface both numbers in the prompt so the
-        -- two action buttons read unambiguously without parsing.
-        prompt = string.format(
-            _("Pin %s to the shelf menu for quick access,\nor add %d more / remove the %d already selected."),
-            this_kind, remaining_count, in_sel_count)
-    else  -- "none"
-        prompt = string.format(
-            _("Pin %s to the shelf menu for quick access,\nor select its %d books for bulk edits."),
-            this_kind, n_for_prompt)
-    end
+    -- The strip's summary: what the stack holds, and how much of it is
+    -- already selected (the headings below say what each action does).
+    local books_text = n_for_prompt == 1 and _("1 book")
+        or T(_("%1 books"), n_for_prompt)
+    local prompt = in_sel_count > 0
+        and T(_("%1, %2 selected"), books_text, in_sel_count) or books_text
 
     local function create_chip()
         -- Find a free custom_N id by walking existing tabs. Same pattern
@@ -25396,138 +25370,114 @@ function BookshelfWidget:_openGroupMenu(group, kind)
         UIManager:setDirty(bw, "ui")
     end
 
-    -- Custom ButtonDialog. Shape:
-    --
-    --   +-----------------------------------------------------+
-    --   |              Hercule Poirot Mystery                 |  <- title (bold)
-    --   | Pin this series to the chip bar for quick access,   |  <- prompt
-    --   |   or add its 37 books to a selection for bulk edits.|
-    --   +-----------------------------------------------------+
-    --   |          Pin          |          Select             |
-    --   +-----------------------------------------------------+
-    -- The way out is the title's X (withClose), not a Cancel among actions.
-    local ButtonDialog  = require("ui/widget/buttondialog")
-    local Font          = require("ui/font")
-    local TextBoxWidget = require("ui/widget/textboxwidget")
-
+    -- A page (STYLE.md): what the stack holds in the strip, then its
+    -- actions grouped under headings. Most close the page and act; Book
+    -- binding is a setting, saved and redrawn in place. The way out is the
+    -- title's X.
     local dialog
-    local function close_dialog() UIManager:close(dialog) end
-
     local bw_ref = self
-    local buttons = {
-        {
-            { text = _("Pin"),    callback = function()
-                close_dialog()
-                create_chip()
-            end },
-        },
-    }
-    -- Append action buttons to the same row, state-aware:
-    --   "none" → Select N        (nothing to add to yet: this STARTS a
-    --                             selection, matching the book detail
-    --                             tab's own "Select" button)
-    --   "some" → Add N more | Remove M  (the Venn-diagram middle, where
-    --                             "add" is right: a selection exists)
-    --   "all"  → Remove N
-    -- Each action applies directly with no extra confirmation.
+    local function act(fn)
+        return function() UIManager:close(dialog); fn() end
+    end
+    local function chip(text, fn) return { text = text, callback = act(fn) } end
+    local blocks = {}
+    local function section(heading, items)
+        if #items == 0 then return end
+        blocks[#blocks + 1] = { type = "heading", text = heading }
+        blocks[#blocks + 1] = { type = "chips", items = items }
+    end
+
+    section(_("Shelf menu"), { chip(_("Pin to the shelf menu"), create_chip) })
+
+    -- Selection, state-aware:
+    --   "none" > Select N        (nothing to add to yet: this STARTS a
+    --                             selection, matching the book popup's
+    --                             own Select)
+    --   "some" > Add N more | Remove M  (the Venn-diagram middle)
+    --   "all"  > Remove N
+    -- Each applies directly with no extra confirmation.
+    local books = {}
     if n_for_prompt > 0 then
         if sel_state ~= "all" and remaining_count > 0 then
-            table.insert(buttons[1], {
-                text = (sel_state == "some")
-                    and string.format(_("Add %d more"), remaining_count)
-                    or  string.format(_("Select %d"), n_for_prompt),
-                callback = function()
-                    close_dialog()
-                    bw_ref:_applyStackSelection(group, "add")
-                end,
-            })
+            books[#books + 1] = chip((sel_state == "some")
+                and string.format(_("Add %d more"), remaining_count)
+                or  string.format(_("Select %d"), n_for_prompt),
+                function() bw_ref:_applyStackSelection(group, "add") end)
         end
         if sel_state ~= "none" and in_sel_count > 0 then
-            table.insert(buttons[1], {
-                text = string.format(_("Remove %d"), in_sel_count),
-                callback = function()
-                    close_dialog()
-                    bw_ref:_applyStackSelection(group, "remove")
-                end,
-            })
+            books[#books + 1] = chip(string.format(_("Remove %d"), in_sel_count),
+                function() bw_ref:_applyStackSelection(group, "remove") end)
         end
     end
+    -- Page counts for just this stack's books (issue 459): the same dialog as
+    -- the settings menu's, scoped. A folder counts every book under it.
+    books[#books + 1] = chip(_("Extract page counts\xE2\x80\xA6"), function()
+        require("lib/bookshelf_page_count_dialog").showScoped(display_name, bw_ref:_resolveStackPaths(group), bw_ref)
+    end)
+    section(_("Books"), books)
 
     if kind == "series" and self:_isSpineMode() then
         local Binding = require("lib/bookshelf_book_binding")
-        buttons[#buttons + 1] = {{
-            text_func = function()
-                local value = Binding.series(source_id)
-                return T(_("Book binding: %1"), value and Binding.label(value) or _("Follow shelf"))
-            end,
-            callback = function()
-                local value = Binding.series(source_id)
-                local next_value
-                if value == nil then next_value = "hardcover"
-                elseif value == "hardcover" then next_value = "paperback" end
-                if Binding.setSeries(source_id, next_value) then
+        blocks[#blocks + 1] = { type = "heading", text = _("Spines") }
+        blocks[#blocks + 1] = { type = "segmented", label = _("Book binding"),
+            items = {
+                { key = "follow",    label = _("Follow shelf") },
+                { key = "hardcover", label = Binding.label("hardcover") },
+                { key = "paperback", label = Binding.label("paperback") },
+            },
+            active_func = function() return Binding.series(source_id) or "follow" end,
+            on_pick = function(key)
+                local value = key ~= "follow" and key or nil
+                if value == Binding.series(source_id) then return end
+                if Binding.setSeries(source_id, value) then
                     bw_ref:_rebuild()
                     UIManager:setDirty(bw_ref, "ui")
-                    Focus.reinit(dialog)
-                    UIManager:setDirty(dialog, "ui")
+                    if dialog then dialog:refresh() end
                 end
-            end,
-        }}
+            end }
     end
 
-    -- Custom-image row (#70). Folders take a filesystem path and may
-    -- already have an auto-detected cover.jpg; author/series/genre/tag
-    -- stacks take a (kind, name) pair and look the image up in the
-    -- user's bookshelf image library. The two share storage and
-    -- render path through ImageSource, but the picker / clear actions
-    -- diverge slightly per kind.
+    -- Custom image (#70). Folders take a filesystem path and may already
+    -- have an auto-detected cover.jpg; author/series/genre/tag stacks take a
+    -- (kind, name) pair and look the image up in the user's bookshelf image
+    -- library. The two share storage and render path through ImageSource,
+    -- but the picker / clear actions diverge slightly per kind.
     local ImageSource = require("lib/bookshelf_image_source")
     if kind == "folder" and group.path then
         local has_override = ImageSource.getFolderImageOverride(group.path) ~= nil
         local has_resolved = ImageSource.resolveFolderImage(group.path) ~= nil
-        local folder_row = {
-            { text = _("Set folder image\xE2\x80\xA6"), callback = function()
-                close_dialog()
-                bw_ref:_pickFolderImage(group.path)
-            end },
-        }
+        local image = { chip(_("Set folder image\xE2\x80\xA6"), function()
+            bw_ref:_pickFolderImage(group.path)
+        end) }
         if has_override or has_resolved then
-            folder_row[#folder_row + 1] = {
-                text = _("Clear folder image"),
-                callback = function()
-                    close_dialog()
-                    ImageSource.clearFolderImage(group.path)
-                    ImageSource.invalidateCache()
-                    bw_ref:_rebuild()
-                    UIManager:setDirty(bw_ref, "ui")
-                end,
-            }
+            image[#image + 1] = chip(_("Clear folder image"), function()
+                ImageSource.clearFolderImage(group.path)
+                ImageSource.invalidateCache()
+                bw_ref:_rebuild()
+                UIManager:setDirty(bw_ref, "ui")
+            end)
         end
-        table.insert(buttons, folder_row)
-
-        -- File management row (feature/file-move): relocate or rename
-        -- the real directory behind this folder card.
-        table.insert(buttons, {
-            { text = _("Move folder\xE2\x80\xA6"), callback = function()
-                close_dialog()
+        section(_("Image"), image)
+        -- File management (feature/file-move): relocate or rename the real
+        -- directory behind this folder card.
+        section(_("Folder"), {
+            chip(_("Move folder\xE2\x80\xA6"), function()
                 require("lib/bookshelf_move_flow").moveFolder{
                     bw = bw_ref, folder_path = group.path,
                 }
-            end },
-            { text = _("Rename folder\xE2\x80\xA6"), callback = function()
-                close_dialog()
+            end),
+            chip(_("Rename folder\xE2\x80\xA6"), function()
                 require("lib/bookshelf_move_flow").renameFolder{
                     bw = bw_ref, folder_path = group.path,
                 }
-            end },
+            end),
         })
     elseif (kind == "author" or kind == "series" or kind == "genre" or kind == "tag")
            and type(source_id) == "string" and source_id ~= "" then
-        -- Per-kind button label so a user holding an author stack sees
-        -- "Set author image..." rather than a generic phrase that
-        -- would read wrong on the four kinds. The translation lookups
-        -- are dynamic but each msgid is also written verbatim in the
-        -- false-branch below so xgettext can find them.
+        -- Per-kind label so a user holding an author stack sees "Set author
+        -- image..." rather than a generic phrase that would read wrong on the
+        -- four kinds. The lookups are dynamic but each msgid is also written
+        -- verbatim in the false-branch below so xgettext can find them.
         if false then
             local _ignore = {
                 _("Set author image\xE2\x80\xA6"),
@@ -25554,90 +25504,63 @@ function BookshelfWidget:_openGroupMenu(group, kind)
         }
         local has_override = ImageSource.getStackImageOverride(kind, source_id) ~= nil
         local has_resolved = ImageSource.resolveStackImage(kind, source_id) ~= nil
-        local row = {
-            { text = set_labels[kind], callback = function()
-                close_dialog()
-                bw_ref:_pickStackImage(kind, source_id)
-            end },
-        }
+        local image = { chip(set_labels[kind], function()
+            bw_ref:_pickStackImage(kind, source_id)
+        end) }
         if has_override or has_resolved then
-            row[#row + 1] = {
-                text = clear_labels[kind],
-                callback = function()
-                    close_dialog()
-                    local function done()
-                        ImageSource.invalidateCache()
-                        bw_ref:_rebuild()
-                        UIManager:setDirty(bw_ref, "ui")
-                    end
-                    if has_override then
-                        ImageSource.clearStackImage(kind, source_id)
-                        return done()
-                    end
-                    -- No image chosen by hand: what shows is a FILE in the
-                    -- image library (put there by the reader, or by Find
-                    -- author image online), and forgetting an override
-                    -- would leave it showing. Clearing it means removing
-                    -- the file, so say which one and ask.
-                    local file = ImageSource.resolveStackImage(kind, source_id)
-                    if not file then return done() end
-                    UIManager:show(require("ui/widget/confirmbox"):new{
-                        -- The last two parts (authors/Saki.jpg), as the
-                        -- Image library setting shows its folder: the whole
-                        -- path is mostly the storage's own prefix.
-                        text = T(_("Delete this image from the image library?\n\n%1"),
-                                 file:match("([^/]+/[^/]+)$") or file),
-                        ok_text = _("Delete"),
-                        ok_callback = function()
-                            os.remove(file)
-                            done()
-                        end,
-                    })
-                end,
-            }
+            image[#image + 1] = chip(clear_labels[kind], function()
+                local function done()
+                    ImageSource.invalidateCache()
+                    bw_ref:_rebuild()
+                    UIManager:setDirty(bw_ref, "ui")
+                end
+                if has_override then
+                    ImageSource.clearStackImage(kind, source_id)
+                    return done()
+                end
+                -- No image chosen by hand: what shows is a FILE in the
+                -- image library (put there by the reader, or by Find
+                -- author image online), and forgetting an override
+                -- would leave it showing. Clearing it means removing
+                -- the file, so say which one and ask.
+                local file = ImageSource.resolveStackImage(kind, source_id)
+                if not file then return done() end
+                UIManager:show(require("ui/widget/confirmbox"):new{
+                    -- The last two parts (authors/Saki.jpg), as the
+                    -- Image library setting shows its folder: the whole
+                    -- path is mostly the storage's own prefix.
+                    text = T(_("Delete this image from the image library?\n\n%1"),
+                             file:match("([^/]+/[^/]+)$") or file),
+                    ok_text = _("Delete"),
+                    ok_callback = function()
+                        os.remove(file)
+                        done()
+                    end,
+                })
+            end)
         end
-        table.insert(buttons, row)
         -- A photo from Open Library or Wikipedia, saved into the image
-        -- library (lib/bookshelf_author_images). Its own row: the one above
-        -- already holds two long labels. Not offered for "Anonymous" and the
-        -- like, which no one has a photo of.
+        -- library (lib/bookshelf_author_images). Not offered for
+        -- "Anonymous" and the like, which no one has a photo of.
         if kind == "author"
                 and not require("lib/bookshelf_author_images").isPlaceholder(source_id) then
-            table.insert(buttons, {
-                { text = _("Find author image online"), callback = function()
-                    close_dialog()
-                    require("lib/bookshelf_author_images_flow").findOne(bw_ref, source_id)
-                end },
-            })
+            image[#image + 1] = chip(_("Find author image online"), function()
+                require("lib/bookshelf_author_images_flow").findOne(bw_ref, source_id)
+            end)
         end
+        section(_("Image"), image)
     end
 
-    -- Page counts for just this stack's books (issue 459): the same dialog as
-    -- the settings menu's, scoped. A folder counts every book under it.
-    table.insert(buttons, {
-        { text = _("Extract page counts\xE2\x80\xA6"), callback = function()
-            close_dialog()
-            require("lib/bookshelf_page_count_dialog").showScoped(display_name, bw_ref:_resolveStackPaths(group), bw_ref)
-        end },
-    })
-
-    dialog = ButtonDialog:new(require("lib/bookshelf_module_kit").withClose{
-        title          = display_name,
-        title_align    = "center",
-        use_info_style = false,  -- use the bold title face, not infofont
-        buttons        = buttons,
-    })
-    -- Subtitle prompt: explains both actions so the user knows what
-    -- each button does. Sits between the title and the button row.
-    local prompt_face, prompt_bold = BFont:getFace("infofont", 16)
-    dialog:addWidget(TextBoxWidget:new{
-        text      = prompt,
-        face      = prompt_face,
-        bold      = prompt_bold,
-        alignment = "center",
-        width     = dialog.title_group_width or math.floor(Screen:getWidth() * 0.6),
-    })
-    UIManager:show(dialog)
+    local function page()
+        for _i, b in ipairs(blocks) do
+            if b.active_func then b.active = b.active_func() end
+        end
+        return { strip = { { type = "summary", text = prompt } }, blocks = blocks }
+    end
+    dialog = require("lib/bookshelf_page_dialog").show{
+        title = display_name,
+        page  = page,
+    }
 end
 
 -- _pickFolderImage(folder_path) -- file picker for the "Set folder

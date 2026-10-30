@@ -76,4 +76,20 @@ t.test("with no editor up, an order row falls back to buttons", function()
     eq(rows[1][2].enabled, false)
 end)
 
+-- Maintainer: an Edit button on each row, into that shelf's editor.
+t.test("each row has an Edit card into that shelf's editor", function()
+    local src = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
+    local body = src:sub((src:find("function Editor:_openShelfOrder", 1, true)))
+    body = body:sub(1, (body:find("\nend\n", 1, true)))
+    assert(body:find("on_edit = ", 1, true), "the rows have no Edit")
+    assert(src:find("local function editOther(id)", 1, true), "the editor cannot hand over to another shelf")
+    local page = io.open("lib/bookshelf_editor_page.lua"):read("*a")
+    local r = page:match("\n(function R%.order%(.-\nend)\n")
+    assert(r:find("ctx:nudgeCard(PENCIL, b.on_edit", 1, true), "no pencil card")
+    local Page = dofile("lib/bookshelf_editor_page.lua")
+    local rows = Page.toButtons({ blocks = { { type = "order", label = "Home",
+        on_up = function() end, on_down = function() end, on_edit = function() end } } })
+    eq(#rows[1], 4)
+end)
+
 t.done()

@@ -700,6 +700,19 @@ function Editor:editTab(tab_id, opts)
         Editor:editTab(new_id, copy_opts)
     end
 
+    -- editOther(id): Shelf order's pencil. This editor closes as Close does
+    -- (a new shelf with no source is not kept) and id's opens, on id's shelf
+    -- as Copy's does, so its changes show behind it.
+    local function editOther(id)
+        if closed then return end
+        local other = {}
+        for k, v in pairs(opts) do
+            if k ~= "pick_source_first" and k ~= "on_discard" then other[k] = v end
+        end
+        if is_new and not hasSource() then discardNew() else leaveFor(id) end
+        Editor:editTab(id, other)
+    end
+
     -- canMove(): somewhere to go -- a shelf of shelves other than this one
     -- and its own, or the shelf menu when it sits inside one.
     local function canMove()
@@ -1549,7 +1562,7 @@ function Editor:editTab(tab_id, opts)
                             -- cache to invalidate. The strip repaints in its
                             -- new order.
                             if opts.on_change then opts.on_change() end
-                        end)
+                        end, editOther)
                     end,
                 },
             },
@@ -2016,7 +2029,9 @@ end
 -- menu bar's, or a shelf of shelves'), each drawn as its chip is on the bar,
 -- tab_id's black, with up and down on every one, so any of them can be put
 -- in its place from here. A move saves at once and calls on_change.
-function Editor:_openShelfOrder(tab_id, on_change)
+-- on_edit(id): a pencil on each other shelf's row, into its editor
+-- (maintainer).
+function Editor:_openShelfOrder(tab_id, on_change, on_edit)
     local d
     local function move(id, delta)
         local all = TabModel.load()
@@ -2038,7 +2053,10 @@ function Editor:_openShelfOrder(tab_id, on_change)
             blocks[#blocks + 1] = { type = "order", label = label, selected = id == tab_id,
                 up_enabled = i > 1, down_enabled = i < #list,
                 on_up = function() move(id, -1) end,
-                on_down = function() move(id, 1) end }
+                on_down = function() move(id, 1) end,
+                -- Not on the shelf being edited: its editor is the one open.
+                on_edit = (on_edit and id ~= tab_id) and function() on_edit(id) end or nil,
+                edit_slot = on_edit ~= nil }
         end
         return { blocks = blocks }
     end

@@ -281,6 +281,33 @@ M.MINE  = "mine"
 M.PLAIN = "plain"
 M.SHELF_SETTING = "shelf_theme"          -- CoverProgress.THEME_SETTING
 
+-- The Theme library's Last used order: when each theme was last chosen
+-- there, { [choice] = os.time() }. Written with the other theme settings,
+-- so once as the picker closes (Orn.beginDeferred).
+M.USED_SETTING = "theme_used"
+M._now = nil
+function M.markUsed(choice)
+    if choice == nil then return end   -- Default theme stands for another
+    local was = read(M.USED_SETTING)
+    local used = {}
+    if type(was) == "table" then for k, v in pairs(was) do used[k] = v end end
+    used[choice] = (M._now or os.time)()
+    save(M.USED_SETTING, used)
+end
+function M.usedAt(choice)
+    local used = read(M.USED_SETTING)
+    return type(used) == "table" and tonumber(used[choice]) or nil
+end
+
+-- addedAt(choice) -> when a pack was copied in: its folder's time (nil for
+-- Custom theme, Plain or a pack no longer there).
+function M.addedAt(choice)
+    local O = orn()
+    local dir = choice and O.packDir and O.packDir(choice)
+    if not dir then return nil end
+    return tonumber(fs().attributes(dir, "modification"))
+end
+
 -- mineName() -> what menus call the reader's own look. The ONE place the
 -- name lives, so it can be renamed with a one-line change (maintainer).
 -- "Custom theme", not "My theme" (maintainer, 2026-10-09); the id stays

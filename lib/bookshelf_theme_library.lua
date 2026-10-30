@@ -278,6 +278,49 @@ function TL.items(ctx)
     return out
 end
 
+-- The order switch on the strip (maintainer). Newest: by the pack folder's
+-- time, which a copy onto the device sets.
+function TL.orders()
+    return {
+        { key = "az",    label = _("A-Z") },
+        { key = "added", label = _("Newest") },
+        { key = "used",  label = _("Last used") },
+    }
+end
+
+-- order(items, by, when) -> the cards in that order, a copy. A-Z is the
+-- list's own (TP.choiceList: the packs by name). Default theme and a missing
+-- pack stay first. Custom theme and Plain stay next for A-Z and Newest (they
+-- are not added), and are ordered with the packs by use for Last used.
+-- when.added(item) / when.used(item) -> a time or nil; most recent first,
+-- those with none after, in the list's order.
+function TL.order(items, by, when)
+    local tp = TP()
+    local key = (by == "added" or by == "used") and when and when[by]
+    if not key then
+        local out = {}
+        for i, it in ipairs(items) do out[i] = it end
+        return out
+    end
+    local top, rest = {}, {}
+    for _i, it in ipairs(items) do
+        local builtin = it.value == tp.MINE or it.value == tp.PLAIN
+        if it.same or it.missing or (builtin and by ~= "used") then
+            top[#top + 1] = it
+        else
+            rest[#rest + 1] = it
+        end
+    end
+    local t, at = {}, {}
+    for i, it in ipairs(rest) do t[it], at[it] = key(it) or 0, i end
+    table.sort(rest, function(a, b)
+        if t[a] ~= t[b] then return t[a] > t[b] end
+        return at[a] < at[b]
+    end)
+    for _i, it in ipairs(rest) do top[#top + 1] = it end
+    return top
+end
+
 -- isCurrent(item, current) -> that card is the choice in use.
 function TL.isCurrent(item, current)
     if item.same then return current == nil end
@@ -370,11 +413,20 @@ function TL.cardHeight()
     return math.floor((area - (n - 1) * g) / n)
 end
 
--- areaHeight() -> the cards' area: PER_PAGE cards and the gaps between, no
--- more, so the picker is no taller than its cards.
-function TL.areaHeight()
-    return TL.PER_PAGE * TL.cardHeight() + (TL.PER_PAGE - 1) * gap()
+-- areaHeight(_cw, room) -> the cards' area: PER_PAGE cards and the gaps
+-- between, no more, so the picker is no taller than its cards. Fewer cards
+-- a page (not shorter ones, down to 2) when that is more than the room the
+-- modal has (LibraryModal config.area_height): a small screen whose strip
+-- wraps to two rows. TL.perPage() is then how many.
+TL._per_page = nil
+function TL.areaHeight(_cw, room)
+    local h, g = TL.cardHeight(), gap()
+    local n = TL.PER_PAGE
+    while room and n > 2 and n * h + (n - 1) * g > room do n = n - 1 end
+    TL._per_page = n
+    return n * h + (n - 1) * g
 end
+function TL.perPage() return TL._per_page or TL.PER_PAGE end
 
 -- heroWidget(e, box_w, box_h) -> the hero as the collection previews it
 -- (bookshelf_ornament_browser.preview), over the drop shadow the piece's
@@ -508,11 +560,33 @@ function TL.show(opts)
     -- The ornaments, scanned once for the picker's life (TL.scan): every
     -- card, every page and every tap's relisting read this one.
     local scan = TL.scan()
-    local function load()
-        self.items = TL.items{ shelf = opts.shelf, current = opts.current(), follow = opts.follow,
-                               spines = spines, scan = scan }
+    -- The order (TL.orders), kept for the session. Last used reads the
+    -- times as the picker opens and as the switch is tapped, so choosing a
+    -- theme does not move the card tapped. A theme in use with no time (worn
+    -- before Last used was kept) comes after those chosen, before the rest.
+    local used, added = {}, {}
+    local when = {
+        used = function(it) return used[it.value] end,
+        added = function(it)
+            if added[it.value] == nil then added[it.value] = tp.addedAt and tp.addedAt(it.value) or false end
+            return added[it.value] or nil
+        end,
+    }
+    local function load(first)
+        local items = TL.items{ shelf = opts.shelf, current = opts.current(), follow = opts.follow,
+                                spines = spines, scan = scan }
+        if first and tp.usedAt then
+            local cur, lib = opts.current(), tp.libraryChoice and tp.libraryChoice()
+            for _i, c in ipairs(items) do
+                if c.value ~= nil then
+                    used[c.value] = tp.usedAt(c.value)
+                        or ((c.value == cur or c.value == lib) and 1 or nil)
+                end
+            end
+        end
+        self.items = TL.order(items, TL._order or "az", when)
     end
-    load()
+    load(true)
     local modal
     -- Each tap's choice is kept in memory and the settings file written
     -- once, as the picker closes however it closes (on_closed), as the
@@ -566,7 +640,7 @@ function TL.show(opts)
         -- The outline moving to the card is the tap's feedback.
         select_on_tap = true,
         grid_cols = function() return 1 end,
-        cells_per_page = function() return TL.PER_PAGE end,
+        cells_per_page = function() return TL.perPage() end,
         area_height = TL.areaHeight,
         cell_renderer = function(item, dimen)
             return TL._renderCard(item, dimen, TL.isCurrent(item, opts.current()), scan.all)
@@ -574,6 +648,7 @@ function TL.show(opts)
         on_cell_tap = function(item)
             if item.missing or TL.isCurrent(item, opts.current()) then return end
             opts.choose(item.value)
+            if not item.same and tp.markUsed then tp.markUsed(item.value) end
             -- Listed again: a missing pack that was the choice drops out.
             load()
             if modal then
@@ -588,6 +663,18 @@ function TL.show(opts)
         -- A pack or Plain: Reset to original, for that card.
         cell_long_tap = function(item)
             TL.showReset(item, function() reset(item.value) end)
+        end,
+        -- A-Z | Newest | Last used, at the left of the strip.
+        chip_strip = function()
+            local out = {}
+            for _i, o in ipairs(TL.orders()) do
+                out[#out + 1] = { key = o.key, label = o.label, is_active = o.key == (TL._order or "az") }
+            end
+            return out
+        end,
+        on_chip_tap = function(key)
+            TL._order = key
+            load(true)
         end,
         item_count = function() return #self.items end,
         item_at = function(i) return self.items[i] end,

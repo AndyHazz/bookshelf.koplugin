@@ -1368,10 +1368,30 @@ function LibraryModal:refresh()
     -- card and below the last card is the refresh() inter-section gap.
     local area_height = rows_per_page * intrinsic_card_h
         + (rows_per_page - 1) * MARGIN
-    -- config.area_height(content_w): the caller's own height for the cards'
-    -- area, when its cards are not 64dp rows (the Theme library: a page of
-    -- cards of its own height, the modal no taller than they need).
-    if self.config.area_height then area_height = self.config.area_height(cw) end
+    -- config.area_height(content_w, room): the caller's own height for the
+    -- cards' area, when its cards are not 64dp rows (the Theme library: a
+    -- page of cards of its own height, the modal no taller than they need).
+    -- room: the most the area can have with the modal on the screen, or the
+    -- editor's page it is (a small screen whose strip wraps to two rows ran
+    -- the cards and the page row off the bottom).
+    if self.config.area_height then
+        local room
+        do
+            local chrome = title:getSize().h + (strip and strip:getSize().h or 0) + 2 * MARGIN
+                + pagination:getSize().h + 2 * self.frame.bordersize
+                + (footer and (MARGIN + footer:getSize().h) or (MARGIN + math.floor(MARGIN / 2)))
+            local intro = self.config.intro
+            if type(intro) == "function" then intro = intro() end
+            if intro and intro ~= "" then
+                chrome = chrome + PopupKit.hintText(intro, 19, cw):getSize().h + MARGIN
+            end
+            local limit = self._over_rect and self._over_rect.h or (Screen:getHeight() - 2 * MARGIN)
+            room = limit - chrome
+        end
+        area_height = self.config.area_height(cw, room)
+        -- The caller may now show fewer a page: the page row counts again.
+        pagination = self:_renderPagination(cw)
+    end
 
     -- Frame's padding_left/right are 0 so the title bar separator runs edge-
     -- to-edge. Each non-title section is padded with HorizontalSpan(MARGIN)

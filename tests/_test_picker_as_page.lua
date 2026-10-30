@@ -52,4 +52,20 @@ t.test("Modules is a page of the editor, and its pick is not asked twice", funct
     assert(w:find("return self:_addSpineModule(pick)", 1, true), "spines: the pick does not reach the add")
 end)
 
+-- A page of the editor keeps the editor's height (less to paint), and the
+-- picker on it fills that height with rows of cards at their own size, the
+-- page row at the bottom (maintainer: Collections from the bulk menu left an
+-- empty band under the page row).
+t.test("a page fills its height with rows, the page row at the bottom", function()
+    local cpp = assert(lm:match("\nfunction LibraryModal:_cellsPerPage%(content_width%)\n(.-)\nend\n"))
+    assert(cpp:find("self._fill_rows * self:_gridCols()", 1, true), "the rows that fit are not used")
+    for _i, fn in ipairs({ "_renderGridArea", "_gridNav", "_revealFocus" }) do
+        local body = assert(lm:match("\nfunction LibraryModal:" .. fn .. "%(.-%)\n(.-)\nend\n"), fn)
+        assert(not body:find("self.config.cells_per_page(", 1, true), fn .. " pages by the picker's own count")
+    end
+    assert(lm:find("elseif self._over_rect and self.config.cell_renderer then", 1, true), "a page is not filled")
+    assert(lm:find("if i == page_at then parts[#parts + 1] = VerticalSpan:new{ width = short } end", 1, true),
+        "the spare height is under the page row")
+end)
+
 t.done()

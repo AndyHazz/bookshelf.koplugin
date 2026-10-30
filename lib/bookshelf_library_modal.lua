@@ -201,6 +201,15 @@ function LibraryModal:onClose()
     return true
 end
 
+-- _cellsPerPage(content_w) -> config.cells_per_page, or as many rows as fill
+-- the page when it is a page of the editor (refresh: self._fill_rows).
+function LibraryModal:_cellsPerPage(content_width)
+    if self._fill_rows and self.config.cell_renderer then
+        return self._fill_rows * self:_gridCols()
+    end
+    return self.config.cells_per_page and self.config.cells_per_page(content_width) or 1
+end
+
 -- _revealFocus() -> true when the focus ring was hidden (every picker opens
 -- with it hidden) and this key press showed it instead of moving it: on the
 -- cell config.focus_on_key() names when it is on the page, else the first.
@@ -208,7 +217,7 @@ function LibraryModal:_revealFocus()
     if self._dpad_idx ~= nil then return false end
     local total = self.config.item_count and self.config.item_count() or 0
     if total == 0 then return false end
-    local per = self.config.cells_per_page and self.config.cells_per_page(self.content_w) or 1
+    local per = self:_cellsPerPage(self.content_w)
     local first = ((self.page or 1) - 1) * per + 1
     local last = math.min(total, first + per - 1)
     local want = self.config.focus_on_key and self.config.focus_on_key()
@@ -224,8 +233,7 @@ end
 function LibraryModal:_gridNav(delta)
     local total = self.config.item_count and self.config.item_count() or 0
     if total == 0 then return end
-    local cells_per_page = self.config.cells_per_page
-        and self.config.cells_per_page(self.content_w) or 1
+    local cells_per_page = self:_cellsPerPage(self.content_w)
     local new_idx = math.max(1, math.min(total, (self._dpad_idx or 1) + delta))
     if new_idx == self._dpad_idx then return end
     self._dpad_idx = new_idx
@@ -1022,7 +1030,7 @@ function LibraryModal:_renderListArea(content_width, area_height)
 end
 
 function LibraryModal:_renderGridArea(content_width, area_height)
-    local cells_per_page = self.config.cells_per_page(content_width)
+    local cells_per_page = self:_cellsPerPage(content_width)
     local total = self.config.item_count and self.config.item_count() or 0
     local total_pages = math.max(1, math.ceil(total / cells_per_page))
     if self.page > total_pages then self.page = total_pages end
@@ -1038,15 +1046,7 @@ function LibraryModal:_renderGridArea(content_width, area_height)
     -- silently drops to 3 cols when the caller wanted 4). Fall back to a
     -- target-width heuristic for callers that don't declare cols.
     -- grid_cols may be a function so consumers can vary it per active chip.
-    local cols
-    if self.config.grid_cols then
-        cols = type(self.config.grid_cols) == "function"
-            and self.config.grid_cols()
-            or self.config.grid_cols
-    else
-        local target_cell_w = Device.screen:scaleBySize(220)
-        cols = math.max(3, math.floor(content_width / target_cell_w))
-    end
+    local cols = self:_gridCols()
     local rows = math.ceil(cells_per_page / cols)
     -- Cell dimensions subtract MARGIN gaps in both axes so the grid has
     -- visible breathing room horizontally as well as vertically. Without
@@ -1167,7 +1167,7 @@ function LibraryModal:_renderPagination(content_width)
     -- _renderGridArea/_total_pages); list mode sets rows_per_page. A grid caller
     -- may ALSO set rows_per_page purely to tune the grid area height (it has no
     -- bearing on grid paging), so cells_per_page must win here when present.
-    local per_page = (self.config.cells_per_page and self.config.cells_per_page(content_width))
+    local per_page = (self.config.cells_per_page and self:_cellsPerPage(content_width))
         or self.config.rows_per_page
         or 1
     if type(per_page) == "function" then
@@ -1374,22 +1374,31 @@ function LibraryModal:refresh()
     -- room: the most the area can have with the modal on the screen, or the
     -- editor's page it is (a small screen whose strip wraps to two rows ran
     -- the cards and the page row off the bottom).
-    if self.config.area_height then
-        local room
-        do
-            local chrome = title:getSize().h + (strip and strip:getSize().h or 0) + 2 * MARGIN
-                + pagination:getSize().h + 2 * self.frame.bordersize
-                + (footer and (MARGIN + footer:getSize().h) or (MARGIN + math.floor(MARGIN / 2)))
-            local intro = self.config.intro
-            if type(intro) == "function" then intro = intro() end
-            if intro and intro ~= "" then
-                chrome = chrome + PopupKit.hintText(intro, 19, cw):getSize().h + MARGIN
-            end
-            local limit = self._over_rect and self._over_rect.h or (Screen:getHeight() - 2 * MARGIN)
-            room = limit - chrome
+    local function room()
+        local chrome = title:getSize().h + (strip and strip:getSize().h or 0) + 2 * MARGIN
+            + pagination:getSize().h + 2 * self.frame.bordersize
+            + (footer and (MARGIN + footer:getSize().h) or (MARGIN + math.floor(MARGIN / 2)))
+        local intro = self.config.intro
+        if type(intro) == "function" then intro = intro() end
+        if intro and intro ~= "" then
+            chrome = chrome + PopupKit.hintText(intro, 19, cw):getSize().h + MARGIN
         end
-        area_height = self.config.area_height(cw, room)
+        local limit = self._over_rect and self._over_rect.h or (Screen:getHeight() - 2 * MARGIN)
+        return limit - chrome
+    end
+    self._fill_rows = nil
+    if self.config.area_height then
+        area_height = self.config.area_height(cw, room())
         -- The caller may now show fewer a page: the page row counts again.
+        pagination = self:_renderPagination(cw)
+    elseif self._over_rect and self.config.cell_renderer then
+        -- A page of the editor is the editor's height (one size, less to
+        -- paint): as many rows of cards at their own height as fill it, not
+        -- the picker's own count with an empty band under it (maintainer:
+        -- Collections from the bulk menu).
+        local rows = math.max(2, math.floor((room() + MARGIN) / (intrinsic_card_h + MARGIN)))
+        self._fill_rows = rows
+        area_height = rows * intrinsic_card_h + (rows - 1) * MARGIN
         pagination = self:_renderPagination(cw)
     end
 
@@ -1429,6 +1438,9 @@ function LibraryModal:refresh()
     end
     table.insert(body, padded(result_area))
     table.insert(body, VerticalSpan:new{ width = MARGIN })
+    -- The page row: last, at the bottom of a page of the editor (the spare
+    -- height goes above it, below).
+    local page_at = #body + 1
     table.insert(body, padded(pagination))
     -- The same gap under the page row as over it: before the footer, or
     -- (no footer) the frame's own bottom padding alone.
@@ -1447,7 +1459,15 @@ function LibraryModal:refresh()
         local pad = self.frame.padding_bottom + 2 * self.frame.bordersize
         local short = self._over_rect.h - (body:getSize().h + (footer and footer:getSize().h or 0) + pad)
         if short > 0 then
-            body = VerticalGroup:new{ align = "left", body, VerticalSpan:new{ width = short } }
+            -- Above the page row, so it stays at the bottom. A new group:
+            -- body has measured itself, and keeps those offsets.
+            local parts = { align = "left" }
+            for i, w in ipairs(body) do
+                if i == page_at then parts[#parts + 1] = VerticalSpan:new{ width = short } end
+                parts[#parts + 1] = w
+            end
+            if page_at > #body then parts[#parts + 1] = VerticalSpan:new{ width = short } end
+            body = VerticalGroup:new(parts)
         end
     end
     -- Edge to edge, down to the frame's bottom border. In a group of its

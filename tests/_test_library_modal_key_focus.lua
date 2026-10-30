@@ -14,7 +14,7 @@ local function method(name)
     assert(body, "LibraryModal:" .. name .. " not found")
     assert(load("local LibraryModal = ...\n" .. body))(LibraryModal)
 end
-for _i, n in ipairs({ "_revealFocus", "_gridNav", "_gridCols", "onGridFocusDown", "onGridFocusRight", "onGridPress" }) do
+for _i, n in ipairs({ "_revealFocus", "_cellsPerPage", "_gridNav", "_gridCols", "onGridFocusDown", "onGridFocusRight", "onGridPress" }) do
     method(n)
 end
 

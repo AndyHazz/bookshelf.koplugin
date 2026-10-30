@@ -417,17 +417,15 @@ end
 -- between, no more, so the picker is no taller than its cards. Fewer cards
 -- a page (not shorter ones, down to 2) when that is more than the room the
 -- modal has (LibraryModal config.area_height): a small screen whose strip
--- wraps to two rows. Those cards then share the whole room, a little
--- taller: at their own height they left an empty band under the page row
--- of the editor's page, which is the editor's height (maintainer).
--- TL.perPage() is how many.
+-- wraps to two rows. The cards keep their own height; on the editor's page
+-- the spare height goes above the page row (LibraryModal). TL.perPage() is
+-- how many.
 TL._per_page = nil
 function TL.areaHeight(_cw, room)
     local h, g = TL.cardHeight(), gap()
     local n = TL.PER_PAGE
     while room and n > 2 and n * h + (n - 1) * g > room do n = n - 1 end
     TL._per_page = n
-    if n < TL.PER_PAGE then return math.max(n * h + (n - 1) * g, room) end
     return n * h + (n - 1) * g
 end
 function TL.perPage() return TL._per_page or TL.PER_PAGE end

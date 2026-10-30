@@ -247,6 +247,10 @@ a control by hand, so a change lands everywhere.
   on editor pages, on/off chips, options and slots are instant, and a chip
   that opens something (Edit collection order >) is not. A tap that changes
   nothing saved (picking a sort level) redraws the page, not the shelf.
+- A nudge (a − or +, a slider's step) acts at once with no pressed look:
+  its value is the feedback. The shelf behind is rebuilt once the taps
+  pause (about a third of a second), not per tap, so rapid taps never
+  queue behind whole-screen rebuilds.
 - A preview of a change behind a picker (a theme on the shelf) refreshes as
   ui while the picker is up; the one full refresh that clears e-ink ghosts
   comes when it closes, and only if something changed.

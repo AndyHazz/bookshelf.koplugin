@@ -88,6 +88,9 @@ package.loaded["ui/uimanager"] = {
                                     refreshtype = refreshtype, region = region }
     end,
     setDirty = function(_, w, kind) ui_calls[#ui_calls + 1] = { op = "setDirty", w = w, kind = kind } end,
+    -- The nudge's preview waits for the taps to pause; here it runs at once.
+    scheduleIn = function(_, _t, f) f() end,
+    unschedule = function() end,
 }
 
 -- ButtonDialog: hand back the plain constructor table untouched. No

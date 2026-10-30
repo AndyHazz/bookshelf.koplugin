@@ -39,6 +39,10 @@ M.SHADOW_DP = 3         -- the shadow's offset, right and down
 -- outer "10" buttons (and a hold on the small ones): ten points of each.
 -- Height's small step is ONE point: seating a piece so it looks centred on
 -- the plank needs finer control than 2% of its height (maintainer).
+-- How long the shelf waits after a nudge before it is rebuilt: rapid taps
+-- land within it and share one rebuild.
+M.SETTLE = 0.35
+
 M.STEPS = {
     scale = { 0.05, 0.10 },
     pad   = { 0.01, 0.10 },
@@ -151,6 +155,7 @@ function M.show(entry, bw, piece, widget, opts)
         local btn = Kit.button{ text = o.text, face = o.text and face or nil,
             icon_glyph = o.glyph, icon_face = o.glyph and Font:getFace("symbols", o.glyph_size or (FS + 6)) or nil,
             height = h, width = o.width, pad_h = o.pad_h, gap = o.gap, enabled = o.enabled,
+            instant = o.instant,
             border = (not o.outline) and 0 or nil,
             on_tap = o.on_tap, on_hold = o.on_hold }
         if not o.outline then Kit.cardify(btn[1]) end
@@ -203,7 +208,13 @@ function M.show(entry, bw, piece, widget, opts)
         }, { right }
     end
 
-    local function redraw()
+    -- The shelf behind, rebuilt to show the change. A nudge waits for the
+    -- taps to pause (SETTLE) and rebuilds once: one rebuild per tap was the
+    -- whole screen redrawn every time, and rapid taps queued behind it
+    -- (maintainer, PW5). The panel shows the new value at once.
+    local shelf_pending = false
+    local function rebuildShelf()
+        shelf_pending = false
         if bw and bw._rebuild then
             -- The piece's size moves where rows, and so pages, break later
             -- on: those are re-learnt, and this page keeps its start.
@@ -211,14 +222,23 @@ function M.show(entry, bw, piece, widget, opts)
             bw:_rebuild()
             UIManager:setDirty(bw, "ui")
         end
+    end
+    local function redraw(soon)
+        UIManager:unschedule(rebuildShelf)
+        if soon then
+            shelf_pending = true
+            UIManager:scheduleIn(M.SETTLE, rebuildShelf)
+        else
+            rebuildShelf()
+        end
         -- The panel built again, where it was (place): the picture follows
         -- the piece (its mirroring), the values theirs.
         if dialog then dialog:reinit(); place() end
     end
-    local function set(field, value)
+    local function set(field, value, soon)
         Orn.readerSet(entry, field, value)
         entry = Orn.current(entry)
-        redraw()
+        redraw(soon)
     end
     -- setAnchor(v): pinned to the plank ("bottom") or under the shelf above
     -- ("top"), from the anchor itself: the old height meant somewhere else.
@@ -231,7 +251,7 @@ function M.show(entry, bw, piece, widget, opts)
     end
     local function nudge(field, sign, big)
         local step = M.STEPS[field][big and 2 or 1]
-        set(field, M.nudged(entry, field, sign * step))
+        set(field, M.nudged(entry, field, sign * step), true)
     end
 
     -- The pieces that are on, in this shelf's saved order: what "place"
@@ -247,7 +267,7 @@ function M.show(entry, bw, piece, widget, opts)
         return names
     end
     local function step(delta)
-        if Deck.move(entry.name, delta, onNames(), shelf) then redraw() end
+        if Deck.move(entry.name, delta, onNames(), shelf) then redraw(true) end
     end
 
     -- A value: tap it to reset (what the pack says), a plain label while it
@@ -378,7 +398,8 @@ function M.show(entry, bw, piece, widget, opts)
         -- enabled }.
         local function stepper(dec, inc, value)
             local function b(o, text_)
-                return kbutton{ text = (not o.glyph) and text_ or nil, glyph = o.glyph,
+                -- At once, no pressed look: the value is the feedback.
+                return kbutton{ text = (not o.glyph) and text_ or nil, glyph = o.glyph, instant = true,
                     -- The minus and plus the size they are on the -10 / +10
                     -- cards, so every one matches (maintainer).
                     glyph_size = (o.glyph == MINUS_GLYPH or o.glyph == PLUS_GLYPH) and FS - 4 or nil,
@@ -393,9 +414,9 @@ function M.show(entry, bw, piece, widget, opts)
             -- maintainer: there is room, and a hint for a hold is not needed).
             if dec.big then
                 local big_minus = kbutton{ glyph = MINUS_GLYPH, glyph_size = FS - 4, text = "10", gap = Space.px(1),
-                    pad_h = Space.px(6), on_tap = dec.big }
+                    pad_h = Space.px(6), on_tap = dec.big, instant = true }
                 local big_plus  = kbutton{ glyph = PLUS_GLYPH, glyph_size = FS - 4, text = "10", gap = Space.px(1),
-                    pad_h = Space.px(6), on_tap = inc.big }
+                    pad_h = Space.px(6), on_tap = inc.big, instant = true }
                 return line({ big_minus, HorizontalSpan:new{ width = Space.px(3) }, minus, value, plus,
                     HorizontalSpan:new{ width = Space.px(3) }, big_plus }, 0),
                     { big_minus, minus, plus, big_plus }
@@ -606,6 +627,11 @@ function M.show(entry, bw, piece, widget, opts)
     -- However it closes (the X, Back, an action that closes it): write the
     -- reader's file once, and repaint what it covered.
     function dialog:onCloseWidget()
+        -- A rebuild still waiting for the taps to pause: now.
+        if shelf_pending then
+            UIManager:unschedule(rebuildShelf)
+            rebuildShelf()
+        end
         Orn.saveReader()
         local r = drawnRect()
         if r and rect then r = r:combine(rect) end

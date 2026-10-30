@@ -81,6 +81,9 @@ local ChipButton = {}
 --                   bottom of the screen (the layout editor's footer)
 --   opts.on_tap     function() fired on tap
 --   opts.on_hold    function() fired on a long-press (a nudge's big step)
+--   opts.instant    act at once, with no pressed look first: a tap whose
+--                   result shows at once (a nudge's value), where the pressed
+--                   frame was one more refresh for every tap (maintainer)
 --   opts.enabled    false: grey border, label and icon, and a tap does nothing
 function ChipButton.build(opts)
     -- Can't act now: light grey all over, the border lighter still. Dark
@@ -155,7 +158,8 @@ function ChipButton.build(opts)
     -- still shows it was taken.
     btn.onTapSelect = function()
         if opts.on_tap and opts.enabled ~= false then
-            require("lib/bookshelf_popup_kit").pressThen(btn, frame, opts.on_tap)
+            if opts.instant then opts.on_tap()
+            else require("lib/bookshelf_popup_kit").pressThen(btn, frame, opts.on_tap) end
         end
         return true
     end

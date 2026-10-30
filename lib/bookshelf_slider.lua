@@ -83,7 +83,7 @@ function Slider.new(o)
         local enabled = (d < 0 and value > o.min) or (d > 0 and value < o.max)
         local btn = Kit.button{ text = label, face = o.face, icon_glyph = d < 0 and MINUS or PLUS,
             icon_face = glyph_face, gap = Space.px(2), pad_h = Space.px(8),
-            height = btn_h, border = 0, enabled = enabled,
+            height = btn_h, border = 0, enabled = enabled, instant = true,
             on_tap = function() commit(value + d * by) end }
         Kit.cardify(btn[1])
         return btn

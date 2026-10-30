@@ -239,8 +239,12 @@ t.test("nudges step on a grid and stop at the limits", function()
         "up/down are not the bookends chevrons")
     assert(src:find("local function big(sign) return function() nudge(field, sign, true) end end", 1, true)
            and src:find("hold = big(1), big = big(1)", 1, true), "no big step on hold")
-    assert(src:find("function dialog:onCloseWidget%(%)\n%s*Orn%.saveReader%(%)"),
-        "nothing writes the file when the menu closes")
+    local cw = src:match("function dialog:onCloseWidget%(%)(.-)\n    end\n")
+    assert(cw and cw:find("Orn.saveReader()", 1, true), "nothing writes the file when the menu closes")
+    -- A shelf rebuild still waiting for the taps to pause runs first.
+    assert(cw:find("if shelf_pending then", 1, true) and cw:find("rebuildShelf()", 1, true)
+           and cw:find("rebuildShelf()", 1, true) < cw:find("Orn.saveReader()", 1, true),
+        "a pending shelf rebuild is lost on close")
 end)
 
 t.test("the piece on the shelf answers long-press and, with an action, tap", function()
@@ -393,7 +397,7 @@ t.test("menu: a picture of the piece under its name, even while it is switched o
     assert(paint and paint:find("M.paintPlacement(", 1, true), "the shelf and the preview paint differently")
     local menu = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
     assert(menu:find("local head, head_keys = headerWidget(close)", 1, true), "no picture in the menu")
-    local rd = menu:match("local function redraw%(%)(.-)\n    end\n")
+    local rd = menu:match("local function redraw%(soon%)(.-)\n    end\n")
     assert(rd and rd:find("dialog:reinit()", 1, true), "the picture is not redrawn with the piece")
     local pw = menu:match("local function headerWidget%(close%)(.-)\n    end\n")
     assert(pw and not pw:find("Orn.Ornament:new", 1, true), "the picture is a live ornament (a hold would open another menu)")
@@ -561,6 +565,19 @@ t.test("menus: at the top with the top panel up, clear of the piece without; dra
     assert(he and he:find('ev.ges == "tap"', 1, true) and he:find("self:_dismiss()", 1, true)
            and he:find('ev.ges == "tap"', 1, true) < he:find("overlayEvent", 1, true),
         "a tap outside goes to the gesture zones first")
+end)
+
+-- Rapid taps on a nudge were slow: each drew the button pressed (and waited
+-- for the panel), then rebuilt the whole shelf (maintainer, PW5). Nudges act
+-- at once with no pressed look, and the shelf is rebuilt once the taps pause.
+t.test("nudges: at once, no pressed look; the shelf rebuilt once the taps pause", function()
+    local src = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
+    assert(src:find("glyph = o.glyph, instant = true,", 1, true), "the steppers still press first")
+    local rd = src:match("local function redraw%(soon%)(.-)\n    end\n")
+    assert(rd and rd:find("UIManager:scheduleIn(M.SETTLE, rebuildShelf)", 1, true), "every nudge rebuilds the shelf")
+    assert(src:find("set(field, M.nudged(entry, field, sign * step), true)", 1, true), "a nudge does not wait")
+    local cb = io.open("lib/bookshelf_chip_button.lua"):read("*a")
+    assert(cb:find("if opts.instant then opts.on_tap()", 1, true), "the kit button cannot act at once")
 end)
 
 t.done()

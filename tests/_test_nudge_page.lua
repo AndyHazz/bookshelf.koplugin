@@ -21,7 +21,10 @@ local function open(spec)
         T = function(s, a) return (s:gsub("%%1", tostring(a))) end,
         BookshelfSettings = { read = function(k, d) local v = saved[k]; if v == nil then return d end; return v end,
             save = function(k, v) saved[k] = v end },
-        UIManager = { close = function() state.closed = true end, setDirty = function() end },
+        -- The preview waits for the taps to pause (scheduleIn); here it runs
+        -- at once, so each change shows as before.
+        UIManager = { close = function() state.closed = true end, setDirty = function() end,
+                      scheduleIn = function(_s, _t, f) f() end, unschedule = function() end },
         require = function(n)
             if n == "lib/bookshelf_page_dialog" then
                 return { show = function(o)

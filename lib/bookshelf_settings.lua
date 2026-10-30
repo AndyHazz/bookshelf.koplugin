@@ -3165,10 +3165,12 @@ function Settings:_nudgePage(touchmenu_instance, spec)
     local restoreMenu = self._plugin:hideMenu(touchmenu_instance)
     local function getValue() return BookshelfSettings.read(key, default) end
     local dialog
-    local function setValue(v)
-        v = math.max(spec.min or 50, math.min(spec.max or 200, v))
-        if v == getValue() then return end
-        BookshelfSettings.save(key, v)
+    -- The preview behind waits for the taps to pause and is drawn once: one
+    -- rebuild per tap queued rapid taps behind it (maintainer, PW5). The
+    -- page shows the new value at once.
+    local pending = false
+    local function apply()
+        pending = false
         if spec.preview then spec.preview() end
         if not spec.no_shelf and self._bw and self._bw._rebuild then
             self._bw:_rebuild()
@@ -3177,11 +3179,26 @@ function Settings:_nudgePage(touchmenu_instance, spec)
         if touchmenu_instance and touchmenu_instance.updateItems then
             touchmenu_instance:updateItems()
         end
+    end
+    local function flush()
+        if pending then
+            UIManager:unschedule(apply)
+            apply()
+        end
+    end
+    local function setValue(v)
+        v = math.max(spec.min or 50, math.min(spec.max or 200, v))
+        if v == getValue() then return end
+        BookshelfSettings.save(key, v)
+        pending = true
+        UIManager:unschedule(apply)
+        UIManager:scheduleIn(0.35, apply)
         if dialog then dialog:refresh() end
     end
     local function show(v) return tostring(v) .. (spec.unit or "%") end
     local function done(revert)
         if revert then setValue(original) end
+        flush()
         UIManager:close(dialog)
         restoreMenu()
         if spec.on_done then spec.on_done() end
@@ -3211,6 +3228,7 @@ function Settings:_nudgePage(touchmenu_instance, spec)
         -- The X and Back: closed already; put the value back.
         on_close = function()
             setValue(original)
+            flush()
             restoreMenu()
             if spec.on_done then spec.on_done() end
         end,

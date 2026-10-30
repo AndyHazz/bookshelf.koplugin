@@ -128,7 +128,10 @@ t.test("the colours menu is the editor toolbar's Style and the spine module menu
     assert(ed:find('on_tap = function() s:colors() end', 1, true), "Style doesn't open the colours")
     assert(ed:find('require("lib/bookshelf_module_card_menu").show(ctx)', 1, true), "editor opens the menu")
     local w = io.open("lib/bookshelf_widget.lua"):read("*a")
-    assert(w:find("d:addWidget(CardMenu.titleRow(", 1, true), "spine module menu title")
+    -- The spine module menu: Style on its bar (as the editor's toolbar).
+    assert(w:find('bar[#bar + 1] = { text = _("Style"), callback = function()', 1, true)
+           and w:find('require("lib/bookshelf_module_card_menu").show(HeroModules._ctx(bw, nil,', 1, true),
+        "spine module menu has no Style")
     assert(w:find("function host.ctx_for(entry)", 1, true), "a cover shelf's modules don't save to the shelf")
 end)
 

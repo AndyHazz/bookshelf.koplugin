@@ -7071,8 +7071,6 @@ end
 -- module moves it a book, as a swipe does in the layout editor. A tap
 -- outside closes it.
 function BookshelfWidget:_spineModuleMenu(entry)
-    local ButtonDialog = require("ui/widget/buttondialog")
-    local GestureRange = require("ui/gesturerange")
     local Modules = require("lib/bookshelf_start_menu_modules")
     local HeroModules = require("lib/bookshelf_hero_modules")
     local Session = require("lib/bookshelf_module_grid_session")
@@ -7081,7 +7079,7 @@ function BookshelfWidget:_spineModuleMenu(entry)
     local def = Modules.get(entry.module)
     local bw, id = self, entry.id
     local min_w = (def and def.min_w) or 1
-    -- The module as stored now: every button reads it when tapped.
+    -- The module as stored now: every control reads it when drawn.
     local function current()
         for _i, m in ipairs(SM.list(TabModel.getById(bw.chip)) or {}) do
             if m.id == id then return m end
@@ -7090,33 +7088,16 @@ function BookshelfWidget:_spineModuleMenu(entry)
     if not current() then return end
     local d
     local function width(m) return math.max(1, math.floor(tonumber(m.w) or 2)) end
-    -- Which buttons can act, set in place: the dialog keeps its shape.
-    local function refreshButtons()
-        local m = current()
-        if not m then
-            UIManager:close(d)
-            return
-        end
-        local can = {
-            narrower = width(m) > min_w,
-            wider    = width(m) < 6,
-            left     = SM.canStep(SM.list(TabModel.getById(bw.chip)) or {}, id, -1),
-            right    = true,
-            prev     = bw:_spineModulePageMove(id, -1) ~= nil,
-            next     = bw:_spineModulePageMove(id, 1) ~= nil,
-        }
-        for key, on in pairs(can) do
-            local btn = d:getButtonById(key)
-            if btn then
-                if on then btn:enable() else btn:disable() end
-            end
-        end
-        UIManager:setDirty(d, function() return "ui", d.movable.dimen end)
+    -- After a change the page is laid out again in place (closing and
+    -- reopening it per tap flashed the whole screen); gone, it closes.
+    local function redraw()
+        if not current() then UIManager:close(d); return end
+        d:refresh()
     end
     local function change(fn, then_do)
         bw:_changeShelfModule(id, fn)
         if then_do then then_do() end
-        refreshButtons()
+        redraw()
     end
     -- One thing along the shelf: past a book, or past a module beside it
     -- (SM.step); the list is rewritten in shelf order.
@@ -7127,32 +7108,24 @@ function BookshelfWidget:_spineModuleMenu(entry)
             for k = #l, 1, -1 do l[k] = nil end
             for k, m in ipairs(moved) do l[k] = m end
         end, function()
-            -- Nudged off the page: the view follows, and the menu anchors
-            -- beside the module again.
-            if bw:_spineFollowModule(id) and d and d.movable then d.movable._anchor_ensured = nil end
+            -- Nudged off the page: the view follows (the page anchors beside
+            -- the module again on its next paint).
+            bw:_spineFollowModule(id)
         end)
     end
     local function pageMove(dir)
         local to, show_from = bw:_spineModulePageMove(id, dir)
         if not to then return end
-        change(function(l, i) l[i].after = to end, function()
-            bw:_spineShowFrom(show_from)
-            -- The module stands somewhere else now: anchor beside it again.
-            if d and d.movable then d.movable._anchor_ensured = nil end
-        end)
-    end
-    local function chev(key, glyph, fn)
-        return { id = key, text = glyph, font_face = "symbols", font_bold = false, callback = fn }
+        change(function(l, i) l[i].after = to end, function() bw:_spineShowFrom(show_from) end)
     end
     -- A pinned piece's size is the piece's own (its Size in the ornament
-    -- menu), not a module width: its one Settings opens that menu, in place
-    -- of Narrower, Wider and the module's own settings.
+    -- menu), not a module width: Adjust ornament opens that menu, in place
+    -- of Width and the module's own settings.
     local pinned_piece = entry.module == "ornament" and entry.ornament
-    -- A card, or colours its spec declares: the palette icon in the title.
-    local CardMenu = require("lib/bookshelf_module_card_menu")
     local has_colors = #require("lib/bookshelf_module_card").rows(def) > 0
+    local function close() UIManager:close(d) end
     local function adjustPiece()
-        UIManager:close(d)
+        close()
         local Orn = require("lib/bookshelf_ornaments")
         for _i, pe in ipairs(Orn.listAll() or {}) do
             if pe.name == entry.ornament then
@@ -7161,94 +7134,96 @@ function BookshelfWidget:_spineModuleMenu(entry)
             end
         end
     end
-    d = ButtonDialog:new{
+    local function remove()
+        close()
+        bw:_changeShelfModule(id, function(l, i)
+            Modules.notifyRemoved(l[i])
+            table.remove(l, i)
+        end)
+    end
+    local function page()
+        local m = current() or entry
+        -- The bar: what the module has to set, and the way to take it off.
+        local bar = {}
+        if pinned_piece then
+            bar[#bar + 1] = { text = _("Adjust ornament"), callback = adjustPiece }
+        else
+            if def and type(def.show_settings) == "function" then
+                bar[#bar + 1] = { text = _("Settings"), callback = function()
+                    close()
+                    local cm = current()
+                    if cm then
+                        pcall(def.show_settings, HeroModules._ctx(bw, nil,
+                            HeroModules.adopt(cm, bw:_shelfModuleOwner(bw.chip))))
+                    end
+                end }
+            end
+            if has_colors then
+                bar[#bar + 1] = { text = _("Style"), callback = function()
+                    local cm = current()
+                    if not cm then return end
+                    close()
+                    require("lib/bookshelf_module_card_menu").show(HeroModules._ctx(bw, nil,
+                        HeroModules.adopt(cm, bw:_shelfModuleOwner(bw.chip))))
+                end }
+            end
+        end
+        -- Unpin puts a pinned piece back among the others, dealt in turn.
+        bar[#bar + 1] = { text = pinned_piece and _("Unpin") or _("Remove"), callback = remove }
+        local strip = {}
+        -- Why you are here, for a piece just pinned or long-pressed later:
+        -- what pinning did (maintainer: Pin here took you to a menu with no
+        -- clear idea why).
+        if pinned_piece then
+            strip[#strip + 1] = { type = "summary",
+                text = _("Pinned to this spot: it stays here among the books, instead of taking its turn with the other ornaments.") }
+        end
+        strip[#strip + 1] = { type = "chips", items = bar }
+        local blocks = {
+            { type = "heading", text = _("Move it") },
+            { type = "chips", items = {
+                { icon = Session.PAGE_PREV, text = _("Page"), enabled = bw:_spineModulePageMove(id, -1) ~= nil,
+                  callback = function() pageMove(-1) end },
+                { icon = Session.CHEV_LEFT, text = _("Left"),
+                  enabled = SM.canStep(SM.list(TabModel.getById(bw.chip)) or {}, id, -1),
+                  callback = function() nudge(-1) end },
+                { icon = Session.CHEV_RIGHT, text = _("Right"), callback = function() nudge(1) end },
+                { icon = Session.PAGE_NEXT, text = _("Page"), enabled = bw:_spineModulePageMove(id, 1) ~= nil,
+                  callback = function() pageMove(1) end },
+            } },
+            { type = "hint", text = _("Or swipe it on the shelf, a book at a time.") },
+        }
+        if not pinned_piece then
+            blocks[#blocks + 1] = { type = "stepper", label = _("Width"), value = tostring(width(m)),
+                on_dec = function() change(function(l, i) l[i].w = math.max(min_w, width(l[i]) - 1) end) end,
+                on_inc = function() change(function(l, i) l[i].w = math.min(6, width(l[i]) + 1) end) end }
+        end
+        return { strip = strip, blocks = blocks }
+    end
+    d = require("lib/bookshelf_page_dialog").show{
         -- A pinned piece's long-press opens this, not the ornament menu it
         -- opened before pinning: the title says why.
-        -- With colours to set, the title is a row of its own, with the
-        -- palette icon (added below).
-        title = (not has_colors) and (pinned_piece and _("Ornament module (pinned)")
-            or (def and def.title) or entry.module) or nil, title_align = "center",
-        -- Centred across the screen (it is nearly full width) and clear of
-        -- the module by a gap: the module's rect grown by the gap above and
-        -- below (maintainer). The x is its own, worked out from the dialog's
-        -- width (known by the time the anchor is asked): KOReader v2026.03
-        -- reads anchor.x at once and crashed on nil (PW3); later versions
-        -- centre a missing x the same way.
+        title = pinned_piece and _("Pinned ornament") or (def and def.title) or entry.module,
+        page = page,
+        -- Clear of the module by a gap: the module's rect grown by the gap
+        -- above and below (maintainer), the page under it or, with no room,
+        -- above. The x is its own, centred (KOReader v2026.03 read anchor.x
+        -- at once and crashed on nil, PW3).
         anchor = function()
             local cell = bw._spine_module_cells and bw._spine_module_cells[id]
             local r = cell and cell.dimen
-            local cw = d and d.movable and d.movable.dimen and d.movable.dimen.w
+            local cw = d and d.frame and d.frame:getSize().w
             if r and r.y and r.h and cw then
                 local gap = Screen:scaleBySize(16)
                 -- A plain table: Geom:new would fill in x = 0, pinning it left.
                 return { x = math.floor((Screen:getWidth() - cw) / 2), y = r.y - gap, w = cw, h = r.h + 2 * gap }
             end
         end,
-        buttons = pinned_piece and {
-            -- A pinned piece: moving it, then the piece's own ornament menu
-            -- (its Tap, Size, Height, Mirror -- the module's Settings would
-            -- only say the same again, and its tap isn't the one used).
-            {
-                chev("prev", Session.PAGE_PREV, function() pageMove(-1) end),
-                chev("left", Session.CHEV_LEFT, function() nudge(-1) end),
-                chev("right", Session.CHEV_RIGHT, function() nudge(1) end),
-                chev("next", Session.PAGE_NEXT, function() pageMove(1) end),
-            },
-            {
-                { text = _("Settings"), callback = adjustPiece },
-                { text = _("Remove"), callback = function()
-                    UIManager:close(d)
-                    bw:_changeShelfModule(id, function(l, i)
-                        Modules.notifyRemoved(l[i])
-                        table.remove(l, i)
-                    end)
-                  end },
-            },
-        } or {
-            {
-                chev("prev", Session.PAGE_PREV, function() pageMove(-1) end),
-                { id = "narrower", text = _("Narrower"), callback = function()
-                    change(function(l, i) l[i].w = math.max(min_w, width(l[i]) - 1) end) end },
-                chev("left", Session.CHEV_LEFT, function() nudge(-1) end),
-                chev("right", Session.CHEV_RIGHT, function() nudge(1) end),
-            },
-            {
-                chev("next", Session.PAGE_NEXT, function() pageMove(1) end),
-                { id = "wider", text = _("Wider"), callback = function()
-                    change(function(l, i) l[i].w = math.min(6, width(l[i]) + 1) end) end },
-                { text = _("Settings"), enabled = def and type(def.show_settings) == "function",
-                  callback = function()
-                    UIManager:close(d)
-                    local m = current()
-                    if m then
-                        pcall(def.show_settings, HeroModules._ctx(bw, nil,
-                            HeroModules.adopt(m, bw:_shelfModuleOwner(bw.chip))))
-                    end
-                  end },
-                { text = _("Remove"), callback = function()
-                    UIManager:close(d)
-                    bw:_changeShelfModule(id, function(l, i)
-                        Modules.notifyRemoved(l[i])
-                        table.remove(l, i)
-                    end)
-                  end },
-            },
-        },
     }
-    if has_colors then
-        local Font = require("ui/font")
-        d:addWidget(CardMenu.titleRow((def and def.title) or entry.module, Font:getFace("x_smalltfont"),
-            d:getAddedWidgetAvailableWidth(), entry, d, function()
-                local m = current()
-                if not m then return end
-                UIManager:close(d)
-                CardMenu.show(HeroModules._ctx(bw, nil, HeroModules.adopt(m, bw:_shelfModuleOwner(bw.chip))))
-            end))
-    end
-    -- A swipe that starts on the module moves it a book left or right.
-    d.ges_events.SwipeModule = { GestureRange:new{ ges = "swipe",
-        range = Geom:new{ x = 0, y = 0, w = Screen:getWidth(), h = Screen:getHeight() } } }
-    function d:onSwipeModule(_arg, ges)
+    -- A swipe that starts on the module moves it a book left or right. Ahead
+    -- of everything else: outside the page a swipe goes to KOReader's
+    -- gesture zones first (a page-turn swipe would take it).
+    local function onSwipeModule(ges)
         local cell = bw._spine_module_cells and bw._spine_module_cells[id]
         local r = cell and cell.dimen
         if not (r and r.x and ges and ges.pos and ges.pos:intersectWith(r)) then return false end
@@ -7256,8 +7231,12 @@ function BookshelfWidget:_spineModuleMenu(entry)
         if ges.direction == "west" then nudge(-1) return true end
         return false
     end
-    UIManager:show(d)
-    refreshButtons()
+    local handle = d.handleEvent
+    function d:handleEvent(event)
+        local ev = event.handler == "onGesture" and event.args and event.args[1]
+        if ev and ev.ges == "swipe" and onSwipeModule(ev) then return true end
+        return handle(self, event)
+    end
 end
 
 -- _addSpineModule(): the add picker, then the new module after the item at

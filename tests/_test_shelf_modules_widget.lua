@@ -193,6 +193,14 @@ t.test("the spine module menu is centred and clear of the module", function()
     assert(a:find("x = math.floor((Screen:getWidth() - cw) / 2)", 1, true), "not centred by its own x")
 end)
 
+-- A pinned piece's menu says what pinning did (maintainer: Pin here took
+-- you to a menu with no clear idea why).
+t.test("a pinned piece's menu says what pinning did, and Unpin undoes it", function()
+    local m = fn("_spineModuleMenu")
+    assert(m:find('_("Pinned to this spot: it stays here among the books', 1, true), "no word on what pinning did")
+    assert(m:find('pinned_piece and _("Unpin") or _("Remove")', 1, true), "no Unpin")
+end)
+
 -- The spine module menu stays open and updates in place (closing and
 -- reopening it per tap flashed the whole screen), takes swipes on the module,
 -- and the shelf's refresh after a change is the rows-only swap.
@@ -200,8 +208,11 @@ t.test("the spine module menu updates in place and takes swipes", function()
     local m = fn("_spineModuleMenu")
     assert(m, "no menu")
     assert(not m:find("bw:_spineModuleMenu(entry)", 1, true), "it still reopens itself")
-    assert(m:find("d:getButtonById(key)", 1, true) and m:find("btn:enable()", 1, true), "buttons not updated in place")
-    assert(m:find("d.ges_events.SwipeModule", 1, true) and m:find('ges.direction == "east"', 1, true), "no swipe on the module")
+    -- A page (STYLE.md), laid out again in place after a change.
+    assert(m:find('require("lib/bookshelf_page_dialog").show{', 1, true) and m:find("d:refresh()", 1, true),
+        "not updated in place")
+    assert(m:find("ev.ges == \"swipe\" and onSwipeModule(ev)", 1, true) and m:find('ges.direction == "east"', 1, true),
+        "no swipe on the module")
     local owner = fn("_shelfModuleOwner")
     local r = owner and owner:match("function owner.refresh%(%)(.-)\n    end")
     assert(r and r:find("bw:_swapShelvesInPlace()", 1, true), "no in-place swap")

@@ -58,7 +58,7 @@ end)
 t.test("the menu's nudge and swipe use the step", function()
     local w = io.open("lib/bookshelf_widget.lua"):read("*a")
     assert(w:find("local moved = SM.step(l, id, dir)", 1, true), "the nudge only changes after")
-    assert(w:find("left     = SM.canStep(SM.list(TabModel.getById(bw.chip)) or {}, id, -1)", 1, true),
+    assert(w:find("enabled = SM.canStep(SM.list(TabModel.getById(bw.chip)) or {}, id, -1),", 1, true),
         "< is offered only by after")
 end)
 

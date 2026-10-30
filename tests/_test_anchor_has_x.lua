@@ -30,7 +30,7 @@ end)
 
 t.test("the spine module menu centres itself from its own width", function()
     local src = io.open("lib/bookshelf_widget.lua"):read("*a")
-    assert(src:find("local cw = d and d.movable and d.movable.dimen and d.movable.dimen.w", 1, true),
+    assert(src:find("local cw = d and d.frame and d.frame:getSize().w", 1, true),
         "the menu doesn't know its width")
     assert(src:find("return { x = math.floor((Screen:getWidth() - cw) / 2), y = r.y - gap, w = cw, h = r.h + 2 * gap }", 1, true),
         "the menu isn't centred by its own x")

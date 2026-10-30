@@ -178,8 +178,9 @@ function PageDialog:refresh()
     local prev = d and d.x and Geom:new{ x = d.x, y = d.y, w = d.w, h = d.h }
     self:_build()
     local size = self.frame:getSize()
-    if prev and (size.w ~= prev.w or size.h ~= prev.h) then
-        -- Centred: a change of size moves it too.
+    if prev and (size.w ~= prev.w or size.h ~= prev.h or self.anchor) then
+        -- Centred: a change of size moves it too. Anchored: what it is
+        -- anchored to may have moved (a module nudged along the shelf).
         UIManager:setDirty("all", "ui", prev)
         self.frame.dimen = nil
     end

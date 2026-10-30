@@ -47,7 +47,7 @@ t.test("Pin here is offered where it can pin, and pins there", function()
     assert(orn:find("return h(self.placement.entry, self.placement, self.dimen, self)", 1, true), "the long-press passes only the rect")
     assert(w:find('require("lib/bookshelf_ornament_menu").show(entry, shelf, piece, widget)', 1, true), "the shelf drops the piece")
     assert(menu:find("if on_shelf and src and src.pin_after_idx and bw and bw._pinOrnament then", 1, true), "offered with nowhere to pin")
-    assert(menu:find('left_btns[#left_btns + 1] = barButton(_("Pin here")', 1, true), "Pin here is not on the bar")
+    assert(menu:find('left_btns[#left_btns + 1] = barButton(_("Pin to this spot")', 1, true), "Pin to this spot is not on the bar")
     local f = w:match("\nfunction BookshelfWidget:_pinOrnament%(entry, piece%)\n(.-)\nend\n")
     assert(f, "no _pinOrnament")
     assert(f:find('module = "ornament"', 1, true) and f:find("ornament = entry.name", 1, true), "not an Ornament module of the piece")
@@ -68,19 +68,20 @@ t.test("a pinned piece looks as it did dealt, and its menu adjusts the piece", f
     local orn = io.open("lib/bookshelf_ornaments.lua"):read("*a")
     assert(orn:find("if self.hold_fn then", 1, true), "the piece ignores its own hold handler")
     local m = w:match("\nfunction BookshelfWidget:_spineModuleMenu%(entry%)\n(.-)\nend\n")
-    -- One Settings for a pinned piece: the piece's own ornament menu.
-    assert(m and m:find("buttons = pinned_piece and {", 1, true), "no layout of its own")
-    assert(m:find('{ text = _("Settings"), callback = adjustPiece }', 1, true), "Settings isn't the piece's menu")
-    local pinned_rows = m:match("buttons = pinned_piece and {(.-)} or {")
-    assert(pinned_rows and not pinned_rows:find("Narrower", 1, true) and not pinned_rows:find("def.show_settings", 1, true),
-           "a pinned piece still has Narrower or the module's own Settings")
+    -- One way in for a pinned piece: the piece's own ornament menu, in
+    -- place of Width and the module's own settings.
+    assert(m and m:find('bar[#bar + 1] = { text = _("Adjust ornament"), callback = adjustPiece }', 1, true),
+        "Adjust ornament isn't the piece's menu")
+    assert(m:find("if pinned_piece then\n            bar[#bar + 1] = { text = _(\"Adjust ornament\")", 1, true)
+           and m:find("if not pinned_piece then\n            blocks[#blocks + 1] = { type = \"stepper\", label = _(\"Width\")", 1, true),
+        "a pinned piece still has Width or the module's own Settings")
 end)
 
 -- Its long-press opens a different menu from the piece it was: the title
 -- says why, so it doesn't read as the ornament menu gone missing.
 t.test("a pinned piece's menu is titled as a pinned ornament", function()
     local m = w:match("\nfunction BookshelfWidget:_spineModuleMenu%(entry%)\n(.-)\nend\n")
-    assert(m and m:find('(pinned_piece and _("Ornament module (pinned)")', 1, true),
+    assert(m and m:find('title = pinned_piece and _("Pinned ornament")', 1, true),
            "titled like any Ornament module")
 end)
 

@@ -49,8 +49,7 @@ end)
 
 t.test("a nudge follows its module", function()
     assert(src:find("change(function(l)\n            local moved = SM.step(l, id, dir)", 1, true), "nudge moved")
-    assert(src:find("if bw:_spineFollowModule(id) and d and d.movable then d.movable._anchor_ensured = nil end", 1, true),
-        "the nudge doesn't take the view along")
+    assert(src:find("bw:_spineFollowModule(id)", 1, true), "the nudge doesn't take the view along")
 end)
 
 t.done()

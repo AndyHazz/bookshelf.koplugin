@@ -260,6 +260,11 @@ local function registerSpec(spec, dir, fname, origin)
             .. " (in_place must be a boolean when present), skipping:", fname)
         return
     end
+    if spec.self_sized ~= nil and type(spec.self_sized) ~= "boolean" then
+        logger.warn("[bookshelf] micro-module spec invalid"
+            .. " (self_sized must be a boolean when present), skipping:", fname)
+        return
+    end
     -- Optional colour rows of its own (bookshelf_module_card): a list of
     -- { id, text, default, default_dark }, none taking a card key.
     if spec.colors ~= nil and not require("lib/bookshelf_module_card").validColors(spec.colors) then

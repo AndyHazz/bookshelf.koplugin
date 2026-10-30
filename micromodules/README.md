@@ -27,6 +27,7 @@ return {
     network      = { "api.example.com" }, -- data-source domains; flags network-required
     hero_only    = true,              -- hide from the start-menu picker
     tap_feedback = true,              -- instant pressed border on tap (launchers)
+    self_sized   = true,              -- you size yourself: one render, no fit search
     -- Where it's listed in the Add picker (both optional) -- see "Picker chips":
     pack         = "My Bundle",       -- a chip of its own, shared by the bundle's modules
     category     = "reading",         -- or one of Bookshelf's: shelf, reading, time, fun, actions
@@ -41,6 +42,10 @@ different `scale_pct`) until it fills its cell, clipping as a hard backstop. So
 you do **not** write your own font loop — render once at the `scale_pct` you're
 handed, and the host makes it fit. This is why every module looks right at every
 cell size without each author solving it again.
+
+Some modules can't scale like text: pixel art that only looks right at whole
+steps, an image, a widget built for another host. Those set `self_sized =
+true` and size themselves (see **Hero-grid hints**).
 
 Use the shared kit to size fonts and build common pieces:
 
@@ -286,6 +291,15 @@ omit them and you get the sensible default (a flex/text card offered everywhere)
 - `bare = true` — draw without the card (no fill, no border), straight onto
   the wallpaper or page, as the Ornament module does. Your render must then
   fit its cell itself: it is centred, not clipped.
+- `self_sized = true` - you size yourself, so the host's fit search leaves you
+  alone: `render` runs once, at `ctx.width` x `ctx.height` with `ctx.scale` at
+  100, and the module text size setting doesn't apply. For content that
+  doesn't scale like text: pixel art (scale it in whole steps from
+  `ctx.height`), an image, a widget built for another host. Lay out within
+  `ctx.width` and `ctx.height`; anything past them is clipped on a card (`bare`
+  and `in_place` modules aren't clipped, so stay inside). In the start menu
+  there is no cell: `ctx.height` is `nil` there, as for every module, so pick
+  your own height, at most `ctx.max_height`.
 - `start_w` / `start_h` — the size, in grid cells, your card starts at when it
   is added (the Ornament module starts at 1 x 1, to fill a small gap). Your
   `min_w` / `min_h` still win. Leave them off for the default above.

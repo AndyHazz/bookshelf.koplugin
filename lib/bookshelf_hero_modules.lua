@@ -522,6 +522,14 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, 
         return widget, (sz and sz.h) or 0, (sz and sz.w) or 0
     end
 
+    -- self_sized: the module sizes itself to the cell (pixel art, an image, a
+    -- widget built for another host), so it draws the same at every scale and
+    -- the search below would render it up to seven times for one picture.
+    -- One render at the cell's size; no memo, no text size multiplier.
+    if def.self_sized then
+        return (renderAt(100))
+    end
+
     user_mult = user_mult or 100
     local memo_key = entry and entry.id and table.concat({
         _surfaceOf(entry), tostring(def.key), tostring(entry.id),
@@ -780,7 +788,9 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
     -- left/right. Square modules (clock/action) are icon-centred already and use
     -- the full cell. The ClipContainer below stays at inner_w, so the narrower
     -- render is centred horizontally — giving the L/R margin. Tunable.
-    local is_sq      = def and (def.aspect == "square" or def.bare)
+    -- A self-sized module lays itself out in the cell it is handed, so it gets
+    -- the whole cell too, and no padding-equalising second render.
+    local is_sq      = def and (def.aspect == "square" or def.bare or def.self_sized)
     local base_inset = Space.px(10)
 
     -- The module's own card look (bookshelf_module_card): its background,

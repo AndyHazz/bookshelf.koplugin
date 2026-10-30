@@ -71,6 +71,11 @@ put("inplace_ok.lua", [[return { key = "inplaceok", title = "In place ok",
     render = function() end, in_place = true }]])
 put("inplace_bad.lua", [[return { key = "inplacebad", title = "In place bad",
     render = function() end, in_place = 1 }]])
+-- self_sized: renders once at its cell's size, outside the fit search.
+put("selfsized_ok.lua", [[return { key = "selfsizedok", title = "Self sized ok",
+    render = function() end, self_sized = true }]])
+put("selfsized_bad.lua", [[return { key = "selfsizedbad", title = "Self sized bad",
+    render = function() end, self_sized = "yes" }]])
 -- colors: the module's own colour rows (bookshelf_module_card).
 put("colors_ok.lua", [[return { key = "colorsok", title = "Colors ok",
     render = function() end, colors = { { id = "bar", text = "Bar", default = { hex = "#336699" } } } }]])
@@ -133,9 +138,11 @@ t.test("scan registers valid specs and skips broken/invalid ones", function()
     assert(reg["listbad"] == nil, "an invalid entry in a list is skipped on its own")
     assert(reg["inplaceok"] and reg["inplaceok"].in_place == true, "a boolean in_place must register")
     assert(reg["inplacebad"] == nil, "a non-boolean in_place must be skipped")
+    assert(reg["selfsizedok"] and reg["selfsizedok"].self_sized == true, "a boolean self_sized must register")
+    assert(reg["selfsizedbad"] == nil, "a non-boolean self_sized must be skipped")
     assert(reg["colorsok"] and reg["colorsok"].colors[1].id == "bar", "a valid colors list must register")
     assert(reg["colorsbad"] == nil, "a colour taking a card key must be skipped")
-    assert(n == 11, "exactly eleven modules must have registered, got " .. n)
+    assert(n == 12, "exactly twelve modules must have registered, got " .. n)
 end)
 
 t.test("menu-open generation hook", function()

@@ -415,7 +415,8 @@ function M.show(entry, bw, piece, widget, opts)
         local can_move = placed and i_on ~= nil and n_on > 1
         local place_t = text(placed and (i_on and T(_("%1 of %2"), i_on, n_on) or _("off")) or "\xE2\x80\x94",
             { face = small })
-        local place_w = math.max(val_w, place_t:getSize().w + Space.px(12))
+        -- Room either side of the count, so it doesn't crowd the arrows.
+        local place_w = math.max(val_w, place_t:getSize().w + Space.px(32))
         local place_ctl, place_keys = stepper(
             { glyph = CHEV_LEFT, enabled = can_move, tap = function() step(-1) end },
             { glyph = CHEV_RIGHT, enabled = can_move, tap = function() step(1) end },

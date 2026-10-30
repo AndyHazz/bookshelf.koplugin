@@ -278,6 +278,19 @@ function TL.items(ctx)
     return out
 end
 
+-- cardTitle(item) -> a card's name, the built-in ones (Default theme,
+-- Custom theme, Plain) marked "* ": set apart from the packs, and first in
+-- A-Z (maintainer). On the card only; menus and dialogs keep the name.
+TL.BUILTIN_MARK = "* "
+function TL.isBuiltin(item)
+    local tp = TP()
+    return item.same or item.value == tp.MINE or item.value == tp.PLAIN
+end
+function TL.cardTitle(item)
+    if TL.isBuiltin(item) then return TL.BUILTIN_MARK .. (item.title or "") end
+    return item.title
+end
+
 -- The order switch on the strip (maintainer). Newest: by the pack folder's
 -- time, which a copy onto the device sets.
 function TL.orders()
@@ -288,37 +301,44 @@ function TL.orders()
     }
 end
 
+-- usedKey(item) -> the key a card's use is kept under: Default theme's is
+-- TP.FOLLOW_USED (its value is nil).
+function TL.usedKey(it) return it.same and TP().FOLLOW_USED or it.value end
+
+-- when(used) -> TL.order's lookups: used[usedKey] (the picker's snapshot),
+-- and each pack's added time, asked once. Default theme, Custom theme and
+-- Plain have none (Default theme's value is nil: no table key).
+function TL.when(used)
+    local tp, added = TP(), {}
+    return {
+        used = function(it) return used[TL.usedKey(it)] end,
+        added = function(it)
+            local v = it.value
+            if v == nil or TL.isBuiltin(it) then return nil end
+            if added[v] == nil then added[v] = tp.addedAt and tp.addedAt(v) or false end
+            return added[v] or nil
+        end,
+    }
+end
+
 -- order(items, by, when) -> the cards in that order, a copy. A-Z is the
--- list's own (TP.choiceList: the packs by name). Default theme and a missing
--- pack stay first. Custom theme and Plain stay next for A-Z and Newest (they
--- are not added), and are ordered with the packs by use for Last used.
--- when.added(item) / when.used(item) -> a time or nil; most recent first,
--- those with none after, in the list's order.
+-- list's own (TP.choiceList: the built-ins, then the packs by name).
+-- Newest and Last used go by that alone, nothing kept at the top
+-- (maintainer): when.added(item) / when.used(item) -> a time or nil; most
+-- recent first, those with none after in the list's order (the built-ins,
+-- never added, end Newest).
 function TL.order(items, by, when)
-    local tp = TP()
+    local out = {}
+    for i, it in ipairs(items) do out[i] = it end
     local key = (by == "added" or by == "used") and when and when[by]
-    if not key then
-        local out = {}
-        for i, it in ipairs(items) do out[i] = it end
-        return out
-    end
-    local top, rest = {}, {}
-    for _i, it in ipairs(items) do
-        local builtin = it.value == tp.MINE or it.value == tp.PLAIN
-        if it.same or it.missing or (builtin and by ~= "used") then
-            top[#top + 1] = it
-        else
-            rest[#rest + 1] = it
-        end
-    end
+    if not key then return out end
     local t, at = {}, {}
-    for i, it in ipairs(rest) do t[it], at[it] = key(it) or 0, i end
-    table.sort(rest, function(a, b)
+    for i, it in ipairs(out) do t[it], at[it] = key(it) or 0, i end
+    table.sort(out, function(a, b)
         if t[a] ~= t[b] then return t[a] > t[b] end
         return at[a] < at[b]
     end)
-    for _i, it in ipairs(rest) do top[#top + 1] = it end
-    return top
+    return out
 end
 
 -- isCurrent(item, current) -> that card is the choice in use.
@@ -518,7 +538,7 @@ function TL._renderCard(item, dimen, current, all)
         used = used + h
         lines[#lines + 1] = w
     end
-    line(item.title, 18, ink, true)
+    line(TL.cardTitle(item), 18, ink, true)
     line(item.summary, 14, ink)
     line(item.description, 13, require("lib/bookshelf_popup_kit").DIM_ON_GREY)
     local e = (not item.missing) and TL.hero(item.shows, all) or nil
@@ -575,23 +595,20 @@ function TL.show(opts)
     -- times as the picker opens and as the switch is tapped, so choosing a
     -- theme does not move the card tapped. A theme in use with no time (worn
     -- before Last used was kept) comes after those chosen, before the rest.
-    local used, added = {}, {}
-    local when = {
-        used = function(it) return used[it.value] end,
-        added = function(it)
-            if added[it.value] == nil then added[it.value] = tp.addedAt and tp.addedAt(it.value) or false end
-            return added[it.value] or nil
-        end,
-    }
+    local used = {}
+    local when = TL.when(used)
+    local usedKey = TL.usedKey
     local function load(first)
         local items = TL.items{ shelf = opts.shelf, current = opts.current(), follow = opts.follow,
                                 spines = spines, scan = scan }
         if first and tp.usedAt then
             local cur, lib = opts.current(), tp.libraryChoice and tp.libraryChoice()
             for _i, c in ipairs(items) do
-                if c.value ~= nil then
-                    used[c.value] = tp.usedAt(c.value)
-                        or ((c.value == cur or c.value == lib) and 1 or nil)
+                local k = usedKey(c)
+                if k ~= nil then
+                    local in_use
+                    if c.same then in_use = cur == nil else in_use = c.value == cur or c.value == lib end
+                    used[k] = tp.usedAt(k) or (in_use and 1 or nil)
                 end
             end
         end
@@ -659,7 +676,7 @@ function TL.show(opts)
         on_cell_tap = function(item)
             if item.missing or TL.isCurrent(item, opts.current()) then return end
             opts.choose(item.value)
-            if not item.same and tp.markUsed then tp.markUsed(item.value) end
+            if tp.markUsed then tp.markUsed(item.same and tp.FOLLOW_USED or item.value) end
             -- Listed again: a missing pack that was the choice drops out.
             load()
             if modal then

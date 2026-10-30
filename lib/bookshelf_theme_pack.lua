@@ -285,9 +285,12 @@ M.SHELF_SETTING = "shelf_theme"          -- CoverProgress.THEME_SETTING
 -- there, { [choice] = os.time() }. Written with the other theme settings,
 -- so once as the picker closes (Orn.beginDeferred).
 M.USED_SETTING = "theme_used"
+-- Default theme's own key: a shelf's choice to follow the default. "*" is no
+-- folder name a pack can have on a Kindle or Kobo (FAT).
+M.FOLLOW_USED = "*default"
 M._now = nil
 function M.markUsed(choice)
-    if choice == nil then return end   -- Default theme stands for another
+    if choice == nil then return end
     local was = read(M.USED_SETTING)
     local used = {}
     if type(was) == "table" then for k, v in pairs(was) do used[k] = v end end

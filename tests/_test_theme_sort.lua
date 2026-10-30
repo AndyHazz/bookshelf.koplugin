@@ -1,9 +1,8 @@
 -- tests/_test_theme_sort.lua
 -- The Theme library sorts its cards A-Z, newest pack first, or the theme
 -- chosen most recently first (maintainer: a sort switch on the theme list).
--- Default theme and a missing pack stay at the top whatever the order; Custom
--- theme and Plain stay at the top of A-Z and Newest (they are not added), and
--- take their place by use in Last used.
+-- A-Z is the list's own, the built-ins first (marked "* " on their cards);
+-- Newest and Last used go by date alone, nothing kept at the top.
 -- Usage (from plugin root): lua tests/_test_theme_sort.lua
 package.path = "./?.lua;./?/init.lua;" .. package.path
 package.loaded["logger"] = { dbg = function() end, info = function() end,
@@ -49,14 +48,23 @@ t.test("A-Z: the list as the theme scan sorts it, built-ins first", function()
        "Default theme, Gone (missing), Custom theme, Plain, Autumn, Macabre, Ukiyo-e")
 end)
 
-t.test("Newest: the packs most recently added first", function()
+t.test("Newest: the packs most recently added first, the built-ins (never added) after", function()
     eq(titles(TL.order(cards(), "added", when)),
-       "Default theme, Gone (missing), Custom theme, Plain, Ukiyo-e, Macabre, Autumn")
+       "Ukiyo-e, Macabre, Autumn, Default theme, Gone (missing), Custom theme, Plain")
 end)
 
-t.test("Last used: the theme chosen last first, built-ins among them; never chosen after, in A-Z order", function()
+t.test("Last used: the theme chosen last first, Default theme too; never chosen after, in list order", function()
+    used.default = 60
+    when.used = function(it) return used[it.same and "default" or it.value] end
     eq(titles(TL.order(cards(), "used", when)),
-       "Default theme, Gone (missing), Autumn, Plain, Custom theme, Macabre, Ukiyo-e")
+       "Autumn, Default theme, Plain, Custom theme, Gone (missing), Macabre, Ukiyo-e")
+end)
+
+t.test("the built-ins' cards are marked, the packs' are not", function()
+    eq(TL.cardTitle({ same = true, title = "Default theme" }), "* Default theme")
+    eq(TL.cardTitle({ value = "mine", title = "Custom theme" }), "* Custom theme")
+    eq(TL.cardTitle({ value = "plain", title = "Plain" }), "* Plain")
+    eq(TL.cardTitle({ value = "Autumn", title = "Autumn" }), "Autumn")
 end)
 
 t.test("the cards are not reordered in place", function()
@@ -101,7 +109,8 @@ t.test("the picker offers the switch and keeps the order for the session", funct
     local body = src:sub(i)
     assert(body:find("chip_strip", 1, true), "no switch")
     assert(body:find("TL._order", 1, true), "the order is not kept")
-    assert(body:find("markUsed", 1, true), "a choice is not recorded")
+    assert(body:find("tp.markUsed(item.same and tp.FOLLOW_USED or item.value)", 1, true),
+        "a choice (Default theme too) is not recorded")
     -- Choosing Plain, then Last used: Plain comes first (rig).
     local tap = body:sub((body:find("on_chip_tap = function(key)", 1, true)))
     assert(tap:find("^on_chip_tap = function%(key%)%s+TL._order = key%s+load%(true%)"),
@@ -123,6 +132,19 @@ t.test("fewer cards a page when four do not fit the room", function()
     eq(TL.areaHeight(500, 50), 210); eq(TL.perPage(), 2)
     local lm = io.open("lib/bookshelf_library_modal.lua"):read("*a")
     assert(lm:find("self.config.area_height(cw, room())", 1, true), "the modal does not say how much room")
+end)
+
+-- The rig: Newest raised "table index is nil" on Default theme's card (no
+-- value), so the switch did nothing.
+t.test("the picker's lookups take every card, Default theme's too", function()
+    TL._tp = { MINE = "mine", PLAIN = "plain", FOLLOW_USED = "*default",
+               addedAt = function(v) return ({ Autumn = 100 })[v] end }
+    local w = TL.when({ ["*default"] = 5, Autumn = 7 })
+    local c = cards()
+    eq(w.added(c[1]), nil); eq(w.added(c[3]), nil); eq(w.added(c[5]), 100)
+    eq(w.used(c[1]), 5); eq(w.used(c[5]), 7)
+    eq(titles(TL.order(c, "added", w)), "Autumn, Default theme, Gone (missing), Custom theme, Plain, Macabre, Ukiyo-e")
+    TL._tp = { MINE = "mine", PLAIN = "plain" }
 end)
 
 t.done()

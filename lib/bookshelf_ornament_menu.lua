@@ -375,8 +375,9 @@ function M.show(entry, bw, piece, widget, opts)
         local function stepper(dec, inc, value)
             local function b(o, text_)
                 return kbutton{ text = (not o.glyph) and text_ or nil, glyph = o.glyph,
-                    -- The minus and plus a size down, to sit with the chevrons.
-                    glyph_size = (o.glyph == MINUS_GLYPH or o.glyph == PLUS_GLYPH) and FS + 2 or nil,
+                    -- The minus and plus the size they are on the -10 / +10
+                    -- cards, so every one matches (maintainer).
+                    glyph_size = (o.glyph == MINUS_GLYPH or o.glyph == PLUS_GLYPH) and FS - 4 or nil,
                     width = h, enabled = o.enabled, on_tap = o.tap, on_hold = o.hold }
             end
             -- The symbols font's minus and plus (U+F068, U+F44D): one width,

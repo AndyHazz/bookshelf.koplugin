@@ -1325,7 +1325,9 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
             -- way round the two are painted.
             local function _touchesTap(c)
                 if not c then return false end
-                return c.key == self._pending_key or c.key == self.focused_key
+                -- Only the loading ring: the key focus is a ring set inside
+                -- the chip, clear of the column.
+                return c.key == self._pending_key
             end
             local sep_color
             if _touchesTap(render_chips[i - 1]) or _touchesTap(chip) then
@@ -1373,7 +1375,12 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
         -- Custom colour (#294) only applies to the SELECTED state -- that is
         -- the black fill the request is about; unselected chips already render
         -- as plain black-on-paper and need no colour work.
-        local is_cursor_pre = (self.focused_key == chip.key)
+        -- The keys' cursor is a ring inside the chip (below), drawn over its
+        -- look: the selected chip keeps its fill under it. It used to clear
+        -- that fill and draw the thick loading ring, so the selected chip
+        -- went white under the cursor (maintainer).
+        local has_focus = (self.focused_key == chip.key)
+        local is_cursor_pre = false
         local want_custom = is_active and not is_cursor_pre
         local fill_c, ink_c
         if want_custom then fill_c, ink_c = _activeChipColors() end
@@ -1509,7 +1516,31 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
             }
         end
         local chip_slot = chip_body
-        if is_pending or is_cursor then
+        if has_focus and not is_pending then
+            local Kit = require("lib/bookshelf_popup_kit")
+            local Color = require("lib/bookshelf_color")
+            local inset = Size.border.thin + Space.px(3)
+            -- In the chip's own text colour, which always stands out on its
+            -- fill: a coloured selected chip's ink, the inverse of the
+            -- strip's ink on the default selected chip (it inverts itself),
+            -- else the strip's ink. Inverting what is under the ring gave a
+            -- green ring on a purple chip (rig, Macabre).
+            local ring_c
+            if is_active and has_custom then ring_c = ink_c
+            elseif is_active then ring_c = ink:invert()
+            else ring_c = ink end
+            local ring = Widget:new{ dimen = Geom:new{ w = w, h = self.height } }
+            function ring:paintTo(bb, x, y)
+                -- As the book popup's tabs (STYLE.md): set in, rounded.
+                Color.paintBorder(bb, x + inset, y + inset, w - 2 * inset, self.dimen.h - 2 * inset,
+                    Kit.focusWidth(), ring_c, Space.px(4))
+            end
+            chip_slot = OverlapGroup:new{
+                dimen = Geom:new{ w = w, h = self.height },
+                chip_body,
+                ring,
+            }
+        elseif is_pending then
             local pb = Size.border.thick
             local rb = Size.border.thin
             -- The "we heard you" ring while a chip loads. It has to be seen,
@@ -1897,7 +1928,8 @@ function ChipBar:_initBreadcrumb()
             -- behaviour left it inert (depth = #path was a no-op for
             -- _drillBackTo), but search mode now uses this as a second
             -- "edit query" affordance alongside the chip pill.
-            zones[#zones + 1] = { x = cursor, w = deepest_w, depth = n }
+            -- plain: text with no pill of its own (the ring goes round it).
+            zones[#zones + 1] = { x = cursor, w = deepest_w, depth = n, plain = true }
             cursor = cursor + deepest_w
         end
         -- the band's width, so paintTo can keep its ground off the crumb
@@ -1932,20 +1964,27 @@ function ChipBar:_initBreadcrumb()
         first_visible = first_visible + 1
     end
 
-    -- D-pad focus ring: overlay a thick border on the focused zone.
-    -- The ring is a transparent-interior FrameContainer placed via
-    -- overlap_offset so it doesn't alter layout dimensions.
+    -- D-pad focus ring over the focused zone, placed via overlap_offset so
+    -- it doesn't alter layout dimensions.
     if self.focused_depth ~= nil then
         for _i, z in ipairs(zones) do
             if z.depth == self.focused_depth then
-                local pb = Size.border.thick
-                local ring = FrameContainer:new{
-                    bordersize = pb,
-                    color      = Blitbuffer.COLOR_BLACK,
-                    margin     = 0, padding = 0,
-                    Widget:new{ dimen = Geom:new{ w = z.w - 2*pb, h = band_h - 2*pb } },
-                }
-                ring.overlap_offset = { z.x, 0 }
+                -- As the chips' (STYLE.md): a rounded ring set in from the
+                -- crumb, not a thick square box (black on a dark strip too).
+                -- It inverts what is under it: the crumbs are black or pale.
+                local Kit = require("lib/bookshelf_popup_kit")
+                local inset = Size.border.thin + Space.px(3)
+                -- A pill: inside its edges. Plain text (the deepest crumb,
+                -- a search's words): round it, room either side; set in, a
+                -- short word left no room and the ring covered it (rig).
+                local dx = z.plain and -Space.px(8) or inset
+                local zw = z.w - 2 * dx
+                local ring = Widget:new{ dimen = Geom:new{ w = zw, h = band_h } }
+                function ring:paintTo(bb, x, y)
+                    Kit.invertRing(bb, x, y + inset, zw, band_h - 2 * inset,
+                        Kit.focusWidth(), Space.px(4))
+                end
+                ring.overlap_offset = { z.x + dx, 0 }
                 row = OverlapGroup:new{
                     dimen = Geom:new{ w = self.width, h = band_h },
                     row, ring,

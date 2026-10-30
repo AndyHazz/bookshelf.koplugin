@@ -388,7 +388,7 @@ t.test("the pending ring lands on the strip's edge too", function()
     -- Inside the cell and flush, its top and bottom ran into that edge and
     -- read as one fat line. Held a border clear of it, the gap showed as a
     -- thin light line all the way round. On it is neither.
-    local pend = src:match("(if is_pending or is_cursor then.-\n        end\n)")
+    local pend = src:match("(elseif is_pending then.-\n        end\n)")
     assert(pend, "the pending-ring block moved or was renamed")
     assert(pend:find("EdgeRing:new", 1, true),
         "the ring must reach onto the strip's edge, as a button's outline does")
@@ -409,9 +409,11 @@ t.test("the pending ring lands on the strip's edge too", function()
     -- whichever way round the two are painted.
     local sep = src:match("(local function _touchesTap.-LineWidget)")
     assert(sep, "the tap-adjacent separator rule moved or was renamed")
-    assert(sep:match("c%.key == self%._pending_key")
-       and sep:match("c%.key == self%.focused_key"),
-        "both the tapped chip and the focused one carry a ring")
+    assert(sep:match("c%.key == self%._pending_key"), "the tapped chip carries a ring")
+    -- The key focus is a ring inside the chip now, so the column beside it
+    -- stays a plain separator.
+    assert(not sep:match("c%.key == self%.focused_key"),
+        "the focused chip's separators still take the ring's colour")
     assert(sep:match("sep_color = _stripInk%(%)"),
         "a separator beside the ring must take the ring's own colour")
 end)

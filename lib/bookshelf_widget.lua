@@ -13303,6 +13303,23 @@ function BookshelfWidget:onBSFocusRight()
     return true
 end
 
+-- The four d-pad moves, wrapped: when a move takes the keys' cursor off the
+-- grid or back onto it, the cover that wore the ring and the one that
+-- should now are repainted (_selectedFilepath rings the cursor only on the
+-- grid). One place for every zone change, not each of the handlers' own.
+for _i, name in ipairs({ "onBSFocusUp", "onBSFocusDown", "onBSFocusLeft", "onBSFocusRight" }) do
+    local move = BookshelfWidget[name]
+    BookshelfWidget[name] = function(self, ...)
+        local zone, before = self._focus_zone, self:_selectedFilepath()
+        local r = move(self, ...)
+        if self._focus_zone ~= zone then
+            local after = self:_selectedFilepath()
+            if after ~= before then self:_repaintSelectionHighlight(before, after) end
+        end
+        return r
+    end
+end
+
 function BookshelfWidget:onBSKbPress()
     if self._focus_zone == "hero" then
         -- Micro grid: activate the focused cell exactly as a tap would.
@@ -15308,7 +15325,11 @@ end
 -- in the hero. Priority: live d-pad focus cell > a pending expanded tap
 -- (open-double's first tap) > the hero preview book. nil = nothing selected.
 function BookshelfWidget:_selectedFilepath()
-    if self._cursor_idx and self._page_items then
+    -- The keys' cursor is the selection only while it is on the grid: moved
+    -- to the footer, the chips or the top panel, its cover kept the ring
+    -- (maintainer). The index is kept, so coming back lands on that book.
+    local on_grid = self._focus_zone == nil or self._focus_zone == "grid"
+    if on_grid and self._cursor_idx and self._page_items then
         local ci = self._page_items[self._cursor_idx]
         if ci then
             if     ci.filepath              then return ci.filepath end

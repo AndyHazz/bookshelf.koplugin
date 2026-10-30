@@ -187,4 +187,23 @@ t.test("book popup and footer: rings, not inversions; every control keyed", func
     assert(w:find("hit_extension, self:_chromeInk())", 1, true), "the footer ring does not take the chrome ink")
 end)
 
+-- The shelf menu bar and the shelf (maintainer, desktop): a chip's focus is
+-- a ring inside it in its own text colour, over its look (the selected chip
+-- stays black); crumbs ring too; the cover's ring goes when the keys leave
+-- the grid.
+t.test("shelf menu bar and shelf: chip and crumb rings; the cover's ring follows the keys", function()
+    local cb = io.open("lib/bookshelf_chip_bar.lua"):read("*a")
+    assert(cb:find("local is_cursor_pre = false", 1, true), "the cursor still clears the selected chip's fill")
+    assert(cb:find("if is_active and has_custom then ring_c = ink_c", 1, true)
+           and cb:find("elseif is_active then ring_c = ink:invert()", 1, true),
+        "the chip ring is not in the chip's own ink")
+    assert(not cb:find("bordersize = pb,\n                    color      = Blitbuffer.COLOR_BLACK", 1, true),
+        "the crumb ring is still a black box")
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    assert(w:find('local on_grid = self._focus_zone == nil or self._focus_zone == "grid"', 1, true),
+        "the cover keeps its ring off the grid")
+    assert(w:find('for _i, name in ipairs({ "onBSFocusUp", "onBSFocusDown", "onBSFocusLeft", "onBSFocusRight" }) do', 1, true),
+        "a zone change does not repaint the ring")
+end)
+
 t.done()

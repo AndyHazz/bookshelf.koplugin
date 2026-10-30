@@ -1087,7 +1087,14 @@ function BookshelfWidget:_rebuild()
             local CP = require("lib/bookshelf_cover_progress")
             local ok_c, colors = pcall(CP.resolvedColors)
             if ok_c and colors and LR.setTheme then
-                LR.setTheme(colors.panel_bg, colors.ink)
+                -- On a painted ground the list sits on the panel, so its ink
+                -- is the panel's (Colors > Panel text, or the text a panel
+                -- colour brings), as the hero's and the tag pills' are. The
+                -- shelf's own ink is for the page: search results listed on
+                -- a coloured panel came out black on brown (maintainer, PW5).
+                local row_ink = colors.ink
+                if on and CP.panelInk then row_ink = CP.panelInk() or row_ink end
+                LR.setTheme(colors.panel_bg, row_ink)
             end
             -- And whether there is a ground under us at all. A row that keeps
             -- painting its own card over the scrim leaves the picture showing

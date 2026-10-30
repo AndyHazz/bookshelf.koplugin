@@ -79,8 +79,8 @@ end
 -- A panel (STYLE.md; maintainer: the same room or less than the button grid
 -- it replaced): the actions on a bar under the title (Swap, Shuffle,
 -- Switch off; Reset at its end), then two columns of labelled controls:
--- the piece in its slot (Size, Height, Padding, Anchor) and the rest
--- (Place, Mirror, Tap). On the steppers a tap is the small step, a hold
+-- the piece in its slot (Size, Height, Padding) and the rest (Place,
+-- Mirror, Anchor, Tap). On the steppers a tap is the small step, a hold
 -- the big one, and a tap on a value resets it. The X closes.
 function M.show(entry, bw, piece, widget, opts)
     opts = opts or {}
@@ -417,8 +417,8 @@ function M.show(entry, bw, piece, widget, opts)
 
         -- Two columns, each a label and its control, the labels one width a
         -- column so the controls line up: the piece in its slot (Size,
-        -- Height, Padding, Anchor) and the rest (Place, Mirror, Tap)
-        -- (maintainer). One column when two do not fit (a small screen).
+        -- Height, Padding) and the rest (Place, Mirror and Anchor together,
+        -- Tap) (maintainer). One column when two do not fit (a small screen).
         -- What a tap on the piece does: the action chooser.
         local tap = entry.tap
         local tap_btn = kbutton{ text = (tap and ((tap.zoom and _("Zoom")) or tap.label or _("set"))
@@ -426,9 +426,9 @@ function M.show(entry, bw, piece, widget, opts)
             on_tap = function() M.chooseTap(entry, redraw) end }
         local cols = {
             { { _("Size"), size_ctl, size_keys }, { _("Height"), height_ctl, height_keys },
-              { _("Padding"), pad_ctl, pad_keys }, { _("Anchor"), anchor, anchor_keys[1] } },
+              { _("Padding"), pad_ctl, pad_keys } },
             { { _("Place"), place_ctl, place_keys }, { _("Mirror"), mirror, mirror_keys[1] },
-              { _("Tap"), tap_btn, { tap_btn } } },
+              { _("Anchor"), anchor, anchor_keys[1] }, { _("Tap"), tap_btn, { tap_btn } } },
         }
         local col_gap = Space.px(24)
         local function column(list)

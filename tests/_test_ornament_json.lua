@@ -483,8 +483,8 @@ t.test("menu: two columns, the slot then the rest; mirror and anchor segmented; 
     assert(build, "no panel")
     local cols = build:match("local cols = {(.-)\n        }")
     assert(cols, "no columns")
-    -- Left: Size, Height, Padding, Anchor; right: Place, Mirror, Tap (maintainer).
-    local order = { "Size", "Height", "Padding", "Anchor", "Place", "Mirror", "Tap" }
+    -- Left: Size, Height, Padding; right: Place, Mirror and Anchor together, Tap (maintainer).
+    local order = { "Size", "Height", "Padding", "Place", "Mirror", "Anchor", "Tap" }
     local last = 0
     for _i, l in ipairs(order) do
         local at = cols:find('_("' .. l .. '")', 1, true)

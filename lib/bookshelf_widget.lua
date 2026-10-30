@@ -24749,7 +24749,6 @@ function BookshelfWidget:_openHardcoverMenu(book)
 
     local select_edition_button = {
         text = _("Select edition") .. "\xE2\x80\xA6",
-        enabled = link and link.book_id and true or false,
         callback = closeThen(function()
             local current = Hardcover.getLink(book.filepath)
             if not current or not current.book_id then
@@ -24781,7 +24780,6 @@ function BookshelfWidget:_openHardcoverMenu(book)
 
     local clear_button = {
         text = _("Clear link"),
-        enabled = link and true or false,
         callback = closeThen(function()
             local ok, err = Hardcover.clearLink(book.filepath)
             refreshAfterAction("hardcover-clear-link")
@@ -24793,85 +24791,69 @@ function BookshelfWidget:_openHardcoverMenu(book)
         end),
     }
 
-    -- "Done", not "Cancel": every action here (link, toggles, clear) applies
-    -- immediately, so there's nothing to cancel -- this just exits to the book
-    -- menu.
-    local done_button = {
-        text = _("Done"),
-        callback = function()
-            UIManager:close(dialog)
-            returnToBookMenu()
-        end,
-    }
-
-    -- Per-book override toggles (only meaningful once linked). They flip the
-    -- link record's use_cover / use_description flags in place and reinit the
-    -- dialog so the checkbox updates without leaving the menu.
-    local CHK_ON, CHK_OFF = "\xE2\x98\x91 ", "\xE2\x98\x90 "  -- ☑ / ☐
+    -- Per-book overrides (only once linked): a saved on/off each, On | Off
+    -- (STYLE.md). They apply at once and the page redraws in place, so you
+    -- can link and then set them without leaving it.
     local function flagOn(field)
         local f = Hardcover.getEnrichmentFlags and Hardcover.getEnrichmentFlags(book.filepath)
         return (f and f[field]) or false
     end
-    local use_cover_button = {
-        text_func = function()
-            return (flagOn("use_cover") and CHK_ON or CHK_OFF) .. _("Use Hardcover image")
-        end,
-        -- Greyed out unless a Hardcover cover is actually downloaded for this
-        -- book: with cover download off (issue #111), or for a book Hardcover
-        -- has no cover for, there's nothing to apply.
-        enabled_func = function()
-            return (Hardcover.hasCover and Hardcover.hasCover(book.filepath)) or false
-        end,
-        callback = function()
-            local ok, err = Hardcover.setUseCover(book.filepath, not flagOn("use_cover"))
-            if not ok then bw:_hardcoverToast(tostring(err or _("Could not update")), 5) end
-            -- Light refresh: the render now prefers cover_image_path directly
-            -- (see SpineWidget._renderCover), so no BIM re-extract is needed.
-            refreshAfterAction("hardcover-use-cover")
-            -- reinit() rebuilds the button tree so the ☑/☐ text_func
-            -- re-evaluates, but doesn't repaint itself. The full-screen
-            -- _rebuild refresh used to redraw the dialog as a side effect;
-            -- the in-place refresh path scopes its setDirty to the spine /
-            -- hero rect, so repaint the dialog explicitly here.
-            if dialog and dialog.reinit then
-                Focus.reinit(dialog)
-                UIManager:setDirty(dialog, "ui")
-            end
-        end,
-    }
-    local use_desc_button = {
-        text_func = function()
-            return (flagOn("use_description") and CHK_ON or CHK_OFF) .. _("Use Hardcover description")
-        end,
-        callback = function()
-            Hardcover.setUseDescription(book.filepath, not flagOn("use_description"))
-            refreshAfterAction("hardcover-use-description")
-            -- See use_cover_button: reinit rebuilds the checkbox text but
-            -- the scoped in-place refresh no longer repaints the dialog.
-            if dialog and dialog.reinit then
-                Focus.reinit(dialog)
-                UIManager:setDirty(dialog, "ui")
-            end
-        end,
-    }
+    local ON_OFF = { { key = "on", label = _("On") }, { key = "off", label = _("Off") } }
+    local function onOff(label, field, set, reason)
+        return { type = "segmented", label = label, items = ON_OFF,
+            active = flagOn(field) and "on" or "off",
+            on_pick = function(key)
+                if (key == "on") == flagOn(field) then return end
+                local ok, err = set(book.filepath, key == "on")
+                if ok == false then bw:_hardcoverToast(tostring(err or _("Could not update")), 5) end
+                refreshAfterAction(reason)
+                if dialog then dialog:refresh() end
+            end }
+    end
 
     -- Reviews and Refresh metadata are intentionally NOT here: Reviews was
     -- promoted to the book long-press menu, and Refresh duplicated that
     -- menu's own "Refresh metadata" button.
-    local linked_text = link
-        and (T(_("Linked: %1"), Hardcover.linkLabel(book.filepath) or tostring(link.book_id)))
-        or _("Not linked to Hardcover")
-    local button_rows = { { { text = linked_text, enabled = false } } }
-    if link and link.book_id then
-        button_rows[#button_rows + 1] = { use_cover_button, use_desc_button }
+    local function page()
+        local linked = link and link.book_id
+        local blocks = {}
+        if linked then
+            blocks[#blocks + 1] = { type = "heading", text = _("Use from Hardcover") }
+            -- Only a cover actually downloaded can be used: with cover download
+            -- off (issue 111), or none on Hardcover, there's nothing to switch.
+            if Hardcover.hasCover and Hardcover.hasCover(book.filepath) then
+                blocks[#blocks + 1] = onOff(_("Cover"), "use_cover", Hardcover.setUseCover,
+                    "hardcover-use-cover")
+            else
+                blocks[#blocks + 1] = { type = "hint",
+                    text = _("No Hardcover cover has been downloaded for this book.") }
+            end
+            blocks[#blocks + 1] = onOff(_("Description"), "use_description",
+                Hardcover.setUseDescription, "hardcover-use-description")
+        end
+        blocks[#blocks + 1] = { type = "heading", text = linked and _("Change link") or _("Link") }
+        local chips = { embedded_button, select_book_button }
+        if linked then
+            chips[#chips + 1] = select_edition_button
+            chips[#chips + 1] = clear_button
+        end
+        local items = {}
+        for i, b in ipairs(chips) do items[i] = { text = b.text, callback = b.callback } end
+        blocks[#blocks + 1] = { type = "chips", items = items }
+        return {
+            strip = { { type = "summary", text = link
+                and T(_("Linked to %1."), Hardcover.linkLabel(book.filepath) or tostring(link.book_id))
+                or _("Not linked to Hardcover.") } },
+            blocks = blocks,
+        }
     end
-    button_rows[#button_rows + 1] = { embedded_button, select_book_button, select_edition_button }
-    button_rows[#button_rows + 1] = { clear_button, done_button }
-    dialog = require("ui/widget/buttondialog"):new{
-        title   = _("Hardcover"),
-        buttons = button_rows,
+    -- Every action here applies at once, so there is no Cancel | Apply: the
+    -- X goes back to the book popup.
+    dialog = require("lib/bookshelf_page_dialog").show{
+        title    = _("Hardcover"),
+        page     = page,
+        on_close = returnToBookMenu,
     }
-    UIManager:show(dialog)
 end
 
 -- Button rows contributed by other plugins through KOReader's standard

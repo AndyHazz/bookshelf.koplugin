@@ -20876,7 +20876,7 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
     -- box, so a raw top-align drops them below the text's cap line); the row is
     -- top-aligned, so a wrapping value keeps the glyph beside the first line.
     local CenterContainer_ = require("ui/widget/container/centercontainer")
-    local function _icon_row(glyph, text)
+    local function _icon_row(glyph, text, one_line)
         local icon = TextWidget_:new{ text = glyph,
             face = BFont:getFace("symbols", 15) }
         -- CenterContainer below centers on the glyph's full reported em-box,
@@ -20896,12 +20896,31 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
             dimen = Geom:new{ w = icon:getSize().w, h = line_h },
             icon,
         }
-        local txt  = TextBoxWidget_:new{
-            text  = text,
-            face  = meta_face,
-            bold  = meta_bold,
-            width = text_w - icon:getSize().w - gap,
-        }
+        local avail = text_w - icon:getSize().w - gap
+        local txt
+        if one_line then
+            -- One line, its start cut away rather than wrapped: a long path
+            -- took three lines and squeezed the tabs below (maintainer).
+            local function fits(t)
+                local w = TextWidget_:new{ text = t, face = meta_face, bold = meta_bold }
+                local ok = w:getSize().w <= avail
+                w:free()
+                return ok
+            end
+            txt = TextWidget_:new{
+                text  = require("lib/bookshelf_text_fit").pathOneLine(text, fits),
+                face  = meta_face,
+                bold  = meta_bold,
+                max_width = avail,
+            }
+        else
+            txt = TextBoxWidget_:new{
+                text  = text,
+                face  = meta_face,
+                bold  = meta_bold,
+                width = avail,
+            }
+        end
         return HorizontalGroup_:new{ align = "top",
             icon_box, HorizontalSpan_:new{ width = gap }, txt }
     end
@@ -21012,7 +21031,7 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
         fname = shown
     end
     if rich then
-        top_stack[#top_stack + 1] = _icon_row("\xEF\x80\x96", fname)  -- U+F016 file
+        top_stack[#top_stack + 1] = _icon_row("\xEF\x80\x96", fname, true)  -- U+F016 file
     else
         top_stack[#top_stack + 1] = TextBoxWidget_:new{
             text  = fname,

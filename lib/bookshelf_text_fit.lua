@@ -269,4 +269,34 @@ function M.fitFontSize(o)
     return best
 end
 
+-- pathOneLine(path, fits) - path shortened until fits(text) holds, for a
+-- file line that must stay on one line (the book popup's header). Folders
+-- go first, from the front ("…/Doyle/A Study in Scarlet.epub"), so the
+-- name and the folder it is in show longest; past "…/name" the name loses
+-- its start, keeping its end (the extension, a volume number). UTF-8 safe.
+function M.pathOneLine(path, fits)
+    if fits(path) then return path end
+    local E = "\xE2\x80\xA6"
+    local parts = {}
+    for seg in path:gmatch("[^/]+") do parts[#parts + 1] = seg end
+    local name = table.remove(parts) or path
+    while #parts > 0 do
+        table.remove(parts, 1)
+        local out = E .. "/" .. table.concat(parts, "/") .. (#parts > 0 and "/" or "") .. name
+        if fits(out) then return out end
+    end
+    -- Character starts, so a cut never splits a multi-byte letter.
+    local starts = {}
+    for pos in name:gmatch("()[^\128-\191]") do starts[#starts + 1] = pos end
+    -- The longest end that fits, by halves: each try measures text, and a
+    -- popup opening on a slow device shouldn't measure a name per letter.
+    local lo, hi = 2, #starts   -- cut before starts[k]: smaller k, longer end
+    if hi < lo then return E .. name end
+    while lo < hi do
+        local mid = math.floor((lo + hi) / 2)
+        if fits(E .. name:sub(starts[mid])) then hi = mid else lo = mid + 1 end
+    end
+    return E .. name:sub(starts[lo])
+end
+
 return M

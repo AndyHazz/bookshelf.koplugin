@@ -477,16 +477,20 @@ t.test("the menu never moves past the screen's edge, however tall it is", functi
     eq(Menu.offsetFor({ y = 700, h = 200 }, 1648, 1700), 0, "a menu taller than the screen stays centred")
 end)
 
-t.test("menu: two columns, where it is and how it looks; mirror and anchor segmented; no hang switch", function()
+t.test("menu: two columns, the slot then the rest; mirror and anchor segmented; no hang switch", function()
     local src = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
     local build = src:match("local function build%(close%)(.-)\n    end\n")
     assert(build, "no panel")
     local cols = build:match("local cols = {(.-)\n        }")
     assert(cols, "no columns")
-    local p, hgt, an = cols:find('_("Place")', 1, true), cols:find('_("Height")', 1, true), cols:find('_("Anchor")', 1, true)
-    local sz, pd, mr = cols:find('_("Size")', 1, true), cols:find('_("Padding")', 1, true), cols:find('_("Mirror")', 1, true)
-    assert(p and hgt and an and sz and pd and mr and p < hgt and hgt < an and an < sz and sz < pd and pd < mr,
-        "not Place / Height / Anchor, then Size / Padding / Mirror")
+    -- Left: Size, Height, Padding, Anchor; right: Place, Mirror, Tap (maintainer).
+    local order = { "Size", "Height", "Padding", "Anchor", "Place", "Mirror", "Tap" }
+    local last = 0
+    for _i, l in ipairs(order) do
+        local at = cols:find('_("' .. l .. '")', 1, true)
+        assert(at and at > last, l .. " is out of order")
+        last = at
+    end
     assert(build:find('{ key = "alternate", label = _("Alternate") }', 1, true), "mirror is not segmented")
     assert(not src:find("local dpad", 1, true), "the d-pad is back")
     assert(not src:find('_("Hang: on")', 1, true) and not src:find('set("hang"', 1, true),

@@ -78,9 +78,9 @@ end
 --
 -- A panel (STYLE.md; maintainer: the same room or less than the button grid
 -- it replaced): the actions on a bar under the title (Swap, Shuffle,
--- Switch off; Reset at its end), then two columns of labelled controls,
--- where the piece is (Place, Height, Anchor) and how it looks (Size,
--- Padding, Mirror, Tap). On the steppers a tap is the small step, a hold
+-- Switch off; Reset at its end), then two columns of labelled controls:
+-- the piece in its slot (Size, Height, Padding, Anchor) and the rest
+-- (Place, Mirror, Tap). On the steppers a tap is the small step, a hold
 -- the big one, and a tap on a value resets it. The X closes.
 function M.show(entry, bw, piece, widget, opts)
     opts = opts or {}
@@ -389,7 +389,6 @@ function M.show(entry, bw, piece, widget, opts)
         local can_move = placed and i_on ~= nil and n_on > 1
         local place_t = text(placed and (i_on and T(_("%1 of %2"), i_on, n_on) or _("off")) or "\xE2\x80\x94",
             { face = small })
-        -- Place's count and Height's value one width, so their buttons line up.
         local place_w = math.max(val_w, place_t:getSize().w + Space.px(12))
         local place_ctl, place_keys = stepper(
             { glyph = CHEV_LEFT, enabled = can_move, tap = function() step(-1) end },
@@ -402,7 +401,7 @@ function M.show(entry, bw, piece, widget, opts)
         -- Height: down and up, as the piece moves.
         local l_dec, l_inc = nudger("lift")
         l_dec.glyph, l_inc.glyph = CHEV_DOWN, CHEV_UP
-        local height_ctl, height_keys = stepper(l_dec, l_inc, valueCell(pctOf("lift"), "lift", place_w))
+        local height_ctl, height_keys = stepper(l_dec, l_inc, valueCell(pctOf("lift"), "lift"))
 
         -- Mirror and the anchor (what Height counts from), segmented.
         local seg_face = Font:getFace("cfont", FS - 2)
@@ -417,19 +416,19 @@ function M.show(entry, bw, piece, widget, opts)
             on_pick = function(k) setAnchor(k) end }
 
         -- Two columns, each a label and its control, the labels one width a
-        -- column so the controls line up: where it is (Place, Height, Anchor)
-        -- and how it looks (Size, Padding, Mirror). One column when two do
-        -- not fit (a small screen).
+        -- column so the controls line up: the piece in its slot (Size,
+        -- Height, Padding, Anchor) and the rest (Place, Mirror, Tap)
+        -- (maintainer). One column when two do not fit (a small screen).
         -- What a tap on the piece does: the action chooser.
         local tap = entry.tap
         local tap_btn = kbutton{ text = (tap and ((tap.zoom and _("Zoom")) or tap.label or _("set"))
             or _("None")) .. " \xE2\x80\xBA",
             on_tap = function() M.chooseTap(entry, redraw) end }
         local cols = {
-            { { _("Place"), place_ctl, place_keys }, { _("Height"), height_ctl, height_keys },
-              { _("Anchor"), anchor, anchor_keys[1] } },
-            { { _("Size"), size_ctl, size_keys }, { _("Padding"), pad_ctl, pad_keys },
-              { _("Mirror"), mirror, mirror_keys[1] }, { _("Tap"), tap_btn, { tap_btn } } },
+            { { _("Size"), size_ctl, size_keys }, { _("Height"), height_ctl, height_keys },
+              { _("Padding"), pad_ctl, pad_keys }, { _("Anchor"), anchor, anchor_keys[1] } },
+            { { _("Place"), place_ctl, place_keys }, { _("Mirror"), mirror, mirror_keys[1] },
+              { _("Tap"), tap_btn, { tap_btn } } },
         }
         local col_gap = Space.px(24)
         local function column(list)

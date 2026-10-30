@@ -80,8 +80,9 @@ end
 -- it replaced): the actions on a bar under the title (Swap, Shuffle,
 -- Switch off; Reset at its end), then two columns of labelled controls:
 -- the piece in its slot (Size, Height, Padding) and the rest (Place,
--- Mirror, Anchor); Tap a row of its own under them, with a tip. On the steppers a tap is the small step, a hold
--- the big one, and a tap on a value resets it. The X closes.
+-- Mirror, Anchor); Tap a row of its own under them, with a tip. Size,
+-- Height and Padding step by - and + (a hold: the big step) and by the
+-- -10 / +10 cards outside them; a tap on a value resets it. The X closes.
 function M.show(entry, bw, piece, widget, opts)
     opts = opts or {}
     local UIManager       = require("ui/uimanager")
@@ -373,11 +374,23 @@ function M.show(entry, bw, piece, widget, opts)
                     width = h, enabled = o.enabled, on_tap = o.tap, on_hold = o.hold }
             end
             local minus, plus = b(dec, "\xE2\x88\x92"), b(inc, "+")
+            -- The big step as cards of its own outside them ("-10" "+10";
+            -- maintainer: there is room, and a hint for a hold is not needed).
+            if dec.big then
+                local big_minus = kbutton{ text = "\xE2\x88\x9210", pad_h = Space.px(6), on_tap = dec.big }
+                local big_plus  = kbutton{ text = "+10", pad_h = Space.px(6), on_tap = inc.big }
+                return line({ big_minus, HorizontalSpan:new{ width = Space.px(4) }, minus, value, plus,
+                    HorizontalSpan:new{ width = Space.px(4) }, big_plus }, 0),
+                    { big_minus, minus, plus, big_plus }
+            end
             return line({ minus, value, plus }, 0), { minus, plus }
         end
+        -- nudger(field) -> its - and + : a tap the small step, a hold (or the
+        -- -10 / +10 cards, big) the big one.
         local function nudger(field)
-            return { tap = function() nudge(field, -1, false) end, hold = function() nudge(field, -1, true) end },
-                   { tap = function() nudge(field, 1, false) end, hold = function() nudge(field, 1, true) end }
+            local function big(sign) return function() nudge(field, sign, true) end end
+            return { tap = function() nudge(field, -1, false) end, hold = big(-1), big = big(-1) },
+                   { tap = function() nudge(field, 1, false) end, hold = big(1), big = big(1) }
         end
 
         -- Place: its place in this shelf's deal, earlier and later (wrapping
@@ -430,7 +443,7 @@ function M.show(entry, bw, piece, widget, opts)
             { { _("Place"), place_ctl, place_keys }, { _("Mirror"), mirror, mirror_keys[1] },
               { _("Anchor"), anchor, anchor_keys[1] } },
         }
-        local col_gap = Space.px(24)
+        local col_gap = Space.px(16)
         -- The left column's label width, shared with the Tap row under it.
         local tap_label = text(_("Tap"), { face = small })
         local function column(list, extra)
@@ -466,24 +479,20 @@ function M.show(entry, bw, piece, widget, opts)
 
         -- Tap: a row of its own under the columns, so the button grows with
         -- the action's name, and a tip in the room beside it (maintainer).
-        local tip = tap and _("Tapping the piece on the shelf does this.")
-            or _("Give this ornament a job!")
+        -- Only while none is set: the button names the action once it is.
+        local tip = not tap and _("Give this ornament a job!") or nil
         local tap_used = left_lw + gap + tap_btn:getSize().w + gap
-        local tap_row = line({
-            LeftContainer:new{ dimen = Geom:new{ w = left_lw, h = h }, tap_label },
-            tap_btn,
-            text(tip, { face = small, fgcolor = Blitbuffer.COLOR_DARK_GRAY,
-                max_width = math.max(Space.px(40), inner_w - tap_used) }),
-        }, gap)
+        local tap_items = { LeftContainer:new{ dimen = Geom:new{ w = left_lw, h = h }, tap_label }, tap_btn }
+        if tip then
+            tap_items[#tap_items + 1] = text(tip, { face = small, fgcolor = Blitbuffer.COLOR_DARK_GRAY,
+                max_width = math.max(Space.px(40), inner_w - tap_used) })
+        end
+        local tap_row = line(tap_items, gap)
         rows[#rows + 1] = { tap_btn }
-
-        local hint = text(_("Hold a button to step by 10. Tap a value to reset it."),
-            { face = small, fgcolor = Blitbuffer.COLOR_DARK_GRAY, max_width = inner_w })
 
         local body = VerticalGroup:new{ align = "left",
             grid, VerticalSpan:new{ width = Space.px(6) },
-            tap_row, VerticalSpan:new{ width = gap },
-            hint,
+            tap_row,
         }
         local frame = FrameContainer:new{
             background = Blitbuffer.COLOR_WHITE,

@@ -237,7 +237,8 @@ t.test("nudges step on a grid and stop at the limits", function()
     local src = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
     assert(src:find("\\xEE\\xA1\\x82", 1, true) and src:find("\\xEE\\xA0\\xBF", 1, true),
         "up/down are not the bookends chevrons")
-    assert(src:find("hold = function() nudge(field, 1, true) end", 1, true), "no big step on hold")
+    assert(src:find("local function big(sign) return function() nudge(field, sign, true) end end", 1, true)
+           and src:find("hold = big(1), big = big(1)", 1, true), "no big step on hold")
     assert(src:find("function dialog:onCloseWidget%(%)\n%s*Orn%.saveReader%(%)"),
         "nothing writes the file when the menu closes")
 end)
@@ -346,10 +347,15 @@ t.test("menu: each nudge takes 10 points on a hold", function()
     -- step, a hold the big one, on size and padding's - and + and on the
     -- d-pad's up and down (the height).
     local src = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
+    -- -10 / +10 cards outside - and +, and a hold on - or + (maintainer:
+    -- room for the buttons, no hint for the hold).
     local nd = src:match("local function nudger%(field%)(.-)\n        end\n")
-    assert(nd and nd:find("hold = function() nudge(field, -1, true) end", 1, true)
-           and nd:find("hold = function() nudge(field, 1, true) end", 1, true),
+    assert(nd and nd:find("hold = big(-1), big = big(-1)", 1, true)
+           and nd:find("hold = big(1), big = big(1)", 1, true),
         "the steppers have no 10-point step")
+    assert(src:find('kbutton{ text = "\\xE2\\x88\\x9210"', 1, true) and src:find('kbutton{ text = "+10"', 1, true),
+        "no -10 / +10 cards")
+    assert(not src:find("Hold a button to step by 10", 1, true), "the hint is back")
     for _i, f in ipairs({ "scale", "pad", "lift" }) do
         assert(src:find('nudger("' .. f .. '")', 1, true), f .. " is not a stepper")
     end
@@ -485,8 +491,9 @@ t.test("menu: two columns, the slot then the rest; mirror and anchor segmented; 
     assert(cols, "no columns")
     -- Left: Size, Height, Padding; right: Place, Mirror and Anchor together;
     -- Tap a row of its own under them, with a tip (maintainer).
-    assert(build:find('_("Give this ornament a job!")', 1, true) and build:find("local tap_row = line({", 1, true),
-        "Tap is not a row of its own with a tip")
+    assert(build:find('local tip = not tap and _("Give this ornament a job!") or nil', 1, true)
+           and build:find("local tap_row = line(tap_items, gap)", 1, true),
+        "Tap is not a row of its own with a tip while no action is set")
     local order = { "Size", "Height", "Padding", "Place", "Mirror", "Anchor" }
     local last = 0
     for _i, l in ipairs(order) do

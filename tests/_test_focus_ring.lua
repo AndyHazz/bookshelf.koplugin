@@ -166,4 +166,25 @@ t.test("the shelf editor quiets its foot row and seeds on the first card", funct
     assert(pd:find("keyFocus(fm, self._key_state, 1, self.pg)", 1, true), "page dialogs have no cursor seed")
 end)
 
+-- The book popup and the shelf footer (maintainer, desktop): a tab's focus
+-- is the inset ring, not the cell inverted; the description's source
+-- switch takes the keys; stars and pills ring rather than invert; the
+-- footer's ring is round the icon, in the footer's own ink.
+t.test("book popup and footer: rings, not inversions; every control keyed", function()
+    local rm = io.open("lib/bookshelf_reviews_modal.lua"):read("*a")
+    assert(rm:find("Kit.invertRing(bb,\n            x + self._tab_x[self._focused_idx] + inset,", 1, true),
+        "a focused tab is not ringed")
+    assert(rm:find("strip.seg_rows = seg_rows", 1, true)
+           and rm:find("local focus = body.seg_rows and { layout = { body.seg_rows[1] },", 1, true),
+        "the source switch is not keyed")
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    assert(w:find('ringFocus(pill, 0, Space.radius.button)', 1, true), "a focused pill is inverted")
+    assert(w:find('ringFocus(star, 0, Space.px(4))', 1, true), "a focused star is inverted")
+    assert(not w:find("star.onFocus = function() frame.invert = true", 1, true), "a star still inverts")
+    local fr = w:match("\nfunction BookshelfWidget%._footerFocusRing%(widget, content_size, below, ink%)(.-)\nend\n")
+    assert(fr and fr:find("Color.paintBorder(", 1, true) and fr:find("ink or Blitbuffer.COLOR_BLACK", 1, true),
+        "the footer ring is not in the footer's ink")
+    assert(w:find("hit_extension, self:_chromeInk())", 1, true), "the footer ring does not take the chrome ink")
+end)
+
 t.done()

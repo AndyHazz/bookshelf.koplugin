@@ -371,15 +371,19 @@ function TabBar:paintTo(bb, x, y)
     local base_y = box_top + self._n_rows * self._row_h - base_h
     bb:paintRect(x, base_y, self.dimen.w + Size.border.window, base_h, Blitbuffer.COLOR_BLACK)
 
-    -- dpad focus highlight: a thin inner inversion, skipped on the active cell
-    -- (already inverted) so focus reads as distinct from selection.
-    if self._focused_idx and self._focused_idx ~= self.active and self._tab_x[self._focused_idx] then
+    -- The keys' focus: the kit's ring set in from the cell, as on a
+    -- segmented control (maintainer: like the reading status), on any tab,
+    -- the active one too. An inverted cell read as a second tab picked.
+    if self._focused_idx and self._tab_x[self._focused_idx] then
+        local Kit = require("lib/bookshelf_popup_kit")
         local fr = self._tab_row[self._focused_idx]
-        bb:invertRect(
-            x + self._tab_x[self._focused_idx] + border,
-            box_top + (fr - 1) * self._row_h + border,
-            self._tab_w[self._focused_idx] - 2 * border,
-            self._row_h - 2 * border)
+        local inset = border + Space.px(3)
+        Kit.invertRing(bb,
+            x + self._tab_x[self._focused_idx] + inset,
+            box_top + (fr - 1) * self._row_h + inset,
+            self._tab_w[self._focused_idx] - 2 * inset,
+            self._row_h - 2 * inset,
+            Kit.focusWidth(), Space.px(4))
     end
 end
 
@@ -839,7 +843,14 @@ function ReviewsModal:_activeBody()
         -- Multi-source body: a chip bar above its own HTML scroller (built fresh
         -- here so a chip switch / font change rebuilds it). Treated like an HTML
         -- tab for cropping (the scroller manages its own painting).
-        return self:_buildSourcedBody(tab, self.width, self._body_h), false, nil
+        local body = self:_buildSourcedBody(tab, self.width, self._body_h)
+        -- The source switch's cells as the body's focus row: a fresh table
+        -- each time, as merging takes a child's layout away and the body is
+        -- kept between switches.
+        -- (mergeLayoutInVertical calls disableFocusManagement on it.)
+        local focus = body.seg_rows and { layout = { body.seg_rows[1] },
+            disableFocusManagement = function() end } or nil
+        return body, false, focus
     end
     self.scroll_html = self.scroll_html or self:_makeScrollHtml()
     return self.scroll_html, false, nil
@@ -855,13 +866,18 @@ function ReviewsModal:_buildSourceChips(tab)
     for i, src in ipairs(tab.sources) do
         items[i] = { key = i, label = src.label or tostring(i) }
     end
-    local seg = PopupKit.segmented{
+    local seg, seg_rows = PopupKit.segmented{
         items = items, active = tab._active_source,
         face  = PopupKit.sourceFace(self.font_size),
         pad_v = PopupKit.SOURCE_PAD_V,
         on_pick = function(i)
             tab._active_source = i
+            -- The keys' cursor stays on the cell picked, not back to the first.
+            local sel = Device:hasDPad() and self.selected and { x = self.selected.x, y = self.selected.y }
             self:_assemble()
+            if sel and self.layout[sel.y] and self.layout[sel.y][sel.x] then
+                self:moveFocusTo(sel.x, sel.y, FocusManager.FORCED_FOCUS)
+            end
             UIManager:setDirty(self, function() return "ui", self.frame.dimen end)
         end,
     }
@@ -869,6 +885,9 @@ function ReviewsModal:_buildSourceChips(tab)
     -- review's Edit, Hardcover's Refresh) build one strip holding both.
     local strip = PopupKit.headerRow{ width = self.width, inset = self._side_pad, left = seg }
     strip.seg = seg
+    -- Its cells, for the keys (the body's focus row): left out, Embedded /
+    -- Hardcover could not be reached by key (maintainer, desktop).
+    strip.seg_rows = seg_rows
     return strip
 end
 
@@ -931,6 +950,7 @@ function ReviewsModal:_buildSourcedBody(tab, w, h)
         dialog            = self,
     }
     local body = VerticalGroup:new{ align = "left", chips, scroller }
+    body.seg_rows = chips.seg_rows
     self._sourced_cache[idx] = body
     return body
 end

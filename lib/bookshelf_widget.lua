@@ -8478,7 +8478,6 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
     -- everywhere.
     local chev_size    = Screen:scaleBySize(32)
     local focus_border = Screen:scaleBySize(4)
-    local focus_radius = Space.px(4)
     -- Nav strip: 75% of content_w, centred. The outer 12.5% on each
     -- side is left clear for gestures.koplugin's bottom-corner gesture
     -- zones (night mode, brightness, etc.).
@@ -8560,9 +8559,13 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
     -- (margin + bordersize = focus_border) so moving focus never shifts layout.
     -- Focused: bordersize = focus_border (visible thick ring), margin = 0.
     -- Unfocused: bordersize = 0 (invisible), margin = focus_border (slack space).
-    local function bm(k) return (focused_btn == k) and 0           or focus_border end
-    local function bs(k) return (focused_btn == k) and focus_border or 0           end
-    local function br(k) return (focused_btn == k) and focus_radius or nil         end
+    -- The keys' focus is the kit's ring round the button's icon or text
+    -- (_footerFocusRing, after the buttons are built), not a border at the
+    -- slot's edge: that was a heavy box the slot's width, down to the screen
+    -- edge (maintainer). The slack stays, so nothing moves.
+    local function bm(_k) return focus_border end
+    local function bs(_k) return 0 end
+    local function br(_k) return nil end
     -- Cursor-based enable conditions. The display page (self.page) can
     -- show the same value for several cursor positions when the cursor
     -- is misaligned after a swipe-up. Gating chevron-enabled on cursor
@@ -8809,6 +8812,13 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
         b._doFeedbackHighlight = function() end
         b._undoFeedbackHighlight = function() end
     end
+    -- The focused one's ring, round its icon or label (not the slot).
+    for key, b in pairs({ first = first, prev = prev, page = page_text, next = next_btn, last = last }) do
+        if focused_btn == key then
+            BookshelfWidget._footerFocusRing(b, function() return b.label_widget and b.label_widget:getSize() end,
+                hit_extension, self:_chromeInk())
+        end
+    end
     -- Pad the row to its ORIGINAL top offset (default_pad) so the icons
     -- stay at the same y they had before the hit-extension was added.
     -- Without this, CenterContainer's ignore_if_over="height" pins the
@@ -8848,18 +8858,42 @@ BookshelfWidget.FOOTER_STROKE_W =
 -- hit_extension` for a generous bottom tap area, same outer footprint
 -- math. Use this for any footer button whose content isn't an icon or
 -- text Button can render itself (e.g. the custom-painted U-bucket).
+-- _footerFocusRing(widget, content_size, below): draw the keys' focus on a
+-- footer button as the kit's rounded ring (STYLE.md) round its content --
+-- content_size() -> the icon's or label's size -- with room either side,
+-- centred in the button less `below` (its tap extension, which reaches to
+-- the screen's edge). Drawn in `ink`, the footer icons' own (_chromeInk):
+-- white on a dark theme, where an inverted ring came out dark on the dark
+-- panel (maintainer).
+function BookshelfWidget._footerFocusRing(widget, content_size, below, ink)
+    local Kit = require("lib/bookshelf_popup_kit")
+    local Color = require("lib/bookshelf_color")
+    local paint = widget.paintTo
+    function widget:paintTo(bb, x, y)
+        paint(self, bb, x, y)
+        local sz = self:getSize()
+        local c = content_size() or sz
+        local h = sz.h - (below or 0)
+        local rw = math.min(sz.w, c.w + 2 * Space.px(14))
+        local rh = math.min(h, c.h + 2 * Space.px(8))
+        Color.paintBorder(bb, x + math.floor((sz.w - rw) / 2), y + math.floor((h - rh) / 2),
+            rw, rh, Kit.focusWidth(), ink or Blitbuffer.COLOR_BLACK, Kit.RADIUS)
+    end
+end
+
 function BookshelfWidget:_wrapAsFooterButton(content_widget, frame_width, focused, on_tap)
     local FrameContainer  = require("ui/widget/container/framecontainer")
     local HorizontalSpan  = require("ui/widget/horizontalspan")
     local focus_border    = Screen:scaleBySize(4)
-    local focus_radius    = Space.px(4)
     local hit_extension   = BookshelfWidget.FOOTER_HIT_EXTENSION
     -- Focus swap: when focused, paint a focus_border-thick ring at the
     -- frame edge; when not focused, reserve the same space as
     -- transparent margin. Outer footprint stays constant.
-    local margin     = focused and 0           or focus_border
-    local bordersize = focused and focus_border or 0
-    local radius     = focused and focus_radius or nil
+    -- Focused: the kit's ring round the content (_footerFocusRing), not a
+    -- border at the slot's edge; the slack stays either way.
+    local margin     = focus_border
+    local bordersize = 0
+    local radius     = nil
     -- Center the content horizontally within frame_width by padding
     -- with HorizontalSpans (same trick Button uses for fixed-width
     -- buttons).
@@ -8886,6 +8920,12 @@ function BookshelfWidget:_wrapAsFooterButton(content_widget, frame_width, focuse
         dimen = frame:getSize(),
         frame,
     }
+    if focused then
+        -- Round the content's row, centred in the slack round it, the tap
+        -- extension below left out.
+        BookshelfWidget._footerFocusRing(container, function() return content_size end,
+            hit_extension, self:_chromeInk())
+    end
     container.ges_events = {
         Tap = { GestureRange:new{ ges = "tap", range = container.dimen } },
     }
@@ -21772,11 +21812,9 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
             end
             return true
         end
-        -- Dpad/keyboard focus highlight -- frame is a stock FrameContainer,
-        -- so its native `invert` field (the same one KOReader's own Button
-        -- uses for onFocus/onUnfocus) works without any custom paintTo.
-        pill.onFocus = function() frame.invert = true; return true end
-        pill.onUnfocus = function() frame.invert = false; return true end
+        -- The keys' focus: the kit's ring along the pill's own edge
+        -- (STYLE.md), not the pill inverted, which read as one chosen.
+        require("lib/bookshelf_popup_kit").ringFocus(pill, 0, Space.radius.button)
         return pill, frame_size.w
     end
 
@@ -22669,9 +22707,9 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             local star = InputContainer:new{ dimen = Geom:new{ w = fsz.w, h = fsz.h }, frame }
             star.ges_events = { Tap = { GestureRange:new{ ges = "tap", range = star.dimen } } }
             star.onTap = function() on_tap(); return true end
-            -- Dpad/keyboard focus highlight -- frame is a stock FrameContainer.
-            star.onFocus = function() frame.invert = true; return true end
-            star.onUnfocus = function() frame.invert = false; return true end
+            -- The keys' focus: the kit's ring round the star (STYLE.md), not
+            -- the star inverted, which read as a rating set.
+            require("lib/bookshelf_popup_kit").ringFocus(star, 0, Space.px(4))
             return star
         end
         -- Rating labels match the body text size (the number, collection names).

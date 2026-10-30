@@ -115,7 +115,8 @@ t.test("fewer cards a page when four do not fit the room", function()
     package.loaded["lib/bookshelf_space"] = { px = function() return 10 end }
     eq(TL.areaHeight(500, nil), 430); eq(TL.perPage(), 4)
     eq(TL.areaHeight(500, 1000), 430); eq(TL.perPage(), 4)
-    eq(TL.areaHeight(500, 400), 320); eq(TL.perPage(), 3)
+    -- Fewer cards share the room: no empty band under them.
+    eq(TL.areaHeight(500, 400), 400); eq(TL.perPage(), 3)
     eq(TL.areaHeight(500, 50), 210); eq(TL.perPage(), 2)
     local lm = io.open("lib/bookshelf_library_modal.lua"):read("*a")
     assert(lm:find("self.config.area_height(cw, room)", 1, true), "the modal does not say how much room")

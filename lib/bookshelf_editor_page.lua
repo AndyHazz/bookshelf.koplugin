@@ -17,7 +17,8 @@
 --             left, the control at the right (full width with no label)
 --   stepper   label, value (text), on_dec, on_inc: label, then  -  value  +
 --   slider    label (optional), value, min, max, step, default, format(v),
---             on_change(v): the label and the value, then  -  track  +  with
+--             on_change(v), big, big_label: the label and the value, then
+--             -  track  +  (-10 and +10 cards with big), with
 --             the range's ends and Default ticked under it (bookshelf_slider)
 --   row       label, value, icon, callback, on, on_clear, half: a card reading
 --             "label   value >"; on (a setting made) turns it black and
@@ -254,6 +255,7 @@ function R.slider(ctx, b)
     local fmt = b.format or tostring
     local w, keys = require("lib/bookshelf_slider").new{ width = ctx.w,
         value = b.value, min = b.min, max = b.max, step = b.step, default = b.default,
+        big = b.big, big_label = b.big_label,
         format = fmt, on_change = b.on_change, face = ctx.face, small = ctx.small }
     ctx.layout[#ctx.layout + 1] = keys
     local head = leftRight(b.label and ctx:text(b.label) or nil,

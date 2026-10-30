@@ -73,9 +73,12 @@ a control by hand, so a change lands everywhere.
 - A number: a stepper, − value + (`Page` stepper), Auto below the minimum.
 - A size or amount over a range (a font scale, an ornament's size): a
   slider (`Page` slider, `lib/bookshelf_slider.lua`). Tap the track to jump,
-  drag the knob (applied when the finger lifts, not on every move), − and +
-  for the fine step, the range's ends and Default ticked under it. A size
-  nudge is a slim panel low on the screen so the preview stays in sight.
+  drag the knob (applied when the finger lifts, not on every move; it snaps
+  to the fine step), −10 and +10 as grey cards either side (`big`), the
+  range's ends and Default ticked under it. A size nudge is a slim panel low
+  on the screen so the preview stays in sight, its footer Cancel | Default |
+  Done (Default greyed at the default: the one footer that holds more than
+  the way out, maintainer).
 - A button with an icon and a label has them at its left, not centred, so
   buttons stacked in a column (one width) line up.
 - Hints and notes: `Kit.hintText`, grey. Never a greyed-out button used as

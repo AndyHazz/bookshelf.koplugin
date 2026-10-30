@@ -5,7 +5,10 @@
 -- e-ink is no thing to do on every move). - and + step it finely. Ticks
 -- under the track mark the range's ends and Default.
 --   Slider.new{ width, value, min, max, step, default, format(v) -> text,
---               on_change(v), face, small } -> widget, keys_row
+--               on_change(v), face, small, big, big_label } -> widget, keys_row
+-- big: the buttons either side step by it (grey cards reading "-10" "+10",
+-- big_label the number shown; maintainer), the track giving the fine step;
+-- without it, plain - and + step by o.step.
 -- The maths is kept apart (snap, valueAt, xOf, ticks) so the tests reach it
 -- without widgets.
 
@@ -67,15 +70,23 @@ function Slider.new(o)
     end
 
     local btn_h = TextWidget:new{ text = "Hg", face = o.face }:getSize().h + Space.px(12)
+    local by = o.big or o.step or 1
     local function stepButton(text, d)
         local enabled = (d < 0 and value > o.min) or (d > 0 and value < o.max)
-        return Kit.button{ text = text, face = o.face, height = btn_h, width = btn_h,
-            enabled = enabled, on_tap = function() commit(value + d * (o.step or 1)) end }
+        local btn = Kit.button{ text = text, face = o.face, height = btn_h,
+            width = (not o.big) and btn_h or nil, border = o.big and 0 or nil,
+            enabled = enabled, on_tap = function() commit(value + d * by) end }
+        -- The big steps are grey cards, as the layout editor's d-pad keys.
+        if o.big then Kit.cardify(btn[1]) end
+        return btn
     end
-    local minus = stepButton("\xE2\x88\x92", -1)   -- U+2212 minus
-    local plus  = stepButton("+", 1)
+    local MINUS = "\xE2\x88\x92"   -- U+2212 minus
+    local num = o.big and (o.big_label or tostring(o.big)) or ""
+    local minus = stepButton(MINUS .. num, -1)
+    local plus  = stepButton("+" .. num, 1)
     local gap = Space.px(12)
-    local track_w = math.max(Space.px(60), o.width - 2 * btn_h - 2 * gap)
+    local bw = math.max(minus:getSize().w, plus:getSize().w)
+    local track_w = math.max(Space.px(60), o.width - 2 * bw - 2 * gap)
 
     -- The track: a grey bar, black up to the knob (the value is what is
     -- "on"), ticks under it, the knob a black disc. Its touch area is the
@@ -152,7 +163,7 @@ function Slider.new(o)
         minus, HorizontalSpan:new{ width = gap }, track, HorizontalSpan:new{ width = gap }, plus }
     local vg = VerticalGroup:new{ align = "left",
         row,
-        HorizontalGroup:new{ align = "top", HorizontalSpan:new{ width = btn_h + gap }, labels },
+        HorizontalGroup:new{ align = "top", HorizontalSpan:new{ width = minus:getSize().w + gap }, labels },
     }
     return vg, { minus, plus }, fmt(value)
 end

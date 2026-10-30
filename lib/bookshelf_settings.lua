@@ -3140,10 +3140,11 @@ end
 
 -- _nudgePage(touchmenu_instance, spec) -- a size nudge, as a slim page low on
 -- the screen (STYLE.md): a slider (tap or drag the track, - and + step by
--- spec.fine, Default ticked under it), Cancel | Done. Every change saves and previews behind the page; Cancel,
+-- spec.fine, -10 and +10 either side, Default ticked under it), Cancel |
+-- Default | Done. Every change saves and previews behind the page; Cancel,
 -- the X and Back put back the value it opened with.
 --
---   spec.key, spec.default, spec.min, spec.max, spec.fine
+--   spec.key, spec.default, spec.min, spec.max, spec.fine, spec.big
 --   spec.unit     "%" (a scale: "120% of the normal size") or " dp"
 --   spec.title    the page's title
 --   spec.anchor   where to open it (the chip bar's nudge opens below the bar
@@ -3189,7 +3190,7 @@ function Settings:_nudgePage(touchmenu_instance, spec)
         return { blocks = {
             { type = "slider", value = getValue(), min = spec.min or 50,
               max = spec.max or 200, step = spec.fine or 5, default = default,
-              format = show, on_change = setValue },
+              big = spec.big or 10, format = show, on_change = setValue },
         } }
     end
     -- A slim panel low on the screen (the chip bar's opens under the bar),
@@ -3202,6 +3203,9 @@ function Settings:_nudgePage(touchmenu_instance, spec)
         dismissable = false,
         footer = {
             { text = _("Cancel"), callback = function() done(true) end },
+            -- Default stays in the footer (maintainer), greyed at the default.
+            { text = _("Default"), enabled_func = function() return getValue() ~= default end,
+              callback = function() setValue(default) end },
             { text = _("Done"), primary = true, callback = function() done(false) end },
         },
         -- The X and Back: closed already; put the value back.
@@ -5597,7 +5601,7 @@ function Settings:_pickStartMenuMinWidth(touchmenu_instance)
     self:_nudgePage(touchmenu_instance, {
         -- The same bounds the panel itself clamps to (_panelWidthBounds).
         key = "start_menu_min_width", default = 180, min = 120, max = 600,
-        fine = 5, unit = " dp", no_shelf = true,
+        fine = 5, big = 20, unit = " dp", no_shelf = true,
         title = _("Minimum start menu width"),
         preview = function() if StartMenu._live then StartMenu._live:_reload() end end,
         on_done = function()

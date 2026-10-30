@@ -61,7 +61,8 @@ t.test("a slider over the range, Default marked, a slim panel at the bottom", fu
     eq(s.format(120), "120%")
     eq(st.dlg.at_bottom, true)
     eq(st.dlg.dismissable, false)
-    eq(st.dlg.footer[1].text, "Cancel"); eq(st.dlg.footer[2].text, "Done")
+    eq(s.big, 10, "no -10 / +10 either side")
+    eq(st.dlg.footer[1].text, "Cancel"); eq(st.dlg.footer[2].text, "Default"); eq(st.dlg.footer[3].text, "Done")
 end)
 
 t.test("a change saves, previews and redraws; clamped to the range", function()
@@ -85,8 +86,16 @@ t.test("Cancel and the X put the value back; Done keeps it; the menu comes back"
     eq(saved.k, 120); eq(st.restored, 1)
     st, saved = open(spec())
     slider(st).on_change(150)
-    st.dlg.footer[2].callback()
+    st.dlg.footer[3].callback()
     eq(saved.k, 150); eq(st.restored, 1)
+end)
+
+t.test("Default in the footer: greyed at the default, sets it", function()
+    local st, saved = open(spec())
+    eq(st.dlg.footer[2].enabled_func(), true)
+    st.dlg.footer[2].callback()
+    eq(saved.k, 100)
+    eq(st.dlg.footer[2].enabled_func(), false)
 end)
 
 t.test("the scale nudges and the start menu's use it, none a ButtonDialog", function()

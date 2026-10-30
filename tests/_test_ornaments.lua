@@ -1199,11 +1199,11 @@ end)
 
 t.test("the menu has the anchor between mirror and tap, and switching it starts from the anchor", function()
     local src = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
-    local m = src:find('MIRROR_LABEL[entry.mirror or "off"]', 1, true)
-    local a = src:find('_("Anchor: top")', 1, true)
+    local m = src:find('_("Mirror")', 1, true)
+    local a = src:find('_("Anchor")', 1, true)
     local tp = src:find('_("Tap: none")', 1, true)
-    assert(m and a and tp and m < a and a < tp, "the anchor button is not between Mirror and Tap")
-    assert(src:find('setAnchor(entry.anchor == "top" and "bottom" or "top")', 1, true), "the button does not switch the anchor")
+    assert(m and a and tp and m < a and a < tp, "the anchor is not between Mirror and Tap")
+    assert(src:find("on_pick = function(k) setAnchor(k) end", 1, true), "the control does not switch the anchor")
     local sa = src:match("local function setAnchor%(v%)(.-)\n    end\n")
     -- Explicit values, not cleared ones: clearing would fall back to what the
     -- pack's own file says, so a pack's top piece could never be stood.
@@ -1239,8 +1239,9 @@ t.test("the menu shows and nudges the reader's own adjustment, not the pack's va
     local src = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
     local nud = src:match("function M%.nudged%(entry, field, delta%)(.-)\nend\n")
     assert(nud and nud:find("readerValue(entry, field)", 1, true), "a nudge starts from the pack's value")
-    assert(src:find('readerValue(entry, "scale")', 1, true) and src:find('readerValue(entry, "pad")', 1, true)
-           and src:find('readerValue(entry, "lift")', 1, true), "the labels show the pack's values")
+    assert(src:find('readerValue(entry, "scale")', 1, true)
+           and src:find("local function pctOf(field) return pct(Orn.readerValue(entry, field)) end", 1, true)
+           and src:find('pctOf("lift")', 1, true), "the labels show the pack's values")
 end)
 
 t.test("listFor: a theme deals its own pieces only, whatever the collection's switches; Plain none; mine the collection", function()

@@ -44,6 +44,10 @@ a control by hand, so a change lands everywhere.
   d-pad, not a row of arrows; its keys are grey cards (`card` on the
   editor's buttons), so the pad reads as one thing beside the outlined
   buttons. Its title is a menu's: bold, as tall as the text and the X.
+- The ornament menu is the same kind of panel: its d-pad moves the piece
+  as it looks (left and right its place in the deal, up and down its
+  height), size and padding steppers beside it, a tap the small step and a
+  hold the big one, a tap on a value resetting it (said in a grey hint).
 - Keys move by where the buttons are on screen: the nearest that way, so
   a d-pad or two columns are walked as they look, not in list order.
 

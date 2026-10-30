@@ -80,6 +80,7 @@ local ChipButton = {}
 --   opts.square_bottom only the top corners rounded: a button flush with the
 --                   bottom of the screen (the layout editor's footer)
 --   opts.on_tap     function() fired on tap
+--   opts.on_hold    function() fired on a long-press (a nudge's big step)
 --   opts.enabled    false: grey border, label and icon, and a tap does nothing
 function ChipButton.build(opts)
     -- Can't act now: light grey all over, the border lighter still. Dark
@@ -157,6 +158,15 @@ function ChipButton.build(opts)
             require("lib/bookshelf_popup_kit").pressThen(btn, frame, opts.on_tap)
         end
         return true
+    end
+    if opts.on_hold then
+        btn.ges_events.HoldSelect = { GestureRange:new{ ges = "hold", range = btn.dimen } }
+        btn.onHoldSelect = function()
+            if opts.enabled ~= false then
+                require("lib/bookshelf_popup_kit").pressThen(btn, frame, opts.on_hold)
+            end
+            return true
+        end
     end
     -- Dpad/keyboard focus: the kit's ring inside the button (popup kit's
     -- invertRing), not the button inverted, which looked like a button that

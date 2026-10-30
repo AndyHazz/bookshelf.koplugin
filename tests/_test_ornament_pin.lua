@@ -47,7 +47,7 @@ t.test("Pin here is offered where it can pin, and pins there", function()
     assert(orn:find("return h(self.placement.entry, self.placement, self.dimen, self)", 1, true), "the long-press passes only the rect")
     assert(w:find('require("lib/bookshelf_ornament_menu").show(entry, shelf, piece, widget)', 1, true), "the shelf drops the piece")
     assert(menu:find("if on_shelf and src and src.pin_after_idx and bw and bw._pinOrnament then", 1, true), "offered with nowhere to pin")
-    assert(menu:find('row[#row + 1] = { text = _("Done"), callback = closeAnd() }', 1, true), "Done lost from the row")
+    assert(menu:find('actions[#actions + 1] = kbutton{ text = _("Pin here")', 1, true), "Pin here is not a card")
     local f = w:match("\nfunction BookshelfWidget:_pinOrnament%(entry, piece%)\n(.-)\nend\n")
     assert(f, "no _pinOrnament")
     assert(f:find('module = "ornament"', 1, true) and f:find("ornament = entry.name", 1, true), "not an Ornament module of the piece")
@@ -93,8 +93,12 @@ t.test("a pinned piece's ornament menu leaves out the deal's controls", function
     assert(w:find('show(pe, bw, nil, nil, { pinned = true })', 1, true), "not opened as a pinned piece's")
     local mm = menu:match("\nfunction M%.show%(entry, bw, piece, widget, opts%)\n(.-)\nend\n")
     assert(mm, "show takes no opts")
-    local _, n = mm:gsub("not opts%.pinned and {", "")
-    assert(n == 2, "Place and Swap/Shuffle/Switch off rows not both left out: " .. n)
+    -- Place (the d-pad's left and right, and its count) and Swap / Shuffle /
+    -- Switch off: none of them for a piece out of the deal.
+    assert(mm:find("local placed = not opts.pinned", 1, true) and mm:find("local can_move = placed and", 1, true),
+        "the place controls are offered for a pinned piece")
+    assert(mm:find("if not opts.pinned then\n            actions[#actions + 1] = kbutton{ text = _(\"Swap\")", 1, true),
+        "Swap/Shuffle/Switch off are offered for a pinned piece")
 end)
 
 -- A Shelf module's pieces are dealt for the module, not the shelf: pinning

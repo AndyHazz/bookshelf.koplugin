@@ -25398,15 +25398,22 @@ function BookshelfWidget:_openGroupMenu(group, kind)
     local function act(fn)
         return function() UIManager:close(dialog); fn() end
     end
-    local function chip(text, fn) return { text = text, callback = act(fn) } end
+    -- Each action a card: its icon, what it is, and a grey line saying
+    -- what it does (STYLE.md: say what it does). Two short ones may pair
+    -- on a line (half).
+    local function opt(icon, text, desc, fn, half)
+        return { type = "option", icon = icon, text = text, desc = desc,
+                 callback = act(fn), half = half }
+    end
     local blocks = {}
     local function section(heading, items)
         if #items == 0 then return end
         blocks[#blocks + 1] = { type = "heading", text = heading }
-        blocks[#blocks + 1] = { type = "chips", items = items }
+        for _i, it in ipairs(items) do blocks[#blocks + 1] = it end
     end
 
-    section(_("Shelf menu"), { chip(_("Pin to the shelf menu"), create_chip) })
+    section(_("Shelf menu"), { opt("\u{EB02}", _("Pin to the shelf menu"),   -- pin
+        _("A shelf of its own in the shelf menu, next to this one."), create_chip) })
 
     -- Selection, state-aware:
     --   "none" > Select N        (nothing to add to yet: this STARTS a
@@ -25415,22 +25422,30 @@ function BookshelfWidget:_openGroupMenu(group, kind)
     --   "some" > Add N more | Remove M  (the Venn-diagram middle)
     --   "all"  > Remove N
     -- Each applies directly with no extra confirmation.
+    local SELECT_ICON = "\u{E838}"   -- checkbox-multiple-marked-outline
     local books = {}
     if n_for_prompt > 0 then
         if sel_state ~= "all" and remaining_count > 0 then
-            books[#books + 1] = chip((sel_state == "some")
-                and string.format(_("Add %d more"), remaining_count)
-                or  string.format(_("Select %d"), n_for_prompt),
-                function() bw_ref:_applyStackSelection(group, "add") end)
+            if sel_state == "some" then
+                books[#books + 1] = opt(SELECT_ICON, string.format(_("Add %d more"), remaining_count),
+                    _("Adds the rest of its books to your selection."),
+                    function() bw_ref:_applyStackSelection(group, "add") end)
+            else
+                books[#books + 1] = opt(SELECT_ICON, string.format(_("Select %d"), n_for_prompt),
+                    _("Selects its books, to change their status, rating or collections together."),
+                    function() bw_ref:_applyStackSelection(group, "add") end)
+            end
         end
         if sel_state ~= "none" and in_sel_count > 0 then
-            books[#books + 1] = chip(string.format(_("Remove %d"), in_sel_count),
+            books[#books + 1] = opt("\u{E857}", string.format(_("Remove %d"), in_sel_count),   -- close-box-outline
+                _("Takes its books out of your selection."),
                 function() bw_ref:_applyStackSelection(group, "remove") end)
         end
     end
     -- Page counts for just this stack's books (issue 459): the same dialog as
     -- the settings menu's, scoped. A folder counts every book under it.
-    books[#books + 1] = chip(_("Extract page counts\xE2\x80\xA6"), function()
+    books[#books + 1] = opt("\u{E898}", _("Extract page counts\xE2\x80\xA6"),   -- counter
+        _("Finds page counts for just these books."), function()
         require("lib/bookshelf_page_count_dialog").showScoped(display_name, bw_ref:_resolveStackPaths(group), bw_ref)
     end)
     section(_("Books"), books)
@@ -25438,6 +25453,8 @@ function BookshelfWidget:_openGroupMenu(group, kind)
     if kind == "series" and self:_isSpineMode() then
         local Binding = require("lib/bookshelf_book_binding")
         blocks[#blocks + 1] = { type = "heading", text = _("Spines") }
+        blocks[#blocks + 1] = { type = "hint",
+            text = _("How this series' books are drawn, on every shelf.") }
         blocks[#blocks + 1] = { type = "segmented", label = _("Book binding"),
             items = {
                 { key = "follow",    label = _("Follow shelf") },
@@ -25461,35 +25478,41 @@ function BookshelfWidget:_openGroupMenu(group, kind)
     -- (kind, name) pair and look the image up in the user's bookshelf image
     -- library. The two share storage and render path through ImageSource,
     -- but the picker / clear actions diverge slightly per kind.
+    local IMAGE_ICON, IMAGE_OFF_ICON = "\u{E9E8}", "\u{EF29}"   -- image, image-off
+    local IMAGE_DESC = _("Shown on the stack in place of its covers.")
     local ImageSource = require("lib/bookshelf_image_source")
     if kind == "folder" and group.path then
         local has_override = ImageSource.getFolderImageOverride(group.path) ~= nil
         local has_resolved = ImageSource.resolveFolderImage(group.path) ~= nil
-        local image = { chip(_("Set folder image\xE2\x80\xA6"), function()
+        local clearable = has_override or has_resolved
+        local image = { opt(IMAGE_ICON, _("Set folder image\xE2\x80\xA6"), IMAGE_DESC, function()
             bw_ref:_pickFolderImage(group.path)
-        end) }
-        if has_override or has_resolved then
-            image[#image + 1] = chip(_("Clear folder image"), function()
+        end, clearable) }
+        if clearable then
+            image[#image + 1] = opt(IMAGE_OFF_ICON, _("Clear folder image"),
+                _("Back to the folder's covers."), function()
                 ImageSource.clearFolderImage(group.path)
                 ImageSource.invalidateCache()
                 bw_ref:_rebuild()
                 UIManager:setDirty(bw_ref, "ui")
-            end)
+            end, true)
         end
         section(_("Image"), image)
         -- File management (feature/file-move): relocate or rename the real
         -- directory behind this folder card.
         section(_("Folder"), {
-            chip(_("Move folder\xE2\x80\xA6"), function()
+            opt("\u{E951}", _("Move folder\xE2\x80\xA6"),   -- folder-move
+                _("Moves it and its books to another folder."), function()
                 require("lib/bookshelf_move_flow").moveFolder{
                     bw = bw_ref, folder_path = group.path,
                 }
-            end),
-            chip(_("Rename folder\xE2\x80\xA6"), function()
+            end, true),
+            opt("\u{EB54}", _("Rename folder\xE2\x80\xA6"),   -- rename-box
+                _("Changes its name on the device."), function()
                 require("lib/bookshelf_move_flow").renameFolder{
                     bw = bw_ref, folder_path = group.path,
                 }
-            end),
+            end, true),
         })
     elseif (kind == "author" or kind == "series" or kind == "genre" or kind == "tag")
            and type(source_id) == "string" and source_id ~= "" then
@@ -25523,11 +25546,13 @@ function BookshelfWidget:_openGroupMenu(group, kind)
         }
         local has_override = ImageSource.getStackImageOverride(kind, source_id) ~= nil
         local has_resolved = ImageSource.resolveStackImage(kind, source_id) ~= nil
-        local image = { chip(set_labels[kind], function()
+        local clearable = has_override or has_resolved
+        local image = { opt(IMAGE_ICON, set_labels[kind], IMAGE_DESC, function()
             bw_ref:_pickStackImage(kind, source_id)
-        end) }
-        if has_override or has_resolved then
-            image[#image + 1] = chip(clear_labels[kind], function()
+        end, clearable) }
+        if clearable then
+            image[#image + 1] = opt(IMAGE_OFF_ICON, clear_labels[kind],
+                _("Back to the stack's covers."), function()
                 local function done()
                     ImageSource.invalidateCache()
                     bw_ref:_rebuild()
@@ -25556,14 +25581,15 @@ function BookshelfWidget:_openGroupMenu(group, kind)
                         done()
                     end,
                 })
-            end)
+            end, true)
         end
         -- A photo from Open Library or Wikipedia, saved into the image
         -- library (lib/bookshelf_author_images). Not offered for
         -- "Anonymous" and the like, which no one has a photo of.
         if kind == "author"
                 and not require("lib/bookshelf_author_images").isPlaceholder(source_id) then
-            image[#image + 1] = chip(_("Find author image online"), function()
+            image[#image + 1] = opt("\u{EE0D}", _("Find author image online"),   -- search-web
+                _("Looks for a photo on Open Library and Wikipedia."), function()
                 require("lib/bookshelf_author_images_flow").findOne(bw_ref, source_id)
             end)
         end

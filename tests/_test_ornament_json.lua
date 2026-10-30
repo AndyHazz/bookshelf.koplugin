@@ -539,4 +539,28 @@ t.test("the collection: one icon on its menu row and in the long-press menu's he
     assert(menu:find('barButton(_("Swap"), Orn.COLLECTION_ICON', 1, true), "the menu does not show the icon")
 end)
 
+-- With the top panel up the menus go at the top, over it, so the whole
+-- shelf shows; on a full-screen shelf they keep clear of the piece. And they
+-- can be dragged out of the way (maintainer), without a long-press making
+-- them see-through.
+t.test("menus: at the top with the top panel up, clear of the piece without; dragged", function()
+    local src = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
+    assert(src:find("if bw and bw.hasTopPanel and bw:hasTopPanel() then\n            y = dialog.overhang", 1, true),
+        "the ornament menu is not at the top with the top panel up")
+    assert(src:find("M.offsetFor(piece, sh, sz.h + dialog.overhang)", 1, true), "full screen no longer keeps clear of the piece")
+    assert(src:find('dialog.movable = MovableContainer:new{ ignore_events = { "hold", "hold_release", "hold_pan" } }', 1, true),
+        "the ornament menu cannot be dragged")
+    local pd = io.open("lib/bookshelf_page_dialog.lua"):read("*a")
+    assert(pd:find('self.movable = MovableContainer:new{ ignore_events = { "hold", "hold_release", "hold_pan" },', 1, true),
+        "a page dialog cannot be dragged")
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    assert(w:find("function BookshelfWidget:hasTopPanel()\n    return not self._expanded\nend", 1, true), "no hasTopPanel")
+    assert(w:find("if cw and bw:hasTopPanel() then", 1, true), "the module menu is not at the top with the top panel up")
+    -- A tap outside a page dialog closes it, before the gesture zones see it.
+    local he = pd:match("function PageDialog:handleEvent%(event%)(.-)\nend\n")
+    assert(he and he:find('ev.ges == "tap"', 1, true) and he:find("self:_dismiss()", 1, true)
+           and he:find('ev.ges == "tap"', 1, true) < he:find("overlayEvent", 1, true),
+        "a tap outside goes to the gesture zones first")
+end)
+
 t.done()

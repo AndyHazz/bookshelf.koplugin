@@ -7070,6 +7070,13 @@ end
 -- the whole screen (maintainer). A swipe left or right that starts on the
 -- module moves it a book, as a swipe does in the layout editor. A tap
 -- outside closes it.
+-- hasTopPanel() -> is the top panel (the hero) on screen? Not on an
+-- expanded, full-screen shelf. A menu over the shelf goes at the top when it
+-- is, over the panel, so the whole shelf stays in sight (maintainer).
+function BookshelfWidget:hasTopPanel()
+    return not self._expanded
+end
+
 function BookshelfWidget:_spineModuleMenu(entry)
     local Modules = require("lib/bookshelf_start_menu_modules")
     local HeroModules = require("lib/bookshelf_hero_modules")
@@ -7213,6 +7220,11 @@ function BookshelfWidget:_spineModuleMenu(entry)
             local cell = bw._spine_module_cells and bw._spine_module_cells[id]
             local r = cell and cell.dimen
             local cw = d and d.frame and d.frame:getSize().w
+            -- With the top panel up: at the top, over the panel, so the whole
+            -- shelf shows. Full screen: beside the module, out of its way.
+            if cw and bw:hasTopPanel() then
+                return { x = math.floor((Screen:getWidth() - cw) / 2), y = 0, w = cw, h = Screen:scaleBySize(8) }
+            end
             if r and r.y and r.h and cw then
                 local gap = Screen:scaleBySize(16)
                 -- A plain table: Geom:new would fill in x = 0, pinning it left.

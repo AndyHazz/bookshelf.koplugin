@@ -538,12 +538,19 @@ function M.show(entry, bw, piece, widget, opts)
     dialog = Panel:new{ dimen = Geom:new{ x = 0, y = 0, w = Screen:getWidth(), h = Screen:getHeight() } }
     local function close() UIManager:close(dialog) end
     local FocusManager = require("ui/widget/focusmanager")
+    -- Dragged out of the way, as KOReader's own dialogs can be (maintainer);
+    -- one container for the panel's life, so a rebuild keeps where it was
+    -- dragged. Not a long-press: MovableContainer makes that a see-through
+    -- toggle, and a long-press on a button is its big step.
+    local MovableContainer = require("ui/widget/container/movablecontainer")
+    dialog.movable = MovableContainer:new{ ignore_events = { "hold", "hold_release", "hold_pan" } }
     function dialog:reinit()
         local frame, rows = build(close)
         self.frame = frame
         self.overhang = overhangFor(picture())
         self.fm = FocusManager:new{ layout = rows, show_parent = self, frame }
-        self[1] = self.fm
+        self.movable[1] = self.fm
+        self[1] = self.movable
     end
     -- place(): where the frame sits, worked out against its height each time
     -- it is built (its rows can change size), and refreshed there.
@@ -551,19 +558,39 @@ function M.show(entry, bw, piece, widget, opts)
     place = function()
         local sz = dialog.frame:getSize()
         local sw, sh = Screen:getWidth(), Screen:getHeight()
-        local dy = M.offsetFor(piece, sh, sz.h + dialog.overhang)
-        local y = math.floor((sh - sz.h) / 2) + dy
+        -- With the top panel up: at the top, over the panel, so the whole
+        -- shelf shows (maintainer). Full screen: clear of the piece.
+        local y
+        if bw and bw.hasTopPanel and bw:hasTopPanel() then
+            y = dialog.overhang + Space.px(8)
+        else
+            y = math.floor((sh - sz.h) / 2) + M.offsetFor(piece, sh, sz.h + dialog.overhang)
+        end
         y = math.max(dialog.overhang, math.min(sh - sz.h, y))
-        local prev = rect
+        -- Where it is drawn: placed, plus however far it was dragged.
+        local function drawn(r)
+            local m = dialog.movable
+            return Geom:new{ x = r.x + (m._moved_offset_x or 0), y = r.y + (m._moved_offset_y or 0),
+                w = r.w, h = r.h }
+        end
+        local prev = rect and drawn(rect)
         rect = Geom:new{ x = math.floor((sw - sz.w) / 2), y = y - dialog.overhang,
             w = sz.w, h = sz.h + dialog.overhang }
         dialog.frame_y = y
-        local both = prev and prev:combine(rect) or rect
+        local now = drawn(rect)
+        local both = prev and prev:combine(now) or now
         UIManager:setDirty(dialog, function() return "ui", both end)
     end
     function dialog:paintTo(bb, x, y)
         if not rect then return end
-        self.fm:paintTo(bb, x + rect.x, y + self.frame_y)
+        self.movable:paintTo(bb, x + rect.x, y + self.frame_y)
+    end
+    -- Where it is drawn now, the picture's rise included: dragged, that is
+    -- not where it was placed.
+    local function drawnRect()
+        local m = dialog.movable.dimen
+        if not (m and m.x) then return rect end
+        return Geom:new{ x = m.x, y = m.y - dialog.overhang, w = m.w, h = m.h + dialog.overhang }
     end
     dialog.ges_events = {
         -- Swallowed outside the frame: nothing under it reacts either.
@@ -580,7 +607,8 @@ function M.show(entry, bw, piece, widget, opts)
     -- reader's file once, and repaint what it covered.
     function dialog:onCloseWidget()
         Orn.saveReader()
-        local r = rect
+        local r = drawnRect()
+        if r and rect then r = r:combine(rect) end
         if r then UIManager:setDirty(nil, function() return "ui", r end) end
     end
     dialog:reinit()

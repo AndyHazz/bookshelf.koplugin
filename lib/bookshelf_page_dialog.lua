@@ -55,6 +55,12 @@ function PageDialog:init()
         background = Blitbuffer.COLOR_WHITE,
         VerticalGroup:new{},
     }
+    -- Dragged out of the way, as KOReader's own dialogs can be (maintainer).
+    -- Not a long-press: MovableContainer makes that a see-through toggle, and
+    -- a long-press on a nudge's button is its big step.
+    local MovableContainer = require("ui/widget/container/movablecontainer")
+    self.movable = MovableContainer:new{ ignore_events = { "hold", "hold_release", "hold_pan" },
+        self.frame }
     -- The footer runs to the frame's edge: its border is drawn again over it.
     local frame = self.frame
     function frame:paintTo(bb, x, y)
@@ -67,7 +73,7 @@ function PageDialog:init()
         -- below; centred when the anchor has no rect now.
         local dialog = self
         local WidgetContainer = require("ui/widget/container/widgetcontainer")
-        local holder = WidgetContainer:new{ dimen = Geom:new{ w = sw, h = sh }, frame }
+        local holder = WidgetContainer:new{ dimen = Geom:new{ w = sw, h = sh }, dialog.movable }
         function holder:paintTo(bb, x, y)
             local a = dialog.anchor
             if type(a) == "function" then a = a() end
@@ -80,11 +86,11 @@ function PageDialog:init()
                 if a.y + a.h + gap + sz.h <= sh then fy = a.y + a.h + gap
                 else fy = math.max(0, a.y - gap - sz.h) end
             end
-            frame:paintTo(bb, x + fx, y + fy)
+            dialog.movable:paintTo(bb, x + fx, y + fy)
         end
         self[1] = holder
     else
-        self[1] = CenterContainer:new{ dimen = Geom:new{ w = sw, h = sh }, frame }
+        self[1] = CenterContainer:new{ dimen = Geom:new{ w = sw, h = sh }, self.movable }
     end
     if Device:isTouchDevice() then
         self.ges_events = { TapClose = { GestureRange:new{ ges = "tap",
@@ -246,6 +252,17 @@ end
 -- KOReader's own gestures (the menu, brightness) keep working around it,
 -- as over the shelf (GestureZones.overlayEvent; maintainer, PW5).
 function PageDialog:handleEvent(event)
+    -- A tap outside closes it, ahead of the gesture zones: a tap zone (a
+    -- page turn) took it first, and the dialog stayed up (maintainer). Not
+    -- a nudge's (dismissable = false), where rapid taps land outside.
+    local ev = event.handler == "onGesture" and event.args and event.args[1]
+    if ev and ev.ges == "tap" and ev.pos then
+        local d = self.frame and self.frame.dimen
+        if d and d.x and ev.pos:notIntersectWith(d) then
+            if self.dismissable ~= false then self:_dismiss() end
+            return true
+        end
+    end
     return require("lib/bookshelf_gesture_zones").overlayEvent(self, event, InputContainer,
         function(pos)
             local d = self.frame and self.frame.dimen

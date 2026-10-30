@@ -116,8 +116,18 @@ a control by hand, so a change lands everywhere.
   cell inverted (inverted reads as selected), and it stays hidden until the
   first key: a menu opened by a tap shows no cursor, and the first key shows
   it where it was seeded rather than moving it or pressing the row.
+- A ring never runs over an outline drawn round the cell: a segmented
+  control's cells set it in (`focus_inset`) with rounded corners. A stock
+  KOReader Button inverts itself on focus; in our footers it gets the ring
+  instead (`Kit.ringFocus`, `Kit.ringFocusTable`), set in clear of the
+  frame's corners and the label.
 - Grids of actions: icon over a short label, an even grid (four columns,
   fewer when a label would need three lines). Long-press arranges them.
+- A menu of actions on a page (a stack's long-press) is option cards, not
+  bare chips: the action's icon, its name, and a grey line saying what it
+  does ("Selects its books, to change their status, rating or collections
+  together"). Two short ones may pair on a line (`half`). Use the room to
+  explain, not to repeat the label.
 - Colour chips (the colour picker) are cards too: the colour set in a grey
   card, the picked one's card black.
 
@@ -165,6 +175,10 @@ a control by hand, so a change lands everywhere.
 - Section headings: grey (COLOR_DARK_GRAY), bold, upper case, a step
   smaller than body, space above, no line.
 - Secondary details (page, date, counts): grey, a step smaller.
+- A file path in a header stays on one line: folders go from the front
+  first, then the start of the name, keeping its end
+  (`TextFit.pathOneLine`). Wrapped, a long path took three lines from the
+  tabs under it.
 - Grey text on a grey card or strip (a theme's description, an option's
   line under it, a hint in the strip) is `Kit.DIM_ON_GREY` (0x55), not the
   dark grey used on white: 0x88 on the cards' 0xEE is too faint to read.

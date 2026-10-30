@@ -99,10 +99,15 @@ t.test("Swap lists only the pieces the shelf deals from", function()
     H.eq(names({ pool = function(e) return e.pack == nil or e.pack == "H" end }), "H/bat.png,pot.svg")
 end)
 
-t.test("the long-press menu's Swap hands the browser the shelf's pool", function()
+-- Maintainer: Swap offering only the shelf's own pack was unexpected; any
+-- piece can be picked, and the pick switches it on for the shelf.
+t.test("the long-press menu's Swap offers every piece", function()
     local m = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
-    assert(m:find("ornamentsFor(shelf)", 1, true) and m:find("pool = ", 1, true),
-        "Swap offers pieces this shelf never deals")
+    local i = m:find('barButton(_("Swap")', 1, true)
+    assert(i, "no Swap")
+    local call = m:sub(i, (m:find("Deck.swap(", i, true)))
+    assert(call:find("pick = function(chosen)", 1, true), "Swap does not open the browser to pick")
+    assert(not call:find("pool", 1, true), "Swap limits the browser to the shelf's pieces")
 end)
 
 t.test("opening shows a message at once and builds the browser after it", function()

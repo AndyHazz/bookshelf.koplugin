@@ -308,16 +308,14 @@ function M.show(entry, bw, piece, widget, opts)
                 close()
                 -- The browser in pick mode: the chosen piece takes this one's
                 -- place in the order, and this one the chosen's.
+                -- Every piece, from any pack (maintainer: only the shelf's
+                -- own pack was unexpected). One the shelf does not deal yet is
+                -- off in its switches (the theme's set, or the collection's on
+                -- a Custom theme shelf), and the pick switches it on there
+                -- (Browser:_pick), so it shows.
                 require("lib/bookshelf_ornament_browser").show(function()
                     if bw and bw._rebuild then bw:_rebuild(); UIManager:setDirty(bw, "ui") end
-                end, { pool = (function()
-                    -- Only the pieces this shelf deals from: a shelf that
-                    -- wears a theme deals that pack's pieces alone. A theme
-                    -- whose set is edited may switch on any piece: all.
-                    local sp = require("lib/bookshelf_theme_pack").ornamentsFor(shelf)
-                    if sp == "mine" or type(sp) == "table" then return nil end
-                    return function(e) return e.pack ~= nil and e.pack == sp end
-                end)(), pick = function(chosen)
+                end, { pick = function(chosen)
                     -- A piece never in the order yet (it was off) joins it first.
                     Deck.sync(Orn.listAll(), shelf)
                     Deck.swap(entry.name, chosen.name, shelf)

@@ -27,6 +27,8 @@
 --             half: a card with a title and a grey line saying what it does,
 --             and small buttons at its right (Pick one >)
 --   Any block with half = true pairs with the next one, two to a line.
+--   order     label, selected, on_up, on_down, up_enabled, down_enabled: a
+--             shelf's label as its chip draws it, then up and down
 --   slot      badge, text, selected, callback, seg {items, active,
 --             on_pick}, on_clear: a numbered line (a sort level), outlined
 --             when selected
@@ -269,22 +271,52 @@ end
 -- text minus ran wider than its +.
 local MINUS_GLYPH = "\xEF\x81\xA8"   -- U+F068
 local PLUS_GLYPH  = "\xEF\x91\x8D"   -- U+F44D
+-- nudgeCard(glyph, callback, h, enabled, size) -> a square grey card with
+-- a symbols-font glyph: a stepper's - and +, a Shelf order row's up and down.
+function Ctx:nudgeCard(glyph, callback, h, enabled, size)
+    local btn = Kit.button{ icon_glyph = glyph,
+        icon_face = Font:getFace("symbols", size or math.max(10, self.fs - 4)), width = h,
+        height = h, border = 0, instant = true, enabled = enabled, on_tap = callback }
+    Kit.cardify(btn[1])
+    return btn
+end
+
 function R.stepper(ctx, b)
     local h = ctx:cardH() - Space.px(8)
-    local glyph_face = Font:getFace("symbols", math.max(10, ctx.fs - 4))
-    local function nudge(glyph, callback)
-        local btn = Kit.button{ icon_glyph = glyph, icon_face = glyph_face, width = h,
-            height = h, border = 0, instant = true, on_tap = callback }
-        Kit.cardify(btn[1])
-        return btn
-    end
-    local minus = nudge(MINUS_GLYPH, b.on_dec)
-    local plus = nudge(PLUS_GLYPH, b.on_inc)
+    local minus = ctx:nudgeCard(MINUS_GLYPH, b.on_dec, h)
+    local plus = ctx:nudgeCard(PLUS_GLYPH, b.on_inc, h)
     local value = CenterContainer:new{ dimen = Geom:new{ w = Space.px(84), h = h },
         ctx:text(b.value, { bold = true }) }
     ctx.layout[#ctx.layout + 1] = { minus, plus }
     local ctl = HorizontalGroup:new{ align = "center", minus, value, plus }
     return labelled(ctx, b.label, ctl)
+end
+
+-- A Shelf order row: the shelf's label drawn as its chip is on the menu bar
+-- (icons, pictures and the bar's case: ChipBar.buildChipLabel), outlined,
+-- black for the shelf being edited, then up and down as grey cards (they
+-- nudge a place, STYLE.md).
+local CHEV_UP   = "\xEE\xA1\x82"   -- U+E842 mdi-chevron-up
+local CHEV_DOWN = "\xEE\xA0\xBF"   -- U+E83F mdi-chevron-down
+function R.order(ctx, b)
+    local Size = require("ui/size")
+    local h = ctx:cardH() - Space.px(8)
+    local up = ctx:nudgeCard(CHEV_UP, b.on_up, h, b.up_enabled ~= false, ctx.fs + 4)
+    local down = ctx:nudgeCard(CHEV_DOWN, b.on_down, h, b.down_enabled ~= false, ctx.fs + 4)
+    local gap = Space.px(8)
+    local pill_w = ctx.w - 2 * h - 2 * gap
+    local border = Size.border.button
+    local pad = Space.px(12)
+    local ink = b.selected and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
+    local label = require("lib/bookshelf_chip_bar").buildChipLabel(b.label or "",
+        math.max(10, ctx.fs - 2), pill_w - 2 * (border + pad), ink, b.selected)
+    local pill = FrameContainer:new{ bordersize = border, radius = Space.px(6),
+        margin = 0, padding = 0, color = Blitbuffer.COLOR_BLACK,
+        background = b.selected and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_WHITE,
+        CenterContainer:new{ dimen = Geom:new{ w = pill_w - 2 * border, h = h - 2 * border }, label } }
+    ctx.layout[#ctx.layout + 1] = { up, down }
+    return HorizontalGroup:new{ align = "center", pill, HorizontalSpan:new{ width = gap },
+        up, HorizontalSpan:new{ width = gap }, down }
 end
 
 -- row(b, w) -> the card, and the cross beside it when the row can be cleared.
@@ -687,6 +719,10 @@ function Page.toButtons(model)
                 rows[#rows + 1] = { { text = "\u{2212}", callback = function() b.on_change(math.max(b.min, b.value - step)) end },
                     { text = (b.label and (b.label .. ": ") or "") .. fmt(b.value), enabled = false },
                     { text = "+", callback = function() b.on_change(math.min(b.max, b.value + step)) end } }
+            elseif t == "order" then
+                rows[#rows + 1] = { { text = mark(b.selected) .. (b.label or ""), enabled = false },
+                    { text = "\u{2191}", callback = b.on_up, enabled = b.up_enabled ~= false },
+                    { text = "\u{2193}", callback = b.on_down, enabled = b.down_enabled ~= false } }
             elseif t == "stepper" then
                 rows[#rows + 1] = { { text = "\u{2212}", callback = b.on_dec },
                     { text = b.label .. ": " .. tostring(b.value), enabled = false },

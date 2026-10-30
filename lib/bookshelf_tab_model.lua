@@ -340,6 +340,45 @@ function TabModel.isSibling(a, b)
     return type(a) == "table" and type(b) == "table" and a.parent == b.parent
 end
 
+-- inOrder(t, me) -> true when t takes a place in me's order: shown, at
+-- me's level, and neither a card's own shelf (those have no place on the bar).
+local function inOrder(t, me)
+    return t.enabled ~= false and TabModel.isSibling(t, me)
+        and not TabModel.isCardOnly(t) and not TabModel.isCardOnly(me)
+end
+
+-- orderSiblings(tabs, id) -> the shelves at id's level as the bar shows them
+-- (hidden ones and cards' shelves left out), id among them; {} when id is
+-- missing or a card's shelf. The shelf editor's Shelf order page lists these.
+function TabModel.orderSiblings(tabs, id)
+    local me
+    for _i, t in ipairs(tabs) do if t.id == id then me = t; break end end
+    local out = {}
+    if not me or TabModel.isCardOnly(me) then return out end
+    for _i, t in ipairs(tabs) do
+        if inOrder(t, me) then out[#out + 1] = t end
+    end
+    return out
+end
+
+-- moveAmong(tabs, id, delta) -> true when it moved: id swaps places with the
+-- next shelf in its order that way (delta -1 or 1), stepping past hidden
+-- shelves and other levels' records, which keep their places. In place; the
+-- caller saves.
+function TabModel.moveAmong(tabs, id, delta)
+    local mi
+    for i, t in ipairs(tabs) do if t.id == id then mi = i; break end end
+    if not mi then return false end
+    local me = tabs[mi]
+    local target = mi + delta
+    while target >= 1 and target <= #tabs and not inOrder(tabs[target], me) do
+        target = target + delta
+    end
+    if target < 1 or target > #tabs then return false end
+    tabs[mi], tabs[target] = tabs[target], tabs[mi]
+    return true
+end
+
 -- newId(tabs) -> the first free custom_N id.
 function TabModel.newId(tabs)
     tabs = tabs or TabModel.load()

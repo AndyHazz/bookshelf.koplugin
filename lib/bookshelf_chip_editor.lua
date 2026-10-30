@@ -1155,38 +1155,7 @@ function Editor:editTab(tab_id, opts)
 
     rebuild = function()
         if #pages > 0 then return renderPage(pages[#pages]) end
-        -- Reload tabs for the move buttons so enabled state is always current.
-        local current_tabs = TabModel.load()
-        local current_idx = 0
-        for i, t in ipairs(current_tabs) do
-            if t.id == tab_id then current_idx = i; break end
-        end
-        -- A chevron is "at the edge" only if there's no ENABLED neighbour
-        -- in that direction. Hidden tabs don't count toward visible order
-        -- so they shouldn't gate the move buttons.
-        -- A sub-shelf moves among the shelves of its own shelf of shelves,
-        -- and a top-level shelf among the top-level ones.
-        local me = current_tabs[current_idx]
-        -- A card's own shelf has no place in the strip: it is no one's
-        -- neighbour, and has none itself (both arrows stay at the edge).
-        local function neighbour(t)
-            return t.enabled ~= false and TabModel.isSibling(t, me)
-                and not TabModel.isCardOnly(t) and not TabModel.isCardOnly(me)
-        end
-        local at_left = true
-        for i = current_idx - 1, 1, -1 do
-            if neighbour(current_tabs[i]) then at_left = false; break end
-        end
-        local at_right = true
-        for i = current_idx + 1, #current_tabs do
-            if neighbour(current_tabs[i]) then at_right = false; break end
-        end
-
-        -- Bookends-style nudge chevrons (mdi-chevron-left / right from the
-        -- Symbols Nerd Font). Same glyph + render-size as the line editor's
-        -- position nudges so the visual language is consistent.
-        local CHEV_LEFT  = "\xEE\xA1\x80"  -- U+E840 mdi-chevron-left
-        local CHEV_RIGHT = "\xEE\xA1\x81"  -- U+E841 mdi-chevron-right
+        -- Sized as the rest of the editor's symbol buttons.
         local CHEV_SIZE  = 28
 
         local function open_label_dialog()
@@ -1290,36 +1259,6 @@ function Editor:editTab(tab_id, opts)
             if #parts == 0 then return _("Sort: (none)") end
             -- "Sort: Added, Title": the card shows "Sort" as its heading.
             return _("Sort: ") .. table.concat(parts, ", ")
-        end
-
-        local function move_tab(delta)
-            local move_tabs = TabModel.load()
-            local mi = 0
-            for i, t in ipairs(move_tabs) do
-                if t.id == tab_id then mi = i; break end
-            end
-            if mi == 0 then rebuild(); return end
-            -- Walk in the delta direction looking for the next ENABLED
-            -- neighbour. Hidden tabs are skipped so the swap moves THIS
-            -- tab past any hidden ones between it and the next visible
-            -- chip in the strip. If no enabled neighbour exists, no-op.
-            local target = mi + delta
-            local me = move_tabs[mi]
-            while target >= 1 and target <= #move_tabs do
-                local t = move_tabs[target]
-                if t.enabled ~= false and TabModel.isSibling(t, me)
-                        and not TabModel.isCardOnly(t) and not TabModel.isCardOnly(me) then break end
-                target = target + delta
-            end
-            if target >= 1 and target <= #move_tabs then
-                move_tabs[mi], move_tabs[target] = move_tabs[target], move_tabs[mi]
-                TabModel.save(move_tabs)
-                -- Position moves are visual only (book lists unchanged);
-                -- don't invalidate the book cache. Fire on_change so the
-                -- chip strip repaints in its new order.
-                if opts.on_change then opts.on_change() end
-            end
-            rebuild()
         end
 
         -- Row 1b's contents: sort priority levels 1-3 for most sources, but
@@ -1589,38 +1528,29 @@ function Editor:editTab(tab_id, opts)
         end
 
         local buttons = {
-            -- Row 0: [chev_left] [Label] [chev_right]. Label is a tappable
-            -- button that opens an InputDialog where the user can type plain
-            -- text, insert nerd-font glyphs via 'Insert icon...', and remove
-            -- them by editing the field as usual. One field for both text
-            -- and icons; no separate icon picker on the main dialog.
-            -- The nudges side by side after a Position label, then the
-            -- name (maintainer): they no longer wrap the name's button.
+            -- Row 0: Edit shelf name, then Shelf order: a page listing the
+            -- shelves beside this one, each as the menu bar draws it, with up
+            -- and down. It replaced Position's two nudges, which moved this
+            -- shelf one step at a time without showing where it was going
+            -- (maintainer).
             {
-                { label_text = _("Position") },
-                {
-                    text           = CHEV_LEFT,
-                    font_face      = "symbols",
-                    font_size      = CHEV_SIZE,
-                    font_bold      = false,
-                    enabled_func   = function() return not at_left end,
-                    callback       = function() move_tab(-1) end,
-                },
-                {
-                    text           = CHEV_RIGHT,
-                    font_face      = "symbols",
-                    font_size      = CHEV_SIZE,
-                    font_bold      = false,
-                    enabled_func   = function() return not at_right end,
-                    callback       = function() move_tab(1) end,
-                },
                 {
                     -- Title bar already shows the live label ("Editing shelf: ..."),
                     -- so the button just describes its action -- no need to
                     -- repeat the label text.
                     text     = _("Edit shelf name"),
-                    gap_before = Space.px(24),   -- apart from Position's arrows
                     callback = open_label_dialog,
+                },
+                {
+                    text     = _("Shelf order\xE2\x80\xA6"),
+                    callback = function()
+                        self:_openShelfOrder(tab_id, function()
+                            -- Visual only (book lists unchanged): no book
+                            -- cache to invalidate. The strip repaints in its
+                            -- new order.
+                            if opts.on_change then opts.on_change() end
+                        end)
+                    end,
                 },
             },
             -- Row 1a: source, full width.
@@ -1793,9 +1723,9 @@ function Editor:editTab(tab_id, opts)
         -- move along it; and it lives and dies with its module (removing the
         -- module deletes it, its settings switch to another), so no Delete,
         -- Copy, Move to or new shelf beside it. The first row keeps Edit
-        -- label between the arrows; the last row is the actions.
+        -- shelf name alone; the last row is the actions.
         if draft.card_only then
-            buttons[1] = { buttons[1][#buttons[1]] }
+            buttons[1] = { buttons[1][1] }
             buttons[#buttons] = {}
         end
 
@@ -2082,6 +2012,44 @@ end
 --
 -- Every pick hands back through on_close, which saves it (the caller passes
 -- commit + rebuild), and the menu reopens on its new value.
+-- _openShelfOrder(tab_id, on_change): the shelves at tab_id's level (the
+-- menu bar's, or a shelf of shelves'), each drawn as its chip is on the bar,
+-- tab_id's black, with up and down on every one, so any of them can be put
+-- in its place from here. A move saves at once and calls on_change.
+function Editor:_openShelfOrder(tab_id, on_change)
+    local d
+    local function move(id, delta)
+        local all = TabModel.load()
+        if TabModel.moveAmong(all, id, delta) then
+            TabModel.save(all)
+            if on_change then on_change() end
+            if d and d.refresh then d:refresh() end
+        end
+    end
+    local function page()
+        local list = TabModel.orderSiblings(TabModel.load(), tab_id)
+        local blocks = {}
+        for i, t in ipairs(list) do
+            -- As the bar builds a chip's label (an old record's separate
+            -- icon before it).
+            local label = t.label or ""
+            if t.icon and t.icon ~= "" then label = t.icon .. " " .. label end
+            local id = t.id
+            blocks[#blocks + 1] = { type = "order", label = label, selected = id == tab_id,
+                up_enabled = i > 1, down_enabled = i < #list,
+                on_up = function() move(id, -1) end,
+                on_down = function() move(id, 1) end }
+        end
+        return { blocks = blocks }
+    end
+    d = Editor._menu{
+        title = _("Shelf order"),
+        page  = page,
+        anchor = _highAnchor(function() return d end),
+    }
+    return d
+end
+
 function Editor:_openCatalogSettings(draft, on_close)
     local Prefs  = require("lib/bookshelf_opds_prefs")
     local Picker = require("lib/bookshelf_folder_picker")

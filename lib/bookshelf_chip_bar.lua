@@ -2246,5 +2246,11 @@ end
 function ChipBar.buildLabel(label, size, max_w, ink)
     return _buildLabelContent(label, size, max_w, ink, false, true)
 end
+-- buildChipLabel(label, size, max_w, ink, inverted) -> the same, in the
+-- chips' case (the Uppercase labels setting): a shelf named as the bar names
+-- it, for the shelf editor's Shelf order page.
+function ChipBar.buildChipLabel(label, size, max_w, ink, inverted)
+    return _buildLabelContent(label, size, max_w, ink, inverted, false)
+end
 
 return ChipBar

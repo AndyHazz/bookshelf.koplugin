@@ -272,8 +272,10 @@ t.test("the editor deletes a shelf's whole tree and moves among siblings", funct
     local ed = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
     assert(ed:find("TabModel.removeTree(del_tabs, tab_id)", 1, true),
         "delete leaves a shelf of shelves' shelves behind")
-    local _, n = ed:gsub("TabModel%.isSibling%(", "")
-    assert(n >= 2, "the move arrows and their enabled state do not both walk siblings")
+    -- Shelf order lists and moves a shelf among its siblings (TabModel,
+    -- tests/_test_shelf_order.lua).
+    assert(ed:find("TabModel.orderSiblings(", 1, true) and ed:find("TabModel.moveAmong(", 1, true),
+        "Shelf order does not walk siblings")
     assert(ed:find('_("Shelf of shelves"),', 1, true) and ed:find('set_simple("shelves")', 1, true),
         "no Shelf of shelves source")
 end)

@@ -169,12 +169,13 @@ end)
 
 t.test("a module's own shelf is edited without the shelf menu's controls", function()
     local ed = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
-    local cut = ed:match("if draft%.card_only then\n            buttons%[1%] = { buttons%[1%]%[#buttons%[1%]%] }\n            buttons%[#buttons%] = {}\n        end")
-    assert(cut, "arrows, Delete, Copy, Move to and + still shown for a module's shelf")
-    -- Edit shelf name ends the first row (Position and the arrows lead
-    -- it); the actions are the last.
+    local cut = ed:match("if draft%.card_only then\n            buttons%[1%] = { buttons%[1%]%[1%] }\n            buttons%[#buttons%] = {}\n        end")
+    assert(cut, "Shelf order, Delete, Copy, Move to and + still shown for a module's shelf")
+    -- Edit shelf name leads the first row (Shelf order follows it); the
+    -- actions are the last.
     local first = ed:match("local buttons = {\n(.-)%-%- Row 1a: source")
-    assert(first and first:find('_("Edit shelf name")', 1, true))
+    assert(first and first:find('_("Edit shelf name")', 1, true)
+        and first:find('_("Edit shelf name")', 1, true) < first:find('_("Shelf order', 1, true))
 end)
 
 t.test("a module's shelf's source list says what it is choosing", function()

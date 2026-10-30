@@ -206,6 +206,9 @@ end
 -- mechanism every module uses to update itself (tap reload + async); the
 -- scoping lives here in the parent, not in the (often third-party) modules.
 function HeroModules._reloadCellById(bw, id)
+    -- Closed: a module may still hold its refresh (a pack's plugin calls it
+    -- when its own state changes, the reader open by then). Nothing to draw.
+    if bw and bw._closed then return end
     local rec = id and bw and bw._hero_cells and bw._hero_cells[id]
     if not rec then return end
     local scope = HeroModules._swapCell(bw, rec)
@@ -778,6 +781,9 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
     -- stays valid across rebuilds.
     local host = HeroModules._hostOf(entry)
     local function refresh()
+        -- Safe to call at any time (micromodules/README.md): nothing once
+        -- the shelf has closed, the shelf host's redraw included.
+        if bw and bw._closed then return end
         if host and host.refresh then return host.refresh() end
         HeroModules._reloadCellById(bw, entry.id)
     end

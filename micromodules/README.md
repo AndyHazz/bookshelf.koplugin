@@ -205,6 +205,13 @@ automatic reload after a `keep_open` tap, and call `ctx.menu:_reload()` from
 `refresh` may be `nil` if an older host renders you, so guard:
 `if _refresh then _refresh() end`.
 
+`refresh` is safe to call at any time, so you can keep it and call it when
+your own data changes, from a timer or from another plugin. Under another
+window it brings the card up to date without a repaint (the window's close
+shows it); once the shelf has closed it does nothing. Don't check Bookshelf's
+own fields (`_closed`, `_micro_fullscreen`) to decide whether to call it: they
+are internal and can change in any release.
+
 Set `wants_minute_tick = true` if your card shows wall-clock time (a clock): the
 hero re-renders it once a minute (scoped) so it stays current. Read the time in
 `render` as usual.

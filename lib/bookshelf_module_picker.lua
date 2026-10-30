@@ -32,6 +32,30 @@ local Screen = Device.screen
 
 local ModulePicker = {}
 
+-- The cards' area. A card holds a live preview, its title and a summary: two
+-- rows of them in an area AREA_ROWS of the modal's 64dp list rows high (one
+-- fewer in landscape, as the modal shaves its grids). On a page of the shelf
+-- editor the modal would fill the page with 64dp rows of cards instead, which
+-- cut every preview short and ran each title into the card below (PW5,
+-- maintainer), so the picker sizes its own area (config.area_height, as the
+-- Theme library does). Short of room, a card gives up to SQUEEZE of its
+-- height before a page drops to one row: the editor's page on a PW5, with a
+-- pack's chips wrapping the strip to two rows, needs about a fifth.
+ModulePicker.AREA_ROWS = 6
+ModulePicker.SQUEEZE = 0.3
+
+-- _areaFor(room, unit, gap, units) -> the area's height, and its rows of
+-- cards. unit: a 64dp list row; gap: the modal's margin; units: list rows in
+-- the window's area; room: the most the area can have (nil: no limit).
+function ModulePicker._areaFor(room, unit, gap, units)
+    local natural = units * unit + (units - 1) * gap
+    local own = math.floor((natural - gap) / 2)
+    if not room or natural <= room then return natural, 2 end
+    local squeezed = math.floor((room - gap) / 2)
+    if squeezed >= own * (1 - ModulePicker.SQUEEZE) then return 2 * squeezed + gap, 2 end
+    return math.max(1, math.min(own, room)), 1
+end
+
 -- Render one module card for the grid: the live preview sits on the same
 -- light-grey rounded card the start menu paints module rows on (visual
 -- continuity: the card in the picker IS what lands in the menu), with the
@@ -247,6 +271,8 @@ function ModulePicker:show(on_select, opts)
     -- Columns: a lone module gets a single centred column (a sparse
     -- multi-column grid with one card top-left reads as broken); larger
     -- registries get the usual 2-portrait/3-landscape browse density.
+    -- Rows of cards a page: two, or the one area_height found room for.
+    local rows = 2
     local function cols()
         if #items <= 1 then return 1 end
         return Screen:getWidth() > Screen:getHeight() and 3 or 2
@@ -258,11 +284,16 @@ function ModulePicker:show(on_select, opts)
         over = opts.over,
         no_search = true, -- a handful of cards at most; search row is noise
         grid_cols = cols,
-        cells_per_page = function() return cols() * 2 end,
-        -- Taller grid area (default 5) so each card has room for the preview,
-        -- title AND the data-source summary line without squeezing the preview.
-        -- Still 2 rows per page; this just makes those rows taller.
-        rows_per_page = 6,
+        cells_per_page = function() return cols() * rows end,
+        -- The cards' own area (ModulePicker._areaFor), on a page of the
+        -- editor too: rows that fit hold their preview, title and summary.
+        area_height = function(_cw, room)
+            local units = ModulePicker.AREA_ROWS
+            if Screen:getWidth() > Screen:getHeight() then units = units - 1 end
+            local h
+            h, rows = ModulePicker._areaFor(room, Screen:scaleBySize(64), Space.px(10), units)
+            return h
+        end,
         chip_strip = chips and function()
             local out = {}
             for _i, c in ipairs(chips) do

@@ -47,8 +47,8 @@ a control by hand, so a change lands everywhere.
 - The ornament menu is a panel of its own: its actions on the bar under
   the title (Swap with the collection's icon, Shuffle, Switch off; Reset at
   the end), then two columns of labelled steppers and switches: the piece
-  in its slot (Size, Height, Padding) and the rest (Place, Mirror, Anchor,
-  Tap). A tap is the small step, a hold the big one, a tap on a value
+  in its slot (Size, Height, Padding) and the rest (Place, Mirror, Anchor),
+  Tap a row of its own under them with a tip beside the button. A tap is the small step, a hold the big one, a tap on a value
   resets it (said in a grey hint). No d-pad: moving along the deal is not
   the same as moving up and down in the piece's slot (maintainer).
 - Keys move by where the buttons are on screen: the nearest that way, so

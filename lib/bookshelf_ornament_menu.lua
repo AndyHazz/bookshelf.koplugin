@@ -80,7 +80,7 @@ end
 -- it replaced): the actions on a bar under the title (Swap, Shuffle,
 -- Switch off; Reset at its end), then two columns of labelled controls:
 -- the piece in its slot (Size, Height, Padding) and the rest (Place,
--- Mirror, Anchor, Tap). On the steppers a tap is the small step, a hold
+-- Mirror, Anchor); Tap a row of its own under them, with a tip. On the steppers a tap is the small step, a hold
 -- the big one, and a tap on a value resets it. The X closes.
 function M.show(entry, bw, piece, widget, opts)
     opts = opts or {}
@@ -417,8 +417,8 @@ function M.show(entry, bw, piece, widget, opts)
 
         -- Two columns, each a label and its control, the labels one width a
         -- column so the controls line up: the piece in its slot (Size,
-        -- Height, Padding) and the rest (Place, Mirror and Anchor together,
-        -- Tap) (maintainer). One column when two do not fit (a small screen).
+        -- Height, Padding) and the rest (Place, Mirror and Anchor together)
+        -- (maintainer). One column when two do not fit (a small screen).
         -- What a tap on the piece does: the action chooser.
         local tap = entry.tap
         local tap_btn = kbutton{ text = (tap and ((tap.zoom and _("Zoom")) or tap.label or _("set"))
@@ -428,11 +428,13 @@ function M.show(entry, bw, piece, widget, opts)
             { { _("Size"), size_ctl, size_keys }, { _("Height"), height_ctl, height_keys },
               { _("Padding"), pad_ctl, pad_keys } },
             { { _("Place"), place_ctl, place_keys }, { _("Mirror"), mirror, mirror_keys[1] },
-              { _("Anchor"), anchor, anchor_keys[1] }, { _("Tap"), tap_btn, { tap_btn } } },
+              { _("Anchor"), anchor, anchor_keys[1] } },
         }
         local col_gap = Space.px(24)
-        local function column(list)
-            local lw = 0
+        -- The left column's label width, shared with the Tap row under it.
+        local tap_label = text(_("Tap"), { face = small })
+        local function column(list, extra)
+            local lw = extra and extra:getSize().w or 0
             for _i, r in ipairs(list) do lw = math.max(lw, text(r[1], { face = small }):getSize().w) end
             local vg = VerticalGroup:new{ align = "left" }
             for i, r in ipairs(list) do
@@ -440,9 +442,10 @@ function M.show(entry, bw, piece, widget, opts)
                 vg[#vg + 1] = line({ LeftContainer:new{ dimen = Geom:new{ w = lw, h = h },
                     text(r[1], { face = small }) }, r[2] }, gap)
             end
-            return vg
+            return vg, lw
         end
-        local c1, c2 = column(cols[1]), column(cols[2])
+        local c1, left_lw = column(cols[1], tap_label)
+        local c2 = column(cols[2])
         local grid
         if c1:getSize().w + col_gap + c2:getSize().w <= inner_w then
             grid = HorizontalGroup:new{ align = "top", c1, HorizontalSpan:new{ width = col_gap }, c2 }
@@ -461,11 +464,25 @@ function M.show(entry, bw, piece, widget, opts)
             end
         end
 
+        -- Tap: a row of its own under the columns, so the button grows with
+        -- the action's name, and a tip in the room beside it (maintainer).
+        local tip = tap and _("Tapping the piece on the shelf does this.")
+            or _("Give this ornament a job!")
+        local tap_used = left_lw + gap + tap_btn:getSize().w + gap
+        local tap_row = line({
+            LeftContainer:new{ dimen = Geom:new{ w = left_lw, h = h }, tap_label },
+            tap_btn,
+            text(tip, { face = small, fgcolor = Blitbuffer.COLOR_DARK_GRAY,
+                max_width = math.max(Space.px(40), inner_w - tap_used) }),
+        }, gap)
+        rows[#rows + 1] = { tap_btn }
+
         local hint = text(_("Hold a button to step by 10. Tap a value to reset it."),
             { face = small, fgcolor = Blitbuffer.COLOR_DARK_GRAY, max_width = inner_w })
 
         local body = VerticalGroup:new{ align = "left",
-            grid, VerticalSpan:new{ width = gap },
+            grid, VerticalSpan:new{ width = Space.px(6) },
+            tap_row, VerticalSpan:new{ width = gap },
             hint,
         }
         local frame = FrameContainer:new{

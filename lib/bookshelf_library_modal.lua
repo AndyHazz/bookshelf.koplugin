@@ -1429,15 +1429,23 @@ function LibraryModal:refresh()
     if strip then table.insert(body, strip) end      -- spans full modal_w
     table.insert(body, VerticalSpan:new{ width = MARGIN })
     -- config.intro: a line or two saying what a tap does (the collection
-    -- editor's manage and bulk modes), as grey hint text.
+    -- editor's manage and bulk modes), as grey hint text. Over the grid, or
+    -- under it with config.intro_below (the ornament browser's line about
+    -- whose set its boxes are: it explains the grid, so it follows it,
+    -- maintainer).
     local intro = self.config.intro
     if type(intro) == "function" then intro = intro() end
-    if intro and intro ~= "" then
+    local has_intro = intro and intro ~= ""
+    if has_intro and not self.config.intro_below then
         table.insert(body, padded(PopupKit.hintText(intro, 19, cw)))
         table.insert(body, VerticalSpan:new{ width = MARGIN })
     end
     table.insert(body, padded(result_area))
     table.insert(body, VerticalSpan:new{ width = MARGIN })
+    if has_intro and self.config.intro_below then
+        table.insert(body, padded(PopupKit.hintText(intro, 19, cw)))
+        table.insert(body, VerticalSpan:new{ width = MARGIN })
+    end
     -- The page row: last, at the bottom of a page of the editor (the spare
     -- height goes above it, below).
     local page_at = #body + 1

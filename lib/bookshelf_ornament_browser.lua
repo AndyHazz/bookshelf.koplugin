@@ -436,6 +436,7 @@ function Browser._open(on_change, opts)
         end,
         cell_renderer = Browser._renderCell,
         intro = function() return self:_intro() end,
+        intro_below = true,
         on_cell_tap = function(item)
             if self.opts.pick then self:_pick(item) else self:_toggle(item) end
         end,

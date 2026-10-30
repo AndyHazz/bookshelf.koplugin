@@ -161,7 +161,12 @@ t.test("the browser says whose set the ticks are, and only a pack that is off fa
     assert(cell:find("if item.pack_off and not item.pick then preview = Faded:new", 1, true),
         "a piece that is only off still fades")
     assert(cell:find("if item.pick then return card end", 1, true), "Swap still shows the boxes")
-    assert(src:find("intro = function() return self:_intro() end", 1, true), "no line saying whose set it is")
+    assert(src:find("intro = function() return self:_intro() end,\n        intro_below = true,", 1, true),
+        "no line under the grid saying whose set it is")
+    local m = io.open("lib/bookshelf_library_modal.lua"):read("*a")
+    local grid = m:find("table.insert(body, padded(result_area))", 1, true)
+    local below = m:find("if has_intro and self.config.intro_below then", 1, true)
+    assert(grid and below and below > grid, "intro_below does not put the line under the grid")
     local intro = method(src, "Browser:_intro()")
     assert(intro:find("self.opts.pick", 1, true), "Swap gets the switches' line")
     -- The words, through a stub.

@@ -67,7 +67,11 @@ function Kit.tapCell(widget, w, h, on_tap, enabled, on_hold, instant)
             -- tab strip showed two tabs picked. The ring inverts what is
             -- under it, so it shows on a black (selected) cell as on a white
             -- one. focus_radius: round it to a rounded card's corner.
-            Kit.invertRing(bb, x, y, w, h, Kit.focusWidth(), self.focus_radius or 0)
+            -- focus_inset: set it in from the cell's edge, clear of an
+            -- outline drawn round the cell (a segmented control's).
+            local i = self.focus_inset or 0
+            Kit.invertRing(bb, x + i, y + i, w - 2 * i, h - 2 * i, Kit.focusWidth(),
+                self.focus_radius or 0)
         end
     end
     cell.onFocus = function() cell._focused = true; return true end
@@ -170,6 +174,11 @@ function Kit.segmented(o)
                 if key ~= o.active then o.on_pick(key)
                 elseif o.allow_none then o.on_pick(nil) end
             end)
+        -- The keys' ring set in from the cell, rounded: on the cell's edge
+        -- its square corners stuck out past the control's rounded ends and
+        -- ran over the outline and dividers (maintainer).
+        cell.focus_inset = Kit.BORDER + Space.px(3)
+        cell.focus_radius = math.max(Space.px(4), Kit.RADIUS - cell.focus_inset)
         row[#row + 1] = cell
         cells[#cells + 1] = cell
     end

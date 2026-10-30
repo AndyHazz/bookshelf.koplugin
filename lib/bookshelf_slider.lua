@@ -5,10 +5,12 @@
 -- e-ink is no thing to do on every move). - and + step it finely. Ticks
 -- under the track mark the range's ends and Default.
 --   Slider.new{ width, value, min, max, step, default, format(v) -> text,
---               on_change(v), face, small, big, big_label } -> widget, keys_row
--- big: the buttons either side step by it (grey cards reading "-10" "+10",
--- big_label the number shown; maintainer), the track giving the fine step;
--- without it, plain - and + step by o.step.
+--               on_change(v), face, small, step_label, big, big_label }
+--               -> widget, keys_row
+-- Grey cards either side step it: "-5" "+5" by o.step beside the track and,
+-- with o.big, "-10" "+10" outside them (maintainer: keep both nudges).
+-- step_label / big_label: the number a card shows, when the value's own
+-- units are not the reader's (an ornament's 0.05 reads 5).
 -- The maths is kept apart (snap, valueAt, xOf, ticks) so the tests reach it
 -- without widgets.
 
@@ -70,23 +72,32 @@ function Slider.new(o)
     end
 
     local btn_h = TextWidget:new{ text = "Hg", face = o.face }:getSize().h + Space.px(12)
-    local by = o.big or o.step or 1
-    local function stepButton(text, d)
+    -- stepButton(d, by): a grey card stepping by d * by, labelled with the
+    -- step ("-10", "+5"): the fine step beside the track, the big one
+    -- outside it (maintainer: keep both nudges).
+    local MINUS = "\xE2\x88\x92"   -- U+2212 minus
+    local function stepButton(d, by, label)
         local enabled = (d < 0 and value > o.min) or (d > 0 and value < o.max)
-        local btn = Kit.button{ text = text, face = o.face, height = btn_h,
-            width = (not o.big) and btn_h or nil, border = o.big and 0 or nil,
-            enabled = enabled, on_tap = function() commit(value + d * by) end }
-        -- The big steps are grey cards, as the layout editor's d-pad keys.
-        if o.big then Kit.cardify(btn[1]) end
+        local btn = Kit.button{ text = (d < 0 and MINUS or "+") .. label, face = o.face,
+            height = btn_h, border = 0, enabled = enabled,
+            on_tap = function() commit(value + d * by) end }
+        Kit.cardify(btn[1])
         return btn
     end
-    local MINUS = "\xE2\x88\x92"   -- U+2212 minus
-    local num = o.big and (o.big_label or tostring(o.big)) or ""
-    local minus = stepButton(MINUS .. num, -1)
-    local plus  = stepButton("+" .. num, 1)
-    local gap = Space.px(12)
-    local bw = math.max(minus:getSize().w, plus:getSize().w)
-    local track_w = math.max(Space.px(60), o.width - 2 * bw - 2 * gap)
+    local step = o.step or 1
+    local fine_label = o.step_label or tostring(step)
+    local minus = stepButton(-1, step, fine_label)
+    local plus  = stepButton(1, step, fine_label)
+    local big_minus, big_plus
+    if o.big then
+        local big_label = o.big_label or tostring(o.big)
+        big_minus = stepButton(-1, o.big, big_label)
+        big_plus  = stepButton(1, o.big, big_label)
+    end
+    local gap = Space.px(10)
+    local side = minus:getSize().w + gap
+    if big_minus then side = side + big_minus:getSize().w + gap end
+    local track_w = math.max(Space.px(60), o.width - 2 * side)
 
     -- The track: a grey bar, black up to the knob (the value is what is
     -- "on"), ticks under it, the knob a black disc. Its touch area is the
@@ -159,13 +170,23 @@ function Slider.new(o)
         end
     end
 
-    local row = HorizontalGroup:new{ align = "center",
-        minus, HorizontalSpan:new{ width = gap }, track, HorizontalSpan:new{ width = gap }, plus }
+    local row = HorizontalGroup:new{ align = "center" }
+    local keys = {}
+    local function add(w)
+        if #row > 0 then row[#row + 1] = HorizontalSpan:new{ width = gap } end
+        row[#row + 1] = w
+    end
+    local parts = { minus, track, plus }
+    if big_minus then parts = { big_minus, minus, track, plus, big_plus } end
+    for _i, w in ipairs(parts) do
+        add(w)
+        if w ~= track then keys[#keys + 1] = w end
+    end
     local vg = VerticalGroup:new{ align = "left",
         row,
-        HorizontalGroup:new{ align = "top", HorizontalSpan:new{ width = minus:getSize().w + gap }, labels },
+        HorizontalGroup:new{ align = "top", HorizontalSpan:new{ width = side }, labels },
     }
-    return vg, { minus, plus }, fmt(value)
+    return vg, keys, fmt(value)
 end
 
 return Slider

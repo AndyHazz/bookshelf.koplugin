@@ -74,7 +74,8 @@ a control by hand, so a change lands everywhere.
 - A size or amount over a range (a font scale, an ornament's size): a
   slider (`Page` slider, `lib/bookshelf_slider.lua`). Tap the track to jump,
   drag the knob (applied when the finger lifts, not on every move; it snaps
-  to the fine step), −10 and +10 as grey cards either side (`big`), the
+  to the fine step), grey cards either side for the fine step (−5 +5, or
+  −1 +1) and, outside them, the big one (−10 +10, `big`), the
   range's ends and Default ticked under it. A size nudge is a slim panel low
   on the screen so the preview stays in sight, its footer Cancel | Default |
   Done (Default greyed at the default: the one footer that holds more than

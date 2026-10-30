@@ -66,9 +66,10 @@ local function viewMode(opts)
         -- key is the old three-global model growing back.
         BookshelfSettings = {
             read = function(k)
-                assert(k == "search_view_mode",
+                assert(k == "search_view_mode" or k == "search_view_level1" or k == "search_view_level2",
                     "_viewMode read an unexpected settings key: " .. tostring(k))
                 settings_reads = settings_reads + 1
+                if k ~= "search_view_mode" then return nil end
                 return opts.search_mode
             end,
         },
@@ -77,6 +78,7 @@ local function viewMode(opts)
         _expanded         = opts.expanded,
         _isDrilledIn      = function() return opts.in_folder == true end,
         _isSearchResults  = function() return opts.in_search == true end,
+        _searchLevel      = function() return opts.in_search == true, false end,
         _chipViewMode     = function()
             return ViewMode.chipOverride(opts.chip_mode)
         end,

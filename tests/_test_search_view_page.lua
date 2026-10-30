@@ -17,7 +17,8 @@ local function open(stored)
     local env = setmetatable({
         BookshelfWidget = {},
         _ = function(s) return s end,
-        ViewMode = { COVERS = "covers", LIST = "list", SPINES = "spines", AUTO = "auto" },
+        T = function(s, a, b) return (s:gsub("%%1", tostring(a)):gsub("%%2", tostring(b))) end,
+        ViewMode = require("lib/bookshelf_view_mode"),
         BookshelfSettings = { read = function(k) return saved[k] end,
             save = function(k, v) saved[k] = v end, flush = function() end },
         UIManager = { setDirty = function() end, close = function() end },
@@ -51,6 +52,7 @@ t.test("Show as: Auto, Covers, List, Spines, on the stored one", function()
     local keys = {}
     for i, it in ipairs(s.items) do keys[i] = it.key end
     eq(table.concat(keys, " "), "auto covers list spines")
+    eq(#state.spec.page().blocks, 1, "levels shown though not Auto")
     eq(s.active, "list")
     eq(open(nil).spec.page().blocks[1] ~= nil, true)
     eq(seg(open(nil)).active, "covers")
@@ -71,6 +73,22 @@ t.test("the strip says what the choice does", function()
     local strip = state.spec.page().strip
     eq(strip[1].type, "summary")
     assert(#strip[1].text > 0)
+end)
+
+t.test("Auto: a style for the results and for what is opened from them", function()
+    local state, saved = open("auto")
+    local m = state.spec.page()
+    local levels = {}
+    for _i, b in ipairs(m.blocks) do
+        if b.type == "segmented" and b.label ~= "Show as" then levels[#levels + 1] = b end
+    end
+    eq(#levels, 2)
+    eq(levels[1].active, "list"); eq(levels[2].active, "list")
+    eq(m.strip[1].text, "Results as a list; what you open from them as a list.")
+    levels[1].on_pick("covers")
+    eq(saved.search_view_level1, "covers")
+    levels[1].on_pick("list")
+    eq(saved.search_view_level1, nil, "the default is stored as absence")
 end)
 
 t.done()

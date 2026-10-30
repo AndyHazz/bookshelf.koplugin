@@ -1412,6 +1412,9 @@ function BookshelfWidget:_rebuild()
         key        = "search",
         nerd_glyph = "\xEF\x80\x82",
         action     = true,
+        -- Long-press: how search results show (maintainer), as the
+        -- Search results pill's long-press does.
+        holdable   = true,
     }
     -- "Micro modules" hero toggle at the right end, after search. Like the
     -- "currently reading" chip it's an action chip that renders an upward
@@ -1986,6 +1989,10 @@ function BookshelfWidget:_rebuild()
             -- micro-module options menu instead of the tab editor.
             if key == "modules" then
                 self:_showModulesOptions()
+                return
+            end
+            if key == "search" then
+                self:_showSearchViewModePicker()
                 return
             end
             -- Long-pressing a chip that isn't the active one selects it first,
@@ -4347,8 +4354,9 @@ end
 -- whichever chip you happened to search from would follow you into results
 -- that have nothing to do with it.
 function BookshelfWidget:_chipViewMode()
-    local tip = self._drilldown_path and self._drilldown_path[#self._drilldown_path]
-    if tip and tip.kind == "search" then return nil end
+    -- No shelf's style anywhere in a search: the results and what is opened
+    -- from them have search's own (_viewMode).
+    if self:_searchLevel() then return nil end
     local TabModel = require("lib/bookshelf_tab_model")
     local tab = TabModel.getById(self.chip)
     return ViewMode.chipOverride(tab and tab[ViewMode.CHIP_KEY])
@@ -5720,18 +5728,25 @@ function BookshelfWidget:_viewMode()
     -- Note this is the only thing in the model that can force COVERS. The
     -- globals and the folder key can only ever turn a list ON; a chip is where
     -- a reader says "not here", explicitly and per shelf.
-    -- Search results carry their OWN mode, decoupled from every chip the
-    -- same way their content is: covers by default (the pre-list-view look),
-    -- switchable by long-pressing the Search results pill. Only while the
-    -- results themselves are on screen -- drill INTO a result and the
-    -- normal chip resolution below takes over again.
-    if self:_isSearchResults() then
+    -- Search carries its OWN view settings, a shelf's (search_view_mode,
+    -- Auto's two levels), decoupled from every chip the same way its content
+    -- is: covers by default, set from a long-press on the search icon or the
+    -- Search results pill. They hold for the results AND for what is opened
+    -- from them: a drill into an author found by search took the settings of
+    -- the shelf the search was made from, spines and all (Reddit; maintainer
+    -- verified).
+    local in_search, below = self:_searchLevel()
+    if in_search then
         local m = BookshelfSettings.read("search_view_mode")
-        if m == ViewMode.LIST then return ViewMode.LIST end
-        if m == ViewMode.SPINES then return ViewMode.SPINES end
         if m == ViewMode.AUTO then
-            return ViewMode.effective(self._expanded, true)
+            -- Unset, both levels a list: what Auto search results have
+            -- always shown, so a reader who chose it keeps that look.
+            return ViewMode.auto({
+                [ViewMode.LEVEL_KEYS[1]] = BookshelfSettings.read("search_view_level1") or ViewMode.LIST,
+                [ViewMode.LEVEL_KEYS[2]] = BookshelfSettings.read("search_view_level2") or ViewMode.LIST,
+            }, below)
         end
+        if m == ViewMode.LIST or m == ViewMode.SPINES then return m end
         return ViewMode.COVERS
     end
     local chip_mode = self:_chipViewMode()
@@ -5763,6 +5778,16 @@ end
 -- _isSearchResults() — is the shelf showing search RESULTS right now?
 -- Deepest entry only: a drill into an author found via search is that
 -- author's shelf, not the results page.
+-- _searchLevel() -> in_search, below: whether the shelf is in a search (its
+-- results, or something opened from them), and whether below the results.
+function BookshelfWidget:_searchLevel()
+    local path = self._drilldown_path or {}
+    for i = #path, 1, -1 do
+        if path[i].kind == "search" then return true, i < #path end
+    end
+    return false, false
+end
+
 function BookshelfWidget:_isSearchResults()
     local path = self._drilldown_path
     local tip = path and path[#path]
@@ -5772,44 +5797,77 @@ end
 -- Long-press on the Search results pill: pick the results' view mode.
 -- A global setting rather than per anything -- search is one surface.
 function BookshelfWidget:_showSearchViewModePicker()
-    -- A page (STYLE.md): Show as, the shelf editor's choice, with a sentence
-    -- saying what the one picked does. It applies at once, behind the page.
+    -- A page (STYLE.md): search's own Show as, the shelf editor's choice,
+    -- for the results and what is opened from them; under Auto, a style for
+    -- each of the two. A sentence says what the choice does. It applies at
+    -- once, behind the page.
     local function current()
         local m = BookshelfSettings.read("search_view_mode")
         if m == ViewMode.LIST or m == ViewMode.AUTO or m == ViewMode.SPINES then return m end
         return ViewMode.COVERS
     end
-    local SAYS = {
-        [ViewMode.AUTO]   = _("Results in the style your library uses."),
-        [ViewMode.COVERS] = _("Results as a grid of covers."),
-        [ViewMode.LIST]   = _("Results as a list, details beside each book."),
-        [ViewMode.SPINES] = _("Results as spines on shelves."),
+    local LEVEL_SETTING = { "search_view_level1", "search_view_level2" }
+    -- Unset, a list (_viewMode: what Auto search results always showed).
+    local function level(n)
+        return ViewMode.levelMode(BookshelfSettings.read(LEVEL_SETTING[n]) or ViewMode.LIST, n)
+    end
+    -- How each style reads in a sentence.
+    local AS = {
+        [ViewMode.COVERS] = _("covers"),
+        [ViewMode.LIST]   = _("a list"),
+        [ViewMode.SPINES] = _("spines"),
     }
+    local function says(m)
+        if m == ViewMode.AUTO then
+            return T(_("Results as %1; what you open from them as %2."), AS[level(1)], AS[level(2)])
+        end
+        return T(_("Results, and what you open from them, as %1."), AS[m])
+    end
     local dialog
+    local function changed()
+        BookshelfSettings.flush()
+        self:_rebuild()
+        UIManager:setDirty(self, "ui")
+        if dialog then dialog:refresh() end
+    end
+    local LEVEL_ITEMS = {
+        { key = ViewMode.COVERS, label = _("Covers") },
+        { key = ViewMode.LIST,   label = _("List") },
+        { key = ViewMode.SPINES, label = _("Spines") },
+    }
     local function page()
-        return {
-            strip = { { type = "summary", text = SAYS[current()] } },
-            blocks = {
-                { type = "segmented", label = _("Show as"),
-                  items = {
-                      { key = ViewMode.AUTO,   label = _("Auto") },
-                      { key = ViewMode.COVERS, label = _("Covers") },
-                      { key = ViewMode.LIST,   label = _("List") },
-                      { key = ViewMode.SPINES, label = _("Spines") },
-                  },
-                  active = current(),
-                  on_pick = function(value)
-                      if not value or value == current() then return end
-                      -- Covers is the default, stored as absence like a chip's pin.
-                      BookshelfSettings.save("search_view_mode",
-                          value ~= ViewMode.COVERS and value or nil)
-                      BookshelfSettings.flush()
-                      self:_rebuild()
-                      UIManager:setDirty(self, "ui")
-                      if dialog then dialog:refresh() end
-                  end },
-            },
+        local m = current()
+        local blocks = {
+            { type = "segmented", label = _("Show as"),
+              items = {
+                  { key = ViewMode.AUTO,   label = _("Auto") },
+                  { key = ViewMode.COVERS, label = _("Covers") },
+                  { key = ViewMode.LIST,   label = _("List") },
+                  { key = ViewMode.SPINES, label = _("Spines") },
+              },
+              active = m,
+              on_pick = function(value)
+                  if not value or value == m then return end
+                  -- Covers is the default, stored as absence like a chip's pin.
+                  BookshelfSettings.save("search_view_mode",
+                      value ~= ViewMode.COVERS and value or nil)
+                  changed()
+              end },
         }
+        if m == ViewMode.AUTO then
+            blocks[#blocks + 1] = { type = "heading", text = _("Auto") }
+            for n, label in ipairs({ _("Results"), _("Opened from them") }) do
+                blocks[#blocks + 1] = { type = "segmented", label = label,
+                    items = LEVEL_ITEMS, active = level(n),
+                    on_pick = function(value)
+                        if not value or value == level(n) then return end
+                        BookshelfSettings.save(LEVEL_SETTING[n],
+                            value ~= ViewMode.LIST and value or nil)
+                        changed()
+                    end }
+            end
+        end
+        return { strip = { { type = "summary", text = says(m) } }, blocks = blocks }
     end
     dialog = require("lib/bookshelf_page_dialog").show{
         title = _("Search results"),

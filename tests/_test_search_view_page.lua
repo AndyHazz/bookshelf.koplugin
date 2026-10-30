@@ -68,11 +68,9 @@ t.test("a pick saves (Covers as absence), redraws the shelf and the page", funct
     eq(saved.search_view_mode, nil)
 end)
 
-t.test("the strip says what the choice does", function()
-    local state = open("list")
-    local strip = state.spec.page().strip
-    eq(strip[1].type, "summary")
-    assert(#strip[1].text > 0)
+t.test("no summary line over the choices (maintainer)", function()
+    eq(open("list").spec.page().strip, nil)
+    eq(open("auto").spec.page().strip, nil)
 end)
 
 t.test("Auto: a style for the results and for what is opened from them", function()
@@ -84,7 +82,6 @@ t.test("Auto: a style for the results and for what is opened from them", functio
     end
     eq(#levels, 2)
     eq(levels[1].active, "list"); eq(levels[2].active, "list")
-    eq(m.strip[1].text, "Results as a list; what you open from them as a list.")
     levels[1].on_pick("covers")
     eq(saved.search_view_level1, "covers")
     levels[1].on_pick("list")

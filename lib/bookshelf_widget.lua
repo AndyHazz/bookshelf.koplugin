@@ -5818,18 +5818,6 @@ function BookshelfWidget:_showSearchViewModePicker()
     local function level(n)
         return ViewMode.levelMode(BookshelfSettings.read(LEVEL_SETTING[n]) or ViewMode.LIST, n)
     end
-    -- How each style reads in a sentence.
-    local AS = {
-        [ViewMode.COVERS] = _("covers"),
-        [ViewMode.LIST]   = _("a list"),
-        [ViewMode.SPINES] = _("spines"),
-    }
-    local function says(m)
-        if m == ViewMode.AUTO then
-            return T(_("Results as %1; what you open from them as %2."), AS[level(1)], AS[level(2)])
-        end
-        return T(_("Results, and what you open from them, as %1."), AS[m])
-    end
     local dialog
     local function changed()
         BookshelfSettings.flush()
@@ -5874,7 +5862,8 @@ function BookshelfWidget:_showSearchViewModePicker()
                     end }
             end
         end
-        return { strip = { { type = "summary", text = says(m) } }, blocks = blocks }
+        -- No summary line: the choices say it (maintainer).
+        return { blocks = blocks }
     end
     dialog = require("lib/bookshelf_page_dialog").show{
         title = _("Search results"),

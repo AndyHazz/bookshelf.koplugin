@@ -44,10 +44,13 @@ a control by hand, so a change lands everywhere.
   d-pad, not a row of arrows; its keys are grey cards (`card` on the
   editor's buttons), so the pad reads as one thing beside the outlined
   buttons. Its title is a menu's: bold, as tall as the text and the X.
-- The ornament menu is the same kind of panel: its d-pad moves the piece
-  as it looks (left and right its place in the deal, up and down its
-  height), size and padding steppers beside it, a tap the small step and a
-  hold the big one, a tap on a value resetting it (said in a grey hint).
+- The ornament menu is a panel of its own: its actions on the bar under
+  the title (Swap with the collection's icon, Shuffle, Switch off; Reset at
+  the end), then two columns of labelled steppers and switches, where the
+  piece is (Place, Height, Anchor) and how it looks (Size, Padding, Mirror,
+  Tap). A tap is the small step, a hold the big one, a tap on a value
+  resets it (said in a grey hint). No d-pad: moving along the deal is not
+  the same as moving up and down in the piece's slot (maintainer).
 - Keys move by where the buttons are on screen: the nearest that way, so
   a d-pad or two columns are walked as they look, not in list order.
 

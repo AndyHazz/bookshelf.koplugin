@@ -47,7 +47,7 @@ t.test("Pin here is offered where it can pin, and pins there", function()
     assert(orn:find("return h(self.placement.entry, self.placement, self.dimen, self)", 1, true), "the long-press passes only the rect")
     assert(w:find('require("lib/bookshelf_ornament_menu").show(entry, shelf, piece, widget)', 1, true), "the shelf drops the piece")
     assert(menu:find("if on_shelf and src and src.pin_after_idx and bw and bw._pinOrnament then", 1, true), "offered with nowhere to pin")
-    assert(menu:find('actions[#actions + 1] = kbutton{ text = _("Pin here")', 1, true), "Pin here is not a card")
+    assert(menu:find('left_btns[#left_btns + 1] = barButton(_("Pin here")', 1, true), "Pin here is not on the bar")
     local f = w:match("\nfunction BookshelfWidget:_pinOrnament%(entry, piece%)\n(.-)\nend\n")
     assert(f, "no _pinOrnament")
     assert(f:find('module = "ornament"', 1, true) and f:find("ornament = entry.name", 1, true), "not an Ornament module of the piece")
@@ -97,7 +97,7 @@ t.test("a pinned piece's ornament menu leaves out the deal's controls", function
     -- Switch off: none of them for a piece out of the deal.
     assert(mm:find("local placed = not opts.pinned", 1, true) and mm:find("local can_move = placed and", 1, true),
         "the place controls are offered for a pinned piece")
-    assert(mm:find("if not opts.pinned then\n            actions[#actions + 1] = kbutton{ text = _(\"Swap\")", 1, true),
+    assert(mm:find("if not opts.pinned then\n            left_btns[#left_btns + 1] = barButton(_(\"Swap\")", 1, true),
         "Swap/Shuffle/Switch off are offered for a pinned piece")
 end)
 

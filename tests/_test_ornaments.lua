@@ -1199,10 +1199,10 @@ end)
 
 t.test("the menu has the anchor between mirror and tap, and switching it starts from the anchor", function()
     local src = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
-    local m = src:find('_("Mirror")', 1, true)
-    local a = src:find('_("Anchor")', 1, true)
-    local tp = src:find('_("Tap: none")', 1, true)
-    assert(m and a and tp and m < a and a < tp, "the anchor is not between Mirror and Tap")
+    -- Beside Height, which it is what counts from.
+    local cols = src:match("local cols = {(.-)\n        }")
+    local hgt, a = cols and cols:find('_("Height")', 1, true), cols and cols:find('_("Anchor")', 1, true)
+    assert(hgt and a and hgt < a, "the anchor is not under Height")
     assert(src:find("on_pick = function(k) setAnchor(k) end", 1, true), "the control does not switch the anchor")
     local sa = src:match("local function setAnchor%(v%)(.-)\n    end\n")
     -- Explicit values, not cleared ones: clearing would fall back to what the

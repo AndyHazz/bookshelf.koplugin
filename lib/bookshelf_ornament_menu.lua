@@ -76,12 +76,12 @@ end
 -- show(entry, bw, piece): the menu for one piece; piece is where it stands
 -- on screen (its dimen), for keeping the menu clear of it.
 --
--- A panel in the layout editor's toolbar style (STYLE.md; maintainer: the
--- same room or less than the button grid it replaced). The d-pad moves the
--- piece as it looks: left and right its place in the deal, up and down its
--- height. Size and padding are steppers. A tap is the small step, a hold
--- the big one, and a tap on a value resets it. Mirror and the anchor are
--- segmented, the tap action a row, the rest grey cards; the X closes.
+-- A panel (STYLE.md; maintainer: the same room or less than the button grid
+-- it replaced): the actions on a bar under the title (Swap, Shuffle,
+-- Switch off; Reset at its end), then two columns of labelled controls,
+-- where the piece is (Place, Height, Anchor) and how it looks (Size,
+-- Padding, Mirror, Tap). On the steppers a tap is the small step, a hold
+-- the big one, and a tap on a value resets it. The X closes.
 function M.show(entry, bw, piece, widget, opts)
     opts = opts or {}
     local UIManager       = require("ui/uimanager")
@@ -161,8 +161,7 @@ function M.show(entry, bw, piece, widget, opts)
     -- headerWidget(): the picture at the left (a plain picture, not a live
     -- ornament, so a hold on it cannot open a second menu), standing on the
     -- row's foot and rising out of the top; the name and the pack beside it;
-    -- the collection's icon (manage every piece from this one, maintainer)
-    -- and the X at the right.
+    -- the X at the right.
     local function headerWidget(close)
         local pl = picture()
         local night = nightNow()
@@ -179,17 +178,9 @@ function M.show(entry, bw, piece, widget, opts)
             end
             Orn.paintPlacement(bb, x, top, pl, night)
         end
-        local manage = Kit.iconButton{ icon = Orn.COLLECTION_ICON, font_size = FS,
-            on_tap = function()
-                close()
-                require("lib/bookshelf_ornament_browser").show(function()
-                    if bw and bw._rebuild then bw:_rebuild(); UIManager:setDirty(bw, "ui") end
-                end)
-            end }
-        local x = require("ui/widget/iconbutton"):new{
+        local right = require("ui/widget/iconbutton"):new{
             icon = "close", width = math.floor(h * 0.6), height = math.floor(h * 0.6),
             padding = Space.px(4), callback = close }
-        local right = HorizontalGroup:new{ align = "center", manage, HorizontalSpan:new{ width = gap }, x }
         local text_w = math.max(1, inner_w - pic.dimen.w - gap - right:getSize().w - gap)
         local sub = entry.pack or ""
         if SW().isOff(entry.name) then
@@ -205,7 +196,7 @@ function M.show(entry, bw, piece, widget, opts)
             pic, HorizontalSpan:new{ width = gap },
             LeftContainer:new{ dimen = Geom:new{ w = text_w, h = header_h }, lines },
             HorizontalSpan:new{ width = gap }, right,
-        }, { manage, x }
+        }, { right }
     end
 
     local function redraw()
@@ -259,11 +250,12 @@ function M.show(entry, bw, piece, widget, opts)
     -- is already that.
     local val_w = math.max(text("+100%", { bold = true }):getSize().w,
                            text("100%", { bold = true }):getSize().w) + Space.px(16)
-    local function valueCell(label, field)
+    local function valueCell(label, field, w)
+        w = w or val_w
         local t = text(label, { bold = true })
-        local box = CenterContainer:new{ dimen = Geom:new{ w = val_w, h = h }, t }
+        local box = CenterContainer:new{ dimen = Geom:new{ w = w, h = h }, t }
         if Orn.readerValue(entry, field) == nil then return box end
-        return Kit.tapCell(box, val_w, h, function() set(field, nil) end, true, nil, true)
+        return Kit.tapCell(box, w, h, function() set(field, nil) end, true, nil, true)
     end
     local function pctOf(field) return pct(Orn.readerValue(entry, field)) end
     local function sizeLabel()
@@ -275,121 +267,21 @@ function M.show(entry, bw, piece, widget, opts)
         local head, head_keys = headerWidget(close)
         rows[#rows + 1] = head_keys
 
-        -- The d-pad: left and right the place in the deal (wrapping round,
-        -- the deck is a loop; greyed for a piece switched off or alone, and
-        -- for a pinned one, out of the deal), up and down the height.
-        local placed = not opts.pinned
-        local i_on, n_on
-        if placed then i_on, n_on = Deck.position(entry.name, onNames()) end
-        local can_move = placed and i_on ~= nil and n_on > 1
-        local function chev(glyph, fn, hold)
-            return kbutton{ glyph = glyph, pad_h = Space.px(12), on_tap = fn, on_hold = hold }
+        -- The action bar on the grey strip under the title (STYLE.md): the
+        -- deal's actions at the left -- Swap (the collection's icon: the
+        -- pieces to swap in), Shuffle this shelf, Switch off -- and Reset at
+        -- the right. Pin here joins them where it can pin. The deal's are
+        -- not for a pinned piece (opts.pinned): it stands where it was
+        -- pinned, out of the shelf's deal.
+        local function barButton(label, icon, fn)
+            return Kit.headerButton{ text = label, icon = icon, font_size = FS, on_tap = fn }
         end
-        local up    = chev(CHEV_UP,   function() nudge("lift", 1, false) end, function() nudge("lift", 1, true) end)
-        local down  = chev(CHEV_DOWN, function() nudge("lift", -1, false) end, function() nudge("lift", -1, true) end)
-        local left  = kbutton{ glyph = CHEV_LEFT, pad_h = Space.px(12), enabled = can_move,
-            on_tap = function() step(-1) end }
-        local right = kbutton{ glyph = CHEV_RIGHT, pad_h = Space.px(12), enabled = can_move,
-            on_tap = function() step(1) end }
-        local cell = h
-        for _i, b in ipairs({ up, down, left, right }) do cell = math.max(cell, b:getSize().w) end
-        local place_t = text(placed and (i_on and T(_("%1 of %2"), i_on, n_on) or _("off")) or "",
-            { face = small, fgcolor = Blitbuffer.COLOR_DARK_GRAY })
-        local mid_w = math.max(cell, place_t:getSize().w + Space.px(8))
-        local dgap = Space.px(4)
-        local function slot(b, w)
-            w = w or cell
-            if b then return CenterContainer:new{ dimen = Geom:new{ w = w, h = h }, b } end
-            return HorizontalSpan:new{ width = w }
-        end
-        local function line(items, g)
-            local hg = HorizontalGroup:new{ align = "center" }
-            for i, wdg in ipairs(items) do
-                if i > 1 then hg[#hg + 1] = HorizontalSpan:new{ width = g } end
-                hg[#hg + 1] = wdg
-            end
-            return hg
-        end
-        local dpad = VerticalGroup:new{ align = "left",
-            line({ slot(), slot(up, mid_w), slot() }, dgap),
-            VerticalSpan:new{ width = dgap },
-            line({ slot(left), slot(place_t, mid_w), slot(right) }, dgap),
-            VerticalSpan:new{ width = dgap },
-            line({ slot(), slot(down, mid_w), slot() }, dgap),
-        }
-
-        -- Beside it: Size and Padding as steppers, Height's value (the d-pad
-        -- moves it), one label width so the values line up.
-        local function stepper(field)
-            local minus = kbutton{ text = "\xE2\x88\x92", width = h,
-                on_tap = function() nudge(field, -1, false) end, on_hold = function() nudge(field, -1, true) end }
-            local plus = kbutton{ text = "+", width = h,
-                on_tap = function() nudge(field, 1, false) end, on_hold = function() nudge(field, 1, true) end }
-            return line({ minus, valueCell(field == "scale" and sizeLabel() or pctOf(field), field), plus }, 0),
-                { minus, plus }
-        end
-        local size_ctl, size_keys = stepper("scale")
-        local pad_ctl, pad_keys = stepper("pad")
-        local height_ctl = line({ HorizontalSpan:new{ width = h }, valueCell(pctOf("lift"), "lift") }, 0)
-        local labels = { _("Size"), _("Padding"), _("Height") }
-        local lw = 0
-        for _i, l in ipairs(labels) do lw = math.max(lw, text(l):getSize().w) end
-        local function labelled(l, ctl)
-            return line({ LeftContainer:new{ dimen = Geom:new{ w = lw, h = h }, text(l) }, ctl }, gap)
-        end
-        local side = VerticalGroup:new{ align = "left",
-            labelled(labels[1], size_ctl), VerticalSpan:new{ width = dgap },
-            labelled(labels[2], pad_ctl), VerticalSpan:new{ width = dgap },
-            labelled(labels[3], height_ctl),
-        }
-        -- The keys walk the d-pad and its steppers as they look (one row a
-        -- line of the pad).
-        rows[#rows + 1] = { up, size_keys[1], size_keys[2] }
-        rows[#rows + 1] = { left, right, pad_keys[1], pad_keys[2] }
-        rows[#rows + 1] = { down }
-        local top = line({ dpad, side }, Space.px(24))
-
-        -- Mirror and the anchor (what Height counts from), segmented, on one
-        -- line when they fit.
-        local seg_face = Font:getFace("cfont", FS - 2)
-        local mirror, mirror_keys = Kit.segmented{ face = seg_face, pad_v = Space.px(8), pad_h = Space.px(12),
-            items = { { key = "off", label = _("Off") }, { key = "always", label = _("Always") },
-                      { key = "alternate", label = _("Alternate") } },
-            active = entry.mirror or "off",
-            on_pick = function(k) set("mirror", k) end }
-        local anchor, anchor_keys = Kit.segmented{ face = seg_face, pad_v = Space.px(8), pad_h = Space.px(12),
-            items = { { key = "bottom", label = _("Bottom") }, { key = "top", label = _("Top") } },
-            active = entry.anchor == "top" and "top" or "bottom",
-            on_pick = function(k) setAnchor(k) end }
-        local function pair(l, ctl) return line({ text(l, { face = small }), ctl }, Space.px(8)) end
-        local m_line, a_line = pair(_("Mirror"), mirror), pair(_("Anchor"), anchor)
-        local looks
-        if m_line:getSize().w + Space.px(24) + a_line:getSize().w <= inner_w then
-            looks = line({ m_line, a_line }, Space.px(24))
-            rows[#rows + 1] = { mirror_keys[1][1], mirror_keys[1][2], mirror_keys[1][3],
-                                anchor_keys[1][1], anchor_keys[1][2] }
-        else
-            looks = VerticalGroup:new{ align = "left", m_line, VerticalSpan:new{ width = dgap }, a_line }
-            rows[#rows + 1] = mirror_keys[1]
-            rows[#rows + 1] = anchor_keys[1]
-        end
-
-        -- What a tap on the piece does.
-        local tap = entry.tap
-        local tap_label = tap and T(_("Tap: %1"), (tap.zoom and _("Zoom")) or tap.label or _("set"))
-                       or _("Tap: none")
-        local tap_btn = kbutton{ text = tap_label .. " \xE2\x80\xBA",
-            on_tap = function() M.chooseTap(entry, redraw) end }
-
-        -- The rest as grey cards. Swap, Shuffle and Switch off are not for a
-        -- pinned piece (opts.pinned): it stands where it was pinned, out of
-        -- the shelf's deal.
-        local actions = {}
+        local left_btns = {}
         if not opts.pinned then
-            actions[#actions + 1] = kbutton{ text = _("Swap"), on_tap = function()
+            left_btns[#left_btns + 1] = barButton(_("Swap"), Orn.COLLECTION_ICON, function()
                 close()
                 -- The browser in pick mode: the chosen piece takes this one's
-                -- place in the order, and this one takes the chosen piece's.
+                -- place in the order, and this one the chosen's.
                 require("lib/bookshelf_ornament_browser").show(function()
                     if bw and bw._rebuild then bw:_rebuild(); UIManager:setDirty(bw, "ui") end
                 end, { pool = (function()
@@ -404,11 +296,11 @@ function M.show(entry, bw, piece, widget, opts)
                     Deck.sync(Orn.listAll(), shelf)
                     Deck.swap(entry.name, chosen.name, shelf)
                 end })
-            end }
+            end)
             -- A new order for this shelf's deck (the "Bookshelf: shuffle
             -- ornaments" action), which also clears its swaps. Asks first:
             -- an arrangement may have had a lot of care put into it.
-            actions[#actions + 1] = kbutton{ text = _("Shuffle this shelf"), on_tap = function()
+            left_btns[#left_btns + 1] = barButton(_("Shuffle this shelf"), nil, function()
                 local ConfirmBox = require("ui/widget/confirmbox")
                 UIManager:show(ConfirmBox:new{
                     text = _("Shuffle this shelf's ornaments into a new order? Its swaps and moves are lost."),
@@ -418,22 +310,17 @@ function M.show(entry, bw, piece, widget, opts)
                         if bw and bw.onBookshelfShuffleOrnaments then bw:onBookshelfShuffleOrnaments() end
                     end,
                 })
-            end }
+            end)
             -- Out of the deck and back, the menu still open: a piece switched
             -- off keeps its place in the saved order, so switching it back on
             -- puts it where it stood (maintainer).
             local sw = SW()
-            actions[#actions + 1] = kbutton{ text = sw.isOff(entry.name) and _("Switch on") or _("Switch off"),
-                on_tap = function()
+            left_btns[#left_btns + 1] = barButton(sw.isOff(entry.name) and _("Switch on") or _("Switch off"), nil,
+                function()
                     sw.setOff(entry.name, not sw.isOff(entry.name))
                     redraw()
-                end }
+                end)
         end
-        actions[#actions + 1] = kbutton{ text = _("Reset"), on_tap = function()
-            Orn.readerReset(entry)
-            entry = Orn.current(entry)
-            redraw()
-        end }
         -- Fixed where it stands: an Ornament module among the shelf's books,
         -- moved from then on like any shelf module. The piece's widget (a
         -- long-press hands its rect as `piece`, the widget after it); a tall
@@ -444,43 +331,142 @@ function M.show(entry, bw, piece, widget, opts)
         -- module among the books, which that turns off.
         local on_shelf = require("lib/bookshelf_settings_store").microOnShelf()
         if on_shelf and src and src.pin_after_idx and bw and bw._pinOrnament then
-            actions[#actions + 1] = kbutton{ text = _("Pin here"), on_tap = function()
+            left_btns[#left_btns + 1] = barButton(_("Pin here"), nil, function()
                 close()
                 bw:_pinOrnament(entry, src)
-            end }
+            end)
         end
-        -- Wrapped to the width, a keys row a line.
-        local cards = VerticalGroup:new{ align = "left" }
-        local cur, cur_w, cur_keys = nil, 0, nil
-        local all_cards = { tap_btn }
-        for _i, b in ipairs(actions) do all_cards[#all_cards + 1] = b end
-        for _i, b in ipairs(all_cards) do
-            local bw_ = b:getSize().w
-            if cur and cur_w + gap + bw_ > inner_w then
-                cards[#cards + 1] = cur
-                cards[#cards + 1] = VerticalSpan:new{ width = gap }
-                cur = nil
+        local reset = barButton(_("Reset"), "\u{E76E}", function()   -- backup-restore
+            Orn.readerReset(entry)
+            entry = Orn.current(entry)
+            redraw()
+        end)
+        local left_group
+        if #left_btns > 0 then
+            left_group = HorizontalGroup:new{ align = "center" }
+            for i, b in ipairs(left_btns) do
+                if i > 1 then left_group[#left_group + 1] = HorizontalSpan:new{ width = Space.px(10) } end
+                left_group[#left_group + 1] = b
             end
-            if not cur then
-                cur, cur_w, cur_keys = HorizontalGroup:new{ align = "center" }, 0, {}
-                rows[#rows + 1] = cur_keys
-            else
-                cur[#cur + 1] = HorizontalSpan:new{ width = gap }
-                cur_w = cur_w + gap
-            end
-            cur[#cur + 1] = b
-            cur_keys[#cur_keys + 1] = b
-            cur_w = cur_w + bw_
         end
-        if cur then cards[#cards + 1] = cur end
+        local bar_keys = {}
+        for _i, b in ipairs(left_btns) do bar_keys[#bar_keys + 1] = b end
+        bar_keys[#bar_keys + 1] = reset
+        rows[#rows + 1] = bar_keys
+        local strip = Kit.headerRow{ width = width - 2 * Size.border.window, inset = inset,
+            left = left_group, buttons = { reset } }
+
+        local function line(items, g)
+            local hg = HorizontalGroup:new{ align = "center" }
+            for i, wdg in ipairs(items) do
+                if i > 1 then hg[#hg + 1] = HorizontalSpan:new{ width = g } end
+                hg[#hg + 1] = wdg
+            end
+            return hg
+        end
+        -- stepper(dec, inc, value, labels) -> "- value +" (or chevrons): a tap
+        -- the small step, a hold the big one; dec/inc { tap, hold, glyph,
+        -- enabled }.
+        local function stepper(dec, inc, value)
+            local function b(o, text_)
+                return kbutton{ text = (not o.glyph) and text_ or nil, glyph = o.glyph,
+                    width = h, enabled = o.enabled, on_tap = o.tap, on_hold = o.hold }
+            end
+            local minus, plus = b(dec, "\xE2\x88\x92"), b(inc, "+")
+            return line({ minus, value, plus }, 0), { minus, plus }
+        end
+        local function nudger(field)
+            return { tap = function() nudge(field, -1, false) end, hold = function() nudge(field, -1, true) end },
+                   { tap = function() nudge(field, 1, false) end, hold = function() nudge(field, 1, true) end }
+        end
+
+        -- Place: its place in this shelf's deal, earlier and later (wrapping
+        -- round, the deck is a loop); greyed for a piece switched off or
+        -- alone, and for a pinned one, out of the deal.
+        local placed = not opts.pinned
+        local i_on, n_on
+        if placed then i_on, n_on = Deck.position(entry.name, onNames()) end
+        local can_move = placed and i_on ~= nil and n_on > 1
+        local place_t = text(placed and (i_on and T(_("%1 of %2"), i_on, n_on) or _("off")) or "\xE2\x80\x94",
+            { face = small })
+        -- Place's count and Height's value one width, so their buttons line up.
+        local place_w = math.max(val_w, place_t:getSize().w + Space.px(12))
+        local place_ctl, place_keys = stepper(
+            { glyph = CHEV_LEFT, enabled = can_move, tap = function() step(-1) end },
+            { glyph = CHEV_RIGHT, enabled = can_move, tap = function() step(1) end },
+            CenterContainer:new{ dimen = Geom:new{ w = place_w, h = h }, place_t })
+        local s_dec, s_inc = nudger("scale")
+        local size_ctl, size_keys = stepper(s_dec, s_inc, valueCell(sizeLabel(), "scale"))
+        local p_dec, p_inc = nudger("pad")
+        local pad_ctl, pad_keys = stepper(p_dec, p_inc, valueCell(pctOf("pad"), "pad"))
+        -- Height: down and up, as the piece moves.
+        local l_dec, l_inc = nudger("lift")
+        l_dec.glyph, l_inc.glyph = CHEV_DOWN, CHEV_UP
+        local height_ctl, height_keys = stepper(l_dec, l_inc, valueCell(pctOf("lift"), "lift", place_w))
+
+        -- Mirror and the anchor (what Height counts from), segmented.
+        local seg_face = Font:getFace("cfont", FS - 2)
+        local mirror, mirror_keys = Kit.segmented{ face = seg_face, pad_v = Space.px(8), pad_h = Space.px(10),
+            items = { { key = "off", label = _("Off") }, { key = "always", label = _("Always") },
+                      { key = "alternate", label = _("Alternate") } },
+            active = entry.mirror or "off",
+            on_pick = function(k) set("mirror", k) end }
+        local anchor, anchor_keys = Kit.segmented{ face = seg_face, pad_v = Space.px(8), pad_h = Space.px(10),
+            items = { { key = "bottom", label = _("Bottom") }, { key = "top", label = _("Top") } },
+            active = entry.anchor == "top" and "top" or "bottom",
+            on_pick = function(k) setAnchor(k) end }
+
+        -- Two columns, each a label and its control, the labels one width a
+        -- column so the controls line up: where it is (Place, Height, Anchor)
+        -- and how it looks (Size, Padding, Mirror). One column when two do
+        -- not fit (a small screen).
+        -- What a tap on the piece does: the action chooser.
+        local tap = entry.tap
+        local tap_btn = kbutton{ text = (tap and ((tap.zoom and _("Zoom")) or tap.label or _("set"))
+            or _("None")) .. " \xE2\x80\xBA",
+            on_tap = function() M.chooseTap(entry, redraw) end }
+        local cols = {
+            { { _("Place"), place_ctl, place_keys }, { _("Height"), height_ctl, height_keys },
+              { _("Anchor"), anchor, anchor_keys[1] } },
+            { { _("Size"), size_ctl, size_keys }, { _("Padding"), pad_ctl, pad_keys },
+              { _("Mirror"), mirror, mirror_keys[1] }, { _("Tap"), tap_btn, { tap_btn } } },
+        }
+        local col_gap = Space.px(24)
+        local function column(list)
+            local lw = 0
+            for _i, r in ipairs(list) do lw = math.max(lw, text(r[1], { face = small }):getSize().w) end
+            local vg = VerticalGroup:new{ align = "left" }
+            for i, r in ipairs(list) do
+                if i > 1 then vg[#vg + 1] = VerticalSpan:new{ width = Space.px(6) } end
+                vg[#vg + 1] = line({ LeftContainer:new{ dimen = Geom:new{ w = lw, h = h },
+                    text(r[1], { face = small }) }, r[2] }, gap)
+            end
+            return vg
+        end
+        local c1, c2 = column(cols[1]), column(cols[2])
+        local grid
+        if c1:getSize().w + col_gap + c2:getSize().w <= inner_w then
+            grid = HorizontalGroup:new{ align = "top", c1, HorizontalSpan:new{ width = col_gap }, c2 }
+            -- The keys walk across a line, then down.
+            for i = 1, math.max(#cols[1], #cols[2]) do
+                local r = {}
+                for c = 1, 2 do
+                    for _j, k in ipairs(cols[c][i] and cols[c][i][3] or {}) do r[#r + 1] = k end
+                end
+                rows[#rows + 1] = r
+            end
+        else
+            grid = VerticalGroup:new{ align = "left", c1, VerticalSpan:new{ width = Space.px(6) }, c2 }
+            for c = 1, 2 do
+                for i = 1, #cols[c] do rows[#rows + 1] = cols[c][i][3] end
+            end
+        end
 
         local hint = text(_("Hold a button to step by 10. Tap a value to reset it."),
             { face = small, fgcolor = Blitbuffer.COLOR_DARK_GRAY, max_width = inner_w })
 
         local body = VerticalGroup:new{ align = "left",
-            top, VerticalSpan:new{ width = gap },
-            looks, VerticalSpan:new{ width = gap },
-            cards, VerticalSpan:new{ width = gap },
+            grid, VerticalSpan:new{ width = gap },
             hint,
         }
         local frame = FrameContainer:new{
@@ -494,6 +480,7 @@ function M.show(entry, bw, piece, widget, opts)
                     padding_bottom = Space.px(8), head },
                 LineWidget:new{ background = Blitbuffer.COLOR_DARK_GRAY,
                     dimen = Geom:new{ w = width - 2 * Size.border.window, h = Size.line.thin } },
+                strip,
                 FrameContainer:new{ bordersize = 0, padding = inset, padding_top = Space.px(14), body },
             },
         }

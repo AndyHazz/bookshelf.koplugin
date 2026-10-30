@@ -237,7 +237,7 @@ t.test("nudges step on a grid and stop at the limits", function()
     local src = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
     assert(src:find("\\xEE\\xA1\\x82", 1, true) and src:find("\\xEE\\xA0\\xBF", 1, true),
         "up/down are not the bookends chevrons")
-    assert(src:find("on_hold = function() nudge(field, 1, true) end", 1, true), "no big step on hold")
+    assert(src:find("hold = function() nudge(field, 1, true) end", 1, true), "no big step on hold")
     assert(src:find("function dialog:onCloseWidget%(%)\n%s*Orn%.saveReader%(%)"),
         "nothing writes the file when the menu closes")
 end)
@@ -325,14 +325,15 @@ end)
 t.test("menu: Swap, Shuffle this shelf and a Switch off/on toggle share a row; the toggle keeps the menu open", function()
     local src = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
     -- Left out for a pinned piece (opts.pinned), which is out of the deal.
-    -- Left out for a pinned piece (opts.pinned), which is out of the deal.
-    local row = src:match('\n        if not opts%.pinned then\n(.-)\n        end\n        actions%[#actions %+ 1%] = kbutton{ text = _%("Reset"%)')
-    assert(row and row:find('_("Swap")', 1, true), "no Swap card")
+    -- On the action bar; left out for a pinned piece (opts.pinned), which
+    -- is out of the deal.
+    local row = src:match('\n        if not opts%.pinned then\n(.-)\n        end\n        %-%- Fixed where it stands')
+    assert(row and row:find('barButton(_("Swap"), Orn.COLLECTION_ICON', 1, true), "no Swap on the bar, with the collection's icon")
     assert(row:find('_("Shuffle this shelf")', 1, true), "Shuffle this shelf is not with Swap")
     assert(row:find('_("Switch on")', 1, true) and row:find('_("Switch off")', 1, true),
         "the Switch off/on toggle is not with Swap")
     -- Through the seam (SW: the set of the theme on screen, or the collection's).
-    local toggle = row:match("text = sw%.isOff%(entry%.name%).-end }")
+    local toggle = row:match("barButton%(sw%.isOff%(entry%.name%).-end%)")
     assert(toggle, "the toggle's label does not follow the piece's state")
     assert(not toggle:find("close()", 1, true), "switching off closes the menu")
     assert(toggle:find("sw.setOff(entry.name, not sw.isOff(entry.name))", 1, true), "the toggle does not toggle")
@@ -345,12 +346,13 @@ t.test("menu: each nudge takes 10 points on a hold", function()
     -- step, a hold the big one, on size and padding's - and + and on the
     -- d-pad's up and down (the height).
     local src = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
-    local st = src:match("local function stepper%(field%)(.-)\n        end\n")
-    assert(st and st:find("on_hold = function() nudge(field, -1, true) end", 1, true)
-           and st:find("on_hold = function() nudge(field, 1, true) end", 1, true),
-        "size and padding have no 10-point step")
-    assert(src:find('function() nudge("lift", 1, true) end', 1, true) and src:find('function() nudge("lift", -1, true) end', 1, true),
-        "height has no 10-point step")
+    local nd = src:match("local function nudger%(field%)(.-)\n        end\n")
+    assert(nd and nd:find("hold = function() nudge(field, -1, true) end", 1, true)
+           and nd:find("hold = function() nudge(field, 1, true) end", 1, true),
+        "the steppers have no 10-point step")
+    for _i, f in ipairs({ "scale", "pad", "lift" }) do
+        assert(src:find('nudger("' .. f .. '")', 1, true), f .. " is not a stepper")
+    end
     package.loaded["lib/bookshelf_ornaments"] = nil
     local Menu = dofile("lib/bookshelf_ornament_menu.lua")
     eq(Menu.STEPS.scale[2], 0.10); eq(Menu.STEPS.pad[2], 0.10); eq(Menu.STEPS.lift[2], 0.10)
@@ -456,12 +458,11 @@ t.test("menu: the piece's place in the order, with Earlier and Later, and Shuffl
     -- In the d-pad's middle, left and right either side.
     assert(src:find('T(_("%1 of %2"), i_on, n_on)', 1, true), "the place in the order is not shown")
     assert(src:find("Deck.move(entry.name, delta, onNames(), shelf)", 1, true)
-           and src:find("kbutton{ glyph = CHEV_LEFT,", 1, true)
-           and src:find("on_tap = function() step(-1) end", 1, true)
-           and src:find("on_tap = function() step(1) end", 1, true)
+           and src:find("{ glyph = CHEV_LEFT, enabled = can_move, tap = function() step(-1) end }", 1, true)
+           and src:find("{ glyph = CHEV_RIGHT, enabled = can_move, tap = function() step(1) end }", 1, true)
            and src:find("local can_move = placed and i_on ~= nil and n_on > 1", 1, true),
         "left / right do not move the piece")
-    local shuffle = src:match('kbutton{ text = _%("Shuffle this shelf"%)(.-)end }')
+    local shuffle = src:match('barButton%(_%("Shuffle this shelf"%)(.-)end%)')
     assert(shuffle and shuffle:find("ConfirmBox", 1, true), "Shuffle this shelf does not ask first")
 end)
 
@@ -476,22 +477,34 @@ t.test("the menu never moves past the screen's edge, however tall it is", functi
     eq(Menu.offsetFor({ y = 700, h = 200 }, 1648, 1700), 0, "a menu taller than the screen stays centred")
 end)
 
-t.test("menu: the d-pad first, mirror and anchor segmented, no hang switch", function()
+t.test("menu: two columns, where it is and how it looks; mirror and anchor segmented; no hang switch", function()
     local src = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
     local build = src:match("local function build%(close%)(.-)\n    end\n")
     assert(build, "no panel")
-    local dp, mr = build:find("local dpad = ", 1, true), build:find("local mirror, mirror_keys = Kit.segmented", 1, true)
-    assert(dp and mr and dp < mr, "the d-pad is not first")
+    local cols = build:match("local cols = {(.-)\n        }")
+    assert(cols, "no columns")
+    local p, hgt, an = cols:find('_("Place")', 1, true), cols:find('_("Height")', 1, true), cols:find('_("Anchor")', 1, true)
+    local sz, pd, mr = cols:find('_("Size")', 1, true), cols:find('_("Padding")', 1, true), cols:find('_("Mirror")', 1, true)
+    assert(p and hgt and an and sz and pd and mr and p < hgt and hgt < an and an < sz and sz < pd and pd < mr,
+        "not Place / Height / Anchor, then Size / Padding / Mirror")
     assert(build:find('{ key = "alternate", label = _("Alternate") }', 1, true), "mirror is not segmented")
+    assert(not src:find("local dpad", 1, true), "the d-pad is back")
     assert(not src:find('_("Hang: on")', 1, true) and not src:find('set("hang"', 1, true),
         "the hang switch is still in the menu (a height of 100% replaces it)")
 end)
 
-t.test("menu: up raises the piece and down lowers it, on the d-pad", function()
+t.test("menu: Height steps down and up with chevrons", function()
     local src = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
-    assert(src:find('local up    = chev(CHEV_UP,   function() nudge("lift", 1, false) end', 1, true)
-           and src:find('local down  = chev(CHEV_DOWN, function() nudge("lift", -1, false) end', 1, true),
-        "up and down do not move the piece up and down")
+    assert(src:find('local l_dec, l_inc = nudger("lift")', 1, true)
+           and src:find("l_dec.glyph, l_inc.glyph = CHEV_DOWN, CHEV_UP", 1, true),
+        "height does not step down and up")
+end)
+
+t.test("menu: no collection button of its own; Swap carries the collection's icon", function()
+    local src = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
+    local hdr = src:match("local function headerWidget%(close%)(.-)\n    end\n")
+    assert(hdr and not hdr:find("COLLECTION_ICON", 1, true), "the header still has the collection button")
+    assert(src:find('barButton(_("Swap"), Orn.COLLECTION_ICON', 1, true), "Swap has not got the icon")
 end)
 
 t.test("the collection: one icon on its menu row and in the long-press menu's header", function()
@@ -504,9 +517,8 @@ t.test("the collection: one icon on its menu row and in the long-press menu's he
     local orn = io.open("lib/bookshelf_ornaments.lua"):read("*a")
     assert(orn:find('M.COLLECTION_ICON = "\\xEF\\x83\\xB4"', 1, true), "the icon is not U+F0F4, kept in one place")
     local menu = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
-    local hdr = menu:match("local function headerWidget%(close%)(.-)\n    end\n")
-    assert(hdr and hdr:find("Orn.COLLECTION_ICON", 1, true), "the header has no collection button")
-    assert(hdr:find('require("lib/bookshelf_ornament_browser").show(', 1, true), "the header button does not open the collection")
+    -- In the long-press menu it is Swap's icon (the pieces to swap in).
+    assert(menu:find('barButton(_("Swap"), Orn.COLLECTION_ICON', 1, true), "the menu does not show the icon")
 end)
 
 t.done()

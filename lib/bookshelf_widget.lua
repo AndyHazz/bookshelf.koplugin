@@ -25895,41 +25895,39 @@ function BookshelfWidget:_addOrMoveSubShelf()
         end
     end
     if #movable == 0 then return self:_addSubShelf() end
-    local ButtonDialog = require("ui/widget/buttondialog")
     local function name(t)
         local l = type(t.label) == "string" and t.label or ""
         l = l:gsub("%[icon=[^%]]*%]", ""):gsub("^%s+", ""):gsub("%s+$", "")
         return l ~= "" and l or t.id
     end
-    local choice
-    choice = ButtonDialog:new{
-        title = _("Add shelf"), title_align = "center",
-        buttons = {
-            {{ text = _("New shelf"), callback = function()
-                UIManager:close(choice)
-                self:_addSubShelf()
-            end }},
-            {{ text = _("Move a shelf here\xE2\x80\xA6"), callback = function()
-                UIManager:close(choice)
-                local picker
-                local rows = {}
-                for _i, t in ipairs(movable) do
-                    rows[#rows + 1] = {{ text = name(t), callback = function()
-                        UIManager:close(picker)
-                        local fresh = TabModel.load()
-                        if TabModel.moveTree(fresh, t.id, here) then
-                            TabModel.save(fresh)
-                            self:_afterChipEdit()
-                        end
-                    end }}
-                end
-                picker = ButtonDialog:new{ title = _("Move a shelf here"), title_align = "center",
-                    buttons = rows }
-                UIManager:show(picker)
-            end }},
-        },
+    -- One page (STYLE.md), not a menu opening a second menu: New shelf as a
+    -- card saying what it does, then each shelf that could move in, its row
+    -- saying where it is now.
+    local dialog
+    local function act(fn) return function() UIManager:close(dialog); fn() end end
+    local blocks = {
+        { type = "option", icon = "\u{EB94}",   -- shape-plus
+          text = _("New shelf"),
+          desc = _("Starts a shelf inside this one: pick what it shows first."),
+          callback = act(function() self:_addSubShelf() end) },
+        { type = "heading", text = _("Move a shelf here") },
     }
-    UIManager:show(choice)
+    for _i, t in ipairs(movable) do
+        local parent = t.parent and TabModel.getById(t.parent)
+        blocks[#blocks + 1] = { type = "row", label = name(t),
+            value = parent and T(_("In %1"), name(parent)) or _("Top level"),
+            callback = act(function()
+                local fresh = TabModel.load()
+                if TabModel.moveTree(fresh, t.id, here) then
+                    TabModel.save(fresh)
+                    self:_afterChipEdit()
+                end
+            end) }
+    end
+    dialog = require("lib/bookshelf_page_dialog").show{
+        title = _("Add shelf"),
+        page  = function() return { blocks = blocks } end,
+    }
 end
 
 -- _editSubShelf(id) -- long-press on a sub-shelf's tile: its editor, over

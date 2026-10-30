@@ -286,9 +286,6 @@ function Editor:_buildToolbar()
         end
         return out
     end
-    rows[#rows + 1] = join({ up }, wf, { actions[1] })
-    rows[#rows + 1] = join({ left, right }, hf or {}, { actions[2] })
-    rows[#rows + 1] = join({ down, prev, nxt }, { actions[3] })
 
 
     -- The d-pad at the left: three rows of square cells, the arrows round
@@ -338,14 +335,34 @@ function Editor:_buildToolbar()
         labelled(page_ctl),
     }
     -- Settings, Style and Remove at the right, level with the d-pad's rows.
+    local HorizontalGroup = require("ui/widget/horizontalgroup")
     local stack = VerticalGroup:new{ align = "left" }
     for i, b in ipairs(actions) do
         if i > 1 then stack[#stack + 1] = VerticalSpan:new{ width = dgap } end
         stack[#stack + 1] = b
     end
-    local body = require("ui/widget/horizontalgroup"):new{ align = "top",
-        dpad, HorizontalSpan:new{ width = Space.px(32) },
-        side, HorizontalSpan:new{ width = Space.px(32) }, stack }
+    local col_gap = Space.px(32)
+    local pad_side = HorizontalGroup:new{ align = "top",
+        dpad, HorizontalSpan:new{ width = col_gap }, side }
+    -- The room inside the frame. With no room for the actions' column (a
+    -- small screen), they go on a line of their own under the rest, so the
+    -- toolbar fits any screen (STYLE.md) instead of running off its edges.
+    local room = width - 2 * inset - 2 * Size.border.window
+    local body
+    if pad_side:getSize().w + col_gap + stack:getSize().w > room then
+        body = VerticalGroup:new{ align = "center", pad_side,
+            VerticalSpan:new{ width = Space.px(14) }, line(actions, gap) }
+        rows[#rows + 1] = join({ up }, wf)
+        rows[#rows + 1] = join({ left, right }, hf or {})
+        rows[#rows + 1] = join({ down, prev, nxt })
+        rows[#rows + 1] = actions
+    else
+        body = HorizontalGroup:new{ align = "top",
+            pad_side, HorizontalSpan:new{ width = col_gap }, stack }
+        rows[#rows + 1] = join({ up }, wf, { actions[1] })
+        rows[#rows + 1] = join({ left, right }, hf or {}, { actions[2] })
+        rows[#rows + 1] = join({ down, prev, nxt }, { actions[3] })
+    end
     -- As wide as its controls, not the screen, so it covers less of the
     -- grid (maintainer); centred over it (paintTo).
     width = math.min(width, body:getSize().w + 2 * inset + 2 * Size.border.window)

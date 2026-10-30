@@ -568,6 +568,20 @@ local MODULE_DIR = ...   -- e.g. .../readinglog.koplugin/bookshelf_modules
 local Shared = dofile(MODULE_DIR .. "/../shared/stats.lua")
 ```
 
+A module that shows its own plugin's state (a pet, a game, a reading log) can
+reach that plugin's live instance with `Kit.plugin(MODULE_DIR)`. It finds the
+plugin by its folder, so it works whatever `name` the plugin's `main.lua`
+gives (KOReader files plugins under their folder's name). It is `nil` when the
+plugin isn't running, so check:
+
+```lua
+local MODULE_DIR = ...
+local Kit = require("lib/bookshelf_module_kit")
+-- in render, on_tap, on_minute:
+local pet = Kit.plugin(MODULE_DIR)
+if pet then ... end
+```
+
 **Precedence.** A module in the user drop-in folder wins over one of the same
 key in a pack, and a pack's wins over a bundled one. Keep your keys distinctive
 (`readinglog_rings`, not `rings`) so two packs never collide.

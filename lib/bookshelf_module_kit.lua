@@ -360,6 +360,17 @@ function Kit.shape(width, avail_h)
     return "square"
 end
 
+-- plugin(MODULE_DIR) -> the live instance of the plugin this module ships
+-- in, for a module in a pack (a .koplugin's bookshelf_modules/) that shows
+-- its own plugin's state. MODULE_DIR is the folder the module file is called
+-- with (`local MODULE_DIR = ...`). nil when the plugin is not running, or
+-- for a module outside any plugin (the drop-in folder).
+--   local pet = Kit.plugin(MODULE_DIR)
+--   if pet then ... pet.state ... end
+function Kit.plugin(dir)
+    return SM.pluginOf and SM.pluginOf(dir) or nil
+end
+
 -- Per-module SHARED store handle (caches, per-type defaults), backed by the
 -- separate bookshelf_micromodules.lua file (not the main bookshelf.lua).
 -- Namespaced by module key, so collisions across modules are impossible. Use

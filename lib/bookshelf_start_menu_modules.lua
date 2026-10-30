@@ -464,6 +464,27 @@ function M.get(key)
     return registry[key]
 end
 
+-- pluginOf(dir) -> the live instance of the plugin a pack's module folder
+-- belongs to, or nil (a folder outside any plugin, a plugin that is not
+-- running). Kit.plugin is the documented name. KOReader files a plugin under
+-- its folder's name, not the name its main.lua gives, so the folder is what
+-- finds it; the path check keeps a same-named plugin elsewhere out. Paths
+-- compared with repeated slashes folded: KOReader's default extra folder is
+-- "<data>/plugins/", so its plugins' paths carry "//" and ours don't.
+function M.pluginOf(dir)
+    if type(dir) ~= "string" then return nil end
+    local root = dir:match("^(.-%.koplugin)/") or dir:match("^(.-%.koplugin)$")
+    local name = root and root:match("([^/]+)%.koplugin$")
+    if not name then return nil end
+    local ok, inst = pcall(function()
+        return require("pluginloader"):getPluginInstance(name)
+    end)
+    if not ok or type(inst) ~= "table" or type(inst.path) ~= "string" then return nil end
+    local function fold(p) return (p:gsub("/+", "/")) end
+    if fold(inst.path) ~= fold(root) then return nil end
+    return inst
+end
+
 -- notifyRemoved(entry): a card was removed. Its module's optional
 -- on_remove(entry) cleans up what the card owned (a Shelf card's own shelf).
 -- Errors are the module's own: they never stop the removal.

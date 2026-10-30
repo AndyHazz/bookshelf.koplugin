@@ -5772,38 +5772,49 @@ end
 -- Long-press on the Search results pill: pick the results' view mode.
 -- A global setting rather than per anything -- search is one surface.
 function BookshelfWidget:_showSearchViewModePicker()
-    local ButtonDialog = require("ui/widget/buttondialog")
-    local current = BookshelfSettings.read("search_view_mode")
-    if current ~= ViewMode.LIST and current ~= ViewMode.AUTO
-            and current ~= ViewMode.SPINES then
-        current = ViewMode.COVERS
+    -- A page (STYLE.md): Show as, the shelf editor's choice, with a sentence
+    -- saying what the one picked does. It applies at once, behind the page.
+    local function current()
+        local m = BookshelfSettings.read("search_view_mode")
+        if m == ViewMode.LIST or m == ViewMode.AUTO or m == ViewMode.SPINES then return m end
+        return ViewMode.COVERS
     end
-    local dialog
-    local function pick(value)
-        return function()
-            UIManager:close(dialog)
-            -- Covers is the default, stored as absence like a chip's pin.
-            BookshelfSettings.save("search_view_mode",
-                value ~= ViewMode.COVERS and value or nil)
-            BookshelfSettings.flush()
-            self:_rebuild()
-            UIManager:setDirty(self, "ui")
-        end
-    end
-    local function row(text, value)
-        local mark = (current == value) and "\xE2\x9C\x93 " or ""
-        return { { text = mark .. text, callback = pick(value) } }
-    end
-    dialog = ButtonDialog:new{
-        title = _("Show search results as"),
-        buttons = {
-            row(_("Covers"), ViewMode.COVERS),
-            row(_("List"), ViewMode.LIST),
-            row(_("Spines"), ViewMode.SPINES),
-            row(_("Auto"), ViewMode.AUTO),
-        },
+    local SAYS = {
+        [ViewMode.AUTO]   = _("Results in the style your library uses."),
+        [ViewMode.COVERS] = _("Results as a grid of covers."),
+        [ViewMode.LIST]   = _("Results as a list, details beside each book."),
+        [ViewMode.SPINES] = _("Results as spines on shelves."),
     }
-    UIManager:show(dialog)
+    local dialog
+    local function page()
+        return {
+            strip = { { type = "summary", text = SAYS[current()] } },
+            blocks = {
+                { type = "segmented", label = _("Show as"),
+                  items = {
+                      { key = ViewMode.AUTO,   label = _("Auto") },
+                      { key = ViewMode.COVERS, label = _("Covers") },
+                      { key = ViewMode.LIST,   label = _("List") },
+                      { key = ViewMode.SPINES, label = _("Spines") },
+                  },
+                  active = current(),
+                  on_pick = function(value)
+                      if not value or value == current() then return end
+                      -- Covers is the default, stored as absence like a chip's pin.
+                      BookshelfSettings.save("search_view_mode",
+                          value ~= ViewMode.COVERS and value or nil)
+                      BookshelfSettings.flush()
+                      self:_rebuild()
+                      UIManager:setDirty(self, "ui")
+                      if dialog then dialog:refresh() end
+                  end },
+            },
+        }
+    end
+    dialog = require("lib/bookshelf_page_dialog").show{
+        title = _("Search results"),
+        page  = page,
+    }
 end
 
 -- _isDrilledIn() — is the shelf showing the CONTENTS of something the user

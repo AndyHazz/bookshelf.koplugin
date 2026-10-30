@@ -80,8 +80,8 @@ end
 -- on screen (its dimen), for keeping the menu clear of it.
 --
 -- A panel (STYLE.md; maintainer: the same room or less than the button grid
--- it replaced): the actions on a bar under the title (Swap, Shuffle,
--- Hide; Reset at its end), then two columns of labelled controls:
+-- it replaced): the actions on a bar under the title (Swap, Hide, Pin
+-- here, Reset; Shuffle this shelf, for the whole shelf, at its end), then two columns of labelled controls:
 -- the piece in its slot (Size, Height, Padding) and the rest (Place,
 -- Mirror, Anchor); Tap a row of its own under them, with a tip. Size,
 -- Height and Padding step by - and + (a hold: the big step) and by the
@@ -271,16 +271,18 @@ function M.show(entry, bw, piece, widget, opts)
         local head, head_keys = headerWidget(close)
         rows[#rows + 1] = head_keys
 
-        -- The action bar on the grey strip under the title (STYLE.md): the
-        -- deal's actions at the left -- Swap (the collection's icon: the
-        -- pieces to swap in), Shuffle this shelf, Hide -- and Reset at
-        -- the right. Pin here joins them where it can pin. The deal's are
-        -- not for a pinned piece (opts.pinned): it stands where it was
-        -- pinned, out of the shelf's deal.
+        -- The action bar on the grey strip under the title (STYLE.md): what
+        -- acts on this piece at the left -- Swap (the collection's icon: the
+        -- pieces to swap in), Hide, Pin here where it can pin, Reset -- and
+        -- the one that acts on the whole shelf, Shuffle this shelf, at the
+        -- right (maintainer). Swap, Hide and Shuffle are not for a pinned
+        -- piece (opts.pinned): it stands where it was pinned, out of the
+        -- shelf's deal.
         local function barButton(label, icon, fn)
             return Kit.headerButton{ text = label, icon = icon, font_size = FS, on_tap = fn }
         end
         local left_btns = {}
+        local shuffle
         if not opts.pinned then
             left_btns[#left_btns + 1] = barButton(_("Swap"), Orn.COLLECTION_ICON, function()
                 close()
@@ -304,7 +306,7 @@ function M.show(entry, bw, piece, widget, opts)
             -- A new order for this shelf's deck (the "Bookshelf: shuffle
             -- ornaments" action), which also clears its swaps. Asks first:
             -- an arrangement may have had a lot of care put into it.
-            left_btns[#left_btns + 1] = barButton(_("Shuffle this shelf"), nil, function()
+            shuffle = barButton(_("Shuffle this shelf"), nil, function()
                 local ConfirmBox = require("ui/widget/confirmbox")
                 UIManager:show(ConfirmBox:new{
                     text = _("Shuffle this shelf's ornaments into a new order? Its swaps and moves are lost."),
@@ -341,7 +343,7 @@ function M.show(entry, bw, piece, widget, opts)
                 bw:_pinOrnament(entry, src)
             end)
         end
-        local reset = barButton(_("Reset"), "\u{E76E}", function()   -- backup-restore
+        left_btns[#left_btns + 1] = barButton(_("Reset"), "\u{E76E}", function()   -- backup-restore
             Orn.readerReset(entry)
             entry = Orn.current(entry)
             redraw()
@@ -356,10 +358,10 @@ function M.show(entry, bw, piece, widget, opts)
         end
         local bar_keys = {}
         for _i, b in ipairs(left_btns) do bar_keys[#bar_keys + 1] = b end
-        bar_keys[#bar_keys + 1] = reset
+        if shuffle then bar_keys[#bar_keys + 1] = shuffle end
         rows[#rows + 1] = bar_keys
         local strip = Kit.headerRow{ width = width - 2 * Size.border.window, inset = inset,
-            left = left_group, buttons = { reset } }
+            left = left_group, buttons = { shuffle } }
 
         local function line(items, g)
             local hg = HorizontalGroup:new{ align = "center" }

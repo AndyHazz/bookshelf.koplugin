@@ -3138,84 +3138,106 @@ function Settings:_colorsSubItems()
     return items
 end
 
--- _showScaleNudge(touchmenu_instance, spec) -- the font-scale nudge dialog.
+-- _nudgePage(touchmenu_instance, spec) -- a size nudge, as a page (STYLE.md):
+-- what the value means in the strip, a stepper (spec.fine), the bigger steps
+-- (spec.big) and Default as chips, Cancel | Apply in the footer. Every step
+-- saves and previews behind the page; Cancel, the X and Back put back the
+-- value it opened with.
 --
--- Eight settings share it: a percentage stored under spec.key (default 100,
--- clamped to 50..spec.max), nudged by +/-10 and +/-spec.fine, with Cancel
--- (back to the value it opened with), Default (100, applied at once) and
--- Apply. Every nudge saves, rebuilds the live shelf so the change shows
--- behind the dialog, and refreshes the touch-menu row's value.
+--   spec.key, spec.default, spec.min, spec.max, spec.fine, spec.big
+--   spec.unit     "%" (a scale: "120% of the normal size") or " dp"
+--   spec.title    the page's title
+--   spec.anchor   where to open it (the chip bar's nudge opens below the bar
+--                 it resizes); centred when nil
+--   spec.preview  called after each change, to show it (a rebuild of the
+--                 shelf unless spec.no_shelf)
+--   spec.on_done  called on every way out, after the menu is back (closing
+--                 a preview it opened)
 --
---   spec.title    the dialog's title
---   spec.anchor   where to open it (the chip picker opens below the bar it
---                 resizes); centred when nil
---   spec.preview  called before the shelf rebuild, for a picker whose change
---                 shows somewhere else as well
---
--- The TouchMenu behind is hidden while the dialog is up so the live preview
--- is not covered (restored on every way out, so the next tap lands on the menu
--- the reader came from; see Bookshelf:hideMenu in main.lua, #60). The dialog
--- is locked down: dismissable=false because rapid taps fall through to the
--- modal background and dismiss it mid-edit, and the movable's gestures are
--- wiped because a long-press on a button otherwise toggles the dialog to 70%
--- alpha. ButtonDialog:reinit() rebuilds the movable, so every reinit goes
--- through Focus.reinitLocked, which wipes it again.
-function Settings:_showScaleNudge(touchmenu_instance, spec)
-    local ButtonDialog = require("ui/widget/buttondialog")
-    local key = spec.key
-    local fine = spec.fine or 5
-    local original = BookshelfSettings.read(key, 100)
+-- The TouchMenu behind is hidden while the page is up so the live preview is
+-- not covered (restored on every way out, so the next tap lands on the menu
+-- the reader came from; see Bookshelf:hideMenu in main.lua, #60). A tap
+-- outside does nothing (dismissable = false): rapid taps on the steps fell
+-- through to the background and closed it mid-edit.
+function Settings:_nudgePage(touchmenu_instance, spec)
+    local key, default = spec.key, spec.default or 100
+    local original = BookshelfSettings.read(key, default)
     local restoreMenu = self._plugin:hideMenu(touchmenu_instance)
-
-    local function getValue() return BookshelfSettings.read(key, 100) end
+    local function getValue() return BookshelfSettings.read(key, default) end
+    local dialog
     local function setValue(v)
-        v = math.max(50, math.min(spec.max or 200, v))
+        v = math.max(spec.min or 50, math.min(spec.max or 200, v))
+        if v == getValue() then return end
         BookshelfSettings.save(key, v)
-    end
-    local function refresh()
         if spec.preview then spec.preview() end
-        if self._bw and self._bw._rebuild then
+        if not spec.no_shelf and self._bw and self._bw._rebuild then
             self._bw:_rebuild()
             UIManager:setDirty(self._bw, "ui")
         end
         if touchmenu_instance and touchmenu_instance.updateItems then
             touchmenu_instance:updateItems()
         end
+        if dialog then dialog:refresh() end
     end
-
-    local dialog
-    local function nudge(delta)
-        setValue(getValue() + delta)
-        refresh()
-        Focus.reinitLocked(dialog)
+    local function step(d) return function() setValue(getValue() + d) end end
+    local function show(v) return tostring(v) .. (spec.unit or "%") end
+    local function says(v)
+        if spec.unit and spec.unit ~= "%" then
+            return v == default and T(_("The default, %1."), show(v))
+                or T(_("Default: %1."), show(default))
+        end
+        return v == default and _("The normal size.") or T(_("%1% of the normal size."), v)
     end
-    local function close() UIManager:close(dialog); restoreMenu() end
-    local function revert() setValue(original); refresh() end
-
-    dialog = ButtonDialog:new{
-        dismissable = false,
-        anchor = spec.anchor,
+    local function done(revert)
+        if revert then setValue(original) end
+        UIManager:close(dialog)
+        restoreMenu()
+        if spec.on_done then spec.on_done() end
+    end
+    local big, fine = spec.big or 10, spec.fine or 5
+    local function page()
+        local v = getValue()
+        return {
+            strip = { { type = "summary", text = says(v) } },
+            blocks = {
+                { type = "stepper", label = _("Size"), value = show(v),
+                  on_dec = step(-fine), on_inc = step(fine) },
+                { type = "chips", items = {
+                    { text = "\xE2\x88\x92" .. big, callback = step(-big) },   -- minus sign
+                    { text = "+" .. big, callback = step(big) },
+                    { text = _("Default"), enabled = v ~= default,
+                      callback = function() setValue(default) end },
+                } },
+            },
+        }
+    end
+    dialog = require("lib/bookshelf_page_dialog").show{
         title = spec.title,
-        buttons = {
-            {
-                { text = "-10", callback = function() nudge(-10) end },
-                { text = "-" .. fine, callback = function() nudge(-fine) end },
-                { text_func = function() return tostring(getValue()) .. "%" end,
-                  enabled = false },
-                { text = "+" .. fine, callback = function() nudge(fine) end },
-                { text = "+10", callback = function() nudge(10) end },
-            },
-            {
-                { text = _("Cancel"), callback = function() revert(); close() end },
-                { text = _("Default"),
-                  callback = function() setValue(100); refresh(); Focus.reinitLocked(dialog) end },
-                { text = _("Apply"), is_enter_default = true, callback = close },
-            },
+        page = page,
+        anchor = spec.anchor,
+        dismissable = false,
+        footer = {
+            { text = _("Cancel"), callback = function() done(true) end },
+            { text = _("Apply"), primary = true, callback = function() done(false) end },
         },
-        tap_close_callback = revert,
+        -- The X and Back: closed already; put the value back.
+        on_close = function()
+            setValue(original)
+            restoreMenu()
+            if spec.on_done then spec.on_done() end
+        end,
     }
-    if dialog.movable then dialog.movable.ges_events = {} end
-    UIManager:show(dialog)
+end
+
+-- _showScaleNudge(touchmenu_instance, spec) -- a percentage scale's nudge:
+-- spec.key (default 100, 50..spec.max), spec.fine, spec.title, spec.anchor,
+-- spec.preview, through _nudgePage.
+function Settings:_showScaleNudge(touchmenu_instance, spec)
+    self:_nudgePage(touchmenu_instance, {
+        key = spec.key, default = 100, min = 50, max = spec.max or 200,
+        fine = spec.fine or 5, big = 10, unit = "%",
+        title = spec.title, anchor = spec.anchor, preview = spec.preview,
+    })
 end
 
 -- Nudge dialog for the cover-badge font scale (series #, stack count,
@@ -5315,19 +5337,15 @@ function Settings:_pickStackLabelFontScale(touchmenu_instance)
 end
 
 function Settings:_pickStartMenuFontScale(touchmenu_instance)
-    local ButtonDialog = require("ui/widget/buttondialog")
     local StartMenu    = require("lib/bookshelf_start_menu")
-    local key = "start_menu_font_scale"
-    local original = BookshelfSettings.read(key, 100)
-    local restoreMenu = self._plugin:hideMenu(touchmenu_instance)
-
     -- Open the start menu as a live preview (same approach as the hero scale
     -- picker showing the bookshelf behind the dialog). Only open if one is
-    -- not already visible; track whether we opened it so close() can shut it.
-    -- self._bw is always the LIBRARY widget -- buildMenuItems shares one _bw
-    -- global across both hosts, so reaching this setting from inside the
-    -- reader has to go through the reader's own opener instead, or no
-    -- preview appears at all and nudging looks like it does nothing (#297).
+    -- not already visible; track whether we opened it so the way out can
+    -- shut it. self._bw is always the LIBRARY widget -- buildMenuItems
+    -- shares one _bw global across both hosts, so reaching this setting from
+    -- inside the reader has to go through the reader's own opener instead,
+    -- or no preview appears at all and nudging looks like it does nothing
+    -- (#297).
     local in_reader = self._plugin and self._plugin.ui and self._plugin.ui.document
     local opened_preview = false
     if not StartMenu._live then
@@ -5341,62 +5359,15 @@ function Settings:_pickStartMenuFontScale(touchmenu_instance)
             opened_preview = true
         end
     end
-
-    local function getValue() return BookshelfSettings.read(key, 100) end
-    local function setValue(v)
-        v = math.max(50, math.min(200, v))
-        BookshelfSettings.save(key, v)
-    end
-    local function refreshPreview()
-        if StartMenu._live then StartMenu._live:_reload() end
-    end
-
-    local dialog
-    local function applyReinit()
-        Focus.reinitLocked(dialog)
-        if dialog.movable then dialog.movable.ges_events = {} end
-        UIManager:setDirty(dialog, "ui")
-    end
-    local function nudge(delta)
-        setValue(getValue() + delta)
-        refreshPreview()
-        applyReinit()
-    end
-    local function close()
-        if opened_preview and StartMenu._live then
-            StartMenu._live:_close()
-        end
-        UIManager:close(dialog)
-        restoreMenu()
-    end
-    local function revert()
-        setValue(original)
-        refreshPreview()
-    end
-
-    dialog = ButtonDialog:new{
-        dismissable = false,
+    self:_nudgePage(touchmenu_instance, {
+        key = "start_menu_font_scale", default = 100, min = 50, max = 200,
+        fine = 5, big = 10, unit = "%", no_shelf = true,
         title = _("Start menu font scale"),
-        buttons = {
-            {
-                { text = "-10",  callback = function() nudge(-10) end },
-                { text = "-5",   callback = function() nudge(-5)  end },
-                { text_func = function() return tostring(getValue()) .. "%" end,
-                  enabled = false },
-                { text = "+5",   callback = function() nudge(5)   end },
-                { text = "+10",  callback = function() nudge(10)  end },
-            },
-            {
-                { text = _("Cancel"), callback = function() revert(); close() end },
-                { text = _("Default"),
-                  callback = function() setValue(100); refreshPreview(); applyReinit() end },
-                { text = _("Apply"), is_enter_default = true, callback = close },
-            },
-        },
-        tap_close_callback = revert,
-    }
-    if dialog.movable then dialog.movable.ges_events = {} end
-    UIManager:show(dialog)
+        preview = function() if StartMenu._live then StartMenu._live:_reload() end end,
+        on_done = function()
+            if opened_preview and StartMenu._live then StartMenu._live:_close() end
+        end,
+    })
 end
 
 -- Start menu: the menu itself, then a fenced-off band for the reader-only
@@ -5617,12 +5588,15 @@ end
 -- cards too; this decouples the two. Same live-preview shape (and the same
 -- reader-vs-library routing, #297) as _pickStartMenuFontScale.
 function Settings:_pickStartMenuMinWidth(touchmenu_instance)
-    local ButtonDialog = require("ui/widget/buttondialog")
     local StartMenu    = require("lib/bookshelf_start_menu")
-    local key = "start_menu_min_width"
-    local original = BookshelfSettings.read(key, 180)
-    local restoreMenu = self._plugin:hideMenu(touchmenu_instance)
-
+    -- Open the start menu as a live preview (same approach as the hero scale
+    -- picker showing the bookshelf behind the dialog). Only open if one is
+    -- not already visible; track whether we opened it so the way out can
+    -- shut it. self._bw is always the LIBRARY widget -- buildMenuItems
+    -- shares one _bw global across both hosts, so reaching this setting from
+    -- inside the reader has to go through the reader's own opener instead,
+    -- or no preview appears at all and nudging looks like it does nothing
+    -- (#297).
     local in_reader = self._plugin and self._plugin.ui and self._plugin.ui.document
     local opened_preview = false
     if not StartMenu._live then
@@ -5636,63 +5610,16 @@ function Settings:_pickStartMenuMinWidth(touchmenu_instance)
             opened_preview = true
         end
     end
-
-    local function getValue() return BookshelfSettings.read(key, 180) end
-    local function setValue(v)
-        -- Same bounds the panel itself clamps to (_panelWidthBounds).
-        v = math.max(120, math.min(600, v))
-        BookshelfSettings.save(key, v)
-    end
-    local function refreshPreview()
-        if StartMenu._live then StartMenu._live:_reload() end
-    end
-
-    local dialog
-    local function applyReinit()
-        Focus.reinitLocked(dialog)
-        if dialog.movable then dialog.movable.ges_events = {} end
-        UIManager:setDirty(dialog, "ui")
-    end
-    local function nudge(delta)
-        setValue(getValue() + delta)
-        refreshPreview()
-        applyReinit()
-    end
-    local function close()
-        if opened_preview and StartMenu._live then
-            StartMenu._live:_close()
-        end
-        UIManager:close(dialog)
-        restoreMenu()
-    end
-    local function revert()
-        setValue(original)
-        refreshPreview()
-    end
-
-    dialog = ButtonDialog:new{
-        dismissable = false,
+    self:_nudgePage(touchmenu_instance, {
+        -- The same bounds the panel itself clamps to (_panelWidthBounds).
+        key = "start_menu_min_width", default = 180, min = 120, max = 600,
+        fine = 5, big = 20, unit = " dp", no_shelf = true,
         title = _("Minimum start menu width"),
-        buttons = {
-            {
-                { text = "-20",  callback = function() nudge(-20) end },
-                { text = "-5",   callback = function() nudge(-5)  end },
-                { text_func = function() return tostring(getValue()) .. " dp" end,
-                  enabled = false },
-                { text = "+5",   callback = function() nudge(5)   end },
-                { text = "+20",  callback = function() nudge(20)  end },
-            },
-            {
-                { text = _("Cancel"), callback = function() revert(); close() end },
-                { text = _("Default"),
-                  callback = function() setValue(180); refreshPreview(); applyReinit() end },
-                { text = _("Apply"), is_enter_default = true, callback = close },
-            },
-        },
-        tap_close_callback = revert,
-    }
-    if dialog.movable then dialog.movable.ges_events = {} end
-    UIManager:show(dialog)
+        preview = function() if StartMenu._live then StartMenu._live:_reload() end end,
+        on_done = function()
+            if opened_preview and StartMenu._live then StartMenu._live:_close() end
+        end,
+    })
 end
 
 -- Nudge dialog for the book-detail popup's tab bar (Edit/Description/

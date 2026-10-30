@@ -96,6 +96,15 @@ package.loaded["ui/uimanager"] = {
 package.loaded["ui/widget/buttondialog"] = {
     new = function(_, o) return o end,
 }
+-- The size nudges are a page now (Settings:_nudgePage over PageDialog):
+-- show() records the spec as the "dialog", the way ButtonDialog's stub does.
+package.loaded["lib/bookshelf_page_dialog"] = {
+    show = function(o)
+        o.refresh = function() end
+        package.loaded["ui/uimanager"]:show(o)
+        return o
+    end,
+}
 
 -- StartMenu / ReviewsModal: bespoke fakes wired up per-test below (the real
 -- modules are full widget trees; bookshelf_settings.lua only ever touches
@@ -161,7 +170,34 @@ end
 -- pickers lay out { {-10,-5,val,+5,+10}, {Cancel,Default,Apply} } (or the
 -- chip picker's {-10,-1,val,+1,+10}), but hunting by text rather than
 -- position keeps these tests honest about *what* they're calling.
+local MINUS = "\xE2\x88\x92"
+local function pageBlocks(dialog)
+    return dialog.page and dialog.page().blocks
+end
 local function findButton(dialog, text)
+    local blocks = pageBlocks(dialog)
+    if blocks then
+        -- A page: Cancel | Apply in the footer; the bigger steps and Default
+        -- as chips; the fine step on the stepper.
+        for _, f in ipairs(dialog.footer or {}) do
+            if f.text == text then return f end
+        end
+        local chip_text = text:gsub("^%-", MINUS)
+        local stepper
+        for _, b in ipairs(blocks) do
+            if b.type == "chips" then
+                for _, it in ipairs(b.items) do
+                    if it.text == chip_text then return it end
+                end
+            elseif b.type == "stepper" then
+                stepper = b
+            end
+        end
+        if stepper and text:match("^[%+%-]%d+$") then
+            return { callback = text:sub(1, 1) == "+" and stepper.on_inc or stepper.on_dec }
+        end
+        error("no button with text " .. tostring(text))
+    end
     for _, row in ipairs(dialog.buttons) do
         for _, b in ipairs(row) do
             if b.text == text then return b end
@@ -171,6 +207,12 @@ local function findButton(dialog, text)
 end
 
 local function nudgeLabel(dialog)
+    local blocks = pageBlocks(dialog)
+    if blocks then
+        for _, b in ipairs(blocks) do
+            if b.type == "stepper" then return b.value end
+        end
+    end
     for _, row in ipairs(dialog.buttons) do
         for _, b in ipairs(row) do
             if b.enabled == false and b.text_func then return b.text_func() end

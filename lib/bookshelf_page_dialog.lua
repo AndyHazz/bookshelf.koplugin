@@ -10,6 +10,11 @@
 --                                 laid out afresh on every refresh()
 --     footer = { { text, callback, enabled_func, primary } ... } (optional)
 --     on_close = function()       the X, a tap outside, Back (after closing)
+--     dismissable = false         a tap outside does nothing (a nudge: rapid
+--                                 taps fell through and closed it mid-edit)
+--     anchor = rect | function() -> rect   open under that rect (above it
+--                                 when there is no room), not centred: a
+--                                 nudge for the thing at the rect
 --   } -> the dialog; dialog:refresh() lays it out again in place.
 
 local Blitbuffer      = require("ffi/blitbuffer")
@@ -30,6 +35,8 @@ local PageDialog = InputContainer:extend{
     page     = nil,
     footer   = nil,
     on_close = nil,
+    dismissable = true,
+    anchor   = nil,
 }
 
 local FS = 20
@@ -52,7 +59,28 @@ function PageDialog:init()
         local sz = self:getSize()
         bb:paintBorder(x, y, sz.w, sz.h, self.bordersize, Blitbuffer.COLOR_BLACK, self.radius)
     end
-    self[1] = CenterContainer:new{ dimen = Geom:new{ w = sw, h = sh }, frame }
+    if self.anchor then
+        -- Under the anchor's rect, centred across; above it with no room
+        -- below; centred when the anchor has no rect now.
+        local dialog = self
+        local WidgetContainer = require("ui/widget/container/widgetcontainer")
+        local holder = WidgetContainer:new{ dimen = Geom:new{ w = sw, h = sh }, frame }
+        function holder:paintTo(bb, x, y)
+            local a = dialog.anchor
+            if type(a) == "function" then a = a() end
+            local sz = frame:getSize()
+            local fx, fy = math.floor((sw - sz.w) / 2), math.floor((sh - sz.h) / 2)
+            if a and a.y and a.h then
+                local gap = Space.px(8)
+                if a.y + a.h + gap + sz.h <= sh then fy = a.y + a.h + gap
+                else fy = math.max(0, a.y - gap - sz.h) end
+            end
+            frame:paintTo(bb, x + fx, y + fy)
+        end
+        self[1] = holder
+    else
+        self[1] = CenterContainer:new{ dimen = Geom:new{ w = sw, h = sh }, frame }
+    end
     if Device:isTouchDevice() then
         self.ges_events = { TapClose = { GestureRange:new{ ges = "tap",
             range = Geom:new{ x = 0, y = 0, w = sw, h = sh } } } }
@@ -182,7 +210,9 @@ end
 
 function PageDialog:onTapClose(_arg, ges)
     local d = self.frame.dimen
-    if d and ges and ges.pos and ges.pos:notIntersectWith(d) then self:_dismiss() end
+    if self.dismissable ~= false and d and ges and ges.pos and ges.pos:notIntersectWith(d) then
+        self:_dismiss()
+    end
     return true
 end
 

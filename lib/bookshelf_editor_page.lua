@@ -263,10 +263,23 @@ function R.slider(ctx, b)
     return VerticalGroup:new{ align = "left", head, VerticalSpan:new{ width = Space.px(4) }, w }
 end
 
+-- The stepper's - and + nudge a value in place, so they are grey cards
+-- (STYLE.md: a card nudges or opens, an outline chooses or commits), with the
+-- symbols font's minus and plus as the ornament menu's: one width, where the
+-- text minus ran wider than its +.
+local MINUS_GLYPH = "\xEF\x81\xA8"   -- U+F068
+local PLUS_GLYPH  = "\xEF\x91\x8D"   -- U+F44D
 function R.stepper(ctx, b)
     local h = ctx:cardH() - Space.px(8)
-    local minus = ctx:smallButton("\u{2212}", false, b.on_dec, h)
-    local plus = ctx:smallButton("+", false, b.on_inc, h)
+    local glyph_face = Font:getFace("symbols", math.max(10, ctx.fs - 4))
+    local function nudge(glyph, callback)
+        local btn = Kit.button{ icon_glyph = glyph, icon_face = glyph_face, width = h,
+            height = h, border = 0, instant = true, on_tap = callback }
+        Kit.cardify(btn[1])
+        return btn
+    end
+    local minus = nudge(MINUS_GLYPH, b.on_dec)
+    local plus = nudge(PLUS_GLYPH, b.on_inc)
     local value = CenterContainer:new{ dimen = Geom:new{ w = Space.px(84), h = h },
         ctx:text(b.value, { bold = true }) }
     ctx.layout[#ctx.layout + 1] = { minus, plus }

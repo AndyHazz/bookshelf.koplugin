@@ -87,7 +87,13 @@ a control by hand, so a change lands everywhere.
 - A yes/no that only changes what is shown (Include spoilers): a checkbox
   glyph and label on `Kit.tapCell`. Not saved unless it is a real setting.
   A saved on/off is an On | Off segmented control (`Page` segmented).
+- Which look a button takes goes by what the tap does: a grey card nudges a
+  value in place or opens a thing (a setting's row, an option, a theme, a
+  colour, −/+ and ±10, a slider's steps, the d-pad's keys); an outline chooses or commits
+  (chips, a segmented control's cells, header actions, the footer's way
+  out). A dialog that holds both reads as adjusters beside choices.
 - A number: a stepper, − value + (`Page` stepper), Auto below the minimum.
+  Its − and + are grey cards, the symbols font's minus and plus.
 - A size or amount over a range (a font scale, an ornament's size): a
   slider (`Page` slider, `lib/bookshelf_slider.lua`). Tap the track to jump,
   drag the knob (applied when the finger lifts, not on every move; it snaps

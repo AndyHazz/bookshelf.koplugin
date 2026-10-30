@@ -78,4 +78,20 @@ t.test("a short or one-folder path is left alone", function()
     eq(Page._shortenPath("/", never), "/")
 end)
 
+-- Buttons (STYLE.md): a grey card nudges a value in place or opens a thing;
+-- an outline chooses or commits. A stepper's - and + nudge, so they are
+-- cards with the symbols font's minus and plus, as the ornament menu's are
+-- (maintainer: the view mode's outlined steppers did not match it).
+t.test("a stepper's - and + are grey cards, as the ornament menu's", function()
+    local src = io.open("lib/bookshelf_editor_page.lua"):read("*a")
+    local body = src:match("\n(function R%.stepper%(.-\nend)\n")
+    assert(body, "R.stepper moved")
+    assert(not body:find("smallButton", 1, true), "the stepper is still outlined buttons")
+    assert(body:find("Kit.cardify", 1, true), "the stepper's buttons are not cards")
+    assert(body:find("\\xEF\\x81\\xA8", 1, true) or body:find("MINUS", 1, true),
+        "the minus is not the symbols font's")
+    local style = io.open("STYLE.md"):read("*a")
+    assert(style:find("an outline chooses or commits", 1, true), "STYLE.md does not give the rule")
+end)
+
 t.done()

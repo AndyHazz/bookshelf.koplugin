@@ -37,6 +37,8 @@ end
 -- was one more state for every tap to pass through (maintainer, PW5).
 function Kit.tapCell(widget, w, h, on_tap, enabled, on_hold, instant)
     local cell = InputContainer:new{ dimen = Geom:new{ w = w, h = h }, widget }
+    -- As a stock Button's: the keys pass over one that can't act (Kit.keyFocus).
+    cell.enabled = enabled ~= false
     cell.ges_events = { Tap = { GestureRange:new{ ges = "tap", range = cell.dimen } } }
     cell.onTap = function(_self, _arg, ges)
         -- Only a tap inside it. A card that is a tap cell itself re-sends its
@@ -178,6 +180,22 @@ end
 -- state.page names the page it was on, and a new page seeds afresh.
 function Kit.keyFocus(fm, state, seed_y, page)
     if not (fm and fm.layout and #fm.layout > 0) then return end
+    -- A control that can't act (greyed) is no stop for the keys: out of the
+    -- layout, and a row with nothing left goes too (maintainer). seed_y
+    -- names a row of the layout as given.
+    local kept, new_seed = {}, nil
+    for y, row in ipairs(fm.layout) do
+        local r = {}
+        for _x, item in ipairs(row) do
+            if item.enabled ~= false then r[#r + 1] = item end
+        end
+        if #r > 0 then
+            kept[#kept + 1] = r
+            if not new_seed and y >= (seed_y or 1) then new_seed = #kept end
+        end
+    end
+    if #kept == 0 then return end
+    fm.layout, seed_y = kept, new_seed or 1
     local FocusManager = require("ui/widget/focusmanager")
     local UIManager = require("ui/uimanager")
     if state.page ~= page then state.page, state.sel = page, nil end

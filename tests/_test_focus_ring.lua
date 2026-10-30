@@ -146,6 +146,17 @@ t.test("keyFocus: seeded on its row, shown at the first key, kept across a rebui
     eq(c.selected.y, 1)
 end)
 
+t.test("keyFocus: the keys pass over a control that can't act", function()
+    local off = { enabled = false }
+    local a, b, c = {}, {}, {}
+    local f = { layout = { { off }, { a, off, b }, { c } }, selected = { x = 1, y = 1 },
+        onFocusMove = function() return true end, moveFocusTo = function() end }
+    Kit.keyFocus(f, {}, 2, "p")
+    eq(#f.layout, 2, "a row with nothing that can act is still a stop")
+    eq(#f.layout[1], 2); assert(f.layout[1][1] == a and f.layout[1][2] == b, "a greyed button is still a stop")
+    eq(f.selected.y, 1, "the seed did not follow its row")
+end)
+
 t.test("the shelf editor quiets its foot row and seeds on the first card", function()
     local src = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
     assert(src:find("Kit.quietFocus(foot)", 1, true), "the foot row still takes the keys")

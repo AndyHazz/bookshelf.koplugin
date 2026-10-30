@@ -61,7 +61,8 @@ a control by hand, so a change lands everywhere.
   above it), hidden until the first key, which shows it there; kept where
   it was across a rebuild (`Kit.keyFocus`). A KOReader ButtonTable inside
   our own FocusManager is quieted (`Kit.quietFocus`): events reach children
-  first, and it took every arrow and pressed its own button.
+  first, and it took every arrow and pressed its own button. A control
+  that can't act (greyed) is no stop for the keys.
 
 ## Controls
 

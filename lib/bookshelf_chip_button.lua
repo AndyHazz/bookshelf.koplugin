@@ -153,6 +153,8 @@ function ChipButton.build(opts)
     }
     local btn_w = frame:getSize().w
     local btn = InputContainer:new{ dimen = Geom:new{ w = btn_w, h = height }, frame }
+    -- As a stock Button's: the keys pass over one that can't act (Kit.keyFocus).
+    btn.enabled = opts.enabled ~= false
     btn.ges_events = { TapSelect = { GestureRange:new{ ges = "tap", range = btn.dimen } } }
     -- Shown pressed (inverted) at once, then the tap acts: a slow action
     -- still shows it was taken.

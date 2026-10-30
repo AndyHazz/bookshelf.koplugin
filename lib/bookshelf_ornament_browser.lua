@@ -162,9 +162,15 @@ function Browser._renderCell(item, dimen)
     return OverlapGroup:new{ dimen = Geom:new{ w = cs.w, h = cs.h }, card, box }
 end
 
+-- One fresh look at the folders (a piece just dropped in shows), then the
+-- recent window held while each piece is asked about: its isOff reaches
+-- listAll through the theme's set, and outside the window listAll reads
+-- every folder again. On a PW5 with 443 pieces that was 889 scans and a
+-- 32 s open (measured 2026-10-30); _chips is the same per pack.
 function Browser:_items()
     local Orn, sw = O(), SW()
     local all = Orn.listAll()
+    local was = Orn.allowRecent(true)
     local out = {}
     for _i, e in ipairs(all) do
         -- opts.pool: the pieces a shelf deals from (Swap on a shelf that
@@ -176,6 +182,7 @@ function Browser:_items()
                               pack_off = sw.isPackOff(e.pack) }
         end
     end
+    if not was then Orn.allowRecent(false) end
     return out
 end
 
@@ -224,6 +231,7 @@ end
 function Browser:_chips()
     local Orn, sw = O(), SW()
     local all, packs = Orn.listAll()
+    local was = Orn.allowRecent(true)
     -- All, then one per pack. No tab for the loose ornaments on their own:
     -- All already shows them, and a tab is for something you switch as one
     -- (maintainer). Nor for a pack with no ornaments: a planks-only pack's
@@ -238,6 +246,7 @@ function Browser:_chips()
             is_active = self.chip == pack,
         } end
     end
+    if not was then Orn.allowRecent(false) end
     return chips
 end
 

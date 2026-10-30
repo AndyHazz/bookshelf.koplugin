@@ -37,6 +37,7 @@ t.test("a pack with no ornaments (planks only) gets no chip", function()
                    { "Autumn", "Planks" }
         end,
         isPackOff = function() return false end,
+        allowRecent = function() return false end,
     }
     local chips = load("return function(self)\n" .. method(src, "Browser:_chips()") .. "\nend", "c", "t",
         { O = function() return Orn end, SW = function() return Orn end, _ = function(x) return x end,
@@ -87,6 +88,7 @@ t.test("Swap lists only the pieces the shelf deals from", function()
         end,
         isOff = function() return false end,
         isPackOff = function() return false end,
+        allowRecent = function() return false end,
     }
     local items = load("return function(self)\n" .. method(src, "Browser:_items()") .. "\nend", "i", "t",
         { O = function() return Orn end, SW = function() return Orn end, ALL = "\0all", ipairs = ipairs })()
@@ -121,6 +123,35 @@ t.test("opening shows a message at once and builds the browser after it", functi
     local build = show:find("Browser._open", 1, true)
     assert(msg and paint and later and build, "no loading message before the build")
     assert(msg < paint and paint < later and later < build, "the message must paint before the build starts")
+end)
+
+-- PW5, 2026-10-30, 443 pieces: opening the browser took 32 s. Each piece's
+-- isOff asks for the theme's set, which reached listAll, and outside the
+-- recent window listAll reads every folder again (~36 ms on the PW5): 889
+-- scans. The list takes one fresh look and holds the window for the rest.
+t.test("listing the pieces reads the folders once, however many there are", function()
+    local open, fresh = false, 0
+    local all = {}
+    for i = 1, 50 do all[i] = { name = "P/" .. i .. ".png", pack = "P" } end
+    local Orn = {
+        listAll = function() if not open then fresh = fresh + 1 end; return all, { "P" } end,
+        allowRecent = function(on) local was = open; open = on and true or false; return was end,
+    }
+    local sw = {
+        isOff = function() Orn.listAll(); return false end,
+        isPackOff = function() Orn.listAll(); return false end,
+    }
+    local env = { O = function() return Orn end, SW = function() return sw end, ALL = "\0all",
+        ipairs = ipairs, pairs = pairs, _ = function(x) return x end, T = function(x) return x end }
+    local items = load("return function(self)\n" .. method(src, "Browser:_items()") .. "\nend", "i", "t", env)()
+    H.eq(#items({ chip = "\0all", opts = {} }), 50)
+    H.eq(fresh, 1, "the folders were read per piece")
+    H.eq(open, false, "the window was left open")
+    fresh = 0
+    local chips = load("return function(self)\n" .. method(src, "Browser:_chips()") .. "\nend", "c", "t", env)()
+    chips({ chip = "\0all" })
+    H.eq(fresh, 1, "the chips read the folders per pack")
+    H.eq(open, false)
 end)
 
 t.done()

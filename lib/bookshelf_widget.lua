@@ -8841,7 +8841,8 @@ function BookshelfWidget:_buildBucketIcon(focused, frame_width)
     local bucket_h     = math.floor(art_h * 0.75)
     local count        = self._selection:count()
     local count_str    = tostring(count)
-    local color       = count == 0 and Blitbuffer.COLOR_DARK_GRAY or Blitbuffer.COLOR_BLACK
+    -- Empty: the dim grey a disabled chevron keeps on any ground.
+    local color       = count == 0 and Blitbuffer.COLOR_DARK_GRAY or self:_chromeInk()
     -- Probe the digit's text size first so we can size the bucket's
     -- internal width to fit. Use the same face the paint loop uses.
     local count_font_size = math.floor(art_h * 0.5)
@@ -9016,7 +9017,7 @@ function BookshelfWidget:_buildExitIcon(focused, frame_width)
     local glyph     = TextWidget:new{
         text    = CLOSE_GLYPH,
         face    = face,
-        fgcolor = Blitbuffer.COLOR_BLACK,
+        fgcolor = self:_chromeInk(),
     }
     local bw_ref = self
     return self:_wrapAsFooterButton(glyph, frame_width, focused, function()

@@ -49,4 +49,23 @@ t.test("the chevrons are recoloured when the panel has a text colour too", funct
         "the footer icons only follow a dark shelf")
 end)
 
+-- Select mode's corner icons, the X and the bucket, are painted by hand like
+-- the hamburger, and were left hard-coded black (maintainer, UI branch).
+local function method(name)
+    local b = src:match("\n(function BookshelfWidget:" .. name .. "%(.-\nend)\n")
+    assert(b, name .. " moved")
+    return b
+end
+
+t.test("select mode's X takes the chrome ink", function()
+    local b = method("_buildExitIcon")
+    assert(b:find("fgcolor = self:_chromeInk()", 1, true), "the X is still black")
+end)
+
+t.test("the bucket takes the chrome ink, dim grey while empty as disabled chevrons are", function()
+    local b = method("_buildBucketIcon")
+    assert(b:find("count == 0 and Blitbuffer.COLOR_DARK_GRAY or self:_chromeInk()", 1, true),
+        "the bucket is still black")
+end)
+
 t.done()

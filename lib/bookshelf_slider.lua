@@ -1,0 +1,160 @@
+-- bookshelf_slider.lua (see STYLE.md)
+-- A value on a track: a size nudge, an ornament's size or lift. A tap
+-- anywhere on the track sets it there; a drag moves the knob and sets it
+-- when the finger lifts (each change redraws a preview behind, which on
+-- e-ink is no thing to do on every move). - and + step it finely. Ticks
+-- under the track mark the range's ends and Default.
+--   Slider.new{ width, value, min, max, step, default, format(v) -> text,
+--               on_change(v), face, small } -> widget, keys_row
+-- The maths is kept apart (snap, valueAt, xOf, ticks) so the tests reach it
+-- without widgets.
+
+local Slider = {}
+
+-- snap(v, o) -> v on o.step's grid from o.min, kept in [o.min, o.max]. Rounded
+-- through the step count, so 0.05 steps come out as 1.25, not 1.2500000001.
+function Slider.snap(v, o)
+    local step = o.step or 1
+    local n = math.floor((v - o.min) / step + 0.5)
+    local out = o.min + n * step
+    -- Two places past the step's own, enough for any step we use.
+    out = math.floor(out * 10000 + 0.5) / 10000
+    return math.max(o.min, math.min(o.max, out))
+end
+
+-- valueAt(x, w, o) -> the value at x along a track w wide (snapped).
+function Slider.valueAt(x, w, o)
+    local f = math.max(0, math.min(1, w > 0 and x / w or 0))
+    return Slider.snap(o.min + f * (o.max - o.min), o)
+end
+
+-- xOf(v, w, o) -> where v sits along a track w wide.
+function Slider.xOf(v, w, o)
+    if o.max <= o.min then return 0 end
+    local f = (math.max(o.min, math.min(o.max, v)) - o.min) / (o.max - o.min)
+    return math.floor(f * w + 0.5)
+end
+
+-- ticks(o) -> the values marked under the track: the ends and Default.
+function Slider.ticks(o)
+    local out, seen = {}, {}
+    for _i, v in ipairs({ o.min, o.default, o.max }) do
+        if v and not seen[v] then seen[v] = true; out[#out + 1] = v end
+    end
+    table.sort(out)
+    return out
+end
+
+function Slider.new(o)
+    local Blitbuffer      = require("ffi/blitbuffer")
+    local Geom            = require("ui/geometry")
+    local GestureRange    = require("ui/gesturerange")
+    local HorizontalGroup = require("ui/widget/horizontalgroup")
+    local HorizontalSpan  = require("ui/widget/horizontalspan")
+    local InputContainer  = require("ui/widget/container/inputcontainer")
+    local UIManager       = require("ui/uimanager")
+    local VerticalGroup   = require("ui/widget/verticalgroup")
+    local TextWidget      = require("lib/bookshelf_colour_text")
+    local Kit             = require("lib/bookshelf_popup_kit")
+    local Space           = require("lib/bookshelf_space")
+    local _ = require("lib/bookshelf_i18n").gettext
+
+    local fmt = o.format or tostring
+    local value = Slider.snap(o.value, o)
+    local function commit(v)
+        v = Slider.snap(v, o)
+        if v ~= value and o.on_change then o.on_change(v) end
+    end
+
+    local btn_h = TextWidget:new{ text = "Hg", face = o.face }:getSize().h + Space.px(12)
+    local function stepButton(text, d)
+        local enabled = (d < 0 and value > o.min) or (d > 0 and value < o.max)
+        return Kit.button{ text = text, face = o.face, height = btn_h, width = btn_h,
+            enabled = enabled, on_tap = function() commit(value + d * (o.step or 1)) end }
+    end
+    local minus = stepButton("\xE2\x88\x92", -1)   -- U+2212 minus
+    local plus  = stepButton("+", 1)
+    local gap = Space.px(12)
+    local track_w = math.max(Space.px(60), o.width - 2 * btn_h - 2 * gap)
+
+    -- The track: a grey bar, black up to the knob (the value is what is
+    -- "on"), ticks under it, the knob a black disc. Its touch area is the
+    -- buttons' height, so it is as easy to hit as they are.
+    local r = math.floor(btn_h / 4)          -- the knob's radius
+    local bar_h = math.max(2, Space.px(6))
+    local inner = track_w - 2 * r            -- where the knob's centre runs
+    local Track = InputContainer:extend{}
+    local track = Track:new{ dimen = Geom:new{ w = track_w, h = btn_h } }
+    track.shown = value
+    function track:paintTo(bb, x, y)
+        self.dimen.x, self.dimen.y = x, y
+        local cy = y + math.floor(btn_h / 2)
+        local x0 = x + r
+        local kx = x0 + Slider.xOf(self.shown, inner, o)
+        bb:paintRoundedRect(x0, cy - math.floor(bar_h / 2), inner, bar_h,
+            Blitbuffer.COLOR_LIGHT_GRAY, math.floor(bar_h / 2))
+        if kx > x0 then
+            bb:paintRoundedRect(x0, cy - math.floor(bar_h / 2), kx - x0, bar_h,
+                Blitbuffer.COLOR_BLACK, math.floor(bar_h / 2))
+        end
+        for _i, tv in ipairs(Slider.ticks(o)) do
+            local tx = x0 + Slider.xOf(tv, inner, o)
+            bb:paintRect(tx - 1, cy + r + Space.px(2), 2, Space.px(6), Blitbuffer.COLOR_DARK_GRAY)
+        end
+        bb:paintCircle(kx, cy, r, Blitbuffer.COLOR_BLACK)
+    end
+    local function at(pos)
+        return Slider.valueAt(pos.x - track.dimen.x - r, inner, o)
+    end
+    local function show(v)
+        if v == track.shown then return end
+        track.shown = v
+        local top = UIManager.getTopmostVisibleWidget and UIManager:getTopmostVisibleWidget()
+        UIManager:setDirty(top, function() return "fast", track.dimen end)
+    end
+    track.ges_events = {
+        Tap        = { GestureRange:new{ ges = "tap",         range = function() return track.dimen end } },
+        Pan        = { GestureRange:new{ ges = "pan",         range = function() return track.dimen end } },
+        PanRelease = { GestureRange:new{ ges = "pan_release", range = function() return track.dimen end } },
+        Swipe      = { GestureRange:new{ ges = "swipe",       range = function() return track.dimen end } },
+    }
+    function track:onTap(_a, ges) commit(at(ges.pos)); return true end
+    function track:onPan(_a, ges) show(at(ges.pos)); return true end
+    function track:onPanRelease(_a, ges) commit(at(ges.pos)); return true end
+    -- A quick drag arrives as a swipe: its pos is where it began, so the end
+    -- is that plus its distance, along the track.
+    function track:onSwipe(_a, ges)
+        local dx = (ges.direction == "east" and 1 or ges.direction == "west" and -1 or 0)
+            * (ges.distance or 0)
+        commit(at({ x = ges.pos.x + dx }))
+        return true
+    end
+
+    -- Under the track: each tick's label, Default by name, left out where it
+    -- would run into the one before.
+    local labels = HorizontalGroup:new{ align = "top" }
+    local used = 0
+    for _i, tv in ipairs(Slider.ticks(o)) do
+        local text = (tv == o.default) and _("Default") or fmt(tv)
+        local lw = TextWidget:new{ text = text, face = o.small,
+            fgcolor = Blitbuffer.COLOR_DARK_GRAY }
+        local w = lw:getSize().w
+        local cx = r + Slider.xOf(tv, inner, o)
+        local lx = math.max(0, math.min(track_w - w, cx - math.floor(w / 2)))
+        if lx >= used then
+            labels[#labels + 1] = HorizontalSpan:new{ width = lx - used }
+            labels[#labels + 1] = lw
+            used = lx + w + Space.px(6)
+        end
+    end
+
+    local row = HorizontalGroup:new{ align = "center",
+        minus, HorizontalSpan:new{ width = gap }, track, HorizontalSpan:new{ width = gap }, plus }
+    local vg = VerticalGroup:new{ align = "left",
+        row,
+        HorizontalGroup:new{ align = "top", HorizontalSpan:new{ width = btn_h + gap }, labels },
+    }
+    return vg, { minus, plus }, fmt(value)
+end
+
+return Slider

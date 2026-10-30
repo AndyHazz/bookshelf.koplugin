@@ -12,6 +12,8 @@
 --     on_close = function()       the X, a tap outside, Back (after closing)
 --     dismissable = false         a tap outside does nothing (a nudge: rapid
 --                                 taps fell through and closed it mid-edit)
+--     at_bottom = true            a slim panel low on the screen, so more
+--                                 of a live preview stays in sight
 --     anchor = rect | function() -> rect   open under that rect (above it
 --                                 when there is no room), not centred: a
 --                                 nudge for the thing at the rect
@@ -37,6 +39,7 @@ local PageDialog = InputContainer:extend{
     on_close = nil,
     dismissable = true,
     anchor   = nil,
+    at_bottom = nil,
 }
 
 local FS = 20
@@ -59,7 +62,7 @@ function PageDialog:init()
         local sz = self:getSize()
         bb:paintBorder(x, y, sz.w, sz.h, self.bordersize, Blitbuffer.COLOR_BLACK, self.radius)
     end
-    if self.anchor then
+    if self.anchor or self.at_bottom then
         -- Under the anchor's rect, centred across; above it with no room
         -- below; centred when the anchor has no rect now.
         local dialog = self
@@ -70,7 +73,9 @@ function PageDialog:init()
             if type(a) == "function" then a = a() end
             local sz = frame:getSize()
             local fx, fy = math.floor((sw - sz.w) / 2), math.floor((sh - sz.h) / 2)
-            if a and a.y and a.h then
+            if dialog.at_bottom and not (a and a.y) then
+                fy = sh - sz.h - Space.px(24)
+            elseif a and a.y and a.h then
                 local gap = Space.px(8)
                 if a.y + a.h + gap + sz.h <= sh then fy = a.y + a.h + gap
                 else fy = math.max(0, a.y - gap - sz.h) end

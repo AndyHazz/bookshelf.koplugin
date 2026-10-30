@@ -3138,13 +3138,12 @@ function Settings:_colorsSubItems()
     return items
 end
 
--- _nudgePage(touchmenu_instance, spec) -- a size nudge, as a page (STYLE.md):
--- what the value means in the strip, a stepper (spec.fine), the bigger steps
--- (spec.big) and Default as chips, Cancel | Apply in the footer. Every step
--- saves and previews behind the page; Cancel, the X and Back put back the
--- value it opened with.
+-- _nudgePage(touchmenu_instance, spec) -- a size nudge, as a slim page low on
+-- the screen (STYLE.md): a slider (tap or drag the track, - and + step by
+-- spec.fine, Default ticked under it), Cancel | Done. Every change saves and previews behind the page; Cancel,
+-- the X and Back put back the value it opened with.
 --
---   spec.key, spec.default, spec.min, spec.max, spec.fine, spec.big
+--   spec.key, spec.default, spec.min, spec.max, spec.fine
 --   spec.unit     "%" (a scale: "120% of the normal size") or " dp"
 --   spec.title    the page's title
 --   spec.anchor   where to open it (the chip bar's nudge opens below the bar
@@ -3179,46 +3178,31 @@ function Settings:_nudgePage(touchmenu_instance, spec)
         end
         if dialog then dialog:refresh() end
     end
-    local function step(d) return function() setValue(getValue() + d) end end
     local function show(v) return tostring(v) .. (spec.unit or "%") end
-    local function says(v)
-        if spec.unit and spec.unit ~= "%" then
-            return v == default and T(_("The default, %1."), show(v))
-                or T(_("Default: %1."), show(default))
-        end
-        return v == default and _("The normal size.") or T(_("%1% of the normal size."), v)
-    end
     local function done(revert)
         if revert then setValue(original) end
         UIManager:close(dialog)
         restoreMenu()
         if spec.on_done then spec.on_done() end
     end
-    local big, fine = spec.big or 10, spec.fine or 5
     local function page()
-        local v = getValue()
-        return {
-            strip = { { type = "summary", text = says(v) } },
-            blocks = {
-                { type = "stepper", label = _("Size"), value = show(v),
-                  on_dec = step(-fine), on_inc = step(fine) },
-                { type = "chips", items = {
-                    { text = "\xE2\x88\x92" .. big, callback = step(-big) },   -- minus sign
-                    { text = "+" .. big, callback = step(big) },
-                    { text = _("Default"), enabled = v ~= default,
-                      callback = function() setValue(default) end },
-                } },
-            },
-        }
+        return { blocks = {
+            { type = "slider", value = getValue(), min = spec.min or 50,
+              max = spec.max or 200, step = spec.fine or 5, default = default,
+              format = show, on_change = setValue },
+        } }
     end
+    -- A slim panel low on the screen (the chip bar's opens under the bar),
+    -- so the preview behind stays in sight (maintainer: a slider).
     dialog = require("lib/bookshelf_page_dialog").show{
         title = spec.title,
         page = page,
         anchor = spec.anchor,
+        at_bottom = true,
         dismissable = false,
         footer = {
             { text = _("Cancel"), callback = function() done(true) end },
-            { text = _("Apply"), primary = true, callback = function() done(false) end },
+            { text = _("Done"), primary = true, callback = function() done(false) end },
         },
         -- The X and Back: closed already; put the value back.
         on_close = function()
@@ -3235,7 +3219,7 @@ end
 function Settings:_showScaleNudge(touchmenu_instance, spec)
     self:_nudgePage(touchmenu_instance, {
         key = spec.key, default = 100, min = 50, max = spec.max or 200,
-        fine = spec.fine or 5, big = 10, unit = "%",
+        fine = spec.fine or 5, unit = "%",
         title = spec.title, anchor = spec.anchor, preview = spec.preview,
     })
 end
@@ -5361,7 +5345,7 @@ function Settings:_pickStartMenuFontScale(touchmenu_instance)
     end
     self:_nudgePage(touchmenu_instance, {
         key = "start_menu_font_scale", default = 100, min = 50, max = 200,
-        fine = 5, big = 10, unit = "%", no_shelf = true,
+        fine = 5, unit = "%", no_shelf = true,
         title = _("Start menu font scale"),
         preview = function() if StartMenu._live then StartMenu._live:_reload() end end,
         on_done = function()
@@ -5613,7 +5597,7 @@ function Settings:_pickStartMenuMinWidth(touchmenu_instance)
     self:_nudgePage(touchmenu_instance, {
         -- The same bounds the panel itself clamps to (_panelWidthBounds).
         key = "start_menu_min_width", default = 180, min = 120, max = 600,
-        fine = 5, big = 20, unit = " dp", no_shelf = true,
+        fine = 5, unit = " dp", no_shelf = true,
         title = _("Minimum start menu width"),
         preview = function() if StartMenu._live then StartMenu._live:_reload() end end,
         on_done = function()

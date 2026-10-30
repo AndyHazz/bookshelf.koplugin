@@ -170,31 +170,29 @@ end
 -- pickers lay out { {-10,-5,val,+5,+10}, {Cancel,Default,Apply} } (or the
 -- chip picker's {-10,-1,val,+1,+10}), but hunting by text rather than
 -- position keeps these tests honest about *what* they're calling.
-local MINUS = "\xE2\x88\x92"
+-- The size nudges are a page with a slider now: Cancel | Done in the
+-- footer ("Apply" is Done); a step of the old grid (+10, -5) is the slider
+-- moved by that much, Default the slider set to its default.
 local function pageBlocks(dialog)
     return dialog.page and dialog.page().blocks
 end
+local function slider(dialog)
+    for _, b in ipairs(pageBlocks(dialog)) do
+        if b.type == "slider" then return b end
+    end
+end
 local function findButton(dialog, text)
-    local blocks = pageBlocks(dialog)
-    if blocks then
-        -- A page: Cancel | Apply in the footer; the bigger steps and Default
-        -- as chips; the fine step on the stepper.
+    if pageBlocks(dialog) then
+        if text == "Apply" then text = "Done" end
         for _, f in ipairs(dialog.footer or {}) do
             if f.text == text then return f end
         end
-        local chip_text = text:gsub("^%-", MINUS)
-        local stepper
-        for _, b in ipairs(blocks) do
-            if b.type == "chips" then
-                for _, it in ipairs(b.items) do
-                    if it.text == chip_text then return it end
-                end
-            elseif b.type == "stepper" then
-                stepper = b
-            end
+        if text == "Default" then
+            return { callback = function() local s = slider(dialog); s.on_change(s.default) end }
         end
-        if stepper and text:match("^[%+%-]%d+$") then
-            return { callback = text:sub(1, 1) == "+" and stepper.on_inc or stepper.on_dec }
+        local n = text:match("^[%+%-]%d+$") and tonumber(text)
+        if n then
+            return { callback = function() local s = slider(dialog); s.on_change(s.value + n) end }
         end
         error("no button with text " .. tostring(text))
     end
@@ -207,11 +205,9 @@ local function findButton(dialog, text)
 end
 
 local function nudgeLabel(dialog)
-    local blocks = pageBlocks(dialog)
-    if blocks then
-        for _, b in ipairs(blocks) do
-            if b.type == "stepper" then return b.value end
-        end
+    if pageBlocks(dialog) then
+        local s = slider(dialog)
+        return s.format(s.value)
     end
     for _, row in ipairs(dialog.buttons) do
         for _, b in ipairs(row) do

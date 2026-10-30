@@ -16,6 +16,9 @@
 --             allow_none (a tap on the active one un-picks it): label at the
 --             left, the control at the right (full width with no label)
 --   stepper   label, value (text), on_dec, on_inc: label, then  -  value  +
+--   slider    label (optional), value, min, max, step, default, format(v),
+--             on_change(v): the label and the value, then  -  track  +  with
+--             the range's ends and Default ticked under it (bookshelf_slider)
 --   row       label, value, icon, callback, on, on_clear, half: a card reading
 --             "label   value >"; on (a setting made) turns it black and
 --             on_clear adds a cross beside it; half rows pair up two a line
@@ -245,6 +248,17 @@ function R.segmented(ctx, b)
         pad_h = Space.px(14) }
     for _i, r in ipairs(rows) do ctx.layout[#ctx.layout + 1] = r end
     return labelled(ctx, b.label, seg)
+end
+
+function R.slider(ctx, b)
+    local fmt = b.format or tostring
+    local w, keys = require("lib/bookshelf_slider").new{ width = ctx.w,
+        value = b.value, min = b.min, max = b.max, step = b.step, default = b.default,
+        format = fmt, on_change = b.on_change, face = ctx.face, small = ctx.small }
+    ctx.layout[#ctx.layout + 1] = keys
+    local head = leftRight(b.label and ctx:text(b.label) or nil,
+        ctx:text(fmt(b.value), { bold = true }), ctx.w)
+    return VerticalGroup:new{ align = "left", head, VerticalSpan:new{ width = Space.px(4) }, w }
 end
 
 function R.stepper(ctx, b)
@@ -653,6 +667,11 @@ function Page.toButtons(model)
                 end
                 if b.label then rows[#rows + 1] = { { text = b.label, enabled = false } } end
                 rows[#rows + 1] = row
+            elseif t == "slider" then
+                local fmt, step = b.format or tostring, b.step or 1
+                rows[#rows + 1] = { { text = "\u{2212}", callback = function() b.on_change(math.max(b.min, b.value - step)) end },
+                    { text = (b.label and (b.label .. ": ") or "") .. fmt(b.value), enabled = false },
+                    { text = "+", callback = function() b.on_change(math.min(b.max, b.value + step)) end } }
             elseif t == "stepper" then
                 rows[#rows + 1] = { { text = "\u{2212}", callback = b.on_dec },
                     { text = b.label .. ": " .. tostring(b.value), enabled = false },

@@ -1746,11 +1746,18 @@ function M.render(entry, w, h, inverting, mirror)
     if bb then return bb end
     local ok, res = true, fromHeld(entry.path, w, h)
     -- The rendered size outlives the session on disk (see renderDiskKey).
-    local dkey = (not res) and renderDiskKey(entry.path, w, h)
-    if dkey then res = M._disk_cache.load(dkey) end
-    if not res then
-        ok, res = pcall(M._render or defaultRender, entry.path, w, h)
-        if ok and res and dkey then pcall(M._disk_cache.store, dkey, res) end
+    -- A render from the held decode is kept too: the browser's previews all
+    -- come that way, and left out, every session decoded each piece on the
+    -- page again (~200ms a page with 443 pieces on the rig, 2026-10-30).
+    local dkey = renderDiskKey(entry.path, w, h)
+    if res then
+        if dkey then pcall(M._disk_cache.store, dkey, res) end
+    else
+        if dkey then res = M._disk_cache.load(dkey) end
+        if not res then
+            ok, res = pcall(M._render or defaultRender, entry.path, w, h)
+            if ok and res and dkey then pcall(M._disk_cache.store, dkey, res) end
+        end
     end
     if not ok or not res then
         logger.dbg("[bookshelf] ornament render failed:", entry.path)

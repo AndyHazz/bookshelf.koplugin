@@ -267,6 +267,38 @@ t.test("a preview decodes a PNG once: its probe and its render are scaled from o
     os.execute("rm -rf '" .. d .. "'")
 end)
 
+-- Measured on the rig with the maintainer's 443 pieces, 2026-10-30: a
+-- preview rendered from the held decode never reached the disk cache, so
+-- each new session decoded every piece on the page again (~200ms a page on
+-- the rig, seconds on a PW5) however often the browser had been opened.
+t.test("a render from the held decode is kept on disk too", function()
+    local O, d = setup()
+    local f = io.open(d .. "/x.png", "wb"); f:write("x"); f:close()
+    local kept, renders = {}, 0
+    O._disk_cache = { load = function(k) return kept[k] end,
+                      store = function(k, bb) kept[k] = bb; return true end }
+    local function fake(w, h)
+        return { getWidth = function() return w end, getHeight = function() return h end,
+                 getPixel = function() return { alpha = 255 } end, free = function() end }
+    end
+    O._decodeFull = function() return fake(400, 400) end
+    O._scale = function(_bb, w, h) return fake(w, h) end
+    O._render = function(_p, w, h) renders = renders + 1; return fake(w, h) end
+    O.unpremultiply = function() end
+    O.CONTENT_PROBE = 8
+    local e = { path = d .. "/x.png", name = "x.png", aspect = 1 }
+    O.contentBox(e, true)
+    assert(O.render(e, 50, 50, false), "no render")
+    local n = 0
+    for k in pairs(kept) do n = n + 1; assert(k:find("|50x50", 1, true), k) end
+    eq(n, 1, "the held render was not kept on disk")
+    O._cache, O._cache_order = {}, {}            -- a new session's memory
+    O.render(e, 50, 50, false)
+    eq(renders, 0, "rendered again with the piece on disk")
+    O._decodeFull, O._scale, O._render, O._disk_cache = nil, nil, nil, nil
+    os.execute("rm -rf '" .. d .. "'")
+end)
+
 t.test("the collection's preview probes with a held decode and renders from it", function()
     local src = io.open("lib/bookshelf_ornament_browser.lua"):read("*a")
     local prev = src:match("\nfunction Browser%.preview%(e, box_w, box_h, mirror%)\n(.-)\nend\n")

@@ -112,6 +112,48 @@ function Kit.invertRing(bb, x, y, w, h, t, r, square_bottom)
     Kit.invertRounded(bb, x + t, y + t, w - 2 * t, h - 2 * t, math.max(0, r - t), square_bottom)
 end
 
+-- ringFocus(btn, inset, radius) -> btn: a stock KOReader Button that shows
+-- the keys' focus as the kit's ring, set in by inset with corners rounded to
+-- radius, instead of inverting the whole button: inverted, a focused Cancel
+-- in a footer looked like one that is on (black means "on").
+function Kit.ringFocus(btn, inset, radius)
+    local focused = false
+    local paint = btn.paintTo
+    function btn:paintTo(bb, x, y)
+        paint(self, bb, x, y)
+        if focused then
+            -- inset: a number, or { x, y } for a short, wide button (a
+            -- footer's: clear of the frame's corners, clear of the label).
+            local sz = self:getSize()
+            local ix = type(inset) == "table" and inset[1] or inset or 0
+            local iy = type(inset) == "table" and inset[2] or inset or 0
+            Kit.invertRing(bb, x + ix, y + iy, sz.w - 2 * ix, sz.h - 2 * iy, Kit.focusWidth(), radius or 0)
+        end
+    end
+    btn.onFocus = function(self)
+        if self.no_focus then return end
+        focused = true
+        return true
+    end
+    btn.onUnfocus = function(self)
+        if self.no_focus then return end
+        focused = false
+        return true
+    end
+    return btn
+end
+
+-- ringFocusTable(bt, inset, radius) -> bt: ringFocus on every button of a
+-- stock ButtonTable (its rows of buttons).
+function Kit.ringFocusTable(bt, inset, radius)
+    -- buttons_layout: set whether or not the device has a D-pad (layout
+    -- only with one).
+    for _i, row in ipairs(bt.buttons_layout or bt.layout or {}) do
+        for _j, b in ipairs(row) do Kit.ringFocus(b, inset, radius) end
+    end
+    return bt
+end
+
 -- findCard(widget) -> the kit card in widget (itself, or a few levels in),
 -- or nil: what a tap shows pressed.
 function Kit.findCard(widget, depth)

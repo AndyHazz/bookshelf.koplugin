@@ -90,6 +90,10 @@ function PageDialog:_footerRow(w)
         -- square off its corners. (Not a nil background: a Button's tap
         -- feedback inverts it.)
         if btn.frame then btn.frame.radius = Space.radius.window end
+        -- The keys' focus as the kit's ring inside it, not the button
+        -- inverted (which reads as "on").
+        local Kit = require("lib/bookshelf_popup_kit")
+        Kit.ringFocus(btn, { Space.px(10), Space.px(4) }, Kit.RADIUS)
         if i > 1 then
             hg[#hg + 1] = LineWidget:new{ background = Blitbuffer.COLOR_DARK_GRAY,
                 dimen = Geom:new{ w = Size.line.thin, h = btn:getSize().h } }

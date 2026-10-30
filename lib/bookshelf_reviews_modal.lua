@@ -727,6 +727,10 @@ function ReviewsModal:_buildButtons()
     -- Keep a handle on the live table so the Open flow can find the Open
     -- button's painted rect for its pressed-state fill.
     self._footer_buttons = bt
+    -- The keys' focus as the kit's ring, not the button inverted (which
+    -- reads as "on").
+    local Kit = require("lib/bookshelf_popup_kit")
+    Kit.ringFocusTable(bt, { Space.px(10), Space.px(4) }, Kit.RADIUS)
     return bt
 end
 

@@ -78,4 +78,32 @@ t.test("a segmented control's cells get a set-in, rounded ring", function()
     end
 end)
 
+-- KOReader's own Button shows focus by inverting the whole button: in our
+-- footers a focused Cancel looked like one that is on (black means "on").
+t.test("a stock button given the ring is not inverted, and rings inside its inset", function()
+    local frame = { invert = false }
+    local btn = { frame = frame, getSize = function() return { w = 300, h = 80 } end,
+                  paintTo = function() end }
+    Kit.ringFocus(btn, 5, 8)
+    btn:onFocus()
+    eq(frame.invert, false)
+    local bb, rects = paintRecorder()
+    btn:paintTo(bb, 0, 0)
+    assert(#rects > 0, "no ring painted")
+    for _i, r in ipairs(rects) do
+        assert(r[1] >= 5 and r[2] >= 5 and r[1] + r[3] <= 295 and r[2] + r[4] <= 75, "the ring leaves the inset")
+    end
+    btn:onUnfocus()
+    bb, rects = paintRecorder()
+    btn:paintTo(bb, 0, 0)
+    eq(#rects, 0)
+end)
+
+t.test("the page dialog's and the book popup's footers ring their buttons", function()
+    local pd = io.open("lib/bookshelf_page_dialog.lua"):read("*a")
+    assert(pd:find("Kit.ringFocus(btn", 1, true) or pd:find("ringFocus(btn", 1, true), "PageDialog footer inverts")
+    local rm = io.open("lib/bookshelf_reviews_modal.lua"):read("*a")
+    assert(rm:find("ringFocusTable(bt", 1, true), "the book popup's footer inverts")
+end)
+
 t.done()

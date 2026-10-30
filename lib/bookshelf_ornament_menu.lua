@@ -358,9 +358,9 @@ function M.show(entry, bw, piece, widget, opts)
         -- module among the books, which that turns off.
         local on_shelf = require("lib/bookshelf_settings_store").microOnShelf()
         if on_shelf and src and src.pin_after_idx and bw and bw._pinOrnament then
-            -- "Pin to this spot": says where it goes; the menu it opens next
-            -- says what pinning did (maintainer).
-            left_btns[#left_btns + 1] = barButton(_("Pin to this spot"), nil, function()
+            -- "Pin to a spot", not "this spot": it can be moved after
+            -- (maintainer). The menu it opens next says what pinning did.
+            left_btns[#left_btns + 1] = barButton(_("Pin to a spot"), nil, function()
                 close()
                 bw:_pinOrnament(entry, src)
             end)

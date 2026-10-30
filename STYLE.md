@@ -56,6 +56,12 @@ a control by hand, so a change lands everywhere.
   up and down in the piece's slot (maintainer).
 - Keys move by where the buttons are on screen: the nearest that way, so
   a d-pad or two columns are walked as they look, not in list order.
+- Every popup takes the keys: the cursor seeded on the first thing a
+  reader would reach for (the shelf editor's Source card, not the strip
+  above it), hidden until the first key, which shows it there; kept where
+  it was across a rebuild (`Kit.keyFocus`). A KOReader ButtonTable inside
+  our own FocusManager is quieted (`Kit.quietFocus`): events reach children
+  first, and it took every arrow and pressed its own button.
 
 ## Controls
 

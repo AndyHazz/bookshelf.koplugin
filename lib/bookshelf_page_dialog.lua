@@ -50,6 +50,8 @@ function PageDialog:init()
     self.width = math.floor(math.min(sw, sh) * 0.85)
     self.inset = Space.px(16)
     self.pg = 1
+    -- The keys' cursor across rebuilds (Kit.keyFocus).
+    self._key_state = {}
     self.frame = FrameContainer:new{
         radius = Space.radius.window, padding = 0, margin = 0,
         background = Blitbuffer.COLOR_WHITE,
@@ -172,8 +174,11 @@ function PageDialog:_build()
     if strip then vg[#vg + 1] = strip end
     vg[#vg + 1] = body
     if footer then vg[#vg + 1] = footer end
-    self.frame[1] = VerticalGroup:new{ align = "left", title_bar,
-        FocusManager:new{ layout = layout, show_parent = self, vg } }
+    local fm = FocusManager:new{ layout = layout, show_parent = self, vg }
+    -- The cursor on the first control, shown at the first key (STYLE.md);
+    -- each page of a paged dialog seeds afresh.
+    require("lib/bookshelf_popup_kit").keyFocus(fm, self._key_state, 1, self.pg)
+    self.frame[1] = VerticalGroup:new{ align = "left", title_bar, fm }
 end
 
 -- refresh(): lay the page out again from its model and repaint it in place;

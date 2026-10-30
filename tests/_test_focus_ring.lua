@@ -106,4 +106,53 @@ t.test("the page dialog's and the book popup's footers ring their buttons", func
     assert(rm:find("ringFocusTable(bt", 1, true), "the book popup's footer inverts")
 end)
 
+-- Keys in our popups (maintainer, desktop: the shelf editor took no keys).
+package.loaded["ui/widget/focusmanager"] = { FORCED_FOCUS = 4 }
+
+t.test("quietFocus: an inner FocusManager lets the outer one have the keys", function()
+    local inner = { key_events = { FocusDown = {} } }
+    Kit.quietFocus(inner)
+    eq(next(inner.key_events), nil)
+    for _i, h in ipairs({ "onFocusMove", "onFocusHalfMove", "onFocusNext", "onFocusPrevious", "onPress", "onHold" }) do
+        eq(inner[h](inner, { 0, 1 }), false, h .. " still takes the key")
+    end
+end)
+
+t.test("keyFocus: seeded on its row, shown at the first key, kept across a rebuild", function()
+    local moves, focused = 0, {}
+    local function fm()
+        local f = { layout = { { "a" }, { "b", "c" }, { "d" } }, selected = { x = 1, y = 1 } }
+        f.onFocusMove = function(self, args) moves = moves + 1; self.selected.y = self.selected.y + args[2]; return true end
+        f.moveFocusTo = function(self, x, y) focused[#focused + 1] = x .. "," .. y; self.selected = { x = x, y = y } end
+        return f
+    end
+    local state = {}
+    local a = fm()
+    Kit.keyFocus(a, state, 2, "main")
+    eq(a.selected.y, 2, "not seeded on its row")
+    eq(#focused, 0, "the ring shows before a key")
+    a:onFocusMove({ 0, 1 })
+    eq(moves, 0, "the first key moved the cursor")
+    eq(focused[1], "1,2", "the first key did not show it where it was seeded")
+    a:onFocusMove({ 0, 1 })
+    eq(a.selected.y, 3)
+    -- Rebuilt (every change rebuilds): where it was, and showing.
+    local b = fm()
+    Kit.keyFocus(b, state, 2, "main")
+    eq(b.selected.y, 3); eq(focused[#focused], "1,3")
+    -- Another page seeds afresh.
+    local c = fm()
+    Kit.keyFocus(c, state, 1, "page")
+    eq(c.selected.y, 1)
+end)
+
+t.test("the shelf editor quiets its foot row and seeds on the first card", function()
+    local src = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
+    assert(src:find("Kit.quietFocus(foot)", 1, true), "the foot row still takes the keys")
+    assert(src:find('Kit.keyFocus(button_table, key_state, #strip_focus > 0 and 2 or 1, "main")', 1, true),
+        "the cursor does not start on the first card")
+    local pd = io.open("lib/bookshelf_page_dialog.lua"):read("*a")
+    assert(pd:find("keyFocus(fm, self._key_state, 1, self.pg)", 1, true), "page dialogs have no cursor seed")
+end)
+
 t.done()

@@ -815,6 +815,9 @@ function Editor:editTab(tab_id, opts)
     -- `dialog` is declared above, with discardNew, which closes it.
     local frame
     local current_bt   -- the ButtonTable on screen; rebuilt on every edit
+    -- The keys' cursor across rebuilds (Kit.keyFocus): where it is, and
+    -- whether the first key has shown it yet.
+    local key_state = {}
 
     -- editorRefresh() -> "ui" over the editor's own box, for setDirty to
     -- resolve after the paint. With no region a "ui" covers the whole screen,
@@ -1143,6 +1146,9 @@ function Editor:editTab(tab_id, opts)
             blocks_vg or FrameContainer:new{ bordersize = 0, padding = inset, vg },
         }
         current_bt = body
+        -- A page's cursor starts on its first control, shown at the first
+        -- key; each page (named by its crumbs) seeds afresh.
+        Kit.keyFocus(body, key_state, 1, table.concat(crumbs, ">"))
         frame[1] = VerticalGroup:new{ align = "left", title_bar, body }
         markDirty()
     end
@@ -1859,6 +1865,11 @@ function Editor:editTab(tab_id, opts)
         foot_row[#foot_row + 1] = { text = _("Close"), callback = function() finish() end }
         local foot = require("ui/widget/buttontable"):new{
             width = dialog_w, buttons = { foot_row }, zero_sep = true, show_parent = dialog }
+        -- Its buttons are keyed by the editor's FocusManager below. Left to
+        -- itself this one-row table (a FocusManager too, and nearer the keys)
+        -- took every arrow and could move nowhere, and pressed its own
+        -- button on Press: no key reached the editor (maintainer, desktop).
+        Kit.quietFocus(foot)
         local foot_focus = {}
         for _i, row in ipairs(foot.layout or {}) do
             for _j, b in ipairs(row) do foot_focus[#foot_focus + 1] = b end
@@ -1887,6 +1898,9 @@ function Editor:editTab(tab_id, opts)
         -- dialog exists: its creation below catches that one up.
         button_table.show_parent = dialog
         current_bt = button_table
+        -- The cursor starts on the first card (Source / Grouping), the
+        -- strip of Position / Copy / Move above it: shown at the first key.
+        Kit.keyFocus(button_table, key_state, #strip_focus > 0 and 2 or 1, "main")
 
         -- Dynamic title: shows the tab's current label so the user can see
         -- which tab they're editing at a glance. Falls back to a generic

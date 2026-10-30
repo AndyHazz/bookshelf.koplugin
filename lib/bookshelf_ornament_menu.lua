@@ -565,11 +565,16 @@ function M.show(entry, bw, piece, widget, opts)
     -- toggle, and a long-press on a button is its big step.
     local MovableContainer = require("ui/widget/container/movablecontainer")
     dialog.movable = MovableContainer:new{ ignore_events = { "hold", "hold_release", "hold_pan" } }
+    -- The keys' cursor across rebuilds (Kit.keyFocus).
+    local key_state = {}
     function dialog:reinit()
         local frame, rows = build(close)
         self.frame = frame
         self.overhang = overhangFor(picture())
         self.fm = FocusManager:new{ layout = rows, show_parent = self, frame }
+        -- On the first control under the bar (rows: the X, the bar, then
+        -- the columns), shown at the first key.
+        Kit.keyFocus(self.fm, key_state, 3, "ornament")
         self.movable[1] = self.fm
         self[1] = self.movable
     end

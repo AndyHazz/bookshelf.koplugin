@@ -154,6 +154,58 @@ function Kit.ringFocusTable(bt, inset, radius)
     return bt
 end
 
+-- quietFocus(fm) -> fm: a FocusManager (a KOReader ButtonTable is one) whose
+-- buttons an outer FocusManager keys. Events go to children before their
+-- parent, so left alone the inner one took every arrow (FocusMove) and could
+-- move nowhere, and pressed its own button on Press: no key reached the
+-- outer one (maintainer, desktop: the shelf editor took no keys). Its key
+-- bindings and its focus handlers stand down.
+function Kit.quietFocus(fm)
+    fm.key_events = {}
+    local function pass() return false end
+    fm.onFocusMove, fm.onFocusHalfMove = pass, pass
+    fm.onFocusNext, fm.onFocusPrevious = pass, pass
+    fm.onPress, fm.onHold = pass, pass
+    return fm
+end
+
+-- keyFocus(fm, state, seed_y): the keys on a FocusManager our popup rebuilds
+-- (STYLE.md): the cursor seeded on row seed_y (the first thing a reader
+-- would reach for, not the strip above it), hidden until the first key,
+-- which shows it there rather than moving it; after that each key moves it.
+-- state lives as long as the popup, so a rebuild (every change rebuilds)
+-- keeps the cursor where it was and showing: state.shown, state.sel;
+-- state.page names the page it was on, and a new page seeds afresh.
+function Kit.keyFocus(fm, state, seed_y, page)
+    if not (fm and fm.layout and #fm.layout > 0) then return end
+    local FocusManager = require("ui/widget/focusmanager")
+    local UIManager = require("ui/uimanager")
+    if state.page ~= page then state.page, state.sel = page, nil end
+    local y = state.sel and state.sel.y or seed_y or 1
+    y = math.max(1, math.min(#fm.layout, y))
+    local x = state.sel and state.sel.x or 1
+    x = math.max(1, math.min(#fm.layout[y], x))
+    fm.selected = { x = x, y = y }
+    local function repaint()
+        local target = fm.show_parent or fm
+        UIManager:setDirty(target, "ui")
+    end
+    local move = fm.onFocusMove
+    function fm:onFocusMove(args)
+        if not state.shown then
+            state.shown = true
+            self:moveFocusTo(self.selected.x, self.selected.y, FocusManager.FORCED_FOCUS)
+            repaint()
+            return true
+        end
+        local r = move(self, args)
+        state.sel = { x = self.selected.x, y = self.selected.y }
+        return r
+    end
+    -- Rebuilt with the cursor already showing: show it again where it was.
+    if state.shown then fm:moveFocusTo(x, y, FocusManager.FORCED_FOCUS) end
+end
+
 -- findCard(widget) -> the kit card in widget (itself, or a few levels in),
 -- or nil: what a tap shows pressed.
 function Kit.findCard(widget, depth)

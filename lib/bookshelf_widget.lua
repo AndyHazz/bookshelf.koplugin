@@ -16385,42 +16385,46 @@ end
 -- "Reset" reseeds the hero list to defaults; "Disable" turns micro-modules off
 -- (revertible from Settings) and restores the book hero.
 function BookshelfWidget:_showModulesOptions()
-    local ButtonDialog = require("ui/widget/buttondialog")
     local HeroModel    = require("lib/bookshelf_hero_modules_model")
+    -- A page (STYLE.md): each action a card saying what it does, the X to
+    -- leave.
     local dialog
-    local function close(fn)
-        return function() UIManager:close(dialog); if fn then fn() end end
+    local function act(fn)
+        return function() UIManager:close(dialog); fn() end
     end
-    dialog = ButtonDialog:new{
-        title        = _("Modules"),
-        title_align  = "center",
-        width_factor = 0.75,
-        buttons = {
-            { { text = _("Reset modules to default"), callback = close(function()
-                HeroModel.save(HeroModel.DEFAULTS())
-                self._hero_page = 1
-                self:_rebuildRefreshHeroAndChips()
-            end) } },
-            -- This is the hero chip's menu, so "disable" turns off only the hero
-            -- surface (the start-menu and full-screen surfaces are independent
-            -- now, toggled in Settings). Persist all three explicitly so we stop
-            -- depending on the legacy placement key, mirroring the settings menu.
-            { { text = _("Remove modules (re-enable in settings)"),
-                callback = close(function()
-                    BookshelfSettings.save("micro_in_start_menu", BookshelfSettings.microInStartMenu())
-                    BookshelfSettings.save("micro_in_hero", false)
-                    BookshelfSettings.save("micro_fullscreen_button", BookshelfSettings.microFullscreenButton())
-                    BookshelfSettings.delete("micro_modules_placement")  -- fully migrated
-                    BookshelfSettings.delete("micro_modules_disabled")   -- legacy
-                    BookshelfSettings.flush()
-                    self._hero_mode = "current"
-                    self._hero_page = 1
-                    self:_rebuild()
-                    UIManager:setDirty(self, "ui")
-                end) } },
-        },
+    local blocks = {
+        { type = "option", icon = "\u{E76E}",   -- backup-restore
+          text = _("Reset to default"),
+          desc = _("Puts back the modules the top panel starts with."),
+          callback = act(function()
+              HeroModel.save(HeroModel.DEFAULTS())
+              self._hero_page = 1
+              self:_rebuildRefreshHeroAndChips()
+          end) },
+        -- This is the hero chip's menu, so "remove" turns off only the hero
+        -- surface (the start-menu and full-screen surfaces are independent
+        -- now, toggled in Settings). Persist all three explicitly so we stop
+        -- depending on the legacy placement key, mirroring the settings menu.
+        { type = "option", icon = "\u{E908}",   -- eye-off
+          text = _("Remove from the top panel"),
+          desc = _("Settings > Modules > In the top panel brings them back."),
+          callback = act(function()
+              BookshelfSettings.save("micro_in_start_menu", BookshelfSettings.microInStartMenu())
+              BookshelfSettings.save("micro_in_hero", false)
+              BookshelfSettings.save("micro_fullscreen_button", BookshelfSettings.microFullscreenButton())
+              BookshelfSettings.delete("micro_modules_placement")  -- fully migrated
+              BookshelfSettings.delete("micro_modules_disabled")   -- legacy
+              BookshelfSettings.flush()
+              self._hero_mode = "current"
+              self._hero_page = 1
+              self:_rebuild()
+              UIManager:setDirty(self, "ui")
+          end) },
     }
-    UIManager:show(dialog)
+    dialog = require("lib/bookshelf_page_dialog").show{
+        title = _("Modules"),
+        page  = function() return { blocks = blocks } end,
+    }
 end
 
 function BookshelfWidget:onSwipeNextPage(_, ges)
@@ -25249,49 +25253,38 @@ function BookshelfWidget:_openOpdsNavMenu(rec)
     if not (rec and rec.opds and rec.opds.feed_url) then return end
     local tab = require("lib/bookshelf_tab_model").getById(self.chip)
     if not (tab and tab.source and tab.source.kind == "opds") then return end
-    local ButtonDialog = require("ui/widget/buttondialog")
     local current, current_label = self:_opdsStartFeed(tab)
     local label = rec.label or rec.display_title or rec.title or _("this folder")
+    -- A page (STYLE.md): where the shelf starts now in the strip, then what
+    -- can change it, each a card saying what it does.
     local dialog
-    local buttons = {}
+    local function act(fn) return function() UIManager:close(dialog); fn() end end
+    local summary, blocks = nil, {}
     if current == rec.opds.feed_url then
-        -- Already the start folder. Say so rather than offering to set it
-        -- again: a button that cannot change anything is a button that makes
-        -- the reader wonder whether it worked.
-        buttons[#buttons + 1] = {{
-            text = _("Already the start folder"), enabled = false,
-        }}
+        -- Already the start folder: said in the strip, not as a greyed
+        -- button (one that cannot change anything makes the reader wonder
+        -- whether it worked).
+        summary = T(_("This shelf already starts at \"%1\"."), label)
     else
-        buttons[#buttons + 1] = {{
-            text = T(_("Start this shelf at \"%1\""), label),
-            callback = function()
-                UIManager:close(dialog)
-                self:_setOpdsStartFeed(rec.opds.feed_url, label)
-            end,
-        }}
+        summary = current_label and T(_("This shelf starts at \"%1\"."), current_label)
+            -- "catalog", not "catalogue": source strings are American and
+            -- the British forms live in en_GB.po.
+            or _("This shelf starts at the top of the catalog.")
+        blocks[#blocks + 1] = { type = "option", icon = "\u{E9DB}",   -- home
+            text = _("Start the shelf here"),
+            desc = _("Opens at this folder instead of the catalog's top."),
+            callback = act(function() self:_setOpdsStartFeed(rec.opds.feed_url, label) end) }
     end
     if current then
-        buttons[#buttons + 1] = {{
-            text = current_label
-                   and T(_("Back to the top (now starts at \"%1\")"),
-                         current_label)
-                   -- "catalog", not "catalogue": source strings are American
-                   -- and the British forms live in en_GB.po. The rest of this
-                   -- dialog's neighbours already say "Catalog settings".
-                   or _("Back to the top of the catalog"),
-            callback = function()
-                UIManager:close(dialog)
-                self:_setOpdsStartFeed(nil, nil)
-            end,
-        }}
+        blocks[#blocks + 1] = { type = "option", icon = "\u{ED22}",   -- format-vertical-align-top
+            text = _("Back to the top"),
+            desc = _("Opens at the top of the catalog again."),
+            callback = act(function() self:_setOpdsStartFeed(nil, nil) end) }
     end
-    buttons[#buttons + 1] = {{
-        text = _("Cancel"), is_enter_default = true,
-        callback = function() UIManager:close(dialog) end,
-    }}
-    dialog = ButtonDialog:new{ title = label, title_align = "center",
-                               buttons = buttons }
-    UIManager:show(dialog)
+    dialog = require("lib/bookshelf_page_dialog").show{
+        title = label,
+        page  = function() return { strip = { { type = "summary", text = summary } }, blocks = blocks } end,
+    }
 end
 
 function BookshelfWidget:_openGroupMenu(group, kind)

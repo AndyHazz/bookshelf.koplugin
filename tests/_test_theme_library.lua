@@ -679,12 +679,14 @@ t.test("LibraryModal greys a footer button whose enabled_when says so, and a pre
         "a header button ignores enabled_when")
 end)
 
-t.test("a long-press on a pack's or Plain's card offers Reset to original, greyed unless it is edited", function()
-    -- Maintainer, 2026-10-09, as a long-press on a Bookends preset opens its
-    -- Manage dialog: Reset on the card, asked first (TP.confirmReset, the
-    -- Theme menu's question); the card loses Edited, and the shelf behind
-    -- follows when it shows that theme.
-    package.loaded["ui/widget/buttondialog"] = { new = function(_c, o) o.config = {}; o.dialog = true; return o end }
+t.test("a long-press on an edited pack's or Plain's card asks to reset it; unedited says so", function()
+    -- Maintainer, 2026-10-09: Reset on the card, asked first (TP.confirmReset,
+    -- the Theme menu's question, which names the theme); the card loses
+    -- Edited, and the shelf behind follows when it shows that theme. No
+    -- dialog of one (greyed) button in between: the question is the dialog,
+    -- and a theme as it came gets a note, not a greyed button (STYLE.md).
+    package.loaded["ui/widget/buttondialog"] = { new = function() error("a one-button dialog") end }
+    package.loaded["ui/widget/notification"] = { new = function(_c, o) o.note = true; return o end }
     local asked = {}
     TP.confirmReset = function(th, after) asked[#asked + 1] = { theme = th, after = after } end
     local on_screen = "Macabre"
@@ -699,48 +701,44 @@ t.test("a long-press on a pack's or Plain's card offers Reset to original, greye
     local mac = c.item_at(3)
     eq(mac.title, "Macabre")
     c.cell_long_tap(mac)
-    local d = shown[#shown]
-    assert(d and d.dialog, "the long-press showed no dialog")
-    eq(d.title, "Macabre", "the dialog does not say which theme")
-    local b = d.buttons[1][1]
-    eq(#d.buttons, 1); eq(b.text, "Reset to original")
-    eq(b.enabled, true, "Reset is greyed on an edited theme")
-    b.callback()
-    eq(d.closed, true, "the dialog stayed over the question")
-    eq(asked[1] and asked[1].theme, "Macabre", "Reset did not ask about that card's theme")
+    eq(asked[1] and asked[1].theme, "Macabre", "the long-press did not ask about that card's theme")
     edits.Macabre = nil                                -- what confirmReset's OK does
     asked[1].after()
     eq(c.item_at(3).summary:find("Edited", 1, true), nil, "the card still says Edited")
     eq(m.refreshes, 1, "the cards were not redrawn")
     runTasks()
     eq(built, 1, "the shelf behind showing that theme did not follow")
-    -- Unedited: greyed. Plain: the same dialog. The shelf behind on another
-    -- theme: left alone.
+    -- Unedited: a note, no question. Plain edited: asked. The shelf behind
+    -- on another theme: left alone.
+    local n = #asked
     c.cell_long_tap(c.item_at(3))
-    eq(shown[#shown].buttons[1][1].enabled, false, "Reset is not greyed on a theme as original")
+    eq(#asked, n, "asked to reset a theme as it came")
+    assert(shown[#shown].note and shown[#shown].text:find("Macabre", 1, true), "no note naming the theme")
     edits.plain = { keys = {} }
     on_screen = "Ukiyo"
     c.cell_long_tap(c.item_at(2))
-    eq(shown[#shown].title, "Plain"); eq(shown[#shown].buttons[1][1].enabled, true)
-    shown[#shown].buttons[1][1].callback()
+    eq(asked[#asked].theme, "plain")
     edits.plain = nil
     asked[#asked].after()
     eq(runTasks(), 0, "the shelf behind was rebuilt for a theme it does not show")
     -- Custom theme (no original), Default theme (it stands for another card)
     -- and a missing pack: nothing.
-    local n = #shown
+    n = #shown
+    local na = #asked
     eq(c.item_at(1).value, "mine")
     c.cell_long_tap(c.item_at(1))
-    eq(#shown, n, "Custom theme's card showed a dialog")
+    eq(#shown, n, "Custom theme's card showed something")
     local _m2, c2 = open{ shelf = "Home", current = function() return nil end, choose = function() end }
     n = #shown
     eq(c2.item_at(1).same, true)
     c2.cell_long_tap(c2.item_at(1))
     eq(TL.showReset({ value = "Gone", missing = true, title = "Gone (missing)" }), nil)
-    eq(#shown, n, "a card with nothing to reset showed a dialog")
+    eq(#shown, n, "a card with nothing to reset showed something")
     eq(TL.showReset({ value = "mine", title = "Custom theme" }), nil, "Custom theme offered a reset")
+    eq(#asked, na)
     TP.confirmReset, TP.shelfTheme = nil, nil
     package.loaded["ui/widget/buttondialog"] = nil
+    package.loaded["ui/widget/notification"] = nil
 end)
 
 t.done()

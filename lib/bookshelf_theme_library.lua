@@ -378,34 +378,25 @@ function TL.marked(items, current)
     end
 end
 
--- showReset(item, after): a card's long-press: a small dialog titled with
--- the theme, holding Reset to original, greyed unless that theme has edits,
--- asked again before anything is lost (TP.confirmReset, the question the
--- footer's Reset asks), as a long-press on a Bookends preset opens its
--- Manage dialog (maintainer, 2026-10-09). Kept beside the footer's Reset as
--- a shortcut to any card's, not only the marked one's. after(): once reset.
--- Nothing for a card that cannot be reset (resettable).
+-- showReset(item, after): a card's long-press: an edited theme is asked
+-- straight away whether to go back to its original (TP.confirmReset, the
+-- question the footer's Reset asks, which names the theme); one as it came
+-- gets a short note instead of a greyed button (STYLE.md). Kept beside the
+-- footer's Reset as a shortcut to any card's, not only the marked one's
+-- (maintainer, 2026-10-09). after(): once reset. Nothing for a card that
+-- cannot be reset (resettable).
 function TL.showReset(item, after)
     if not TL.resettable(item) then return nil end
-    local tp = TP()
+    if TL.canReset(item) then
+        TP().confirmReset(item.value, after)
+        return true
+    end
     local UIManager = require("ui/uimanager")
-    local ButtonDialog = require("ui/widget/buttondialog")
-    local theme = item.value
-    local d
-    d = ButtonDialog:new{
-        title = item.title,
-        title_align = "center",
-        buttons = { { {
-            text = _("Reset to original"),
-            enabled = TL.canReset(item),
-            callback = function()
-                UIManager:close(d)
-                tp.confirmReset(theme, after)
-            end,
-        } } },
+    local note = require("ui/widget/notification"):new{
+        text = T(_("%1 is as it came: nothing to reset."), item.title),
     }
-    UIManager:show(d)
-    return d
+    UIManager:show(note)
+    return note
 end
 
 -- ── The picker ──────────────────────────────────────────────────────────

@@ -46,6 +46,7 @@ local function O() return require("lib/bookshelf_ornaments") end
 -- (bookshelf_theme_pack.switches, the one seam). Asked each time: the
 -- browser can outlive a change of shelf.
 local function SW() return require("lib/bookshelf_theme_pack").switches() end
+local function TP() return require("lib/bookshelf_theme_pack") end
 
 -- An ornament's PICTURE is faded while it will not be placed, whether switched
 -- off itself or through its pack: the grid reads as "what the shelf uses".
@@ -123,7 +124,7 @@ function Browser._renderCell(item, dimen)
     local label = TextWidget:new{ text = O().displayName(e), face = label_face, max_width = inner_w }
     -- On or off is the checkbox in the corner; the only state line left is
     -- a pack that is off, which a piece's own box cannot say.
-    local state = item.pack_off and TextWidget:new{
+    local state = (item.pack_off and not item.pick) and TextWidget:new{
         text = _("Pack off"),
         face = state_face, fgcolor = Blitbuffer.COLOR_BLACK, max_width = inner_w,
     } or nil
@@ -132,7 +133,10 @@ function Browser._renderCell(item, dimen)
     -- Preview the picture, not the file: the transparent room an ornament
     -- carries for the shelf is cropped off, and what is left fits the box.
     local preview = Browser.preview(e, inner_w, box_h)
-    if item.off or item.pack_off then preview = Faded:new{ child = preview } end
+    -- Faded only for a pack switched off as a whole. A piece that is merely
+    -- not in the set shows as it is, its box empty: faded, every piece on a
+    -- Plain shelf looked greyed out for no reason (maintainer).
+    if item.pack_off and not item.pick then preview = Faded:new{ child = preview } end
     local inner_h = dimen.h - 2 * (border + pad)
     local body = VerticalGroup:new{
         align = "center",
@@ -152,6 +156,9 @@ function Browser._renderCell(item, dimen)
         CenterContainer:new{ dimen = Geom:new{ w = inner_w, h = inner_h }, body },
     }
     Kit.cardify(card)
+    -- Picking (Swap): no box, a tap chooses the piece; there is nothing to
+    -- switch.
+    if item.pick then return card end
     -- The checkbox, over the card's top right corner: ticked when the piece
     -- is on, grey when its pack is off (a tap switches the pack on too).
     local Marks = require("lib/bookshelf_marks")
@@ -172,6 +179,9 @@ function Browser:_items()
     local all = Orn.listAll()
     local was = Orn.allowRecent(true)
     local out = {}
+    -- What the summary line counts: the pieces on in these switches, of all.
+    local on = 0
+    local pick = self.opts.pick ~= nil
     for _i, e in ipairs(all) do
         -- opts.pool: the pieces a shelf deals from (Swap on a shelf that
         -- wears a pack offers only those).
@@ -179,11 +189,27 @@ function Browser:_items()
                      and (not self.opts.pool or self.opts.pool(e))
         if keep then
             out[#out + 1] = { entry = e, off = sw.isOff(e.name),
-                              pack_off = sw.isPackOff(e.pack) }
+                              pack_off = sw.isPackOff(e.pack), pick = pick }
         end
+        if not pick and not sw.isOff(e.name) and not sw.isPackOff(e.pack) then on = on + 1 end
     end
+    self.on_count, self.all_count = on, #all
     if not was then Orn.allowRecent(false) end
     return out
+end
+
+-- _intro() -> the line over the grid saying whose set the boxes are: the
+-- theme of the shelf the browser was opened from (Plain's starts empty, and
+-- with no word on it every piece looked switched off, maintainer), and how
+-- many of the pieces it uses. None when picking (Swap): there are no boxes.
+function Browser:_intro()
+    if self.opts.pick then return nil end
+    local name = TP().themeName(TP().shelfTheme())
+    if (self.on_count or 0) == 0 then
+        return T(_("On %1 shelves: none yet. Tick a piece to add it."), name)
+    end
+    return T(_("On %1 shelves: %2 of %3. Tick a piece to add it, untick to take it off."),
+        name, self.on_count, self.all_count)
 end
 
 -- _toggle(item): switch an ornament on or off. (Planks are chosen in the
@@ -409,6 +435,7 @@ function Browser._open(on_change, opts)
             if self._config then self._config.footer_rows = self:_footerRows() end
         end,
         cell_renderer = Browser._renderCell,
+        intro = function() return self:_intro() end,
         on_cell_tap = function(item)
             if self.opts.pick then self:_pick(item) else self:_toggle(item) end
         end,

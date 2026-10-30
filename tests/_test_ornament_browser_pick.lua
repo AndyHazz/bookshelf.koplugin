@@ -154,4 +154,25 @@ t.test("listing the pieces reads the folders once, however many there are", func
     H.eq(open, false)
 end)
 
+-- Maintainer: every piece looked greyed out, with no word on what the boxes
+-- were for. The ticks are the set of the shelf's theme (Plain's was empty).
+t.test("the browser says whose set the ticks are, and only a pack that is off fades", function()
+    local cell = method(src, "Browser._renderCell(item, dimen)")
+    assert(cell:find("if item.pack_off and not item.pick then preview = Faded:new", 1, true),
+        "a piece that is only off still fades")
+    assert(cell:find("if item.pick then return card end", 1, true), "Swap still shows the boxes")
+    assert(src:find("intro = function() return self:_intro() end", 1, true), "no line saying whose set it is")
+    local intro = method(src, "Browser:_intro()")
+    assert(intro:find("self.opts.pick", 1, true), "Swap gets the switches' line")
+    -- The words, through a stub.
+    local env = { _ = function(x) return x end,
+        T = function(f, ...) local a = { ... }; return (f:gsub("%%(%d)", function(n) return tostring(a[tonumber(n)]) end)) end,
+        TP = function() return { themeName = function() return "Plain" end, shelfTheme = function() return "plain" end } end }
+    local f = load("return function(self)\n" .. intro .. "\nend", "n", "t", env)()
+    H.eq(f({ opts = {}, on_count = 0, all_count = 443 }), "On Plain shelves: none yet. Tick a piece to add it.")
+    H.eq(f({ opts = {}, on_count = 12, all_count = 443 }),
+        "On Plain shelves: 12 of 443. Tick a piece to add it, untick to take it off.")
+    H.eq(f({ opts = { pick = true }, on_count = 0, all_count = 443 }), nil)
+end)
+
 t.done()

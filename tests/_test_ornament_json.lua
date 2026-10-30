@@ -353,8 +353,12 @@ t.test("menu: each nudge takes 10 points on a hold", function()
     assert(nd and nd:find("hold = big(-1), big = big(-1)", 1, true)
            and nd:find("hold = big(1), big = big(1)", 1, true),
         "the steppers have no 10-point step")
-    assert(src:find('kbutton{ text = "\\xE2\\x88\\x9210"', 1, true) and src:find('kbutton{ text = "+10"', 1, true),
+    assert(src:find('kbutton{ glyph = MINUS_GLYPH, glyph_size = FS - 4, text = "10"', 1, true)
+           and src:find('kbutton{ glyph = PLUS_GLYPH, glyph_size = FS - 4, text = "10"', 1, true),
         "no -10 / +10 cards")
+    -- One width: the symbols font's pair, not the text minus (maintainer).
+    assert(src:find('local MINUS_GLYPH = "\\xEF\\x81\\xA8"', 1, true) and src:find('local PLUS_GLYPH  = "\\xEF\\x91\\x8D"', 1, true),
+        "the minus and plus are not the matched icons")
     assert(not src:find("Hold a button to step by 10", 1, true), "the hint is back")
     for _i, f in ipairs({ "scale", "pad", "lift" }) do
         assert(src:find('nudger("' .. f .. '")', 1, true), f .. " is not a stepper")

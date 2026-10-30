@@ -23,6 +23,9 @@ local CHEV_DOWN = "\xEE\xA0\xBF"   -- U+E83F mdi-chevron-down
 local CHEV_LEFT  = "\xEE\xA1\x80"  -- U+E840 mdi-chevron-left
 local CHEV_RIGHT = "\xEE\xA1\x81"  -- U+E841 mdi-chevron-right
 local GLYPH_SIZE = 28
+-- The steppers' minus and plus: the symbols font's pair, one width.
+local MINUS_GLYPH = "\xEF\x81\xA8"   -- U+F068
+local PLUS_GLYPH  = "\xEF\x91\x8D"   -- U+F44D
 -- The piece's picture, top left beside its name: what is being edited, even
 -- while it is switched off and gone from the shelf. A tall piece may rise a
 -- quarter of its height above the dialog's frame, over a drop shadow cast by
@@ -146,8 +149,8 @@ function M.show(entry, bw, piece, widget, opts)
     -- the symbols font; o.on_hold the big step.
     local function kbutton(o)
         local btn = Kit.button{ text = o.text, face = o.text and face or nil,
-            icon_glyph = o.glyph, icon_face = o.glyph and Font:getFace("symbols", FS + 6) or nil,
-            height = h, width = o.width, pad_h = o.pad_h, enabled = o.enabled,
+            icon_glyph = o.glyph, icon_face = o.glyph and Font:getFace("symbols", o.glyph_size or (FS + 6)) or nil,
+            height = h, width = o.width, pad_h = o.pad_h, gap = o.gap, enabled = o.enabled,
             border = (not o.outline) and 0 or nil,
             on_tap = o.on_tap, on_hold = o.on_hold }
         if not o.outline then Kit.cardify(btn[1]) end
@@ -371,16 +374,24 @@ function M.show(entry, bw, piece, widget, opts)
         local function stepper(dec, inc, value)
             local function b(o, text_)
                 return kbutton{ text = (not o.glyph) and text_ or nil, glyph = o.glyph,
+                    -- The minus and plus a size down, to sit with the chevrons.
+                    glyph_size = (o.glyph == MINUS_GLYPH or o.glyph == PLUS_GLYPH) and FS + 2 or nil,
                     width = h, enabled = o.enabled, on_tap = o.tap, on_hold = o.hold }
             end
-            local minus, plus = b(dec, "\xE2\x88\x92"), b(inc, "+")
+            -- The symbols font's minus and plus (U+F068, U+F44D): one width,
+            -- where the text minus ran wider than its +.
+            if not dec.glyph then dec.glyph = MINUS_GLYPH end
+            if not inc.glyph then inc.glyph = PLUS_GLYPH end
+            local minus, plus = b(dec), b(inc)
             -- The big step as cards of its own outside them ("-10" "+10";
             -- maintainer: there is room, and a hint for a hold is not needed).
             if dec.big then
-                local big_minus = kbutton{ text = "\xE2\x88\x9210", pad_h = Space.px(6), on_tap = dec.big }
-                local big_plus  = kbutton{ text = "+10", pad_h = Space.px(6), on_tap = inc.big }
-                return line({ big_minus, HorizontalSpan:new{ width = Space.px(4) }, minus, value, plus,
-                    HorizontalSpan:new{ width = Space.px(4) }, big_plus }, 0),
+                local big_minus = kbutton{ glyph = MINUS_GLYPH, glyph_size = FS - 4, text = "10", gap = Space.px(1),
+                    pad_h = Space.px(6), on_tap = dec.big }
+                local big_plus  = kbutton{ glyph = PLUS_GLYPH, glyph_size = FS - 4, text = "10", gap = Space.px(1),
+                    pad_h = Space.px(6), on_tap = inc.big }
+                return line({ big_minus, HorizontalSpan:new{ width = Space.px(3) }, minus, value, plus,
+                    HorizontalSpan:new{ width = Space.px(3) }, big_plus }, 0),
                     { big_minus, minus, plus, big_plus }
             end
             return line({ minus, value, plus }, 0), { minus, plus }

@@ -305,6 +305,30 @@ function GestureZones.forwardToLive(event, self_widget, opts)
     return _forwardToHost(host, event, self_widget)
 end
 
+-- menuBandSwipe(ev) -> is ev a swipe that starts in KOReader's top menu
+-- band (DTAP_ZONE_MENU, the top eighth by default)? A window placed at the
+-- top of the screen (over the top panel) covers that band; a swipe from it
+-- still opens the menu (maintainer), while taps there reach the window.
+function GestureZones.menuBandSwipe(ev)
+    if not (ev and ev.ges == "swipe" and ev.pos) then return false end
+    local zone
+    pcall(function() zone = G_defaults:readSetting("DTAP_ZONE_MENU") end)
+    local ratio = (type(zone) == "table" and tonumber(zone.h)) or (1 / 8)
+    local Screen = require("device").screen
+    return ev.pos.y < Screen:getHeight() * ratio
+end
+
+-- onWindow(event, inside) -> an on_window for overlayEvent: inside(pos), but
+-- a swipe from the menu band counts as off the window (menuBandSwipe).
+function GestureZones.onWindow(event, inside)
+    local ev = event.handler == "onGesture" and event.args and event.args[1]
+    local band = GestureZones.menuBandSwipe(ev)
+    return function(pos)
+        if band then return false end
+        return inside(pos)
+    end
+end
+
 -- overlayEvent(widget, event, base, on_window[, opts]) -> boolean
 -- handleEvent for one of our windows over the shelf (a picker, a dialog, the
 -- start menu): KOReader's own gestures keep working around it, as they do

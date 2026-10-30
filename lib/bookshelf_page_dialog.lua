@@ -252,22 +252,16 @@ end
 -- KOReader's own gestures (the menu, brightness) keep working around it,
 -- as over the shelf (GestureZones.overlayEvent; maintainer, PW5).
 function PageDialog:handleEvent(event)
-    -- A tap outside closes it, ahead of the gesture zones: a tap zone (a
-    -- page turn) took it first, and the dialog stayed up (maintainer). Not
-    -- a nudge's (dismissable = false), where rapid taps land outside.
-    local ev = event.handler == "onGesture" and event.args and event.args[1]
-    if ev and ev.ges == "tap" and ev.pos then
-        local d = self.frame and self.frame.dimen
-        if d and d.x and ev.pos:notIntersectWith(d) then
-            if self.dismissable ~= false then self:_dismiss() end
-            return true
-        end
-    end
-    return require("lib/bookshelf_gesture_zones").overlayEvent(self, event, InputContainer,
-        function(pos)
+    -- Outside the frame KOReader's zones go first (the top menu, brightness:
+    -- maintainer), then a tap no zone took closes it (onTapClose).
+    -- A swipe from the top menu band opens KOReader's menu even over the
+    -- dialog (GestureZones.onWindow): at the top, it covers that band.
+    local GZ = require("lib/bookshelf_gesture_zones")
+    return GZ.overlayEvent(self, event, InputContainer,
+        GZ.onWindow(event, function(pos)
             local d = self.frame and self.frame.dimen
             return not (d and d.x) or not pos:notIntersectWith(d)
-        end)
+        end))
 end
 
 return PageDialog

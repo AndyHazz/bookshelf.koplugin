@@ -614,12 +614,34 @@ function M.show(entry, bw, piece, widget, opts)
         return Geom:new{ x = m.x, y = m.y - dialog.overhang, w = m.w, h = m.h + dialog.overhang }
     end
     dialog.ges_events = {
-        -- Swallowed outside the frame: nothing under it reacts either.
         TapOutside  = { GestureRange:new{ ges = "tap",  range = dialog.dimen } },
         HoldOutside = { GestureRange:new{ ges = "hold", range = dialog.dimen } },
     }
-    function dialog:onTapOutside() return true end
+    -- A tap outside closes it, as every page does (maintainer); a hold
+    -- outside does nothing. Nudges act at once now, so taps no longer land
+    -- outside while a slow one catches up.
+    function dialog:onTapOutside(_arg, ges)
+        -- Only outside: the catcher spans the screen, the panel's empty
+        -- spaces too.
+        local r = drawnRect()
+        if ges and ges.pos and r and r.x and not ges.pos:notIntersectWith(r) then return true end
+        close()
+        return true
+    end
     function dialog:onHoldOutside() return true end
+    -- KOReader's own gestures around it (the top menu, brightness), as round
+    -- every window over the shelf (GestureZones.overlayEvent): off the panel
+    -- they go to KOReader's zones first.
+    function dialog:handleEvent(event)
+        -- A swipe from the top menu band opens KOReader's menu even over the
+        -- panel (GestureZones.onWindow): at the top, it covers that band.
+        local GZ = require("lib/bookshelf_gesture_zones")
+        return GZ.overlayEvent(self, event, InputContainer,
+            GZ.onWindow(event, function(pos)
+                local r = drawnRect()
+                return not (r and r.x) or not pos:notIntersectWith(r)
+            end))
+    end
     if Device:hasKeys() then
         dialog.key_events = { Close = { { Device.input.group.Back } } }
     end

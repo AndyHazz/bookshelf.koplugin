@@ -276,12 +276,19 @@ t.test("the menu opens clear of the piece it adjusts", function()
     assert(src:find("dialog:reinit(); place()", 1, true), "a redraw loses the offset")
 end)
 
-t.test("menu fix: rapid nudges cannot dismiss the menu by missing it", function()
+t.test("menu: a tap outside closes it; KOReader's gestures work around it", function()
+    -- Rapid nudges once landed outside while a slow one caught up, so the
+    -- menu swallowed them; nudges act at once now, and a tap outside closes
+    -- it as every page does (maintainer). The top menu and brightness go to
+    -- KOReader's zones first, off the panel.
     local src = io.open("lib/bookshelf_ornament_menu.lua"):read("*a")
-    -- Taps (and holds) outside the panel are swallowed, not a close.
-    assert(src:find("function dialog:onTapOutside() return true end", 1, true)
-           and src:find("function dialog:onHoldOutside() return true end", 1, true),
-        "a tap outside still closes the nudge menu")
+    local to = src:match("function dialog:onTapOutside%(_arg, ges%)(.-)\n    end\n")
+    assert(to and to:find("close()", 1, true) and to:find("not ges.pos:notIntersectWith(r)", 1, true),
+        "a tap outside does not close the menu, or a tap on it does")
+    assert(src:find("function dialog:onHoldOutside() return true end", 1, true), "a hold outside closes it")
+    local he = src:match("function dialog:handleEvent%(event%)(.-)\n    end\n")
+    assert(he and he:find("GZ.overlayEvent(self, event, InputContainer,", 1, true)
+           and he:find("GZ.onWindow(event,", 1, true), "KOReader's gestures are dead round it")
 end)
 
 t.test("an edit reaches the piece the shelf draws, even after a rescan made new entries", function()
@@ -560,11 +567,16 @@ t.test("menus: at the top with the top panel up, clear of the piece without; dra
     local w = io.open("lib/bookshelf_widget.lua"):read("*a")
     assert(w:find("function BookshelfWidget:hasTopPanel()\n    return not self._expanded\nend", 1, true), "no hasTopPanel")
     assert(w:find("if cw and bw:hasTopPanel() then", 1, true), "the module menu is not at the top with the top panel up")
-    -- A tap outside a page dialog closes it, before the gesture zones see it.
+    -- Off a page dialog KOReader's zones go first (the top menu,
+    -- brightness), then a tap none took closes it.
     local he = pd:match("function PageDialog:handleEvent%(event%)(.-)\nend\n")
-    assert(he and he:find('ev.ges == "tap"', 1, true) and he:find("self:_dismiss()", 1, true)
-           and he:find('ev.ges == "tap"', 1, true) < he:find("overlayEvent", 1, true),
-        "a tap outside goes to the gesture zones first")
+    assert(he and he:find("GZ.overlayEvent(self, event, InputContainer,", 1, true)
+           and not he:find("_dismiss", 1, true), "a tap outside is taken before KOReader's zones")
+    -- At the top it covers KOReader's menu band: a swipe from there still
+    -- opens the menu (maintainer).
+    assert(he:find("GZ.onWindow(event,", 1, true), "the menu swipe is lost over a dialog at the top")
+    local gz = io.open("lib/bookshelf_gesture_zones.lua"):read("*a")
+    assert(gz:find('G_defaults:readSetting("DTAP_ZONE_MENU")', 1, true), "the band is not KOReader's menu zone")
 end)
 
 -- Rapid taps on a nudge were slow: each drew the button pressed (and waited

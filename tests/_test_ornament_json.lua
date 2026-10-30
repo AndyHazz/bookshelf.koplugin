@@ -331,8 +331,8 @@ t.test("menu: Swap, Shuffle this shelf and a Switch off/on toggle share a row; t
     local row = src:match('\n        if not opts%.pinned then\n(.-)\n        end\n        %-%- Fixed where it stands')
     assert(row and row:find('barButton(_("Swap"), Orn.COLLECTION_ICON', 1, true), "no Swap on the bar, with the collection's icon")
     assert(row:find('_("Shuffle this shelf")', 1, true), "Shuffle this shelf is not with Swap")
-    assert(row:find('_("Switch on")', 1, true) and row:find('_("Switch off")', 1, true),
-        "the Switch off/on toggle is not with Swap")
+    assert(row:find('_("Show")', 1, true) and row:find('_("Hide")', 1, true),
+        "the Hide/Show toggle is not with Swap")
     -- Through the seam (SW: the set of the theme on screen, or the collection's).
     local toggle = row:match("barButton%(sw%.isOff%(entry%.name%).-end%)")
     assert(toggle, "the toggle's label does not follow the piece's state")

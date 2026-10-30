@@ -81,7 +81,7 @@ end
 --
 -- A panel (STYLE.md; maintainer: the same room or less than the button grid
 -- it replaced): the actions on a bar under the title (Swap, Shuffle,
--- Switch off; Reset at its end), then two columns of labelled controls:
+-- Hide; Reset at its end), then two columns of labelled controls:
 -- the piece in its slot (Size, Height, Padding) and the rest (Place,
 -- Mirror, Anchor); Tap a row of its own under them, with a tip. Size,
 -- Height and Padding step by - and + (a hold: the big step) and by the
@@ -188,7 +188,7 @@ function M.show(entry, bw, piece, widget, opts)
         local text_w = math.max(1, inner_w - pic.dimen.w - gap - right:getSize().w - gap)
         local sub = entry.pack or ""
         if SW().isOff(entry.name) then
-            sub = (sub ~= "" and (sub .. " \xC2\xB7 ") or "") .. _("switched off")   -- U+00B7 middle dot
+            sub = (sub ~= "" and (sub .. " \xC2\xB7 ") or "") .. _("hidden")   -- U+00B7 middle dot
         end
         local lines = VerticalGroup:new{ align = "left",
             text(Orn.displayName(entry), { bold = true, max_width = text_w }) }
@@ -273,7 +273,7 @@ function M.show(entry, bw, piece, widget, opts)
 
         -- The action bar on the grey strip under the title (STYLE.md): the
         -- deal's actions at the left -- Swap (the collection's icon: the
-        -- pieces to swap in), Shuffle this shelf, Switch off -- and Reset at
+        -- pieces to swap in), Shuffle this shelf, Hide -- and Reset at
         -- the right. Pin here joins them where it can pin. The deal's are
         -- not for a pinned piece (opts.pinned): it stands where it was
         -- pinned, out of the shelf's deal.
@@ -319,7 +319,8 @@ function M.show(entry, bw, piece, widget, opts)
             -- off keeps its place in the saved order, so switching it back on
             -- puts it where it stood (maintainer).
             local sw = SW()
-            left_btns[#left_btns + 1] = barButton(sw.isOff(entry.name) and _("Switch on") or _("Switch off"), nil,
+            -- "Hide" and "Show": plainer than Switch off / on (maintainer).
+            left_btns[#left_btns + 1] = barButton(sw.isOff(entry.name) and _("Show") or _("Hide"), nil,
                 function()
                     sw.setOff(entry.name, not sw.isOff(entry.name))
                     redraw()

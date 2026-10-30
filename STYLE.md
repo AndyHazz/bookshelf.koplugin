@@ -45,7 +45,7 @@ a control by hand, so a change lands everywhere.
   editor's buttons), so the pad reads as one thing beside the outlined
   buttons. Its title is a menu's: bold, as tall as the text and the X.
 - The ornament menu is a panel of its own: its actions on the bar under
-  the title (Swap with the collection's icon, Shuffle, Switch off; Reset at
+  the title (Swap with the collection's icon, Shuffle, Hide; Reset at
   the end), then two columns of labelled steppers and switches: the piece
   in its slot (Size, Height, Padding) and the rest (Place, Mirror, Anchor),
   Tap a row of its own under them with a tip beside the button. Size,

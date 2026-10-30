@@ -140,6 +140,11 @@ function M.sweep()
     local orphans = 0
     for i = 1, #entries do
         local fp = bookOf(entries[i].p)
+        -- An ornament's render is kept under "ornament:<path>|...", not a
+        -- path (bookshelf_ornaments renderDiskKey): it is an orphan when its
+        -- piece is gone. Read as a path, every one went at each session's
+        -- first sweep, and every piece was decoded again (PW5, 2026-10-30).
+        if fp then fp = fp:match("^ornament:(.-)|") or fp end
         -- No readable header is its own kind of orphan: nothing can use it.
         entries[i].orphan = (fp == nil) or (lfs.attributes(fp, "mode") == nil)
         if entries[i].orphan then orphans = orphans + 1 end

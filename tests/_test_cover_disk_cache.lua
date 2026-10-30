@@ -271,6 +271,40 @@ t.test("over budget, a deleted book's cover goes before a live one's", function(
     assert(not Cache.load(gone), "the deleted book's cover survived")
 end)
 
+-- PW5, 2026-10-30: the store was over its cap (118 MB), so every session's
+-- first write swept it, and an ornament's render (kept under
+-- "ornament:<path>|<mtime>|<size>|<w>x<h>", bookshelf_ornaments) named no
+-- file and went as an orphan. Each session decoded every piece again.
+t.test("over budget, a live ornament's render is not an orphan", function()
+    Cache.clear(); _G.__mtimes = {}
+    Cache.MAX_BYTES = 32 * 1024 * 1024
+    local piece = makeBook("cat.png")
+    local key = "ornament:" .. piece .. "|123|456|50x60"
+    local gone = makeBook("gone2.epub")
+    Cache.store(key, makeBB(16, 16, 1))
+    Cache.store(gone, makeBB(16, 16, 2))
+    ageOf(key, 100)                 -- the ornament's is the OLDER
+    ageOf(gone, 900)
+    os.remove(gone)
+    Cache.MAX_BYTES = 400
+    Cache.sweep()
+    assert(Cache.load(key), "a live ornament's render went as an orphan")
+    assert(not Cache.load(gone), "the deleted book's cover survived")
+    -- And one whose piece was deleted is an orphan.
+    Cache.clear(); _G.__mtimes = {}
+    Cache.MAX_BYTES = 32 * 1024 * 1024
+    local live = makeBook("live3.epub")
+    local dead = makeBook("dog.png")
+    local dkey = "ornament:" .. dead .. "|1|2|5x5"
+    Cache.store(live, makeBB(16, 16, 1))
+    Cache.store(dkey, makeBB(16, 16, 2))
+    ageOf(live, 100); ageOf(dkey, 900)
+    os.remove(dead)
+    Cache.MAX_BYTES = 400
+    Cache.sweep()
+    assert(Cache.load(live), "the live cover went before a deleted piece's render")
+end)
+
 t.test("with no orphans, the oldest goes first", function()
     Cache.clear(); _G.__mtimes = {}
     Cache.MAX_BYTES = 32 * 1024 * 1024

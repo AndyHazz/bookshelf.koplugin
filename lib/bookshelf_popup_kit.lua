@@ -924,6 +924,22 @@ function Kit.centreTitle(title_bar)
     local line = title_bar.with_bottom_line and Size.line.thick or 0
     group[1].width = math.max(0, math.floor((title_bar.dimen.h - line - tw:getSize().h) / 2))
     group:resetLayout()
+    -- The chevron and the X on the same line: TitleBar puts them at its
+    -- padding, 2 px above the text's middle on a PW5 (maintainer). An
+    -- aligned child ignores an offset, so they take a place of their own;
+    -- not in a mirrored layout, where OverlapGroup flips an offset per paint.
+    local mid = group[1].width + math.floor(tw:getSize().h / 2)
+    if not require("ui/bidi").mirroredUILayout() then
+        for _i, btn in ipairs({ title_bar.left_button, title_bar.right_button }) do
+            local pad = title_bar.button_padding or 0
+            local dy = mid - (pad + math.floor((btn and btn.height or 0) / 2))
+            if btn and dy ~= 0 then
+                local x = (btn == title_bar.right_button) and (title_bar.width - btn:getSize().w) or 0
+                btn.overlap_align = nil
+                btn.overlap_offset = { x, dy }
+            end
+        end
+    end
     return title_bar
 end
 

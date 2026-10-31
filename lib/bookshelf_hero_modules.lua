@@ -748,6 +748,25 @@ end
 
 -- focusable: reserve a d-pad focus ring (border-swap, dimen-constant — matches
 -- the start-menu rows and chip cursor). focused: draw it on this cell now.
+-- _ringRects(d, inset, t) -> the four bands, t thick, round the rect d
+-- inset by inset: top and bottom across, the sides between them a pixel
+-- clear of both. UIManager merges refreshes that overlap or even share an
+-- edge (Geom:openIntersectWith), and the merge of a band and a side is the
+-- whole cell again. Too small for a ring: d itself.
+function HeroModules._ringRects(d, inset, t)
+    local x, y = d.x + inset, d.y + inset
+    local w, h = d.w - 2 * inset, d.h - 2 * inset
+    if w <= 2 * t + 2 or h <= 2 * t + 2 then
+        return { { x = d.x, y = d.y, w = d.w, h = d.h } }
+    end
+    return {
+        { x = x, y = y, w = w, h = t },
+        { x = x, y = y + h - t, w = w, h = t },
+        { x = x, y = y + t + 1, w = t, h = h - 2 * t - 2 },
+        { x = x + w - t, y = y + t + 1, w = t, h = h - 2 * t - 2 },
+    }
+end
+
 function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, focused)
     local Perf     = require("lib/bookshelf_perf")
     local t_cell   = Perf.now()
@@ -990,10 +1009,19 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
         if press_b > 0 then
             frame.bordersize = press_b
             frame.margin = 0
-            -- A bare module is a picture: the fast waveform is 1-bit on the
-            -- panel and smeared it (maintainer, PW5). A card is flat ink.
-            local wave = (def and def.bare) and "ui" or "fast"
-            UIManager:setDirty(bw, function() return wave, self.dimen end)
+            -- The fast waveform on the border's ring alone: it is 1-bit on
+            -- the panel, and over the whole cell it smeared what is inside
+            -- (an ornament's picture; maintainer, PW5). Thick enough for the
+            -- rounded corners.
+            local d = self.dimen
+            for i, rr in ipairs(HeroModules._ringRects(d, focus_b, math.max(press_b, radius))) do
+                local g = Geom:new(rr)
+                if i == 1 then
+                    UIManager:setDirty(bw, function() return "fast", g end)
+                else
+                    UIManager:setDirty(nil, function() return "fast", g end)
+                end
+            end
             UIManager:forceRePaint()
             -- card_border, NOT zero. Zero was right when this was written,
             -- because the card was borderless then; the hairline above was

@@ -64,6 +64,10 @@ local function press(card_border, press_b)
             forceRePaint = function() end,
         },
         card_border = card_border,
+        -- The ring the flash refreshes (_ringRects) and what it needs.
+        HeroModules = { _ringRects = function(d) return { d } end },
+        Geom = { new = function(_, r) return r end },
+        focus_b = 0, radius = 4, ipairs = ipairs, math = math,
     }
     -- NB: load() returns the CHUNK; calling that yields the function, which
     -- then has to be called too. Missing the second call makes every

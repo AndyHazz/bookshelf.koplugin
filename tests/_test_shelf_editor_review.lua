@@ -103,4 +103,13 @@ t.test("a row too narrow for its cards stacks them full width", function()
     assert(b:find("Screen:scaleBySize(160)", 1, true), "narrow screens squeeze two cards side by side")
 end)
 
+-- Maintainer, 2026-10-31: the Face out page's line restated the ticks
+-- below it ("Face out: Unread, Reading. Check as many..."). It says what the
+-- page is for instead, and stays put.
+t.test("the Face out page says what it is for, not what is ticked", function()
+    assert(src:find('_("Choose which books show their cover facing out on this shelf. The rest show their spines.")', 1, true),
+        "no help line on Face out")
+    assert(not src:find("Check as many reasons as you like", 1, true), "the ticks are restated at the top")
+end)
+
 t.done()

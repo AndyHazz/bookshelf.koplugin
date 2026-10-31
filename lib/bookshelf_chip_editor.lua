@@ -2708,10 +2708,8 @@ function Editor:_openFaceOut(draft, on_change)
 
     local function page()
         local sp = spec()
-        local summary
-        if sp.all then summary = _("Every book stands face out.")
-        elseif SS.faceOutEmpty(sp) then summary = _("No book stands face out: spines only.")
-        else summary = T(_("Face out: %1. Check as many reasons as you like."), Editor._faceOutText(draft, true)) end
+        -- What the page is for, not what is ticked below it (maintainer).
+        local summary = _("Choose which books show their cover facing out on this shelf. The rest show their spines.")
         local none = (not sp.all) and SS.faceOutEmpty(sp)
         local blocks = {
             -- Reading state first, the reasons most people answer with, in

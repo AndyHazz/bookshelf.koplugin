@@ -67,8 +67,8 @@ package.preload["device"] = function()
                    getHeight = function() return 1680 end,
                    scaleBySize = function(_, n) return n end },
         input = { group = { Back = "Back" } },
-        hasKeys = function() return false end,
-        hasDPad = function() return false end,
+        hasKeys = function() return _G.TEST_DPAD == true end,
+        hasDPad = function() return _G.TEST_DPAD == true end,
         isTouchDevice = function() return true end,
     }
 end
@@ -175,6 +175,32 @@ t.test("an open that fails leaves nothing behind", function()
     local ok = pcall(Editor.open, { bw = bw, host = h, select_id = "a" })
     assert(not ok, "expected the failure to surface to the caller")
     assert(bw._module_editor == nil, "a dead editor would block every later long-press")
+end)
+
+-- Opened on a piece from a menu (the shelf editor's add, a module's Edit)
+-- with the keys: nothing was focused, the arrows moved the grid's selection
+-- and only Enter reached the toolbar, which nothing said (maintainer,
+-- desktop). Focus goes straight onto the toolbar's first button.
+t.test("keys: opened on a piece, focus is on its toolbar", function()
+    _G.TEST_DPAD = true
+    local ok, err = pcall(function()
+        local h = host(info())
+        local ed = Editor.open{ bw = {}, host = h, select_id = "a" }
+        assert(ed._key_focus, "the toolbar has no focus")
+        ed:onDone()
+        assert(not ed._closed, "Back from the toolbar closed the editor")
+        -- Nothing selected: no toolbar, nothing to focus.
+        ed:onDone()
+        local ed2 = Editor.open{ bw = {}, host = host(info()) }
+        assert(not ed2._key_focus, "focus with no piece selected")
+        ed2:onDone()
+    end)
+    _G.TEST_DPAD = nil
+    assert(ok, err)
+    -- A touch screen with no keys: no ring.
+    local ed3 = Editor.open{ bw = {}, host = host(info()), select_id = "a" }
+    assert(not ed3._key_focus, "a ring on a touch screen")
+    ed3:onDone()
 end)
 
 t.test("no grid on the host means no editor", function()

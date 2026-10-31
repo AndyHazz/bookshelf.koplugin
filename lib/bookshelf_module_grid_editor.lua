@@ -155,6 +155,10 @@ function Editor:init()
     end
     -- Draw the grid in edit mode, then the bands over it.
     self.session:_render()
+    -- Opened on a piece (a menu's add or Edit) with the keys: focus on its
+    -- toolbar, not the grid, where only Enter reached it and nothing said
+    -- so (maintainer, desktop).
+    if self.select_id and Device:hasDPad() then self:_enterKeyFocus() end
 end
 
 -- ── Bands ────────────────────────────────────────────────────────────────────

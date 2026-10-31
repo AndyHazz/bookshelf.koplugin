@@ -22,7 +22,6 @@ local Geom              = require("ui/geometry")
 local GestureRange      = require("ui/gesturerange")
 local HorizontalGroup   = require("ui/widget/horizontalgroup")
 local HorizontalSpan    = require("ui/widget/horizontalspan")
-local InputContainer    = require("ui/widget/container/inputcontainer")
 local InputText         = require("ui/widget/inputtext")
 local LeftContainer     = require("ui/widget/container/leftcontainer")
 local LineWidget        = require("ui/widget/linewidget")
@@ -180,42 +179,24 @@ local function nullTile(label, selected, side, on_tap, image_path, fit)
             tw,
         },
     }, { outline = selected })
-    local container = InputContainer:new{
-        dimen = Geom:new{ w = w, h = side },
-        frame,
-    }
-    container.ges_events = {
-        TapSelect = {
-            GestureRange:new{ ges = "tap", range = container.dimen },
-        },
-    }
-    function container:onTapSelect()
-        on_tap()
-        return true
-    end
-    return container
+    -- A kit tap cell: the tap at once (it is drawn again to show the pick)
+    -- and the keys' ring round the card (STYLE.md).
+    local Kit = require("lib/bookshelf_popup_kit")
+    local cell = Kit.tapCell(frame, w, side, on_tap, true, nil, true)
+    cell.focus_radius = Kit.RADIUS
+    return cell
 end
 
--- swatchTile: InputContainer wrapping a Swatch for gesture handling.
+-- swatchTile: a Swatch as a kit tap cell (the tap, and the keys' ring).
 local function swatchTile(hex, selected, side, on_tap, seen)
+    local Kit = require("lib/bookshelf_popup_kit")
     local swatch = Swatch:new{ hex = hex, selected = selected, side = side, seen = seen }
-    local container = InputContainer:new{
-        dimen = Geom:new{ w = side, h = side },
-        swatch,
-    }
-    container.ges_events = {
-        TapSelect = {
-            GestureRange:new{ ges = "tap", range = container.dimen },
-        },
-    }
-    function container:onTapSelect()
-        on_tap(hex)
-        return true
-    end
-    return container
+    local cell = Kit.tapCell(swatch, side, side, function() on_tap(hex) end, true, nil, true)
+    cell.focus_radius = Kit.RADIUS
+    return cell
 end
 
--- Footer button: plain text in a tappable InputContainer, matching the
+-- Footer button: plain text in a kit tap cell, matching the
 -- preset-library modal's Close | Manage… | Apply row (no bezel, just text
 -- plus a vertical LineWidget divider between buttons — see preset_manager_modal.lua).
 local function makeFooterBtn(text, width, height, on_tap)
@@ -226,13 +207,12 @@ local function makeFooterBtn(text, width, height, on_tap)
         bold     = btn_bold,
         fgcolor  = Blitbuffer.COLOR_BLACK,
     }
-    local ic = InputContainer:new{
-        dimen = Geom:new{ w = width, h = height },
-        CenterContainer:new{ dimen = Geom:new{ w = width, h = height }, label },
-    }
-    ic.ges_events = { TapSelect = { GestureRange:new{ ges = "tap", range = ic.dimen } } }
-    ic.onTapSelect = function() on_tap(); return true end
-    return ic
+    -- A kit tap cell, for the keys' ring, set in clear of the dividers.
+    local Kit = require("lib/bookshelf_popup_kit")
+    local cell = Kit.tapCell(CenterContainer:new{ dimen = Geom:new{ w = width, h = height }, label },
+        width, height, on_tap, true, nil, true)
+    cell.focus_inset, cell.focus_radius = Space.px(4), Kit.RADIUS
+    return cell
 end
 
 local ColorPaletteWidget = FocusManager:extend{
@@ -285,6 +265,13 @@ function ColorPaletteWidget:init()
     self.inner_width   = self.palette_width + Space.padding.fullscreen * 2
     self.dialog_width  = self.inner_width + 2 * Size.border.thin
 
+    -- The keys (STYLE.md: every popup takes them): Back is Cancel; the cursor
+    -- across rebuilds (every pick rebuilds) in _key_state.
+    self._key_state = {}
+    if Device:hasKeys() then
+        self.key_events = self.key_events or {}
+        self.key_events.Close = { { Device.input.group.Back } }
+    end
     if Device:isTouchDevice() then
         self.ges_events = {
             TapOutside = {
@@ -315,6 +302,12 @@ function ColorPaletteWidget:_closeKeyboard()
     if self:_keyboardVisible() then
         self.hex_input:onCloseKeyboard()
     end
+end
+
+function ColorPaletteWidget:onClose()
+    if self:_keyboardVisible() then self:_closeKeyboard(); return true end
+    if self.revert_callback then self.revert_callback() end
+    return true
 end
 
 function ColorPaletteWidget:onTapOutside(arg, ges)
@@ -372,6 +365,8 @@ function ColorPaletteWidget:update()
     -- `height` gives a zero-extent span, collapsing the row gap.
     local palette_vgroup = VerticalGroup:new{ align = "center" }
     local rows = self.greys and GREYS or PALETTE
+    -- The keys' rows, top to bottom (Kit.keyFocus at the end).
+    local layout, grid_from = {}, nil
     -- Greys: the chip nearest the current shade is the one marked (a value
     -- set with the old % dialog need not be one of the fifteen).
     local selected_hex = self.selected_hex
@@ -385,8 +380,11 @@ function ColorPaletteWidget:update()
         end
         selected_hex = (dist <= 9) and best or nil
     end
+    local grid_rows = {}
     for row_idx, row_hexes in ipairs(rows) do
         local hgroup = HorizontalGroup:new{ align = "center" }
+        local keys_row = {}
+        grid_rows[row_idx] = keys_row
         -- Prepend the null tile at grid position [0,0] of the first row only.
         if row_idx == 1 and self.null_tile then
             local sel = self.null_tile.selected
@@ -394,6 +392,7 @@ function ColorPaletteWidget:update()
             hgroup[#hgroup + 1] = nullTile(self.null_tile.label, sel, side, function()
                 self.null_tile.on_tap()
             end, self.null_tile.image)
+            keys_row[#keys_row + 1] = hgroup[#hgroup]
             hgroup[#hgroup + 1] = HorizontalSpan:new{ width = gap }
         elseif self.null_tile then
             -- The rows below the tile keep its column empty, so the grid stays
@@ -411,6 +410,7 @@ function ColorPaletteWidget:update()
                 if self.apply_callback then self.apply_callback(tapped_hex) end
                 self:update()
             end, self.greys)
+            keys_row[#keys_row + 1] = hgroup[#hgroup]
         end
         if row_idx > 1 then
             palette_vgroup[#palette_vgroup + 1] = VerticalSpan:new{ width = gap }
@@ -469,9 +469,11 @@ function ColorPaletteWidget:update()
         -- so the "#" prefix aligns with the leftmost column of swatches.
         HorizontalSpan:new{ width = Space.padding.fullscreen },
     }
+    local special_cell
     if self.special_tile then
         local st = self.special_tile
-        hex_row[#hex_row + 1] = nullTile(st.label, st.selected, side, function() st.on_tap() end, st.image, true)
+        special_cell = nullTile(st.label, st.selected, side, function() st.on_tap() end, st.image, true)
+        hex_row[#hex_row + 1] = special_cell
         hex_row[#hex_row + 1] = HorizontalSpan:new{ width = Space.padding.large }
         hex_row[#hex_row + 1] = TextWidget:new{ text = _("or"), face = hex_face,
                                                 fgcolor = Blitbuffer.COLOR_BLACK }
@@ -546,9 +548,9 @@ function ColorPaletteWidget:update()
         hex_row = nil
         if self.special_tile then
             local st = self.special_tile
+            special_cell = nullTile(st.label, st.selected, side, function() st.on_tap() end, st.image, true)
             hex_row = HorizontalGroup:new{ align = "center",
-                HorizontalSpan:new{ width = Space.padding.fullscreen },
-                nullTile(st.label, st.selected, side, function() st.on_tap() end, st.image, true) }
+                HorizontalSpan:new{ width = Space.padding.fullscreen }, special_cell }
         end
     end
     if hex_row then
@@ -582,6 +584,20 @@ function ColorPaletteWidget:update()
     }
 
     self._frame = frame   -- its painted box: where a tap is outside (onTapOutside)
+
+    -- The keys: the plank's tile (when there is one), the grid row by row,
+    -- then the footer; seeded on the grid. The hex field is left to touch
+    -- (a keys-only device types through KOReader's own keyboard there).
+    if special_cell then layout[#layout + 1] = { special_cell } end
+    grid_from = #layout + 1
+    for _i, r in ipairs(grid_rows) do layout[#layout + 1] = r end
+    local foot = { cancel_btn, default_btn }
+    if white_btn then foot[#foot + 1] = white_btn end
+    foot[#foot + 1] = apply_btn
+    layout[#layout + 1] = foot
+    self.layout = layout
+    local Kit = require("lib/bookshelf_popup_kit")
+    Kit.keyFocus(self, self._key_state, grid_from, "palette")
     local movable = MovableContainer:new{ frame, anchor = self.anchor }
 
     -- CenterContainer dimen is set once at construction and never reassigned

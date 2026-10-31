@@ -78,4 +78,18 @@ t.test("a nudge card is Kit.button's card, its glyphs the kit's", function()
     end
 end)
 
+-- STYLE.md: every popup takes the keys. The colour picker had no layout, so
+-- on a keys-only Kindle it could be neither used nor left.
+t.test("the colour picker takes the keys: swatches, tiles and footer, Back cancels", function()
+    local cp = read("lib/bookshelf_color_palette.lua")
+    assert(cp:find("Kit.keyFocus(self, self._key_state", 1, true), "the picker has no key cursor")
+    assert(cp:find("self.layout = layout", 1, true), "the picker has no key layout")
+    local sw = cp:match("\n(local function swatchTile%(.-\nend)\n")
+    assert(sw and sw:find("Kit.tapCell(", 1, true), "a swatch is not a kit tap cell (no focus ring)")
+    local ft = cp:match("\n(local function makeFooterBtn%(.-\nend)\n")
+    assert(ft and ft:find("Kit.tapCell(", 1, true), "a footer button is not a kit tap cell")
+    assert(cp:find("self.key_events.Close = { { Device.input.group.Back } }", 1, true), "Back does not close it")
+    assert(cp:find("function ColorPaletteWidget:onClose()", 1, true))
+end)
+
 t.done()

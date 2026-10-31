@@ -80,6 +80,21 @@ function M.offsetFor(piece, screen_h, menu_h)
     return (mid < screen_h / 2) and q or -q
 end
 
+-- held(fn) -> fn, run inside the ornaments' recent window (allowRecent).
+-- Outside it every listAll reads all the ornament folders again, and one
+-- nudge reached it 11 times (the live entry, the shelf's pool, the theme's
+-- switches, the shelf rebuilt): ~320 ms of a 0.4 s tap on the PW5, measured
+-- 2026-10-31 with 17 packs. Nothing in the folders changes while the menu
+-- is open (the reader's file is written when it closes), and it opens on a
+-- fresh look (Orn.current). A window someone else opened is theirs to close.
+function M.held(fn)
+    return function(...)
+        local was = O().allowRecent(true)
+        fn(...)
+        if not was then O().allowRecent(false) end
+    end
+end
+
 -- show(entry, bw, piece): the menu for one piece; piece is where it stands
 -- on screen (its dimen), for keeping the menu clear of it.
 --
@@ -213,7 +228,7 @@ function M.show(entry, bw, piece, widget, opts)
     -- whole screen redrawn every time, and rapid taps queued behind it
     -- (maintainer, PW5). The panel shows the new value at once.
     local shelf_pending = false
-    local function rebuildShelf()
+    local rebuildShelf = M.held(function()
         shelf_pending = false
         if bw and bw._rebuild then
             -- The piece's size moves where rows, and so pages, break later
@@ -222,8 +237,8 @@ function M.show(entry, bw, piece, widget, opts)
             bw:_rebuild()
             UIManager:setDirty(bw, "ui")
         end
-    end
-    local function redraw(soon)
+    end)
+    local redraw = M.held(function(soon)
         UIManager:unschedule(rebuildShelf)
         if soon then
             shelf_pending = true
@@ -234,21 +249,21 @@ function M.show(entry, bw, piece, widget, opts)
         -- The panel built again, where it was (place): the picture follows
         -- the piece (its mirroring), the values theirs.
         if dialog then dialog:reinit(); place() end
-    end
-    local function set(field, value, soon)
+    end)
+    local set = M.held(function(field, value, soon)
         Orn.readerSet(entry, field, value)
         entry = Orn.current(entry)
         redraw(soon)
-    end
+    end)
     -- setAnchor(v): pinned to the plank ("bottom") or under the shelf above
     -- ("top"), from the anchor itself: the old height meant somewhere else.
     -- Stored, not cleared, so a pack's own top piece can still be stood.
-    local function setAnchor(v)
+    local setAnchor = M.held(function(v)
         Orn.readerSet(entry, "anchor", v)
         Orn.readerSet(entry, "lift", 0)
         entry = Orn.current(entry)
         redraw()
-    end
+    end)
     local function nudge(field, sign, big)
         local step = M.STEPS[field][big and 2 or 1]
         set(field, M.nudged(entry, field, sign * step), true)
@@ -266,9 +281,9 @@ function M.show(entry, bw, piece, widget, opts)
         for i, e in ipairs(Deck.order(Orn.listFor(TP.ornamentsFor(shelf)), shelf)) do names[i] = e.name end
         return names
     end
-    local function step(delta)
+    local step = M.held(function(delta)
         if Deck.move(entry.name, delta, onNames(), shelf) then redraw(true) end
-    end
+    end)
 
     -- A value: tap it to reset (what the pack says), a plain label while it
     -- is already that.
@@ -565,7 +580,7 @@ function M.show(entry, bw, piece, widget, opts)
     dialog.movable = MovableContainer:new{ ignore_events = { "hold", "hold_release", "hold_pan" } }
     -- The keys' cursor across rebuilds (Kit.keyFocus).
     local key_state = {}
-    function dialog:reinit()
+    dialog.reinit = M.held(function(self)
         local frame, rows = build(close)
         self.frame = frame
         self.overhang = overhangFor(picture())
@@ -575,7 +590,7 @@ function M.show(entry, bw, piece, widget, opts)
         Kit.keyFocus(self.fm, key_state, 3, "ornament")
         self.movable[1] = self.fm
         self[1] = self.movable
-    end
+    end)
     -- place(): where the frame sits, worked out against its height each time
     -- it is built (its rows can change size), and refreshed there.
     local rect

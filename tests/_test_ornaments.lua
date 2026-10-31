@@ -1204,7 +1204,7 @@ t.test("the menu has the anchor between mirror and tap, and switching it starts 
     local m, a = cols and cols:find('_("Mirror")', 1, true), cols and cols:find('_("Anchor")', 1, true)
     assert(m and a and m < a and not cols:sub(m, a):find("_%(", 2), "the anchor is not with Mirror")
     assert(src:find("on_pick = function(k) setAnchor(k) end", 1, true), "the control does not switch the anchor")
-    local sa = src:match("local function setAnchor%(v%)(.-)\n    end\n")
+    local sa = src:match("local setAnchor = M%.held%(function%(v%)(.-)\n    end%)\n")
     -- Explicit values, not cleared ones: clearing would fall back to what the
     -- pack's own file says, so a pack's top piece could never be stood.
     assert(sa and sa:find('Orn.readerSet(entry, "anchor", v)', 1, true), "the anchor is not stored")

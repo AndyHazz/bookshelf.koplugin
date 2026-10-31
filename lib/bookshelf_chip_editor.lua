@@ -1581,17 +1581,50 @@ function Editor:editTab(tab_id, opts)
                 -- differently, with no way back (user test). Picking closes
                 -- the editor and adds the module as before.
                 callback = why == nil and function()
-                    -- Some there: the layout editor, which moves, removes and
-                    -- adds them; none: straight to the picker.
+                    local function addOne()
+                        require("lib/bookshelf_module_picker"):show(function(key)
+                            finish()
+                            opts.bw:_editShelfModules(nil, { add = true, key = key })
+                        end, { for_hero = true, over = Editor._over({ _("Modules") }) })
+                    end
+                    -- On spines: a page of them, each to its own menu (a
+                    -- spine row is no grid, so the layout editor is the
+                    -- covers' only; the card closed the editor and opened
+                    -- nothing, maintainer), and Add module.
+                    local function modulesPage()
+                        local Modules = require("lib/bookshelf_start_menu_modules")
+                        local d
+                        d = Editor._menu{ title = _("Modules"), page = function()
+                            local blocks = {}
+                            for _i, m in ipairs(require("lib/bookshelf_shelf_modules").list(draft) or {}) do
+                                local def = Modules.get(m.module)
+                                blocks[#blocks + 1] = { type = "row",
+                                    label = (def and def.title) or m.module,
+                                    value = m.ornament and m.ornament:gsub("%.%w+$", "") or nil,
+                                    icon = "\u{EB94}",
+                                    callback = function()
+                                        finish()
+                                        opts.bw:_spineShowModule(m.id)
+                                        opts.bw:_spineModuleMenu(m)
+                                    end }
+                            end
+                            blocks[#blocks + 1] = { type = "row", label = _("Add module\xE2\x80\xA6"),
+                                icon = "\xEF\x91\x8D", callback = addOne }   -- plus, as + Add
+                            return { strip = { { type = "summary",
+                                text = _("Modules stand among this shelf's books. Tap one to move, size or remove it.") } },
+                                blocks = blocks }
+                        end }
+                        return d
+                    end
+                    -- Some there: on covers the layout editor, which moves,
+                    -- removes and adds them; none: straight to the picker.
+                    if n_mods > 0 and opts.bw:_isSpineMode() then return modulesPage() end
                     if n_mods > 0 then
                         finish()
                         opts.bw:_editShelfModules()
                         return
                     end
-                    require("lib/bookshelf_module_picker"):show(function(key)
-                        finish()
-                        opts.bw:_editShelfModules(nil, { add = true, key = key })
-                    end, { for_hero = true, over = Editor._over({ _("Modules") }) })
+                    addOne()
                 end or nil,
             }
         end

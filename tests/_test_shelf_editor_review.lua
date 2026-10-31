@@ -134,4 +134,14 @@ t.test("Filters says what it is for, with no restatement and no footnote", funct
     assert(not src:find("A book must match every filter; each filter's page", 1, true), "the footnote is still there")
 end)
 
+-- Maintainer, 2026-10-31: on a spines shelf with modules, Modules closed
+-- the editor and opened nothing (the layout editor is the covers' only). A
+-- page lists them, each opening its own menu, and adds another.
+t.test("on spines, Modules is a page of the shelf's modules", function()
+    local src = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
+    assert(src:find("if n_mods > 0 and opts.bw:_isSpineMode() then return modulesPage() end", 1, true),
+        "Modules on a spines shelf opens nothing")
+    assert(src:find("opts.bw:_spineModuleMenu(m)", 1, true), "a module's row does not open its menu")
+end)
+
 t.done()

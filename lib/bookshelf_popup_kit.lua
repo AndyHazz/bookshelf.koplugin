@@ -938,8 +938,16 @@ function Kit.backLabel(title_bar)
     -- (its title_group's first span).
     local group = title_bar.title_group
     local top = (group and group[1] and group[1].width) or 0
-    local base = (tw.getBaseline and tw:getBaseline()) or title_bar._text_baseline or label:getBaseline()
-    local y = top + (base - label:getBaseline())
+    local y
+    if title_bar._text_face then
+        -- A title with pictures (iconTitle) is a row whose text is centred on
+        -- its capitals beside a taller picture: the label, centred on that
+        -- row the same way, lines up with it (a baseline was off by a few px).
+        require("lib/bookshelf_cap_centre").centre(label)
+        y = top + math.floor((tw:getSize().h - label:getSize().h) / 2)
+    else
+        y = top + (tw:getBaseline() - label:getBaseline())
+    end
     local cell = InputContainer:new{
         dimen = Geom:new{ x = 0, y = 0, w = lw + Space.px(12), h = label:getSize().h },
         label,

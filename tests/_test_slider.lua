@@ -57,4 +57,28 @@ t.test("a drag redraws the track with a ui refresh, not fast", function()
     assert(src:find('UIManager:setDirty(top, function() return "ui", track.dimen end)', 1, true), "the drag does not refresh ui")
 end)
 
+-- Maintainer: a hollow knob, a thicker track, in the reader's own
+-- progress bar colours (Colors > Progress bar), as the hero's bar has them.
+t.test("the track takes the reader's picked bar colours, else black on light grey", function()
+    local D = { fill = "black", track = "lightgray" }
+    local f, tr = Slider.colors(nil, D)
+    eq(f, "black"); eq(tr, "lightgray")
+    f, tr = Slider.colors({ fill = "red" }, D)
+    eq(f, "red"); eq(tr, "lightgray", "an unpicked track keeps its default")
+    f, tr = Slider.colors({ fill = "red", bg = "pink" }, D)
+    eq(f, "red"); eq(tr, "pink")
+    local src = io.open("lib/bookshelf_slider.lua"):read("*a")
+    assert(src:find("Slider.colors(CP.pickedBarColors(),", 1, true),
+        "the slider does not read the picked bar colours")
+end)
+
+t.test("the knob is a ring, the track thicker", function()
+    local src = io.open("lib/bookshelf_slider.lua"):read("*a")
+    local paint = src:match("function track:paintTo%(bb, x, y%)(.-)\n    end\n")
+    assert(paint, "no track paint")
+    assert(paint:find("knob(bb, kx, cy, r, fill)", 1, true), "the knob's ring is not the fill colour")
+    assert(paint:find("knob(bb, kx, cy, r - ring, Blitbuffer.COLOR_WHITE)", 1, true), "the knob is not hollow")
+    assert(src:find("local bar_h = math.max(4, Space.px(12))", 1, true), "the track is not thicker")
+end)
+
 t.done()

@@ -50,6 +50,14 @@ function Slider.ticks(o)
     return out
 end
 
+-- colors(picked, defaults) -> fill, track: the reader's own progress bar
+-- colours (Colors > Progress bar; cover_progress.pickedBarColors, nil when
+-- none is picked), each falling back to the slider's own.
+function Slider.colors(picked, defaults)
+    picked = picked or {}
+    return picked.fill or defaults.fill, picked.bg or defaults.track
+end
+
 function Slider.new(o)
     local Blitbuffer      = require("ffi/blitbuffer")
     local Geom            = require("ui/geometry")
@@ -103,12 +111,21 @@ function Slider.new(o)
     if big_minus then side = side + big_minus:getSize().w + gap end
     local track_w = math.max(Space.px(60), o.width - 2 * side)
 
-    -- The track: a grey bar, black up to the knob (the value is what is
-    -- "on"), ticks under it, the knob a black disc. Its touch area is the
-    -- buttons' height, so it is as easy to hit as they are.
-    local r = math.floor(btn_h / 4)          -- the knob's radius
-    local bar_h = math.max(2, Space.px(6))
+    -- The track: a bar in the reader's progress bar colours, the fill up to
+    -- the knob (the value is what is "on"), ticks under it, the knob a ring
+    -- in the fill colour (maintainer: hollow, and a thicker track). Its
+    -- touch area is the buttons' height, so it is as easy to hit as they are.
+    local CP = require("lib/bookshelf_cover_progress")
+    local fill, track_c = Slider.colors(CP.pickedBarColors(),
+        { fill = Blitbuffer.COLOR_BLACK, track = Blitbuffer.COLOR_LIGHT_GRAY })
+    local bar_h = math.max(4, Space.px(12))
+    local r = math.max(math.floor(btn_h / 4), bar_h)   -- the knob's radius
+    local ring = math.max(2, Space.px(3))
     local inner = track_w - 2 * r            -- where the knob's centre runs
+    -- knob(bb, cx, cy, rad, c): a disc, through the colour-safe paint.
+    local function knob(bb, cx, cy, rad, c)
+        CP.paintRoundedRect(bb, cx - rad, cy - rad, 2 * rad, 2 * rad, c, rad)
+    end
     local Track = InputContainer:extend{}
     local track = Track:new{ dimen = Geom:new{ w = track_w, h = btn_h } }
     track.shown = value
@@ -117,17 +134,19 @@ function Slider.new(o)
         local cy = y + math.floor(btn_h / 2)
         local x0 = x + r
         local kx = x0 + Slider.xOf(self.shown, inner, o)
-        bb:paintRoundedRect(x0, cy - math.floor(bar_h / 2), inner, bar_h,
-            Blitbuffer.COLOR_LIGHT_GRAY, math.floor(bar_h / 2))
+        CP.paintRoundedRect(bb, x0, cy - math.floor(bar_h / 2), inner, bar_h,
+            track_c, math.floor(bar_h / 2))
         if kx > x0 then
-            bb:paintRoundedRect(x0, cy - math.floor(bar_h / 2), kx - x0, bar_h,
-                Blitbuffer.COLOR_BLACK, math.floor(bar_h / 2))
+            CP.paintRoundedRect(bb, x0, cy - math.floor(bar_h / 2), kx - x0, bar_h,
+                fill, math.floor(bar_h / 2))
         end
         for _i, tv in ipairs(Slider.ticks(o)) do
             local tx = x0 + Slider.xOf(tv, inner, o)
-            bb:paintRect(tx - 1, cy + r + Space.px(2), 2, Space.px(6), Blitbuffer.COLOR_DARK_GRAY)
+            bb:paintRect(tx - 1, cy + math.floor(bar_h / 2) + Space.px(3), 2, Space.px(6),
+                Blitbuffer.COLOR_DARK_GRAY)
         end
-        bb:paintCircle(kx, cy, r, Blitbuffer.COLOR_BLACK)
+        knob(bb, kx, cy, r, fill)
+        knob(bb, kx, cy, r - ring, Blitbuffer.COLOR_WHITE)
     end
     local function at(pos)
         return Slider.valueAt(pos.x - track.dimen.x - r, inner, o)

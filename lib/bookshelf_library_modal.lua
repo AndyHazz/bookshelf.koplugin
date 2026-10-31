@@ -537,7 +537,7 @@ function LibraryModal:_renderTitleBar(content_width, modal_w)
     if over then
         -- The menu's own title bar: its breadcrumb, back, and X.
         local back = self:_backAction()
-        return require("ui/widget/titlebar"):new{
+        local bar = require("ui/widget/titlebar"):new{
             width            = modal_w,
             title            = over.crumbs or self.config.title,
             with_bottom_line = true,
@@ -550,6 +550,8 @@ function LibraryModal:_renderTitleBar(content_width, modal_w)
             end,
             show_parent      = self,
         }
+        -- The shelf's name in the breadcrumb with its pictures.
+        return PopupKit.iconTitle(bar, over.crumbs or self.config.title)
     end
     local Font = require("ui/font")
     local HorizontalGroup = require("ui/widget/horizontalgroup")

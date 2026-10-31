@@ -846,4 +846,31 @@ function Kit.headerRow(o)
     }, o.width)
 end
 
+-- iconTitle(title_bar, title) -> title_bar: a stock TitleBar's text swapped
+-- for the title drawn as the shelf menu draws a shelf's name, its
+-- [icon=NAME] pictures and icon glyphs among the text, in the bar's own
+-- font. A title with no picture is left as TitleBar made it. A shelf named
+-- with a picture showed the markup itself in the shelf editor (PW5).
+function Kit.iconTitle(title_bar, title)
+    if type(title) ~= "string" or not title:find("[icon=", 1, true) then return title_bar end
+    local old = title_bar and title_bar.title_widget
+    if not (old and old.face) then return title_bar end
+    local ok, label = pcall(function()
+        return require("lib/bookshelf_chip_bar").buildLabel(title, old.face.orig_size or 20,
+            old.max_width or math.floor(title_bar.width * 0.7), Blitbuffer.COLOR_BLACK, old.face)
+    end)
+    if not (ok and label) then return title_bar end
+    for _i, group in ipairs({ title_bar.title_group, title_bar.inner_title_group }) do
+        for i, child in ipairs(group) do
+            if child == old then
+                group[i] = label
+                group:resetLayout()
+            end
+        end
+    end
+    title_bar.title_widget = label
+    old:free()
+    return title_bar
+end
+
 return Kit

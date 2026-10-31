@@ -235,7 +235,7 @@ local function _imageSegment(name, size, ink, inverted)
     return icon
 end
 
-local function _buildLabelContent(label, size, max_w, ink, inverted, own_case)
+local function _buildLabelContent(label, size, max_w, ink, inverted, own_case, face)
     ink = ink or _chipInk()
     local segments = TextSegments.labelSegments(own_case and label or _chipCase(label))
     if #segments == 0 then
@@ -253,7 +253,7 @@ local function _buildLabelContent(label, size, max_w, ink, inverted, own_case)
     if #segments == 1 then
         local one_face, one_bold
         if segments[1].class == "text" then
-            one_face, one_bold = BFont:getFace("infofont", size, { bold = true })
+            if face then one_face = face else one_face, one_bold = BFont:getFace("infofont", size, { bold = true }) end
         else
             one_face, one_bold = _iconFace(size)
         end
@@ -297,7 +297,7 @@ local function _buildLabelContent(label, size, max_w, ink, inverted, own_case)
         local is_text = (seg.class == "text")
         local seg_face, seg_bold
         if is_text then
-            seg_face, seg_bold = BFont:getFace("infofont", size, { bold = true })
+            if face then seg_face = face else seg_face, seg_bold = BFont:getFace("infofont", size, { bold = true }) end
         else
             seg_face, seg_bold = _iconFace(size)
         end
@@ -2239,9 +2239,10 @@ end
 -- buildLabel(label, size, max_w, ink) -> a widget drawing a shelf label as a
 -- chip does -- text, icon glyphs and [icon=NAME] pictures -- in the label's
 -- own case (not the chips' case setting). For headings elsewhere, such as the
--- Shelf micro-module.
-function ChipBar.buildLabel(label, size, max_w, ink)
-    return _buildLabelContent(label, size, max_w, ink, false, true)
+-- Shelf micro-module. face: the text's font, for a heading in another face
+-- (a title bar's); the chips' font when nil.
+function ChipBar.buildLabel(label, size, max_w, ink, face)
+    return _buildLabelContent(label, size, max_w, ink, false, true, face)
 end
 -- buildChipLabel(label, size, max_w, ink, inverted) -> the same, in the
 -- chips' case (the Uppercase labels setting): a shelf named as the bar names

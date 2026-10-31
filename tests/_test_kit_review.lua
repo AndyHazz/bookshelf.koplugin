@@ -62,4 +62,20 @@ t.test("the colour picker refreshes its own box", function()
     assert(cp:find('UIManager:close(widget, "ui", (d and d.x) and d or nil)', 1, true))
 end)
 
+-- The grey nudge card was built four ways (border 0, then cardify), each
+-- with its own copy of the minus and plus glyphs.
+t.test("a nudge card is Kit.button's card, its glyphs the kit's", function()
+    local kit = read("lib/bookshelf_popup_kit.lua")
+    assert(kit:find("Kit.MINUS, Kit.PLUS = ", 1, true), "no shared minus and plus")
+    local b = kit:match("\n(function Kit%.button%(opts%).-\nend)\n")
+    assert(b and b:find("if card then Kit.cardify(btn[1]) end", 1, true), "Kit.button has no card")
+    for _i, f in ipairs({ "lib/bookshelf_editor_page.lua", "lib/bookshelf_slider.lua",
+                          "lib/bookshelf_ornament_menu.lua", "lib/bookshelf_module_grid_editor.lua" }) do
+        local src = read(f)
+        assert(not src:find("cardify(btn[1])", 1, true), f .. " builds its own card")
+        assert(not src:find('"\\xEF\\x81\\xA8"', 1, true) and not src:find("\xEF\x81\xA8", 1, true),
+            f .. " has its own minus")
+    end
+end)
+
 t.done()

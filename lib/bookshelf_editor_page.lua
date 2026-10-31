@@ -273,24 +273,20 @@ end
 
 -- The stepper's - and + nudge a value in place, so they are grey cards
 -- (STYLE.md: a card nudges or opens, an outline chooses or commits), with the
--- symbols font's minus and plus as the ornament menu's: one width, where the
--- text minus ran wider than its +.
-local MINUS_GLYPH = "\xEF\x81\xA8"   -- U+F068
-local PLUS_GLYPH  = "\xEF\x91\x8D"   -- U+F44D
+-- kit's minus and plus (Kit.MINUS, Kit.PLUS; Kit is loaded on the first
+-- render, so read where they are used).
 -- nudgeCard(glyph, callback, h, enabled, size) -> a square grey card with
 -- a symbols-font glyph: a stepper's - and +, a Shelf order row's up and down.
 function Ctx:nudgeCard(glyph, callback, h, enabled, size)
-    local btn = Kit.button{ icon_glyph = glyph,
+    return Kit.button{ icon_glyph = glyph, card = true,
         icon_face = Font:getFace("symbols", size or math.max(10, self.fs - 4)), width = h,
-        height = h, border = 0, instant = true, enabled = enabled, on_tap = callback }
-    Kit.cardify(btn[1])
-    return btn
+        height = h, instant = true, enabled = enabled, on_tap = callback }
 end
 
 function R.stepper(ctx, b)
     local h = ctx:cardH() - Space.px(8)
-    local minus = ctx:nudgeCard(MINUS_GLYPH, b.on_dec, h)
-    local plus = ctx:nudgeCard(PLUS_GLYPH, b.on_inc, h)
+    local minus = ctx:nudgeCard(Kit.MINUS, b.on_dec, h)
+    local plus = ctx:nudgeCard(Kit.PLUS, b.on_inc, h)
     local value = CenterContainer:new{ dimen = Geom:new{ w = Space.px(84), h = h },
         ctx:text(b.value, { bold = true }) }
     ctx.layout[#ctx.layout + 1] = { minus, plus }

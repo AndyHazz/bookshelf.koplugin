@@ -83,18 +83,15 @@ function Slider.new(o)
     -- stepButton(d, by): a grey card stepping by d * by, labelled with the
     -- step ("-10", "+5"): the fine step beside the track, the big one
     -- outside it (maintainer: keep both nudges).
-    -- The symbols font's minus and plus (U+F068, U+F44D) before the number:
-    -- one width, where the text minus ran wider than its +.
-    local MINUS, PLUS = "\xEF\x81\xA8", "\xEF\x91\x8D"
+    -- The kit's minus and plus before the number.
+    local MINUS, PLUS = Kit.MINUS, Kit.PLUS
     local glyph_face = require("ui/font"):getFace("symbols", math.max(10, (o.face and o.face.orig_size or 18) - 4))
     local function stepButton(d, by, label)
         local enabled = (d < 0 and value > o.min) or (d > 0 and value < o.max)
-        local btn = Kit.button{ text = label, face = o.face, icon_glyph = d < 0 and MINUS or PLUS,
-            icon_face = glyph_face, gap = Space.px(2), pad_h = Space.px(8),
-            height = btn_h, border = 0, enabled = enabled, instant = true,
+        return Kit.button{ text = label, face = o.face, icon_glyph = d < 0 and MINUS or PLUS,
+            icon_face = glyph_face, gap = Space.px(2), pad_h = Space.px(8), card = true,
+            height = btn_h, enabled = enabled, instant = true,
             on_tap = function() commit(value + d * by) end }
-        Kit.cardify(btn[1])
-        return btn
     end
     local step = o.step or 1
     local fine_label = o.step_label or tostring(step)

@@ -178,11 +178,10 @@ local function kbutton(o)
         icon_glyph = o.glyph,
         icon_face = o.glyph and Font:getFace("symbols", o.glyph_size or (FS + 6)) or nil,
         height = o.h, pad_h = o.pad_h, width = o.width, enabled = enabled, on_tap = o.on_tap,
-        border = o.card and 0 or nil, square_bottom = o.square_bottom,
+        card = o.card, square_bottom = o.square_bottom,
         -- A nudge acts at once, no pressed look first (STYLE.md).
         instant = o.instant,
     }
-    if o.card then Kit.cardify(btn[1]) end
     btn.callback = o.on_tap
     btn.enabled = enabled
     return btn
@@ -231,9 +230,10 @@ function Editor:_buildToolbar()
     local function stepper(label, axis, value)
         if on_shelf and axis == "h" then return nil end
         -- Grey cards: they nudge a value (STYLE.md), as every stepper's.
-        local minus = kbutton{ glyph = "\xEF\x81\xA8", h = h, pad_h = Space.px(14), card = true, instant = true,
+        local Kit = require("lib/bookshelf_popup_kit")
+        local minus = kbutton{ glyph = Kit.MINUS, h = h, pad_h = Space.px(14), card = true, instant = true,
             enabled = s:canResize(axis, -1), on_tap = function() s:resize(axis, -1) end }
-        local plus = kbutton{ glyph = "\xEF\x91\x8D", h = h, pad_h = Space.px(14), card = true, instant = true,
+        local plus = kbutton{ glyph = Kit.PLUS, h = h, pad_h = Space.px(14), card = true, instant = true,
             enabled = s:canResize(axis, 1), on_tap = function() s:resize(axis, 1) end }
         local CenterContainer = require("ui/widget/container/centercontainer")
         local val = CenterContainer:new{ dimen = Geom:new{ w = Space.px(48), h = h },
@@ -289,7 +289,6 @@ function Editor:_buildToolbar()
         end
         return out
     end
-
 
     -- The d-pad at the left: three rows of square cells, the arrows round
     -- an empty middle. Beside it, a line for each of its rows: Width,
@@ -388,8 +387,8 @@ function Editor:_buildToolbar()
     local title_h = math.max(title_w:getSize().h, xb:getSize().h)
     local title_row = line({ HorizontalSpan:new{ width = xw },
         CenterContainer:new{ dimen = Geom:new{ w = math.max(1, tw - xw), h = title_h }, title_w } }, 0)
-    local head = rows
-    table.insert(head, 1, { xb })
+    -- The X is the keys' first row.
+    table.insert(rows, 1, { xb })
     local VG = VerticalGroup:new{ align = "left", body }
     local LineWidget = require("ui/widget/linewidget")
     local inner_w = width - 2 * Size.border.window
@@ -403,7 +402,7 @@ function Editor:_buildToolbar()
         FrameContainer:new{ bordersize = 0, padding = inset, padding_top = Space.px(14),
             width = inner_w, VG },
     }
-    self._bar_rows = head
+    self._bar_rows = rows
     return FrameContainer:new{
         background = Blitbuffer.COLOR_WHITE,
         bordersize = Size.border.window,

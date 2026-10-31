@@ -676,12 +676,23 @@ function Kit.hintText(text, font_size, width, align)
         fgcolor = Blitbuffer.COLOR_DARK_GRAY }
 end
 
+-- The steppers' minus and plus: the symbols font's pair (U+F068, U+F44D),
+-- one width, where the text minus ran wider than its +.
+Kit.MINUS, Kit.PLUS = "\xEF\x81\xA8", "\xEF\x91\x8D"
+
 -- button(opts) -> a small rounded button (lib/bookshelf_chip_button) with the
--- popup's border and corner. Takes ChipButton.build's options.
+-- popup's border and corner. Takes ChipButton.build's options, and
+-- opts.card: a grey card with no border (STYLE.md: it nudges a value or
+-- opens a thing) rather than an outline.
 function Kit.button(opts)
+    local card = opts.card
+    opts.card = nil
+    if card then opts.border = 0 end
     opts.border = opts.border or Kit.BORDER
     opts.radius = opts.radius or Kit.RADIUS
-    return require("lib/bookshelf_chip_button").build(opts)
+    local btn = require("lib/bookshelf_chip_button").build(opts)
+    if card then Kit.cardify(btn[1]) end
+    return btn
 end
 
 -- headerButton(o) -> a tab's own action (Edit, Refresh, Choose from device):

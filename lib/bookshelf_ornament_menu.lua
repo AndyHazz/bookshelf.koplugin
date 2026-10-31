@@ -25,9 +25,6 @@ local CHEV_DOWN = "\xEE\xA0\xBF"   -- U+E83F mdi-chevron-down
 local CHEV_LEFT  = "\xEE\xA1\x80"  -- U+E840 mdi-chevron-left
 local CHEV_RIGHT = "\xEE\xA1\x81"  -- U+E841 mdi-chevron-right
 local GLYPH_SIZE = 28
--- The steppers' minus and plus: the symbols font's pair, one width.
-local MINUS_GLYPH = "\xEF\x81\xA8"   -- U+F068
-local PLUS_GLYPH  = "\xEF\x91\x8D"   -- U+F44D
 -- The piece's picture, top left beside its name: what is being edited, even
 -- while it is switched off and gone from the shelf. A tall piece may rise a
 -- quarter of its height above the dialog's frame, over a drop shadow cast by
@@ -130,6 +127,7 @@ function M.show(entry, bw, piece, widget, opts)
     local TextWidget      = require("lib/bookshelf_colour_text")
     local Kit             = require("lib/bookshelf_popup_kit")
     local Space           = require("lib/bookshelf_space")
+    local MINUS_GLYPH, PLUS_GLYPH = Kit.MINUS, Kit.PLUS
     local Orn = O()
     -- The LIVE entry for this piece: the shelf's own may be older than the
     -- last rescan (see Orn.current). Every label below reads this upvalue.
@@ -172,10 +170,8 @@ function M.show(entry, bw, piece, widget, opts)
         local btn = Kit.button{ text = o.text, face = o.text and face or nil,
             icon_glyph = o.glyph, icon_face = o.glyph and Font:getFace("symbols", o.glyph_size or (FS + 6)) or nil,
             height = h, width = o.width, pad_h = o.pad_h, gap = o.gap, enabled = o.enabled,
-            instant = o.instant,
-            border = (not o.outline) and 0 or nil,
+            instant = o.instant, card = not o.outline,
             on_tap = o.on_tap, on_hold = o.on_hold }
-        if not o.outline then Kit.cardify(btn[1]) end
         return btn
     end
     local function text(t, o)

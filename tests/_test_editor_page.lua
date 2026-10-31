@@ -88,7 +88,7 @@ t.test("a stepper's - and + are grey cards, as the ornament menu's", function()
     assert(body, "R.stepper moved")
     assert(not body:find("smallButton", 1, true), "the stepper is still outlined buttons")
     local card = src:match("\n(function Ctx:nudgeCard%(.-\nend)\n")
-    assert(body:find("ctx:nudgeCard(", 1, true) and card and card:find("Kit.cardify", 1, true),
+    assert(body:find("ctx:nudgeCard(", 1, true) and card and card:find("card = true", 1, true),
         "the stepper's buttons are not cards")
     assert(body:find("\\xEF\\x81\\xA8", 1, true) or body:find("MINUS", 1, true),
         "the minus is not the symbols font's")

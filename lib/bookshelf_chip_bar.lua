@@ -291,7 +291,9 @@ local function _buildLabelContent(label, size, max_w, ink, inverted, own_case, f
             tw:free()
         end
     end
-    local text_budget = math.max(0, max_w - icon_w)
+    -- No max_w (the breadcrumb pill): no limit; arithmetic on nil crashed
+    -- KOReader opening a folder on an icon-named shelf (PW5).
+    local text_budget = max_w and math.max(0, max_w - icon_w)
     local hg = HorizontalGroup:new{ align = "center" }
     for _i, seg in ipairs(segments) do
         local is_text = (seg.class == "text")

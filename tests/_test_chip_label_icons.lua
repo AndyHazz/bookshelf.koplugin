@@ -26,4 +26,13 @@ t.test("an image segment is drawn, sized, and coloured as the label", function()
         "the chip does not say when it inverts (a coloured icon would come out inverted)")
 end)
 
+-- PW5, 2026-10-31: opening a folder on a shelf named "[icon=NAME] Home"
+-- crashed KOReader: the breadcrumb's pill builds the label with no width
+-- (arrowPillFrame passes nil) and the mixed branch did max_w - icon_w.
+t.test("a mixed label with no width limit is not an error", function()
+    local build = bar:match("local function _buildLabelContent%(label, size, max_w, ink, inverted, own_case, face%)(.-)\nend\n")
+    assert(build and build:find("local text_budget = max_w and math.max(0, max_w - icon_w)", 1, true),
+        "nil max_w is arithmetic on nil")
+end)
+
 t.done()

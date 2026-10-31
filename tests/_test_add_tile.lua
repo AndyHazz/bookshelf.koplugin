@@ -49,4 +49,17 @@ t.test("the grid and the list draw the + tile with AddTile", function()
     assert(lg:find('require("lib/bookshelf_add_tile")', 1, true), "the list does not use AddTile")
 end)
 
+-- A list draws its own panel under its rows: the tile there is see-through
+-- in the rows' ink. Its own fill was the page's light paper, with black ink,
+-- on a dark panel (maintainer, PW5).
+t.test("on a list the tile has no fill of its own and the rows' ink", function()
+    local lg = io.open("lib/bookshelf_list_group.lua"):read("*a")
+    assert(lg:find('ink            = require("lib/bookshelf_list_row").ROW_FG,', 1, true), "not the rows' ink")
+    assert(lg:find("no_fill        = true,", 1, true), "its own fill on a list")
+    local src = io.open("lib/bookshelf_add_tile.lua"):read("*a")
+    assert(src:find("if self.no_fill then self._fill = nil end", 1, true))
+    assert(src:find('if type(self.ink) ~= "nil" then self._ink = self.ink end', 1, true))
+    assert(src:find('require("lib/bookshelf_fonts"):getFace("cfont", size', 1, true), "not the UI font")
+end)
+
 t.done()

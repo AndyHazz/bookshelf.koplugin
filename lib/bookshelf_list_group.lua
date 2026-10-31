@@ -563,6 +563,8 @@ function Group.tile(item, width, height, opts)
             on_hold        = opts.on_hold and function() return opts.on_hold() end,
             is_selected    = opts.selected or nil,
             reserve_shadow = false,
+            ink            = require("lib/bookshelf_list_row").ROW_FG,
+            no_fill        = true,
         })
     end
     local StackDisplay = require("lib/bookshelf_stack_display")

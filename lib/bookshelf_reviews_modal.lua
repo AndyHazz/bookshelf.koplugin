@@ -1173,6 +1173,17 @@ end
 -- rebuildTab(): reassemble in place (rebuilds the active body fresh). Used by
 -- the Edit tab after an immediate action so its buttons re-read live state
 -- (status tick, rating stars, favourite +/-). No-ops safely after dismiss.
+-- dropHeader(): the kept header goes (its own cover freed), so the next
+-- assemble builds it again: what it says changed (the reading line after a
+-- status change).
+function ReviewsModal:dropHeader()
+    if self._owned_cover_bb and self._owned_cover_bb.free then
+        pcall(function() self._owned_cover_bb:free() end)
+    end
+    self._owned_cover_bb = nil
+    self._header_widget = nil
+end
+
 function ReviewsModal:rebuildTab()
     if self._dismissed then return end
     self:_assemble()

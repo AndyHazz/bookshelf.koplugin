@@ -22722,6 +22722,8 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                 face = Font:getFace("cfont", font_size), width = content_w - 2 * inset,
                 on_pick = function(key)
                     bw:_commitBookStatus(book, key)
+                    -- The header's reading line says the status too.
+                    if modal and modal.dropHeader then modal:dropHeader() end
                     refreshInPlace()
                 end,
             }

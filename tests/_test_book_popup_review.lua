@@ -50,4 +50,15 @@ t.test("the review tabs' switch and buttons take the keys", function()
         "My review's Edit does not take the keys")
 end)
 
+-- Rig, 2026-10-31: the header is kept for the popup's life, so after
+-- picking Finished it still read "Unopened" beside the black Finished.
+t.test("a status change builds the header again, its reading line with it", function()
+    local rm = io.open("lib/bookshelf_reviews_modal.lua"):read("*a")
+    local drop = rm:match("\n(function ReviewsModal:dropHeader%(%).-\nend)\n")
+    assert(drop and drop:find("self._header_widget = nil", 1, true), "no way to drop the kept header")
+    assert(drop:find("_owned_cover_bb", 1, true), "a dropped header's own cover is not freed")
+    local seg = w:match("on_pick = function%(key%)\n%s*bw:_commitBookStatus%(book, key%)(.-)end,")
+    assert(seg and seg:find("modal:dropHeader()", 1, true), "the status change keeps the old header")
+end)
+
 t.done()

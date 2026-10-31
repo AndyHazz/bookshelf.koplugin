@@ -589,6 +589,23 @@ local pet = Kit.plugin(MODULE_DIR)
 if pet then ... end
 ```
 
+Your plugin can also offer to put its module on the reader's home shelf (the
+first shelf on the chip strip that holds books), the way a plugin puts a card
+on another home screen. `Kit.setOnHomeShelf(key, true)` puts it first on that
+shelf at its starting width, `Kit.setOnHomeShelf(key, false)` takes it off, and
+`Kit.onHomeShelf(key)` says whether it is there; a shelf on screen redraws.
+`setOnHomeShelf` returns `false` when there is nothing to do it with (Bookshelf
+doesn't know the module, or no shelf holds books). Only call it from something
+the reader chose, a tick in your settings or your welcome screen: the home
+shelf is theirs. Check the function exists first, so an older Bookshelf
+without it reads as not installed:
+
+```lua
+local ok, Kit = pcall(require, "lib/bookshelf_module_kit")
+local bookshelf = ok and Kit.setOnHomeShelf ~= nil
+if bookshelf and reader_ticked_it then Kit.setOnHomeShelf("mypack_card", true) end
+```
+
 **Precedence.** A module in the user drop-in folder wins over one of the same
 key in a pack, and a pack's wins over a bundled one. Keep your keys distinctive
 (`readinglog_rings`, not `rings`) so two packs never collide.

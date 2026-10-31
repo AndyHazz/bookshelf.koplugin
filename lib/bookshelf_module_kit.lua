@@ -371,6 +371,40 @@ function Kit.plugin(dir)
     return SM.pluginOf and SM.pluginOf(dir) or nil
 end
 
+-- onHomeShelf(key) -> true when the reader's home shelf (the first shelf on
+-- the chip strip that holds books) holds module `key`.
+-- setOnHomeShelf(key, on) -> puts module `key` first on the home shelf, at its
+-- starting width, or takes it off; true when that is where things now stand
+-- (false: no such module, or no home shelf). A shelf on screen redraws.
+-- For a pack's own plugin, and only from something the reader chose (a tick
+-- in its settings or its welcome screen): the home shelf is theirs.
+function Kit.onHomeShelf(key)
+    local ok, on = pcall(function()
+        return require("lib/bookshelf_shelf_modules").onHome(key, require("lib/bookshelf_tab_model").load())
+    end)
+    return ok and on or false
+end
+
+function Kit.setOnHomeShelf(key, on)
+    local ShelfModules = require("lib/bookshelf_shelf_modules")
+    local TabModel = require("lib/bookshelf_tab_model")
+    local def = SM.get(key)
+    if on and not def then return false end
+    local tabs = TabModel.load()
+    local changed, home, removed = ShelfModules.setOnHome(key, on and true or false, tabs,
+        ShelfModules.startWidth(def))
+    if not home then return false end
+    if changed then
+        TabModel.save(tabs)
+        for _i, m in ipairs(removed or {}) do SM.notifyRemoved(m) end
+        -- The shelf on screen redraws (BookshelfWidget:onBookshelfShelfModulesChanged).
+        local UIManager = require("ui/uimanager")
+        local Event = require("ui/event")
+        UIManager:broadcastEvent(Event:new("BookshelfShelfModulesChanged", home.id))
+    end
+    return true
+end
+
 -- Per-module SHARED store handle (caches, per-type defaults), backed by the
 -- separate bookshelf_micromodules.lua file (not the main bookshelf.lua).
 -- Namespaced by module key, so collisions across modules are impossible. Use

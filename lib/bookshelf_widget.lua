@@ -16655,6 +16655,21 @@ function BookshelfWidget:onBookshelfRefreshLibrary()
     return true
 end
 
+-- A plugin put its module on a shelf or took it off (Kit.setOnHomeShelf, from
+-- something the reader chose): the shelf on screen rebuilds with it. Under
+-- another window (the plugin's own screen, usually) no refresh: the window's
+-- close repaints the shelf as it is now. Any other shelf reads it when shown.
+function BookshelfWidget:onBookshelfShelfModulesChanged(tab_id)
+    if self._closed or self.chip ~= tab_id then return end
+    self:_rebuild()
+    if UIManager:getTopmostVisibleWidget() == self then
+        UIManager:setDirty(self, "ui")
+    else
+        local ok, Underlay = pcall(require, "lib/bookshelf_underlay")
+        if ok and Underlay and Underlay.invalidate then Underlay.invalidate() end
+    end
+end
+
 function BookshelfWidget:onBookshelfToggleHero()
     -- Collapse/restore the hero in both modes (in micro mode this hides /
     -- shows the module grid).

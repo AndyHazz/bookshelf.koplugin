@@ -258,4 +258,58 @@ function M.isPlaceholder(item)
         or item.blank == true or item.shelf_module ~= nil)
 end
 
+-- ── The home shelf, for plugins (Kit.setOnHomeShelf) ────────────────────────
+-- A plugin with a module pack can put its module on the reader's home shelf
+-- when the reader asks it to (Silverfish's welcome screen, as it puts its card
+-- on Simple UI's home screen). The home shelf is the first shelf on the chip
+-- strip that holds books: not a hidden one, a sub-shelf, a card's own shelf or
+-- a shelf of shelves (which shows shelves, not modules).
+
+-- homeShelf(tabs) -> that shelf's record in tabs, or nil.
+function M.homeShelf(tabs)
+    local TabModel = require("lib/bookshelf_tab_model")
+    for _i, t in ipairs(tabs or {}) do
+        if t.enabled ~= false and not t.parent and not t.card_only and not TabModel.isShelves(t) then
+            return t
+        end
+    end
+    return nil
+end
+
+-- onHome(key, tabs) -> true when the home shelf holds module `key`.
+function M.onHome(key, tabs)
+    local home = M.homeShelf(tabs)
+    for _i, m in ipairs(home and home[M.KEY] or {}) do
+        if m.module == key then return true end
+    end
+    return false
+end
+
+-- setOnHome(key, on, tabs, w) -> changed, home, removed: puts module `key`
+-- first on the home shelf at width w, once, or takes every copy of it off
+-- (removed: those entries, for the module's on_remove). Changes tabs in
+-- place; the caller saves them.
+function M.setOnHome(key, on, tabs, w)
+    local home = M.homeShelf(tabs)
+    if not home or on == M.onHome(key, tabs) then return false, home end
+    local mods = home[M.KEY] or {}
+    if on then
+        local used = {}
+        for _i, m in ipairs(mods) do used[m.id] = true end
+        local k = 1
+        while used["sm_" .. k] do k = k + 1 end
+        -- First in the list as well as after = 0: modules at the same place
+        -- keep their list order (ordered), so it stands before them.
+        table.insert(mods, 1, { id = "sm_" .. k, type = "module", module = key, after = 0, w = w or 2 })
+        home[M.KEY] = mods
+        return true, home
+    end
+    local keep, removed = {}, {}
+    for _i, m in ipairs(mods) do
+        if m.module == key then removed[#removed + 1] = m else keep[#keep + 1] = m end
+    end
+    home[M.KEY] = keep
+    return true, home, removed
+end
+
 return M

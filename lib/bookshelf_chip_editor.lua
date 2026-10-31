@@ -1157,6 +1157,7 @@ function Editor:editTab(tab_id, opts)
         }
         -- The shelf's name with its pictures, as the shelf menu shows it.
         Kit.iconTitle(title_bar, title_bar.title)
+        Kit.backLabel(title_bar)
         local blocks_vg, blocks_layout
         if spec.page then blocks_vg, blocks_layout = renderBlocks(page, title_bar:getSize().h) end
         if not spec.page then page.back = back end

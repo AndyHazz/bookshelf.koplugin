@@ -869,7 +869,52 @@ function Kit.iconTitle(title_bar, title)
         end
     end
     title_bar.title_widget = label
+    -- The text's own font and baseline, for what lines up with it (backLabel).
+    title_bar._text_face, title_bar._text_baseline = old.face, old:getBaseline()
     old:free()
+    return title_bar
+end
+
+-- backLabel(title_bar) -> title_bar: "Back" beside a stock TitleBar's back
+-- chevron, where it clears the centred title with padding; nothing where
+-- it would crowd it. The chevron alone was easy to miss (maintainer). A tap
+-- on it goes back as the chevron does; where the chevron's own tap zone
+-- reaches over it, the chevron takes the tap (one back, not two).
+function Kit.backLabel(title_bar)
+    local btn = title_bar and title_bar.left_button
+    local tw = title_bar and title_bar.title_widget
+    local face = tw and (tw.face or title_bar._text_face)
+    if not (btn and tw and tw.getSize and face) then return title_bar end
+    local _ = require("lib/bookshelf_i18n").gettext
+    local label = TextWidget:new{ text = _("Back"), face = face,
+        fgcolor = Blitbuffer.COLOR_BLACK }
+    local pad = title_bar.button_padding or Space.px(11)
+    local x = pad + (btn.width or 0) + Space.px(4)
+    local lw = label:getSize().w
+    local title_left = math.floor((title_bar.width - tw:getSize().w) / 2)
+    local gap = Space.px(24)
+    if x + lw + gap > title_left then
+        label:free()
+        return title_bar
+    end
+    -- On the title's baseline: the title sits under the bar's top padding
+    -- (its title_group's first span).
+    local group = title_bar.title_group
+    local top = (group and group[1] and group[1].width) or 0
+    local base = (tw.getBaseline and tw:getBaseline()) or title_bar._text_baseline or label:getBaseline()
+    local y = top + (base - label:getBaseline())
+    local cell = InputContainer:new{
+        dimen = Geom:new{ x = 0, y = 0, w = lw + Space.px(12), h = label:getSize().h },
+        label,
+    }
+    cell.ges_events = { TapBack = { GestureRange:new{ ges = "tap",
+        range = function() return cell.dimen end } } }
+    function cell:onTapBack()
+        if title_bar.left_icon_tap_callback then title_bar.left_icon_tap_callback() end
+        return true
+    end
+    cell.overlap_offset = { x, y }
+    table.insert(title_bar, cell)
     return title_bar
 end
 

@@ -503,7 +503,7 @@ end
 
 for _, name in ipairs({
     "_pickSource", "_openFilters", "_pickChoiceFilter",
-    "_pickMultiFilter", "_pickFolderFilter", "_openSort",
+    "_pickFolderFilter", "_openSort",
 }) do
     t.test(name .. " anchors its dialog above the shelf", function()
         local body = bodyOf(name)
@@ -515,6 +515,19 @@ for _, name in ipairs({
             .. "it is configuring")
     end)
 end
+
+-- The value pickers share one searchable grid (Editor._searchGrid), always a
+-- page of the editor: the ButtonDialog fallbacks went (LibraryModal is ours
+-- and always loads, as the folder picker found).
+t.test("the filter and source pickers are the shared grid, as pages of the editor", function()
+    local body = bodyOf("_pickMultiFilter")
+    assert(body:find("Editor._searchGrid{", 1, true), "the filter picker builds its own grid")
+    assert(body:find("over     = Editor._over(", 1, true), "the filter picker is not a page of the editor")
+    assert(not body:find("Editor._menu{", 1, true), "the ButtonDialog fallback is back")
+    local src = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
+    local pick = src:match("local function pickById%(.-\n    end\n")
+    assert(pick and pick:find("Editor._searchGrid{", 1, true), "the source picker builds its own grid")
+end)
 
 t.test("the editor itself anchors above the shelf, like its pickers", function()
     -- The editor opened in the bottom third, on the reasoning that the chip

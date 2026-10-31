@@ -2852,15 +2852,83 @@ end
 -- genre, an author...) opens a picker of its own, as a page of the editor,
 -- populated from real data (the folder list, ReadCollection, or the
 -- repository's group fetchers).
+-- _searchGrid(spec) -> a LibraryModal shown as a page of the editor: a
+-- search box, two columns of picker cells (bookshelf_picker_cell), and with
+-- spec.sortable (and choices that carry book counts) an A-Z | Most books
+-- switch beside the search box, the order kept for the session. The Source
+-- page's pickers and the filter pickers share it.
+--   spec.choices { {value, label, count?}... }, spec.title, spec.over,
+--   spec.selected(item) -> ticked (a multi-select), spec.select_on_tap,
+--   spec.on_cell_tap(item), spec.cell_long_tap(item), spec.header_actions,
+--   spec.footer_actions
+function Editor._searchGrid(spec)
+    local LibraryModal = require("lib/bookshelf_library_modal")
+    local PickerSort = require("lib/bookshelf_picker_sort")
+    local Screen_ = require("device").screen
+    local choices = spec.choices or {}
+    local sortable = spec.sortable and PickerSort.hasCounts(choices)
+    if sortable then choices = PickerSort.sort(choices, Editor._picker_order) end
+    local query, visible = nil, choices
+    local function recompute()
+        if not query or query == "" then visible = choices; return end
+        visible = {}
+        local q = query:lower()
+        for _i, c in ipairs(choices) do
+            if c.label:lower():find(q, 1, true) then visible[#visible + 1] = c end
+        end
+    end
+    local modal
+    modal = LibraryModal:new{ config = {
+        title              = spec.title,
+        over               = spec.over,
+        search_placeholder = function() return _("Search\xE2\x80\xA6") end,
+        on_search_submit   = function(q)
+            query = q
+            recompute()
+            if modal then modal.page = 1; modal:refresh() end
+        end,
+        chip_strip = sortable and function()
+            local items = {}
+            for _i, it in ipairs(PickerSort.items()) do
+                items[#items + 1] = { key = it.key, label = it.label,
+                    is_active = it.key == (Editor._picker_order or "az") }
+            end
+            return items
+        end or nil,
+        chips_beside_search = true,
+        on_chip_tap = function(key)
+            Editor._picker_order = key
+            choices = PickerSort.sort(choices, key)
+            recompute()
+        end,
+        grid_cols      = 2,
+        -- 5 rows portrait, 4 landscape.
+        cells_per_page = function()
+            return Screen_:getWidth() > Screen_:getHeight() and 8 or 10
+        end,
+        item_count  = function() return #visible end,
+        item_at     = function(idx) return visible[idx] end,
+        -- The same cell in every picker and in the Collection Manager.
+        cell_renderer = function(item, dimen)
+            return require("lib/bookshelf_picker_cell").render(item, dimen,
+                spec.selected and { selected = spec.selected(item) } or nil)
+        end,
+        select_on_tap  = spec.select_on_tap,
+        on_cell_tap    = spec.on_cell_tap,
+        cell_long_tap  = spec.cell_long_tap,
+        header_actions = spec.header_actions,
+        footer_actions = spec.footer_actions,
+    } }
+    UIManager:show(modal)
+    return modal
+end
+
 function Editor:_pickSource(draft, on_close)
     local Repo = require("lib/bookshelf_book_repository")
     local d
 
-    -- pickById: search-enabled, paginated 2-column card picker for
-    -- choosing from a list of N items (collections, genres, authors).
-    -- Uses bookshelf_library_modal (ported from bookends) so bookshelf
-    -- works standalone. ButtonDialog fallback retained as a safety net
-    -- in case the LibraryModal require ever fails.
+    -- pickById: a searchable picker (Editor._searchGrid) for choosing one
+    -- of a list (collections, genres, authors...).
     -- The picker's breadcrumb, by kind.
     local PICK_CRUMB = {
         series = _("Series"), author = _("Author"), genre = _("Genre"),
@@ -2869,159 +2937,43 @@ function Editor:_pickSource(draft, on_close)
         ["OPDS catalog"] = _("OPDS catalog"),
     }
     local function pickById(kind, choices, on_pick, opts)
-        local ok_lm, LibraryModal = pcall(require, "lib/bookshelf_library_modal")
-        if ok_lm and LibraryModal and LibraryModal.new then
-            local Font          = require("ui/font")
-            local TextWidget    = require("lib/bookshelf_colour_text")
-            local VerticalGroup_ = require("ui/widget/verticalgroup")
-            local VerticalSpan  = require("ui/widget/verticalspan")
-            local FrameContainer_ = require("ui/widget/container/framecontainer")
-            local CenterContainer_= require("ui/widget/container/centercontainer")
-            local Blitbuffer_   = require("ffi/blitbuffer")
-            local Screen_       = require("device").screen
-
-            -- A-Z or most books first, when the choices carry book counts
-            -- (authors, series, genres...): a switch beside the search box.
-            -- The order picked lasts the session, for the next picker too.
-            local PickerSort = require("lib/bookshelf_picker_sort")
-            local sortable = PickerSort.hasCounts(choices)
-            if sortable then
-                choices = PickerSort.sort(choices, Editor._picker_order)
-            end
-
-            local query = nil
-            local function matches(label, q)
-                if not q or q == "" then return true end
-                return label:lower():find(q:lower(), 1, true) ~= nil
-            end
-            local visible = choices
-            local function recompute()
-                if not query or query == "" then
-                    visible = choices
-                else
-                    visible = {}
-                    for _i,c in ipairs(choices) do
-                        if matches(c.label, query) then visible[#visible + 1] = c end
-                    end
+        local modal
+        modal = Editor._searchGrid{
+            choices  = choices,
+            sortable = true,
+            title    = (opts and opts.title) or PICK_CRUMB[kind] or kind,
+            -- A page of the editor: Home > Source > Series.
+            over     = Editor._over({
+                TabModel.isCardOnly(draft) and _("Shelf module source") or _("Source"),
+                PICK_CRUMB[kind] or kind }),
+            -- No selected state: pickers are one-shot select-and-close.
+            on_cell_tap = function(item)
+                UIManager:close(modal)
+                on_pick(item.value)
+            end,
+            cell_long_tap = (opts and opts.on_cell_hold) and function(item)
+                UIManager:close(modal)
+                opts.on_cell_hold(item)
+            end or nil,
+            -- Extra actions (the folder picker's Browse device, Add
+            -- catalog...) are the screen's own: on the strip under the
+            -- title, each closing the picker before it runs.
+            header_actions = (function()
+                local actions = {}
+                for _i, a in ipairs(opts and opts.extra_footer_actions or {}) do
+                    actions[#actions + 1] = { label = a.label, on_tap = function()
+                        UIManager:close(modal)
+                        a.on_tap()
+                    end }
                 end
-            end
-
-            local modal
-            modal = LibraryModal:new{
-                config = {
-                    title              = (opts and opts.title) or (_("Choose ") .. kind),
-                    -- A page of the editor: Home > Source > Series.
-                    over               = Editor._over({
-                        TabModel.isCardOnly(draft) and _("Shelf module source") or _("Source"),
-                        PICK_CRUMB[kind] or kind }),
-                    search_placeholder = function() return _("Search\xE2\x80\xA6") end,
-                    on_search_submit   = function(q)
-                        query = q
-                        recompute()
-                        if modal then modal.page = 1; modal:refresh() end
-                    end,
-                    chip_strip = sortable and function()
-                        local items = {}
-                        for _i, it in ipairs(PickerSort.items()) do
-                            items[#items + 1] = { key = it.key, label = it.label,
-                                is_active = it.key == (Editor._picker_order or "az") }
-                        end
-                        return items
-                    end or nil,
-                    chips_beside_search = true,
-                    on_chip_tap = function(key)
-                        Editor._picker_order = key
-                        choices = PickerSort.sort(choices, key)
-                        recompute()
-                    end,
-                    grid_cols    = 2,
-                    cells_per_page = function()
-                        -- 2-column grid; 5 rows portrait, 4 landscape.
-                        return Screen_:getWidth() > Screen_:getHeight() and 8 or 10
-                    end,
-                    item_count   = function() return #visible end,
-                    item_at      = function(idx) return visible[idx] end,
-                    -- Shared cell renderer: same visual treatment in every
-                    -- picker (folder, author, series, genre, format, rating,
-                    -- collection) AND in the Collection Manager. No selected
-                    -- state here -- pickers are one-shot select-and-close.
-                    cell_renderer = function(item, dimen)
-                        return require("lib/bookshelf_picker_cell").render(item, dimen)
-                    end,
-                    on_cell_tap = function(item)
-                        UIManager:close(modal)
-                        on_pick(item.value)
-                    end,
-                    cell_long_tap = (opts and opts.on_cell_hold) and function(item)
-                        UIManager:close(modal)
-                        opts.on_cell_hold(item)
-                    end or nil,
-                    -- Extra actions (e.g. the folder picker's "Browse
-                    -- device") are the screen's own: on the strip under the
-                    -- title. Each is wrapped so the modal is torn down
-                    -- before the handler runs -- the handler typically opens
-                    -- another widget and shouldn't have to juggle this
-                    -- modal's handle.
-                    header_actions = (function()
-                        local actions = {}
-                        if opts and opts.extra_footer_actions then
-                            for _i, a in ipairs(opts.extra_footer_actions) do
-                                actions[#actions + 1] = {
-                                    label  = a.label,
-                                    on_tap = function()
-                                        UIManager:close(modal)
-                                        a.on_tap()
-                                    end,
-                                }
-                            end
-                        end
-                        return actions
-                    end)(),
-                    footer_actions = (function()
-                        local actions = {}
-                        actions[#actions + 1] = {
-                            label  = _("Close"),
-                            -- Signal cancel via nil so the caller can
-                            -- reopen the parent picker. Without this, Close
-                            -- just dismissed back to the editor's dialog,
-                            -- losing the user's place in the picker chain.
-                            on_tap = function()
-                                UIManager:close(modal)
-                                on_pick(nil)
-                            end,
-                        }
-                        return actions
-                    end)(),
-                },
-            }
-            UIManager:show(modal)
-            return
-        end
-        -- Fallback: flat ButtonDialog (limited for huge lists, but works
-        -- when bookends isn't installed).
-        local k
-        local rows = {}
-        for _i,c in ipairs(choices) do
-            rows[#rows + 1] = {{
-                text     = c.label,
-                callback = function() on_pick(c.value); Editor._closeMenu(k) end,
-            }}
-        end
-        if opts and opts.extra_footer_actions then
-            for _i, a in ipairs(opts.extra_footer_actions) do
-                rows[#rows + 1] = {{
-                    text     = a.label,
-                    callback = function() Editor._closeMenu(k); a.on_tap() end,
-                }}
-            end
-        end
-        rows[#rows + 1] = {{
-            text     = _("Cancel"),
-            callback = function() Editor._closeMenu(k); on_pick(nil) end,
-        }}
-        k = Editor._menu{
-            title   = (opts and opts.title) or _("Choose " .. kind),
-            buttons = rows,
+                return actions
+            end)(),
+            -- Close signals cancel with nil, so the caller can reopen the
+            -- picker it came from rather than dropping back to the editor.
+            footer_actions = { { label = _("Close"), on_tap = function()
+                UIManager:close(modal)
+                on_pick(nil)
+            end } },
         }
     end
     -- Built-in shortcuts + working custom kinds.
@@ -3595,171 +3547,38 @@ function Editor:_pickMultiFilter(draft, dim_key, on_close, opts)
     end
 
 
-    -- LibraryModal path (lazy + pcall-guarded so the module still loads
-    -- headlessly in _test_chip_editor.lua, which stubs nothing from this
-    -- require tree).
-    local ok_lm, LibraryModal = pcall(require, "lib/bookshelf_library_modal")
-    if ok_lm and LibraryModal and LibraryModal.new then
-        local Screen_ = require("device").screen
-
-        -- A-Z or most books first, as the Source page's pickers (statuses and
-        -- ratings are short fixed lists, kept in their own order).
-        local PickerSort = require("lib/bookshelf_picker_sort")
-        local sortable = dim_key ~= "statuses" and dim_key ~= "ratings"
-            and PickerSort.hasCounts(choices)
-        if sortable then
-            choices = PickerSort.sort(choices, Editor._picker_order)
-        end
-
-        local query = nil
-        local function matches(label, q)
-            if not q or q == "" then return true end
-            return label:lower():find(q:lower(), 1, true) ~= nil
-        end
-        local visible = choices
-        local function recompute()
-            if not query or query == "" then
-                visible = choices
-            else
-                visible = {}
-                for _i, c in ipairs(choices) do
-                    if matches(c.label, query) then visible[#visible + 1] = c end
-                end
-            end
-        end
-
-        local modal
-        modal = LibraryModal:new{
-            config = {
-                title              = title,
-                -- A page of the editor, over the Filters page it came from.
-                -- A page of the editor, over the Filters page it came from,
-                -- named as its row there names it (Home > Filters > Genre).
-                over               = Editor._over({ opts and opts.crumb or dimLabel(dim_key) or title }),
-                search_placeholder = function() return _("Search\xE2\x80\xA6") end,
-                on_search_submit   = function(q)
-                    query = q
-                    recompute()
-                    if modal then modal.page = 1; modal:refresh() end
-                end,
-                chip_strip = sortable and function()
-                    local items = {}
-                    for _i, it in ipairs(PickerSort.items()) do
-                        items[#items + 1] = { key = it.key, label = it.label,
-                            is_active = it.key == (Editor._picker_order or "az") }
-                    end
-                    return items
-                end or nil,
-                chips_beside_search = true,
-                on_chip_tap = function(key)
-                    Editor._picker_order = key
-                    choices = PickerSort.sort(choices, key)
-                    recompute()
-                end,
-                grid_cols      = 2,
-                cells_per_page = function()
-                    return Screen_:getWidth() > Screen_:getHeight() and 8 or 10
-                end,
-                item_count  = function() return #visible end,
-                item_at     = function(idx) return visible[idx] end,
-                cell_renderer = function(item, dimen)
-                    return require("lib/bookshelf_picker_cell").render(
-                        item, dimen, { selected = sel[item.value] == true })
-                end,
-                -- A tick marks the value at once (no pressed look first).
-                select_on_tap = true,
-                on_cell_tap = function(item)
-                    -- Toggle in place; never close/reopen (that's the old
-                    -- scroll-reset bug). refresh() re-renders the current
-                    -- page with updated selected states.
-                    if sel[item.value] then
-                        sel[item.value] = nil
-                    else
-                        sel[item.value] = true
-                    end
-                    modal:refresh()
-                end,
-                -- Clear: the screen's own action, on the strip under the title.
-                header_actions = {
-                    {
-                        label  = _("Clear"),
-                        on_tap = function()
-                            -- Empty the set in place so `sel` stays valid
-                            -- (reassigning draft.filter[set_key] would
-                            -- orphan the `sel` upvalue).
-                            for k in pairs(sel) do sel[k] = nil end
-                            modal:refresh()
-                        end,
-                    },
-                },
-                footer_actions = {
-                    {
-                        -- Back to the Filters list, which this was opened
-                        -- from. A button of its own: with several to tick,
-                        -- the chevron or a tap outside wasn't an obvious
-                        -- way on (maintainer). The chevron runs it too.
-                        label  = _("Apply"),
-                        done   = true,
-                        primary = true,
-                        on_tap = function()
-                            UIManager:close(modal)
-                            on_close()
-                        end,
-                    },
-                },
-            },
-        }
-        -- Back (the chevron, or the keys' Back) runs the footer's Apply,
-        -- which keeps the ticks and goes back to Filters; the X closes the
-        -- editor, which keeps them too (finish).
-        UIManager:show(modal)
-        return
-    end
-
-    -- Fallback: a ButtonDialog multi-select, for when LibraryModal does not
-    -- load (headless test stubs).
-    local d
-    local values = choices
-
-    local function any_checked()
-        for _k in pairs(sel) do return false end
-        return true
-    end
-    local function reopen() Editor._closeMenu(d); Editor:_pickMultiFilter(draft, dim_key, on_close, opts) end
-    local function toggle(value)
-        if sel[value] then sel[value] = nil else sel[value] = true end
-        reopen()
-    end
-
-    local rows = {
-        { { text = (any_checked() and "\xE2\x9C\x93 " or "  ") .. _("Any"),
-            callback = function() draft.filter[set_key] = {}; reopen() end } },
-    }
-    local i = 1
-    while i <= #values do
-        local left  = values[i]
-        local right = values[i + 1]
-        local function vbtn(v)
-            if not v then return nil end
-            local checked = sel[v.value] == true
-            return { text = (checked and "\xE2\x9C\x93 " or "  ") .. v.label,
-                     callback = function() toggle(v.value) end }
-        end
-        local row = { vbtn(left) }
-        local rb = vbtn(right)
-        if rb then row[#row + 1] = rb end
-        rows[#rows + 1] = row
-        i = i + 2
-    end
-    if #values == 0 then
-        rows[#rows + 1] = { { text = _("(none in library)"), callback = function() end } }
-    end
-    rows[#rows + 1] = { { text = _("Back"), callback = function() Editor._closeMenu(d); on_close() end } }
-
-    d = Editor._menu{
-        title   = title,
-        buttons = rows,
-        anchor  = _highAnchor(function() return d end),
+    -- A-Z or most books first, as the Source page's pickers (statuses and
+    -- ratings are short fixed lists, kept in their own order).
+    local modal
+    modal = Editor._searchGrid{
+        choices  = choices,
+        sortable = dim_key ~= "statuses" and dim_key ~= "ratings",
+        title    = title,
+        -- A page of the editor, over the Filters page it came from, named as
+        -- its row there names it (Home > Filters > Genre).
+        over     = Editor._over({ opts and opts.crumb or dimLabel(dim_key) or title }),
+        selected = function(item) return sel[item.value] == true end,
+        -- A tick marks the value at once (no pressed look first), in place:
+        -- never close and reopen (that lost the page).
+        select_on_tap = true,
+        on_cell_tap = function(item)
+            if sel[item.value] then sel[item.value] = nil else sel[item.value] = true end
+            modal:refresh()
+        end,
+        -- Clear: the screen's own action, on the strip under the title. The
+        -- set is emptied in place, so `sel` stays the draft's.
+        header_actions = { { label = _("Clear"), on_tap = function()
+            for k in pairs(sel) do sel[k] = nil end
+            modal:refresh()
+        end } },
+        -- Back to the Filters list: a button of its own, as with several to
+        -- tick the chevron wasn't an obvious way on (maintainer). Back (the
+        -- chevron, or the keys') runs it too (done); the X closes the
+        -- editor, which keeps the ticks as well (finish).
+        footer_actions = { { label = _("Apply"), done = true, primary = true, on_tap = function()
+            UIManager:close(modal)
+            on_close()
+        end } },
     }
 end
 

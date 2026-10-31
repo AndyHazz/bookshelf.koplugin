@@ -35,4 +35,14 @@ t.test("a mixed label with no width limit is not an error", function()
         "nil max_w is arithmetic on nil")
 end)
 
+-- PW5, 2026-10-31: the folder's own crumb (Comedy) sits on the top panel,
+-- but took the page's ink unless the bar was transparent: black on the
+-- Sewing Room's dark panel. The panel's ink comes first, as the footer's.
+t.test("the deepest crumb takes the panel's ink", function()
+    local i = bar:find("-- Plain-text widget for the deepest crumb", 1, true)
+    local body = bar:sub(i, bar:find("deepest_w = deepest_widget:getSize().w", i, true))
+    assert(body:find("(CP.panelInk and CP.panelInk()) or _panelChipInk() or CP.ink()", 1, true),
+        "the crumb on the panel ignores the panel's ink")
+end)
+
 t.done()

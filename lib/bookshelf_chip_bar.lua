@@ -1861,11 +1861,13 @@ function ChipBar:_initBreadcrumb()
             face    = face_text,
             bold    = face_text_bold,
             -- Themed, now this sits on the panel rather than on a white bar:
-            -- hard black would vanish on a dark shelf.
+            -- hard black would vanish on a dark shelf. The panel's ink first
+            -- (Panel text, or what a panel colour brings), as the footer's:
+            -- the page's was black on a dark panel (PW5, Sewing Room).
             fgcolor = (function()
                 local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
                 if ok and CP and CP.ink then
-                    local c = _panelChipInk() or CP.ink()
+                    local c = (CP.panelInk and CP.panelInk()) or _panelChipInk() or CP.ink()
                     if c then return c end
                 end
                 return Blitbuffer.COLOR_BLACK

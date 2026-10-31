@@ -394,5 +394,37 @@ t.test("an ornament render under a cover's file name is an orphan", function()
     assert(not f, "the old render stayed")
 end)
 
+-- A full disk crashed a PW5 (2026-10-28); 96 MB of covers is a fair part
+-- of what a nearly full device has left. The budgets shrink to a share of
+-- the free space plus what the store already holds.
+t.test("on a nearly full disk the store keeps to a share of the room", function()
+    local function three()
+        Cache.clear(); _G.__mtimes = {}
+        Cache.MAX_BYTES, Cache.ORNAMENT_MAX_BYTES = 32 * 1024 * 1024, 32 * 1024 * 1024
+        local books = {}
+        for i = 1, 3 do
+            books[i] = makeBook("room" .. i .. ".epub")
+            Cache.store(books[i], makeBB(16, 16, i)); ageOf(books[i], 100 * i)
+        end
+        Cache.MAX_BYTES, Cache.ORNAMENT_MAX_BYTES = 1200, 1200
+        return books
+    end
+    local real_free = Cache._freeBytes
+    local books = three()
+    Cache._freeBytes = function() return 1024 * 1024 * 1024 end
+    Cache.sweep()
+    assert(Cache.load(books[1]) and Cache.load(books[2]) and Cache.load(books[3]),
+        "plenty of room, yet covers went")
+    books = three()
+    Cache._freeBytes = function() return 0 end
+    Cache.sweep()
+    assert(not Cache.load(books[1]), "a full disk kept the whole store")
+    books = three()
+    Cache._freeBytes = function() return nil end   -- unknown: the caps as they are
+    Cache.sweep()
+    assert(Cache.load(books[1]) and Cache.load(books[3]), "an unknown free space shrank the store")
+    Cache._freeBytes = real_free
+end)
+
 os.execute("rm -rf '" .. DIR .. "'")
 t.done()

@@ -47,6 +47,11 @@ M.MAX_BYTES = 96 * 1024 * 1024
 -- 59 MB of covers, against 96 MB).
 M.ORNAMENT_MAX_BYTES = 24 * 1024 * 1024
 local ORNAMENT_PREFIX = "ornament:"
+-- Both budgets together never take more than this share of the room the
+-- store has: the free space plus what it already holds. A full disk crashed
+-- a PW5 (2026-10-28); a nearly full device keeps a smaller store and decodes
+-- more often instead.
+M.DISK_SHARE = 0.25
 -- A read marks a file used for the sweep, at most once a day a file.
 local TOUCH_AFTER = 24 * 60 * 60
 
@@ -139,8 +144,34 @@ function M.sweep()
         local e = entries[i]
         if e.orn then renders[#renders + 1] = e else covers[#covers + 1] = e end
     end
-    M._prune(covers, M.MAX_BYTES, false)
-    M._prune(renders, M.ORNAMENT_MAX_BYTES, true)
+    local cover_cap, render_cap = M.MAX_BYTES, M.ORNAMENT_MAX_BYTES
+    local free = M._freeBytes(d)
+    if free then
+        local held = 0
+        for i = 1, #entries do held = held + entries[i].b end
+        local share = (free + held) * M.DISK_SHARE
+        local f = share / (cover_cap + render_cap)
+        if f < 1 then
+            cover_cap, render_cap = math.floor(cover_cap * f), math.floor(render_cap * f)
+        end
+    end
+    M._prune(covers, cover_cap, false)
+    M._prune(renders, render_cap, true)
+end
+
+-- _freeBytes(path) -> the space free to us on path's filesystem, or nil.
+-- statvfs, not util.diskUsage: that forks KOReader to run df (27 ms on a
+-- PW5 against 0.4). Unknown leaves the budgets as they are.
+function M._freeBytes(path)
+    local ok, bytes = pcall(function()
+        local ffi = require("ffi")
+        require("ffi/posix_h")
+        local st = ffi.new("struct statvfs")
+        if ffi.C.statvfs(path, st) ~= 0 then return nil end
+        return tonumber(st.f_bavail) * tonumber(st.f_frsize)
+    end)
+    if ok and type(bytes) == "number" and bytes >= 0 then return bytes end
+    return nil
 end
 
 -- _prune(entries, cap, renders): one budget's files brought under its cap.

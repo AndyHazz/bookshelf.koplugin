@@ -122,18 +122,25 @@ local ScaledCoverCache = {
 -- covers at four bytes a pixel, so the same budget holds about fifty and
 -- churns on a full shelf, re-decoding covers it has just evicted. Devices
 -- with a gigabyte or more have the headroom for twice that; 512 MB Kindles
--- and Kobos keep 24. The user's own setting (cover_cache_mb) always wins;
--- this only decides what "unset" means.
+-- and Kobos keep 24, and 256 MB ones (PW2, older Kobos) half of it: 24 was
+-- nearly a tenth of the device. The user's own setting (cover_cache_mb)
+-- always wins; this only decides what "unset" means.
 ScaledCoverCache.DEFAULT_BUDGET_MB       = 24
 ScaledCoverCache.DEFAULT_BUDGET_MB_LARGE = 48
+ScaledCoverCache.DEFAULT_BUDGET_MB_SMALL = 12
 ScaledCoverCache.LARGE_DEVICE_BYTES      = 1024 * 1024 * 1024
+ScaledCoverCache.SMALL_DEVICE_BYTES      = 384 * 1024 * 1024
 
 -- defaultBudgetMB(total_bytes) -> MB. Pure. total_bytes as util.calcFreeMem
 -- reports it (bytes); anything unknown or odd stays conservative.
 function ScaledCoverCache.defaultBudgetMB(total_bytes)
-    if type(total_bytes) == "number"
-            and total_bytes >= ScaledCoverCache.LARGE_DEVICE_BYTES then
-        return ScaledCoverCache.DEFAULT_BUDGET_MB_LARGE
+    if type(total_bytes) == "number" and total_bytes > 0 then
+        if total_bytes >= ScaledCoverCache.LARGE_DEVICE_BYTES then
+            return ScaledCoverCache.DEFAULT_BUDGET_MB_LARGE
+        end
+        if total_bytes < ScaledCoverCache.SMALL_DEVICE_BYTES then
+            return ScaledCoverCache.DEFAULT_BUDGET_MB_SMALL
+        end
     end
     return ScaledCoverCache.DEFAULT_BUDGET_MB
 end

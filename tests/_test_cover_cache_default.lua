@@ -28,6 +28,14 @@ t.test("below one gigabyte the default is 24 MB; from one gigabyte it is 48", fu
     eq(SCC.defaultBudgetMB(2 * GiB), 48, "2 GB Boox")
 end)
 
+-- A 256 MB device (PW2, older Kobos): 24 MB was nearly a tenth of it
+-- (a PW2 freeze on Reddit looked like memory, 2026-10).
+t.test("below 384 MB the default is 12 MB", function()
+    eq(SCC.defaultBudgetMB(250000 * 1024), 12, "PW2, MemTotal ~244 MB")
+    eq(SCC.defaultBudgetMB(384 * 1024 * 1024 - 1024), 12, "just under")
+    eq(SCC.defaultBudgetMB(384 * 1024 * 1024), 24, "exactly 384 MB")
+end)
+
 t.test("an unknown total keeps the conservative default", function()
     eq(SCC.defaultBudgetMB(nil), 24)
     eq(SCC.defaultBudgetMB(0), 24)

@@ -15592,8 +15592,8 @@ local CHIP_PRELOAD_YIELD_S  = 0.25
 -- Apply the user's cover-cache RAM budget (in MB). Called on every page turn
 -- (cheap) so the setting tracks live even when preload is off -- a bigger
 -- budget also helps plain back-and-forth browsing. With no setting the cache
--- module picks the default from the device's memory (24 MB below 1 GiB, 48
--- from 1 GiB up; see ScaledCoverCache.defaultBudgetMB).
+-- module picks the default from the device's memory (12 MB below 384 MB, 24
+-- below 1 GiB, 48 from 1 GiB up; see ScaledCoverCache.defaultBudgetMB).
 function BookshelfWidget:_applyCoverCacheBudget()
     -- One-time migration: the cache used to be sized by entry COUNT
     -- (cover_cache_size). It's now an explicit RAM budget in MB, so discard the

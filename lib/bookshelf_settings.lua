@@ -4188,8 +4188,9 @@ function Settings:_performanceSubItems()
                     .. tostring(BookshelfSettings.read("cover_cache_mb") or SCC.deviceDefaultBudgetMB())
                     .. " MB"
             end,
-            -- The default follows the device's memory (24 MB below 1 GiB, 48
-            -- from 1 GiB up), so the help names the figure for THIS device.
+            -- The default follows the device's memory (12 MB below 384 MB,
+            -- 24 below 1 GiB, 48 from 1 GiB up), so the help names the
+            -- figure for THIS device.
             help_text = T(_("How much memory to use for ready-scaled book covers. "
                 .. "A bigger cache keeps more covers warm -- smoother paging and "
                 .. "preloading -- at the cost of RAM. Default %1 MB on this device. Lower it if "

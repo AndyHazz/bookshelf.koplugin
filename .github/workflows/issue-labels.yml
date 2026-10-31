@@ -1,0 +1,57 @@
+# Labels a new issue from its form answers (Device, Which part of Bookshelf?).
+# No outside services: it only reads the issue body.
+name: Issue labels
+on:
+  issues:
+    types: [opened, edited]
+permissions:
+  issues: write
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.issue.body || "";
+            const answer = (heading) => {
+              const m = body.match(new RegExp("### " + heading + "\\s*\\n+([^\\n]+)"));
+              return m ? m[1].trim() : "";
+            };
+            const areas = {
+              "Shelf views": "area: shelf views",
+              "Shelf bar": "area: shelf bar",
+              "Top panel": "area: top panel",
+              "Modules": "area: modules",
+              "Start menu": "area: start menu",
+              "Book menu": "area: book menu",
+              "Opening books": "area: opening & closing books",
+              "Themes": "area: themes",
+              "OPDS": "area: online & integrations",
+              "Deleting": "area: file management",
+              "Book info": "area: book info",
+              "Screen": "area: display",
+              "Settings": "area: settings",
+              "Speed": "area: performance",
+            };
+            const devices = {
+              "Kindle": "device: Kindle",
+              "Kobo": "device: Kobo",
+              "PocketBook": "device: PocketBook",
+              "Android": "device: Android",
+              "Other": "device: other",
+            };
+            const pick = (text, map) => {
+              for (const [start, label] of Object.entries(map)) {
+                if (text.startsWith(start)) return label;
+              }
+              return null;
+            };
+            const labels = [pick(answer("Which part of Bookshelf\\?"), areas),
+                            pick(answer("Device"), devices)].filter(Boolean);
+            if (labels.length) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: context.issue.number, labels,
+              });
+            }

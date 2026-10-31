@@ -1,0 +1,41 @@
+name: Bug report
+description: Something in Bookshelf doesn't work as it should
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did and what you saw. A photo or screenshot helps, and so does the end of crash.log if KOReader crashed.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of Bookshelf?
+      options:
+        - Shelf views (covers, spines, list, folders, series)
+        - Shelf bar (chips, sources, grouping, sort, filters)
+        - Top panel
+        - Modules (in the top panel, start menu or on a shelf)
+        - Start menu
+        - Book menu (long-press on a book)
+        - Opening books or closing back to Bookshelf
+        - Themes, wallpapers, planks or ornaments
+        - OPDS, stores, Hardcover, updates or other services
+        - Book info (metadata, covers, page counts, calibre)
+        - Deleting, moving or renaming books and folders
+        - Screen (flashing, blank or frozen screens, night mode, rotation)
+        - Settings or gestures
+        - Speed, memory, battery or storage
+        - Not sure
+  - type: dropdown
+    id: device
+    attributes:
+      label: Device
+      options:
+        - Kindle
+        - Kobo
+        - PocketBook
+        - Android (including Boox)
+        - Other

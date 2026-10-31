@@ -2067,9 +2067,9 @@ function Editor:_openShelfOrder(tab_id, on_change, on_edit)
                 up_enabled = i > 1, down_enabled = i < #list,
                 on_up = function() move(id, -1) end,
                 on_down = function() move(id, 1) end,
-                -- Not on the shelf being edited: its editor is the one open.
-                on_edit = (on_edit and id ~= tab_id) and function() on_edit(id) end or nil,
-                edit_slot = on_edit ~= nil }
+                -- A tap on the pill; not on the shelf being edited, whose
+                -- editor is the one open.
+                on_edit = (on_edit and id ~= tab_id) and function() on_edit(id) end or nil }
         end
         return { blocks = blocks }
     end

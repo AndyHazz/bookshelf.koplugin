@@ -31,9 +31,8 @@
 --             after the label, as the cross on a tag that removes it)
 --   Any block with half = true pairs with the next one, two to a line.
 --   order     label, selected, on_up, on_down, up_enabled, down_enabled,
---             on_edit, edit_slot: a shelf's label as its chip draws it,
---             then up and down (and a pencil with on_edit, or its room
---             with edit_slot)
+--             on_edit: a shelf's label as its chip draws it (a tap on it
+--             opens that shelf's editor, with on_edit), then up and down
 --   slot      badge, text, selected, callback, seg {items, active,
 --             on_pick}, on_clear: a numbered line (a sort level), outlined
 --             when selected
@@ -304,22 +303,18 @@ end
 -- A Shelf order row: the shelf's label drawn as its chip is on the menu bar
 -- (icons, pictures and the bar's case: ChipBar.buildChipLabel), outlined,
 -- black for the shelf being edited, then up and down as grey cards (they
--- nudge a place, STYLE.md).
+-- nudge a place, STYLE.md). on_edit: a tap on the pill opens that shelf's
+-- editor; it looked like a button and did nothing, and the pencil beside it
+-- that did went (maintainer). The shelf being edited has none.
 local CHEV_UP   = "\xEE\xA1\x82"   -- U+E842 mdi-chevron-up
 local CHEV_DOWN = "\xEE\xA0\xBF"   -- U+E83F mdi-chevron-down
-local PENCIL    = "\xEE\xAB\xAA"   -- U+EAEA nf-md-pencil
 function R.order(ctx, b)
     local Size = require("ui/size")
     local h = ctx:cardH() - Space.px(8)
     local up = ctx:nudgeCard(CHEV_UP, b.on_up, h, b.up_enabled ~= false, ctx.fs + 4)
     local down = ctx:nudgeCard(CHEV_DOWN, b.on_down, h, b.down_enabled ~= false, ctx.fs + 4)
-    -- on_edit: a pencil card after them, into that shelf's editor (a card:
-    -- it opens a thing).
-    -- edit_slot: the pencil's room kept empty on a row without one (the
-    -- shelf being edited), so the arrows line up down the list.
-    local edit = b.on_edit and ctx:nudgeCard(PENCIL, b.on_edit, h, true, ctx.fs) or nil
     local gap = Space.px(8)
-    local pill_w = ctx.w - 2 * h - 2 * gap - ((edit or b.edit_slot) and (h + gap) or 0)
+    local pill_w = ctx.w - 2 * h - 2 * gap
     local border = Size.border.button
     local pad = Space.px(12)
     local ink = b.selected and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
@@ -329,14 +324,15 @@ function R.order(ctx, b)
         margin = 0, padding = 0, color = Blitbuffer.COLOR_BLACK,
         background = b.selected and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_WHITE,
         CenterContainer:new{ dimen = Geom:new{ w = pill_w - 2 * border, h = h - 2 * border }, label } }
-    ctx.layout[#ctx.layout + 1] = { up, down, edit }
-    local row = HorizontalGroup:new{ align = "center", pill, HorizontalSpan:new{ width = gap },
+    local cell
+    if b.on_edit then cell = Kit.tapCell(pill, pill_w, h, b.on_edit) end
+    local keys = {}
+    if cell then keys[1] = cell end
+    keys[#keys + 1] = up
+    keys[#keys + 1] = down
+    ctx.layout[#ctx.layout + 1] = keys
+    return HorizontalGroup:new{ align = "center", cell or pill, HorizontalSpan:new{ width = gap },
         up, HorizontalSpan:new{ width = gap }, down }
-    if edit or b.edit_slot then
-        row[#row + 1] = HorizontalSpan:new{ width = gap }
-        row[#row + 1] = edit or HorizontalSpan:new{ width = h }
-    end
-    return row
 end
 
 -- rowParts(b, w) -> the row's inner width, ink, and whether its label and

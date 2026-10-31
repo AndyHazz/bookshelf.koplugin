@@ -76,8 +76,10 @@ t.test("with no editor up, an order row falls back to buttons", function()
     eq(rows[1][2].enabled, false)
 end)
 
--- Maintainer: an Edit button on each row, into that shelf's editor.
-t.test("each row has an Edit card into that shelf's editor", function()
+-- Maintainer: an Edit button on each row, into that shelf's editor. Then
+-- (2026-10-31): the pill read as a button and did nothing; a tap on it is
+-- the way in now, and the pencil that repeated it went.
+t.test("a tap on a shelf's pill opens that shelf's editor", function()
     local src = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
     local body = src:sub((src:find("function Editor:_openShelfOrder", 1, true)))
     body = body:sub(1, (body:find("\nend\n", 1, true)))
@@ -85,7 +87,8 @@ t.test("each row has an Edit card into that shelf's editor", function()
     assert(src:find("local function editOther(id)", 1, true), "the editor cannot hand over to another shelf")
     local page = io.open("lib/bookshelf_editor_page.lua"):read("*a")
     local r = page:match("\n(function R%.order%(.-\nend)\n")
-    assert(r:find("ctx:nudgeCard(PENCIL, b.on_edit", 1, true), "no pencil card")
+    assert(r:find("Kit.tapCell(pill, pill_w, h, b.on_edit)", 1, true), "the pill is not a way into its editor")
+    assert(not r:find("PENCIL", 1, true), "a pencil repeats the pill")
     local Page = dofile("lib/bookshelf_editor_page.lua")
     local rows = Page.toButtons({ blocks = { { type = "order", label = "Home",
         on_up = function() end, on_down = function() end, on_edit = function() end } } })

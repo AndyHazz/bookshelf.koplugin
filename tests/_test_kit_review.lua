@@ -34,7 +34,7 @@ end)
 t.test("greyed text is grey, a nudge's hold acts at once, no false in a keys row", function()
     local ep = read("lib/bookshelf_editor_page.lua")
     assert(ep:find("if enabled == false then return Blitbuffer.COLOR_GRAY end", 1, true), "greyed text is dark grey")
-    assert(ep:find("ctx:nudgeCard(PENCIL, b.on_edit, h, true, ctx.fs) or nil", 1, true),
+    assert(ep:find("if b.on_edit then cell = Kit.tapCell(pill, pill_w, h, b.on_edit) end", 1, true),
         "on_edit = false puts false in the keys row")
     local cb = read("lib/bookshelf_chip_button.lua")
     assert(cb:find("if opts.instant then opts.on_hold()", 1, true), "a hold shows pressed first")

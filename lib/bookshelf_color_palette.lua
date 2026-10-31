@@ -671,10 +671,12 @@ end
 local function showColorPicker(bookshelf, title, current_hex, default_hex, on_apply, on_default, on_revert, touchmenu_instance, null_tile_label, white_hex, special_tile, hex_text, opts)
     local restoreMenu = bookshelf:hideMenu(touchmenu_instance)
 
+    -- opts.on_closed: once, however it closes, before the menu comes back.
     local closed = false
     local function finish()
         if closed then return end
         closed = true
+        if opts and opts.on_closed then opts.on_closed() end
         restoreMenu()
     end
 

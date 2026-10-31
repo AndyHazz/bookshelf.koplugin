@@ -249,9 +249,16 @@ function Browser:_changed(rescan)
         TP.forgetChoice()
     end
     self._dirty = true
+    -- A tick changes no files: the list and the chips read the folders as
+    -- they were (the recent window), where each read every folder again,
+    -- twice a tap (~28 ms a scan on a PW5). After a delete (rescan) they
+    -- look afresh.
+    local Orn = O()
+    local was = (not rescan) and Orn.allowRecent(true)
     self.items = self:_items()
     if self._config then self._config.footer_rows = self:_footerRows() end
     if self.modal then self.modal:refresh() end
+    if not rescan and not was then Orn.allowRecent(false) end
 end
 
 function Browser:_chips()

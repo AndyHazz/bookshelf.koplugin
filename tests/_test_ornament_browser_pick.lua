@@ -180,4 +180,12 @@ t.test("the browser says whose set the ticks are, and only a pack that is off fa
     H.eq(f({ opts = { pick = true }, on_count = 0, all_count = 443 }), nil)
 end)
 
+-- Perf review 2026-10-31: a tick read every ornament folder twice (the list,
+-- then the chips, each outside the recent window).
+t.test("a tick reads the folders as they were, not afresh", function()
+    local ch = method(src, "Browser:_changed(rescan)")
+    assert(ch:find("local was = (not rescan) and Orn.allowRecent(true)", 1, true), "a tick rescans the folders")
+    assert(ch:find("if not rescan and not was then Orn.allowRecent(false) end", 1, true), "the window is left open")
+end)
+
 t.done()

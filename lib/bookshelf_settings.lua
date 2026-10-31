@@ -2426,6 +2426,30 @@ function Settings:_pickColor(raw_key, field, default_pct, title,
     local CoverProgress = require("lib/bookshelf_cover_progress")
     local Color         = require("lib/bookshelf_color")
         refresh = refresh or function() self:_markDirty() end
+        -- Each swatch tap is shown by the picker at once; what it costs
+        -- behind is kept for the taps to pause: the settings held in memory
+        -- while the picker is open (one write as it closes, not ~130 ms a
+        -- tap on a PW5) and the shelf rebuilt once, 0.35 s after the last
+        -- tap, not per tap (perf review 2026-10-31). Not when something
+        -- else is holding the writes already (the Theme library).
+        local ok_o, Orn = pcall(require, "lib/bookshelf_ornaments")
+        local own_defer = ok_o and Orn and Orn.beginDeferred and not Orn._defer
+        if own_defer then Orn.beginDeferred() end
+        local now_refresh, pending = refresh, false
+        local function fire()
+            pending = false
+            now_refresh()
+        end
+        refresh = function()
+            pending = true
+            UIManager:unschedule(fire)
+            UIManager:scheduleIn(0.35, fire)
+        end
+        local function onClosed()
+            UIManager:unschedule(fire)
+            if pending then fire() end
+            if own_defer then Orn.endDeferred() end
+        end
         -- title: the picker's title.
         -- wood.on_done: once, when the dialog closes; the caller's menu is
         -- not touched (see above).
@@ -2493,7 +2517,7 @@ function Settings:_pickColor(raw_key, field, default_pct, title,
                     refresh()
                 end,
                 menu_for_dialog, nil, nil, wood and wood.special_tile or nil, hex_text,
-            { anchor = anchor })
+            { anchor = anchor, on_closed = onClosed })
             return
         end
 
@@ -2535,7 +2559,7 @@ function Settings:_pickColor(raw_key, field, default_pct, title,
                 refresh()
             end,
             menu_for_dialog, nil, nil, wood and wood.special_tile or nil, nil,
-            { greys = true, anchor = anchor })
+            { greys = true, anchor = anchor, on_closed = onClosed })
     end
 
 -- Ornaments: where the pieces come from, and how many are installed. There is

@@ -61,4 +61,15 @@ t.test("a status change builds the header again, its reading line with it", func
     assert(seg and seg:find("modal:dropHeader()", 1, true), "the status change keeps the old header")
 end)
 
+-- Perf review 2026-10-31: a status, favourite or star tap rebuilt the whole
+-- shelf (200-600 ms on a PW5) before the popup could show it.
+t.test("the popup shows a tap at once; the shelf behind is rebuilt once the taps pause", function()
+    local r = w:match("local function refreshInPlace%(%)(.-)\n    end\n")
+    assert(r and r:find("modal:rebuildTab()", 1, true) and r:find("shelfSoon()", 1, true)
+        and r:find("rebuildTab", 1, true) < r:find("shelfSoon", 1, true), "the shelf is rebuilt before the popup")
+    assert(w:find("UIManager:scheduleIn(0.4, modal._shelf_fire)", 1, true), "the shelf rebuild is not debounced")
+    assert(w:find("bw:_setBookRating(book, newv, { skip_rebuild = true })", 1, true), "a star tap rebuilds the shelf at once")
+    assert(w:find("if modal and modal._shelf_owed and modal._shelf_fire then", 1, true), "closing leaves the shelf stale")
+end)
+
 t.done()

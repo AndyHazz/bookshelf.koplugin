@@ -22404,9 +22404,25 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
 
     local function closeModal() if modal then UIManager:close(modal) end end
     local function refreshShelf() bw:_rebuild(); UIManager:setDirty(bw, "ui") end
-    local function refreshInPlace()  -- commit done; refresh shelf + this tab
-        bw:_rebuild(); UIManager:setDirty(bw, "ui")
+    -- shelfSoon(): the shelf behind rebuilt 0.4 s after the last change, or
+    -- as the popup closes if sooner, not before the popup can show a tap
+    -- (a whole shelf, 200-600 ms on a PW5, came first; rapid star taps
+    -- queued behind it). Kept on the popup: this tab is rebuilt per change.
+    local function shelfSoon()
+        if not modal then bw:_rebuild(); UIManager:setDirty(bw, "ui"); return end
+        if not modal._shelf_fire then
+            modal._shelf_fire = function()
+                modal._shelf_owed = false
+                bw:_rebuild(); UIManager:setDirty(bw, "ui")
+            end
+        end
+        modal._shelf_owed = true
+        UIManager:unschedule(modal._shelf_fire)
+        UIManager:scheduleIn(0.4, modal._shelf_fire)
+    end
+    local function refreshInPlace()  -- commit done: this tab now, the shelf soon
         if modal and modal.rebuildTab then modal:rebuildTab() end
+        shelfSoon()
     end
 
     -- ── Hardcover availability + cached rating (read-only) ───────────────────
@@ -22772,8 +22788,9 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             local glyph = (i <= cur) and STAR_FULL or STAR_EMPTY
             local star = buildStar(glyph, function()
                 local newv = (i == cur) and nil or i   -- tap current rating clears it
-                bw:_setBookRating(book, newv); book.rating = newv
+                bw:_setBookRating(book, newv, { skip_rebuild = true }); book.rating = newv
                 if modal and modal.rebuildTab then modal:rebuildTab() end
+                shelfSoon()
             end)
             your_group[#your_group + 1] = star
             your_stars[#your_stars + 1] = star
@@ -24728,6 +24745,11 @@ function BookshelfWidget:_showBookDetail(book, opts)
         -- Open button (Open routes through onClose first), so the shelf is
         -- caught up whichever way the popup closes.
         on_close   = function()
+            -- A shelf rebuild still waiting for the taps to pause: now.
+            if modal and modal._shelf_owed and modal._shelf_fire then
+                UIManager:unschedule(modal._shelf_fire)
+                modal._shelf_fire()
+            end
             -- Closed while arranging the action cards (the X, Open): the
             -- arrangement so far is kept, as Done keeps it, and written now;
             -- each move was only in memory.

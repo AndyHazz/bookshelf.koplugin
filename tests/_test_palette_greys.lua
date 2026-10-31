@@ -39,7 +39,7 @@ end)
 t.test("a greyscale screen opens the palette's greys, anchored as the dialog was", function()
     local st = io.open("lib/bookshelf_settings.lua"):read("*a")
     local picker = st:match("function Settings:_pickColor%(raw_key, field, default_pct, title,(.-)\nend\n")
-    assert(picker:find("{ greys = true, anchor = anchor })", 1, true))
+    assert(picker:find("{ greys = true, anchor = anchor, on_closed = onClosed })", 1, true))
     assert(not picker:find("showNudgeDialog", 1, true), "the % dialog is still used")
     -- What is stored: the grey as seen, through the % the dialog stored by.
     assert(picker:find("TP.partSave(key, { grey = _screenPctToByte(pct) })", 1, true))
@@ -69,6 +69,18 @@ t.test("Panel text left on Auto opens on the text colour drawn, not on black", f
     eq(f("panel_color"), nil, "another colour borrowed the panel text's Auto")
     ink = nil
     eq(f("panel_ink"), nil)
+end)
+
+-- Perf review 2026-10-31: every swatch tap wrote the whole settings file
+-- (~130 ms on a PW5) and rebuilt the shelf before the tick could show.
+t.test("the picker holds its writes in memory and rebuilds the shelf once the taps pause", function()
+    local st = io.open("lib/bookshelf_settings.lua"):read("*a")
+    local picker = st:match("function Settings:_pickColor%(raw_key, field, default_pct, title,(.-)\nend\n")
+    assert(picker:find("if own_defer then Orn.beginDeferred() end", 1, true), "each tap writes the settings file")
+    assert(picker:find("UIManager:scheduleIn(0.35, fire)", 1, true), "each tap rebuilds the shelf")
+    assert(picker:find("if own_defer then Orn.endDeferred() end", 1, true), "nothing writes it as it closes")
+    local cp = io.open("lib/bookshelf_color_palette.lua"):read("*a")
+    assert(cp:find("if opts and opts.on_closed then opts.on_closed() end", 1, true), "the picker has no close hook")
 end)
 
 t.done()

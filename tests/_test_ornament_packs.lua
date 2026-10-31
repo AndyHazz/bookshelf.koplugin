@@ -299,6 +299,32 @@ t.test("a render from the held decode is kept on disk too", function()
     os.execute("rm -rf '" .. d .. "'")
 end)
 
+-- PW5, 2026-10-31: a piece shown at its full size (1280x2100, a zoom) was
+-- kept on disk, 10 MB of the covers' cache for a view seldom seen.
+t.test("a render bigger than two megabytes is not kept on disk", function()
+    local O, d = setup()
+    local f = io.open(d .. "/big.png", "wb"); f:write("x"); f:close()
+    local kept = {}
+    O._disk_cache = { load = function(k) return kept[k] end,
+                      store = function(k, bb) kept[k] = bb; return true end }
+    O._render = function(_p, w, h)
+        return { getWidth = function() return w end, getHeight = function() return h end,
+                 free = function() end }
+    end
+    local e = { path = d .. "/big.png", name = "big.png", aspect = 1 }
+    assert(O.render(e, 1280, 2100, false), "no render")
+    assert(O.render(e, 300, 400, false), "no render")
+    local big, small = false, false
+    for k in pairs(kept) do
+        if k:find("|1280x2100", 1, true) then big = true end
+        if k:find("|300x400", 1, true) then small = true end
+    end
+    assert(not big, "a 10 MB render was kept on disk")
+    assert(small, "a shelf-sized render was not kept")
+    O._render, O._disk_cache = nil, nil
+    os.execute("rm -rf '" .. d .. "'")
+end)
+
 t.test("the collection's preview probes with a held decode and renders from it", function()
     local src = io.open("lib/bookshelf_ornament_browser.lua"):read("*a")
     local prev = src:match("\nfunction Browser%.preview%(e, box_w, box_h, mirror%)\n(.-)\nend\n")

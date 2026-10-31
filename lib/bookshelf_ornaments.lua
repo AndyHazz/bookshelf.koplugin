@@ -1702,12 +1702,16 @@ end
 -- was ~0.25 s of Home's first visit on the PW5.
 -- M._disk_cache: injectable; false switches it off. Not under a test's
 -- M._render (a test renders by its own rules).
+M.DISK_MAX_RENDER = 2 * 1024 * 1024
 function renderDiskKey(path, w, h)
     if M._disk_cache == nil then
         local ok, DC = pcall(require, "lib/bookshelf_cover_disk_cache")
         M._disk_cache = (ok and DC and M._render == nil) and DC or false
     end
     if not M._disk_cache then return nil end
+    -- A piece at full size (a zoom: 1280x2100 was 10 MB) is not kept: a
+    -- view seldom seen, and the renders' budget is for the shelves'.
+    if w * h * 4 > M.DISK_MAX_RENDER then return nil end
     local fs = lfs()
     local mt = fs and fs.attributes(path, "modification")
     if not mt then return nil end

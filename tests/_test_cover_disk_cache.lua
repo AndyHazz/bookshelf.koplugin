@@ -33,6 +33,12 @@ local lfs_real = {
         return { mode = "file", modification = mt, size = size }
     end,
     mkdir = function(path) os.execute('mkdir -p "' .. path .. '"'); return true end,
+    -- A read marks a cover used (the sweep goes by last use, not by write).
+    touch = function(path, _atime, mtime)
+        _G.__mtimes = _G.__mtimes or {}
+        _G.__mtimes[path] = mtime or os.time()
+        return true
+    end,
     dir = function(path)
         local names, pipe = { ".", ".." }, io.popen('ls -A "' .. path .. '" 2>/dev/null')
         if pipe then
@@ -278,31 +284,19 @@ end)
 t.test("over budget, a live ornament's render is not an orphan", function()
     Cache.clear(); _G.__mtimes = {}
     Cache.MAX_BYTES = 32 * 1024 * 1024
-    local piece = makeBook("cat.png")
+    Cache.ORNAMENT_MAX_BYTES = 32 * 1024 * 1024
+    local piece, dead = makeBook("cat.png"), makeBook("dog.png")
     local key = "ornament:" .. piece .. "|123|456|50x60"
-    local gone = makeBook("gone2.epub")
+    local dkey = "ornament:" .. dead .. "|1|2|5x5"
     Cache.store(key, makeBB(16, 16, 1))
-    Cache.store(gone, makeBB(16, 16, 2))
-    ageOf(key, 100)                 -- the ornament's is the OLDER
-    ageOf(gone, 900)
-    os.remove(gone)
-    Cache.MAX_BYTES = 400
+    Cache.store(dkey, makeBB(16, 16, 2))
+    ageOf(key, 100)                 -- the live piece's is the OLDER
+    ageOf(dkey, 900)
+    os.remove(dead)
+    Cache.ORNAMENT_MAX_BYTES = 400  -- room for one
     Cache.sweep()
     assert(Cache.load(key), "a live ornament's render went as an orphan")
-    assert(not Cache.load(gone), "the deleted book's cover survived")
-    -- And one whose piece was deleted is an orphan.
-    Cache.clear(); _G.__mtimes = {}
-    Cache.MAX_BYTES = 32 * 1024 * 1024
-    local live = makeBook("live3.epub")
-    local dead = makeBook("dog.png")
-    local dkey = "ornament:" .. dead .. "|1|2|5x5"
-    Cache.store(live, makeBB(16, 16, 1))
-    Cache.store(dkey, makeBB(16, 16, 2))
-    ageOf(live, 100); ageOf(dkey, 900)
-    os.remove(dead)
-    Cache.MAX_BYTES = 400
-    Cache.sweep()
-    assert(Cache.load(live), "the live cover went before a deleted piece's render")
+    assert(not Cache.load(dkey), "a deleted piece's render survived")
 end)
 
 t.test("with no orphans, the oldest goes first", function()
@@ -337,6 +331,67 @@ t.test("a file with no usable header is treated as an orphan", function()
     if still then still:close() end
     assert(not still, "an unreadable file survived a prune")
     assert(Cache.load(live), "a usable cover was dropped in favour of junk")
+end)
+
+-- PW5, 2026-10-31: the store held 59 MB of covers and 32 MB of ornament
+-- renders (the ornament library's previews among them) against 96 MB, and
+-- went by write time: a cover on Home, read every day but written weeks ago,
+-- went first and was decoded again on the next visit (a first switch to a
+-- shelf 2-8 s after a restart).
+t.test("ornament renders have a budget of their own and never push covers out", function()
+    Cache.clear(); _G.__mtimes = {}
+    Cache.MAX_BYTES = 32 * 1024 * 1024
+    Cache.ORNAMENT_MAX_BYTES = 32 * 1024 * 1024
+    local c1, c2 = makeBook("c1.epub"), makeBook("c2.epub")
+    Cache.store(c1, makeBB(16, 16, 1)); Cache.store(c2, makeBB(16, 16, 2))
+    ageOf(c1, 100); ageOf(c2, 200)
+    local pieces = {}
+    for i = 1, 3 do
+        local key = "ornament:" .. makeBook("p" .. i .. ".png") .. "|1|2|16x16"
+        Cache.store(key, makeBB(16, 16, i)); ageOf(key, 900 + i)
+        pieces[i] = key
+    end
+    Cache.MAX_BYTES = 1000          -- the two covers fit
+    Cache.ORNAMENT_MAX_BYTES = 400  -- one render fits
+    Cache.sweep()
+    assert(Cache.load(c1) and Cache.load(c2), "ornament renders pushed a cover out")
+    assert(not Cache.load(pieces[1]) and not Cache.load(pieces[2]), "renders past their budget stayed")
+    assert(Cache.load(pieces[3]), "the newest render went")
+end)
+
+t.test("a cover read lately is kept over one written later and not read", function()
+    Cache.clear(); _G.__mtimes = {}
+    Cache.MAX_BYTES = 32 * 1024 * 1024
+    local used, unused = makeBook("used.epub"), makeBook("unused.epub")
+    Cache.store(used, makeBB(16, 16, 1)); Cache.store(unused, makeBB(16, 16, 2))
+    ageOf(used, 100); ageOf(unused, 900)
+    assert(Cache.load(used))
+    Cache.MAX_BYTES = 400
+    Cache.sweep()
+    assert(Cache.load(used), "a cover in use went because it was written first")
+    assert(not Cache.load(unused), "the unread cover stayed")
+end)
+
+-- 6.0.4 kept ornament renders under a cover's file name; under the names
+-- they have now nothing reads those again, so they go first.
+t.test("an ornament render under a cover's file name is an orphan", function()
+    Cache.clear(); _G.__mtimes = {}
+    Cache.MAX_BYTES = 32 * 1024 * 1024
+    local live = makeBook("keep.epub")
+    local piece = makeBook("old_piece.png")
+    Cache.store(live, makeBB(16, 16, 1)); ageOf(live, 100)
+    -- What 6.0.4 wrote: the render, under a plain hash name.
+    local key = "ornament:" .. piece .. "|1|2|16x16"
+    Cache.store(key, makeBB(16, 16, 2))
+    local p = fileFor(key)
+    local legacy = p:gsub("/o([0-9a-f]+_%d+)$", "/%1")
+    assert(legacy ~= p, "the render's file has no ornament name")
+    os.rename(p, legacy); _G.__mtimes[legacy] = 900
+    Cache.MAX_BYTES = 400
+    Cache.sweep()
+    assert(Cache.load(live), "a cover went before a render nothing reads")
+    local f = io.open(legacy, "rb"); if f then f:close() end
+    assert(not f, "the old render stayed")
 end)
 
 os.execute("rm -rf '" .. DIR .. "'")

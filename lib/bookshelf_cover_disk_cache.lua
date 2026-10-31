@@ -40,6 +40,15 @@ local MAGIC = "BSC1"
 -- not a mirror of the library, and still modest next to BIM's cover
 -- database -- the largest thing bookshelf touches on a Kindle.
 M.MAX_BYTES = 96 * 1024 * 1024
+-- Ornament renders (keys "ornament:...", bookshelf_ornaments) have a budget
+-- of their own and their own file names: the ornament library's previews
+-- are kept too, and in the covers' budget a browse through a few hundred
+-- pieces pushed the shelf's covers out (PW5, 2026-10-31: 32 MB of renders,
+-- 59 MB of covers, against 96 MB).
+M.ORNAMENT_MAX_BYTES = 24 * 1024 * 1024
+local ORNAMENT_PREFIX = "ornament:"
+-- A read marks a file used for the sweep, at most once a day a file.
+local TOUCH_AFTER = 24 * 60 * 60
 
 local _dir            -- resolved cache directory, or false when unavailable
 local _swept = false  -- the count sweep runs at most once per session
@@ -77,7 +86,9 @@ local function keyFor(filepath)
     for i = 1, #filepath do
         h = (h * 33 + filepath:byte(i)) % 4294967296
     end
-    return string.format("%08x_%d", h, #filepath)
+    -- "o" is no hex digit: an ornament's file is told by its name alone.
+    local kind = filepath:sub(1, #ORNAMENT_PREFIX) == ORNAMENT_PREFIX and "o" or ""
+    return string.format("%s%08x_%d", kind, h, #filepath)
 end
 
 local function pathFor(filepath)
@@ -116,15 +127,27 @@ function M.sweep()
             if entry ~= "." and entry ~= ".." then
                 local p = d .. "/" .. entry
                 local a = lfs.attributes(p) or {}
-                list[#list + 1] = { p = p, m = a.modification or 0, b = a.size or 0 }
+                list[#list + 1] = { p = p, m = a.modification or 0, b = a.size or 0,
+                                    orn = entry:sub(1, 1) == "o" }
             end
         end
         return list
     end)
     if not ok or not entries then return end
+    local covers, renders = {}, {}
+    for i = 1, #entries do
+        local e = entries[i]
+        if e.orn then renders[#renders + 1] = e else covers[#covers + 1] = e end
+    end
+    M._prune(covers, M.MAX_BYTES, false)
+    M._prune(renders, M.ORNAMENT_MAX_BYTES, true)
+end
+
+-- _prune(entries, cap, renders): one budget's files brought under its cap.
+function M._prune(entries, cap, renders)
     local total = 0
     for i = 1, #entries do total = total + entries[i].b end
-    if total <= M.MAX_BYTES then return end
+    if total <= cap then return end
     -- Over budget. Before falling back to age, drop covers whose book is no
     -- longer there: those can never be used again, while an old cover for a
     -- book still on the shelf may well be wanted on the next launch.
@@ -144,9 +167,15 @@ function M.sweep()
         -- path (bookshelf_ornaments renderDiskKey): it is an orphan when its
         -- piece is gone. Read as a path, every one went at each session's
         -- first sweep, and every piece was decoded again (PW5, 2026-10-30).
-        if fp then fp = fp:match("^ornament:(.-)|") or fp end
+        -- Among the covers, a render is one 6.0.4 wrote under a cover's
+        -- name: nothing reads it under that name now.
+        local legacy = false
+        if fp and fp:sub(1, #ORNAMENT_PREFIX) == ORNAMENT_PREFIX then
+            legacy = not renders
+            fp = fp:match("^ornament:(.-)|") or fp
+        end
         -- No readable header is its own kind of orphan: nothing can use it.
-        entries[i].orphan = (fp == nil) or (lfs.attributes(fp, "mode") == nil)
+        entries[i].orphan = legacy or (fp == nil) or (lfs.attributes(fp, "mode") == nil)
         if entries[i].orphan then orphans = orphans + 1 end
     end
     table.sort(entries, function(a, b)
@@ -155,7 +184,7 @@ function M.sweep()
     end)
     local pruned = 0
     for i = 1, #entries do
-        if total <= M.MAX_BYTES then break end
+        if total <= cap then break end
         if pcall(os.remove, entries[i].p) then
             total = total - entries[i].b
             pruned = pruned + 1
@@ -249,6 +278,11 @@ function M.load(filepath)
         if not out then return nil end
         local ffi = require("ffi")
         ffi.copy(out.data, data, want)
+        -- Used: the sweep goes by last use, so a cover read every day is
+        -- not the first to go because it was written long ago.
+        local mt = lfs.attributes(p, "modification")
+        local now = os.time()
+        if mt and now - mt > TOUCH_AFTER and lfs.touch then pcall(lfs.touch, p, now, now) end
         return out
     end)
     return ok and bb or nil

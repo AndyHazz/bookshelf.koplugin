@@ -1461,7 +1461,17 @@ function LibraryModal:refresh()
     end
     self._fill_rows = nil
     if self.config.area_height then
-        area_height = self.config.area_height(cw, room())
+        local r = room()
+        if self._over_rect then
+            -- A page of the editor: at least the picker's own height, as far
+            -- as the screen goes below the editor's top, as a cell picker
+            -- has its own rows below. The front page alone was the room, and
+            -- the module packs' second row of tabs left one row of squashed
+            -- cards under the page row (PW5).
+            local own = self.config.area_height(cw, nil)
+            r = math.max(r, math.min(own, room(Screen:getHeight() - self._over_rect.y - MARGIN)))
+        end
+        area_height = self.config.area_height(cw, r)
         -- The caller may now show fewer a page: the page row counts again.
         pagination = self:_renderPagination(cw)
     elseif self._over_rect and self.config.cell_renderer then

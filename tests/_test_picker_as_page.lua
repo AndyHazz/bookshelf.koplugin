@@ -77,4 +77,15 @@ t.test("a page on a short editor still has the picker's own rows", function()
         "the picker can run off the bottom of the screen")
 end)
 
+-- PW5 2026-10-31: the module picker sizes its own area (config.area_height)
+-- and was given the editor's front page as its room: with the module packs'
+-- second row of tabs, one row of squashed cards under the page row. A page
+-- gives such a picker at least its own height, as far as the screen goes.
+t.test("a picker that sizes its own area gets its own height as a page", function()
+    local body = assert(lm:match("if self.config.area_height then\n(.-)\n    elseif"), "no area_height branch")
+    assert(body:find("self.config.area_height(cw, nil)", 1, true), "the picker's own height is not asked")
+    assert(body:find("room(Screen:getHeight() - self._over_rect.y - MARGIN)", 1, true),
+        "the room is not the screen below the editor's top")
+end)
+
 t.done()

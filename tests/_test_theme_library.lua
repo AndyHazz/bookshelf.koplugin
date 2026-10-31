@@ -356,7 +356,7 @@ t.test("four cards a page, the picker no taller than they need, the cards as tal
     eq(c.area_height(1000), 4 * 185 + 3 * 10, "the cards' area is not four cards and their gaps")
     eq(c.anchor, nil, "the picker is not centred")
     local lm = io.open("lib/bookshelf_library_modal.lua"):read("*a")
-    assert(lm:find("area_height = self.config.area_height(cw, room())", 1, true),
+    assert(lm:find("local r = room()", 1, true) and lm:find("area_height = self.config.area_height(cw, r)", 1, true),
         "the modal ignores the caller's area height")
 end)
 

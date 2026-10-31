@@ -744,7 +744,9 @@ function Editor:editTab(tab_id, opts)
                 for _i, t in ipairs(targets) do
                     local here = (t.id == draft.parent)
                     local name = t.id and plainName(t) or _("Shelf menu")
-                    if here then here_name = name end
+                    -- In the sentence, "Now in the shelf menu", not "Now in
+                    -- Shelf menu" (the option's own label).
+                    if here then here_name = t.id and name or _("the shelf menu") end
                     local b = { type = "option", text = name, on = here,
                         icon = t.id and "\u{EA30}" or nil,   -- library: a shelf of shelves
                         callback = (not here) and moveTo(t) or nil }

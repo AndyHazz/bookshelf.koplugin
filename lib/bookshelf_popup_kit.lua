@@ -665,15 +665,19 @@ function Kit.iconHeading(glyph, text, font_size, ink)
         HorizontalSpan:new{ width = Space.px(8) }, head }
 end
 
--- hintText(text, font_size, width) -> grey secondary text: a hint or a
--- note, never a greyed-out button (a border says "tap me").
+-- hintText(text, font_size, width, align, o) -> grey secondary text: a hint
+-- or a note, never a greyed-out button (a border says "tap me").
 -- width: the box it wraps in (else TextBoxWidget's default, 400 at 160 dpi,
 -- whatever the room); align: "center" to centre it in that box.
-function Kit.hintText(text, font_size, width, align)
+-- o.face: a face of its own (else a step under font_size); o.bg: the grey
+-- strip or card it sits on, which takes the darker DIM_ON_GREY.
+function Kit.hintText(text, font_size, width, align, o)
+    o = o or {}
     local TextBoxWidget = require("ui/widget/textboxwidget")
     return TextBoxWidget:new{ text = text, width = width, alignment = align,
-        face = require("ui/font"):getFace("cfont", math.max(10, (font_size or 20) - 3)),
-        fgcolor = Blitbuffer.COLOR_DARK_GRAY }
+        face = o.face or require("ui/font"):getFace("cfont", math.max(10, (font_size or 20) - 3)),
+        fgcolor = o.bg and Kit.DIM_ON_GREY or Blitbuffer.COLOR_DARK_GRAY,
+        bgcolor = o.bg }
 end
 
 -- The steppers' minus and plus: the symbols font's pair (U+F068, U+F44D),

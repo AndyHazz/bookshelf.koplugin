@@ -31,6 +31,8 @@ local _ = require("lib/bookshelf_i18n").gettext
 
 -- Uniform gap applied everywhere below the title bar separator.
 local MARGIN = Space.px(10)
+-- A picker's intro line (config.intro): Kit.hintText at this size.
+local HINT_FS = 19
 
 -- Extend InputContainer (rather than WidgetContainer) so we can register a
 -- modal-level tap handler that dismisses the on-screen keyboard. Child
@@ -1479,7 +1481,7 @@ function LibraryModal:refresh()
         local intro = self.config.intro
         if type(intro) == "function" then intro = intro() end
         if intro and intro ~= "" then
-            chrome = chrome + PopupKit.hintText(intro, 19, cw):getSize().h + MARGIN
+            chrome = chrome + PopupKit.hintText(intro, HINT_FS, cw):getSize().h + MARGIN
         end
         local limit = self._over_rect and self._over_rect.h or (Screen:getHeight() - 2 * MARGIN)
         return limit - chrome
@@ -1535,13 +1537,13 @@ function LibraryModal:refresh()
     if type(intro) == "function" then intro = intro() end
     local has_intro = intro and intro ~= ""
     if has_intro and not self.config.intro_below then
-        table.insert(body, padded(PopupKit.hintText(intro, 19, cw)))
+        table.insert(body, padded(PopupKit.hintText(intro, HINT_FS, cw)))
         table.insert(body, VerticalSpan:new{ width = MARGIN })
     end
     table.insert(body, padded(result_area))
     table.insert(body, VerticalSpan:new{ width = MARGIN })
     if has_intro and self.config.intro_below then
-        table.insert(body, padded(PopupKit.hintText(intro, 19, cw)))
+        table.insert(body, padded(PopupKit.hintText(intro, HINT_FS, cw)))
         table.insert(body, VerticalSpan:new{ width = MARGIN })
     end
     -- The page row: last, at the bottom of a page of the editor (the spare

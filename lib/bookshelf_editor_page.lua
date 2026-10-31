@@ -141,24 +141,8 @@ function Ctx:iconW()
     return self._icon_w
 end
 
--- shortenPath(path, fits) -> path, or with the folders nearest its name
--- swapped for an ellipsis until fits(text) holds, so where it starts and the
--- folder's own name both show (a folder filter's row; folders can be outside
--- the home folder, so it is not made relative to it). The shortest is
--- "/.../name"; past that the text widget cuts it.
-local function shortenPath(path, fits)
-    if fits(path) then return path end
-    local parts = {}
-    for seg in path:gmatch("[^/]+") do parts[#parts + 1] = seg end
-    if #parts < 2 then return path end
-    local name = table.remove(parts)
-    local out
-    repeat
-        table.remove(parts)
-        out = "/" .. table.concat(parts, "/") .. (#parts > 0 and "/" or "") .. "\xE2\x80\xA6/" .. name
-    until #parts == 0 or fits(out)
-    return out
-end
+-- A folder row's path, cut in the middle (TextFit.pathMiddle).
+local function shortenPath(path, fits) return require("lib/bookshelf_text_fit").pathMiddle(path, fits) end
 Page._shortenPath = shortenPath   -- for tests
 
 local R = {}
@@ -173,9 +157,7 @@ function R.heading(ctx, b)
 end
 
 function R.hint(ctx, b)
-    return require("ui/widget/textboxwidget"):new{ text = b.text or "", width = ctx.w,
-        face = ctx.small, fgcolor = ctx.bg and Kit.DIM_ON_GREY or Blitbuffer.COLOR_DARK_GRAY,
-        bgcolor = ctx.bg }
+    return Kit.hintText(b.text or "", nil, ctx.w, nil, { face = ctx.small, bg = ctx.bg })
 end
 
 function R.chips(ctx, b)

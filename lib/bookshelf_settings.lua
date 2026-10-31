@@ -5849,196 +5849,109 @@ function Settings:_about()
     local DOCS_URL_DISPLAY   = "andyhazz.github.io/bookshelf-docs"
     local DOCS_URL           = "https://andyhazz.github.io/bookshelf-docs/"
 
-    local Device           = require("device")
-    local Screen           = Device.screen
-    local Font             = require("ui/font")
-    local Geom             = require("ui/geometry")
-    local Size             = require("ui/size")
-    local Blitbuffer       = require("ffi/blitbuffer")
-    local FrameContainer   = require("ui/widget/container/framecontainer")
-    local CenterContainer  = require("ui/widget/container/centercontainer")
-    local MovableContainer = require("ui/widget/container/movablecontainer")
-    local InputContainer   = require("ui/widget/container/inputcontainer")
+    local Screen           = require("device").screen
     local VerticalGroup    = require("ui/widget/verticalgroup")
     local VerticalSpan     = require("ui/widget/verticalspan")
     local TextBoxWidget    = require("ui/widget/textboxwidget")
     local TextWidget       = require("lib/bookshelf_colour_text")
-    local GestureRange     = require("ui/gesturerange")
+    local LinkPanel        = require("lib/bookshelf_link_panel")
 
-    local sw, sh = Screen:getWidth(), Screen:getHeight()
-    -- Frame target: ~75% of width on phone-sized portraits, capped so it
-    -- doesn't sprawl on landscape / tablet sizes.
-    local frame_w = math.min(math.floor(sw * 0.8), Screen:scaleBySize(420))
-    -- Inner padding: Size.padding.large (10dp) reads as cramped at this
-    -- frame size; the text edges sit ~1mm from the rounded border on
-    -- PW5. Scale up to ~24dp -- still snug but visibly breathable.
-    local FRAME_PAD = Space.px(24)
-    local content_w = frame_w - FRAME_PAD * 2
+    -- The panel (frame, padding, tap outside and Back to close) is
+    -- LinkPanel's, shared with the add-pack panels.
+    LinkPanel.show{ pad_top = 0.5, build = function(content_w)
+        local column = VerticalGroup:new{ align = "center" }
 
-    local column = VerticalGroup:new{ align = "center" }
+        -- Logo at the top, centred. The PNG is 900x380 (2.37:1) with a
+        -- transparent background, so we MUST pass alpha=true -- the
+        -- default (alpha=false) ignores the alpha channel and renders the
+        -- transparent area as opaque black. Width caps at content_w or
+        -- ~220dp, whichever is smaller; height is derived from the image's
+        -- native aspect so the widget doesn't reserve a tall square box
+        -- with empty vertical bands above and below the actual logo.
+        local LOGO_NATIVE_W, LOGO_NATIVE_H = 900, 380
+        if plugin_dir then
+            local logo_path = plugin_dir .. "/assets/bookshelf-logo.png"
+            local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
+            if ok_lfs and lfs and lfs.attributes and lfs.attributes(logo_path) then
+                local ImageWidget = require("ui/widget/imagewidget")
+                local logo_w = math.min(content_w, Screen:scaleBySize(220))
+                local logo_h = math.floor(logo_w * LOGO_NATIVE_H / LOGO_NATIVE_W)
+                column[#column + 1] = ImageWidget:new{
+                    file         = logo_path,
+                    width        = logo_w,
+                    height       = logo_h,
+                    scale_factor = 0,
+                    alpha        = true,
+                    -- Invert with the rest of the screen in night mode. The
+                    -- default keeps an image's own colours, which left a white
+                    -- box with the black logo in it on the dark frame; the logo
+                    -- is line art, so inverted it reads white on dark.
+                    original_in_nightmode = false,
+                }
+                column[#column + 1] = VerticalSpan:new{ width = Space.padding.default }
+            end
+        end
 
-    -- Logo at the top, centred. The PNG is 900x380 (2.37:1) with a
-    -- transparent background, so we MUST pass alpha=true -- the
-    -- default (alpha=false) ignores the alpha channel and renders the
-    -- transparent area as opaque black. Width caps at content_w or
-    -- ~220dp, whichever is smaller; height is derived from the image's
-    -- native aspect so the widget doesn't reserve a tall square box
-    -- with empty vertical bands above and below the actual logo.
-    local LOGO_NATIVE_W, LOGO_NATIVE_H = 900, 380
-    if plugin_dir then
-        local logo_path = plugin_dir .. "/assets/bookshelf-logo.png"
-        local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
-        if ok_lfs and lfs and lfs.attributes and lfs.attributes(logo_path) then
-            local ImageWidget = require("ui/widget/imagewidget")
-            local logo_w = math.min(content_w, Screen:scaleBySize(220))
-            local logo_h = math.floor(logo_w * LOGO_NATIVE_H / LOGO_NATIVE_W)
-            column[#column + 1] = ImageWidget:new{
-                file         = logo_path,
-                width        = logo_w,
-                height       = logo_h,
-                scale_factor = 0,
-                alpha        = true,
-                -- Invert with the rest of the screen in night mode. The
-                -- default keeps an image's own colours, which left a white
-                -- box with the black logo in it on the dark frame; the logo
-                -- is line art, so inverted it reads white on dark.
-                original_in_nightmode = false,
-            }
+        -- Version-only line below the logo. "Bookshelf" would duplicate the
+        -- name baked into the logo; the version digits stand alone. Sourced
+        -- live from _meta.lua so any release that touches version=... in
+        -- that file flows through automatically -- there's no other
+        -- string to keep in sync.
+        local ver_face, ver_bold = BFont:getFace("cfont", 16)
+        column[#column + 1] = TextWidget:new{
+            text = "v" .. version,
+            face = ver_face,
+            bold = ver_bold,
+        }
+        -- A SECOND COPY INSTALLED, which KOReader will also be running.
+        --
+        -- Every directory ending .koplugin in either lookup path is loaded, with
+        -- no check for a name already seen, so a leftover copy runs alongside the
+        -- real one. The reader's symptom is this screen and "check for updates"
+        -- disagreeing about the version while every update reports success --
+        -- they update one copy and run the other. Said here because this is the
+        -- screen they are looking at when they notice.
+        do
+            local ok_u, Updater = pcall(require, "lib/bookshelf_updater")
+            local others = (ok_u and Updater.otherCopies) and Updater.otherCopies() or {}
+            if #others > 0 then
+                column[#column + 1] = VerticalSpan:new{ width = Space.padding.large }
+                local warn_face = BFont:getFace("cfont", 14)
+                column[#column + 1] = TextBoxWidget:new{
+                    text = T(_("Another copy of Bookshelf is installed and is also "
+                        .. "being loaded:\n%1\n\nRemove it and restart, or updates "
+                        .. "may appear to do nothing."), table.concat(others, "\n")),
+                    face      = warn_face,
+                    width     = content_w,
+                    alignment = "center",
+                }
+            end
+        end
+        column[#column + 1] = VerticalSpan:new{ width = Space.padding.large }
+        local desc_face, desc_bold = BFont:getFace("cfont", 16)
+        column[#column + 1] = TextBoxWidget:new{
+            text      = description,
+            face      = desc_face,
+            bold      = desc_bold,
+            width     = content_w,
+            alignment = "center",
+        }
+        column[#column + 1] = VerticalSpan:new{ width = Space.padding.large }
+        -- Tappable URLs (they open, or are copied where there is no browser),
+        -- and the user guide's as a QR code above its link, to open it on a
+        -- phone from an e-reader with no browser (maintainer, 2026-10-31).
+        local qr = LinkPanel.qr(DOCS_URL, math.min(content_w, LinkPanel.qrSide()))
+        if qr then
+            column[#column + 1] = qr
             column[#column + 1] = VerticalSpan:new{ width = Space.padding.default }
         end
-    end
-
-    -- Version-only line below the logo. "Bookshelf" would duplicate the
-    -- name baked into the logo; the version digits stand alone. Sourced
-    -- live from _meta.lua so any release that touches version=... in
-    -- that file flows through automatically -- there's no other
-    -- string to keep in sync.
-    local ver_face, ver_bold = BFont:getFace("cfont", 16)
-    column[#column + 1] = TextWidget:new{
-        text = "v" .. version,
-        face = ver_face,
-        bold = ver_bold,
-    }
-    -- A SECOND COPY INSTALLED, which KOReader will also be running.
-    --
-    -- Every directory ending .koplugin in either lookup path is loaded, with
-    -- no check for a name already seen, so a leftover copy runs alongside the
-    -- real one. The reader's symptom is this screen and "check for updates"
-    -- disagreeing about the version while every update reports success --
-    -- they update one copy and run the other. Said here because this is the
-    -- screen they are looking at when they notice.
-    do
-        local ok_u, Updater = pcall(require, "lib/bookshelf_updater")
-        local others = (ok_u and Updater.otherCopies) and Updater.otherCopies() or {}
-        if #others > 0 then
-            column[#column + 1] = VerticalSpan:new{ width = Space.padding.large }
-            local warn_face = BFont:getFace("cfont", 14)
-            column[#column + 1] = TextBoxWidget:new{
-                text = T(_("Another copy of Bookshelf is installed and is also "
-                    .. "being loaded:\n%1\n\nRemove it and restart, or updates "
-                    .. "may appear to do nothing."), table.concat(others, "\n")),
-                face      = warn_face,
-                width     = content_w,
-                alignment = "center",
-            }
-        end
-    end
-    column[#column + 1] = VerticalSpan:new{ width = Space.padding.large }
-    local desc_face, desc_bold = BFont:getFace("cfont", 16)
-    column[#column + 1] = TextBoxWidget:new{
-        text      = description,
-        face      = desc_face,
-        bold      = desc_bold,
-        width     = content_w,
-        alignment = "center",
-    }
-    column[#column + 1] = VerticalSpan:new{ width = Space.padding.large }
-    -- Tappable URL: tries Device:openLink (works on SDL / Android), then
-    -- falls back to copying to KOReader's internal clipboard + a brief
-    -- Notification. On Kindle there's no native browser so the
-    -- clipboard path is the user-meaningful one (paste into a Send-to-
-    -- Kindle-style helper, or just read the URL clearly).
-    local Button = require("ui/widget/button")
-    local function open_link(url)
-        local ok = false
-        if Device.openLink then
-            local _ok, ret = pcall(function() return Device:openLink(url) end)
-            if _ok and ret then ok = true end
-        end
-        if not ok and Device.input and Device.input.setClipboardText then
-            pcall(function() Device.input.setClipboardText(url) end)
-            local Notification = require("ui/widget/notification")
-            UIManager:show(Notification:new{
-                text = _("Link copied to clipboard"),
-            })
-        end
-    end
-    local function linkButton(display, url)
-        return Button:new{
-            text       = display,
-            bordersize = 0,
-            padding    = 0,
-            margin     = 0,
-            text_font_face = "cfont",
-            text_font_size = 14,
-            callback   = function() open_link(url) end,
-        }
-    end
-    column[#column + 1] = linkButton(DOCS_URL_DISPLAY, DOCS_URL)
-    column[#column + 1] = VerticalSpan:new{ width = Space.padding.default }
-    column[#column + 1] = linkButton(GITHUB_URL_DISPLAY, GITHUB_URL)
-
-    -- Frame styling matches the other Bookshelf modals (chip editor,
-    -- hero line editor): default Size.border.window thickness (thicker
-    -- than Size.border.thin) and Size.radius.window for rounded
-    -- corners. Earlier the popup used thin + square, which read as
-    -- subtly out-of-family next to the rest of the plugin's dialogs.
-    -- Per-side padding: tighter at the top because the BOOKSHELF logo's
-    -- bold glyphs carry their own visual mass and don't need as much
-    -- breathing room above them. Equal padding made the popup read as
-    -- top-heavy in the screenshot. Bottom keeps the full FRAME_PAD so
-    -- the URL has the same air the description gets.
-    local frame = FrameContainer:new{
-        radius        = Space.radius.window,
-        padding       = FRAME_PAD,
-        padding_top   = math.floor(FRAME_PAD * 0.5),
-        margin        = 0,
-        background    = Blitbuffer.COLOR_WHITE,
-        column,
-    }
-
-    local dialog
-    dialog = InputContainer:new{
-        align = "center",
-        dimen = Geom:new{ x = 0, y = 0, w = sw, h = sh },
-        CenterContainer:new{
-            dimen = Geom:new{ w = sw, h = sh },
-            MovableContainer:new{ frame },
-        },
-    }
-    if Device:isTouchDevice() then
-        dialog.ges_events = {
-            TapClose = { GestureRange:new{
-                ges   = "tap",
-                range = Geom:new{ x = 0, y = 0, w = sw, h = sh },
-            } },
-        }
-        dialog.onTapClose = function(self_d, _arg, ges_ev)
-            if not frame.dimen or ges_ev.pos:notIntersectWith(frame.dimen) then
-                UIManager:close(self_d)
-            end
-            return true
-        end
-    end
-    if Device:hasKeys() then
-        dialog.key_events = { Close = { { Device.input.group.Back } } }
-        dialog.onClose = function(self_d)
-            UIManager:close(self_d)
-            return true
-        end
-    end
-
-    UIManager:show(dialog)
+        column[#column + 1] = LinkPanel.linkButton(DOCS_URL_DISPLAY, DOCS_URL)
+        column[#column + 1] = VerticalSpan:new{ width = Space.padding.default }
+        column[#column + 1] = LinkPanel.linkButton(GITHUB_URL_DISPLAY, GITHUB_URL)
+        -- Tighter at the top (pad_top): the logo's bold glyphs carry their own
+        -- visual mass and don't need as much room above them.
+        return { column }
+    end }
 end
 
 -- _updateSubItems() — drill-down menu for the in-app updater. Mirrors

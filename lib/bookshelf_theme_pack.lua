@@ -322,21 +322,22 @@ function M.mineName() return _("Custom theme") end
 -- maintainer, 2026-10-07) and the popup it opens: where theme packs go, that
 -- any theme can be edited and reset (maintainer, 2026-10-09, as Bookends'
 -- gallery says presets can be edited freely once installed), and where to
--- get packs. The shop link is a parameter, not part of the msgid, so a
--- translation cannot break it.
+-- get packs: the shop's link and QR code are out of the text, so a
+-- translation cannot break them.
 function M.addThemeLabel() return _("Add theme pack\xE2\x80\xA6") end
 function M.showAddThemeInfo()
-    local UIManager = require("ui/uimanager")
-    local InfoMessage = require("ui/widget/infomessage")
     local T = require("ffi/util").template
     -- A findable path: the settings dir can be relative.
     local dir = require("lib/bookshelf_ornaments").dir() or "?"
     local ok, util = pcall(require, "ffi/util")
     local real = ok and util.realpath and util.realpath(dir)
-    UIManager:show(InfoMessage:new{
-        text = T(_("A theme pack brings a wallpaper, a plank, colors and ornaments together, and is chosen here. To add one, copy its folder into\n%1\nthen open the Theme library again.\n\nYou can edit any theme freely; your changes stay with it, and Reset brings back the original.\n\nReady-made theme packs:\n%2"),
-            real or dir, "ko-fi.com/andyhazz/shop"),
-    })
+    -- A panel as About is, with the shop's QR code (maintainer, 2026-10-31).
+    require("lib/bookshelf_link_panel").showShop{
+        title = _("Add theme pack"),
+        text = T(_("A theme pack brings a wallpaper, a plank, colors and ornaments together, and is chosen here. To add one, copy its folder into\n%1\nthen open the Theme library again.\n\nYou can edit any theme freely; your changes stay with it, and Reset brings back the original."),
+            real or dir),
+        shop = _("Ready-made theme packs"),
+    }
 end
 function M.plainName() return _("Plain") end
 

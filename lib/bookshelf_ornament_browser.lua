@@ -331,19 +331,17 @@ function Browser:_addButton()
         key = "add",
         label = _("Add ornaments\xe2\x80\xa6"),
         on_tap = function()
-            UIManager:show(InfoMessage:new{
-                -- The shop URL is a parameter, not part of the
-                -- msgid, so a translation cannot break it.
-                text = T(_("Put PNG or SVG files in\n%1\n\nA folder of them inside it becomes a pack, with its own tab here.\n\nReady-made packs:\n%2"),
-                    (function()
-                        -- A findable path: the settings dir can be relative.
-                        local d = O().dir() or "?"
-                        local ok, util = pcall(require, "ffi/util")
-                        local real = ok and util.realpath and util.realpath(d)
-                        return real or d
-                    end)(),
-                    "ko-fi.com/andyhazz/shop"),
-            })
+            -- A findable path: the settings dir can be relative.
+            local d = O().dir() or "?"
+            local ok, util = pcall(require, "ffi/util")
+            local real = ok and util.realpath and util.realpath(d)
+            -- As Add theme pack: a panel with the shop's QR code.
+            require("lib/bookshelf_link_panel").showShop{
+                title = _("Add ornaments"),
+                text = T(_("Put PNG or SVG files in\n%1\n\nA folder of them inside it becomes a pack, with its own tab here."),
+                    real or d),
+                shop = _("Ready-made packs"),
+            }
         end,
     }
 end

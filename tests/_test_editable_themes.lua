@@ -651,21 +651,28 @@ t.test("confirmReset asks first, then resets the theme and calls back; never Cus
     end)
 end)
 
-t.test("Add theme pack says any theme can be edited and reset; the shop link stays a parameter", function()
+t.test("Add theme pack says any theme can be edited and reset; the shop is a QR code and a link", function()
     -- Maintainer, 2026-10-09, as Bookends' gallery help: "Once installed,
-    -- you can edit each preset freely".
+    -- you can edit each preset freely". A panel as About is, with the
+    -- shop's QR code (maintainer, 2026-10-31).
     local TP = setup()
-    withUI(function(seen)
-        TP.showAddThemeInfo()
-        local msg = seen.shown[1]
-        eq(msg and msg.kind, "info")
-        assert(msg.text:find("You can edit any theme freely; your changes stay with it, and Reset brings back the original.", 1, true),
-            "the popup does not say themes can be edited and reset")
-        assert(msg.text:find("settings/bookshelf/ornaments", 1, true), "the folder is not named")
-        assert(msg.text:find("ko%-fi%.com/andyhazz/shop$"), "the shop link is not the popup's last line")
-    end)
-    local src = io.open("lib/bookshelf_theme_pack.lua"):read("*a")
-    assert(not src:find('_("[^"]*ko%-fi'), "the shop link is inside a msgid, where a translation can break it")
+    local panel
+    local saved = package.loaded["lib/bookshelf_link_panel"]
+    package.loaded["lib/bookshelf_link_panel"] = { showShop = function(o) panel = o end }
+    local ok, err
+    withUI(function() ok, err = pcall(TP.showAddThemeInfo) end)
+    package.loaded["lib/bookshelf_link_panel"] = saved
+    assert(ok, err)
+    assert(panel, "no panel")
+    eq(panel.title, "Add theme pack")
+    assert(panel.text:find("You can edit any theme freely; your changes stay with it, and Reset brings back the original.", 1, true),
+        "the popup does not say themes can be edited and reset")
+    assert(panel.text:find("settings/bookshelf/ornaments", 1, true), "the folder is not named")
+    eq(panel.shop, "Ready-made theme packs")
+    for _i, f in ipairs({ "lib/bookshelf_theme_pack.lua", "lib/bookshelf_ornament_browser.lua" }) do
+        local src = io.open(f):read("*a")
+        assert(not src:find('_("[^"]*ko%-fi'), f .. ": the shop link is inside a msgid, where a translation can break it")
+    end
 end)
 
 -- A part a pack lacks is Plain's, not Custom theme's: Autumn (pieces and

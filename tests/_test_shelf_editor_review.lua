@@ -129,7 +129,7 @@ t.test("Modules says how many are on the shelf", function()
 end)
 
 t.test("Filters says what it is for, with no restatement and no footnote", function()
-    assert(src:find('_("Use filters to restrict the books shown on this shelf.")', 1, true), "no help line on Filters")
+    assert(src:find('_("Books matching the filters you choose below will show in this shelf.")', 1, true), "no help line on Filters")
     assert(not src:find("Showing books that match", 1, true), "the filters are restated at the top")
     assert(not src:find("A book must match every filter; each filter's page", 1, true), "the footnote is still there")
 end)

@@ -3503,7 +3503,7 @@ function Editor:_openFilters(draft, on_close)
                 end }
         end
         -- What the page is for; the rows say what is set (maintainer).
-        local strip = { { type = "summary", text = _("Use filters to restrict the books shown on this shelf.") } }
+        local strip = { { type = "summary", text = _("Books matching the filters you choose below will show in this shelf.") } }
         if #set > 0 then
             strip[#strip + 1] = { type = "chips", items = { { text = _("Clear all filters"),
                 callback = function() draft.filter = {}; changed() end } } }

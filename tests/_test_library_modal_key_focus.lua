@@ -19,7 +19,7 @@ local function method(name)
     assert(load("local LibraryModal = ...\n" .. body))(LibraryModal)
 end
 for _i, n in ipairs({ "_revealFocus", "_cellsPerPage", "_gridNav", "_gridCols", "onGridFocusDown", "onGridFocusRight", "onGridPress",
-                      "onGridFocusUp", "onGridFocusLeft", "_stripPos" }) do
+                      "onGridFocusUp", "onGridFocusLeft", "_stripPos", "refreshCell" }) do
     method(n)
 end
 
@@ -100,8 +100,30 @@ t.test("Up from the grid's top row reaches the strip; Down goes back; Press taps
 end)
 
 t.test("the grid's ring shows only while the keys are on the grid", function()
-    assert(src:find('local focused = self._focus_zone == "grid" and self._dpad_idx ~= nil and idx == self._dpad_idx', 1, true),
+    assert(src:find('local focused = modal._focus_zone == "grid" and modal._dpad_idx ~= nil and idx == modal._dpad_idx', 1, true),
         "the grid keeps its ring while the footer or strip has the keys")
+end)
+
+-- Perf review 2026-10-31: a tick in a multi-select picker built the whole
+-- picker again and refreshed all of it, for one card.
+t.test("refreshCell draws one card again and refreshes its box; off the page, all", function()
+    local dirty = {}
+    package.loaded["ui/uimanager"] = { setDirty = function(_s, _w, f) dirty[#dirty + 1] = { f() } end }
+    -- the method was loaded before the stub: give it one through its globals
+    UIManager = package.loaded["ui/uimanager"]
+    local m = modal(nil, 1, nil)
+    local item = { value = "Crime" }
+    local ic = { dimen = { x = 10, y = 20, w = 100, h = 50 } }
+    m._cell_slots = { [item] = { ic = ic, idx = 3 } }
+    m._build_cell = function(idx, it) return { built = idx, item = it } end
+    m:refreshCell(item)
+    eq(ic[1].built, 3)
+    eq(#dirty, 1); eq(dirty[1][1], "ui"); eq(dirty[1][2].w, 100)
+    eq(m.refreshes, 0, "the whole picker was built again")
+    m:refreshCell({ value = "elsewhere" })
+    eq(m.refreshes, 1, "a card off the page did not fall back to a full refresh")
+    local ed = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
+    assert(ed:find("modal:refreshCell(item)", 1, true), "the filter picker's tick refreshes the whole picker")
 end)
 
 t.done()

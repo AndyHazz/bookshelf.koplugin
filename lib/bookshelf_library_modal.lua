@@ -1154,26 +1154,34 @@ function LibraryModal:_renderGridArea(content_width, area_height)
     local vg = VerticalGroup:new{ align = "left" }
     local hg = HorizontalGroup:new{ align = "top" }
     local in_row = 0
+    -- buildCell(idx, item) -> the card as cell_renderer draws it, with the
+    -- keys' ring. Kept per item (_cell_slots) for refreshCell.
+    local modal = self
+    local function buildCell(idx, item)
+        -- Ringed only while the keys are on the grid (not the strip or
+        -- the footer: two rings at once).
+        local focused = modal._focus_zone == "grid" and modal._dpad_idx ~= nil and idx == modal._dpad_idx
+        local cell_widget = modal.config.cell_renderer(item, Geom:new{ w = cell_w, h = cell_h }, focused)
+        if focused then
+            -- The kit's focus ring, inverted inside the card's edge at its
+            -- corner: a heavy outline round it read as the card in use.
+            local inner = cell_widget
+            cell_widget = WidgetContainer:new{ dimen = Geom:new{ w = cell_w, h = cell_h }, inner }
+            function cell_widget:paintTo(bb, x, y)
+                inner:paintTo(bb, x, y)
+                local sz = inner:getSize()
+                PopupKit.invertRing(bb, x, y, sz.w, sz.h, PopupKit.focusWidth(), PopupKit.RADIUS)
+            end
+        end
+        return cell_widget
+    end
+    self._cell_slots = {}
+    self._build_cell = buildCell
     for idx = start_idx, end_idx do
         local item = self.config.item_at(idx)
         if item then
-            -- Ringed only while the keys are on the grid (not the strip or
-            -- the footer: two rings at once).
-            local focused = self._focus_zone == "grid" and self._dpad_idx ~= nil and idx == self._dpad_idx
-            local render_dimen = Geom:new{ w = cell_w, h = cell_h }
             local cell_dimen = Geom:new{ w = cell_w, h = cell_h }
-            local cell_widget = self.config.cell_renderer(item, render_dimen, focused)
-            if focused then
-                -- The kit's focus ring, inverted inside the card's edge at its
-                -- corner: a heavy outline round it read as the card in use.
-                local inner = cell_widget
-                cell_widget = WidgetContainer:new{ dimen = Geom:new{ w = cell_w, h = cell_h }, inner }
-                function cell_widget:paintTo(bb, x, y)
-                    inner:paintTo(bb, x, y)
-                    local sz = inner:getSize()
-                    PopupKit.invertRing(bb, x, y, sz.w, sz.h, PopupKit.focusWidth(), PopupKit.RADIUS)
-                end
-            end
+            local cell_widget = buildCell(idx, item)
             -- Always wrap cells in an InputContainer so tap (and optional
             -- long-tap) gestures route through to the domain handlers.
             -- on_cell_tap fires the action (insert glyph, etc.); cell_long_tap
@@ -1213,6 +1221,7 @@ function LibraryModal:_renderGridArea(content_width, area_height)
                     end
                 end
                 cell_widget = ic
+                self._cell_slots[item] = { ic = ic, idx = idx }
             end
             if in_row > 0 then
                 table.insert(hg, HorizontalSpan:new{ width = MARGIN })
@@ -1239,6 +1248,18 @@ function LibraryModal:_renderGridArea(content_width, area_height)
         dimen = Geom:new{ w = content_width, h = area_height },
         vg,
     }
+end
+
+-- refreshCell(item): draw that card again where it is, and refresh its box
+-- alone: a tick in a multi-select picker changes one card, where refresh()
+-- built the whole picker again and refreshed all of it. Anything else (an
+-- item not on this page, a picker in list mode) falls back to refresh().
+function LibraryModal:refreshCell(item)
+    local slot = self._cell_slots and self._cell_slots[item]
+    local d = slot and slot.ic.dimen
+    if not (slot and self._build_cell and d and d.x) then return self:refresh() end
+    slot.ic[1] = self._build_cell(slot.idx, item)
+    UIManager:setDirty(self, function() return "ui", d end)
 end
 
 function LibraryModal:_renderPagination(content_width)

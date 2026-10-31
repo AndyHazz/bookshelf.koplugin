@@ -3573,7 +3573,8 @@ function Editor:_pickMultiFilter(draft, dim_key, on_close, opts)
         select_on_tap = true,
         on_cell_tap = function(item)
             if sel[item.value] then sel[item.value] = nil else sel[item.value] = true end
-            modal:refresh()
+            -- That card alone, not the whole picker (perf review 2026-10-31).
+            modal:refreshCell(item)
         end,
         -- Clear: the screen's own action, on the strip under the title. The
         -- set is emptied in place, so `sel` stays the draft's.

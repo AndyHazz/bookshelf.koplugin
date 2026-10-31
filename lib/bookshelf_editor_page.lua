@@ -26,6 +26,9 @@
 --   option    text, desc, icon, on, callback, links { {text, on, callback} },
 --             half: a card with a title and a grey line saying what it does,
 --             and small buttons at its right (Pick one >)
+--   pills     items { {label, trailing, on_tap} }: small outlined pills in
+--             lines, as the book menu's tags (trailing: a glyph inside,
+--             after the label, as the cross on a tag that removes it)
 --   Any block with half = true pairs with the next one, two to a line.
 --   order     label, selected, on_up, on_down, up_enabled, down_enabled,
 --             on_edit, edit_slot: a shelf's label as its chip draws it,
@@ -166,6 +169,16 @@ function R.heading(ctx, b)
     }
     local gap = math.max(Space.px(8), ctx.w - head:getSize().w - badge:getSize().w)
     return HorizontalGroup:new{ align = "center", head, HorizontalSpan:new{ width = gap }, badge }
+end
+
+-- The book menu's own pills (its Tags tab in edit mode), so a list of
+-- picks with crosses reads the same in both places.
+function R.pills(ctx, b)
+    local W = require("lib/bookshelf_widget")
+    local group, rows = W._buildPillGroup(nil, b.items or {}, ctx.w, 9999, ctx.fs,
+        "left", Space.px(8), nil, nil, Kit.BORDER)
+    for _i, r in ipairs(rows or {}) do ctx.layout[#ctx.layout + 1] = r end
+    return group
 end
 
 function R.hint(ctx, b)
@@ -704,6 +717,13 @@ function Page.toButtons(model)
             local t = b.type
             if t == "summary" or t == "heading" or t == "hint" then
                 rows[#rows + 1] = { { text = b.text, enabled = false } }
+            elseif t == "pills" then
+                local row = {}
+                for _j, it in ipairs(b.items or {}) do
+                    row[#row + 1] = { text = it.label .. (it.trailing and " " .. it.trailing or ""),
+                        callback = it.on_tap }
+                end
+                rows[#rows + 1] = row
             elseif t == "chips" then
                 local row = {}
                 for _j, it in ipairs(b.items or {}) do

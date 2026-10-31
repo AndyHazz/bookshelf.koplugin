@@ -3618,6 +3618,8 @@ end
 -- Genre and Collection as pages of lists, as Folders is: what a book needs
 -- any of, all of (genres) and none of (GitHub issues 293, 453). Each list
 -- adds through the filter's own picker, ticking that list.
+local CROSS = "\xE2\x9C\x95"   -- U+2715, as on the book menu's tags
+
 -- Each list's logic (OR, AND, NOT) is a tag beside its heading, for readers
 -- who know it, not the end of the heading's sentence (maintainer).
 local SET_SECTIONS = {
@@ -3651,19 +3653,21 @@ function Editor:_pickSetsFilter(draft, dim_key, on_close)
         for _i, sec in ipairs(sections) do
             local set = draft.filter[sec.key] or {}
             blocks[#blocks + 1] = { type = "heading", text = sec.heading, tag = sec.tag }
+            -- The picks as the book menu's tags in edit mode: small pills,
+            -- each with a cross that drops it, "+ Add" last (maintainer).
             local keys = {}
             for v in pairs(set) do keys[#keys + 1] = v end
             table.sort(keys)
+            local items = {}
             for _j, v in ipairs(keys) do
-                blocks[#blocks + 1] = { type = "row", icon = FILTER_ICONS[dim_key],
-                    label = tostring(v), on = true,
-                    on_clear = function() set[v] = nil; changed() end }
+                items[#items + 1] = { label = tostring(v), trailing = CROSS,
+                    on_tap = function() set[v] = nil; changed() end }
             end
-            blocks[#blocks + 1] = { type = "chips", items = { { text = "+ " .. sections.add,
-                callback = function()
-                    Editor:_pickMultiFilter(draft, dim_key, changed,
-                        { set_key = sec.key, crumb = sec.heading })
-                end } } }
+            items[#items + 1] = { label = "+ " .. sections.add, on_tap = function()
+                Editor:_pickMultiFilter(draft, dim_key, changed,
+                    { set_key = sec.key, crumb = sec.heading })
+            end }
+            blocks[#blocks + 1] = { type = "pills", items = items }
         end
         blocks[#blocks + 1] = { type = "hint", text = sections.hint }
         return { blocks = blocks }

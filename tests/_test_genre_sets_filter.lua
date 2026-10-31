@@ -48,7 +48,10 @@ local function addUnder(model, heading)
     local seen = false
     for _i, b in ipairs(model.blocks) do
         if b.type == "heading" then seen = b.text == heading end
-        if seen and b.type == "chips" then return b.items[1] end
+        if seen and b.type == "pills" then
+            local last = b.items[#b.items]
+            return { callback = last.on_tap, label = last.label }
+        end
     end
 end
 
@@ -60,14 +63,18 @@ t.test("Collection: any and leave out", function()
     eq(headings(page("collections")), "In any of these collections [OR] | Leave out these collections [NOT]")
 end)
 
-t.test("each list shows its picks, each with a cross that drops it", function()
+-- As the book menu's tags in edit mode: small pills in a line, each with a
+-- cross inside that drops it, "+ Add" last (maintainer).
+t.test("each list shows its picks as pills, each with a cross that drops it", function()
     local model, draft = page("genres", { genres_not = { FanFiction = true } })
-    local row
+    local pill
     for _i, b in ipairs(model.blocks) do
-        if b.type == "row" then row = b end
+        if b.type == "pills" and #b.items > 1 then pill = b.items[1] end
+        assert(b.type ~= "row", "a pick is still a full-width row")
     end
-    eq(row.label, "FanFiction")
-    row.on_clear()
+    eq(pill.label, "FanFiction")
+    eq(pill.trailing, "\xE2\x9C\x95")
+    pill.on_tap()
     eq(next(draft.filter.genres_not), nil)
 end)
 

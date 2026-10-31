@@ -327,7 +327,7 @@ omit them and you get the sensible default (a flex/text card offered everywhere)
   that ends in "Needs internet."
 - `hero_only = true` — the module only makes sense in the hero grid (e.g.
   `action`, a launcher); it's hidden from the start-menu module picker.
-- `tap_feedback = true` — draw an instant pressed border when the card is tapped,
+- `tap_feedback = true` (or `function(ctx) -> bool`, asked when the card is built) - draw an instant pressed border when the card is tapped,
   for launcher-style cards that *do* something on tap. Leave it off for passive
   cards (a tap that only re-rolls or does nothing shouldn't flash a border).
 

@@ -770,7 +770,15 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
     -- border drawn); on tap the border flips on and the margin off, so the
     -- cell's outer size is unchanged and nothing shifts (the swap the chips
     -- use). Passive modules reserve nothing and use the full cell.
-    local press_b  = (def and def.tap_feedback) and Screen:scaleBySize(1) or 0
+    -- tap_feedback may be a function(ctx): an ornament flashes only with a
+    -- tap action set; with none the tap does nothing, and a flash said
+    -- otherwise (maintainer, PW5).
+    local feedback = def and def.tap_feedback
+    if type(feedback) == "function" then
+        local ok, r = pcall(feedback, HeroModules._ctx(bw, nil, entry))
+        feedback = ok and r
+    end
+    local press_b  = feedback and Screen:scaleBySize(1) or 0
     local inner_w  = math.max(1, cell_w - 2 * card_pad - 2 * press_b)
     local inner_h  = math.max(1, cell_h - 2 * card_pad - 2 * press_b)
 
@@ -982,7 +990,10 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
         if press_b > 0 then
             frame.bordersize = press_b
             frame.margin = 0
-            UIManager:setDirty(bw, function() return "fast", self.dimen end)
+            -- A bare module is a picture: the fast waveform is 1-bit on the
+            -- panel and smeared it (maintainer, PW5). A card is flat ink.
+            local wave = (def and def.bare) and "ui" or "fast"
+            UIManager:setDirty(bw, function() return wave, self.dimen end)
             UIManager:forceRePaint()
             -- card_border, NOT zero. Zero was right when this was written,
             -- because the card was borderless then; the hairline above was

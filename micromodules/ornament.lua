@@ -69,7 +69,10 @@ return {
     -- since pieces fill small gaps (maintainer), not a page of its own.
     start_w = 1,
     start_h = 1,
-    tap_feedback = true,
+    -- The pressed flash only when a tap does something (a tap action set).
+    tap_feedback = function(ctx)
+        return type(ctx and ctx.config and ctx.config:get("tap")) == "table"
+    end,
 
     render = function(ctx)
         local Kit = require("lib/bookshelf_module_kit")

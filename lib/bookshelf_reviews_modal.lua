@@ -34,7 +34,6 @@ local UIManager       = require("ui/uimanager")
 local VerticalGroup   = require("ui/widget/verticalgroup")
 local Store           = require("lib/bookshelf_settings_store")
 local BFont           = require("lib/bookshelf_fonts")
-local TextSegments    = require("lib/bookshelf_text_segments")
 local GestureZones    = require("lib/bookshelf_gesture_zones")
 local logger          = require("logger")
 local Space           = require("lib/bookshelf_space")
@@ -44,18 +43,6 @@ local _               = require("lib/bookshelf_i18n").gettext
 -- Shared wall-clock for [bookshelf perf] timestamps (and elapsed-time
 -- bookkeeping); see lib/bookshelf_gettime.lua for the fallback contract.
 local _gettime = require("lib/bookshelf_gettime")
-
--- FrameContainer that pixel-inverts its own rect after painting (selected
--- chips). Renders black-on-white then flips via a blitbuffer primitive so the
--- inversion is device-independent -- some Kindle builds don't honour TextWidget
--- fgcolor. Mirrors the nav chip bar's InvertedFrame.
-local InvertedFrame = FrameContainer:extend{}
-function InvertedFrame:paintTo(bb, x, y)
-    FrameContainer.paintTo(self, bb, x, y)
-    if self._invert and self.dimen then
-        bb:invertRect(x, y, self.dimen.w, self.dimen.h)
-    end
-end
 
 -- Reader-adjustable font size for each tab's body (Edit buttons, Description
 -- HTML, Reviews HTML, Tags pills). Stored as a base point size and run through

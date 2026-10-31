@@ -120,7 +120,8 @@ t.test("the steps are kept in memory and written once, as the page closes", func
     local set = b:match("local function setValue%(v%)(.-)\n    end\n")
     assert(set and set:find("BookshelfSettings.saveDeferred(key, v)", 1, true) and not set:find("BookshelfSettings.save(", 1, true),
         "a step writes the settings file")
-    assert(b:find("local function keep() BookshelfSettings.save(key, getValue()) end", 1, true), "nothing writes it on close")
+    assert(b:find("if getValue() ~= original then BookshelfSettings.save(key, getValue()) end", 1, true),
+        "nothing writes it on close, or it writes an unchanged value")
 end)
 
 t.done()

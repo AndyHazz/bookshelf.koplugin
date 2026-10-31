@@ -78,8 +78,8 @@ function PageDialog:init()
         local WidgetContainer = require("ui/widget/container/widgetcontainer")
         local holder = WidgetContainer:new{ dimen = Geom:new{ w = sw, h = sh }, dialog.movable }
         function holder:paintTo(bb, x, y)
-            local a = dialog.anchor
-            if type(a) == "function" then a = a() end
+            local a = dialog:_anchorRect()
+            dialog._anchor_seen = a and Geom:new{ x = a.x, y = a.y, w = a.w, h = a.h } or false
             local sz = frame:getSize()
             local fx, fy = math.floor((sw - sz.w) / 2), math.floor((sh - sz.h) / 2)
             if dialog.at_bottom and not (a and a.y) then
@@ -157,6 +157,13 @@ function PageDialog:_build()
     self.frame[1] = VerticalGroup:new{ align = "left", title_bar, fm }
 end
 
+-- _anchorRect() -> where the anchor is now (a rect, or a function's answer).
+function PageDialog:_anchorRect()
+    local a = self.anchor
+    if type(a) == "function" then a = a() end
+    return a
+end
+
 -- refresh(): lay the page out again from its model and repaint it in place;
 -- what it no longer covers (a shorter page) is repainted from underneath.
 function PageDialog:refresh()
@@ -165,9 +172,16 @@ function PageDialog:refresh()
     local prev = d and d.x and Geom:new{ x = d.x, y = d.y, w = d.w, h = d.h }
     self:_build()
     local size = self.frame:getSize()
-    if prev and (size.w ~= prev.w or size.h ~= prev.h or self.anchor) then
-        -- Centred: a change of size moves it too. Anchored: what it is
-        -- anchored to may have moved (a module nudged along the shelf).
+    -- Anchored: only when what it is anchored to moved (a module nudged
+    -- along the shelf) is it somewhere else; the windows underneath were
+    -- repainted on every tap (the whole shelf behind a size page).
+    local moved = false
+    if self.anchor then
+        local a, seen = self:_anchorRect(), self._anchor_seen
+        moved = (a and a.x and seen) and (a.x ~= seen.x or a.y ~= seen.y or a.h ~= seen.h) or false
+    end
+    if prev and (size.w ~= prev.w or size.h ~= prev.h or moved) then
+        -- Centred: a change of size moves it too.
         UIManager:setDirty("all", "ui", prev)
         self.frame.dimen = nil
     end

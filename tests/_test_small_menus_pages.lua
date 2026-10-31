@@ -86,4 +86,13 @@ t.test("Modules: Reset and Remove as cards, the X to leave", function()
     eq(st.reset, true)
 end)
 
+-- Perf review 2026-10-31: an anchored page repainted every window under it
+-- (the whole shelf behind a size page) on every tap, moved or not.
+t.test("an anchored page repaints underneath only when its anchor moved", function()
+    local pd = io.open("lib/bookshelf_page_dialog.lua"):read("*a")
+    local r = pd:match("\n(function PageDialog:refresh%(%).-\nend)\n")
+    assert(r and not r:find("or self.anchor) then", 1, true), "every tap of an anchored page repaints the shelf")
+    assert(r:find("a.x ~= seen.x or a.y ~= seen.y or a.h ~= seen.h", 1, true), "a moved anchor is not seen")
+end)
+
 t.done()

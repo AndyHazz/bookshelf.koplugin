@@ -557,6 +557,9 @@ function Editor:editTab(tab_id, opts)
     -- still has none removes it and hands back to opts.on_discard (the shelf
     -- the reader came from); once it has one it is an ordinary shelf.
     local is_new = target.pending == true
+    -- The settings' generation as the editor opened: closing writes the
+    -- file only when something moved it (~130 ms a write on a PW5).
+    local gen_at_open = require("lib/bookshelf_settings_store").generation()
     local function hasSource()
         return draft.source ~= nil and draft.source.kind ~= TabModel.NO_SOURCE
     end
@@ -618,6 +621,10 @@ function Editor:editTab(tab_id, opts)
             end
         end
         if drop_shelves then dropShelves(save_tabs) end
+        -- The shelf's own settings changed: what it fetches, or how it lays
+        -- out its pages, may have (the shelf drops its fetch cache). Shelf
+        -- order changes neither and does not come through here.
+        owed_info.fetch_changed = true
         TabModel.saveDeferred(save_tabs)
         committed = Editor._deepCopy(draft)
         schedulePreview()
@@ -651,7 +658,7 @@ function Editor:editTab(tab_id, opts)
         if not Editor._sameValue(draft, committed) then commit() end
         closed = true
         UIManager:close(dialog)
-        TabModel.flush()
+        if require("lib/bookshelf_settings_store").generation() ~= gen_at_open then TabModel.flush() end
         settlePreview()
     end
 
@@ -776,6 +783,8 @@ function Editor:editTab(tab_id, opts)
     -- its body where it is written, so above that point schedulePreview would
     -- be a nil global at the moment of the confirm.
     local function onArranged()
+        -- A new order is a new fetch (the shelf's cache goes).
+        owed_info.fetch_changed = true
         schedulePreview()
     end
 

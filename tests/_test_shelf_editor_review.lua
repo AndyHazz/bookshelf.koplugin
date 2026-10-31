@@ -48,4 +48,16 @@ t.test("Shelf order keeps its moves in memory and lets the shelf catch up", func
     assert(caller and caller:find("schedulePreview", 1, true), "every move rebuilds the shelf at once")
 end)
 
+-- Perf review 2026-10-31: every editor change dropped the shelf's fetch
+-- cache, Shelf order too, which changes no shelf's books or pages.
+t.test("Shelf order keeps the shelf's fetch cache; a change to the shelf drops it", function()
+    local wsrc = io.open("lib/bookshelf_widget.lua"):read("*a")
+    local ace = wsrc:match("\n(function BookshelfWidget:_afterChipEdit%(info%).-\nend)\n")
+    assert(ace and ace:find("if not info or info.fetch_changed or info.source_changed then", 1, true),
+        "the fetch cache goes on every change")
+    assert(body(src, "local function commit("):find("owed_info.fetch_changed = true", 1, true), "a shelf change keeps a stale cache")
+    assert(body(src, "local function onArranged()"):find("owed_info.fetch_changed = true", 1, true),
+        "a new collection order keeps a stale cache")
+end)
+
 t.done()

@@ -3218,7 +3218,11 @@ function Settings:_nudgePage(touchmenu_instance, spec)
         if dialog then dialog:refresh() end
     end
     local function show(v) return tostring(v) .. (spec.unit or "%") end
-    local function keep() BookshelfSettings.save(key, getValue()) end
+    -- Written only when it moved: Cancel, or Done on the value it opened
+    -- on, has nothing to write (a whole-file write, ~130 ms on a PW5).
+    local function keep()
+        if getValue() ~= original then BookshelfSettings.save(key, getValue()) end
+    end
     local function done(revert)
         if revert then setValue(original) end
         keep()

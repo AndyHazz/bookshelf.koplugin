@@ -1001,8 +1001,12 @@ function BookshelfWidget:_afterChipEdit(info)
         self:_syncPageFromCursor()
     end
     self:_markOpdsNav()
-    -- Chip settings (sort, filter, density) change what a fetch returns.
-    self._spine_fetch_cache = nil
+    -- Chip settings (sort, filter, density) change what a fetch returns and
+    -- how its pages break. Not for Shelf order (info without fetch_changed):
+    -- the shelf's books and pages are as they were; only the bar moved.
+    if not info or info.fetch_changed or info.source_changed then
+        self._spine_fetch_cache = nil
+    end
     self:_rebuild()
     UIManager:setDirty(self, "ui")
 end

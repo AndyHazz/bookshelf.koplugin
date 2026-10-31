@@ -193,7 +193,20 @@ t.test("keys: opened on a piece, focus is on its toolbar", function()
         ed:onDone()
         local ed2 = Editor.open{ bw = {}, host = host(info()) }
         assert(not ed2._key_focus, "focus with no piece selected")
+        -- Just added (the shelf editor's add opens the editor, then adds):
+        -- selected after the open, focus on its toolbar all the same.
+        ed2.session:select("a")
+        assert(ed2._key_focus, "the piece just added has no focus on its toolbar")
         ed2:onDone()
+        ed2:onDone()
+        -- The grid's own arrows select without taking the toolbar.
+        local ed4 = Editor.open{ bw = {}, host = host(info()) }
+        package.loaded["lib/bookshelf_hero_modules"].navMove = function() return "a" end
+        ed4:onEdRight()
+        package.loaded["lib/bookshelf_hero_modules"].navMove = function() return nil end
+        eq(ed4.session.selected_id, "a")
+        assert(not ed4._key_focus, "an arrow on the grid moved focus onto the toolbar")
+        ed4:onDone()
     end)
     _G.TEST_DPAD = nil
     assert(ok, err)
@@ -201,6 +214,36 @@ t.test("keys: opened on a piece, focus is on its toolbar", function()
     local ed3 = Editor.open{ bw = {}, host = host(info()), select_id = "a" }
     assert(not ed3._key_focus, "a ring on a touch screen")
     ed3:onDone()
+end)
+
+-- A fake screen of grey values.
+local function fakeBB(W, H, v)
+    local px = {}
+    local b = { getWidth = function() return W end, getHeight = function() return H end }
+    function b:getPixel(x, y)
+        local g = px[y * W + x] or v
+        return { getColor8 = function() return { a = g } end }
+    end
+    function b:set(x, y, g) px[y * W + x] = g end
+    return b
+end
+
+t.test("a repaint of the editor alone does not fade the faded screen again", function()
+    local orig, faded = fakeBB(120, 120, 100), fakeBB(120, 120, 200)
+    local keep = { { x = 0, y = 0, w = 60, h = 120 } }
+    local marks = Editor._fadeMarks(orig, faded, keep)
+    assert(#marks > 0)
+    for _i, m in ipairs(marks) do assert(m.x >= 60, "a mark inside a kept rect") end
+    -- The screen as the fade left it: still faded.
+    eq(Editor._stillFaded(faded, marks), true)
+    -- The shelf painted again under it: fade afresh.
+    eq(Editor._stillFaded(orig, marks), false)
+    -- The toolbar painted over a few marks: still faded.
+    faded:set(marks[1].x, marks[1].y, 0)
+    eq(Editor._stillFaded(faded, marks), true)
+    -- A fade that changed nothing leaves nothing to go on: fade (a no-op).
+    eq(#Editor._fadeMarks(orig, orig, keep), 0)
+    eq(Editor._stillFaded(orig, {}), false)
 end)
 
 t.test("no grid on the host means no editor", function()

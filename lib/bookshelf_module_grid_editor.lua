@@ -155,10 +155,6 @@ function Editor:init()
     end
     -- Draw the grid in edit mode, then the bands over it.
     self.session:_render()
-    -- Opened on a piece (a menu's add or Edit) with the keys: focus on its
-    -- toolbar, not the grid, where only Enter reached it and nothing said
-    -- so (maintainer, desktop).
-    if self.select_id and Device:hasDPad() then self:_enterKeyFocus() end
 end
 
 -- ── Bands ────────────────────────────────────────────────────────────────────
@@ -329,17 +325,19 @@ function Editor:_buildToolbar()
     end
     local LeftContainer = require("ui/widget/container/leftcontainer")
     local function labelled(it)
-        if not it then return VerticalSpan:new{ width = h } end
         return line({ LeftContainer:new{ dimen = Geom:new{ w = lw, h = h },
             TextWidget:new{ text = it.label, face = face } }, it.ctl }, gap)
     end
-    local side = VerticalGroup:new{ align = "left",
-        labelled(width_ctl),
-        VerticalSpan:new{ width = dgap },
-        labelled(height_ctl),
-        VerticalSpan:new{ width = dgap },
-        labelled(page_ctl),
-    }
+    -- On a shelf there is no Height: Width and Page close up, and with the
+    -- actions they sit centred on the d-pad, not with a row's gap between
+    -- them (maintainer).
+    local side = VerticalGroup:new{ align = "left" }
+    for _i, it in ipairs({ width_ctl or false, height_ctl or false, page_ctl }) do
+        if it then
+            if #side > 0 then side[#side + 1] = VerticalSpan:new{ width = dgap } end
+            side[#side + 1] = labelled(it)
+        end
+    end
     -- Settings, Style and Remove at the right, level with the d-pad's rows.
     local HorizontalGroup = require("ui/widget/horizontalgroup")
     local stack = VerticalGroup:new{ align = "left" }
@@ -348,7 +346,7 @@ function Editor:_buildToolbar()
         stack[#stack + 1] = b
     end
     local col_gap = Space.px(32)
-    local pad_side = HorizontalGroup:new{ align = "top",
+    local pad_side = HorizontalGroup:new{ align = "center",
         dpad, HorizontalSpan:new{ width = col_gap }, side }
     -- The room inside the frame. With no room for the actions' column (a
     -- small screen), they go on a line of their own under the rest, so the
@@ -363,7 +361,7 @@ function Editor:_buildToolbar()
         rows[#rows + 1] = join({ down, prev, nxt })
         rows[#rows + 1] = actions
     else
-        body = HorizontalGroup:new{ align = "top",
+        body = HorizontalGroup:new{ align = "center",
             pad_side, HorizontalSpan:new{ width = col_gap }, stack }
         rows[#rows + 1] = join({ up }, wf, { actions[1] })
         rows[#rows + 1] = join({ left, right }, hf or {}, { actions[2] })
@@ -511,6 +509,17 @@ function Editor:_buildBands()
     self[2] = self:_buildToolbar()
     -- Rebuilt after every change: key focus goes back on the same button.
     if self._key_focus then self:_applyKeyFocus() end
+    -- A piece newly selected other than by the grid's arrows (opened on it
+    -- from a menu, just added) with the keys: focus on its toolbar, not the
+    -- grid, where only Enter reached it and nothing said so (maintainer,
+    -- desktop).
+    local sel = self.session and self.session.selected_id
+    if sel ~= self._last_sel then
+        self._last_sel = sel
+        if sel and not self._key_focus and not self._nav_selecting and Device:hasDPad() then
+            self:_enterKeyFocus()
+        end
+    end
     for _i, w in ipairs({ old1, old2 }) do
         if w and w.free then
             UIManager:nextTick(function() pcall(function() w:free() end) end)
@@ -656,6 +665,10 @@ function Editor:_fadeAround(bb)
             keep[#keep + 1] = { copy = copy, x = x0, y = y0, w = w, h = h }
         end
     elseif d and d.x then
+        -- Nothing under the editor repainted since its last fade (a key
+        -- focus move repaints the editor alone): the screen is still faded,
+        -- and fading it again darkened it at every arrow (maintainer).
+        if Editor._stillFaded(require("lib/bookshelf_clip_bb").real(bb), self._fade_marks) then return end
         local pad = Screen:scaleBySize(8)
         for _i, b in ipairs(self.session.boxes) do
             if b.page == self.session.page then
@@ -685,6 +698,9 @@ function Editor:_fadeAround(bb)
         c:blitFrom(k.copy, k.x, k.y, 0, 0, k.w, k.h)
         k.copy:free()
     end
+    if not cache_key then
+        self._fade_marks = Editor._fadeMarks(require("lib/bookshelf_clip_bb").real(bb), c, keep)
+    end
     if cache_key and kw and kw > 0 and kh > 0 then
         -- Kept, and its outside written to the screen as a kept one is.
         self:_dropFadeCache()
@@ -695,6 +711,44 @@ function Editor:_fadeAround(bb)
         c:free()
     end
     Editor._putBack(bb, overs)
+end
+
+-- _fadeMarks(orig, faded, keep) -> up to 24 points, outside the kept rects,
+-- where the fade changed the screen, with the faded value. _stillFaded(bb,
+-- marks) -> true when most of them still hold it: nothing under the editor
+-- was repainted, so there is nothing to fade. Most, not all: the toolbar may
+-- since have been painted over a few. A fade that changed nothing leaves no
+-- marks, and doing it again changes nothing either.
+local function grey(bb, x, y) return bb:getPixel(x, y):getColor8().a end
+function Editor._fadeMarks(orig, faded, keep)
+    local W, H = faded:getWidth(), faded:getHeight()
+    local N = 12
+    local marks = {}
+    for i = 1, N do
+        for j = 1, N do
+            local x, y = math.floor((i - 0.5) * W / N), math.floor((j - 0.5) * H / N)
+            local inside = false
+            for _k, k in ipairs(keep) do
+                if x >= k.x and x < k.x + k.w and y >= k.y and y < k.y + k.h then inside = true; break end
+            end
+            if not inside then
+                local v = grey(faded, x, y)
+                if v ~= grey(orig, x, y) then
+                    marks[#marks + 1] = { x = x, y = y, v = v }
+                    if #marks >= 24 then return marks end
+                end
+            end
+        end
+    end
+    return marks
+end
+function Editor._stillFaded(bb, marks)
+    if not marks or #marks == 0 then return false end
+    local same = 0
+    for _i, m in ipairs(marks) do
+        if grey(bb, m.x, m.y) == m.v then same = same + 1 end
+    end
+    return same * 2 > #marks
 end
 
 -- _overhangCopies(bb, x0, y0, w, h) -> copies, off the screen, of what the
@@ -890,7 +944,12 @@ function Editor:_nav(dir)
     local s = self.session
     local rows = Grid.navRows(s.boxes, s.page)
     local nid = HeroModules.navMove(rows, s.selected_id, dir)
-    if nid then s:select(nid) end
+    if nid then
+        -- The arrows walk the grid: the toolbar does not take them.
+        self._nav_selecting = true
+        pcall(s.select, s, nid)
+        self._nav_selecting = nil
+    end
     return true
 end
 -- ── Keys on the toolbar ──────────────────────────────────────────────────

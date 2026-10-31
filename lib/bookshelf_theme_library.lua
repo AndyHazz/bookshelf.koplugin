@@ -467,10 +467,15 @@ function TL.heroWidget(e, box_w, box_h)
     local orn = O()
     local w = Widget:new{ dimen = Geom:new{ w = pic.w + d, h = pic.h + d } }
     function w:getSize() return Geom:new{ w = pic.w + d, h = pic.h + d } end
+    -- Looked up once, not on every paint (each card paints on every tap).
+    local ok_n, NightSync = pcall(require, "lib/bookshelf_night_mode_sync")
     function w:paintTo(bb, x, y)
-        self.dimen = Geom:new{ x = x, y = y, w = pic.w + d, h = pic.h + d }
+        self.dimen.x, self.dimen.y = x, y
         local night = false
-        pcall(function() night = require("lib/bookshelf_night_mode_sync").active() and true or false end)
+        if ok_n and NightSync then
+            local ok, v = pcall(NightSync.active)
+            night = ok and v and true or false
+        end
         local p = pic.placement
         local shadow = orn.shadowFor({ entry = p.entry, w = p.w, h = p.h }, night)
         if shadow then

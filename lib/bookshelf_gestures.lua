@@ -39,6 +39,9 @@ function M.list(tr)
     { id = "rate",             text = _("Tap the stars to rate a book") },
     { id = "description",      text = _("Tap the description to read all of it"), sep = true },
     { id = "edit_shelf",       text = _("Long-press a shelf button to edit the shelf") },
+    -- The editor one tap away (maintainer); the tap a shelf switch lands on
+    -- by accident (issue 224), so it can be switched off on its own.
+    { id = "edit_shelf_tap",   text = _("Tap the current shelf's button to edit the shelf") },
     { id = "shelf_buttons_swipe", text = _("Swipe the shelf buttons to see more of them"), sep = true },
     { id = "book_hold",        text = _("Long-press a book for its details") },
     { id = "group_hold",       text = _("Long-press a series, author or folder for its menu") },

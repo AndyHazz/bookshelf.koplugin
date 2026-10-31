@@ -1,15 +1,13 @@
 -- tests/_test_chip_tap_edit.lua
 -- Which gesture on which chip opens the chip editor.
 --
--- Tapping the ALREADY-ACTIVE chip is a deliberate NO-OP. It used to open the
--- editor, and that was removed under #224: a tap meant for switching tabs that
--- landed on the current one opened the editor by accident. Editing is
--- long-press only.
---
--- This is pinned because the reasoning is invisible from the outside -- the
--- branch reads like a gap someone forgot to fill, and "make tapping the
--- current chip open the editor" is a natural-sounding request. Nothing else in
--- the suite covers it, so without this the #224 fix can be undone silently.
+-- Tapping the ALREADY-ACTIVE chip opens its editor -- behind a switch,
+-- Behavior > Bookshelf gestures > "Tap the current shelf's button to edit
+-- the shelf", on by default as every gesture there is (maintainer,
+-- 2026-10-31: the editor should be one tap away). It was removed under #224:
+-- a tap meant for switching tabs that landed on the current one opened the
+-- editor by accident. With the switch off it is the #224 no-op again, and
+-- that is pinned here so the switch can't quietly stop working.
 --
 -- The preamble mirrors _test_chip_bar_pages.lua.
 package.path = "./?.lua;./?/init.lua;" .. package.path
@@ -60,6 +58,13 @@ package.loaded["lib/bookshelf_settings_store"] = {
     generation = function() return 0 end,
 }
 
+-- Bookshelf gestures: the tap's own switch, flipped per test.
+package.loaded["lib/bookshelf_gestures"] = {
+    on = function(id)
+        if id == "edit_shelf_tap" then return _G.TAP_EDIT ~= false end
+        return true
+    end,
+}
 local ChipBar = dofile("lib/bookshelf_chip_bar.lua")
 local t = dofile("tests/_helpers.lua").runner()
 
@@ -90,7 +95,16 @@ local function at(b, key)
     return { pos = { x = d.x + math.floor(d.w / 2) } }
 end
 
-t.test("#224: tapping the active chip does nothing at all", function()
+t.test("tapping the active chip opens its editor (the switch's default)", function()
+    _G.TAP_EDIT = nil
+    local b, seen = bar("Home")
+    assert(b:onTapStrip(nil, at(b, "Home")) == true, "the tap must be consumed")
+    assert(#seen.hold == 1 and seen.hold[1] == "Home", "a tap on the current shelf did not open its editor")
+    assert(#seen.change == 0, "and must not re-fire on_change (a needless rebuild)")
+end)
+
+t.test("#224: with the switch off, tapping the active chip does nothing at all", function()
+    _G.TAP_EDIT = false
     local b, seen = bar("Home")
     assert(b:onTapStrip(nil, at(b, "Home")) == true,
         "the tap must still be CONSUMED -- falling through would hand it to "
@@ -121,13 +135,29 @@ t.test("action chips fire on_change, never the editor", function()
     end
 end)
 
-t.test("long-press is the ONLY way to the editor, on any chip", function()
+t.test("long-press opens the editor on any chip, either way", function()
+    _G.TAP_EDIT = false
     for _, key in ipairs({ "Home", "Recent" }) do
         local b, seen = bar("Home")
         b:onHoldStrip(nil, at(b, key))
         assert(#seen.hold == 1 and seen.hold[1] == key,
             "long-press should open the editor for " .. key)
     end
+end)
+
+-- Each switch answers for its own gesture: long-press editing off still
+-- leaves the tap (it reaches the shelf's on_hold, which checked only that).
+t.test("the tap's way in doesn't hang on the long-press switch", function()
+    local cb = io.open("lib/bookshelf_chip_bar.lua"):read("*a")
+    assert(cb:find("self.on_hold(chip.key, true)", 1, true), "the tap does not say it is a tap")
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    assert(w:find('if not from_tap and not Gestures.on("edit_shelf") then return end', 1, true),
+        "long-press editing off blocks the tap too")
+end)
+
+t.test("the switch is among Bookshelf's gestures", function()
+    local g = io.open("lib/bookshelf_gestures.lua"):read("*a")
+    assert(g:find('id = "edit_shelf_tap"', 1, true), "no switch for the tap")
 end)
 
 t.done()

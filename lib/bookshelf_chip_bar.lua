@@ -2187,10 +2187,15 @@ function ChipBar:onTapStrip(_, ges)
                     -- have nothing to clear it.
                     if self.on_change then self.on_change(chip.key) end
                 elseif chip.key == self.active then
-                    -- Tapping the already-active chip does nothing. Editing is
-                    -- long-press only (on_hold); a stray tap on the focused
-                    -- chip used to open the editor, which was easy to trigger
-                    -- by accident (#224). Consume the tap so it's a clean no-op.
+                    -- The current shelf's button: its editor, as a long-press
+                    -- opens it (maintainer: one tap away). A tap meant to
+                    -- switch shelves that landed here opened it by accident
+                    -- (issue 224), so it has a switch of its own (Bookshelf
+                    -- gestures); off, the tap is consumed and does nothing.
+                    local Gestures = require("lib/bookshelf_gestures")
+                    if Gestures.on("edit_shelf_tap") and self.on_hold then
+                        self.on_hold(chip.key, true)   -- from a tap: its own switch said yes
+                    end
                 else
                     -- Switch to a different tab.
                     if self.on_change then

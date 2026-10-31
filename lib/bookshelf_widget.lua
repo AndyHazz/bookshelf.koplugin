@@ -1980,8 +1980,10 @@ function BookshelfWidget:_rebuild()
             end
             self:_navBackTo(depth)
         end,
-        on_hold = function(key)
-            if not Gestures.on("edit_shelf") then return end
+        -- from_tap: the current shelf's button tapped (its own switch,
+        -- edit_shelf_tap, already said yes); else a long-press.
+        on_hold = function(key, from_tap)
+            if not from_tap and not Gestures.on("edit_shelf") then return end
             -- The modules chip isn't an editable tab; its long-press opens the
             -- micro-module options menu instead of the tab editor.
             if key == "modules" then

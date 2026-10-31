@@ -5,6 +5,10 @@
 -- choice with a frame of its own, and a ring seeded on the first card while
 -- the choice was on another page read as that mark (review, 2026-10-09).
 package.path = "./?.lua;" .. package.path
+-- The strip's Press sends a gesture: an event and a point.
+package.loaded["ui/event"] = { new = function(_s, name, ...) return { name = name, args = { ... } } end }
+package.loaded["ui/geometry"] = { new = function(_s, t) return t end }
+package.loaded["ui/time"] = { now = function() return 0 end }
 local t  = dofile("tests/_helpers.lua").runner()
 local eq = dofile("tests/_helpers.lua").eq
 local src = io.open("lib/bookshelf_library_modal.lua"):read("*a")
@@ -14,7 +18,8 @@ local function method(name)
     assert(body, "LibraryModal:" .. name .. " not found")
     assert(load("local LibraryModal = ...\n" .. body))(LibraryModal)
 end
-for _i, n in ipairs({ "_revealFocus", "_cellsPerPage", "_gridNav", "_gridCols", "onGridFocusDown", "onGridFocusRight", "onGridPress" }) do
+for _i, n in ipairs({ "_revealFocus", "_cellsPerPage", "_gridNav", "_gridCols", "onGridFocusDown", "onGridFocusRight", "onGridPress",
+                      "onGridFocusUp", "onGridFocusLeft", "_stripPos" }) do
     method(n)
 end
 
@@ -71,6 +76,32 @@ t.test("without focus_on_key nothing changes: a press moves at once", function()
     local m = modal(nil, 1, 1)
     m:onGridFocusDown()
     eq(m._dpad_idx, 2)
+end)
+
+-- STYLE.md: every popup takes the keys. The strip (its chips, a sort switch,
+-- header buttons) could not be reached: Up at the grid's top row now goes
+-- there, Down from its last row back to the grid, and Press taps it.
+t.test("Up from the grid's top row reaches the strip; Down goes back; Press taps", function()
+    local m = modal(nil, 1, 1)
+    local pressed = {}
+    local function w(name) return { name = name, dimen = { x = 0, y = 0, w = 10, h = 10 },
+        handleEvent = function(_s, ev) if ev.args and ev.args[1] and ev.args[1].ges == "tap" then pressed[#pressed + 1] = name end; return true end } end
+    m._strip_layout = { { w("A-Z"), w("Most") }, { w("Add") } }
+    m:onGridFocusUp()
+    eq(m._focus_zone, "strip"); eq(m._strip_row, 2)
+    m:onGridFocusUp()
+    eq(m._strip_row, 1)
+    m:onGridFocusRight()
+    eq(m._strip_col, 2)
+    m:onGridPress()
+    eq(pressed[1], "Most")
+    m:onGridFocusDown(); m:onGridFocusDown()
+    eq(m._focus_zone, "grid"); eq(m._dpad_idx, 1)
+end)
+
+t.test("the grid's ring shows only while the keys are on the grid", function()
+    assert(src:find('local focused = self._focus_zone == "grid" and self._dpad_idx ~= nil and idx == self._dpad_idx', 1, true),
+        "the grid keeps its ring while the footer or strip has the keys")
 end)
 
 t.done()

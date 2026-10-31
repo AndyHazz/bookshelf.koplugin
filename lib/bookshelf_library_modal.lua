@@ -274,7 +274,24 @@ end
 -- + New tag) is reachable in one continuous dpad chain, matching how the
 -- book-detail popup's own tabs/pills/buttons chain together (see
 -- [[project_dpad_focus_navigation]]).
+-- The strip (its chips, a sort switch, header buttons) is a third zone, over
+-- the grid: _strip_layout, rows of its widgets, rebuilt by each refresh.
+-- _stripPos() -> the widget the keys are on there (row and column clamped).
+function LibraryModal:_stripPos()
+    local rows = self._strip_layout
+    if not (rows and #rows > 0) then return nil end
+    self._strip_row = math.max(1, math.min(#rows, self._strip_row or #rows))
+    local row = rows[self._strip_row]
+    self._strip_col = math.max(1, math.min(#row, self._strip_col or 1))
+    return row[self._strip_col]
+end
+
 function LibraryModal:onGridFocusLeft()
+    if self._focus_zone == "strip" then
+        self._strip_col = (self._strip_col or 1) - 1
+        self:_stripPos(); self:refresh()
+        return true
+    end
     if self:_revealFocus() then return true end
     if self._focus_zone == "footer" then
         self._footer_col = self:_clampFooterCol(self._footer_row or 1, (self._footer_col or 1) - 1)
@@ -286,6 +303,11 @@ function LibraryModal:onGridFocusLeft()
 end
 
 function LibraryModal:onGridFocusRight()
+    if self._focus_zone == "strip" then
+        self._strip_col = (self._strip_col or 1) + 1
+        self:_stripPos(); self:refresh()
+        return true
+    end
     if self:_revealFocus() then return true end
     if self._focus_zone == "footer" then
         self._footer_col = self:_clampFooterCol(self._footer_row or 1, (self._footer_col or 1) + 1)
@@ -297,6 +319,25 @@ function LibraryModal:onGridFocusRight()
 end
 
 function LibraryModal:onGridFocusUp()
+    if self._focus_zone == "strip" then
+        if (self._strip_row or 1) > 1 then
+            self._strip_row = self._strip_row - 1
+            self:_stripPos(); self:refresh()
+        end
+        return true
+    end
+    -- From the grid's top row (or an empty grid), up to the strip.
+    local strip = self._strip_layout and #self._strip_layout > 0
+    if strip and self._focus_zone ~= "footer"
+            and (self._dpad_idx == nil or self._dpad_idx - self:_gridCols() < 1) then
+        local total = self.config.item_count and self.config.item_count() or 0
+        if self._dpad_idx ~= nil or total == 0 then
+            self._focus_zone = "strip"
+            self._strip_row, self._strip_col = #self._strip_layout, 1
+            self:_stripPos(); self:refresh()
+            return true
+        end
+    end
     if self:_revealFocus() then return true end
     if self._focus_zone == "footer" then
         if (self._footer_row or 1) <= 1 then
@@ -313,6 +354,18 @@ function LibraryModal:onGridFocusUp()
 end
 
 function LibraryModal:onGridFocusDown()
+    if self._focus_zone == "strip" then
+        if (self._strip_row or 1) < #self._strip_layout then
+            self._strip_row = self._strip_row + 1
+            self:_stripPos()
+        else
+            -- Below the strip: the grid, where the keys last were.
+            self._focus_zone = "grid"
+            if self._dpad_idx == nil then return self:_revealFocus() or true end
+        end
+        self:refresh()
+        return true
+    end
     if self:_revealFocus() then return true end
     if self._focus_zone == "footer" then
         local rows = self._footer_layout and #self._footer_layout or 0
@@ -338,6 +391,17 @@ function LibraryModal:onGridFocusDown()
 end
 
 function LibraryModal:onGridPress()
+    if self._focus_zone == "strip" then
+        -- A tap at the widget's middle, as KOReader's FocusManager sends one.
+        local w = self:_stripPos()
+        local d = w and w.dimen
+        if d and d.x then
+            local Geom_ = require("ui/geometry")
+            w:handleEvent(require("ui/event"):new("Gesture", { ges = "tap", time = require("ui/time").now(),
+                pos = Geom_:new{ x = d.x + math.floor(d.w / 2), y = d.y + math.floor(d.h / 2), w = 0, h = 0 } }))
+        end
+        return true
+    end
     if self:_revealFocus() then return true end
     if self._focus_zone == "footer" then
         local row = self._footer_layout and self._footer_layout[self._footer_row or 1]
@@ -841,7 +905,7 @@ function LibraryModal:_renderChipStrip(content_width)
     -- The popup's segmented control, wrapped to at most two rows; the rest
     -- behind More, a list (the chip picked from it then shows in the strip).
     local face = BFont:getFace("cfont", 14)
-    local strip = PopupKit.segmentedWrap{
+    local strip, strip_rows = PopupKit.segmentedWrap{
         items = items, active = active, face = face,
         pad_h = Space.px(12), pad_v = Space.px(6),
         max_w = content_width, max_rows = 2, gap = MARGIN,
@@ -849,6 +913,8 @@ function LibraryModal:_renderChipStrip(content_width)
         more_label = _("More\xE2\x80\xA6"),
         on_more = function(hidden) self:_showMoreChips(hidden) end,
     }
+    -- Its cells, row by row, for the keys (_strip_layout).
+    for _i, r in ipairs(strip_rows or {}) do self._strip_build[#self._strip_build + 1] = r end
 
     -- Optional status text beside the chips (config.chip_strip_status), for
     -- transient feedback like "Loading gallery…", so it reads as part of the
@@ -892,6 +958,11 @@ function LibraryModal:_renderHeaderButtons()
                 a.on_tap()
             end }
     end
+    -- The keys reach them after the chips, on a row of their own.
+    local keys = {}
+    for _i, b in ipairs(left) do keys[#keys + 1] = b end
+    for _i, b in ipairs(btns) do keys[#keys + 1] = b end
+    if #keys > 0 then self._strip_build[#self._strip_build + 1] = keys end
     return btns, (#left > 0) and left or nil
 end
 
@@ -899,6 +970,7 @@ end
 -- the chips with the header buttons at the right end (stacked when they
 -- don't fit), edge to edge with the kit's shadow. nil when it would be empty.
 function LibraryModal:_renderStrip(cw)
+    self._strip_build = {}
     local chips = self:_renderChipStrip(cw)
     local buttons, at_left = self:_renderHeaderButtons()
     if at_left then
@@ -1083,7 +1155,9 @@ function LibraryModal:_renderGridArea(content_width, area_height)
     for idx = start_idx, end_idx do
         local item = self.config.item_at(idx)
         if item then
-            local focused = self._dpad_idx ~= nil and idx == self._dpad_idx
+            -- Ringed only while the keys are on the grid (not the strip or
+            -- the footer: two rings at once).
+            local focused = self._focus_zone == "grid" and self._dpad_idx ~= nil and idx == self._dpad_idx
             local render_dimen = Geom:new{ w = cell_w, h = cell_h }
             local cell_dimen = Geom:new{ w = cell_w, h = cell_h }
             local cell_widget = self.config.cell_renderer(item, render_dimen, focused)
@@ -1355,6 +1429,15 @@ function LibraryModal:refresh()
     -- Domains with a handful of items (e.g. the module picker) can opt out
     -- of the search row entirely via config.no_search.
     local strip = self:_renderStrip(cw)
+    -- What the keys can reach on it: its controls that can act, row by row.
+    local layout = {}
+    for _i, r in ipairs(self._strip_build or {}) do
+        local row = {}
+        for _j, w in ipairs(r) do if w.enabled ~= false then row[#row + 1] = w end end
+        if #row > 0 then layout[#layout + 1] = row end
+    end
+    self._strip_layout = layout
+    if self._focus_zone == "strip" and #layout == 0 then self._focus_zone = "grid" end
     local pagination = self:_renderPagination(cw)
     local footer = self:_renderFooter(self.modal_w)
     -- Where the modal was, for _repaintIfResized below.
@@ -1508,6 +1591,11 @@ function LibraryModal:refresh()
         local row = self._footer_layout[self._footer_row or 1]
         local btn = row and row[self._footer_col or 1]
         if btn then btn:onFocus() end
+    end
+    -- The strip's controls are rebuilt too: the one the keys are on, again.
+    if self._focus_zone == "strip" then
+        local w = self:_stripPos()
+        if w and w.onFocus then w:onFocus() end
     end
     -- Self-bounded dirty rect is sufficient now that the modal is a fixed,
     -- content-derived size. setDirty(nil, ...) was triggering full-screen

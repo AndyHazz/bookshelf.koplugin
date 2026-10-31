@@ -909,6 +909,24 @@ function Kit.titleFace()
     return (require("lib/bookshelf_fonts"):getFace("x_smalltfont", 22))
 end
 
+-- centreTitle(title_bar) -> title_bar: a stock TitleBar's title with its
+-- capitals in the middle of the bar, between its top and its bottom line,
+-- where its icons are. TitleBar sets the text by KOReader's font's baseline:
+-- in another font, or as a row with a shelf's picture, it sat low
+-- (maintainer). The bar's height stays as TitleBar made it.
+function Kit.centreTitle(title_bar)
+    local tw = title_bar and title_bar.title_widget
+    local group = title_bar and title_bar.title_group
+    if not (tw and group and group[1] and group[1].width and title_bar.dimen) then return title_bar end
+    -- A plain title's capitals centred in its own box (a picture row's are).
+    if not title_bar._text_face then require("lib/bookshelf_cap_centre").centre(tw) end
+    local Size = require("ui/size")
+    local line = title_bar.with_bottom_line and Size.line.thick or 0
+    group[1].width = math.max(0, math.floor((title_bar.dimen.h - line - tw:getSize().h) / 2))
+    group:resetLayout()
+    return title_bar
+end
+
 -- backLabel(title_bar) -> title_bar: "Back" beside a stock TitleBar's back
 -- chevron, where it clears the centred title with padding; nothing where
 -- it would crowd it. The chevron alone was easy to miss (maintainer). A tap
@@ -938,16 +956,10 @@ function Kit.backLabel(title_bar)
     -- (its title_group's first span).
     local group = title_bar.title_group
     local top = (group and group[1] and group[1].width) or 0
-    local y
-    if title_bar._text_face then
-        -- A title with pictures (iconTitle) is a row whose text is centred on
-        -- its capitals beside a taller picture: the label, centred on that
-        -- row the same way, lines up with it (a baseline was off by a few px).
-        require("lib/bookshelf_cap_centre").centre(label)
-        y = top + math.floor((tw:getSize().h - label:getSize().h) / 2)
-    else
-        y = top + (tw:getBaseline() - label:getBaseline())
-    end
+    -- The title's capitals are centred in its box (centreTitle; a picture
+    -- row's always are): the label's, centred on that box, line up with them.
+    require("lib/bookshelf_cap_centre").centre(label)
+    local y = top + math.floor((tw:getSize().h - label:getSize().h) / 2)
     local cell = InputContainer:new{
         dimen = Geom:new{ x = 0, y = 0, w = lw + Space.px(12), h = label:getSize().h },
         label,

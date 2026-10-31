@@ -302,6 +302,7 @@ function Dialog:init()
         close_callback = function() UIManager:close(self) end,
         show_parent = self,
     }
+    require("lib/bookshelf_popup_kit").centreTitle(title_bar)
     local fixed_h = title_bar:getSize().h + self.buttons:getSize().h
                     + 2 * Size.border.window
     local avail_h = sh - 2 * Space.margin.default - fixed_h

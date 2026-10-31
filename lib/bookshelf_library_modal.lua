@@ -553,6 +553,7 @@ function LibraryModal:_renderTitleBar(content_width, modal_w)
         }
         -- The shelf's name in the breadcrumb with its pictures.
         PopupKit.iconTitle(bar, over.crumbs or self.config.title)
+        PopupKit.centreTitle(bar)
         return PopupKit.backLabel(bar)
     end
     local Font = require("ui/font")

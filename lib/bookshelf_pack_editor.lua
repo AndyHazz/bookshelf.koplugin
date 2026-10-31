@@ -140,6 +140,7 @@ function Editor:_rebuild()
         close_callback = function() self:onClose() end,
         show_parent = self,
     }
+    require("lib/bookshelf_popup_kit").centreTitle(title)
     local top = title:getSize().h
     local shelf_h, n_rows, headroom = self:_rows()
     local gap = math.max(headroom, Screen:scaleBySize(12))

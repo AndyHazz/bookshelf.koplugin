@@ -135,6 +135,7 @@ function PageDialog:_build()
         close_callback = function() self:_dismiss() end,
         show_parent = self,
     }
+    require("lib/bookshelf_popup_kit").centreTitle(title_bar)
     local footer, footer_btns
     if self.footer and #self.footer > 0 then
         footer, footer_btns = self:_footerRow(self.width)

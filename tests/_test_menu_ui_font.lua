@@ -42,6 +42,8 @@ t.test("every title bar is in the UI font's bold", function()
             local block = s:sub(i, (s:find("\n%s*}", i)) or #s)
             assert(block:find("title_face", 1, true) and block:find("titleFace()", 1, true),
                 f .. ": a title bar in KOReader's font")
+            -- And its text in the middle of the bar (centreTitle), not low.
+            assert(s:sub(i, i + 1600):find("centreTitle(", 1, true), f .. ": a title sits low in its bar")
             pos = i + 1
         end
     end

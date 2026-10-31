@@ -533,6 +533,7 @@ function ColorPaletteWidget:update()
         with_bottom_line = true,
         show_parent      = self,
     }
+    require("lib/bookshelf_popup_kit").centreTitle(title_bar)
 
     -- Hex row sits above the palette so the field stays visible when the
     -- on-screen keyboard slides up from the bottom of the screen — otherwise

@@ -1158,6 +1158,7 @@ function Editor:editTab(tab_id, opts)
         }
         -- The shelf's name with its pictures, as the shelf menu shows it.
         Kit.iconTitle(title_bar, title_bar.title)
+        Kit.centreTitle(title_bar)
         Kit.backLabel(title_bar)
         local blocks_vg, blocks_layout
         if spec.page then blocks_vg, blocks_layout = renderBlocks(page, title_bar:getSize().h) end
@@ -1880,6 +1881,7 @@ function Editor:editTab(tab_id, opts)
             -- No X: Close is in the button row at the foot.
         }
         Kit.iconTitle(title_bar, title_text)
+        Kit.centreTitle(title_bar)
 
         frame[1] = VerticalGroup:new{
             align = "left",

@@ -4593,7 +4593,7 @@ function SpineShelf.plan(items, opts)
         for _k, mf in ipairs(module_flats) do
             local f, m = mf.f, mf.f.book.shelf_module
             local n = math.max(1, math.floor(tonumber(m.w) or 2))
-            local w = n * unit + (n - 1) * (opts.gap or 0)
+            local w = SpineShelf.moduleWidth(n, unit, opts.gap, opts.content_w)
             -- A pinned piece (an Ornament module) is sized as the shelf sizes
             -- the piece -- the same placement a dealt piece gets, the
             -- reader's Size and Height included -- and drawn as one
@@ -5013,6 +5013,17 @@ end
 -- face-out cover. It never lifts (selection doesn't apply), so it takes the
 -- whole stand bar a hair of headroom, and records what it drew for the shadow.
 -- _bareModule(m) -> true for a module drawn with no card behind it.
+-- moduleWidth(n, unit, gap, content_w) -> a shelf module's width on a spine
+-- row: n face-out widths (unit) and the gaps between, never wider than the
+-- row (content_w). Wider, it fitted no row: it stood alone on the next and
+-- the page ended at it, with no spines (a 4-wide module on tall rows). A
+-- cover shelf caps its modules at the row's slots the same way.
+function SpineShelf.moduleWidth(n, unit, gap, content_w)
+    local w = n * unit + (n - 1) * (gap or 0)
+    if content_w and content_w > 0 then w = math.min(w, content_w) end
+    return w
+end
+
 function SpineShelf._bareModule(m)
     local ok, def = pcall(function()
         return require("lib/bookshelf_start_menu_modules").get(m.module)

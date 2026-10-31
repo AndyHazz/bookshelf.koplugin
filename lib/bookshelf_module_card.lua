@@ -146,7 +146,7 @@ end
 --- ctxCard(entry, look) -> ctx.card: the card a module stands on, for one
 --- that paints its own (the Reading Log pack's framed cards). Colours in
 --- paint space, like ctx.colors. custom: the reader set this card with the
---- palette icon, so a module with a card of its own should use this one.
+--- layout editor's Style button, so a module with a card of its own should use this one.
 function M.ctxCard(entry, look)
     look = look or {}
     return {

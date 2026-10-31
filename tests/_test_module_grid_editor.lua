@@ -202,11 +202,16 @@ t.test("keys-only actions with a selection cover the whole toolbar and footer", 
     local items = mockup()
     items[#items + 1] = { id = "p2", type = "module", module = "x", at = at(2, 1, 1, 1, 1) }
     local s = session(items, { selected_id = "clock" })
-    local l = labels(s:keyActions{ has_settings = true, on_done = function() end })
-    for _i, want in ipairs({ "Settings", "Remove", "Narrower", "Wider", "Shorter", "Taller",
-                              "Page 2", "New page", "Add", "Done" }) do
+    local l = labels(s:keyActions{ has_settings = true, has_colours = true, on_done = function() end })
+    -- The toolbar's own words (review 2026-10-31: Narrower / Wider / Shorter
+    -- / Taller, no Style).
+    for _i, want in ipairs({ "Settings", "Style", "Remove", "Width \xE2\x88\x92", "Width +",
+                              "Height \xE2\x88\x92", "Height +", "Page 2", "New page", "Add", "Done" }) do
         assert(l:find("|" .. want .. "|", 1, true), want .. " missing from " .. l)
     end
+    -- On a shelf a module is one row tall: no Height, as on the toolbar.
+    l = labels(s:keyActions{ on_shelf = true, on_done = function() end })
+    assert(not l:find("Height", 1, true) and not l:find("Style", 1, true), l)
 end)
 
 t.test("keys-only actions without a selection offer Add, pages and Done", function()

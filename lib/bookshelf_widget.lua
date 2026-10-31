@@ -6921,7 +6921,7 @@ function BookshelfWidget:_shelfModuleHost()
         end, pick)
     end
     -- A module's ctx here saves to the shelf (the editor holds copies):
-    -- its colours (the palette icon) go through it.
+    -- its colours (the Style button) go through it.
     function host.ctx_for(entry)
         return HeroModules._ctx(bw, nil, HeroModules.adopt(entry, owner))
     end

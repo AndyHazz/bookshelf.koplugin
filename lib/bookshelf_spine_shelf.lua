@@ -5015,11 +5015,6 @@ function SpineShelf.ornamentRow(opts)
     return OverlapGroup:new(kids), hanging, stand_h
 end
 
--- _moduleTile(e, stand_h, opts, push) -> a shelf module standing on the
--- plank: its cell (HeroModules._makeCell), e.w wide, pushed back like a
--- face-out cover. It never lifts (selection doesn't apply), so it takes the
--- whole stand bar a hair of headroom, and records what it drew for the shadow.
--- _bareModule(m) -> true for a module drawn with no card behind it.
 -- moduleWidth(n, unit, gap, content_w) -> a shelf module's width on a spine
 -- row: n face-out widths (unit) and the gaps between, never wider than the
 -- row (content_w). Wider, it fitted no row: it stood alone on the next and
@@ -5031,6 +5026,7 @@ function SpineShelf.moduleWidth(n, unit, gap, content_w)
     return w
 end
 
+-- _bareModule(m) -> true for a module drawn with no card behind it.
 function SpineShelf._bareModule(m)
     local ok, def = pcall(function()
         return require("lib/bookshelf_start_menu_modules").get(m.module)
@@ -5062,6 +5058,10 @@ function SpineShelf._pinnedPieceTile(e, stand_h, opts)
                              allow_mirroring = false, w_ }
 end
 
+-- _moduleTile(e, stand_h, opts, push) -> a shelf module standing on the
+-- plank: its cell (HeroModules._makeCell), e.w wide, pushed back like a
+-- face-out cover. It never lifts (selection doesn't apply), so it takes the
+-- whole stand bar a hair of headroom, and records what it drew for the shadow.
 function SpineShelf._moduleTile(e, stand_h, opts, push)
     local VerticalGroup = require("ui/widget/verticalgroup")
     local VerticalSpan  = require("ui/widget/verticalspan")

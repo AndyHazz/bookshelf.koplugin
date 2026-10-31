@@ -135,9 +135,9 @@ end)
 t.test("the picker's title, its palette and the rows ask one question of the screen", function()
     local picker = src:match("function Settings:_pickColor%(raw_key, field, default_pct, title,(.-)\nend\n")
     assert(picker:find("local colour = _colorScreen()", 1, true), "the picker asks the screen its own way")
-    -- Both screens pick from the palette now, so both take the name.
-    assert(picker:find("if type(title) == \"table\" then title = title[1] end", 1, true),
-        "the title is not the palette's")
+    -- Both screens pick from the palette, so both take the name: no row
+    -- passes a "(% black)" title any more (review 2026-10-31).
+    assert(not picker:find("type(title) == \"table\"", 1, true), "a title table is still unpacked")
     assert(picker:find("if colour then", 1, true), "the palette branch does not use the same answer")
     assert(not src:find('_pickColor%([^\n]*\n[^\n]*_%("[^"]+ %(%% black%)"%), touchmenu'),
         "a colour row still passes only a (% black) title")

@@ -2230,11 +2230,6 @@ local function _shownHex(raw, raw_key)
     return nil
 end
 
--- _valueText(raw, raw_key) -> a colour row's value, in the form the picker it
--- opens speaks: "#RRGGBB" on a colour screen (the palette, with its hex
--- field), "% black" elsewhere (the dialog), whether it was stored as a grey
--- or a hex. A hex beside a percentage in one list read as two kinds of
--- setting (maintainer, 2026-10-08).
 -- _shadeName(pct) -> a grey said in a word, from "% black on screen": what
 -- a greyscale screen's rows show now its picker is chips of grey, not a "%
 -- black" number that read the wrong way round in night mode.
@@ -2247,6 +2242,10 @@ local function _shadeName(pct)
 end
 Settings._shadeName = _shadeName   -- for tests
 
+-- _valueText(raw, raw_key) -> a colour row's value, in the form the picker it
+-- opens speaks: "#RRGGBB" on a colour screen (the palette, with its hex
+-- field), the grey's name elsewhere (_shadeName: the picker's chips of grey),
+-- whether it was stored as a grey or a hex.
 local function _valueText(raw, raw_key)
     if type(raw) ~= "table" then return _("Default") end
     if _colorScreen() then
@@ -2427,8 +2426,7 @@ function Settings:_pickColor(raw_key, field, default_pct, title,
     local CoverProgress = require("lib/bookshelf_cover_progress")
     local Color         = require("lib/bookshelf_color")
         refresh = refresh or function() self:_markDirty() end
-        -- title: a string, or { name, name_with_pct } -- the palette is
-        -- titled by the name, the "% black" dialog by the one that says so.
+        -- title: the picker's title.
         -- wood.on_done: once, when the dialog closes; the caller's menu is
         -- not touched (see above).
         local on_done, menu_for_dialog = nil, touchmenu_instance
@@ -2456,12 +2454,9 @@ function Settings:_pickColor(raw_key, field, default_pct, title,
         local before   = TP.partSnapshot(key)
 
         local colour = _colorScreen()
-        -- The name: no "(% black)" now a greyscale screen picks from chips too.
-        if type(title) == "table" then title = title[1] end
         if colour then
             -- The night slot is stored PRE-INVERTED, for a frame that flips it
-            -- (the "% black on screen" dialog below does the same through
-            -- _screenPctToByte). The picker speaks in what the reader SEES,
+            -- (a grey goes through _screenPctToByte the same way). The picker speaks in what the reader SEES,
             -- so it inverts on the way in and out; without that a colour
             -- picked in night mode displayed as its opposite -- red as cyan.
             -- The plank is the exception: stored as it DISPLAYS in both
@@ -3186,18 +3181,23 @@ function Settings:_nudgePage(touchmenu_instance, spec)
             apply()
         end
     end
+    -- Each step in memory (saveDeferred); written once as the page closes
+    -- (keep): save() rewrites the whole settings file, ~130 ms a step on a
+    -- PW5.
     local function setValue(v)
         v = math.max(spec.min or 50, math.min(spec.max or 200, v))
         if v == getValue() then return end
-        BookshelfSettings.save(key, v)
+        BookshelfSettings.saveDeferred(key, v)
         pending = true
         UIManager:unschedule(apply)
         UIManager:scheduleIn(0.35, apply)
         if dialog then dialog:refresh() end
     end
     local function show(v) return tostring(v) .. (spec.unit or "%") end
+    local function keep() BookshelfSettings.save(key, getValue()) end
     local function done(revert)
         if revert then setValue(original) end
+        keep()
         flush()
         UIManager:close(dialog)
         restoreMenu()
@@ -3230,6 +3230,7 @@ function Settings:_nudgePage(touchmenu_instance, spec)
         -- The X and Back: closed already; put the value back.
         on_close = function()
             setValue(original)
+            keep()
             flush()
             restoreMenu()
             if spec.on_done then spec.on_done() end
@@ -3248,10 +3249,9 @@ function Settings:_showScaleNudge(touchmenu_instance, spec)
     })
 end
 
--- Nudge dialog for the cover-badge font scale (series #, stack count,
--- page count, completed-tick). Same shape as _pickFontScale /
--- _pickChipFontScale; +5/+10 steps so the small badge changes by a
--- noticeable amount per tap without overshooting.
+-- The cover-badge font scale's size page (series #, stack count, page
+-- count, completed-tick), through _showScaleNudge; +5/+10 steps so the small
+-- badge changes by a noticeable amount per tap without overshooting.
 function Settings:_pickCoverBadgeFontScale(touchmenu_instance)
     self:_showScaleNudge(touchmenu_instance, {
         key = "cover_badge_font_scale", title = _("Cover badge size"), max = 200, fine = 5,
@@ -5272,10 +5272,9 @@ function Settings:_openLayoutEditor(touchmenu_instance)
     UIManager:show(dialog)
 end
 
--- Bookends-style nudge dialog for the hero font scale. Each tap on -/+ saves
--- the new scale, kicks the live BookshelfWidget rebuild, and refreshes the
--- dialog so the value updates. Cancel reverts to the snapshot taken on open;
--- Default resets to 100; Apply commits and closes.
+-- The top panel's font scale: a size page (_showScaleNudge), the shelf
+-- rebuilt behind it once the taps pause. Cancel puts back the value it
+-- opened on; Default resets to 100; Done keeps it.
 function Settings:_pickFontScale(touchmenu_instance)
     self:_showScaleNudge(touchmenu_instance, {
         key = "font_scale", title = _("Top panel font scale"), max = 200, fine = 5,
@@ -5293,10 +5292,8 @@ function Settings:_pickHeroModuleFontScale(touchmenu_instance)
     })
 end
 
--- Bookends-style nudge dialog for the chip-strip font scale. Same shape as
--- _pickFontScale but lives in its own method so the live preview only kicks
--- the rebuild path bookshelf needs and the +/- step sizes can match the
--- user's preferred resolution (1 / 10 here vs 5 / 10 for hero text).
+-- The shelf menu's font scale: a size page as _pickFontScale's, with 1 / 10
+-- steps (5 / 10 for the top panel's).
 function Settings:_pickChipFontScale(touchmenu_instance)
     self:_showScaleNudge(touchmenu_instance, {
         key = "chip_font_scale", title = _("Shelf menu font scale"), max = 300, fine = 1,
@@ -5325,8 +5322,8 @@ end
 --
 -- No `anchor`. _pickChipFontScale opens below the chip bar because it resizes
 -- that strip and would otherwise sit on top of the thing being resized; the
--- rows this one resizes fill the whole shelf, so there is nowhere to hide and
--- the plain centred dialog every other scale picker uses is the honest shape.
+-- rows this one resizes fill the whole shelf, so it opens as the others do,
+-- a slim panel at the bottom.
 function Settings:_pickListFontScale(touchmenu_instance)
     self:_showScaleNudge(touchmenu_instance, {
         key = "list_font_scale", title = _("Text size"), max = 300, fine = 1,
@@ -5344,37 +5341,39 @@ function Settings:_pickStackLabelFontScale(touchmenu_instance)
     })
 end
 
-function Settings:_pickStartMenuFontScale(touchmenu_instance)
-    local StartMenu    = require("lib/bookshelf_start_menu")
-    -- Open the start menu as a live preview (same approach as the hero scale
-    -- picker showing the bookshelf behind the dialog). Only open if one is
-    -- not already visible; track whether we opened it so the way out can
-    -- shut it. self._bw is always the LIBRARY widget -- buildMenuItems
-    -- shares one _bw global across both hosts, so reaching this setting from
-    -- inside the reader has to go through the reader's own opener instead,
-    -- or no preview appears at all and nudging looks like it does nothing
-    -- (#297).
+-- _startMenuPreview() -> preview, on_done: the start menu open behind a
+-- size page as its live preview (as the shelf is behind the others), and
+-- closed again after if it was opened for it. Only opened if one is not
+-- already showing. self._bw is always the LIBRARY widget -- buildMenuItems
+-- shares one _bw global across both hosts, so reaching this setting from
+-- inside the reader has to go through the reader's own opener instead, or
+-- no preview appears at all and nudging looks like it does nothing (#297).
+function Settings:_startMenuPreview()
+    local StartMenu = require("lib/bookshelf_start_menu")
     local in_reader = self._plugin and self._plugin.ui and self._plugin.ui.document
-    local opened_preview = false
+    local opened = false
     if not StartMenu._live then
         if in_reader then
             if self._plugin._openReaderStartMenu then
                 self._plugin:_openReaderStartMenu()
-                opened_preview = true
+                opened = true
             end
         elseif self._bw then
             self._bw:_openStartMenu()
-            opened_preview = true
+            opened = true
         end
     end
+    return function() if StartMenu._live then StartMenu._live:_reload() end end,
+        function() if opened and StartMenu._live then StartMenu._live:_close() end end
+end
+
+function Settings:_pickStartMenuFontScale(touchmenu_instance)
+    local preview, on_done = self:_startMenuPreview()
     self:_nudgePage(touchmenu_instance, {
         key = "start_menu_font_scale", default = 100, min = 50, max = 200,
         fine = 5, unit = "%", no_shelf = true,
         title = _("Start menu font scale"),
-        preview = function() if StartMenu._live then StartMenu._live:_reload() end end,
-        on_done = function()
-            if opened_preview and StartMenu._live then StartMenu._live:_close() end
-        end,
+        preview = preview, on_done = on_done,
     })
 end
 
@@ -5596,37 +5595,13 @@ end
 -- cards too; this decouples the two. Same live-preview shape (and the same
 -- reader-vs-library routing, #297) as _pickStartMenuFontScale.
 function Settings:_pickStartMenuMinWidth(touchmenu_instance)
-    local StartMenu    = require("lib/bookshelf_start_menu")
-    -- Open the start menu as a live preview (same approach as the hero scale
-    -- picker showing the bookshelf behind the dialog). Only open if one is
-    -- not already visible; track whether we opened it so the way out can
-    -- shut it. self._bw is always the LIBRARY widget -- buildMenuItems
-    -- shares one _bw global across both hosts, so reaching this setting from
-    -- inside the reader has to go through the reader's own opener instead,
-    -- or no preview appears at all and nudging looks like it does nothing
-    -- (#297).
-    local in_reader = self._plugin and self._plugin.ui and self._plugin.ui.document
-    local opened_preview = false
-    if not StartMenu._live then
-        if in_reader then
-            if self._plugin._openReaderStartMenu then
-                self._plugin:_openReaderStartMenu()
-                opened_preview = true
-            end
-        elseif self._bw then
-            self._bw:_openStartMenu()
-            opened_preview = true
-        end
-    end
+    local preview, on_done = self:_startMenuPreview()
     self:_nudgePage(touchmenu_instance, {
         -- The same bounds the panel itself clamps to (_panelWidthBounds).
         key = "start_menu_min_width", default = 180, min = 120, max = 600,
         fine = 5, big = 20, unit = " dp", no_shelf = true,
         title = _("Minimum start menu width"),
-        preview = function() if StartMenu._live then StartMenu._live:_reload() end end,
-        on_done = function()
-            if opened_preview and StartMenu._live then StartMenu._live:_close() end
-        end,
+        preview = preview, on_done = on_done,
     })
 end
 

@@ -406,12 +406,13 @@ function Edit.show(menu, entry)
     if title_icon and Model.imageIconName(title_icon) then title_icon = nil end
     local entry_title = (title_icon and (title_icon .. "  ") or "") .. displayLabel(entry)
 
-    dialog = ButtonDialog:new{
+    -- The title's X is the way out (STYLE.md).
+    dialog = ButtonDialog:new(require("lib/bookshelf_module_kit").withClose{
         title        = entry_title,
         title_align  = "center",
         width_factor = 0.65,
         buttons      = rows,
-    }
+    })
     UIManager:show(dialog)
 end
 
@@ -533,12 +534,12 @@ function Edit.showAdd(menu, anchor_id, folder_id)
         }
     end
 
-    dialog = ButtonDialog:new{
+    dialog = ButtonDialog:new(require("lib/bookshelf_module_kit").withClose{
         title        = _("Add to menu"),
         title_align  = "center",
         width_factor = 0.65,
         buttons      = rows,
-    }
+    })
     UIManager:show(dialog)
 end
 

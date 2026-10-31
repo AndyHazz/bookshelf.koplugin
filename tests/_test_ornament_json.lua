@@ -587,7 +587,13 @@ t.test("nudges: at once, no pressed look; the shelf rebuilt once the taps pause"
     assert(src:find("glyph = o.glyph, instant = true,", 1, true), "the steppers still press first")
     local rd = src:match("local redraw = M%.held%(function%(soon%)(.-)\n    end%)\n")
     assert(rd and rd:find("UIManager:scheduleIn(M.SETTLE, rebuildShelf)", 1, true), "every nudge rebuilds the shelf")
-    assert(src:find("set(field, M.nudged(entry, field, sign * step), true)", 1, true), "a nudge does not wait")
+    assert(src:find("set(field, v, true)", 1, true), "a nudge does not wait")
+    -- At its limit a step does nothing (review 2026-10-31: a no-op set and a
+    -- shelf rebuild per tap), and its button is greyed.
+    assert(src:find("if v == Orn.readerValue(entry, field) then return end", 1, true), "a step at the limit still sets")
+    assert(src:find("enabled = M.nudged(entry, field, small) ~= cur", 1, true), "the + is not greyed at the limit")
+    assert(src:find("if Orn.readerGet(entry.name)[field] == nil then return box end", 1, true),
+        "the value at its default can be tapped to reset")
     local cb = io.open("lib/bookshelf_chip_button.lua"):read("*a")
     assert(cb:find("if opts.instant then opts.on_tap()", 1, true), "the kit button cannot act at once")
 end)

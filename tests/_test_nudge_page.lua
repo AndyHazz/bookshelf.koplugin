@@ -20,7 +20,9 @@ local function open(spec)
         _ = function(s) return s end,
         T = function(s, a) return (s:gsub("%%1", tostring(a))) end,
         BookshelfSettings = { read = function(k, d) local v = saved[k]; if v == nil then return d end; return v end,
-            save = function(k, v) saved[k] = v end },
+            -- save() writes the file; saveDeferred() keeps it in memory.
+            save = function(k, v) saved[k] = v; state.writes = (state.writes or 0) + 1 end,
+            saveDeferred = function(k, v) saved[k] = v end },
         -- The preview waits for the taps to pause (scheduleIn); here it runs
         -- at once, so each change shows as before.
         UIManager = { close = function() state.closed = true end, setDirty = function() end,
@@ -108,6 +110,17 @@ t.test("the scale nudges and the start menu's use it, none a ButtonDialog", func
         assert(b:find("self:_nudgePage(", 1, true), name .. " does not use the page")
         assert(not b:find("buttondialog", 1, true), name .. " still builds a ButtonDialog")
     end
+end)
+
+-- Review 2026-10-31: every step rewrote the whole settings file (~130 ms on
+-- a PW5). Steps stay in memory; the page writes once as it closes.
+t.test("the steps are kept in memory and written once, as the page closes", function()
+    local src = io.open("lib/bookshelf_settings.lua"):read("*a")
+    local b = src:match("\nfunction Settings:_nudgePage%(.-\nend\n")
+    local set = b:match("local function setValue%(v%)(.-)\n    end\n")
+    assert(set and set:find("BookshelfSettings.saveDeferred(key, v)", 1, true) and not set:find("BookshelfSettings.save(", 1, true),
+        "a step writes the settings file")
+    assert(b:find("local function keep() BookshelfSettings.save(key, getValue()) end", 1, true), "nothing writes it on close")
 end)
 
 t.done()

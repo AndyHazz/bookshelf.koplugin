@@ -56,9 +56,8 @@ local DEFAULT_HEX = {
     border             = "#000000",  -- cover frame + pill / badge borders
     -- Folder overlay defaults match the color-mode appearance of the
     -- FolderCard module's CARDBOARD / CARDBOARD_EDGE constants. On B&W
-    -- devices the picker is replaced by a % black nudge dialog so this
-    -- hex is only ever shown as the picker's "default" swatch on color
-    -- screens. Field names match rawColors().folder_bg / .folder_fg so
+    -- devices the picker offers greys, so this hex is only ever shown as the
+    -- picker's "default" swatch on color screens. Field names match rawColors().folder_bg / .folder_fg so
     -- the settings menu's pickColor helper can pass the same string to
     -- both lookups.
     folder_bg   = "#E7C9A9",

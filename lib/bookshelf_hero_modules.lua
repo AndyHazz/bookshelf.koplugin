@@ -502,7 +502,7 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, 
             -- them for the look on screen, else their defaults.
             colors = colors or {},
             -- The card the module stands on, as the reader set it with the
-            -- palette icon (Card.ctxCard): a module that paints its own card
+            -- Style button (Card.ctxCard): a module that paints its own card
             -- uses this one when `custom`, so those settings reach every
             -- module (maintainer).
             card = card,

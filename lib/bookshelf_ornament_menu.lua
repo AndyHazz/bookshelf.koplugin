@@ -1,7 +1,8 @@
 -- lib/bookshelf_ornament_menu.lua
 -- Long-press an ornament on the shelf: adjust it where it stands. Size,
--- padding and height nudge live (the shelf redraws under the menu); hang,
--- mirror and a tap action; swap it for another piece, or shuffle them all;
+-- height and padding nudge live (the shelf redraws under the menu once the
+-- taps pause); its place in the shelf's order, mirror, anchor and a tap
+-- action; swap it for another piece, hide it, pin it, or shuffle them all;
 -- reset to what its pack says.
 --
 -- Every change is the READER's (lib/bookshelf_ornaments readerSet), kept in
@@ -9,9 +10,10 @@
 -- path, so it follows the piece onto every shelf and survives a pack update.
 -- The file is written once, when the menu closes.
 --
--- The nudge rows follow the bookends line editor: glyph buttons either side
--- of the value, a tap is a small step and a hold a big one, and tapping the
--- value resets it. Up and down are its Nerd Font chevrons.
+-- The nudge rows follow the bookends line editor: grey cards either side of
+-- the value, a tap is a small step and a hold (or the -10 / +10 cards
+-- outside them) a big one, and tapping the value resets it. Height's are
+-- up and down chevrons.
 local _ = require("lib/bookshelf_i18n").gettext
 local T = require("ffi/util").template
 
@@ -39,15 +41,15 @@ M.SHADOW_DP = 3         -- the shadow's offset, right and down
 -- outer "10" buttons (and a hold on the small ones): ten points of each.
 -- Height's small step is ONE point: seating a piece so it looks centred on
 -- the plank needs finer control than 2% of its height (maintainer).
--- How long the shelf waits after a nudge before it is rebuilt: rapid taps
--- land within it and share one rebuild.
-M.SETTLE = 0.35
-
 M.STEPS = {
     scale = { 0.05, 0.10 },
     pad   = { 0.01, 0.10 },
     lift  = { 0.01, 0.10 },
 }
+
+-- How long the shelf waits after a nudge before it is rebuilt: rapid taps
+-- land within it and share one rebuild.
+M.SETTLE = 0.35
 
 local function O() return require("lib/bookshelf_ornaments") end
 -- A piece on or off as the shelf on screen's theme has it: that theme's set,
@@ -264,9 +266,13 @@ function M.show(entry, bw, piece, widget, opts)
         entry = Orn.current(entry)
         redraw()
     end)
+    -- At its limit a step changes nothing: no set, no rebuild (its button
+    -- is greyed there too, see nudger).
     local function nudge(field, sign, big)
         local step = M.STEPS[field][big and 2 or 1]
-        set(field, M.nudged(entry, field, sign * step), true)
+        local v = M.nudged(entry, field, sign * step)
+        if v == Orn.readerValue(entry, field) then return end
+        set(field, v, true)
     end
 
     -- The pieces that are on, in this shelf's saved order: what "place"
@@ -293,7 +299,9 @@ function M.show(entry, bw, piece, widget, opts)
         w = w or val_w
         local t = text(label, { bold = true })
         local box = CenterContainer:new{ dimen = Geom:new{ w = w, h = h }, t }
-        if Orn.readerValue(entry, field) == nil then return box end
+        -- The reader's own record, not readerValue (which falls back to the
+        -- default): at the default the value is a plain label.
+        if Orn.readerGet(entry.name)[field] == nil then return box end
         return Kit.tapCell(box, w, h, function() set(field, nil) end, true, nil, true)
     end
     local function pctOf(field) return pct(Orn.readerValue(entry, field)) end
@@ -367,7 +375,7 @@ function M.show(entry, bw, piece, widget, opts)
         -- piece's own-row copy speaks for the piece (_pin_of).
         local src = widget or piece
         src = src and (src._pin_of or src)
-        -- Not with Micro modules > On the shelf off: a pinned piece is a
+        -- Not with Modules > On the shelf off: a pinned piece is a
         -- module among the books, which that turns off.
         local on_shelf = require("lib/bookshelf_settings_store").microOnShelf()
         if on_shelf and src and src.pin_after_idx and bw and bw._pinOrnament then
@@ -406,9 +414,9 @@ function M.show(entry, bw, piece, widget, opts)
             end
             return hg
         end
-        -- stepper(dec, inc, value, labels) -> "- value +" (or chevrons): a tap
-        -- the small step, a hold the big one; dec/inc { tap, hold, glyph,
-        -- enabled }.
+        -- stepper(dec, inc, value) -> "- value +" (or chevrons): a tap the
+        -- small step, a hold the big one; dec/inc { tap, hold, big, glyph,
+        -- enabled }, big also the -10 / +10 cards outside them.
         local function stepper(dec, inc, value)
             local function b(o, text_)
                 -- At once, no pressed look: the value is the feedback.
@@ -427,9 +435,9 @@ function M.show(entry, bw, piece, widget, opts)
             -- maintainer: there is room, and a hint for a hold is not needed).
             if dec.big then
                 local big_minus = kbutton{ glyph = MINUS_GLYPH, glyph_size = FS - 4, text = "10", gap = Space.px(1),
-                    pad_h = Space.px(6), on_tap = dec.big, instant = true }
+                    pad_h = Space.px(6), on_tap = dec.big, instant = true, enabled = dec.enabled }
                 local big_plus  = kbutton{ glyph = PLUS_GLYPH, glyph_size = FS - 4, text = "10", gap = Space.px(1),
-                    pad_h = Space.px(6), on_tap = inc.big, instant = true }
+                    pad_h = Space.px(6), on_tap = inc.big, instant = true, enabled = inc.enabled }
                 return line({ big_minus, HorizontalSpan:new{ width = Space.px(3) }, minus, value, plus,
                     HorizontalSpan:new{ width = Space.px(3) }, big_plus }, 0),
                     { big_minus, minus, plus, big_plus }
@@ -438,10 +446,14 @@ function M.show(entry, bw, piece, widget, opts)
         end
         -- nudger(field) -> its - and + : a tap the small step, a hold (or the
         -- -10 / +10 cards, big) the big one.
+        -- Greyed at the limit, as the layout editor's are.
         local function nudger(field)
             local function big(sign) return function() nudge(field, sign, true) end end
-            return { tap = function() nudge(field, -1, false) end, hold = big(-1), big = big(-1) },
-                   { tap = function() nudge(field, 1, false) end, hold = big(1), big = big(1) }
+            local cur, small = Orn.readerValue(entry, field), M.STEPS[field][1]
+            return { tap = function() nudge(field, -1, false) end, hold = big(-1), big = big(-1),
+                     enabled = M.nudged(entry, field, -small) ~= cur },
+                   { tap = function() nudge(field, 1, false) end, hold = big(1), big = big(1),
+                     enabled = M.nudged(entry, field, small) ~= cur }
         end
 
         -- Place: its place in this shelf's deal, earlier and later (wrapping
@@ -480,15 +492,15 @@ function M.show(entry, bw, piece, widget, opts)
             active = entry.anchor == "top" and "top" or "bottom",
             on_pick = function(k) setAnchor(k) end }
 
-        -- Two columns, each a label and its control, the labels one width a
-        -- column so the controls line up: the piece in its slot (Size,
-        -- Height, Padding) and the rest (Place, Mirror and Anchor together)
-        -- (maintainer). One column when two do not fit (a small screen).
         -- What a tap on the piece does: the action chooser.
         local tap = entry.tap
         local tap_btn = kbutton{ text = (tap and ((tap.zoom and _("Zoom")) or tap.label or _("set"))
             or _("None")) .. " \xE2\x80\xBA",
             on_tap = function() M.chooseTap(entry, redraw) end }
+        -- Two columns, each a label and its control, the labels one width a
+        -- column so the controls line up: the piece in its slot (Size,
+        -- Height, Padding) and the rest (Place, Mirror and Anchor together)
+        -- (maintainer). One column when two do not fit (a small screen).
         local cols = {
             { { _("Size"), size_ctl, size_keys }, { _("Height"), height_ctl, height_keys },
               { _("Padding"), pad_ctl, pad_keys } },
@@ -565,9 +577,8 @@ function M.show(entry, bw, piece, widget, opts)
     end
 
     -- The panel: the frame, centred across and moved clear of the piece
-    -- (offsetFor), with room above it for the picture to rise into. A tap
-    -- outside does nothing (rapid nudges land outside now and then and must
-    -- not close it); the X or Back closes.
+    -- (offsetFor), with room above it for the picture to rise into. The X,
+    -- Back or a tap outside closes it (onTapOutside).
     local Panel = InputContainer:extend{}
     dialog = Panel:new{ dimen = Geom:new{ x = 0, y = 0, w = Screen:getWidth(), h = Screen:getHeight() } }
     local function close() UIManager:close(dialog) end
@@ -717,8 +728,9 @@ function M.chooseTap(entry, done, set)
             if done then done() end
         end),
     }})
-    d = ButtonDialog:new{ title = _("Tap action"), title_align = "center",
-                          width_factor = 0.65, buttons = rows }
+    -- The title's X is the way out (STYLE.md).
+    d = ButtonDialog:new(require("lib/bookshelf_module_kit").withClose{ title = _("Tap action"),
+        title_align = "center", width_factor = 0.65, buttons = rows })
     UIManager:show(d)
 end
 

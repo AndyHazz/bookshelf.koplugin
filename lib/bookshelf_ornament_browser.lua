@@ -311,7 +311,8 @@ function Browser:_longTap(item)
             self:_confirmDelete(item)
         end,
     }}
-    d = ButtonDialog:new{ title = item.entry.name, buttons = buttons }
+    -- The title's X is the way out (STYLE.md).
+    d = ButtonDialog:new(require("lib/bookshelf_module_kit").withClose{ title = item.entry.name, buttons = buttons })
     UIManager:show(d)
 end
 

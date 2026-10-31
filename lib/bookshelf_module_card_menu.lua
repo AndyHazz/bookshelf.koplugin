@@ -1,5 +1,5 @@
 --[[
-The palette icon's menu for one micro-module: its card (background, border,
+The Style menu for one module (the layout editor's Style button): its card (background, border,
 text) and the colours its spec declares (bookshelf_module_card), for the look
 on screen -- light or dark, as the shelf is painting now.
 
@@ -121,7 +121,8 @@ function M.show(ctx)
     }
     local title = (def and def.title) or entry.module
     d = ButtonDialog:new(require("lib/bookshelf_module_kit").withClose{
-        title = T(_("%1 · colors for %2"), title, (sfx ~= "") and _("Dark") or _("Light")),
+        -- Named as the button that opens it (Style), the look it is for after.
+        title = T(_("%1 · style for %2"), title, (sfx ~= "") and _("Dark") or _("Light")),
         title_align = "center",
         buttons = buttons,
     })
@@ -137,70 +138,11 @@ function M.show(ctx)
 end
 
 --- hasColours(entry) -> whether the module has colours to set here (a card,
---- or colours its spec declares): what the palette icon and the layout
---- editor's Style button are shown for.
+--- or colours its spec declares): what the layout editor's Style button is
+--- shown for.
 function M.hasColours(entry)
     local def = entry and require("lib/bookshelf_start_menu_modules").get(entry.module)
     return #Card.rows(def) > 0
-end
-
---- titleRow(title, face, w, entry, show_parent, on_tap) -> a menu's title
---- with the palette icon at its right, when the module has colours to set (a
---- card, or colours its spec declares); else the plain title. The icon opens
---- this menu, as the coffee cup in the ornament menu's title opens the
---- collection (maintainer). An equal blank on the left keeps the title
---- centred.
-function M.titleRow(title, face, w, entry, show_parent, on_tap)
-    local TextWidget = require("lib/bookshelf_colour_text")
-    if not M.hasColours(entry) then
-        return TextWidget:new{ text = title, face = face, max_width = w }
-    end
-    local Button          = require("ui/widget/button")
-    local CenterContainer = require("ui/widget/container/centercontainer")
-    local HorizontalGroup = require("ui/widget/horizontalgroup")
-    local HorizontalSpan  = require("ui/widget/horizontalspan")
-    local Geom            = require("ui/geometry")
-    local Screen          = require("device").screen
-    local glyph = require("lib/bookshelf_menu_icons").COLORS
-    -- The row keeps the height a 22 pt icon gave it, so the header bar does
-    -- not grow; the icon itself is large, as a tap target (at 22 pt it was a
-    -- speck in the corner), centred in that height and free to reach into
-    -- the padding above and below (maintainer, PW5).
-    local probe = Button:new{
-        text = glyph, text_font_face = "symbols", text_font_size = 22, text_font_bold = false,
-        bordersize = 0, padding = Screen:scaleBySize(4),
-    }
-    local row_h = probe:getSize().h
-    if probe.free then probe:free() end
-    local icon = Button:new{
-        text = glyph,
-        text_font_face = "symbols", text_font_size = 36, text_font_bold = false,
-        bordersize = 0, padding = Screen:scaleBySize(4),
-        show_parent = show_parent,
-        callback = on_tap,
-    }
-    local iw, ih = icon:getSize().w, icon:getSize().h
-    local holder = { dimen = Geom:new{ w = iw, h = row_h } }
-    function holder:getSize() return { w = iw, h = row_h } end
-    function holder:paintTo(bb, x, y)
-        self.dimen = Geom:new{ x = x, y = y, w = iw, h = row_h }
-        icon:paintTo(bb, x, y + math.floor((row_h - ih) / 2))
-    end
-    function holder:handleEvent(ev) return icon:handleEvent(ev) end
-    function holder:free() if icon.free then icon:free() end end
-    local tw = math.max(1, w - 2 * iw)
-    local row = HorizontalGroup:new{
-        align = "center",
-        HorizontalSpan:new{ width = iw },
-        CenterContainer:new{
-            dimen = Geom:new{ w = tw, h = row_h },
-            TextWidget:new{ text = title, face = face, max_width = tw },
-        },
-        holder,
-    }
-    -- The icon itself, for a host that moves key focus onto it.
-    row.palette_button = icon
-    return row
 end
 
 return M

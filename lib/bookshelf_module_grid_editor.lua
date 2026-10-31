@@ -179,6 +179,8 @@ local function kbutton(o)
         icon_face = o.glyph and Font:getFace("symbols", o.glyph_size or (FS + 6)) or nil,
         height = o.h, pad_h = o.pad_h, width = o.width, enabled = enabled, on_tap = o.on_tap,
         border = o.card and 0 or nil, square_bottom = o.square_bottom,
+        -- A nudge acts at once, no pressed look first (STYLE.md).
+        instant = o.instant,
     }
     if o.card then Kit.cardify(btn[1]) end
     btn.callback = o.on_tap
@@ -228,9 +230,10 @@ function Editor:_buildToolbar()
     -- stepper(label, axis, value) -> "Width  − 2 +", its two buttons a keys row.
     local function stepper(label, axis, value)
         if on_shelf and axis == "h" then return nil end
-        local minus = kbutton{ glyph = "\xEF\x81\xA8", h = h, pad_h = Space.px(14),
+        -- Grey cards: they nudge a value (STYLE.md), as every stepper's.
+        local minus = kbutton{ glyph = "\xEF\x81\xA8", h = h, pad_h = Space.px(14), card = true, instant = true,
             enabled = s:canResize(axis, -1), on_tap = function() s:resize(axis, -1) end }
-        local plus = kbutton{ glyph = "\xEF\x91\x8D", h = h, pad_h = Space.px(14),
+        local plus = kbutton{ glyph = "\xEF\x91\x8D", h = h, pad_h = Space.px(14), card = true, instant = true,
             enabled = s:canResize(axis, 1), on_tap = function() s:resize(axis, 1) end }
         local CenterContainer = require("ui/widget/container/centercontainer")
         local val = CenterContainer:new{ dimen = Geom:new{ w = Space.px(48), h = h },
@@ -244,7 +247,7 @@ function Editor:_buildToolbar()
     -- so (maintainer). The d-pad's keys are cards, grey with no outline,
     -- so it reads as one pad beside the outlined buttons (maintainer).
     local function chev(glyph, dx, dy)
-        return kbutton{ glyph = glyph, h = h, pad_h = Space.px(14), card = true,
+        return kbutton{ glyph = glyph, h = h, pad_h = Space.px(14), card = true, instant = true,
             on_tap = function() s:moveBy(dx, dy) end }
     end
     local function pageButton(glyph, dir)
@@ -454,15 +457,18 @@ function Editor:_buildFooter(rect_w, rect_h)
     local done = kbutton{ text = _("Done"), glyph = "\xEE\xA0\xAB", glyph_size = FS, h = h,
         bold = true, square_bottom = true, on_tap = function() self:_finish() end }
     local inner = rect_w - 2 * inset
+    local lw = left[1]:getSize().w
+    local dw = done:getSize().w
     local mid
     if #middle > 0 then
         mid = line(middle, gap)
     elseif not s.selected_id then
-        -- A hint, grey text: not a greyed-out button (STYLE.md).
-        mid = Kit.hintText(_("Tap a module to select it"), FS)
+        -- A hint, grey text: not a greyed-out button (STYLE.md). The room
+        -- between Add and Done, centred in it: with no width it took a fixed
+        -- box, off centre, and on a narrow screen ran under the buttons.
+        mid = Kit.hintText(_("Tap a module to select it"), FS,
+            math.max(Space.px(40), inner - lw - dw - 2 * gap), "center")
     end
-    local lw = left[1]:getSize().w
-    local dw = done:getSize().w
     local CenterContainer = require("ui/widget/container/centercontainer")
     local row = line({ left[1],
         CenterContainer:new{ dimen = Geom:new{ w = math.max(0, inner - lw - dw - 2 * gap), h = h },
@@ -1015,6 +1021,8 @@ function Editor:_actionsDialog()
     local def = entry and Modules.get(entry.module)
     local rows = s:keyActions{
         has_settings = def and type(def.show_settings) == "function",
+        has_colours = entry and require("lib/bookshelf_module_card_menu").hasColours(entry),
+        on_shelf = self.host and self.host.shelf,
         on_done = function() self:_finish() end,
     }
     local dialog

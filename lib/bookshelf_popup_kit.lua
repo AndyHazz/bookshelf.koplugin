@@ -667,9 +667,11 @@ end
 
 -- hintText(text, font_size, width) -> grey secondary text: a hint or a
 -- note, never a greyed-out button (a border says "tap me").
-function Kit.hintText(text, font_size, width)
+-- width: the box it wraps in (else TextBoxWidget's default, 400 at 160 dpi,
+-- whatever the room); align: "center" to centre it in that box.
+function Kit.hintText(text, font_size, width, align)
     local TextBoxWidget = require("ui/widget/textboxwidget")
-    return TextBoxWidget:new{ text = text, width = width,
+    return TextBoxWidget:new{ text = text, width = width, alignment = align,
         face = require("ui/font"):getFace("cfont", math.max(10, (font_size or 20) - 3)),
         fgcolor = Blitbuffer.COLOR_DARK_GRAY }
 end

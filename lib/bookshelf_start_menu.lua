@@ -286,7 +286,7 @@ function StartMenu.open(bw, bottom_inset, burger_dimen, context, burger_art, anc
     StartMenu._live = menu -- test/introspection hook; cleared in onCloseWidget
 end
 
--- Model.load() filtered by the "In start menu" micro-module surface toggle.
+-- Model.load() filtered by the "In the start menu" module surface toggle.
 -- Display-only: mutations go through bookshelf_start_menu_edit's own fresh
 -- Model.load, so the stored model (with its module entries) is never touched by
 -- the filtering -- toggling the surface back on restores the cards untouched.

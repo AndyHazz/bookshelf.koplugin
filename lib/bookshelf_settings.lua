@@ -895,7 +895,7 @@ function Settings:_coverDisplaySubItems()
             help_text = _("A line of text under each cover, on the regular"
                 .. " shelf and full screen shelves alike. Choose what it shows,"
                 .. " or None to let covers use the full row. A shelf can choose"
-                .. " its own under Shelf style. Text size follows the Cover"
+                .. " its own: long-press it, then View mode. Text size follows the Cover"
                 .. " captions setting under Text size."),
             sub_item_table_func = function()
                 return {
@@ -2575,9 +2575,9 @@ function Settings:_ornamentsRow()
             return T(_("Small pieces that stand in the gaps on a spine shelf. "
                 .. "Drop PNG or SVG files into %1 and they appear there; a "
                 .. "folder of them there is a pack, switched on and off as one.\n\n"
-                .. "Tap to browse them, switch them off and on, or delete them. "
-                .. "How often they appear is set per shelf: long-press a shelf "
-                .. "chip, then Shelf style."), dir)
+                .. "Tap to browse them, hide or show them, or delete them. "
+                .. "How often they appear is set per shelf: long-press a shelf, "
+                .. "then View mode."), dir)
         end,
         keep_menu_open = true,
         -- Browse, switch off and on, delete; packs are its chips.
@@ -3355,14 +3355,12 @@ function Settings:_settingsSubItems()
             end
             return _("Modules")
         end,
-        help_text = _("Where modules appear. Each surface is independent:"
-            .. " In start menu shows module cards in the start-menu launcher; In"
-            .. " top panel adds a shelf-menu entry that swaps the book for the grid;"
-            .. " Full-screen button adds a footer button opening a full-screen"
-            .. " grid; On the shelf shows modules among a shelf's books (turn it off"
-            .. " and the books take their space back). The top panel and full screen"
-            .. " shelves keep their own module lists. Turn all four off to disable"
-            .. " modules entirely."),
+        help_text = _("Where modules appear, each on its own."
+            .. " In the start menu: cards in the start menu."
+            .. " In the top panel: a shelf menu entry that swaps the book for modules."
+            .. " Full-screen button: a footer button that opens a full screen of modules."
+            .. " On the shelf: modules among a shelf's books (off, the books take their space back)."
+            .. " Turn all four off to hide modules everywhere."),
         sub_item_table_func = function()
             -- Flip one surface. Snapshot the current (possibly still
             -- legacy-derived) state of all three and persist them explicitly, so
@@ -3409,7 +3407,7 @@ function Settings:_settingsSubItems()
                 }
             end
             return {
-                row("start_menu", _("In start menu"),     BookshelfSettings.microInStartMenu),
+                row("start_menu", _("In the start menu"), BookshelfSettings.microInStartMenu),
                 row("hero",       _("In the top panel"),       BookshelfSettings.microInHero),
                 row("fullscreen", _("Full-screen button"), BookshelfSettings.microFullscreenButton),
                 -- Its own key, not part of the three-way snapshot above: it
@@ -5288,7 +5286,7 @@ end
 -- smaller with more whitespace. Live preview = the bookshelf rebuild behind.
 function Settings:_pickHeroModuleFontScale(touchmenu_instance)
     self:_showScaleNudge(touchmenu_instance, {
-        key = "hero_module_font_scale", title = _("Modules font scale"), max = 200, fine = 5,
+        key = "hero_module_font_scale", title = _("Module font scale"), max = 200, fine = 5,
     })
 end
 

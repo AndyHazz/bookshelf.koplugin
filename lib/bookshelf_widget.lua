@@ -5837,7 +5837,7 @@ function BookshelfWidget:_showSearchViewModePicker()
         }
         if m == ViewMode.AUTO then
             blocks[#blocks + 1] = { type = "heading", text = _("Auto") }
-            for n, label in ipairs({ _("Results"), _("Opened from them") }) do
+            for n, label in ipairs({ _("Results"), _("Inside folders and stacks") }) do
                 blocks[#blocks + 1] = { type = "segmented", label = label,
                     items = LEVEL_ITEMS, active = level(n),
                     on_pick = function(value)
@@ -25038,7 +25038,7 @@ function BookshelfWidget:_openHardcoverMenu(book)
         local linked = link and link.book_id
         local blocks = {}
         if linked then
-            blocks[#blocks + 1] = { type = "heading", text = _("Use from Hardcover") }
+            blocks[#blocks + 1] = { type = "heading", text = _("Use Hardcover's") }
             -- Only a cover actually downloaded can be used: with cover download
             -- off (issue 111), or none on Hardcover, there's nothing to switch.
             if Hardcover.hasCover and Hardcover.hasCover(book.filepath) then
@@ -25051,7 +25051,7 @@ function BookshelfWidget:_openHardcoverMenu(book)
             blocks[#blocks + 1] = onOff(_("Description"), "use_description",
                 Hardcover.setUseDescription, "hardcover-use-description")
         end
-        blocks[#blocks + 1] = { type = "heading", text = linked and _("Change link") or _("Link") }
+        blocks[#blocks + 1] = { type = "heading", text = linked and _("Change link") or _("Link to Hardcover") }
         local chips = { embedded_button, select_book_button }
         if linked then
             chips[#chips + 1] = select_edition_button
@@ -25650,7 +25650,7 @@ function BookshelfWidget:_openGroupMenu(group, kind)
             text = _("How this series' books are drawn, on every shelf.") }
         blocks[#blocks + 1] = { type = "segmented", label = _("Book binding"),
             items = {
-                { key = "follow",    label = _("Follow shelf") },
+                { key = "follow",    label = _("Same as shelf") },
                 { key = "hardcover", label = Binding.label("hardcover") },
                 { key = "paperback", label = Binding.label("paperback") },
             },
@@ -26104,7 +26104,7 @@ function BookshelfWidget:_addOrMoveSubShelf()
     for _i, t in ipairs(movable) do
         local parent = t.parent and TabModel.getById(t.parent)
         blocks[#blocks + 1] = { type = "row", label = name(t),
-            value = parent and T(_("In %1"), name(parent)) or _("Top level"),
+            value = parent and T(_("In %1"), name(parent)) or _("In the shelf menu"),
             callback = act(function()
                 local fresh = TabModel.load()
                 if TabModel.moveTree(fresh, t.id, here) then

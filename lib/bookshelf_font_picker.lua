@@ -13,8 +13,8 @@
 -- file name (the bundled fonts are named that way) still finds its row.
 --
 -- show(current_face, on_select, default_face)
---   on_select(file) fires on every tap, so callers preview live; Close and a
---   tap outside revert to current_face, Reset picks default_face (nil means
+--   on_select(file) fires on every tap, so callers preview live; Cancel and a
+--   tap outside revert to current_face, Default picks default_face (nil means
 --   "follow KOReader" for callers that have no default file), Done keeps.
 
 local Blitbuffer      = require("ffi/blitbuffer")
@@ -264,16 +264,18 @@ function FontPicker.show(current_face, on_select, default_face)
             on_goto = function(p) page = p; picker:rebuild() end,
             show_parent = picker,
         }
-        -- The footer runs edge to edge under a full-width line (STYLE.md).
+        -- The footer runs edge to edge under a full-width line (STYLE.md),
+        -- in the size pages' words: Cancel puts back the font it opened on,
+        -- Default, Done keeps.
         local actions = ButtonTable:new{
             width = width,
             buttons = {{
                 {
-                    text = _("Close"),
+                    text = _("Cancel"),
                     callback = function() picker:revertAndClose() end,
                 },
                 {
-                    text = _("Reset"),
+                    text = _("Default"),
                     enabled = selected ~= default_face,
                     callback = function()
                         selected = default_face

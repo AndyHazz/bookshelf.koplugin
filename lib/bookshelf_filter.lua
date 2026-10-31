@@ -351,7 +351,8 @@ local function countKeys(t)
 end
 
 -- dimSummary(filter, dim_key, max_chars): the value text shown on a filter row.
--- "any" when empty; otherwise the selected values, sorted and comma-joined. When
+-- "Any" when empty (capitalised, as every value on the editor's cards);
+-- otherwise the selected values, sorted and comma-joined. When
 -- max_chars is given and the list is longer, pack whole values up to that budget
 -- and append an ellipsis ("Comedy, Fantasy…"). The caller (editor) sizes the
 -- budget per row from the row width minus the label, so each row fills close to
@@ -361,7 +362,7 @@ function Filter.dimSummary(filter, dim_key, max_chars)
     if dim_key == "folders" then
         local f = filter.folders or {}
         local inc, exc = countKeys(f.include), countKeys(f.exclude)
-        if inc == 0 and exc == 0 then return tr("any") end
+        if inc == 0 and exc == 0 then return tr("Any") end
         return string.format(tr("%d in, %d out"), inc, exc)
     end
     if dim_key == "series_membership" then
@@ -369,7 +370,7 @@ function Filter.dimSummary(filter, dim_key, max_chars)
         -- on the Series source it's load-bearing (mixes standalone books in
         -- with the stacks, #160), and on book chips the label still reads as
         -- an accurate description of "no narrowing".
-        if filter.series_membership == nil then return tr("any") end
+        if filter.series_membership == nil then return tr("Any") end
         for _i, sv in ipairs(Filter.seriesValues()) do
             if sv.value == filter.series_membership then return sv.label end
         end
@@ -394,7 +395,7 @@ function Filter.dimSummary(filter, dim_key, max_chars)
     end
     local set = filter[dim_key]
     local n = countKeys(set)
-    if n == 0 then return tr("any") end
+    if n == 0 then return tr("Any") end
     -- Build sorted display labels for the selected values. For status/rating
     -- the stored key is an internal token, so map it to a friendly label;
     -- every other dimension stores the display value as the key already.
@@ -428,11 +429,15 @@ end
 function Filter.summary(filter)
     -- "None", as every other value on the editor's cards starts with a capital.
     if not Filter.isActive(filter) then return tr("None") end
-    local n = 0
-    for _i, dim in ipairs({ "statuses", "genres", "langs", "formats", "ratings", "collections" }) do
-        for _j, k in ipairs(Filter.dimKeys(dim)) do
-            if anyKey(filter[k]) then n = n + 1; break end
-        end
+    -- One count per dimension with any picks: derived from MULTI_KEYS and
+    -- DIM_KEYS, so a new dimension counts here as it does in isActive.
+    local n, owner, seen = 0, {}, {}
+    for dim, keys in pairs(DIM_KEYS) do
+        for _j, k in ipairs(keys) do owner[k] = dim end
+    end
+    for _i, k in ipairs(MULTI_KEYS) do
+        local dim = owner[k] or k
+        if not seen[dim] and anyKey(filter[k]) then seen[dim] = true; n = n + 1 end
     end
     local f = filter.folders
     if f and (anyKey(f.include) or anyKey(f.exclude)) then n = n + 1 end

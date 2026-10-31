@@ -6,7 +6,7 @@
 -- the editor closes) and the shelf behind rebuilds, once per run of taps.
 -- The editor closes with Close; there is no Save and no Cancel.
 -- opts.on_change(info) is that rebuild (info.source_changed when the source
--- moved), and also runs at once after each Move-left / Move-right tap.
+-- moved).
 -- opts.bw is the BookshelfWidget instance; when present the dialog anchors
 -- just below the chip strip so the strip stays visible.
 
@@ -757,7 +757,7 @@ function Editor:editTab(tab_id, opts)
                     for _i, b in ipairs(inside) do blocks[#blocks + 1] = b end
                 end
                 return { strip = { { type = "summary", text = here_name
-                    and T(_("Now on %1. Tap where it should go."), here_name)
+                    and T(_("Now in %1. Tap where it should go."), here_name)
                     or _("Tap where it should go.") } }, blocks = blocks }
             end,
         }
@@ -1240,7 +1240,7 @@ function Editor:editTab(tab_id, opts)
                 end,
             }
             label_dialog = InputDialog:new{
-                title           = _("Shelf label"),
+                title           = _("Shelf name"),
                 input           = draft.label or "",
                 allow_newline   = false,
                 text_height     = Screen:scaleBySize(40),
@@ -1373,9 +1373,10 @@ function Editor:editTab(tab_id, opts)
             -- "+ Add shelf" tile shows: wanted while the shelves are being
             -- set up, clutter once they are (maintainer).
             shelf_row[#shelf_row + 1] = {
+                -- A saved setting reads as its value (as Filters: None), not
+                -- a tick (STYLE.md: a tick is for what is only shown).
                 text_func = function()
-                    return (draft.hide_add_tile and "  " or "\xE2\x9C\x93 ")
-                        .. _("Show + Add shelf")
+                    return T(_("Add shelf tile: %1"), draft.hide_add_tile and _("Off") or _("On"))
                 end,
                 callback = function()
                     draft.hide_add_tile = (not draft.hide_add_tile) or nil
@@ -1388,7 +1389,7 @@ function Editor:editTab(tab_id, opts)
         elseif not is_opds_src then
             shelf_row[#shelf_row + 1] = {
                 text_func = function()
-                    return _("Filters: ") .. Filter.summary(draft.filter or {})
+                    return T(_("Filters: %1"), Filter.summary(draft.filter or {}))
                 end,
                 icon = "\u{E931}",   -- filter
                 callback = function()
@@ -1490,7 +1491,7 @@ function Editor:editTab(tab_id, opts)
             look_row[#look_row + 1] = {
                 text_func = function()
                     local v = draft.theme
-                    return _("Theme: ") .. ((v == nil and follow) and follow.title or TP.choiceLabel(v))
+                    return T(_("Theme: %1"), (v == nil and follow) and follow.title or TP.choiceLabel(v))
                 end,
                 icon = "\u{EAD7}",   -- palette
                 callback = function()
@@ -1557,27 +1558,20 @@ function Editor:editTab(tab_id, opts)
                     end,
                 },
             },
-            -- Row 1a: source, full width.
+            -- The source, full width.
             source_row,
-            -- Row 1b: filters (or catalog settings) + folder style.
+            -- Filters (or a catalog's settings, or the + tile) and View mode.
             shelf_row,
-            -- Row 1b: sort priority levels 1, 2, 3 (engine already supports
-            -- unbounded levels via chainedComparator; three covers the
-            -- common nested case "author surname -> series -> series index"
-            -- with zero meaningful perf cost since deeper levels only fire
-            -- when earlier ones tie) -- or, for an OPDS source, the single
-            -- disabled "Server order" row computed above.
+            -- Sort -- or, for an OPDS source, the single disabled "Server
+            -- order" row computed above.
             sort_row,
             -- The shelf's Theme, and a module among its books (look_row).
             look_row,
-            -- Row 2: actions [delete] [Close] [add]. One Close, not Cancel
-            -- and Save: every change has already been applied and saved, so
-            -- there is nothing left to keep or throw away (maintainer, 2026-10-08).
-            -- Delete (U+E8BF, mdi-delete) is enabled only for custom tabs;
-            -- built-ins are hidden via the bookshelf menu's checkbox.
-            -- Add (U+F055, fa-plus-circle) creates a new custom_N tab.
-            -- All buttons borderless so the dialog frame's bottom edge
-            -- serves as the action-row boundary (no double-border).
+            -- The foot row: Delete | New shelf | Close (maintainer). One
+            -- Close, not Cancel and Save: every change has already been
+            -- applied and saved, so there is nothing left to keep or throw
+            -- away (maintainer, 2026-10-08). Delete works on any shelf, a
+            -- built-in one too (it asks first).
             {
                 {
                     text           = "\xEE\xA2\xBF",  -- U+E8BF mdi-delete
@@ -1832,8 +1826,8 @@ function Editor:editTab(tab_id, opts)
         -- dialog exists: its creation below catches that one up.
         button_table.show_parent = dialog
         current_bt = button_table
-        -- The cursor starts on the first card (Source / Grouping), the
-        -- strip of Position / Copy / Move above it: shown at the first key.
+        -- The cursor starts on the first card (Source), the strip of Edit
+        -- shelf name / Shelf order above it: shown at the first key.
         Kit.keyFocus(button_table, key_state, #strip_focus > 0 and 2 or 1, "main")
 
         -- Dynamic title: shows the tab's current label so the user can see
@@ -1841,7 +1835,7 @@ function Editor:editTab(tab_id, opts)
         -- string when the label is empty / nil.
         local title_text = _("Edit shelf")
         if draft.label and draft.label ~= "" then
-            title_text = _("Editing shelf: ") .. draft.label
+            title_text = T(_("Editing shelf: %1"), draft.label)
         end
         local title_bar = TitleBar:new{
             width             = dialog_w,
@@ -1946,11 +1940,9 @@ function Editor:editTab(tab_id, opts)
     end
 
     -- The same high anchor every picker this editor opens uses: over the hero,
-    -- above the shelf menu bar. It opened in the bottom third before, so the
-    -- chip strip stayed visible for the Move-left / Move-right chevrons -- but
-    -- the strip sits BELOW the hero, so clearing the hero leaves it visible
-    -- anyway, and an editor placed somewhere different from the dialogs it
-    -- spawns reads as a different kind of thing (maintainer report).
+    -- above the shelf menu bar, so the shelf menu bar below the top panel
+    -- stays in sight; an editor placed somewhere different from the dialogs
+    -- it spawns reads as a different kind of thing (maintainer report).
     --
     -- _highAnchor takes its width off the laid-out MovableContainer, so the
     -- container is held here for it to read rather than built inline.
@@ -1993,17 +1985,6 @@ function Editor:editTab(tab_id, opts)
     end
 end
 
--- _pickSource -- full picker. Top-level ButtonDialog choosing a source kind;
--- selecting a kind that needs an id (folder, collection, genre, author) opens
--- a second-level picker populated from real data (KOReader PathChooser,
--- ReadCollection, or the repository's group fetchers).
---
--- NOTE (v1.4): "Specific tag" and "Reading status" kinds are intentionally
--- absent from the kinds list. getTags predicates on ReadCollection tags
--- (distinct from the `tags` built-in) and getBySource "status" predicates on
--- b.read_status, neither of which is produced by buildBookMeta from lfs
--- entries. These sub-options will be restored once those data paths are wired.
--- Tracked: requires follow-up before enabling tag/status custom sources.
 -- _openCatalogSettings(draft, on_close) - the per-catalog tuning menu for an
 -- OPDS chip: download folder, refresh age, cover loading, page size and
 -- timeout. Everything in here is an override of a shelf default chosen for
@@ -2100,8 +2081,10 @@ function Editor:_openCatalogSettings(draft, on_close)
             text = (own and (dir:match("([^/]+)/?$") or dir) or _("A folder of your own")) .. " \xE2\x80\xBA",
             on = own,
             callback = function()
+                -- A page of the editor, as Filters > Folders' picker is.
                 Picker.show{
                     title     = _("Save downloads to\xE2\x80\xA6"),
+                    over      = Editor._over({ _("Saves downloads to") }),
                     on_cancel = function() end,
                     on_pick   = function(picked)
                         draft.download_dir = picked
@@ -2298,7 +2281,8 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             local c = draft["list_columns" .. sfx]
             local r = draft["list_rows" .. sfx]
             if inherit then c = c or draft.list_columns; r = r or draft.list_rows end
-            return T(_("%1 columns, %2 rows"), numText(c), numText(r))
+            -- "columns: Auto", not "Auto columns".
+            return T(_("columns: %1, rows: %2"), numText(c), numText(r))
         end
         if ViewMode.listLevelsSplit(draft) and level == 2 then
             return Editor._capFirst(one(ViewMode.LEVEL2_SUFFIX, true))
@@ -2347,9 +2331,10 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                 draft.spine_thickness_pct = (n ~= 100) and n or nil
             end)
         end
-        local tv = draft.spine_thickness_pct
+        -- 100% is the default, not "Auto": Auto is the steppers' word for
+        -- below the minimum, where the shelf works it out.
         add({ type = "stepper", label = _("Thickness"),
-            value = tv and (tostring(tv) .. "%") or _("Auto"),
+            value = tostring(draft.spine_thickness_pct or 100) .. "%",
             on_dec = thick(-1), on_inc = thick(1) })
         add({ type = "segmented", label = _("Book binding"),
             items = { { key = "hardcover", label = Binding.label("hardcover") },
@@ -2384,11 +2369,11 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
     end
     local function spinesSummary()
         local parts = { T(_("face out: %1"), Editor._faceOutText(draft)),
-            T(_("%1 rows"), numText(draft.spine_rows)) }
+            T(_("rows: %1"), numText(draft.spine_rows)) }
         if draft.spine_thickness_pct then parts[#parts + 1] = T(_("%1% thick"), draft.spine_thickness_pct) end
         if draft.book_binding == "paperback" then parts[#parts + 1] = _("paperbacks") end
         if draft.series_boxes then parts[#parts + 1] = _("series boxes") end
-        if not authorOn() then parts[#parts + 1] = _("no authors") end
+        if not authorOn() then parts[#parts + 1] = _("no author on spines") end
         local ORN_STOPS, best = ornamentStop()
         parts[#parts + 1] = T(_("ornaments: %1"), ORN_STOPS[best][2])
         return Editor._capFirst(table.concat(parts, ", "))
@@ -2664,12 +2649,12 @@ function Editor:_openFaceOut(draft, on_change)
         local summary
         if sp.all then summary = _("Every book stands face out.")
         elseif SS.faceOutEmpty(sp) then summary = _("No book stands face out: spines only.")
-        else summary = T(_("Face out: %1. Tick as many reasons as you like."), Editor._faceOutText(draft, true)) end
+        else summary = T(_("Face out: %1. Check as many reasons as you like."), Editor._faceOutText(draft, true)) end
         local none = (not sp.all) and SS.faceOutEmpty(sp)
         local blocks = {
             -- Reading state first, the reasons most people answer with, in
             -- the order the book's long-press menu sets them.
-            { type = "heading", text = _("Reading state") },
+            { type = "heading", text = _("Reading status") },
             { type = "chips", items = { toggle("unread"), toggle("reading"),
                 toggle("on_hold"), toggle("finished") } },
             -- The series reasons together: the same question asked of a
@@ -2685,7 +2670,7 @@ function Editor:_openFaceOut(draft, on_change)
             -- 2000-book one want different answers.
             local items = {}
             for _i, n in ipairs({ 1, 3, 5, 10, 20 }) do items[#items + 1] = { key = n, label = tostring(n) } end
-            blocks[#blocks + 1] = { type = "segmented", label = _("Newest how many"), items = items,
+            blocks[#blocks + 1] = { type = "segmented", label = _("How many of the newest"), items = items,
                 active = sp.recent, on_pick = function(n)
                     local x = spec(); x.recent = n; x.all = nil; save(x); changed()
                 end }
@@ -2860,23 +2845,11 @@ function Editor:_pickCoverText(draft, on_change, back, bw)
     }
 end
 
--- _pickOpdsOption(draft, field, options, title, on_close) - one radio list for
--- one setting. The option's VALUE is written to the draft, never its index:
--- inserting or reordering an option must not change what existing chips do.
---
--- The default option carries no value at all (Lua stores no key for
--- `{ value = nil }`), so picking it clears the field back to unset rather than
--- writing a "default" marker that a later build would have to keep honouring.
-
-
--- _pickDownloadDir(draft, on_close) - where THIS catalog chip saves its
--- downloads (issue #319). Reuses the move flow's folder picker so the choices
--- match "Move to folder…" exactly (searchable library folders, New folder,
--- Browse device). A "Follow KOReader" row clears the per-chip choice, which is
--- also the unset default. on_close saves the pick with the rest of the
--- shelf.
-
-
+-- _pickSource(draft, on_close) -- the Source page: Grouped (a stack for
+-- each) and Just one; a kind that needs an id (a folder, a collection, a
+-- genre, an author...) opens a picker of its own, as a page of the editor,
+-- populated from real data (the folder list, ReadCollection, or the
+-- repository's group fetchers).
 function Editor:_pickSource(draft, on_close)
     local Repo = require("lib/bookshelf_book_repository")
     local d
@@ -3050,7 +3023,6 @@ function Editor:_pickSource(draft, on_close)
         }
     end
     -- Built-in shortcuts + working custom kinds.
-    -- "Specific tag..." and "Reading status..." are deferred (see note above).
     -- Folder pair (row 3) lists every directory under home_dir that holds a
     -- book; selecting one writes source = { kind="folder", id=path/ } and
     -- getBySource prefix-matches book filepaths against the trailing-slash id.
@@ -3192,9 +3164,11 @@ function Editor:_pickSource(draft, on_close)
                     if not item or not item._catalog then
                         reopen(); return
                     end
-                    local ButtonDialog = require("ui/widget/buttondialog")
                     local menu
                     menu = Editor._menu{
+                        -- The catalog's name as its title: the breadcrumb
+                        -- read "Shelf > …" with none.
+                        title = item.label or item._catalog.title,
                         -- Dismissing the menu (tap outside) returns to the
                         -- picker rather than dropping out to the chip editor.
                         tap_close_callback = reopen,
@@ -3290,8 +3264,8 @@ function Editor:_pickSource(draft, on_close)
     local CHEV = " \xE2\x80\xBA"
     -- What the Home and folder sources show, in a line on their cards.
     local DESC = {
-        library   = _("Every book, ungrouped"),
-        all       = _("Grouped by folder"),
+        library   = _("Every book, ungrouped."),
+        all       = _("Grouped by folder."),
         folder_flat = _("Every book in one folder and its subfolders."),
     }
     local function chip(kind_value, label)
@@ -3446,8 +3420,7 @@ function Editor:_pickSource(draft, on_close)
         anchor  = _highAnchor(function() return d end),
     }
 end
--- Filters list: one row per dimension showing its current selection, plus a
--- Clear-all row. Re-opens itself after each sub-picker so the summary updates.
+
 -- Each filter's icon on the Filters page.
 local FILTER_ICONS = {
     statuses = "\u{ECDF}",          -- check-circle
@@ -3501,13 +3474,15 @@ function Editor:_openFilters(draft, on_close)
                 end }
         end
         local summary = (#set == 0) and _("No filters: every book from the source.")
-            or (_("Showing books that match ") .. table.concat(set, "; ") .. ".")
+            -- One filter a line: a genre's own lists are already split by
+            -- ";" (dimSummary), so one more ";" between filters ran together.
+            or T(_("Showing books that match:\n%1"), table.concat(set, "\n"))
         local strip = { { type = "summary", text = summary } }
         if #set > 0 then
             strip[#strip + 1] = { type = "chips", items = { { text = _("Clear all filters"),
                 callback = function() draft.filter = {}; changed() end } } }
         end
-        rows[#rows + 1] = { type = "hint", text = _("Several picks in one filter match any of them; different filters must all match. The numbers in a filter's choices count the books the other filters leave.") }
+        rows[#rows + 1] = { type = "hint", text = _("A book must match every filter; each filter's page says how its own choices combine. The number beside a choice is how many books it would show with your other filters.") }
         return { strip = strip, blocks = rows }
     end
     d = Editor._menu{
@@ -3520,12 +3495,12 @@ end
 -- Generic multi-select picker for a categorical dimension. Status uses a fixed
 -- value list; the others enumerate distinct library values via Repo.
 -- Single-choice ("choice" kind) filter picker -- currently only the Series
--- dimension (standalone vs in a series). A small radio ButtonDialog: one row
--- per option with the active one marked (filled/hollow circle); tapping sets it
--- and returns to the filter list. "both" persists as an explicit value: on
+-- dimension (standalone vs in a series). A page of options, the active one
+-- marked; tapping sets it and goes back to the filter list. "both" persists
+-- as an explicit value: on
 -- book-list chips it still compiles to no effect, but the Series source reads
 -- it to mix standalone books in with the stacks (#160).
--- Any dismissal (tap-outside included) reopens the filter list via on_close.
+-- Leaving it goes back to the filter list via on_close.
 function Editor:_pickChoiceFilter(draft, dim_key, on_close)
     draft.filter = draft.filter or {}
     local values = (dim_key == "series_membership") and Filter.seriesValues() or {}
@@ -3732,19 +3707,15 @@ function Editor:_pickMultiFilter(draft, dim_key, on_close, opts)
                 },
             },
         }
-        -- LibraryModal has no separate cancel/close hook beyond footer
-        -- actions. Hardware-back closes the modal widget and returns to
-        -- whatever was below it (the _openFilters ButtonDialog), which is
-        -- acceptable -- the user isn't stranded. A second action calling
-        -- on_close() would duplicate Back's effect, so a single Back footer
-        -- action is kept.
+        -- Back (the chevron, or the keys' Back) runs the footer's Apply,
+        -- which keeps the ticks and goes back to Filters; the X closes the
+        -- editor, which keeps them too (finish).
         UIManager:show(modal)
         return
     end
 
-    -- Fallback: ButtonDialog multi-select (original implementation).
-    -- Used when LibraryModal is unavailable (e.g. headless test stubs or
-    -- a bare KOReader install without the bookends widget set).
+    -- Fallback: a ButtonDialog multi-select, for when LibraryModal does not
+    -- load (headless test stubs).
     local d
     local values = choices
 
@@ -3799,13 +3770,13 @@ local SET_SECTIONS = {
         { key = "genres_all",  heading = _("All of these genres") },
         { key = "genres_not",  heading = _("Leave out these genres") },
         add = _("Add genres"),
-        hint = _("A book needs one genre from the first list, every genre in the second and none from the third. An empty list doesn't count."),
+        hint = _("A book needs one genre from the first list, every genre in the second and none from the third. An empty list is ignored."),
     },
     collections = {
         { key = "collections",     heading = _("In any of these collections") },
         { key = "collections_not", heading = _("Leave out these collections") },
         add = _("Add collections"),
-        hint = _("A book needs to be in one collection from the first list and in none from the second. An empty list doesn't count."),
+        hint = _("A book needs to be in one collection from the first list and in none from the second. An empty list is ignored."),
     },
 }
 
@@ -3898,7 +3869,7 @@ function Editor:_pickFolderFilter(draft, on_close)
         section(_("Only books in these folders"), folders.include, _("Add a folder"))
         section(_("Leave out these folders"), folders.exclude, _("Add a folder to leave out"))
         blocks[#blocks + 1] = { type = "hint",
-            text = _("With none in the first list, every folder counts but those left out.") }
+            text = _("Leave the first list empty to include every folder except those left out.") }
         return { blocks = blocks }
     end
     d = Editor._menu{

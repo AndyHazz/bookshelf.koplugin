@@ -162,7 +162,7 @@ t.test("the ornaments row points at the folder and at the per-shelf control", fu
     local row = settings:match("function Settings:_ornamentsRow%(%)(.-)\nend\n")
     assert(row, "_ornamentsRow missing")
     assert(row:find("O.dir", 1, true), "it must name the folder, which nothing else does")
-    assert(row:find("Shelf style", 1, true),
+    assert(row:find("then View mode.", 1, true),
         "frequency is a per-shelf pin now, so this row has to say where it lives")
     assert(not row:find("ornament_frequency", 1, true),
         "no library-wide frequency: a default behind every shelf's pin is a trap")

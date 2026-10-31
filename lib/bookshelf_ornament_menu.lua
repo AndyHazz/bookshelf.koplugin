@@ -509,7 +509,7 @@ function M.show(entry, bw, piece, widget, opts)
         }
         local col_gap = Space.px(16)
         -- The left column's label width, shared with the Tap row under it.
-        local tap_label = text(_("Tap"), { face = small })
+        local tap_label = text(_("On tap"), { face = small })
         local function column(list, extra)
             local lw = extra and extra:getSize().w or 0
             for _i, r in ipairs(list) do lw = math.max(lw, text(r[1], { face = small }):getSize().w) end

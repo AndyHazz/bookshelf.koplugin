@@ -60,7 +60,7 @@ t.test("one page: New shelf, then each shelf that could move in, with where it i
     for _i, b in ipairs(m.blocks) do
         if b.type == "row" then rows[#rows + 1] = b.label .. "=" .. b.value end
     end
-    eq(table.concat(rows, " | "), "Classics=Top level | Poetry=In Classics")
+    eq(table.concat(rows, " | "), "Classics=In the shelf menu | Poetry=In Classics")
 end)
 
 t.test("a row moves that shelf here", function()

@@ -138,7 +138,7 @@ test("matches: multiple collections union (OR)", function()
 end)
 
 test("dimSummary per dimension", function()
-    eq("any", Filter.dimSummary({}, "genres"), "any")
+    eq("any", Filter.dimSummary({}, "genres"), "Any")
     eq("one", Filter.dimSummary({ genres = { ["Sci-Fi"] = true } }, "genres"), "Sci-Fi")
     -- multi values now list comma-separated, sorted
     local two = Filter.dimSummary({ langs = { en = true, fr = true } }, "langs")
@@ -170,7 +170,7 @@ end)
 test("dimSummary folders in/out", function()
     local f = { folders = { include = { ["/a"] = true }, exclude = { ["/b"] = true, ["/c"] = true } } }
     eq("folders", Filter.dimSummary(f, "folders"), "1 in, 2 out")
-    eq("folders none", Filter.dimSummary({}, "folders"), "any")
+    eq("folders none", Filter.dimSummary({}, "folders"), "Any")
 end)
 
 test("summary counts active dimensions", function()
@@ -253,7 +253,7 @@ test("dimSummary ratings: single selection shows friendly label", function()
     local sm = Filter.dimSummary({ ratings = { ["5"] = true, ["4"] = true } }, "ratings")
     eq("multi comma list", sm, "4 stars, 5 stars")
     local sa = Filter.dimSummary({}, "ratings")
-    eq("any when empty", sa, "any")
+    eq("any when empty", sa, "Any")
 end)
 
 test("isActive true when ratings set", function()
@@ -319,7 +319,7 @@ test("signature includes series membership", function()
 end)
 
 test("dimSummary: series membership", function()
-    eq("absent -> any", Filter.dimSummary({}, "series_membership"), "any")
+    eq("absent -> any", Filter.dimSummary({}, "series_membership"), "Any")
     -- An explicit "both" persists and shows its own label since #160 (the
     -- Series source reads it to mix standalone books in with the stacks).
     eq("both -> its label", Filter.dimSummary({ series_membership = "both" }, "series_membership"),

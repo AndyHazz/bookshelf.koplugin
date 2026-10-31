@@ -462,10 +462,10 @@ function CollectionManager.show(opts)
             elseif draft_remove[name] then
                 subtitle = _("Remove from all") .. " \xE2\x88\x92"  -- −
             elseif baseline == "some" then
-                subtitle = _("Mixed")
+                subtitle = _("In some")
             elseif baseline == "all" then
                 -- Black for "in it" needs saying: it is not a pick.
-                subtitle = _("All in it")
+                subtitle = _("In all")
             end
         end
         return PickerCell.render({

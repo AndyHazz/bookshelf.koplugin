@@ -17,6 +17,7 @@
 
 local BulkActions = {}
 local _ = require("lib/bookshelf_i18n").gettext
+local T = require("ffi/util").template
 
 local function _resolveLabel(count)
     return string.format(_("Edit selected (%d)"), count)
@@ -31,8 +32,8 @@ function BulkActions.show(opts)
     local count        = selection:count()
     if count == 0 then return end
 
-    -- Staging draft. Same schema as the per-book menu (Task 9) so the
-    -- two paths read identically. Nil-vs-false distinction on `rating`
+    -- Staging draft. Same schema as the per-book menu so the two paths
+    -- read identically. Nil-vs-false distinction on `rating`
     -- separates "no change staged" (false) from "clear the rating"
     -- (nil) -- so the Apply path can tell whether to skip or commit a
     -- nil-clear.
@@ -154,7 +155,7 @@ function BulkActions.show(opts)
     -- Reset. Preview lists up to 5 paths + "… and N more". Exits
     -- selection mode after delete since the affected entries are gone.
     local delete_button = {
-        text     = "\xE2\x9C\x95 " .. _("Delete"),  -- ✕ + Delete
+        text     = _("Delete"),
         callback = function()
             local discard_toast = isDirty()
             UIManager:close(dialog)
@@ -259,10 +260,9 @@ function BulkActions.show(opts)
     local LARGE_SELECTION_THRESHOLD = 50
 
     -- Apply: enabled iff anything is staged. enabled_func (NOT static
-    -- `enabled = isDirty()`) because Button:init re-evaluates
-    -- enabled_func on every paint -- a static value would be
-    -- snapshotted as false at construction with the draft fresh and
-    -- empty, and Apply would stay permanently disabled.
+    -- `enabled = isDirty()`): the page's footer asks it each time the page
+    -- is drawn again, and a static value would be the fresh draft's false
+    -- for good.
     --
     -- Per-book apply each pcall-wrapped via safe() so a single failure
     -- doesn't abort the rest. Single _rebuild + setDirty at the end.
@@ -506,35 +506,40 @@ function BulkActions.show(opts)
         for _k in pairs(draft.collections_add or {}) do add = add + 1 end
         for _k in pairs(draft.collections_remove or {}) do rem = rem + 1 end
         if add == 0 and rem == 0 then return _("Leave as is") end
+        -- Whole phrases, each with its noun, for the translators.
         local parts = {}
-        if add > 0 then parts[#parts + 1] = string.format(_("add to %d"), add) end
-        if rem > 0 then parts[#parts + 1] = string.format(_("remove from %d"), rem) end
+        if add > 0 then
+            parts[#parts + 1] = add == 1 and _("Add to 1 collection") or T(_("Add to %1 collections"), add)
+        end
+        if rem > 0 then
+            parts[#parts + 1] = rem == 1 and _("Remove from 1 collection") or T(_("Remove from %1 collections"), rem)
+        end
         return table.concat(parts, ", ")
     end
-    local STATUS_LABELS = { new = _("Unopened"), reading = _("Reading"),
-        abandoned = _("On hold"), complete = _("Finished") }
+    -- What Apply will do, one change a line: each a whole phrase, not
+    -- "mark %s" filled with a lower-cased status, which broke languages
+    -- whose nouns keep their capitals and could not be reordered.
+    local STATUS_PHRASES = { new = _("Mark as Unopened"), reading = _("Mark as Reading"),
+        abandoned = _("Mark as On hold"), complete = _("Mark as Finished") }
     local function summary()
         local parts = {}
-        if draft.status then
-            parts[#parts + 1] = string.format(_("mark %s"), STATUS_LABELS[draft.status]:lower())
-        end
+        if draft.status then parts[#parts + 1] = STATUS_PHRASES[draft.status] end
         if draft.rating == nil then
-            parts[#parts + 1] = _("clear the rating")
+            parts[#parts + 1] = _("Clear the rating")
         elseif draft.rating then
-            parts[#parts + 1] = string.format(_("rate %s"), stars(draft.rating))
+            parts[#parts + 1] = T(_("Rate %1"), stars(draft.rating))
         end
-        if draft.favorite == "add" then parts[#parts + 1] = _("add to Favorites")
-        elseif draft.favorite == "remove" then parts[#parts + 1] = _("remove from Favorites") end
+        if draft.favorite == "add" then parts[#parts + 1] = _("Add to Favorites")
+        elseif draft.favorite == "remove" then parts[#parts + 1] = _("Remove from Favorites") end
         if draft.collections_add or draft.collections_remove then
-            parts[#parts + 1] = _("change collections")
+            parts[#parts + 1] = _("Change collections")
         end
-        if draft.refresh_metadata then parts[#parts + 1] = _("refresh metadata") end
-        if draft.remove_from_history then parts[#parts + 1] = _("remove from history") end
+        if draft.refresh_metadata then parts[#parts + 1] = _("Refresh metadata") end
+        if draft.remove_from_history then parts[#parts + 1] = _("Remove from history") end
         if #parts == 0 then return _("Pick what to change, then Apply.") end
-        local s = table.concat(parts, ", ")
-        return string.format(_("Apply will %s."), s)
+        return T(_("Apply will:\n%1"), table.concat(parts, "\n"))
     end
-    local function stage(field, value)
+    local function stage(field)
         return function(key)
             if field == "rating" then
                 -- No key: the staged one tapped again, leave ratings as they are.
@@ -560,7 +565,9 @@ function BulkActions.show(opts)
         local rating_items = {}
         -- "3 ★", not three stars: five stars do not fit a sixth of the line.
         for i = 1, 5 do rating_items[i] = { key = tostring(i), label = i .. " " .. STAR } end
-        rating_items[6] = { key = "clear", label = _("None") }
+        -- "Clear", not "None": beside nothing staged (leave the ratings as
+        -- they are), None read as "no change".
+        rating_items[6] = { key = "clear", label = _("Clear") }
         return {
             strip = {
                 { type = "summary", text = summary() },
@@ -596,7 +603,7 @@ function BulkActions.show(opts)
                     { text = _("Remove from history"), on = draft.remove_from_history,
                       callback = toggle("remove_from_history") },
                 } },
-                { type = "heading", text = _("At once") },
+                { type = "heading", text = _("Right away") },
                 { type = "chips", items = {
                     { text = move_button.text, callback = move_button.callback },
                     { text = reset_button.text, callback = reset_button.callback },

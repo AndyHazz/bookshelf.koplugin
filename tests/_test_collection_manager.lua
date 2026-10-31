@@ -141,7 +141,7 @@ t.test("bulk: a tap cycles add to all > remove from all > no change", function()
     reset()
     local diff
     CM.show{ bulk = true, paths = { "/b/one.epub", "/b/two.epub" }, on_save = function(d) diff = d end }
-    eq(cell("Book club 2025").subtitle, "Mixed")
+    eq(cell("Book club 2025").subtitle, "In some")
     modal.config.on_cell_tap("Alpha")
     eq(cell("Alpha").subtitle, "Add to all +"); eq(cell("Alpha").selected, true)
     modal.config.on_cell_tap("Alpha")

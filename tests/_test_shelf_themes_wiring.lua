@@ -55,7 +55,7 @@ t.test("the editor's front page has the shelf's Theme card, sub-shelves too, pre
     local row = ed:match("local look_row = {}\n        do\n(.-)\n        end\n")
     assert(row, "no Theme card on the front page")
     row = row:gsub("%-%-[^\n]*", "")
-    assert(row:find('_("Theme: ")', 1, true), "the card is not Theme")
+    assert(row:find('_("Theme: %1")', 1, true), "the card is not Theme")
     -- Every shelf, a sub-shelf included (Reddit, after 5.4): no gate on
     -- draft.parent, and a sub-shelf following its shelf of shelves says so.
     assert(not row:find("if draft.parent == nil then", 1, true), "the Theme card is top-level shelves only")

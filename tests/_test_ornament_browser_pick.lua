@@ -174,9 +174,9 @@ t.test("the browser says whose set the ticks are, and only a pack that is off fa
         T = function(f, ...) local a = { ... }; return (f:gsub("%%(%d)", function(n) return tostring(a[tonumber(n)]) end)) end,
         TP = function() return { themeName = function() return "Plain" end, shelfTheme = function() return "plain" end } end }
     local f = load("return function(self)\n" .. intro .. "\nend", "n", "t", env)()
-    H.eq(f({ opts = {}, on_count = 0, all_count = 443 }), "On Plain shelves: none yet. Tick a piece to add it.")
+    H.eq(f({ opts = {}, on_count = 0, all_count = 443 }), "On Plain shelves: none yet. Check a piece to add it.")
     H.eq(f({ opts = {}, on_count = 12, all_count = 443 }),
-        "On Plain shelves: 12 of 443. Tick a piece to add it, untick to take it off.")
+        "On Plain shelves: 12 of 443. Check a piece to add it, uncheck to take it off.")
     H.eq(f({ opts = { pick = true }, on_count = 0, all_count = 443 }), nil)
 end)
 

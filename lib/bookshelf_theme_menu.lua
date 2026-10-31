@@ -100,7 +100,7 @@ function M.menuHelp()
             .. "theme wherever it shows, and Reset in the Theme library brings "
             .. "back its original.\n\n"
             .. "Each shelf can have a theme of its own: choose it here, or "
-            .. "long-press a shelf chip, then Shelf style."), mine)
+            .. "long-press a shelf, then Theme."), mine)
 end
 
 -- shelfOnScreen(S): the shelf whose theme the Theme menu is about: the

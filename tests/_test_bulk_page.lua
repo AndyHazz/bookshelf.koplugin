@@ -41,4 +41,15 @@ t.test("the bulk Collections picker opens as a page of the bulk menu", function(
         "back on a Cancel | Save page does nothing")
 end)
 
+-- Review 2026-10-31: the summary was "Apply will %s." filled with
+-- lower-cased fragments ("mark reading"), which broke other languages.
+t.test("what Apply will do is whole phrases, one a line; rating's clear says Clear", function()
+    local src = io.open("lib/bookshelf_bulk_actions.lua"):read("*a")
+    assert(not src:find(":lower()", 1, true), "a translated label is lower-cased")
+    assert(not src:find('_("mark %s")', 1, true) and not src:find('_("Apply will %s.")', 1, true),
+        "the summary is still built from fragments")
+    assert(src:find('T(_("Apply will:\\n%1"), table.concat(parts, "\\n"))', 1, true), "not one change a line")
+    assert(src:find('rating_items[6] = { key = "clear", label = _("Clear") }', 1, true), "clearing the rating says None")
+end)
+
 t.done()

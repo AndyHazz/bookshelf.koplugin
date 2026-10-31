@@ -393,7 +393,7 @@ function TL.showReset(item, after)
     end
     local UIManager = require("ui/uimanager")
     local note = require("ui/widget/notification"):new{
-        text = T(_("%1 is as it came: nothing to reset."), item.title),
+        text = T(_("%1 has no changes to reset."), item.title),
     }
     UIManager:show(note)
     return note

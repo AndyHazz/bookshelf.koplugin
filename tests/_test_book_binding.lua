@@ -116,7 +116,7 @@ t.test("series binding is a choice on the menu's page, saved and redrawn in plac
     eq(seg.active, "follow")
     local keys = {}
     for i, it in ipairs(seg.items) do keys[i] = it.key .. "=" .. it.label end
-    eq(table.concat(keys, " "), "follow=Follow shelf hardcover=Hardback paperback=Paperback")
+    eq(table.concat(keys, " "), "follow=Same as shelf hardcover=Hardback paperback=Paperback")
     local picks = {"hardcover","paperback","follow","paperback"}
     for i, key in ipairs(picks) do
         state.binding().on_pick(key)

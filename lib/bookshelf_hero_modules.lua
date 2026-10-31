@@ -1068,7 +1068,7 @@ function HeroModules._emptyState(bw, content_w, hero_h)
         CenterContainer:new{
             dimen = Geom:new{ w = inner_w, h = inner_h },
             TextWidget:new{
-                text    = _("Hold to add modules"),
+                text    = _("Long-press to add modules"),
                 face    = BFont:getFace("cfont", 16),
                 fgcolor = Modules.COLOR_MUTED or Blitbuffer.COLOR_GRAY_5,
             },

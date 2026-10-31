@@ -206,9 +206,9 @@ function Browser:_intro()
     if self.opts.pick then return nil end
     local name = TP().themeName(TP().shelfTheme())
     if (self.on_count or 0) == 0 then
-        return T(_("On %1 shelves: none yet. Tick a piece to add it."), name)
+        return T(_("On %1 shelves: none yet. Check a piece to add it."), name)
     end
-    return T(_("On %1 shelves: %2 of %3. Tick a piece to add it, untick to take it off."),
+    return T(_("On %1 shelves: %2 of %3. Check a piece to add it, uncheck to take it off."),
         name, self.on_count, self.all_count)
 end
 
@@ -297,7 +297,8 @@ function Browser:_longTap(item)
     local d
     local buttons = {
         {{
-            text = item.off and _("Switch on") or _("Switch off"),
+            -- The ornament menu's words for it (Hide / Show).
+            text = item.off and _("Show") or _("Hide"),
             callback = function()
                 UIManager:close(d)
                 self:_toggle(item)

@@ -245,8 +245,8 @@ t.test("a sub-shelf's run badge opens it; the editor can hide the + tile", funct
     assert(sp:find("local tail = math.max(0, surf - inset)", 1, true), "the + tile stands on the plank")
     local ed = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
     local toggle = ed:match('draft%.hide_add_tile = %(not draft%.hide_add_tile%) or nil\n%s*commit%(%)')
-    assert(ed:find('_("Show + Add shelf")', 1, true) and toggle,
-        "no live Show + Add shelf toggle")
+    assert(ed:find('_("Add shelf tile: %1")', 1, true) and toggle,
+        "no live Add shelf tile toggle")
 end)
 
 t.test("the fetch, the tap and the long-press know a sub-shelf tile", function()

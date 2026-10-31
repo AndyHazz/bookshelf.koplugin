@@ -173,7 +173,7 @@ t.test("a module's own shelf is edited without the shelf menu's controls", funct
     assert(cut, "Shelf order, Delete, Copy, Move to and + still shown for a module's shelf")
     -- Edit shelf name leads the first row (Shelf order follows it); the
     -- actions are the last.
-    local first = ed:match("local buttons = {\n(.-)%-%- Row 1a: source")
+    local first = ed:match("local buttons = {\n(.-)%-%- The source, full width")
     assert(first and first:find('_("Edit shelf name")', 1, true)
         and first:find('_("Edit shelf name")', 1, true) < first:find('_("Shelf order', 1, true))
 end)

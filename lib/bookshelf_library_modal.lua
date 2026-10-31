@@ -1290,11 +1290,6 @@ end
 function LibraryModal:_renderFooter(content_width)
     -- content_width is the modal's full inner width: the footer runs edge to
     -- edge under a full-width line, so its separators meet the frame.
-    local Button = require("ui/widget/button")
-    local Font = require("ui/font")
-    local HorizontalGroup = require("ui/widget/horizontalgroup")
-    local LineWidget = require("ui/widget/linewidget")
-
     self._footer_layout = nil
     if self:_closeOnlyAction() then return nil end
 
@@ -1314,70 +1309,22 @@ function LibraryModal:_renderFooter(content_width)
     end
     if #nonempty == 0 then return nil end
 
-    -- Build one row of equal-width buttons (thin separators between them).
-    -- Returns (widget, btns) -- btns is the flat list of Button instances in
-    -- this row, left-to-right, for the caller's _footer_layout.
-    local function buildRow(actions)
-        -- Width must be passed at construction; Button bakes it into inner
-        -- containers in :init, so post-assigning self.width has no effect.
-        local btn_width = #actions > 1 and math.floor(content_width / #actions) or content_width
-        local btns = {}
-        for _i, action in ipairs(actions) do
-            local enabled = true
-            if action.enabled_when then enabled = action.enabled_when() end
-            -- Dynamic label needed for Apply/Install switching in preset modal;
-            -- label_func() takes precedence over the static label fallback.
-            local btn_text = action.label_func and action.label_func() or action.label
-            local act_face, act_bold = BFont:getFace("cfont", 16, { bold = action.primary == true })
-            table.insert(btns, Button:new{
-                text = btn_text,
-                face = act_face,
-                bold = act_bold,
-                bordersize = 0,
-                radius = 0,
-                width = btn_width,
-                padding_v = Space.px(12),
-                callback = function() if enabled then action.on_tap() end end,
-                enabled = enabled,
-            })
-            -- Rounded as the frame is, so the end buttons' white boxes don't
-            -- square off its corners. (Not a nil background: a Button's tap
-            -- feedback inverts it.)
-            local b = btns[#btns]
-            if b.frame then b.frame.radius = self.frame.radius end
-            -- The keys' ring, not the button inverted (a black button reads
-            -- as one that is on), as every footer of ours (STYLE.md).
-            PopupKit.ringFocus(b, { Space.px(10), Space.px(4) }, PopupKit.RADIUS)
-        end
-        if #btns == 1 then return btns[1], btns end
-        local hg = HorizontalGroup:new{ align = "center" }
-        local btn_h = btns[1]:getSize().h
-        for i, btn in ipairs(btns) do
-            if i > 1 then
-                table.insert(hg, LineWidget:new{
-                    background = Blitbuffer.COLOR_DARK_GRAY,
-                    dimen = Geom:new{ w = Size.line.thin, h = btn_h },
-                })
-            end
-            table.insert(hg, btn)
-        end
-        return hg, btns
-    end
-
-    local function rule()
-        return LineWidget:new{ background = Blitbuffer.COLOR_DARK_GRAY,
-            dimen = Geom:new{ w = content_width, h = Size.line.thin } }
-    end
-
+    -- Each row: the kit's footer row (a full-width rule above it, like
+    -- ButtonDialog's), its buttons for the keys (_footer_layout).
     local VerticalGroup = require("ui/widget/verticalgroup")
-    local VerticalSpan  = require("ui/widget/verticalspan")
-    -- A full-width rule above every row (like ButtonDialog's).
     local vg = VerticalGroup:new{ align = "center" }
     self._footer_layout = {}
-    for i = 1, #nonempty do
-        vg[#vg + 1] = rule()
-        local widget, btns = buildRow(nonempty[i])
-        vg[#vg + 1] = widget
+    for _i = 1, #nonempty do
+        local actions = {}
+        for j, a in ipairs(nonempty[_i]) do
+            local enabled = true
+            if a.enabled_when then enabled = a.enabled_when() end
+            -- label_func (the preset modal's Apply / Install) wins over label.
+            actions[j] = { text = a.label_func and a.label_func() or a.label,
+                primary = a.primary, enabled = enabled, callback = a.on_tap }
+        end
+        local row, btns = PopupKit.footerRow(actions, content_width, { radius = self.frame.radius })
+        vg[#vg + 1] = row
         self._footer_layout[#self._footer_layout + 1] = btns
     end
     return vg

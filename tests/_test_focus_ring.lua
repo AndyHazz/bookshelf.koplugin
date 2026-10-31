@@ -101,7 +101,10 @@ end)
 
 t.test("the page dialog's and the book popup's footers ring their buttons", function()
     local pd = io.open("lib/bookshelf_page_dialog.lua"):read("*a")
-    assert(pd:find("Kit.ringFocus(btn", 1, true) or pd:find("ringFocus(btn", 1, true), "PageDialog footer inverts")
+    local kit = io.open("lib/bookshelf_popup_kit.lua"):read("*a")
+    local fr = kit:match("\n(function Kit%.footerRow%(.-\nend)\n")
+    assert(pd:find("footerRow(actions, w,", 1, true) and fr and fr:find("Kit.ringFocus(btn", 1, true),
+        "PageDialog footer inverts")
     local rm = io.open("lib/bookshelf_reviews_modal.lua"):read("*a")
     assert(rm:find("ringFocusTable(bt", 1, true), "the book popup's footer inverts")
 end)

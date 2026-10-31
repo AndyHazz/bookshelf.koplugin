@@ -108,45 +108,14 @@ end
 -- footerRow(w) -> the footer: equal buttons edge to edge under a full-width
 -- line, thin separators between them, and the keys' row for them.
 function PageDialog:_footerRow(w)
-    local Button          = require("ui/widget/button")
-    local HorizontalGroup = require("ui/widget/horizontalgroup")
-    local LineWidget      = require("ui/widget/linewidget")
-    local BFont           = require("lib/bookshelf_fonts")
-    local n = #self.footer
-    local each = math.floor(w / n)
-    local hg = HorizontalGroup:new{ align = "center" }
-    local btns = {}
+    local actions = {}
     for i, a in ipairs(self.footer) do
         local enabled = true
         if a.enabled_func then enabled = a.enabled_func() end
-        local face, bold = BFont:getFace("cfont", 16, { bold = a.primary == true })
-        local btn = Button:new{
-            text = a.text, face = face, bold = bold,
-            bordersize = 0, radius = 0, padding_v = Space.px(12),
-            width = (i == n) and (w - each * (n - 1)) or each,
-            enabled = enabled,
-            callback = function() if enabled then a.callback() end end,
-            show_parent = self,
-        }
-        -- Rounded as the frame is, so the end buttons' white boxes don't
-        -- square off its corners. (Not a nil background: a Button's tap
-        -- feedback inverts it.)
-        if btn.frame then btn.frame.radius = Space.radius.window end
-        -- The keys' focus as the kit's ring inside it, not the button
-        -- inverted (which reads as "on").
-        local Kit = require("lib/bookshelf_popup_kit")
-        Kit.ringFocus(btn, { Space.px(10), Space.px(4) }, Kit.RADIUS)
-        if i > 1 then
-            hg[#hg + 1] = LineWidget:new{ background = Blitbuffer.COLOR_DARK_GRAY,
-                dimen = Geom:new{ w = Size.line.thin, h = btn:getSize().h } }
-        end
-        hg[#hg + 1] = btn
-        btns[#btns + 1] = btn
+        actions[i] = { text = a.text, primary = a.primary, enabled = enabled, callback = a.callback }
     end
-    return VerticalGroup:new{ align = "left",
-        LineWidget:new{ background = Blitbuffer.COLOR_DARK_GRAY,
-            dimen = Geom:new{ w = w, h = Size.line.thin } },
-        hg }, btns
+    return require("lib/bookshelf_popup_kit").footerRow(actions, w,
+        { radius = Space.radius.window, show_parent = self })
 end
 
 -- _titleText() -> the title now: a function's answer, else the text.

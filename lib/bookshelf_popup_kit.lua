@@ -680,6 +680,50 @@ function Kit.hintText(text, font_size, width, align, o)
         bgcolor = o.bg }
 end
 
+-- footerRow(actions, w, o) -> widget, btns: a popup's footer row (STYLE.md):
+-- equal stock Buttons edge to edge under a full-width rule, thin dividers
+-- their full height, the end buttons rounded as the frame is (o.radius; not
+-- a nil background: a Button's tap feedback inverts it), the keys' ring in
+-- each rather than the button inverted. actions { { text, primary, enabled,
+-- callback } }; btns, left to right, for the keys. PageDialog's and
+-- LibraryModal's footers.
+function Kit.footerRow(actions, w, o)
+    o = o or {}
+    local Button          = require("ui/widget/button")
+    local LineWidget      = require("ui/widget/linewidget")
+    local VerticalGroup   = require("ui/widget/verticalgroup")
+    local BFont           = require("lib/bookshelf_fonts")
+    local Size            = require("ui/size")
+    local n = #actions
+    local each = math.floor(w / n)
+    local hg = HorizontalGroup:new{ align = "center" }
+    local btns = {}
+    for i, a in ipairs(actions) do
+        local face, bold = BFont:getFace("cfont", 16, { bold = a.primary == true })
+        local enabled = a.enabled ~= false
+        local btn = Button:new{
+            text = a.text, face = face, bold = bold,
+            bordersize = 0, radius = 0, padding_v = Space.px(12),
+            width = (i == n) and (w - each * (n - 1)) or each,
+            enabled = enabled,
+            callback = function() if enabled then a.callback() end end,
+            show_parent = o.show_parent,
+        }
+        if btn.frame then btn.frame.radius = o.radius or Space.radius.window end
+        Kit.ringFocus(btn, { Space.px(10), Space.px(4) }, Kit.RADIUS)
+        if i > 1 then
+            hg[#hg + 1] = LineWidget:new{ background = Blitbuffer.COLOR_DARK_GRAY,
+                dimen = Geom:new{ w = Size.line.thin, h = btn:getSize().h } }
+        end
+        hg[#hg + 1] = btn
+        btns[#btns + 1] = btn
+    end
+    return VerticalGroup:new{ align = "left",
+        LineWidget:new{ background = Blitbuffer.COLOR_DARK_GRAY,
+            dimen = Geom:new{ w = w, h = Size.line.thin } },
+        hg }, btns
+end
+
 -- The steppers' minus and plus: the symbols font's pair (U+F068, U+F44D),
 -- one width, where the text minus ran wider than its +.
 Kit.MINUS, Kit.PLUS = "\xEF\x81\xA8", "\xEF\x91\x8D"

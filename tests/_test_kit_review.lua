@@ -25,8 +25,10 @@ t.test("a page of a menu lines up with it, takes its corners, and rings its foot
     assert(lm:find("self.modal_w = over and (over.w - 2 * Size.border.window)", 1, true),
         "a page of the menu stands a border proud of it")
     assert(lm:find("radius = over and Space.radius.window or Space.px(8),", 1, true), "a page has its own corners")
-    assert(lm:find("b.frame.radius = self.frame.radius", 1, true), "the footer's corners are not the frame's")
-    assert(lm:find("PopupKit.ringFocus(b,", 1, true), "the footer inverts on focus")
+    assert(lm:find("PopupKit.footerRow(actions, content_width, { radius = self.frame.radius })", 1, true),
+        "the footer's corners are not the frame's")
+    local fr = read("lib/bookshelf_popup_kit.lua"):match("\n(function Kit%.footerRow%(.-\nend)\n")
+    assert(fr and fr:find("Kit.ringFocus(btn", 1, true), "the footer inverts on focus")
 end)
 
 t.test("greyed text is grey, a nudge's hold acts at once, no false in a keys row", function()

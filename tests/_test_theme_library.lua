@@ -665,10 +665,13 @@ t.test("LibraryModal greys a footer button whose enabled_when says so, and a pre
     -- The keys' focus can rest on it (the footer is a row of Buttons), but
     -- its callback runs only while enabled.
     local lm = io.open("lib/bookshelf_library_modal.lua"):read("*a")
-    assert(lm:find("if action.enabled_when then enabled = action.enabled_when() end", 1, true),
+    assert(lm:find("if a.enabled_when then enabled = a.enabled_when() end", 1, true),
         "the footer ignores enabled_when")
-    assert(lm:find("callback = function() if enabled then action.on_tap() end end,", 1, true)
-        and lm:find("enabled = enabled,", 1, true), "a greyed footer button still acts")
+    -- The row is the kit's (Kit.footerRow): greyed, and its callback held back.
+    local kit = io.open("lib/bookshelf_popup_kit.lua"):read("*a")
+    local fr = kit:match("\n(function Kit%.footerRow%(.-\nend)\n")
+    assert(fr and fr:find("callback = function() if enabled then a.callback() end end,", 1, true)
+        and fr:find("enabled = enabled,", 1, true), "a greyed footer button still acts")
     local tl = io.open("lib/bookshelf_theme_library.lua"):read("*a")
     assert(tl:find('{ key = "add", label = tp.addThemeLabel()', 1, true)
         < tl:find('{ key = "reset", label = _("Reset edited theme"),', 1, true)

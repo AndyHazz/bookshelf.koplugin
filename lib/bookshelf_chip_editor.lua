@@ -3618,19 +3618,19 @@ end
 -- Genre and Collection as pages of lists, as Folders is: what a book needs
 -- any of, all of (genres) and none of (GitHub issues 293, 453). Each list
 -- adds through the filter's own picker, ticking that list.
--- Each heading names its logic (OR, AND, NOT) for readers who know it
--- (maintainer); crumb: the plain name, for the picker's breadcrumb.
+-- Each list's logic (OR, AND, NOT) is a tag beside its heading, for readers
+-- who know it, not the end of the heading's sentence (maintainer).
 local SET_SECTIONS = {
     genres = {
-        { key = "genres",      heading = _("Any of these genres (OR)"), crumb = _("Any of these genres") },
-        { key = "genres_all",  heading = _("All of these genres (AND)"), crumb = _("All of these genres") },
-        { key = "genres_not",  heading = _("Leave out these genres (NOT)"), crumb = _("Leave out these genres") },
+        { key = "genres",      heading = _("Any of these genres"), tag = _("OR") },
+        { key = "genres_all",  heading = _("All of these genres"), tag = _("AND") },
+        { key = "genres_not",  heading = _("Leave out these genres"), tag = _("NOT") },
         add = _("Add genres"),
         hint = _("A book needs one genre from the first list, every genre in the second and none from the third. An empty list is ignored."),
     },
     collections = {
-        { key = "collections",     heading = _("In any of these collections (OR)"), crumb = _("In any of these collections") },
-        { key = "collections_not", heading = _("Leave out these collections (NOT)"), crumb = _("Leave out these collections") },
+        { key = "collections",     heading = _("In any of these collections"), tag = _("OR") },
+        { key = "collections_not", heading = _("Leave out these collections"), tag = _("NOT") },
         add = _("Add collections"),
         hint = _("A book needs to be in one collection from the first list and in none from the second. An empty list is ignored."),
     },
@@ -3650,7 +3650,7 @@ function Editor:_pickSetsFilter(draft, dim_key, on_close)
         local blocks = {}
         for _i, sec in ipairs(sections) do
             local set = draft.filter[sec.key] or {}
-            blocks[#blocks + 1] = { type = "heading", text = sec.heading }
+            blocks[#blocks + 1] = { type = "heading", text = sec.heading, tag = sec.tag }
             local keys = {}
             for v in pairs(set) do keys[#keys + 1] = v end
             table.sort(keys)
@@ -3662,7 +3662,7 @@ function Editor:_pickSetsFilter(draft, dim_key, on_close)
             blocks[#blocks + 1] = { type = "chips", items = { { text = "+ " .. sections.add,
                 callback = function()
                     Editor:_pickMultiFilter(draft, dim_key, changed,
-                        { set_key = sec.key, crumb = sec.crumb })
+                        { set_key = sec.key, crumb = sec.heading })
                 end } } }
         end
         blocks[#blocks + 1] = { type = "hint", text = sections.hint }
@@ -3709,8 +3709,8 @@ function Editor:_pickFolderFilter(draft, on_close)
     -- with a cross to drop it, and a way to add one under each.
     local function page()
         local blocks = {}
-        local function section(heading, set, add_label)
-            blocks[#blocks + 1] = { type = "heading", text = heading }
+        local function section(heading, tag, set, add_label)
+            blocks[#blocks + 1] = { type = "heading", text = heading, tag = tag }
             local keys = {}
             for p in pairs(set) do keys[#keys + 1] = p end
             table.sort(keys)
@@ -3722,8 +3722,8 @@ function Editor:_pickFolderFilter(draft, on_close)
             blocks[#blocks + 1] = { type = "chips", items = { { text = "+ " .. add_label,
                 callback = function() add_via_chooser(set, add_label) end } } }
         end
-        section(_("Only books in these folders (OR)"), folders.include, _("Add a folder"))
-        section(_("Leave out these folders (NOT)"), folders.exclude, _("Add a folder to leave out"))
+        section(_("Only books in these folders"), _("OR"), folders.include, _("Add a folder"))
+        section(_("Leave out these folders"), _("NOT"), folders.exclude, _("Add a folder to leave out"))
         blocks[#blocks + 1] = { type = "hint",
             text = _("Leave the first list empty to include every folder except those left out.") }
         return { blocks = blocks }

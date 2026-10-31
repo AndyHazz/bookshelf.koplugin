@@ -39,7 +39,7 @@ end
 local function headings(model)
     local out = {}
     for _i, b in ipairs(model.blocks) do
-        if b.type == "heading" then out[#out + 1] = b.text end
+        if b.type == "heading" then out[#out + 1] = b.text .. (b.tag and " [" .. b.tag .. "]" or "") end
     end
     return table.concat(out, " | ")
 end
@@ -53,11 +53,11 @@ local function addUnder(model, heading)
 end
 
 t.test("Genre: any, all and leave out", function()
-    eq(headings(page("genres")), "Any of these genres (OR) | All of these genres (AND) | Leave out these genres (NOT)")
+    eq(headings(page("genres")), "Any of these genres [OR] | All of these genres [AND] | Leave out these genres [NOT]")
 end)
 
 t.test("Collection: any and leave out", function()
-    eq(headings(page("collections")), "In any of these collections (OR) | Leave out these collections (NOT)")
+    eq(headings(page("collections")), "In any of these collections [OR] | Leave out these collections [NOT]")
 end)
 
 t.test("each list shows its picks, each with a cross that drops it", function()
@@ -73,20 +73,23 @@ end)
 
 t.test("a list's add opens the genre picker on that list", function()
     local model, draft = page("genres")
-    addUnder(model, "All of these genres (AND)").callback()
+    addUnder(model, "All of these genres").callback()
     eq(picked.dim, "genres")
     eq(picked.opts.set_key, "genres_all")
     eq(picked.draft, draft)
-    addUnder(model, "Leave out these genres (NOT)").callback()
+    addUnder(model, "Leave out these genres").callback()
     eq(picked.opts.set_key, "genres_not")
 end)
 
--- The logic named as anyone who knows it reads it (maintainer); the
--- breadcrumb keeps the plain name. No example in the hint (maintainer).
-t.test("each list names its logic; the breadcrumb does not", function()
+-- The logic named as anyone who knows it reads it, as a tag beside the
+-- heading, not at the end of its sentence (maintainer).
+t.test("each list's logic is a tag on its heading", function()
     local src = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
-    assert(src:find('{ key = "genres_all",  heading = _("All of these genres (AND)"), crumb = _("All of these genres") }', 1, true))
-    assert(src:find("crumb = sec.crumb })", 1, true), "the breadcrumb carries (AND)")
+    assert(src:find('{ key = "genres_all",  heading = _("All of these genres"), tag = _("AND") }', 1, true))
+    assert(src:find('{ type = "heading", text = sec.heading, tag = sec.tag }', 1, true))
+    local ep = io.open("lib/bookshelf_editor_page.lua"):read("*a")
+    local h = assert(ep:match("\nfunction R.heading%(ctx, b%)\n(.-)\nend\n"))
+    assert(h:find("b.tag", 1, true), "a heading's tag is not drawn")
 end)
 
 t.test("Filters opens Genre and Collection as these pages", function()

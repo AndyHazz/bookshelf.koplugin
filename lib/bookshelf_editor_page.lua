@@ -7,7 +7,7 @@
 --
 -- Blocks ({ type = ..., ... }):
 --   summary   text: what the shelf will do, in a sentence (the strip's lead)
---   heading   text
+--   heading   text, tag (optional: a word in a badge at the right, OR)
 --   hint      text: grey
 --   chips     items { {text, icon, on, enabled, callback} }: cards sized to
 --             their labels (icon: a symbols-font glyph before it), wrapping;
@@ -152,8 +152,20 @@ function R.summary(ctx, b)
         face = ctx.face, fgcolor = Blitbuffer.COLOR_BLACK, bgcolor = ctx.bg }
 end
 
+-- tag: a word on a grey tag at the line's right end (a filter list's OR,
+-- AND or NOT), apart from the heading's own sentence. Filled, white on
+-- grey: an outline reads as a button (STYLE.md).
 function R.heading(ctx, b)
-    return Kit.heading(b.text, ctx.fs)
+    local head = Kit.heading(b.text, ctx.fs)
+    if not b.tag then return head end
+    local badge = FrameContainer:new{
+        bordersize = 0, background = Blitbuffer.COLOR_DARK_GRAY,
+        radius = Space.px(6), margin = 0,
+        padding = 0, padding_left = Space.px(8), padding_right = Space.px(8),
+        Kit.heading(b.tag, ctx.fs, Blitbuffer.COLOR_WHITE),
+    }
+    local gap = math.max(Space.px(8), ctx.w - head:getSize().w - badge:getSize().w)
+    return HorizontalGroup:new{ align = "center", head, HorizontalSpan:new{ width = gap }, badge }
 end
 
 function R.hint(ctx, b)

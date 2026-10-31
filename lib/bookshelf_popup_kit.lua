@@ -234,9 +234,18 @@ function Kit.keyFocus(fm, state, seed_y, page)
     y = math.max(1, math.min(#fm.layout, y))
     x = math.max(1, math.min(#fm.layout[y], x))
     fm.selected = { x = x, y = y }
+    -- The ring shown at the first key: the cursor's own box (the focused
+    -- widget's), not the whole of a popup that spans the screen.
     local function repaint()
         local target = fm.show_parent or fm
-        UIManager:setDirty(target, "ui")
+        local row = fm.layout[fm.selected.y]
+        local w = row and row[fm.selected.x]
+        local d = w and w.dimen
+        if d and d.x then
+            UIManager:setDirty(target, function() return "ui", d end)
+        else
+            UIManager:setDirty(target, "ui")
+        end
     end
     local move = fm.onFocusMove
     function fm:onFocusMove(args)

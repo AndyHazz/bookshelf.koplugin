@@ -21247,7 +21247,7 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
                     frame.background = frame.background:invert()
                     label_w.fgcolor  = label_w.fgcolor:invert()
                     UIManager:widgetRepaint(frame, frame.dimen.x, frame.dimen.y)
-                    UIManager:setDirty(nil, "fast", frame.dimen)
+                    UIManager:setDirty(nil, "ui", frame.dimen)
                     UIManager:forceRePaint()
                     on_tap_cb()
                 elseif on_tap_cb then
@@ -21826,7 +21826,7 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
                 label_w.fgcolor  = label_w.fgcolor:invert()
                 if trail_w then trail_w.fgcolor = trail_w.fgcolor:invert() end
                 UIManager:widgetRepaint(frame, frame.dimen.x, frame.dimen.y)
-                UIManager:setDirty(nil, "fast", frame.dimen)
+                UIManager:setDirty(nil, "ui", frame.dimen)
                 -- This is the critical bit -- without it, setDirty
                 -- only QUEUES a refresh, and the queue doesn't drain
                 -- until the next UIManager iteration. Meanwhile the

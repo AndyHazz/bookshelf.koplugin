@@ -4063,7 +4063,7 @@ function Settings:_performanceSubItems()
                 -- And the shelf on screen has to be rebuilt from it, or the
                 -- flip shows nothing until something else rebuilds it.
                 if self._bw and self._bw._rebuild then self._bw:_rebuild() end
-                UIManager:setDirty("all", "full")
+                UIManager:setDirty("all", "ui")
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
         },
@@ -4091,7 +4091,7 @@ function Settings:_performanceSubItems()
                 local TP = require("lib/bookshelf_theme_pack")
                 TP.setDesignsOn(not TP.designsOn())
                 if self._bw and self._bw._rebuild then self._bw:_rebuild() end
-                UIManager:setDirty("all", "full")   -- the band under the last row
+                UIManager:setDirty("all", "ui")   -- the band under the last row
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
         },
@@ -4190,7 +4190,7 @@ function Settings:_performanceSubItems()
                 pcall(function() require("lib/bookshelf_spine_shelf").forgetLooks() end)
                 if self._bw and self._bw._rebuild then
                     self._bw:_rebuild()
-                    UIManager:setDirty("all", "full")
+                    UIManager:setDirty("all", "ui")
                 end
                 UIManager:show(Notification:new{
                     text    = _("Cover cache cleared"),

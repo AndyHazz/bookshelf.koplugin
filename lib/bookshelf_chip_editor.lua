@@ -1963,7 +1963,8 @@ function Editor:editTab(tab_id, opts)
 
     -- Its sub-menus open as pages inside it while it is up (Editor._menu).
     Editor._host = host
-    UIManager:show(dialog, function() return "partial", frame.dimen end)
+    -- "ui": "partial" counts towards KOReader's periodic full flash.
+    UIManager:show(dialog, function() return "ui", frame.dimen end)
 
     -- A chip that has just been created has no source the user chose: it holds
     -- the placeholder every new chip starts from. Picking one is the first

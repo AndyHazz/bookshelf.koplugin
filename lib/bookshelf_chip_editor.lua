@@ -3654,7 +3654,8 @@ function Editor:_pickSetsFilter(draft, dim_key, on_close)
             local set = draft.filter[sec.key] or {}
             blocks[#blocks + 1] = { type = "heading", text = sec.heading, tag = sec.tag }
             -- The picks as the book menu's tags in edit mode: small pills,
-            -- each with a cross that drops it, "+ Add" last (maintainer).
+            -- each with a cross that drops it; "+ Add" stays a card under
+            -- them (maintainer).
             local keys = {}
             for v in pairs(set) do keys[#keys + 1] = v end
             table.sort(keys)
@@ -3663,11 +3664,12 @@ function Editor:_pickSetsFilter(draft, dim_key, on_close)
                 items[#items + 1] = { label = tostring(v), trailing = CROSS,
                     on_tap = function() set[v] = nil; changed() end }
             end
-            items[#items + 1] = { label = "+ " .. sections.add, on_tap = function()
-                Editor:_pickMultiFilter(draft, dim_key, changed,
-                    { set_key = sec.key, crumb = sec.heading })
-            end }
-            blocks[#blocks + 1] = { type = "pills", items = items }
+            if #items > 0 then blocks[#blocks + 1] = { type = "pills", items = items } end
+            blocks[#blocks + 1] = { type = "chips", items = { { text = "+ " .. sections.add,
+                callback = function()
+                    Editor:_pickMultiFilter(draft, dim_key, changed,
+                        { set_key = sec.key, crumb = sec.heading })
+                end } } }
         end
         blocks[#blocks + 1] = { type = "hint", text = sections.hint }
         return { blocks = blocks }

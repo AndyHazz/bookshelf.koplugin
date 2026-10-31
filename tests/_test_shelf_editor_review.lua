@@ -60,4 +60,33 @@ t.test("Shelf order keeps the shelf's fetch cache; a change to the shelf drops i
         "a new collection order keeps a stale cache")
 end)
 
+-- PW5 timing 2026-10-31: a filter picker opened (no tick kept) left an
+-- empty set in the working copy, and the Filters page's back committed on
+-- every visit; either cost a settings write and a shelf rebuild (~0.9 s)
+-- for nothing.
+local function sameValue()
+    local s = src:find("local function blank(t)", 1, true)
+    local e = src:find("\nend\n", src:find("function Editor._sameValue(a, b)", 1, true), true)
+    local chunk = "local Editor = {}\n" .. src:sub(s, e + 4) .. "return Editor._sameValue"
+    return assert(load(chunk))()
+end
+
+t.test("an empty set is the same as none", function()
+    local same = sameValue()
+    assert(same({ filter = { genres = {} } }, {}), "an opened picker's empty set reads as a change")
+    assert(same({}, { filter = { genres = {}, genres_all = {} } }))
+    assert(same({ label = "A", filter = {} }, { label = "A" }))
+    assert(not same({ filter = { genres = { Poetry = true } } }, {}), "a tick is a change")
+    assert(not same({ filter = { genres = {} } }, { filter = { genres = { Poetry = true } } }),
+        "untick the last is a change")
+    assert(not same({ label = "A" }, { label = "B" }))
+    assert(not same({ hide_add_tile = true }, {}))
+end)
+
+t.test("a commit with nothing changed writes nothing", function()
+    local b = body(src, "local function commit(")
+    assert(b:find("if Editor._sameValue(draft, committed) then return end", 1, true),
+        "commit writes and rebuilds the shelf with nothing changed")
+end)
+
 t.done()

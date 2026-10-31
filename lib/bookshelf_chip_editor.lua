@@ -459,11 +459,27 @@ function Editor._deepCopy(v)
     return out
 end
 
-function Editor._sameValue(a, b)
-    if type(a) ~= "table" or type(b) ~= "table" then return a == b end
-    for k, x in pairs(a) do if not Editor._sameValue(x, b[k]) then return false end end
-    for k in pairs(b) do if a[k] == nil then return false end end
+-- An empty table is the same as none: opening a filter's picker gives the
+-- working copy an empty set, which is no change.
+local function blank(t)
+    for _k, v in pairs(t) do
+        if type(v) ~= "table" or not blank(v) then return false end
+    end
     return true
+end
+
+function Editor._sameValue(a, b)
+    local ta, tb = type(a) == "table", type(b) == "table"
+    if ta and tb then
+        for k, x in pairs(a) do if not Editor._sameValue(x, b[k]) then return false end end
+        for k, y in pairs(b) do
+            if a[k] == nil and not Editor._sameValue(nil, y) then return false end
+        end
+        return true
+    end
+    if ta and b == nil then return blank(a) end
+    if tb and a == nil then return blank(b) end
+    return a == b
 end
 
 -- _menu(spec) -> a sub-menu (ButtonDialog's options). While a shelf
@@ -610,6 +626,9 @@ function Editor:editTab(tab_id, opts)
     -- the shelf, so a folder drilled into under the old one is left.
     local function commit(drop_shelves)
         if draft.pending and hasSource() then draft.pending = nil end
+        -- Back from a page that changed nothing (Filters, a picker opened
+        -- and left): no write, no rebuild of the shelf.
+        if Editor._sameValue(draft, committed) then return end
         local save_tabs = TabModel.load()
         for i, t in ipairs(save_tabs) do
             if t.id == tab_id then

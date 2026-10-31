@@ -68,4 +68,13 @@ t.test("a page fills its height with rows, the page row at the bottom", function
         "the spare height is under the page row")
 end)
 
+-- PW5 2026-10-31: the genre picker opened from the short Genre page took
+-- that page's height, two rows of cards: 73 pages of genres.
+t.test("a page on a short editor still has the picker's own rows", function()
+    assert(lm:find("math.max(fit(room()), math.min(rows_per_page, fit(room(screen_h))))", 1, true),
+        "a short editor page gives its picker a couple of rows")
+    assert(lm:find("local screen_h = Screen:getHeight() - self._over_rect.y - MARGIN", 1, true),
+        "the picker can run off the bottom of the screen")
+end)
+
 t.done()

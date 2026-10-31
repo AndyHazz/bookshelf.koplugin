@@ -1442,7 +1442,7 @@ function LibraryModal:refresh()
     -- room: the most the area can have with the modal on the screen, or the
     -- editor's page it is (a small screen whose strip wraps to two rows ran
     -- the cards and the page row off the bottom).
-    local function room()
+    local function room(limit)
         local chrome = title:getSize().h + (strip and strip:getSize().h or 0) + 2 * MARGIN
             + pagination:getSize().h + 2 * self.frame.bordersize
             + (footer and (MARGIN + footer:getSize().h) or (MARGIN + math.floor(MARGIN / 2)))
@@ -1451,7 +1451,7 @@ function LibraryModal:refresh()
         if intro and intro ~= "" then
             chrome = chrome + PopupKit.hintText(intro, HINT_FS, cw):getSize().h + MARGIN
         end
-        local limit = self._over_rect and self._over_rect.h or (Screen:getHeight() - 2 * MARGIN)
+        limit = limit or self._over_rect and self._over_rect.h or (Screen:getHeight() - 2 * MARGIN)
         return limit - chrome
     end
     self._fill_rows = nil
@@ -1464,7 +1464,12 @@ function LibraryModal:refresh()
         -- paint): as many rows of cards at their own height as fill it, not
         -- the picker's own count with an empty band under it (maintainer:
         -- Collections from the bulk menu).
-        local rows = math.max(2, math.floor((room() + MARGIN) / (intrinsic_card_h + MARGIN)))
+        -- A short page (Genre's lists) gives at least the picker's own
+        -- rows, as far as the screen goes below the editor's top: two rows
+        -- were 73 pages of genres (PW5).
+        local function fit(h) return math.floor((h + MARGIN) / (intrinsic_card_h + MARGIN)) end
+        local screen_h = Screen:getHeight() - self._over_rect.y - MARGIN
+        local rows = math.max(2, math.max(fit(room()), math.min(rows_per_page, fit(room(screen_h)))))
         self._fill_rows = rows
         area_height = rows * intrinsic_card_h + (rows - 1) * MARGIN
         pagination = self:_renderPagination(cw)

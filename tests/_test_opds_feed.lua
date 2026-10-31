@@ -965,6 +965,39 @@ local r2o = Feed.mapEntries({ is_opds2 = true, publications = { {
 } } }, "http://h/opds2", "k").records[1]
 eq(r2o and r2o.series_name, "Solo", "OPDS 2.0 series as one object")
 
+-- Publication year from the feed (GitHub issue 566), where %calibre{pubdate}
+-- reads it: KOReader has no field for it, so the catalog is the only source.
+local function pubYear(extra)
+    local r = Feed.mapEntries(acqEntry(extra), "http://h/", "k").records[1]
+    return r and r.calibre and r.calibre.pubdate
+end
+eq(pubYear{ published = "1974-01-01T00:00:00+00:00" }, "1974", "Calibre-Web <published> gives the year")
+eq(pubYear{ ["dcterms:issued"] = "1965" }, "1965", "dcterms:issued, a bare year")
+eq(pubYear{ ["dc:issued"] = "1965-08-01" }, "1965", "dc:issued")
+-- calibre's server: <published> is the date ADDED, dc:date the pubdate
+eq(pubYear{ published = "2024-05-02T10:00:00+00:00", ["dc:date"] = "1951-06-01T00:00:00+00:00" },
+   "1951", "dc:date wins over <published>")
+eq(pubYear{ ["dcterms:issued"] = "1965", published = "2001-01-01" }, "1965", "dcterms:issued wins over <published>")
+eq(pubYear{ published = "0101-01-01T00:00:00+00:00" }, nil, "calibre's 0101 'no date' is no year")
+eq(pubYear{ published = "unknown" }, nil, "no leading year: no year")
+eq(pubYear(), nil, "no date in the entry: no calibre table")
+local r2p = Feed.mapEntries({ is_opds2 = true, publications = { {
+    metadata = { title = "Dune", published = "1965-08-01" },
+    links = { { rel = "http://opds-spec.org/acquisition", type = "application/epub+zip", href = "/dl/d.epub" } },
+} } }, "http://h/opds2", "k").records[1]
+eq(r2p and r2p.calibre and r2p.calibre.pubdate, "1965", "OPDS 2.0 metadata.published")
+-- Two editions of one book merge: a later edition fills a missing year and
+-- never replaces one already there.
+local function edition(n, published)
+    return { title = "Dune", author = { name = "Frank Herbert" }, id = "urn:d" .. n, published = published,
+             link = { { rel = "http://opds-spec.org/acquisition", type = "application/epub+zip", href = "/d" .. n .. ".epub" } } }
+end
+local rm = Feed.mapEntries({ feed = { entry = { edition(1), edition(2, "1965-01-01") } } }, "http://h/", "k").records
+eq(#rm, 1, "two editions merge into one record")
+eq(rm[1].calibre and rm[1].calibre.pubdate, "1965", "a later edition fills the missing year")
+rm = Feed.mapEntries({ feed = { entry = { edition(1, "1965-01-01"), edition(2, "2005-01-01") } } }, "http://h/", "k").records
+eq(rm[1].calibre and rm[1].calibre.pubdate, "1965", "the first edition's year is kept")
+
 -- parse(): only when a KOReader tree provides luxl (needs luajit's ffi)
 local koreader_dir = os.getenv("KOREADER_DIR") or "/usr/lib/koreader"
 local have_ffi = pcall(require, "ffi")
@@ -997,6 +1030,24 @@ if have_ffi and f then
     eq(gr and gr.series_name, "The Stormlight Archive", "parse(): series name through the parser")
     eq(gr and gr.series_num, "2", "parse(): series position through the parser")
     eq(gr and gr.title, "Words of Radiance", "parse(): the title is untouched")
+
+    -- Publication dates through the real parser (issue 566): Calibre-Web's
+    -- <published>, calibre's namespaced dc:date
+    local pxml = [[<?xml version="1.0"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/terms/">
+  <entry><title>Dune</title><id>p1</id>
+    <published>1965-08-01T00:00:00+00:00</published>
+    <link rel="http://opds-spec.org/acquisition" type="application/epub+zip" href="/p1.epub"/>
+  </entry>
+  <entry><title>Foundation</title><id>p2</id>
+    <published>2024-05-02T10:00:00+00:00</published>
+    <dc:date>1951-06-01T00:00:00+00:00</dc:date>
+    <link rel="http://opds-spec.org/acquisition" type="application/epub+zip" href="/p2.epub"/>
+  </entry>
+</feed>]]
+    local pr = Feed.mapEntries(Feed.parse(pxml), "http://h/", "k").records
+    eq(pr[1] and pr[1].calibre and pr[1].calibre.pubdate, "1965", "parse(): <published> through the parser")
+    eq(pr[2] and pr[2].calibre and pr[2].calibre.pubdate, "1951", "parse(): dc:date through the parser")
 
     -- parseOsd(): a Gutenberg-shaped OpenSearch description with several Url
     -- types (html, atom, a bare OSD self-reference) - the atom one is picked

@@ -90,6 +90,8 @@ lfs_real.mkdir(DIR)
 lfs_real.mkdir(DIR .. "/cache")
 
 local Cache = require("lib/bookshelf_cover_disk_cache")
+-- Sweeps only where a test asks for one (sweep, _check), not on its writes.
+Cache._auto = false
 local BB = package.loaded["ffi/blitbuffer"]
 
 local STORE = DIR .. "/cache/bookshelf/scaled_covers"
@@ -245,7 +247,7 @@ end
 local function storeCount()
     local n = 0
     for e in lfs_real.dir(STORE) do
-        if e ~= "." and e ~= ".." then n = n + 1 end
+        if e:sub(1, 1) ~= "." then n = n + 1 end   -- not the tally
     end
     return n
 end
@@ -424,6 +426,58 @@ t.test("on a nearly full disk the store keeps to a share of the room", function(
     Cache.sweep()
     assert(Cache.load(books[1]) and Cache.load(books[3]), "an unknown free space shrank the store")
     Cache._freeBytes = real_free
+end)
+
+-- PW5, 2026-10-31: a full store went over its cap by a few covers every
+-- session, and each time the sweep read every file's header (1,100 files,
+-- 2.7 s cold) in the middle of a shelf's first build. Over the cap it now
+-- goes down to a margin under it, so the next sessions stay under.
+t.test("a prune leaves room, so the next sessions do not prune again", function()
+    Cache.clear(); _G.__mtimes = {}
+    Cache.MAX_BYTES, Cache.ORNAMENT_MAX_BYTES = 32 * 1024 * 1024, 32 * 1024 * 1024
+    local real_free = Cache._freeBytes
+    Cache._freeBytes = function() return nil end
+    local size
+    for i = 1, 10 do
+        local b = makeBook("h" .. i .. ".epub")
+        Cache.store(b, makeBB(16, 16, i)); ageOf(b, i)
+        size = size or #select(2, fileFor(b))
+    end
+    Cache.MAX_BYTES = size * 9          -- one over
+    Cache.sweep()
+    assert(storeCount() <= math.floor(9 * Cache.PRUNE_TO), "pruned to the cap, not under it: " .. storeCount())
+    Cache._freeBytes = real_free
+end)
+
+t.test("the automatic check waits, out of the shelf's build", function()
+    local src = io.open("lib/bookshelf_cover_disk_cache.lua"):read("*a")
+    local body = src:match("\nlocal function maybeSweep%(%)\n(.-)\nend\n")
+    assert(body and body:find("scheduleIn(M.SWEEP_DELAY, M._check)", 1, true),
+        "the sweep runs inside the write that set it off")
+end)
+
+-- PW5, 2026-10-31: under its cap, the session's sweep still listed and
+-- stat'd every file (1,100 files, 1.25 s cold) to learn it was under. A
+-- running tally of what is held answers that from one small file.
+t.test("under the cap, the check reads a tally, not the whole store", function()
+    Cache.clear(); _G.__mtimes = {}
+    Cache.MAX_BYTES, Cache.ORNAMENT_MAX_BYTES = 32 * 1024 * 1024, 32 * 1024 * 1024
+    local real_dir, real_free = lfs_real.dir, Cache._freeBytes
+    Cache._freeBytes = function() return nil end
+    Cache.store(makeBook("tally1.epub"), makeBB(16, 16, 1))
+    Cache.sweep()                     -- an exact tally
+    local listings = 0
+    lfs_real.dir = function(path) listings = listings + 1; return real_dir(path) end
+    Cache.store(makeBook("tally2.epub"), makeBB(16, 16, 2))
+    Cache._check()
+    assert(listings == 0, "an under-cap check listed the store")
+    -- Over the cap by the tally: the full sweep runs.
+    local size = #select(2, fileFor(BOOKS .. "/tally1.epub"))
+    Cache.MAX_BYTES = size
+    Cache._check()
+    assert(listings > 0, "over the cap, nothing was swept")
+    assert(storeCount() <= 2, "the sweep left the store over its cap")
+    lfs_real.dir, Cache._freeBytes = real_dir, real_free
 end)
 
 os.execute("rm -rf '" .. DIR .. "'")

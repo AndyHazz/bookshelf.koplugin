@@ -52,11 +52,20 @@ local ORNAMENT_PREFIX = "ornament:"
 -- a PW5 (2026-10-28); a nearly full device keeps a smaller store and decodes
 -- more often instead.
 M.DISK_SHARE = 0.25
+-- Over a cap, a prune goes down to this share of it: the store fills by a
+-- few covers a session, and pruning to the cap alone had the next session
+-- over it again, reading every header each time.
+M.PRUNE_TO = 0.85
 -- A read marks a file used for the sweep, at most once a day a file.
 local TOUCH_AFTER = 24 * 60 * 60
 
 local _dir            -- resolved cache directory, or false when unavailable
-local _swept = false  -- the count sweep runs at most once per session
+-- What the store holds, by budget, kept in a small file beside it: a check
+-- reads that instead of listing every file (1,100 files, 1.25 s cold on a
+-- PW5). _delta is what this session's writes and drops changed since.
+local TALLY = ".total"
+local _delta = { c = 0, o = 0 }
+local _pending = false  -- a check is scheduled
 
 local function dir()
     if _dir ~= nil then return _dir or nil end
@@ -118,6 +127,44 @@ local function bookOf(path)
     return fp
 end
 
+-- The budget a file counts against: "o" names are ornament renders.
+local function kindOf(name)
+    return name:sub(1, 1) == "o" and "o" or "c"
+end
+
+local function readTally(d)
+    local f = io.open(d .. "/" .. TALLY, "r")
+    if not f then return nil end
+    local line = f:read("*l")
+    f:close()
+    local c, o = (line or ""):match("^(%d+) (%d+)$")
+    if not c then return nil end
+    return tonumber(c), tonumber(o)
+end
+
+local function writeTally(d, c, o)
+    pcall(function()
+        local f = io.open(d .. "/" .. TALLY, "w")
+        if not f then return end
+        f:write(string.format("%d %d\n", math.max(0, c), math.max(0, o)))
+        f:close()
+    end)
+end
+
+-- caps(d, held) -> the covers' and the renders' caps: together no more than
+-- a share of the room the store has (free space plus what it holds).
+local function caps(d, held)
+    local cover_cap, render_cap = M.MAX_BYTES, M.ORNAMENT_MAX_BYTES
+    local free = M._freeBytes(d)
+    if free then
+        local f = (free + held) * M.DISK_SHARE / (cover_cap + render_cap)
+        if f < 1 then
+            cover_cap, render_cap = math.floor(cover_cap * f), math.floor(render_cap * f)
+        end
+    end
+    return cover_cap, render_cap
+end
+
 --- Bring the store back under M.MAX_BYTES. Public because it is a real
 --- operation rather than an internal detail, and because the once-per-session
 --- guard belongs to the automatic call below, not to the work itself.
@@ -129,7 +176,7 @@ function M.sweep()
     local ok, entries = pcall(function()
         local list = {}
         for entry in lfs.dir(d) do
-            if entry ~= "." and entry ~= ".." then
+            if entry:sub(1, 1) ~= "." then
                 local p = d .. "/" .. entry
                 local a = lfs.attributes(p) or {}
                 list[#list + 1] = { p = p, m = a.modification or 0, b = a.size or 0,
@@ -144,19 +191,29 @@ function M.sweep()
         local e = entries[i]
         if e.orn then renders[#renders + 1] = e else covers[#covers + 1] = e end
     end
-    local cover_cap, render_cap = M.MAX_BYTES, M.ORNAMENT_MAX_BYTES
-    local free = M._freeBytes(d)
-    if free then
-        local held = 0
-        for i = 1, #entries do held = held + entries[i].b end
-        local share = (free + held) * M.DISK_SHARE
-        local f = share / (cover_cap + render_cap)
-        if f < 1 then
-            cover_cap, render_cap = math.floor(cover_cap * f), math.floor(render_cap * f)
-        end
-    end
-    M._prune(covers, cover_cap, false)
-    M._prune(renders, render_cap, true)
+    local held = 0
+    for i = 1, #entries do held = held + entries[i].b end
+    local cover_cap, render_cap = caps(d, held)
+    local c = M._prune(covers, cover_cap, false)
+    local o = M._prune(renders, render_cap, true)
+    _delta.c, _delta.o = 0, 0
+    writeTally(d, c, o)
+end
+
+-- _check(): the automatic sweep. The tally says whether the store is over
+-- a cap; only then is every file listed. No tally yet: a full sweep, which
+-- writes one.
+function M._check()
+    _pending = false
+    local d = dir()
+    if not d then return end
+    local c, o = readTally(d)
+    if not c then return M.sweep() end
+    c, o = c + _delta.c, o + _delta.o
+    local cover_cap, render_cap = caps(d, c + o)
+    if c > cover_cap or o > render_cap then return M.sweep() end
+    _delta.c, _delta.o = 0, 0
+    writeTally(d, c, o)
 end
 
 -- _freeBytes(path) -> the space free to us on path's filesystem, or nil.
@@ -174,11 +231,12 @@ function M._freeBytes(path)
     return nil
 end
 
--- _prune(entries, cap, renders): one budget's files brought under its cap.
+-- _prune(entries, cap, renders) -> bytes left: one budget's files brought
+-- under its cap.
 function M._prune(entries, cap, renders)
     local total = 0
     for i = 1, #entries do total = total + entries[i].b end
-    if total <= cap then return end
+    if total <= cap then return total end
     -- Over budget. Before falling back to age, drop covers whose book is no
     -- longer there: those can never be used again, while an old cover for a
     -- book still on the shelf may well be wanted on the next launch.
@@ -215,7 +273,7 @@ function M._prune(entries, cap, renders)
     end)
     local pruned = 0
     for i = 1, #entries do
-        if total <= cap then break end
+        if total <= math.floor(cap * M.PRUNE_TO) then break end
         if pcall(os.remove, entries[i].p) then
             total = total - entries[i].b
             pruned = pruned + 1
@@ -224,13 +282,24 @@ function M._prune(entries, cap, renders)
     logger.dbg(string.format(
         "[bookshelf] cover disk cache: pruned %d of %d files (%d orphaned), now %d KB",
         pruned, #entries, orphans, math.floor(total / 1024)))
+    return total
 end
 
--- The automatic sweep: at most once per session, after a write.
+-- The automatic sweep: at most once per session, a while after a write,
+-- not inside it: the first write comes in a shelf's first build, and an
+-- over-budget sweep reads every file's header (1,100 files, 2.7 s on a PW5).
+-- Off a device (no UIManager), at once.
+M.SWEEP_DELAY = 15
+M._auto = true   -- tests switch the automatic check off and call _check
 local function maybeSweep()
-    if _swept then return end
-    _swept = true
-    M.sweep()
+    if _pending or not M._auto then return end
+    _pending = true
+    local ok, UIManager = pcall(require, "ui/uimanager")
+    if ok and UIManager and UIManager.scheduleIn then
+        UIManager:scheduleIn(M.SWEEP_DELAY, M._check)
+    else
+        M._check()
+    end
 end
 
 --- Write a scaled cover. Returns true when it landed on disk.
@@ -271,12 +340,16 @@ function M.store(filepath, bb)
         -- truncated file that later reads as a valid header with short data.
         local tmp = p .. ".tmp"
         local f = assert(io.open(tmp, "wb"))
-        f:write(string.format("%s %d %d %d %d %d\n%s\n",
-            MAGIC, w, h, stride, btype, #filepath, filepath))
+        local header = string.format("%s %d %d %d %d %d\n%s\n",
+            MAGIC, w, h, stride, btype, #filepath, filepath)
+        f:write(header)
         f:write(ffi.string(bb.data, stride * h))
         f:close()
+        local was = lfs.attributes(p, "size") or 0
         os.remove(p)
         assert(os.rename(tmp, p))
+        local k = kindOf(keyFor(filepath))
+        _delta[k] = _delta[k] + #header + stride * h - was
     end)
     if ok then maybeSweep() end
     return ok
@@ -321,7 +394,12 @@ end
 
 function M.drop(filepath)
     local p = pathFor(filepath)
-    if p then pcall(os.remove, p) end
+    if not p then return end
+    local was = lfs.attributes(p, "size")
+    if pcall(os.remove, p) and was then
+        local k = kindOf(keyFor(filepath))
+        _delta[k] = _delta[k] - was
+    end
 end
 
 function M.clear()

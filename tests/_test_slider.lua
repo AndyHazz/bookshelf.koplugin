@@ -49,4 +49,12 @@ t.test("a page's slider block, and the nudge page uses it", function()
     assert(nudge:find("at_bottom = true", 1, true), "the nudge page is not a slim panel at the bottom")
 end)
 
+-- Maintainer, PW5: the knob dragged with a "fast" refresh, which is black
+-- and white only, so the grey track broke up and left ghosts behind it.
+t.test("a drag redraws the track with a ui refresh, not fast", function()
+    local src = io.open("lib/bookshelf_slider.lua"):read("*a")
+    assert(not src:find('return "fast"', 1, true), "the drag still refreshes fast")
+    assert(src:find('UIManager:setDirty(top, function() return "ui", track.dimen end)', 1, true), "the drag does not refresh ui")
+end)
+
 t.done()

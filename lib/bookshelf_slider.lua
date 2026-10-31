@@ -136,7 +136,9 @@ function Slider.new(o)
         if v == track.shown then return end
         track.shown = v
         local top = UIManager.getTopmostVisibleWidget and UIManager:getTopmostVisibleWidget()
-        UIManager:setDirty(top, function() return "fast", track.dimen end)
+        -- "ui", not "fast": fast is black and white only, and broke up the
+        -- grey track behind the knob (maintainer, PW5).
+        UIManager:setDirty(top, function() return "ui", track.dimen end)
     end
     track.ges_events = {
         Tap        = { GestureRange:new{ ges = "tap",         range = function() return track.dimen end } },

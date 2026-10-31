@@ -128,6 +128,17 @@ function M.show(o)
             return true
         end
     end
+    -- Refreshed on show and on close, as InfoMessage is: UIManager:show
+    -- with no refresh type queues none, and on e-ink nothing shows until
+    -- one is (the rig shows the framebuffer, so it looked fine there; on a
+    -- PW5 Add theme pack did nothing, maintainer).
+    function dialog:onShow()
+        UIManager:setDirty(self, function() return "ui", frame.dimen end)
+        return true
+    end
+    function dialog:onCloseWidget()
+        UIManager:setDirty(nil, function() return "ui", frame.dimen end)
+    end
     UIManager:show(dialog)
     return dialog
 end

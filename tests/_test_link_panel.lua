@@ -61,4 +61,15 @@ t.test("About shows the user guide's code; both add panels the shop's", function
     end
 end)
 
+-- On e-ink nothing shows until a refresh is queued, and UIManager:show with
+-- no refresh type queues none: Add theme pack did nothing on the PW5 while
+-- the rig, which shows the framebuffer, showed it (maintainer, 2026-10-31).
+-- About only appeared because the closing menu refreshed the screen.
+t.test("the panel refreshes the screen when it opens and when it closes", function()
+    local src = io.open("lib/bookshelf_link_panel.lua"):read("*a")
+    assert(src:find('function dialog:onShow()', 1, true), "nothing refreshes the panel on show")
+    assert(src:find('function dialog:onCloseWidget()', 1, true), "nothing refreshes where it was on close")
+    assert(select(2, src:gsub('return "ui", frame.dimen', "")) >= 2, "the refreshes are not the frame's")
+end)
+
 t.done()

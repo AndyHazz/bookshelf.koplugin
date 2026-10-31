@@ -81,4 +81,22 @@ t.test("the knob is a ring, the track thicker", function()
     assert(src:find("local bar_h = math.max(4, Space.px(12))", 1, true), "the track is not thicker")
 end)
 
+-- Maintainer: the value in the heading, not on a row of its own above the
+-- bar, for a tighter panel. The nudge page's title carries it (a PageDialog
+-- title may be a function, read on every refresh) and the slider block
+-- leaves its value row out (no_value).
+t.test("the size page shows its value in the title, not over the bar", function()
+    local pd = io.open("lib/bookshelf_page_dialog.lua"):read("*a")
+    assert(pd:find("function PageDialog:_titleText()", 1, true), "a title cannot be a function")
+    assert(pd:find("title = self:_titleText(),", 1, true), "the title bar does not read it afresh")
+    local st = io.open("lib/bookshelf_settings.lua"):read("*a")
+    local nudge = st:match("\nfunction Settings:_nudgePage%(.-\nend\n")
+    assert(nudge:find("title = function() return spec.title .. \": \" .. show(getValue()) end,", 1, true),
+        "the title does not carry the value")
+    assert(nudge:find("no_value = true", 1, true), "the value still has its own row")
+    local ep = io.open("lib/bookshelf_editor_page.lua"):read("*a")
+    local r = ep:match("\n(function R%.slider%(ctx, b%).-\nend)\n")
+    assert(r and r:find("if b.no_value and not b.label then return w end", 1, true), "the slider block always has a value row")
+end)
+
 t.done()

@@ -3207,13 +3207,15 @@ function Settings:_nudgePage(touchmenu_instance, spec)
         return { blocks = {
             { type = "slider", value = getValue(), min = spec.min or 50,
               max = spec.max or 200, step = spec.fine or 5, default = default,
-              big = spec.big or 10, format = show, on_change = setValue },
+              big = spec.big or 10, format = show, on_change = setValue,
+              -- In the title instead, for a tighter panel (maintainer).
+              no_value = true },
         } }
     end
     -- A slim panel low on the screen (the chip bar's opens under the bar),
     -- so the preview behind stays in sight (maintainer: a slider).
     dialog = require("lib/bookshelf_page_dialog").show{
-        title = spec.title,
+        title = function() return spec.title .. ": " .. show(getValue()) end,
         page = page,
         anchor = spec.anchor,
         at_bottom = true,

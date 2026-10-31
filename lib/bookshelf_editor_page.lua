@@ -262,6 +262,8 @@ function R.slider(ctx, b)
         big = b.big, big_label = b.big_label,
         format = fmt, on_change = b.on_change, face = ctx.face, small = ctx.small }
     ctx.layout[#ctx.layout + 1] = keys
+    -- no_value: the value is shown elsewhere (the dialog's title).
+    if b.no_value and not b.label then return w end
     local head = leftRight(b.label and ctx:text(b.label) or nil,
         ctx:text(fmt(b.value), { bold = true }), ctx.w)
     return VerticalGroup:new{ align = "left", head, VerticalSpan:new{ width = Space.px(4) }, w }

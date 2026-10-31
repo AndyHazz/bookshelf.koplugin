@@ -5,7 +5,8 @@
 -- when there is something to confirm (Cancel | Apply). Centred; it pages past
 -- the room on the screen as the editor's pages do.
 --   PageDialog.show{
---     title,                      the title line
+--     title,                      the title line, or a function returning
+--                                 it, read on every refresh (a value in it)
 --     page = function() -> model  { strip = {blocks}, blocks = {blocks} },
 --                                 laid out afresh on every refresh()
 --     footer = { { text, callback, enabled_func, primary } ... } (optional)
@@ -148,12 +149,18 @@ function PageDialog:_footerRow(w)
         hg }, btns
 end
 
+-- _titleText() -> the title now: a function's answer, else the text.
+function PageDialog:_titleText()
+    if type(self.title) == "function" then return self.title() end
+    return self.title
+end
+
 function PageDialog:_build()
     local TitleBar     = require("ui/widget/titlebar")
     local FocusManager = require("ui/widget/focusmanager")
     local EditorPage   = require("lib/bookshelf_editor_page")
     local title_bar = TitleBar:new{
-        width = self.width, title = self.title,
+        width = self.width, title = self:_titleText(),
         with_bottom_line = true, bottom_v_padding = 0,
         close_callback = function() self:_dismiss() end,
         show_parent = self,
@@ -206,7 +213,7 @@ end
 -- the whole dialog.
 function PageDialog:over(tail)
     local dialog = self
-    local crumbs = { self.title }
+    local crumbs = { self:_titleText() }
     for _i, t in ipairs(tail or {}) do crumbs[#crumbs + 1] = t end
     return {
         rect = function()

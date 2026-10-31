@@ -934,7 +934,7 @@ function Editor:editTab(tab_id, opts)
     -- splits into a grey heading over the value. A leading tick (or radio
     -- dot) is a checkbox on the front page; on a sub-menu's page it marks
     -- the choice in use, which is black (as_choice).
-    local value_face = Font:getFace("cfont", FS)
+    local value_face = require("lib/bookshelf_fonts"):getFace("cfont", FS)
     local CHECKED, UNCHECKED = "\xEE\xA0\xB1", "\xEE\xA0\xB0"
     local function card(c, w, as_choice)
         local text = cellText(c)
@@ -1147,6 +1147,7 @@ function Editor:editTab(tab_id, opts)
         local crumbs = { (draft.label and draft.label ~= "") and draft.label or _("Shelf") }
         for _i, p in ipairs(pages) do crumbs[#crumbs + 1] = p.spec.title or "\xE2\x80\xA6" end
         local title_bar = TitleBar:new{
+            title_face = Kit.titleFace(),
             width            = dialog_w,
             title            = table.concat(crumbs, " \xE2\x80\xBA "),
             with_bottom_line = true,
@@ -1790,7 +1791,7 @@ function Editor:editTab(tab_id, opts)
                 if c.label_text then
                     -- A grey word naming the buttons after it (Move).
                     hg[#hg + 1] = TextWidget:new{ text = c.label_text,
-                        face = Font:getFace("cfont", FS - 2), fgcolor = Kit.DIM_ON_GREY }
+                        face = require("lib/bookshelf_fonts"):getFace("cfont", FS - 2), fgcolor = Kit.DIM_ON_GREY }
                 else
                     local btn = stripButton(c)
                     hg[#hg + 1], focus[#focus + 1] = btn, btn
@@ -1825,7 +1826,7 @@ function Editor:editTab(tab_id, opts)
         end
         foot_row[#foot_row + 1] = { text = _("Close"), callback = function() finish() end }
         local foot = require("ui/widget/buttontable"):new{
-            width = dialog_w, buttons = { foot_row }, zero_sep = true, show_parent = dialog }
+            width = dialog_w, buttons = Kit.uiFontButtons({ foot_row }), zero_sep = true, show_parent = dialog }
         -- Its buttons are keyed by the editor's FocusManager below. Left to
         -- itself this one-row table (a FocusManager too, and nearer the keys)
         -- took every arrow and could move nowhere, and pressed its own
@@ -1871,6 +1872,7 @@ function Editor:editTab(tab_id, opts)
             title_text = T(_("Editing shelf: %1"), draft.label)
         end
         local title_bar = TitleBar:new{
+            title_face = Kit.titleFace(),
             width             = dialog_w,
             title             = title_text,
             with_bottom_line  = true,

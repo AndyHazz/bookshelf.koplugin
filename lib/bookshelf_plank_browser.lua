@@ -127,7 +127,7 @@ local function renderHint(dimen)
     local TextBoxWidget   = require("ui/widget/textboxwidget")
     return CenterContainer:new{ dimen = Geom:new{ w = dimen.w, h = dimen.h },
         TextBoxWidget:new{ text = _("More planks come with packs: see Add ornaments in the Ornament collection."),
-                           face = Font:getFace("cfont", 16), width = math.floor(dimen.w * 0.8),
+                           face = require("lib/bookshelf_fonts"):getFace("cfont", 16), width = math.floor(dimen.w * 0.8),
                            alignment = "center" } }
 end
 
@@ -162,7 +162,7 @@ local function renderCell(o, dimen)
     local gap = Space.padding.default
     local name_w = inner_w - radio:getSize().w - gap
     local row = HorizontalGroup:new{ align = "center", radio, HorizontalSpan:new{ width = gap },
-        TextWidget:new{ text = name, face = Font:getFace("cfont", 18), bold = true, max_width = math.max(1, name_w) } }
+        TextWidget:new{ text = name, face = require("lib/bookshelf_fonts"):getFace("cfont", 18), bold = true, max_width = math.max(1, name_w) } }
     local lines = LeftContainer:new{ dimen = Geom:new{ w = inner_w, h = row:getSize().h }, row }
     local box_h = math.max(1, inner_h - lines:getSize().h - Space.padding.small)
     -- A row the height of a four-row shelf: the plank as most shelves show

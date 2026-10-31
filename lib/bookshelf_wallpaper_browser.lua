@@ -157,7 +157,7 @@ local function renderCell(key, item, dimen)
     local gap = Space.padding.small
     local name_w = inner_w - radio:getSize().w - gap
     local row = HorizontalGroup:new{ align = "center", radio, HorizontalSpan:new{ width = gap },
-        TextWidget:new{ text = name, face = Font:getFace("cfont", 15), bold = true, max_width = math.max(1, name_w) } }
+        TextWidget:new{ text = name, face = require("lib/bookshelf_fonts"):getFace("cfont", 15), bold = true, max_width = math.max(1, name_w) } }
     local lines = LeftContainer:new{ dimen = Geom:new{ w = inner_w, h = row:getSize().h }, row }
     local box_h = math.max(1, inner_h - lines:getSize().h - Space.padding.small)
     local pic
@@ -282,7 +282,7 @@ function WB.show(key, on_change, on_closed)
             local T               = require("ffi/util").template
             return CenterContainer:new{ dimen = Geom:new{ w = w, h = h },
                 TextBoxWidget:new{ text = T(_("No images in %1"), WP().dir and WP().dir() or "?"),
-                                   face = Font:getFace("cfont", 16), width = math.floor(w * 0.9),
+                                   face = require("lib/bookshelf_fonts"):getFace("cfont", 16), width = math.floor(w * 0.9),
                                    alignment = "center" } }
         end,
     }

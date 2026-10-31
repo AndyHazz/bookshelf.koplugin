@@ -527,7 +527,7 @@ function TL._renderCard(item, dimen, current, all)
     local used = 0
     local function line(text, size, color, bold)
         if not text or text == "" then return end
-        local w = TextWidget:new{ text = text, face = Font:getFace("cfont", size), bold = bold,
+        local w = TextWidget:new{ text = text, face = require("lib/bookshelf_fonts"):getFace("cfont", size), bold = bold,
                                   fgcolor = color, max_width = text_w }
         local h = w:getSize().h
         if used > 0 and used + h > inner_h then return end

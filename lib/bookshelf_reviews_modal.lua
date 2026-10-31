@@ -180,7 +180,7 @@ function TabBar:init()
         local n       = #self.tabs
         local min_pad = Space.px(6)
         local function textWidth(sz)
-            local face, total = Font:getFace("cfont", sz), 0
+            local face, total = BFont:getFace("cfont", sz), 0
             for _i, label in ipairs(self.tabs) do
                 local tw = TextWidget:new{ text = label, face = face }
                 total = total + tw:getSize().w
@@ -202,7 +202,7 @@ function TabBar:init()
             end
         end
     end
-    self.face       = Font:getFace("cfont", size)
+    self.face       = BFont:getFace("cfont", size)
 
     -- Pack tabs into rows that fit self.width, wrapping when the next tab would
     -- overflow (so a narrow screen / high DPI keeps every tab reachable instead
@@ -712,7 +712,7 @@ end
 function ReviewsModal:_buildButtons()
     local bt = ButtonTable:new{
         width       = self.width,
-        buttons     = { self._button_row },
+        buttons     = require("lib/bookshelf_popup_kit").uiFontButtons({ self._button_row }),
         show_parent = self,
     }
     -- Keep a handle on the live table so the Open flow can find the Open

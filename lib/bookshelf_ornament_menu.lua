@@ -136,8 +136,8 @@ function M.show(entry, bw, piece, widget, opts)
     local shelf = bw and bw.chip
 
     local FS   = 18
-    local face = Font:getFace("cfont", FS)
-    local small = Font:getFace("cfont", FS - 3)
+    local face = require("lib/bookshelf_fonts"):getFace("cfont", FS)
+    local small = require("lib/bookshelf_fonts"):getFace("cfont", FS - 3)
     local h    = TextWidget:new{ text = "Hg", face = face }:getSize().h + 2 * Space.px(10)
     local gap  = Space.px(10)
     local inset = Space.px(16)
@@ -477,7 +477,7 @@ function M.show(entry, bw, piece, widget, opts)
         local height_ctl, height_keys = stepper(l_dec, l_inc, valueCell(pctOf("lift"), "lift"))
 
         -- Mirror and the anchor (what Height counts from), segmented.
-        local seg_face = Font:getFace("cfont", FS - 2)
+        local seg_face = require("lib/bookshelf_fonts"):getFace("cfont", FS - 2)
         local mirror, mirror_keys = Kit.segmented{ face = seg_face, pad_v = Space.px(8), pad_h = Space.px(10),
             items = { { key = "off", label = _("Off") }, { key = "always", label = _("Always") },
                       { key = "alternate", label = _("Alternate") } },

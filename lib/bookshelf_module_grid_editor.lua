@@ -173,7 +173,7 @@ local function kbutton(o)
     local Kit  = require("lib/bookshelf_popup_kit")
     local enabled = o.enabled ~= false
     local btn = Kit.button{
-        text = o.text, face = o.text and Font:getFace("cfont", o.font_size or FS) or nil,
+        text = o.text, face = o.text and require("lib/bookshelf_fonts"):getFace("cfont", o.font_size or FS) or nil,
         bold = o.bold, inverted = o.inverted,
         icon_glyph = o.glyph,
         icon_face = o.glyph and Font:getFace("symbols", o.glyph_size or (FS + 6)) or nil,
@@ -217,7 +217,7 @@ function Editor:_buildToolbar()
     local Space = require("lib/bookshelf_space")
     local inset = Space.px(16)
     local gap   = Space.px(10)
-    local face  = Font:getFace("cfont", FS)
+    local face  = require("lib/bookshelf_fonts"):getFace("cfont", FS)
     local h = TextWidget:new{ text = "Hg", face = face }:getSize().h + 2 * Space.px(10)
     local def = Modules.get(entry.module)
     local title = (def and def.title) or entry.module
@@ -424,7 +424,7 @@ function Editor:_buildFooter(rect_w, rect_h)
     local inset = Space.px(16)
     local gap   = Space.px(10)
     local pad_top = Space.px(8)
-    local h = TextWidget:new{ text = "Hg", face = Font:getFace("cfont", FS) }:getSize().h + 2 * Space.px(10)
+    local h = TextWidget:new{ text = "Hg", face = require("lib/bookshelf_fonts"):getFace("cfont", FS) }:getSize().h + 2 * Space.px(10)
     h = math.min(h, math.max(Space.px(32), (rect_h or 0) - Size.line.thin - pad_top))
     pad_top = math.max(pad_top, (rect_h or 0) - Size.line.thin - h)
     -- On a shelf the pages are the shelf's own, of books: no page dots, no

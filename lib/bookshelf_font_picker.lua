@@ -269,7 +269,7 @@ function FontPicker.show(current_face, on_select, default_face)
         -- Default, Done keeps.
         local actions = ButtonTable:new{
             width = width,
-            buttons = {{
+            buttons = require("lib/bookshelf_popup_kit").uiFontButtons{{
                 {
                     text = _("Cancel"),
                     callback = function() picker:revertAndClose() end,

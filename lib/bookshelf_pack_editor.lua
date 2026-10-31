@@ -133,6 +133,7 @@ function Editor:_rebuild()
     local w, h = self.dimen.w, self.dimen.h
 
     local title = TitleBar:new{
+        title_face = require("lib/bookshelf_popup_kit").titleFace(),
         width = w,
         title = T(_("Pack editor: %1"), self.pack),
         with_bottom_line = true,

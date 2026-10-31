@@ -527,6 +527,7 @@ function ColorPaletteWidget:update()
     }
 
     local title_bar = TitleBar:new{
+        title_face = require("lib/bookshelf_popup_kit").titleFace(),
         width            = self.dialog_width,
         title            = self.title or _("Pick a color"),
         with_bottom_line = true,

@@ -118,8 +118,8 @@ function Browser._renderCell(item, dimen)
     -- the card came out short of its slot by twice the border.
     local border = 0
     local pad = Space.padding.default
-    local label_face = Font:getFace("cfont", 16)
-    local state_face = Font:getFace("cfont", 13)
+    local label_face = require("lib/bookshelf_fonts"):getFace("cfont", 16)
+    local state_face = require("lib/bookshelf_fonts"):getFace("cfont", 13)
     local inner_w = dimen.w - 2 * (border + pad)
     local label = TextWidget:new{ text = O().displayName(e), face = label_face, max_width = inner_w }
     -- On or off is the checkbox in the corner; the only state line left is
@@ -461,7 +461,7 @@ function Browser._open(on_change, opts)
                 dimen = Geom:new{ w = w, h = _h },
                 TextBoxWidget:new{
                     text = T(_("No ornaments here.\n\nDrop PNG or SVG files into\n%1\nor a folder of them, which becomes a pack."), dir),
-                    face = Font:getFace("cfont", 16),
+                    face = require("lib/bookshelf_fonts"):getFace("cfont", 16),
                     width = math.floor(w * 0.9),
                     alignment = "center",
                 },

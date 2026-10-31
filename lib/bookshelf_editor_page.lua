@@ -71,9 +71,9 @@ local function newCtx(o)
     local fs = o.font_size or 20
     local ctx = setmetatable({
         fs = fs, w = o.width - 2 * o.inset,
-        face = Font:getFace("cfont", fs),
-        small = Font:getFace("cfont", math.max(10, fs - 3)),
-        chip_face = Font:getFace("cfont", math.max(10, fs - 2)),
+        face = require("lib/bookshelf_fonts"):getFace("cfont", fs),
+        small = require("lib/bookshelf_fonts"):getFace("cfont", math.max(10, fs - 3)),
+        chip_face = require("lib/bookshelf_fonts"):getFace("cfont", math.max(10, fs - 2)),
         gap = Space.px(10), layout = {},
     }, Ctx)
     return ctx
@@ -127,7 +127,7 @@ end
 
 -- A small button the height of a one-line control (Pick one >, the cross).
 function Ctx:smallButton(text, on, callback, h)
-    return Kit.button{ text = text, face = Font:getFace("cfont", math.max(10, self.fs - 2)),
+    return Kit.button{ text = text, face = require("lib/bookshelf_fonts"):getFace("cfont", math.max(10, self.fs - 2)),
         height = h or (self:cardH() - Space.px(12)), inverted = on or false,
         bold = on or false, on_tap = callback }
 end
@@ -249,7 +249,7 @@ local function labelled(ctx, label, ctl)
 end
 
 function R.segmented(ctx, b)
-    local face = Font:getFace("cfont", math.max(10, ctx.fs - 2))
+    local face = require("lib/bookshelf_fonts"):getFace("cfont", math.max(10, ctx.fs - 2))
     if not b.label then
         local seg, rows = Kit.segmented{ items = b.items, active = b.active,
             on_pick = b.on_pick, allow_none = b.allow_none, face = face, width = ctx.w,
@@ -483,7 +483,7 @@ function R.slot(ctx, b)
     if b.seg then
         local rows
         seg, rows = Kit.segmented{ items = b.seg.items, active = b.seg.active,
-            on_pick = b.seg.on_pick, face = Font:getFace("cfont", math.max(10, ctx.fs - 3)),
+            on_pick = b.seg.on_pick, face = require("lib/bookshelf_fonts"):getFace("cfont", math.max(10, ctx.fs - 3)),
             pad_v = Space.px(6), pad_h = Space.px(10) }
         for _i, c in ipairs(rows[1] or {}) do focus[#focus + 1] = c end
     end

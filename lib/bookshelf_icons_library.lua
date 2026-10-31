@@ -480,7 +480,7 @@ function IconsLibrary:show(on_select, opts)
             local TextWidget = require("lib/bookshelf_colour_text")
             local msg = TextWidget:new{
                 text = _("Drop .svg or .png files in koreader/icons/"),
-                face = Font:getFace("cfont", 16),
+                face = require("lib/bookshelf_fonts"):getFace("cfont", 16),
                 fgcolor = Blitbuffer.COLOR_BLACK,
                 max_width = content_width - Space.px(24),
             }

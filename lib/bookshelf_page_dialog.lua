@@ -129,6 +129,7 @@ function PageDialog:_build()
     local FocusManager = require("ui/widget/focusmanager")
     local EditorPage   = require("lib/bookshelf_editor_page")
     local title_bar = TitleBar:new{
+        title_face = require("lib/bookshelf_popup_kit").titleFace(),
         width = self.width, title = self:_titleText(),
         with_bottom_line = true, bottom_v_padding = 0,
         close_callback = function() self:_dismiss() end,

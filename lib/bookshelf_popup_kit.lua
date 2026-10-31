@@ -27,7 +27,7 @@ Kit.RADIUS = Space.radius.button
 -- control as Reading status, a step smaller: it picks what a tab shows.
 Kit.SOURCE_PAD_V = Space.px(8)
 function Kit.sourceFace(font_size)
-    return require("ui/font"):getFace("cfont", math.max(10, (font_size or 20) - 2))
+    return require("lib/bookshelf_fonts"):getFace("cfont", math.max(10, (font_size or 20) - 2))
 end
 
 -- tapCell(widget, w, h, on_tap, enabled, on_hold, instant) -> widget as a
@@ -684,7 +684,7 @@ function Kit.hintText(text, font_size, width, align, o)
     o = o or {}
     local TextBoxWidget = require("ui/widget/textboxwidget")
     return TextBoxWidget:new{ text = text, width = width, alignment = align,
-        face = o.face or require("ui/font"):getFace("cfont", math.max(10, (font_size or 20) - 3)),
+        face = o.face or require("lib/bookshelf_fonts"):getFace("cfont", math.max(10, (font_size or 20) - 3)),
         fgcolor = o.bg and Kit.DIM_ON_GREY or Blitbuffer.COLOR_DARK_GRAY,
         bgcolor = o.bg }
 end
@@ -696,22 +696,49 @@ end
 -- each rather than the button inverted. actions { { text, primary, enabled,
 -- callback } }; btns, left to right, for the keys. PageDialog's and
 -- LibraryModal's footers.
+-- buttonFont(size, bold) -> { face, size, bold }: a stock Button's font
+-- fields (text_font_face/size/bold) for the Bookshelf UI font, by the name
+-- KOReader's Font resolves (the face's orig_font).
+function Kit.buttonFont(size, bold)
+    local face, faux = require("lib/bookshelf_fonts"):getFace("cfont", size, { bold = bold })
+    return { face = (face and face.orig_font) or "cfont", size = (face and face.orig_size) or size,
+             bold = faux and true or false }
+end
+
+-- uiFontButtons(rows) -> rows: a stock ButtonTable's rows, each button in
+-- the Bookshelf UI font (font_face/size/bold), in the look ButtonTable
+-- gives them (cfont, 20, bold), where the entry sets none of its own.
+function Kit.uiFontButtons(rows)
+    local ff = Kit.buttonFont(20, true)
+    for _i, row in ipairs(rows or {}) do
+        for _j, b in ipairs(row) do
+            if b.font_face == nil then
+                b.font_face, b.font_size, b.font_bold = ff.face, ff.size, ff.bold
+            end
+        end
+    end
+    return rows
+end
+
 function Kit.footerRow(actions, w, o)
     o = o or {}
     local Button          = require("ui/widget/button")
     local LineWidget      = require("ui/widget/linewidget")
     local VerticalGroup   = require("ui/widget/verticalgroup")
-    local BFont           = require("lib/bookshelf_fonts")
     local Size            = require("ui/size")
     local n = #actions
     local each = math.floor(w / n)
     local hg = HorizontalGroup:new{ align = "center" }
     local btns = {}
+    -- KOReader's Button takes its font by name, not a face: the face this
+    -- passed was ignored, and the footers were KOReader's cfont, 20, bold.
+    -- That look, in the UI font (Kit.buttonFont).
+    local ff = Kit.buttonFont(20, true)
     for i, a in ipairs(actions) do
-        local face, bold = BFont:getFace("cfont", 16, { bold = a.primary == true })
         local enabled = a.enabled ~= false
         local btn = Button:new{
-            text = a.text, face = face, bold = bold,
+            text = a.text,
+            text_font_face = ff.face, text_font_size = ff.size, text_font_bold = ff.bold,
             bordersize = 0, radius = 0, padding_v = Space.px(12),
             width = (i == n) and (w - each * (n - 1)) or each,
             enabled = enabled,
@@ -875,6 +902,13 @@ function Kit.iconTitle(title_bar, title)
     return title_bar
 end
 
+-- titleFace() -> a title bar's font: the Bookshelf UI font's bold at the size
+-- KOReader's own title bars use (x_smalltfont, 22), so a menu's title is in
+-- the same typeface as the rest of it (maintainer). Follow mode: KOReader's.
+function Kit.titleFace()
+    return (require("lib/bookshelf_fonts"):getFace("x_smalltfont", 22))
+end
+
 -- backLabel(title_bar) -> title_bar: "Back" beside a stock TitleBar's back
 -- chevron, where it clears the centred title with padding; nothing where
 -- it would crowd it. The chevron alone was easy to miss (maintainer). A tap
@@ -888,7 +922,7 @@ function Kit.backLabel(title_bar)
     local _ = require("lib/bookshelf_i18n").gettext
     -- The title's size, not its bold (maintainer): a word beside the
     -- chevron, not a second title.
-    local regular = require("ui/font"):getFace("cfont", face.orig_size or 20)
+    local regular = require("lib/bookshelf_fonts"):getFace("cfont", face.orig_size or 20)
     local label = TextWidget:new{ text = _("Back"), face = regular,
         fgcolor = Blitbuffer.COLOR_BLACK }
     local pad = title_bar.button_padding or Space.px(11)

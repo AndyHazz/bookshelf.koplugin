@@ -41,7 +41,7 @@ local eq = helpers.eq
 local src = io.open("lib/bookshelf_reviews_modal.lua"):read("*a")
 
 t.test("the tab face takes an unscaled size", function()
-    local line = src:match("(self%.face%s*=%s*Font:getFace%b())")
+    local line = src:match("(self%.face%s*=%s*B?Font:getFace%b())")
     assert(line, "the tab face assignment moved")
     assert(not line:find("scaleBySize", 1, true),
         "the size is pre-scaled and Font:getFace scales it again: " .. line)

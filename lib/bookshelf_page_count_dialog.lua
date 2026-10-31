@@ -132,7 +132,7 @@ function Dialog:init()
     -- The popups' section heading (STYLE.md): grey, upper case, no line.
     local Kit = require("lib/bookshelf_popup_kit")
     local function heading(t) return Kit.heading(t, 20) end
-    local hint_face = Font:getFace("x_smallinfofont")
+    local hint_face = (require("lib/bookshelf_fonts"):getFace("x_smallinfofont", 20))
 
     -- A checkbox (or radio) and, under its label, a grey line on what it is.
     local function option(spec)
@@ -203,7 +203,7 @@ function Dialog:init()
         width = self.width,
         zero_sep = true,
         show_parent = self,
-        buttons = rows,
+        buttons = require("lib/bookshelf_popup_kit").uiFontButtons(rows),
     }
 
     -- build(inner_w) -> the body. Built twice when it does not fit the
@@ -274,7 +274,7 @@ function Dialog:init()
                     and T(_("Finds how long each book in %1 is (%2 books), for spine thickness, page count badges, sorting and the page count token."),
                           self.scope.label, #self.scope.paths)
                     or _("Finds how long each book is, for spine thickness, page count badges, sorting and the page count token."),
-                 Font:getFace("smallinfofont")),
+                 (require("lib/bookshelf_fonts"):getFace("smallinfofont", 22))),
             VerticalSpan:new{ width = pad },
             heading(_("Use page counts from, in this order")),
             VerticalSpan:new{ width = gap },
@@ -292,6 +292,7 @@ function Dialog:init()
     -- screen DPI setting (480 on a PW5) the body alone outgrew the screen and
     -- the title bar went off the top (maintainer, on device).
     local title_bar = TitleBar:new{
+        title_face = require("lib/bookshelf_popup_kit").titleFace(),
         width = self.width,
         title = _("Extract page counts"),
         with_bottom_line = true,

@@ -538,6 +538,7 @@ function LibraryModal:_renderTitleBar(content_width, modal_w)
         -- The menu's own title bar: its breadcrumb, back, and X.
         local back = self:_backAction()
         local bar = require("ui/widget/titlebar"):new{
+            title_face = PopupKit.titleFace(),
             width            = modal_w,
             title            = over.crumbs or self.config.title,
             with_bottom_line = true,

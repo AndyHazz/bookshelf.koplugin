@@ -89,4 +89,18 @@ t.test("a commit with nothing changed writes nothing", function()
         "commit writes and rebuilds the shelf with nothing changed")
 end)
 
+-- Maintainer, 2026-10-31: View mode beside Source (both short values),
+-- Filters beside Sort: a shorter front page. A narrow screen stacks them.
+t.test("the front page pairs Source with View mode, Filters with Sort", function()
+    assert(src:find("source_row[#source_row + 1] = view_cell", 1, true), "View mode is not beside Source")
+    assert(src:find("for _i, c in ipairs(sort_row or {}) do pair_row[#pair_row + 1] = c end", 1, true),
+        "Sort is not beside Filters")
+    assert(src:find("if not src_rows then", 1, true), "a source's own rows lose their place")
+end)
+
+t.test("a row too narrow for its cards stacks them full width", function()
+    local b = body(src, "local function buildCards(")
+    assert(b:find("Screen:scaleBySize(160)", 1, true), "narrow screens squeeze two cards side by side")
+end)
+
 t.done()

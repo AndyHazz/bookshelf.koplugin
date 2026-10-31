@@ -996,6 +996,18 @@ function Editor:editTab(tab_id, opts)
     local function buildCards(rows, layout, as_choice)
         local rows_vg = VerticalGroup:new{ align = "left" }
         local gap = Space.px(10)
+        -- A row whose cards would each be too narrow (a small screen) stacks
+        -- them full width (maintainer).
+        local stacked = {}
+        for _i, row in ipairs(rows) do
+            local n = #row
+            if n > 1 and (content_w - (n - 1) * gap) / n < Screen:scaleBySize(160) then
+                for _j, c in ipairs(row) do stacked[#stacked + 1] = { c } end
+            else
+                stacked[#stacked + 1] = row
+            end
+        end
+        rows = stacked
         for ri, row in ipairs(rows) do
             if ri > 1 then rows_vg[#rows_vg + 1] = VerticalSpan:new{ width = gap } end
             local all_notes = true
@@ -1567,6 +1579,17 @@ function Editor:editTab(tab_id, opts)
             }
         end
 
+        -- Short values side by side (maintainer): View mode beside Source,
+        -- then Filters (or what stands in their place) beside Sort, for a
+        -- shorter page. View mode is always shelf_row's last card. A source
+        -- with rows of its own in Sort's place keeps them under Filters.
+        local view_cell = table.remove(shelf_row)
+        if view_cell then source_row[#source_row + 1] = view_cell end
+        local pair_row = {}
+        for _i, c in ipairs(shelf_row) do pair_row[#pair_row + 1] = c end
+        if not src_rows then
+            for _i, c in ipairs(sort_row or {}) do pair_row[#pair_row + 1] = c end
+        end
         local buttons = {
             -- Row 0: Edit shelf name, then Shelf order: a page listing the
             -- shelves beside this one, each as the menu bar draws it, with up
@@ -1593,13 +1616,13 @@ function Editor:editTab(tab_id, opts)
                     end,
                 },
             },
-            -- The source, full width.
+            -- The source and View mode.
             source_row,
-            -- Filters (or a catalog's settings, or the + tile) and View mode.
-            shelf_row,
-            -- Sort -- or, for an OPDS source, the single disabled "Server
-            -- order" row computed above.
-            sort_row,
+            -- Filters (or a catalog's settings, or the + tile) and Sort --
+            -- for an OPDS source, the disabled "Server order" card.
+            pair_row,
+            -- Where a source's own rows replace Sort (src_rows, below).
+            src_rows and sort_row or {},
             -- The shelf's Theme, and a module among its books (look_row).
             look_row,
             -- The foot row: Delete | New shelf | Close (maintainer). One

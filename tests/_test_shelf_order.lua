@@ -95,4 +95,15 @@ t.test("a tap on a shelf's pill opens that shelf's editor", function()
     eq(#rows[1], 4)
 end)
 
+-- PW5, 2026-10-31: the page's frame went ~10 px wider on Shelf order and
+-- back on the way out. Each arrow card is wider than its height (its
+-- shadow), and the pill's width took the height: the row overflowed the
+-- page by the two shadows.
+t.test("an order row fits its page: the pill gets what the cards leave", function()
+    local page = io.open("lib/bookshelf_editor_page.lua"):read("*a")
+    local r = page:match("\n(function R%.order%(.-\nend)\n")
+    assert(r:find("local pill_w = ctx.w - up:getSize().w - down:getSize().w - 2 * gap", 1, true),
+        "the pill's width takes the arrows' nominal size")
+end)
+
 t.done()

@@ -314,7 +314,10 @@ function R.order(ctx, b)
     local up = ctx:nudgeCard(CHEV_UP, b.on_up, h, b.up_enabled ~= false, ctx.fs + 4)
     local down = ctx:nudgeCard(CHEV_DOWN, b.on_down, h, b.down_enabled ~= false, ctx.fs + 4)
     local gap = Space.px(8)
-    local pill_w = ctx.w - 2 * h - 2 * gap
+    -- The cards as they are (a card is wider than its height by its
+    -- shadow): the row overflowed the page by the two shadows and the frame
+    -- grew to it (PW5).
+    local pill_w = ctx.w - up:getSize().w - down:getSize().w - 2 * gap
     local border = Size.border.button
     local pad = Space.px(12)
     local ink = b.selected and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK

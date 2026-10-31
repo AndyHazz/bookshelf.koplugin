@@ -121,4 +121,17 @@ t.test("the Modules card stays, greyed with a reason, where it can't add", funct
     assert(src:find("enabled = why == nil,", 1, true), "the card is not greyed")
 end)
 
+-- Maintainer, 2026-10-31: the Modules card says how many the shelf has;
+-- Filters says what the page is for, not what is set (the rows say that),
+-- and its footnote goes.
+t.test("Modules says how many are on the shelf", function()
+    assert(src:find('T(_("%1 on this shelf"), n_mods)', 1, true), "the card does not count the shelf's modules")
+end)
+
+t.test("Filters says what it is for, with no restatement and no footnote", function()
+    assert(src:find('_("Use filters to restrict the books shown on this shelf.")', 1, true), "no help line on Filters")
+    assert(not src:find("Showing books that match", 1, true), "the filters are restated at the top")
+    assert(not src:find("A book must match every filter; each filter's page", 1, true), "the footnote is still there")
+end)
+
 t.done()

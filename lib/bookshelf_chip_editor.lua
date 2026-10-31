@@ -1569,8 +1569,11 @@ function Editor:editTab(tab_id, opts)
             elseif opts.bw:_isListMode() then
                 why = _("Not in List view")
             end
+            -- How many the shelf has (maintainer); none yet, the way to add one.
+            local n_mods = #(require("lib/bookshelf_shelf_modules").list(draft) or {})
+            local value = why or (n_mods > 0 and T(_("%1 on this shelf"), n_mods))
             look_row[#look_row + 1] = {
-                text = why and T(_("Modules: %1"), why) or _("Modules: Add to this shelf\xE2\x80\xA6"),
+                text = value and T(_("Modules: %1"), value) or _("Modules: Add to this shelf\xE2\x80\xA6"),
                 icon = "\u{EB94}",   -- shape-plus
                 enabled = why == nil,
                 -- The picker as a page of the editor (Home > Modules), like
@@ -1578,6 +1581,13 @@ function Editor:editTab(tab_id, opts)
                 -- differently, with no way back (user test). Picking closes
                 -- the editor and adds the module as before.
                 callback = why == nil and function()
+                    -- Some there: the layout editor, which moves, removes and
+                    -- adds them; none: straight to the picker.
+                    if n_mods > 0 then
+                        finish()
+                        opts.bw:_editShelfModules()
+                        return
+                    end
                     require("lib/bookshelf_module_picker"):show(function(key)
                         finish()
                         opts.bw:_editShelfModules(nil, { add = true, key = key })
@@ -3492,16 +3502,12 @@ function Editor:_openFilters(draft, on_close)
                     changed()
                 end }
         end
-        local summary = (#set == 0) and _("No filters: every book from the source.")
-            -- One filter a line: a genre's own lists are already split by
-            -- ";" (dimSummary), so one more ";" between filters ran together.
-            or T(_("Showing books that match:\n%1"), table.concat(set, "\n"))
-        local strip = { { type = "summary", text = summary } }
+        -- What the page is for; the rows say what is set (maintainer).
+        local strip = { { type = "summary", text = _("Use filters to restrict the books shown on this shelf.") } }
         if #set > 0 then
             strip[#strip + 1] = { type = "chips", items = { { text = _("Clear all filters"),
                 callback = function() draft.filter = {}; changed() end } } }
         end
-        rows[#rows + 1] = { type = "hint", text = _("A book must match every filter; each filter's page says how its own choices combine. The number beside a choice is how many books it would show with your other filters.") }
         return { strip = strip, blocks = rows }
     end
     d = Editor._menu{

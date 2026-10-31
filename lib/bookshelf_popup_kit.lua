@@ -886,7 +886,10 @@ function Kit.backLabel(title_bar)
     local face = tw and (tw.face or title_bar._text_face)
     if not (btn and tw and tw.getSize and face) then return title_bar end
     local _ = require("lib/bookshelf_i18n").gettext
-    local label = TextWidget:new{ text = _("Back"), face = face,
+    -- The title's size, not its bold (maintainer): a word beside the
+    -- chevron, not a second title.
+    local regular = require("ui/font"):getFace("cfont", face.orig_size or 20)
+    local label = TextWidget:new{ text = _("Back"), face = regular,
         fgcolor = Blitbuffer.COLOR_BLACK }
     local pad = title_bar.button_padding or Space.px(11)
     local x = pad + (btn.width or 0) + Space.px(4)

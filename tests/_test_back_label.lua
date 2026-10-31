@@ -17,6 +17,7 @@ t.test("the label only where it clears the centred title with padding", function
     local b = body()
     assert(b:find("if x + lw + gap > title_left then", 1, true), "the label can run into the title")
     assert(b:find('_("Back")', 1, true))
+    assert(b:find('getFace("cfont", face.orig_size or 20)', 1, true), "the label is the title's bold")
 end)
 
 t.test("a tap on the label goes back, as the chevron does", function()

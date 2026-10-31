@@ -3907,6 +3907,15 @@ end
 -- (see lib/bookshelf_night_mode_sync.lua), and keying on the wrong one would
 -- serve a bitmap inverted the wrong way round.
 function BookshelfWidget:_wallpaperWidget()
+    local w = self:_wallpaperWidgetRaw()
+    -- What is behind the shelf on screen, for whatever puts it back (the
+    -- cover opening, ring erases, wipes): the picture kept from another
+    -- shelf is not, and was flashed behind a picture-less shelf's row (PW5).
+    pcall(function() require("lib/bookshelf_wallpaper").setShowing(w ~= nil) end)
+    return w
+end
+
+function BookshelfWidget:_wallpaperWidgetRaw()
     local name = self:_wallpaperName()
     if not name then return nil end
     local ok, w = pcall(function()

@@ -723,6 +723,30 @@ t.test("restore: refuses an offscreen target rather than pasting the wrong pixel
     assert(W.restore(small, 0, 0, 4, 4) == false, "an offscreen target is refused")
 end)
 
+-- PW5 2026-10-31: on a shelf with no wallpaper, opening a book flashed the
+-- previous shelf's picture behind the row. The decoded picture is kept for
+-- going back to that shelf, and restore() put it back from there. A shelf
+-- without a picture says so (setShowing), and nothing paints the kept one.
+t.test("a kept picture is not put back on a shelf that has none", function()
+    local W = fresh()
+    W._bg = { bb = {}, w = 100, h = 100, paintTo = function() error("painted the kept picture") end }
+    local screen = { getWidth = function() return 100 end, getHeight = function() return 100 end,
+                     blitFrom = function() error("blitted the kept picture") end }
+    W.setShowing(false)
+    eq(W.isShowing(), false, "a kept picture counts as on screen")
+    eq(W.restore(screen, 0, 0, 10, 10), false)
+    eq(W.patch(screen, 0, 0, 0, 0, 10, 10), false)
+    eq(W.backdrop(screen), false)
+    -- Back on a shelf with a picture: it is there again.
+    W.setShowing(true)
+    eq(W.isShowing(), true)
+    -- The shelf is what knows: its wallpaper decision tells the module.
+    local src = io.open("lib/bookshelf_widget.lua"):read("*a")
+    local b = assert(src:match("\nfunction BookshelfWidget:_wallpaperWidget%(%)\n(.-)\nend\n"))
+    assert(b:find('require("lib/bookshelf_wallpaper").setShowing(w ~= nil)', 1, true),
+        "the shelf does not say whether it has a picture")
+end)
+
 t.test("unfill: survives nils, non-tables and widgets with no frame", function()
     -- Callers pass whatever a build produced, and a build can legitimately
     -- produce nil (a button that is not shown in this state).

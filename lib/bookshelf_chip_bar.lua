@@ -415,6 +415,21 @@ local function _separatorOnFill(fill)
     return lum < 128 and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
 end
 
+-- _lineOnFill(fill, ink) -> the line between two chips of a custom fill: the
+-- bar's own line colour (ink) where it shows against the fill, so it
+-- matches the bar's other borders; else whichever of white or black does
+-- (_separatorOnFill). A mid-dark grey fill (Sewing Room on a PW5) took a
+-- white line beside Home while every other border was black (maintainer).
+local function _lineOnFill(fill, ink)
+    local function lum(c)
+        local ok, c8 = pcall(function() return c:getColor8() end)
+        return ok and c8 and type(c8.a) == "number" and c8.a or nil
+    end
+    local lf, li = lum(fill), lum(ink)
+    if lf and li and math.abs(lf - li) >= 64 then return ink end
+    return _separatorOnFill(fill)
+end
+
 -- _stripGround() -> the strip's own fill, for a rule that has to merge into
 -- it on one side and show on the other.
 local function _stripGroundRaw()
@@ -1358,7 +1373,7 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
                 -- solve exactly that, one per kind of fill.
                 local custom = _selectedChipColors()
                 sep_color = (type(custom) ~= "nil")
-                            and _separatorOnFill(custom)
+                            and _lineOnFill(custom, _stripInk())
                             or  _stripGround()
             elseif prev_filled or cur_filled then
                 sep_color = _stripGround()

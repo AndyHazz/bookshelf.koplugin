@@ -61,6 +61,26 @@ t.test("a DARK custom fill still gets a white one", function()
     assert(separatorOn(color8(0x20)) == WHITE, "a dark custom fill still needs white")
 end)
 
+-- PW5, 2026-10-31: the Sewing Room's mid-dark grey fill took a white line
+-- between the reading button and Home, where the bar's other borders are
+-- black (maintainer). The bar's own line wins wherever it shows on the fill.
+local line_body = src:match("\nlocal function _lineOnFill%(fill, ink%)\n(.-)\nend\n")
+assert(line_body, "could not find _lineOnFill")
+local function lineOn(fill, ink)
+    local env = { type = type, pcall = pcall, math = math,
+                  _separatorOnFill = function(f) return separatorOn(f) end }
+    local fn = compile("local fill, ink = ...\n" .. line_body, env, "_lineOnFill")
+    return fn(fill, ink)
+end
+
+t.test("between two filled chips the bar's own line wins where it shows", function()
+    assert(lineOn(color8(0x50), BLACK) == BLACK, "a mid-dark grey takes the borders' black")
+    assert(lineOn(color8(0x20), BLACK) == WHITE, "near-black still needs white")
+    assert(lineOn(color8(0xE0), BLACK) == BLACK)
+    assert(lineOn(color8(0xC0), WHITE) == BLACK, "a light fill on a dark bar: the line that shows")
+    assert(lineOn(color8(0x50), WHITE) == WHITE, "a dark bar's white line shows on mid grey")
+end)
+
 t.test("a colour that cannot answer falls back rather than erroring", function()
     local ok, res = pcall(separatorOn, { getColor8 = function() error("nope") end })
     assert(ok, "must not propagate")
@@ -375,7 +395,7 @@ t.test("...and the separator between them is the line", function()
     -- the whole decision, from the first branch to the widget it colours
     local sep = src:match("(local sep_color.-LineWidget)")
     assert(sep, "the separator block moved or was renamed")
-    assert(sep:match("_separatorOnFill%(custom%)"),
+    assert(sep:match("_lineOnFill%(custom, _stripInk%(%)%)"),
         "a custom fill needs the luminance answer, not a fixed colour")
     assert(sep:match("or%s+_stripGround%(%)"),
         "and an inverted fill is the opposite of the strip, so the strip's "

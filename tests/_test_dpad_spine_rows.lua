@@ -33,7 +33,10 @@ local function compile(code, env, name)
     return assert(load(code, name, "t", env))
 end
 
-local env = { ipairs = ipairs, type = type, math = math }
+local env = { ipairs = ipairs, type = type, math = math,
+    -- No modules or pieces on these pages (_test_dpad_shelf_modules has them).
+    BookshelfWidget = { _keyStep = function() return nil end,
+                        _slotLand = function(_items, idx) return idx end } }
 local itemRows = compile("local self = ... ; " .. extract("_spineItemRows()"), env, "rows")
 local rowStep  = compile("local rows, n, cur, dir = ... ; " .. extract("_spineRowStep(rows, n, cur, dir)"), env, "step")
 local moveCur  = compile("local self, delta = ... ; " .. extract("_moveCursor(delta)"), env, "move")
@@ -75,6 +78,8 @@ local function shelf(row_lens, opts)
         _swapFooterInPlace = function(s_) s_.footer_swapped = true end,
         _swapHeroInPlace = function() end,
         _expanded = true,
+        _keyOrnAfters = function() return nil end,
+        _keyOrnIndex = function() return nil end,
     }
     s._spineItemRows = function(self_) return itemRows(self_) end
     s._spineRowStep = function(...) return rowStep(...) end

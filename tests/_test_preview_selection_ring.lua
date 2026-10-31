@@ -64,6 +64,8 @@ local function tap(opts)
         _opdsEnsurePreviewCover = function() end,
         _hydrateBook      = function(_s, b) return b end,
         _clearDpadFocus   = function() end,
+        _keyOrnWidget     = function() return nil end,
+        _cursorModule     = function() return nil end,
         _rebuild          = function() took.rebuild = true end,
         _swapHeroInPlace  = function() took.swap_hero = true end,
         _repaintSelectionHighlight = function(_s, old, new)

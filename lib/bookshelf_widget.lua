@@ -7350,11 +7350,17 @@ function BookshelfWidget:_moduleRow(row, heads)
     local SpineWidget = require("lib/bookshelf_spine_widget")
     local off = SpineWidget.SHADOW_OFFSET or 0
     local card_h = math.max(1, (row.cover_h or sh) - off)
+    -- The keys' cursor on a module wears the editor's ring.
+    local keyed = self:_cursorModule()
     for _i, h in ipairs(heads) do
         local card_w = math.max(1, h.span * sw + (h.span - 1) * gap - off)
         local ok, cell = pcall(HeroModules._makeCell, self, h.entry, card_w, card_h, 100, false, false)
         if ok and cell then
-            local selected = edit and edit.selected_id == h.entry.id
+            -- Press and the hold chord find it here, as on a spine page.
+            self._spine_module_cells = self._spine_module_cells or setmetatable({}, { __mode = "v" })
+            self._spine_module_cells[h.entry.id] = cell
+            local selected = (edit and edit.selected_id == h.entry.id)
+                or (keyed and keyed.id == h.entry.id)
             -- A bare module (an ornament) has no card, so no cover shadow
             -- under it (maintainer); only the selection ring while picked.
             local def = require("lib/bookshelf_start_menu_modules").get(h.entry.module)
@@ -7440,7 +7446,10 @@ function BookshelfWidget:_noteSpineRows(plan)
             anchors[r] = { c = self._cursor + e.item_idx - 1, s = k }
             for i = row.first, row.last or row.first do
                 local b = entries[i] and entries[i].book
-                if b and b.filepath then row_of[b.filepath] = r end
+                -- A module by its id: without it the keys' rows stopped at
+                -- the first module, and the books after it were out of reach.
+                local key = b and (b.filepath or (b.shelf_module and b.id))
+                if key then row_of[key] = r end
             end
         end
     end
@@ -7620,6 +7629,8 @@ end
 
 function BookshelfWidget:_buildSpineRows(items, content_w, shelf_h, PAD, n_rows)
     local SpineShelf = require("lib/bookshelf_spine_shelf")
+    -- The page's dealt pieces, stops for the keys (_noteKeyOrn).
+    self._key_orns_build = {}
     local shared = self:_shelfCallbacks()
     -- The options both of plan()'s passes must agree on (see _spinePlanBase),
     -- face-outs chosen from the chip's WHOLE list, not the page drawn here.
@@ -7733,6 +7744,15 @@ function BookshelfWidget:_buildSpineRows(items, content_w, shelf_h, PAD, n_rows)
         if b then badges[#badges + 1] = b end
     end
     self._spine_badges = badges
+    -- In the order they stand along the page; one gap's pieces as dealt.
+    local orns = self._key_orns_build or {}
+    self._key_orns_build = nil
+    for i, o in ipairs(orns) do o.i = i end
+    table.sort(orns, function(x, y)
+        if x.after ~= y.after then return x.after < y.after end
+        return x.i < y.i
+    end)
+    self._key_orns = orns
     -- Preloader hint: covers are only painted face-out, at spine height.
     rows[1].cover_w = math.floor(shelf_h / 1.5)
     rows[1].cover_h = shelf_h
@@ -12716,7 +12736,9 @@ function BookshelfWidget:_spineItemRows()
     end
     local rows, n = {}, 0
     for i, it in ipairs(self._page_items or {}) do
-        local r = it.filepath and sr.row_of[it.filepath]
+        -- A module's row is noted by its id (it has no file).
+        local r = (it.filepath and sr.row_of[it.filepath])
+            or (it.shelf_module and it.id and sr.row_of[it.id])
         if not r and type(it.books) == "table" then
             -- A flattened group spans spines: it sits where it starts.
             for _j, b in ipairs(it.books) do
@@ -12751,6 +12773,157 @@ function BookshelfWidget._spineRowStep(rows, n, cur, dir)
     return math.min(first + (cur - start), last)
 end
 
+-- ── The keys' cursor on a shelf's modules and dealt ornaments ───────────
+-- A module stands among the page's items (_page_items), so the cursor stops
+-- on it as on a book; a dealt ornament stands between two of them
+-- (pin_after_idx: the item it stands after), so it is a stop of its own,
+-- _cursor_orn, held beside the item index. Press does what a tap does, the
+-- hold chord what a long-press does: their menus, from the keys.
+
+-- _keyStep(afters, idx, k, dir) -> "orn", index | "item", index | nil: a
+-- left or right step through the page's pieces. afters: where each piece
+-- stands (after which item), in order; idx: the cursor's item; k: the
+-- piece it is on, or nil. nil: no piece in the way, a book's own move.
+function BookshelfWidget._keyStep(afters, idx, k, dir)
+    if k then
+        local a = afters[k]
+        if afters[k + dir] == a then return "orn", k + dir end
+        if dir > 0 then return "item", a + 1 end
+        return "item", a
+    end
+    if dir > 0 then
+        for j = 1, #afters do if afters[j] == idx then return "orn", j end end
+    else
+        for j = #afters, 1, -1 do if afters[j] == idx - 1 then return "orn", j end end
+    end
+    return nil
+end
+
+-- _slotLand(items, idx, dir) -> where a covers page's cursor comes to rest
+-- at idx: a module wider than a slot is one stop (its first slot), a blank
+-- slot none (on in dir; dir 0, a step up or down, only the first-slot rule).
+function BookshelfWidget._slotLand(items, idx, dir)
+    local it = items[idx]
+    local s = it and it.shelf_slot
+    if not s then return idx end
+    if s.blank then
+        if dir == 0 then return idx end
+        return BookshelfWidget._slotLand(items, idx + dir, dir)
+    end
+    local part = s.part or 1
+    if part > 1 then
+        if dir > 0 then return BookshelfWidget._slotLand(items, idx + (s.span or part) - part + 1, dir) end
+        return idx - part + 1
+    end
+    return idx
+end
+
+-- _cursorModule() -> the shelf module the keys' cursor is on, or nil.
+function BookshelfWidget:_cursorModule()
+    if not (self._focus_zone == nil or self._focus_zone == "grid") then return nil end
+    if self:_keyOrnIndex() then return nil end
+    local it = self._cursor_idx and self._page_items and self._page_items[self._cursor_idx]
+    if not it then return nil end
+    if it.shelf_module then return it.shelf_module end
+    return it.shelf_slot and it.shelf_slot.module or nil
+end
+
+-- _noteKeyOrn(w_): a dealt piece on the page being built, a stop for the keys
+-- (SpineShelf._noteKeyOrn). _buildSpineRows collects and orders them.
+function BookshelfWidget:_noteKeyOrn(w_)
+    local list = self._key_orns_build
+    if not list then return end
+    list[#list + 1] = { w = w_, after = w_.pin_after_idx }
+    local bw = self
+    w_.key_focus = function(w) return bw:_keyOrnWidget() == w end
+end
+
+-- _keyOrnIndex() -> the piece the keys' cursor is on (its place in
+-- _key_orns), while it is on this page's grid; nil otherwise.
+function BookshelfWidget:_keyOrnIndex()
+    local k = self._cursor_orn
+    if not k then return nil end
+    if not (self._focus_zone == nil or self._focus_zone == "grid") then return nil end
+    if self._cursor_orn_c ~= self._cursor or self._cursor_orn_chip ~= self.chip then return nil end
+    if not (self._key_orns and self._key_orns[k]) then return nil end
+    return k
+end
+
+function BookshelfWidget:_keyOrnWidget()
+    local k = self:_keyOrnIndex()
+    return k and self._key_orns[k].w or nil
+end
+
+-- _keyOrnAfters(n) -> where each of the page's pieces stands, in order, past
+-- the last book counted as after it (n); nil when there are none.
+function BookshelfWidget:_keyOrnAfters(n)
+    local list = self._key_orns
+    if not (list and #list > 0) then return nil end
+    local out = {}
+    for i, o in ipairs(list) do out[i] = math.min(o.after, n) end
+    return out
+end
+
+-- _paintKeyRing(bb, x, y, size): the keys' ring over a module, inside its
+-- edge, inverting what is under it so it shows on any ground.
+function BookshelfWidget:_paintKeyRing(bb, x, y, size)
+    local Kit = require("lib/bookshelf_popup_kit")
+    Kit.invertRing(bb, x, y, size.w, size.h, Kit.focusWidth(), Space.px(8))
+end
+
+-- _keyTargetRect() -> where the module or piece under the cursor was drawn
+-- (its ring), or nil. _keyTargetRepaint(rect): that place again, after the
+-- cursor came or went without a rebuild (a zone change, a menu opening). A
+-- covers module's ring is built into its card, so its rows are rebuilt.
+function BookshelfWidget:_keyTargetRect()
+    local w_ = self:_keyOrnWidget()
+    local m = not w_ and self:_cursorModule()
+    local c = w_ or (m and self._spine_module_cells and self._spine_module_cells[m.id])
+    local d = c and c.dimen
+    if not (d and d.x) then return nil end
+    return Geom:new{ x = d.x, y = d.y, w = d.w, h = d.h }
+end
+
+function BookshelfWidget:_keyTargetRepaint(rect)
+    if not rect then return end
+    if self:_isSpineMode() then
+        UIManager:setDirty(self, "ui", rect)
+    else
+        self:_swapShelvesInPlace()
+    end
+end
+
+-- _keyTargetPress() / _keyTargetHold() -> true when the cursor is on a
+-- module or a piece and its tap or long-press has run.
+function BookshelfWidget:_keyTargetPress()
+    local w_ = self:_keyOrnWidget()
+    local m = not w_ and self:_cursorModule()
+    if not (w_ or m) then return false end
+    local cell = w_ or (self._spine_module_cells and self._spine_module_cells[m.id])
+    if cell and cell.onTap then
+        cell:onTap()
+    elseif cell and cell.onTapOrnament and not cell:onTapOrnament() then
+        -- A piece with no tap of its own: its menu, what else it can do.
+        return self:_keyTargetHold()
+    end
+    return true
+end
+
+function BookshelfWidget:_keyTargetHold()
+    local w_ = self:_keyOrnWidget()
+    local m = not w_ and self:_cursorModule()
+    if not (w_ or m) then return false end
+    local cell = w_ or (self._spine_module_cells and self._spine_module_cells[m.id])
+    -- The ring off first, as the menu opens beside the piece.
+    local rect = self:_keyTargetRect()
+    self:_clearDpadFocus()
+    self._cursor_orn = nil
+    self:_keyTargetRepaint(rect)
+    if cell and cell.onHoldOrnament then cell:onHoldOrnament()
+    else self:_shelfModuleOwner(self.chip).hold(m) end
+    return true
+end
+
 function BookshelfWidget:_moveCursor(delta)
     local items = self._page_items
     if not items or #items == 0 then return true end
@@ -12760,6 +12933,27 @@ function BookshelfWidget:_moveCursor(delta)
     local view_size = spine_n or (self:_nShelves() * n_cols)
     local cur       = self._cursor_idx or 1
     local new_idx   = cur + delta
+
+    -- A step along a spine page passes through the pieces dealt between its
+    -- books; along a covers page a wide module is one stop and a blank slot
+    -- none (_keyStep, _slotLand).
+    if spine_n and (delta == 1 or delta == -1) then
+        local afters = self:_keyOrnAfters(view_size)
+        if afters then
+            local what, v = BookshelfWidget._keyStep(afters, cur, self:_keyOrnIndex(), delta)
+            if what == "orn" then
+                self._cursor_orn, self._cursor_orn_c, self._cursor_orn_chip = v, self._cursor, self.chip
+                self._cursor_idx = math.max(1, math.min(view_size, afters[v]))
+                self:_swapShelvesInPlace()
+                return true
+            elseif what == "item" then
+                new_idx = v
+            end
+        end
+    elseif not spine_n then
+        new_idx = BookshelfWidget._slotLand(items, new_idx, (delta == 1 or delta == -1) and delta or 0)
+    end
+    self._cursor_orn = nil
 
     if new_idx < 1 then
         if self:_pageBackPossible() then
@@ -13290,10 +13484,23 @@ for _i, name in ipairs({ "onBSFocusUp", "onBSFocusDown", "onBSFocusLeft", "onBSF
     local move = BookshelfWidget[name]
     BookshelfWidget[name] = function(self, ...)
         local zone, before = self._focus_zone, self:_selectedFilepath()
+        local had = self:_keyTargetRect()
+        -- Up and down leave a piece for the rows (its book's).
+        if name == "onBSFocusUp" or name == "onBSFocusDown" then self._cursor_orn = nil end
         local r = move(self, ...)
         if self._focus_zone ~= zone then
             local after = self:_selectedFilepath()
             if after ~= before then self:_repaintSelectionHighlight(before, after) end
+            -- A module's or a piece's ring, off where it was or on where it is.
+            local now = self:_keyTargetRect()
+            if had or now then
+                if self:_isSpineMode() then
+                    self:_keyTargetRepaint(had)
+                    self:_keyTargetRepaint(now)
+                else
+                    self:_keyTargetRepaint(had or now)
+                end
+            end
         end
         return r
     end
@@ -13363,6 +13570,7 @@ function BookshelfWidget:onBSKbPress()
     end
 
     if self._focus_zone == "grid" then
+        if self:_keyTargetPress() then return true end
         local idx  = self._cursor_idx
         local item = idx and self._page_items and self._page_items[idx]
         if not item then return true end
@@ -13538,6 +13746,7 @@ function BookshelfWidget:onBSKbHold()
         return true
     end
     if self._focus_zone == "grid" then
+        if self:_keyTargetHold() then return true end
         local idx  = self._cursor_idx
         local item = idx and self._page_items and self._page_items[idx]
         if not item then return true end
@@ -15308,6 +15517,8 @@ function BookshelfWidget:_selectedFilepath()
     -- to the footer, the chips or the top panel, its cover kept the ring
     -- (maintainer). The index is kept, so coming back lands on that book.
     local on_grid = self._focus_zone == nil or self._focus_zone == "grid"
+    -- On a module or a piece: the ring is theirs, no book's.
+    if on_grid and (self:_keyOrnWidget() or self:_cursorModule()) then return nil end
     if on_grid and self._cursor_idx and self._page_items then
         local ci = self._page_items[self._cursor_idx]
         if ci then

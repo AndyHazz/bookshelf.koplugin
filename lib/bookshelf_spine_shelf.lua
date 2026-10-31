@@ -5039,6 +5039,15 @@ end
 -- as wide as the piece and as tall as the row. A long-press opens its module
 -- menu (it is a module), not the ornament menu; the module menu and its
 -- swipes find it through _spine_module_cells.
+-- _noteKeyOrn(opts, w_): a dealt piece that can be pinned is a stop for the
+-- keys' cursor on the shelf (BookshelfWidget:_noteKeyOrn), its long-press
+-- menu reached from the keys.
+function SpineShelf._noteKeyOrn(opts, w_)
+    if opts and opts.bw and opts.bw._noteKeyOrn and w_ and w_.pin_after_idx then
+        opts.bw:_noteKeyOrn(w_)
+    end
+end
+
 function SpineShelf._pinnedPieceTile(e, stand_h, opts)
     local Orn = require("lib/bookshelf_ornaments")
     local OverlapGroup = require("ui/widget/overlapgroup")
@@ -5053,6 +5062,11 @@ function SpineShelf._pinnedPieceTile(e, stand_h, opts)
         end
         bw._spine_module_cells = bw._spine_module_cells or setmetatable({}, { __mode = "v" })
         bw._spine_module_cells[m.id] = w_
+        -- The keys' ring while their cursor is on it.
+        w_.key_focus = function()
+            local cm = bw._cursorModule and bw:_cursorModule()
+            return cm ~= nil and cm.id == m.id
+        end
     end
     return OverlapGroup:new{ dimen = Geom:new{ w = e.w, h = opts.height or stand_h },
                              allow_mirroring = false, w_ }
@@ -5081,6 +5095,13 @@ function SpineShelf._moduleTile(e, stand_h, opts, push)
     if opts.bw and e.shelf_module and e.shelf_module.id then
         opts.bw._spine_module_cells = opts.bw._spine_module_cells or setmetatable({}, { __mode = "v" })
         opts.bw._spine_module_cells[e.shelf_module.id] = cell
+        -- The keys' ring while their cursor is on it, decided as it paints.
+        local bw, id, paint = opts.bw, e.shelf_module.id, cell.paintTo
+        cell.paintTo = function(c, bb, x, y)
+            paint(c, bb, x, y)
+            local cm = bw._cursorModule and bw:_cursorModule()
+            if cm and cm.id == id then bw:_paintKeyRing(bb, x, y, c:getSize()) end
+        end
     end
     return VerticalGroup:new{ align = "left",
         VerticalSpan:new{ width = top }, cell,
@@ -5120,6 +5141,7 @@ function SpineShelf.rowWidget(opts)
             w_.overlap_offset = { x, SpineShelf.ornamentY(pl, stand_h, opts) }
             -- Past the last book: "Pin here" stands it after all of them.
             if not opts.no_pin then w_.pin_after_idx = math.huge end
+            SpineShelf._noteKeyOrn(opts, w_)
             ornament = w_
         end)
         local kids = { dimen = dimen, plank }
@@ -5224,6 +5246,7 @@ function SpineShelf.rowWidget(opts)
                     -- Where "Pin here" stands it: before this row's first
                     -- item (an item index into the plan's list).
                     if not opts.no_pin then w_.pin_after_idx = SpineShelf.pinAfter(opts.plan.entries, i, "before") end
+                    SpineShelf._noteKeyOrn(opts, w_)
                     local part
                     if SpineShelf.behindAbove(lead_pl, w_.overlap_offset[2], opts) then
                         hanging[#hanging + 1] = w_
@@ -5256,6 +5279,7 @@ function SpineShelf.rowWidget(opts)
                         w_.overlap_offset = { cursor + math.floor((gap_w - pl.w) / 2),
                                               SpineShelf.ornamentY(pl, stand_h, opts) }
                         if not opts.no_pin then w_.pin_after_idx = SpineShelf.pinAfter(opts.plan.entries, i, "before") end -- in the gap before e
+                        SpineShelf._noteKeyOrn(opts, w_)
                         local part
                         if SpineShelf.behindAbove(pl, w_.overlap_offset[2], opts) then
                             hanging[#hanging + 1] = w_
@@ -5704,6 +5728,7 @@ function SpineShelf.rowWidget(opts)
                 if not opts.no_pin then w_.pin_after_idx = SpineShelf.pinAfter(opts.plan.entries, opts.row.last, "after") end
             end
         end)
+        SpineShelf._noteKeyOrn(opts, w_)
         local part
         if SpineShelf.behindAbove(pl, w_.overlap_offset[2], opts) then
             hanging[#hanging + 1] = w_

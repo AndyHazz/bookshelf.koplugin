@@ -1977,6 +1977,26 @@ end
 function M.Ornament:paintTo(bb, x, y)
     self.dimen.x, self.dimen.y = x, y
     M.paintPlacement(bb, x, y, self.placement, self.night)
+    -- key_focus(self): the shelf's keys' cursor is on this piece.
+    if self.key_focus and self.key_focus(self) then M.paintKeyRing(bb, x, y, self.placement) end
+end
+
+-- paintKeyRing(bb, x, y, p): the keys' ring round a piece's drawing (its
+-- content box, not the file's transparent room), inverting what is under
+-- it so it shows on any ground.
+function M.paintKeyRing(bb, x, y, p)
+    pcall(function()
+        local Kit = require("lib/bookshelf_popup_kit")
+        local l, t, r, b = M.contentBox(p.entry)
+        if not (l and t and r and b) then l, t, r, b = 0, 0, 1, 1 end
+        if p.mirror then l, r = 1 - r, 1 - l end
+        local pad = Kit.focusWidth() * 2
+        local rx = math.max(x, math.floor(x + l * p.w) - pad)
+        local ry = math.max(y, math.floor(y + t * p.h) - pad)
+        local rw = math.min(x + p.w, math.ceil(x + r * p.w) + pad) - rx
+        local rh = math.min(y + p.h, math.ceil(y + b * p.h) + pad) - ry
+        if rw > 0 and rh > 0 then Kit.invertRing(bb, rx, ry, rw, rh, Kit.focusWidth(), Kit.focusWidth() * 2) end
+    end)
 end
 
 -- paintPlacement(bb, x, y, p, night): a placement's picture at x, y. The

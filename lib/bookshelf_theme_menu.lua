@@ -93,9 +93,11 @@ end
 
 function M.menuHelp()
     local mine = require("lib/bookshelf_theme_pack").mineName()
+    -- What a pack leaves out is Plain's (0b1ee39e), not Custom theme's.
     return T(_("A theme can bring a wallpaper, a plank, colors, light or "
-            .. "dark, and ornaments. Anything it does not bring comes from "
-            .. "%1. Choosing a theme never changes %1.\n\nThe rows here edit "
+            .. "dark, and ornaments. Anything it does not bring is Plain's: "
+            .. "no wallpaper, the built-in plank and the default colors. "
+            .. "Choosing a theme never changes %1.\n\nThe rows here edit "
             .. "the theme of the shelf on screen. Your changes stay with that "
             .. "theme wherever it shows, and Reset in the Theme library brings "
             .. "back its original.\n\n"

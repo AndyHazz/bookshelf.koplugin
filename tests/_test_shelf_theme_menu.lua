@@ -351,6 +351,8 @@ t.test("the top-level row is named for the theme on screen; the help says its ro
     eq(TM.menuText(), "Theme (Custom theme)")
     local help = TM.menuHelp()
     assert(help:find("Choosing a theme never changes Custom theme", 1, true))
+    -- What a pack leaves out is Plain's since 0b1ee39e (review 2026-10-31).
+    assert(help:find("Anything it does not bring is Plain's", 1, true), "the help says Custom theme fills the gaps")
     assert(help:find("The rows here edit the theme of the shelf on screen.", 1, true),
         "the help does not say what the editing rows edit")
 end)

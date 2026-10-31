@@ -4721,6 +4721,13 @@ function SpineShelf.plan(items, opts)
     if hk then
         -- A pinned piece keeps its row: the dealt end piece gives way to it.
         hk.keep = function(i) return entries[i] and entries[i].orn_pl ~= nil end
+        -- A shelf module at a row's start claims the row: its dealt end
+        -- piece gives way rather than stand alone and push the module down
+        -- (a full-row module left page 1 with no books; maintainer).
+        hk.claims = function(i)
+            local e = entries[i]
+            return e ~= nil and e.shelf_module ~= nil and e.orn_pl == nil
+        end
         rows = SpineLayout.fillRows(widths, hk.avail, hk.gaps, hk.empty_ok, hk)
     else
         local g = {}

@@ -503,6 +503,38 @@ t.test("fill: a kept entry squeezes the row's end piece instead of wrapping", fu
     assert(rows[2].first == 5)
 end)
 
+-- A shelf module claims its row from the dealt end piece: the piece is sized
+-- down to the room left or comes off the row, rather than taking the row to
+-- itself and pushing the module down. Rig: Silverfish's card first on Home in
+-- spines stood alone on row 2 under a row of nothing but a plant, and page 1
+-- had no books (maintainer: "a full width module should remove that slot from
+-- the ornament placement or push it aside").
+t.test("fill: a module that claims its row squeezes the end piece, not an empty row", function()
+    local end_room, squeezed = 300, nil
+    local hooks = {
+        claims = function(i) return i == 1 end,
+        squeeze = function(r, need, kept)
+            squeezed = { r = r, need = need, kept = kept }
+            end_room = 0
+            return 1146
+        end,
+    }
+    local avail = function(r) return r == 1 and 1146 - end_room or 1146 end
+    local rows = SL.fillRows({ 1146, 40, 40 }, avail, 0, function(r) return r == 1 end, hooks)
+    assert(not rows[1].empty, "the end piece took row 1 to itself")
+    eq(rows[1].first, 1); eq(rows[1].last, 1)
+    assert(squeezed and squeezed.r == 1 and squeezed.need == 1146, "the end piece was not asked to give way")
+    assert(not squeezed.kept, "a module's squeeze may take the piece off; it is not the gentle one")
+    eq(rows[2].first, 2); eq(rows[2].last, 3)
+end)
+
+t.test("fill: a book that does not claim its row still lets the piece stand alone", function()
+    local hooks = { claims = function() return false end, squeeze = function() return 1146 end }
+    local avail = function(r) return r == 1 and 800 or 1146 end
+    local rows = SL.fillRows({ 1000, 40 }, avail, 0, function(r) return r == 1 end, hooks)
+    assert(rows[1].empty, "an overwide book pushed the end piece aside")
+end)
+
 t.test("fill: an entry not kept still wraps, and the end piece stays", function()
     local called = false
     local hooks = { keep = function() return false end,

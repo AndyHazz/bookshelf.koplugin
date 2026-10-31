@@ -172,6 +172,9 @@ end
 -- have a book" -- and two or three such rows may run together (full-row
 -- pieces one above another), but never more than MAX_EMPTY_RUN, so a book
 -- wider than any row still lands somewhere instead of looping.
+-- hooks.claims(i) -> true exempts entry i: a shelf module the reader put at a
+-- row's start takes that row, and the row's end piece gives way (squeeze)
+-- rather than standing alone and pushing it down.
 --
 -- gap is either one number, or an array where gap[i] is the gap painted
 -- BEFORE book i (so a group boundary can be wider than the gap inside a
@@ -204,8 +207,12 @@ function SpineLayout.fillRows(widths, avail_w, gap, empty_ok, hooks)
             -- A lead piece (a section's ornament whose boundary fell at this
             -- row's start) stands before the book and takes its width here.
             local lw = leadAt(i) or 0
+            -- An entry that claims its row (a shelf module the reader put
+            -- there) does not wait for the next: the row's end piece gives
+            -- way to it below (squeeze), sized down or off the row.
+            local claims = hooks and hooks.claims and hooks.claims(i)
             if w + lw > limit and empty_ok and empty_run < SpineLayout.MAX_EMPTY_RUN
-                    and empty_ok(#rows + 1) then
+                    and not claims and empty_ok(#rows + 1) then
                 rows[#rows + 1] = { first = i, last = i - 1, empty = true }
                 empty_run = empty_run + 1
                 limit = avail(#rows + 1, i)

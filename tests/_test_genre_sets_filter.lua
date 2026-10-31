@@ -53,11 +53,11 @@ local function addUnder(model, heading)
 end
 
 t.test("Genre: any, all and leave out", function()
-    eq(headings(page("genres")), "Any of these genres | All of these genres | Leave out these genres")
+    eq(headings(page("genres")), "Any of these genres (OR) | All of these genres (AND) | Leave out these genres (NOT)")
 end)
 
 t.test("Collection: any and leave out", function()
-    eq(headings(page("collections")), "In any of these collections | Leave out these collections")
+    eq(headings(page("collections")), "In any of these collections (OR) | Leave out these collections (NOT)")
 end)
 
 t.test("each list shows its picks, each with a cross that drops it", function()
@@ -73,12 +73,21 @@ end)
 
 t.test("a list's add opens the genre picker on that list", function()
     local model, draft = page("genres")
-    addUnder(model, "All of these genres").callback()
+    addUnder(model, "All of these genres (AND)").callback()
     eq(picked.dim, "genres")
     eq(picked.opts.set_key, "genres_all")
     eq(picked.draft, draft)
-    addUnder(model, "Leave out these genres").callback()
+    addUnder(model, "Leave out these genres (NOT)").callback()
     eq(picked.opts.set_key, "genres_not")
+end)
+
+-- The logic named as anyone who knows it reads it (maintainer); the
+-- breadcrumb keeps the plain name, and the hint gives a reason for AND.
+t.test("each list names its logic; the breadcrumb does not", function()
+    local src = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
+    assert(src:find('{ key = "genres_all",  heading = _("All of these genres (AND)"), crumb = _("All of these genres") }', 1, true))
+    assert(src:find("crumb = sec.crumb })", 1, true), "the breadcrumb carries (AND)")
+    assert(src:find("romantasy", 1, true), "the hint gives no example of AND")
 end)
 
 t.test("Filters opens Genre and Collection as these pages", function()

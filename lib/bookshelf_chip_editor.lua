@@ -75,13 +75,6 @@ local function _highAnchor(get_dialog)
     end
 end
 
--- The chip's view-mode pin, as words. lib/bookshelf_view_mode.lua deliberately
--- holds no strings and no gettext -- it is a pure resolver, testable headless --
--- so the wording lives here, where every other chip-editor label already does.
---
--- nil when the chip follows the global settings, NOT "Default": the callers
--- want to fall through to naming the tile style instead, and a caller that
--- genuinely wants the word supplies it.
 -- _shownMode(value, no_spines) -> a stored style as the shelf shows it. A
 -- catalogue (OPDS, or a source that fetches its own pages) has no spines,
 -- and shows a spines pin set before its source changed as covers, the
@@ -92,6 +85,11 @@ function Editor._shownMode(value, no_spines)
     return v
 end
 
+-- The chip's view-mode pin, as words. lib/bookshelf_view_mode.lua deliberately
+-- holds no strings and no gettext -- it is a pure resolver, testable headless --
+-- so the wording lives here, where every other chip-editor label already does.
+-- nil when the chip has no mode of its own: a caller that wants a word for
+-- that supplies it.
 function Editor._chipModeLabel(value)
     local v = ViewMode.chipOverride(value)
     if v == ViewMode.LIST   then return _("List")   end
@@ -112,12 +110,8 @@ function Editor._modeIcon(value, no_spines)
 end
 
 -- Per-key default sort direction. Picking one of these auto-sets the
--- matching reverse flag; the up-arrow indicator only renders when the
--- saved direction differs from this default. So "Book count (most
--- first)" / "Most recently added (newest first)" show no arrow at
--- their natural orientation; flipping them to ascending adds the ↑.
--- Same for text keys -- "Title (A-Z)" shows no arrow at default,
--- shows ↑ if the user reverses to Z-A.
+-- matching reverse flag; the Sort card names the direction only when the
+-- saved one differs from this default ("Title (Z-A)", but plain "Title").
 local DEFAULT_REVERSE = {
     book_count   = true,
     last_opened  = true,
@@ -647,12 +641,14 @@ function Editor:editTab(tab_id, opts)
     end
 
     -- finish(): Close, the title bar X, a tap outside and Back all end here.
-    -- Everything is saved already; what is left is the flush, and the shelf's
-    -- rebuild if the last change has not had it yet. A new shelf that never
-    -- got a source is not kept (see is_new).
+    -- Each change is saved as it is made; what can be left is a filter's
+    -- ticks, left by the X before its Apply: kept, as Back keeps them. Then
+    -- the flush, and the shelf's rebuild if the last change has not had it
+    -- yet. A new shelf that never got a source is not kept (see is_new).
     local function finish()
         if closed then return end
         if is_new and not hasSource() then return discardNew() end
+        if not Editor._sameValue(draft, committed) then commit() end
         closed = true
         UIManager:close(dialog)
         TabModel.flush()
@@ -789,7 +785,10 @@ function Editor:editTab(tab_id, opts)
     -- else applies at once: one change, one fetch.
     local rebuild   -- the dialog's own redraw, defined below
     local function sourceChosen()
-        if Editor._sameValue(draft.source, committed.source) then rebuild(); return end
+        -- The source it already has: the picker ran its defaults on the
+        -- working copy (the sort), which is put back, or the card would show
+        -- a sort that is not saved and the next change would save it.
+        if Editor._sameValue(draft.source, committed.source) then revert(); rebuild(); return end
         if draft.source.kind ~= TabModel.SHELVES_KIND
                 and #TabModel.childrenOf(tab_id) > 0 then
             UIManager:show(ConfirmBox:new{
@@ -1255,23 +1254,24 @@ function Editor:editTab(tab_id, opts)
         -- Sort-button text for level N. Reads draft.sort_priority[N] and
         -- resolves the key's label through _resolveSortLabel so the
         -- group-tab context-renames ("Name", "Surname", etc.) show up
-        -- consistently with what the picker offered. The ↑ glyph is
-        -- appended only when the direction is inverted from the key's
-        -- natural default -- a "Book count" sort at default (most-first)
-        -- reads cleaner without an arrow that would suggest ascending.
+        -- consistently with what the picker offered. A direction other than
+        -- the key's natural one is named in the Sort page's words ("Added
+        -- (Oldest first)"); at its natural one the key alone reads cleaner.
         local function _sortButtonText(d)
             local kind = d.source and d.source.kind
             local parts = {}
             for i, lv in ipairs(d.sort_priority or {}) do
                 local lbl = _resolveSortLabel(i, lv.key, kind)
                 if not _isDefaultDirection(lv.key, lv.reverse) then
-                    lbl = lbl .. " " .. "\xE2\x86\x91"
+                    -- Editor's: the local is declared further down.
+                    local asc, desc = Editor._dirLabels(lv.key)
+                    lbl = T(_("%1 (%2)"), lbl, lv.reverse and desc or asc)
                 end
                 parts[#parts + 1] = lbl
             end
             if #parts == 0 then return _("Sort: (none)") end
             -- "Sort: Added, Title": the card shows "Sort" as its heading.
-            return _("Sort: ") .. table.concat(parts, ", ")
+            return T(_("Sort: %1"), table.concat(parts, ", "))
         end
 
         -- Row 1b's contents: sort priority levels 1-3 for most sources, but
@@ -1428,17 +1428,9 @@ function Editor:editTab(tab_id, opts)
         -- a catalogue is offered the two options that mean something.
         shelf_row[#shelf_row + 1] = {
             text_func = function()
-                local SD = require("lib/bookshelf_stack_display")
-                -- ONE line for two settings, so it names the more consequential
-                -- one: a chip pinned to a mode says so, and only a chip that
-                -- follows the globals falls back to naming its tile style.
-                -- "Covers · Ribbon" was the alternative and does not fit the
-                -- row on a PW5 -- the picker shows both, and the shelf behind
-                -- already shows the look.
-                --
-                -- chipLabelFor, not labelFor: a chip has a state labelFor
-                -- cannot express -- "not set", which is not the same as "set to
-                -- Divider card".
+                -- The mode, as the card's icon shows it: no mode of its own is
+                -- Covers, the default. A tile style named here ("View mode:
+                -- Ribbon") read as a mode of its own; the page shows both.
                 local shown = Editor._shownMode(draft[ViewMode.CHIP_KEY], is_opds_src or is_paged_src)
                 local mode = Editor._chipModeLabel(shown)
                 -- Spines with books face out read as covers on the shelf
@@ -1450,8 +1442,7 @@ function Editor:editTab(tab_id, opts)
                         mode = _("Spines, face out")
                     end
                 end
-                return _("View mode: ")
-                    .. (mode or SD.chipLabelFor(draft.group_display))
+                return T(_("View mode: %1"), mode or _("Covers"))
             end,
             icon_func = function()
                 return Editor._modeIcon(draft[ViewMode.CHIP_KEY], is_opds_src or is_paged_src)
@@ -1560,8 +1551,8 @@ function Editor:editTab(tab_id, opts)
                         self:_openShelfOrder(tab_id, function()
                             -- Visual only (book lists unchanged): no book
                             -- cache to invalidate. The strip repaints in its
-                            -- new order.
-                            if opts.on_change then opts.on_change() end
+                            -- new order once the taps pause.
+                            schedulePreview()
                         end, editOther)
                     end,
                 },
@@ -2036,7 +2027,9 @@ function Editor:_openShelfOrder(tab_id, on_change, on_edit)
     local function move(id, delta)
         local all = TabModel.load()
         if TabModel.moveAmong(all, id, delta) then
-            TabModel.save(all)
+            -- In memory: the editor flushes as it closes. A write per tap
+            -- was ~130 ms on a PW5.
+            TabModel.saveDeferred(all)
             if on_change then on_change() end
             if d and d.refresh then d:refresh() end
         end
@@ -3928,9 +3921,10 @@ local function _dirLabels(key)
     if key == "size" then return _("Smallest first"), _("Largest first") end
     if key == "page_count" then return _("Shortest first"), _("Longest first") end
     if key == "book_count" then return _("Fewest first"), _("Most first") end
-    if key == "read_status" or key == "read_status_active" or key == "favorites_first" then
-        return _("First"), _("Last")
-    end
+    -- Named for what leads: "First" / "Last" read "Favorites first: Last".
+    if key == "read_status" then return _("Unread first"), _("Finished first") end
+    if key == "read_status_active" then return _("Reading first"), _("Finished first") end
+    if key == "favorites_first" then return _("Favorites first"), _("Favorites last") end
     if key == "collection_order" then return _("Your order"), _("Reversed") end
     return "A-Z", "Z-A"
 end
@@ -3964,30 +3958,6 @@ function Editor._sourceIcon(source)
     local kind = type(source) == "table" and source.kind
     if kind == "favorites" then return Editor._favGlyph() or SOURCE_ICONS.library end
     return SOURCE_ICONS[kind or ""] or SOURCE_ICONS.library
-end
-
--- _sortSummary(draft) -> the shelf's order as a sentence, for the Sort
--- page's strip and the editor's Sort card.
-function Editor._sortSummary(draft)
-    local levels = draft.sort_priority or {}
-    local kind = draft.source and draft.source.kind
-    local is_group = GROUP_KINDS[kind or ""] or false
-    if #levels == 0 then return _("No sort: the shelf keeps the order it finds.") end
-    local parts = {}
-    for i, lv in ipairs(levels) do
-        local asc, desc = _dirLabels(lv.key)
-        -- "newest first", but "A-Z" as it is.
-        local dir = (lv.reverse and desc or asc):gsub("^(%u)(%l)", function(a, b) return a:lower() .. b end)
-        parts[i] = T("%1 (%2)", _resolveSortLabel(i, lv.key, kind), dir)
-    end
-    if is_group then
-        local s = T(_("Groups by %1."), parts[1])
-        if #parts > 1 then
-            s = s .. " " .. T(_("Inside each: %1."), table.concat(parts, _(", then "), 2))
-        end
-        return s
-    end
-    return T(_("By %1."), table.concat(parts, _(", then ")))
 end
 
 -- _openSort -- every sort level on one page: the levels in the strip (each

@@ -196,7 +196,14 @@ end
 -- `if x and y then moveFocusTo(...)` branch correctly no-ops.
 function LibraryModal:getFocusableWidgetXY() end
 
+-- Back on the keys: a page of a menu (config.over) goes back a page, as its
+-- chevron does (STYLE.md); a picker of its own closes.
 function LibraryModal:onClose()
+    local back = self.config and self.config.over and self:_backAction()
+    if back then
+        back.on_tap()
+        return true
+    end
     UIManager:close(self)
     return true
 end

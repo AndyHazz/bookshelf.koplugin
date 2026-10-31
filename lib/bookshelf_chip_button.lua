@@ -169,7 +169,9 @@ function ChipButton.build(opts)
         btn.ges_events.HoldSelect = { GestureRange:new{ ges = "hold", range = btn.dimen } }
         btn.onHoldSelect = function()
             if opts.enabled ~= false then
-                require("lib/bookshelf_popup_kit").pressThen(btn, frame, opts.on_hold)
+                -- A nudge's hold (its big step) acts at once too.
+                if opts.instant then opts.on_hold()
+                else require("lib/bookshelf_popup_kit").pressThen(btn, frame, opts.on_hold) end
             end
             return true
         end

@@ -1380,10 +1380,8 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
         -- that fill and draw the thick loading ring, so the selected chip
         -- went white under the cursor (maintainer).
         local has_focus = (self.focused_key == chip.key)
-        local is_cursor_pre = false
-        local want_custom = is_active and not is_cursor_pre
         local fill_c, ink_c
-        if want_custom then fill_c, ink_c = _activeChipColors() end
+        if is_active then fill_c, ink_c = _activeChipColors() end
         -- Plain boolean, NOT `fill_c == nil`: Blitbuffer colours are ffi cdata
         -- with an __eq metamethod, and comparing one to nil routes through it
         -- and crashes indexing the nil operand (same trap bookshelf_color's
@@ -1418,9 +1416,8 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
                 w - 2 * Space.padding.small,
                 ink,
                 -- The default selected chip inverts itself (InvertedFrame below).
-                is_active and not is_cursor_pre and not has_custom)
+                is_active and not has_custom)
         end
-        local is_cursor = is_cursor_pre
         -- An action chip that points at the hero (currently reading, micro
         -- modules) is a BUTTON, and the breadcrumb layout draws that same
         -- button inside a frame of its own. Here it had none: on a
@@ -1457,8 +1454,8 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
                 w       = w,
                 h       = self.height,
                 fill    = has_custom and fill_c
-                          or ((is_active and not is_cursor) and paper or nil),
-                invert  = is_active and not is_cursor and not has_custom,
+                          or (is_active and paper or nil),
+                invert  = is_active and not has_custom,
                 border  = has_custom and Blitbuffer.COLOR_BLACK or _stripInk(),
                 -- Top and bottom always touch the strip's edge; left only for
                 -- the first chip and right only for the last. Anywhere else a
@@ -1492,7 +1489,7 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
             chip_body = InvertedFrame:new{
                 -- A custom colour is painted for real, so the inversion that
                 -- normally produces the selected look must be off for this chip.
-                _invert    = is_active and not is_cursor and not has_custom,
+                _invert    = is_active and not has_custom,
                 bordersize = 0,
                 margin     = 0,
                 padding    = 0,
@@ -1508,7 +1505,7 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
                 -- in 95e7496 left it out of scope, so since v5.1.2 they have
                 -- had no fill everywhere, and later work was tuned to that.)
                 background = has_custom and fill_c
-                             or ((is_active and not is_cursor) and paper or nil),
+                             or (is_active and paper or nil),
                 CenterContainer:new{
                     dimen = Geom:new{ w = w, h = self.height },
                     cell_content,

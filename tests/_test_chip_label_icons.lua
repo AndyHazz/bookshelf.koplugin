@@ -22,7 +22,7 @@ t.test("an image segment is drawn, sized, and coloured as the label", function()
     assert(build and build:find('seg.class == "image"', 1, true), "the label builder skips image segments")
     local measure = bar:match("local function _measureLabel%(label, size%)(.-)\nend\n")
     assert(measure and measure:find("_iconSide(size)", 1, true), "an icon's width is not counted")
-    assert(bar:find("is_active and not is_cursor_pre and not has_custom)", 1, true),
+    assert(bar:find("is_active and not has_custom)", 1, true),
         "the chip does not say when it inverts (a coloured icon would come out inverted)")
 end)
 

@@ -1,0 +1,65 @@
+-- tests/_test_kit_review.lua
+-- Fixes from the 2026-10-31 review of the shared popup kit.
+--
+-- Usage (from plugin root): lua tests/_test_kit_review.lua
+package.path = "./?.lua;./?/init.lua;" .. package.path
+local H = dofile("tests/_helpers.lua")
+local t = H.runner()
+local function read(p) return io.open(p):read("*a") end
+
+-- A right-to-left UI mirrors HorizontalGroup; controls painted by their own
+-- offsets put the black of a choice, a tick's label, under another cell.
+t.test("controls painted by their own offsets are not mirrored", function()
+    local kit = read("lib/bookshelf_popup_kit.lua")
+    assert(kit:find('local row = HorizontalGroup:new{ align = "top", allow_mirroring = false }', 1, true),
+        "Kit.segmented mirrors")
+    assert(kit:find('local hg, fr = HorizontalGroup:new{ align = "top", allow_mirroring = false }, {}', 1, true),
+        "Kit.segmentedGrid mirrors")
+    local sl = read("lib/bookshelf_slider.lua")
+    local _n, count = sl:gsub("allow_mirroring = false", "")
+    H.eq(count, 3, "the slider's rows mirror")
+end)
+
+t.test("a page of a menu lines up with it, takes its corners, and rings its footer", function()
+    local lm = read("lib/bookshelf_library_modal.lua")
+    assert(lm:find("self.modal_w = over and (over.w - 2 * Size.border.window)", 1, true),
+        "a page of the menu stands a border proud of it")
+    assert(lm:find("radius = over and Space.radius.window or Space.px(8),", 1, true), "a page has its own corners")
+    assert(lm:find("b.frame.radius = self.frame.radius", 1, true), "the footer's corners are not the frame's")
+    assert(lm:find("PopupKit.ringFocus(b,", 1, true), "the footer inverts on focus")
+end)
+
+t.test("greyed text is grey, a nudge's hold acts at once, no false in a keys row", function()
+    local ep = read("lib/bookshelf_editor_page.lua")
+    assert(ep:find("if enabled == false then return Blitbuffer.COLOR_GRAY end", 1, true), "greyed text is dark grey")
+    assert(ep:find("ctx:nudgeCard(PENCIL, b.on_edit, h, true, ctx.fs) or nil", 1, true),
+        "on_edit = false puts false in the keys row")
+    local cb = read("lib/bookshelf_chip_button.lua")
+    assert(cb:find("if opts.instant then opts.on_hold()", 1, true), "a hold shows pressed first")
+end)
+
+t.test("a card's heading reads on the card: light grey on black, darker grey on grey", function()
+    local kit = read("lib/bookshelf_popup_kit.lua")
+    assert(kit:find("local head = Kit.heading(text, font_size, Kit.headInk(ink))", 1, true),
+        "the icon heading ignores the card's ink")
+    local hi = kit:match("\n(function Kit%.headInk%(ink%).-\nend)\n")
+    assert(hi and not hi:find("== nil", 1, true), "a Color8 compared with nil raises on the device")
+    local BB = { COLOR_WHITE = {}, COLOR_BLACK = {}, COLOR_LIGHT_GRAY = {}, COLOR_GRAY = {} }
+    local K = { DIM_ON_GREY = {} }
+    local f = assert(load("local Kit, Blitbuffer = ...\n" .. hi .. "\nreturn Kit.headInk", "hi", "t", _G))(K, BB)
+    assert(f(BB.COLOR_WHITE) == BB.COLOR_LIGHT_GRAY)
+    assert(f(BB.COLOR_BLACK) == K.DIM_ON_GREY)
+    assert(f(nil) == K.DIM_ON_GREY)
+    assert(f(BB.COLOR_GRAY) == BB.COLOR_GRAY, "a greyed card's heading is not its grey")
+end)
+
+-- The picker spans the screen, so a bare setDirty(self) or close(widget,
+-- "ui") refreshed all of it on every swatch tap and on closing.
+t.test("the colour picker refreshes its own box", function()
+    local cp = read("lib/bookshelf_color_palette.lua")
+    assert(not cp:find('UIManager:setDirty(self, "ui")', 1, true), "a swatch tap refreshes the whole screen")
+    assert(not cp:find('UIManager:close(widget, "ui")', 1, true), "closing refreshes the whole screen")
+    assert(cp:find('UIManager:close(widget, "ui", (d and d.x) and d or nil)', 1, true))
+end)
+
+t.done()

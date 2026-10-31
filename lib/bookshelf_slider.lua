@@ -179,7 +179,10 @@ function Slider.new(o)
 
     -- Under the track: each tick's label, Default by name, left out where it
     -- would run into the one before.
-    local labels = HorizontalGroup:new{ align = "top" }
+    -- The track, its ticks and knob are painted by their own offsets, left
+    -- to right; the rows round them are not mirrored in a right-to-left UI,
+    -- or Default sat under another tick and + on the low end.
+    local labels = HorizontalGroup:new{ align = "top", allow_mirroring = false }
     local used = 0
     for _i, tv in ipairs(Slider.ticks(o)) do
         local text = (tv == o.default) and _("Default") or fmt(tv)
@@ -195,7 +198,7 @@ function Slider.new(o)
         end
     end
 
-    local row = HorizontalGroup:new{ align = "center" }
+    local row = HorizontalGroup:new{ align = "center", allow_mirroring = false }
     local keys = {}
     local function add(w)
         if #row > 0 then row[#row + 1] = HorizontalSpan:new{ width = gap } end
@@ -209,7 +212,8 @@ function Slider.new(o)
     end
     local vg = VerticalGroup:new{ align = "left",
         row,
-        HorizontalGroup:new{ align = "top", HorizontalSpan:new{ width = side }, labels },
+        HorizontalGroup:new{ align = "top", allow_mirroring = false,
+            HorizontalSpan:new{ width = side }, labels },
     }
     return vg, keys, fmt(value)
 end

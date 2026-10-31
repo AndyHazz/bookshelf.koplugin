@@ -157,6 +157,32 @@ t.test("keyFocus: the keys pass over a control that can't act", function()
     eq(f.selected.y, 1, "the seed did not follow its row")
 end)
 
+-- Review 2026-10-31: the cursor was kept by its index in the row left after
+-- the greyed ones went, so -5 greying at the minimum put it on +10 (the row
+-- {-10, -5, +5, +10} became {+5, +10}, and x = 2 was +10).
+t.test("keyFocus: a rebuild keeps the cursor by place, the nearest live one if it greyed", function()
+    local function fm(layout)
+        local f = { layout = layout, selected = { x = 1, y = 1 } }
+        f.onFocusMove = function(self, args) self.selected.x = self.selected.x + args[1]; return true end
+        f.moveFocusTo = function(self, x, y) self.selected = { x = x, y = y } end
+        return f
+    end
+    local m10, m5, p5, p10 = {}, {}, {}, {}
+    local state = {}
+    local a = fm({ { m10, m5, p5, p10 } })
+    Kit.keyFocus(a, state, 1, "p")
+    a:onFocusMove({ 0, 0 })                 -- shows it, on -10
+    a:onFocusMove({ 1, 0 })                 -- on -5
+    eq(a.selected.x, 2)
+    local b = fm({ { { enabled = false }, { enabled = false }, p5, p10 } })
+    Kit.keyFocus(b, state, 1, "p")
+    assert(b.layout[b.selected.y][b.selected.x] == p5, "the cursor jumped past the nearest live button")
+    -- Back to live: where it was.
+    local c = fm({ { m10, m5, p5, p10 } })
+    Kit.keyFocus(c, state, 1, "p")
+    assert(c.layout[c.selected.y][c.selected.x] == m5, "the cursor did not keep its place")
+end)
+
 t.test("the shelf editor quiets its foot row and seeds on the first card", function()
     local src = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
     assert(src:find("Kit.quietFocus(foot)", 1, true), "the foot row still takes the keys")
@@ -193,7 +219,8 @@ end)
 -- the grid.
 t.test("shelf menu bar and shelf: chip and crumb rings; the cover's ring follows the keys", function()
     local cb = io.open("lib/bookshelf_chip_bar.lua"):read("*a")
-    assert(cb:find("local is_cursor_pre = false", 1, true), "the cursor still clears the selected chip's fill")
+    assert(not cb:find("is_cursor", 1, true) and cb:find("if is_active then fill_c, ink_c = _activeChipColors() end", 1, true),
+        "the cursor still clears the selected chip's fill")
     assert(cb:find("if is_active and has_custom then ring_c = ink_c", 1, true)
            and cb:find("elseif is_active then ring_c = ink:invert()", 1, true),
         "the chip ring is not in the chip's own ink")

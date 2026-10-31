@@ -102,7 +102,9 @@ end
 
 function Ctx:ink(on, enabled)
     if on then return Blitbuffer.COLOR_WHITE end
-    if enabled == false then return Blitbuffer.COLOR_DARK_GRAY end
+    -- Grey, not dark grey: dark grey reads as black on e-ink (STYLE.md), so
+    -- a greyed control looked live.
+    if enabled == false then return Blitbuffer.COLOR_GRAY end
     return Blitbuffer.COLOR_BLACK
 end
 
@@ -312,7 +314,7 @@ function R.order(ctx, b)
     -- it opens a thing).
     -- edit_slot: the pencil's room kept empty on a row without one (the
     -- shelf being edited), so the arrows line up down the list.
-    local edit = b.on_edit and ctx:nudgeCard(PENCIL, b.on_edit, h, true, ctx.fs)
+    local edit = b.on_edit and ctx:nudgeCard(PENCIL, b.on_edit, h, true, ctx.fs) or nil
     local gap = Space.px(8)
     local pill_w = ctx.w - 2 * h - 2 * gap - ((edit or b.edit_slot) and (h + gap) or 0)
     local border = Size.border.button
@@ -334,7 +336,6 @@ function R.order(ctx, b)
     return row
 end
 
--- row(b, w) -> the card, and the cross beside it when the row can be cleared.
 -- rowParts(b, w) -> the row's inner width, ink, and whether its label and
 -- value fit side by side.
 function Ctx:rowParts(b, w)

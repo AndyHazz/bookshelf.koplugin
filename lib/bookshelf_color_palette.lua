@@ -349,7 +349,20 @@ function ColorPaletteWidget:onCloseWidget()
     end
 end
 
+-- _box(prev) -> a setDirty function for the picker's own box (and prev, where
+-- it was before a rebuild): the widget spans the screen, so a bare
+-- setDirty(self) refreshed the whole of it on every swatch tap.
+function ColorPaletteWidget:_box(prev)
+    return function()
+        local d = self._frame and self._frame.dimen
+        if d and d.x and prev then d = d:combine(prev) end
+        return "ui", (d and d.x) and d or prev
+    end
+end
+
 function ColorPaletteWidget:update()
+    local d0 = self._frame and self._frame.dimen
+    local prev = d0 and d0.x and Geom:new{ x = d0.x, y = d0.y, w = d0.w, h = d0.h } or nil
     local side = SWATCH_SIDE
     local gap  = SWATCH_GAP
     local iw   = self.inner_width
@@ -581,7 +594,7 @@ function ColorPaletteWidget:update()
         movable,
     }
 
-    UIManager:setDirty(self, "ui")
+    UIManager:setDirty(self, self:_box(prev))
 end
 
 -- Mid-edit hook: revalidates the typed hex and, when it forms a fresh valid
@@ -628,7 +641,7 @@ function ColorPaletteWidget:onHexSubmit()
 end
 
 function ColorPaletteWidget:onShow()
-    UIManager:setDirty(self, "ui")
+    UIManager:setDirty(self, self:_box())
     return true
 end
 
@@ -650,6 +663,11 @@ local function showColorPicker(bookshelf, title, current_hex, default_hex, on_ap
     end
 
     local widget
+    -- Closed with its own box refreshed, not the whole screen.
+    local function closeIt()
+        local d = widget._frame and widget._frame.dimen
+        UIManager:close(widget, "ui", (d and d.x) and d or nil)
+    end
     widget = ColorPaletteWidget:new{
         title            = title or _("Pick a color"),
         selected_hex     = current_hex,
@@ -658,17 +676,17 @@ local function showColorPicker(bookshelf, title, current_hex, default_hex, on_ap
         anchor           = opts and opts.anchor or nil,
         apply_callback   = on_apply,
         default_callback = function()
-            UIManager:close(widget, "ui")
+            closeIt()
             if on_default then on_default() end
             finish()
         end,
         revert_callback  = function()
-            UIManager:close(widget, "ui")
+            closeIt()
             if on_revert then on_revert() end
             finish()
         end,
         ok_callback      = function()
-            UIManager:close(widget, "ui")
+            closeIt()
             finish()
         end,
         special_tile     = special_tile and {
@@ -676,7 +694,7 @@ local function showColorPicker(bookshelf, title, current_hex, default_hex, on_ap
             image    = special_tile.image,
             selected = special_tile.selected and true or false,
             on_tap   = function()
-                UIManager:close(widget, "ui")
+                closeIt()
                 special_tile.on_tap()
                 finish()
             end,
@@ -684,14 +702,14 @@ local function showColorPicker(bookshelf, title, current_hex, default_hex, on_ap
         null_tile        = null_tile_label and {
             label  = null_tile_label,
             on_tap = function()
-                UIManager:close(widget, "ui")
+                closeIt()
                 if on_default then on_default() end
                 finish()
             end,
         } or nil,
         white_callback   = white_hex and function()
             if on_apply then on_apply(white_hex) end
-            UIManager:close(widget, "ui")
+            closeIt()
             finish()
         end or nil,
     }

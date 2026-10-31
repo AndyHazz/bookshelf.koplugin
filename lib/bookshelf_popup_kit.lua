@@ -31,7 +31,7 @@ function Kit.sourceFace(font_size)
 end
 
 -- tapCell(widget, w, h, on_tap, enabled, on_hold, instant) -> widget as a
--- w x h tap target that inverts when the dpad focuses it. enabled == false
+-- w x h tap target that shows the keys' ring when they focus it. enabled == false
 -- swallows the tap (not the hold). instant: a choice on a page that is drawn
 -- again to show it (a sort key, an option), so no pressed frame first: that
 -- was one more state for every tap to pass through (maintainer, PW5).
@@ -106,8 +106,8 @@ end
 function Kit.focusWidth() return Space.px(4) end
 
 -- invertRing(bb, x, y, w, h, t, r, square_bottom): invert a ring t wide
--- inside the box, its corners rounded to r (the cell's own inverted twice inside the ring,
--- so the middle is left as it was).
+-- inside the box, its corners rounded to r: the whole box inverted, then the
+-- part inside the ring inverted back, so only the ring changes.
 function Kit.invertRing(bb, x, y, w, h, t, r, square_bottom)
     if w <= 2 * t or h <= 2 * t then return bb:invertRect(x, y, w, h) end
     Kit.invertRounded(bb, x, y, w, h, r, square_bottom)
@@ -182,15 +182,26 @@ function Kit.keyFocus(fm, state, seed_y, page)
     if not (fm and fm.layout and #fm.layout > 0) then return end
     -- A control that can't act (greyed) is no stop for the keys: out of the
     -- layout, and a row with nothing left goes too (maintainer). seed_y
-    -- names a row of the layout as given.
-    local kept, new_seed = {}, nil
+    -- names a row of the layout as given. at[y][x] is where each control of
+    -- the given layout went (nil: greyed), back[ky][kx] where each kept one
+    -- came from: the cursor is kept by its place in the layout as given, so
+    -- a neighbour greying does not shift it onto another (the slider's -5
+    -- greying at its minimum put it on +10).
+    local kept, new_seed, at, back, len = {}, nil, {}, {}, {}
     for y, row in ipairs(fm.layout) do
-        local r = {}
-        for _x, item in ipairs(row) do
-            if item.enabled ~= false then r[#r + 1] = item end
+        local r, b = {}, {}
+        at[y], len[y] = {}, #row
+        for x, item in ipairs(row) do
+            if item.enabled ~= false then
+                r[#r + 1] = item
+                b[#r] = { y = y, x = x }
+                at[y][x] = { x = #r }
+            end
         end
         if #r > 0 then
             kept[#kept + 1] = r
+            back[#kept] = b
+            for _x, a in pairs(at[y]) do a.y = #kept end
             if not new_seed and y >= (seed_y or 1) then new_seed = #kept end
         end
     end
@@ -199,9 +210,28 @@ function Kit.keyFocus(fm, state, seed_y, page)
     local FocusManager = require("ui/widget/focusmanager")
     local UIManager = require("ui/uimanager")
     if state.page ~= page then state.page, state.sel = page, nil end
-    local y = state.sel and state.sel.y or seed_y or 1
+    local x, y = 1, seed_y or 1
+    local sel = state.sel
+    if sel then
+        -- Where it was, else the nearest live control on its row, else the
+        -- first row at or after it that has one.
+        local function nearest(oy, ox)
+            local row = at[oy]
+            if not row then return nil end
+            if row[ox] then return row[ox] end
+            for d = 1, len[oy] do
+                local hit = row[ox + d] or row[ox - d]
+                if hit then return hit end
+            end
+        end
+        local hit = nearest(sel.y, sel.x)
+        for oy = sel.y + 1, #at do
+            if hit then break end
+            hit = nearest(oy, 1)
+        end
+        if hit then x, y = hit.x, hit.y else y = #kept end
+    end
     y = math.max(1, math.min(#fm.layout, y))
-    local x = state.sel and state.sel.x or 1
     x = math.max(1, math.min(#fm.layout[y], x))
     fm.selected = { x = x, y = y }
     local function repaint()
@@ -217,7 +247,8 @@ function Kit.keyFocus(fm, state, seed_y, page)
             return true
         end
         local r = move(self, args)
-        state.sel = { x = self.selected.x, y = self.selected.y }
+        local from = back[self.selected.y] and back[self.selected.y][self.selected.x]
+        if from then state.sel = { x = from.x, y = from.y } end
         return r
     end
     -- Rebuilt with the cursor already showing: show it again where it was.
@@ -274,7 +305,10 @@ function Kit.segmented(o)
         end
     end
     local h = label_h + 2 * pad_v
-    local row = HorizontalGroup:new{ align = "top" }
+    -- Not mirrored in a right-to-left UI: the black of the one chosen and the
+    -- dividers are painted from the left by their own offsets, and under a
+    -- mirrored row they fell on another cell (as the shelf bar's chips, 559).
+    local row = HorizontalGroup:new{ align = "top", allow_mirroring = false }
     local cells, sel = {}, nil
     for i, it in ipairs(items) do
         if it.key == o.active then sel = i end
@@ -322,13 +356,11 @@ end
 -- segmentedWrap(o) -> widget, focus_rows: Kit.segmented, split into as many
 -- rows as it takes to fit o.max_w (each row its own rounded control), for a
 -- choice with more options than one line holds (a picker's filter chips).
--- Takes Kit.segmented's options (sized to labels) plus o.max_w, o.gap
--- (between rows) and o.max_rows. Past max_rows the last cell is "More"
+-- Takes Kit.segmented's options (sized to labels) plus o.max_w and
+-- o.max_rows. Past max_rows the last cell is "More"
 -- (o.more_label), which calls o.on_more(hidden_items); the active option is
 -- always among the ones shown.
 function Kit.segmentedWrap(o)
-    local VerticalGroup = require("ui/widget/verticalgroup")
-    local VerticalSpan  = require("ui/widget/verticalspan")
     local pad_h = o.pad_h or Space.px(16)
     local function width(it)
         -- The bold (active) width, so a row can't overflow once picked.
@@ -401,6 +433,7 @@ function Kit.segmentedWrap(o)
             end
             rows, hidden = pack(list, o.max_w - width(more))
         end
+        if #rows == 0 then rows[1] = {} end
         local last = rows[#rows]
         last[#last + 1] = more
     end
@@ -449,7 +482,8 @@ function Kit.segmentedGrid(o)
     local VerticalGroup = require("ui/widget/verticalgroup")
     local vg, focus_rows, cells = VerticalGroup:new{ align = "left" }, {}, {}
     for ri, row in ipairs(built) do
-        local hg, fr = HorizontalGroup:new{ align = "top" }, {}
+        -- Painted by its own offsets, as Kit.segmented: not mirrored.
+        local hg, fr = HorizontalGroup:new{ align = "top", allow_mirroring = false }, {}
         local cx = 0
         for i, it in ipairs(row.items) do
             local key, w = it.key, row.widths[i]
@@ -528,8 +562,7 @@ function Kit.pressThen(cell, card, action)
     local d = cell and cell.dimen
     if not (card and d and d.x) then return action() end
     local UIManager = require("ui/uimanager")
-    local Geom_ = Geom
-    local box = Geom_:new{ x = d.x, y = d.y, w = d.w + 2, h = d.h + 2 }
+    local box = Geom:new{ x = d.x, y = d.y, w = d.w + 2, h = d.h + 2 }
     card._pressed = true
     UIManager:widgetRepaint(cell, d.x, d.y)
     -- "ui", not "fast": fast is black and white only on e-ink, which turned
@@ -598,23 +631,33 @@ function Kit.cardify(frame, o)
     return frame
 end
 
--- heading(text, font_size) -> a section heading: grey, bold, upper case, a
--- step smaller than the body, no line (the book popup's _sectionHeadingBar).
-function Kit.heading(text, font_size)
+-- heading(text, font_size, fgcolor) -> a section heading: grey, bold, upper
+-- case, a step smaller than the body, no line (the book popup's
+-- _sectionHeadingBar). fgcolor: on a card, Kit.headInk's.
+function Kit.heading(text, font_size, fgcolor)
     local BFont = require("lib/bookshelf_fonts")
     local face, bold = BFont:getFace("cfont", math.max(10, (font_size or 20) - 4), { bold = true })
     return TextWidget:new{ text = require("lib/bookshelf_text_segments").upper(text),
-        face = face, bold = bold, fgcolor = Blitbuffer.COLOR_DARK_GRAY }
+        face = face, bold = bold, fgcolor = fgcolor or Blitbuffer.COLOR_DARK_GRAY }
+end
+
+-- headInk(ink) -> a card's heading colour for the card's own ink: on a black
+-- card (white ink) light grey, on a grey one the darker grey that reads on
+-- it (dark grey on a black card could not be seen, and on the grey was
+-- faint); a greyed card's grey as it is.
+function Kit.headInk(ink)
+    -- `not ink`: a Color8 raises when compared with nil.
+    if not ink or ink == Blitbuffer.COLOR_BLACK then return Kit.DIM_ON_GREY end
+    if ink == Blitbuffer.COLOR_WHITE then return Blitbuffer.COLOR_LIGHT_GRAY end
+    return ink
 end
 
 -- iconHeading(glyph, text, font_size, ink) -> a card's heading with its
 -- icon before it, on a line of their own, so the value under them has the
 -- card's whole width (maintainer). glyph nil: the heading alone.
 function Kit.iconHeading(glyph, text, font_size, ink)
-    local head = Kit.heading(text, font_size)
+    local head = Kit.heading(text, font_size, Kit.headInk(ink))
     if not glyph then return head end
-    local HorizontalGroup = require("ui/widget/horizontalgroup")
-    local HorizontalSpan = require("ui/widget/horizontalspan")
     local icon = TextWidget:new{ text = glyph,
         face = require("ui/font"):getFace("symbols", math.max(10, (font_size or 20) - 2)),
         fgcolor = ink or Blitbuffer.COLOR_BLACK }

@@ -1,14 +1,15 @@
---- bookshelf_library_modal -- shared chrome widget for the source pickers
---- (collection, genre, author). Renders header, optional tabs, search input,
---- chip strip (with two-row wrap), paginated list-or-grid result area, and
---- footer. Laid out to the popup style guide (STYLE.md): search, chips and the
---- screen's own actions (config.header_actions) on one grey strip under the
---- title; the footer edge to edge, closing the frame. Domain-specific data and per-row rendering are supplied by the
---- caller via a config table.
+--- bookshelf_library_modal -- shared chrome widget for the library pickers
+--- (collections, folders, ornaments, themes, modules...). Renders header,
+--- optional tabs, search input, chip strip, paginated list-or-grid result
+--- area, and footer. Laid out to the popup style guide (STYLE.md): search,
+--- chips and the screen's own actions (config.header_actions) on one grey
+--- strip under the title; the footer edge to edge, closing the frame. With
+--- config.over it opens as a page of the menu under it. Domain-specific data
+--- and per-row rendering are supplied by the caller via a config table.
 ---
---- Ported from bookends.koplugin/menu/library_modal.lua so bookshelf works
---- standalone without requiring the bookends plugin. The only difference
---- from upstream is the i18n require path.
+--- First ported from bookends.koplugin/menu/library_modal.lua so bookshelf
+--- works standalone; it has since grown its own (paging, pages of a menu,
+--- the style guide) and no longer tracks upstream.
 
 local Blitbuffer = require("ffi/blitbuffer")
 local CenterContainer = require("ui/widget/container/centercontainer")
@@ -417,7 +418,10 @@ function LibraryModal:_buildFrame()
     -- breathing room around the dialog for context.
     local over = self.config.over and self.config.over.rect()
     self._over_rect = over
-    self.modal_w = over and over.w or math.floor(Screen:getWidth() * 0.85)
+    -- modal_w is inside the frame's border; over.w is the menu's outside, so
+    -- a page of it takes the border off, or it stood a border proud of the
+    -- menu it covers on each side.
+    self.modal_w = over and (over.w - 2 * Size.border.window) or math.floor(Screen:getWidth() * 0.85)
     -- Width of inner content (search box, chip strip, cards, etc.) once the
     -- per-section MARGIN insets are applied in refresh().
     self.content_w = self.modal_w - 2 * MARGIN
@@ -433,7 +437,8 @@ function LibraryModal:_buildFrame()
         padding_left = 0,
         padding_right = 0,
         margin = 0,
-        radius = Space.px(8),
+        -- A page of a menu takes the menu's corners.
+        radius = over and Space.radius.window or Space.px(8),
         background = Blitbuffer.COLOR_WHITE,
         VerticalGroup:new{ align = "left" },
     }
@@ -1263,7 +1268,10 @@ function LibraryModal:_renderFooter(content_width)
             -- square off its corners. (Not a nil background: a Button's tap
             -- feedback inverts it.)
             local b = btns[#btns]
-            if b.frame then b.frame.radius = Space.px(8) end
+            if b.frame then b.frame.radius = self.frame.radius end
+            -- The keys' ring, not the button inverted (a black button reads
+            -- as one that is on), as every footer of ours (STYLE.md).
+            PopupKit.ringFocus(b, { Space.px(10), Space.px(4) }, PopupKit.RADIUS)
         end
         if #btns == 1 then return btns[1], btns end
         local hg = HorizontalGroup:new{ align = "center" }

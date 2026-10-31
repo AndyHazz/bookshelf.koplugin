@@ -3626,7 +3626,7 @@ local SET_SECTIONS = {
         { key = "genres_all",  heading = _("All of these genres (AND)"), crumb = _("All of these genres") },
         { key = "genres_not",  heading = _("Leave out these genres (NOT)"), crumb = _("Leave out these genres") },
         add = _("Add genres"),
-        hint = _("A book needs one genre from the first list, every genre in the second (Fantasy and Romance for a romantasy shelf) and none from the third. An empty list is ignored."),
+        hint = _("A book needs one genre from the first list, every genre in the second and none from the third. An empty list is ignored."),
     },
     collections = {
         { key = "collections",     heading = _("In any of these collections (OR)"), crumb = _("In any of these collections") },

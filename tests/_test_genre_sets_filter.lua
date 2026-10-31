@@ -82,12 +82,11 @@ t.test("a list's add opens the genre picker on that list", function()
 end)
 
 -- The logic named as anyone who knows it reads it (maintainer); the
--- breadcrumb keeps the plain name, and the hint gives a reason for AND.
+-- breadcrumb keeps the plain name. No example in the hint (maintainer).
 t.test("each list names its logic; the breadcrumb does not", function()
     local src = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
     assert(src:find('{ key = "genres_all",  heading = _("All of these genres (AND)"), crumb = _("All of these genres") }', 1, true))
     assert(src:find("crumb = sec.crumb })", 1, true), "the breadcrumb carries (AND)")
-    assert(src:find("romantasy", 1, true), "the hint gives no example of AND")
 end)
 
 t.test("Filters opens Genre and Collection as these pages", function()

@@ -62,7 +62,9 @@ a control by hand, so a change lands everywhere.
   it was across a rebuild (`Kit.keyFocus`). A KOReader ButtonTable inside
   our own FocusManager is quieted (`Kit.quietFocus`): events reach children
   first, and it took every arrow and pressed its own button. A control
-  that can't act (greyed) is no stop for the keys.
+  that can't act (greyed) is no stop for the keys, and the cursor is kept
+  by its place among all the controls, so a neighbour greying (a slider's
+  −5 at its minimum) never moves it onto another (+10).
 
 ## Controls
 
@@ -86,7 +88,9 @@ a control by hand, so a change lands everywhere.
   black border is too easy to miss, and dark grey reads as black on e-ink.
 - A yes/no that only changes what is shown (Include spoilers): a checkbox
   glyph and label on `Kit.tapCell`. Not saved unless it is a real setting.
-  A saved on/off is an On | Off segmented control (`Page` segmented).
+  A saved on/off is an On | Off segmented control (`Page` segmented); on a
+  card of the editor's front page it reads as its value ("Add shelf tile:
+  On"), as Filters does, never a tick.
 - Which look a button takes goes by what the tap does: a grey card nudges a
   value in place or opens a thing (a setting's row, an option, a theme, a
   colour, −/+ and ±10, a slider's steps, the d-pad's keys); an outline chooses or commits
@@ -101,12 +105,18 @@ a control by hand, so a change lands everywhere.
   −1 +1) and, outside them, the big one (−10 +10, `big`), the
   range's ends and Default ticked under it. A size nudge is a slim panel low
   on the screen so the preview stays in sight, its footer Cancel | Default |
-  Done (Default greyed at the default: the one footer that holds more than
-  the way out, maintainer).
+  Done (Default greyed at the default, maintainer). The font picker's
+  footer reads the same. These and the colour picker (Cancel | Default |
+  Apply, White where it has one) are the footers that hold more than the
+  way out. Its steps are kept in memory and written once as it closes.
 - A button with an icon and a label has them at its left, not centred, so
   buttons stacked in a column (one width) line up.
 - Hints and notes: `Kit.hintText`, grey. Never a greyed-out button used as
-  a label.
+  a label. Give it the room it has (`width`, and `"center"` in a bar):
+  with none it takes a fixed box, off centre.
+- A Shelf order row's name is outlined as its chip is on the shelf menu bar
+  (black for the shelf being edited), though it is not tapped: the one
+  outline that is not a button, so the list reads as the bar.
 - Icons from the bundled symbols font (Private Use Area glyphs only) mark
   what a card or row is about: Source, Filters, Sort, View mode, each
   filter and grouped source, each style. The same thing has the same icon
@@ -115,7 +125,9 @@ a control by hand, so a change lands everywhere.
   star.
 - A "Heading: value" card, and a row whose value doesn't fit beside its
   label, is two lines: the icon beside the grey heading
-  (`Kit.iconHeading`), then the value across the card's whole width. A
+  (`Kit.iconHeading`, its grey from `Kit.headInk`: light grey on a black
+  card, `DIM_ON_GREY` on a grey one), then the value across the card's
+  whole width. A
   clear cross beside a card is as tall as the card. The editor's
   Source card shows the source's own icon (`Editor._sourceIcon`), the one
   it has on the Source page.
@@ -168,7 +180,8 @@ a control by hand, so a change lands everywhere.
 - A menu inside a menu is a page of it, not a window over it: the same
   frame, a breadcrumb title (Home › View mode › Covers), a back chevron at
   the left and the X at the right that leaves the whole menu. Back on the
-  keys goes back a page.
+  keys goes back a page. Leaving by the X keeps what a page holds (a
+  filter's ticks before Apply), as going back does.
 - A page is a list of blocks (`Page`): summary, heading, hint, chips,
   segmented, stepper, row, option, slot. Lay a page out by what it holds,
   not as a grid of equal buttons.
@@ -205,7 +218,7 @@ a control by hand, so a change lands everywhere.
 ## Headings and text
 
 - Section headings: grey (COLOR_DARK_GRAY), bold, upper case, a step
-  smaller than body, space above, no line.
+  smaller than body, space above, no line. On a card, `Kit.headInk`'s grey.
 - Secondary details (page, date, counts): grey, a step smaller.
 - A file path in a header stays on one line: folders go from the front
   first, then the start of the name, keeping its end
@@ -221,6 +234,9 @@ a control by hand, so a change lands everywhere.
   words in hints ("diff", "draft", "staged").
 - Counts: "1 like" and "%d likes" as two strings (ngettext is a stub).
   Source strings in American English; British only in en_GB.po.
+- Whole strings for the translators: `T(_("Theme: %1"), name)`, not
+  `_("Theme: ") .. name`; a list of changes as whole phrases, one a line,
+  never a translated word lower-cased into another phrase ("mark %s").
 - A summary built of lower-case parts starts with a capital.
 
 ## Colour
@@ -252,7 +268,9 @@ a control by hand, so a change lands everywhere.
 
 - Rebuild in place and refresh only the popup's own box. Opening, closing
   or backing out of a popup shouldn't flash the whole screen unless what is
-  underneath really changed.
+  underneath really changed. A widget that spans the screen to catch taps
+  outside it (the colour picker) passes its frame's box, or a bare
+  `setDirty(self)` refreshes the whole screen.
 - One paint per tap. A tap that selects (a theme, a colour chip) shows the
   selection at once and nothing else first: no pressed look before it. A
   pressed look (`Kit.pressThen`) is for a tap whose action is slow to show.

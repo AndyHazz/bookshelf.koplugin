@@ -69,4 +69,16 @@ t.test("square_bottom reaches the frame", function()
     eq(Chip.build{ text = "Add", height = 40 }[1].square_bottom, nil)
 end)
 
+-- And open at the bottom: no line along the screen's edge, the sides run
+-- down off it, so they read as standing on the edge on purpose, not cut
+-- off by it (maintainer, 2026-10-31).
+t.test("a square-bottomed button has no bottom border", function()
+    local src = io.open("lib/bookshelf_chip_button.lua"):read("*a")
+    local block = assert(src:match("if self%.square_bottom and r > 0 and self%.dimen then(.-)\n    end\n    if %(self%.inverted"))
+    assert(not block:find("y + h - b, w, b", 1, true), "it still draws a bottom border")
+    assert(block:find("Color.paintRect(bb, x, y + h - r, b, r, ink)", 1, true), "its sides stop short")
+    local kit = io.open("lib/bookshelf_popup_kit.lua"):read("*a")
+    assert(kit:find("h - (square_bottom and t or 2 * t)", 1, true), "the keys' ring closes the bottom")
+end)
+
 t.done()

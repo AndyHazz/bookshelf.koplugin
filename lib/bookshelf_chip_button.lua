@@ -34,8 +34,10 @@ function ChipFrame:paintTo(bb, x, y)
     FrameContainer.paintTo(self, bb, x, y)
     local r = self.radius or 0
     if self.square_bottom and r > 0 and self.dimen then
-        -- Square bottom corners: the bottom r rows filled out to the edges
-        -- and the border drawn straight down and across.
+        -- Square bottom corners and an open bottom: the bottom r rows
+        -- filled out to the edges (over the frame's own bottom line) and the
+        -- sides drawn straight down. Flush with the screen's edge, a line
+        -- along it looked cut off (maintainer).
         local w, h, b = self.dimen.w, self.dimen.h, self.bordersize or 0
         local Color = require("lib/bookshelf_color")
         if self.background then
@@ -45,7 +47,6 @@ function ChipFrame:paintTo(bb, x, y)
             local ink = self.color or Blitbuffer.COLOR_BLACK
             Color.paintRect(bb, x, y + h - r, b, r, ink)
             Color.paintRect(bb, x + w - b, y + h - r, b, r, ink)
-            Color.paintRect(bb, x, y + h - b, w, b, ink)
         end
     end
     if (self.inverted or self._pressed) and self.dimen then

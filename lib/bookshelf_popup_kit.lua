@@ -111,7 +111,10 @@ function Kit.focusWidth() return Space.px(4) end
 function Kit.invertRing(bb, x, y, w, h, t, r, square_bottom)
     if w <= 2 * t or h <= 2 * t then return bb:invertRect(x, y, w, h) end
     Kit.invertRounded(bb, x, y, w, h, r, square_bottom)
-    Kit.invertRounded(bb, x + t, y + t, w - 2 * t, h - 2 * t, math.max(0, r - t), square_bottom)
+    -- Open at the bottom, as the button is (ChipFrame): the inside runs to
+    -- the bottom edge.
+    Kit.invertRounded(bb, x + t, y + t, w - 2 * t, h - (square_bottom and t or 2 * t),
+        math.max(0, r - t), square_bottom)
 end
 
 -- ringFocus(btn, inset, radius) -> btn: a stock KOReader Button that shows

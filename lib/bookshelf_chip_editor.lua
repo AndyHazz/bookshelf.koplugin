@@ -1558,24 +1558,31 @@ function Editor:editTab(tab_id, opts)
             }
         end
         -- A module among this shelf's books (covers or spines). The shelf
-        -- on screen only, never a module's own shelf, and not with Micro
-        -- modules > On the shelf off.
+        -- on screen only, never a module's own shelf. With Modules > On the
+        -- shelf off, or on a List shelf, the card stays, greyed, saying why:
+        -- it vanished with nothing to say so (maintainer).
         if opts.bw and opts.bw.chip == tab_id and not draft.card_only
-                and require("lib/bookshelf_settings_store").microOnShelf()
-                and opts.bw._editShelfModules and not opts.bw:_isListMode() then
+                and opts.bw._editShelfModules then
+            local why
+            if not require("lib/bookshelf_settings_store").microOnShelf() then
+                why = _("Off in Settings")
+            elseif opts.bw:_isListMode() then
+                why = _("Not in List view")
+            end
             look_row[#look_row + 1] = {
-                text = _("Modules: Add to this shelf\xE2\x80\xA6"),
+                text = why and T(_("Modules: %1"), why) or _("Modules: Add to this shelf\xE2\x80\xA6"),
                 icon = "\u{EB94}",   -- shape-plus
+                enabled = why == nil,
                 -- The picker as a page of the editor (Home > Modules), like
                 -- Theme: it was a window of its own over the editor, titled
                 -- differently, with no way back (user test). Picking closes
                 -- the editor and adds the module as before.
-                callback = function()
+                callback = why == nil and function()
                     require("lib/bookshelf_module_picker"):show(function(key)
                         finish()
                         opts.bw:_editShelfModules(nil, { add = true, key = key })
                     end, { for_hero = true, over = Editor._over({ _("Modules") }) })
-                end,
+                end or nil,
             }
         end
 

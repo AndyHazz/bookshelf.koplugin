@@ -112,4 +112,13 @@ t.test("the Face out page says what it is for, not what is ticked", function()
     assert(not src:find("Check as many reasons as you like", 1, true), "the ticks are restated at the top")
 end)
 
+-- Maintainer, 2026-10-31: the Modules card vanished with modules off on
+-- the shelf (or on a List shelf), with nothing to say why; it stays,
+-- greyed, saying why.
+t.test("the Modules card stays, greyed with a reason, where it can't add", function()
+    assert(src:find('why = _("Off in Settings")', 1, true), "modules off on the shelf hides the card")
+    assert(src:find('why = _("Not in List view")', 1, true), "a List shelf hides the card")
+    assert(src:find("enabled = why == nil,", 1, true), "the card is not greyed")
+end)
+
 t.done()

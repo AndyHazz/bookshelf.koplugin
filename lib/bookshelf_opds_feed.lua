@@ -287,6 +287,26 @@ local function entryAuthor(entry)
     return nil
 end
 
+-- entryPubdate(entry) -> the year a book was published, as %calibre{pubdate}
+-- shows it for a calibre book ("1974"), or nil (GitHub issue 566). KOReader
+-- has no publication date field, so only the feed can supply it:
+--   dcterms:issued / dc:issued: what the OPDS 1.x spec names for it.
+--   dc:date: calibre's own content server.
+--   published: Calibre-Web, whose <published> is the book's pubdate. Last,
+--     because calibre's server fills <published> with the date ADDED, and
+--     names the real one in dc:date above.
+--   OPDS 2.0: metadata.published, mapped onto entry._published.
+-- calibre writes 0100/0101-01-01 for "no date set": no year, as calibre_metadata.
+local PUBDATE_KEYS = { "_published", "dcterms:issued", "dc:issued", "dc:date", "published" }
+local function entryPubdate(entry)
+    for _i, k in ipairs(PUBDATE_KEYS) do
+        local v = entry[k]
+        local y = type(v) == "string" and v:match("^%s*(%d%d%d%d)")
+        if y and y:sub(1, 1) ~= "0" then return y end
+    end
+    return nil
+end
+
 -- ---------------------------------------------------------------------
 -- OPDS 2.0 (JSON): publications[]/navigation[] are reshaped into the same
 -- entry table the loop in mapEntries below already reads (title/author/
@@ -359,9 +379,10 @@ local CANON_THUMB_REL = "http://opds-spec.org/image/thumbnail"
 -- equivalent, so it becomes two synthetic links carrying the canonical rels
 -- above instead.
 local function opds2PublicationToEntry(pub)
-    local title, author, summary, id, series
+    local title, author, summary, id, series, published
     if type(pub.metadata) == "table" then
         if type(pub.metadata.title) == "string" then title = pub.metadata.title end
+        if type(pub.metadata.published) == "string" then published = pub.metadata.published end
         author = opds2AuthorName(pub.metadata.author)
         if type(pub.metadata.description) == "string" then summary = pub.metadata.description end
         if type(pub.metadata.identifier) == "string" and pub.metadata.identifier ~= "" then
@@ -399,6 +420,7 @@ local function opds2PublicationToEntry(pub)
         id = id,
         link = link,
         _series = series,
+        _published = published,
     }
 end
 
@@ -697,6 +719,11 @@ function M.mapEntries(catalog, feed_url, server_key)
                         existing.series, existing.series_name, existing.series_num = sname, sname, snum
                     end
                 end
+                -- Publication year: fill a nil, as the series above.
+                if not existing.calibre then
+                    local year = entryPubdate(entry)
+                    if year then existing.calibre = { pubdate = year } end
+                end
                 -- Cover: fill a nil, never replace what the first entry had.
                 if not existing.opds.thumbnail_url and thumb then
                     existing.opds.thumbnail_url = thumb
@@ -732,6 +759,11 @@ function M.mapEntries(catalog, feed_url, server_key)
                 -- fields a local book's record carries (GitHub issue 478).
                 local sname, snum = entrySeries(entry)
                 if sname then rec.series, rec.series_name, rec.series_num = sname, sname, snum end
+                -- The publication year, where %calibre{pubdate} reads a
+                -- calibre book's (GitHub issue 566), so the same token
+                -- shows it for a book still in the catalog.
+                local year = entryPubdate(entry)
+                if year then rec.calibre = { pubdate = year } end
                 book_records[#book_records + 1] = rec
                 if merge_key then
                     book_by_key[merge_key] = rec

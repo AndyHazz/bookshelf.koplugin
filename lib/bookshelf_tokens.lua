@@ -85,7 +85,7 @@ Tokens.CATALOGUE = {
     { category = "Book",     token = "%favourite",        description = _("Favorite icon, empty when not a favorite") },
     { category = "Book",     token = "%filename",         description = _("File name") },
     { category = "Book",     token = "%format",           description = _("Format (EPUB/PDF/…)") },
-    { category = "Book",     token = "%calibre{name}",     description = _("A calibre column by name, like %calibre{pubdate} or a custom column; dates show the year (needs the calibre beta, except a book's pubdate in an OPDS catalog)") },
+    { category = "Book",     token = "%calibre{name}",     description = _("A calibre column by name, like %calibre{pubdate} or a custom column; dates show the year (needs Read calibre metadata.calibre, except a book's pubdate in an OPDS catalog)") },
     { category = "Book",     token = "%size",             description = _("File size on disk") },
     { category = "Book",     token = "%added",            description = _("Date added (the file's own date)") },
     { category = "Book",     token = "%description",      description = _("Book blurb (HTML stripped)") },
@@ -1260,7 +1260,7 @@ end
 -- "%calibre" in the preview. Field names match case-insensitively, with or
 -- without calibre's leading '#' (a custom column "#year" answers both
 -- %calibre{year} and %calibre{#Year}). Values come pre-rendered as strings
--- on book.calibre by the repository, only when the calibre beta is on.
+-- on book.calibre by the repository, only when Read calibre metadata.calibre is on.
 local function calibreField(book, field)
     local map = book and book.calibre
     if type(map) ~= "table" then return "" end

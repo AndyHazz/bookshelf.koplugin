@@ -2008,7 +2008,9 @@ function M.bg(name, w, h, night)
     -- raw), and in every key that copy is kept under, its blurs' included.
     local ImageContrast = require("lib/bookshelf_image_contrast")
     local adjust = ImageContrast.wallpaperKey()
-    local key = path .. "|" .. w .. "x" .. h .. (night and "|n" or "") .. adjust
+    -- The night marker stays LAST: flipNight and frostFor read the held
+    -- buffer's mode from the key's last two characters.
+    local key = path .. "|" .. w .. "x" .. h .. adjust .. (night and "|n" or "")
     if M._bg and M._bg_key == key then return M._bg end
     local keep = keepTwo()
     -- A different picture: the blurs are of the old one. (Entries carry the

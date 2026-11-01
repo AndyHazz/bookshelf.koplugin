@@ -367,7 +367,11 @@ function ScaledCoverCache:put(filepath, bb, from_disk)
     -- decode-and-scale that just happened, paid once per cover ever, against
     -- ~37ms saved on every later launch. Failures are ignored by design: a
     -- full disk or a read-only data dir must cost nothing but the disk cache.
-    if not from_disk then
+    -- A copy of a boosted cover (Image contrast) is not raw: the disk copy
+    -- stays what it was rather than taking boosted pixels.
+    local ok_ic0, IC0 = pcall(require, "lib/bookshelf_image_contrast")
+    local arrived_boosted = ok_ic0 and IC0 and IC0.isBoosted(bb)
+    if not from_disk and not arrived_boosted then
         local D = _disk()
         if D then
             -- store() reports failure by RETURNING false, so the pcall

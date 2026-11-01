@@ -36,6 +36,13 @@ local function _boostCover(bb)
     local ok, ImageContrast = pcall(require, "lib/bookshelf_image_contrast")
     if ok and ImageContrast then ImageContrast.boostImage(bb) end
 end
+-- _derived(src, copy) -> copy, marked boosted when src was (a copy of a
+-- boosted cover must be neither boosted again nor stored to disk as raw).
+local function _derived(src, copy)
+    local ok, ImageContrast = pcall(require, "lib/bookshelf_image_contrast")
+    if ok and ImageContrast then ImageContrast.derive(src, copy) end
+    return copy
+end
 local TextFit         = require("lib/bookshelf_text_fit")
 local T               = require("ffi/util").template
 local _               = require("lib/bookshelf_i18n").gettext
@@ -2261,8 +2268,13 @@ function SpineWidget:_renderCover(bb)
         end
         if external_bb then
             local paint_bb = external_bb
-            _boostCover(external_bb)   -- put() would too; this covers no ck
-            if ck then paint_bb = ScaledCoverCache:put(ck, external_bb) end
+            -- put() boosts after writing the raw disk copy; with no key to
+            -- cache under, boost it here.
+            if ck then
+                paint_bb = ScaledCoverCache:put(ck, external_bb)
+            else
+                _boostCover(external_bb)
+            end
             local img_args = {
                 image            = paint_bb,
                 image_disposable = false,
@@ -2349,7 +2361,7 @@ function SpineWidget:_renderCover(bb)
             if bb and ((self.cover_bb == nil) or self.cover_bb_disposable) then
                 bb:free()
             end
-            local grown = _coverFillBB(cached, img_w, img_h)
+            local grown = _derived(cached, _coverFillBB(cached, img_w, img_h))
             local effective = ScaledCoverCache:put(fp, grown)
             return self:_wrapCoverInCard(
                 ImageWidget:new{
@@ -2438,7 +2450,7 @@ function SpineWidget:_renderCover(bb)
     -- policy.
     local cover_inner
     if self.cover_fill then
-        local scaled_bb = _coverFillBB(bb, img_w, img_h)
+        local scaled_bb = _derived(bb, _coverFillBB(bb, img_w, img_h))
         if img_disposable then bb:free() end
         if self.skip_cover_cache then
             -- Hero path: large render (~5x a shelf cover), shown one at a
@@ -2656,12 +2668,11 @@ function SpineWidget:_renderCoverAlignTop(card_w, card_h, border, img_w, img_h)
             bb, owned = fp and _getRepo().getCoverBB(fp), true
         end
         if not bb then return self:_renderFallback() end
-        local scaled_bb = bb:scale(img_w, nat_h)   -- new bb; leaves bb intact
+        local scaled_bb = _derived(bb, bb:scale(img_w, nat_h))   -- new bb; leaves bb intact
         if owned then bb:free() end
-        -- A fresh decode only: a caller's cover_bb can be made from covers
-        -- the cache already boosted (a stack's collage), and boosting twice
-        -- compounds.
-        if not self.cover_bb then _boostCover(scaled_bb) end
+        -- A copy of a boosted picture (a collage) is marked by _derived and
+        -- left alone.
+        _boostCover(scaled_bb)
         cover_widget = ImageWidget:new{
             image            = scaled_bb,
             image_disposable = true,

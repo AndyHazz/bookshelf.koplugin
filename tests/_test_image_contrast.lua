@@ -125,7 +125,8 @@ test("the wallpaper's adjustment is in its keys and before the night inversion",
     local f = src("lib/bookshelf_wallpaper.lua")
     local bg = f:match("\nfunction M%.bg%(.-\nend\n")
     assert(bg, "M.bg not found")
-    assert(bg:find('(night and "|n" or "") .. adjust', 1, true), "picture key")
+    assert(bg:find('adjust .. (night and "|n" or "")', 1, true),
+        "picture key, with the night marker last (flipNight reads it there)")
     assert(bg:find("dkey .. adjust", 1, true), "the blurs' key")
     local lut, inv = bg:find("wallpaperLUT", 1, true), bg:find("invertRect", 1, true)
     assert(lut and inv and lut < inv, "adjusted after the night inversion")
@@ -154,6 +155,36 @@ test("Image contrast sits below the UI font in Settings", function()
     local font = f:find('_("Bookshelf UI font: %1")', 1, true)
     local ic = f:find('_("Image contrast")', 1, true)
     assert(font and ic and font < ic)
+end)
+
+test("a copy of a boosted picture is marked, and never boosted again", function()
+    S.image_contrast_boost = 50
+    local src, copy, other = {}, {}, {}
+    IC.markBoosted(src)
+    assert(IC.derive(src, copy) == copy and IC.isBoosted(copy), "the mark passes on")
+    IC.derive({}, other)
+    assert(not IC.isBoosted(other), "a copy of a raw picture stays unmarked")
+    assert(IC.boostImage(copy) == false, "a marked copy is left alone")
+end)
+
+test("a boosted copy is not written to disk as a raw cover", function()
+    local f = src("lib/bookshelf_scaled_cover_cache.lua")
+    local put = f:match("\nfunction ScaledCoverCache:put%(.-\nend\n")
+    assert(put:find("not from_disk and not arrived_boosted", 1, true),
+        "a cover grown from a boosted one overwrote the raw disk copy")
+end)
+
+test("covers made from boosted ones carry the mark", function()
+    local w = src("lib/bookshelf_spine_widget.lua")
+    assert(w:find("_derived(cached, _coverFillBB(cached, img_w, img_h))", 1, true),
+        "the near-size grow path boosts a boosted cover twice")
+    assert(w:find("_derived(bb, _coverFillBB(bb, img_w, img_h))", 1, true),
+        "a collage drawn as a cover is boosted twice")
+    assert(not w:find("_boostCover(external_bb)   -- put() would too", 1, true)
+        and w:find("paint_bb = ScaledCoverCache:put(ck, external_bb)\n            else\n                _boostCover(external_bb)", 1, true),
+        "a keyed custom cover must be boosted by put(), after its raw disk copy")
+    local d = src("lib/bookshelf_stack_display.lua")
+    assert(d:find("IC.markBoosted(out)", 1, true), "the collage is not marked")
 end)
 
 print(string.format("PASS %d  FAIL %d", pass, fail))

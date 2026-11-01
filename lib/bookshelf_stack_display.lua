@@ -1076,6 +1076,7 @@ function M.collageBB(filepaths, width, height)
     for i, q in ipairs(order) do cells[i] = quarters[q] end
 
     local ok_cache, Cache = pcall(require, "lib/bookshelf_scaled_cover_cache")
+    local ok_ic, IC = pcall(require, "lib/bookshelf_image_contrast")
     local ok_repo,  Repo  = pcall(require, "lib/bookshelf_book_repository")
     local drawn = 0
     -- One histogram across every cover: the wash stands for the GROUP, so its
@@ -1137,6 +1138,12 @@ function M.collageBB(filepaths, width, height)
                 sources[i] = from or "none"
                 if not src then return end
                 local scaled = src:scale(cell.w, cell.h)
+                -- Image contrast: a cached cover is boosted already; a file or
+                -- a fresh decode is not, so its copy is boosted here and every
+                -- tile matches. The collage is marked boosted below.
+                if scaled and not (ok_ic and IC.isBoosted(src)) and ok_ic then
+                    IC.boostImage(scaled)
+                end
                 if scaled then
                     out:blitFrom(scaled, cell.x, cell.y, 0, 0, cell.w, cell.h)
                     sampleCover(hist, scaled)
@@ -1252,6 +1259,9 @@ function M.collageBB(filepaths, width, height)
         end)
     end
     paintDividers()
+    -- Every tile is boosted (above) when the boost is on: the collage is a
+    -- boosted picture, not to be boosted again where it is drawn.
+    if ok_ic and IC.boost() > 0 then IC.markBoosted(out) end
     return out
 end
 

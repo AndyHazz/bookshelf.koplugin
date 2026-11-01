@@ -204,7 +204,18 @@ end
 -- boostImage(bb) -> true when bb was changed. Once per buffer: a cached
 -- cover is handed back by put() many times, and is boosted only on the way
 -- in. Keyed weakly, so a freed buffer takes its mark with it.
+--
+-- A COPY of a boosted picture (a cached cover scaled up for a bigger slot, a
+-- collage made from cached covers) is boosted already: derive() passes the
+-- mark on, so the copy is not boosted a second time, and the cover cache
+-- does not write it to disk as if it were raw (isBoosted).
 local boosted = setmetatable({}, { __mode = "k" })
+function M.isBoosted(bb) return bb ~= nil and boosted[bb] == true end
+function M.markBoosted(bb) if bb then boosted[bb] = true end end
+function M.derive(src, copy)
+    if copy and M.isBoosted(src) then boosted[copy] = true end
+    return copy
+end
 function M.boostImage(bb)
     local s = M.boost()
     if s <= 0 or not bb or boosted[bb] then return false end

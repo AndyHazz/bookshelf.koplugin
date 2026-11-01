@@ -6550,7 +6550,13 @@ function SpineShelf.paintFaceOutTilt(tile)
         local margin = Screen:scaleBySize(8)
         local fx0 = math.max(rx, math.floor(math.min(rect.x, info.minx)) - margin)
         local fx1 = math.min(rx + rw, math.ceil(math.max(rect.x + rect.w, info.maxx)) + margin)
-        foot = { x = fx0, y = ry, w = math.max(1, fx1 - fx0), h = rh }
+        -- From just above the book's top (its page block, which sits on the
+        -- cover, and its selection ring included), not the row's: a plank design's drop (its shadow, an apron) from the
+        -- row above reaches into this row's top, and only that row paints
+        -- it. Put back from the row's top, it went missing behind the book
+        -- (maintainer, PW5). The book never drew above its own top.
+        local fy0 = math.max(ry, rect.y - math.ceil(fx.depth or 0) - margin)
+        foot = { x = fx0, y = fy0, w = math.max(1, fx1 - fx0), h = math.max(1, ry + rh - fy0) }
         local function ground(r)
             -- A row in a Shelf module kept its own ground (rowWidget).
             local g = row._ground

@@ -18,6 +18,15 @@ t.test("the row behind the book is repainted inside the book's footprint only", 
     assert(not body:find("Wallpaper.restore(bb, rx, ry, rw, rh)", 1, true), "the whole row's ground is still put back")
 end)
 
+-- The plank design of the row above draws its drop (a shadow, an apron) a
+-- little into this row's top. Putting the ground back from the row's top
+-- erased it behind the book (maintainer, PW5 photo, 2026-10-31): only from
+-- just above the book's own top down, which the book never drew above.
+t.test("the band above the book keeps what the row above drew there", function()
+    assert(body:find("math.max(ry, rect.y - math.ceil(fx.depth or 0) - margin)", 1, true), "the ground is put back from the row's top")
+    assert(not body:find("foot = { x = fx0, y = ry,", 1, true), "the footprint still starts at the row's top")
+end)
+
 t.test("the refresh is the footprint and the pose, not the row", function()
     local tail = assert(body:match("%-%- The footprint was repainted(.*)$"), "no return region")
     assert(tail:find("math.min(foot.x, math.floor(info.minx))", 1, true), "the refresh still starts at the row's edge")

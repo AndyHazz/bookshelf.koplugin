@@ -2,8 +2,8 @@
 
 Each `.lua` file here is one micro-module: a small read-only info panel drawn,
 from one `render(ctx)`, on any surface -- the home-screen hero grid, the
-full-screen micro-module view, and the start menu (`ctx.surface` says which). The
-file returns a spec table:
+full-screen micro-module view, a shelf among the books, and the start menu
+(`ctx.surface` says which). The file returns a spec table:
 
 ```lua
 return {
@@ -33,6 +33,22 @@ return {
     category     = "reading",         -- or one of Bookshelf's: shelf, reading, time, fun, actions
 }
 ```
+
+### What needs which Bookshelf
+
+An older Bookshelf ignores spec fields it doesn't know, so a module still loads
+there; for a function, check it exists first (`Kit.plugin ~= nil`). The first
+release with each:
+
+| Since | What |
+|---|---|
+| 3.3.0 | `wants_minute_tick` |
+| 3.5.1 | `Kit.moduleStore` |
+| 4.0.0 | `ctx.set_tap_regions` |
+| 6.0.0 | modules on a shelf (`ctx.surface == "shelf"`), `MODULE_DIR` (the module file's `...`), `on_minute` (top panel and full screen), `ctx.card` |
+| 6.0.2 | `ctx.open_book`, `ctx.show_book` |
+| 6.1.0 | `self_sized`, `ctx.shelf_view`, `Kit.plugin`, `Kit.setOnHomeShelf` / `Kit.onHomeShelf`, `ctx.refresh` safe to call at any time |
+| 6.2.0 | `on_minute` for modules on a shelf; `Kit.setOnHomeShelf` works with no modules in use yet, and turns on Settings > Modules > On the shelf |
 
 ## The one thing to understand: who sizes your card
 

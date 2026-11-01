@@ -594,6 +594,8 @@ first shelf on the chip strip that holds books), the way a plugin puts a card
 on another home screen. `Kit.setOnHomeShelf(key, true)` puts it first on that
 shelf at its starting width, `Kit.setOnHomeShelf(key, false)` takes it off, and
 `Kit.onHomeShelf(key)` says whether it is there; a shelf on screen redraws.
+Putting it on also turns on Settings > Modules > On the shelf if the reader
+had it off, so the card shows.
 `setOnHomeShelf` returns `false` when there is nothing to do it with (Bookshelf
 doesn't know the module, or no shelf holds books). Only call it from something
 the reader chose, a tick in your settings or your welcome screen: the home

@@ -112,6 +112,43 @@ t.test("Kit.setOnHomeShelf saves, tells the shelf, and Kit.onHomeShelf reads it"
     assert(not Kit.setOnHomeShelf("pet", true), "no home shelf, but it said done")
 end)
 
+-- With Modules > On the shelf off, a card put on the home shelf shows nowhere:
+-- the reader asked for it, so it turns the switch on (maintainer). Already on
+-- the shelf with the switch off: the switch alone comes on, and the shelf is
+-- told. Taking it off leaves the switch alone.
+t.test("Kit.setOnHomeShelf turns On the shelf on", function()
+    local stored, saves, events, settings, flushes = shelves(), 0, {}, { micro_on_shelf = false }, 0
+    local TM = package.loaded["lib/bookshelf_tab_model"]
+    TM.load = function() return stored end
+    TM.save = function(tabs) stored = tabs; saves = saves + 1 end
+    package.loaded["lib/bookshelf_settings_store"] = {
+        microOnShelf = function() return settings.micro_on_shelf ~= false end,
+        save = function(k, v) settings[k] = v end,
+        flush = function() flushes = flushes + 1 end,
+    }
+    package.loaded["lib/bookshelf_start_menu_modules"] = {
+        get = function(k) if k == "pet" then return { key = "pet", start_w = 4 } end end,
+        notifyRemoved = function() end,
+    }
+    package.loaded["ui/uimanager"] = { broadcastEvent = function(_s, ev) events[#events + 1] = ev end }
+    local Kit = dofile("lib/bookshelf_module_kit.lua")
+
+    assert(Kit.setOnHomeShelf("pet", true))
+    eq(settings.micro_on_shelf, true, "On the shelf stayed off")
+    assert(flushes >= 1, "the switch was not flushed")
+    settings.micro_on_shelf = false
+    local before = #events
+    assert(Kit.setOnHomeShelf("pet", true))
+    eq(settings.micro_on_shelf, true, "already on the shelf: the switch stayed off")
+    eq(#events, before + 1, "the shelf was not told the switch came on")
+    settings.micro_on_shelf = false
+    assert(Kit.setOnHomeShelf("pet", false))
+    eq(settings.micro_on_shelf, false, "taking it off turned the switch on")
+    assert(not Kit.setOnHomeShelf("nosuch", true))
+    eq(settings.micro_on_shelf, false, "an unknown module turned the switch on")
+    package.loaded["lib/bookshelf_settings_store"] = nil
+end)
+
 -- The open shelf: rebuilds when it is the shelf that changed; covered by the
 -- plugin's own screen, no refresh (the screen's close repaints it).
 t.test("the shelf on screen rebuilds; another shelf, or a closed one, does nothing", function()

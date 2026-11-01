@@ -1029,19 +1029,19 @@ end
 -- from the last one: it may wear its own theme (bookshelf_theme_pack). Named
 -- FIRST in _rebuild, so every colour, wallpaper and plank read of this build
 -- is the shelf's; a different look bumps the settings generation (the caches
--- keyed on it rebuild) and asks for a full-screen refresh, the wallpaper and
--- chrome having changed under the whole screen.
+-- keyed on it rebuild) and asks for a whole-screen refresh, the wallpaper and
+-- chrome having changed under the whole screen: "ui" (AUTO on a PW5), no
+-- flash (maintainer). "full" flashed; "partial" (REAGL) still flashed and
+-- left obvious ghosting (PW5 trial).
 function BookshelfWidget:_syncShelfTheme()
     local ok, TP = pcall(require, "lib/bookshelf_theme_pack")
     if not (ok and TP and TP.setShelf) then return false end
     local changed = TP.setShelf(self.chip)
     if changed and self._shelf_theme_seen then
         self._ground_memo = nil
-        -- While the Theme library is up, each theme tapped is a plain ui
-        -- refresh (no flash over the picker); it makes the full one as it
-        -- closes (TL.previewing).
-        local TL = package.loaded["lib/bookshelf_theme_library"]
-        UIManager:setDirty("all", (TL and TL.previewing) and "ui" or "full")
+        -- The Theme library still makes a full one as it closes, after a
+        -- theme was chosen (TL.previewing).
+        UIManager:setDirty("all", "ui")
     end
     self._shelf_theme_seen = true
     return changed

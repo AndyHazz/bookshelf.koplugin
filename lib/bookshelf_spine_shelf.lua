@@ -692,6 +692,14 @@ local function _aspectFromSizetag(tag)
     return nil
 end
 
+-- shownLook(book) -> bookLook(book) with Image contrast's boost: what a
+-- spine paints. bookLook stays the sampled colour (it is what the facts DB
+-- keeps); the boost is a view of it, so a change of strength needs nothing
+-- re-sampled.
+function SpineShelf.shownLook(book)
+    return require("lib/bookshelf_image_contrast").spineLook(SpineShelf.bookLook(book), MAX_FILL_LUMA)
+end
+
 -- bookLook(book) -> { r, g, b, aspect|nil, sampled }
 -- Day-mode colour values; painters apply the night pre-invert.
 function SpineShelf.bookLook(book)
@@ -2041,6 +2049,9 @@ function SpineBookSlot:_renderKey(night)
         -- keeps painting the old rotation until something else evicts it.
         SpineShelf.titleRotation(),
         e.binding or "hardcover",
+        -- The fill colour: Image contrast's boost changes it with nothing
+        -- else about the book changing.
+        e.look and string.format("%d,%d,%d", e.look.r or 0, e.look.g or 0, e.look.b or 0) or "-",
     }, "|")
 end
 
@@ -4277,7 +4288,7 @@ function SpineShelf.plan(items, opts)
         end
         label = label or ""
         local _tl = _gettime()
-        local look = SpineShelf.bookLook(rep)
+        local look = SpineShelf.shownLook(rep)
         _t_look = _t_look + (_gettime() - _tl)
         local aspect = look.aspect
         local h = SpineLayout.spineHeight(budget, aspect)
@@ -5352,7 +5363,7 @@ function SpineShelf.rowWidget(opts)
             elseif e.series_box then
                 tile = require("lib/bookshelf_series_box_widget"):new{
                     entry = e, width = e.w, height = stand_h, inset = inset,
-                    callbacks = opts.callbacks, book_look = SpineShelf.bookLook,
+                    callbacks = opts.callbacks, book_look = SpineShelf.shownLook,
                 }
             elseif e.face_out and e.book and e.book.add_subshelf then
                 -- A shelf of shelves' "+ Add shelf": a face-out cover's width,

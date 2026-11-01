@@ -157,6 +157,7 @@ package.loaded["lib/bookshelf_spine_shelf"]={
     textHeight=function(size) return math.floor(size*1.5) end,
     cachedProgress=function() return nil end,
     bookLook=function() return {r=90,g=120,b=80,aspect=1.5} end,
+    shownLook=function() return {r=90,g=120,b=80,aspect=1.5} end,
     boardColor=function() return "board" end,
     _SpineBookSlot=Slot,
 }
@@ -316,6 +317,7 @@ H.test("the native planner paginates boxes as single slots and resumes inside co
         persistProgress=function() end,prefetchFacts=function() end,
         markSeriesHeads=function() end,thicknessPages=function() return 300 end,
         bookLook=function() return {r=90,g=120,b=80,aspect=1.5} end,
+    shownLook=function() return {r=90,g=120,b=80,aspect=1.5} end,
     }
     local plan_body=assert(shelf_source:match("function SpineShelf%.plan%(items, opts%)\n(.-)\nend"))
     local pe={SpineShelf=shelf,SpineLayout=SL,Screen=package.loaded.device.screen,
@@ -367,7 +369,7 @@ H.test("native row construction routes taps and projected shadows through the se
     local shape=Boxes.geometry(box,{w=160,face_h=240,depth=8,h=248},{content_w=800})
     local entry={book=box,item=box,w=shape.w,h=shape.h,series_box=shape,face_out=true}
     local columns
-    local shelf={bookLook=function() return {r=90,g=120,b=80} end,
+    local shelf={bookLook=function() return {r=90,g=120,b=80} end, shownLook=function() return {r=90,g=120,b=80} end,
         plankUnit=function() return 10 end,plankFace=function() return 20 end,
         plankInset=function() return 5 end,plankSurface=function() return 10 end,
         plankDesignWidget=function() end,endMargin=function() return 10 end,

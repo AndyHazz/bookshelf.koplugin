@@ -10736,7 +10736,7 @@ function BookshelfWidget:_refreshSpineSlotInPlace(fp)
                     SpineShelf.invalidateBook(fp)
                     slot.book = fresh
                     slot.entry.book = fresh
-                    slot.entry.look = SpineShelf.bookLook(fresh)
+                    slot.entry.look = SpineShelf.shownLook(fresh)
                     -- The render paints the ENTRY's display fields, not the
                     -- record: refresh those too.
                     local label = fresh.display_title or fresh.title

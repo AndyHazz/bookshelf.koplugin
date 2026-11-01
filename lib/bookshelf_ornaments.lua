@@ -1744,8 +1744,11 @@ function M.render(entry, w, h, inverting, mirror)
     local chalk = entry.night_invert and not M.hasColorScreen()
                   and not picture and dark
     local paint_inverted = (chalk and true or false) ~= inverting
+    -- Image contrast's boost is part of the render (the disk copy stays raw).
+    local ImageContrast = require("lib/bookshelf_image_contrast")
+    local boost = ImageContrast.boost()
     local key = entry.path .. "|" .. w .. "x" .. h .. (paint_inverted and "|i" or "")
-                .. (mirror and "|m" or "")
+                .. (mirror and "|m" or "") .. (boost > 0 and ("|b" .. boost) or "")
     local bb = M._cache[key]
     if bb then return bb end
     local ok, res = true, fromHeld(entry.path, w, h)
@@ -1768,6 +1771,9 @@ function M.render(entry, w, h, inverting, mirror)
         return nil
     end
     bb = res
+    -- Ours either way: a fresh render was stored raw above, and a disk load
+    -- is a new buffer.
+    if boost > 0 then ImageContrast.boostImage(bb) end
     if paint_inverted and bb.invertRect then
         pcall(function() bb:invertRect(0, 0, bb:getWidth(), bb:getHeight()) end)
     end
@@ -1781,6 +1787,15 @@ function M.render(entry, w, h, inverting, mirror)
         if ob and ob.free then pcall(function() ob:free() end) end
     end
     return bb
+end
+
+-- dropRenders(): forget the renders kept in memory (Image contrast's boost
+-- changed; the disk copies are raw and stay).
+function M.dropRenders()
+    for _k, b in pairs(M._cache) do
+        if b and b.free then pcall(function() b:free() end) end
+    end
+    M._cache, M._cache_order = {}, {}
 end
 
 -- flipped(bb) -> a left-to-right mirror of bb (bb itself is freed), or nil.

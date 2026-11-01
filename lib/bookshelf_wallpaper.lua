@@ -2003,7 +2003,12 @@ end
 function M.bg(name, w, h, night)
     local path = M.pathFor(name)
     if not path or not w or not h or w <= 0 or h <= 0 then return nil end
-    local key = path .. "|" .. w .. "x" .. h .. (night and "|n" or "")
+    -- Image contrast's wallpaper brightness and contrast are part of the
+    -- picture: applied once here, to the decoded copy (the disk copy stays
+    -- raw), and in every key that copy is kept under, its blurs' included.
+    local ImageContrast = require("lib/bookshelf_image_contrast")
+    local adjust = ImageContrast.wallpaperKey()
+    local key = path .. "|" .. w .. "x" .. h .. (night and "|n" or "") .. adjust
     if M._bg and M._bg_key == key then return M._bg end
     local keep = keepTwo()
     -- A different picture: the blurs are of the old one. (Entries carry the
@@ -2040,12 +2045,21 @@ function M.bg(name, w, h, night)
         bb = M.toScreenType(bb)
         if dkey and diskCache() then pcall(diskCache().store, dkey, bb) end
     end
+    if adjust ~= "" then
+        pcall(function()
+            local _lo, med = ImageContrast.levels(bb)
+            local b, c = ImageContrast.wallpaper()
+            ImageContrast.applyLUT(bb, ImageContrast.wallpaperLUT(med or 128, b, c))
+        end)
+    end
     if night and bb.invertRect then
         pcall(function() bb:invertRect(0, 0, bb:getWidth(), bb:getHeight()) end)
     end
     local widget = backgroundWidget(bb, w, h)
     widget.bb = bb
-    widget.dkey = dkey   -- what its blurs are kept under (frostFor)
+    -- What its blurs are kept under (frostFor): an adjusted picture blurs
+    -- differently from the raw one.
+    widget.dkey = dkey and (dkey .. adjust)
     M._bg, M._bg_key = widget, key
     return widget
 end

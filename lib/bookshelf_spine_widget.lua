@@ -30,6 +30,12 @@ local Device          = require("device")
 local Screen          = Device.screen
 local Space           = require("lib/bookshelf_space")
 local CoverProgress   = require("lib/bookshelf_cover_progress")
+-- Image contrast's boost for a cover drawn without the cover cache (the
+-- cache boosts in put()); once per buffer.
+local function _boostCover(bb)
+    local ok, ImageContrast = pcall(require, "lib/bookshelf_image_contrast")
+    if ok and ImageContrast then ImageContrast.boostImage(bb) end
+end
 local TextFit         = require("lib/bookshelf_text_fit")
 local T               = require("ffi/util").template
 local _               = require("lib/bookshelf_i18n").gettext
@@ -2255,6 +2261,7 @@ function SpineWidget:_renderCover(bb)
         end
         if external_bb then
             local paint_bb = external_bb
+            _boostCover(external_bb)   -- put() would too; this covers no ck
             if ck then paint_bb = ScaledCoverCache:put(ck, external_bb) end
             local img_args = {
                 image            = paint_bb,
@@ -2442,6 +2449,7 @@ function SpineWidget:_renderCover(bb)
             -- freed at widget teardown (ImageWidget:free, not per-paint), so
             -- it survives in-place hero repaints; the next _buildHero
             -- re-fetches a fresh source bb, so there's no shared-bb reuse.
+            _boostCover(scaled_bb)
             cover_inner = ImageWidget:new{
                 image            = scaled_bb,
                 image_disposable = true,
@@ -2477,6 +2485,7 @@ function SpineWidget:_renderCover(bb)
         else
             -- No filepath to key on (rare). Hand ownership to the
             -- ImageWidget so the bb is freed at widget teardown.
+            _boostCover(scaled_bb)
             cover_inner = ImageWidget:new{
                 image            = scaled_bb,
                 image_disposable = true,
@@ -2619,7 +2628,9 @@ function SpineWidget:_renderCoverAlignTop(card_w, card_h, border, img_w, img_h)
         local ok_img, ImageSource = pcall(require, "lib/bookshelf_image_source")
         local ext_bb = ok_img and ImageSource.loadImage(external_cover, img_w, nat_h) or nil
         if ext_bb then
-            -- Cache-owned: do NOT free, do NOT mark disposable.
+            -- Cache-owned: do NOT free, do NOT mark disposable. Boosted in
+            -- place, once; a change of strength empties ImageSource's cache.
+            _boostCover(ext_bb)
             cover_widget = ImageWidget:new{
                 image            = ext_bb,
                 image_disposable = false,
@@ -2647,6 +2658,10 @@ function SpineWidget:_renderCoverAlignTop(card_w, card_h, border, img_w, img_h)
         if not bb then return self:_renderFallback() end
         local scaled_bb = bb:scale(img_w, nat_h)   -- new bb; leaves bb intact
         if owned then bb:free() end
+        -- A fresh decode only: a caller's cover_bb can be made from covers
+        -- the cache already boosted (a stack's collage), and boosting twice
+        -- compounds.
+        if not self.cover_bb then _boostCover(scaled_bb) end
         cover_widget = ImageWidget:new{
             image            = scaled_bb,
             image_disposable = true,

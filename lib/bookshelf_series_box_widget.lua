@@ -45,7 +45,7 @@ local Box = InputContainer:extend{}
 -- paints from: its own look, number and status, no title (a slipcase's
 -- books show their heads, not their spines' lettering).
 local function memberEntry(member, w, h, SpineShelf)
-    local look = SpineShelf.bookLook(member)
+    local look = SpineShelf.shownLook(member)
     return { book = member, item = member, w = w, h = h, look = look,
              w_dp = math.floor(w / (Screen:scaleBySize(100) / 100) + .5),
              label = "",
@@ -176,7 +176,7 @@ function Box:_initSlipcase()
         local meta = Repo.buildBookMeta(first.filepath, {want_cover=false})
         for k, v in pairs(meta or {}) do if k ~= "cover_bb" then first[k] = v end end
     end
-    self.first_look = SpineShelf.bookLook(first)
+    self.first_look = SpineShelf.shownLook(first)
     local Slot = SpineShelf._SpineBookSlot
     self.slots = {}
     for _, sp in ipairs(shape.spines) do
@@ -321,8 +321,10 @@ function Box:_paintSlipcase(bb, x, y)
         -- with Blitbuffer:scale, a per-pixel Lua loop, was ~10% of a spine
         -- page turn on the PW5 with series boxes on screen.
         local first = self.art_cover and self.art_cover.book
+        -- Made from boosted covers (Image contrast), so the strength is in it.
+        local boost = require("lib/bookshelf_image_contrast").boost()
         local skey = table.concat({ tostring(self.custom_path or (first and first.filepath)),
-            tostring(first and first.cover_sizetag), SW, FH, iw, ih, c,
+            tostring(first and first.cover_sizetag), SW, FH, iw, ih, c, boost,
             tostring(bb:getType()), night and "n" or "d" }, "|")
         local kept = _stickers[skey]
         if kept then
@@ -345,6 +347,9 @@ function Box:_paintSlipcase(bb, x, y)
             and require("lib/bookshelf_image_source").loadImage(self.custom_path, SW, FH)
         if custom then
             local fit = scaled(custom, iw, ih)
+            -- The series' own picture is not a cover from the cache: our copy
+            -- gets the boost here.
+            if boost > 0 then require("lib/bookshelf_image_contrast").boostImage(fit) end
             bb:blitFrom(fit, sx + E, sy + E, 0, 0, iw, ih)
             keep(fit)
             return

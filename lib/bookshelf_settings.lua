@@ -3364,6 +3364,37 @@ function Settings:_settingsSubItems()
         keep_menu_open = true,
         callback = function(touchmenu_instance) self:_pickBookshelfUIFont(touchmenu_instance) end,
     }
+    -- Image contrast: a boost for the covers, spines and ornaments, and the
+    -- wallpaper's own contrast and brightness. Each is applied once to a
+    -- picture already decoded and kept, never per paint
+    -- (lib/bookshelf_image_contrast).
+    items[#items + 1] = {
+        text = _("Image contrast"),
+        help_text = _("Contrast boost deepens the shadows and mid-tones of covers, spines and ornaments, which can help on a screen with few greys. Wallpaper contrast and brightness adjust the wallpaper, quieter or bolder; at 0% each shows the picture as it is."),
+        sub_item_table_func = function()
+            local ImageContrast = require("lib/bookshelf_image_contrast")
+            local function row(label, key, lo, preview)
+                return {
+                    text_func = function()
+                        return T(_("%1: %2%"), label, BookshelfSettings.read(key, 0))
+                    end,
+                    keep_menu_open = true,
+                    callback = function(touchmenu_instance)
+                        self:_nudgePage(touchmenu_instance, {
+                            key = key, default = 0, min = lo, max = 100,
+                            fine = 5, big = 20, unit = "%", title = label,
+                            preview = preview,
+                        })
+                    end,
+                }
+            end
+            return {
+                row(_("Contrast boost"), ImageContrast.BOOST_KEY, 0, ImageContrast.flushForeground),
+                row(_("Wallpaper contrast"), ImageContrast.WP_CONTRAST_KEY, -100),
+                row(_("Wallpaper brightness"), ImageContrast.WP_BRIGHTNESS_KEY, -100),
+            }
+        end,
+    }
     -- The extra wallpaper folder went to Theme > Wallpaper (2026-10-16): as a
     -- twelfth row here it pushed Library & search onto a second page of
     -- KOReader's 10-row menu.

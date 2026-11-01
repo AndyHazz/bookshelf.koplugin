@@ -52,15 +52,15 @@ test("the boost curve keeps order and both ends", function()
     end
 end)
 
-test("the boost darkens the darks and leaves near-whites alone", function()
+test("the boost darkens the darks, lifts the lights, and keeps white lettering apart", function()
     local lut = IC.boostLUT(LO, MED, HI, 0.5)
     assert(lut[60] < 60, "a dark grey goes darker: " .. lut[60])
-    for i = 230, 255 do assert(math.abs(lut[i] - i) <= 3, "near-white " .. i .. " moved to " .. lut[i]) end
+    assert(lut[190] > 190, "a light grey goes lighter: " .. lut[190])
     for i = 130, 245 do
-        assert(lut[i + 10] - lut[i] >= 9, "highlights bunched at " .. i)
+        assert(lut[i + 10] - lut[i] >= 5, "highlights bunched at " .. i)
     end
     -- white lettering on a pale ground keeps its gap (the PW5 trial's fault)
-    assert(lut[250] - lut[215] >= 30, "pale ground and white lettering merged")
+    assert(lut[250] - lut[215] >= 22, "pale ground and white lettering merged: " .. (lut[250] - lut[215]))
 end)
 
 test("a flat picture is not stretched into a poster", function()
@@ -71,17 +71,29 @@ end)
 -- Every kind of picture: a dark ornament, a typical cover, a pale one.
 local PICTURES = { { 10, 40, 120 }, { 20, 60, 200 }, { 20, 120, 230 }, { 40, 170, 250 }, { 60, 210, 250 }, { 150, 200, 240 } }
 
-test("the boost never lightens a grey, on any picture (dark ornaments washed out)", function()
+test("darks only darken, lights only lighten, the middle grey stays (no washed-out ornaments)", function()
     for _, c in ipairs(PICTURES) do
         for _, s in ipairs({ 0.05, 0.35, 0.6, 1 }) do
             local lut = IC.boostLUT(c[1], c[2], c[3], s)
             for i = 0, 255 do
-                assert(lut[i] <= i, string.format("med %d s %.2f: %d lightened to %d", c[2], s, i, lut[i]))
+                if i < c[2] then
+                    assert(lut[i] <= i, string.format("med %d s %.2f: dark %d lightened to %d", c[2], s, i, lut[i]))
+                else
+                    assert(lut[i] >= i, string.format("med %d s %.2f: light %d darkened to %d", c[2], s, i, lut[i]))
+                end
                 if i > 0 then assert(lut[i] >= lut[i - 1], "monotonic") end
             end
             assert(math.abs(lut[c[2]] - c[2]) <= 1, "the picture's middle grey moved: " .. c[2] .. " > " .. lut[c[2]])
+            assert(lut[0] == 0 and lut[255] == 255, "black and white stay put")
         end
     end
+end)
+
+-- A dark ornament (Halloween: median 13, its light parts about 90): there is
+-- little below the median to darken, so the contrast is in the lift.
+test("a dark ornament's light parts are lifted", function()
+    local lut = IC.boostLUT(0, 13, 201, 0.35)
+    assert(lut[87] - 87 >= 12, "87 only went to " .. lut[87])
 end)
 
 test("a weak boost is a small change", function()

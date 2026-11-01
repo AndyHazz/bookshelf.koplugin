@@ -106,6 +106,8 @@ end
 -- the dialog as usual, then lays the X over the title line, the same size,
 -- so nothing below moves. With no title, a Close row at the foot instead.
 function Kit.withClose(spec)
+    -- A side swipe off it turns the shelf's page behind (maintainer).
+    require("lib/bookshelf_gesture_zones").passSwipesOn(spec)
     if not spec.title then
         local _ = require("lib/bookshelf_i18n").gettext
         spec.buttons = spec.buttons or {}

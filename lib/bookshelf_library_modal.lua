@@ -1058,6 +1058,7 @@ function LibraryModal:_showMoreChips(hidden)
     -- Sized to its labels, not the screen (maintainer): a short list of
     -- filters in a full-width menu read as a different kind of window.
     d = ButtonDialog:new{ buttons = buttons, shrink_unneeded_width = true }
+    require("lib/bookshelf_gesture_zones").passSwipesOn(d)
     UIManager:show(d)
 end
 

@@ -1643,6 +1643,7 @@ function Settings:_listLineActions(index, markDirty, touchmenu_instance)
             },
         },
     }
+    require("lib/bookshelf_gesture_zones").passSwipesOn(dialog)
     UIManager:show(dialog)
 end
 
@@ -1856,7 +1857,7 @@ end
 function Settings:_imageContrastRow(which)
     local IC = require("lib/bookshelf_image_contrast")
     local spec = ({
-        boost = { _("Contrast boost"), IC.BOOST_KEY, 0, IC.flushForeground },
+        boost = { _("Covers and ornaments contrast boost"), IC.BOOST_KEY, 0, IC.flushForeground },
         wp_contrast = { _("Wallpaper contrast"), IC.WP_CONTRAST_KEY, -100 },
         wp_brightness = { _("Wallpaper brightness"), IC.WP_BRIGHTNESS_KEY, -100 },
     })[which]
@@ -3284,12 +3285,6 @@ function Settings:_nudgePage(touchmenu_instance, spec)
         anchor = spec.anchor,
         at_bottom = true,
         dismissable = false,
-        -- A side swipe on the shelf behind turns its page: the change shows
-        -- on more books without closing the page (maintainer).
-        pass_swipes = function()
-            local bw = self._bw
-            if bw and UIManager:isWidgetShown(bw) then return bw end
-        end,
         footer = {
             { text = _("Cancel"), callback = function() done(true) end },
             -- Default stays in the footer (maintainer), greyed at the default.
@@ -3412,7 +3407,7 @@ function Settings:_settingsSubItems()
     -- (lib/bookshelf_image_contrast).
     items[#items + 1] = {
         text = _("Image contrast"),
-        help_text = _("Contrast boost deepens the shadows and mid-tones of covers, spines and ornaments, which can help on a screen with few greys. Wallpaper contrast and brightness adjust the wallpaper, quieter or bolder; at 0% each shows the picture as it is."),
+        help_text = _("Covers and ornaments contrast boost deepens the shadows and mid-tones of covers, spines and ornaments, which can help on a screen with few greys. Wallpaper contrast and brightness adjust the wallpaper, quieter or bolder; at 0% each shows the picture as it is."),
         sub_item_table_func = function()
             local rows = { self:_imageContrastRow("boost") }
             for _i, r in ipairs(self:_wallpaperAdjustRows()) do rows[#rows + 1] = r end
@@ -3821,6 +3816,7 @@ function Settings:_hardcoverSubItems()
                 }},
             },
         }
+        require("lib/bookshelf_gesture_zones").passSwipesOn(dialog)
         UIManager:show(dialog)
     end
 
@@ -5351,6 +5347,7 @@ function Settings:_openLayoutEditor(touchmenu_instance)
         dialog.key_events.BSSizeBack = { { Device.input.group.Back } }
         dialog.onBSSizeBack = function() cancel() return true end
     end
+    require("lib/bookshelf_gesture_zones").passSwipesOn(dialog)
     UIManager:show(dialog)
 end
 
@@ -5668,6 +5665,7 @@ function Settings:_pickLauncherButtons(touchmenu_instance)
         },
     }
     if dialog.movable then dialog.movable.ges_events = {} end
+    require("lib/bookshelf_gesture_zones").passSwipesOn(dialog)
     UIManager:show(dialog)
     UIManager:setDirty(canvas, "ui")
 end

@@ -15,8 +15,6 @@
 --                                 taps fell through and closed it mid-edit)
 --     at_bottom = true            a slim panel low on the screen, so more
 --                                 of a live preview stays in sight
---     pass_swipes = function() -> widget   a side swipe off the page goes to
---                                 that widget (the shelf behind a slider)
 --     anchor = rect | function() -> rect   open under that rect (above it
 --                                 when there is no room), not centred: a
 --                                 nudge for the thing at the rect
@@ -260,23 +258,8 @@ function PageDialog:handleEvent(event)
         local d = self.frame and self.frame.dimen
         return not (d and d.x) or not pos:notIntersectWith(d)
     end
-    if GZ.overlayEvent(self, event, InputContainer, GZ.onWindow(event, onFrame)) then
-        return true
-    end
-    -- pass_swipes: a side swipe off the page that nothing took turns the
-    -- shelf's page behind it, so a slider's change can be seen on more
-    -- books without closing it (maintainer). Up and down stay here: on the
-    -- shelf they fold the hero or leave full screen.
-    local ev = event.handler == "onGesture" and event.args and event.args[1]
-    if self.pass_swipes and ev and ev.ges == "swipe" and ev.pos
-            and (ev.direction == "west" or ev.direction == "east")
-            and not onFrame(ev.pos) then
-        local shelf = self.pass_swipes()
-        if shelf and shelf.handleEvent then
-            return shelf:handleEvent(event) and true or false
-        end
-    end
-    return false
+    -- A side swipe off the page turns the shelf's page behind it.
+    return GZ.overlayEvent(self, event, InputContainer, GZ.onWindow(event, onFrame))
 end
 
 return PageDialog

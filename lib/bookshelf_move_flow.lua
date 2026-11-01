@@ -48,6 +48,7 @@ local function showMoveConfirm(args)
         alignment = "center",
         width     = dialog.title_group_width or math.floor(Screen:getWidth() * 0.6),
     })
+    require("lib/bookshelf_gesture_zones").passSwipesOn(dialog)
     UIManager:show(dialog)
 end
 

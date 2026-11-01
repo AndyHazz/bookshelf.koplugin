@@ -20370,6 +20370,7 @@ function BookshelfWidget:_showRemoteBookInfo(book, opts)
     logger.dbg(string.format(
         "[bookshelf perf] _showRemoteBookInfo: build=%.0fms %s",
         (_gettime() - _perf_t0) * 1000, tostring(book.title or book.filepath)))
+    require("lib/bookshelf_gesture_zones").passSwipesOn(dialog)
     UIManager:show(dialog)
 
     if not opts.no_cover_fetch then
@@ -24640,6 +24641,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                     width = math.floor(Screen:getWidth() * 0.7),
                                     buttons = buttons,
                                 }
+                                require("lib/bookshelf_gesture_zones").passSwipesOn(hold_dialog)
                                 UIManager:show(hold_dialog)
                             end
                             local gpills = {}

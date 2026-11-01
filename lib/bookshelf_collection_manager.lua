@@ -365,6 +365,7 @@ function CollectionManager.show(opts)
             width          = math.floor(Screen:getWidth() * 0.7),
             buttons        = buttons,
         }
+        require("lib/bookshelf_gesture_zones").passSwipesOn(hold_dialog)
         UIManager:show(hold_dialog)
     end
 

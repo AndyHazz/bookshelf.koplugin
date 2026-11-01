@@ -173,6 +173,7 @@ local function showSizeNudge(current, default, on_change, on_close, opts)
         },
     }
     if d.movable then d.movable.ges_events = {} end
+    require("lib/bookshelf_gesture_zones").passSwipesOn(d)
     UIManager:show(d)
 end
 

@@ -576,4 +576,126 @@ do
     end)
 end
 
+
+-- A side swipe off one of our windows that neither KOReader nor the window
+-- took turns the shelf's page behind it: a change can be seen on more books
+-- without closing the window (maintainer, PW5). Up and down stay with the
+-- window (on the shelf they fold the hero or leave full screen).
+do
+    local function withStack(entries, fn)
+        local UM = package.loaded["ui/uimanager"]
+        local had = UM ~= nil
+        UM = UM or {}
+        package.loaded["ui/uimanager"] = UM
+        local stack, shown = UM._window_stack, UM.isWidgetShown
+        UM._window_stack = entries
+        UM.isWidgetShown = function(_s, w)
+            for _i, e in ipairs(entries) do if e.widget == w then return true end end
+            return false
+        end
+        local tl = Zones.tryLiveZones
+        Zones.tryLiveZones = function() return false end
+        local ok, err = pcall(fn)
+        Zones.tryLiveZones = tl
+        UM._window_stack, UM.isWidgetShown = stack, shown
+        if not had then package.loaded["ui/uimanager"] = nil end
+        assert(ok, err)
+    end
+    local function shelf()
+        local s = { name = "bookshelf", covers_fullscreen = true, got = {} }
+        function s:handleEvent(e) self.got[#self.got + 1] = e.args[1].direction; return true end
+        return s
+    end
+    local function swipe(dir)
+        return { handler = "onGesture", args = { { ges = "swipe", direction = dir, pos = { x = 1, y = 1 } } } }
+    end
+    local leaves = { handleEvent = function() return false end }
+    local takes = { handleEvent = function() return true end }
+    local off = function() return false end
+    local on = function() return true end
+
+    t.test("overlayEvent: a side swipe off the window turns the shelf behind", function()
+        local s, win = shelf(), {}
+        withStack({ { widget = s }, { widget = win } }, function()
+            eq(Zones.overlayEvent(win, swipe("west"), leaves, off), true)
+            eq(Zones.overlayEvent(win, swipe("east"), leaves, off), true)
+            eq(table.concat(s.got, ","), "west,east")
+        end)
+    end)
+
+    t.test("overlayEvent: a swipe the window takes is not passed", function()
+        local s, win = shelf(), {}
+        withStack({ { widget = s }, { widget = win } }, function()
+            Zones.overlayEvent(win, swipe("west"), takes, off)
+            eq(#s.got, 0)
+        end)
+    end)
+
+    t.test("overlayEvent: up and down, and swipes on the window, are not passed", function()
+        local s, win = shelf(), {}
+        withStack({ { widget = s }, { widget = win } }, function()
+            Zones.overlayEvent(win, swipe("north"), leaves, off)
+            Zones.overlayEvent(win, swipe("south"), leaves, off)
+            Zones.overlayEvent(win, swipe("west"), leaves, on)
+            Zones.overlayEvent(win, swipe("west"), leaves, nil)
+            eq(#s.got, 0)
+        end)
+    end)
+
+    t.test("overlayEvent: a shelf under another window (a book, an editor) is left alone", function()
+        local s, win = shelf(), {}
+        local reader = {}
+        withStack({ { widget = s }, { widget = reader }, { widget = win } }, function()
+            eq(Zones.overlayEvent(win, swipe("west"), leaves, off), false)
+            eq(#s.got, 0)
+        end)
+    end)
+
+    t.test("overlayEvent: a toast between does not hide the shelf", function()
+        local s, win = shelf(), {}
+        withStack({ { widget = s }, { widget = win }, { widget = { toast = true } } }, function()
+            eq(Zones.overlayEvent(win, swipe("west"), leaves, off), true)
+            eq(#s.got, 1)
+        end)
+    end)
+
+    t.test("passSwipesOn: a stock picker passes a side swipe off it, keeps its own", function()
+        local s = shelf()
+        local took = false
+        package.loaded["ui/widget/buttondialog"] = { handleEvent = function() return took end }
+        local function pt(x, y)
+            return { x = x, y = y, notIntersectWith = function(p, r)
+                return p.x < r.x or p.x >= r.x + r.w or p.y < r.y or p.y >= r.y + r.h end }
+        end
+        local d = Zones.passSwipesOn({ movable = { dimen = { x = 100, y = 100, w = 100, h = 100 } } })
+        local function sw(x, y) return { handler = "onGesture", args = { { ges = "swipe", direction = "west", pos = pt(x, y) } } } end
+        withStack({ { widget = s }, { widget = d } }, function()
+            eq(d:handleEvent(sw(10, 10)), true)
+            eq(d:handleEvent(sw(150, 150)), false, "a swipe on the picker went to the shelf")
+            took = true
+            eq(d:handleEvent(sw(10, 10)), true)
+            eq(#s.got, 1, "the picker's own handling first")
+        end)
+        package.loaded["ui/widget/buttondialog"] = nil
+    end)
+
+    -- Every stock picker made over the shelf is hooked (the module grid
+    -- editor's covers the shelf: nothing to turn there).
+    t.test("every ButtonDialog over the shelf passes side swipes", function()
+        local missing = {}
+        for _i, f in ipairs({ "action_chooser", "collection_manager", "line_editor", "ornament_menu",
+                "module_card_menu", "ornament_browser", "library_modal", "pack_editor",
+                "start_menu_edit", "move_flow", "settings", "widget" }) do
+            local src = io.open("lib/bookshelf_" .. f .. ".lua"):read("*a")
+            local _n, plain = src:gsub("ButtonDialog:new{", "")
+            local _m, hooks = src:gsub("passSwipesOn%(", "")
+            if plain > hooks then missing[#missing + 1] = f .. " (" .. plain .. " made, " .. hooks .. " hooked)" end
+        end
+        local kit = io.open("lib/bookshelf_module_kit.lua"):read("*a")
+        assert(kit:match("function Kit%.withClose%(spec%)%s*\n[^\n]*\n%s*require%(\"lib/bookshelf_gesture_zones\"%)%.passSwipesOn%(spec%)"),
+            "withClose does not hook its pickers")
+        eq(table.concat(missing, "; "), "")
+    end)
+end
+
 t.done()

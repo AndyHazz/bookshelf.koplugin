@@ -82,6 +82,7 @@ function Chooser.actionRows(close, on_pick)
                     end) } },
                 },
             }
+            require("lib/bookshelf_gesture_zones").passSwipesOn(sub)
             UIManager:show(sub)
         end) } },
     }

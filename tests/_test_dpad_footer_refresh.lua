@@ -42,6 +42,9 @@ end
 local function run(opts)
     local dirty = {}
     local env = {
+        -- The bar's own height (Behavior > Footer bar): 0 keeps the band
+        -- to the outgoing row, as these tests measure it.
+        _footerBarH = function() return 0 end,
         Geom = Geom,
         require = function(name)
             if name == "ui/widget/container/bottomcontainer" then

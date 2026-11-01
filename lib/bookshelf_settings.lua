@@ -4514,6 +4514,44 @@ function Settings:_behaviourSubItems()
         -- End the tap band.
         separator = true,
     }
+    -- The footer bar (maintainer): shown; hidden, the shelf taking its
+    -- space; or its buttons kept where they are but not drawn, shown while
+    -- the keys are in it. Both hidden modes show it while selecting books.
+    local footer_labels = { show = _("Show"), hide = _("Hide"), invisible = _("Invisible buttons") }
+    local function footerMode()
+        local v = BookshelfSettings.read("footer_bar", "show")
+        return footer_labels[v] and v or "show"
+    end
+    local function footerRow(value, help)
+        return {
+            text = footer_labels[value],
+            help_text = help,
+            radio = true,
+            checked_func = function() return footerMode() == value end,
+            callback = function()
+                BookshelfSettings.save("footer_bar", value)
+                -- The layout changes (Hide gives the shelf more room).
+                if self._bw and self._bw._rebuild then
+                    self._bw:_rebuild()
+                    UIManager:setDirty(self._bw, "ui")
+                end
+            end,
+        }
+    end
+    items[#items + 1] = {
+        text_func = function()
+            return _("Footer bar") .. ": " .. footer_labels[footerMode()]
+        end,
+        help_text = _("The bar along the bottom of the shelf, with the menu button and the page arrows."),
+        sub_item_table_func = function()
+            return {
+                footerRow("show", _("The bar with the menu button and the page arrows.")),
+                footerRow("hide", _("No bar: the shelf uses its space. Swipe to turn pages; open the menu from KOReader's menu or a gesture. The bar comes back while you select books.")),
+                footerRow("invisible", _("The bar is not drawn, but its buttons still work where they were: the menu in its corner and the arrows to turn pages. Moving into it with the keys shows it.")),
+            }
+        end,
+        separator = true,
+    }
     items[#items + 1] = animRow(_("Page turn animation"), "shelf_page_animation",
         _("Animate shelf page turns and shelf-menu paging with a wipe "
         .. "effect. E-ink only (the effect relies on the panel's "

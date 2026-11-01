@@ -129,9 +129,23 @@ local HERO_COVER_MAX_FRAC = 0.58
 -- leftover height, so it absorbs the difference silently, and correcting it
 -- there would change every existing user's row count. List mode has a fixed row
 -- height and cannot absorb anything, so its budget uses the real number.
-local function _footerReserveH()
+--
+-- Behavior > Footer bar "hide": the shelf takes the bar's space, all but a
+-- margin at the foot of the screen.
+local function _footerMode()
+    local v = BookshelfSettings.read("footer_bar", "show")
+    if v == "hide" or v == "invisible" then return v end
+    return "show"
+end
+-- _footerBarH() -> the bar's own height, whatever the mode: a hidden bar
+-- shown while selecting, or for the keys, is this tall.
+local function _footerBarH()
     return Screen:scaleBySize(32) + 2 * Screen:scaleBySize(4)
            + Screen:scaleBySize(12)
+end
+local function _footerReserveH()
+    if _footerMode() == "hide" then return Screen:scaleBySize(12) end
+    return _footerBarH()
 end
 
 -- _asCoverGrid(fn) — run fn() with the view mode pinned to covers, then drop
@@ -4258,6 +4272,26 @@ function BookshelfWidget:burgerUnder(menu)
         end
     end
     return nil
+end
+
+-- _paintRevealedFooterPanel(bb, x, y, h): Behavior > Footer bar > Hide gives
+-- the shelf the bar's space; while the bar is shown anyway (selecting, the
+-- keys in it) it stands over the bottom row, so it gets a solid panel in the
+-- panel colour, inset like the usual footer panel.
+function BookshelfWidget:_paintRevealedFooterPanel(bb, x, y, h)
+    local ok_w, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
+    if not (ok_w and Wallpaper and Wallpaper.panel) then return end
+    local colour
+    local ok_cp, CoverProgress = pcall(require, "lib/bookshelf_cover_progress")
+    if ok_cp and CoverProgress and CoverProgress.resolvedColors then
+        local ok_c, colors = pcall(CoverProgress.resolvedColors)
+        if ok_c and colors then colour = colors.panel_tint or colors.panel_bg end
+    end
+    colour = colour or require("ffi/blitbuffer").COLOR_WHITE
+    local PAD, content_w = self:_layoutPrimitives()
+    local bleed = math.floor(math.floor((self.width - content_w) / 2) / 2)
+    pcall(Wallpaper.panel, bb, x + bleed, y, self.width - bleed * 2, h,
+        colour, 1, Space.radius.window, false)
 end
 
 function BookshelfWidget:_footerPanelRectRaw(strength)
@@ -9168,6 +9202,21 @@ function BookshelfWidget:_startMenuPosition()
     return "left"
 end
 
+-- _paintUnseen(bb, x, y, w, h, paint) -> paint()'s result: paint runs as
+-- usual (its buttons learn where they are, so their hit boxes work), then
+-- what was in the rect before is put back. Behavior > Footer bar.
+local function _paintUnseen(bb, x, y, w, h, paint)
+    local Blitbuffer = require("ffi/blitbuffer")
+    local ok, keep = pcall(Blitbuffer.new, w, h, bb:getType())
+    if not (ok and keep) then return paint() end
+    -- A clipped paint hands a stand-in: read the real buffer behind it.
+    keep:blitFrom(require("lib/bookshelf_clip_bb").real(bb), 0, 0, x, y, w, h)
+    local ret = paint()
+    bb:blitFrom(keep, x, y, 0, 0, w, h)
+    keep:free()
+    return ret
+end
+
 -- _buildFooterRow(content_w, total_pages, footer_h) — the screen-anchored
 -- footer row. Composes the pagination chev nav (centered) with the
 -- selection-mode close-X (left-aligned) and bucket (right-aligned). All
@@ -9180,6 +9229,23 @@ end
 -- the bottom-left and bottom-right "feel" tappable everywhere.
 function BookshelfWidget:_buildFooterRow(content_w, total_pages, footer_h)
     local OverlapGroup    = require("ui/widget/overlapgroup")
+    -- Behavior > Footer bar. Both hidden modes show the bar while selecting
+    -- (its X and bucket are the way out) and while the keys are in it.
+    local mode = _footerMode()
+    local reveal = self._selection:isActive() or self._focus_zone == "footer"
+    if mode == "hide" and not reveal then
+        -- No bar: the shelf has its space. An empty row keeps the callers'
+        -- contract (a row of footer_h to anchor and swap).
+        self._burger_dimen, self._micromod_dimen = nil, nil
+        local row = OverlapGroup:new{ dimen = Geom:new{ w = self.width, h = footer_h } }
+        self._footer_h_last = footer_h
+        self._footer_row_widget = row
+        return row
+    end
+    if mode == "hide" then
+        -- Shown over the foot of the shelf, at its own height.
+        footer_h = _footerBarH()
+    end
     local CenterContainer = require("ui/widget/container/centercontainer")
     local LeftContainer   = require("ui/widget/container/leftcontainer")
     local RightContainer  = require("ui/widget/container/rightcontainer")
@@ -9272,6 +9338,11 @@ function BookshelfWidget:_buildFooterRow(content_w, total_pages, footer_h)
     local side_w = math.floor((self.width - math.floor(content_w * 0.75)) / 2)
     local inner = row.paintTo
     row.paintTo = function(slf, bb, x, y)
+        if mode == "hide" then
+            -- Shown over the foot of the shelf (selecting, the keys): a solid
+            -- panel under it, or the buttons sit on the bottom row's titles.
+            self:_paintRevealedFooterPanel(bb, x, y, footer_h)
+        end
         self:_paintFooterPanel(bb)
         if burger_side == "left" or burger_side == "right" then
             self:_keepBurgerUnder(bb,
@@ -9279,6 +9350,15 @@ function BookshelfWidget:_buildFooterRow(content_w, total_pages, footer_h)
                 side_w, footer_h)
         end
         return inner(slf, bb, x, y)
+    end
+    -- Behavior > Footer bar > Invisible buttons: painted unseen, so every
+    -- button keeps its hit box in its usual place (maintainer).
+    if mode == "invisible" and not reveal then
+        local shown = row.paintTo
+        row.paintTo = function(slf, bb, x, y)
+            return _paintUnseen(bb, x, y, self.width, footer_h,
+                function() return shown(slf, bb, x, y) end)
+        end
     end
     self._footer_h_last = footer_h
     self._footer_row_widget = row
@@ -13042,7 +13122,9 @@ function BookshelfWidget:_swapFooterInPlace()
     local old_row = old and old[1]
     local footer_band
     if old_row and old_row.getSize then
-        local row_h = old_row:getSize().h
+        -- A bar revealed from a hidden one (Behavior > Footer bar) is taller
+        -- than the row going out: cover the whole bar.
+        local row_h = math.max(old_row:getSize().h, _footerBarH())
         local over  = Screen:scaleBySize(12)
         local x0 = self.dimen and self.dimen.x or 0
         local y0 = self.dimen and self.dimen.y or 0
@@ -14299,6 +14381,8 @@ function BookshelfWidget:_layoutPrimitives()
     local content_w   = self.width - PAD * 2
     local chip_h      = BandMetrics.cellHeight(BandMetrics.CHIP_KEY)
     local footer_h = Screen:scaleBySize(32) + Size.padding.default * 2
+    -- Behavior > Footer bar "hide": the rows get the bar's space.
+    if _footerMode() == "hide" then footer_h = Screen:scaleBySize(12) end
     return PAD, content_w, chip_h, footer_h
 end
 

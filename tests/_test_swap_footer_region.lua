@@ -62,6 +62,12 @@ local function harness(opts)
     }
 
     local env = {
+
+        -- The bar's own height (Behavior > Footer bar): 0 keeps the band
+
+        -- to the outgoing row, as these tests measure it.
+
+        _footerBarH = function() return 0 end,
         ipairs = ipairs, pairs = pairs, type = type, tostring = tostring,
         pcall = pcall, math = math,
         Screen = { scaleBySize = function(_, v) return v end },

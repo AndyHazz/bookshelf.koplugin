@@ -398,7 +398,7 @@ end)
 
 -- ── The menu: the Wallpaper submenu ends with the panel rows ──────────────
 
-t.test("the Wallpaper submenu: picture, full screen, invert, colour behind | shading, blur, Covers panel | extra folder", function()
+t.test("the Wallpaper submenu: picture, full screen, invert, colour behind | shading, blur, Covers panel | contrast, brightness, extra folder", function()
     local set = src("lib/bookshelf_settings.lua")
     local fn = assert(set:match("\n(function Settings:_wallpaperMenu%(%).-\nend)\n"), "_wallpaperMenu moved")
     local stubT = function(f, a) return (f:gsub("%%1", tostring(a))) end
@@ -422,17 +422,20 @@ t.test("the Wallpaper submenu: picture, full screen, invert, colour behind | sha
         _colorValueLabel = function() return "Default" end,
         _panelRows = function() return { { text = "Panel shading" }, { text = "Blur" }, { text = "Covers" } } end,
         _wallpaperFolderRow = function() return { text = "Extra wallpaper folder" } end,
+        _wallpaperAdjustRows = function() return { { text = "Wallpaper contrast" }, { text = "Wallpaper brightness" } } end,
     }, { __index = env.Settings })
     local rows = env.Settings._wallpaperMenu(self)
-    eq(#rows, 8, "the Wallpaper submenu is not eight rows (one page)")
+    eq(#rows, 10, "the Wallpaper submenu is not ten rows (KOReader's one page)")
     eq(rows[1].text_func(), "Wallpaper: None"); eq(rows[3].text, "Invert wallpaper when dark")
     eq(rows[4].text_func(), "Color behind wallpaper: Default")
     eq(rows[4].separator, true, "the panel rows are not set apart")
     eq(rows[5].text, "Panel shading"); eq(rows[6].text, "Blur"); eq(rows[7].text, "Covers")
     -- Not part of the theme, so under a rule of its own (2026-10-16: out of
-    -- Settings, where it pushed Library & search onto a second page).
-    eq(rows[7].separator, true, "the extra folder is not set apart from the theme's rows")
-    eq(rows[8].text, "Extra wallpaper folder")
+    -- Settings, where it pushed Library & search onto a second page): the
+    -- picture's contrast and brightness, then the extra folder.
+    eq(rows[7].separator, true, "the device rows are not set apart from the theme's rows")
+    eq(rows[8].text, "Wallpaper contrast"); eq(rows[9].text, "Wallpaper brightness")
+    eq(rows[10].text, "Extra wallpaper folder")
 end)
 
 t.done()

@@ -1838,13 +1838,49 @@ function Settings:_wallpaperMenu()
     -- (2026-10-09), and here because they only matter over a wallpaper.
     items[#items].separator = true
     for _i, row in ipairs(self:_panelRows()) do items[#items + 1] = row end
-    -- Last, under its own rule: the one row here that is NOT part of the
-    -- theme, a folder of the reader's own to take pictures from, the same
-    -- for every theme (README says so). In Settings it pushed Library &
-    -- search onto a second menu page.
+    -- Last, under its own rule: the rows here that are NOT part of the
+    -- theme, the same for every theme (README says so): the picture's
+    -- contrast and brightness (also in Settings > Image contrast), and a
+    -- folder of the reader's own to take pictures from. In Settings the
+    -- folder pushed Library & search onto a second menu page. Ten rows:
+    -- KOReader's menu page is full.
     items[#items].separator = true
+    for _i, row in ipairs(self:_wallpaperAdjustRows()) do items[#items + 1] = row end
     items[#items + 1] = self:_wallpaperFolderRow()
     return items
+end
+
+-- _imageContrastRow(which) -> a row of Settings > Image contrast: "boost",
+-- "wp_contrast" or "wp_brightness", each a slider page (-100..100 for the
+-- wallpaper's, 0..100 for the boost: it never reduces).
+function Settings:_imageContrastRow(which)
+    local IC = require("lib/bookshelf_image_contrast")
+    local spec = ({
+        boost = { _("Contrast boost"), IC.BOOST_KEY, 0, IC.flushForeground },
+        wp_contrast = { _("Wallpaper contrast"), IC.WP_CONTRAST_KEY, -100 },
+        wp_brightness = { _("Wallpaper brightness"), IC.WP_BRIGHTNESS_KEY, -100 },
+    })[which]
+    local label, key, lo, preview = spec[1], spec[2], spec[3], spec[4]
+    return {
+        text_func = function()
+            return T(_("%1: %2%"), label, BookshelfSettings.read(key, 0))
+        end,
+        keep_menu_open = true,
+        callback = function(touchmenu_instance)
+            self:_nudgePage(touchmenu_instance, {
+                key = key, default = 0, min = lo, max = 100,
+                fine = 5, big = 20, unit = "%", title = label,
+                preview = preview,
+            })
+        end,
+    }
+end
+
+-- _wallpaperAdjustRows(): the wallpaper's contrast and brightness, in both
+-- Settings > Image contrast and Theme > Wallpaper (maintainer). A device
+-- preference, like the extra folder, not part of a look.
+function Settings:_wallpaperAdjustRows()
+    return { self:_imageContrastRow("wp_contrast"), self:_imageContrastRow("wp_brightness") }
 end
 
 -- _wallpaperFolderRow(): issue 419, pictures kept in a folder of the
@@ -3248,6 +3284,12 @@ function Settings:_nudgePage(touchmenu_instance, spec)
         anchor = spec.anchor,
         at_bottom = true,
         dismissable = false,
+        -- A side swipe on the shelf behind turns its page: the change shows
+        -- on more books without closing the page (maintainer).
+        pass_swipes = function()
+            local bw = self._bw
+            if bw and UIManager:isWidgetShown(bw) then return bw end
+        end,
         footer = {
             { text = _("Cancel"), callback = function() done(true) end },
             -- Default stays in the footer (maintainer), greyed at the default.
@@ -3372,27 +3414,9 @@ function Settings:_settingsSubItems()
         text = _("Image contrast"),
         help_text = _("Contrast boost deepens the shadows and mid-tones of covers, spines and ornaments, which can help on a screen with few greys. Wallpaper contrast and brightness adjust the wallpaper, quieter or bolder; at 0% each shows the picture as it is."),
         sub_item_table_func = function()
-            local ImageContrast = require("lib/bookshelf_image_contrast")
-            local function row(label, key, lo, preview)
-                return {
-                    text_func = function()
-                        return T(_("%1: %2%"), label, BookshelfSettings.read(key, 0))
-                    end,
-                    keep_menu_open = true,
-                    callback = function(touchmenu_instance)
-                        self:_nudgePage(touchmenu_instance, {
-                            key = key, default = 0, min = lo, max = 100,
-                            fine = 5, big = 20, unit = "%", title = label,
-                            preview = preview,
-                        })
-                    end,
-                }
-            end
-            return {
-                row(_("Contrast boost"), ImageContrast.BOOST_KEY, 0, ImageContrast.flushForeground),
-                row(_("Wallpaper contrast"), ImageContrast.WP_CONTRAST_KEY, -100),
-                row(_("Wallpaper brightness"), ImageContrast.WP_BRIGHTNESS_KEY, -100),
-            }
+            local rows = { self:_imageContrastRow("boost") }
+            for _i, r in ipairs(self:_wallpaperAdjustRows()) do rows[#rows + 1] = r end
+            return rows
         end,
     }
     -- The extra wallpaper folder went to Theme > Wallpaper (2026-10-16): as a

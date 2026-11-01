@@ -187,5 +187,14 @@ test("covers made from boosted ones carry the mark", function()
     assert(d:find("IC.markBoosted(out)", 1, true), "the collage is not marked")
 end)
 
+test("the wallpaper's contrast and brightness are in Theme > Wallpaper too", function()
+    local f = src("lib/bookshelf_settings.lua")
+    local wm = f:match("\nfunction Settings:_wallpaperMenu%(.-\nend\n")
+    assert(wm, "_wallpaperMenu not found")
+    assert(wm:find("self:_wallpaperAdjustRows()", 1, true), "no wallpaper rows in the Wallpaper menu")
+    local ic = f:match('text = _%("Image contrast"%),.-\n    }\n')
+    assert(ic and ic:find("self:_wallpaperAdjustRows()", 1, true), "Image contrast has its own copy")
+end)
+
 print(string.format("PASS %d  FAIL %d", pass, fail))
 if fail > 0 then os.exit(1) end

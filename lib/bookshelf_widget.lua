@@ -9891,6 +9891,11 @@ function BookshelfWidget:_swapShelvesInPlace()
     -- gap above the rows so overhanging cover badges (favourite heart, issue
     -- #92) aren't clipped. On any failure, fall back to the scoped refresh.
     local anim_steps = _wipe_dir and shelf_top and _pageAnimSteps()
+    -- Under another window (a slider page passing side swipes to the
+    -- shelf) the wipe would draw the new page over it: repaint instead,
+    -- which paints the windows above the shelf again. A toast is no cover.
+    local top_window = anim_steps and UIManager:getTopmostVisibleWidget()
+    if top_window and top_window ~= self and not top_window.toast then anim_steps = nil end
     -- Colour e-ink (Kaleido): the FIRST page-turn wipe after a full-screen
     -- refresh (cold start, chip switch, book return) stalls ~1.6s - its
     -- per-strip partial refreshes contend with the panel still draining the

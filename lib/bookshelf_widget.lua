@@ -6558,6 +6558,8 @@ end
 function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD, n_rows)
     n_rows = n_rows or 2
     local bw = self
+    -- This page's modules with a minute hook, as _makeCell draws them.
+    self._shelf_minute_cells = { chip = self.chip }
     -- Tap/hold handlers and the selected filepath now come from
     -- _shelfCallbacks, shared verbatim with the list-mode row builder.
     -- on_book_tap branches on _expanded so a tap on a shelf book in
@@ -7640,6 +7642,8 @@ end
 
 function BookshelfWidget:_buildSpineRows(items, content_w, shelf_h, PAD, n_rows)
     local SpineShelf = require("lib/bookshelf_spine_shelf")
+    -- This page's modules with a minute hook, as _makeCell draws them.
+    self._shelf_minute_cells = { chip = self.chip }
     -- The page's dealt pieces, stops for the keys (_noteKeyOrn).
     self._key_orns_build = {}
     local shared = self:_shelfCallbacks()
@@ -12298,6 +12302,10 @@ function BookshelfWidget:_startStatusTimer()
                 -- (scoped, no re-roll of the other modules). No-op if the grid
                 -- has no clock.
                 require("lib/bookshelf_hero_modules").tickClocks(self)
+            end
+            -- Modules among the shelf's books, while the shelf is on screen.
+            if not (mfs and UIManager:isWidgetShown(mfs)) then
+                require("lib/bookshelf_hero_modules")._tickShelfMinuteHooks(self)
             end
             if self._hero_status_strip then
                 -- Micro-page header or expanded strip: the status line isn't a

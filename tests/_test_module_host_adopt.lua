@@ -44,9 +44,10 @@ t.test("a shelf module is told which kind of shelf it is on", function()
     assert(view("shelf", bw(false)) == "covers")
     assert(view("hero", bw(true)) == nil, "named a shelf off the shelf")
     assert(view("shelf", nil) == nil)
-    -- Both contexts a module sees carry it: render's and tap/settings'.
+    -- Every context a module sees carries it: render's, tap/settings' and
+    -- a shelf's on_minute.
     local n = select(2, hm:gsub("shelf_view = HeroModules%._shelfView%(", ""))
-    assert(n == 2, "shelf_view is in " .. n .. " of the 2 contexts")
+    assert(n == 3, "shelf_view is in " .. n .. " of the 3 contexts")
 end)
 
 t.test("an entry nobody adopted saves as before", function()

@@ -218,12 +218,13 @@ hero re-renders it once a minute (scoped) so it stays current. Read the time in
 
 For a card that polls (a sensor reading, a feed), declare
 `on_minute = function(ctx)` instead. It runs once a minute while the card is on
-screen (the hero grid or the full-screen view, current page only; never under
-the reader or while the device sleeps), and re-renders nothing by itself: check
-whether your data is due, fetch it, and call `ctx.refresh()` only when something
-changed, so an unchanged card costs no e-ink refresh. `ctx` carries `entry`,
-`config` (read-only), `bw`, `surface` and `refresh`. Keep it cheap and never
-block: schedule the fetch.
+screen (the top panel, the full-screen view or a shelf, current page only;
+never under another window, the reader or while the device sleeps), and
+re-renders nothing by itself: check whether your data is due, fetch it, and
+call `ctx.refresh()` only when something changed, so an unchanged card costs no
+e-ink refresh. `ctx` carries `entry`, `config` (read-only), `bw`, `surface`
+(and `shelf_view` on a shelf) and `refresh`. Keep it cheap and never block:
+schedule the fetch.
 
 ## Storing settings
 

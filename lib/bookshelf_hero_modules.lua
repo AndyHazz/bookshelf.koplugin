@@ -781,6 +781,14 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
     -- cells get more breathing room, small cells stay tight. Floored at 6px.
     local card_pad = Space.px(math.max(6, math.floor(8 * (scale_pct or 100) / 100 + 0.5)))
     local def      = Modules.get(entry.module)
+    -- A module among the books of the page being built, with a minute hook:
+    -- the heartbeat runs it while this page is on screen (_tickShelfMinuteHooks).
+    local minute = bw and bw._shelf_minute_cells
+    if minute and def and def.on_minute and entry.id and not minute[entry.id]
+            and _surfaceOf(entry) == "shelf" then
+        minute[entry.id] = true
+        minute[#minute + 1] = entry
+    end
     -- A bare module (an ornament) has no card to keep its drawing off the edge
     -- of, so it takes the whole cell.
     if def and def.bare then card_pad = 0 end
@@ -1888,6 +1896,39 @@ function HeroModules._tickMinuteHooks(bw)
             })
         end
     end
+    return true
+end
+
+-- The same for modules among a shelf's books: the ones the page on screen
+-- drew (bw._shelf_minute_cells, reset as each page builds its rows, filled by
+-- _makeCell). Only while that shelf is what is on screen, not mid-edit; every
+-- ctx.refresh() of one tick is one redraw of the rows, and a refresh after
+-- the tick (async work) redraws by itself. Returns true when any hook ran.
+function HeroModules._tickShelfMinuteHooks(bw)
+    local cells = bw and bw._shelf_minute_cells
+    if not cells or #cells == 0 then return false end
+    if bw._closed or bw._shelf_module_edit or cells.chip ~= bw.chip then return false end
+    if bw._isListMode and bw:_isListMode() then return false end
+    if UIManager:getTopmostVisibleWidget() ~= bw then return false end
+    local Kit = require("lib/bookshelf_module_kit")
+    local host = HeroModules._hostOf(cells[1])
+    local ticking, want = true, false
+    local function refresh()
+        if ticking then want = true
+        elseif host and host.refresh then host.refresh() end
+    end
+    for _i, entry in ipairs(cells) do
+        local def = Modules.get(entry.module)
+        if def and type(def.on_minute) == "function" then
+            pcall(def.on_minute, {
+                entry = entry, config = Kit.entryConfig(entry, nil), bw = bw,
+                surface = "shelf", shelf_view = HeroModules._shelfView("shelf", bw),
+                refresh = refresh,
+            })
+        end
+    end
+    ticking = false
+    if want and host and host.refresh then host.refresh() end
     return true
 end
 

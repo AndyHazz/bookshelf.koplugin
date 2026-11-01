@@ -335,6 +335,8 @@ end
 
 function Bookshelf:init()
     _installBroadcastTag()
+    -- KOReader's menu closes over the shelf without a full-screen flash.
+    pcall(function() require("lib/bookshelf_menu_close_refresh").install() end)
     -- The panel's night-mode inversion flag is kernel-side and outlives the
     -- KOReader process, but Device:init() only ever sets it, never clears it.
     -- A session that ended without Device:exit() can therefore leave the

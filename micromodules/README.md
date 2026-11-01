@@ -52,16 +52,26 @@ release with each:
 
 ## The one thing to understand: who sizes your card
 
-**The host owns SIZE. You own CONTENT.** The hero grid renders your module into
-a cell and then *grows or shrinks the whole card* (by re-rendering you at
-different `scale_pct`) until it fills its cell, clipping as a hard backstop. So
-you do **not** write your own font loop — render once at the `scale_pct` you're
+**By default the host sizes your card and you supply the content.** On a grid
+(the top panel, the full-screen view, a shelf) the host renders your module
+into a cell and then *grows or shrinks the whole card* (by re-rendering you at
+different `scale_pct`) until it fills the cell, clipping as a hard backstop. So
+you do **not** write your own font loop: render once at the `scale_pct` you're
 handed, and the host makes it fit. This is why every module looks right at every
 cell size without each author solving it again.
 
-Some modules can't scale like text: pixel art that only looks right at whole
-steps, an image, a widget built for another host. Those set `self_sized =
-true` and size themselves (see **Hero-grid hints**).
+Where that changes:
+
+- `self_sized = true`: sizing is yours, for content that can't scale like text
+  (pixel art that only looks right at whole steps, an image, a widget built for
+  another host). You render once at the cell's `ctx.width` x `ctx.height`; no
+  fit search, no text size setting.
+- The start menu: there is no cell. `ctx.height` is `nil`, the card takes its
+  natural height, and `ctx.max_height` is the ceiling.
+- `bare = true` (and `in_place`): the fit still runs, but there is no clip
+  backstop. You are centred in the cell, so stay inside it.
+
+See **Hero-grid hints** and **the context table** below.
 
 Use the shared kit to size fonts and build common pieces:
 

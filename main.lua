@@ -701,11 +701,25 @@ function Bookshelf:hideMenu(touchmenu_instance)
     -- none, the restore closure below just refreshes the instance.
     local menu_container = touchmenu_instance.show_parent
         or touchmenu_instance.menu_container
+    -- The KOReader menu (file browser's, reader's) holding this container
+    -- now. It keeps one and REPLACES it when the menu is opened again (a tap
+    -- in its top zone, outside the picker): showing the old one after left
+    -- a menu nothing could close, its tap outside closing the new one
+    -- (maintainer, PW5). So it comes back only while it is still theirs.
+    local owner
+    if menu_container then
+        for _i, mod in ipairs({ "apps/filemanager/filemanager", "apps/reader/readerui" }) do
+            local ok, C = pcall(require, mod)
+            local m = ok and type(C) == "table" and C.instance and C.instance.menu
+            if m and m.menu_container == menu_container then owner = m end
+        end
+    end
     if menu_container and UIManager and UIManager.close then
         UIManager:close(menu_container)
     end
     return function()
-        if menu_container and UIManager and UIManager.show then
+        local current = not owner or owner.menu_container == menu_container
+        if menu_container and current and UIManager and UIManager.show then
             UIManager:show(menu_container)
         end
         if touchmenu_instance and touchmenu_instance.updateItems then

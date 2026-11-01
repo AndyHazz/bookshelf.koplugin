@@ -377,8 +377,8 @@ t.test("a tap chooses and moves the mark, then the shelf behind is rebuilt; the 
     eq(table.concat(built, ","), "Macabre", "the shelf behind did not follow the choice while the picker is open")
     -- No full refresh of its own while the picker is up: it flashed the
     -- picker after the card's outline (maintainer: one paint per tap). The
-    -- shelf's rebuild refreshes as ui (TL.previewing); one full refresh as
-    -- the picker closes clears what the previews left.
+    -- shelf's rebuild refreshes as ui (TL.previewing); nor as the picker
+    -- closes (maintainer: the shelf behind already shows the theme).
     for _i, d in ipairs(dirty) do assert(d ~= "all:full", "a theme tap flashed the whole screen") end
     eq(TL.previewing, true, "the shelf does not know the previews are the picker's")
     eq(m.closed, nil, "the picker closed on a choice")
@@ -386,7 +386,7 @@ t.test("a tap chooses and moves the mark, then the shelf behind is rebuilt; the 
     eq(#chosen, 1, "choosing the theme in use again did something")
     eq(runTasks(), 0, "choosing the theme in use again rebuilt the shelf")
     c.on_closed()
-    eq(dirty[#dirty], "all:full", "no full refresh as the picker closed after a theme was applied")
+    for _i, d in ipairs(dirty) do assert(d ~= "all:full", "the picker flashed the screen as it closed") end
     eq(TL.previewing, false)
 end)
 
@@ -406,7 +406,7 @@ t.test("a run of taps is one rebuild, for the last choice", function()
     c.on_closed()
     full = 0
     for _i, d in ipairs(dirty) do if d == "all:full" then full = full + 1 end end
-    eq(full, 1, "not one full refresh for a run of taps, as the picker closes")
+    eq(full, 0, "a full refresh as the picker closed")
 end)
 
 t.test("a choice still waiting is applied when the picker closes, before the caller comes back", function()
@@ -635,10 +635,10 @@ t.test("the footer's Reset: the marked theme, greyed unless an edited pack or Pl
     runTasks()
     eq(built, 1, "the shelf behind showing that theme did not follow")
     c.on_closed()
-    eq(dirty[#dirty], "all:full", "no full refresh as the picker closed after the look changed")
+    for _i, d in ipairs(dirty) do assert(d ~= "all:full", "the picker flashed the screen as it closed") end
     full = 0
     for _i, d in ipairs(dirty) do if d == "all:full" then full = full + 1 end end
-    eq(full, 1, "more than one full refresh for a reset")
+    eq(full, 0, "a full refresh for a reset")
     -- Plain, edited, marked: Reset. The shelf behind on another theme: left
     -- alone.
     library = "plain"; edits.plain = { keys = {} }; on_screen = "Ukiyo"

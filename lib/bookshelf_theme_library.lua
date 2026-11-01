@@ -729,7 +729,9 @@ function TL.show(opts)
             modal = nil
             apply()
             TL.previewing = false
-            if applied then UIManager:setDirty("all", "full") end
+            -- No flash after a theme was chosen: the shelf behind was redrawn
+            -- as each was tapped, and the modal's close refreshes where it
+            -- was (maintainer).
             if own_defer then
                 own_defer = false
                 -- Once the close has painted: the write (~115ms on a PW5)

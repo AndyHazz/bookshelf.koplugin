@@ -5146,11 +5146,11 @@ function Settings:_advancedSubItems()
                     end,
                 })
             end,
-            -- End the resets band before the betas.
+            -- End the resets band before the calibre switch.
             separator = true,
         },
         {
-            text = _("BETA: Read calibre metadata.calibre"),
+            text = _("Read calibre metadata.calibre"),
             -- Says what the code does. The previous wording promised the
             -- opposite ("Calibre data only fills gaps"), which is how a
             -- Calibre library built from filenames ended up overriding

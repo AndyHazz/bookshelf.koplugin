@@ -442,9 +442,9 @@ local function trustedIndex()
     return _index
 end
 
-local function loadIndexed(key)
+local function loadIndexed(key, force)
     if scanned then return false end
-    if not inUse() then return false end
+    if not force and not inUse() then return false end
     local idx = trustedIndex()
     local e = idx and idx.keys[key]
     if type(e) ~= "table" then return false end
@@ -457,10 +457,13 @@ end
 -- Additive registration for callers that build specs in code (kept for
 -- API stability; file-based modules in micromodules/ are preferred).
 function M.register(key, def) registry[key] = def end
-function M.get(key)
+-- get(key, force): a module's spec, or nil. force: past the kill switch, for
+-- a lookup that is itself asking for the module (Kit.setOnHomeShelf, before
+-- any shelf holds it).
+function M.get(key, force)
     if registry[key] then return registry[key] end
-    if loadIndexed(key) then return registry[key] end
-    scan()
+    if loadIndexed(key, force) then return registry[key] end
+    scan(force)
     return registry[key]
 end
 

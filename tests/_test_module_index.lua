@@ -172,4 +172,15 @@ t.test("the module picker lists every module, whatever the switches", function()
     any_enabled = true
 end)
 
+-- Kit.setOnHomeShelf looks its module up before any shelf holds it: with the
+-- start menu's modules off and none on a shelf yet, nothing was in use, the
+-- lookup found nothing, and Silverfish's "Card on home" tick did nothing.
+t.test("a forced lookup finds a module while none is in use", function()
+    any_enabled, shelf_tabs = false, {}
+    fresh()
+    assert(M.get("a") == nil, "an unforced lookup ran module files")
+    assert(M.get("a", true) ~= nil, "the forced lookup found nothing")
+    any_enabled = true
+end)
+
 t.done()

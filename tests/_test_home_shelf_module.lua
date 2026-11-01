@@ -86,7 +86,10 @@ t.test("Kit.setOnHomeShelf saves, tells the shelf, and Kit.onHomeShelf reads it"
     TM.save = function(tabs) stored = tabs; saves = saves + 1 end
     package.loaded["lib/bookshelf_fonts"] = {}
     package.loaded["lib/bookshelf_start_menu_modules"] = {
-        get = function(k) if k == "pet" then return { key = "pet", start_w = 4 } end end,
+        get = function(k, force)
+            assert(force, "the lookup was not forced: with no module in use it finds nothing")
+            if k == "pet" then return { key = "pet", start_w = 4 } end
+        end,
         notifyRemoved = function(m) removed_seen[#removed_seen + 1] = m.id end,
     }
     package.loaded["lib/bookshelf_shelf_modules"] = SM

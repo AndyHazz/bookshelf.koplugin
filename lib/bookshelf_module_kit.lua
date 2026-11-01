@@ -390,7 +390,8 @@ end
 function Kit.setOnHomeShelf(key, on)
     local ShelfModules = require("lib/bookshelf_shelf_modules")
     local TabModel = require("lib/bookshelf_tab_model")
-    local def = SM.get(key)
+    -- Forced: with no module in use anywhere yet, Bookshelf loads none.
+    local def = SM.get(key, true)
     if on and not def then return false end
     local tabs = TabModel.load()
     local changed, home, removed = ShelfModules.setOnHome(key, on and true or false, tabs,

@@ -224,12 +224,35 @@ function Color.paintRect(bb, x, y, w, h, c)
     return bb:paintRect(x, y, w, h, c)
 end
 
+-- Color.rawInvertBegin(bb) -> token; Color.rawInvertEnd(bb, token)
+-- Bracket a ROUNDED true-colour paint (paintRoundedRectRGB32,
+-- paintBorderRGB32). Their corners go through paintRoundedCorner, a Lua pixel
+-- loop that applies the buffer's invert flag itself; on Android the whole
+-- frame is inverted again at blit time, so in night mode the corners came out
+-- un-inverted while the straight parts were inverted once (#217's white
+-- border corners; a selection ring with light edges and black corners).
+-- With the flag off for the call, every part is inverted once, at the blit.
+-- Other devices invert in hardware or in the C blitter and are left alone.
+function Color.rawInvertBegin(bb)
+    if not (bb and bb.getInverse and bb:getInverse() == 1) then return false end
+    local ok_d, Device = pcall(require, "device")
+    if not (ok_d and Device and Device.isAndroid and Device:isAndroid()) then return false end
+    bb:setInverse(0)
+    return true
+end
+function Color.rawInvertEnd(bb, token)
+    if token then bb:setInverse(1) end
+end
+
 -- Color.paintRoundedRect: paintRoundedRect, keeping a picked colour (the same
 -- dispatch as paintRect above).
 function Color.paintRoundedRect(bb, x, y, w, h, c, r)
     if type(c) == "nil" then return end   -- not c == nil: see parseColorValue
     if bb.paintRoundedRectRGB32 and Blitbuffer.isColor8 and not Blitbuffer.isColor8(c) then
-        return bb:paintRoundedRectRGB32(x, y, w, h, c, r)
+        local raw = Color.rawInvertBegin(bb)
+        bb:paintRoundedRectRGB32(x, y, w, h, c, r)
+        Color.rawInvertEnd(bb, raw)
+        return
     end
     return bb:paintRoundedRect(x, y, w, h, c, r)
 end
@@ -244,12 +267,9 @@ end
 function Color.paintBorder(bb, x, y, w, h, bw, c, r, anti_alias)
     if type(c) == "nil" or not bw or bw <= 0 then return end   -- not c == nil: see parseColorValue
     if bb.paintBorderRGB32 and Blitbuffer.isColor8 and not Blitbuffer.isColor8(c) then
-        local ok_d, Device = pcall(require, "device")
-        local suppress = ok_d and Device.isAndroid and Device:isAndroid()
-            and bb.getInverse and bb:getInverse() == 1
-        if suppress then bb:setInverse(0) end
+        local raw = Color.rawInvertBegin(bb)
         bb:paintBorderRGB32(x, y, w, h, bw, c, r, anti_alias)
-        if suppress then bb:setInverse(1) end
+        Color.rawInvertEnd(bb, raw)
         return
     end
     return bb:paintBorder(x, y, w, h, bw, c, r, anti_alias)

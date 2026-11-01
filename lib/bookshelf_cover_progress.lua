@@ -285,10 +285,14 @@ end
 -- exposes parallel *RGB32 variants that preserve true color; dispatch by
 -- type so the call sites stay shape-agnostic. (Same pattern bookends uses
 -- in bookends_overlay_widget.lua.)
+-- The RGB32 variants' corners need the invert flag off on Android: see
+-- Color.rawInvertBegin.
 local function _paintRoundedRect(bb, x, y, w, h, c, r)
     if not c then return end
     if ffi.istype(ColorRGB32_t, c) then
+        local raw = Color.rawInvertBegin(bb)
         bb:paintRoundedRectRGB32(x, y, w, h, c, r)
+        Color.rawInvertEnd(bb, raw)
     else
         bb:paintRoundedRect(x, y, w, h, c, r)
     end
@@ -298,7 +302,9 @@ M.paintRoundedRect = _paintRoundedRect
 local function _paintBorder(bb, x, y, w, h, bw, c, r)
     if not c then return end
     if ffi.istype(ColorRGB32_t, c) then
+        local raw = Color.rawInvertBegin(bb)
         bb:paintBorderRGB32(x, y, w, h, bw, c, r)
+        Color.rawInvertEnd(bb, raw)
     else
         bb:paintBorder(x, y, w, h, bw, c, r)
     end

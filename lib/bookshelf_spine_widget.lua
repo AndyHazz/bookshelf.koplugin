@@ -82,14 +82,14 @@ end
 local function _paintColorSafeBorder(bb, x, y, w, h, border_size, color, radius, anti_alias)
     if not color or not border_size or border_size <= 0 then return end
     local is_rgb32 = ffi.istype(ColorRGB32_t, color)
-    local suppress_invert = is_rgb32 and Device:isAndroid() and bb:getInverse() == 1
-    if suppress_invert then bb:setInverse(0) end
+    local Color = require("lib/bookshelf_color")
+    local raw = is_rgb32 and Color.rawInvertBegin(bb)
     if is_rgb32 then
         bb:paintBorderRGB32(x, y, w, h, border_size, color, radius, anti_alias)
     else
         bb:paintBorder(x, y, w, h, border_size, color, radius, anti_alias)
     end
-    if suppress_invert then bb:setInverse(1) end
+    Color.rawInvertEnd(bb, raw)
 end
 
 -- Thin FrameContainer subclass that routes its border paint through
@@ -123,9 +123,8 @@ function ColorSafeFrame:paintTo(bb, x, y)
 
     if self.background then
         local radius = (self.radius and self.bordersize) and self.radius + self.bordersize or self.radius
-        local paintRoundedRect = ffi.istype(ColorRGB32_t, self.background)
-                                  and bb.paintRoundedRectRGB32 or bb.paintRoundedRect
-        paintRoundedRect(bb, x, y, container_width, container_height, self.background, radius)
+        CoverProgress.paintRoundedRect(bb, x, y, container_width, container_height,
+                                       self.background, radius)
     end
     if self.bordersize > 0 then
         local anti_alias = G_reader_settings:nilOrTrue("anti_alias_ui")

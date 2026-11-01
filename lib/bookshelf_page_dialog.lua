@@ -11,6 +11,8 @@
 --                                 laid out afresh on every refresh()
 --     footer = { { text, callback, enabled_func, primary } ... } (optional)
 --     on_close = function()       the X, a tap outside, Back (after closing)
+--     on_tap_outside = function() a tap outside goes here instead of on_close,
+--                                 and it closes the dialog (a slider: Done)
 --     dismissable = false         a tap outside does nothing (a nudge: rapid
 --                                 taps fell through and closed it mid-edit)
 --     at_bottom = true            a slim panel low on the screen, so more
@@ -220,7 +222,7 @@ end
 function PageDialog:onTapClose(_arg, ges)
     local d = self.frame.dimen
     if self.dismissable ~= false and d and ges and ges.pos and ges.pos:notIntersectWith(d) then
-        self:_dismiss()
+        if self.on_tap_outside then self.on_tap_outside() else self:_dismiss() end
     end
     return true
 end

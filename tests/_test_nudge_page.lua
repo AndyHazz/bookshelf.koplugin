@@ -65,7 +65,6 @@ t.test("a slider over the range, Default marked, a slim panel at the bottom", fu
     eq(s.value, 120); eq(s.min, 50); eq(s.max, 200); eq(s.step, 5); eq(s.default, 100)
     eq(s.format(120), "120%")
     eq(st.dlg.at_bottom, true)
-    eq(st.dlg.dismissable, false)
     eq(s.big, 10, "no -10 / +10 either side")
     eq(st.dlg.footer[1].text, "Cancel"); eq(st.dlg.footer[2].text, "Default"); eq(st.dlg.footer[3].text, "Done")
 end)
@@ -80,7 +79,7 @@ t.test("a change saves, previews and redraws; clamped to the range", function()
     eq(st.previews, 2, "the same value previewed again")
 end)
 
-t.test("Cancel and the X put the value back; Done keeps it; the menu comes back", function()
+t.test("Cancel and the X put the value back; Done and a tap outside keep it; the menu comes back", function()
     local st, saved = open(spec())
     slider(st).on_change(150)
     st.dlg.footer[1].callback()
@@ -92,6 +91,11 @@ t.test("Cancel and the X put the value back; Done keeps it; the menu comes back"
     st, saved = open(spec())
     slider(st).on_change(150)
     st.dlg.footer[3].callback()
+    eq(saved.k, 150); eq(st.restored, 1)
+    -- A tap outside is Done (the shelf paged behind it to judge the change).
+    st, saved = open(spec())
+    slider(st).on_change(150)
+    st.dlg.on_tap_outside()
     eq(saved.k, 150); eq(st.restored, 1)
 end)
 

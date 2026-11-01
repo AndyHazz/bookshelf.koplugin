@@ -3213,8 +3213,7 @@ end
 -- The TouchMenu behind is hidden while the page is up so the live preview is
 -- not covered (restored on every way out, so the next tap lands on the menu
 -- the reader came from; see Bookshelf:hideMenu in main.lua, #60). A tap
--- outside does nothing (dismissable = false): rapid taps on the steps fell
--- through to the background and closed it mid-edit.
+-- outside is Done (on_tap_outside); the X and Back put the value back.
 function Settings:_nudgePage(touchmenu_instance, spec)
     local key, default = spec.key, spec.default or 100
     local original = BookshelfSettings.read(key, default)
@@ -3284,7 +3283,10 @@ function Settings:_nudgePage(touchmenu_instance, spec)
         page = page,
         anchor = spec.anchor,
         at_bottom = true,
-        dismissable = false,
+        -- A tap outside is Done: the shelf can be paged behind the page to
+        -- judge the change, and the value stays (maintainer). The rapid
+        -- steps that fell through and closed it were the stock dialog's.
+        on_tap_outside = function() done(false) end,
         footer = {
             { text = _("Cancel"), callback = function() done(true) end },
             -- Default stays in the footer (maintainer), greyed at the default.

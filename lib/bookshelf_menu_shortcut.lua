@@ -70,8 +70,23 @@ function MenuShortcut._childrenOf(item)
     return nil
 end
 
+-- _stem(label) -> the label without the state KOReader writes into it, so a
+-- row is found again after its state changed (issue 571): a count of what is
+-- on in it ("Text (2)"), the marks of a starred tweak or one given a gesture
+-- (★, the gesture glyph), and a value after a colon ("Hyphenation: English"
+-- / "Hyphenation: disabled").
+local STAR, GESTURE = "\226\152\133", "\239\133\132"
+function MenuShortcut._stem(label)
+    local s = tostring(label or "")
+    s = s:gsub("%s*" .. STAR, ""):gsub("%s*" .. GESTURE, "")
+    s = s:gsub("%s*%(%d+%)%s*$", "")
+    s = s:match("^(.-):%s") or s
+    return (s:gsub("%s+$", ""))
+end
+
 -- Find the child of `items` matching a path segment: by id if the segment has
--- one, else by label.
+-- one, else by label; failing an exact label, by its stem (_stem), when one
+-- row alone has it.
 function MenuShortcut._matchChild(items, seg)
     if type(items) ~= "table" or type(seg) ~= "table" then return nil end
     for _i, it in ipairs(items) do
@@ -80,6 +95,18 @@ function MenuShortcut._matchChild(items, seg)
         elseif seg.text ~= nil then
             if MenuShortcut._label(it) == seg.text then return it end
         end
+    end
+    if seg.id == nil and seg.text ~= nil then
+        local want = MenuShortcut._stem(seg.text)
+        if want == "" then return nil end
+        local found
+        for _i, it in ipairs(items) do
+            if MenuShortcut._stem(MenuShortcut._label(it)) == want then
+                if found then return nil end   -- two alike: no guess
+                found = it
+            end
+        end
+        return found
     end
     return nil
 end

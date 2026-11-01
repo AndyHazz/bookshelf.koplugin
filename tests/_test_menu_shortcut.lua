@@ -215,5 +215,49 @@ test("isAvailable(is_page=true): true when node has children, false for a leaf",
     MS.buildMenuTree = orig
 end)
 
+
+-- Issue 571: a parent whose label carries its state (KOReader's
+-- "Hyphenation: English" / "Hyphenation: disabled"; a style tweak category's
+-- "Text (2)"; a starred tweak's "   *") changed as the shortcut's toggle was
+-- used, and the shortcut vanished from its folder.
+local function stateTree(hyph, n, starred)
+    return {
+        { id = "typeset", text = "Typeset", sub_item_table = {
+            { text_func = function() return "Hyphenation: " .. (hyph and "English" or "disabled") end,
+              sub_item_table = {
+                { text = "Enable hyphenation", callback = function() end },
+              } },
+            { text_func = function() return "Hyphenation dictionary: English" end, sub_item_table = {} },
+            { text = "Style tweaks", sub_item_table = {
+                { text_func = function() return n > 0 and ("Text (" .. n .. ")") or "Text" end, sub_item_table = {
+                    { text_func = function() return "Indentation on first paragraph line" .. (starred and "   \226\152\133" or "") end,
+                      callback = function() end },
+                } },
+            } },
+        } },
+    }
+end
+
+test("571: a parent label that carries its state still finds the toggle", function()
+    local path = { { id = "typeset" }, { text = "Hyphenation: English" }, { text = "Enable hyphenation" } }
+    local leaf = MS.walk(stateTree(false, 0), path)
+    eq("hyphenation off", leaf and MS._label(leaf), "Enable hyphenation")
+    local tpath = { { id = "typeset" }, { text = "Style tweaks" }, { text = "Text" }, { text = "Indentation on first paragraph line" } }
+    leaf = MS.walk(stateTree(true, 1, true), tpath)
+    eq("category count and star", leaf ~= nil, true)
+    tpath[3] = { text = "Text (1)" }
+    leaf = MS.walk(stateTree(true, 0), tpath)
+    eq("count gone", leaf ~= nil, true)
+end)
+
+test("571: the loose match is taken only when it is the only one", function()
+    -- "Hyphenation: X" could be "Hyphenation dictionary: X"? No: its stem
+    -- differs. Two rows with the same stem: no guess.
+    local tree = { { text = "Mode: a", sub_item_table = { { text = "x", callback = function() end } } },
+                   { text = "Mode: b", sub_item_table = { { text = "x", callback = function() end } } } }
+    eq("ambiguous", MS.walk(tree, { { text = "Mode: c" }, { text = "x" } }), nil)
+    eq("exact still wins", MS.walk(tree, { { text = "Mode: b" }, { text = "x" } }) ~= nil, true)
+end)
+
 io.write(("menu_shortcut: %d passed, %d failed\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

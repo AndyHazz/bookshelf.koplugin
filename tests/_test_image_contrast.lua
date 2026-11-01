@@ -68,6 +68,34 @@ test("a flat picture is not stretched into a poster", function()
     assert(math.abs(lut[120] - 120) <= 40, "flat grey moved too far: " .. lut[120])
 end)
 
+-- Every kind of picture: a dark ornament, a typical cover, a pale one.
+local PICTURES = { { 10, 40, 120 }, { 20, 60, 200 }, { 20, 120, 230 }, { 40, 170, 250 }, { 60, 210, 250 }, { 150, 200, 240 } }
+
+test("the boost never lightens a grey, on any picture (dark ornaments washed out)", function()
+    for _, c in ipairs(PICTURES) do
+        for _, s in ipairs({ 0.05, 0.35, 0.6, 1 }) do
+            local lut = IC.boostLUT(c[1], c[2], c[3], s)
+            for i = 0, 255 do
+                assert(lut[i] <= i, string.format("med %d s %.2f: %d lightened to %d", c[2], s, i, lut[i]))
+                if i > 0 then assert(lut[i] >= lut[i - 1], "monotonic") end
+            end
+            assert(math.abs(lut[c[2]] - c[2]) <= 1, "the picture's middle grey moved: " .. c[2] .. " > " .. lut[c[2]])
+        end
+    end
+end)
+
+test("a weak boost is a small change", function()
+    for _, c in ipairs(PICTURES) do
+        local lut = IC.boostLUT(c[1], c[2], c[3], 0.02)
+        for i = 0, 255 do assert(i - lut[i] <= 3, "1-2% reshaped the picture at " .. i) end
+    end
+end)
+
+test("a pale picture's mid-tones are deepened, not crushed", function()
+    local lut = IC.boostLUT(60, 210, 250, 0.35)
+    assert(lut[150] < 150 and lut[150] >= 100, "150 went to " .. lut[150])
+end)
+
 test("wallpaper at 0/0 is the picture as it is", function()
     local lut = IC.wallpaperLUT(100, 0, 0)
     for i = 0, 255 do assert(lut[i] == i, "moved " .. i) end

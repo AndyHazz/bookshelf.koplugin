@@ -52,42 +52,25 @@ end
 -- boostLUT(lo, med, hi, s) -> lut[0..255] for a picture whose 1st percentile,
 -- median and 99th percentile greys are lo, med, hi, at strength s (0..1).
 --
--- Below the median: the dark end stretched toward black (at most 1.4x), then
--- a tanh S around the median, so a dark cover keeps its darkness while its
--- shadows and mid-tones spread across more of e-ink's 16 greys. Above the
--- median: a straight line from there to white. Rolling the S off into the
--- highlights as well bunched every pale grey together and swallowed white
--- lettering on pale grounds (PW5 trial); the line keeps every highlight gap,
--- and the curve can only rise.
+-- Below the picture's median, a gamma curve (1 + 2s) pinned at black and at
+-- the median: shadows and mid-tones go deeper and spread across more of
+-- e-ink's 16 greys. The median and everything above it stay as they are, so
+-- highlights keep every gap (white lettering on pale grounds: PW5 trial).
+-- Nothing is ever made lighter, whatever the picture: the first curve, an
+-- S normalised over 0..255, pulled every median toward mid-grey, lifting a
+-- dark ornament's greys (40 > 83 at 35%) and crushing a pale one's (150 >
+-- 43). lo and hi are kept for callers; the curve needs only the median.
 function M.boostLUT(lo, med, hi, s)
     local lut = {}
     if s <= 0 then
         for i = 0, 255 do lut[i] = i end
         return lut
     end
-    local nlo = lo * (1 - s)
-    if hi - lo < 8 or (hi - nlo) / math.max(1, hi - lo) > 1.4 then nlo = lo end
-    local function lv(i)
-        if hi <= lo then return i end
-        return math.max(0, math.min(255, nlo + (i - lo) * (hi - nlo) / (hi - lo)))
-    end
-    local k = 1 + 2.2 * s
-    local m = lv(med)
-    local function T(v)
-        local e = math.exp(2 * k * (v - m) / 128)
-        return (e - 1) / (e + 1)
-    end
-    local t0, t1 = T(0), T(255)
-    local function S(i) return 255 * (T(lv(i)) - t0) / (t1 - t0) end
-    local top = math.min(254, med)
-    local at = S(top)
+    local g = 1 + 2 * math.min(1, s)
+    local m = math.max(1, math.min(254, med or 128))
     for i = 0, 255 do
-        local v
-        if i <= top then
-            v = S(i)
-        else
-            v = at + (i - top) * (255 - at) / (255 - top)
-        end
+        local v = i
+        if i < m then v = m * (i / m) ^ g end
         lut[i] = math.max(0, math.min(255, math.floor(v + 0.5)))
     end
     return lut

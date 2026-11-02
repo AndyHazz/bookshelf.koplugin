@@ -55,6 +55,27 @@ t.test("a menu never painted (no place yet): KOReader's flash", function()
     eq(TM.flashed, 1)
 end)
 
+t.test("a dialog the menu item opened: refreshed where it is, not left stale (572)", function()
+    -- KOReader runs the item's callback, which shows the dialog, before it
+    -- closes the menu; a dialog that asks for no refresh of its own showed
+    -- only where the menu had been.
+    dirty = {}
+    local TM = TouchMenuClass()
+    local container, dialog, below = {}, { dimen = { x = 50, y = 300, w = 500, h = 400 } }, {}
+    local UI = { setDirty = UIManager.setDirty,
+                 _window_stack = { { widget = below }, { widget = container }, { widget = dialog } } }
+    M.install(TM, { UIManager = UI, GZ = GZ, Screen = Screen })
+    shelf_below = { name = "bookshelf" }
+    local menu = setmetatable({ show_parent = container, dimen = { x = 10, y = 0, w = 580, h = 400 } }, { __index = TM })
+    menu:onCloseWidget()
+    eq(TM.flashed, 0)
+    eq(#dirty, 2, "the dialog above the menu was not refreshed")
+    eq(dirty[2].w, dialog)
+    eq(type(dirty[2].kind), "function", "region read after the dialog paints")
+    local kind, region = dirty[2].kind()
+    eq(kind, "ui"); eq(region, dialog.dimen)
+end)
+
 t.test("installed once", function()
     local TM = TouchMenuClass()
     M.install(TM, { UIManager = UIManager, GZ = GZ, Screen = Screen })

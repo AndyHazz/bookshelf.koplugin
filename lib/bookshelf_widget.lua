@@ -21065,6 +21065,9 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
     -- "Last read" wording, and the folder path with the filename. The long-press
     -- menu (opts nil) keeps the compact original.
     local rich = opts and opts.rich or false
+    -- band: the book menu's header ground (bookshelf_reviews_modal), which
+    -- the text boxes paint behind their text, as they would white.
+    local band = opts and opts.band or nil
     local Font           = require("ui/font")
     local ImageWidget    = require("ui/widget/imagewidget")
     local HorizontalGroup_   = require("ui/widget/horizontalgroup")
@@ -21307,6 +21310,7 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
     local top_stack = VerticalGroup_:new{ align = "left" }
     local mtitle_face, mtitle_bold = BFont:getFace("smalltfont", rich and 26 or 22, { bold = true })
     top_stack[#top_stack + 1] = TextBoxWidget_:new{
+            bgcolor = band,
         text  = book.title or book.filename or _("(no title)"),
         face  = mtitle_face,
         bold  = mtitle_bold,
@@ -21317,6 +21321,7 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
     if book.author and book.author ~= "" then
         local mauthor_face, mauthor_bold = BFont:getFace("cfont", rich and 22 or 18)
         top_stack[#top_stack + 1] = TextBoxWidget_:new{
+            bgcolor = band,
             text  = book.author,
             face  = mauthor_face,
             bold  = mauthor_bold,
@@ -21404,6 +21409,7 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
             }
         else
             txt = TextBoxWidget_:new{
+                bgcolor = band,
                 text  = text,
                 face  = meta_face,
                 bold  = meta_bold,
@@ -21473,6 +21479,7 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
         local rface, rbold = BFont:getFace("cfont", 20, { bold = true })
         top_stack[#top_stack + 1] = VerticalSpan_:new{ width = Space.px(6) }
         top_stack[#top_stack + 1] = TextBoxWidget_:new{
+            bgcolor = band,
             text  = table.concat(parts, "  \xC2\xB7  "),  -- middle-dot
             face  = rface,
             bold  = rbold,
@@ -21498,10 +21505,11 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
 
     if #meta_parts > 0 then
         top_stack[#top_stack + 1] = TextBoxWidget_:new{
+            bgcolor = band,
             text  = table.concat(meta_parts, "  \xC2\xB7  "),  -- middle-dot
             face  = meta_face,
             bold  = meta_bold,
-            fgcolor = rich and Blitbuffer.COLOR_DARK_GRAY or nil,
+            fgcolor = rich and (band and require("lib/bookshelf_popup_kit").DIM_ON_GREY or Blitbuffer.COLOR_DARK_GRAY) or nil,
             width = text_w,
         }
     end
@@ -21527,6 +21535,7 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
         top_stack[#top_stack + 1] = _icon_row("\xEF\x80\x96", fname, true)  -- U+F016 file
     else
         top_stack[#top_stack + 1] = TextBoxWidget_:new{
+            bgcolor = band,
             text  = fname,
             face  = meta_face,
             bold  = meta_bold,
@@ -25138,8 +25147,8 @@ function BookshelfWidget:_showBookDetail(book, opts)
         -- Cover + metadata header in place of a title bar. Rebuilt fresh on each
         -- layout by the modal (cover bb is one-shot); no pills here (Tags tab),
         -- no bookmark button.
-        header_builder = function(avail_w)
-            return self:_buildBookMenuHeader(book, avail_w, nil, nil, { rich = true })
+        header_builder = function(avail_w, band)
+            return self:_buildBookMenuHeader(book, avail_w, nil, nil, { rich = true, band = band })
         end,
     }
     -- The description-source choice (Embedded vs Hardcover) now persists via the

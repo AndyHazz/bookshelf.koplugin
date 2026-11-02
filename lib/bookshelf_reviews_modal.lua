@@ -153,6 +153,8 @@ local TabBar = InputContainer:extend{
     left_inset  = nil,   -- x of the first tab; align with the body text's left
     font_size   = nil,   -- base point size before Screen:scaleBySize; default below
     on_select   = nil,
+    band        = nil,   -- a colour: the strip's ground (the book menu's header
+                         -- band), its cells white on it; nil leaves it white
 }
 
 function TabBar:init()
@@ -293,6 +295,17 @@ function TabBar:paintTo(bb, x, y)
     local sep_w   = self.sep_w
     local box_top = y + self.top_pad
 
+    -- On a band: its ground down to the baseline, and each cell white, so the
+    -- labels and the inverted active cell read as before.
+    if self.band then
+        local base_y0 = box_top + self._n_rows * self._row_h - Screen:scaleBySize(2)
+        bb:paintRect(x, y, self.dimen.w, base_y0 - y, self.band)
+        for i = 1, #self._labels do
+            bb:paintRect(x + self._tab_x[i], box_top + (self._tab_row[i] - 1) * self._row_h,
+                self._tab_w[i], self._row_h, Blitbuffer.COLOR_WHITE)
+        end
+    end
+
     -- Labels first (black text on the white background); pin each focus cell's
     -- dimen to its tab rect for FocusManager. The active cell is inverted after,
     -- flipping its background to black and its label to white.
@@ -428,6 +441,9 @@ function ReviewsModal:init()
     -- Near-fullscreen with the standard screen-edge inset (matches TextViewer).
     self.width  = self.width  or (screen_w - Space.px(30))
     self.height = self.height or (screen_h - Space.px(30))
+    -- The header band: with a cover header (the book menu), the header and
+    -- the tabs sit on the strips' light grey.
+    self._band = self.header_builder and require("lib/bookshelf_popup_kit").STRIP_BG or nil
 
     -- Source tabs (e.g. File vs Hardcover description). Only meaningful with 2+.
     self._tabs = (type(self.tabs) == "table" and #self.tabs > 0) and self.tabs or nil
@@ -738,7 +754,7 @@ function ReviewsModal:_buildHeader()
     -- as _owned_cover_bb); we free it once in onCloseWidget.
     if self._header_widget then return self._header_widget end
     local pad = self._side_pad  -- L/R + top match the tabs / body inset
-    local inner = self.header_builder(self.width - 2 * pad)
+    local inner = self.header_builder(self.width - 2 * pad, self._band)
     if not inner then return nil end
     self._owned_cover_bb = inner._owned_cover_bb
     -- The header's cover frame (stamps its painted dimen): the Open button
@@ -768,9 +784,10 @@ function ReviewsModal:_buildHeader()
     local side_m = Space.px(8)
     local top_m  = Space.px(6)
     local x_box = FrameContainer:new{
-        background = Blitbuffer.COLOR_WHITE, bordersize = 0, margin = 0,
+        background = self._band or Blitbuffer.COLOR_WHITE, bordersize = 0, margin = 0,
         padding = Screen:scaleBySize(4),  -- small tap target around the icon
-        IconWidget:new{ icon = "close", width = icon_size, height = icon_size },
+        IconWidget:new{ icon = "close", width = icon_size, height = icon_size,
+            alpha = self._band and true or false },   -- on the band, not a white square (no == nil: cdata)
     }
     local x_btn = InputContainer:new{
         dimen = Geom:new{ w = x_box:getSize().w, h = x_box:getSize().h }, x_box }
@@ -783,6 +800,24 @@ function ReviewsModal:_buildHeader()
         frame,
         x_btn,
     }
+    -- The header band (maintainer: it separates the header and tabs from the
+    -- tab's page): its ground under the header, the window's top corners
+    -- rounded as the window's are inside its border.
+    if self._band then
+        local band, hw = self._band, self._header_widget
+        local r = math.max(0, Space.radius.window - Size.border.window)
+        local paint = hw.paintTo
+        hw.paintTo = function(w, bb, x, y)
+            local sz = w:getSize()
+            if r > 0 then
+                bb:paintRoundedRect(x, y, sz.w, math.min(sz.h, 2 * r), band, r)
+                bb:paintRect(x, y + r, sz.w, sz.h - r, band)
+            else
+                bb:paintRect(x, y, sz.w, sz.h, band)
+            end
+            return paint(w, bb, x, y)
+        end
+    end
     return self._header_widget
 end
 
@@ -1167,6 +1202,7 @@ function ReviewsModal:_buildTabRow()
         left_inset  = self._side_pad,
         font_size   = TAB_LABEL_FONT_BASE * label_scale / 100,
         on_select   = function(i) self:_switchTab(i) end,
+        band        = self._band,
     }
 end
 

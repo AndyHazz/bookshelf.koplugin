@@ -21043,6 +21043,22 @@ local function _headerThumbBB(filepath, fresh, thumb_w)
     return nil
 end
 
+-- _headerCardBook(book, fresh) -> the record the book menu's cover card draws.
+-- A plain spine's page record is light: it carries no has_cover, and the card
+-- reads that as "no cover" and draws the text placeholder (575). The menu's
+-- own full record answers it; the shelf's record keeps everything else, and
+-- is copied rather than changed.
+function BookshelfWidget._headerCardBook(book, fresh)
+    if book.has_cover ~= nil or type(fresh) ~= "table" or fresh == book then
+        return book
+    end
+    local b = {}
+    for k, v in pairs(book) do b[k] = v end
+    b.has_cover = fresh.has_cover
+    if b.cover_image_path == nil then b.cover_image_path = fresh.cover_image_path end
+    return b
+end
+
 function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, bookmark_action, opts)
     if not book or not book.filepath then return nil end
     -- rich = the book-detail popup's header: +2pt detail fonts, a page count,
@@ -21179,7 +21195,7 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
         if ok_sw and SpineWidget then
             local ok_card, card = pcall(function()
                 return SpineWidget:new{
-                    book   = book,
+                    book   = BookshelfWidget._headerCardBook(book, fresh),
                     width  = thumb_w,
                     height = thumb_h,
                     on_tap = function() previewCover() end,

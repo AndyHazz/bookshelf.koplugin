@@ -9,6 +9,11 @@
 --
 -- UIManager:close sends CloseWidget while the menu is still on the stack, so
 -- the window under it is the one the menu sat on.
+--
+-- A menu item's callback runs before the menu closes, so a dialog it opened
+-- is already above the menu here. KOReader's flash used to bring that dialog
+-- up too, and some (other plugins') never ask for a refresh of their own:
+-- each window above the menu gets one where it is (572).
 
 local M = {}
 
@@ -40,6 +45,19 @@ function M.install(TouchMenu, deps)
         local ok_g, Geom = pcall(require, "ui/geometry")
         if ok_g and Geom and Geom.new then region = Geom:new(region) end
         UIManager:setDirty(nil, "ui", region)
+        local stack = UIManager._window_stack
+        local parent = self.show_parent or self
+        if type(stack) == "table" then
+            local above = false
+            for _i, win in ipairs(stack) do
+                local w = win.widget
+                if above and w then
+                    UIManager:setDirty(w, function() return "ui", w.dimen end)
+                elseif w == parent then
+                    above = true
+                end
+            end
+        end
     end
 end
 

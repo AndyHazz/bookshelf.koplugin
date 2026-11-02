@@ -72,6 +72,11 @@ local function newEnv()
     end
     e._lightMetaForFp = function(_, fp) return { filepath = fp, title = TITLES[fp] } end
     e.ipairs, e.pairs, e.table, e.type, e.tostring = ipairs, pairs, table, type, tostring
+    -- The slow-call perf line (folderCoverPaths' timing and BIM read count).
+    e._gettime = function() return 0 end
+    e.logger = { dbg = function() end }
+    e.Repo._bim_reads = 0
+    e.string = string
     local fn = assert(load("return function(path, sort_priority, limit, opts)\n"
         .. extract("Repo.folderCoverPaths", "%(path, sort_priority, limit, opts%)")
         .. "\nend", "folderCoverPaths", "t", e))

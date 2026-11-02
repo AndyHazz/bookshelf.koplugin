@@ -51,7 +51,7 @@ assert(body, "Repo.folderCoverPaths moved or was renamed")
 
 local function callCoverPaths(priority, limit, match)
     local env = {
-        Repo = { getFolderBookPaths = function() local c = {} for i, v in ipairs(WALK) do c[i] = v end return c end },
+        Repo = { _bim_reads = 0, getFolderBookPaths = function() local c = {} for i, v in ipairs(WALK) do c[i] = v end return c end },
         SortEngine = SortEngine,
         _buildBookMetaLight = function(fp) return { filepath = fp, title = TITLES[fp] } end,
         _lightMetaForFp = function(_, fp) return { filepath = fp, title = TITLES[fp] } end,
@@ -61,6 +61,9 @@ local function callCoverPaths(priority, limit, match)
         _folder_cover_cache = {}, _folder_cover_cache_order = {},
         _capInsert = function(cache, _order, key, value) cache[key] = value end,
         ipairs = ipairs, table = table, type = type,
+        -- The slow-call perf line (folderCoverPaths' timing and BIM read count).
+        _gettime = function() return 0 end, logger = { dbg = function() end },
+        string = string, tostring = tostring,
     }
     local fn, err = load("return function(path, sort_priority, limit, opts)\n" .. body .. "\nend",
         "folderCoverPaths", "t", env)

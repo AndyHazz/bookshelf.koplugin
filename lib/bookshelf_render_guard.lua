@@ -77,6 +77,7 @@ function M.childLimits()
         local ok_p, p = pcall(function() return tonumber(ffi.C.sysconf(30)) end)  -- _SC_PAGESIZE
         if ok_p and p and p > 0 then page = p end
         avail = M.memAvailableBytes(readFile("/proc/meminfo"))
+        if M.capOff() then return end
         local limit = M.addressLimit(pages and pages * page, avail)
         -- unsigned long is 32 bits on the Kobos and Kindles: stay under it.
         if not limit or (ffi.sizeof("unsigned long") == 4 and limit >= 2^32) then return end
@@ -109,6 +110,38 @@ end
 
 function M.clear()
     pcall(os.remove, inflightPath())
+end
+
+-- DIAGNOSTIC (page-count failures on the PW5, 2026-11-02). stage(name): the
+-- child notes how far it got (open, load, render, count), so a child that
+-- dies before it answers can be placed; takeStage() reads it once.
+-- capOff(): while a file named page_count_no_cap is in the settings folder,
+-- the child runs without its address-space cap, to tell the cap from the
+-- book. A file, not a setting: KOReader rewrites settings on exit, so one
+-- set over SSH would not stick.
+local function stagePath()
+    return require("lib/bookshelf_paths").settingsDir() .. "/page_count_stage"
+end
+function M.stage(name)
+    pcall(function()
+        local f = io.open(stagePath(), "w")
+        if f then f:write(name); f:close() end
+    end)
+end
+function M.takeStage()
+    local s = readFile(stagePath())
+    pcall(os.remove, stagePath())
+    if s == nil or s == "" then return nil end
+    return s
+end
+function M.capOff()
+    local ok, path = pcall(function()
+        return require("lib/bookshelf_paths").settingsDir() .. "/page_count_no_cap"
+    end)
+    if not ok then return false end
+    local f = io.open(path, "r")
+    if f then f:close(); return true end
+    return false
 end
 
 local function sizeOf(fp)

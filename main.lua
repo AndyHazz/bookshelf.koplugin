@@ -2951,6 +2951,7 @@ function Bookshelf:scanPageCounts(opts)
                 -- log named nothing).
                 logger.info(string.format("bookshelf: page count render %d/%d: %s", i, #todo, fp))
                 Guard.mark(fp)
+                Guard.takeStage()   -- the last book's, so a stage read below is this one's
                 for attempt = 1, 2 do
                     local t0 = _gettime()
                     job.in_run = true
@@ -2962,6 +2963,7 @@ function Bookshelf:scanPageCounts(opts)
                         if not ok_g then headroom, avail = nil, nil end
                         local ok_pc, pc = pcall(function()
                             local DocumentRegistry = require("document/documentregistry")
+                            G.stage("open")
                             local doc = DocumentRegistry:openDocument(fp)
                             if not doc then return nil end
                             -- The reader's own layout, not crengine's defaults:
@@ -2969,9 +2971,12 @@ function Bookshelf:scanPageCounts(opts)
                             -- settings go in before the load, as the reader's do.
                             local ok_l, Layout = pcall(require, "lib/bookshelf_reader_layout")
                             if ok_l then pcall(Layout.beforeLoad, doc) end
+                            G.stage("load")
                             if doc.loadDocument then doc:loadDocument() end
                             if ok_l then pcall(Layout.afterLoad, doc) end
+                            G.stage("render")
                             if doc.render then doc:render() end
+                            G.stage("count")
                             local n = doc:getPageCount()
                             pcall(function() doc:close() end)
                             return n
@@ -3005,8 +3010,12 @@ function Bookshelf:scanPageCounts(opts)
                         { name = nameFor(fp), pages = pages }
                 else
                     failed[#failed + 1] = fp
-                    logger.warn("bookshelf: page count render failed:", fp,
-                        type(pages_s) == "string" and pages_s:match("^!(.*)") or tostring(pages_s))
+                    local why = type(pages_s) == "string" and pages_s:match("^!(.*)")
+                    if not why then
+                        why = "the child gave nothing; last stage " .. tostring(Guard.takeStage())
+                    end
+                    logger.warn("bookshelf: page count render failed:", fp, why,
+                        Guard.capOff() and "(cap off)" or "")
                 end
                 -- Flush every few books: a mid-scan crash or battery death
                 -- should not cost the finished work.

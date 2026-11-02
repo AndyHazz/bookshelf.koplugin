@@ -56,7 +56,39 @@ function M.addressLimit(vsize, available)
     return math.floor(vsize + available * M.AVAILABLE_SHARE)
 end
 
--- childLimits() -> limit, available (bytes, either nil when unknown): what it
+-- Which limit the child gets. RLIMIT_AS (address space) counts every font
+-- and library mapped in whole, most of it never touched: on the PW5 a render
+-- using ~30 MB failed with 120 MB of address space spare, a different 76-97
+-- books each scan, and every one passed with no cap. From Linux 4.7
+-- RLIMIT_DATA counts the process's own private memory (heap and anonymous
+-- mappings), which is what ran out in issue 518, and leaves mapped files
+-- out. Older kernels only count the heap there, so they keep RLIMIT_AS.
+-- Resource numbers as on x86, ARM and AArch64.
+M.RLIMIT_DATA, M.RLIMIT_AS = 2, 9
+
+-- kernelAtLeast(release, major, minor) -> bool, release as uname -r prints it.
+function M.kernelAtLeast(release, major, minor)
+    local a, b = tostring(release or ""):match("^(%d+)%.(%d+)")
+    a, b = tonumber(a), tonumber(b)
+    if not a then return false end
+    return a > major or (a == major and b >= minor)
+end
+
+-- pickLimit(release, vmsize, vmdata, available) -> resource, limit, room
+-- (bytes), or nil when there is not enough to go on. room: what the child may
+-- take above what it has, the same share of the free memory either way.
+function M.pickLimit(release, vmsize, vmdata, available)
+    if not available or available <= 0 then return nil end
+    local room = math.floor(available * M.AVAILABLE_SHARE)
+    if vmdata and vmdata > 0 and M.kernelAtLeast(release, 4, 7) then
+        return M.RLIMIT_DATA, vmdata + room, room
+    end
+    local as = M.addressLimit(vmsize, available)
+    if as then return M.RLIMIT_AS, as, as - vmsize end
+    return nil
+end
+
+-- childLimits() -> room, available (bytes, either nil when unknown): what it
 -- set, for the scan's log when a render fails.
 function M.childLimits()
     local set_limit, avail
@@ -78,12 +110,14 @@ function M.childLimits()
         if ok_p and p and p > 0 then page = p end
         avail = M.memAvailableBytes(readFile("/proc/meminfo"))
         if M.capOff() then return end
-        local limit = M.addressLimit(pages and pages * page, avail)
+        local status = readFile("/proc/self/status")
+        local data_kb = status and tonumber(status:match("VmData:%s*(%d+)%s*kB"))
+        local res, limit, room = M.pickLimit(readFile("/proc/sys/kernel/osrelease"),
+            pages and pages * page, data_kb and data_kb * 1024, avail)
         -- unsigned long is 32 bits on the Kobos and Kindles: stay under it.
         if not limit or (ffi.sizeof("unsigned long") == 4 and limit >= 2^32) then return end
         local rl = ffi.new("struct bookshelf_rlimit", limit, limit)
-        ffi.C.setrlimit(9, rl)   -- RLIMIT_AS on Linux (x86, ARM, AArch64)
-        set_limit = limit - (pages and pages * page or 0)
+        if ffi.C.setrlimit(res, rl) == 0 then set_limit = room end
     end)
     return set_limit, avail
 end

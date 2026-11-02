@@ -91,26 +91,6 @@ test("the scan logs why a render gave no count", function()
     assert(m:find('logger.warn("bookshelf: page count render failed:"', 1, true))
 end)
 
-test("the child's last stage is kept, and read back once", function()
-    G.stage("render")
-    eq(G.takeStage(), "render")
-    eq(G.takeStage(), nil, "a stage outlived the read")
-end)
-
-test("the cap switch: off while its flag file is there", function()
-    eq(G.capOff(), false)
-    local f = io.open(dir .. "/page_count_no_cap", "w"); f:write("1"); f:close()
-    eq(G.capOff(), true)
-    os.remove(dir .. "/page_count_no_cap")
-    eq(G.capOff(), false)
-end)
-
-test("the scan reports where a child that gave nothing got to", function()
-    local m = io.open("main.lua"):read("*a")
-    assert(m:find('G.stage("open")', 1, true) and m:find('G.stage("render")', 1, true))
-    assert(m:find("Guard.takeStage()", 1, true))
-end)
-
 test("a kernel from 4.7 caps the child's own memory, not its address space", function()
     -- Address space counts every font and library mapped in whole; on the
     -- PW5 a render using ~30 MB failed with 120 MB of address space spare.

@@ -56,7 +56,10 @@ function M.addressLimit(vsize, available)
     return math.floor(vsize + available * M.AVAILABLE_SHARE)
 end
 
+-- childLimits() -> limit, available (bytes, either nil when unknown): what it
+-- set, for the scan's log when a render fails.
 function M.childLimits()
+    local set_limit, avail
     pcall(function()
         local f = io.open("/proc/self/oom_score_adj", "w")
         if f then f:write("1000"); f:close() end
@@ -73,13 +76,24 @@ function M.childLimits()
         local page = 4096
         local ok_p, p = pcall(function() return tonumber(ffi.C.sysconf(30)) end)  -- _SC_PAGESIZE
         if ok_p and p and p > 0 then page = p end
-        local limit = M.addressLimit(pages and pages * page,
-                                     M.memAvailableBytes(readFile("/proc/meminfo")))
+        avail = M.memAvailableBytes(readFile("/proc/meminfo"))
+        local limit = M.addressLimit(pages and pages * page, avail)
         -- unsigned long is 32 bits on the Kobos and Kindles: stay under it.
         if not limit or (ffi.sizeof("unsigned long") == 4 and limit >= 2^32) then return end
         local rl = ffi.new("struct bookshelf_rlimit", limit, limit)
         ffi.C.setrlimit(9, rl)   -- RLIMIT_AS on Linux (x86, ARM, AArch64)
+        set_limit = limit - (pages and pages * page or 0)
     end)
+    return set_limit, avail
+end
+
+-- failureNote(err, headroom, avail) -> "why" for the log line of a render that
+-- gave no count: the error, the room the child had over what it started with,
+-- and what the device had free then. MB, rounded.
+function M.failureNote(err, headroom, avail)
+    local function mb(b) return b and string.format("%d MB", math.floor(b / 1048576 + 0.5)) or "?" end
+    local e = tostring(err or "no count"):gsub("%s+", " "):sub(1, 200)
+    return string.format("%s; room %s, free %s", e, mb(headroom), mb(avail))
 end
 
 local function inflightPath()

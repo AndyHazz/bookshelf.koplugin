@@ -2957,7 +2957,9 @@ function Bookshelf:scanPageCounts(opts)
                     completed, pages_s = Trapper:dismissableRunInSubprocess(
                     function()
                         -- This child, not KOReader, is what runs out of memory.
-                        pcall(function() require("lib/bookshelf_render_guard").childLimits() end)
+                        local G = require("lib/bookshelf_render_guard")
+                        local ok_g, headroom, avail = pcall(G.childLimits)
+                        if not ok_g then headroom, avail = nil, nil end
                         local ok_pc, pc = pcall(function()
                             local DocumentRegistry = require("document/documentregistry")
                             local doc = DocumentRegistry:openDocument(fp)
@@ -2974,7 +2976,10 @@ function Bookshelf:scanPageCounts(opts)
                             pcall(function() doc:close() end)
                             return n
                         end)
-                        return tostring(ok_pc and pc or "")
+                        if ok_pc and tonumber(pc) and tonumber(pc) > 0 then return tostring(pc) end
+                        -- No count: why, for the log (not a number, so the
+                        -- parent takes it as a failure).
+                        return "!" .. G.failureNote(ok_pc and "no count" or pc, headroom, avail)
                     end,
                     job, true)
                     job.in_run = false
@@ -3000,6 +3005,8 @@ function Bookshelf:scanPageCounts(opts)
                         { name = nameFor(fp), pages = pages }
                 else
                     failed[#failed + 1] = fp
+                    logger.warn("bookshelf: page count render failed:", fp,
+                        type(pages_s) == "string" and pages_s:match("^!(.*)") or tostring(pages_s))
                 end
                 -- Flush every few books: a mid-scan crash or battery death
                 -- should not cost the finished work.

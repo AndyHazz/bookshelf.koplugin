@@ -79,6 +79,18 @@ test("a file that changed size gets another try", function()
     assert(not G.skipped(s, "/b/fixed.epub"), "a changed file stayed skipped")
 end)
 
+test("a failed render's log line: the error, the room it had, what was free", function()
+    eq(G.failureNote("not enough memory", 31457280, 62914560), "not enough memory; room 30 MB, free 60 MB")
+    eq(G.failureNote(nil, nil, nil), "no count; room ?, free ?")
+    eq(G.failureNote("a\n  b", 0, 0), "a b; room 0 MB, free 0 MB")
+end)
+
+test("the scan logs why a render gave no count", function()
+    local m = io.open("main.lua"):read("*a")
+    assert(m:find('return "!" .. G.failureNote(', 1, true))
+    assert(m:find('logger.warn("bookshelf: page count render failed:"', 1, true))
+end)
+
 os.execute("rm -rf " .. dir)
 print(string.format("PASS %d  FAIL %d", pass, fail))
 os.exit(fail == 0 and 0 or 1)

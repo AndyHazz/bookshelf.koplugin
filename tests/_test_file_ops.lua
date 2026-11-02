@@ -530,6 +530,68 @@ t.test("renameFolder maps to relocateFolder in the same parent", function()
     eq(calls[1], { "mv", "/h/a", "/h/renamed" })
 end)
 
+-- ---------- deleteFolder (456) ----------
+local purged, purge_fail
+package.loaded["ffi/util"] = {
+    purgeDir = function(dir)
+        calls[#calls + 1] = { "purge", dir }
+        purged = dir
+        if purge_fail then return nil, "busy" end
+        return true
+    end,
+}
+package.loaded["readhistory"].folderDeleted = function(_self, p) calls[#calls + 1] = { "histdel", p } end
+package.loaded["readcollection"].removeItemsByPath = function(_self, p) calls[#calls + 1] = { "colldel", p } end
+package.loaded["lib/bookshelf_home_dir"] = { get = function() return "/h" end }
+
+t.test("deleteFolder: every book's sidecar first, then the folder, then history, collections, shortcuts", function()
+    setTree({ "/h/a", "/h/a/sub" }, { "/h/a/one.epub", "/h/a/sub/two.epub", "/h/a/notes.txt" })
+    package.loaded["lib/bookshelf_book_repository"] = {
+        isBookFile = function(name) return name:sub(-5) == ".epub" end,
+    }
+    package.loaded["apps/filemanager/filemanagershortcuts"].updateItemsByPath = function(_self, old, new)
+        calls[#calls + 1] = { "shortcuts", old, new }
+    end
+    calls = {}
+    local ok, n = FileOps.deleteFolder("/h/a/")
+    eq(ok, true); eq(n, 2)
+    eq(calls[1], { "sdr", "/h/a/one.epub", nil })
+    local i_purge
+    for i, c in ipairs(calls) do if c[1] == "purge" then i_purge = i end end
+    eq(calls[i_purge][2], "/h/a")
+    for i = 1, i_purge - 1 do assert(calls[i][1] ~= "histdel", "history cleared before the delete") end
+    -- Slash-terminated, so /h/a doesn't take /h/ab's entries with it.
+    local seen = {}
+    for _i, c in ipairs(calls) do seen[c[1]] = c end
+    eq(seen.histdel[2], "/h/a/")
+    eq(seen.colldel[2], "/h/a/")
+    eq(seen.shortcuts, { "shortcuts", nil, "/h/a" })
+    eq(seen.blcache ~= nil, true, "BookList cover cache kept a deleted book")
+end)
+
+t.test("deleteFolder: refuses home, a folder above it, a book in use, a missing folder", function()
+    setTree({ "/h", "/h/a" }, { "/h/a/open-now.epub" })
+    calls = {}
+    eq({ FileOps.deleteFolder("/h") }, { nil, "home" })
+    eq({ FileOps.deleteFolder("/") }, { nil, "home" })
+    eq({ FileOps.deleteFolder("/h/gone") }, { nil, "missing" })
+    local prev = package.loaded["apps/reader/readerui"].instance.document.file
+    package.loaded["apps/reader/readerui"].instance.document.file = "/h/a/open-now.epub"
+    eq({ FileOps.deleteFolder("/h/a") }, { nil, "in_use" })
+    package.loaded["apps/reader/readerui"].instance.document.file = prev
+    for _i, c in ipairs(calls) do assert(c[1] ~= "purge", "deleted anyway") end
+end)
+
+t.test("deleteFolder: a failed delete leaves history and collections alone", function()
+    setTree({ "/h/a" }, { "/h/a/one.epub" })
+    calls = {}
+    purge_fail = true
+    local ok, err = FileOps.deleteFolder("/h/a")
+    purge_fail = nil
+    eq(ok, nil); eq(err, "error")
+    for _i, c in ipairs(calls) do assert(c[1] ~= "histdel" and c[1] ~= "colldel") end
+end)
+
 -- ---------- folder picker choice assembly ----------
 t.test("buildChoices: Home first, exclusions drop self and descendants", function()
     package.loaded["lib/bookshelf_i18n"] = { gettext = function(s) return s end }

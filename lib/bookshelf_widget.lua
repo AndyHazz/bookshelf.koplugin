@@ -26008,6 +26008,7 @@ function BookshelfWidget:_openGroupMenu(group, kind)
                  callback = act(fn), half = half }
     end
     local blocks = {}
+    local strip_actions
     local function section(heading, items)
         if #items == 0 then return end
         blocks[#blocks + 1] = { type = "heading", text = heading }
@@ -26050,6 +26051,9 @@ function BookshelfWidget:_openGroupMenu(group, kind)
         _("Finds page counts for just these books."), function()
         require("lib/bookshelf_page_count_dialog").showScoped(display_name, bw_ref:_resolveStackPaths(group), bw_ref)
     end)
+    -- Two share a line (Select, Extract page counts); three (Add more,
+    -- Remove, Extract) keep a line each rather than leave one half alone.
+    if #books == 2 then books[1].half, books[2].half = true, true end
     section(_("Books"), books)
 
     if kind == "series" and self:_isSpineMode() then
@@ -26100,22 +26104,17 @@ function BookshelfWidget:_openGroupMenu(group, kind)
             end, true)
         end
         section(_("Image"), image)
-        -- File management (feature/file-move): relocate or rename the real
-        -- directory behind this folder card.
-        section(_("Folder"), {
-            opt("\u{E951}", _("Move folder\xE2\x80\xA6"),   -- folder-move
-                _("Moves it and its books to another folder."), function()
-                require("lib/bookshelf_move_flow").moveFolder{
-                    bw = bw_ref, folder_path = group.path,
-                }
-            end, true),
-            opt("\u{EB54}", _("Rename folder\xE2\x80\xA6"),   -- rename-box
-                _("Changes its name on the device."), function()
-                require("lib/bookshelf_move_flow").renameFolder{
-                    bw = bw_ref, folder_path = group.path,
-                }
-            end, true),
-        })
+        -- File management: move, rename or delete the real directory behind
+        -- this folder card, as icon buttons beside the book count (456).
+        local MoveFlow = function() return require("lib/bookshelf_move_flow") end
+        strip_actions = {
+            { icon = "\u{E951}", label = _("Move folder\xE2\x80\xA6"),   -- folder-move
+              callback = act(function() MoveFlow().moveFolder{ bw = bw_ref, folder_path = group.path } end) },
+            { icon = "\u{EB54}", label = _("Rename folder\xE2\x80\xA6"),   -- rename-box
+              callback = act(function() MoveFlow().renameFolder{ bw = bw_ref, folder_path = group.path } end) },
+            { icon = "\xEE\xA2\xBF", label = _("Delete folder\xE2\x80\xA6"),   -- delete
+              callback = act(function() MoveFlow().deleteFolder{ bw = bw_ref, folder_path = group.path } end) },
+        }
     elseif (kind == "author" or kind == "series" or kind == "genre" or kind == "tag")
            and type(source_id) == "string" and source_id ~= "" then
         -- Per-kind label so a user holding an author stack sees "Set author
@@ -26202,7 +26201,7 @@ function BookshelfWidget:_openGroupMenu(group, kind)
         for _i, b in ipairs(blocks) do
             if b.active_func then b.active = b.active_func() end
         end
-        return { strip = { { type = "summary", text = prompt } }, blocks = blocks }
+        return { strip = { { type = "summary", text = prompt, actions = strip_actions } }, blocks = blocks }
     end
     dialog = require("lib/bookshelf_page_dialog").show{
         title = display_name,

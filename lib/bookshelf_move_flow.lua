@@ -405,4 +405,36 @@ function MoveFlow.renameFolder(opts)
     input:onShowKeyboard()
 end
 
+-- MoveFlow.deleteFolder{ bw, folder_path } (456): asks, naming the folder
+-- and how many books go with it, then deletes it and everything in it.
+local DELETE_ERRORS = {
+    missing = _("Folder no longer exists."),
+    home    = _("Cannot delete the home folder."),
+    in_use  = _("Cannot delete this folder: a book inside it is currently open."),
+    error   = _("Failed to delete folder."),
+}
+function MoveFlow.deleteFolder(opts)
+    local FileOps = require("lib/bookshelf_file_ops")
+    local folder = FileOps.normDir(opts.folder_path)
+    local ok_b, books = pcall(FileOps.listBooksUnder, folder)
+    local n = ok_b and books and #books or 0
+    local T = require("ffi/util").template
+    local count = n == 1 and _("1 book") or T(_("%1 books"), n)
+    showMoveConfirm{
+        title   = _("Delete folder?"),
+        prompt  = T(_("%1 and everything in it, including %2.\n\nThis cannot be undone."),
+            FileOps.basename(folder), count),
+        ok_text = _("Delete"),
+        ok_callback = function()
+            local ok, err = FileOps.deleteFolder(folder)
+            if ok then
+                afterFolderChanged(opts.bw)
+                notify(T(_("Deleted %1."), FileOps.basename(folder)), 3)
+            else
+                notify(DELETE_ERRORS[err] or DELETE_ERRORS.error, 3)
+            end
+        end,
+    }
+end
+
 return MoveFlow

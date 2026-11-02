@@ -611,6 +611,53 @@ function FileOps.relocateFolder(old_dir, new_dir)
     return true, #books
 end
 
+-- deleteFolder(dir) -> true, books | nil, reason (456). The folder and
+-- everything in it, then what KOReader keeps about its books elsewhere: the
+-- file browser's own folder delete (FileManager:deleteFile), plus each
+-- book's sidecar first, since ReadHistory:folderDeleted only finds the books
+-- in the history and a "dir" or "hash" sidecar lives outside the folder.
+-- Refuses the home folder and anything above it, and a folder holding the
+-- book that is open or parked. reason: "home", "missing", "in_use", "error".
+function FileOps.deleteFolder(dir)
+    dir = FileOps.normDir(dir)
+    local lfs = require("libs/libkoreader-lfs")
+    local ok_h, HomeDir = pcall(require, "lib/bookshelf_home_dir")
+    local home = ok_h and HomeDir and HomeDir.get and HomeDir.get()
+    if dir == "/" or (home and (FileOps.normDir(home) == dir
+            or FileOps.prefixSwap(FileOps.normDir(home), dir, dir))) then
+        return nil, "home"
+    end
+    if lfs.attributes(dir, "mode") ~= "directory" then return nil, "missing" end
+    for fp in pairs(FileOps.inUsePaths()) do
+        if FileOps.prefixSwap(fp, dir, dir) then return nil, "in_use" end
+    end
+    local ok_books, books = pcall(FileOps.listBooksUnder, dir)
+    books = (ok_books and books) or {}
+    local function safe(name, fn)
+        local ok, err = pcall(fn)
+        if not ok then logger.warn("bookshelf file-ops folder delete:", name, err) end
+    end
+    for _i, fp in ipairs(books) do
+        safe("docsettings", function() require("docsettings").updateLocation(fp) end)
+    end
+    local ok_p = require("ffi/util").purgeDir(dir)
+    if not ok_p then
+        logger.warn("bookshelf file-ops: folder delete failed", dir)
+        return nil, "error"
+    end
+    for _i, fp in ipairs(books) do
+        safe("booklist-cache", function() require("ui/widget/booklist").resetBookInfoCache(fp) end)
+    end
+    -- Slash-terminated: these match by prefix, and /books would take
+    -- /books2's entries with it.
+    safe("history", function() require("readhistory"):folderDeleted(dir .. "/") end)
+    safe("collections", function() require("readcollection"):removeItemsByPath(dir .. "/") end)
+    safe("folder-shortcuts", function()
+        require("apps/filemanager/filemanagershortcuts"):updateItemsByPath(nil, dir)
+    end)
+    return true, #books
+end
+
 -- renameFolder: same operation, destination is a sibling name.
 function FileOps.renameFolder(old_dir, new_name)
     new_name = tostring(new_name or ""):gsub("^%s+", ""):gsub("%s+$", "")

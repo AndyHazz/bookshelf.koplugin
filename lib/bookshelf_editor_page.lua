@@ -6,7 +6,9 @@
 -- the editor is not up to host the page (tests, a caller outside it).
 --
 -- Blocks ({ type = ..., ... }):
---   summary   text: what the shelf will do, in a sentence (the strip's lead)
+--   summary   text: what the shelf will do, in a sentence (the strip's lead);
+--             actions { {icon, label, callback} }: icon buttons at its right
+--             (a folder's Move, Rename, Delete), label for the text fallback
 --   heading   text, tag (optional: a word in a badge at the right, OR)
 --   hint      text: grey
 --   chips     items { {text, icon, on, enabled, callback} }: cards sized to
@@ -150,8 +152,19 @@ Page._shortenPath = shortenPath   -- for tests
 local R = {}
 
 function R.summary(ctx, b)
-    return require("ui/widget/textboxwidget"):new{ text = b.text or "", width = ctx.w,
+    local btns, focus = HorizontalGroup:new{ align = "center" }, {}
+    for i, a in ipairs(b.actions or {}) do
+        if i > 1 then btns[#btns + 1] = HorizontalSpan:new{ width = Space.px(10) } end
+        local btn = Kit.iconButton{ icon = a.icon, font_size = ctx.fs, on_tap = a.callback }
+        btns[#btns + 1] = btn
+        focus[#focus + 1] = btn
+    end
+    local bw = (#focus > 0) and (btns:getSize().w + ctx.gap) or 0
+    local text = require("ui/widget/textboxwidget"):new{ text = b.text or "", width = ctx.w - bw,
         face = ctx.face, fgcolor = Blitbuffer.COLOR_BLACK, bgcolor = ctx.bg }
+    if #focus == 0 then return text end
+    ctx.layout[#ctx.layout + 1] = focus
+    return leftRight(text, btns, ctx.w)
 end
 
 -- tag: a word on a grey tag at the line's right end (a filter list's OR,
@@ -403,7 +416,7 @@ end
 
 -- option(b, w) -> a card with its title and a grey line, and link buttons
 -- inside it at the right.
-function Ctx:option(b, w)
+function Ctx:option(b, w, min_h)
     local pad = Space.px(12)
     local inner = w - 2 * pad
     local links = HorizontalGroup:new{ align = "center" }
@@ -435,6 +448,7 @@ function Ctx:option(b, w)
     end
     local h = math.max(vg:getSize().h, links:getSize().h) + 2 * Space.px(b.desc and 12 or 6)
     if not b.desc then h = math.max(h, self:cardH()) end
+    h = math.max(h, min_h or 0)
     local body = (#links > 0) and leftRight(vg, links, inner) or vg
     local cell = tapCard(body, w, h, b.on, b.callback, b.enabled, nil, nil, true)
     table.insert(focus, 1, cell)
@@ -544,9 +558,21 @@ local function stack(ctx, blocks, spacing)
                 stacked[a_] = s_
                 if b_ then stacked[b_] = s_ end
             end
+            -- A pair of options is one height too: the taller one's, so a
+            -- description that wraps doesn't leave its partner short and
+            -- sitting lower (the folder menu's Move and Rename, PW5).
+            local pair_h = {}
+            for j = 1, #run, 2 do
+                local a_, b_ = run[j], run[j + 1]
+                if b_ and a_.type == "option" and b_.type == "option" then
+                    local ha = ctx:option(a_, half_w):getSize().h
+                    local hb = ctx:option(b_, ctx.w - half_w - ctx.gap):getSize().h
+                    pair_h[a_], pair_h[b_] = math.max(ha, hb), math.max(ha, hb)
+                end
+            end
             wdg = halves(ctx, run, function(x, w)
                 if x.type == "row" then return ctx:row(x, w, stacked[x]) end
-                if x.type == "option" then return ctx:option(x, w) end
+                if x.type == "option" then return ctx:option(x, w, pair_h[x]) end
                 local saved = ctx.w
                 ctx.w = w
                 local out = R[x.type](ctx, x)
@@ -716,6 +742,13 @@ function Page.toButtons(model)
             local t = b.type
             if t == "summary" or t == "heading" or t == "hint" then
                 rows[#rows + 1] = { { text = b.text, enabled = false } }
+                if b.actions and #b.actions > 0 then
+                    local row = {}
+                    for _j, a in ipairs(b.actions) do
+                        row[#row + 1] = { text = a.label, callback = a.callback }
+                    end
+                    rows[#rows + 1] = row
+                end
             elseif t == "pills" then
                 local row = {}
                 for _j, it in ipairs(b.items or {}) do

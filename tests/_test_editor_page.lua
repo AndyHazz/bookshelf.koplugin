@@ -61,6 +61,16 @@ end)
 -- A folder's path shortened in the middle, so where it starts and the
 -- folder's own name both stay in sight, wherever on the device it is
 -- (maintainer: folders outside the home folder can be picked too).
+t.test("a summary's actions fall back to a row of buttons under it", function()
+    local hit
+    local rows = Page.toButtons({ strip = { { type = "summary", text = "12 books",
+        actions = { { icon = "x", label = "Move folder", callback = function() hit = "move" end },
+                    { icon = "y", label = "Delete folder", callback = function() hit = "delete" end } } } } })
+    eq(rows[1][1].text, "12 books")
+    eq(rows[2][1].text, "Move folder"); eq(rows[2][2].text, "Delete folder")
+    rows[2][2].callback(); eq(hit, "delete")
+end)
+
 t.test("a long path drops the folders nearest its name first", function()
     local function fitsIn(n) return function(s) return #s <= n end end
     local p = "/mnt/us/ebooks/Fiction/Standard Ebooks"

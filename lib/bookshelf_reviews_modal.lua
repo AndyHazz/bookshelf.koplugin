@@ -442,8 +442,9 @@ function ReviewsModal:init()
     self.width  = self.width  or (screen_w - Space.px(30))
     self.height = self.height or (screen_h - Space.px(30))
     -- The header band: with a cover header (the book menu), the header and
-    -- the tabs sit on the strips' light grey.
-    self._band = self.header_builder and require("lib/bookshelf_popup_kit").STRIP_BG or nil
+    -- the tabs sit on a light grey, a shade darker than the strips some tabs
+    -- open with (STRIP_BG, 0xEE), so the two read apart (maintainer).
+    self._band = self.header_builder and Blitbuffer.COLOR_GRAY_D or nil
 
     -- Source tabs (e.g. File vs Hardcover description). Only meaningful with 2+.
     self._tabs = (type(self.tabs) == "table" and #self.tabs > 0) and self.tabs or nil

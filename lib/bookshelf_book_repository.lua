@@ -6537,6 +6537,7 @@ local function _buildGroups(group_kind, key_fn, multi, records)
             end
         end
     end
+    local _t_loop = _gettime()
     local list = {}
     for _i, k in ipairs(order) do list[#list + 1] = groups[k] end
     -- Insertion order; getAuthors/getGenres/getTags sort at hydrate time
@@ -6561,8 +6562,11 @@ local function _buildGroups(group_kind, key_fn, multi, records)
         g._first = nil
         table.sort(g.books, within_cmp)
     end
-    logger.dbg(string.format("[bookshelf perf] _buildGroups(%s): %.0fms cands=%d groups=%d",
-        group_kind, (_gettime() - _t0) * 1000, #cands, #list))
+    local _members = 0
+    for _i, g in ipairs(list) do _members = _members + #g.books end
+    logger.dbg(string.format("[bookshelf perf] _buildGroups(%s): %.0fms (loop=%.0f sort=%.0f) cands=%d groups=%d members=%d",
+        group_kind, (_gettime() - _t0) * 1000, (_t_loop - _t0) * 1000, (_gettime() - _t_loop) * 1000,
+        #cands, #list, _members))
     return list
 end
 

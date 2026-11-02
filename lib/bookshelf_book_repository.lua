@@ -4553,8 +4553,14 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
             _cover_match_built = true
             if Filter.isActive(filter) then
                 local compiled = Filter.compile(filter, Repo.filterOpts())
+                -- From the shared light map first, as the shelf's own filter
+                -- pass reads it: a fresh read per book is a whole BIM row,
+                -- cover included, and a big folder on a filtered shelf of
+                -- shelves cost 25 s and 250 MB a time on the PW5.
                 _cover_match = function(fp)
-                    local rec = _buildBookMetaLight(fp) or { filepath = fp }
+                    local map = _coverLightCache()
+                    local rec = (map and map[fp]) or _buildBookMetaLight(fp)
+                        or { filepath = fp }
                     return _recordMatches(rec, compiled)
                 end
             end

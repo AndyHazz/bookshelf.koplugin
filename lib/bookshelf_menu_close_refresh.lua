@@ -2,18 +2,13 @@
 --
 -- KOReader's menu (TouchMenu) flashes the whole screen as it closes, against
 -- ghosting, whenever the file browser or a book is under it. Over the shelf
--- it refreshes only where it was, with no flash (maintainer: "is that
+-- it refreshes the screen with no flash (maintainer: "is that
 -- necessary?"). That covers stepping the menu aside for a slider or the
 -- Theme library too, which flashed as the picker opened. Over a book or the
 -- file browser, KOReader's own flash as ever.
 --
 -- UIManager:close sends CloseWidget while the menu is still on the stack, so
 -- the window under it is the one the menu sat on.
---
--- A menu item's callback runs before the menu closes, so a dialog it opened
--- is already above the menu here. KOReader's flash used to bring that dialog
--- up too, and some (other plugins') never ask for a refresh of their own:
--- each window above the menu gets one where it is (572).
 
 local M = {}
 
@@ -29,35 +24,18 @@ function M.install(TouchMenu, deps)
     TouchMenu.onCloseWidget = function(self, ...)
         local UIManager = deps.UIManager or require("ui/uimanager")
         local GZ = deps.GZ or require("lib/bookshelf_gesture_zones")
-        local Screen = deps.Screen or require("device").screen
         local d = self.dimen
         local shelf = d and d.w and GZ.shelfBelow(self.show_parent or self)
         if not shelf then
             if orig then return orig(self, ...) end
             return
         end
-        -- The menu's frame and a little round it (its border).
-        local m = Screen:scaleBySize(8)
-        local x0, y0 = math.max(0, d.x - m), math.max(0, d.y - m)
-        local x1 = math.min(Screen:getWidth(), d.x + d.w + m)
-        local y1 = math.min(Screen:getHeight(), d.y + d.h + m)
-        local region = { x = x0, y = y0, w = x1 - x0, h = y1 - y0 }
-        local ok_g, Geom = pcall(require, "ui/geometry")
-        if ok_g and Geom and Geom.new then region = Geom:new(region) end
-        UIManager:setDirty(nil, "ui", region)
-        local stack = UIManager._window_stack
-        local parent = self.show_parent or self
-        if type(stack) == "table" then
-            local above = false
-            for _i, win in ipairs(stack) do
-                local w = win.widget
-                if above and w then
-                    UIManager:setDirty(w, function() return "ui", w.dimen end)
-                elseif w == parent then
-                    above = true
-                end
-            end
-        end
+        -- The whole screen, as KOReader's own refresh is, but "ui" rather
+        -- than "flashui": no flash. Not just the menu's area: a menu item
+        -- may open a dialog that asks for no refresh of its own, during its
+        -- callback or on the next tick (other plugins' do), and only a
+        -- whole-screen refresh in this pass reaches it (572).
+        UIManager:setDirty(nil, "ui")
     end
 end
 

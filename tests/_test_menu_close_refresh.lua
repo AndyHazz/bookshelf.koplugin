@@ -22,7 +22,10 @@ local function TouchMenuClass()
     return TM
 end
 
-t.test("over the shelf: the menu's own area, refreshed without a flash", function()
+t.test("over the shelf: the whole screen, refreshed without a flash (572)", function()
+    -- Not just the menu's area: a dialog a menu item opens on the next tick
+    -- (other plugins' do) is drawn in the same pass, and only a whole-screen
+    -- refresh reaches it, as KOReader's flash did. "ui", not "flashui".
     dirty = {}
     local TM = TouchMenuClass()
     M.install(TM, { UIManager = UIManager, GZ = GZ, Screen = Screen })
@@ -31,8 +34,7 @@ t.test("over the shelf: the menu's own area, refreshed without a flash", functio
     menu:onCloseWidget()
     eq(TM.flashed, 0, "KOReader's full-screen flash ran")
     eq(#dirty, 1); eq(dirty[1].kind, "ui")
-    local r = dirty[1].region
-    eq(r.x, 2); eq(r.y, 0); eq(r.w, 596); eq(r.h, 408)
+    eq(dirty[1].region, nil, "a region left a next-tick dialog stale")
 end)
 
 t.test("over a book or the file browser: KOReader's flash", function()
@@ -53,27 +55,6 @@ t.test("a menu never painted (no place yet): KOReader's flash", function()
     local menu = setmetatable({ show_parent = {} }, { __index = TM })
     menu:onCloseWidget()
     eq(TM.flashed, 1)
-end)
-
-t.test("a dialog the menu item opened: refreshed where it is, not left stale (572)", function()
-    -- KOReader runs the item's callback, which shows the dialog, before it
-    -- closes the menu; a dialog that asks for no refresh of its own showed
-    -- only where the menu had been.
-    dirty = {}
-    local TM = TouchMenuClass()
-    local container, dialog, below = {}, { dimen = { x = 50, y = 300, w = 500, h = 400 } }, {}
-    local UI = { setDirty = UIManager.setDirty,
-                 _window_stack = { { widget = below }, { widget = container }, { widget = dialog } } }
-    M.install(TM, { UIManager = UI, GZ = GZ, Screen = Screen })
-    shelf_below = { name = "bookshelf" }
-    local menu = setmetatable({ show_parent = container, dimen = { x = 10, y = 0, w = 580, h = 400 } }, { __index = TM })
-    menu:onCloseWidget()
-    eq(TM.flashed, 0)
-    eq(#dirty, 2, "the dialog above the menu was not refreshed")
-    eq(dirty[2].w, dialog)
-    eq(type(dirty[2].kind), "function", "region read after the dialog paints")
-    local kind, region = dirty[2].kind()
-    eq(kind, "ui"); eq(region, dialog.dimen)
 end)
 
 t.test("installed once", function()

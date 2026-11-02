@@ -26105,14 +26105,14 @@ function BookshelfWidget:_openGroupMenu(group, kind)
         end
         section(_("Image"), image)
         -- File management: move, rename or delete the real directory behind
-        -- this folder card, as icon buttons beside the book count (456).
+        -- this folder card, as buttons beside the book count (456).
         local MoveFlow = function() return require("lib/bookshelf_move_flow") end
         strip_actions = {
-            { icon = "\u{E951}", label = _("Move folder\xE2\x80\xA6"),   -- folder-move
+            { icon = "\u{E951}", label = _("Move\xE2\x80\xA6"),   -- folder-move
               callback = act(function() MoveFlow().moveFolder{ bw = bw_ref, folder_path = group.path } end) },
-            { icon = "\u{EB54}", label = _("Rename folder\xE2\x80\xA6"),   -- rename-box
+            { icon = "\u{EB54}", label = _("Rename\xE2\x80\xA6"),   -- rename-box
               callback = act(function() MoveFlow().renameFolder{ bw = bw_ref, folder_path = group.path } end) },
-            { icon = "\xEE\xA2\xBF", label = _("Delete folder\xE2\x80\xA6"),   -- delete
+            { icon = "\xEE\xA2\xBF", label = _("Delete\xE2\x80\xA6"),   -- delete
               callback = act(function() MoveFlow().deleteFolder{ bw = bw_ref, folder_path = group.path } end) },
         }
     elseif (kind == "author" or kind == "series" or kind == "genre" or kind == "tag")

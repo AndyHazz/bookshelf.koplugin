@@ -7,8 +7,9 @@
 --
 -- Blocks ({ type = ..., ... }):
 --   summary   text: what the shelf will do, in a sentence (the strip's lead);
---             actions { {icon, label, callback} }: icon buttons at its right
---             (a folder's Move, Rename, Delete), label for the text fallback
+--             actions { {icon, label, callback} }: labelled buttons at its
+--             right (a folder's Move, Rename, Delete), on a line of their own
+--             under it when they don't fit beside it
 --   heading   text, tag (optional: a word in a badge at the right, OR)
 --   hint      text: grey
 --   chips     items { {text, icon, on, enabled, callback} }: cards sized to
@@ -155,16 +156,26 @@ function R.summary(ctx, b)
     local btns, focus = HorizontalGroup:new{ align = "center" }, {}
     for i, a in ipairs(b.actions or {}) do
         if i > 1 then btns[#btns + 1] = HorizontalSpan:new{ width = Space.px(10) } end
-        local btn = Kit.iconButton{ icon = a.icon, font_size = ctx.fs, on_tap = a.callback }
+        local btn = Kit.headerButton{ text = a.label, icon = a.icon, font_size = ctx.fs,
+            on_tap = a.callback }
         btns[#btns + 1] = btn
         focus[#focus + 1] = btn
     end
-    local bw = (#focus > 0) and (btns:getSize().w + ctx.gap) or 0
-    local text = require("ui/widget/textboxwidget"):new{ text = b.text or "", width = ctx.w - bw,
-        face = ctx.face, fgcolor = Blitbuffer.COLOR_BLACK, bgcolor = ctx.bg }
-    if #focus == 0 then return text end
+    local function textW(w)
+        return require("ui/widget/textboxwidget"):new{ text = b.text or "", width = w,
+            face = ctx.face, fgcolor = Blitbuffer.COLOR_BLACK, bgcolor = ctx.bg }
+    end
+    if #focus == 0 then return textW(ctx.w) end
     ctx.layout[#ctx.layout + 1] = focus
-    return leftRight(text, btns, ctx.w)
+    -- Beside the text when the text keeps a line to itself there; else the
+    -- buttons take a line of their own under it, at the right.
+    local bw = btns:getSize().w
+    local probe = TextWidget:new{ text = b.text or "", face = ctx.face }
+    if probe:getSize().w + ctx.gap + bw <= ctx.w then
+        return leftRight(textW(ctx.w - bw - ctx.gap), btns, ctx.w)
+    end
+    return VerticalGroup:new{ align = "left", textW(ctx.w), VerticalSpan:new{ width = Space.px(10) },
+        leftRight(nil, btns, ctx.w) }
 end
 
 -- tag: a word on a grey tag at the line's right end (a filter list's OR,

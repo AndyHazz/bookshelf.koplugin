@@ -535,7 +535,12 @@ function SpineShelf.cachedProgress(fp)
             -- READ STATE. The scanned page count is not the sidecar's to
             -- invalidate, so it stays.
             F.put(fp, { s = false, sk = false, m = false })
-            return nil, nil, false
+            -- A count the sidecar gave (KOReader's own, or its stable page
+            -- numbers) goes with it, to be read again. A scanned one comes
+            -- back: returning nothing made the page-count scan take a
+            -- counted book for an uncounted one (573).
+            if e.psrc == "render" or e.psrc == "stable" then return nil, nil, false end
+            return e.p, nil, false, e.psrc, false
         end
     end
     -- psrc: where the count came from (see persistProgress). opened: a

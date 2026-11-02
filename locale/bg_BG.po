@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: bookends\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-01 20:12+0000\n"
+"POT-Creation-Date: 2026-11-02 21:16+0000\n"
 "PO-Revision-Date: 2026-06-25 00:02+0000\n"
 "Language-Team: Bulgarian\n"
 "Language: bg_BG\n"
@@ -61,8 +61,7 @@ msgstr "Меню на Bookshelf"
 msgid "Choose an action"
 msgstr "Избор на действие"
 
-#: lib/bookshelf_author_images_flow.lua:42
-#: lib/bookshelf_author_images_flow.lua:175
+#: lib/bookshelf_author_images_flow.lua:42 lib/bookshelf_author_images_flow.lua:175
 msgid "Couldn't reach Open Library or Wikipedia."
 msgstr "Няма връзка с Open Library или Wikipedia."
 
@@ -122,8 +121,7 @@ msgstr "Твърда корица"
 msgid "Paperback"
 msgstr "Мека корица"
 
-#: lib/bookshelf_book_highlights.lua:161 lib/bookshelf_book_highlights.lua:172
-#: lib/bookshelf_module_grid_session.lua:391
+#: lib/bookshelf_book_highlights.lua:161 lib/bookshelf_book_highlights.lua:172 lib/bookshelf_module_grid_session.lua:391
 msgid "Page %1"
 msgstr "Страница %1"
 
@@ -139,26 +137,15 @@ msgstr "Маркиране"
 msgid "View in book"
 msgstr "Преглед в книгата"
 
-#: lib/bookshelf_book_highlights.lua:197 lib/bookshelf_changelog.lua:148
-#: lib/bookshelf_chip_editor.lua:1151 lib/bookshelf_chip_editor.lua:1901
-#: lib/bookshelf_chip_editor.lua:3081 lib/bookshelf_collection_manager.lua:528
-#: lib/bookshelf_folder_picker.lua:178 lib/bookshelf_icons_library.lua:500
-#: lib/bookshelf_library_modal.lua:636 lib/bookshelf_line_editor.lua:170
-#: lib/bookshelf_module_kit.lua:114 lib/bookshelf_module_picker.lua:319
-#: lib/bookshelf_ornament_browser.lua:390 lib/bookshelf_plank_browser.lua:278
-#: lib/bookshelf_reviews_modal.lua:577 lib/bookshelf_settings.lua:337
-#: lib/bookshelf_theme_library.lua:726 lib/bookshelf_updater.lua:428
-#: lib/bookshelf_wallpaper_browser.lua:274 lib/bookshelf_widget.lua:20449
+#: lib/bookshelf_book_highlights.lua:197 lib/bookshelf_changelog.lua:148 lib/bookshelf_chip_editor.lua:1151 lib/bookshelf_chip_editor.lua:1901 lib/bookshelf_chip_editor.lua:3081 lib/bookshelf_collection_manager.lua:528 lib/bookshelf_folder_picker.lua:178 lib/bookshelf_icons_library.lua:500 lib/bookshelf_library_modal.lua:636 lib/bookshelf_line_editor.lua:170 lib/bookshelf_module_kit.lua:114 lib/bookshelf_module_picker.lua:319 lib/bookshelf_ornament_browser.lua:390 lib/bookshelf_plank_browser.lua:278 lib/bookshelf_reviews_modal.lua:577 lib/bookshelf_settings.lua:337 lib/bookshelf_theme_library.lua:726 lib/bookshelf_updater.lua:428 lib/bookshelf_wallpaper_browser.lua:274 lib/bookshelf_widget.lua:20456
 msgid "Close"
 msgstr "Затваряне"
 
-#: lib/bookshelf_book_repository.lua:6441
-#: lib/bookshelf_book_repository.lua:8877 micromodules/weather.lua:62
+#: lib/bookshelf_book_repository.lua:6443 lib/bookshelf_book_repository.lua:8879 micromodules/weather.lua:62
 msgid "Unknown"
 msgstr "Неизвестен"
 
-#: lib/bookshelf_book_repository.lua:7546 lib/bookshelf_chip_editor.lua:3137
-#: lib/bookshelf_filter.lua:343
+#: lib/bookshelf_book_repository.lua:7548 lib/bookshelf_chip_editor.lua:3137 lib/bookshelf_filter.lua:343
 msgid "Unrated"
 msgstr "Без оценка"
 
@@ -175,14 +162,11 @@ msgstr "Библиотека на Kobo"
 msgid "Edit selected (%d)"
 msgstr "Редактиране на избраните (%d)"
 
-#: lib/bookshelf_bulk_actions.lua:78 lib/bookshelf_bulk_actions.lua:83
-#: lib/bookshelf_bulk_actions.lua:590 lib/bookshelf_bulk_actions.lua:595
-#: lib/bookshelf_chip_editor.lua:373 lib/bookshelf_chip_editor.lua:3417
-#: lib/bookshelf_settings.lua:578 lib/bookshelf_widget.lua:24248
+#: lib/bookshelf_bulk_actions.lua:78 lib/bookshelf_bulk_actions.lua:83 lib/bookshelf_bulk_actions.lua:590 lib/bookshelf_bulk_actions.lua:595 lib/bookshelf_chip_editor.lua:373 lib/bookshelf_chip_editor.lua:3417 lib/bookshelf_settings.lua:578 lib/bookshelf_widget.lua:24282
 msgid "Collections"
 msgstr "Колекции"
 
-#: lib/bookshelf_bulk_actions.lua:107 lib/bookshelf_widget.lua:22831
+#: lib/bookshelf_bulk_actions.lua:107 lib/bookshelf_widget.lua:22865
 msgid "Reset book data…"
 msgstr "Нулиране на данните за книгата…"
 
@@ -191,28 +175,15 @@ msgstr "Нулиране на данните за книгата…"
 msgid "Reset %d books?"
 msgstr "Нулиране на %d книги?"
 
-#: lib/bookshelf_bulk_actions.lua:114 lib/bookshelf_module_card_menu.lua:117
-#: lib/bookshelf_ornament_menu.lua:385 lib/bookshelf_settings.lua:5093
-#: lib/bookshelf_settings.lua:5136 lib/bookshelf_theme_pack.lua:1394
-#: lib/bookshelf_widget.lua:23425 main.lua:3115
+#: lib/bookshelf_bulk_actions.lua:114 lib/bookshelf_module_card_menu.lua:117 lib/bookshelf_ornament_menu.lua:385 lib/bookshelf_settings.lua:5093 lib/bookshelf_settings.lua:5136 lib/bookshelf_theme_pack.lua:1394 lib/bookshelf_widget.lua:23459 main.lua:3121
 msgid "Reset"
 msgstr "Нулиране"
 
-#: lib/bookshelf_bulk_actions.lua:144 lib/bookshelf_bulk_actions.lua:196
-#: lib/bookshelf_bulk_actions.lua:240
+#: lib/bookshelf_bulk_actions.lua:144 lib/bookshelf_bulk_actions.lua:196 lib/bookshelf_bulk_actions.lua:240
 msgid "Pending changes discarded"
 msgstr "Чакащите промени са отхвърлени"
 
-#: lib/bookshelf_bulk_actions.lua:158 lib/bookshelf_bulk_actions.lua:174
-#: lib/bookshelf_chip_editor.lua:1686 lib/bookshelf_chip_editor.lua:1697
-#: lib/bookshelf_chip_editor.lua:3242 lib/bookshelf_collection_manager.lua:318
-#: lib/bookshelf_collection_manager.lua:347
-#: lib/bookshelf_opds_catalog_editor.lua:104
-#: lib/bookshelf_ornament_browser.lua:293
-#: lib/bookshelf_page_count_dialog.lua:72 lib/bookshelf_settings.lua:1633
-#: lib/bookshelf_start_menu_edit.lua:382 lib/bookshelf_widget.lua:22835
-#: lib/bookshelf_widget.lua:22854 lib/bookshelf_widget.lua:22950
-#: lib/bookshelf_widget.lua:24719 lib/bookshelf_widget.lua:26120
+#: lib/bookshelf_bulk_actions.lua:158 lib/bookshelf_bulk_actions.lua:174 lib/bookshelf_chip_editor.lua:1686 lib/bookshelf_chip_editor.lua:1697 lib/bookshelf_chip_editor.lua:3242 lib/bookshelf_collection_manager.lua:318 lib/bookshelf_collection_manager.lua:347 lib/bookshelf_move_flow.lua:427 lib/bookshelf_opds_catalog_editor.lua:104 lib/bookshelf_ornament_browser.lua:293 lib/bookshelf_page_count_dialog.lua:72 lib/bookshelf_settings.lua:1633 lib/bookshelf_start_menu_edit.lua:382 lib/bookshelf_widget.lua:22869 lib/bookshelf_widget.lua:22888 lib/bookshelf_widget.lua:22984 lib/bookshelf_widget.lua:24753 lib/bookshelf_widget.lua:26179
 msgid "Delete"
 msgstr "Изтриване"
 
@@ -230,34 +201,11 @@ msgstr "Изтриване на %d книги?"
 msgid "Move to folder…"
 msgstr "Преместване в папка…"
 
-#: lib/bookshelf_bulk_actions.lua:253 lib/bookshelf_chip_editor.lua:1151
-#: lib/bookshelf_chip_editor.lua:1225 lib/bookshelf_collection_manager.lua:273
-#: lib/bookshelf_collection_manager.lua:349
-#: lib/bookshelf_collection_manager.lua:356
-#: lib/bookshelf_collection_manager.lua:390
-#: lib/bookshelf_collection_manager.lua:519 lib/bookshelf_color_palette.lua:500
-#: lib/bookshelf_folder_picker.lua:64 lib/bookshelf_font_picker.lua:274
-#: lib/bookshelf_library_modal.lua:650 lib/bookshelf_line_editor.lua:541
-#: lib/bookshelf_move_flow.lua:34 lib/bookshelf_move_flow.lua:387
-#: lib/bookshelf_opds_catalog_editor.lua:45
-#: lib/bookshelf_ornament_browser.lua:390
-#: lib/bookshelf_page_count_dialog.lua:188 lib/bookshelf_settings.lua:1641
-#: lib/bookshelf_settings.lua:3291 lib/bookshelf_settings.lua:3816
-#: lib/bookshelf_settings.lua:5375 lib/bookshelf_settings.lua:5689
-#: lib/bookshelf_start_menu_edit.lua:57 lib/bookshelf_widget.lua:9604
-#: lib/bookshelf_widget.lua:19804 lib/bookshelf_widget.lua:22303
-#: lib/bookshelf_widget.lua:24477 lib/bookshelf_widget.lua:24557
-#: lib/bookshelf_widget.lua:24604 lib/bookshelf_widget.lua:24672
-#: lib/bookshelf_widget.lua:24720 lib/bookshelf_widget.lua:24726
-#: lib/bookshelf_widget.lua:26895 main.lua:2449 micromodules/action.lua:240
-#: micromodules/countdown.lua:60 micromodules/reading_goal.lua:496
-#: micromodules/reading_goal.lua:541 micromodules/shelf.lua:396
-#: micromodules/weather.lua:254
+#: lib/bookshelf_bulk_actions.lua:253 lib/bookshelf_chip_editor.lua:1151 lib/bookshelf_chip_editor.lua:1225 lib/bookshelf_collection_manager.lua:273 lib/bookshelf_collection_manager.lua:349 lib/bookshelf_collection_manager.lua:356 lib/bookshelf_collection_manager.lua:390 lib/bookshelf_collection_manager.lua:519 lib/bookshelf_color_palette.lua:500 lib/bookshelf_folder_picker.lua:64 lib/bookshelf_font_picker.lua:274 lib/bookshelf_library_modal.lua:650 lib/bookshelf_line_editor.lua:541 lib/bookshelf_move_flow.lua:34 lib/bookshelf_move_flow.lua:387 lib/bookshelf_opds_catalog_editor.lua:45 lib/bookshelf_ornament_browser.lua:390 lib/bookshelf_page_count_dialog.lua:188 lib/bookshelf_settings.lua:1641 lib/bookshelf_settings.lua:3291 lib/bookshelf_settings.lua:3816 lib/bookshelf_settings.lua:5375 lib/bookshelf_settings.lua:5689 lib/bookshelf_start_menu_edit.lua:57 lib/bookshelf_widget.lua:9611 lib/bookshelf_widget.lua:19811 lib/bookshelf_widget.lua:22337 lib/bookshelf_widget.lua:24511 lib/bookshelf_widget.lua:24591 lib/bookshelf_widget.lua:24638 lib/bookshelf_widget.lua:24706 lib/bookshelf_widget.lua:24754 lib/bookshelf_widget.lua:24760 lib/bookshelf_widget.lua:26954 main.lua:2449 micromodules/action.lua:240 micromodules/countdown.lua:60 micromodules/reading_goal.lua:496 micromodules/reading_goal.lua:541 micromodules/shelf.lua:396 micromodules/weather.lua:254
 msgid "Cancel"
 msgstr "Отказ"
 
-#: lib/bookshelf_bulk_actions.lua:289 lib/bookshelf_chip_editor.lua:3683
-#: lib/bookshelf_color_palette.lua:504 lib/bookshelf_settings.lua:5703
+#: lib/bookshelf_bulk_actions.lua:289 lib/bookshelf_chip_editor.lua:3683 lib/bookshelf_color_palette.lua:504 lib/bookshelf_settings.lua:5703
 msgid "Apply"
 msgstr "Прилагане"
 
@@ -336,13 +284,11 @@ msgstr "Премахване от Любими"
 msgid "Change collections"
 msgstr "Промяна на колекциите"
 
-#: lib/bookshelf_bulk_actions.lua:537 lib/bookshelf_bulk_actions.lua:601
-#: lib/bookshelf_widget.lua:22870
+#: lib/bookshelf_bulk_actions.lua:537 lib/bookshelf_bulk_actions.lua:601 lib/bookshelf_widget.lua:22904
 msgid "Refresh metadata"
 msgstr "Опресняване на метаданните"
 
-#: lib/bookshelf_bulk_actions.lua:538 lib/bookshelf_bulk_actions.lua:603
-#: lib/bookshelf_widget.lua:22800
+#: lib/bookshelf_bulk_actions.lua:538 lib/bookshelf_bulk_actions.lua:603 lib/bookshelf_widget.lua:22834
 msgid "Remove from history"
 msgstr "Премахване от историята"
 
@@ -362,61 +308,39 @@ msgstr ""
 msgid "Clear"
 msgstr "Изчистване"
 
-#: lib/bookshelf_bulk_actions.lua:580 lib/bookshelf_chip_editor.lua:2767
-#: lib/bookshelf_widget.lua:23052
+#: lib/bookshelf_bulk_actions.lua:580 lib/bookshelf_chip_editor.lua:2767 lib/bookshelf_widget.lua:23086
 msgid "Reading status"
 msgstr "Статус на четене"
 
-#: lib/bookshelf_bulk_actions.lua:582 lib/bookshelf_widget.lua:21434
-#: lib/bookshelf_widget.lua:23055
+#: lib/bookshelf_bulk_actions.lua:582 lib/bookshelf_widget.lua:21468 lib/bookshelf_widget.lua:23089
 msgid "Unopened"
 msgstr "Неотваряни"
 
-#: lib/bookshelf_bulk_actions.lua:583 lib/bookshelf_chip_editor.lua:2666
-#: lib/bookshelf_chip_editor.lua:3984 lib/bookshelf_filter.lua:298
-#: lib/bookshelf_filter.lua:330 lib/bookshelf_icons_catalogue.lua:23
-#: lib/bookshelf_start_menu_modules.lua:534 lib/bookshelf_tokens.lua:261
-#: lib/bookshelf_widget.lua:23056 micromodules/shelf_size.lua:23
+#: lib/bookshelf_bulk_actions.lua:583 lib/bookshelf_chip_editor.lua:2666 lib/bookshelf_chip_editor.lua:3984 lib/bookshelf_filter.lua:298 lib/bookshelf_filter.lua:330 lib/bookshelf_icons_catalogue.lua:23 lib/bookshelf_start_menu_modules.lua:534 lib/bookshelf_tokens.lua:262 lib/bookshelf_widget.lua:23090 micromodules/shelf_size.lua:23
 msgid "Reading"
 msgstr "Чета"
 
-#: lib/bookshelf_bulk_actions.lua:584 lib/bookshelf_chip_editor.lua:2668
-#: lib/bookshelf_filter.lua:299 lib/bookshelf_filter.lua:331
-#: lib/bookshelf_tokens.lua:262 lib/bookshelf_widget.lua:21419
-#: lib/bookshelf_widget.lua:23057 micromodules/random_unread.lua:300
-#: micromodules/shelf_size.lua:25
+#: lib/bookshelf_bulk_actions.lua:584 lib/bookshelf_chip_editor.lua:2668 lib/bookshelf_filter.lua:299 lib/bookshelf_filter.lua:331 lib/bookshelf_tokens.lua:263 lib/bookshelf_widget.lua:21453 lib/bookshelf_widget.lua:23091 micromodules/random_unread.lua:300 micromodules/shelf_size.lua:25
 msgid "On hold"
 msgstr "Изчакват"
 
-#: lib/bookshelf_bulk_actions.lua:585 lib/bookshelf_chip_editor.lua:2667
-#: lib/bookshelf_filter.lua:299 lib/bookshelf_filter.lua:332
-#: lib/bookshelf_tokens.lua:263 lib/bookshelf_widget.lua:21417
-#: lib/bookshelf_widget.lua:23058 micromodules/random_unread.lua:301
-#: micromodules/shelf_size.lua:26
+#: lib/bookshelf_bulk_actions.lua:585 lib/bookshelf_chip_editor.lua:2667 lib/bookshelf_filter.lua:299 lib/bookshelf_filter.lua:332 lib/bookshelf_tokens.lua:264 lib/bookshelf_widget.lua:21451 lib/bookshelf_widget.lua:23092 micromodules/random_unread.lua:301 micromodules/shelf_size.lua:26
 msgid "Finished"
 msgstr "Завършени"
 
-#: lib/bookshelf_bulk_actions.lua:587 lib/bookshelf_chip_editor.lua:388
-#: lib/bookshelf_chip_editor.lua:3043 lib/bookshelf_chip_editor.lua:3406
-#: lib/bookshelf_filter.lua:35 lib/bookshelf_sort_engine.lua:696
+#: lib/bookshelf_bulk_actions.lua:587 lib/bookshelf_chip_editor.lua:388 lib/bookshelf_chip_editor.lua:3043 lib/bookshelf_chip_editor.lua:3406 lib/bookshelf_filter.lua:35 lib/bookshelf_sort_engine.lua:696
 msgid "Rating"
 msgstr "Оценка"
 
-#: lib/bookshelf_bulk_actions.lua:591 lib/bookshelf_widget.lua:22933
+#: lib/bookshelf_bulk_actions.lua:591 lib/bookshelf_widget.lua:22967
 msgid "Favorite"
 msgstr "Любима"
 
-#: lib/bookshelf_bulk_actions.lua:592 lib/bookshelf_module_grid_editor.lua:438
-#: lib/bookshelf_module_grid_session.lua:400
-#: lib/bookshelf_start_menu_edit.lua:519 lib/bookshelf_widget.lua:24333
-#: lib/bookshelf_widget.lua:24479 lib/bookshelf_widget.lua:24559
-#: micromodules/countdown.lua:123
+#: lib/bookshelf_bulk_actions.lua:592 lib/bookshelf_module_grid_editor.lua:438 lib/bookshelf_module_grid_session.lua:400 lib/bookshelf_start_menu_edit.lua:519 lib/bookshelf_widget.lua:24367 lib/bookshelf_widget.lua:24513 lib/bookshelf_widget.lua:24593 micromodules/countdown.lua:123
 msgid "Add"
 msgstr "Добавяне"
 
-#: lib/bookshelf_bulk_actions.lua:593 lib/bookshelf_module_grid_editor.lua:275
-#: lib/bookshelf_module_grid_session.lua:385 lib/bookshelf_widget.lua:7205
-#: lib/bookshelf_widget.lua:24708
+#: lib/bookshelf_bulk_actions.lua:593 lib/bookshelf_module_grid_editor.lua:275 lib/bookshelf_module_grid_session.lua:385 lib/bookshelf_widget.lua:7212 lib/bookshelf_widget.lua:24742
 msgid "Remove"
 msgstr "Премахване"
 
@@ -428,7 +352,7 @@ msgstr "Също при Прилагане"
 msgid "Right away"
 msgstr "Веднага"
 
-#: lib/bookshelf_bulk_actions.lua:610 lib/bookshelf_ornament_browser.lua:316
+#: lib/bookshelf_bulk_actions.lua:610 lib/bookshelf_ornament_browser.lua:316 lib/bookshelf_widget.lua:26115
 msgid "Delete…"
 msgstr "Изтриване…"
 
@@ -448,8 +372,7 @@ msgstr "По-стари"
 msgid "Newer"
 msgstr "По-нови"
 
-#: lib/bookshelf_changelog.lua:139 lib/bookshelf_reviews_modal.lua:545
-#: lib/bookshelf_widget.lua:23559 micromodules/quote_of_day.lua:202
+#: lib/bookshelf_changelog.lua:139 lib/bookshelf_reviews_modal.lua:545 lib/bookshelf_widget.lua:23593 micromodules/quote_of_day.lua:202
 msgid "Refresh"
 msgstr "Опресняване"
 
@@ -461,38 +384,23 @@ msgstr "Списък с промени (%1 от %2)"
 msgid "Could not fetch the changelog."
 msgstr "Списъкът с промени не можа да бъде изтеглен."
 
-#: lib/bookshelf_chip_editor.lua:95 lib/bookshelf_chip_editor.lua:2570
-#: lib/bookshelf_chip_editor.lua:2613 lib/bookshelf_chip_editor.lua:2633
-#: lib/bookshelf_widget.lua:5865 lib/bookshelf_widget.lua:5875
+#: lib/bookshelf_chip_editor.lua:95 lib/bookshelf_chip_editor.lua:2570 lib/bookshelf_chip_editor.lua:2613 lib/bookshelf_chip_editor.lua:2633 lib/bookshelf_widget.lua:5872 lib/bookshelf_widget.lua:5882
 msgid "List"
 msgstr "Списък"
 
-#: lib/bookshelf_chip_editor.lua:96 lib/bookshelf_chip_editor.lua:1493
-#: lib/bookshelf_chip_editor.lua:2569 lib/bookshelf_chip_editor.lua:2612
-#: lib/bookshelf_chip_editor.lua:2634 lib/bookshelf_widget.lua:5864
-#: lib/bookshelf_widget.lua:5874
+#: lib/bookshelf_chip_editor.lua:96 lib/bookshelf_chip_editor.lua:1493 lib/bookshelf_chip_editor.lua:2569 lib/bookshelf_chip_editor.lua:2612 lib/bookshelf_chip_editor.lua:2634 lib/bookshelf_widget.lua:5871 lib/bookshelf_widget.lua:5881
 msgid "Covers"
 msgstr "Корици"
 
-#: lib/bookshelf_chip_editor.lua:97 lib/bookshelf_chip_editor.lua:2361
-#: lib/bookshelf_chip_editor.lua:2364 lib/bookshelf_chip_editor.lua:2568
-#: lib/bookshelf_module_card_menu.lua:45 lib/bookshelf_settings.lua:2165
-#: lib/bookshelf_settings.lua:4736 lib/bookshelf_settings.lua:4739
-#: lib/bookshelf_settings.lua:4771 lib/bookshelf_start_menu_edit.lua:318
-#: lib/bookshelf_widget.lua:5873 lib/bookshelf_widget.lua:5888
+#: lib/bookshelf_chip_editor.lua:97 lib/bookshelf_chip_editor.lua:2361 lib/bookshelf_chip_editor.lua:2364 lib/bookshelf_chip_editor.lua:2568 lib/bookshelf_module_card_menu.lua:45 lib/bookshelf_settings.lua:2165 lib/bookshelf_settings.lua:4736 lib/bookshelf_settings.lua:4739 lib/bookshelf_settings.lua:4771 lib/bookshelf_start_menu_edit.lua:318 lib/bookshelf_widget.lua:5880 lib/bookshelf_widget.lua:5895
 msgid "Auto"
 msgstr "Автоматично"
 
-#: lib/bookshelf_chip_editor.lua:98 lib/bookshelf_chip_editor.lua:2574
-#: lib/bookshelf_chip_editor.lua:2615 lib/bookshelf_chip_editor.lua:2632
-#: lib/bookshelf_widget.lua:5866 lib/bookshelf_widget.lua:5876
-#: lib/bookshelf_widget.lua:25997
+#: lib/bookshelf_chip_editor.lua:98 lib/bookshelf_chip_editor.lua:2574 lib/bookshelf_chip_editor.lua:2615 lib/bookshelf_chip_editor.lua:2632 lib/bookshelf_widget.lua:5873 lib/bookshelf_widget.lua:5883 lib/bookshelf_widget.lua:26061
 msgid "Spines"
 msgstr "Гръбчета"
 
-#: lib/bookshelf_chip_editor.lua:290 lib/bookshelf_chip_editor.lua:1758
-#: lib/bookshelf_chip_editor.lua:1787 lib/bookshelf_settings.lua:6314
-#: lib/bookshelf_widget.lua:26396 lib/bookshelf_widget.lua:26448
+#: lib/bookshelf_chip_editor.lua:290 lib/bookshelf_chip_editor.lua:1758 lib/bookshelf_chip_editor.lua:1787 lib/bookshelf_settings.lua:6314 lib/bookshelf_widget.lua:26455 lib/bookshelf_widget.lua:26507
 msgid "New shelf"
 msgstr "Нов рафт"
 
@@ -528,8 +436,7 @@ msgstr "Начало (папки)"
 msgid "Home (flattened)"
 msgstr "Начало (без папки)"
 
-#: lib/bookshelf_chip_editor.lua:368 lib/bookshelf_chip_editor.lua:3392
-#: micromodules/last_books.lua:107
+#: lib/bookshelf_chip_editor.lua:368 lib/bookshelf_chip_editor.lua:3392 micromodules/last_books.lua:107
 msgid "Recently read"
 msgstr "Последно четени"
 
@@ -537,27 +444,15 @@ msgstr "Последно четени"
 msgid "Latest added"
 msgstr "Последно добавени"
 
-#: lib/bookshelf_chip_editor.lua:370 lib/bookshelf_chip_editor.lua:385
-#: lib/bookshelf_chip_editor.lua:2772 lib/bookshelf_chip_editor.lua:2891
-#: lib/bookshelf_chip_editor.lua:3042 lib/bookshelf_chip_editor.lua:3401
-#: lib/bookshelf_chip_editor.lua:3414 lib/bookshelf_chip_editor.lua:3594
-#: lib/bookshelf_chip_editor.lua:3981 lib/bookshelf_filter.lua:37
-#: lib/bookshelf_settings.lua:577 lib/bookshelf_settings.lua:834
-#: lib/bookshelf_sort_engine.lua:575 lib/bookshelf_tab_model.lua:82
-#: lib/bookshelf_widget.lua:1785 lib/bookshelf_widget.lua:24247
-#: lib/bookshelf_widget.lua:24834
+#: lib/bookshelf_chip_editor.lua:370 lib/bookshelf_chip_editor.lua:385 lib/bookshelf_chip_editor.lua:2772 lib/bookshelf_chip_editor.lua:2891 lib/bookshelf_chip_editor.lua:3042 lib/bookshelf_chip_editor.lua:3401 lib/bookshelf_chip_editor.lua:3414 lib/bookshelf_chip_editor.lua:3594 lib/bookshelf_chip_editor.lua:3981 lib/bookshelf_filter.lua:37 lib/bookshelf_settings.lua:577 lib/bookshelf_settings.lua:834 lib/bookshelf_sort_engine.lua:575 lib/bookshelf_tab_model.lua:82 lib/bookshelf_widget.lua:1792 lib/bookshelf_widget.lua:24281 lib/bookshelf_widget.lua:24868
 msgid "Series"
 msgstr "Поредици"
 
-#: lib/bookshelf_chip_editor.lua:371 lib/bookshelf_chip_editor.lua:3415
-#: lib/bookshelf_settings.lua:155 lib/bookshelf_tab_model.lua:86
-#: lib/bookshelf_tokens.lua:30 lib/bookshelf_widget.lua:1784
+#: lib/bookshelf_chip_editor.lua:371 lib/bookshelf_chip_editor.lua:3415 lib/bookshelf_settings.lua:155 lib/bookshelf_tab_model.lua:86 lib/bookshelf_tokens.lua:30 lib/bookshelf_widget.lua:1791
 msgid "Authors"
 msgstr "Автори"
 
-#: lib/bookshelf_chip_editor.lua:372 lib/bookshelf_chip_editor.lua:3416
-#: lib/bookshelf_settings.lua:579 lib/bookshelf_tab_model.lua:94
-#: lib/bookshelf_widget.lua:1786 lib/bookshelf_widget.lua:24249
+#: lib/bookshelf_chip_editor.lua:372 lib/bookshelf_chip_editor.lua:3416 lib/bookshelf_settings.lua:579 lib/bookshelf_tab_model.lua:94 lib/bookshelf_widget.lua:1793 lib/bookshelf_widget.lua:24283
 msgid "Genres"
 msgstr "Жанрове"
 
@@ -565,26 +460,19 @@ msgstr "Жанрове"
 msgid "Formats"
 msgstr "Формати"
 
-#: lib/bookshelf_chip_editor.lua:375 lib/bookshelf_chip_editor.lua:3419
-#: lib/bookshelf_widget.lua:1789 lib/bookshelf_widget.lua:23190
+#: lib/bookshelf_chip_editor.lua:375 lib/bookshelf_chip_editor.lua:3419 lib/bookshelf_widget.lua:1796 lib/bookshelf_widget.lua:23224
 msgid "Ratings"
 msgstr "Оценки"
 
-#: lib/bookshelf_chip_editor.lua:376 lib/bookshelf_chip_editor.lua:3420
-#: lib/bookshelf_tab_model.lua:99
+#: lib/bookshelf_chip_editor.lua:376 lib/bookshelf_chip_editor.lua:3420 lib/bookshelf_tab_model.lua:99
 msgid "Languages"
 msgstr "Езици"
 
-#: lib/bookshelf_chip_editor.lua:377 lib/bookshelf_chip_editor.lua:2662
-#: lib/bookshelf_chip_editor.lua:3394 lib/bookshelf_collection_manager.lua:100
-#: lib/bookshelf_tab_model.lua:101 lib/bookshelf_widget.lua:21865
-#: lib/bookshelf_widget.lua:21903
+#: lib/bookshelf_chip_editor.lua:377 lib/bookshelf_chip_editor.lua:2662 lib/bookshelf_chip_editor.lua:3394 lib/bookshelf_collection_manager.lua:100 lib/bookshelf_tab_model.lua:101 lib/bookshelf_widget.lua:21899 lib/bookshelf_widget.lua:21937
 msgid "Favorites"
 msgstr "Любими"
 
-#: lib/bookshelf_chip_editor.lua:379 lib/bookshelf_chip_editor.lua:3044
-#: lib/bookshelf_settings.lua:580 lib/bookshelf_widget.lua:1788
-#: lib/bookshelf_widget.lua:24250 lib/bookshelf_widget.lua:26045
+#: lib/bookshelf_chip_editor.lua:379 lib/bookshelf_chip_editor.lua:3044 lib/bookshelf_settings.lua:580 lib/bookshelf_widget.lua:1795 lib/bookshelf_widget.lua:24284
 msgid "Folder"
 msgstr "Папка"
 
@@ -592,43 +480,31 @@ msgstr "Папка"
 msgid "Folder (flattened)"
 msgstr "Папка (без подпапки)"
 
-#: lib/bookshelf_chip_editor.lua:381 lib/bookshelf_chip_editor.lua:382
-#: lib/bookshelf_chip_editor.lua:2796 lib/bookshelf_chip_editor.lua:3044
-#: lib/bookshelf_chip_editor.lua:3404 lib/bookshelf_chip_editor.lua:3965
-#: lib/bookshelf_filter.lua:36
+#: lib/bookshelf_chip_editor.lua:381 lib/bookshelf_chip_editor.lua:382 lib/bookshelf_chip_editor.lua:2796 lib/bookshelf_chip_editor.lua:3044 lib/bookshelf_chip_editor.lua:3404 lib/bookshelf_chip_editor.lua:3965 lib/bookshelf_filter.lua:36
 msgid "Collection"
 msgstr "Колекция"
 
-#: lib/bookshelf_chip_editor.lua:383 lib/bookshelf_chip_editor.lua:3042
-#: lib/bookshelf_chip_editor.lua:3403 lib/bookshelf_filter.lua:32
+#: lib/bookshelf_chip_editor.lua:383 lib/bookshelf_chip_editor.lua:3042 lib/bookshelf_chip_editor.lua:3403 lib/bookshelf_filter.lua:32
 msgid "Genre"
 msgstr "Жанр"
 
-#: lib/bookshelf_chip_editor.lua:384 lib/bookshelf_chip_editor.lua:2890
-#: lib/bookshelf_chip_editor.lua:3042 lib/bookshelf_chip_editor.lua:3402
-#: lib/bookshelf_settings.lua:457 lib/bookshelf_settings.lua:576
-#: lib/bookshelf_settings.lua:833 lib/bookshelf_sort_engine.lua:571
+#: lib/bookshelf_chip_editor.lua:384 lib/bookshelf_chip_editor.lua:2890 lib/bookshelf_chip_editor.lua:3042 lib/bookshelf_chip_editor.lua:3402 lib/bookshelf_settings.lua:457 lib/bookshelf_settings.lua:576 lib/bookshelf_settings.lua:833 lib/bookshelf_sort_engine.lua:571
 msgid "Author"
 msgstr "Автор"
 
-#: lib/bookshelf_chip_editor.lua:386 lib/bookshelf_chip_editor.lua:3986
-#: lib/bookshelf_filter.lua:31
+#: lib/bookshelf_chip_editor.lua:386 lib/bookshelf_chip_editor.lua:3986 lib/bookshelf_filter.lua:31
 msgid "Status"
 msgstr "Статус"
 
-#: lib/bookshelf_chip_editor.lua:387 lib/bookshelf_chip_editor.lua:3043
-#: lib/bookshelf_chip_editor.lua:3405 lib/bookshelf_filter.lua:34
+#: lib/bookshelf_chip_editor.lua:387 lib/bookshelf_chip_editor.lua:3043 lib/bookshelf_chip_editor.lua:3405 lib/bookshelf_filter.lua:34
 msgid "Format"
 msgstr "Формат"
 
-#: lib/bookshelf_chip_editor.lua:389 lib/bookshelf_chip_editor.lua:3043
-#: lib/bookshelf_chip_editor.lua:3407 lib/bookshelf_filter.lua:33
-#: lib/bookshelf_tokens.lua:96 micromodules/trivia.lua:476
+#: lib/bookshelf_chip_editor.lua:389 lib/bookshelf_chip_editor.lua:3043 lib/bookshelf_chip_editor.lua:3407 lib/bookshelf_filter.lua:33 lib/bookshelf_tokens.lua:97 micromodules/trivia.lua:476
 msgid "Language"
 msgstr "Език"
 
-#: lib/bookshelf_chip_editor.lua:393 lib/bookshelf_chip_editor.lua:3045
-#: lib/bookshelf_chip_editor.lua:3438
+#: lib/bookshelf_chip_editor.lua:393 lib/bookshelf_chip_editor.lua:3045 lib/bookshelf_chip_editor.lua:3438
 msgid "OPDS catalog"
 msgstr "OPDS каталог"
 
@@ -636,8 +512,7 @@ msgstr "OPDS каталог"
 msgid "Shelf of shelves"
 msgstr "Рафт с рафтове"
 
-#: lib/bookshelf_chip_editor.lua:397 lib/bookshelf_chip_editor.lua:412
-#: lib/bookshelf_settings.lua:4843
+#: lib/bookshelf_chip_editor.lua:397 lib/bookshelf_chip_editor.lua:412 lib/bookshelf_settings.lua:4843
 msgid "(none)"
 msgstr "(няма)"
 
@@ -645,10 +520,7 @@ msgstr "(няма)"
 msgid "OPDS: %1"
 msgstr "OPDS: %1"
 
-#: lib/bookshelf_chip_editor.lua:497 lib/bookshelf_chip_editor.lua:1151
-#: lib/bookshelf_library_modal.lua:637 lib/bookshelf_menu_host.lua:135
-#: lib/bookshelf_popup_kit.lua:963 lib/bookshelf_widget.lua:1808
-#: micromodules/quote_of_day.lua:86
+#: lib/bookshelf_chip_editor.lua:497 lib/bookshelf_chip_editor.lua:1151 lib/bookshelf_library_modal.lua:637 lib/bookshelf_menu_host.lua:135 lib/bookshelf_popup_kit.lua:963 lib/bookshelf_widget.lua:1815 micromodules/quote_of_day.lua:86
 msgid "Back"
 msgstr "Назад"
 
@@ -660,8 +532,7 @@ msgstr "%1 (копие)"
 msgid "Move to"
 msgstr "Преместване в"
 
-#: lib/bookshelf_chip_editor.lua:772 lib/bookshelf_settings.lua:5811
-#: lib/bookshelf_widget.lua:25957
+#: lib/bookshelf_chip_editor.lua:772 lib/bookshelf_settings.lua:5811 lib/bookshelf_widget.lua:26018
 msgid "Shelf menu"
 msgstr "Меню на рафтовете"
 
@@ -689,9 +560,7 @@ msgstr "Смяната на източника на този рафт изтри
 msgid "Change"
 msgstr "Смяна"
 
-#: lib/bookshelf_chip_editor.lua:1119 lib/bookshelf_chip_editor.lua:1159
-#: micromodules/shelf.lua:41 micromodules/shelf.lua:364
-#: micromodules/shelf.lua:567
+#: lib/bookshelf_chip_editor.lua:1119 lib/bookshelf_chip_editor.lua:1159 micromodules/shelf.lua:41 micromodules/shelf.lua:364 micromodules/shelf.lua:567
 msgid "Shelf"
 msgstr "Рафт"
 
@@ -739,17 +608,11 @@ msgstr "Източник / групиране: "
 msgid "Add shelf tile: %1"
 msgstr "Добавяне на плочка за рафт: %1"
 
-#: lib/bookshelf_chip_editor.lua:1426 lib/bookshelf_chip_editor.lua:2336
-#: lib/bookshelf_module_card_menu.lua:41 lib/bookshelf_ornament_menu.lua:482
-#: lib/bookshelf_settings.lua:697 lib/bookshelf_settings.lua:757
-#: lib/bookshelf_settings.lua:1322 lib/bookshelf_settings.lua:3434
-#: lib/bookshelf_settings.lua:4332 lib/bookshelf_settings.lua:4359
-#: lib/bookshelf_settings.lua:5516 lib/bookshelf_widget.lua:25370
+#: lib/bookshelf_chip_editor.lua:1426 lib/bookshelf_chip_editor.lua:2336 lib/bookshelf_module_card_menu.lua:41 lib/bookshelf_ornament_menu.lua:482 lib/bookshelf_settings.lua:697 lib/bookshelf_settings.lua:757 lib/bookshelf_settings.lua:1322 lib/bookshelf_settings.lua:3434 lib/bookshelf_settings.lua:4332 lib/bookshelf_settings.lua:4359 lib/bookshelf_settings.lua:5516 lib/bookshelf_widget.lua:25430
 msgid "Off"
 msgstr "Изкл."
 
-#: lib/bookshelf_chip_editor.lua:1426 lib/bookshelf_chip_editor.lua:2336
-#: lib/bookshelf_module_card_menu.lua:41 lib/bookshelf_widget.lua:25370
+#: lib/bookshelf_chip_editor.lua:1426 lib/bookshelf_chip_editor.lua:2336 lib/bookshelf_module_card_menu.lua:41 lib/bookshelf_widget.lua:25430
 msgid "On"
 msgstr "Вкл."
 
@@ -797,10 +660,7 @@ msgstr "Модули: %1"
 msgid "Modules: Add to this shelf…"
 msgstr "Модули: Добавяне към този рафт…"
 
-#: lib/bookshelf_chip_editor.lua:1588 lib/bookshelf_chip_editor.lua:1597
-#: lib/bookshelf_module_picker.lua:281 lib/bookshelf_settings.lua:3434
-#: lib/bookshelf_settings.lua:3436 lib/bookshelf_settings.lua:4382
-#: lib/bookshelf_settings.lua:5829 lib/bookshelf_widget.lua:16840
+#: lib/bookshelf_chip_editor.lua:1588 lib/bookshelf_chip_editor.lua:1597 lib/bookshelf_module_picker.lua:281 lib/bookshelf_settings.lua:3434 lib/bookshelf_settings.lua:3436 lib/bookshelf_settings.lua:4382 lib/bookshelf_settings.lua:5829 lib/bookshelf_widget.lua:16847
 msgid "Modules"
 msgstr "Модули"
 
@@ -840,7 +700,7 @@ msgstr "Преместване в…"
 msgid "There is no shelf of shelves to move this shelf into yet. Make one with New shelf > Shelf of shelves."
 msgstr "Все още няма рафт с рафтове, в който да преместите този рафт. Създайте такъв с Нов рафт > Рафт с рафтове."
 
-#: lib/bookshelf_chip_editor.lua:1824 lib/bookshelf_widget.lua:2208
+#: lib/bookshelf_chip_editor.lua:1824 lib/bookshelf_widget.lua:2215
 msgid "Choose a source to keep this new shelf."
 msgstr "Изберете източник, за да запазите този нов рафт."
 
@@ -872,7 +732,7 @@ msgstr "подкаталог"
 msgid "Long-press a subcatalog on the shelf to start there."
 msgstr "Задръжте върху подкаталог на рафта, за да започва оттам."
 
-#: lib/bookshelf_chip_editor.lua:2180 lib/bookshelf_widget.lua:25818
+#: lib/bookshelf_chip_editor.lua:2180 lib/bookshelf_widget.lua:25878
 msgid "Back to the top"
 msgstr "Обратно към началото"
 
@@ -920,18 +780,11 @@ msgstr "Редове"
 msgid "columns: %1, rows: %2"
 msgstr "колони: %1, редове: %2"
 
-#: lib/bookshelf_chip_editor.lua:2411 lib/bookshelf_ornament_menu.lua:482
-#: lib/bookshelf_settings.lua:1219
+#: lib/bookshelf_chip_editor.lua:2411 lib/bookshelf_ornament_menu.lua:482 lib/bookshelf_settings.lua:1219
 msgid "Always"
 msgstr "Винаги"
 
-#: lib/bookshelf_chip_editor.lua:2411 lib/bookshelf_chip_editor.lua:2661
-#: lib/bookshelf_chip_editor.lua:2893 lib/bookshelf_filter.lua:431
-#: lib/bookshelf_ornament_menu.lua:494 lib/bookshelf_settings.lua:836
-#: lib/bookshelf_settings.lua:1102 lib/bookshelf_settings.lua:1161
-#: lib/bookshelf_settings.lua:1743 lib/bookshelf_settings.lua:1773
-#: lib/bookshelf_settings.lua:1895 lib/bookshelf_shelf_row.lua:418
-#: lib/bookshelf_stack_display.lua:106
+#: lib/bookshelf_chip_editor.lua:2411 lib/bookshelf_chip_editor.lua:2661 lib/bookshelf_chip_editor.lua:2893 lib/bookshelf_filter.lua:431 lib/bookshelf_ornament_menu.lua:494 lib/bookshelf_settings.lua:836 lib/bookshelf_settings.lua:1102 lib/bookshelf_settings.lua:1161 lib/bookshelf_settings.lua:1743 lib/bookshelf_settings.lua:1773 lib/bookshelf_settings.lua:1895 lib/bookshelf_shelf_row.lua:418 lib/bookshelf_stack_display.lua:106
 msgid "None"
 msgstr "Без"
 
@@ -951,7 +804,7 @@ msgstr "С лице напред"
 msgid "Thickness"
 msgstr "Дебелина"
 
-#: lib/bookshelf_chip_editor.lua:2451 lib/bookshelf_widget.lua:26000
+#: lib/bookshelf_chip_editor.lua:2451 lib/bookshelf_widget.lua:26064
 msgid "Book binding"
 msgstr "Подвързия"
 
@@ -967,8 +820,7 @@ msgstr "Автор на гръбчето"
 msgid "Ornaments"
 msgstr "Орнаменти"
 
-#: lib/bookshelf_chip_editor.lua:2474 lib/bookshelf_chip_editor.lua:2857
-#: lib/bookshelf_plank_browser.lua:230
+#: lib/bookshelf_chip_editor.lua:2474 lib/bookshelf_chip_editor.lua:2857 lib/bookshelf_plank_browser.lua:230
 msgid "Plank"
 msgstr "Дъска"
 
@@ -1004,19 +856,11 @@ msgstr "орнаменти: %1"
 msgid "Folder tiles"
 msgstr "Стил на папките"
 
-#: lib/bookshelf_chip_editor.lua:2518 lib/bookshelf_chip_editor.lua:2951
-#: lib/bookshelf_cover_label_editor.lua:60 lib/bookshelf_settings.lua:893
-#: lib/bookshelf_settings.lua:5808
+#: lib/bookshelf_chip_editor.lua:2518 lib/bookshelf_chip_editor.lua:2951 lib/bookshelf_cover_label_editor.lua:60 lib/bookshelf_settings.lua:893 lib/bookshelf_settings.lua:5808
 msgid "Cover captions"
 msgstr "Надписи под кориците"
 
-#: lib/bookshelf_chip_editor.lua:2532 lib/bookshelf_chip_editor.lua:2898
-#: lib/bookshelf_color_palette.lua:502 lib/bookshelf_font_picker.lua:192
-#: lib/bookshelf_font_picker.lua:278 lib/bookshelf_line_editor.lua:165
-#: lib/bookshelf_line_editor.lua:566 lib/bookshelf_settings.lua:2287
-#: lib/bookshelf_settings.lua:2293 lib/bookshelf_settings.lua:3293
-#: lib/bookshelf_settings.lua:5697 lib/bookshelf_slider.lua:185
-#: lib/bookshelf_stack_display.lua:194
+#: lib/bookshelf_chip_editor.lua:2532 lib/bookshelf_chip_editor.lua:2898 lib/bookshelf_color_palette.lua:502 lib/bookshelf_font_picker.lua:192 lib/bookshelf_font_picker.lua:278 lib/bookshelf_line_editor.lua:165 lib/bookshelf_line_editor.lua:566 lib/bookshelf_settings.lua:2287 lib/bookshelf_settings.lua:2293 lib/bookshelf_settings.lua:3293 lib/bookshelf_settings.lua:5697 lib/bookshelf_slider.lua:185 lib/bookshelf_stack_display.lua:194
 msgid "Default"
 msgstr "По подразбиране"
 
@@ -1032,12 +876,11 @@ msgstr "надписи: %1"
 msgid "View mode"
 msgstr "Режим на изглед"
 
-#: lib/bookshelf_chip_editor.lua:2578 lib/bookshelf_widget.lua:5871
+#: lib/bookshelf_chip_editor.lua:2578 lib/bookshelf_widget.lua:5878
 msgid "Show as"
 msgstr "Показване като"
 
-#: lib/bookshelf_chip_editor.lua:2619 lib/bookshelf_chip_editor.lua:2643
-#: lib/bookshelf_widget.lua:5889
+#: lib/bookshelf_chip_editor.lua:2619 lib/bookshelf_chip_editor.lua:2643 lib/bookshelf_widget.lua:5896
 msgid "Inside folders and stacks"
 msgstr "В папки и стекове"
 
@@ -1045,14 +888,11 @@ msgstr "В папки и стекове"
 msgid "Top level"
 msgstr "Горно ниво"
 
-#: lib/bookshelf_chip_editor.lua:2637 lib/bookshelf_module_grid_editor.lua:268
-#: lib/bookshelf_module_grid_session.lua:383 lib/bookshelf_widget.lua:7185
-#: main.lua:893
+#: lib/bookshelf_chip_editor.lua:2637 lib/bookshelf_module_grid_editor.lua:268 lib/bookshelf_module_grid_session.lua:383 lib/bookshelf_widget.lua:7192 main.lua:893
 msgid "Settings"
 msgstr "Настройки"
 
-#: lib/bookshelf_chip_editor.lua:2642 lib/bookshelf_module_card_menu.lua:49
-#: lib/bookshelf_theme_menu.lua:221
+#: lib/bookshelf_chip_editor.lua:2642 lib/bookshelf_module_card_menu.lua:49 lib/bookshelf_theme_menu.lua:221
 msgid "%1: %2"
 msgstr "%1: %2"
 
@@ -1064,9 +904,7 @@ msgstr "Първите в поредица"
 msgid "First unread in series"
 msgstr "Първите непрочетени в поредица"
 
-#: lib/bookshelf_chip_editor.lua:2669 lib/bookshelf_filter.lua:298
-#: lib/bookshelf_filter.lua:329 lib/bookshelf_tokens.lua:260
-#: micromodules/random_unread.lua:298 micromodules/shelf_size.lua:24
+#: lib/bookshelf_chip_editor.lua:2669 lib/bookshelf_filter.lua:298 lib/bookshelf_filter.lua:329 lib/bookshelf_tokens.lua:261 micromodules/random_unread.lua:298 micromodules/shelf_size.lua:24
 msgid "Unread"
 msgstr "Непрочетени"
 
@@ -1114,18 +952,15 @@ msgstr "Целият рафт"
 msgid "Same as main shelf"
 msgstr "Като основния рафт"
 
-#: lib/bookshelf_chip_editor.lua:2819 lib/bookshelf_plank_browser.lua:118
-#: lib/bookshelf_theme_library.lua:134
+#: lib/bookshelf_chip_editor.lua:2819 lib/bookshelf_plank_browser.lua:118 lib/bookshelf_theme_library.lua:134
 msgid "Plain color"
 msgstr "Обикновен цвят"
 
-#: lib/bookshelf_chip_editor.lua:2820 lib/bookshelf_plank_browser.lua:119
-#: lib/bookshelf_theme_library.lua:137
+#: lib/bookshelf_chip_editor.lua:2820 lib/bookshelf_plank_browser.lua:119 lib/bookshelf_theme_library.lua:137
 msgid "Oak"
 msgstr "Дъб"
 
-#: lib/bookshelf_chip_editor.lua:2823 lib/bookshelf_plank_browser.lua:154
-#: lib/bookshelf_theme_pack.lua:911
+#: lib/bookshelf_chip_editor.lua:2823 lib/bookshelf_plank_browser.lua:154 lib/bookshelf_theme_pack.lua:911
 msgid "%1 (%2 pack)"
 msgstr "%1 (пакет %2)"
 
@@ -1137,9 +972,7 @@ msgstr "Дъската, на която стои рафтът на този мо
 msgid "Cover captions: %1"
 msgstr "Надписи под кориците: %1"
 
-#: lib/bookshelf_chip_editor.lua:2889 lib/bookshelf_settings.lua:456
-#: lib/bookshelf_settings.lua:832 lib/bookshelf_sort_engine.lua:560
-#: lib/bookshelf_tokens.lua:68
+#: lib/bookshelf_chip_editor.lua:2889 lib/bookshelf_settings.lua:456 lib/bookshelf_settings.lua:832 lib/bookshelf_sort_engine.lua:560 lib/bookshelf_tokens.lua:68
 msgid "Title"
 msgstr "Заглавие"
 
@@ -1163,9 +996,7 @@ msgstr "Собствен ред"
 msgid "Choose what it shows, from the book's details."
 msgstr "Изберете какво да показва от детайлите на книгата."
 
-#: lib/bookshelf_chip_editor.lua:2992 lib/bookshelf_collection_manager.lua:551
-#: lib/bookshelf_folder_picker.lua:142 lib/bookshelf_library_modal.lua:756
-#: lib/bookshelf_widget.lua:9569 lib/bookshelf_widget.lua:24577
+#: lib/bookshelf_chip_editor.lua:2992 lib/bookshelf_collection_manager.lua:551 lib/bookshelf_folder_picker.lua:142 lib/bookshelf_library_modal.lua:756 lib/bookshelf_widget.lua:9576 lib/bookshelf_widget.lua:24611
 msgid "Search…"
 msgstr "Търсене…"
 
@@ -1185,9 +1016,7 @@ msgstr "Избор на OPDS каталог"
 msgid "Add catalog…"
 msgstr "Добавяне на каталог…"
 
-#: lib/bookshelf_chip_editor.lua:3238 lib/bookshelf_line_editor.lua:584
-#: lib/bookshelf_widget.lua:23370 lib/bookshelf_widget.lua:23726
-#: lib/bookshelf_widget.lua:24235 lib/bookshelf_widget.lua:24311
+#: lib/bookshelf_chip_editor.lua:3238 lib/bookshelf_line_editor.lua:584 lib/bookshelf_widget.lua:23404 lib/bookshelf_widget.lua:23760 lib/bookshelf_widget.lua:24269 lib/bookshelf_widget.lua:24345
 msgid "Edit"
 msgstr "Редактиране"
 
@@ -1215,9 +1044,7 @@ msgstr "Всички книги в една папка и нейните под�
 msgid "Pick one"
 msgstr "Изберете"
 
-#: lib/bookshelf_chip_editor.lua:3362 lib/bookshelf_sort_engine.lua:688
-#: lib/bookshelf_widget.lua:25993 micromodules/shelf_size.lua:254
-#: micromodules/trivia.lua:44
+#: lib/bookshelf_chip_editor.lua:3362 lib/bookshelf_sort_engine.lua:688 lib/bookshelf_widget.lua:26057 micromodules/shelf_size.lua:254 micromodules/trivia.lua:44
 msgid "Books"
 msgstr "Книги"
 
@@ -1325,8 +1152,7 @@ msgstr "Филтър"
 msgid "Any of these genres"
 msgstr "Някой от тези жанрове"
 
-#: lib/bookshelf_chip_editor.lua:3699 lib/bookshelf_chip_editor.lua:3706
-#: lib/bookshelf_chip_editor.lua:3803
+#: lib/bookshelf_chip_editor.lua:3699 lib/bookshelf_chip_editor.lua:3706 lib/bookshelf_chip_editor.lua:3803
 msgid "OR"
 msgstr "OR"
 
@@ -1342,8 +1168,7 @@ msgstr "Всички тези жанрове"
 msgid "Leave out these genres"
 msgstr "Без тези жанрове"
 
-#: lib/bookshelf_chip_editor.lua:3701 lib/bookshelf_chip_editor.lua:3707
-#: lib/bookshelf_chip_editor.lua:3804
+#: lib/bookshelf_chip_editor.lua:3701 lib/bookshelf_chip_editor.lua:3707 lib/bookshelf_chip_editor.lua:3804
 msgid "NOT"
 msgstr "NOT"
 
@@ -1491,13 +1316,11 @@ msgstr "Подреждане на групите по"
 msgid "Edit collection order"
 msgstr "Редактиране на подредбата на колекцията"
 
-#: lib/bookshelf_chip_editor.lua:3979 lib/bookshelf_settings.lua:154
-#: lib/bookshelf_tokens.lua:31
+#: lib/bookshelf_chip_editor.lua:3979 lib/bookshelf_settings.lua:154 lib/bookshelf_tokens.lua:31
 msgid "Book"
 msgstr "Книга"
 
-#: lib/bookshelf_chip_editor.lua:3988 lib/bookshelf_line_editor.lua:417
-#: lib/bookshelf_ornament_menu.lua:501
+#: lib/bookshelf_chip_editor.lua:3988 lib/bookshelf_line_editor.lua:417 lib/bookshelf_ornament_menu.lua:501
 msgid "Size"
 msgstr "Размер"
 
@@ -1509,20 +1332,15 @@ msgstr "Сортиране"
 msgid "Rename collection"
 msgstr "Преименуване на колекция"
 
-#: lib/bookshelf_collection_manager.lua:271 lib/bookshelf_widget.lua:24670
+#: lib/bookshelf_collection_manager.lua:271 lib/bookshelf_widget.lua:24704
 msgid "New name"
 msgstr "Ново име"
 
-#: lib/bookshelf_collection_manager.lua:275
-#: lib/bookshelf_collection_manager.lua:343 lib/bookshelf_move_flow.lua:390
-#: lib/bookshelf_start_menu_edit.lua:101 lib/bookshelf_start_menu_edit.lua:107
-#: lib/bookshelf_start_menu_edit.lua:108 lib/bookshelf_widget.lua:24674
-#: lib/bookshelf_widget.lua:24715
+#: lib/bookshelf_collection_manager.lua:275 lib/bookshelf_collection_manager.lua:343 lib/bookshelf_move_flow.lua:390 lib/bookshelf_start_menu_edit.lua:101 lib/bookshelf_start_menu_edit.lua:107 lib/bookshelf_start_menu_edit.lua:108 lib/bookshelf_widget.lua:24708 lib/bookshelf_widget.lua:24749
 msgid "Rename"
 msgstr "Преименуване"
 
-#: lib/bookshelf_collection_manager.lua:284
-#: lib/bookshelf_collection_manager.lua:399
+#: lib/bookshelf_collection_manager.lua:284 lib/bookshelf_collection_manager.lua:399
 msgid "A collection with that name already exists."
 msgstr "Вече съществува колекция с това име."
 
@@ -1534,9 +1352,7 @@ msgstr "Изтриване на колекция „"
 msgid "\"? Books are not deleted, only the tag."
 msgstr "\"? Книгите не се изтриват, само етикетът."
 
-#: lib/bookshelf_collection_manager.lua:344
-#: lib/bookshelf_collection_manager.lua:355 lib/bookshelf_widget.lua:24717
-#: lib/bookshelf_widget.lua:24724
+#: lib/bookshelf_collection_manager.lua:344 lib/bookshelf_collection_manager.lua:355 lib/bookshelf_widget.lua:24751 lib/bookshelf_widget.lua:24758
 msgid "Pin to shelf menu"
 msgstr "Закачане към менюто на рафтовете"
 
@@ -1544,8 +1360,7 @@ msgstr "Закачане към менюто на рафтовете"
 msgid "Edit collection: "
 msgstr "Редактиране на колекция: "
 
-#: lib/bookshelf_collection_manager.lua:379
-#: lib/bookshelf_collection_manager.lua:514
+#: lib/bookshelf_collection_manager.lua:379 lib/bookshelf_collection_manager.lua:514
 msgid "New collection"
 msgstr "Нова колекция"
 
@@ -1573,12 +1388,7 @@ msgstr "В някои"
 msgid "In all"
 msgstr "Във всички"
 
-#: lib/bookshelf_collection_manager.lua:523 lib/bookshelf_line_editor.lua:570
-#: lib/bookshelf_opds_catalog_editor.lua:50 lib/bookshelf_widget.lua:22305
-#: lib/bookshelf_widget.lua:24606 main.lua:2454 micromodules/action.lua:243
-#: micromodules/countdown.lua:146 micromodules/reading_goal.lua:503
-#: micromodules/reading_goal.lua:548 micromodules/shelf.lua:397
-#: micromodules/weather.lua:261
+#: lib/bookshelf_collection_manager.lua:523 lib/bookshelf_line_editor.lua:570 lib/bookshelf_opds_catalog_editor.lua:50 lib/bookshelf_widget.lua:22339 lib/bookshelf_widget.lua:24640 main.lua:2454 micromodules/action.lua:243 micromodules/countdown.lua:146 micromodules/reading_goal.lua:503 micromodules/reading_goal.lua:548 micromodules/shelf.lua:397 micromodules/weather.lua:261
 msgid "Save"
 msgstr "Запазване"
 
@@ -1623,8 +1433,7 @@ msgstr "Избор на цвят"
 msgid "Invalid hex color (use #RGB or #RRGGBB)"
 msgstr "Невалиден шестнадесетичен цвят (използвайте #RGB или #RRGGBB)"
 
-#: lib/bookshelf_cover_apply.lua:189 lib/bookshelf_widget.lua:22587
-#: lib/bookshelf_widget.lua:24423
+#: lib/bookshelf_cover_apply.lua:189 lib/bookshelf_widget.lua:22621 lib/bookshelf_widget.lua:24457
 msgid "Embedded"
 msgstr "Вградени"
 
@@ -1640,9 +1449,7 @@ msgstr "Персонализирана корица"
 msgid "Previous cover"
 msgstr "Предишна корица"
 
-#: lib/bookshelf_cover_apply.lua:231 lib/bookshelf_cover_sources.lua:298
-#: lib/bookshelf_widget.lua:22588 lib/bookshelf_widget.lua:23171
-#: lib/bookshelf_widget.lua:24425 lib/bookshelf_widget.lua:25422
+#: lib/bookshelf_cover_apply.lua:231 lib/bookshelf_cover_sources.lua:298 lib/bookshelf_widget.lua:22622 lib/bookshelf_widget.lua:23205 lib/bookshelf_widget.lua:24459 lib/bookshelf_widget.lua:25482
 msgid "Hardcover"
 msgstr "Hardcover"
 
@@ -1722,10 +1529,7 @@ msgstr "2 звезди"
 msgid "1 star"
 msgstr "1 звезда"
 
-#: lib/bookshelf_filter.lua:365 lib/bookshelf_filter.lua:373
-#: lib/bookshelf_filter.lua:398 micromodules/trivia.lua:42
-#: micromodules/trivia.lua:63 micromodules/trivia.lua:70
-#: micromodules/trivia.lua:431
+#: lib/bookshelf_filter.lua:365 lib/bookshelf_filter.lua:373 lib/bookshelf_filter.lua:398 micromodules/trivia.lua:42 micromodules/trivia.lua:63 micromodules/trivia.lua:70 micromodules/trivia.lua:431
 msgid "Any"
 msgstr "Всякакви"
 
@@ -1771,9 +1575,7 @@ msgstr "Нова папка…"
 msgid "Pick font"
 msgstr "Избор на шрифт"
 
-#: lib/bookshelf_font_picker.lua:287 lib/bookshelf_module_grid_editor.lua:458
-#: lib/bookshelf_module_grid_session.lua:401 lib/bookshelf_settings.lua:3295
-#: lib/bookshelf_widget.lua:23432 lib/bookshelf_widget.lua:24311
+#: lib/bookshelf_font_picker.lua:287 lib/bookshelf_module_grid_editor.lua:458 lib/bookshelf_module_grid_session.lua:401 lib/bookshelf_settings.lua:3295 lib/bookshelf_widget.lua:23466 lib/bookshelf_widget.lua:24345
 msgid "Done"
 msgstr "Готово"
 
@@ -1781,8 +1583,7 @@ msgstr "Готово"
 msgid "Bold Italic"
 msgstr "Удебелен курсив"
 
-#: lib/bookshelf_fonts.lua:555 lib/bookshelf_line_editor.lua:389
-#: lib/bookshelf_line_editor.lua:390 lib/bookshelf_line_editor.lua:393
+#: lib/bookshelf_fonts.lua:555 lib/bookshelf_line_editor.lua:389 lib/bookshelf_line_editor.lua:390 lib/bookshelf_line_editor.lua:393
 msgid "Bold"
 msgstr "Удебелен"
 
@@ -1890,7 +1691,7 @@ msgstr "Докоснете орнамент, за да изпълните дей
 msgid "All gestures"
 msgstr "Всички жестове"
 
-#: lib/bookshelf_hero_card.lua:422 lib/bookshelf_widget.lua:18196
+#: lib/bookshelf_hero_card.lua:422 lib/bookshelf_widget.lua:18203
 msgid "Stop"
 msgstr "Спиране"
 
@@ -1906,10 +1707,7 @@ msgstr "Задръжте, за да добавите модули"
 msgid "No modules available"
 msgstr "Няма налични модули"
 
-#: lib/bookshelf_icons_catalogue.lua:20 lib/bookshelf_ornament_browser.lua:274
-#: lib/bookshelf_plank_browser.lua:217 lib/bookshelf_settings.lua:153
-#: lib/bookshelf_start_menu_modules.lua:595
-#: lib/bookshelf_wallpaper_browser.lua:238
+#: lib/bookshelf_icons_catalogue.lua:20 lib/bookshelf_ornament_browser.lua:274 lib/bookshelf_plank_browser.lua:217 lib/bookshelf_settings.lua:153 lib/bookshelf_start_menu_modules.lua:595 lib/bookshelf_wallpaper_browser.lua:238
 msgid "All"
 msgstr "Всички"
 
@@ -1917,13 +1715,11 @@ msgstr "Всички"
 msgid "Dynamic"
 msgstr "Динамични"
 
-#: lib/bookshelf_icons_catalogue.lua:22 lib/bookshelf_settings.lua:158
-#: lib/bookshelf_tokens.lua:32 lib/bookshelf_widget.lua:24129
+#: lib/bookshelf_icons_catalogue.lua:22 lib/bookshelf_settings.lua:158 lib/bookshelf_tokens.lua:32 lib/bookshelf_widget.lua:24163
 msgid "Device"
 msgstr "Устройство"
 
-#: lib/bookshelf_icons_catalogue.lua:24 lib/bookshelf_settings.lua:157
-#: lib/bookshelf_tokens.lua:36
+#: lib/bookshelf_icons_catalogue.lua:24 lib/bookshelf_settings.lua:157 lib/bookshelf_tokens.lua:36
 msgid "Time"
 msgstr "Час"
 
@@ -1947,8 +1743,7 @@ msgstr "Разделители"
 msgid "SVG icon folder"
 msgstr "Папка за SVG икони"
 
-#: lib/bookshelf_icons_catalogue.lua:40 micromodules/battery.lua:125
-#: micromodules/battery.lua:206
+#: lib/bookshelf_icons_catalogue.lua:40 micromodules/battery.lua:125 micromodules/battery.lua:206
 msgid "Battery"
 msgstr "Батерия"
 
@@ -2380,8 +2175,7 @@ msgstr "Търсене на %1 икони по име…"
 msgid "Drop .svg or .png files in koreader/icons/"
 msgstr "Поставете .svg или .png файлове в koreader/icons/"
 
-#: lib/bookshelf_library_modal.lua:792 lib/bookshelf_library_modal.lua:862
-#: lib/bookshelf_widget.lua:19799 lib/bookshelf_widget.lua:26900
+#: lib/bookshelf_library_modal.lua:792 lib/bookshelf_library_modal.lua:862 lib/bookshelf_widget.lua:19806 lib/bookshelf_widget.lua:26959
 msgid "Search"
 msgstr "Търсене"
 
@@ -2469,13 +2263,11 @@ msgstr "Икони…"
 msgid "Link copied to clipboard"
 msgstr "Връзката е копирана в клипборда"
 
-#: lib/bookshelf_list_group.lua:140 lib/bookshelf_list_group.lua:169
-#: lib/bookshelf_widget.lua:25876
+#: lib/bookshelf_list_group.lua:140 lib/bookshelf_list_group.lua:169 lib/bookshelf_move_flow.lua:422 lib/bookshelf_widget.lua:25936
 msgid "1 book"
 msgstr "1 книга"
 
-#: lib/bookshelf_list_group.lua:141 lib/bookshelf_list_group.lua:170
-#: lib/bookshelf_move_flow.lua:348
+#: lib/bookshelf_list_group.lua:141 lib/bookshelf_list_group.lua:170 lib/bookshelf_move_flow.lua:348
 #, lua-format
 msgid "%d books"
 msgstr "%d книги"
@@ -2539,42 +2331,31 @@ msgstr "Текст на картата"
 msgid "%1 · style for %2"
 msgstr "%1 · стил за %2"
 
-#: lib/bookshelf_module_card_menu.lua:125 lib/bookshelf_settings.lua:2017
-#: lib/bookshelf_settings.lua:2813
+#: lib/bookshelf_module_card_menu.lua:125 lib/bookshelf_settings.lua:2017 lib/bookshelf_settings.lua:2813
 msgid "Dark"
 msgstr "Тъмно"
 
-#: lib/bookshelf_module_card_menu.lua:125 lib/bookshelf_settings.lua:2016
-#: lib/bookshelf_settings.lua:2815
+#: lib/bookshelf_module_card_menu.lua:125 lib/bookshelf_settings.lua:2016 lib/bookshelf_settings.lua:2815
 msgid "Light"
 msgstr "Светло"
 
-#: lib/bookshelf_module_grid_editor.lua:243
-#: lib/bookshelf_module_grid_session.lua:369
-#: lib/bookshelf_module_grid_session.lua:370 lib/bookshelf_widget.lua:7230
+#: lib/bookshelf_module_grid_editor.lua:243 lib/bookshelf_module_grid_session.lua:369 lib/bookshelf_module_grid_session.lua:370 lib/bookshelf_widget.lua:7237
 msgid "Width"
 msgstr "Ширина"
 
-#: lib/bookshelf_module_grid_editor.lua:244
-#: lib/bookshelf_module_grid_session.lua:376
-#: lib/bookshelf_module_grid_session.lua:377
-#: lib/bookshelf_ornament_menu.lua:501
+#: lib/bookshelf_module_grid_editor.lua:244 lib/bookshelf_module_grid_session.lua:376 lib/bookshelf_module_grid_session.lua:377 lib/bookshelf_ornament_menu.lua:501
 msgid "Height"
 msgstr "Височина"
 
-#: lib/bookshelf_module_grid_editor.lua:272
-#: lib/bookshelf_module_grid_session.lua:384 lib/bookshelf_settings.lua:160
-#: lib/bookshelf_tokens.lua:35 lib/bookshelf_widget.lua:7195
+#: lib/bookshelf_module_grid_editor.lua:272 lib/bookshelf_module_grid_session.lua:384 lib/bookshelf_settings.lua:160 lib/bookshelf_tokens.lua:35 lib/bookshelf_widget.lua:7202
 msgid "Style"
 msgstr "Стил"
 
-#: lib/bookshelf_module_grid_editor.lua:313 lib/bookshelf_widget.lua:7218
-#: lib/bookshelf_widget.lua:7224
+#: lib/bookshelf_module_grid_editor.lua:313 lib/bookshelf_widget.lua:7225 lib/bookshelf_widget.lua:7231
 msgid "Page"
 msgstr "Страница"
 
-#: lib/bookshelf_module_grid_editor.lua:455
-#: lib/bookshelf_module_grid_session.lua:397
+#: lib/bookshelf_module_grid_editor.lua:455 lib/bookshelf_module_grid_session.lua:397
 msgid "New page"
 msgstr "Нова страница"
 
@@ -2695,7 +2476,7 @@ msgstr "Преместване на %d книги"
 msgid "Move"
 msgstr "Преместване"
 
-#: lib/bookshelf_move_flow.lua:325
+#: lib/bookshelf_move_flow.lua:325 lib/bookshelf_move_flow.lua:411
 msgid "Folder no longer exists."
 msgstr "Папката вече не съществува."
 
@@ -2738,6 +2519,40 @@ msgstr "Преименуване на папка"
 #, lua-format
 msgid "Renamed to %s."
 msgstr "Преименувано на %s."
+
+#: lib/bookshelf_move_flow.lua:412
+msgid "Cannot delete the home folder."
+msgstr "Началната папка не може да бъде изтрита."
+
+#: lib/bookshelf_move_flow.lua:413
+msgid "Cannot delete this folder: a book inside it is currently open."
+msgstr "Тази папка не може да бъде изтрита: книга в нея е отворена в момента."
+
+#: lib/bookshelf_move_flow.lua:414
+msgid "Failed to delete folder."
+msgstr "Папката не можа да бъде изтрита."
+
+#: lib/bookshelf_move_flow.lua:422 lib/bookshelf_widget.lua:25937
+msgid "%1 books"
+msgstr "%1 книги"
+
+#: lib/bookshelf_move_flow.lua:424
+msgid "Delete folder?"
+msgstr "Изтриване на папката?"
+
+#: lib/bookshelf_move_flow.lua:425
+msgid ""
+"%1 and everything in it, including %2.\n"
+"\n"
+"This cannot be undone."
+msgstr ""
+"%1 и всичко в нея, включително %2.\n"
+"\n"
+"Действието е необратимо."
+
+#: lib/bookshelf_move_flow.lua:432
+msgid "Deleted %1."
+msgstr "%1 е изтрита."
 
 #: lib/bookshelf_opds_catalog_editor.lua:20
 msgid "Catalog name is required."
@@ -2853,13 +2668,11 @@ msgstr ""
 msgid "Could not delete the file."
 msgstr "Файлът не можа да бъде изтрит."
 
-#: lib/bookshelf_ornament_browser.lua:308 lib/bookshelf_ornament_menu.lua:362
-#: lib/bookshelf_settings.lua:4520 lib/bookshelf_widget.lua:23410
+#: lib/bookshelf_ornament_browser.lua:308 lib/bookshelf_ornament_menu.lua:362 lib/bookshelf_settings.lua:4520 lib/bookshelf_widget.lua:23444
 msgid "Hide"
 msgstr "Скриване"
 
-#: lib/bookshelf_ornament_browser.lua:308 lib/bookshelf_ornament_menu.lua:362
-#: lib/bookshelf_settings.lua:4520 lib/bookshelf_widget.lua:23410
+#: lib/bookshelf_ornament_browser.lua:308 lib/bookshelf_ornament_menu.lua:362 lib/bookshelf_settings.lua:4520 lib/bookshelf_widget.lua:23444
 msgid "Show"
 msgstr "Показване"
 
@@ -3001,8 +2814,7 @@ msgstr "Дайте работа на този орнамент!"
 msgid "No action"
 msgstr "Без действие"
 
-#: lib/bookshelf_ornament_menu.lua:728 micromodules/quote_of_day.lua:207
-#: micromodules/reading_streak.lua:83
+#: lib/bookshelf_ornament_menu.lua:728 micromodules/quote_of_day.lua:207 micromodules/reading_streak.lua:83
 msgid "Tap action"
 msgstr "Действие при докосване"
 
@@ -3136,22 +2948,19 @@ msgstr "Извличане на броя страници"
 msgid "No books to count here."
 msgstr "Няма книги за преброяване тук."
 
-#: lib/bookshelf_pagination.lua:85 lib/bookshelf_widget.lua:8504
+#: lib/bookshelf_pagination.lua:85 lib/bookshelf_widget.lua:8511
 msgid "Page %1 of %2+"
 msgstr "Страница %1 от %2+"
 
-#: lib/bookshelf_pagination.lua:86 lib/bookshelf_widget.lua:8505
+#: lib/bookshelf_pagination.lua:86 lib/bookshelf_widget.lua:8512
 msgid "Page %1 of %2"
 msgstr "Страница %1 от %2"
 
-#: lib/bookshelf_picker_cell.lua:91 micromodules/reading_goal.lua:643
-#: micromodules/reading_goal.lua:656
+#: lib/bookshelf_picker_cell.lua:91 micromodules/reading_goal.lua:643 micromodules/reading_goal.lua:656
 msgid "book"
 msgstr "книга"
 
-#: lib/bookshelf_picker_cell.lua:91 micromodules/reading_goal.lua:594
-#: micromodules/reading_goal.lua:599 micromodules/reading_goal.lua:643
-#: micromodules/reading_goal.lua:656
+#: lib/bookshelf_picker_cell.lua:91 micromodules/reading_goal.lua:594 micromodules/reading_goal.lua:599 micromodules/reading_goal.lua:643 micromodules/reading_goal.lua:656
 msgid "books"
 msgstr "книги"
 
@@ -3171,13 +2980,11 @@ msgstr "Повече дъски идват с пакети: вижте Доба�
 msgid "Built-in"
 msgstr "Вградени"
 
-#: lib/bookshelf_reader_park.lua:437 lib/bookshelf_widget.lua:27258
-#: main.lua:1401
+#: lib/bookshelf_reader_park.lua:437 lib/bookshelf_widget.lua:27317 main.lua:1401
 msgid "Closing book…"
 msgstr "Затваряне на книгата…"
 
-#: lib/bookshelf_reviews_modal.lua:523 lib/bookshelf_updater.lua:231
-#: lib/bookshelf_widget.lua:20353
+#: lib/bookshelf_reviews_modal.lua:523 lib/bookshelf_updater.lua:231 lib/bookshelf_widget.lua:20360
 msgid "Open"
 msgstr "Отваряне"
 
@@ -3185,8 +2992,7 @@ msgstr "Отваряне"
 msgid "Stopping…"
 msgstr "Спиране…"
 
-#: lib/bookshelf_settings.lua:156 lib/bookshelf_settings.lua:462
-#: lib/bookshelf_sort_engine.lua:621 lib/bookshelf_tokens.lua:34
+#: lib/bookshelf_settings.lua:156 lib/bookshelf_settings.lua:462 lib/bookshelf_sort_engine.lua:621 lib/bookshelf_tokens.lua:34
 msgid "Progress"
 msgstr "Прогрес"
 
@@ -3244,9 +3050,7 @@ msgstr "Оценка (интерактивна)"
 msgid "Metadata"
 msgstr "Метаданни"
 
-#: lib/bookshelf_settings.lua:460 lib/bookshelf_widget.lua:20437
-#: lib/bookshelf_widget.lua:22577 lib/bookshelf_widget.lua:24871
-#: lib/bookshelf_widget.lua:24881 lib/bookshelf_widget.lua:25400
+#: lib/bookshelf_settings.lua:460 lib/bookshelf_widget.lua:20444 lib/bookshelf_widget.lua:22611 lib/bookshelf_widget.lua:24905 lib/bookshelf_widget.lua:24915 lib/bookshelf_widget.lua:25460
 msgid "Description"
 msgstr "Описание"
 
@@ -3266,13 +3070,11 @@ msgstr "Размер на шрифта на етикетите"
 msgid "Center"
 msgstr "Център"
 
-#: lib/bookshelf_settings.lua:609 lib/bookshelf_settings.lua:614
-#: lib/bookshelf_settings.lua:5514 lib/bookshelf_widget.lua:7220
+#: lib/bookshelf_settings.lua:609 lib/bookshelf_settings.lua:614 lib/bookshelf_settings.lua:5514 lib/bookshelf_widget.lua:7227
 msgid "Left"
 msgstr "Ляво"
 
-#: lib/bookshelf_settings.lua:609 lib/bookshelf_settings.lua:616
-#: lib/bookshelf_settings.lua:5515 lib/bookshelf_widget.lua:7223
+#: lib/bookshelf_settings.lua:609 lib/bookshelf_settings.lua:616 lib/bookshelf_settings.lua:5515 lib/bookshelf_widget.lua:7230
 msgid "Right"
 msgstr "Дясно"
 
@@ -3292,8 +3094,7 @@ msgstr "Колко реда с етикети показва горният па
 msgid "Set"
 msgstr "Задаване"
 
-#: lib/bookshelf_settings.lua:698 lib/bookshelf_settings.lua:759
-#: lib/bookshelf_sort_engine.lua:621 lib/bookshelf_tokens.lua:97
+#: lib/bookshelf_settings.lua:698 lib/bookshelf_settings.lua:759 lib/bookshelf_sort_engine.lua:621 lib/bookshelf_tokens.lua:98
 msgid "Percent read"
 msgstr "Прочетено (%)"
 
@@ -3301,8 +3102,7 @@ msgstr "Прочетено (%)"
 msgid "Percent read and pages"
 msgstr "Прочетено (%) и страници"
 
-#: lib/bookshelf_settings.lua:700 lib/bookshelf_settings.lua:758
-#: lib/bookshelf_sort_engine.lua:704
+#: lib/bookshelf_settings.lua:700 lib/bookshelf_settings.lua:758 lib/bookshelf_sort_engine.lua:704
 msgid "Pages"
 msgstr "Стр."
 
@@ -3338,8 +3138,7 @@ msgstr "Само число"
 msgid "Show \"220\" rather than \"220 p\"."
 msgstr "Показване на „220“ вместо „220 с“."
 
-#: lib/bookshelf_settings.lua:779 lib/bookshelf_settings.lua:4660
-#: lib/bookshelf_widget.lua:25989
+#: lib/bookshelf_settings.lua:779 lib/bookshelf_settings.lua:4660 lib/bookshelf_widget.lua:26050
 msgid "Extract page counts…"
 msgstr "Извличане на броя страници…"
 
@@ -3443,8 +3242,7 @@ msgstr "Значка за пауза"
 msgid "Faded cover"
 msgstr "Избледняла корица"
 
-#: lib/bookshelf_settings.lua:1164 micromodules/quote_of_day.lua:106
-#: micromodules/quote_of_day.lua:193
+#: lib/bookshelf_settings.lua:1164 micromodules/quote_of_day.lua:106 micromodules/quote_of_day.lua:193
 msgid "Both"
 msgstr "И двете"
 
@@ -3548,13 +3346,11 @@ msgstr "Преместване нагоре"
 msgid "Move down"
 msgstr "Преместване надолу"
 
-#: lib/bookshelf_settings.lua:1736 lib/bookshelf_theme_pack.lua:385
-#: lib/bookshelf_theme_pack.lua:907
+#: lib/bookshelf_settings.lua:1736 lib/bookshelf_theme_pack.lua:385 lib/bookshelf_theme_pack.lua:907
 msgid "%1 (missing)"
 msgstr "%1 (липсва)"
 
-#: lib/bookshelf_settings.lua:1749 lib/bookshelf_settings.lua:1751
-#: lib/bookshelf_theme_library.lua:104 lib/bookshelf_wallpaper_browser.lua:152
+#: lib/bookshelf_settings.lua:1749 lib/bookshelf_settings.lua:1751 lib/bookshelf_theme_library.lua:104 lib/bookshelf_wallpaper_browser.lua:152
 msgid "%1 pack"
 msgstr "Пакет %1"
 
@@ -3650,8 +3446,7 @@ msgstr "Панел зад рафтовете с корици"
 msgid "Covers shelves get one panel behind the top panel, the covers and the footer, as list shelves have, in place of a plate under each title. Part of the theme."
 msgstr "Рафтовете с корици получават един общ панел зад горния панел, кориците и долната лента, както рафтовете със списък, вместо подложка под всяко заглавие. Част от темата."
 
-#: lib/bookshelf_settings.lua:2005 lib/bookshelf_settings.lua:3115
-#: lib/bookshelf_settings.lua:3136
+#: lib/bookshelf_settings.lua:2005 lib/bookshelf_settings.lua:3115 lib/bookshelf_settings.lua:3136
 msgid "Transparent"
 msgstr "Прозрачно"
 
@@ -3869,8 +3664,7 @@ msgstr "Цвят на текста на папките"
 msgid "Color of the label text inside folder / series / author / genre / tag cards. The cardboard outline around the card itself follows the Border color setting above."
 msgstr "Цвят на текста върху картите за папки / поредици / автори / жанрове / етикети. Рамката около самата карта следва настройката Цвят на рамката по-горе."
 
-#: lib/bookshelf_settings.lua:3115 lib/bookshelf_settings.lua:3117
-#: lib/bookshelf_settings.lua:3129
+#: lib/bookshelf_settings.lua:3115 lib/bookshelf_settings.lua:3117 lib/bookshelf_settings.lua:3129
 msgid "Shelf menu background"
 msgstr "Фон на менюто на рафтовете"
 
@@ -3958,8 +3752,7 @@ msgstr "Бутон на цял екран"
 msgid "On the shelf"
 msgstr "На рафта"
 
-#: lib/bookshelf_settings.lua:3513 lib/bookshelf_settings.lua:5539
-#: lib/bookshelf_settings.lua:5834
+#: lib/bookshelf_settings.lua:3513 lib/bookshelf_settings.lua:5539 lib/bookshelf_settings.lua:5834
 msgid "Start menu"
 msgstr "Стартово меню"
 
@@ -3979,7 +3772,7 @@ msgstr "Разширени"
 msgid "never"
 msgstr "никога"
 
-#: lib/bookshelf_settings.lua:3651 main.lua:3036
+#: lib/bookshelf_settings.lua:3651 main.lua:3042
 msgid "Hardcover plugin is not available"
 msgstr "Приставката Hardcover не е налична"
 
@@ -4100,7 +3893,7 @@ msgstr "Опресняване само на оценките"
 msgid "Fetch up-to-date public ratings and review counts for every linked book in one quick batched request -- seconds, even for a large library. Ratings drift daily; for the rarely-changing details (author, genres, series, description, pages) use Refresh linked book details instead."
 msgstr "Взема актуалните публични оценки и броя отзиви за всяка свързана книга с една бърза групова заявка, за секунди дори при голяма библиотека. Оценките се променят всеки ден; за рядко променящите се детайли (автор, жанрове, поредица, описание, страници) използвайте вместо това Опресняване на детайлите на свързаните книги."
 
-#: lib/bookshelf_settings.lua:3978 lib/bookshelf_widget.lua:25206
+#: lib/bookshelf_settings.lua:3978 lib/bookshelf_widget.lua:25266
 msgid "Hardcover integration could not be loaded"
 msgstr "Интеграцията с Hardcover не можа да бъде заредена"
 
@@ -4764,8 +4557,7 @@ msgstr "Известяване при събуждане, ако има нали
 msgid "Developer updates"
 msgstr "Актуализации за разработчици"
 
-#: lib/bookshelf_settings.lua:6117 lib/bookshelf_settings.lua:6118
-#: main.lua:2444
+#: lib/bookshelf_settings.lua:6117 lib/bookshelf_settings.lua:6118 main.lua:2444
 msgid "Development branch"
 msgstr "Клон за разработка"
 
@@ -4877,8 +4669,7 @@ msgstr "Четени първо"
 msgid "Favorite 1st"
 msgstr "Любими 1-ви"
 
-#: lib/bookshelf_sort_engine.lua:654 lib/bookshelf_widget.lua:21398
-#: lib/bookshelf_widget.lua:21400
+#: lib/bookshelf_sort_engine.lua:654 lib/bookshelf_widget.lua:21432 lib/bookshelf_widget.lua:21434
 msgid "Added"
 msgstr "Добавена"
 
@@ -5066,12 +4857,11 @@ msgstr "Време и устройство"
 msgid "Fun & info"
 msgstr "Забава и инфо"
 
-#: lib/bookshelf_start_menu_modules.lua:537 lib/bookshelf_widget.lua:23246
+#: lib/bookshelf_start_menu_modules.lua:537 lib/bookshelf_widget.lua:23280
 msgid "Actions"
 msgstr "Действия"
 
-#: lib/bookshelf_start_menu_modules.lua:571
-#: lib/bookshelf_start_menu_modules.lua:603
+#: lib/bookshelf_start_menu_modules.lua:571 lib/bookshelf_start_menu_modules.lua:603
 msgid "My modules"
 msgstr "Моите модули"
 
@@ -5083,8 +4873,7 @@ msgstr "Скорошни"
 msgid "Latest"
 msgstr "Последни"
 
-#: lib/bookshelf_tab_model.lua:97 lib/bookshelf_widget.lua:1787
-#: lib/bookshelf_widget.lua:24256
+#: lib/bookshelf_tab_model.lua:97 lib/bookshelf_widget.lua:1794 lib/bookshelf_widget.lua:24290
 msgid "Tags"
 msgstr "Етикети"
 
@@ -5286,304 +5075,308 @@ msgid "File size on disk"
 msgstr "Размер на файла"
 
 #: lib/bookshelf_tokens.lua:90
+msgid "Publication year, from calibre, the OPDS catalog or the book file"
+msgstr "Година на издаване, от calibre, OPDS каталога или файла на книгата"
+
+#: lib/bookshelf_tokens.lua:91
 msgid "Date added (the file's own date)"
 msgstr "Дата на добавяне (собствената дата на файла)"
 
-#: lib/bookshelf_tokens.lua:91
+#: lib/bookshelf_tokens.lua:92
 msgid "Book blurb (HTML stripped)"
 msgstr "Анотация на книгата (без HTML)"
 
-#: lib/bookshelf_tokens.lua:92
+#: lib/bookshelf_tokens.lua:93
 msgid "A random highlight from this book"
 msgstr "Произволно подчертаване от тази книга"
 
-#: lib/bookshelf_tokens.lua:93
+#: lib/bookshelf_tokens.lua:94
 #, lua-format
 msgid "The book and author for %quote"
 msgstr "Книгата и авторът за %quote"
 
-#: lib/bookshelf_tokens.lua:94
+#: lib/bookshelf_tokens.lua:95
 #, lua-format
 msgid "Page the %quote highlight is on"
 msgstr "Страница, на която е откъсът на %quote"
 
-#: lib/bookshelf_tokens.lua:95
+#: lib/bookshelf_tokens.lua:96
 #, lua-format
 msgid "Chapter the %quote highlight is in"
 msgstr "Глава, в която е откъсът на %quote"
 
-#: lib/bookshelf_tokens.lua:98
+#: lib/bookshelf_tokens.lua:99
 msgid "Percent left"
 msgstr "Оставащ процент"
 
-#: lib/bookshelf_tokens.lua:99
+#: lib/bookshelf_tokens.lua:100
 msgid "Current page"
 msgstr "Текуща страница"
 
-#: lib/bookshelf_tokens.lua:100
+#: lib/bookshelf_tokens.lua:101
 msgid "Total pages (approximate for EPUB)"
 msgstr "Общо страници (приблизително за EPUB)"
 
-#: lib/bookshelf_tokens.lua:101
+#: lib/bookshelf_tokens.lua:102
 msgid "Pages left (approximate for EPUB)"
 msgstr "Оставащи страници (приблизително за EPUB)"
 
-#: lib/bookshelf_tokens.lua:102
+#: lib/bookshelf_tokens.lua:103
 msgid "Time left to finish (statistics)"
 msgstr "Оставащо време до края (статистика)"
 
-#: lib/bookshelf_tokens.lua:103
+#: lib/bookshelf_tokens.lua:104
 msgid "Total time read (statistics)"
 msgstr "Общо време на четене (статистика)"
 
-#: lib/bookshelf_tokens.lua:104
+#: lib/bookshelf_tokens.lua:105
 msgid "Pages read (statistics)"
 msgstr "Прочетени страници (статистика)"
 
-#: lib/bookshelf_tokens.lua:105
+#: lib/bookshelf_tokens.lua:106
 msgid "Days since first opened (statistics)"
 msgstr "Дни от първото отваряне (статистика)"
 
-#: lib/bookshelf_tokens.lua:106
+#: lib/bookshelf_tokens.lua:107
 msgid "Pages per day (statistics)"
 msgstr "Страници на ден (статистика)"
 
-#: lib/bookshelf_tokens.lua:107
+#: lib/bookshelf_tokens.lua:108
 msgid "Speed in pages/hour (statistics)"
 msgstr "Скорост в страници/час (статистика)"
 
-#: lib/bookshelf_tokens.lua:108
+#: lib/bookshelf_tokens.lua:109
 msgid "Date this book was last opened"
 msgstr "Дата на последното отваряне на тази книга"
 
-#: lib/bookshelf_tokens.lua:109
+#: lib/bookshelf_tokens.lua:110
 msgid "How many books in your whole library are marked Finished"
 msgstr "Колко книги в цялата ви библиотека са отбелязани като завършени"
 
-#: lib/bookshelf_tokens.lua:110
+#: lib/bookshelf_tokens.lua:111
 msgid "How many books have any reading time recorded (statistics)"
 msgstr "Колко книги имат записано време на четене (статистика)"
 
-#: lib/bookshelf_tokens.lua:111
+#: lib/bookshelf_tokens.lua:112
 msgid "Time (12-hour)"
 msgstr "Час (12-часов)"
 
-#: lib/bookshelf_tokens.lua:112
+#: lib/bookshelf_tokens.lua:113
 msgid "Time (24-hour)"
 msgstr "Час (24-часов)"
 
-#: lib/bookshelf_tokens.lua:113
+#: lib/bookshelf_tokens.lua:114
 msgid "Date (e.g. 4 May)"
 msgstr "Дата (напр. 4 май)"
 
-#: lib/bookshelf_tokens.lua:114
+#: lib/bookshelf_tokens.lua:115
 msgid "Date (e.g. 4 May 2026)"
 msgstr "Дата (напр. 4 май 2026)"
 
-#: lib/bookshelf_tokens.lua:115
+#: lib/bookshelf_tokens.lua:116
 msgid "Date (numeric)"
 msgstr "Дата (числова)"
 
-#: lib/bookshelf_tokens.lua:116
+#: lib/bookshelf_tokens.lua:117
 msgid "Weekday"
 msgstr "Ден от седмицата"
 
-#: lib/bookshelf_tokens.lua:117
+#: lib/bookshelf_tokens.lua:118
 msgid "Weekday (short)"
 msgstr "Ден от седмицата (кратко)"
 
-#: lib/bookshelf_tokens.lua:118
+#: lib/bookshelf_tokens.lua:119
 msgid "Battery percentage"
 msgstr "Процент на батерията"
 
-#: lib/bookshelf_tokens.lua:119
+#: lib/bookshelf_tokens.lua:120
 msgid "Battery icon (Nerd Font)"
 msgstr "Икона на батерията (Nerd Font)"
 
-#: lib/bookshelf_tokens.lua:120
+#: lib/bookshelf_tokens.lua:121
 msgid "Wi-Fi icon"
 msgstr "Икона на Wi-Fi"
 
-#: lib/bookshelf_tokens.lua:121
+#: lib/bookshelf_tokens.lua:122
 msgid "Wi-Fi icon only when online"
 msgstr "Икона за Wi-Fi само при връзка"
 
-#: lib/bookshelf_tokens.lua:122
+#: lib/bookshelf_tokens.lua:123
 msgid "Night mode icon (moon/sun)"
 msgstr "Икона за нощен режим (луна/слънце)"
 
-#: lib/bookshelf_tokens.lua:123
+#: lib/bookshelf_tokens.lua:124
 msgid "Frontlight intensity (raw)"
 msgstr "Интензитет на осветлението (необработен)"
 
-#: lib/bookshelf_tokens.lua:124
+#: lib/bookshelf_tokens.lua:125
 msgid "Frontlight intensity (0–100%)"
 msgstr "Интензитет на осветлението (0–100%)"
 
-#: lib/bookshelf_tokens.lua:125
+#: lib/bookshelf_tokens.lua:126
 msgid "Lifetime reading time, all books"
 msgstr "Общо време за четене, всички книги"
 
-#: lib/bookshelf_tokens.lua:126
+#: lib/bookshelf_tokens.lua:127
 msgid "Percent of the book actually read"
 msgstr "Процент от книгата, който е реално прочетен"
 
-#: lib/bookshelf_tokens.lua:127
+#: lib/bookshelf_tokens.lua:128
 msgid "Books finished (bookends' name for %books_read)"
 msgstr "Завършени книги (името в bookends за %books_read)"
 
-#: lib/bookshelf_tokens.lua:128
+#: lib/bookshelf_tokens.lua:129
 msgid "Pages read today, all books"
 msgstr "Прочетени страници днес, всички книги"
 
-#: lib/bookshelf_tokens.lua:129
+#: lib/bookshelf_tokens.lua:130
 msgid "Time read today, all books"
 msgstr "Време за четене днес, всички книги"
 
-#: lib/bookshelf_tokens.lua:130
+#: lib/bookshelf_tokens.lua:131
 msgid "Average time per page for this book"
 msgstr "Средно време на страница за тази книга"
 
-#: lib/bookshelf_tokens.lua:131
+#: lib/bookshelf_tokens.lua:132
 msgid "Number of highlights"
 msgstr "Брой маркирания"
 
-#: lib/bookshelf_tokens.lua:132
+#: lib/bookshelf_tokens.lua:133
 msgid "Number of notes"
 msgstr "Брой бележки"
 
-#: lib/bookshelf_tokens.lua:133
+#: lib/bookshelf_tokens.lua:134
 msgid "Number of bookmarks"
 msgstr "Брой отметки"
 
-#: lib/bookshelf_tokens.lua:134
+#: lib/bookshelf_tokens.lua:135
 msgid "Highlights + notes + bookmarks"
 msgstr "Маркирания + бележки + отметки"
 
-#: lib/bookshelf_tokens.lua:135
+#: lib/bookshelf_tokens.lua:136
 msgid "Frontlight icon"
 msgstr "Икона за осветлението"
 
-#: lib/bookshelf_tokens.lua:136
+#: lib/bookshelf_tokens.lua:137
 msgid "Warmth on the device's own scale, 0-24 on Kindle (natural-light only)"
 msgstr "Топлина по скалата на устройството, 0-24 на Kindle (само при естествена светлина)"
 
-#: lib/bookshelf_tokens.lua:137
+#: lib/bookshelf_tokens.lua:138
 msgid "Warmth as a percentage (natural-light only)"
 msgstr "Топлина в проценти (само при естествена светлина)"
 
-#: lib/bookshelf_tokens.lua:138
+#: lib/bookshelf_tokens.lua:139
 msgid "Warmth icon: cool / mid / warm (natural-light only)"
 msgstr "Икона за топлина: студено / средно / топло (само при естествена светлина)"
 
-#: lib/bookshelf_tokens.lua:139
+#: lib/bookshelf_tokens.lua:140
 msgid "SSH icon, shown only while the SSH server is running"
 msgstr "Икона за SSH, показва се само докато SSH сървърът работи"
 
-#: lib/bookshelf_tokens.lua:140
+#: lib/bookshelf_tokens.lua:141
 msgid "Same, wrapped so a whole section hides when SSH is off"
 msgstr "Същото, обградено така, че цял раздел да се скрие, когато SSH е изключен"
 
-#: lib/bookshelf_tokens.lua:141
+#: lib/bookshelf_tokens.lua:142
 msgid "System memory used (%)"
 msgstr "Използвана системна памет (%)"
 
-#: lib/bookshelf_tokens.lua:142
+#: lib/bookshelf_tokens.lua:143
 msgid "System memory used (MiB)"
 msgstr "Използвана системна памет (MiB)"
 
-#: lib/bookshelf_tokens.lua:143
+#: lib/bookshelf_tokens.lua:144
 msgid "KOReader RSS (MiB)"
 msgstr "KOReader RSS (MiB)"
 
-#: lib/bookshelf_tokens.lua:144
+#: lib/bookshelf_tokens.lua:145
 msgid "Storage free (GB)"
 msgstr "Свободно хранилище (GB)"
 
-#: lib/bookshelf_tokens.lua:145
+#: lib/bookshelf_tokens.lua:146
 msgid "Show … when token foo is set"
 msgstr "Показване на … когато токенът foo е зададен"
 
-#: lib/bookshelf_tokens.lua:146
+#: lib/bookshelf_tokens.lua:147
 msgid "Show … when foo is empty"
 msgstr "Показване на … когато foo е празно"
 
-#: lib/bookshelf_tokens.lua:147
+#: lib/bookshelf_tokens.lua:148
 msgid "Numeric comparison"
 msgstr "Числово сравнение"
 
-#: lib/bookshelf_tokens.lua:148
+#: lib/bookshelf_tokens.lua:149
 msgid "If/else"
 msgstr "Ако/иначе"
 
-#: lib/bookshelf_tokens.lua:149
+#: lib/bookshelf_tokens.lua:150
 msgid "Per-language font: e.g. a Japanese face for ja books, another otherwise"
 msgstr "Шрифт по език: напр. японски шрифт за книги на ja, друг в останалите случаи"
 
-#: lib/bookshelf_tokens.lua:150
+#: lib/bookshelf_tokens.lua:151
 msgid "Show … only in the full-width status line (module + full-screen views), not the cover-view status"
 msgstr "Показване на … само в статус реда на цяла ширина (изгледи с модули + на цял екран), не и в статуса на изгледа с корици"
 
-#: lib/bookshelf_tokens.lua:151
+#: lib/bookshelf_tokens.lua:152
 msgid "Elastic gap: pushes content left/right to the region edges"
 msgstr "Гъвкав отстъп: избутва съдържанието наляво/надясно към краищата на областта"
 
-#: lib/bookshelf_tokens.lua:152
+#: lib/bookshelf_tokens.lua:153
 msgid "Progress bar, filling the rest of the line"
 msgstr "Лента за прогрес, запълваща остатъка от реда"
 
-#: lib/bookshelf_tokens.lua:153
+#: lib/bookshelf_tokens.lua:154
 msgid "Progress bar whose length reflects how long the book is"
 msgstr "Лента за прогрес, чиято дължина отразява колко дълга е книгата"
 
-#: lib/bookshelf_tokens.lua:161
+#: lib/bookshelf_tokens.lua:162
 msgid "Bold from here on ([/b] ends it)"
 msgstr "Удебелен текст от тук нататък ([/b] го прекратява)"
 
-#: lib/bookshelf_tokens.lua:162
+#: lib/bookshelf_tokens.lua:163
 msgid "Italic from here on ([/i] ends it)"
 msgstr "Курсив от тук нататък ([/i] го прекратява)"
 
-#: lib/bookshelf_tokens.lua:163
+#: lib/bookshelf_tokens.lua:164
 msgid "Smaller from here on: 4pt below the line's own size ([/size] ends it)"
 msgstr "По-малък размер от тук нататък: 4pt под размера на реда ([/size] го прекратява)"
 
-#: lib/bookshelf_tokens.lua:164
+#: lib/bookshelf_tokens.lua:165
 msgid "Larger from here on; [size=12] sets an exact point size ([/size] ends it)"
 msgstr "По-голям размер от тук нататък; [size=12] задава точен размер в точки ([/size] го прекратява)"
 
-#: lib/bookshelf_tokens.lua:165
+#: lib/bookshelf_tokens.lua:166
 msgid "A different font from here on: replace NAME with a font name ([/font] ends it)"
 msgstr "Различен шрифт от тук нататък: заменете NAME с име на шрифт ([/font] го прекратява)"
 
-#: lib/bookshelf_tokens.lua:231
+#: lib/bookshelf_tokens.lua:232
 msgid " and "
 msgstr " и "
 
-#: lib/bookshelf_tokens.lua:231
+#: lib/bookshelf_tokens.lua:232
 msgid ", et al."
 msgstr ", и др."
 
-#: lib/bookshelf_tokens.lua:683
+#: lib/bookshelf_tokens.lua:691
 #, lua-format
 msgid "%d likes"
 msgstr "%d харесвания"
 
-#: lib/bookshelf_tokens.lua:683
+#: lib/bookshelf_tokens.lua:691
 msgid "1 like"
 msgstr "1 харесване"
 
-#: lib/bookshelf_tokens.lua:952
+#: lib/bookshelf_tokens.lua:960
 #, lua-format
 msgid "%dh %02dm"
 msgstr "%dч %02dм"
 
-#: lib/bookshelf_tokens.lua:994
+#: lib/bookshelf_tokens.lua:1002
 #, lua-format
 msgid "%ds"
 msgstr "%dс"
 
-#: lib/bookshelf_tokens.lua:995
+#: lib/bookshelf_tokens.lua:1003
 #, lua-format
 msgid "%dm %02ds"
 msgstr "%dм %02dс"
@@ -5712,104 +5505,104 @@ msgstr "Тапет"
 msgid "No images in %1"
 msgstr "Няма изображения в %1"
 
-#: lib/bookshelf_widget.lua:1756 lib/bookshelf_widget.lua:5904
+#: lib/bookshelf_widget.lua:1763 lib/bookshelf_widget.lua:5911
 msgid "Search results"
 msgstr "Резултати от търсенето"
 
-#: lib/bookshelf_widget.lua:2141
+#: lib/bookshelf_widget.lua:2148
 #, lua-format
 msgid "No matches for \"%s\""
 msgstr "Няма съвпадения за „%s“"
 
-#: lib/bookshelf_widget.lua:2143
+#: lib/bookshelf_widget.lua:2150
 msgid "Nothing in Series yet · Add series metadata to your books and they will appear here"
 msgstr "Все още няма поредици · Добавете метаданни за поредица към книгите си и те ще се покажат тук"
 
-#: lib/bookshelf_widget.lua:2145
+#: lib/bookshelf_widget.lua:2152
 msgid "No authors yet · Add author metadata to your books and they will appear here"
 msgstr "Все още няма автори · Добавете метаданни за автор към книгите си и те ще се покажат тук"
 
-#: lib/bookshelf_widget.lua:2147
+#: lib/bookshelf_widget.lua:2154
 msgid "No genres yet · Add keywords or subject metadata to your books and they will appear here"
 msgstr "Все още няма жанрове · Добавете метаданни за ключови думи или тема към книгите си и те ще се покажат тук"
 
-#: lib/bookshelf_widget.lua:2149
+#: lib/bookshelf_widget.lua:2156
 msgid "No collections yet · Long-press a book and tap 'Collections…' to create one"
 msgstr "Все още няма колекции · Задръжте върху книга и докоснете „Колекции…”, за да създадете"
 
-#: lib/bookshelf_widget.lua:2151
+#: lib/bookshelf_widget.lua:2158
 msgid "No favorites yet · Long-press a book and tap 'Add to favorites'"
 msgstr "Все още няма любими · Задръжте върху книга и докоснете „Добавяне към любими“"
 
-#: lib/bookshelf_widget.lua:2153
+#: lib/bookshelf_widget.lua:2160
 msgid "No books found · Set your library folder in Settings then tap Latest"
 msgstr "Не са намерени книги · Задайте папка с библиотеката в Настройки и докоснете „Последни“"
 
-#: lib/bookshelf_widget.lua:2155
+#: lib/bookshelf_widget.lua:2162
 msgid "No recent reads yet · Open a book and it will appear here"
 msgstr "Все още няма скорошно четени · Отворете книга и тя ще се появи тук"
 
-#: lib/bookshelf_widget.lua:2161
+#: lib/bookshelf_widget.lua:2168
 msgid "No books here yet · Pick a folder to use as your KOReader library and books in it will appear here."
 msgstr "Тук все още няма книги · Изберете папка за библиотека на KOReader и книгите в нея ще се появят тук."
 
-#: lib/bookshelf_widget.lua:2187
+#: lib/bookshelf_widget.lua:2194
 #, lua-format
 msgid "Couldn't load %s · Pull down to try again"
 msgstr "Неуспешно зареждане на %s · Дръпнете надолу, за да опитате отново"
 
-#: lib/bookshelf_widget.lua:2191
+#: lib/bookshelf_widget.lua:2198
 #, lua-format
 msgid "Nothing in \"%s\" · Pull down to refresh, or clear the start folder in Catalog settings"
 msgstr "Няма нищо в „%s“ · Дръпнете надолу за опресняване, или изчистете стартовата папка в Настройки на каталога"
 
-#: lib/bookshelf_widget.lua:2195
+#: lib/bookshelf_widget.lua:2202
 #, lua-format
 msgid "Nothing in %s · Pull down to refresh"
 msgstr "Няма нищо в %s · Дръпнете надолу за опресняване"
 
-#: lib/bookshelf_widget.lua:2214
+#: lib/bookshelf_widget.lua:2221
 #, lua-format
 msgid "No books in %s yet · Go back and long-press its tile to edit its source or filter"
 msgstr "Все още няма книги в %s · Върнете се и задръжте върху плочката му, за да редактирате източника или филтъра"
 
-#: lib/bookshelf_widget.lua:2221
+#: lib/bookshelf_widget.lua:2228
 #, lua-format
 msgid "No books in %s yet · Long-press it in the shelf menu above to edit its source or filter"
 msgstr "Все още няма книги в %s · Задръжте го в менюто на рафтовете отгоре, за да редактирате източника или филтъра"
 
-#: lib/bookshelf_widget.lua:2224
+#: lib/bookshelf_widget.lua:2231
 #, lua-format
 msgid "No books in %s yet"
 msgstr "Все още няма книги в %s"
 
-#: lib/bookshelf_widget.lua:2236
+#: lib/bookshelf_widget.lua:2243
 #, lua-format
 msgid "Nothing in %s yet · Go back and long-press its tile to edit its filter"
 msgstr "Все още няма нищо в %s · Върнете се и задръжте върху плочката му, за да редактирате филтъра му"
 
-#: lib/bookshelf_widget.lua:2240
+#: lib/bookshelf_widget.lua:2247
 #, lua-format
 msgid "Nothing in %s yet · Long-press it in the shelf menu above to edit its filter"
 msgstr "Все още няма нищо в %s · Задръжте го в менюто на рафтовете отгоре, за да редактирате филтъра му"
 
-#: lib/bookshelf_widget.lua:2335
+#: lib/bookshelf_widget.lua:2342
 msgid "Set home folder"
 msgstr "Задаване на начална папка"
 
-#: lib/bookshelf_widget.lua:2344
+#: lib/bookshelf_widget.lua:2351
 msgid "Current home folder:"
 msgstr "Текуща начална папка:"
 
-#: lib/bookshelf_widget.lua:4767 lib/bookshelf_widget.lua:22769
+#: lib/bookshelf_widget.lua:4774 lib/bookshelf_widget.lua:22803
 msgid "File no longer exists. The bookshelf entry is stale."
 msgstr "Файлът вече не съществува. Записът в Bookshelf е остарял."
 
-#: lib/bookshelf_widget.lua:4795
+#: lib/bookshelf_widget.lua:4802
 msgid "Couldn't open this Kobo book."
 msgstr "Тази книга от Kobo не можа да бъде отворена."
 
-#: lib/bookshelf_widget.lua:4842
+#: lib/bookshelf_widget.lua:4849
 msgid ""
 "This Kindle book has to be converted before KOReader can read it.\n"
 "\n"
@@ -5823,11 +5616,11 @@ msgstr ""
 "\n"
 "Това се случва само при първото отваряне на книгата."
 
-#: lib/bookshelf_widget.lua:4847
+#: lib/bookshelf_widget.lua:4854
 msgid "Convert"
 msgstr "Конвертиране"
 
-#: lib/bookshelf_widget.lua:4890
+#: lib/bookshelf_widget.lua:4897
 msgid ""
 "This is a protected %1 file, which can't be opened.\n"
 "\n"
@@ -5841,7 +5634,7 @@ msgstr ""
 "\n"
 "Вашите KFX книги би трябвало да се отварят нормално."
 
-#: lib/bookshelf_widget.lua:4900
+#: lib/bookshelf_widget.lua:4907
 msgid ""
 "KOReader can't read %1 files.\n"
 "\n"
@@ -5855,135 +5648,135 @@ msgstr ""
 "\n"
 "Осталите ви книги от Kindle би трябвало да се отварят нормално."
 
-#: lib/bookshelf_widget.lua:4905
+#: lib/bookshelf_widget.lua:4912
 msgid "The Kindle library isn't available right now."
 msgstr "Библиотеката на Kindle не е достъпна в момента."
 
-#: lib/bookshelf_widget.lua:5023
+#: lib/bookshelf_widget.lua:5030
 msgid "Preparing this book…"
 msgstr "Подготвяне на книгата…"
 
-#: lib/bookshelf_widget.lua:5037
+#: lib/bookshelf_widget.lua:5044
 msgid "This book is still being prepared. Please try again in a moment."
 msgstr "Тази книга все още се подготвя. Опитайте отново след малко."
 
-#: lib/bookshelf_widget.lua:5889
+#: lib/bookshelf_widget.lua:5896
 msgid "Results"
 msgstr "Резултати"
 
-#: lib/bookshelf_widget.lua:6392
+#: lib/bookshelf_widget.lua:6399
 msgid "Catalog books can't be selected."
 msgstr "Книги от каталог не могат да бъдат избирани."
 
-#: lib/bookshelf_widget.lua:6991
+#: lib/bookshelf_widget.lua:6998
 msgid "Modules can only go on shelves shown as covers or spines"
 msgstr "Модулите могат да се поставят само на рафтове, показани като корици или гръбчета"
 
-#: lib/bookshelf_widget.lua:7182
+#: lib/bookshelf_widget.lua:7189
 msgid "Adjust ornament"
 msgstr "Настройване на орнамента"
 
-#: lib/bookshelf_widget.lua:7205
+#: lib/bookshelf_widget.lua:7212
 msgid "Unpin"
 msgstr "Откачане"
 
-#: lib/bookshelf_widget.lua:7212
+#: lib/bookshelf_widget.lua:7219
 msgid "Pinned to this spot: it stays here among the books, instead of taking its turn with the other ornaments."
 msgstr "Закачен на това място: остава тук сред книгите, вместо да се редува с другите орнаменти."
 
-#: lib/bookshelf_widget.lua:7216
+#: lib/bookshelf_widget.lua:7223
 msgid "Move it"
 msgstr "Преместване"
 
-#: lib/bookshelf_widget.lua:7227
+#: lib/bookshelf_widget.lua:7234
 msgid "Or swipe it on the shelf, a book at a time."
 msgstr "Или го плъзнете на рафта, по една книга наведнъж."
 
-#: lib/bookshelf_widget.lua:7239
+#: lib/bookshelf_widget.lua:7246
 msgid "Pinned ornament"
 msgstr "Закачен орнамент"
 
-#: lib/bookshelf_widget.lua:8507
+#: lib/bookshelf_widget.lua:8514
 msgid "%1 - %2 of %3+"
 msgstr "%1 - %2 от %3+"
 
-#: lib/bookshelf_widget.lua:8508
+#: lib/bookshelf_widget.lua:8515
 msgid "%1 - %2 of %3"
 msgstr "%1 - %2 от %3"
 
-#: lib/bookshelf_widget.lua:9187 lib/bookshelf_widget.lua:13741
+#: lib/bookshelf_widget.lua:9194 lib/bookshelf_widget.lua:13748
 msgid "Selection cleared"
 msgstr "Изборът е изчистен"
 
-#: lib/bookshelf_widget.lua:9535
+#: lib/bookshelf_widget.lua:9542
 #, lua-format
 msgid "No items start with %q"
 msgstr "Няма елементи, започващи с %q"
 
-#: lib/bookshelf_widget.lua:9580
+#: lib/bookshelf_widget.lua:9587
 msgid "Go to letter"
 msgstr "Към буква"
 
-#: lib/bookshelf_widget.lua:9591
+#: lib/bookshelf_widget.lua:9598
 msgid "Enter text, letter or book number"
 msgstr "Въведете текст, буква или номер на книга"
 
-#: lib/bookshelf_widget.lua:9592
+#: lib/bookshelf_widget.lua:9599
 msgid "Enter text, letter or page number"
 msgstr "Въведете текст, буква или номер на страница"
 
-#: lib/bookshelf_widget.lua:9599
+#: lib/bookshelf_widget.lua:9606
 #, lua-format
 msgid "(a - z) or (1 - %d)"
 msgstr "(а - я) или (1 - %d)"
 
-#: lib/bookshelf_widget.lua:9609
+#: lib/bookshelf_widget.lua:9616
 msgid "Go to book"
 msgstr "Към книга"
 
-#: lib/bookshelf_widget.lua:9609
+#: lib/bookshelf_widget.lua:9616
 msgid "Go to page"
 msgstr "Към страница"
 
-#: lib/bookshelf_widget.lua:9616
+#: lib/bookshelf_widget.lua:9623
 #, lua-format
 msgid "Book must be between 1 and %d"
 msgstr "Книгата трябва да е между 1 и %d"
 
-#: lib/bookshelf_widget.lua:9617
+#: lib/bookshelf_widget.lua:9624
 #, lua-format
 msgid "Page must be between 1 and %d"
 msgstr "Страницата трябва да е между 1 и %d"
 
-#: lib/bookshelf_widget.lua:11898
+#: lib/bookshelf_widget.lua:11905
 msgid "Retrieving book cover…"
 msgstr "Извличане на корицата на книгата…"
 
-#: lib/bookshelf_widget.lua:16812
+#: lib/bookshelf_widget.lua:16819
 msgid "Reset to default"
 msgstr "Връщане по подразбиране"
 
-#: lib/bookshelf_widget.lua:16813
+#: lib/bookshelf_widget.lua:16820
 msgid "Puts back the modules the top panel starts with."
 msgstr "Връща модулите, с които горният панел започва."
 
-#: lib/bookshelf_widget.lua:16824
+#: lib/bookshelf_widget.lua:16831
 msgid "Remove from the top panel"
 msgstr "Премахване от горния панел"
 
-#: lib/bookshelf_widget.lua:16825
+#: lib/bookshelf_widget.lua:16832
 msgid "Settings > Modules > In the top panel brings them back."
 msgstr "Настройки > Модули > В горния панел ги връща."
 
-#: lib/bookshelf_widget.lua:17018 lib/bookshelf_widget.lua:25699
+#: lib/bookshelf_widget.lua:17025 lib/bookshelf_widget.lua:25759
 msgid "Bulk selection isn't available in remote catalog views."
 msgstr "Груповият избор не е наличен в изгледите на отдалечени каталози."
 
-#: lib/bookshelf_widget.lua:17632
+#: lib/bookshelf_widget.lua:17639
 msgid "Refreshing library…"
 msgstr "Обновяване на библиотеката…"
 
-#: lib/bookshelf_widget.lua:18118
+#: lib/bookshelf_widget.lua:18125
 msgid ""
 "Fetching %1… (%2 books)\n"
 "(Tap to cancel)"
@@ -5991,7 +5784,7 @@ msgstr ""
 "Извличане на %1… (%2 книги)\n"
 "(Докоснете за отказ)"
 
-#: lib/bookshelf_widget.lua:18122
+#: lib/bookshelf_widget.lua:18129
 msgid ""
 "Fetching %1…\n"
 "(Tap to cancel)"
@@ -5999,7 +5792,7 @@ msgstr ""
 "Извличане на %1…\n"
 "(Докоснете за отказ)"
 
-#: lib/bookshelf_widget.lua:18192
+#: lib/bookshelf_widget.lua:18199
 msgid ""
 "Stop loading %1?\n"
 "%2 books so far."
@@ -6007,127 +5800,123 @@ msgstr ""
 "Да се спре ли зареждането на %1?\n"
 "Досега: %2 книги."
 
-#: lib/bookshelf_widget.lua:18194
+#: lib/bookshelf_widget.lua:18201
 msgid "Stop loading %1?"
 msgstr "Да се спре ли зареждането на %1?"
 
-#: lib/bookshelf_widget.lua:18196
+#: lib/bookshelf_widget.lua:18203
 msgid "Keep loading"
 msgstr "Продължаване"
 
-#: lib/bookshelf_widget.lua:18248 lib/bookshelf_widget.lua:19916
-#: lib/bookshelf_widget.lua:20811
+#: lib/bookshelf_widget.lua:18255 lib/bookshelf_widget.lua:19923 lib/bookshelf_widget.lua:20818
 msgid "Authentication failed for %1"
 msgstr "Неуспешно удостоверяване за %1"
 
-#: lib/bookshelf_widget.lua:18250 lib/bookshelf_widget.lua:19918
+#: lib/bookshelf_widget.lua:18257 lib/bookshelf_widget.lua:19925
 msgid "%1 refused every format Bookshelf asked for"
 msgstr "%1 отказа всички формати, поискани от Bookshelf"
 
-#: lib/bookshelf_widget.lua:18252 lib/bookshelf_widget.lua:19920
+#: lib/bookshelf_widget.lua:18259 lib/bookshelf_widget.lua:19927
 msgid "%1 is limiting requests. Wait a minute and try again."
 msgstr "%1 ограничава заявките. Изчакайте минута и опитайте отново."
 
-#: lib/bookshelf_widget.lua:18253 lib/bookshelf_widget.lua:19921
-#: lib/bookshelf_widget.lua:20815
+#: lib/bookshelf_widget.lua:18260 lib/bookshelf_widget.lua:19928 lib/bookshelf_widget.lua:20822
 msgid "Couldn't reach %1"
 msgstr "Няма връзка с %1"
 
-#: lib/bookshelf_widget.lua:18286 lib/bookshelf_widget.lua:18316
+#: lib/bookshelf_widget.lua:18293 lib/bookshelf_widget.lua:18323
 msgid "No books found in %1"
 msgstr "Няма намерени книги в %1"
 
-#: lib/bookshelf_widget.lua:18315
+#: lib/bookshelf_widget.lua:18322
 msgid "No downloadable titles in this category."
 msgstr "Няма заглавия за изтегляне в тази категория."
 
-#: lib/bookshelf_widget.lua:18511 lib/bookshelf_widget.lua:19865
-#: lib/bookshelf_widget.lua:20617 lib/bookshelf_widget.lua:20750
-#: lib/bookshelf_widget.lua:27182
+#: lib/bookshelf_widget.lua:18518 lib/bookshelf_widget.lua:19872 lib/bookshelf_widget.lua:20624 lib/bookshelf_widget.lua:20757 lib/bookshelf_widget.lua:27241
 msgid "The catalog is busy. Try again in a moment."
 msgstr "Каталогът е зает. Опитайте отново след малко."
 
-#: lib/bookshelf_widget.lua:19761
+#: lib/bookshelf_widget.lua:19768
 msgid "This catalog does not offer search."
 msgstr "Този каталог не предлага търсене."
 
-#: lib/bookshelf_widget.lua:19762
+#: lib/bookshelf_widget.lua:19769
 msgid "Load the catalog first, then search it."
 msgstr "Първо заредете каталога, после търсете в него."
 
-#: lib/bookshelf_widget.lua:19809
+#: lib/bookshelf_widget.lua:19816
 msgid "Search my library"
 msgstr "Търсене в моята библиотека"
 
-#: lib/bookshelf_widget.lua:19815
+#: lib/bookshelf_widget.lua:19822
 msgid "Search %1"
 msgstr "Търсене в %1"
 
-#: lib/bookshelf_widget.lua:19888
+#: lib/bookshelf_widget.lua:19895
 msgid "Searching %1…"
 msgstr "Търсене в %1…"
 
-#: lib/bookshelf_widget.lua:19950
+#: lib/bookshelf_widget.lua:19957
 msgid "Search: \"%1\""
 msgstr "Търсене: „%1“"
 
-#: lib/bookshelf_widget.lua:20183 lib/bookshelf_widget.lua:21276
+#: lib/bookshelf_widget.lua:20190 lib/bookshelf_widget.lua:21310
 msgid "(no title)"
 msgstr "(без заглавие)"
 
-#: lib/bookshelf_widget.lua:20380
+#: lib/bookshelf_widget.lua:20387
 msgid "Download"
 msgstr "Изтегляне"
 
-#: lib/bookshelf_widget.lua:20380
+#: lib/bookshelf_widget.lua:20387
 msgid "Download %1"
 msgstr "Изтегляне на %1"
 
-#: lib/bookshelf_widget.lua:20386
+#: lib/bookshelf_widget.lua:20393
 msgid "Recommended"
 msgstr "Препоръчани"
 
-#: lib/bookshelf_widget.lua:20388
+#: lib/bookshelf_widget.lua:20395
 msgid "Alternatives"
 msgstr "Алтернативи"
 
-#: lib/bookshelf_widget.lua:20405
+#: lib/bookshelf_widget.lua:20412
 msgid "Page stream"
 msgstr "Поточно получаване на страници"
 
-#: lib/bookshelf_widget.lua:20407
+#: lib/bookshelf_widget.lua:20414
 msgid "Stream from page"
 msgstr "Поточно получаване от страница"
 
-#: lib/bookshelf_widget.lua:20412
+#: lib/bookshelf_widget.lua:20419
 msgid "Resume stream from page"
 msgstr "Възобновяване на получаване от страница"
 
-#: lib/bookshelf_widget.lua:20429
+#: lib/bookshelf_widget.lua:20436
 msgid "No formats this device can open"
 msgstr "Няма формати, които това устройство може да отваря"
 
-#: lib/bookshelf_widget.lua:20642
+#: lib/bookshelf_widget.lua:20649
 msgid "Set a home folder in KOReader before downloading books."
 msgstr "Задайте начална папка в KOReader, преди да изтегляте книги."
 
-#: lib/bookshelf_widget.lua:20699
+#: lib/bookshelf_widget.lua:20706
 msgid "%1 already exists. Download it again?"
 msgstr "%1 вече съществува. Да се изтегли ли отново?"
 
-#: lib/bookshelf_widget.lua:20700
+#: lib/bookshelf_widget.lua:20707
 msgid "Overwrite"
 msgstr "Презаписване"
 
-#: lib/bookshelf_widget.lua:20775
+#: lib/bookshelf_widget.lua:20782
 msgid "Downloading %1… (tap to cancel)"
 msgstr "Изтегляне на %1… (докоснете за отказ)"
 
-#: lib/bookshelf_widget.lua:20787
+#: lib/bookshelf_widget.lua:20794
 msgid "Download cancelled"
 msgstr "Изтеглянето е отменено"
 
-#: lib/bookshelf_widget.lua:20805
+#: lib/bookshelf_widget.lua:20812
 msgid ""
 "Insecure redirect refused.\n"
 "\n"
@@ -6145,495 +5934,476 @@ msgstr ""
 "\n"
 "Много приложения отказват това, защото може да е атака чрез понижаване на сигурността."
 
-#: lib/bookshelf_widget.lua:20914
+#: lib/bookshelf_widget.lua:20932
 msgid "%1 downloaded. Read it now?"
 msgstr "%1 е изтеглена. Да се отвори ли сега?"
 
-#: lib/bookshelf_widget.lua:20915 lib/bookshelf_widget.lua:21401
+#: lib/bookshelf_widget.lua:20933 lib/bookshelf_widget.lua:21435
 msgid "Read"
 msgstr "Прочетена"
 
-#: lib/bookshelf_widget.lua:20923
+#: lib/bookshelf_widget.lua:20941
 msgid "Not now"
 msgstr "Не сега"
 
-#: lib/bookshelf_widget.lua:21230
+#: lib/bookshelf_widget.lua:21264
 msgid "%1 bookmarks"
 msgstr "%1 отметки"
 
-#: lib/bookshelf_widget.lua:21230
+#: lib/bookshelf_widget.lua:21264
 msgid "1 bookmark"
 msgstr "1 отметка"
 
-#: lib/bookshelf_widget.lua:21396 micromodules/reading_stats.lua:106
-#: micromodules/reading_stats.lua:117
+#: lib/bookshelf_widget.lua:21430 micromodules/reading_stats.lua:106 micromodules/reading_stats.lua:117
 msgid "%1 pages"
 msgstr "%1 страници"
 
-#: lib/bookshelf_widget.lua:21420 lib/bookshelf_widget.lua:21423
+#: lib/bookshelf_widget.lua:21454 lib/bookshelf_widget.lua:21457
 msgid "%1% read"
 msgstr "%1% прочетени"
 
-#: lib/bookshelf_widget.lua:21426
+#: lib/bookshelf_widget.lua:21460
 msgid "page %1 of %2"
 msgstr "страница %1 от %2"
 
-#: lib/bookshelf_widget.lua:21432
+#: lib/bookshelf_widget.lua:21466
 msgid "Not started"
 msgstr "Не е започната"
 
-#: lib/bookshelf_widget.lua:21437
+#: lib/bookshelf_widget.lua:21471
 msgid "Last read %1"
 msgstr "Последно четена %1"
 
-#: lib/bookshelf_widget.lua:22297 lib/bookshelf_widget.lua:24983
-#: lib/bookshelf_widget.lua:24988
+#: lib/bookshelf_widget.lua:22331 lib/bookshelf_widget.lua:25017 lib/bookshelf_widget.lua:25022
 msgid "My review"
 msgstr "Моят отзив"
 
-#: lib/bookshelf_widget.lua:22609
+#: lib/bookshelf_widget.lua:22643
 msgid "(from Hardcover)"
 msgstr "(от Hardcover)"
 
-#: lib/bookshelf_widget.lua:22765
+#: lib/bookshelf_widget.lua:22799
 msgid "Show info"
 msgstr "Показване на информация"
 
-#: lib/bookshelf_widget.lua:22805
+#: lib/bookshelf_widget.lua:22839
 msgid "Removed from history"
 msgstr "Премахната от историята"
 
-#: lib/bookshelf_widget.lua:22853
+#: lib/bookshelf_widget.lua:22887
 msgid "Delete file permanently?"
 msgstr "Окончателно изтриване на файла?"
 
-#: lib/bookshelf_widget.lua:22862
+#: lib/bookshelf_widget.lua:22896
 msgid "Failed to delete file."
 msgstr "Файлът не можа да бъде изтрит."
 
-#: lib/bookshelf_widget.lua:22888
+#: lib/bookshelf_widget.lua:22922
 msgid "Metadata refresh queued"
 msgstr "Опресняването на метаданните е поставено в опашка"
 
-#: lib/bookshelf_widget.lua:22890
+#: lib/bookshelf_widget.lua:22924
 msgid "Select"
 msgstr "Избор"
 
-#: lib/bookshelf_widget.lua:22903
+#: lib/bookshelf_widget.lua:22937 lib/bookshelf_widget.lua:26111
 msgid "Move…"
 msgstr "Преместване…"
 
-#: lib/bookshelf_widget.lua:23108
+#: lib/bookshelf_widget.lua:23142
 msgid "Your rating"
 msgstr "Вашата оценка"
 
-#: lib/bookshelf_widget.lua:23369
+#: lib/bookshelf_widget.lua:23403
 msgid "Not linked"
 msgstr "Не е свързана"
 
-#: lib/bookshelf_widget.lua:23370
+#: lib/bookshelf_widget.lua:23404
 msgid "Link…"
 msgstr "Свързване…"
 
-#: lib/bookshelf_widget.lua:23545
+#: lib/bookshelf_widget.lua:23579
 #, lua-format
 msgid "%d ratings"
 msgstr "%d оценки"
 
-#: lib/bookshelf_widget.lua:23545
+#: lib/bookshelf_widget.lua:23579
 msgid "1 rating"
 msgstr "1 оценка"
 
-#: lib/bookshelf_widget.lua:23549
+#: lib/bookshelf_widget.lua:23583
 #, lua-format
 msgid "%d reviews"
 msgstr "%d отзива"
 
-#: lib/bookshelf_widget.lua:23549
+#: lib/bookshelf_widget.lua:23583
 msgid "1 review"
 msgstr "1 отзив"
 
-#: lib/bookshelf_widget.lua:23575
+#: lib/bookshelf_widget.lua:23609
 msgid "Include spoilers"
 msgstr "Включване на спойлери"
 
-#: lib/bookshelf_widget.lua:23726
+#: lib/bookshelf_widget.lua:23760
 msgid "Write a review"
 msgstr "Написване на отзив"
 
-#: lib/bookshelf_widget.lua:23741
+#: lib/bookshelf_widget.lua:23775
 msgid "No review yet."
 msgstr "Все още няма отзив."
 
-#: lib/bookshelf_widget.lua:23830
+#: lib/bookshelf_widget.lua:23864
 msgid "Choose from device"
 msgstr "Избор от устройството"
 
-#: lib/bookshelf_widget.lua:23833
+#: lib/bookshelf_widget.lua:23867
 msgid "Search online…"
 msgstr "Търсене онлайн…"
 
-#: lib/bookshelf_widget.lua:23893
+#: lib/bookshelf_widget.lua:23927
 msgid "No covers stored yet. Use Search online or Choose from device."
 msgstr "Все още няма запазени корици. Използвайте „Търсене онлайн“ или „Избор от устройството“."
 
-#: lib/bookshelf_widget.lua:24046
+#: lib/bookshelf_widget.lua:24080
 msgid "That cover is unavailable"
 msgstr "Тази корица е недостъпна"
 
-#: lib/bookshelf_widget.lua:24053
+#: lib/bookshelf_widget.lua:24087
 msgid "Couldn't set the cover"
 msgstr "Корицата не можа да бъде зададена"
 
-#: lib/bookshelf_widget.lua:24108
+#: lib/bookshelf_widget.lua:24142
 msgid "Cover updated"
 msgstr "Корицата е обновена"
 
-#: lib/bookshelf_widget.lua:24108
+#: lib/bookshelf_widget.lua:24142
 msgid "Reverted to embedded cover"
 msgstr "Върната е вградената корица"
 
-#: lib/bookshelf_widget.lua:24121
+#: lib/bookshelf_widget.lua:24155
 msgid "Choose cover image"
 msgstr "Избор на изображение за корица"
 
-#: lib/bookshelf_widget.lua:24152
+#: lib/bookshelf_widget.lua:24186
 msgid "No cover matches found"
 msgstr "Няма намерени съвпадения за корица"
 
-#: lib/bookshelf_widget.lua:24161
+#: lib/bookshelf_widget.lua:24195
 msgid "Cover search failed"
 msgstr "Търсенето на корица е неуспешно"
 
-#: lib/bookshelf_widget.lua:24246
+#: lib/bookshelf_widget.lua:24280
 msgid "Author(s)"
 msgstr "Автор(и)"
 
-#: lib/bookshelf_widget.lua:24424
+#: lib/bookshelf_widget.lua:24458
 msgid "Calibre"
 msgstr "Calibre"
 
-#: lib/bookshelf_widget.lua:24475 lib/bookshelf_widget.lua:24555
-#: lib/bookshelf_widget.lua:24601
+#: lib/bookshelf_widget.lua:24509 lib/bookshelf_widget.lua:24589 lib/bookshelf_widget.lua:24635
 msgid "New tag"
 msgstr "Нов етикет"
 
-#: lib/bookshelf_widget.lua:24576
+#: lib/bookshelf_widget.lua:24610
 msgid "Edit tags"
 msgstr "Редактиране на етикети"
 
-#: lib/bookshelf_widget.lua:24669
+#: lib/bookshelf_widget.lua:24703
 msgid "Rename tag"
 msgstr "Преименуване на етикет"
 
-#: lib/bookshelf_widget.lua:24707
+#: lib/bookshelf_widget.lua:24741
 msgid "Remove the tag \"%1\" from this book?"
 msgstr "Да се премахне ли етикетът „%1“ от тази книга?"
 
-#: lib/bookshelf_widget.lua:24730
+#: lib/bookshelf_widget.lua:24764
 msgid "Edit tag: "
 msgstr "Редактиране на етикет: "
 
-#: lib/bookshelf_widget.lua:24829
+#: lib/bookshelf_widget.lua:24863
 msgid "Not in any collection."
 msgstr "Не е в никоя колекция."
 
-#: lib/bookshelf_widget.lua:24944
+#: lib/bookshelf_widget.lua:24978
 msgid "Reviews couldn't be fetched."
 msgstr "Отзивите не можаха да бъдат извлечени."
 
-#: lib/bookshelf_widget.lua:24960
+#: lib/bookshelf_widget.lua:24994
 msgid "Tap Refresh to load reviews."
 msgstr "Докоснете „Опресняване“, за да заредите отзивите."
 
-#: lib/bookshelf_widget.lua:24982 lib/bookshelf_widget.lua:24988
+#: lib/bookshelf_widget.lua:25016 lib/bookshelf_widget.lua:25022
 msgid "Reviews"
 msgstr "Отзиви"
 
-#: lib/bookshelf_widget.lua:25010
+#: lib/bookshelf_widget.lua:25044
 msgid "Highlights"
 msgstr "Маркирания"
 
-#: lib/bookshelf_widget.lua:25035 lib/bookshelf_widget.lua:25394
+#: lib/bookshelf_widget.lua:25069 lib/bookshelf_widget.lua:25454
 msgid "Cover"
 msgstr "Корица"
 
-#: lib/bookshelf_widget.lua:25249
+#: lib/bookshelf_widget.lua:25309
 msgid "Hardcover metadata refreshed"
 msgstr "Метаданните от Hardcover са опреснени"
 
-#: lib/bookshelf_widget.lua:25251
+#: lib/bookshelf_widget.lua:25311
 msgid "Hardcover refresh failed"
 msgstr "Опресняването от Hardcover е неуспешно"
 
-#: lib/bookshelf_widget.lua:25263
+#: lib/bookshelf_widget.lua:25323
 msgid "Auto link"
 msgstr "Автоматично свързване"
 
-#: lib/bookshelf_widget.lua:25263
+#: lib/bookshelf_widget.lua:25323
 msgid "Auto link (best guess)"
 msgstr "Автоматично свързване (най-добро предположение)"
 
-#: lib/bookshelf_widget.lua:25268
+#: lib/bookshelf_widget.lua:25328
 msgid "No embedded Hardcover identifier found"
 msgstr "Не е открит вграден идентификатор от Hardcover"
 
-#: lib/bookshelf_widget.lua:25271 lib/bookshelf_widget.lua:25306
+#: lib/bookshelf_widget.lua:25331 lib/bookshelf_widget.lua:25366
 msgid "Hardcover book linked"
 msgstr "Книгата е свързана с Hardcover"
 
-#: lib/bookshelf_widget.lua:25278
+#: lib/bookshelf_widget.lua:25338
 msgid "No confident Hardcover match -- try Manual link"
 msgstr "Няма уверено съвпадение в Hardcover — опитайте Ръчно свързване"
 
-#: lib/bookshelf_widget.lua:25279 lib/bookshelf_widget.lua:25313
+#: lib/bookshelf_widget.lua:25339 lib/bookshelf_widget.lua:25373
 msgid "Hardcover search failed"
 msgstr "Търсенето в Hardcover е неуспешно"
 
-#: lib/bookshelf_widget.lua:25283
+#: lib/bookshelf_widget.lua:25343
 msgid "Hardcover book linked (best guess)"
 msgstr "Книгата е свързана с Hardcover (най-добро предположение)"
 
-#: lib/bookshelf_widget.lua:25290
+#: lib/bookshelf_widget.lua:25350
 msgid "Manual link"
 msgstr "Ръчно свързване"
 
-#: lib/bookshelf_widget.lua:25298 lib/bookshelf_widget.lua:25331
+#: lib/bookshelf_widget.lua:25358 lib/bookshelf_widget.lua:25391
 msgid "Hardcover link failed"
 msgstr "Свързването с Hardcover е неуспешно"
 
-#: lib/bookshelf_widget.lua:25303
+#: lib/bookshelf_widget.lua:25363
 msgid "Book linked, but metadata refresh failed: %1"
 msgstr "Книгата е свързана, но опресняването на метаданните е неуспешно: %1"
 
-#: lib/bookshelf_widget.lua:25320
+#: lib/bookshelf_widget.lua:25380
 msgid "Select edition"
 msgstr "Избор на издание"
 
-#: lib/bookshelf_widget.lua:25324
+#: lib/bookshelf_widget.lua:25384
 msgid "Link a Hardcover book first"
 msgstr "Първо свържете книга от Hardcover"
 
-#: lib/bookshelf_widget.lua:25336
+#: lib/bookshelf_widget.lua:25396
 msgid "Edition linked, but metadata refresh failed: %1"
 msgstr "Изданието е свързано, но опресняването на метаданните е неуспешно: %1"
 
-#: lib/bookshelf_widget.lua:25339
+#: lib/bookshelf_widget.lua:25399
 msgid "Hardcover edition linked"
 msgstr "Изданието от Hardcover е свързано"
 
-#: lib/bookshelf_widget.lua:25344
+#: lib/bookshelf_widget.lua:25404
 msgid "Hardcover edition search failed"
 msgstr "Търсенето на издание в Hardcover е неуспешно"
 
-#: lib/bookshelf_widget.lua:25351
+#: lib/bookshelf_widget.lua:25411
 msgid "Clear link"
 msgstr "Изчистване на връзката"
 
-#: lib/bookshelf_widget.lua:25356
+#: lib/bookshelf_widget.lua:25416
 msgid "Hardcover link cleared"
 msgstr "Връзката с Hardcover е изчистена"
 
-#: lib/bookshelf_widget.lua:25358
+#: lib/bookshelf_widget.lua:25418
 msgid "Could not clear Hardcover link"
 msgstr "Връзката с Hardcover не можа да бъде изчистена"
 
-#: lib/bookshelf_widget.lua:25377
+#: lib/bookshelf_widget.lua:25437
 msgid "Could not update"
 msgstr "Актуализирането е неуспешно"
 
-#: lib/bookshelf_widget.lua:25390
+#: lib/bookshelf_widget.lua:25450
 msgid "Use Hardcover's"
 msgstr "Използване от Hardcover"
 
-#: lib/bookshelf_widget.lua:25398
+#: lib/bookshelf_widget.lua:25458
 msgid "No Hardcover cover has been downloaded for this book."
 msgstr "За тази книга не е изтеглена корица от Hardcover."
 
-#: lib/bookshelf_widget.lua:25403
+#: lib/bookshelf_widget.lua:25463
 msgid "Change link"
 msgstr "Промяна на връзката"
 
-#: lib/bookshelf_widget.lua:25403
+#: lib/bookshelf_widget.lua:25463
 msgid "Link to Hardcover"
 msgstr "Свързване с Hardcover"
 
-#: lib/bookshelf_widget.lua:25414
+#: lib/bookshelf_widget.lua:25474
 msgid "Linked to %1."
 msgstr "Свързана с %1."
 
-#: lib/bookshelf_widget.lua:25415
+#: lib/bookshelf_widget.lua:25475
 msgid "Not linked to Hardcover."
 msgstr "Не е свързана с Hardcover."
 
-#: lib/bookshelf_widget.lua:25705
+#: lib/bookshelf_widget.lua:25765
 msgid "No books to select here."
 msgstr "Тук няма книги за избиране."
 
-#: lib/bookshelf_widget.lua:25717
+#: lib/bookshelf_widget.lua:25777
 msgid "Selected the first %1 books (the most one selection holds)."
 msgstr "Избрани са първите %1 книги (максимумът за един избор)."
 
-#: lib/bookshelf_widget.lua:25722
+#: lib/bookshelf_widget.lua:25782
 msgid "Selected %1 books."
 msgstr "Избрани са %1 книги."
 
-#: lib/bookshelf_widget.lua:25795
+#: lib/bookshelf_widget.lua:25855
 msgid "this folder"
 msgstr "тази папка"
 
-#: lib/bookshelf_widget.lua:25805
+#: lib/bookshelf_widget.lua:25865
 msgid "This shelf already starts at \"%1\"."
 msgstr "Този рафт вече започва от „%1“."
 
-#: lib/bookshelf_widget.lua:25807
+#: lib/bookshelf_widget.lua:25867
 msgid "This shelf starts at \"%1\"."
 msgstr "Този рафт започва от „%1“."
 
-#: lib/bookshelf_widget.lua:25810
+#: lib/bookshelf_widget.lua:25870
 msgid "This shelf starts at the top of the catalog."
 msgstr "Този рафт започва от началото на каталога."
 
-#: lib/bookshelf_widget.lua:25812
+#: lib/bookshelf_widget.lua:25872
 msgid "Start the shelf here"
 msgstr "Рафтът да започва оттук"
 
-#: lib/bookshelf_widget.lua:25813
+#: lib/bookshelf_widget.lua:25873
 msgid "Opens at this folder instead of the catalog's top."
 msgstr "Отваря се в тази папка вместо в началото на каталога."
 
-#: lib/bookshelf_widget.lua:25819
+#: lib/bookshelf_widget.lua:25879
 msgid "Opens at the top of the catalog again."
 msgstr "Отново се отваря в началото на каталога."
 
-#: lib/bookshelf_widget.lua:25877
-msgid "%1 books"
-msgstr "%1 книги"
-
-#: lib/bookshelf_widget.lua:25879
+#: lib/bookshelf_widget.lua:25939
 msgid "%1, %2 selected"
 msgstr "%1, избрани: %2"
 
-#: lib/bookshelf_widget.lua:25957
+#: lib/bookshelf_widget.lua:26018
 msgid "Pin to the shelf menu"
 msgstr "Закачане към менюто на рафтовете"
 
-#: lib/bookshelf_widget.lua:25958
+#: lib/bookshelf_widget.lua:26019
 msgid "A shelf of its own in the shelf menu, next to this one."
 msgstr "Собствен рафт в менюто на рафтовете, до този."
 
-#: lib/bookshelf_widget.lua:25972
+#: lib/bookshelf_widget.lua:26033
 #, lua-format
 msgid "Add %d more"
 msgstr "Добавяне на още %d"
 
-#: lib/bookshelf_widget.lua:25973
+#: lib/bookshelf_widget.lua:26034
 msgid "Adds the rest of its books to your selection."
 msgstr "Добавя останалите му книги към избраните."
 
-#: lib/bookshelf_widget.lua:25976
+#: lib/bookshelf_widget.lua:26037
 #, lua-format
 msgid "Select %d"
 msgstr "Избор на %d"
 
-#: lib/bookshelf_widget.lua:25977
+#: lib/bookshelf_widget.lua:26038
 msgid "Selects its books, to change their status, rating or collections together."
 msgstr "Избира книгите му, за да промените заедно статуса, оценката или колекциите им."
 
-#: lib/bookshelf_widget.lua:25982
+#: lib/bookshelf_widget.lua:26043
 #, lua-format
 msgid "Remove %d"
 msgstr "Премахване %d"
 
-#: lib/bookshelf_widget.lua:25983
+#: lib/bookshelf_widget.lua:26044
 msgid "Takes its books out of your selection."
 msgstr "Премахва книгите му от избраните."
 
-#: lib/bookshelf_widget.lua:25990
+#: lib/bookshelf_widget.lua:26051
 msgid "Finds page counts for just these books."
 msgstr "Намира броя страници само за тези книги."
 
-#: lib/bookshelf_widget.lua:25999
+#: lib/bookshelf_widget.lua:26063
 msgid "How this series' books are drawn, on every shelf."
 msgstr "Как се изчертават книгите от тази поредица на всеки рафт."
 
-#: lib/bookshelf_widget.lua:26002
+#: lib/bookshelf_widget.lua:26066
 msgid "Same as shelf"
 msgstr "Като рафта"
 
-#: lib/bookshelf_widget.lua:26024
+#: lib/bookshelf_widget.lua:26088
 msgid "Shown on the stack in place of its covers."
 msgstr "Показва се върху стека вместо кориците му."
 
-#: lib/bookshelf_widget.lua:26030
+#: lib/bookshelf_widget.lua:26094
 msgid "Set folder image…"
 msgstr "Задаване на изображение на папката…"
 
-#: lib/bookshelf_widget.lua:26034
+#: lib/bookshelf_widget.lua:26098
 msgid "Clear folder image"
 msgstr "Изчистване на изображението на папката"
 
-#: lib/bookshelf_widget.lua:26035
+#: lib/bookshelf_widget.lua:26099
 msgid "Back to the folder's covers."
 msgstr "Обратно към кориците на папката."
 
-#: lib/bookshelf_widget.lua:26042 lib/bookshelf_widget.lua:26138
+#: lib/bookshelf_widget.lua:26106 lib/bookshelf_widget.lua:26197
 msgid "Image"
 msgstr "Изображение"
 
-#: lib/bookshelf_widget.lua:26046
-msgid "Move folder…"
-msgstr "Преместване на папка…"
+#: lib/bookshelf_widget.lua:26113
+msgid "Rename…"
+msgstr "Преименуване…"
 
-#: lib/bookshelf_widget.lua:26047
-msgid "Moves it and its books to another folder."
-msgstr "Премества я заедно с книгите ѝ в друга папка."
-
-#: lib/bookshelf_widget.lua:26052
-msgid "Rename folder…"
-msgstr "Преименуване на папка…"
-
-#: lib/bookshelf_widget.lua:26053
-msgid "Changes its name on the device."
-msgstr "Променя името ѝ на устройството."
-
-#: lib/bookshelf_widget.lua:26067 lib/bookshelf_widget.lua:26078
+#: lib/bookshelf_widget.lua:26126 lib/bookshelf_widget.lua:26137
 msgid "Set author image…"
 msgstr "Задаване на изображение на автора…"
 
-#: lib/bookshelf_widget.lua:26068 lib/bookshelf_widget.lua:26079
+#: lib/bookshelf_widget.lua:26127 lib/bookshelf_widget.lua:26138
 msgid "Set series image…"
 msgstr "Задаване на изображение на поредицата…"
 
-#: lib/bookshelf_widget.lua:26069 lib/bookshelf_widget.lua:26080
+#: lib/bookshelf_widget.lua:26128 lib/bookshelf_widget.lua:26139
 msgid "Set genre image…"
 msgstr "Задаване на изображение на жанра…"
 
-#: lib/bookshelf_widget.lua:26070 lib/bookshelf_widget.lua:26081
+#: lib/bookshelf_widget.lua:26129 lib/bookshelf_widget.lua:26140
 msgid "Set collection image…"
 msgstr "Задаване на изображение на колекцията…"
 
-#: lib/bookshelf_widget.lua:26071 lib/bookshelf_widget.lua:26084
+#: lib/bookshelf_widget.lua:26130 lib/bookshelf_widget.lua:26143
 msgid "Clear author image"
 msgstr "Изчистване на изображението на автора"
 
-#: lib/bookshelf_widget.lua:26072 lib/bookshelf_widget.lua:26085
+#: lib/bookshelf_widget.lua:26131 lib/bookshelf_widget.lua:26144
 msgid "Clear series image"
 msgstr "Изчистване на изображението на поредицата"
 
-#: lib/bookshelf_widget.lua:26073 lib/bookshelf_widget.lua:26086
+#: lib/bookshelf_widget.lua:26132 lib/bookshelf_widget.lua:26145
 msgid "Clear genre image"
 msgstr "Изчистване на изображението на жанра"
 
-#: lib/bookshelf_widget.lua:26074 lib/bookshelf_widget.lua:26087
+#: lib/bookshelf_widget.lua:26133 lib/bookshelf_widget.lua:26146
 msgid "Clear collection image"
 msgstr "Изчистване на изображението на колекцията"
 
-#: lib/bookshelf_widget.lua:26097
+#: lib/bookshelf_widget.lua:26156
 msgid "Back to the stack's covers."
 msgstr "Обратно към кориците на стека."
 
-#: lib/bookshelf_widget.lua:26118
+#: lib/bookshelf_widget.lua:26177
 msgid ""
 "Delete this image from the image library?\n"
 "\n"
@@ -6643,52 +6413,51 @@ msgstr ""
 "\n"
 "%1"
 
-#: lib/bookshelf_widget.lua:26133
+#: lib/bookshelf_widget.lua:26192
 msgid "Find author image online"
 msgstr "Търсене на изображение на автора онлайн"
 
-#: lib/bookshelf_widget.lua:26134
+#: lib/bookshelf_widget.lua:26193
 msgid "Looks for a photo on Open Library and Wikipedia."
 msgstr "Търси снимка в Open Library и Wikipedia."
 
-#: lib/bookshelf_widget.lua:26169
+#: lib/bookshelf_widget.lua:26228
 msgid "Choose folder image"
 msgstr "Избор на изображение за папката"
 
-#: lib/bookshelf_widget.lua:26208
+#: lib/bookshelf_widget.lua:26267
 msgid "Choose image"
 msgstr "Избор на изображение"
 
-#: lib/bookshelf_widget.lua:26449
+#: lib/bookshelf_widget.lua:26508
 msgid "Starts a shelf inside this one: pick what it shows first."
 msgstr "Създава рафт в този: първо изберете какво да показва."
 
-#: lib/bookshelf_widget.lua:26451
+#: lib/bookshelf_widget.lua:26510
 msgid "Move a shelf here"
 msgstr "Преместване на рафт тук"
 
-#: lib/bookshelf_widget.lua:26456
+#: lib/bookshelf_widget.lua:26515
 msgid "In %1"
 msgstr "В %1"
 
-#: lib/bookshelf_widget.lua:26456
+#: lib/bookshelf_widget.lua:26515
 msgid "In the shelf menu"
 msgstr "В менюто на рафтовете"
 
-#: lib/bookshelf_widget.lua:26466 lib/bookshelf_widget.lua:26615
-#: lib/bookshelf_widget.lua:26660
+#: lib/bookshelf_widget.lua:26525 lib/bookshelf_widget.lua:26674 lib/bookshelf_widget.lua:26719
 msgid "Add shelf"
 msgstr "Добавяне на рафт"
 
-#: lib/bookshelf_widget.lua:26888
+#: lib/bookshelf_widget.lua:26947
 msgid "Search library"
 msgstr "Търсене в библиотеката"
 
-#: lib/bookshelf_widget.lua:26891
+#: lib/bookshelf_widget.lua:26950
 msgid "title, author, series, genre…"
 msgstr "заглавие, автор, поредица, жанр…"
 
-#: lib/bookshelf_widget.lua:26891
+#: lib/bookshelf_widget.lua:26950
 msgid "title, author, series…"
 msgstr "заглавие, автор, поредица…"
 
@@ -6858,27 +6627,27 @@ msgstr "Преброяване на страниците в книга %1 от %
 msgid "Looking up page numbers…"
 msgstr "Търсене на номерата на страници…"
 
-#: main.lua:2746
+#: main.lua:2752
 msgid "Every book already has a page count."
 msgstr "Всяка книга вече има брой страници."
 
-#: main.lua:3042
+#: main.lua:3048
 msgid "No linked books to refresh"
 msgstr "Няма свързани книги за опресняване"
 
-#: main.lua:3059
+#: main.lua:3065
 msgid "Refreshing Hardcover details… %1 of %2"
 msgstr "Опресняване на детайлите от Hardcover… %1 от %2"
 
-#: main.lua:3092
+#: main.lua:3098
 msgid "Hardcover details refreshed for %1 of %2 linked books."
 msgstr "Детайлите от Hardcover са опреснени за %1 от %2 свързани книги."
 
-#: main.lua:3114
+#: main.lua:3120
 msgid "This will clear the development branch setting and install the latest stable release of Bookshelf, then restart KOReader. Continue?"
 msgstr "Това ще изчисти настройката за клон за разработка и ще инсталира последната стабилна версия на Bookshelf, след което ще рестартира KOReader. Продължаване?"
 
-#: main.lua:3136
+#: main.lua:3142
 msgid "Bookshelf update available: v"
 msgstr "Налична е актуализация на Bookshelf: v"
 
@@ -6994,8 +6763,7 @@ msgstr "Етикет на обратното броене"
 msgid "e.g. Holiday"
 msgstr "напр. Ваканция"
 
-#: micromodules/countdown.lua:66 micromodules/countdown.lua:83
-#: micromodules/countdown.lua:90 micromodules/countdown.lua:139
+#: micromodules/countdown.lua:66 micromodules/countdown.lua:83 micromodules/countdown.lua:90 micromodules/countdown.lua:139
 msgid "Countdown"
 msgstr "Обратно броене"
 
@@ -7003,9 +6771,7 @@ msgstr "Обратно броене"
 msgid "From a date you set. Works offline."
 msgstr "От зададена от вас дата. Работи офлайн."
 
-#: micromodules/countdown.lua:95 micromodules/countdown.lua:112
-#: micromodules/reading_streak.lua:313 micromodules/reading_streak.lua:322
-#: micromodules/reading_streak.lua:332
+#: micromodules/countdown.lua:95 micromodules/countdown.lua:112 micromodules/reading_streak.lua:313 micromodules/reading_streak.lua:322 micromodules/reading_streak.lua:332
 msgid "days"
 msgstr "дни"
 
@@ -7021,8 +6787,7 @@ msgstr "Задайте дата"
 msgid "Today"
 msgstr "Днес"
 
-#: micromodules/countdown.lua:112 micromodules/reading_streak.lua:313
-#: micromodules/reading_streak.lua:322 micromodules/reading_streak.lua:332
+#: micromodules/countdown.lua:112 micromodules/reading_streak.lua:313 micromodules/reading_streak.lua:322 micromodules/reading_streak.lua:332
 msgid "day"
 msgstr "ден"
 
@@ -7114,8 +6879,7 @@ msgstr "Гатанка"
 msgid "Fetching fun..."
 msgstr "Извличане на забавление..."
 
-#: micromodules/daily_fun.lua:385 micromodules/on_this_day.lua:192
-#: micromodules/trivia.lua:579
+#: micromodules/daily_fun.lua:385 micromodules/on_this_day.lua:192 micromodules/trivia.lua:579
 msgid "Tap to fetch ▶"
 msgstr "Докоснете за зареждане ▶"
 
@@ -7143,8 +6907,7 @@ msgstr "От историята ви на четене. Работи без ин
 msgid "No books read yet"
 msgstr "Все още няма прочетени книги"
 
-#: micromodules/on_this_day.lua:119 micromodules/on_this_day.lua:185
-#: micromodules/on_this_day.lua:210 micromodules/on_this_day.lua:274
+#: micromodules/on_this_day.lua:119 micromodules/on_this_day.lua:185 micromodules/on_this_day.lua:210 micromodules/on_this_day.lua:274
 msgid "On This Day"
 msgstr "На този ден"
 
@@ -7500,8 +7263,7 @@ msgstr "%1 мин"
 msgid "%1 min left"
 msgstr "Остават %1 мин"
 
-#: micromodules/reading_goal.lua:622 micromodules/reading_goal.lua:634
-#: micromodules/reading_goal.lua:647 micromodules/reading_goal.lua:660
+#: micromodules/reading_goal.lua:622 micromodules/reading_goal.lua:634 micromodules/reading_goal.lua:647 micromodules/reading_goal.lua:660
 msgid "Goal met!"
 msgstr "Целта е постигната!"
 
@@ -7525,13 +7287,11 @@ msgstr "Остават %1 месеца"
 msgid "From your reading stats. Works offline."
 msgstr "От вашата статистика за четене. Работи офлайн."
 
-#: micromodules/reading_goal.lua:718 micromodules/reading_stats.lua:91
-#: micromodules/reading_streak.lua:370
+#: micromodules/reading_goal.lua:718 micromodules/reading_stats.lua:91 micromodules/reading_streak.lua:370
 msgid "Stats unavailable"
 msgstr "Статистиката не е налична"
 
-#: micromodules/reading_stats.lua:76 micromodules/reading_stats.lua:105
-#: micromodules/reading_stats.lua:114
+#: micromodules/reading_stats.lua:76 micromodules/reading_stats.lua:105 micromodules/reading_stats.lua:114
 msgid "Reading stats"
 msgstr "Статистика за четене"
 
@@ -7551,8 +7311,7 @@ msgstr "Тази седмица"
 msgid "This week: %1"
 msgstr "Тази седмица: %1"
 
-#: micromodules/reading_streak.lua:79 micromodules/reading_streak.lua:330
-#: micromodules/reading_streak.lua:342 micromodules/reading_streak.lua:380
+#: micromodules/reading_streak.lua:79 micromodules/reading_streak.lua:330 micromodules/reading_streak.lua:342 micromodules/reading_streak.lua:380
 msgid "Reading streak"
 msgstr "Серия от четене"
 
@@ -7596,8 +7355,7 @@ msgstr "%1 (скрит)"
 msgid "Create new shelf…"
 msgstr "Създаване на нов рафт…"
 
-#: micromodules/shelf.lua:307 micromodules/shelf.lua:375
-#: micromodules/shelf.lua:579
+#: micromodules/shelf.lua:307 micromodules/shelf.lua:375 micromodules/shelf.lua:579
 msgid "Choose a shelf"
 msgstr "Избор на рафт"
 
@@ -7865,8 +7623,7 @@ msgstr "Силни превалявания"
 msgid "Snow showers"
 msgstr "Снежни превалявания"
 
-#: micromodules/weather.lua:56 micromodules/weather.lua:57
-#: micromodules/weather.lua:58
+#: micromodules/weather.lua:56 micromodules/weather.lua:57 micromodules/weather.lua:58
 msgid "Thunderstorm"
 msgstr "Гръмотевична буря"
 
@@ -7933,6 +7690,18 @@ msgstr "Обновено преди %1 мин"
 #: micromodules/weather.lua:462 micromodules/weather.lua:548
 msgid "Updated %1h ago"
 msgstr "Обновено преди %1 ч"
+
+#~ msgid "Move folder…"
+#~ msgstr "Преместване на папка…"
+
+#~ msgid "Moves it and its books to another folder."
+#~ msgstr "Премества я заедно с книгите ѝ в друга папка."
+
+#~ msgid "Rename folder…"
+#~ msgstr "Преименуване на папка…"
+
+#~ msgid "Changes its name on the device."
+#~ msgstr "Променя името ѝ на устройството."
 
 #~ msgid "BETA: Read calibre metadata.calibre"
 #~ msgstr "БЕТА: Четене на metadata.calibre на Calibre"

@@ -293,5 +293,37 @@ test("facts: what readProgress read from a sidecar round-trips with its mtime", 
     assert(Facts.get("/b/r.epub").rpm == 99)
 end)
 
+test("facts: a publication date and its file mtime round-trip; empty means looked", function()
+    fresh()
+    Facts.put("/b/p.epub", { pd = "1869-01-01", pdm = 42 })
+    Facts.put("/b/none.epub", { pd = "", pdm = 7 })
+    Facts.flush(); Facts.close(); Facts.forgetMemo()
+    local e = Facts.get("/b/p.epub")
+    assert(e and e.pd == "1869-01-01" and e.pdm == 42, tostring(e and e.pd))
+    local n = Facts.get("/b/none.epub")
+    assert(n and n.pd == "" and n.pdm == 7, "an empty date must survive as looked-and-found-none")
+    Facts.put("/b/p.epub", { p = 300 })
+    Facts.flush(); Facts.forgetMemo()
+    assert(Facts.get("/b/p.epub").pd == "1869-01-01", "a page count disturbed the date")
+end)
+
+test("facts: an older database gains the publication date columns", function()
+    fresh()
+    Facts.close()
+    local SQ3 = require("lua-ljsqlite3/init")
+    local db = SQ3.open(DBDIR .. "/bookshelf/book_facts.sqlite3")
+    db:exec([[CREATE TABLE book_facts (fp TEXT PRIMARY KEY, pages INTEGER, pages_src TEXT,
+        r INTEGER, g INTEGER, b INTEGER, aspect REAL, status TEXT, status_known INTEGER,
+        sidecar_mtime INTEGER, highlights INTEGER, highlights_mtime INTEGER,
+        rprog TEXT, rprog_mtime INTEGER);]])
+    db:exec("INSERT INTO book_facts (fp, pages) VALUES ('/b/old.epub', 300);")
+    db:close()
+    Facts.forgetMemo()
+    Facts.put("/b/old.epub", { pd = "2001" })
+    Facts.flush(); Facts.forgetMemo()
+    local e = Facts.get("/b/old.epub")
+    assert(e and e.pd == "2001" and e.p == 300, "the column was not added to the old table")
+end)
+
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

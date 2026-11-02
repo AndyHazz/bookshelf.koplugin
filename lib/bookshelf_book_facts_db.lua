@@ -69,6 +69,11 @@ local ADDED_COLUMNS = {
     -- every session.
     "rprog TEXT",
     "rprog_mtime INTEGER",
+    -- The publication date read out of the book file (lib/bookshelf_pubdate)
+    -- or carried over from an OPDS catalog at download, for %published, and
+    -- the file's mtime when it was read. "" means looked, found none.
+    "pubdate TEXT",
+    "pubdate_mtime INTEGER",
 }
 
 local _db
@@ -154,12 +159,14 @@ local function _rowToFacts(row)
     e.hm   = tonumber(row[12])
     e.rp   = row[13] ~= nil and tostring(row[13]) or nil
     e.rpm  = tonumber(row[14])
+    e.pd   = row[15] ~= nil and tostring(row[15]) or nil
+    e.pdm  = tonumber(row[16])
     return e
 end
 
 local SELECT_COLS =
     "fp, pages, pages_src, r, g, b, aspect, status, status_known, sidecar_mtime, "
-    .. "highlights, highlights_mtime, rprog, rprog_mtime"
+    .. "highlights, highlights_mtime, rprog, rprog_mtime, pubdate, pubdate_mtime"
 
 -- get(fp) -> facts | nil
 -- Keys match the entries the settings store used, so the call sites that read
@@ -233,13 +240,17 @@ end
 -- are touched, so writing a look never disturbs a page count and vice versa.
 function M.put(fp, facts)
     if type(fp) ~= "string" or fp == "" or type(facts) ~= "table" then return end
+    -- The row as stored, before merging: flush writes every column, so a
+    -- put onto a row this session never read would blank its other facts
+    -- (a page count lost to a publication date). One read, cold rows only.
+    if _memo[fp] == nil then M.get(fp) end
     local e = _memo[fp]
     if e == nil or e == false then e = {} end
     -- false means CLEAR this field, absent means leave it alone. The
     -- distinction matters: writing a look must not disturb a page count, and
     -- a sidecar that changed under us clears the cached status without
     -- touching the count, which is not the sidecar's to invalidate.
-    for _, k in ipairs({ "p", "psrc", "r", "g", "b", "a", "s", "sk", "m", "hl", "hm", "rp", "rpm" }) do
+    for _, k in ipairs({ "p", "psrc", "r", "g", "b", "a", "s", "sk", "m", "hl", "hm", "rp", "rpm", "pd", "pdm" }) do
         local v = facts[k]
         if v ~= nil then
             if v == false then e[k] = nil else e[k] = v end
@@ -293,7 +304,7 @@ function M.flush()
         local ok = pcall(function()
             local ins = db:prepare(
                 "INSERT INTO book_facts (" .. SELECT_COLS .. ") "
-                .. "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
+                .. "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
                 .. "ON CONFLICT(fp) DO UPDATE SET "
                 .. "pages=excluded.pages, pages_src=excluded.pages_src, "
                 .. "r=excluded.r, g=excluded.g, b=excluded.b, "
@@ -301,7 +312,8 @@ function M.flush()
                 .. "status_known=excluded.status_known, "
                 .. "sidecar_mtime=excluded.sidecar_mtime, "
                 .. "highlights=excluded.highlights, highlights_mtime=excluded.highlights_mtime, "
-                .. "rprog=excluded.rprog, rprog_mtime=excluded.rprog_mtime")
+                .. "rprog=excluded.rprog, rprog_mtime=excluded.rprog_mtime, "
+                .. "pubdate=excluded.pubdate, pubdate_mtime=excluded.pubdate_mtime")
             local del = db:prepare("DELETE FROM book_facts WHERE fp=?")
             for fp, what in pairs(_dirty) do
                 if what == "delete" then
@@ -311,7 +323,7 @@ function M.flush()
                     if type(e) == "table" then
                         ins:reset():bind(fp, e.p, e.psrc, e.r, e.g, e.b, e.a,
                                          e.s, e.sk and 1 or nil, e.m, e.hl, e.hm,
-                                         e.rp, e.rpm):step()
+                                         e.rp, e.rpm, e.pd, e.pdm):step()
                         n = n + 1
                     end
                 end

@@ -237,6 +237,13 @@ function BookshelfWidget:init()
     BookshelfWidget._clip_target = self
     BookshelfWidget.installClipHook()
     require("lib/bookshelf_underlay").install(self)
+    -- %published reads book files in the background (lib/bookshelf_published);
+    -- the books that gained a date repaint where they show. The newest shelf
+    -- is the one listened for, as above.
+    require("lib/bookshelf_published").on_filled = function(fps)
+        if self._closed then return end
+        self:_refreshPublished(fps)
+    end
     -- A registered source that has fetched more (lib/bookshelf_sources,
     -- ui.bookshelf:sourceChanged) redraws the shelf, but only while that
     -- source is what is on screen. One named slot, so a later widget replaces
@@ -20868,6 +20875,17 @@ function BookshelfWidget:_opdsRunDownload(book, acq, dest, dialog)
                 dmap[path] = desc
                 BookshelfSettings.save(OPDS_DESC_KEY, dmap)
             end
+            -- The catalog's publication date too, for %published: calibre-web
+            -- serves the file as it was added, so the date it shows in the
+            -- catalog is often not inside the file (GitHub issue 566).
+            if book.published then
+                pcall(function()
+                    local Published = require("lib/bookshelf_published")
+                    local mtime = ok_lfs2 and lfs2 and lfs2.attributes(path, "modification")
+                    Published.remember(path, book.published, mtime)
+                    require("lib/bookshelf_book_facts_db").flushSoon()
+                end)
+            end
             -- A new file inside the library the shelf walks -- the local chips
             -- have to re-derive or the book simply isn't there.
             Repo.invalidateWalkCache()
@@ -25167,6 +25185,32 @@ function BookshelfWidget:_refreshSingleBookCover(filepath, reason)
         UIManager:setDirty(self, "ui")
     end
     return false
+end
+
+-- _refreshPublished(fps): books whose publication date just arrived from the
+-- background read (lib/bookshelf_published). Only the ones on this page
+-- repaint, each in place; a page where most of them did is rebuilt once
+-- instead, which costs less than a swap per row.
+function BookshelfWidget:_refreshPublished(fps)
+    if self._closed or not (self._inner_vgroup and self._shelf_dims) then return end
+    local wanted = {}
+    for _i, fp in ipairs(fps or {}) do wanted[fp] = true end
+    local on_page = {}
+    for _i, it in ipairs(self._page_items or {}) do
+        local fp = type(it) == "table" and it.filepath
+        if fp and wanted[fp] then on_page[#on_page + 1] = fp end
+    end
+    local preview_fp = self._preview_book and self._preview_book.filepath
+    local hero = preview_fp and wanted[preview_fp] and not self._expanded
+    if #on_page > 6 then
+        self:_rebuild()
+        UIManager:setDirty(self, "ui")
+        return
+    end
+    for _i, fp in ipairs(on_page) do
+        pcall(self._refreshSpineInPlace, self, fp)
+    end
+    if hero then pcall(self._swapHeroInPlace, self) end
 end
 
 function BookshelfWidget:_refreshHardcoverEnrichmentView(reason, filepath)

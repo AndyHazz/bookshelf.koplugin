@@ -720,9 +720,12 @@ function M.mapEntries(catalog, feed_url, server_key)
                     end
                 end
                 -- Publication year: fill a nil, as the series above.
-                if not existing.calibre then
+                if not existing.published then
                     local year = entryPubdate(entry)
-                    if year then existing.calibre = { pubdate = year } end
+                    if year then
+                        existing.published = year
+                        existing.calibre = existing.calibre or { pubdate = year }
+                    end
                 end
                 -- Cover: fill a nil, never replace what the first entry had.
                 if not existing.opds.thumbnail_url and thumb then
@@ -762,8 +765,10 @@ function M.mapEntries(catalog, feed_url, server_key)
                 -- The publication year, where %calibre{pubdate} reads a
                 -- calibre book's (GitHub issue 566), so the same token
                 -- shows it for a book still in the catalog.
+                -- %published reads it as rec.published (and keeps it at
+                -- download, lib/bookshelf_published).
                 local year = entryPubdate(entry)
-                if year then rec.calibre = { pubdate = year } end
+                if year then rec.calibre = { pubdate = year }; rec.published = year end
                 book_records[#book_records + 1] = rec
                 if merge_key then
                     book_by_key[merge_key] = rec

@@ -87,6 +87,7 @@ Tokens.CATALOGUE = {
     { category = "Book",     token = "%format",           description = _("Format (EPUB/PDF/…)") },
     { category = "Book",     token = "%calibre{name}",     description = _("A calibre column by name, like %calibre{pubdate} or a custom column; dates show the year (needs Read calibre metadata.calibre, except a book's pubdate in an OPDS catalog)") },
     { category = "Book",     token = "%size",             description = _("File size on disk") },
+    { category = "Book",     token = "%published",        description = _("Publication year, from calibre, the OPDS catalog or the book file") },
     { category = "Book",     token = "%added",            description = _("Date added (the file's own date)") },
     { category = "Book",     token = "%description",      description = _("Book blurb (HTML stripped)") },
     { category = "Book",     token = "%quote",            description = _("A random highlight from this book") },
@@ -343,6 +344,13 @@ Tokens.expanders.series_name = metaToken("series_name")
 Tokens.expanders.series_num  = metaToken("series_num")
 Tokens.expanders.filename    = metaToken("filename")
 Tokens.expanders.lang        = metaToken("lang")
+-- The best publication year the book has (lib/bookshelf_published): calibre's,
+-- the OPDS catalog's, or the file's own, read in the background on first use.
+Tokens.expanders.published = function(b)
+    if not b then return "" end
+    local ok, Published = pcall(require, "lib/bookshelf_published")
+    return ok and Published.forRecord(b) or ""
+end
 Tokens.expanders.format      = metaToken("format")
 -- %rating -> N filled stars + (5-N) empty stars. Rating is stored
 -- 1-5 (integer) in the DocSettings summary; book.rating is hydrated

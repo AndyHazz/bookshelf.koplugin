@@ -3988,6 +3988,8 @@ function Repo.batchRowFor(fp) return _batchInfoFor(fp) end
 -- batch, the book is read live, has no row, and is queued.
 function Repo.forgetBook(fp)
     if type(fp) ~= "string" then return end
+    -- %published's date, when the file is no longer the one it came from.
+    pcall(function() require("lib/bookshelf_published").forget(fp) end)
     for _key, entry in pairs(_light_meta_cache) do
         if entry.rows then entry.rows[fp] = nil end
     end

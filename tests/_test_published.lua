@@ -161,6 +161,65 @@ t.test("with the facts store's map, a lookup never queries per book", function()
     F.get, F.publishedMap = orig_get, nil
 end)
 
+-- ── the reader's own date (corrections) and Hardcover's ─────────────────────
+t.test("a date the reader set wins over every source", function()
+    reset()
+    Published.setUserDate("/b/a.epub", "1850")
+    eq(Published.forRecord({ filepath = "/b/a.epub", calibre = { pubdate = "1999" },
+        published = "2001", hardcover_published = "1700" }), "1850")
+    eq(Published.userDate("/b/a.epub"), "1850")
+end)
+
+t.test("Hardcover's year (Use Hardcover metadata) beats calibre, OPDS and the file", function()
+    reset()
+    rows["/b/a.epub"] = { pd = "2015", pdm = 3 }
+    eq(Published.forRecord({ filepath = "/b/a.epub", calibre = { pubdate = "1999" },
+        published = "2001", hardcover_published = "1897" }), "1897")
+end)
+
+t.test("the reader's date survives Refresh metadata, a changed file and an OPDS download", function()
+    reset()
+    Published.setUserDate("/b/a.epub", "1850-06-01")
+    mtimes["/b/a.epub"] = 999
+    Published.forget("/b/a.epub")
+    Published.remember("/b/a.epub", "2015", 5)
+    eq(Published.forRecord({ filepath = "/b/a.epub" }), "1850")
+end)
+
+t.test("clearing the reader's date goes back to reading the file", function()
+    reset()
+    Published.setUserDate("/b/a.epub", "1850")
+    Published.setUserDate("/b/a.epub", nil)
+    eq(Published.userDate("/b/a.epub"), nil)
+    eq(Published.forRecord({ filepath = "/b/a.epub" }), "")
+    tick()
+    eq(#spawned, 1, "the file is read again")
+end)
+
+t.test("a date the reader types must parse", function()
+    reset()
+    eq(Published.setUserDate("/b/a.epub", "sometime"), false)
+    eq(Published.setUserDate("/b/a.epub", "1869-03"), true)
+    eq(Published.userDate("/b/a.epub"), "1869-03")
+end)
+
+t.test("Hardcover: the book's first year is fetched and applied with the metadata switch", function()
+    local hc = io.open("lib/bookshelf_hardcover.lua"):read("*a")
+    local _n, books_with_year = hc:gsub("book_series { position series { name } }%s+pages%s+release_year", "")
+    assert(books_with_year == 2, "both enrichment queries must ask for release_year, got " .. books_with_year)
+    assert(hc:find("published_year = tonumber(data.book.release_year)", 1, true), "not in the payload")
+    local apply = hc:match("\nfunction Hardcover.applyMetadata%(book%)\n(.-)\nend\n")
+    assert(apply and apply:find("book.hardcover_published", 1, true), "applyMetadata does not set it")
+end)
+
+t.test("wiring: the book menu's Publication date card sets the reader's date", function()
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    assert(w:find('{ id = "pubdate", text = pubdate_btn.text', 1, true), "no Publication date card")
+    assert(w:find("Published.setUserDate(book.filepath, text)", 1, true), "the card does not store the date")
+    assert(w:find('require("lib/bookshelf_sort_engine").clearPublishedMemo()', 1, true),
+        "a corrected date would not re-sort")
+end)
+
 t.test("wiring: the token, the OPDS feed, the download, Refresh metadata, the shelf", function()
     local tokens = io.open("lib/bookshelf_tokens.lua"):read("*a")
     assert(tokens:find('token = "%published"', 1, true))

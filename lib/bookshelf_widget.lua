@@ -22937,6 +22937,41 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         UIManager:show(require("ui/widget/notification"):new{
             text = _("Metadata refresh queued"), timeout = 2 })
     end }
+    -- The reader's own publication date (%published, the Publication year
+    -- sort): wins over every source; empty goes back to the book's own.
+    local pubdate_btn = { text = _("Publication date\xE2\x80\xA6"), callback = function()
+        local Published = require("lib/bookshelf_published")
+        local InputDialog = require("ui/widget/inputdialog")
+        local dlg
+        local function apply(text)
+            if not Published.setUserDate(book.filepath, text) then
+                UIManager:show(require("ui/widget/infomessage"):new{
+                    text = _("Not a date. Type a year, like 1897, or a full date, like 1897-05-26."),
+                    timeout = 3 })
+                return
+            end
+            UIManager:close(dlg)
+            require("lib/bookshelf_sort_engine").clearPublishedMemo()
+            Repo.invalidateBookCache("publication-date")
+            bw:_rebuild(); UIManager:setDirty(bw, "ui")
+        end
+        dlg = InputDialog:new{
+            title       = _("Publication date"),
+            input       = Published.userDate(book.filepath) or "",
+            input_hint  = Published.forRecord(book) ~= "" and Published.forRecord(book) or "1897",
+            description = _("A year, or year-month-day. Leave it empty to use the book's own date."),
+            buttons = {{
+                { text = _("Cancel"), id = "close", callback = function() UIManager:close(dlg) end },
+                { text = _("Save"), is_enter_default = true,
+                  callback = function()
+                      local raw = (dlg:getInputText() or ""):gsub("^%s+", ""):gsub("%s+$", "")
+                      apply(raw)
+                  end },
+            }},
+        }
+        UIManager:show(dlg)
+        dlg:onShowKeyboard()
+    end }
     local select_btn = { text = _("Select"), callback = function()
         closeModal()
         if not bw._selection:isActive() then bw._selection:enterMode() end
@@ -22986,6 +23021,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         { id = "info",    text = show_info.text,   icon = "\xEE\xA7\xBC", callback = show_info.callback },   -- information-outline
         { id = "select",  text = select_btn.text,  icon = "\xEE\xA0\xB8", callback = select_btn.callback },  -- checkbox-multiple-marked-outline
         { id = "refresh", text = refresh_btn.text, icon = "\xEE\xAD\x8F", callback = refresh_btn.callback }, -- refresh
+        { id = "pubdate", text = pubdate_btn.text, icon = "\xEE\x9F\xAC", callback = pubdate_btn.callback }, -- calendar
     }
     -- A record from a device library (Kindle #355, Kobo) is not a file the user
     -- put on the device: its path is the reader's own library entry, or a

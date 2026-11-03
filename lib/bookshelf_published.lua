@@ -126,7 +126,9 @@ local function finish(res)
         pcall(F.prefetch, fps)
     end
     for fp, r in pairs(res) do
-        if F then F.put(fp, { pd = r.date, pdm = r.mtime }) end
+        -- A date the reader set while this batch was being read stands.
+        local e = F and F.get(fp)
+        if F and not (e and e.pdm == M.USER_MTIME) then F.put(fp, { pd = r.date, pdm = r.mtime }) end
         if r.date ~= "" then filled[#filled + 1] = fp end
     end
     if F and next(res) and F.flushSoon then F.flushSoon() end
@@ -175,28 +177,75 @@ end
 
 -- ── The lookup ─────────────────────────────────────────────────────────────
 
+-- A date the reader set (setUserDate) is stored like a read one, its file
+-- mtime replaced by this marker: nothing that re-reads or replaces a date
+-- (Refresh metadata, a changed file, an OPDS download, a background read)
+-- touches a row carrying it.
+M.USER_MTIME = -1
+
+-- stored(fp) -> the facts row's date fields, or nil. Every stored date at
+-- once (one query a session), not a query per book: a shelf sorted by year
+-- asks for all of them.
+local function stored(fp)
+    local F = facts()
+    if not F then return nil end
+    local map = F.publishedMap and F.publishedMap()
+    if map then return map[fp] end
+    return F.get(fp)
+end
+
 -- forRecord(book) -> "YYYY" | ""
+-- In order: the reader's own date; Hardcover's first-published year (set on
+-- the record by Use Hardcover metadata); calibre's; an OPDS catalogue's; the
+-- one read from the book's file, read in the background the first time.
 function M.forRecord(b)
     if type(b) ~= "table" then return "" end
     local P = pubdate()
+    local fp = localPath(b)
+    local e = fp and stored(fp)
+    if e and e.pdm == M.USER_MTIME and e.pd then return P.year(e.pd) or "" end
+    local y = P.year(b.hardcover_published)
+    if y then return y end
     local cal = b.calibre
     if type(cal) == "table" then
-        local y = P.year(cal.pubdate)
+        y = P.year(cal.pubdate)
         if y then return y end
     end
-    local y = P.year(b.published)
+    y = P.year(b.published)
     if y then return y end
-    local fp = localPath(b)
     if not fp then return "" end
-    local F = facts()
-    -- Every stored date at once (one query a session), not a query per
-    -- book: a shelf sorted by year asks for all of them.
-    local map = F and F.publishedMap and F.publishedMap()
-    local e
-    if map then e = map[fp] else e = F and F.get(fp) end
     if e and e.pd ~= nil then return P.year(e.pd) or "" end
     if P.handles(fp) then M.enqueue(fp) end
     return ""
+end
+
+-- userDate(fp) -> the date the reader set, or nil.
+function M.userDate(fp)
+    local e = type(fp) == "string" and stored(fp)
+    if e and e.pdm == M.USER_MTIME and e.pd and e.pd ~= "" then return e.pd end
+    return nil
+end
+
+-- setUserDate(fp, text) -> true, or false for text that is not a date.
+-- nil or "" clears it: the file is read for its date again.
+function M.setUserDate(fp, text)
+    local F = facts()
+    if not (F and type(fp) == "string") then return false end
+    if text == nil or text == "" then
+        local e = stored(fp)
+        if e and e.pdm == M.USER_MTIME then
+            F.put(fp, { pd = false, pdm = false })
+            _asked[fp] = nil
+            if F.flushSoon then F.flushSoon() end
+        end
+        return true
+    end
+    local date = pubdate().parseDate(text)
+    if not date then return false end
+    F.put(fp, { pd = date, pdm = M.USER_MTIME })
+    _asked[fp] = true
+    if F.flushSoon then F.flushSoon() end
+    return true
 end
 
 -- remember(fp, date): a date known from elsewhere (an OPDS download), kept
@@ -205,6 +254,8 @@ function M.remember(fp, date, mtime)
     local F = facts()
     date = pubdate().parseDate(date)
     if not (F and type(fp) == "string" and date) then return end
+    local e = stored(fp)
+    if e and e.pdm == M.USER_MTIME then return end
     F.put(fp, { pd = date, pdm = mtime or false })
     _asked[fp] = true
 end
@@ -218,6 +269,7 @@ function M.forget(fp, mtime)
     if not (F and type(fp) == "string") then return end
     local e = F.get(fp)
     if not (e and e.pd ~= nil) then return end
+    if e.pdm == M.USER_MTIME then return end
     if mtime == nil then
         local ok, lfs = pcall(require, "libs/libkoreader-lfs")
         mtime = ok and lfs and lfs.attributes(fp, "modification") or nil

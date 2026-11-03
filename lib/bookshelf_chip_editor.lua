@@ -125,6 +125,8 @@ local DEFAULT_REVERSE = {
     -- Rating sort defaults to highest-first, matching the Ratings stack
     -- default and the usual "show my best-rated books at the top" intent.
     rating       = true,
+    -- Publication year: newest first, like the other dates.
+    published    = true,
     -- Everything else defaults to false (ascending). The table only
     -- needs entries for keys whose default is true.
 }

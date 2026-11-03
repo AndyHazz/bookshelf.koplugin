@@ -93,6 +93,7 @@ t.test("the shelf editor offers it, with dated directions", function()
         "Publication year is not on the Sort page")
     assert(ed:find('if key == "last_opened" or key == "date_added" or key == "added_or_opened"\n            or key == "published" then', 1, true),
         "its directions read A-Z / Z-A")
+    assert(ed:find("    published    = true,", 1, true), "it should default to newest first")
 end)
 
 t.done()

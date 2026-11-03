@@ -2531,6 +2531,10 @@ function Bookshelf:scanAllMetadata()
         if not ok then error(err) end
         local Repo = require("lib/bookshelf_book_repository")
         Repo.invalidateWalkCache()
+        -- Read the new rows now: the rows in memory are from before the
+        -- scan, so its new books would have no series until the background
+        -- refresh (issue 581).
+        if Repo.reloadLightMeta then Repo.reloadLightMeta() end
         -- Also drop per-chip book-list caches so the next tab render
         -- re-reads from the fresh BIM data rather than the pre-scan
         -- cached order. Without this the user has to switch tabs to

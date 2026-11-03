@@ -93,10 +93,8 @@ t.test("the cache serves stale rows now and schedules the refresh", function()
     assert(body:match("stale%-snapshot"), "the perf line should name the stale source")
 end)
 
-t.test("the refresh saves fresh rows, drops the map, and runs once at a time", function()
-    local scheduled = {}
-    local saved, invalidated, batches = nil, 0, 0
-    local env = {
+local function refreshEnv(scheduled, counts, fp)
+    return {
         pcall = pcall, pairs = pairs, string = string, type = type,
         require = function(name)
             if name == "ui/uimanager" then
@@ -105,54 +103,106 @@ t.test("the refresh saves fresh rows, drops the map, and runs once at a time", f
             error("unexpected require " .. name)
         end,
         _lightmeta_refresh_pending = false,
-        _lightmeta_fresh_rows = nil,
         LIGHTMETA_REFRESH_DELAY_S = 2,
         _gettime = function() return 0 end,
         logger = { dbg = function() end },
-        _loadBatchBookInfoFromBim = function() batches = batches + 1; return { ["/b/c"] = { title = "C" } } end,
-        _saveRowSnapshot = function(rows) saved = rows end,
-        Repo = { invalidateLightMeta = function() invalidated = invalidated + 1 end },
+        _bimDbFingerprint = function() return fp.value end,
+        _loadBatchBookInfoFromBim = function()
+            counts.batches = counts.batches + 1; return { ["/b/c"] = { title = "C" } } end,
+        _saveRowSnapshot = function(rows)
+            if counts.save_fails then error("disk full") end
+            counts.saved = rows end,
+        Repo = {
+            invalidateLightMeta = function() counts.light = counts.light + 1 end,
+            invalidateSeriesCache = function() counts.groups = counts.groups + 1 end,
+        },
     }
-    local run = compile(sched_body, env)
+end
+local read_body = bodyOf("\nfunction LMFresh%.read%(%)\n(.-)\nend\n", "LMFresh.read")
+local mem_body = bodyOf("\nfunction LMFresh%.memory%(%)\n(.-)\nend\n", "LMFresh.memory")
+local function refresher(env)
+    env.LMFresh = env.LMFresh or {}
+    env.LMFresh.read = compile(read_body, env)
+    return compile(sched_body, env)
+end
+
+t.test("the refresh saves fresh rows, drops the map, and runs once at a time", function()
+    local scheduled, counts, fp = {}, { batches = 0, light = 0, groups = 0 }, { value = "v2:1:1" }
+    local env = refreshEnv(scheduled, counts, fp)
+    local run = refresher(env)
     run(); run()   -- second call while pending must not schedule twice
     assert(#scheduled == 1, "one refresh in flight at a time, got " .. #scheduled)
     assert(env._lightmeta_refresh_pending == true)
     scheduled[1]()
-    assert(batches == 1, "the live batch ran once")
-    assert(saved and saved["/b/c"], "fresh rows were saved as the new snapshot")
-    assert(invalidated == 1, "the derived map was dropped so readers reload")
+    assert(counts.batches == 1, "the live batch ran once")
+    assert(counts.saved and counts.saved["/b/c"], "fresh rows were saved as the new snapshot")
+    assert(counts.light == 1, "the derived map was dropped so readers reload")
     assert(env._lightmeta_refresh_pending == false, "pending flag cleared")
-    assert(env._lightmeta_fresh_rows and env._lightmeta_fresh_rows["/b/c"],
+    assert(env.LMFresh.rows and env.LMFresh.rows["/b/c"],
         "the fresh rows are kept in memory, so the map does not depend on the save")
+    assert(env.LMFresh.fp == "v2:1:1", "...with the BIM fingerprint they were read at")
+end)
+
+t.test("a refresh drops the shelves grouped from the stale rows (issue 581)", function()
+    -- Series / Authors / Genres were built from the stale rows in the two
+    -- seconds before the refresh: a book those rows lacked was in no series,
+    -- and dropping only the light map left the Series shelf without it.
+    local scheduled, counts = {}, { batches = 0, light = 0, groups = 0 }
+    local run = refresher(refreshEnv(scheduled, counts, { value = "v2:1:1" }))
+    run(); scheduled[1]()
+    assert(counts.groups == 1, "the group shelves must be rebuilt from the fresh rows")
+end)
+
+t.test("BIM moving again later in the session gets another refresh (issue 581)", function()
+    -- A library scan mid-session writes rows for new books. The rows read
+    -- at launch were kept for the whole session, so the new books had no
+    -- row and no series until KOReader was started again.
+    local scheduled, counts, fp = {}, { batches = 0, light = 0, groups = 0 }, { value = "v2:1:1" }
+    local env = refreshEnv(scheduled, counts, fp)
+    local run = refresher(env)
+    run(); scheduled[1]()
+    local memory = compile(mem_body, env)
+    local rows, fresh = memory()
+    assert(rows and fresh == true, "unchanged BIM: the rows in memory are fresh")
+    fp.value = "v2:9:9"
+    rows, fresh = memory()
+    assert(rows and fresh == false, "moved BIM: served, but stale")
     run()
-    assert(#scheduled == 1, "a session refreshes at most once, even if asked again")
+    assert(#scheduled == 2, "a stale session asks for a second refresh")
 end)
 
 t.test("a failed save cannot re-arm the refresh loop", function()
     -- The bug class: save fails (read-only dir), the invalidate drops the
     -- map, the next reader loads the still-stale snapshot and schedules
-    -- again -- a full table read every two seconds. Memory now wins.
-    local scheduled, batches = {}, 0
-    local env = {
-        pcall = pcall, pairs = pairs, string = string, type = type,
-        require = function() return { scheduleIn = function(_, _d, fn) scheduled[#scheduled + 1] = fn end } end,
-        _lightmeta_refresh_pending = false, _lightmeta_fresh_rows = nil,
-        LIGHTMETA_REFRESH_DELAY_S = 2, _gettime = function() return 0 end,
-        logger = { dbg = function() end },
-        _loadBatchBookInfoFromBim = function() batches = batches + 1; return { ["/b/c"] = {} } end,
-        _saveRowSnapshot = function() error("disk full") end,
-        Repo = { invalidateLightMeta = function() end },
-    }
-    local run = compile(sched_body, env)
+    -- again -- a full table read every two seconds. Memory now wins, and
+    -- it stays fresh while BIM does not move.
+    local scheduled, counts = {}, { batches = 0, light = 0, groups = 0, save_fails = true }
+    local env = refreshEnv(scheduled, counts, { value = "v2:1:1" })
+    local run = refresher(env)
     run(); scheduled[1]()
-    assert(batches == 1 and env._lightmeta_fresh_rows, "the refresh completed despite the failed save")
-    run()
-    assert(#scheduled == 1, "no second refresh: the fresh rows in memory satisfy the next reader")
+    assert(counts.batches == 1 and env.LMFresh.rows, "the refresh completed despite the failed save")
+    local _rows, fresh = compile(mem_body, env)()
+    assert(fresh == true, "no second refresh: the fresh rows in memory satisfy the next reader")
+end)
+
+t.test("no BIM file: rows in memory count as fresh", function()
+    local env = { LMFresh = { rows = { x = {} }, fp = "v2:1:1" },
+                  _bimDbFingerprint = function() return nil end }
+    local _rows, fresh = compile(mem_body, env)()
+    assert(fresh == true, "nothing to compare against must not loop the refresh")
+end)
+
+t.test("Scan all library metadata reads the rows again itself (issue 581)", function()
+    local main = io.open("main.lua"):read("*a")
+    local scan = main:match("function Bookshelf:scanAllMetadata%(%)(.-)\nend\n")
+    assert(scan and scan:find("Repo.reloadLightMeta()", 1, true),
+        "the scan must not leave the next shelf on rows from before it")
+    assert(src:find("\nfunction Repo.reloadLightMeta%(%)\n"), "Repo.reloadLightMeta is missing")
 end)
 
 t.test("the cache prefers a completed refresh's rows over the disk snapshot", function()
     local body = bodyOf("\nlocal function _getLightMetaCache%(home, depth%)\n(.-)\nend\n", "_getLightMetaCache")
-    assert(body:match("if _lightmeta_fresh_rows then"), "the cache must consult the in-memory fresh rows first")
+    assert(body:match("snapshot, fresh = LMFresh%.memory%(%)"), "the cache must consult the in-memory fresh rows first")
 end)
 
 t.test("the refresh is declared AFTER the save it calls", function()

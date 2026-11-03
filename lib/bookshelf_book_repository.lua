@@ -3787,15 +3787,48 @@ end
 -- fresh snapshot (a zstd load, not a table scan).
 local LIGHTMETA_REFRESH_DELAY_S = 2
 local _lightmeta_refresh_pending = false
--- The rows a completed refresh produced, this session. _getLightMetaCache
--- prefers them over anything on disk, so the fresh map does NOT depend on
--- the snapshot save succeeding -- a read-only data dir or a full disk would
+-- The rows the last refresh read, this session. _getLightMetaCache prefers
+-- them over anything on disk, so the fresh map does NOT depend on the
+-- snapshot save succeeding -- a read-only data dir or a full disk would
 -- otherwise leave the stale snapshot in place and re-arm a full table read
--- every two seconds for the whole session. Set once: a session refreshes
--- at most once.
-local _lightmeta_fresh_rows = nil
+-- every two seconds for the whole session. They are fresh only while BIM is
+-- where they were read (LMFresh.fp): a library scan or any other
+-- extraction mid-session moves it, and then they are served stale and read
+-- again like a stale snapshot. Kept for the whole session instead, a scan's
+-- new books had no row, so no series, until KOReader was started again
+-- (issue 581).
+-- One table for the rows, their fingerprint and the two helpers below: the
+-- module's main chunk sits at Lua's 200-local limit.
+local LMFresh = { rows = nil, fp = nil }
+
+-- LMFresh.memory() -> rows, fresh: the rows above, if any, and whether BIM
+-- is unchanged since they were read. No BIM file to compare with is fresh,
+-- so it cannot loop the refresh.
+function LMFresh.memory()
+    if not LMFresh.rows then return nil end
+    local now_fp = _bimDbFingerprint()
+    return LMFresh.rows, now_fp == nil or now_fp == LMFresh.fp
+end
+
+-- LMFresh.read(): the batch read, kept in memory and saved, then every
+-- cache derived from older rows dropped: the light map, and the group
+-- shelves (Series / Authors / Genres...) built from it, where a book the
+-- old rows lacked sat in no series. The fingerprint is taken BEFORE the
+-- read, so a write landing during it leaves the rows stale, not falsely
+-- fresh.
+function LMFresh.read()
+    local fp = _bimDbFingerprint()
+    local ok, rows = pcall(_loadBatchBookInfoFromBim)
+    if not (ok and rows) then return nil end
+    LMFresh.rows, LMFresh.fp = rows, fp
+    pcall(_saveRowSnapshot, rows)   -- best effort; memory is authoritative now
+    Repo.invalidateSeriesCache()
+    Repo.invalidateLightMeta()
+    return rows
+end
+
 local function _scheduleLightMetaRefresh()
-    if _lightmeta_refresh_pending or _lightmeta_fresh_rows then return end
+    if _lightmeta_refresh_pending then return end
     local ok_um, UIManager = pcall(require, "ui/uimanager")
     if not (ok_um and type(UIManager) == "table" and UIManager.scheduleIn) then
         return   -- no event loop (standalone/tests): the stale rows stand
@@ -3804,16 +3837,21 @@ local function _scheduleLightMetaRefresh()
     UIManager:scheduleIn(LIGHTMETA_REFRESH_DELAY_S, function()
         _lightmeta_refresh_pending = false
         local _t0 = _gettime()
-        local ok, rows = pcall(_loadBatchBookInfoFromBim)
-        if ok and rows then
-            _lightmeta_fresh_rows = rows
-            pcall(_saveRowSnapshot, rows)   -- best effort; memory is authoritative now
-            Repo.invalidateLightMeta()
+        local rows = LMFresh.read()
+        if rows then
             logger.dbg(string.format(
                 "[bookshelf perf] light_meta: background refresh %.0fms rows=%d",
                 (_gettime() - _t0) * 1000, (function() local n = 0 for _ in pairs(rows) do n = n + 1 end return n end)()))
         end
     end)
+end
+
+-- Repo.reloadLightMeta(): read BIM's rows now, for a caller that has just
+-- written many of them and whose user is already waiting (Scan all library
+-- metadata). Without it the next shelf is served the rows from before the
+-- scan and corrects itself only after the background refresh.
+function Repo.reloadLightMeta()
+    LMFresh.read()
 end
 
 -- _getLightMetaCache(home, depth) — returns a fp → light-record map for every
@@ -3843,12 +3881,10 @@ local function _getLightMetaCache(home, depth)
     -- Disk snapshot first: skips the blob-page-heavy SELECT entirely when
     -- the BIM db is unchanged since last save (the common cold boot).
     -- Rows a completed background refresh left in memory outrank the disk
-    -- snapshot (see _lightmeta_fresh_rows); then the snapshot; then the live
+    -- snapshot (see LMFresh); then the snapshot; then the live
     -- batch, saved for next time.
-    local snapshot, fresh
-    if _lightmeta_fresh_rows then
-        snapshot, fresh = _lightmeta_fresh_rows, true
-    else
+    local snapshot, fresh = LMFresh.memory()
+    if not snapshot then
         snapshot, fresh = _loadRowSnapshot()
     end
     local _t_load = _gettime()

@@ -3176,7 +3176,14 @@ function BookshelfWidget:_kickOffMissingMetaExtractionNow(items, slot_w, slot_h,
             fp, tostring(needs), reason, inprog,
             tostring(info and info.has_meta), tostring(info and info.has_cover),
             tostring(info and info.cover_fetched)))
-        if needs then
+        -- A book deleted outside KOReader (Syncthing, USB) while a cached
+        -- list still shows it: each queue forked an extraction that failed
+        -- on the missing file, logging a traceback, until BIM's try limit
+        -- gave up. Checked only for a book about to be queued, and not
+        -- memoised, so a file that comes back is asked about again.
+        if needs and require("libs/libkoreader-lfs").attributes(fp, "mode") ~= "file" then
+            -- Neither queued nor memoised.
+        elseif needs then
             files[#files + 1] = {
                 filepath    = fp,
                 cover_specs = not text_only and specs or nil,

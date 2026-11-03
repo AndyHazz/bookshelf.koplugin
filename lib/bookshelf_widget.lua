@@ -3550,7 +3550,7 @@ function BookshelfWidget:_pollExtraction()
         if self:_isSpineMode() then
             local SpineShelf = require("lib/bookshelf_spine_shelf")
             if SpineShelf.invalidateBook then
-                for fp in pairs(ready_paths) do SpineShelf.invalidateBook(fp) end
+                for fp in pairs(ready_paths) do SpineShelf.invalidateBook(fp, true) end
             end
             self:_expireSpineFetch()
         end
@@ -10804,14 +10804,14 @@ function BookshelfWidget:_refreshListRowInPlace(fp)
     return false
 end
 
--- _refreshSpineSlotInPlace(fp) — spine mode's single-book refresh. The slot
+-- _refreshSpineSlotInPlace(fp, cover) — spine mode's single-book refresh. The slot
 -- paints everything from its book record and plan entry, so refreshing is:
 -- fresh record in, look resampled (the trigger is usually "the cover just
 -- landed" or "the book was just closed", both of which change what the
 -- spine shows), repaint the slot's rect. Geometry (width from page count)
 -- deliberately stays until the next full rebuild -- resizing one slot would
 -- reflow the whole row for a change the reader may not even notice.
-function BookshelfWidget:_refreshSpineSlotInPlace(fp)
+function BookshelfWidget:_refreshSpineSlotInPlace(fp, cover)
     local d = self._shelf_dims
     if not d or not self._inner_vgroup then return false end
     local SpineShelf = require("lib/bookshelf_spine_shelf")
@@ -10836,7 +10836,7 @@ function BookshelfWidget:_refreshSpineSlotInPlace(fp)
                     -- hydration answers, rendered pixels. Without this a
                     -- metadata edit (e.g. a Hardcover link) updated the
                     -- record but the spine kept painting the old title.
-                    SpineShelf.invalidateBook(fp)
+                    SpineShelf.invalidateBook(fp, cover)
                     slot.book = fresh
                     slot.entry.book = fresh
                     slot.entry.look = SpineShelf.shownLook(fresh)
@@ -10866,7 +10866,8 @@ function BookshelfWidget:_refreshSpineSlotInPlace(fp)
     return false
 end
 
--- _refreshSpineInPlace(fp) — rebuild a single spine in place, preserving
+-- _refreshSpineInPlace(fp, cover) — rebuild a single spine in place (cover:
+-- the book's cover changed, so its colours are sampled again), preserving
 -- its current is_selected state. Used after a book is closed: the spine
 -- needs to pick up the new percent_finished / status / progress glyph
 -- without re-sorting the whole shelf. main.lua's onCloseDocument has
@@ -10880,7 +10881,7 @@ end
 -- Returns true if at least one matching spine was found and replaced, so
 -- callers can fall back to a heavier refresh when the book isn't on the
 -- current page / live tree.
-function BookshelfWidget:_refreshSpineInPlace(fp)
+function BookshelfWidget:_refreshSpineInPlace(fp, cover)
     if not fp or not self._inner_vgroup or not self._shelf_dims then return false end
     if self:_isListMode() then return self:_refreshListRowInPlace(fp) end
     -- Spine mode: the cover-tile swap below would find the SpineBookSlot by
@@ -10888,7 +10889,7 @@ function BookshelfWidget:_refreshSpineInPlace(fp)
     -- replace it with a cover-grid SpineWidget at slot height -- the
     -- "full-height cover in the middle of the shelf" bug from the device.
     -- The slot repaints from its own record instead.
-    if self:_isSpineMode() then return self:_refreshSpineSlotInPlace(fp) end
+    if self:_isSpineMode() then return self:_refreshSpineSlotInPlace(fp, cover) end
     local d = self._shelf_dims
     local replaced_dimen
     local replaced = false
@@ -22964,9 +22965,8 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             if modal and modal.rebuildTab then modal:rebuildTab() end
         end
         -- A date picker, not free text: the year, month and day spinners
-        -- (a spinner's number can be tapped to type it). It opens on the
-        -- date shown now, else today's year. The extra button goes back to
-        -- the book's own date, when the reader has set one.
+        -- (a spinner's number can be tapped to type it). The extra button
+        -- goes back to the book's own date, when the reader has set one.
         local cur = Published.info(book)
         local y, m, d = tostring(cur or ""):match("^(%d%d%d%d)%-?(%d*)%-?(%d*)$")
         local now = os.date("*t")
@@ -22989,9 +22989,12 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         end
         local DateTimeWidget = require("ui/widget/datetimewidget")
         local picker
+        -- Opens on the date shown (the reader's, else the book's); a year
+        -- alone opens on 1 January. No date at all: today.
         picker = DateTimeWidget:new{
             year = tonumber(y) or now.year, year_min = 1000, year_max = now.year + 1,
-            month = tonumber(m) or 1, day = tonumber(d) or 1,
+            month = tonumber(m) or (y and 1 or now.month),
+            day = tonumber(d) or (y and 1 or now.day),
             title_text = _("Publish date"),
             ok_text = _("Set date"),
             extra_text = back_text,
@@ -25512,7 +25515,7 @@ function BookshelfWidget:_refreshSingleBookCover(filepath, reason)
     end
     if filepath and self._inner_vgroup and self._shelf_dims
             and (self._shelf_dims.n_shelves or 2) == self:_nShelves() then
-        local spine_done = self:_refreshSpineInPlace(filepath)
+        local spine_done = self:_refreshSpineInPlace(filepath, true)
         local preview_fp = self._preview_book and self._preview_book.filepath
         local hero_done = false
         if preview_fp == filepath and not self._expanded then

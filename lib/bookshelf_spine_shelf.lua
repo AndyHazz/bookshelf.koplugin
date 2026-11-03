@@ -812,17 +812,27 @@ local _plan_cache = nil
 -- rebuild it for every face-out book. Dropped by invalidateBook.
 local _meta_memo = {}
 
--- invalidateBook(fp) — one entry point for 'this book's metadata changed':
--- drops the persisted look/progress, the hydration answers, and every
--- cached render, so the next plan and paint rebuild it all fresh.
-function SpineShelf.invalidateBook(fp)
+-- invalidateBook(fp, cover) — one entry point for 'this book changed':
+-- drops the cached status, the hydration answers and every cached render,
+-- so the next plan and paint rebuild them fresh. The look (the colours and
+-- shape sampled off the cover) goes only when cover is true: this runs on
+-- every status or rating change, and those leave the cover as it was.
+function SpineShelf.invalidateBook(fp, cover)
     _plan_cache = nil
     if not fp then return end
     _meta_memo[fp] = nil
-    SpineShelf.dropLook(fp)
+    if cover then SpineShelf.dropLook(fp) else SpineShelf.dropStatus(fp) end
     _hydrate_cache[fp] = nil
     _progress_validated[fp] = nil
     SpineShelf.invalidateRender(fp)
+end
+
+-- dropStatus(fp): the read status cached beside the look, for a change that
+-- left the cover alone.
+function SpineShelf.dropStatus(fp)
+    if not fp then return end
+    local F = _facts()
+    if F then F.put(fp, { s = false, sk = false, m = false }) end
 end
 
 function SpineShelf.dropLook(fp)

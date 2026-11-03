@@ -15,7 +15,7 @@ t.test("the extraction poll drops the spine caches of the books that became read
     assert(poll, "_pollExtraction moved")
     local branch = poll:match("if next%(ready_paths%) and self%._inner_vgroup(.-)self:_swapShelvesInPlace%(%)")
     assert(branch, "the ready branch no longer swaps the shelves")
-    assert(branch:find("invalidateBook(fp)", 1, true), "a ready book's spine caches are kept")
+    assert(branch:find("invalidateBook(fp, true)", 1, true), "a ready book's spine caches are kept")
     assert(branch:find("self:_expireSpineFetch()", 1, true), "the cached spine page still holds the stand-in")
 end)
 

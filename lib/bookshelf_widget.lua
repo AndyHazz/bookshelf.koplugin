@@ -23116,8 +23116,8 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     local function pubText()
         local date, src = require("lib/bookshelf_published").info(book)
         if not date then
-            if src == "pending" then return _("Not read from the book yet") end
-            return _("None in the book's file")
+            if src == "pending" then return _("Not read yet"), nil, false end
+            return _("None in the file"), nil, false
         end
         local y, m, d = date:match("^(%d%d%d%d)%-?(%d*)%-?(%d*)$")
         m, d = tonumber(m), tonumber(d)
@@ -23134,8 +23134,8 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             hardcover = _("from Hardcover"),
             calibre   = _("from calibre"),
             catalog   = _("from the catalog"),
-            file      = _("from the book's file"),
-        })[src]
+            file      = _("from the file"),
+        })[src], true
     end
     local pub_below = true
 
@@ -23313,7 +23313,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         -- and Edit. Too narrow for two columns (a big zoom, a small screen):
         -- the ratings alone here and the date in a row of its own below the
         -- actions (pub_below).
-        local pub_date_str, pub_from = pubText()
+        local pub_date_str, pub_from, pub_known = pubText()
         -- Half and half, so the date's column starts under the status
         -- control's third cell (On hold) and the two line up.
         -- Ratings too wide for half (a smaller screen, Hardcover's row with
@@ -23322,10 +23322,11 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         local avail   = content_w - 2 * inset
         local left_w  = math.max(math.floor(avail / 2), ratings_widget:getSize().w + col_gap)
         local right_w = avail - left_w
-        -- The same button as infoRow's (the Hardcover row's Edit): its height
-        -- from a bold line plus the pill padding and border.
+        -- The date is the button (pencil after it, no Edit label): the same
+        -- button as infoRow's, its height from a bold line plus the pill
+        -- padding and border. No date: Set date, the reason under it.
         local edit_btn = PopupKit.button{
-            text       = _("Edit"),
+            text       = pub_known and pub_date_str or _("Set date"),
             face       = BFont:getFace("cfont", font_size),
             icon_glyph = "\xEE\xAB\xAA", -- nf-md-pencil, U+EAEA
             icon_face  = BFont:getFace("symbols", font_size),
@@ -23357,21 +23358,21 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         -- pubColumn(w) -> the publish date's column w wide: its heading, the
         -- date and its source, Edit flush right beside them (in line with the
         -- actions' right edge); nil when w is too narrow for them.
+        local src_face = BFont:getFace("cfont", math.max(10, font_size - 3))
         local function pubColumn(w, drop)
-            local text_w = w - edit_btn:getSize().w - btn_gap
-            if text_w < widest({ pub_date_str, pub_from or "" }, body_face) * 0.6 then return nil end
-            local lines = VerticalGroup:new{ align = "left",
-                TextBoxWidget:new{ text = pub_date_str, face = body_face, width = text_w },
-            }
-            if pub_from then
-                lines[#lines + 1] = TextBoxWidget:new{ text = pub_from,
-                    face = BFont:getFace("cfont", math.max(10, font_size - 3)),
-                    fgcolor = Blitbuffer.COLOR_DARK_GRAY, width = text_w }
-            end
+            -- Under the button, in grey: where the date came from, or why
+            -- there is none. The button decides the layout, not the note
+            -- (which may wrap), so it is the same from book to book.
+            local note = pub_known and pub_from or (not pub_known and pub_date_str) or nil
+            if edit_btn:getSize().w > w then return nil end
             local col = VerticalGroup:new{ align = "left", colHeading(_("Publish date"), w) }
             if drop and drop > 0 then col[#col + 1] = VerticalSpan:new{ width = drop } end
-            col[#col + 1] = HorizontalGroup:new{ align = "top",
-                lines, HorizontalSpan:new{ width = btn_gap }, edit_btn }
+            col[#col + 1] = edit_btn
+            if note then
+                col[#col + 1] = VerticalSpan:new{ width = Space.px(4) }
+                col[#col + 1] = TextBoxWidget:new{ text = note,
+                    face = src_face, fgcolor = Blitbuffer.COLOR_DARK_GRAY, width = w }
+            end
             return col
         end
         local function row(cols, widths)
@@ -23385,12 +23386,12 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             return hg
         end
 
-        -- 1. Three columns on the status control's quarters: Your rating over
-        -- Unopened, Hardcover over Reading, the publish date over On hold and
-        -- Finished; each heading with its stars right under it. No Hardcover
-        -- rating: yours takes the first half. Stars wider than a quarter (a
-        -- smaller screen, a big zoom) go on to 2.
-        local quarter = math.floor(avail / 4)
+        -- 1. Three columns in thirds: Your rating, Hardcover, the publish date,
+        -- each heading with its stars (or date) right under it. No Hardcover
+        -- rating: two halves, the date's starting under the status control's
+        -- third cell (On hold). Stars wider than their column (a smaller
+        -- screen, a big zoom) go on to 2.
+        local third = math.floor(avail / 3)
         local your_row = HorizontalGroup:new{ align = "center" }
         for _i, st in ipairs(your_stars) do your_row[#your_row + 1] = st end
         -- Hardcover's number goes in its heading (HARDCOVER · 4.2), so its
@@ -23399,10 +23400,11 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         if hc_parts then
             hc_row = HorizontalGroup:new{ align = "center", hc_parts.stars }
         end
-        local your_w = hc_row and quarter or 2 * quarter
+        local your_w = hc_row and third or math.floor(avail / 2)
+        local pub_w  = avail - (hc_row and 2 * third or your_w)
         local pub3 = (your_row:getSize().w + col_gap <= your_w)
-            and (not hc_row or hc_row:getSize().w + col_gap <= quarter)
-            and pubColumn(avail - 2 * quarter)
+            and (not hc_row or hc_row:getSize().w + col_gap <= third)
+            and pubColumn(pub_w)
         if pub3 then
             pub_below = false
             local cols = { VerticalGroup:new{ align = "left",
@@ -23410,8 +23412,8 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             local widths = { your_w }
             if hc_row then
                 cols[#cols + 1] = VerticalGroup:new{ align = "left",
-                    colHeading(_("Hardcover") .. " \xC2\xB7 " .. hc_parts.num, quarter - col_gap), hc_row }
-                widths[#widths + 1] = quarter
+                    colHeading(_("Hardcover") .. " \xC2\xB7 " .. hc_parts.num, third - col_gap), hc_row }
+                widths[#widths + 1] = third
             end
             cols[#cols + 1] = pub3
             vg[#vg + 1] = padded(row(cols, widths), 0, 0)

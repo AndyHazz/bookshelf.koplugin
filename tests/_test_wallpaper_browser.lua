@@ -198,4 +198,76 @@ t.test("landscape (several a page): paging chooses nothing, a tap does", functio
     eq(#scheduled, 0)
 end)
 
+
+-- ── previews: decoded at their size, kept on disk ───────────────────────────
+local function previewSetup(size)
+    local decodes, disk = {}, {}
+    local function bb(w, h)
+        local b = { w = w, h = h }
+        function b:getWidth() return self.w end
+        function b:getHeight() return self.h end
+        function b:getType() return 1 end
+        function b:free() self.freed = true end
+        function b:fill() end
+        function b:blitFrom() end
+        return b
+    end
+    package.loaded["ui/renderimage"] = {
+        renderImageFile = function(_s, path, _f, w, h)
+            decodes[#decodes + 1] = { path = path, w = w, h = h }
+            return bb(w or 1440, h or 1920)
+        end,
+        scaleBlitBuffer = function(_s, b, w, h) return bb(w, h) end,
+    }
+    package.loaded["ffi/blitbuffer"] = { COLOR_WHITE = 0, new = function(w, h) return bb(w, h) end }
+    package.loaded["lib/bookshelf_cover_disk_cache"] = {
+        load = function(k) return disk[k] end,
+        store = function(k, b) disk[k] = b; return true end,
+    }
+    package.loaded["lib/bookshelf_image_source"] = { probeSize = function() return size[1], size[2] end }
+    package.loaded["libs/libkoreader-lfs"] = { attributes = function() return { modification = 7, size = 99 } end }
+    package.loaded["device"] = { screen = { getWidth = function() return 600 end, getHeight = function() return 800 end,
+                                            bb = { getType = function() return 1 end } } }
+    local fit = "stretch"
+    package.loaded["lib/bookshelf_wallpaper"] = {
+        SETTING = "wallpaper_default", FULL_SETTING = "wallpaper_full",
+        fitMode = function() return fit end,
+        fitLayout = dofile("lib/bookshelf_wallpaper.lua").fitLayout,
+        toScreenType = function(b) return b end,
+    }
+    WB._previewReset()
+    return decodes, disk, function(m) fit = m end
+end
+
+t.test("a preview is decoded at its own size, not the picture's", function()
+    local decodes = previewSetup({ 1440, 1920 })
+    WB._preview("/w/a.png", 300, 400, "stretch")
+    eq(decodes[1].w, 300); eq(decodes[1].h, 400)
+end)
+
+t.test("Crop to fill decodes at the covering size from the file's header", function()
+    local decodes = previewSetup({ 1600, 900 })
+    WB._preview("/w/a.png", 300, 400, "fill")
+    eq(decodes[1].w, 711); eq(decodes[1].h, 400)
+end)
+
+t.test("a preview is kept on disk: the next session reads it, no decode", function()
+    local decodes, disk = previewSetup({ 1440, 1920 })
+    WB._preview("/w/a.png", 300, 400, "fit")
+    eq(#decodes, 1)
+    local n = 0; for _k in pairs(disk) do n = n + 1 end
+    eq(n, 1, "not stored on disk")
+    WB._previewReset()   -- a new session: memory gone, disk kept
+    WB._preview("/w/a.png", 300, 400, "fit")
+    eq(#decodes, 1, "decoded again with the preview on disk")
+end)
+
+t.test("a different scaling or size is a different preview", function()
+    local decodes = previewSetup({ 1440, 1920 })
+    WB._preview("/w/a.png", 300, 400, "fit")
+    WB._preview("/w/a.png", 300, 400, "fill")
+    WB._preview("/w/a.png", 200, 400, "fit")
+    eq(#decodes, 3)
+end)
+
 t.done()

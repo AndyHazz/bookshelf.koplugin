@@ -106,20 +106,52 @@ end
 -- so the cache never frees a preview still on screen.
 local _previews, _order = {}, {}
 local PREVIEW_KEEP = 8
-local function preview(path, w, h, mode)
-    local key = path .. "|" .. w .. "x" .. h .. "|" .. (mode or "stretch")
-    if _previews[key] then return _previews[key] end
+-- diskKey(path, w, h, mode): the cover disk cache's key for one preview.
+-- The file's mtime and size are in it, so an edited picture is a new one,
+-- and the screen's buffer type, as the stored copy is in that type.
+local function diskKey(path, w, h, mode)
+    local ok, key = pcall(function()
+        local attr = require("libs/libkoreader-lfs").attributes(path)
+        if not (attr and attr.modification) then return nil end
+        local Screen = require("device").screen
+        local fbt = Screen and Screen.bb and Screen.bb.getType and Screen.bb:getType()
+        return string.format("wpreview:%s|%s|%s|%dx%d|%s|%s", path, tostring(attr.modification),
+            tostring(attr.size), w, h, mode or "stretch", tostring(fbt))
+    end)
+    return ok and key or nil
+end
+
+local function diskCache()
+    local ok, DC = pcall(require, "lib/bookshelf_cover_disk_cache")
+    return ok and DC or nil
+end
+
+-- decodePreview(path, w, h, mode) -> a w x h buffer: the picture as the
+-- shelf lays it on a screen this shape (w x h is the screen's shape, scaled
+-- down): stretched to it, or cropped or fitted by the same arithmetic the
+-- wallpaper itself uses (fitLayout). Decoded at the size it is shown at,
+-- the picture's own size read from its header: on a PW5 a pack's
+-- 1440x1920 PNG costs 400-850 ms to decode whatever the size asked for, and
+-- asking for the small one skips a full-size copy and a separate scale.
+local function decodePreview(path, w, h, mode)
     local RenderImage = require("ui/renderimage")
-    local ok, bb = pcall(function() return RenderImage:renderImageFile(path, false) end)
-    if not ok or not bb then return nil end
-    -- The picture as the shelf will lay it on a screen this shape (w x h is
-    -- the screen's shape, scaled down): stretched to it, or cropped or fitted
-    -- by the same arithmetic the wallpaper itself uses (fitLayout).
-    local iw, ih = bb:getWidth(), bb:getHeight()
-    local dw, dh, ox, oy = WP().fitLayout(iw, ih, w, h, mode)
+    local dw, dh, ox, oy
+    if mode == "fill" or mode == "fit" then
+        local ok, iw, ih = pcall(function()
+            return require("lib/bookshelf_image_source").probeSize(path)
+        end)
+        if ok and iw and ih then dw, dh, ox, oy = WP().fitLayout(iw, ih, w, h, mode) end
+        if not dw then
+            -- No size in the header (WebP, GIF, SVG): decode it to learn it.
+            local ok_f, full = pcall(function() return RenderImage:renderImageFile(path, false) end)
+            if not ok_f or not full then return nil end
+            dw, dh, ox, oy = WP().fitLayout(full:getWidth(), full:getHeight(), w, h, mode)
+            pcall(function() full:free() end)
+        end
+    end
     if not dw then dw, dh, ox, oy = w, h, 0, 0 end
-    local ok_s, sc = pcall(function() return RenderImage:scaleBlitBuffer(bb, dw, dh) end)
-    if not ok_s or not sc then return nil end
+    local ok, sc = pcall(function() return RenderImage:renderImageFile(path, false, dw, dh) end)
+    if not ok or not sc then return nil end
     if dw ~= w or dh ~= h then
         local Blitbuffer = require("ffi/blitbuffer")
         local out = Blitbuffer.new(w, h, sc:getType())
@@ -132,6 +164,25 @@ local function preview(path, w, h, mode)
         sc:free()
         sc = out
     end
+    -- In the screen's own type (grey on a greyscale panel): a third of the
+    -- memory and of the disk, and a straight blit when it is drawn.
+    return WP().toScreenType(sc)
+end
+
+-- preview(path, w, h, mode): from memory, else from the cover disk cache
+-- (4 ms on a PW5, against up to a second to decode), else decoded and kept
+-- in both.
+local function preview(path, w, h, mode)
+    local key = path .. "|" .. w .. "x" .. h .. "|" .. (mode or "stretch")
+    if _previews[key] then return _previews[key] end
+    local dkey = diskKey(path, w, h, mode)
+    local dc = dkey and diskCache()
+    local sc = dc and dc.load(dkey)
+    if not sc then
+        sc = decodePreview(path, w, h, mode)
+        if not sc then return nil end
+        if dc then pcall(dc.store, dkey, sc) end
+    end
     _previews[key] = sc
     _order[#_order + 1] = key
     while #_order > PREVIEW_KEEP do
@@ -141,6 +192,9 @@ local function preview(path, w, h, mode)
     end
     return sc
 end
+-- Test seams.
+WB._preview = preview
+function WB._previewReset() _previews, _order = {}, {} end
 
 -- screenFrame(w, h) -> the largest rectangle of the screen's own shape that
 -- fits w x h: what every card shows a picture in, so the preview is the

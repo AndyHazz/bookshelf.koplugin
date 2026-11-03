@@ -23021,7 +23021,6 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         { id = "info",    text = show_info.text,   icon = "\xEE\xA7\xBC", callback = show_info.callback },   -- information-outline
         { id = "select",  text = select_btn.text,  icon = "\xEE\xA0\xB8", callback = select_btn.callback },  -- checkbox-multiple-marked-outline
         { id = "refresh", text = refresh_btn.text, icon = "\xEE\xAD\x8F", callback = refresh_btn.callback }, -- refresh
-        { id = "pubdate", text = pubdate_btn.text, icon = "\xEE\x9F\xAC", callback = pubdate_btn.callback }, -- calendar
     }
     -- A record from a device library (Kindle #355, Kobo) is not a file the user
     -- put on the device: its path is the reader's own library entry, or a
@@ -23036,6 +23035,10 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         tile_specs[#tile_specs + 1] = { id = "delete", text = _("Delete"), icon = "\xEE\xA2\xBF", -- delete
             callback = delete_btn.callback }
     end
+    -- Newest last (6.3.2), after Delete, so the cards readers know keep
+    -- their places.
+    tile_specs[#tile_specs + 1] = { id = "pubdate", text = pubdate_btn.text, icon = "\xEE\x9F\xAC", -- calendar
+        callback = pubdate_btn.callback }
 
     -- Third-party actions join the grid after ours, as cards with the Action
     -- card's puzzle icon (they bring no icon of their own).
@@ -23336,8 +23339,8 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             local icon_face  = BFont:getFace("symbols", font_size + 10)
             local label_face = Font:getFace("cfont", math.max(10, font_size - 3))
             local pad_v = Space.px(12)
-            -- As many columns (4 at most) as leave every label two lines or
-            -- fewer: a small screen or a big zoom drops to 3, then 2.
+            -- As many columns (5 at most) as leave every label two lines or
+            -- fewer: a small screen or a big zoom drops to 4, 3, then 2.
             local function innerW(c)
                 return math.floor((w - (c - 1) * gap) / c) - 2 * tile_border - 2 * Space.px(6)
             end
@@ -23347,7 +23350,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                 tb:free()
                 return h
             end
-            local cols = 4
+            local cols = 5
             while cols > 2 do
                 local iw, two = innerW(cols), 2 * textH("Ag", innerW(cols))
                 local fits = true

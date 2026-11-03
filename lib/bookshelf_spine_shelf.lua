@@ -830,9 +830,18 @@ function SpineShelf.dropLook(fp)
         _look_cache[fp] = nil
         _look_count = math.max(0, _look_count - 1)
     end
+    -- The look and the read status cached beside it, not the whole facts
+    -- row: since the facts store took the row over it also holds the book's
+    -- publication date, page count, highlight count and read progress, and
+    -- deleting it wiped those on every status or rating change, history
+    -- removal or cover change. The others check themselves against the
+    -- sidecar's mtime.
     if fp then
         local F = _facts()
-        if F then F.drop(fp) end
+        if F then
+            F.put(fp, { r = false, g = false, b = false, a = false,
+                        s = false, sk = false, m = false })
+        end
     end
 end
 

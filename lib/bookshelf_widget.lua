@@ -21442,6 +21442,14 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
         if pages and pages > 0 then
             meta_parts[#meta_parts + 1] = T(_("%1 pages"), pages)
         end
+        -- The year %published shows (and the Edit tab's Publication date card
+        -- sets). Not known yet: nothing, and the file is queued to be read.
+        local ok_pub, pub_year = pcall(function()
+            return require("lib/bookshelf_published").forRecord(book)
+        end)
+        if ok_pub and type(pub_year) == "string" and pub_year ~= "" then
+            meta_parts[#meta_parts + 1] = T(_("Published %1"), pub_year)
+        end
         if added_str then meta_parts[#meta_parts + 1] = _("Added") .. " " .. added_str end
     else
         if added_str then meta_parts[#meta_parts + 1] = _("Added") .. " " .. added_str end

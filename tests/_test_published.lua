@@ -223,6 +223,11 @@ t.test("wiring: the book menu's Publication date card sets the reader's date", f
         "a corrected date would not re-sort")
 end)
 
+t.test("wiring: the book menu header shows the year next to the file's details", function()
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    assert(w:find('T(_("Published %1"), pub_year)', 1, true), "the header does not show the year")
+end)
+
 t.test("wiring: the token, the OPDS feed, the download, Refresh metadata, the shelf", function()
     local tokens = io.open("lib/bookshelf_tokens.lua"):read("*a")
     assert(tokens:find('token = "%published"', 1, true))

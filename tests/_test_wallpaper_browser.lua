@@ -125,10 +125,73 @@ t.test("the picker opens on the page of the wallpaper in use", function()
     eq(WB.startPage("wallpaper_default", e), 1, "no wallpaper: the first page")
 end)
 
-t.test("the picker marks the one in use with a radio mark, not a line under the picture", function()
+t.test("no radio: one a page, the page is the choice; several a page, the one in use has the heavy frame", function()
+    -- Maintainer, 2026-11-03: the radio was unnecessary with one picture a
+    -- page; the name sits centred under the picture.
     local src = io.open("lib/bookshelf_wallpaper_browser.lua"):read("*a")
-    assert(src:find("Marks.Radio:new{ checked = WB.inUse(key, item) }", 1, true), "no radio mark")
+    assert(not src:find("Marks.Radio", 1, true), "the radio mark is back")
+    assert(src:find("local in_use = several and WB.inUse(key, item)", 1, true),
+        "landscape lost its mark for the one in use")
     assert(not src:find('_("In use")', 1, true), "the In use line is still there")
+end)
+
+-- ── paging chooses (portrait) ───────────────────────────────────────────────
+local function showWith(w, h)
+    local cfg
+    local scheduled = {}
+    package.loaded["device"] = { screen = { getWidth = function() return w end,
+                                            getHeight = function() return h end } }
+    package.loaded["ui/uimanager"] = {
+        show = function() end, close = function() end, setDirty = function() end,
+        scheduleIn = function(_s, _d, fn) scheduled[#scheduled + 1] = fn end,
+        unschedule = function(_s, fn)
+            for i = #scheduled, 1, -1 do if scheduled[i] == fn then table.remove(scheduled, i) end end
+        end,
+    }
+    package.loaded["lib/bookshelf_library_modal"] = {
+        rowsForShare = function() return 4 end,
+        new = function(_s, o) cfg = o.config
+            return { refresh = function() end } end,
+    }
+    WB.show("wallpaper_default")
+    return cfg, scheduled
+end
+local function run(list) local l = {}; for i, f in ipairs(list) do l[i] = f end
+    for i = #list, 1, -1 do list[i] = nil end
+    for _i, f in ipairs(l) do f() end end
+
+t.test("portrait: the page left on screen becomes the wallpaper, once paging stops", function()
+    store = {}; chosen = {}
+    local cfg, scheduled = showWith(600, 800)
+    cfg.on_page_shown(2)
+    eq(#scheduled, 1, "the choice should wait for the page to settle")
+    eq(store["wallpaper_default"], nil, "chosen before the page settled")
+    run(scheduled)
+    eq(store["wallpaper_default"], "theme-pack\1Japan\1wallpaper.png")
+end)
+
+t.test("flicking through chooses only the page landed on", function()
+    store = {}; chosen = {}
+    local cfg, scheduled = showWith(600, 800)
+    cfg.on_page_shown(2); cfg.on_page_shown(1)
+    eq(#scheduled, 1, "each page turn should replace the pending choice")
+    run(scheduled)
+    eq(store["wallpaper_default"], "leaves.png")
+end)
+
+t.test("closing while a page settles chooses nothing", function()
+    store = {}; chosen = {}
+    local cfg, scheduled = showWith(600, 800)
+    cfg.on_page_shown(2)
+    cfg.on_closed()
+    eq(#scheduled, 0, "the pending choice survived the close")
+end)
+
+t.test("landscape (several a page): paging chooses nothing, a tap does", function()
+    store = {}; chosen = {}
+    local cfg, scheduled = showWith(800, 600)
+    cfg.on_page_shown(2)
+    eq(#scheduled, 0)
 end)
 
 t.done()

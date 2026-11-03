@@ -1069,6 +1069,8 @@ function LibraryModal:_onChipTap(chip_key)
     self:_dismissKeyboard()
     self.active_chip = chip_key
     self.page = 1
+    -- A new list from its first page, not a page turn (on_page_shown).
+    self._page_shown = 1
     if self.config.on_chip_tap then self.config.on_chip_tap(chip_key) end
     self:refresh()
 end
@@ -1592,6 +1594,15 @@ function LibraryModal:refresh()
     -- content-derived size. setDirty(nil, ...) was triggering full-screen
     -- repaints that stacked ~1s each on e-ink.
     self:_dirty()
+    -- config.on_page_shown(page): a page other than the last one shown is on
+    -- screen, however it got there (arrows, swipe, go to page, keys). Not
+    -- for the page the modal opened on. After the paint is queued, so a
+    -- caller that does real work here does not hold the page back.
+    if self.config.on_page_shown and self.page ~= self._page_shown then
+        local first = (self._page_shown == nil)
+        self._page_shown = self.page
+        if not first then pcall(self.config.on_page_shown, self.page) end
+    end
 end
 
 -- _dirty(): repaint the modal and refresh only its own box. Naming the window

@@ -157,14 +157,9 @@ end
 local function renderCell(key, item, dimen)
     local Blitbuffer      = require("ffi/blitbuffer")
     local CenterContainer = require("ui/widget/container/centercontainer")
-    local Font            = require("ui/font")
     local FrameContainer  = require("ui/widget/container/framecontainer")
     local Geom            = require("ui/geometry")
-    local HorizontalGroup = require("ui/widget/horizontalgroup")
-    local HorizontalSpan  = require("ui/widget/horizontalspan")
     local ImageWidget     = require("ui/widget/imagewidget")
-    local LeftContainer   = require("ui/widget/container/leftcontainer")
-    local Marks           = require("lib/bookshelf_marks")
     local Size            = require("ui/size")
     local Space           = require("lib/bookshelf_space")
     local TextWidget      = require("lib/bookshelf_colour_text")
@@ -177,19 +172,20 @@ local function renderCell(key, item, dimen)
     local inner_w, inner_h = dimen.w - 2 * pad, dimen.h - 2 * pad
     local name = item.label
     if item.kind == "pack" then name = T(_("%1 pack"), item.label) end
-    -- The title row, aligned left as the plank picker's: the radio mark
-    -- (filled for the one in use) and the name. The same height on every
-    -- card, so the pictures above are all one size whichever is chosen.
-    local radio = Marks.Radio:new{ checked = WB.inUse(key, item) }
-    local gap = Space.padding.small
-    local name_w = inner_w - radio:getSize().w - gap
-    local row = HorizontalGroup:new{ align = "center", radio, HorizontalSpan:new{ width = gap },
-        TextWidget:new{ text = name, face = require("lib/bookshelf_fonts"):getFace("cfont", 15), bold = true, max_width = math.max(1, name_w) } }
-    local lines = LeftContainer:new{ dimen = Geom:new{ w = inner_w, h = row:getSize().h }, row }
-    local box_h = math.max(1, inner_h - lines:getSize().h - Space.padding.small)
+    -- The name, centred under the picture. No radio: in portrait the
+    -- picture on screen IS the choice (one a page, see show()); with several
+    -- a page (landscape) the one in use has the heavier frame below.
+    local text = TextWidget:new{ text = name, face = require("lib/bookshelf_fonts"):getFace("cfont", 15),
+                                 bold = true, max_width = math.max(1, inner_w) }
+    local label = CenterContainer:new{
+        dimen = Geom:new{ w = inner_w, h = text:getSize().h + Space.padding.small }, text }
+    local box_h = math.max(1, inner_h - label:getSize().h - Space.padding.small)
+    local several = WB.perPage() > 1
+    local in_use = several and WB.inUse(key, item)
+    local border = in_use and Size.border.thick or Size.border.thin
     -- The screen in miniature: a frame of the screen's shape, the picture in
     -- it as the current Scaling lays it (the margins of Fit show white).
-    local fw, fh = WB.screenFrame(inner_w - 2 * Size.border.thin, box_h - 2 * Size.border.thin)
+    local fw, fh = WB.screenFrame(inner_w - 2 * border, box_h - 2 * border)
     local inside
     if item.path then
         local bb = preview(item.path, fw, fh, WP().fitMode())
@@ -200,17 +196,17 @@ local function renderCell(key, item, dimen)
     -- A picture that would not decode: the empty frame.
     inside = inside or CenterContainer:new{ dimen = Geom:new{ w = fw, h = fh }, VerticalSpan:new{ width = 1 } }
     local pic = FrameContainer:new{
-        bordersize = Size.border.thin, padding = 0, margin = 0,
+        bordersize = border, padding = 0, margin = 0,
         background = Blitbuffer.COLOR_WHITE,
         inside,
     }
     return require("lib/bookshelf_popup_kit").cardify(FrameContainer:new{
         bordersize = 0, radius = Kit.RADIUS, padding = pad, margin = 0,
         background = Blitbuffer.COLOR_WHITE,
-        VerticalGroup:new{ align = "left",
-            lines,
-            VerticalSpan:new{ width = Space.padding.small },
+        VerticalGroup:new{ align = "center",
             CenterContainer:new{ dimen = Geom:new{ w = inner_w, h = box_h }, pic },
+            VerticalSpan:new{ width = Space.padding.small },
+            label,
         },
     })
 end
@@ -262,6 +258,9 @@ end
 -- either side and below, where a tap can be seen at once.
 WB.GRID_SHARE = 0.55
 
+-- How long a page must stay on screen before its picture is used.
+WB.SETTLE_S = 0.6
+
 -- show(key, on_change, on_closed): the picker for that setting. on_change()
 -- runs after each choice, so the shelf behind can catch up; on_closed() once,
 -- however the picker closes (the caller brings its menu back).
@@ -303,6 +302,19 @@ function WB.show(key, on_change, on_closed)
         rows_per_page = function() return LibraryModal.rowsForShare(WB.GRID_SHARE) end,
         chip_strip = chips,
         on_chip_tap = function(k) self.chip = k; self.items = items() end,
+        -- One picture a page (portrait): the page on screen is the choice,
+        -- used once the pages stop turning, so flicking through decodes
+        -- only the picture landed on, not each one passed.
+        on_page_shown = function(page)
+            if WB.perPage() ~= 1 then return end
+            if self.settle then UIManager:unschedule(self.settle) end
+            self.settle = function()
+                self.settle = nil
+                local item = modal and self.items[page]
+                if item and not WB.inUse(key, item) then pick(item) end
+            end
+            UIManager:scheduleIn(WB.SETTLE_S, self.settle)
+        end,
         cell_renderer = function(item, dimen) return renderCell(key, item, dimen) end,
         -- A tap uses the picture at once, behind the picker, which stays open
         -- for the next (Close, or a tap outside it, when done).
@@ -313,6 +325,8 @@ function WB.show(key, on_change, on_closed)
         -- However it closes: one full refresh if the picture changed, to
         -- clear what the quick per-tap updates leave on e-ink.
         on_closed = function()
+            -- A page still settling when the picker closes is not chosen.
+            if self.settle then UIManager:unschedule(self.settle); self.settle = nil end
             if self.changed then UIManager:setDirty("all", "full") end
             if on_closed then pcall(on_closed) end
         end,

@@ -177,7 +177,18 @@ local function pickUnread()
     local statuses = readStatuses()
     local sources
     if readSource() == "all" then
-        sources = { { kind = "library" } } -- whole library, regardless of chip
+        -- Whole library, regardless of chip: the walked library plus every
+        -- registered source that counts as part of it (the spec's `library`
+        -- flag, once a shelf uses the source -- the Kindle library today),
+        -- the same set search covers.
+        sources = { { kind = "library" } }
+        local ok_s, Sources = pcall(require, "lib/bookshelf_sources")
+        local ok_t, tabs = pcall(TabModel.load)
+        if ok_s and Sources and Sources.libraryIds and ok_t and type(tabs) == "table" then
+            for _i, id in ipairs(Sources.libraryIds(tabs)) do
+                sources[#sources + 1] = { kind = id }
+            end
+        end
     else
         local chip = Store.read("active_chip") or "recent"
         sources = shelfSources(TabModel.getById(chip), chip, statuses)

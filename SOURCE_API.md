@@ -213,7 +213,7 @@ When the reader swipes down on your shelf, Bookshelf calls `refresh(source, dril
 | `sort_default` | list | `{ { key = "title", reverse = false } }`, the sort a new shelf starts with. |
 | `new_shelf(draft)` | both | Adjust a new shelf's defaults (a starting filter, say). |
 | `editor_rows(draft)` | fetch | Your own shelf-editor buttons in place of "Server order". See [Editor rows](#editor-rows-fetch-mode). |
-| `library` | list | `true` to count your books as part of the library for search and the finished-books tallies, once the reader has a shelf of your source. Off unless you set it. |
+| `library` | list | `true` to count your books as part of the library for search, the finished-books tallies and the Random book module's All books, once the reader has a shelf of your source. Off unless you set it. |
 | `cover(record)` | both | Return `bb, w, h`, a fresh blitbuffer for a record with no cover file. Called for the visible page only. The grid frees it after painting, so return a new one each call. |
 | `owns(book)` | both | `true` if a book is yours even without the `source_kind` stamp, for example after Bookshelf rebuilt it from its path. |
 | `invalidate(filepath)` | list | A file changed (or everything did, with `nil`): drop any cache. |

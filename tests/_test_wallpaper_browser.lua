@@ -199,7 +199,7 @@ t.test("landscape (several a page): paging chooses nothing, a tap does", functio
 end)
 
 
--- ── previews: decoded at their size, kept on disk ───────────────────────────
+-- ── previews: decoded at their size, kept in memory ─────────────────────────
 local function previewSetup(size)
     local decodes, disk = {}, {}
     local function bb(w, h)
@@ -251,15 +251,12 @@ t.test("Crop to fill decodes at the covering size from the file's header", funct
     eq(decodes[1].w, 711); eq(decodes[1].h, 400)
 end)
 
-t.test("a preview is kept on disk: the next session reads it, no decode", function()
+t.test("a preview is kept in memory only, never on disk", function()
     local decodes, disk = previewSetup({ 1440, 1920 })
     WB._preview("/w/a.png", 300, 400, "fit")
-    eq(#decodes, 1)
-    local n = 0; for _k in pairs(disk) do n = n + 1 end
-    eq(n, 1, "not stored on disk")
-    WB._previewReset()   -- a new session: memory gone, disk kept
     WB._preview("/w/a.png", 300, 400, "fit")
-    eq(#decodes, 1, "decoded again with the preview on disk")
+    eq(#decodes, 1, "decoded again while in memory")
+    eq(next(disk), nil, "a preview was written to disk")
 end)
 
 t.test("a different scaling or size is a different preview", function()

@@ -106,26 +106,6 @@ end
 -- so the cache never frees a preview still on screen.
 local _previews, _order = {}, {}
 local PREVIEW_KEEP = 8
--- diskKey(path, w, h, mode): the cover disk cache's key for one preview.
--- The file's mtime and size are in it, so an edited picture is a new one,
--- and the screen's buffer type, as the stored copy is in that type.
-local function diskKey(path, w, h, mode)
-    local ok, key = pcall(function()
-        local attr = require("libs/libkoreader-lfs").attributes(path)
-        if not (attr and attr.modification) then return nil end
-        local Screen = require("device").screen
-        local fbt = Screen and Screen.bb and Screen.bb.getType and Screen.bb:getType()
-        return string.format("wpreview:%s|%s|%s|%dx%d|%s|%s", path, tostring(attr.modification),
-            tostring(attr.size), w, h, mode or "stretch", tostring(fbt))
-    end)
-    return ok and key or nil
-end
-
-local function diskCache()
-    local ok, DC = pcall(require, "lib/bookshelf_cover_disk_cache")
-    return ok and DC or nil
-end
-
 -- decodePreview(path, w, h, mode) -> a w x h buffer: the picture as the
 -- shelf lays it on a screen this shape (w x h is the screen's shape, scaled
 -- down): stretched to it, or cropped or fitted by the same arithmetic the
@@ -169,20 +149,14 @@ local function decodePreview(path, w, h, mode)
     return WP().toScreenType(sc)
 end
 
--- preview(path, w, h, mode): from memory, else from the cover disk cache
--- (4 ms on a PW5, against up to a second to decode), else decoded and kept
--- in both.
+-- preview(path, w, h, mode): from memory (a few pages' worth), else
+-- decoded. Not kept on disk: the picker is opened rarely, and a later
+-- session's second look was the only view a disk copy made faster.
 local function preview(path, w, h, mode)
     local key = path .. "|" .. w .. "x" .. h .. "|" .. (mode or "stretch")
     if _previews[key] then return _previews[key] end
-    local dkey = diskKey(path, w, h, mode)
-    local dc = dkey and diskCache()
-    local sc = dc and dc.load(dkey)
-    if not sc then
-        sc = decodePreview(path, w, h, mode)
-        if not sc then return nil end
-        if dc then pcall(dc.store, dkey, sc) end
-    end
+    local sc = decodePreview(path, w, h, mode)
+    if not sc then return nil end
     _previews[key] = sc
     _order[#_order + 1] = key
     while #_order > PREVIEW_KEEP do

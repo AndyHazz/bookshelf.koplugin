@@ -21442,14 +21442,6 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
         if pages and pages > 0 then
             meta_parts[#meta_parts + 1] = T(_("%1 pages"), pages)
         end
-        -- The year %published shows (and the Edit tab's Publication date card
-        -- sets). Not known yet: nothing, and the file is queued to be read.
-        local ok_pub, pub_year = pcall(function()
-            return require("lib/bookshelf_published").forRecord(book)
-        end)
-        if ok_pub and type(pub_year) == "string" and pub_year ~= "" then
-            meta_parts[#meta_parts + 1] = T(_("Published %1"), pub_year)
-        end
         if added_str then meta_parts[#meta_parts + 1] = _("Added") .. " " .. added_str end
     else
         if added_str then meta_parts[#meta_parts + 1] = _("Added") .. " " .. added_str end
@@ -22945,9 +22937,10 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         UIManager:show(require("ui/widget/notification"):new{
             text = _("Metadata refresh queued"), timeout = 2 })
     end }
-    -- The reader's own publication date (%published, the Publication year
-    -- sort): wins over every source; empty goes back to the book's own.
-    local pubdate_btn = { text = _("Publication date\xE2\x80\xA6"), callback = function()
+    -- The reader's own publish date (%published, the Publication year sort):
+    -- wins over every source; empty goes back to the book's own. Opened from
+    -- the Publish date row below the actions.
+    local pubdate_btn = { callback = function()
         local Published = require("lib/bookshelf_published")
         local InputDialog = require("ui/widget/inputdialog")
         local dlg
@@ -22962,9 +22955,10 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             require("lib/bookshelf_sort_engine").clearPublishedMemo()
             Repo.invalidateBookCache("publication-date")
             bw:_rebuild(); UIManager:setDirty(bw, "ui")
+            if modal and modal.rebuildTab then modal:rebuildTab() end
         end
         dlg = InputDialog:new{
-            title       = _("Publication date"),
+            title       = _("Publish date"),
             input       = Published.userDate(book.filepath) or "",
             input_hint  = Published.forRecord(book) ~= "" and Published.forRecord(book) or "1897",
             description = _("A year, or year-month-day. Leave it empty to use the book's own date."),
@@ -23043,10 +23037,6 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         tile_specs[#tile_specs + 1] = { id = "delete", text = _("Delete"), icon = "\xEE\xA2\xBF", -- delete
             callback = delete_btn.callback }
     end
-    -- Newest last (6.3.2), after Delete, so the cards readers know keep
-    -- their places.
-    tile_specs[#tile_specs + 1] = { id = "pubdate", text = pubdate_btn.text, icon = "\xEE\x9F\xAC", -- calendar
-        callback = pubdate_btn.callback }
 
     -- Third-party actions join the grid after ours, as cards with the Action
     -- card's puzzle icon (they bring no icon of their own).
@@ -23452,7 +23442,42 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             return only, only_focus
         end
 
-        -- 4. Hardcover link (brand name -> heading not translated). Edition text
+        -- 4. Publish date: the date %published and the Publication year sort
+        -- use, with where it came from, so a date the book's file gives (often
+        -- the ebook's own release, not the work's) reads as that. Edit sets the
+        -- reader's own.
+        do
+            local Published = require("lib/bookshelf_published")
+            local date, src = Published.info(book)
+            local text
+            if date then
+                local y, m, d = date:match("^(%d%d%d%d)%-?(%d*)%-?(%d*)$")
+                m, d = tonumber(m), tonumber(d)
+                -- Only the month's name from the system, at a safe year: a
+                -- Kindle's time_t ends at 1901, before most books' dates.
+                local mon = m and m >= 1 and m <= 12
+                    and os.date("%b", os.time{ year = 2000, month = m, day = 1, hour = 12 })
+                if y and mon and d then text = string.format("%02d %s %s", d, mon, y)
+                elseif y and mon then text = mon .. " " .. y
+                else text = y or date end
+                local from = ({
+                    user      = _("set by you"),
+                    hardcover = _("from Hardcover"),
+                    calibre   = _("from calibre"),
+                    catalog   = _("from the catalog"),
+                    file      = _("from the book's file"),
+                })[src]
+                if from then text = text .. " \xC2\xB7 " .. from end
+            elseif src == "pending" then
+                text = _("Not read from the book yet")
+            else
+                text = _("None in the book's file")
+            end
+            vg[#vg + 1] = heading(_("Publish date"))
+            vg[#vg + 1] = infoRow(text, _("Edit"), pubdate_btn.callback)
+        end
+
+        -- 5. Hardcover link (brand name -> heading not translated). Edition text
         -- + inline Edit/Link button, below File & metadata. (Collections live on
         -- the Tags tab, which has its own per-collection pills + Edit affordance
         -- -- no need to duplicate the same membership here in a second style.)

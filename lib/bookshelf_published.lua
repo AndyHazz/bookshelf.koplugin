@@ -194,29 +194,37 @@ local function stored(fp)
     return F.get(fp)
 end
 
--- forRecord(book) -> "YYYY" | ""
--- In order: the reader's own date; Hardcover's first-published year (set on
--- the record by Use Hardcover metadata); calibre's; an OPDS catalogue's; the
--- one read from the book's file, read in the background the first time.
-function M.forRecord(b)
-    if type(b) ~= "table" then return "" end
+-- info(book) -> date, source
+-- The date %published and the Publication year sort use, as stored (a year,
+-- year-month or year-month-day), and where it came from, in the order they
+-- win: "user" (the reader's own), "hardcover" (Use Hardcover metadata: the
+-- work's first-published year), "calibre", "catalog" (an OPDS catalogue's),
+-- "file" (read from the book; read in the background the first time). With
+-- no date: nil and "none" (the file was read and has none) or "pending" (not
+-- read yet, and now queued; or a format with no reader).
+function M.info(b)
+    if type(b) ~= "table" then return nil, "none" end
     local P = pubdate()
     local fp = localPath(b)
     local e = fp and stored(fp)
-    if e and e.pdm == M.USER_MTIME and e.pd then return P.year(e.pd) or "" end
-    local y = P.year(b.hardcover_published)
-    if y then return y end
+    if e and e.pdm == M.USER_MTIME and e.pd and e.pd ~= "" then return e.pd, "user" end
+    if P.year(b.hardcover_published) then return P.parseDate(b.hardcover_published), "hardcover" end
     local cal = b.calibre
-    if type(cal) == "table" then
-        y = P.year(cal.pubdate)
-        if y then return y end
+    if type(cal) == "table" and P.year(cal.pubdate) then return P.parseDate(cal.pubdate), "calibre" end
+    if P.year(b.published) then return P.parseDate(b.published), "catalog" end
+    if not fp then return nil, "none" end
+    if e and e.pd ~= nil then
+        if e.pd ~= "" then return e.pd, "file" end
+        return nil, "none"
     end
-    y = P.year(b.published)
-    if y then return y end
-    if not fp then return "" end
-    if e and e.pd ~= nil then return P.year(e.pd) or "" end
-    if P.handles(fp) then M.enqueue(fp) end
-    return ""
+    if P.handles(fp) then M.enqueue(fp) return nil, "pending" end
+    return nil, "none"
+end
+
+-- forRecord(book) -> "YYYY" | ""
+function M.forRecord(b)
+    local date = M.info(b)
+    return pubdate().year(date) or ""
 end
 
 -- userDate(fp) -> the date the reader set, or nil.

@@ -11,6 +11,11 @@
 --                                 laid out afresh on every refresh()
 --     footer = { { text, callback, enabled_func, primary } ... } (optional)
 --     on_close = function()       the X, a tap outside, Back (after closing)
+--     on_back = function()        a page inside a menu (STYLE.md, Pages): a back
+--                                 chevron and "Back" at the left of the title,
+--                                 and the Back key goes back too; closes the
+--                                 dialog, then on_back (which opens the
+--                                 page it came from). The X still leaves.
 --     on_tap_outside = function() a tap outside goes here instead of on_close,
 --                                 and it closes the dialog (a slider: Done)
 --     dismissable = false         a tap outside does nothing (a nudge: rapid
@@ -40,6 +45,7 @@ local PageDialog = InputContainer:extend{
     page     = nil,
     footer   = nil,
     on_close = nil,
+    on_back  = nil,
     dismissable = true,
     anchor   = nil,
     at_bottom = nil,
@@ -135,9 +141,12 @@ function PageDialog:_build()
         width = self.width, title = self:_titleText(),
         with_bottom_line = true, bottom_v_padding = 0,
         close_callback = function() self:_dismiss() end,
+        left_icon = self.on_back and "chevron.left" or nil,
+        left_icon_tap_callback = self.on_back and function() self:_back() end or nil,
         show_parent = self,
     }
     require("lib/bookshelf_popup_kit").centreTitle(title_bar)
+    if self.on_back then require("lib/bookshelf_popup_kit").backLabel(title_bar) end
     local footer, footer_btns
     if self.footer and #self.footer > 0 then
         footer, footer_btns = self:_footerRow(self.width)
@@ -227,8 +236,15 @@ function PageDialog:onTapClose(_arg, ges)
     return true
 end
 
+-- _back(): close, then the page it came from (on_back).
+function PageDialog:_back()
+    UIManager:close(self)
+    self.on_back()
+end
+
+-- The Back key: back a page when there is one, else as the X.
 function PageDialog:onClose()
-    self:_dismiss()
+    if self.on_back then self:_back() else self:_dismiss() end
     return true
 end
 

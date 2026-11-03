@@ -19,6 +19,9 @@
 --             allow_none (a tap on the active one un-picks it): label at the
 --             left, the control at the right (full width with no label)
 --   stepper   label, value (text), on_dec, on_inc: label, then  -  value  +
+--             big, on_big_dec, on_big_inc (optional): "-N" "+N" grey cards
+--             outside them, as the slider's big step (a margin, an offset:
+--             a number with no range for a slider)
 --   slider    label (optional), value, min, max, step, default, format(v),
 --             on_change(v), big, big_label: the label and the value, then
 --             -  track  +  (-10 and +10 cards with big), with
@@ -319,8 +322,25 @@ function R.stepper(ctx, b)
     local plus = ctx:nudgeCard(Kit.PLUS, b.on_inc, h)
     local value = CenterContainer:new{ dimen = Geom:new{ w = Space.px(84), h = h },
         ctx:text(b.value, { bold = true }) }
-    ctx.layout[#ctx.layout + 1] = { minus, plus }
-    local ctl = HorizontalGroup:new{ align = "center", minus, value, plus }
+    if not b.big then
+        ctx.layout[#ctx.layout + 1] = { minus, plus }
+        local ctl = HorizontalGroup:new{ align = "center", minus, value, plus }
+        return labelled(ctx, b.label, ctl)
+    end
+    -- The big step outside, labelled with it ("-10" "+10"), as the slider's.
+    local label = tostring(b.big)
+    local glyph_face = Font:getFace("symbols", math.max(10, ctx.fs - 4))
+    local function bigCard(glyph, callback)
+        return Kit.button{ text = label, face = ctx.small, icon_glyph = glyph,
+            icon_face = glyph_face, gap = Space.px(2), pad_h = Space.px(8), card = true,
+            height = h, instant = true, on_tap = callback }
+    end
+    local big_minus = bigCard(Kit.MINUS, b.on_big_dec)
+    local big_plus = bigCard(Kit.PLUS, b.on_big_inc)
+    local gap = function() return HorizontalSpan:new{ width = Space.px(6) } end
+    ctx.layout[#ctx.layout + 1] = { big_minus, minus, plus, big_plus }
+    local ctl = HorizontalGroup:new{ align = "center",
+        big_minus, gap(), minus, value, plus, gap(), big_plus }
     return labelled(ctx, b.label, ctl)
 end
 

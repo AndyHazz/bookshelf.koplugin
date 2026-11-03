@@ -23248,6 +23248,8 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         focus_tables[#focus_tables + 1] = focusRow({ your_stars })
 
         local ratings_widget = your_group
+        -- Hardcover's stars and its number, for the three-column layout.
+        local hc_parts
         if hc_rating then
             -- The Hardcover stars tap through to the Reviews tab when present.
             local reviews_idx
@@ -23304,6 +23306,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             -- publish date's.
             ratings_widget = VerticalGroup:new{ align = "left",
                 your_group, VerticalSpan:new{ width = Space.px(8) }, hc_group }
+            hc_parts = { stars = hc_stars_widget, num = string.format("%.1f", hc_rating) }
         end
 
         -- The publish date beside the ratings: the date, where it came from,
@@ -23350,13 +23353,13 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             return m
         end
         local body_face = BFont:getFace("cfont", font_size)
-        -- The date and its source on the left of the column, Edit flush
-        -- right beside them (in line with the actions' right edge).
         local btn_gap = Space.px(10)
-        local text_w = right_w - edit_btn:getSize().w - btn_gap
-        local need_w = widest({ pub_date_str, pub_from or "" }, body_face) * 0.6
-        if text_w >= need_w and ratings_widget:getSize().w + col_gap <= left_w then
-            pub_below = false
+        -- pubColumn(w) -> the publish date's column w wide: its heading, the
+        -- date and its source, Edit flush right beside them (in line with the
+        -- actions' right edge); nil when w is too narrow for them.
+        local function pubColumn(w, drop)
+            local text_w = w - edit_btn:getSize().w - btn_gap
+            if text_w < widest({ pub_date_str, pub_from or "" }, body_face) * 0.6 then return nil end
             local lines = VerticalGroup:new{ align = "left",
                 TextBoxWidget:new{ text = pub_date_str, face = body_face, width = text_w },
             }
@@ -23365,27 +23368,77 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                     face = BFont:getFace("cfont", math.max(10, font_size - 3)),
                     fgcolor = Blitbuffer.COLOR_DARK_GRAY, width = text_w }
             end
-            local right = VerticalGroup:new{ align = "left",
-                colHeading(_("Publish date"), right_w),
-                HorizontalGroup:new{ align = "top",
-                    lines, HorizontalSpan:new{ width = btn_gap }, edit_btn },
-            }
-            -- "Your rating" is centred on its stars, which stand taller than
-            -- the text: lift the column by the difference, so its words sit as
-            -- far under RATINGS as the date does under PUBLISH DATE.
-            -- The gap is only so deep: what it cannot take, the date column
-            -- drops by instead.
-            local lift = math.floor((your_group:getSize().h - lbl(_("Your rating")):getSize().h) / 2)
-            local short = math.max(0, lift - Space.px(10))
-            if short > 0 then table.insert(right, 2, VerticalSpan:new{ width = short }) end
-            local left = VerticalGroup:new{ align = "left",
-                colHeading(_("Ratings"), left_w, lift), ratings_widget }
-            vg[#vg + 1] = padded(HorizontalGroup:new{ align = "top",
-                left, HorizontalSpan:new{ width = left_w - left:getSize().w }, right }, 0, 0)
+            local col = VerticalGroup:new{ align = "left", colHeading(_("Publish date"), w) }
+            if drop and drop > 0 then col[#col + 1] = VerticalSpan:new{ width = drop } end
+            col[#col + 1] = HorizontalGroup:new{ align = "top",
+                lines, HorizontalSpan:new{ width = btn_gap }, edit_btn }
+            return col
+        end
+        local function row(cols, widths)
+            local hg = HorizontalGroup:new{ align = "top" }
+            for i, c in ipairs(cols) do
+                hg[#hg + 1] = c
+                if i < #cols then
+                    hg[#hg + 1] = HorizontalSpan:new{ width = math.max(0, widths[i] - c:getSize().w) }
+                end
+            end
+            return hg
+        end
+
+        -- 1. Three columns on the status control's quarters: Your rating over
+        -- Unopened, Hardcover over Reading, the publish date over On hold and
+        -- Finished; each heading with its stars right under it. No Hardcover
+        -- rating: yours takes the first half. Stars wider than a quarter (a
+        -- smaller screen, a big zoom) go on to 2.
+        local quarter = math.floor(avail / 4)
+        local your_row = HorizontalGroup:new{ align = "center" }
+        for _i, st in ipairs(your_stars) do your_row[#your_row + 1] = st end
+        -- Hardcover's number goes in its heading (HARDCOVER · 4.2), so its
+        -- column holds only the stars, as wide as yours.
+        local hc_row
+        if hc_parts then
+            hc_row = HorizontalGroup:new{ align = "center", hc_parts.stars }
+        end
+        local your_w = hc_row and quarter or 2 * quarter
+        local pub3 = (your_row:getSize().w + col_gap <= your_w)
+            and (not hc_row or hc_row:getSize().w + col_gap <= quarter)
+            and pubColumn(avail - 2 * quarter)
+        if pub3 then
+            pub_below = false
+            local cols = { VerticalGroup:new{ align = "left",
+                colHeading(_("Your rating"), your_w - col_gap), your_row } }
+            local widths = { your_w }
+            if hc_row then
+                cols[#cols + 1] = VerticalGroup:new{ align = "left",
+                    colHeading(_("Hardcover") .. " \xC2\xB7 " .. hc_parts.num, quarter - col_gap), hc_row }
+                widths[#widths + 1] = quarter
+            end
+            cols[#cols + 1] = pub3
+            vg[#vg + 1] = padded(row(cols, widths), 0, 0)
             focus_tables[#focus_tables + 1] = focusRow({ { edit_btn } })
         else
-            vg[#vg + 1] = heading(_("Ratings"))
-            vg[#vg + 1] = padded(ratings_widget, 0, 0)
+            -- 2. Two columns: the ratings with their labels, Hardcover's under
+            -- yours, and the date half way across (On hold), or where the
+            -- ratings end if they are wider than half.
+            -- "Your rating" is centred on its stars, which stand taller than
+            -- the text: the gap under RATINGS gives up the difference, so its
+            -- words sit as far under it as the date does under PUBLISH DATE;
+            -- what the gap cannot give, the date's column drops by.
+            local lift = math.floor((your_group:getSize().h - lbl(_("Your rating")):getSize().h) / 2)
+            local right = (ratings_widget:getSize().w + col_gap <= left_w)
+                and pubColumn(right_w, math.max(0, lift - Space.px(10)))
+            if right then
+                pub_below = false
+                local left = VerticalGroup:new{ align = "left",
+                    colHeading(_("Ratings"), left_w, lift), ratings_widget }
+                vg[#vg + 1] = padded(row({ left, right }, { left_w }), 0, 0)
+                focus_tables[#focus_tables + 1] = focusRow({ { edit_btn } })
+            else
+                -- 3. Stacked: the ratings here, the date in its own row below
+                -- the actions.
+                vg[#vg + 1] = heading(_("Ratings"))
+                vg[#vg + 1] = padded(ratings_widget, 0, 0)
+            end
         end
 
         -- An info row styled like a File-&-metadata button row: the value on the

@@ -149,6 +149,27 @@ local function isMissing(v)
     return v == nil or v == ""
 end
 
+-- publishedOf(item) -> the publication year the Published sort orders by,
+-- or nil: the same year %published shows (lib/bookshelf_published: calibre,
+-- an OPDS catalogue's date, else the date read from the book's file). A book
+-- not read yet answers nil now and is queued for the background read, which
+-- clears this memo when it brings dates (clearPublishedMemo) so the shelf
+-- can sort again. Memoised per record: the comparator runs n log n times.
+local _pub_memo = setmetatable({}, { __mode = "k" })
+function SortEngine.clearPublishedMemo() _pub_memo = setmetatable({}, { __mode = "k" }) end
+
+function SortEngine.publishedOf(item)
+    if type(item) ~= "table" then return nil end
+    local m = _pub_memo[item]
+    if m == nil then
+        local ok, P = pcall(require, "lib/bookshelf_published")
+        local y = ok and P and P.forRecord and P.forRecord(item) or nil
+        m = tonumber(y) or false
+        _pub_memo[item] = m
+    end
+    return m or nil
+end
+
 -- pageCountOf(item) -> the count the Pages sort orders by.
 --
 -- Reddit report: "I'd like to have a chip that sorts books by length, but it
@@ -706,6 +727,12 @@ SortEngine.KEYS = {
                             return cmp(SortEngine.pageCountOf(a),
                                        SortEngine.pageCountOf(b))
                         end },
+    -- Issue 580: the year %published shows. Groups have no year of their own
+    -- (nil ties them, so the next level decides).
+    published       = { label = tr("Publication year"), short = tr("Published"),
+                        comparator = function(a, b)
+                            return cmp(SortEngine.publishedOf(a), SortEngine.publishedOf(b))
+                        end },
     -- Book record: a.collection_order (the `order` KOReader stores per item in
     -- a collection; the repository's collection source copies it onto the
     -- record). Meaningful only on a collection source -- everywhere else every
@@ -734,7 +761,7 @@ SortEngine.ORDER = {
     "last_opened", "date_added", "added_or_opened",
     "percent_read", "rating",
     "read_status", "read_status_active", "favorites_first",
-    "size", "page_count", "book_count",
+    "size", "page_count", "book_count", "published",
 }
 
 -- chainedComparator(priority): builds a single Lua-table-sort comparator from

@@ -25223,8 +25223,35 @@ end
 -- background read (lib/bookshelf_published). Only the ones on this page
 -- repaint, each in place; a page where most of them did is rebuilt once
 -- instead, which costs less than a swap per row.
+-- _sortsByPublished() -> does the shelf on screen order by publication year
+-- at any level (issue 580)? Then dates arriving from the background read
+-- move books, not just their labels.
+function BookshelfWidget:_sortsByPublished()
+    local tab = require("lib/bookshelf_tab_model").getById(self.chip)
+    for _i, lv in ipairs(tab and tab.sort_priority or {}) do
+        if lv.key == "published" then return true end
+    end
+    return false
+end
+
 function BookshelfWidget:_refreshPublished(fps)
     if self._closed or not (self._inner_vgroup and self._shelf_dims) then return end
+    -- Sorted by year: re-sort once the reads go quiet, not after every
+    -- batch of forty (a big shelf read for the first time is many batches).
+    -- The cached, sorted lists hold the old order, so they go too.
+    if self:_sortsByPublished() then
+        if self._published_resort then UIManager:unschedule(self._published_resort) end
+        self._published_resort = function()
+            self._published_resort = nil
+            if self._closed then return end
+            Repo.invalidateBookCache("published")
+            if self._spine_fetch_cache then self._spine_fetch_cache.at = 0 end
+            self:_rebuild()
+            UIManager:setDirty(self, "ui")
+        end
+        UIManager:scheduleIn(3, self._published_resort)
+        return
+    end
     local wanted = {}
     for _i, fp in ipairs(fps or {}) do wanted[fp] = true end
     local on_page = {}

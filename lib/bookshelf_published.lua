@@ -122,6 +122,10 @@ local function finish(res)
         if r.date ~= "" then filled[#filled + 1] = fp end
     end
     if F and next(res) and F.flushSoon then F.flushSoon() end
+    -- The Published sort remembers each record's year; new dates void that.
+    if #filled > 0 then
+        pcall(function() require("lib/bookshelf_sort_engine").clearPublishedMemo() end)
+    end
     if #filled > 0 and M.on_filled then
         pcall(M.on_filled, filled)
     end

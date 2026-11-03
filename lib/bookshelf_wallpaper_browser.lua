@@ -172,20 +172,19 @@ local function renderCell(key, item, dimen)
     local inner_w, inner_h = dimen.w - 2 * pad, dimen.h - 2 * pad
     local name = item.label
     if item.kind == "pack" then name = T(_("%1 pack"), item.label) end
-    -- The name, centred under the picture. No radio: in portrait the
-    -- picture on screen IS the choice (one a page, see show()); with several
-    -- a page (landscape) the one in use has the card's outline below.
-    local text = TextWidget:new{ text = name, face = require("lib/bookshelf_fonts"):getFace("cfont", 15),
-                                 bold = true, max_width = math.max(1, inner_w) }
-    local label = CenterContainer:new{
-        dimen = Geom:new{ w = inner_w, h = text:getSize().h + Space.padding.small }, text }
-    local box_h = math.max(1, inner_h - label:getSize().h - Space.padding.small)
     -- With several a page (landscape) the one in use has the card's heavy
     -- outline (STYLE.md: black would hide the picture), painted over the
     -- card's edge, so every card and picture stays the same size.
     local several = WB.perPage() > 1
     local in_use = several and WB.inUse(key, item)
     local border = Size.border.thin
+    -- The name, centred under the picture. No radio: in portrait the
+    -- picture on screen IS the choice (one a page, see show()); with several
+    -- a page (landscape) the one in use has the card's outline.
+    local face = require("lib/bookshelf_fonts"):getFace("cfont", 15)
+    local text = TextWidget:new{ text = name, face = face, bold = true, max_width = math.max(1, inner_w) }
+    local label_h = text:getSize().h + Space.padding.small
+    local box_h = math.max(1, inner_h - label_h - Space.padding.small)
     -- The screen in miniature: a frame of the screen's shape, the picture in
     -- it as the current Scaling lays it (the margins of Fit show white).
     local fw, fh = WB.screenFrame(inner_w - 2 * border, box_h - 2 * border)
@@ -203,15 +202,22 @@ local function renderCell(key, item, dimen)
         background = Blitbuffer.COLOR_WHITE,
         inside,
     }
-    return Kit.cardify(FrameContainer:new{
+    -- The card hugs the frame and the name, centred in its slot: spare card
+    -- round the frame read as the margins of Fit (maintainer, 2026-11-03),
+    -- so the only bands to be seen are the ones the scaling makes.
+    local frame_w = fw + 2 * border
+    local label = CenterContainer:new{ dimen = Geom:new{ w = frame_w, h = label_h },
+        TextWidget:new{ text = name, face = face, bold = true, max_width = math.max(1, frame_w) } }
+    local card = Kit.cardify(FrameContainer:new{
         bordersize = 0, radius = Kit.RADIUS, padding = pad, margin = 0,
         background = Blitbuffer.COLOR_WHITE,
         VerticalGroup:new{ align = "center",
-            CenterContainer:new{ dimen = Geom:new{ w = inner_w, h = box_h }, pic },
+            pic,
             VerticalSpan:new{ width = Space.padding.small },
             label,
         },
     }, { outline = in_use })
+    return CenterContainer:new{ dimen = Geom:new{ w = dimen.w, h = dimen.h }, card }
 end
 
 -- NONE, SAME: the two choices that are not a picture, as the footer's

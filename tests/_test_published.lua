@@ -220,8 +220,22 @@ t.test("wiring: the Publish date button opens a date picker that sets the reader
     assert(not cb:find("InputDialog", 1, true), "free text is back")
     assert(cb:find('string.format("%04d-%02d-%02d", t.year, t.month, t.day)', 1, true), "the picked date is not stored")
     assert(cb:find("Published.setUserDate(book.filepath, nil)", 1, true), "no way back to the book's own date")
+    assert(cb:find([[T(_("Use the book's date (%1)"), BookshelfWidget._fmtPubDate(own))]], 1, true),
+        "the way back does not name the book's date")
+    assert(cb:find("Published.info(book, { ignore_user = true })", 1, true), "the book's date includes the reader's")
     assert(cb:find('require("lib/bookshelf_sort_engine").clearPublishedMemo()', 1, true),
         "a corrected date would not re-sort")
+end)
+
+t.test("the book menu's date format: day, month, year as stored, any year", function()
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    local body = w:match("\nfunction BookshelfWidget%._fmtPubDate%(date%)\n(.-)\nend\n")
+    assert(body, "_fmtPubDate moved")
+    local fmt = assert((loadstring or load)("return function(date)\n" .. body .. "\nend"))()
+    eq(fmt("2016-02-18"), "18 Feb 2016")
+    eq(fmt("1869-03"), "Mar 1869")
+    eq(fmt("1897"), "1897")
+    eq(fmt("1066-10-14"), "14 Oct 1066", "a date before 1901 must not touch time_t")
 end)
 
 t.test("wiring: a long-press on your stars clears the rating, after asking", function()
@@ -251,6 +265,17 @@ t.test("info: the full date and where it came from", function()
     Published.setUserDate("/b/f.epub", "1889-05-01")
     d, src = Published.info({ filepath = "/b/f.epub" })
     eq(d, "1889-05-01"); eq(src, "user")
+end)
+
+t.test("info: the book's own date, leaving the reader's aside", function()
+    reset()
+    rows["/b/f.epub"] = { pd = "2016-02-18", pdm = 3 }
+    Published.setUserDate("/b/f.epub", "1889-05-01")
+    local d, src = Published.info({ filepath = "/b/f.epub" }, { ignore_user = true })
+    eq(d, nil, "the reader's date replaced the stored one, so the file's must be read again")
+    eq(src, "pending")
+    d, src = Published.info({ filepath = "/b/f.epub", calibre = { pubdate = "1889" } }, { ignore_user = true })
+    eq(d, "1889"); eq(src, "calibre")
 end)
 
 t.test("info: none in the file, or not read yet", function()

@@ -22755,6 +22755,21 @@ end
 -- Reset, Delete, Refresh, Link Hardcover, Select) close the popup first.
 -- All text (buttons, headings, stars) scales with the modal's +/- font size.
 -- Hardcover reviews aren't here -- they're the Reviews tab.
+-- _fmtPubDate(date) -> a stored publish date as the book menu shows it:
+-- 18 Feb 2016, Feb 2016 or 2016 (year-month-day, year-month, year). Only
+-- the month's name comes from the system, at a safe year: a Kindle's time_t
+-- starts in 1901, after most books' dates.
+function BookshelfWidget._fmtPubDate(date)
+    local y, m, d = tostring(date or ""):match("^(%d%d%d%d)%-?(%d*)%-?(%d*)$")
+    if not y then return date end
+    m, d = tonumber(m), tonumber(d)
+    local mon = m and m >= 1 and m <= 12
+        and os.date("%b", os.time{ year = 2000, month = m, day = 1, hour = 12 })
+    if mon and d then return string.format("%02d %s %s", d, mon, y) end
+    if mon then return mon .. " " .. y end
+    return y
+end
+
 function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     local bw = self
     local ScrollableContainer = require("ui/widget/container/scrollablecontainer")
@@ -22956,6 +22971,22 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         local y, m, d = tostring(cur or ""):match("^(%d%d%d%d)%-?(%d*)%-?(%d*)$")
         local now = os.date("*t")
         local user_set = Published.userDate(book.filepath) ~= nil
+        -- The way back names where it goes: the book's own date, which,
+        -- with the reader's set, is read from the file now (one file, on
+        -- this tap; the reader's date was stored in its place).
+        local back_text
+        if user_set then
+            local own = Published.info(book, { ignore_user = true })
+            if not own then
+                local ok_r, read = pcall(function()
+                    local P = require("lib/bookshelf_pubdate")
+                    return P.read(book.filepath)
+                end)
+                own = ok_r and read or nil
+            end
+            back_text = own and T(_("Use the book's date (%1)"), BookshelfWidget._fmtPubDate(own))
+                or _("Use the book's date (none)")
+        end
         local DateTimeWidget = require("ui/widget/datetimewidget")
         local picker
         picker = DateTimeWidget:new{
@@ -22963,7 +22994,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             month = tonumber(m) or 1, day = tonumber(d) or 1,
             title_text = _("Publish date"),
             ok_text = _("Set date"),
-            extra_text = user_set and _("Use the book's date") or nil,
+            extra_text = back_text,
             extra_callback = user_set and function()
                 Published.setUserDate(book.filepath, nil)
                 UIManager:close(picker)
@@ -23122,16 +23153,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             if src == "pending" then return _("Checking the file\xE2\x80\xA6"), nil, false, src end
             return _("None in the file"), nil, false, src
         end
-        local y, m, d = date:match("^(%d%d%d%d)%-?(%d*)%-?(%d*)$")
-        m, d = tonumber(m), tonumber(d)
-        -- Only the month's name from the system, at a safe year: a Kindle's
-        -- time_t starts in 1901, after most books' dates.
-        local mon = m and m >= 1 and m <= 12
-            and os.date("%b", os.time{ year = 2000, month = m, day = 1, hour = 12 })
-        local text
-        if y and mon and d then text = string.format("%02d %s %s", d, mon, y)
-        elseif y and mon then text = mon .. " " .. y
-        else text = y or date end
+        local text = BookshelfWidget._fmtPubDate(date)
         return text, ({
             user      = _("set by you"),
             hardcover = _("from Hardcover"),

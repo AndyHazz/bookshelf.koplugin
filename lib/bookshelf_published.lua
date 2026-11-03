@@ -202,12 +202,18 @@ end
 -- "file" (read from the book; read in the background the first time). With
 -- no date: nil and "none" (the file was read and has none) or "pending" (not
 -- read yet, and now queued; or a format with no reader).
-function M.info(b)
+-- opts.ignore_user: the book's own date, the reader's left aside. The
+-- reader's date is stored in place of the file's, so with one set the file's
+-- is not known: nil, "pending", and nothing queued (the background read
+-- would not replace the reader's date anyway); the caller reads the file.
+function M.info(b, opts)
     if type(b) ~= "table" then return nil, "none" end
     local P = pubdate()
     local fp = localPath(b)
     local e = fp and stored(fp)
-    if e and e.pdm == M.USER_MTIME and e.pd and e.pd ~= "" then return e.pd, "user" end
+    local user = e and e.pdm == M.USER_MTIME
+    if user and not (opts and opts.ignore_user) and e.pd and e.pd ~= "" then return e.pd, "user" end
+    if user then e = nil end
     if P.year(b.hardcover_published) then return P.parseDate(b.hardcover_published), "hardcover" end
     local cal = b.calibre
     if type(cal) == "table" and P.year(cal.pubdate) then return P.parseDate(cal.pubdate), "calibre" end
@@ -217,6 +223,7 @@ function M.info(b)
         if e.pd ~= "" then return e.pd, "file" end
         return nil, "none"
     end
+    if user then return nil, "pending" end
     if P.handles(fp) then M.enqueue(fp) return nil, "pending" end
     return nil, "none"
 end

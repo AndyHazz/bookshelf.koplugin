@@ -106,17 +106,32 @@ end
 -- so the cache never frees a preview still on screen.
 local _previews, _order = {}, {}
 local PREVIEW_KEEP = 8
-local function preview(path, w, h)
-    local key = path .. "|" .. w .. "x" .. h
+local function preview(path, w, h, mode)
+    local key = path .. "|" .. w .. "x" .. h .. "|" .. (mode or "stretch")
     if _previews[key] then return _previews[key] end
     local RenderImage = require("ui/renderimage")
     local ok, bb = pcall(function() return RenderImage:renderImageFile(path, false) end)
     if not ok or not bb then return nil end
+    -- The picture as the shelf will lay it on a screen this shape (w x h is
+    -- the screen's shape, scaled down): stretched to it, or cropped or fitted
+    -- by the same arithmetic the wallpaper itself uses (fitLayout).
     local iw, ih = bb:getWidth(), bb:getHeight()
-    local s = math.min(w / iw, h / ih)
-    local tw, th = math.max(1, math.floor(iw * s)), math.max(1, math.floor(ih * s))
-    local ok_s, sc = pcall(function() return RenderImage:scaleBlitBuffer(bb, tw, th) end)
+    local dw, dh, ox, oy = WP().fitLayout(iw, ih, w, h, mode)
+    if not dw then dw, dh, ox, oy = w, h, 0, 0 end
+    local ok_s, sc = pcall(function() return RenderImage:scaleBlitBuffer(bb, dw, dh) end)
     if not ok_s or not sc then return nil end
+    if dw ~= w or dh ~= h then
+        local Blitbuffer = require("ffi/blitbuffer")
+        local out = Blitbuffer.new(w, h, sc:getType())
+        out:fill(Blitbuffer.COLOR_WHITE)
+        if ox < 0 or oy < 0 then
+            out:blitFrom(sc, 0, 0, math.max(0, -ox), math.max(0, -oy), w, h)
+        else
+            out:blitFrom(sc, ox, oy, 0, 0, dw, dh)
+        end
+        sc:free()
+        sc = out
+    end
     _previews[key] = sc
     _order[#_order + 1] = key
     while #_order > PREVIEW_KEEP do
@@ -125,6 +140,18 @@ local function preview(path, w, h)
         _previews[old] = nil
     end
     return sc
+end
+
+-- screenFrame(w, h) -> the largest rectangle of the screen's own shape that
+-- fits w x h: what every card shows a picture in, so the preview is the
+-- screen in miniature.
+function WB.screenFrame(w, h)
+    local Screen = require("device").screen
+    local sw, sh = Screen:getWidth(), Screen:getHeight()
+    local fw = w
+    local fh = math.floor(fw * sh / sw)
+    if fh > h then fh = h; fw = math.floor(fh * sw / sh) end
+    return math.max(1, fw), math.max(1, fh)
 end
 
 local function renderCell(key, item, dimen)
@@ -160,30 +187,23 @@ local function renderCell(key, item, dimen)
         TextWidget:new{ text = name, face = require("lib/bookshelf_fonts"):getFace("cfont", 15), bold = true, max_width = math.max(1, name_w) } }
     local lines = LeftContainer:new{ dimen = Geom:new{ w = inner_w, h = row:getSize().h }, row }
     local box_h = math.max(1, inner_h - lines:getSize().h - Space.padding.small)
-    local pic
+    -- The screen in miniature: a frame of the screen's shape, the picture in
+    -- it as the current Scaling lays it (the margins of Fit show white).
+    local fw, fh = WB.screenFrame(inner_w - 2 * Size.border.thin, box_h - 2 * Size.border.thin)
+    local inside
     if item.path then
-        local bb = preview(item.path, inner_w, box_h)
+        local bb = preview(item.path, fw, fh, WP().fitMode())
         if bb then
-            pic = ImageWidget:new{ image = bb, image_disposable = false, original_in_nightmode = true }
+            inside = ImageWidget:new{ image = bb, image_disposable = false, original_in_nightmode = true }
         end
     end
-    if not pic then
-        -- A picture that would not decode: a plain frame the size of one,
-        -- portrait as the wallpapers are, in either orientation.
-        local Screen = require("device").screen
-        local sw = math.min(Screen:getWidth(), Screen:getHeight())
-        local sh = math.max(Screen:getWidth(), Screen:getHeight())
-        local fw = inner_w
-        local fh = math.min(box_h, math.floor(fw * sh / sw))
-        if fh == box_h then fw = math.floor(fh * sw / sh) end
-        pic = FrameContainer:new{
-            bordersize = Size.border.thin, padding = 0, margin = 0,
-            background = Blitbuffer.COLOR_WHITE,
-            CenterContainer:new{ dimen = Geom:new{ w = math.max(1, fw - 2 * Size.border.thin),
-                                                   h = math.max(1, fh - 2 * Size.border.thin) },
-                                 VerticalSpan:new{ width = 1 } },
-        }
-    end
+    -- A picture that would not decode: the empty frame.
+    inside = inside or CenterContainer:new{ dimen = Geom:new{ w = fw, h = fh }, VerticalSpan:new{ width = 1 } }
+    local pic = FrameContainer:new{
+        bordersize = Size.border.thin, padding = 0, margin = 0,
+        background = Blitbuffer.COLOR_WHITE,
+        inside,
+    }
     return require("lib/bookshelf_popup_kit").cardify(FrameContainer:new{
         bordersize = 0, radius = Kit.RADIUS, padding = pad, margin = 0,
         background = Blitbuffer.COLOR_WHITE,
@@ -237,6 +257,11 @@ function WB.nextScaling()
     return nxt
 end
 
+-- The grid's share of the screen's height. A card is the screen in
+-- miniature, so it needs height more than width; the shelf still shows to
+-- either side and below, where a tap can be seen at once.
+WB.GRID_SHARE = 0.55
+
 -- show(key, on_change, on_closed): the picker for that setting. on_change()
 -- runs after each choice, so the shelf behind can catch up; on_closed() once,
 -- however the picker closes (the caller brings its menu back).
@@ -273,9 +298,9 @@ function WB.show(key, on_change, on_closed)
         -- each marked by its radio, so choosing one does not resize it.
         grid_cols = function() return WB.perPage() end,
         cells_per_page = function() return WB.perPage() end,
-        -- Short, so the shelf shows around it and a tap can be seen there:
-        -- the grid about 45% of the screen's height, whatever its DPI.
-        rows_per_page = function() return LibraryModal.rowsForShare(0.45) end,
+        -- Short enough that the shelf shows around it and a tap can be seen
+        -- there (WB.GRID_SHARE of the screen's height, whatever its DPI).
+        rows_per_page = function() return LibraryModal.rowsForShare(WB.GRID_SHARE) end,
         chip_strip = chips,
         on_chip_tap = function(k) self.chip = k; self.items = items() end,
         cell_renderer = function(item, dimen) return renderCell(key, item, dimen) end,

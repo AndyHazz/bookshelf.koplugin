@@ -23193,7 +23193,36 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         -- rating lands on a half) plus the numeric value.
         -- nf-fa-star / star_half_empty / star_o (the half matches the hero glyphs).
         local STAR_FULL, STAR_HALF, STAR_EMPTY = "\xEF\x80\x85", "\xEF\x84\xA3", "\xEF\x80\x86"
+        -- In the three-column layout (below) the stars stand as tall as the
+        -- publish date's button beside them, so the two read as one row: the
+        -- size grows from the usual one until its row matches the button, as
+        -- long as five stars still fit a column (a third with Hardcover's
+        -- rating, a half without). Too narrow: the usual size.
         local star_size = font_size + 4
+        do
+            local cols_avail = content_w - 2 * inset
+            local col_w = hc_rating and math.floor(cols_avail / 3) or math.floor(cols_avail / 2)
+            local btn_h = TextWidget:new{ text = "Hg",
+                face = BFont:getFace("cfont", font_size, { bold = true }) }:getSize().h
+                + 2 * Space.padding.small + 2 * Size.border.thin
+            -- Matched on the star's INK, not its line: a glyph's line box has
+            -- room above and below it, so matching the box left the stars two
+            -- thirds the button's height. The ink is the rendered glyph's own
+            -- bitmap (RenderText:getGlyph).
+            local RenderText = require("ui/rendertext")
+            local pad = 2 * Space.px(3)   -- buildStar's padding, both sides
+            for size = font_size + 4, font_size + 40 do
+                local face = BFont:getFace("symbols", size)
+                local g = TextWidget:new{ text = "\xEF\x80\x85", face = face }
+                local gw = g:getSize().w
+                g:free()
+                if (gw + pad) * 5 + Space.px(16) > col_w then break end
+                star_size = size
+                local ok_g, glyph = pcall(RenderText.getGlyph, RenderText, face, 0xF005)
+                local ink = ok_g and glyph and glyph.bb and glyph.bb:getHeight() or 0
+                if ink >= btn_h - 2 * Size.border.thin then break end
+            end
+        end
         -- A padded star glyph. With on_tap it's an interactive (tappable) star;
         -- without, just the padded glyph -- so interactive and read-only star rows
         -- get identical per-star spacing.
@@ -23386,11 +23415,10 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             return hg
         end
 
-        -- 1. Three columns in thirds: Your rating, Hardcover, the publish date,
-        -- each heading with its stars (or date) right under it. No Hardcover
-        -- rating: two halves, the date's starting under the status control's
-        -- third cell (On hold). Stars wider than their column (a smaller
-        -- screen, a big zoom) go on to 2.
+        -- 1. Three columns in thirds: the publish date, your rating, Hardcover,
+        -- each heading with its button (or stars) right under it. No
+        -- Hardcover rating: two halves. Stars wider than their column (a
+        -- smaller screen, a big zoom) go on to 2.
         local third = math.floor(avail / 3)
         local your_row = HorizontalGroup:new{ align = "center" }
         for _i, st in ipairs(your_stars) do your_row[#your_row + 1] = st end
@@ -23400,22 +23428,30 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         if hc_parts then
             hc_row = HorizontalGroup:new{ align = "center", hc_parts.stars }
         end
-        local your_w = hc_row and third or math.floor(avail / 2)
-        local pub_w  = avail - (hc_row and 2 * third or your_w)
+        -- The publish date first, then your rating, then Hardcover's; no
+        -- Hardcover rating: the date and yours in halves.
+        local pub_w  = hc_row and third or math.floor(avail / 2)
+        local your_w = hc_row and third or (avail - pub_w)
         local pub3 = (your_row:getSize().w + col_gap <= your_w)
-            and (not hc_row or hc_row:getSize().w + col_gap <= third)
-            and pubColumn(pub_w)
+            and (not hc_row or hc_row:getSize().w + col_gap <= avail - 2 * third)
+            and pubColumn(pub_w - col_gap)
         if pub3 then
             pub_below = false
-            local cols = { VerticalGroup:new{ align = "left",
+            -- The stars centred on the date's button, so the row reads level.
+            local bh = edit_btn:getSize().h
+            local function level(w)
+                local sz = w:getSize()
+                return CenterContainer:new{ dimen = Geom:new{ w = sz.w, h = bh }, w }
+            end
+            your_row = level(your_row)
+            if hc_row then hc_row = level(hc_row) end
+            local cols = { pub3, VerticalGroup:new{ align = "left",
                 colHeading(_("Your rating"), your_w - col_gap), your_row } }
-            local widths = { your_w }
+            local widths = { pub_w, your_w }
             if hc_row then
                 cols[#cols + 1] = VerticalGroup:new{ align = "left",
-                    colHeading(_("Hardcover") .. " \xC2\xB7 " .. hc_parts.num, third - col_gap), hc_row }
-                widths[#widths + 1] = third
+                    colHeading(_("Hardcover") .. " \xC2\xB7 " .. hc_parts.num, avail - 2 * third), hc_row }
             end
-            cols[#cols + 1] = pub3
             vg[#vg + 1] = padded(row(cols, widths), 0, 0)
             focus_tables[#focus_tables + 1] = focusRow({ { edit_btn } })
         else

@@ -206,8 +206,11 @@ local function renderCell(key, item, dimen)
     -- round the frame read as the margins of Fit (maintainer, 2026-11-03),
     -- so the only bands to be seen are the ones the scaling makes.
     local frame_w = fw + 2 * border
+    -- One line, cut with an ellipsis, kept a step in from the card's edges
+    -- so a long name never meets the edge or the in-use outline.
     local label = CenterContainer:new{ dimen = Geom:new{ w = frame_w, h = label_h },
-        TextWidget:new{ text = name, face = face, bold = true, max_width = math.max(1, frame_w) } }
+        TextWidget:new{ text = name, face = face, bold = true,
+                        max_width = math.max(1, frame_w - 2 * Space.padding.default) } }
     local card = Kit.cardify(FrameContainer:new{
         bordersize = 0, radius = Kit.RADIUS, padding = pad, margin = 0,
         background = Blitbuffer.COLOR_WHITE,

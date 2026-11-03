@@ -174,15 +174,18 @@ local function renderCell(key, item, dimen)
     if item.kind == "pack" then name = T(_("%1 pack"), item.label) end
     -- The name, centred under the picture. No radio: in portrait the
     -- picture on screen IS the choice (one a page, see show()); with several
-    -- a page (landscape) the one in use has the heavier frame below.
+    -- a page (landscape) the one in use has the card's outline below.
     local text = TextWidget:new{ text = name, face = require("lib/bookshelf_fonts"):getFace("cfont", 15),
                                  bold = true, max_width = math.max(1, inner_w) }
     local label = CenterContainer:new{
         dimen = Geom:new{ w = inner_w, h = text:getSize().h + Space.padding.small }, text }
     local box_h = math.max(1, inner_h - label:getSize().h - Space.padding.small)
+    -- With several a page (landscape) the one in use has the card's heavy
+    -- outline (STYLE.md: black would hide the picture), painted over the
+    -- card's edge, so every card and picture stays the same size.
     local several = WB.perPage() > 1
     local in_use = several and WB.inUse(key, item)
-    local border = in_use and Size.border.thick or Size.border.thin
+    local border = Size.border.thin
     -- The screen in miniature: a frame of the screen's shape, the picture in
     -- it as the current Scaling lays it (the margins of Fit show white).
     local fw, fh = WB.screenFrame(inner_w - 2 * border, box_h - 2 * border)
@@ -200,7 +203,7 @@ local function renderCell(key, item, dimen)
         background = Blitbuffer.COLOR_WHITE,
         inside,
     }
-    return require("lib/bookshelf_popup_kit").cardify(FrameContainer:new{
+    return Kit.cardify(FrameContainer:new{
         bordersize = 0, radius = Kit.RADIUS, padding = pad, margin = 0,
         background = Blitbuffer.COLOR_WHITE,
         VerticalGroup:new{ align = "center",
@@ -208,7 +211,7 @@ local function renderCell(key, item, dimen)
             VerticalSpan:new{ width = Space.padding.small },
             label,
         },
-    })
+    }, { outline = in_use })
 end
 
 -- NONE, SAME: the two choices that are not a picture, as the footer's

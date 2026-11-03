@@ -132,6 +132,10 @@ t.test("no radio: one a page, the page is the choice; several a page, the one in
     assert(not src:find("Marks.Radio", 1, true), "the radio mark is back")
     assert(src:find("local in_use = several and WB.inUse(key, item)", 1, true),
         "landscape lost its mark for the one in use")
+    -- On the CARD, not the picture's frame (maintainer, 2026-11-03): the
+    -- picture's frame would change size with it.
+    assert(src:find("{ outline = in_use })", 1, true), "the in-use mark is not the card's outline")
+    assert(not src:find("in_use and Size.border.thick", 1, true), "the picture's frame still thickens")
     assert(not src:find('_("In use")', 1, true), "the In use line is still there")
 end)
 

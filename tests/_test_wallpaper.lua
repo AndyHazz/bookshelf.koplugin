@@ -119,6 +119,11 @@ local function fakeBB(w, h)
     function bb:fill(c) self.filled = c; self.ops[#self.ops+1] = "fill" end
     function bb:invertRect() self.inverted = true; self.ops[#self.ops+1] = "invert" end
     function bb:free() self.freed = true end
+    function bb:getType() return 1 end
+    function bb:blitFrom(src, dx, dy, sx, sy, w, h)
+        self.blits = self.blits or {}
+        self.blits[#self.blits + 1] = { src = src, dx = dx, dy = dy, sx = sx, sy = sy, w = w, h = h }
+    end
     return bb
 end
 
@@ -2046,6 +2051,116 @@ t.test("a panel's blur is kept on disk beside its picture, keyed on what made it
     assert(src:find("widget.dkey = dkey", 1, true), "the picture doesn't carry its disk key")
     -- Declared above frostFor: a local below its caller is a nil global there.
     assert(src:find("local function diskCache", 1, true) < src:find("local function frostFor", 1, true))
+end)
+
+-- ── Scaling (issue 578) ─────────────────────────────────────────────────────
+
+t.test("fitLayout: fill covers the screen and crops the overhang, centred", function()
+    local W = fresh()
+    -- A 4:3 landscape picture on a 3:4 portrait screen: scaled to the height.
+    local dw, dh, ox, oy = W.fitLayout(400, 300, 300, 400, "fill")
+    eq(dh, 400); eq(dw, 533); eq(oy, 0); eq(ox, -117)
+end)
+
+t.test("fitLayout: fit shows all of it, centred, margins round it", function()
+    local W = fresh()
+    local dw, dh, ox, oy = W.fitLayout(400, 300, 300, 400, "fit")
+    eq(dw, 300); eq(dh, 225); eq(ox, 0); eq(oy, 87)
+end)
+
+t.test("fitLayout: stretch, or a size it cannot use, is nil", function()
+    local W = fresh()
+    eq(W.fitLayout(400, 300, 300, 400, "stretch"), nil)
+    eq(W.fitLayout(nil, 300, 300, 400, "fill"), nil)
+    eq(W.fitLayout(0, 300, 300, 400, "fit"), nil)
+end)
+
+local function fitSetup(mode, size)
+    local W = fresh()
+    local made = {}
+    installBlitbufferStub(made)
+    W._lfs = lfs_shim
+    local d = scratch()
+    W._data_dir = d; W.ensureDir(); touch(W.dir(), "a.png")
+    local asked = {}
+    W._render = function(_p, w, h) asked[#asked + 1] = { w = w, h = h }; return fakeBB(w, h) end
+    package.loaded["lib/bookshelf_settings_store"] = {
+        read = function(k) if k == W.FIT_SETTING then return mode end return nil end,
+        save = function() end,
+    }
+    package.loaded["lib/bookshelf_image_source"] = {
+        probeSize = function() return size and size[1], size and size[2] end,
+    }
+    local function done()
+        package.loaded["lib/bookshelf_settings_store"] = nil
+        package.loaded["lib/bookshelf_image_source"] = nil
+        package.loaded["ffi/blitbuffer"] = nil
+        os.execute("rm -rf '" .. d .. "'")
+    end
+    return W, asked, made, done
+end
+
+t.test("Crop to fill decodes at the covering size and hands back a screen-sized picture", function()
+    local W, asked, _made, done = fitSetup("fill", { 400, 300 })
+    local wp = W.bg("a.png", 300, 400, false)
+    assert(wp and wp.bb, "no background")
+    eq(asked[1].w, 533); eq(asked[1].h, 400)
+    eq(wp.bb:getWidth(), 300); eq(wp.bb:getHeight(), 400)
+    eq(wp.bb.blits[1].sx, 117, "the crop is not centred")
+    eq(wp.margin, nil, "a cropped picture has no margin")
+    done()
+end)
+
+t.test("Fit centres the picture and records its margins", function()
+    local W, asked, _made, done = fitSetup("fit", { 400, 300 })
+    local wp = W.bg("a.png", 300, 400, false)
+    eq(asked[1].w, 300); eq(asked[1].h, 225)
+    eq(wp.bb:getWidth(), 300); eq(wp.bb:getHeight(), 400)
+    eq(wp.bb.blits[1].dy, 87)
+    assert(wp.margin and wp.margin.oy == 87 and wp.margin.ox == 0, "margins not recorded")
+    done()
+end)
+
+t.test("Stretch, the default, decodes at the screen size as before", function()
+    local W, asked, _made, done = fitSetup(nil, { 400, 300 })
+    W.bg("a.png", 300, 400, false)
+    eq(asked[1].w, 300); eq(asked[1].h, 400)
+    eq(W.fitMode(), "stretch")
+    done()
+end)
+
+t.test("a picture whose size the header does not give is stretched", function()
+    local W, asked, _made, done = fitSetup("fill", nil)
+    W.bg("a.png", 300, 400, false)
+    eq(asked[1].w, 300); eq(asked[1].h, 400)
+    done()
+end)
+
+t.test("changing the scaling decodes again: it is in the key", function()
+    local W, asked, _made, done = fitSetup("fill", { 400, 300 })
+    W.bg("a.png", 300, 400, false)
+    package.loaded["lib/bookshelf_settings_store"].read = function(k)
+        if k == W.FIT_SETTING then return "fit" end return nil end
+    W.bg("a.png", 300, 400, false)
+    eq(#asked, 2, "the cropped picture was reused for Fit")
+    done()
+end)
+
+t.test("the picker's Scaling button cycles Stretch > Crop to fill > Fit and stores stretch as nothing", function()
+    local saved = {}
+    local cur
+    package.loaded["lib/bookshelf_settings_store"] = {
+        read = function(k) return saved[k] end,
+        save = function(k, v) saved[k] = v end,
+    }
+    local W = fresh()
+    package.loaded["lib/bookshelf_wallpaper"] = W
+    local WB = dofile("lib/bookshelf_wallpaper_browser.lua")
+    eq(WB.nextScaling(), "fill"); eq(saved[W.FIT_SETTING], "fill")
+    eq(WB.nextScaling(), "fit")
+    eq(WB.nextScaling(), "stretch"); eq(saved[W.FIT_SETTING], nil)
+    package.loaded["lib/bookshelf_settings_store"] = nil
+    package.loaded["lib/bookshelf_wallpaper"] = nil
 end)
 
 t.done()

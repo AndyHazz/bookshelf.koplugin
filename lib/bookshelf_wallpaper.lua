@@ -81,6 +81,23 @@ local function settingsRead(key)
     return ok and Set and Set.read(key) or nil
 end
 
+-- ── Scaling ─────────────────────────────────────────────────────────────────
+--
+-- How a picture whose shape differs from the screen's is laid on it (issue
+-- 578): "stretch" (the default, and how every wallpaper was shown before)
+-- squeezes it to the screen; "fill" scales it to cover the screen and crops
+-- the overhang, centred; "fit" shows all of it, centred, with the colour
+-- behind the wallpaper in the margins. The reader's own choice, the same for
+-- every theme and for both pictures (the shelf's and the full screen one).
+M.FIT_SETTING = "wallpaper_fit"
+M.FIT_MODES = { "stretch", "fill", "fit" }
+
+function M.fitMode()
+    local v = settingsRead(M.FIT_SETTING)
+    if v == "fill" or v == "fit" then return v end
+    return "stretch"
+end
+
 -- partRead(key): a part of the look as the theme on screen has it (the
 -- reader's edit to it, the theme's own, else Custom theme's: the seam,
 -- bookshelf_theme_pack.partRead); a key that is not a part, the reader's own.
@@ -1899,13 +1916,9 @@ end
 -- explicit control of the night pre-invert and a memory figure that can be
 -- stated rather than guessed.
 --
--- SCALING IS A STRETCH TO THE SCREEN, for now. Choosing between stretch and
--- letterbox needs the image's NATIVE size, and there is no cheap way to get
--- it: RenderImage decodes to whatever size you ask for, and every Pic.open*
--- decodes the whole image. Reading it out of the file header is the answer
--- (the ornaments module already parses PNG IHDR for exactly this) but it is a
--- per-format parser each, so it is its own piece of work rather than a
--- rider on this one.
+-- decode() stretches to the size asked for. The reader's Scaling (fill, fit)
+-- reads the picture's own size from its file header (ImageSource.probeSize,
+-- PNG and JPEG) and asks for the scaled size instead: see decodeLaid.
 local function decode(path, w, h)
     -- M._render is the test seam, the same one the ornaments module exposes:
     -- the painting is what is worth pinning headless, and a real decode would
@@ -1920,6 +1933,62 @@ local function decode(path, w, h)
     logger.dbg(string.format("[bookshelf perf] wallpaper: decode=%.0fms %dx%d %s",
         (_gettime() - t0) * 1000, w or 0, h or 0, tostring(path)))
     return bb
+end
+
+-- fitLayout(iw, ih, w, h, mode) -> the size to decode the picture at and
+-- where that decode sits on the w x h screen: dw, dh, ox, oy. A negative
+-- offset is the crop (fill); a positive one the margin (fit). Pure, so the
+-- arithmetic is pinned headless. nil for stretch, or a size it cannot use.
+function M.fitLayout(iw, ih, w, h, mode)
+    if mode ~= "fill" and mode ~= "fit" then return nil end
+    if not (iw and ih and iw > 0 and ih > 0 and w > 0 and h > 0) then return nil end
+    local sx, sy = w / iw, h / ih
+    local s = (mode == "fill") and math.max(sx, sy) or math.min(sx, sy)
+    local dw, dh = math.floor(iw * s + 0.5), math.floor(ih * s + 0.5)
+    if mode == "fill" then
+        dw, dh = math.max(dw, w), math.max(dh, h)
+    else
+        dw, dh = math.max(1, math.min(dw, w)), math.max(1, math.min(dh, h))
+    end
+    return dw, dh, math.floor((w - dw) / 2), math.floor((h - dh) / 2)
+end
+
+-- layoutFor(path, w, h) -> dw, dh, ox, oy for the reader's scaling, or nil
+-- (stretch, the same shape as the screen, or a size the file's header does
+-- not give: WebP, GIF and SVG stretch, as before). The header read is a few
+-- bytes and memoised; it never decodes.
+local function layoutFor(path, w, h)
+    local mode = M.fitMode()
+    if mode == "stretch" then return nil end
+    local ok, iw, ih = pcall(function()
+        return require("lib/bookshelf_image_source").probeSize(path)
+    end)
+    if not (ok and iw and ih) then return nil end
+    local dw, dh, ox, oy = M.fitLayout(iw, ih, w, h, mode)
+    if not dw or (dw == w and dh == h) then return nil end
+    return dw, dh, ox, oy
+end
+
+-- decodeLaid(path, w, h, lay) -> a w x h buffer: the picture decoded at the
+-- layout's size and placed on the screen, cropped (fill) or centred with a
+-- margin (fit; painted with the ground colour at paint time). Always screen
+-- sized, so the blurs under the panels, the night flip and the disk cache
+-- treat it like any other wallpaper.
+local function decodeLaid(path, w, h, lay)
+    if not lay then return decode(path, w, h) end
+    local dw, dh, ox, oy = lay[1], lay[2], lay[3], lay[4]
+    local src = decode(path, dw, dh)
+    if not src then return nil end
+    local Blitbuffer = require("ffi/blitbuffer")
+    local out = Blitbuffer.new(w, h, src:getType())
+    out:fill(Blitbuffer.COLOR_WHITE)
+    if ox < 0 or oy < 0 then
+        out:blitFrom(src, 0, 0, -ox, -oy, w, h)
+    else
+        out:blitFrom(src, ox, oy, 0, 0, dw, dh)
+    end
+    src:free()
+    return out
 end
 
 -- A background is a plain opaque blit: it is the bottom of the stack, there is
@@ -1959,6 +2028,25 @@ local function backgroundWidget(bb, w, h)
                 if not (ok_c and covers) then
                     pcall(function() require("lib/bookshelf_color").paintRect(target, x, y, self.w, self.h, ground) end)
                 end
+            end
+            -- Fit: the margins round the picture take the colour behind the
+            -- wallpaper, painted into the buffer itself so the blurs under
+            -- the panels see them too. Every paint, not once: the theme or
+            -- the night flip can change that colour under a kept buffer.
+            local m = self.margin
+            if m and ground then
+                pcall(function()
+                    local Color = require("lib/bookshelf_color")
+                    local bb, W, H = self.bb, self.w, self.h
+                    if m.oy > 0 then
+                        Color.paintRect(bb, 0, 0, W, m.oy, ground)
+                        Color.paintRect(bb, 0, m.oy + m.dh, W, H - m.oy - m.dh, ground)
+                    end
+                    if m.ox > 0 then
+                        Color.paintRect(bb, 0, 0, m.ox, H, ground)
+                        Color.paintRect(bb, m.ox + m.dw, 0, W - m.ox - m.dw, H, ground)
+                    end
+                end)
             end
             pcall(function()
                 target:blitFrom(self.bb, x, y, 0, 0, self.w, self.h)
@@ -2010,7 +2098,15 @@ function M.bg(name, w, h, night)
     local adjust = ImageContrast.wallpaperKey()
     -- The night marker stays LAST: flipNight and frostFor read the held
     -- buffer's mode from the key's last two characters.
-    local key = path .. "|" .. w .. "x" .. h .. adjust .. (night and "|n" or "")
+    -- The scaling, when it changes anything, is in every key the picture is
+    -- kept under (stretch adds nothing, so caches from before it stay good).
+    local lay
+    do
+        local dw, dh, ox, oy = layoutFor(path, w, h)
+        if dw then lay = { dw, dh, ox, oy } end
+    end
+    local fit_tag = lay and ("|" .. M.fitMode()) or ""
+    local key = path .. "|" .. w .. "x" .. h .. fit_tag .. adjust .. (night and "|n" or "")
     if M._bg and M._bg_key == key then return M._bg end
     local keep = keepTwo()
     -- A different picture: the blurs are of the old one. (Entries carry the
@@ -2036,10 +2132,11 @@ function M.bg(name, w, h, night)
     -- the PW5; reading the raw buffer back is a few tens of ms. Keyed on the
     -- file's mtime and size as well, so an edited picture is decoded again.
     local dkey = diskKey(path, w, h)
+    if dkey then dkey = dkey .. fit_tag end
     local bb = dkey and diskCache() and diskCache().load(dkey)
     if not bb then
         local ok
-        ok, bb = pcall(decode, path, w, h)
+        ok, bb = pcall(decodeLaid, path, w, h, lay)
         if not ok or not bb then
             logger.info("[bookshelf] wallpaper could not be decoded:", path)
             return nil
@@ -2049,7 +2146,13 @@ function M.bg(name, w, h, night)
     end
     if adjust ~= "" then
         pcall(function()
-            local _lo, med = ImageContrast.levels(bb)
+            -- Fit: the levels of the picture, not of its blank margins.
+            local probe = bb
+            if lay and lay[3] > 0 or lay and lay[4] > 0 then
+                probe = bb:viewport(math.max(0, lay[3]), math.max(0, lay[4]),
+                    math.min(lay[1], w), math.min(lay[2], h))
+            end
+            local _lo, med = ImageContrast.levels(probe)
             local b, c = ImageContrast.wallpaper()
             ImageContrast.applyLUT(bb, ImageContrast.wallpaperLUT(med or 128, b, c))
         end)
@@ -2059,6 +2162,9 @@ function M.bg(name, w, h, night)
     end
     local widget = backgroundWidget(bb, w, h)
     widget.bb = bb
+    if lay and (lay[3] > 0 or lay[4] > 0) then
+        widget.margin = { dw = lay[1], dh = lay[2], ox = lay[3], oy = lay[4] }
+    end
     -- What its blurs are kept under (frostFor): an adjusted picture blurs
     -- differently from the raw one.
     widget.dkey = dkey and (dkey .. adjust)

@@ -214,6 +214,29 @@ function WB.headerActions(key, pick)
     return row
 end
 
+-- Scaling: the footer button's label, and what a tap moves it to.
+local SCALING_LABELS = {
+    stretch = function() return _("Stretch") end,
+    fill    = function() return _("Crop to fill") end,
+    fit     = function() return _("Fit") end,
+}
+function WB.scalingLabel()
+    local T = require("ffi/util").template
+    return T(_("Scaling: %1"), SCALING_LABELS[WP().fitMode()]())
+end
+
+function WB.nextScaling()
+    local modes, cur = WP().FIT_MODES, WP().fitMode()
+    local nxt = modes[1]
+    for i, m in ipairs(modes) do
+        if m == cur then nxt = modes[i % #modes + 1] end
+    end
+    local Store = require("lib/bookshelf_settings_store")
+    -- Stretch, the default, is stored as no setting at all.
+    Store.save(WP().FIT_SETTING, nxt ~= "stretch" and nxt or nil)
+    return nxt
+end
+
 -- show(key, on_change, on_closed): the picker for that setting. on_change()
 -- runs after each choice, so the shelf behind can catch up; on_closed() once,
 -- however the picker closes (the caller brings its menu back).
@@ -271,7 +294,18 @@ function WB.show(key, on_change, on_closed)
         item_count = function() return #self.items end,
         item_at = function(i) return self.items[i] end,
         header_actions = function() return WB.headerActions(key, function(item) pick(item) end) end,
-        footer_rows = { { { key = "close", label = _("Close"), on_tap = close } } },
+        -- Scaling (issue 578): each tap the next way of laying a picture of
+        -- another shape on the screen, shown at once behind the picker.
+        footer_rows = { {
+            { key = "scaling", label_func = function() return WB.scalingLabel() end,
+              on_tap = function()
+                  WB.nextScaling()
+                  self.changed = true
+                  if on_change then pcall(on_change) end
+                  if modal then modal:refresh() end
+              end },
+            { key = "close", label = _("Close"), on_tap = close },
+        } },
         -- No pictures on this tab: where they come from, the one place the
         -- picker names the folder.
         empty_state = function(w, h)

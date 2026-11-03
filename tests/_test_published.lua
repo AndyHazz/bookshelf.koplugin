@@ -9,6 +9,7 @@ local t, eq = H.runner(), H.eq
 -- Facts: an in-memory stand-in with put's merge rule (false clears).
 local rows = {}
 local flushes = 0
+local prefetched = {}
 package.loaded["lib/bookshelf_book_facts_db"] = {
     get = function(fp) return rows[fp] end,
     put = function(fp, f)
@@ -17,6 +18,7 @@ package.loaded["lib/bookshelf_book_facts_db"] = {
         rows[fp] = e
     end,
     flushSoon = function() flushes = flushes + 1 end,
+    prefetch = function(fps) prefetched[#prefetched + 1] = fps end,
 }
 local scheduled = {}
 package.loaded["ui/uimanager"] = {
@@ -83,6 +85,16 @@ t.test("an unread book shows nothing, is queued once, and fills in the backgroun
     eq(flushes, 1)
     eq(#filled, 1); eq(filled[1], "/b/1.epub")
     eq(Published.forRecord(b1), "1901")
+end)
+
+t.test("a batch's results read their rows in one query before they are written", function()
+    reset()
+    prefetched = {}
+    Published.forRecord({ filepath = "/b/1.epub" }); Published.forRecord({ filepath = "/b/2.epub" })
+    tick()
+    spawned[1].done({ ["/b/1.epub"] = { date = "1901", mtime = 1 }, ["/b/2.epub"] = { date = "", mtime = 2 } })
+    eq(#prefetched, 1, "one prefetch for the batch")
+    eq(#prefetched[1], 2)
 end)
 
 t.test("formats with no reader are never queued", function()

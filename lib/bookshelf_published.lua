@@ -117,6 +117,14 @@ local function finish(res)
     end
     local F = facts()
     local filled = {}
+    -- put reads a row it has not seen before writing it (so a date never
+    -- blanks a page count): the batch's rows in one query, not forty. On a
+    -- PW5 the forty reads held the UI for ~100 ms a batch.
+    if F and F.prefetch then
+        local fps = {}
+        for fp in pairs(res) do fps[#fps + 1] = fp end
+        pcall(F.prefetch, fps)
+    end
     for fp, r in pairs(res) do
         if F then F.put(fp, { pd = r.date, pdm = r.mtime }) end
         if r.date ~= "" then filled[#filled + 1] = fp end

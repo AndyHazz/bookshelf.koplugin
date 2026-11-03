@@ -77,4 +77,22 @@ t.test("wiring: new dates clear the memo; a year-sorted shelf re-sorts, debounce
     assert(body:find('Repo.invalidateBookCache("published")', 1, true), "the sorted lists keep the old order")
 end)
 
+t.test("a folder view's file entry (fp, attr) sorts by its year too", function()
+    years = { ["/f/old.epub"] = "1850", ["/f/new.epub"] = "2020" }
+    SortEngine.clearPublishedMemo()
+    local list = { { name = "new.epub", fp = "/f/new.epub", attr = { mode = "file" } },
+                   { name = "old.epub", fp = "/f/old.epub", attr = { mode = "file" } },
+                   { name = "Sub", fp = "/f/Sub", attr = { mode = "directory" } } }
+    SortEngine.sort(list, { { key = "published" } })
+    eq(list[1].fp, "/f/old.epub"); eq(list[2].fp, "/f/new.epub")
+end)
+
+t.test("the shelf editor offers it, with dated directions", function()
+    local ed = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
+    assert(ed:find('add(chips({ "title", "author_name", "author_surname", "filename", "published" }))', 1, true),
+        "Publication year is not on the Sort page")
+    assert(ed:find('if key == "last_opened" or key == "date_added" or key == "added_or_opened"\n            or key == "published" then', 1, true),
+        "its directions read A-Z / Z-A")
+end)
+
 t.done()

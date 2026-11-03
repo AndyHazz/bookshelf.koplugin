@@ -163,7 +163,14 @@ function SortEngine.publishedOf(item)
     local m = _pub_memo[item]
     if m == nil then
         local ok, P = pcall(require, "lib/bookshelf_published")
-        local y = ok and P and P.forRecord and P.forRecord(item) or nil
+        -- A folder view's file entry ({ name, fp, attr }) has no filepath:
+        -- ask by its path. A folder entry has no year.
+        local rec = item
+        if not item.filepath and type(item.fp) == "string"
+                and not (item.attr and item.attr.mode == "directory") then
+            rec = { filepath = item.fp }
+        end
+        local y = ok and P and P.forRecord and P.forRecord(rec) or nil
         m = tonumber(y) or false
         _pub_memo[item] = m
     end

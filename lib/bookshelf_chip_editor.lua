@@ -3818,7 +3818,8 @@ end
 -- What the shelf does, where a bare arrow said only "the other way".
 local function _dirLabels(key)
     if key == "series_index" then return "1, 2, 3", "3, 2, 1" end
-    if key == "last_opened" or key == "date_added" or key == "added_or_opened" then
+    if key == "last_opened" or key == "date_added" or key == "added_or_opened"
+            or key == "published" then
         return _("Oldest first"), _("Newest first")
     end
     if key == "percent_read" then return _("Least read first"), _("Most read first") end
@@ -3977,7 +3978,7 @@ function Editor:_openSort(draft, on_change, on_arranged, on_back)
                 add(c)
             end
             add({ type = "heading", text = _("Book") })
-            add(chips({ "title", "author_name", "author_surname", "filename" }))
+            add(chips({ "title", "author_name", "author_surname", "filename", "published" }))
             add({ type = "heading", text = _("Series") })
             add(chips({ "series_name", "series_index", "series_combined", "series_or_title" }))
             -- Added/opened first: Home's own sort (maintainer).

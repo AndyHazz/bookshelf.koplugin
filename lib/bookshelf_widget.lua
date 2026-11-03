@@ -23336,7 +23336,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         do
             local w   = content_w - 2 * inset
             local gap = Space.px(12)
-            local icon_face  = BFont:getFace("symbols", font_size + 16)
+            local icon_face  = BFont:getFace("symbols", font_size + 10)
             local label_face = Font:getFace("cfont", math.max(10, font_size - 3))
             local pad_v = Space.px(12)
             -- As many columns (5 at most) as leave every label two lines or

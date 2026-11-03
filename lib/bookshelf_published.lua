@@ -181,7 +181,11 @@ function M.forRecord(b)
     local fp = localPath(b)
     if not fp then return "" end
     local F = facts()
-    local e = F and F.get(fp)
+    -- Every stored date at once (one query a session), not a query per
+    -- book: a shelf sorted by year asks for all of them.
+    local map = F and F.publishedMap and F.publishedMap()
+    local e
+    if map then e = map[fp] else e = F and F.get(fp) end
     if e and e.pd ~= nil then return P.year(e.pd) or "" end
     if P.handles(fp) then M.enqueue(fp) end
     return ""

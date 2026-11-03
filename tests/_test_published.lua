@@ -133,6 +133,22 @@ t.test("forget: an unchanged file keeps its date, a changed one is read again", 
     eq(#spawned, 1)
 end)
 
+t.test("with the facts store's map, a lookup never queries per book", function()
+    reset()
+    local gets = 0
+    local F = package.loaded["lib/bookshelf_book_facts_db"]
+    local orig_get = F.get
+    F.get = function(fp) gets = gets + 1; return orig_get(fp) end
+    F.publishedMap = function() return { ["/b/known.epub"] = { pd = "1850" }, ["/b/none.epub"] = { pd = "" } } end
+    eq(Published.forRecord({ filepath = "/b/known.epub" }), "1850")
+    eq(Published.forRecord({ filepath = "/b/none.epub" }), "")
+    eq(Published.forRecord({ filepath = "/b/unread.epub" }), "")
+    eq(gets, 0, "asked the database book by book")
+    tick()
+    eq(#spawned, 1); eq(#spawned[1].batch, 1, "only the unread book is read")
+    F.get, F.publishedMap = orig_get, nil
+end)
+
 t.test("wiring: the token, the OPDS feed, the download, Refresh metadata, the shelf", function()
     local tokens = io.open("lib/bookshelf_tokens.lua"):read("*a")
     assert(tokens:find('token = "%published"', 1, true))

@@ -82,6 +82,9 @@ local _open_failed
 -- here first and go to disk on flush. It is also the whole store when the
 -- database cannot be opened at all.
 local _memo  = {}
+-- Every stored publication date, read in one query the first time one is
+-- asked for (publishedMap), and kept current by put and drop.
+local _pd_map = nil
 local _dirty = {}
 
 -- open() -> db | nil, reason
@@ -126,6 +129,7 @@ end
 -- the app needs it, since the memo and the database never disagree.
 function M.forgetMemo()
     _memo, _dirty = {}, {}
+    _pd_map = nil
 end
 
 -- A store that will not open must degrade to "we know nothing", never to an
@@ -185,6 +189,33 @@ function M.get(fp)
     end, nil)
     _memo[fp] = e or false
     return e
+end
+
+-- publishedMap() -> { [fp] = { pd = "YYYY-MM-DD" | "", pdm = mtime } } for every
+-- book whose file has been read for a date ("" = read, none found), or nil
+-- when the store cannot be read. One statement, once a session: the
+-- Publication year sort asks for every book on the shelf, and a query per
+-- book was 5.9 s for 1,615 books on a PW5 in each new session.
+function M.publishedMap()
+    if _pd_map then return _pd_map end
+    local map = with(function(db)
+        local out = {}
+        local st = db:prepare("SELECT fp, pubdate, pubdate_mtime FROM book_facts WHERE pubdate IS NOT NULL")
+        st:reset()
+        local row = st:step()
+        while row do
+            out[tostring(row[1])] = { pd = tostring(row[2]), pdm = tonumber(row[3]) }
+            row = st:step()
+        end
+        return out
+    end, nil)
+    if not map then return nil end
+    -- Writes this session made that are not flushed yet.
+    for fp, e in pairs(_memo) do
+        if e and e.pd ~= nil then map[fp] = { pd = e.pd, pdm = e.pdm } end
+    end
+    _pd_map = map
+    return map
 end
 
 -- prefetch(fps) -> number of rows found
@@ -258,6 +289,9 @@ function M.put(fp, facts)
     end
     _memo[fp] = e
     _dirty[fp] = true
+    if _pd_map and facts.pd ~= nil then
+        _pd_map[fp] = e.pd ~= nil and { pd = e.pd, pdm = e.pdm } or nil
+    end
 end
 
 -- highlightBooks() -> { [fp] = count } for every book known to have
@@ -290,6 +324,7 @@ function M.drop(fp)
     if type(fp) ~= "string" or fp == "" then return end
     _memo[fp] = false
     _dirty[fp] = "delete"
+    if _pd_map then _pd_map[fp] = nil end
 end
 
 -- flush() -> number of rows written

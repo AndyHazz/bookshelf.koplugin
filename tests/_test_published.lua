@@ -212,11 +212,29 @@ t.test("Hardcover: the book's first year is fetched and applied with the metadat
     assert(apply and apply:find("book.hardcover_published", 1, true), "applyMetadata does not set it")
 end)
 
-t.test("wiring: the Publish date dialog sets the reader's date", function()
+t.test("wiring: the Publish date button opens a date picker that sets the reader's date", function()
     local w = io.open("lib/bookshelf_widget.lua"):read("*a")
-    assert(w:find("Published.setUserDate(book.filepath, text)", 1, true), "the card does not store the date")
-    assert(w:find('require("lib/bookshelf_sort_engine").clearPublishedMemo()', 1, true),
+    local cb = w:match("local pubdate_btn = { callback = function%(%)(.-)\n    end }")
+    assert(cb, "the date button's callback moved")
+    assert(cb:find('require("ui/widget/datetimewidget")', 1, true), "not a date picker")
+    assert(not cb:find("InputDialog", 1, true), "free text is back")
+    assert(cb:find('string.format("%04d-%02d-%02d", t.year, t.month, t.day)', 1, true), "the picked date is not stored")
+    assert(cb:find("Published.setUserDate(book.filepath, nil)", 1, true), "no way back to the book's own date")
+    assert(cb:find('require("lib/bookshelf_sort_engine").clearPublishedMemo()', 1, true),
         "a corrected date would not re-sort")
+end)
+
+t.test("wiring: a long-press on your stars clears the rating, after asking", function()
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    assert(w:find('star.ges_events.Hold = { GestureRange:new{ ges = "hold"', 1, true), "stars take no hold")
+    assert(w:find('text = _("Clear your rating?")', 1, true), "no confirmation")
+    assert(w:find("ok_callback = function() setRating(nil) end", 1, true), "the confirmation does not clear it")
+end)
+
+t.test("wiring: a date being read shows when it lands, not on reopening", function()
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    assert(w:find('if pub_src == "pending" and modal and not modal._pub_watch then', 1, true), "no watch")
+    assert(w:find("if not UIManager:isWidgetShown(modal) then", 1, true), "the watch outlives the menu")
 end)
 
 t.test("info: the full date and where it came from", function()

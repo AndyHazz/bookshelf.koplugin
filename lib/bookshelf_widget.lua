@@ -22942,37 +22942,40 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     -- the Publish date row below the actions.
     local pubdate_btn = { callback = function()
         local Published = require("lib/bookshelf_published")
-        local InputDialog = require("ui/widget/inputdialog")
-        local dlg
-        local function apply(text)
-            if not Published.setUserDate(book.filepath, text) then
-                UIManager:show(require("ui/widget/infomessage"):new{
-                    text = _("Not a date. Type a year, like 1897, or a full date, like 1897-05-26."),
-                    timeout = 3 })
-                return
-            end
-            UIManager:close(dlg)
+        local function done()
             require("lib/bookshelf_sort_engine").clearPublishedMemo()
             Repo.invalidateBookCache("publication-date")
             bw:_rebuild(); UIManager:setDirty(bw, "ui")
             if modal and modal.rebuildTab then modal:rebuildTab() end
         end
-        dlg = InputDialog:new{
-            title       = _("Publish date"),
-            input       = Published.userDate(book.filepath) or "",
-            input_hint  = Published.forRecord(book) ~= "" and Published.forRecord(book) or "1897",
-            description = _("A year, or year-month-day. Leave it empty to use the book's own date."),
-            buttons = {{
-                { text = _("Cancel"), id = "close", callback = function() UIManager:close(dlg) end },
-                { text = _("Save"), is_enter_default = true,
-                  callback = function()
-                      local raw = (dlg:getInputText() or ""):gsub("^%s+", ""):gsub("%s+$", "")
-                      apply(raw)
-                  end },
-            }},
+        -- A date picker, not free text: the year, month and day spinners
+        -- (a spinner's number can be tapped to type it). It opens on the
+        -- date shown now, else today's year. The extra button goes back to
+        -- the book's own date, when the reader has set one.
+        local cur = Published.info(book)
+        local y, m, d = tostring(cur or ""):match("^(%d%d%d%d)%-?(%d*)%-?(%d*)$")
+        local now = os.date("*t")
+        local user_set = Published.userDate(book.filepath) ~= nil
+        local DateTimeWidget = require("ui/widget/datetimewidget")
+        local picker
+        picker = DateTimeWidget:new{
+            year = tonumber(y) or now.year, year_min = 1000, year_max = now.year + 1,
+            month = tonumber(m) or 1, day = tonumber(d) or 1,
+            title_text = _("Publish date"),
+            ok_text = _("Set date"),
+            extra_text = user_set and _("Use the book's date") or nil,
+            extra_callback = user_set and function()
+                Published.setUserDate(book.filepath, nil)
+                UIManager:close(picker)
+                done()
+            end or nil,
+            callback = function(t)
+                Published.setUserDate(book.filepath,
+                    string.format("%04d-%02d-%02d", t.year, t.month, t.day))
+                done()
+            end,
         }
-        UIManager:show(dlg)
-        dlg:onShowKeyboard()
+        UIManager:show(picker)
     end }
     local select_btn = { text = _("Select"), callback = function()
         closeModal()
@@ -23116,8 +23119,8 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     local function pubText()
         local date, src = require("lib/bookshelf_published").info(book)
         if not date then
-            if src == "pending" then return _("Not read yet"), nil, false end
-            return _("None in the file"), nil, false
+            if src == "pending" then return _("Checking the file\xE2\x80\xA6"), nil, false, src end
+            return _("None in the file"), nil, false, src
         end
         local y, m, d = date:match("^(%d%d%d%d)%-?(%d*)%-?(%d*)$")
         m, d = tonumber(m), tonumber(d)
@@ -23228,7 +23231,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         -- A padded star glyph. With on_tap it's an interactive (tappable) star;
         -- without, just the padded glyph -- so interactive and read-only star rows
         -- get identical per-star spacing.
-        local function buildStar(glyph, on_tap)
+        local function buildStar(glyph, on_tap, on_hold)
             local tw = TextWidget:new{ text = glyph,
                 face = BFont:getFace("symbols", star_size), fgcolor = Blitbuffer.COLOR_BLACK }
             local frame = FrameContainer:new{
@@ -23238,6 +23241,10 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             local star = InputContainer:new{ dimen = Geom:new{ w = fsz.w, h = fsz.h }, frame }
             star.ges_events = { Tap = { GestureRange:new{ ges = "tap", range = star.dimen } } }
             star.onTap = function() on_tap(); return true end
+            if on_hold then
+                star.ges_events.Hold = { GestureRange:new{ ges = "hold", range = star.dimen } }
+                star.onHold = function() on_hold(); return true end
+            end
             -- The keys' focus: the kit's ring round the star (STYLE.md), not
             -- the star inverted, which read as a rating set.
             require("lib/bookshelf_popup_kit").ringFocus(star, 0, Space.px(4))
@@ -23266,12 +23273,22 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         local your_stars = {}
         for i = 1, 5 do
             local glyph = (i <= cur) and STAR_FULL or STAR_EMPTY
-            local star = buildStar(glyph, function()
-                local newv = (i == cur) and nil or i   -- tap current rating clears it
+            local function setRating(newv)
                 bw:_setBookRating(book, newv, { skip_rebuild = true }); book.rating = newv
                 if modal and modal.rebuildTab then modal:rebuildTab() end
                 shelfSoon()
-            end)
+            end
+            local star = buildStar(glyph, function()
+                setRating((i == cur) and nil or i)   -- tap current rating clears it
+            end, cur > 0 and function()
+                -- Long-press: clear the rating, after asking (a tap on the
+                -- star of the rating set does too, but nothing says so).
+                UIManager:show(require("ui/widget/confirmbox"):new{
+                    text = _("Clear your rating?"),
+                    ok_text = _("Clear"),
+                    ok_callback = function() setRating(nil) end,
+                })
+            end or nil)
             your_group[#your_group + 1] = star
             your_stars[#your_stars + 1] = star
         end
@@ -23344,7 +23361,27 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         -- and Edit. Too narrow for two columns (a big zoom, a small screen):
         -- the ratings alone here and the date in a row of its own below the
         -- actions (pub_below).
-        local pub_date_str, pub_from, pub_known = pubText()
+        local pub_date_str, pub_from, pub_known, pub_src = pubText()
+        -- Being read from the file now (queued as the tab asked): look again
+        -- every couple of seconds while the menu is up, and show the date
+        -- when it lands, rather than "Checking" until the menu is reopened.
+        if pub_src == "pending" and modal and not modal._pub_watch then
+            modal._pub_watch = true
+            local tries = 0
+            local function check()
+                tries = tries + 1
+                if not UIManager:isWidgetShown(modal) then modal._pub_watch = nil return end
+                if require("lib/bookshelf_published").info(book) then
+                    modal._pub_watch = nil
+                    if modal.rebuildTab then modal:rebuildTab() end
+                elseif tries < 15 then
+                    UIManager:scheduleIn(2, check)
+                else
+                    modal._pub_watch = nil
+                end
+            end
+            UIManager:scheduleIn(2, check)
+        end
         -- Half and half, so the date's column starts under the status
         -- control's third cell (On hold) and the two line up.
         -- Ratings too wide for half (a smaller screen, Hardcover's row with
@@ -23417,8 +23454,8 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             return hg
         end
 
-        -- 1. Three columns in thirds: the publish date, your rating, Hardcover,
-        -- each heading with its button (or stars) right under it. No
+        -- 1. Three columns in thirds: your rating, Hardcover, the publish
+        -- date, each heading with its stars (or button) right under it. No
         -- Hardcover rating: two halves. Stars wider than their column (a
         -- smaller screen, a big zoom) go on to 2.
         local third = math.floor(avail / 3)
@@ -23430,13 +23467,14 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         if hc_parts then
             hc_row = HorizontalGroup:new{ align = "center", hc_parts.stars }
         end
-        -- The publish date first, then your rating, then Hardcover's; no
-        -- Hardcover rating: the date and yours in halves.
-        local pub_w  = hc_row and third or math.floor(avail / 2)
-        local your_w = hc_row and third or (avail - pub_w)
+        -- Your rating first, then Hardcover's, then the publish date; no
+        -- Hardcover rating: yours and the date in halves, the date over the
+        -- status control's third cell (On hold).
+        local your_w = hc_row and third or math.floor(avail / 2)
+        local pub_w  = avail - (hc_row and 2 * third or your_w)
         local pub3 = (your_row:getSize().w + col_gap <= your_w)
-            and (not hc_row or hc_row:getSize().w + col_gap <= avail - 2 * third)
-            and pubColumn(pub_w - col_gap)
+            and (not hc_row or hc_row:getSize().w + col_gap <= third)
+            and pubColumn(pub_w)
         if pub3 then
             pub_below = false
             -- The stars centred on the date's button, so the row reads level.
@@ -23447,13 +23485,15 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             end
             your_row = level(your_row)
             if hc_row then hc_row = level(hc_row) end
-            local cols = { pub3, VerticalGroup:new{ align = "left",
+            local cols = { VerticalGroup:new{ align = "left",
                 colHeading(_("Your rating"), your_w - col_gap), your_row } }
-            local widths = { pub_w, your_w }
+            local widths = { your_w }
             if hc_row then
                 cols[#cols + 1] = VerticalGroup:new{ align = "left",
-                    colHeading(_("Hardcover") .. " \xC2\xB7 " .. hc_parts.num, avail - 2 * third), hc_row }
+                    colHeading(_("Hardcover") .. " \xC2\xB7 " .. hc_parts.num, third - col_gap), hc_row }
+                widths[#widths + 1] = third
             end
+            cols[#cols + 1] = pub3
             vg[#vg + 1] = padded(row(cols, widths), 0, 0)
             focus_tables[#focus_tables + 1] = focusRow({ { edit_btn } })
         else
@@ -23541,8 +23581,8 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             local icon_face  = BFont:getFace("symbols", font_size + 10)
             local label_face = Font:getFace("cfont", math.max(10, font_size - 3))
             local pad_v = Space.px(12)
-            -- As many columns (5 at most) as leave every label two lines or
-            -- fewer: a small screen or a big zoom drops to 4, 3, then 2.
+            -- As many columns (4 at most) as leave every label two lines or
+            -- fewer: a small screen or a big zoom drops to 3, then 2.
             local function innerW(c)
                 return math.floor((w - (c - 1) * gap) / c) - 2 * tile_border - 2 * Space.px(6)
             end
@@ -23552,7 +23592,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                 tb:free()
                 return h
             end
-            local cols = 5
+            local cols = 4
             while cols > 2 do
                 local iw, two = innerW(cols), 2 * textH("Ag", innerW(cols))
                 local fits = true

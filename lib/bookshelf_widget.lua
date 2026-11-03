@@ -23109,6 +23109,36 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     -- line up with the tab strip and the description body.
     local inset      = (modal and modal._side_pad) or Space.px(28)
 
+    -- pubText() -> the date %published and the Publication year sort use, as
+    -- stored (18 Feb 2016, Mar 1869 or 1869), and where it came from, so a
+    -- date the book's file gives (often the ebook's own release, not the
+    -- work's) reads as that; or why there is none (and nil).
+    local function pubText()
+        local date, src = require("lib/bookshelf_published").info(book)
+        if not date then
+            if src == "pending" then return _("Not read from the book yet") end
+            return _("None in the book's file")
+        end
+        local y, m, d = date:match("^(%d%d%d%d)%-?(%d*)%-?(%d*)$")
+        m, d = tonumber(m), tonumber(d)
+        -- Only the month's name from the system, at a safe year: a Kindle's
+        -- time_t starts in 1901, after most books' dates.
+        local mon = m and m >= 1 and m <= 12
+            and os.date("%b", os.time{ year = 2000, month = m, day = 1, hour = 12 })
+        local text
+        if y and mon and d then text = string.format("%02d %s %s", d, mon, y)
+        elseif y and mon then text = mon .. " " .. y
+        else text = y or date end
+        return text, ({
+            user      = _("set by you"),
+            hardcover = _("from Hardcover"),
+            calibre   = _("from calibre"),
+            catalog   = _("from the catalog"),
+            file      = _("from the book's file"),
+        })[src]
+    end
+    local pub_below = true
+
     local function buildBody(content_w)
         local function heading(text)
             -- The FULL tab width (not the scroll-reduced content_w): getSize
@@ -23190,9 +23220,17 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         local cur = tonumber(book.rating) or 0
         if cur < 0 then cur = 0 elseif cur > 5 then cur = 5 end
         cur = math.floor(cur)
+        -- The two rows' labels share one width, so the stars line up.
+        local lbl_w = lbl(_("Your rating")):getSize().w
+        if hc_rating then lbl_w = math.max(lbl_w, lbl(_("Hardcover")):getSize().w) end
+        local LeftContainer = require("ui/widget/container/leftcontainer")
+        local function lblCell(text)
+            local t = lbl(text)
+            return LeftContainer:new{ dimen = Geom:new{ w = lbl_w, h = t:getSize().h }, t }
+        end
         -- "Your rating": label + tappable stars.
         local your_group = HorizontalGroup:new{ align = "center" }
-        your_group[#your_group + 1] = lbl(_("Your rating"))
+        your_group[#your_group + 1] = lblCell(_("Your rating"))
         your_group[#your_group + 1] = HorizontalSpan:new{ width = Space.px(10) }
         local your_stars = {}
         for i = 1, 5 do
@@ -23255,27 +23293,80 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                 focus_tables[#focus_tables + 1] = focusRow({ { ic } })
             end
             local hc_group = HorizontalGroup:new{ align = "center",
-                lbl(_("Hardcover")),
+                lblCell(_("Hardcover")),
                 HorizontalSpan:new{ width = Space.px(10) },
                 hc_stars_widget,
                 HorizontalSpan:new{ width = Space.px(8) },
                 TextWidget:new{ text = string.format("%.1f", hc_rating),
                     face = BFont:getFace("cfont", font_size), fgcolor = Blitbuffer.COLOR_BLACK },
             }
-            -- Side by side when they fit; otherwise wrap onto two lines (needed
-            -- at large zoom / high DPI where one row would overflow).
-            local avail = content_w - 2 * inset
-            local sep   = Space.px(28)
-            if your_group:getSize().w + sep + hc_group:getSize().w <= avail then
-                ratings_widget = HorizontalGroup:new{ align = "center",
-                    your_group, HorizontalSpan:new{ width = sep }, hc_group }
-            else
-                ratings_widget = VerticalGroup:new{ align = "left",
-                    your_group, VerticalSpan:new{ width = Space.px(8) }, hc_group }
-            end
+            -- Hardcover's under yours, always: the column beside them is the
+            -- publish date's.
+            ratings_widget = VerticalGroup:new{ align = "left",
+                your_group, VerticalSpan:new{ width = Space.px(8) }, hc_group }
         end
-        vg[#vg + 1] = heading(_("Ratings"))
-        vg[#vg + 1] = padded(ratings_widget, 0, 0)
+
+        -- The publish date beside the ratings: the date, where it came from,
+        -- and Edit. Too narrow for two columns (a big zoom, a small screen):
+        -- the ratings alone here and the date in a row of its own below the
+        -- actions (pub_below).
+        local pub_date_str, pub_from = pubText()
+        local col_gap = Space.px(28)
+        local left_w  = ratings_widget:getSize().w
+        local right_w = content_w - 2 * inset - left_w - col_gap
+        -- The same button as infoRow's (the Hardcover row's Edit): its height
+        -- from a bold line plus the pill padding and border.
+        local edit_btn = PopupKit.button{
+            text       = _("Edit"),
+            face       = BFont:getFace("cfont", font_size),
+            icon_glyph = "\xEE\xAB\xAA", -- nf-md-pencil, U+EAEA
+            icon_face  = BFont:getFace("symbols", font_size),
+            icon_after = true,
+            height     = TextWidget:new{ text = "Hg",
+                face = BFont:getFace("cfont", font_size, { bold = true }) }:getSize().h
+                + 2 * Space.padding.small + 2 * Size.border.thin,
+            on_tap     = pubdate_btn.callback,
+        }
+        local function colHeading(text, w)
+            local face, bold = BFont:getFace("cfont", math.max(10, font_size - 4), { bold = true })
+            local t = TextWidget:new{ text = require("lib/bookshelf_text_segments").upper(text),
+                face = face, bold = bold, fgcolor = Blitbuffer.COLOR_DARK_GRAY, max_width = w }
+            return FrameContainer:new{ bordersize = 0, margin = 0, padding = 0,
+                padding_top = Space.px(22), padding_bottom = Space.px(10), t }
+        end
+        local function widest(texts, face)
+            local m = 0
+            for _i, t in ipairs(texts) do
+                local w = TextWidget:new{ text = t, face = face }
+                m = math.max(m, w:getSize().w); w:free()
+            end
+            return m
+        end
+        local body_face = BFont:getFace("cfont", font_size)
+        local need_w = math.max(edit_btn:getSize().w,
+            widest({ pub_date_str, pub_from or "" }, body_face) * 0.6)
+        if right_w >= need_w then
+            pub_below = false
+            local right = VerticalGroup:new{ align = "left",
+                colHeading(_("Publish date"), right_w),
+                TextBoxWidget:new{ text = pub_date_str, face = body_face, width = right_w },
+            }
+            if pub_from then
+                right[#right + 1] = TextBoxWidget:new{ text = pub_from,
+                    face = BFont:getFace("cfont", math.max(10, font_size - 3)),
+                    fgcolor = Blitbuffer.COLOR_DARK_GRAY, width = right_w }
+            end
+            right[#right + 1] = VerticalSpan:new{ width = Space.px(8) }
+            right[#right + 1] = edit_btn
+            local left = VerticalGroup:new{ align = "left",
+                colHeading(_("Ratings"), left_w), ratings_widget }
+            vg[#vg + 1] = padded(HorizontalGroup:new{ align = "top",
+                left, HorizontalSpan:new{ width = col_gap }, right }, 0, 0)
+            focus_tables[#focus_tables + 1] = focusRow({ { edit_btn } })
+        else
+            vg[#vg + 1] = heading(_("Ratings"))
+            vg[#vg + 1] = padded(ratings_widget, 0, 0)
+        end
 
         -- An info row styled like a File-&-metadata button row: the value on the
         -- left (inset to align with the headings), then a bordered ChipButton
@@ -23442,39 +23533,12 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             return only, only_focus
         end
 
-        -- 4. Publish date: the date %published and the Publication year sort
-        -- use, with where it came from, so a date the book's file gives (often
-        -- the ebook's own release, not the work's) reads as that. Edit sets the
-        -- reader's own.
-        do
-            local Published = require("lib/bookshelf_published")
-            local date, src = Published.info(book)
-            local text
-            if date then
-                local y, m, d = date:match("^(%d%d%d%d)%-?(%d*)%-?(%d*)$")
-                m, d = tonumber(m), tonumber(d)
-                -- Only the month's name from the system, at a safe year: a
-                -- Kindle's time_t ends at 1901, before most books' dates.
-                local mon = m and m >= 1 and m <= 12
-                    and os.date("%b", os.time{ year = 2000, month = m, day = 1, hour = 12 })
-                if y and mon and d then text = string.format("%02d %s %s", d, mon, y)
-                elseif y and mon then text = mon .. " " .. y
-                else text = y or date end
-                local from = ({
-                    user      = _("set by you"),
-                    hardcover = _("from Hardcover"),
-                    calibre   = _("from calibre"),
-                    catalog   = _("from the catalog"),
-                    file      = _("from the book's file"),
-                })[src]
-                if from then text = text .. " \xC2\xB7 " .. from end
-            elseif src == "pending" then
-                text = _("Not read from the book yet")
-            else
-                text = _("None in the book's file")
-            end
+        -- 4. Publish date, when it did not fit beside the ratings: a row of
+        -- its own, the date and its source, with Edit beside it.
+        if pub_below then
+            local d, from = pubText()
             vg[#vg + 1] = heading(_("Publish date"))
-            vg[#vg + 1] = infoRow(text, _("Edit"), pubdate_btn.callback)
+            vg[#vg + 1] = infoRow(from and (d .. " \xC2\xB7 " .. from) or d, _("Edit"), pubdate_btn.callback)
         end
 
         -- 5. Hardcover link (brand name -> heading not translated). Edition text

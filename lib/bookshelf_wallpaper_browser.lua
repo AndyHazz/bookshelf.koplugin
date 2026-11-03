@@ -274,7 +274,7 @@ end
 local SCALING_LABELS = {
     stretch = function() return _("Stretch") end,
     fill    = function() return _("Crop to fill") end,
-    fit     = function() return _("Fit") end,
+    fit     = function() return _("Fit to screen") end,
 }
 function WB.scalingLabel()
     local T = require("ffi/util").template

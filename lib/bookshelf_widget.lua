@@ -23216,7 +23216,9 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                 local g = TextWidget:new{ text = "\xEF\x80\x85", face = face }
                 local gw = g:getSize().w
                 g:free()
-                if (gw + pad) * 5 + Space.px(16) > col_w then break end
+                -- A clear gap before the next column: two star rows side by
+                -- side read as one long row without it.
+                if (gw + pad) * 5 + Space.px(48) > col_w then break end
                 star_size = size
                 local ok_g, glyph = pcall(RenderText.getGlyph, RenderText, face, 0xF005)
                 local ink = ok_g and glyph and glyph.bb and glyph.bb:getHeight() or 0

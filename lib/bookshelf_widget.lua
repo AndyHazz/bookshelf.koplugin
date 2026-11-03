@@ -23311,9 +23311,14 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         -- the ratings alone here and the date in a row of its own below the
         -- actions (pub_below).
         local pub_date_str, pub_from = pubText()
-        local col_gap = Space.px(28)
-        local left_w  = ratings_widget:getSize().w
-        local right_w = content_w - 2 * inset - left_w - col_gap
+        -- Half and half, so the date's column starts under the status
+        -- control's third cell (On hold) and the two line up.
+        -- Ratings too wide for half (a smaller screen, Hardcover's row with
+        -- its number): the date starts where they end, if it still fits.
+        local col_gap = Space.px(16)
+        local avail   = content_w - 2 * inset
+        local left_w  = math.max(math.floor(avail / 2), ratings_widget:getSize().w + col_gap)
+        local right_w = avail - left_w
         -- The same button as infoRow's (the Hardcover row's Edit): its height
         -- from a bold line plus the pill padding and border.
         local edit_btn = PopupKit.button{
@@ -23327,12 +23332,14 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                 + 2 * Space.padding.small + 2 * Size.border.thin,
             on_tap     = pubdate_btn.callback,
         }
-        local function colHeading(text, w)
+        -- tighten: pixels taken off the gap under the heading.
+        local function colHeading(text, w, tighten)
             local face, bold = BFont:getFace("cfont", math.max(10, font_size - 4), { bold = true })
             local t = TextWidget:new{ text = require("lib/bookshelf_text_segments").upper(text),
                 face = face, bold = bold, fgcolor = Blitbuffer.COLOR_DARK_GRAY, max_width = w }
             return FrameContainer:new{ bordersize = 0, margin = 0, padding = 0,
-                padding_top = Space.px(22), padding_bottom = Space.px(10), t }
+                padding_top = Space.px(22),
+                padding_bottom = math.max(0, Space.px(10) - (tighten or 0)), t }
         end
         local function widest(texts, face)
             local m = 0
@@ -23343,25 +23350,38 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             return m
         end
         local body_face = BFont:getFace("cfont", font_size)
-        local need_w = math.max(edit_btn:getSize().w,
-            widest({ pub_date_str, pub_from or "" }, body_face) * 0.6)
-        if right_w >= need_w then
+        -- The date and its source on the left of the column, Edit flush
+        -- right beside them (in line with the actions' right edge).
+        local btn_gap = Space.px(10)
+        local text_w = right_w - edit_btn:getSize().w - btn_gap
+        local need_w = widest({ pub_date_str, pub_from or "" }, body_face) * 0.6
+        if text_w >= need_w and ratings_widget:getSize().w + col_gap <= left_w then
             pub_below = false
-            local right = VerticalGroup:new{ align = "left",
-                colHeading(_("Publish date"), right_w),
-                TextBoxWidget:new{ text = pub_date_str, face = body_face, width = right_w },
+            local lines = VerticalGroup:new{ align = "left",
+                TextBoxWidget:new{ text = pub_date_str, face = body_face, width = text_w },
             }
             if pub_from then
-                right[#right + 1] = TextBoxWidget:new{ text = pub_from,
+                lines[#lines + 1] = TextBoxWidget:new{ text = pub_from,
                     face = BFont:getFace("cfont", math.max(10, font_size - 3)),
-                    fgcolor = Blitbuffer.COLOR_DARK_GRAY, width = right_w }
+                    fgcolor = Blitbuffer.COLOR_DARK_GRAY, width = text_w }
             end
-            right[#right + 1] = VerticalSpan:new{ width = Space.px(8) }
-            right[#right + 1] = edit_btn
+            local right = VerticalGroup:new{ align = "left",
+                colHeading(_("Publish date"), right_w),
+                HorizontalGroup:new{ align = "top",
+                    lines, HorizontalSpan:new{ width = btn_gap }, edit_btn },
+            }
+            -- "Your rating" is centred on its stars, which stand taller than
+            -- the text: lift the column by the difference, so its words sit as
+            -- far under RATINGS as the date does under PUBLISH DATE.
+            -- The gap is only so deep: what it cannot take, the date column
+            -- drops by instead.
+            local lift = math.floor((your_group:getSize().h - lbl(_("Your rating")):getSize().h) / 2)
+            local short = math.max(0, lift - Space.px(10))
+            if short > 0 then table.insert(right, 2, VerticalSpan:new{ width = short }) end
             local left = VerticalGroup:new{ align = "left",
-                colHeading(_("Ratings"), left_w), ratings_widget }
+                colHeading(_("Ratings"), left_w, lift), ratings_widget }
             vg[#vg + 1] = padded(HorizontalGroup:new{ align = "top",
-                left, HorizontalSpan:new{ width = col_gap }, right }, 0, 0)
+                left, HorizontalSpan:new{ width = left_w - left:getSize().w }, right }, 0, 0)
             focus_tables[#focus_tables + 1] = focusRow({ { edit_btn } })
         else
             vg[#vg + 1] = heading(_("Ratings"))

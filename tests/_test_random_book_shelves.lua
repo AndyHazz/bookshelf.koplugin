@@ -26,11 +26,19 @@ package.loaded["lib/bookshelf_tab_model"] = {
     getById = function(id)
         for _i, tb in ipairs(tabs) do if tb.id == id then return tb end end
     end,
+    load = function() return tabs end,
     childrenOf = function(id)
         local out = {}
         for _i, tb in ipairs(tabs) do if tb.parent == id then out[#out + 1] = tb end end
         return out
     end,
+}
+
+-- Registered sources that count as part of the library (Sources.libraryIds):
+-- the Kindle library today, once a shelf uses it.
+local library_ids = {}
+package.loaded["lib/bookshelf_sources"] = {
+    libraryIds = function(_tabs) return library_ids end,
 }
 
 local fetched, shelf_books = {}, {}
@@ -136,6 +144,28 @@ t.test("an ordinary shelf is unchanged", function()
     tabs = { { id = "a", source = { kind = "collection", id = "A" } } }
     shelf_books = { ["collection:A"] = { { filepath = "/a1" }, { filepath = "/a2" } } }
     eq(pool(), "/a1,/a2")
+end)
+
+t.test("All books also picks from library sources a shelf uses (Kindle)", function()
+    store = { active_chip = "a", micromodule_random_unread_source = "all" }
+    tabs = { { id = "a", source = { kind = "collection", id = "A" } },
+             { id = "k", source = { kind = "kindle" } } }
+    library_ids = { "kindle" }
+    shelf_books = { library = { { filepath = "/l1" } },
+                    ["kindle:nil"] = { { filepath = "/k1" } },
+                    ["collection:A"] = { { filepath = "/a1" } } }
+    fetched = {}
+    eq(pool(), "/k1,/l1")
+    library_ids = {}
+end)
+
+t.test("All books with no library source is the walked library alone", function()
+    store = { active_chip = "a", micromodule_random_unread_source = "all" }
+    tabs = { { id = "a", source = { kind = "collection", id = "A" } } }
+    library_ids = {}
+    shelf_books = { library = { { filepath = "/l1" } }, ["kindle:nil"] = { { filepath = "/k1" } } }
+    fetched = {}
+    eq(pool(), "/l1")
 end)
 
 t.done()

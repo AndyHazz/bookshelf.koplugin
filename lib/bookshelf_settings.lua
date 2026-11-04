@@ -5182,6 +5182,35 @@ function Settings:_advancedSubItems()
                 end
             end,
         },
+        {
+            text = _("Genres from calibre only"),
+            help_text = _("For a book that is in your calibre library, use "
+                .. "only calibre's tags as its genres, even when calibre has "
+                .. "none for it, never the tags stored in the book file. "
+                .. "Useful after retagging in calibre, so the file's old tags "
+                .. "don't come back as genres of their own. A book set to "
+                .. "Embedded in its own Tags section still uses those."),
+            enabled_func = function()
+                return BookshelfSettings.read("calibre_metadata") == true
+            end,
+            checked_func = function()
+                return BookshelfSettings.isTrue("calibre_genres_only")
+            end,
+            keep_menu_open = true,
+            callback = function()
+                BookshelfSettings.save("calibre_genres_only",
+                    not BookshelfSettings.isTrue("calibre_genres_only") or nil)
+                BookshelfSettings.flush()
+                local ok, Repo = pcall(require, "lib/bookshelf_book_repository")
+                if ok and Repo and Repo.invalidateWalkCache then
+                    Repo.invalidateWalkCache()
+                end
+                if self._bw and self._bw._rebuild then
+                    self._bw:_rebuild()
+                    UIManager:setDirty(self._bw, "ui")
+                end
+            end,
+        },
     }
 
     return items

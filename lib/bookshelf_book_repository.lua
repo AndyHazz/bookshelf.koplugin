@@ -332,6 +332,11 @@ local function genreData(filepath, cb, info, cp)
     local resolved
     if pref == "calibre"  and calibre  then resolved = calibre
     elseif pref == "embedded" and embedded then resolved = embedded
+    elseif cb and BookshelfSettings.isTrue("calibre_genres_only") then
+        -- Genres from calibre only (issue 583): a book calibre knows takes
+        -- its tags from calibre alone, none included. Falling back to the
+        -- file's own put a retagged library's old names back on the shelf.
+        resolved = calibre
     else resolved = calibre or embedded end
     return resolved, { calibre = calibre, embedded = embedded }
 end

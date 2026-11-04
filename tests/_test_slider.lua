@@ -38,6 +38,8 @@ end)
 t.test("the ticks: the range's ends and Default, in order, without repeats", function()
     eq(table.concat(Slider.ticks{ min = 50, max = 200, default = 100 }, " "), "50 100 200")
     eq(table.concat(Slider.ticks{ min = 50, max = 200, default = 50 }, " "), "50 200")
+    -- No default: both ends still (ipairs stopped at the hole, dropping max).
+    eq(table.concat(Slider.ticks{ min = 0, max = 300 }, " "), "0 300")
 end)
 
 t.test("a page's slider block, and the nudge page uses it", function()

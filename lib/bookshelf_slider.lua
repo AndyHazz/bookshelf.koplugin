@@ -43,7 +43,8 @@ end
 -- ticks(o) -> the values marked under the track: the ends and Default.
 function Slider.ticks(o)
     local out, seen = {}, {}
-    for _i, v in ipairs({ o.min, o.default, o.max }) do
+    -- Not ipairs: with no default it stopped at the hole and dropped the max.
+    for _i, v in pairs({ o.min, o.default, o.max }) do
         if v and not seen[v] then seen[v] = true; out[#out + 1] = v end
     end
     table.sort(out)

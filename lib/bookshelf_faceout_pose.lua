@@ -102,16 +102,20 @@ function M.inverse(p0, p1, p2, p3)
     end
 end
 
--- spansV(quad, fn): fn(x, y0, y1) for each screen column the quad covers,
--- y1 exclusive. Every face goes through this one rasteriser, so faces that
--- share an edge meet on it.
-function M.spansV(q, fn)
+-- spansV(quad, fn, clip): fn(x, y0, y1) for each screen column the quad
+-- covers, y1 exclusive. Every face goes through this one rasteriser, so
+-- faces that share an edge meet on it. clip { w, h }: only what lies on a
+-- screen that size. The cover is copied with raw pixel writes, so a lifted
+-- book reaching past the screen's edge would write outside the framebuffer.
+function M.spansV(q, fn, clip)
     local minx, maxx = math.huge, -math.huge
     for _i, p in ipairs(q) do
         if p[1] < minx then minx = p[1] end
         if p[1] > maxx then maxx = p[1] end
     end
-    for x = math.floor(minx), math.ceil(maxx) do
+    local xa, xb = math.floor(minx), math.ceil(maxx)
+    if clip then xa, xb = math.max(xa, 0), math.min(xb, clip.w - 1) end
+    for x = xa, xb do
         local lo, hi
         for k = 1, 4 do
             local a, b = q[k], q[k % 4 + 1]
@@ -130,6 +134,7 @@ function M.spansV(q, fn)
         end
         if lo then
             local y0, y1 = math.floor(lo), math.ceil(hi)
+            if clip then y0, y1 = math.max(y0, 0), math.min(y1, clip.h) end
             if y1 > y0 then fn(x, y0, y1) end
         end
     end

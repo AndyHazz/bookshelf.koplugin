@@ -6565,9 +6565,12 @@ function SpineShelf.paintFaceOutTilt(tile)
         return Blitbuffer.ColorRGB32(v, v, v, 0xFF)
     end
     local foot   -- the rect behind the book that step 2 puts back
+    local src    -- the cover's copy, freed however the pose ends
+    -- Every span on the screen: a lifted book can reach past its edge.
+    local clip = { w = bb:getWidth(), h = bb:getHeight() }
     local ok, err = pcall(function()
         -- 1. The cover alone.
-        local src = Blitbuffer.new(W, H, bb:getType())
+        src = Blitbuffer.new(W, H, bb:getType())
         src:blitFrom(require("lib/bookshelf_clip_bb").real(bb), 0, 0, rect.x, rect.y, W, H)
         local cx0, cy0 = card.dimen.x, card.dimen.y
         pcall(function() card:paintTo(src, 0, 0) end)
@@ -6660,7 +6663,7 @@ function SpineShelf.paintFaceOutTilt(tile)
                         run_y, run_c = y, c
                     end
                 end
-            end)
+            end, clip)
         end
         local tones = {}
         local function cached(v)
@@ -6713,9 +6716,9 @@ function SpineShelf.paintFaceOutTilt(tile)
                     _shadeRect(bb, x, by0, 1, by1 - by0, 0.10 + 0.22 * ((k + 0.5) / 4), night)
                 end
             end
-        end)
-        src:free()
+        end, clip)
     end)
+    if src then src:free() end
     if not ok then
         logger.dbg("[bookshelf] face-out opening pose failed, tipping instead:", err)
         return SpineShelf._paintFaceOutTip(tile)

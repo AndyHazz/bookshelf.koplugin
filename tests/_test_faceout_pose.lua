@@ -62,6 +62,35 @@ t.test("spansV covers a quad column by column, inside its edges", function()
     eq(cols[1][2], 20); eq(cols[1][3], 40)
 end)
 
+t.test("spansV with a clip never hands back a pixel off the screen", function()
+    -- A lifted cover near the screen's top edge (or a side) reaches past it:
+    -- the cover is copied with raw pixel writes, so a span off the screen
+    -- would write outside the framebuffer.
+    local cols = {}
+    Pose.spansV({ { -5, -30 }, { 20, -30 }, { 20, 40 }, { -5, 40 } }, function(x, y0, y1)
+        cols[#cols + 1] = { x, y0, y1 }
+    end, { w = 15, h = 30 })
+    eq(#cols, 15)
+    for _i, c in ipairs(cols) do
+        assert(c[1] >= 0 and c[1] < 15, "x off the screen: " .. c[1])
+        assert(c[2] >= 0 and c[3] <= 30, "y off the screen: " .. c[2] .. ".." .. c[3])
+    end
+    eq(cols[1][2], 0); eq(cols[1][3], 30)
+    -- Wholly off the screen: nothing.
+    local any = false
+    Pose.spansV({ { 10, -40 }, { 20, -40 }, { 20, -10 }, { 10, -10 } }, function() any = true end,
+        { w = 100, h = 100 })
+    eq(any, false)
+end)
+
+t.test("the opening pose clips its spans to the screen and frees the cover on failure", function()
+    local src = io.open("lib/bookshelf_spine_shelf.lua"):read("*a")
+    local n = 0
+    for _ in src:gmatch("end, clip%)") do n = n + 1 end
+    eq(n, 2, "both of the pose's spansV calls should pass the screen clip")
+    assert(src:find("if src then src:free() end", 1, true), "the cover copy leaks when the pose fails")
+end)
+
 t.test("stripes are never finer than about 3px; the boards end the pages", function()
     eq(Pose.stripes({ 0, 0 }, { 6, 0 }), 3)
     eq(Pose.stripes({ 0, 0 }, { 30, 0 }), 10)

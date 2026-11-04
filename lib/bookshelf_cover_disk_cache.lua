@@ -338,13 +338,19 @@ function M.store(filepath, bb)
         if (bb.getInverse  and bb:getInverse()  or 0) ~= 0 then error("inverted") end
         -- Write to a sibling and rename, so a crash mid-write cannot leave a
         -- truncated file that later reads as a valid header with short data.
+        -- Every write and the close checked: on a full disk a short file
+        -- renamed over a good one would be re-decoded and rewritten every
+        -- session. A failure keeps the good copy and removes the temp file.
         local tmp = p .. ".tmp"
         local f = assert(io.open(tmp, "wb"))
         local header = string.format("%s %d %d %d %d %d\n%s\n",
             MAGIC, w, h, stride, btype, #filepath, filepath)
-        f:write(header)
-        f:write(ffi.string(bb.data, stride * h))
-        f:close()
+        local ok_w = f:write(header) and f:write(ffi.string(bb.data, stride * h))
+        local ok_c = f:close()
+        if not (ok_w and ok_c) then
+            os.remove(tmp)
+            error("write failed")
+        end
         local was = lfs.attributes(p, "size") or 0
         os.remove(p)
         assert(os.rename(tmp, p))

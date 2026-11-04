@@ -88,5 +88,55 @@ test("a new database takes the settings store's decks, once, and the old key goe
     assert(DB.get("all")[1] == "p1", "moved in again over the database's own")
 end)
 
+-- A COMMIT that fails (disk full, SQLITE_BUSY), `n` times: the connection
+-- comes through a proxy (its own metatable is locked), so _moveIn's, inside
+-- open, fails too.
+local function failCommits(n)
+    DB.close()
+    local SQ3 = require("lua-ljsqlite3/init")
+    local proxy_mod = setmetatable({
+        open = function(...)
+            local db = SQ3.open(...)
+            return setmetatable({
+                exec = function(_self, sql, ...)
+                    if sql == "COMMIT;" and n > 0 then n = n - 1; error("database or disk is full") end
+                    return db:exec(sql, ...)
+                end,
+            }, { __index = function(_t, k)
+                local v = db[k]
+                if type(v) == "function" then return function(_self, ...) return v(db, ...) end end
+                return v
+            end })
+        end,
+    }, { __index = SQ3 })
+    package.loaded["lua-ljsqlite3/init"] = proxy_mod
+    return function() package.loaded["lua-ljsqlite3/init"] = SQ3 end
+end
+
+test("a failed COMMIT does not leave the database stuck in its transaction", function()
+    fresh()
+    store = {}
+    local restore = failCommits(1)
+    local ok = pcall(function()
+        DB.put("all", { "lost" })        -- its COMMIT fails
+        DB.put("recent", { "kept" })     -- must still reach the disk
+    end)
+    restore()
+    assert(ok)
+    reopen()
+    local d = DB.get("recent")
+    assert(d and d[1] == "kept", "a write after a failed COMMIT never reached the disk")
+end)
+
+test("a failed move-in keeps the settings store's copy", function()
+    local restore = failCommits(1)
+    DB.close()
+    os.execute("rm -rf '" .. DIR .. "' && mkdir -p '" .. DIR .. "/bookshelf'")
+    store = { ornament_decks = { all = { "p1" } } }
+    DB.open()
+    restore()
+    assert(store.ornament_decks ~= nil, "the settings copy went though the move-in failed")
+end)
+
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

@@ -67,6 +67,15 @@ end
 -- _moveIn(db): a database with no decks takes the settings store's, then the
 -- store's copy goes. Written in one transaction first, so a failure leaves
 -- the store's copy where it was.
+-- _commit(db) -> ok. A failed COMMIT (disk full, SQLITE_BUSY) leaves the
+-- transaction open, and every later BEGIN on this connection would fail
+-- for the rest of the session: roll it back.
+local function _commit(db)
+    if pcall(db.exec, db, "COMMIT;") then return true end
+    pcall(db.exec, db, "ROLLBACK;")
+    return false
+end
+
 local function _moveIn(db)
     local st = db:prepare("SELECT COUNT(*) FROM decks")
     st:reset()
@@ -84,7 +93,7 @@ local function _moveIn(db)
         db:exec("ROLLBACK;")
         return
     end
-    db:exec("COMMIT;")
+    if not _commit(db) then return end
     pcall(Store.delete, M.OLD_KEY)
     logger.dbg("[bookshelf] ornament decks moved into", M.DB_NAME)
 end
@@ -156,7 +165,8 @@ function M.put(shelf, list)
     local ok, err = pcall(function()
         db:exec("BEGIN;")
         local ok_w, e = pcall(_writeShelf, db, k, list)
-        if ok_w then db:exec("COMMIT;") else db:exec("ROLLBACK;"); error(e) end
+        if not ok_w then db:exec("ROLLBACK;"); error(e) end
+        if not _commit(db) then error("commit failed") end
     end)
     if not ok then logger.warn("[bookshelf] ornament decks db:", tostring(err)) end
 end

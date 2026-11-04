@@ -123,6 +123,35 @@ t.test("a stored cover comes back with its geometry intact", function()
     assert(got.data[0] == 200 and got.data[8 * 4 - 1] == 200, "pixels changed")
 end)
 
+t.test("a write that fails (disk full) keeps the good copy and leaves no temp file", function()
+    assert(Cache.store("/books/full.epub", makeBB(8, 4, 50)), "store failed")
+    local real_open = io.open
+    io.open = function(path, mode)
+        local f, err = real_open(path, mode)
+        if f and mode == "wb" and path:sub(-4) == ".tmp" then
+            -- The header goes; the pixels do not fit.
+            local n = 0
+            return setmetatable({
+                write = function(_s, data)
+                    n = n + 1
+                    if n > 1 then return nil, "No space left on device" end
+                    return f:write(data)
+                end,
+                close = function() return f:close() end,
+            }, { __index = function(_t, k) return function(_s, ...) return f[k](f, ...) end end })
+        end
+        return f, err
+    end
+    local ok = Cache.store("/books/full.epub", makeBB(8, 4, 99))
+    io.open = real_open
+    assert(not ok, "a short write reported as stored")
+    local got = Cache.load("/books/full.epub")
+    assert(got and got.data[0] == 50, "the good copy was replaced by a truncated one")
+    for entry in lfs_real.dir(STORE) do
+        assert(not entry:find("%.tmp$"), "left a temp file behind: " .. entry)
+    end
+end)
+
 t.test("a padded buffer keeps its row stride", function()
     -- Blitbuffer rows can be padded, so stride is not always the width.
     -- Rebuilt at stride == w, every row after the first shifts left and the

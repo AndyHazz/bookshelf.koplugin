@@ -7541,6 +7541,9 @@ function BookshelfWidget:_spinePlanBase(content_w, shelf_h, all_items)
         face_out        = self:_spineFaceOut(),
         face_recent_set = self:_spineFaceRecent(all_items),
         thickness_pct   = self:_chipListValue("spine_thickness_pct"),
+        -- Book sizes: Same stands every book at the default shape and
+        -- thickness (SpineShelf.bookShape). Changes how many fit a row.
+        same_size       = self:_spineSameSize(),
         -- Whose ornament deck the pieces are dealt from: every shelf has its
         -- own (lib/bookshelf_ornament_deck). Here, so the render and the
         -- page map deal from the same one.
@@ -7907,6 +7910,13 @@ function BookshelfWidget:_spineShowAuthor()
     if own == false then return false end
     if own == true then return true end
     return BookshelfSettings.nilOrTrue("spine_show_author")
+end
+
+-- _spineSameSize() -> true when this shelf's Book sizes is Same, else nil
+-- (Varied, the default: each book's own height and thickness).
+function BookshelfWidget:_spineSameSize()
+    local tab = require("lib/bookshelf_tab_model").getById(self.chip)
+    return (tab and tab.spine_same_size == true) or nil
 end
 
 -- Opt-in presentation only: an opened series still shows its individual books.

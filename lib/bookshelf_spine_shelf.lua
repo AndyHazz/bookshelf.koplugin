@@ -648,6 +648,22 @@ function SpineShelf.thicknessPages(c)
     return c.stable or c.scan or c.filename or c.bim or c.rendered
 end
 
+-- bookShape(look, pages, same_size) -> aspect, look, pages
+--
+-- The shape the planner sizes a book from. A shelf's Book sizes is Varied by
+-- default: height from the cover's shape, thickness from the page count. Same
+-- stands every book at the default shape and thickness (the shelf's
+-- Thickness % still applies on top), face-outs included. The look comes back
+-- as a COPY with the default aspect, since the painter reads its top edge from
+-- it and the cached one is shared with every other view.
+function SpineShelf.bookShape(look, pages, same_size)
+    if not same_size then return look.aspect, look, pages end
+    local copy = {}
+    for k, v in pairs(look) do copy[k] = v end
+    copy.aspect = SpineLayout.DEFAULT_ASPECT
+    return copy.aspect, copy, nil
+end
+
 local function _sampleAverage(bb)
     local n, r, g, b = 0, 0, 0, 0
     local w, h = bb:getWidth(), bb:getHeight()
@@ -4314,8 +4330,6 @@ function SpineShelf.plan(items, opts)
         local _tl = _gettime()
         local look = SpineShelf.shownLook(rep)
         _t_look = _t_look + (_gettime() - _tl)
-        local aspect = look.aspect
-        local h = SpineLayout.spineHeight(budget, aspect)
         local _tf = _gettime()
         local fav = bk.filepath ~= nil and _isFavourite(bk.filepath)
         _t_fav = _t_fav + (_gettime() - _tf)
@@ -4469,14 +4483,19 @@ function SpineShelf.plan(items, opts)
                 end
             end)
         end
+        -- The shape the book is sized from: its own, or the default on a
+        -- shelf whose Book sizes is Same (bookShape).
+        local aspect, shape_pages
+        aspect, look, shape_pages = SpineShelf.bookShape(look,
+            SpineShelf.thicknessPages(thick), opts.same_size)
+        local h = SpineLayout.spineHeight(budget, aspect)
         local w_dp, w, depth, face_h, true_thick
         if face_out then
             -- The page block above a face-out cover is the book's THICKNESS:
             -- the same page-count width its spine would have had (auto scale
             -- and the chip's thickness % included), capped so the cover
             -- stays the point.
-            local depth_dp = SpineLayout.spineWidthDp(
-                                 SpineShelf.thicknessPages(thick)) * auto_thick
+            local depth_dp = SpineLayout.spineWidthDp(shape_pages) * auto_thick
             local t = tonumber(opts.thickness_pct)
             if t and t >= 40 and t <= 300 and t ~= 100 then
                 depth_dp = depth_dp * t / 100
@@ -4505,8 +4524,7 @@ function SpineShelf.plan(items, opts)
             w = SpineLayout.faceOutWidth(face_h, aspect)
             w_dp = math.floor(w / (Screen:scaleBySize(100) / 100) + 0.5)
         else
-            w_dp = SpineLayout.spineWidthDp(
-                       SpineShelf.thicknessPages(thick)) * auto_thick
+            w_dp = SpineLayout.spineWidthDp(shape_pages) * auto_thick
             -- Per-chip thickness: a straight multiplier on top of the
             -- height-scaled width. Face-out covers are aspect-true and
             -- stay out of both.

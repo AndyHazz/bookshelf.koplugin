@@ -138,8 +138,12 @@ function M.restore(group, files, title, light_meta)
 end
 
 -- A member's spine width in px at full height, the way plan sizes a spine.
-local function spinePx(member, auto_thick)
+-- same_size: the shelf's Book sizes is Same, so every book is the default
+-- thickness, as the loose spines beside the box are (SpineShelf.bookShape).
+local function spinePx(member, auto_thick, same_size)
     local SpineLayout = require("lib/bookshelf_spine_layout")
+    local Screen = require("device").screen
+    if same_size then return Screen:scaleBySize(SpineLayout.spineWidthDp(nil) * auto_thick) end
     local pages
     local ok, SpineShelf = pcall(require, "lib/bookshelf_spine_shelf")
     if ok and SpineShelf and member.filepath then
@@ -147,7 +151,6 @@ local function spinePx(member, auto_thick)
         if pp and psrc ~= "render" then pages = pp end
     end
     pages = pages or member.page_count or member.pages
-    local Screen = require("device").screen
     return Screen:scaleBySize(SpineLayout.spineWidthDp(pages) * auto_thick)
 end
 
@@ -192,7 +195,7 @@ function M.slipcaseGeometry(book, base, opts)
     -- to share it.
     local nat, sum = {}, 0
     for i = 1, n do
-        nat[i] = math.max(1, spinePx(book.books[i], auto_thick))
+        nat[i] = math.max(1, spinePx(book.books[i], auto_thick, opts.same_size))
         sum = sum + nat[i]
     end
     -- Never so thin the series cannot be told: at least SLIPCASE_MIN_SHARE of

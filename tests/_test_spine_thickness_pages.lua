@@ -135,7 +135,11 @@ t.test("readProgress says which rung answered", function()
 end)
 
 t.test("both spine widths come from the thickness ladder", function()
-    local n = select(2, ss:gsub("SpineLayout%.spineWidthDp%(%s*SpineShelf%.thicknessPages%(thick%)%)", ""))
+    -- The ladder's count reaches both widths through bookShape (a shelf's
+    -- Book sizes), which hands back the count the widths are drawn from.
+    assert(ss:find("SpineShelf%.bookShape%(look,%s*SpineShelf%.thicknessPages%(thick%)"),
+        "the width's count does not come from the thickness ladder")
+    local n = select(2, ss:gsub("SpineLayout%.spineWidthDp%(shape_pages%)", ""))
     eq(n, 2, "the spine or the face-out's page block still reads the rendered count")
     assert(not ss:find("SpineLayout.spineWidthDp(pages)", 1, true))
 end)

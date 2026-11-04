@@ -316,6 +316,7 @@ H.test("the native planner paginates boxes as single slots and resumes inside co
         cachedProgress=function() return nil,nil,true end,
         persistProgress=function() end,prefetchFacts=function() end,
         markSeriesHeads=function() end,thicknessPages=function() return 300 end,
+        bookShape=function(look,pages) return look.aspect,look,pages end,
         bookLook=function() return {r=90,g=120,b=80,aspect=1.5} end,
     shownLook=function() return {r=90,g=120,b=80,aspect=1.5} end,
     }
@@ -409,6 +410,19 @@ H.test("a box's sticker is kept between page turns, scaled in C", function()
     assert(w:find("local kept = _stickers[skey]", 1, true), "the sticker is built on every paint")
     assert(not w:find(":scale(iw, ih)", 1, true), "Blitbuffer:scale (a Lua pixel loop) on the paint path")
     assert(w:find('night and "n" or "d" }, "|")', 1, true), "the night sticker would serve the day")
+end)
+
+H.test("a Same size shelf gives every book in a box the same width", function()
+    local b=members(3,"Sizes")
+    b[1].page_count=80; b[2].page_count=900; b[3].page_count=300
+    local box=Boxes.box(b,"Sizes")
+    local varied=Boxes.geometry(box,BASE,{content_w=2000})
+    H.eq(varied.spines[1].w < varied.spines[2].w, true, "Varied follows the page counts")
+    local same=Boxes.geometry(box,BASE,{content_w=2000,same_size=true})
+    local w1=same.spines[1].w
+    for i=2,#same.spines do
+        assert(math.abs(same.spines[i].w-w1)<=1, "book "..i.." is "..same.spines[i].w.." wide, book 1 "..w1)
+    end
 end)
 
 H.finish()

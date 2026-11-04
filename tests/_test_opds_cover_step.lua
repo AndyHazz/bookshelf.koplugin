@@ -80,6 +80,14 @@ local function rig(opts)
         -- the step compares the token it was handed against this, so a rig
         -- that leaves it nil makes every step read as superseded.
         _opds_cover_token = opts.token or 7,
+        -- The page after the one that just landed, while there is one.
+        _opdsLookaheadItem = function()
+            log.lookahead = (log.lookahead or 0) + 1
+            local n = log.lookahead + 2
+            if opts.pages_ahead and n > opts.pages_ahead + 1 then return nil end
+            return { kind = "page", server_key = "srv", feed_url = "https://c/feed",
+                     fetch_url = "https://c/feed?p=" .. n, plan = opts.plan }
+        end,
     }
     BookshelfWidget.live = self_tbl
     local env = {
@@ -122,6 +130,15 @@ local function rig(opts)
             log.pipelined = (log.pipelined or 0) + 1
             return { kind = "cover", rec = { id = id } }
         end,
+        -- A lookahead page item lands through this; opts.page_store_fails
+        -- maps fetch url -> true.
+        _storeFeedPage            = function(sk, feed_url, fetch_url, body)
+            if opts.page_store_fails and opts.page_store_fails[fetch_url] then return false end
+            log.pages = log.pages or {}
+            log.pages[#log.pages + 1] = fetch_url
+            return true
+        end,
+        OPDS_LOOKAHEAD_MAX_REQUESTS = 3,
         -- The tail re-arms through this when anything resolved.
         _opdsEnsureCovers_calls   = 0,
         OPDS_COVER_TICK           = 0.2,
@@ -180,6 +197,24 @@ local function resolve_queue_of(n)
                  timeouts = { block_timeout = 5, total_timeout = 10 } }
     end
     return q
+end
+
+-- ── a lookahead page item (the pool's fallback) ─────────────────────────────
+-- The pool queues the next feed page first. When forking is unavailable the
+-- whole queue comes here, and a page item has no .rec: taken for a cover,
+-- needsFetch(nil) read as "already on disk" and the page was never fetched.
+do
+    local r = rig{ plan = 2 }
+    local q = { { kind = "page", server_key = "srv", feed_url = "https://c/feed",
+                  fetch_url = "https://c/feed?p=2", plan = 2 } }
+    local st = r.fresh_state()
+    r.step(q, 1, 7, st)
+    while r.run_pending() do end
+    eq(r.log.resolved_urls[1], "https://c/feed?p=2", "the page's own url is fetched")
+    eq(r.log.pages and #r.log.pages, 2, "it lands, and the chain reads one further, to its budget")
+    eq(st.paged, 2)
+    eq(#r.log.fetched, 0, "a page item is never fetched as a cover")
+    ok(r.log.rebuilds >= 1, "the tail repaints for the new page count")
 end
 
 -- ── one download per tick ────────────────────────────────────────────────────

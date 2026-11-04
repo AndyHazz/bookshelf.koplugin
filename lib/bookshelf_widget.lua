@@ -19154,7 +19154,9 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
             end
         end
         local pid, rfd = ffiutil.runInSubProcess(payload, true)
-        if not pid then fork_broken = true; return false end
+        -- fork_broken holds the queue index of the item that failed to
+        -- launch: the fallback starts there, so it is fetched, not dropped.
+        if not pid then fork_broken = next_i; return false end
         in_flight[#in_flight + 1] =
             { pid = pid, fd = rfd, item = item, t0 = _gettime() }
         return true
@@ -19351,11 +19353,12 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
             UIManager:scheduleIn(OPDS_POOL_POLL, poll)
             return
         end
-        if fork_broken and next_i < #queue then
+        if fork_broken then
             -- Forking died mid-run: finish what is left the old way rather
-            -- than dropping it.
+            -- than dropping it, from the item whose launch failed (it may
+            -- have been the last).
             local rest = {}
-            for i = next_i + 1, #queue do rest[#rest + 1] = queue[i] end
+            for i = fork_broken, #queue do rest[#rest + 1] = queue[i] end
             return self:_opdsCoverStep(rest, 1, token, state)
         end
         -- Done.
@@ -19422,6 +19425,7 @@ function BookshelfWidget:_opdsCoverStep(queue, idx, token, state)
         -- Sweep on ANY cover having landed (see the pool's tail for why).
         if state.landed > 0 then OpdsCovers.sweepCache() end
         local unpainted = (state.landed > state.painted) or state.resolved > 0
+            or (state.paged or 0) > 0
         if unpainted then
             local t0 = _gettime()
             self:_rebuild()
@@ -19498,6 +19502,26 @@ function BookshelfWidget:_opdsCoverStep(queue, idx, token, state)
             -- mixing the two counters would delay whichever is in the minority.
             if state.resolved % OPDS_COVER_REBUILD_EVERY == 0 then
                 _paint("resolve-batch")
+            end
+        end
+    elseif item.kind == "page" then
+        -- The next page of the feed on screen, as the pool reads it ahead
+        -- (this chain is the pool's fallback, and gets its whole queue).
+        -- No repaint of its own: the tail picks up the new page count.
+        local OpdsFeed = require("lib/bookshelf_opds_feed")
+        local _tf = _gettime()
+        local body = OpdsFeed.fetch(item.fetch_url or item.feed_url, item.user,
+                                    item.password, item.timeouts)
+        state.t_fetch = state.t_fetch + (_gettime() - _tf) * 1000
+        state.n_fetch = state.n_fetch + 1
+        if body and _storeFeedPage(item.server_key, item.feed_url,
+                                   item.fetch_url, body) then
+            state.paged = (state.paged or 0) + 1
+            -- Within this run's budget, as in the pool.
+            local budget = item.plan or OPDS_LOOKAHEAD_MAX_REQUESTS
+            if state.paged < budget then
+                local more = self:_opdsLookaheadItem()
+                if more then queue[#queue + 1] = more end
             end
         end
     else

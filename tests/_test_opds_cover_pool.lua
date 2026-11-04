@@ -571,6 +571,19 @@ do
     r.poll()
     ok(r.log.fell_back ~= nil, "the remainder goes to the step chain")
     ok(r.log.fell_back.n > 0, "and it is the UNFETCHED remainder, not nothing")
+    eq(r.log.fell_back.n, 4, "the item whose fork failed is in the remainder, not dropped")
+end
+
+do
+    -- The fork fails on the queue's LAST item: nothing after it, but the
+    -- item itself still needs fetching.
+    local r = rig{ fork_fails_after = 2 }
+    r.start(cover_queue(3), 7, r.fresh_state())
+    eq(#r.log.launched, 2)
+    r.answer_all("1")
+    r.poll()
+    ok(r.log.fell_back ~= nil, "a failed final item is not mistaken for a drained queue")
+    eq(r.log.fell_back and r.log.fell_back.n, 1)
 end
 
 print(string.format("opds cover pool: %d passed, %d failed", pass, fail))

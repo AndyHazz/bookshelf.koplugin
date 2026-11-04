@@ -614,8 +614,11 @@ end
 -- deleteFolder(dir) -> true, books | nil, reason (456). The folder and
 -- everything in it, then what KOReader keeps about its books elsewhere: the
 -- file browser's own folder delete (FileManager:deleteFile), plus each
--- book's sidecar first, since ReadHistory:folderDeleted only finds the books
--- in the history and a "dir" or "hash" sidecar lives outside the folder.
+-- book's sidecar, since ReadHistory:folderDeleted only finds the books in
+-- the history and a "dir" or "hash" sidecar lives outside the folder.
+-- Sidecars go only for books the delete actually removed: a delete that
+-- fails partway (a locked file, read-only storage) keeps the progress of
+-- every book still there.
 -- Refuses the home folder and anything above it, and a folder holding the
 -- book that is open or parked. reason: "home", "missing", "in_use", "error".
 function FileOps.deleteFolder(dir)
@@ -637,10 +640,21 @@ function FileOps.deleteFolder(dir)
         local ok, err = pcall(fn)
         if not ok then logger.warn("bookshelf file-ops folder delete:", name, err) end
     end
-    for _i, fp in ipairs(books) do
-        safe("docsettings", function() require("docsettings").updateLocation(fp) end)
+    local DocSettings = require("docsettings")
+    -- A "hash" sidecar is keyed by the file's content, so it can only be
+    -- found while the file exists: DocSettings caches each book's hash,
+    -- and updateLocation finds it from that cache once the file is gone.
+    if DocSettings.isHashLocationEnabled and DocSettings.isHashLocationEnabled() then
+        for _i, fp in ipairs(books) do
+            safe("docsettings-hash", function() DocSettings:getSidecarDir(fp, "hash") end)
+        end
     end
     local ok_p = require("ffi/util").purgeDir(dir)
+    for _i, fp in ipairs(books) do
+        if not lfs.attributes(fp, "mode") then
+            safe("docsettings", function() DocSettings.updateLocation(fp) end)
+        end
+    end
     if not ok_p then
         logger.warn("bookshelf file-ops: folder delete failed", dir)
         return nil, "error"

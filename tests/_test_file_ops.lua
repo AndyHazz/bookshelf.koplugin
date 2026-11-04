@@ -531,11 +531,18 @@ t.test("renameFolder maps to relocateFolder in the same parent", function()
 end)
 
 -- ---------- deleteFolder (456) ----------
-local purged, purge_fail
+local purged, purge_fail, purge_keeps
 package.loaded["ffi/util"] = {
+    -- Removes the folder's files from the fake tree, except purge_keeps
+    -- (files a failing delete could not remove).
     purgeDir = function(dir)
         calls[#calls + 1] = { "purge", dir }
         purged = dir
+        for f in pairs(files) do
+            if f:sub(1, #dir + 1) == dir .. "/" and not (purge_keeps and purge_keeps[f]) then
+                files[f] = nil
+            end
+        end
         if purge_fail then return nil, "busy" end
         return true
     end,
@@ -544,7 +551,7 @@ package.loaded["readhistory"].folderDeleted = function(_self, p) calls[#calls + 
 package.loaded["readcollection"].removeItemsByPath = function(_self, p) calls[#calls + 1] = { "colldel", p } end
 package.loaded["lib/bookshelf_home_dir"] = { get = function() return "/h" end }
 
-t.test("deleteFolder: every book's sidecar first, then the folder, then history, collections, shortcuts", function()
+t.test("deleteFolder: the folder first, then each book's sidecar, history, collections, shortcuts", function()
     setTree({ "/h/a", "/h/a/sub" }, { "/h/a/one.epub", "/h/a/sub/two.epub", "/h/a/notes.txt" })
     package.loaded["lib/bookshelf_book_repository"] = {
         isBookFile = function(name) return name:sub(-5) == ".epub" end,
@@ -555,11 +562,16 @@ t.test("deleteFolder: every book's sidecar first, then the folder, then history,
     calls = {}
     local ok, n = FileOps.deleteFolder("/h/a/")
     eq(ok, true); eq(n, 2)
-    eq(calls[1], { "sdr", "/h/a/one.epub", nil })
     local i_purge
     for i, c in ipairs(calls) do if c[1] == "purge" then i_purge = i end end
     eq(calls[i_purge][2], "/h/a")
-    for i = 1, i_purge - 1 do assert(calls[i][1] ~= "histdel", "history cleared before the delete") end
+    for i = 1, i_purge - 1 do
+        assert(calls[i][1] ~= "histdel", "history cleared before the delete")
+        assert(calls[i][1] ~= "sdr", "a sidecar went before the folder was deleted")
+    end
+    local sdr = {}
+    for _i, c in ipairs(calls) do if c[1] == "sdr" then sdr[c[2]] = true end end
+    eq(sdr, { ["/h/a/one.epub"] = true, ["/h/a/sub/two.epub"] = true })
     -- Slash-terminated, so /h/a doesn't take /h/ab's entries with it.
     local seen = {}
     for _i, c in ipairs(calls) do seen[c[1]] = c end
@@ -590,6 +602,39 @@ t.test("deleteFolder: a failed delete leaves history and collections alone", fun
     purge_fail = nil
     eq(ok, nil); eq(err, "error")
     for _i, c in ipairs(calls) do assert(c[1] ~= "histdel" and c[1] ~= "colldel") end
+end)
+
+t.test("deleteFolder: a delete that fails keeps the sidecars of the books still there", function()
+    setTree({ "/h/a" }, { "/h/a/one.epub", "/h/a/two.epub" })
+    calls = {}
+    purge_fail = true
+    purge_keeps = { ["/h/a/two.epub"] = true }
+    local ok = FileOps.deleteFolder("/h/a")
+    purge_fail, purge_keeps = nil, nil
+    eq(ok, nil)
+    local sdr = {}
+    for _i, c in ipairs(calls) do if c[1] == "sdr" then sdr[c[2]] = true end end
+    -- one.epub went, so its sidecar goes too; two.epub is still on disk.
+    eq(sdr, { ["/h/a/one.epub"] = true })
+end)
+
+t.test("deleteFolder: hash sidecars are located before the files go", function()
+    -- The hash location keys a sidecar by the file's content, so it can
+    -- only be found while the file is still there.
+    setTree({ "/h/a" }, { "/h/a/one.epub" })
+    local DS = package.loaded["docsettings"]
+    local prev_enabled, prev_dir = DS.isHashLocationEnabled, DS.getSidecarDir
+    DS.isHashLocationEnabled = function() return true end
+    DS.getSidecarDir = function(self, fp, loc)
+        if loc == "hash" then calls[#calls + 1] = { "hash", fp, files[fp] == true } end
+        return prev_dir(self, fp, loc)
+    end
+    calls = {}
+    FileOps.deleteFolder("/h/a")
+    DS.isHashLocationEnabled, DS.getSidecarDir = prev_enabled, prev_dir
+    local hashed
+    for _i, c in ipairs(calls) do if c[1] == "hash" then hashed = c end end
+    eq(hashed, { "hash", "/h/a/one.epub", true })
 end)
 
 -- ---------- folder picker choice assembly ----------

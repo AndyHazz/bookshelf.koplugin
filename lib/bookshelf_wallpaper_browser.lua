@@ -115,22 +115,27 @@ local PREVIEW_KEEP = 8
 -- asking for the small one skips a full-size copy and a separate scale.
 local function decodePreview(path, w, h, mode)
     local RenderImage = require("ui/renderimage")
-    local dw, dh, ox, oy
+    local dw, dh, ox, oy, crop
     if mode == "fill" or mode == "fit" then
         local ok, iw, ih = pcall(function()
             return require("lib/bookshelf_image_source").probeSize(path)
         end)
-        if ok and iw and ih then dw, dh, ox, oy = WP().fitLayout(iw, ih, w, h, mode) end
+        if ok and iw and ih then dw, dh, ox, oy, crop = WP().fitLayout(iw, ih, w, h, mode) end
         if not dw then
             -- No size in the header (WebP, GIF, SVG): decode it to learn it.
             local ok_f, full = pcall(function() return RenderImage:renderImageFile(path, false) end)
             if not ok_f or not full then return nil end
-            dw, dh, ox, oy = WP().fitLayout(full:getWidth(), full:getHeight(), w, h, mode)
+            dw, dh, ox, oy, crop = WP().fitLayout(full:getWidth(), full:getHeight(), w, h, mode)
             pcall(function() full:free() end)
         end
     end
     if not dw then dw, dh, ox, oy = w, h, 0, 0 end
-    local ok, sc = pcall(function() return RenderImage:renderImageFile(path, false, dw, dh) end)
+    local ok, sc = pcall(function()
+        -- A shape too extreme to decode at its covering size: the part
+        -- that shows, cut from the source (fitLayout's crop).
+        if crop then return WP().decodeCrop(path, crop, w, h) end
+        return RenderImage:renderImageFile(path, false, dw, dh)
+    end)
     if not ok or not sc then return nil end
     if dw ~= w or dh ~= h then
         local Blitbuffer = require("ffi/blitbuffer")
@@ -312,9 +317,15 @@ function WB.show(key, on_change, on_closed)
     self.items = items()
     local modal
     local function close() if modal then UIManager:close(modal); modal = nil end end
+    -- A page waiting to settle (on_page_shown) gives way to anything chosen
+    -- or switched meanwhile: a tap, a footer button, another tab.
+    local function unsettle()
+        if self.settle then UIManager:unschedule(self.settle); self.settle = nil end
+    end
     -- A card or a footer button: used at once, behind the picker, which
     -- stays open for the next.
     local function pick(item)
+        unsettle()
         WB.choose(key, item)
         self.changed = true
         if on_change then pcall(on_change) end
@@ -341,13 +352,13 @@ function WB.show(key, on_change, on_closed)
         -- there (WB.GRID_SHARE of the screen's height, whatever its DPI).
         rows_per_page = function() return LibraryModal.rowsForShare(WB.GRID_SHARE) end,
         chip_strip = chips,
-        on_chip_tap = function(k) self.chip = k; self.items = items() end,
+        on_chip_tap = function(k) unsettle(); self.chip = k; self.items = items() end,
         -- One picture a page (portrait): the page on screen is the choice,
         -- used once the pages stop turning, so flicking through decodes
         -- only the picture landed on, not each one passed.
         on_page_shown = function(page)
             if WB.perPage() ~= 1 then return end
-            if self.settle then UIManager:unschedule(self.settle) end
+            unsettle()
             self.settle = function()
                 self.settle = nil
                 local item = modal and self.items[page]
@@ -366,7 +377,7 @@ function WB.show(key, on_change, on_closed)
         -- clear what the quick per-tap updates leave on e-ink.
         on_closed = function()
             -- A page still settling when the picker closes is not chosen.
-            if self.settle then UIManager:unschedule(self.settle); self.settle = nil end
+            unsettle()
             if self.changed then UIManager:setDirty("all", "full") end
             if on_closed then pcall(on_closed) end
         end,

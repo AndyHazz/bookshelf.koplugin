@@ -1935,10 +1935,18 @@ local function decode(path, w, h)
     return bb
 end
 
+-- A fill decode larger than this many screens of pixels is cut from the
+-- source instead (fitLayout's crop): a 4000x40 banner covering a PW5 would
+-- otherwise ask for some 165000x1648, a gigabyte.
+M.FILL_DECODE_SCREENS = 4
+
 -- fitLayout(iw, ih, w, h, mode) -> the size to decode the picture at and
 -- where that decode sits on the w x h screen: dw, dh, ox, oy. A negative
 -- offset is the crop (fill); a positive one the margin (fit). Pure, so the
 -- arithmetic is pinned headless. nil for stretch, or a size it cannot use.
+-- A fill whose decode would pass FILL_DECODE_SCREENS also returns crop,
+-- { sx, sy, sw, sh }: the part of the source that shows, to be scaled to
+-- the whole screen (dw, dh = w, h; ox, oy = 0, 0).
 function M.fitLayout(iw, ih, w, h, mode)
     if mode ~= "fill" and mode ~= "fit" then return nil end
     if not (iw and ih and iw > 0 and ih > 0 and w > 0 and h > 0) then return nil end
@@ -1947,6 +1955,12 @@ function M.fitLayout(iw, ih, w, h, mode)
     local dw, dh = math.floor(iw * s + 0.5), math.floor(ih * s + 0.5)
     if mode == "fill" then
         dw, dh = math.max(dw, w), math.max(dh, h)
+        if dw * dh > M.FILL_DECODE_SCREENS * w * h then
+            local cw = math.max(1, math.min(iw, math.floor(w / s + 0.5)))
+            local ch = math.max(1, math.min(ih, math.floor(h / s + 0.5)))
+            return w, h, 0, 0,
+                { math.floor((iw - cw) / 2), math.floor((ih - ch) / 2), cw, ch }
+        end
     else
         dw, dh = math.max(1, math.min(dw, w)), math.max(1, math.min(dh, h))
     end
@@ -1964,9 +1978,24 @@ local function layoutFor(path, w, h)
         return require("lib/bookshelf_image_source").probeSize(path)
     end)
     if not (ok and iw and ih) then return nil end
-    local dw, dh, ox, oy = M.fitLayout(iw, ih, w, h, mode)
-    if not dw or (dw == w and dh == h) then return nil end
-    return dw, dh, ox, oy
+    local dw, dh, ox, oy, crop = M.fitLayout(iw, ih, w, h, mode)
+    if not dw or (dw == w and dh == h and not crop) then return nil end
+    return dw, dh, ox, oy, crop
+end
+
+-- decodeCrop(path, crop, w, h) -> a w x h buffer: the picture decoded at
+-- its own size, the crop's part of it cut out and scaled to the screen
+-- (fitLayout's crop, for a shape too extreme to decode at its covering
+-- size). M._scale is the test seam.
+function M.decodeCrop(path, crop, w, h)
+    local src = decode(path)
+    if not src then return nil end
+    local Blitbuffer = require("ffi/blitbuffer")
+    local part = Blitbuffer.new(crop[3], crop[4], src:getType())
+    part:blitFrom(src, 0, 0, crop[1], crop[2], crop[3], crop[4])
+    src:free()
+    if M._scale then return M._scale(part, w, h) end
+    return require("ui/renderimage"):scaleBlitBuffer(part, w, h, true)
 end
 
 -- decodeLaid(path, w, h, lay) -> a w x h buffer: the picture decoded at the
@@ -1976,6 +2005,7 @@ end
 -- treat it like any other wallpaper.
 local function decodeLaid(path, w, h, lay)
     if not lay then return decode(path, w, h) end
+    if lay[5] then return M.decodeCrop(path, lay[5], w, h) end
     local dw, dh, ox, oy = lay[1], lay[2], lay[3], lay[4]
     local src = decode(path, dw, dh)
     if not src then return nil end
@@ -2102,8 +2132,8 @@ function M.bg(name, w, h, night)
     -- kept under (stretch adds nothing, so caches from before it stay good).
     local lay
     do
-        local dw, dh, ox, oy = layoutFor(path, w, h)
-        if dw then lay = { dw, dh, ox, oy } end
+        local dw, dh, ox, oy, crop = layoutFor(path, w, h)
+        if dw then lay = { dw, dh, ox, oy, crop } end
     end
     local fit_tag = lay and ("|" .. M.fitMode()) or ""
     local key = path .. "|" .. w .. "x" .. h .. fit_tag .. adjust .. (night and "|n" or "")

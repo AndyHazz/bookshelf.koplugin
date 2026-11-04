@@ -2111,6 +2111,38 @@ t.test("Crop to fill decodes at the covering size and hands back a screen-sized 
     done()
 end)
 
+t.test("fitLayout: a fill that would decode past a few screens crops the source instead", function()
+    local W = fresh()
+    -- A 4000x40 banner on a 300x400 screen: covering it means 40000x400,
+    -- 133 screens of pixels. The part that shows is 30x40 of the source.
+    local dw, dh, ox, oy, crop = W.fitLayout(4000, 40, 300, 400, "fill")
+    eq(dw, 300); eq(dh, 400); eq(ox, 0); eq(oy, 0)
+    eq(crop, { 1985, 0, 30, 40 })
+    -- An ordinary shape decodes at its covering size, no crop.
+    local _w, _h, _x, _y, none = W.fitLayout(400, 300, 300, 400, "fill")
+    eq(none, nil)
+end)
+
+t.test("Crop to fill of an extreme shape never asks for the huge decode", function()
+    local W, asked, made, done = fitSetup("fill", { 4000, 40 })
+    local scaled
+    W._scale = function(bb, w, h) scaled = { bb = bb, w = w, h = h }; return fakeBB(w, h) end
+    local wp = W.bg("a.png", 300, 400, false)
+    assert(wp and wp.bb, "no background")
+    for _i, a in ipairs(asked) do
+        assert(not a.w or a.w * a.h <= 4 * 300 * 400, "asked for a " .. tostring(a.w) .. "x" .. tostring(a.h) .. " decode")
+    end
+    eq(asked[1].w, nil, "the picture is decoded at its own size")
+    -- The 30x40 part that shows is cut out, then scaled to the screen.
+    local part = made[1]
+    eq(part:getWidth(), 30); eq(part:getHeight(), 40)
+    eq(part.blits[1].sx, 1985)
+    eq(scaled.bb, part); eq(scaled.w, 300); eq(scaled.h, 400)
+    eq(wp.bb:getWidth(), 300); eq(wp.bb:getHeight(), 400)
+    W._scale = nil
+    done()
+end)
+
 t.test("Fit centres the picture and records its margins", function()
     local W, asked, _made, done = fitSetup("fit", { 400, 300 })
     local wp = W.bg("a.png", 300, 400, false)

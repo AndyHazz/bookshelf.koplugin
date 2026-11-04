@@ -191,6 +191,27 @@ t.test("closing while a page settles chooses nothing", function()
     eq(#scheduled, 0, "the pending choice survived the close")
 end)
 
+t.test("a choice made while a page settles is not overridden by it", function()
+    -- Turn a page, then tap a picture or No wallpaper within SETTLE_S: the
+    -- page's pending choice must not land on top of it.
+    store = {}; chosen = {}
+    local cfg, scheduled = showWith(600, 800)
+    cfg.on_page_shown(2)
+    cfg.on_cell_tap(cfg.item_at(1))
+    eq(#scheduled, 0, "the page's pending choice survived a direct one")
+    eq(store["wallpaper_default"], "leaves.png")
+end)
+
+t.test("switching tabs while a page settles chooses nothing", function()
+    -- The pending page number would index the NEW tab's list: a picture
+    -- never seen.
+    store = {}; chosen = {}
+    local cfg, scheduled = showWith(600, 800)
+    cfg.on_page_shown(2)
+    cfg.on_chip_tap("Yours")
+    eq(#scheduled, 0, "the pending choice survived a tab switch")
+end)
+
 t.test("landscape (several a page): paging chooses nothing, a tap does", function()
     store = {}; chosen = {}
     local cfg, scheduled = showWith(800, 600)

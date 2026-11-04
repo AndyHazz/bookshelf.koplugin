@@ -261,7 +261,10 @@ function M.slipcaseGeometry(book, base, opts)
              depth = base.depth, lid = 0, border = border, wall = wall, strip_h = strip_h,
              label_size = label_size, rise = rise, front_h = h - rise,
              pad = pad, spines = spines, name_lines = name_lines,
-             count = count }
+             count = count,
+             -- Series boxes: Plain (issue 577): no picture on the front, the
+             -- name and read count in its middle. Same size either way.
+             plain = opts.series_box_plain and true or nil }
 end
 
 -- geometry(book, base, opts) -> the box's shape, or nil for anything else.

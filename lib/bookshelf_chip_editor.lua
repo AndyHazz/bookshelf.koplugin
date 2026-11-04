@@ -2467,9 +2467,18 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             on_pick = function(v) pick(function()
                 draft.book_binding = (v == "paperback") and "paperback" or nil
             end)() end })
-        add(onOff(pick, _("Series boxes"), draft.series_boxes, function(v)
-            draft.series_boxes = v or nil
-        end))
+        -- Series boxes: off, with the first cover (or the series' own image)
+        -- on the front, or Plain, a bare front with the name (issue 577).
+        -- Stored as true or "plain"; any other old value is with a cover.
+        add({ type = "segmented", label = _("Series boxes"),
+            items = { { key = "off",   label = _("Off") },
+                      { key = "cover", label = _("Cover") },
+                      { key = "plain", label = _("Plain") } },
+            active = (not draft.series_boxes and "off")
+                or (draft.series_boxes == "plain" and "plain") or "cover",
+            on_pick = function(v) pick(function()
+                draft.series_boxes = (v == "plain" and "plain") or (v == "cover") or nil
+            end)() end })
         -- Stored as false only, nil meaning the default (on). Not
         -- `on and false or nil`: in Lua that is always nil (#439).
         add(onOff(pick, _("Author on spine"), authorOn(), function(v)
@@ -2497,7 +2506,8 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         if draft.spine_thickness_pct then parts[#parts + 1] = T(_("%1% thick"), draft.spine_thickness_pct) end
         if draft.spine_same_size then parts[#parts + 1] = _("same size books") end
         if draft.book_binding == "paperback" then parts[#parts + 1] = _("paperbacks") end
-        if draft.series_boxes then parts[#parts + 1] = _("series boxes") end
+        if draft.series_boxes == "plain" then parts[#parts + 1] = _("plain series boxes")
+        elseif draft.series_boxes then parts[#parts + 1] = _("series boxes") end
         if not authorOn() then parts[#parts + 1] = _("no author on spines") end
         local ORN_STOPS, best = ornamentStop()
         parts[#parts + 1] = T(_("ornaments: %1"), ORN_STOPS[best][2])

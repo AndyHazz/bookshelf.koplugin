@@ -309,6 +309,52 @@ H.test("a slipcase paints inside its own rectangle, its books under the front", 
     end
 end)
 
+-- Issue 577: a plain front, no cover or series image on it, chosen per shelf
+-- (Series boxes: Plain). The name and read count stay where a picture box
+-- prints them; the box keeps its size, so the shelf packs the same.
+H.test("a Plain box shows no picture: the name and count stay where they were", function()
+    local saved=package.loaded["lib/bookshelf_image_source"]
+    local asked=0
+    package.loaded["lib/bookshelf_image_source"]={
+        resolveStackImage=function() asked=asked+1; return "/lib/series/Saga.jpg" end,
+        imageSizeTag=function() return "600x1200" end,
+    }
+    local box=Boxes.box(members(4,"Saga"),"Saga")
+    local pic=Boxes.geometry(box,BASE,SLIP)
+    local g=Boxes.geometry(box,BASE,{content_w=2000,series_box_plain=true})
+    H.eq(g.plain,true)
+    H.eq(pic.plain,nil)
+    H.eq(g.w,pic.w,"a plain box changed width, so the shelf would repack")
+    H.eq(g.h,pic.h)
+    local w=BoxWidget:new{entry={book=box,series_box=g},width=g.w,height=320}
+    H.eq(asked,0,"a plain box still looked up the series image")
+    H.eq(w.art_cover,nil,"a plain box still built the first cover")
+    painted_slots={}
+    local bb=surface(20,10,g.w,320)
+    w:paintTo(bb,20,10)
+    local function labels(rects, plain)
+        local name,count
+        for _,r in ipairs(rects) do
+            if plain then assert(r.what~="cover" and r.what~="art", "a plain box painted a picture") end
+            if r.what=="text:Saga" then name=r end
+            if type(r.what)=="string" and r.what:find("^text:0") then count=r end
+        end
+        assert(name and count, "the name or the count is missing")
+        return name,count
+    end
+    local name,count=labels(bb.rects,true)
+    local pw=BoxWidget:new{entry={book=box,series_box=pic},width=pic.w,height=320}
+    painted_slots={}
+    local pbb=surface(20,10,pic.w,320)
+    pw:paintTo(pbb,20,10)
+    local pname,pcount=labels(pbb.rects,false)
+    H.eq(name.x,pname.x,"the plain box's name moved sideways")
+    H.eq(name.y,pname.y,"the plain box's name moved up or down")
+    H.eq(count.x,pcount.x,"the plain box's count moved sideways")
+    H.eq(count.y,pcount.y,"the plain box's count moved up or down")
+    package.loaded["lib/bookshelf_image_source"]=saved
+end)
+
 H.test("the native planner paginates boxes as single slots and resumes inside compacted groups", function()
     local SL=require("lib/bookshelf_spine_layout")
     local shelf={_flattenItems=native_flatten,VIEW_SIN=.2,FACE_GAP_DP=8,

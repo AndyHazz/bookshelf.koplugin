@@ -194,6 +194,15 @@ function Box:_initSlipcase()
     self.inset = math.max(2, Screen:scaleBySize(STICKER_INSET_DP))
     self.art_w = math.max(1, shape.w - 2 * self.inset)
     self.art_h = math.max(1, shape.front_h - 2 * self.inset - shape.strip_h)
+    if shape.plain then
+        -- No picture (Series boxes: Plain): nothing to look up or build. The
+        -- sticker's space stays, so the name and count print where they do
+        -- on a box with a picture.
+        self.custom_path = nil
+        self.st_w, self.st_h, self.st_dx, self.st_dy = self.art_w, self.art_h, 0, 0
+        self:_initLabels(shape)
+        return
+    end
     -- The series' own image, when it has one (set from its long-press menu,
     -- or found in the image library's series/ folder), in place of the first
     -- cover: the box set's front, as on its stack in covers view.
@@ -229,6 +238,12 @@ function Box:_initSlipcase()
         show_progress = false, show_status = false, suppress_favorite_badge = true,
         suppress_number_badges = true,
     }
+    self:_initLabels(shape)
+end
+
+-- The read count and the series name, printed on the box's front.
+function Box:_initLabels(shape)
+    local entry = self.entry
     local font = BFont.getUIFontFace() or "cfont"
     -- The bundled bold, at the name's size: both are printed on the box.
     self.count = TextWidget:new{ text = string.format(COUNT_FORMAT,
@@ -312,7 +327,7 @@ function Box:_paintSlipcase(bb, x, y)
     local g = math.max(2, Screen:scaleBySize(3))
     local nw = math.max(0, math.min(SW - 2 * R, cs.w + 2 * g))
     local nh = math.max(0, math.min(SH - 2 * R, cs.h + g))
-    pcall(function()
+    if not p.plain then pcall(function()
         local c = self.art_crop
         local FH = self.st_full_h
         local iw, ih = math.max(1, SW - 2 * E), math.max(1, SH - 2 * E)
@@ -366,7 +381,7 @@ function Box:_paintSlipcase(bb, x, y)
         bb:blitFrom(fit, sx + E, sy + E, 0, 0, iw, ih)
         keep(fit)
         inner:free()
-    end)
+    end) end
     -- Row by row: board outside the sticker's outline, the edge between it
     -- and the outline drawn E inside it, the cover within that.
     -- Halfway between the box and white, as it shows: in night mode the
@@ -379,7 +394,8 @@ function Box:_paintSlipcase(bb, x, y)
     end)
     edge = edge or lit(1.6)
     local ir = math.max(1, R - E)
-    for row = 0, SH - 1 do
+    -- A plain box has no sticker: the board alone, already painted.
+    for row = 0, p.plain and -1 or SH - 1 do
         local l, r_ = stickerSpan(SW, SH, R, nw, nh, row)
         local yy = sy + row
         if l > 0 then bb:paintRectRGB32(sx, yy, l, 1, board) end

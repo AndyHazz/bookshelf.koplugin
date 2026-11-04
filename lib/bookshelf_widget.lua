@@ -7712,6 +7712,9 @@ function BookshelfWidget:_buildSpineRows(items, content_w, shelf_h, PAD, n_rows)
     -- (SpineShelf.rowEndBase): synced from the cursor before the rows are
     -- planned, so a page turn plans with the page it is turning to.
     opts.page_index = self.page
+    -- Series boxes: Plain, a bare front (issue 577). Paint only: the box is
+    -- the same size, so pagination does not need it.
+    opts.series_box_plain = self:_seriesBoxPlain()
     -- Where this page starts in the ornament deck (see _ornStartState).
     opts.orn_state   = self:_ornStartState({ content_w = content_w, shelf_h = shelf_h })
     -- "First unread in series" across the whole shelf, not per screen (issue
@@ -7930,6 +7933,12 @@ function BookshelfWidget:_seriesBoxesEnabled()
         and not (tab.source and tab.source.kind == "single_series")
         and not (tip and (tip.kind == "series" or tip.kind == "search" or tip.kind == "opds_nav"))
         and not self:_opdsEffectiveTab()
+end
+
+-- _seriesBoxPlain() -> true when this shelf's series boxes have a plain front.
+function BookshelfWidget:_seriesBoxPlain()
+    local tab = require("lib/bookshelf_tab_model").getById(self.chip)
+    return (tab and tab.series_boxes == "plain") or nil
 end
 
 function BookshelfWidget:_prepareSpineItems(items, total)

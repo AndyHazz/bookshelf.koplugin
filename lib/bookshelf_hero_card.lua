@@ -1186,8 +1186,12 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
             -- "justify" is an alignment state for the editor and the stored
             -- region, not a TextBoxWidget alignment value. Translate it here:
             -- justified text is laid out from the start edge (left in LTR,
-            -- right in RTL -- TextBoxWidget mirrors "left" when the paragraph
-            -- is RTL because alignment_strict is false).
+            -- right in RTL). auto_para_direction makes TextBoxWidget detect
+            -- each paragraph's own direction instead of assuming the UI
+            -- language's: an Arabic blurb under a Spanish UI then starts from
+            -- the right (alignment_strict is false, so "left" is mirrored),
+            -- and a mixed-language description is aligned per paragraph.
+            -- TextViewer does the same for book descriptions.
             local desc_alignment = regions.description.alignment or "left"
             local desc_justified = desc_alignment == "justify"
             local desc_align     = desc_justified and "left" or desc_alignment
@@ -1224,6 +1228,11 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
                     height                        = rem,
                     alignment                     = desc_align,
                     justified                     = desc_justified,
+                    -- Detect each paragraph's direction from its own text, not
+                    -- from the UI language. Without this, an RTL blurb under
+                    -- an LTR UI keeps paragraph_is_rtl false, so the
+                    -- alignment_strict=false mirror never fires.
+                    auto_para_direction            = true,
                     height_overflow_show_ellipsis = true,
                     -- height_adjust shrinks the widget to the natural
                     -- text_height when the content is shorter than the

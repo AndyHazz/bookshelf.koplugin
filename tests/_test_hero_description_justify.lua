@@ -3,10 +3,11 @@
 -- Justify. The editor stores that as alignment = "justify"; the renderer has
 -- to translate it into TextBoxWidget's justified = true plus a start-edge
 -- alignment (left in LTR, automatically mirrored to right for RTL paragraphs
--- by TextBoxWidget's own para-direction handling).
+-- by TextBoxWidget's own para-direction handling). It has to ask for
+-- per-paragraph direction detection, or "RTL" only means "the UI is RTL".
 --
 -- The widget itself cannot be built in this standalone suite (it pulls the
--- full KOReader UI), so this pins the two halves of the translation the way
+-- full KOReader UI), so this pins the three parts of the translation the way
 -- the other hero-card source tests do.
 package.path = "./?.lua;./?/init.lua;" .. package.path
 local H = dofile("tests/_helpers.lua")
@@ -33,6 +34,9 @@ t.test("the hero renderer turns Justify into justified text with a start edge", 
         "Justify is not mapped to a start-edge alignment")
     assert(src:find("justified%s*=%s*desc_justified"),
         "the description TextBoxWidget is not told to justify")
+    assert(src:find("auto_para_direction%s*=%s*true"),
+        "the description does not auto-detect paragraph direction, so an RTL "
+        .. "blurb under an LTR UI would not be mirrored")
 end)
 
 t.done()

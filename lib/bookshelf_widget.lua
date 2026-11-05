@@ -17650,6 +17650,10 @@ function BookshelfWidget:_refreshLibrary()
     UIManager:show(msg)
     UIManager:setDirty(msg, function() return "partial", msg.dimen end)
     UIManager:forceRePaint()
+    -- Let the panel take the notice before the rebuilt shelf is painted:
+    -- on a MediaTek Kindle (Paperwhite 6, issue 584) the shelf got into the
+    -- notice's refresh, which then showed cut in half or not at all.
+    require("lib/bookshelf_popup_kit").waitForPanel()
     UIManager:nextTick(function()
         if Repo.invalidateWalkCache then Repo.invalidateWalkCache() end
         self:_rebuild()

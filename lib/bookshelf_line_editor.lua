@@ -98,15 +98,23 @@ local function barStyleLabel(id)
 end
 
 local ALIGN_CYCLE  = { "left", "center", "right" }
+-- Justification is offered only where the renderer understands it: the hero
+-- description's TextBoxWidget can set KOReader's `justified` flag, while list
+-- rows and cover labels draw with their own alignment containers. Keeping the
+-- extra state behind spec.justify means those surfaces do not offer a control
+-- that would save a value their renderer ignores.
+local ALIGN_CYCLE_JUSTIFY = { "left", "center", "right", "justify" }
 -- Nerd Font / Symbols MDI glyphs for alignment. Same family as the
 -- battery / wifi / nightmode icons so the row reads coherently.
---   U+E961 format-align-left   → \xEE\xA5\xA1
---   U+E95F format-align-center → \xEE\xA5\x9F
---   U+E962 format-align-right  → \xEE\xA5\xA2
+--   U+E961 format-align-left    → \xEE\xA5\xA1
+--   U+E95F format-align-center  → \xEE\xA5\x9F
+--   U+E962 format-align-right   → \xEE\xA5\xA2
+--   U+E960 format-align-justify → \xEE\xA5\xA0
 local ALIGN_LABELS = {
-    left   = "\xEE\xA5\xA1",
-    center = "\xEE\xA5\x9F",
-    right  = "\xEE\xA5\xA2",
+    left    = "\xEE\xA5\xA1",
+    center  = "\xEE\xA5\x9F",
+    right   = "\xEE\xA5\xA2",
+    justify = "\xEE\xA5\xA0",
 }
 
 -- showSizeNudge — bookends-style ±1 / ±5 nudge dialog for the font_size
@@ -320,6 +328,9 @@ end
 --                 (each default true). A surface that draws the line in a face
 --                 and size it does not own -- the cover label -- turns them
 --                 off rather than offering controls it would ignore.
+--   justify       add "justify" as a fourth state to the alignment cycle
+--                 (default false). Only surfaces whose renderer can honour it
+--                 pass this -- currently the hero description.
 --   token_filter  function(catalogue_entry) -> false to leave a token out of
 --                 the Tokens… picker. Optional; nil offers the whole catalogue.
 --   bar           show the %bar controls row (default false). Progress-shaped
@@ -451,6 +462,7 @@ function LineEditor.edit(spec)
             }
         end
         if spec.alignment ~= false then
+            local align_cycle = spec.justify and ALIGN_CYCLE_JUSTIFY or ALIGN_CYCLE
             style_row[#style_row + 1] = {
                 text_func = function() return ALIGN_LABELS[draft.alignment or "left"] or ALIGN_LABELS.left end,
                 -- Dead while the line carries %spacer or %bar, and saying so.
@@ -472,7 +484,7 @@ function LineEditor.edit(spec)
                 font_size = 22,
                 callback  = function()
                     if dialog then dialog:onCloseKeyboard() end
-                    draft.alignment = cycleNext(ALIGN_CYCLE, draft.alignment or "left")
+                    draft.alignment = cycleNext(align_cycle, draft.alignment or "left")
                     applyLivePreview()
                     if dialog then dialog:reinit() end
                 end,
@@ -611,7 +623,8 @@ LineEditor.hideParentMenu = hideParentMenu
 LineEditor.guardStrayTaps = guardStrayTaps
 LineEditor.cycleNext      = cycleNext
 LineEditor.barStyleLabel  = barStyleLabel
-LineEditor.ALIGN_LABELS   = ALIGN_LABELS
-LineEditor.ALIGN_CYCLE    = ALIGN_CYCLE
+LineEditor.ALIGN_LABELS        = ALIGN_LABELS
+LineEditor.ALIGN_CYCLE         = ALIGN_CYCLE
+LineEditor.ALIGN_CYCLE_JUSTIFY = ALIGN_CYCLE_JUSTIFY
 
 return LineEditor

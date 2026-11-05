@@ -1004,8 +1004,22 @@ function ReviewsModal:_assemble()
     local _t2 = _gettime()
     self._tab_body = body
     -- Crop inner self-repaints (pill tap-feedback inverts) to the native scroll
-    -- body when it's active; HTML tabs manage their own painting.
-    self.cropping_widget = is_native and body or nil
+    -- body when it's active; HTML tabs manage their own painting. KOReader
+    -- repaints the crop at its dimen, and a tab body that is a bare
+    -- VerticalGroup (the Cover tab) never gets one: a page chevron's tap
+    -- highlight crashed on it (issue 585). A borderless frame around the
+    -- body records its dimen when painted, whatever the tab builds. A body
+    -- that is a scroll container already is the crop, as KOReader expects;
+    -- the frame also answers getCropRegion, which an icon button's tap flash
+    -- (UIManager:widgetInvert) asks for.
+    local crop
+    if is_native and not body.getCropRegion then
+        crop = FrameContainer:new{
+            bordersize = 0, margin = 0, padding = 0, body,
+            getCropRegion = function(f) return f.dimen end,
+        }
+    end
+    self.cropping_widget = is_native and (crop or body) or nil
     local buttons = self:_buildButtons()
     local _t3 = _gettime()
     local vg = VerticalGroup:new{ align = "left" }
@@ -1016,7 +1030,7 @@ function ReviewsModal:_assemble()
         vg[#vg + 1] = self._tab_row
         self._tabrow_pos = #vg
     end
-    vg[#vg + 1] = body
+    vg[#vg + 1] = crop or body
     vg[#vg + 1] = self._button_separator
     vg[#vg + 1] = buttons
     self._vgroup = vg

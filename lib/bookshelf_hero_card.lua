@@ -1183,7 +1183,14 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
         -- should mean down to the last line that fits.
         if available >= math.ceil(desc_face.size * 1.3) then
             local desc_bold  = regions.description.bold or false
-            local desc_align = regions.description.alignment or "left"
+            -- "justify" is an alignment state for the editor and the stored
+            -- region, not a TextBoxWidget alignment value. Translate it here:
+            -- justified text is laid out from the start edge (left in LTR,
+            -- right in RTL -- TextBoxWidget mirrors "left" when the paragraph
+            -- is RTL because alignment_strict is false).
+            local desc_alignment = regions.description.alignment or "left"
+            local desc_justified = desc_alignment == "justify"
+            local desc_align     = desc_justified and "left" or desc_alignment
             -- ~40% of body font size — enough to mark a paragraph onset
             -- without eating a full empty line (which would be 1.3× the
             -- font size and cost too much of the limited slot).
@@ -1216,6 +1223,7 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
                     width                         = right_w,
                     height                        = rem,
                     alignment                     = desc_align,
+                    justified                     = desc_justified,
                     height_overflow_show_ellipsis = true,
                     -- height_adjust shrinks the widget to the natural
                     -- text_height when the content is shorter than the

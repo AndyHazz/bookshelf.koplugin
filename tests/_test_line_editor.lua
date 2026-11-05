@@ -262,6 +262,30 @@ t.test("case toggles, and alignment cycles through three", function()
     eq(getSaved2().alignment, "left", "alignment did not wrap")
 end)
 
+t.test("justify joins the alignment cycle only when the caller asks for it",
+function()
+    -- The hero description's TextBoxWidget can be justified; a list row or a
+    -- cover label cannot. The extra state is opt-in so those surfaces never
+    -- offer a control whose value their renderer ignores.
+    local dialog, getSaved = open{
+        line = { template = "x" }, justify = true,
+    }
+    local align = dialog.buttons[1][#dialog.buttons[1]]
+    align.callback()  -- left -> center
+    align.callback()  -- center -> right
+    align.callback()  -- right -> justify
+    press(dialog, "Save")
+    eq(getSaved().alignment, "justify")
+
+    -- ...and wraps back to left, not to the first of the three-state cycle.
+    local dialog2, getSaved2 = open{
+        line = { template = "x", alignment = "justify" }, justify = true,
+    }
+    dialog2.buttons[1][#dialog2.buttons[1]].callback()
+    press(dialog2, "Save")
+    eq(getSaved2().alignment, "left", "justify did not wrap to left")
+end)
+
 t.test("alignment goes dead on a line that has given its width away",
 function()
     -- Alignment was reported as broken. It is not -- it was being set on lines

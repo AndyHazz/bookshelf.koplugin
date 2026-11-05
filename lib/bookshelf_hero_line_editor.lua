@@ -46,6 +46,12 @@ function LineEditor.show(region_key, bw, settings_module, touchmenu_instance)
         defaults = Regions.DEFAULTS[region_key],
         -- Description has no case toggle (would be hostile on a long blurb).
         uppercase  = region_key ~= "description",
+        -- Description is the only region rendered through a TextBoxWidget that
+        -- can honour KOReader's justified flag, so it is the only one whose
+        -- alignment cycle offers Justify. The hero card translates that state
+        -- back to justified = true with left alignment (mirrored to right for
+        -- RTL paragraphs by TextBoxWidget itself).
+        justify    = region_key == "description",
         -- Only the progress region carries a bar.
         bar        = region_key == "progress",
         bar_styles = HeroBar.availableStyles,

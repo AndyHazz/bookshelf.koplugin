@@ -566,6 +566,20 @@ local function paintCard(frame, bb, x, y, outline)
     end
 end
 
+-- waitForPanel(): after a forceRePaint, wait until the panel has taken that
+-- refresh, so a paint straight after cannot get into it. Where the screen can
+-- say (Kindles, MediaTek Kobos) that is milliseconds, not the refresh's whole
+-- run; elsewhere the 1 ms yield KOReader's Button uses.
+function Kit.waitForPanel()
+    local UIManager = require("ui/uimanager")
+    local Screen = require("device").screen
+    local wait = Screen and Screen.mech_wait_update_submission
+    if not (wait and Screen.marker and Screen.marker ~= 0
+            and pcall(wait, Screen, Screen.marker)) then
+        UIManager:yieldToEPDC()
+    end
+end
+
 -- pressThen(cell, card, action): show card pressed at once (repainted and
 -- refreshed in place), run action on the next tick, then let it up. Without
 -- dimen yet (not painted, or headless), just the action.
@@ -589,12 +603,7 @@ function Kit.pressThen(cell, card, action)
     -- without waiting for the panel to take it, and the close wrote the
     -- shelf back 20 ms later. Where the screen can wait for that (Kindles,
     -- MediaTek Kobos), wait: milliseconds, not the refresh's whole run.
-    local Screen = require("device").screen
-    local wait = Screen and Screen.mech_wait_update_submission
-    if not (wait and Screen.marker and Screen.marker ~= 0
-            and pcall(wait, Screen, Screen.marker)) then
-        UIManager:yieldToEPDC()
-    end
+    Kit.waitForPanel()
     local top = UIManager:getTopmostVisibleWidget()
     UIManager:tickAfterNext(function()
         action()

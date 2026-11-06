@@ -92,7 +92,7 @@ end
 local function save(k, v)
     local s = store(); if not s then return end
     -- Deferred with the ornaments while the browser is open (Orn.beginDeferred).
-    local O = M._orn or package.loaded["lib/bookshelf_ornaments"]
+    local O = M._orn or (type(package.loaded["lib/bookshelf_ornaments"]) == "table" and package.loaded["lib/bookshelf_ornaments"] or nil)
     if O and O._defer and s.saveDeferred then s.saveDeferred(k, v) return end
     s.save(k, v); if s.flush then pcall(s.flush) end
 end

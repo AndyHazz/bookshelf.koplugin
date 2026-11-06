@@ -1061,7 +1061,7 @@ end
 -- outside the window every call lists each pack's folder again (PW5: ~230 ms
 -- of a shelf switch). Only once the ornaments module is loaded.
 function BookshelfWidget:_ornScanWindow()
-    local Orn = package.loaded["lib/bookshelf_ornaments"]
+    local Orn = (type(package.loaded["lib/bookshelf_ornaments"]) == "table" and package.loaded["lib/bookshelf_ornaments"] or nil)
     if not (Orn and Orn.allowRecent) then return end
     if Orn.allowRecent(true) then return end    -- already held by an outer call
     UIManager:nextTick(function() Orn.allowRecent(false) end)
@@ -7575,7 +7575,7 @@ end
 -- piece stays on the panel (maintainer, PW5). Reads dimen.y, which a piece
 -- records as it paints: call it on rows that have been painted.
 function BookshelfWidget._ornReachTop(rows)
-    local Orn = package.loaded["lib/bookshelf_ornaments"]
+    local Orn = (type(package.loaded["lib/bookshelf_ornaments"]) == "table" and package.loaded["lib/bookshelf_ornaments"] or nil)
     if not (Orn and Orn.contentBox) then return nil end
     local top
     local function walk(n, depth)
@@ -12721,7 +12721,7 @@ end
 -- library, the ornament collection: Orn.beginDeferred) writes them as it
 -- closes; a suspend or KOReader's autosave while one is open lands them too.
 local function flushOpenPickers()
-    local Orn = package.loaded["lib/bookshelf_ornaments"]
+    local Orn = (type(package.loaded["lib/bookshelf_ornaments"]) == "table" and package.loaded["lib/bookshelf_ornaments"] or nil)
     if Orn and Orn._defer then BookshelfSettings.flush() end
 end
 
@@ -16340,7 +16340,7 @@ local FILE_POLL_MAX_SUBDIRS = 200
 -- module has not been loaded (no spine shelf yet, so nothing to refresh).
 -- Stats only; see Ornaments.folderStamp.
 local function _ornamentStamp()
-    local Orn = package.loaded["lib/bookshelf_ornaments"]
+    local Orn = (type(package.loaded["lib/bookshelf_ornaments"]) == "table" and package.loaded["lib/bookshelf_ornaments"] or nil)
     if not (Orn and Orn.folderStamp) then return nil end
     local ok, stamp = pcall(function() return Orn.folderStamp() end)
     return ok and stamp or nil
@@ -16537,7 +16537,7 @@ function BookshelfWidget:_filePollTick()
     -- leaving it. A stat per folder; the cached list is dropped so the next
     -- plan rescans, and the deck takes the new pieces in.
     local orn_changed = false
-    local Orn = package.loaded["lib/bookshelf_ornaments"]
+    local Orn = (type(package.loaded["lib/bookshelf_ornaments"]) == "table" and package.loaded["lib/bookshelf_ornaments"] or nil)
     if Orn and Orn.folderStamp then
         local ok_s, stamp = pcall(function() return Orn.folderStamp() end)
         if ok_s and stamp then

@@ -3967,7 +3967,9 @@ end
 function SpineShelf.plan(items, opts)
     -- The ornament scan's window: see Ornaments.allowRecent. Only if the
     -- module is already loaded (a shelf with ornaments off never loads it).
-    local OrnScan = package.loaded["lib/bookshelf_ornaments"]
+    -- A table only: after a failed require LuaJIT leaves its loading
+    -- sentinel in package.loaded, where Lua 5.4 leaves nothing.
+    local OrnScan = (type(package.loaded["lib/bookshelf_ornaments"]) == "table" and package.loaded["lib/bookshelf_ornaments"] or nil)
     local orn_scan_was_open = false
     if OrnScan and OrnScan.allowRecent then orn_scan_was_open = OrnScan.allowRecent(true) end
     local entries = {}

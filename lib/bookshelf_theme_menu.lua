@@ -285,7 +285,7 @@ function M.setShelfTheme(id, value)
     end
     -- In memory only while the Theme library is open: it writes the settings
     -- once as it closes (Orn.beginDeferred), not on every tap.
-    local Orn = package.loaded["lib/bookshelf_ornaments"]
+    local Orn = (type(package.loaded["lib/bookshelf_ornaments"]) == "table" and package.loaded["lib/bookshelf_ornaments"] or nil)
     if Orn and Orn._defer then TabModel.saveDeferred(tabs) else TabModel.save(tabs) end
 end
 

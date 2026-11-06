@@ -2370,8 +2370,11 @@ function Hardcover.enrichBook(book)
     -- when the global "Use Hardcover metadata" toggle is off, so a per-book
     -- source choice can pick Hardcover for one book. Capped like applyMetadata.
     -- Read by lib/bookshelf_published ahead of calibre and the file. A link
-    -- made before 6.3.2 has no year until its metadata is refreshed.
-    if tonumber(enrichment.published_year) and tonumber(enrichment.published_year) > 0 then
+    -- made before 6.3.2 has no year until its metadata is refreshed. Only
+    -- with Use Hardcover metadata on, as applyMetadata does for the light
+    -- records the Decades shelf groups: the two must give a book one year.
+    if BookshelfSettings.isTrue("hardcover_use_metadata")
+            and tonumber(enrichment.published_year) and tonumber(enrichment.published_year) > 0 then
         book.hardcover_published = tostring(math.floor(tonumber(enrichment.published_year)))
     end
     if type(enrichment.genres) == "table" and #enrichment.genres > 0 then

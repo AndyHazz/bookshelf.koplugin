@@ -136,14 +136,20 @@ end
 -- white strip along the bottom. fit (a word, no picture: Shelf menu
 -- background's Transparent): as wide as its label, never narrower than
 -- square, so the word is not cut to "Transpa..." (maintainer, 2026-10-09).
+local function nullTileWidth(label, side, image_path, fit)
+    if not fit or image_path then return side end
+    local nt_face, nt_bold = BFont:getFace("ffont", 16)
+    local probe = TextWidget:new{ text = label, face = nt_face, bold = nt_bold }
+    -- A large padding: at the default one a picked tile's outline met the
+    -- first and last letters (PW5).
+    local w = math.max(side, probe:getSize().w + 2 * Space.padding.large)
+    probe:free()
+    return w
+end
+
 local function nullTile(label, selected, side, on_tap, image_path, fit)
-    local nt_face, nt_bold = BFont:getFace("ffont", 12)
-    local w = side
-    if fit and not image_path then
-        local probe = TextWidget:new{ text = label, face = nt_face, bold = nt_bold }
-        w = math.max(side, probe:getSize().w + 2 * Space.padding.default)
-        probe:free()
-    end
+    local nt_face, nt_bold = BFont:getFace("ffont", 16)
+    local w = nullTileWidth(label, side, image_path, fit)
     local tw = TextWidget:new{
         text      = label,
         face      = nt_face,
@@ -260,8 +266,12 @@ function ColorPaletteWidget:init()
     -- horizontal padding here is matched against the vertical span above /
     -- below the palette in update(), so the grid sits inside even gutters
     -- on all four sides.
-    local ncols = self.null_tile and 6 or 5
-    self.palette_width = SWATCH_SIDE * ncols + SWATCH_GAP * (ncols - 1)
+    self.palette_width = SWATCH_SIDE * 5 + SWATCH_GAP * 4
+    if self.null_tile then
+        local nt = self.null_tile
+        self.palette_width = self.palette_width + SWATCH_GAP
+            + nullTileWidth(nt.label, SWATCH_SIDE, nt.image, not nt.image)
+    end
     self.inner_width   = self.palette_width + Space.padding.fullscreen * 2
     self.dialog_width  = self.inner_width + 2 * Size.border.thin
 
@@ -381,23 +391,28 @@ function ColorPaletteWidget:update()
         selected_hex = (dist <= 9) and best or nil
     end
     local grid_rows = {}
+    local null_w
     for row_idx, row_hexes in ipairs(rows) do
         local hgroup = HorizontalGroup:new{ align = "center" }
         local keys_row = {}
         grid_rows[row_idx] = keys_row
         -- Prepend the null tile at grid position [0,0] of the first row only.
+        -- A word with no picture is as wide as its label (fit), as the
+        -- Transparent tile is: square, "No background" was cut to "No bac..."
+        -- (maintainer, bookends PW5).
         if row_idx == 1 and self.null_tile then
             local sel = self.null_tile.selected
             if sel == nil then sel = (self.selected_hex == nil) end
             hgroup[#hgroup + 1] = nullTile(self.null_tile.label, sel, side, function()
                 self.null_tile.on_tap()
-            end, self.null_tile.image)
+            end, self.null_tile.image, not self.null_tile.image)
             keys_row[#keys_row + 1] = hgroup[#hgroup]
+            null_w = hgroup[#hgroup]:getSize().w
             hgroup[#hgroup + 1] = HorizontalSpan:new{ width = gap }
         elseif self.null_tile then
             -- The rows below the tile keep its column empty, so the grid stays
             -- six aligned columns rather than each row centring on its own.
-            hgroup[#hgroup + 1] = HorizontalSpan:new{ width = side + gap }
+            hgroup[#hgroup + 1] = HorizontalSpan:new{ width = (null_w or side) + gap }
         end
         for col_idx, hex in ipairs(row_hexes) do
             if col_idx > 1 then

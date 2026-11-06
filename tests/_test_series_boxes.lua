@@ -458,6 +458,21 @@ H.test("a box's sticker is kept between page turns, scaled in C", function()
     assert(w:find('night and "n" or "d" }, "|")', 1, true), "the night sticker would serve the day")
 end)
 
+H.test("a box puts unnumbered books after numbered ones, by title, not file name (587)", function()
+    local function ch(file, title, num)
+        return {filepath="/m/"..file, filename=file, title=title, series_name="Yotsuba",
+            series_num=num, has_cover=true}
+    end
+    local out = Boxes.prepare{
+        ch("z.epub", "Yotsuba 1"), ch("a.epub", "Yotsuba 3"),
+        ch("m.epub", "Yotsuba 2"), ch("n.epub", "Omnibus", "1"),
+    }
+    H.eq(#out, 1)
+    local got = {}
+    for i, b in ipairs(out[1].books) do got[i] = b.filepath end
+    H.eq(table.concat(got, " "), "/m/n.epub /m/z.epub /m/m.epub /m/a.epub")
+end)
+
 H.test("a Same size shelf gives every book in a box the same width", function()
     local b=members(3,"Sizes")
     b[1].page_count=80; b[2].page_count=900; b[3].page_count=300

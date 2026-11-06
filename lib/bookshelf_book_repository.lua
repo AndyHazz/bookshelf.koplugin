@@ -5912,6 +5912,10 @@ function Repo.getSeriesGroups(limit, offset, sort_priority_override, filter, opt
                     -- beyond the two slots.
                     author      = book.author,
                     author_sort = book.author_sort,
+                    -- The title, so books with no series number order by it
+                    -- (587) rather than tying in hash order.
+                    title       = book.title,
+                    title_sort  = book.title_sort,
                 }
             end
             -- latest: the most recent READ TIME among the members, as on the
@@ -5975,12 +5979,17 @@ function Repo.getSeriesGroups(limit, offset, sort_priority_override, filter, opt
     -- without a re-walk.
     local list = {}
     for _i, k in ipairs(order) do list[#list + 1] = groups[k] end
-    -- Within each group, sort books by series_num ascending. Also remove _seen helper.
+    -- Within each group, sort books by series number, then title. A book with
+    -- no number goes after the numbered ones (SORT_TO_END), and the title
+    -- orders those among themselves: read as 0, they all tied ahead of #1
+    -- and came out in whatever order the sort left them (587).
+    local series_cmp = SortEngine.chainedComparator{
+        { key = "series_index", reverse = false },
+        { key = "title",        reverse = false },
+    }
     for _i, g in ipairs(list) do
         g._seen = nil
-        table.sort(g.books, function(a, b)
-            return (tonumber(a.series_num) or 0) < (tonumber(b.series_num) or 0)
-        end)
+        table.sort(g.books, series_cmp)
     end
 
     -- Stash the SHAPE (filepaths + sort metadata) — never the Book
@@ -6013,6 +6022,8 @@ function Repo.getSeriesGroups(limit, offset, sort_priority_override, filter, opt
                 -- sort went on reading the series TITLE as a person's name.
                 author      = b.author,
                 author_sort = b.author_sort,
+                title       = b.title,
+                title_sort  = b.title_sort,
             }
         end
         shapes[#shapes + 1] = {

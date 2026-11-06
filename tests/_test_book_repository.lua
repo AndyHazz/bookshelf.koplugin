@@ -6940,6 +6940,39 @@ test("a decade card sorts by its own year", function()
     assert(SE.publishedOf({ decade_year = 1850 }) == 1850)
 end)
 
+-- issue 587: books in a series with no series number (manga chapters) came
+-- out in random order: every one tied at 0 ahead of the numbered books, and
+-- nothing broke the tie. Numbered first, then the rest by title.
+test("getSeriesGroups: books with no series number follow by title", function()
+    Repo.invalidateWalkCache()
+    package.loaded["readhistory"].hist = {}
+    _G._test_bim_data = {
+        ["/lib/z.epub"] = { title = "Yotsuba 1",  series = "Yotsuba" },
+        ["/lib/a.epub"] = { title = "Yotsuba 3",  series = "Yotsuba" },
+        ["/lib/m.epub"] = { title = "Yotsuba 2",  series = "Yotsuba" },
+        ["/lib/q.epub"] = { title = "Yotsuba 10", series = "Yotsuba" },
+        ["/lib/n.epub"] = { title = "Omnibus",    series = "Yotsuba #1" },
+    }
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/lib")
+            and { ".", "..", "z.epub", "a.epub", "m.epub", "q.epub", "n.epub" } or {}
+        local i = 0
+        return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == "mode" then return "file" end
+        if key == "modification" then return 0 end
+    end
+    local groups = Repo.getSeriesGroups(10)
+    assert(#groups == 1, "expected one series, got " .. #groups)
+    local got = {}
+    for i, b in ipairs(groups[1].books) do got[i] = b.filepath end
+    local want = { "/lib/n.epub", "/lib/z.epub", "/lib/m.epub", "/lib/a.epub", "/lib/q.epub" }
+    assert(table.concat(got, " ") == table.concat(want, " "),
+        "got " .. table.concat(got, " "))
+end)
+
 -- ============================================================================
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

@@ -37,7 +37,9 @@ function M.box(books, title, original, light_meta)
     end
     if #members == 0 then return original end
     local cmp = require("lib/bookshelf_sort_engine").chainedComparator{
-        {key="series_index"}, {key="filename"},
+        -- Unnumbered books (manga chapters, 587) follow by title; the
+        -- file name only breaks a tie between equal titles.
+        {key="series_index"}, {key="title"}, {key="filename"},
     }
     table.sort(members, cmp)
     local box = copy(original)

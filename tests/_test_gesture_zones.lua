@@ -574,6 +574,32 @@ do
             eq(calls.fwd, 1)
         end)
     end)
+
+    -- On a Kindle a swipe down from the top is a pan then a swipe: the pan
+    -- opened KOReader's menu over the window, the menu left the swipe, it
+    -- reached the window underneath and opened a second menu, and the first
+    -- was left open (maintainer, bookends on PW5).
+    t.test("overlayEvent: under another window, a gesture is not passed to KOReader", function()
+        local UM = package.loaded["ui/uimanager"]
+        local had = UM ~= nil
+        UM = UM or {}
+        package.loaded["ui/uimanager"] = UM
+        local stack = UM._window_stack
+        local win, menu, toast = {}, {}, { toast = true }
+        local ok, err = pcall(withZones, true, function(calls)
+            UM._window_stack = { { widget = win }, { widget = menu }, { widget = toast } }
+            local b = base(false)
+            eq(Zones.overlayEvent(win, gesture, b, off), false)
+            eq(calls.zones, 0, "a gesture the menu above left went to KOReader")
+            eq(b.got, 1)
+            UM._window_stack = { { widget = win }, { widget = toast } }
+            eq(Zones.overlayEvent(win, gesture, base(false), off), true)
+            eq(calls.zones, 1, "a toast above stopped the pass")
+        end)
+        UM._window_stack = stack
+        if not had then package.loaded["ui/uimanager"] = nil end
+        assert(ok, err)
+    end)
 end
 
 

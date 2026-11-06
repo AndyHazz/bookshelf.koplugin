@@ -395,9 +395,32 @@ end
 --
 -- A side swipe off the window that neither took turns the shelf's page
 -- behind it (passSideSwipe).
+-- isTop(widget): the topmost window that takes input (toasts never stop an
+-- event, so they don't count). UIManager offers an event the top window
+-- leaves to the windows below it too; one reaching the popup that way is not
+-- its to pass on.
+local function isTop(widget)
+    local ok, UIManager = pcall(require, "ui/uimanager")
+    local stack = ok and UIManager and UIManager._window_stack
+    if not stack then return true end
+    for i = #stack, 1, -1 do
+        local w = stack[i].widget
+        if not (type(w) == "table" and w.toast) then return w == widget end
+    end
+    return false
+end
+
 function GestureZones.overlayEvent(widget, event, base, on_window, opts)
     if event.handler == "onGesture" then
         local ev = event.args and event.args[1]
+        -- Not the top window: a gesture the window above left. On a Kindle a
+        -- swipe down from the top comes as a pan then a swipe; the pan opened
+        -- KOReader's menu over the popup, the menu left the swipe, it reached
+        -- the popup underneath and opened a second menu, and the first was
+        -- left open with nothing to close it (maintainer, bookends on PW5).
+        if not isTop(widget) then
+            return base.handleEvent(widget, event) and true or false
+        end
         if on_window then
             local off = ev and ev.pos and not on_window(ev.pos)
             if off and GestureZones.tryLiveZones(ev, opts) then

@@ -69,6 +69,30 @@ for f in $VENDORED; do
     fi
 done
 
+# Vendored under each repo's own prefix: "bookends_name:bookshelf_name".
+# The bytes must still match; only the file name differs.
+RENAMED="bookends_pubdate.lua:bookshelf_pubdate.lua"
+for pair in $RENAMED; do
+    a=${pair%%:*}; b=${pair#*:}
+    if [ -f "$ours_dir/$a" ]; then mine="$ours_dir/$a"; other="$theirs_dir/$b"
+    else mine="$ours_dir/$b"; other="$theirs_dir/$a"; fi
+    # The bookends name absent: bookends has not adopted it (yet), so there
+    # is nothing to drift. The bookshelf name absent while bookends has it:
+    # the source is gone, which is a failure.
+    if [ ! -f "$ours_dir/$a" ] && [ ! -f "$theirs_dir/$a" ]; then
+        echo "skip  $a not in bookends"
+    elif [ ! -f "$mine" ] || [ ! -f "$other" ]; then
+        echo "FAIL  $a / $b is MISSING from one side"
+        status=1
+    elif diff_out=$(diff -u "$mine" "$other" 2>&1); then
+        echo "ok    $a / $b identical"
+    else
+        echo "FAIL  $a / $b has DRIFTED between the two repos:"
+        printf '%s\n' "$diff_out" | sed 's/^/      /'
+        status=1
+    fi
+done
+
 if [ "$status" -ne 0 ]; then
     echo ""
     echo "These files are vendored and must stay byte-identical. Copy the"

@@ -22804,18 +22804,12 @@ end
 -- All text (buttons, headings, stars) scales with the modal's +/- font size.
 -- Hardcover reviews aren't here -- they're the Reviews tab.
 -- _fmtPubDate(date) -> a stored publish date as the book menu shows it:
--- 18 Feb 2016, Feb 2016 or 2016 (year-month-day, year-month, year). Only
--- the month's name comes from the system, at a safe year: a Kindle's time_t
--- starts in 1901, after most books' dates.
+-- 18 Feb 2016, Feb 2016 or 2016 (year-month-day, year-month, year), the
+-- month in the interface language: the short form %published{format} falls
+-- back to as well (lib/bookshelf_pubdate_format).
 function BookshelfWidget._fmtPubDate(date)
-    local y, m, d = tostring(date or ""):match("^(%d%d%d%d)%-?(%d*)%-?(%d*)$")
-    if not y then return date end
-    m, d = tonumber(m), tonumber(d)
-    local mon = m and m >= 1 and m <= 12
-        and os.date("%b", os.time{ year = 2000, month = m, day = 1, hour = 12 })
-    if mon and d then return string.format("%02d %s %s", d, mon, y) end
-    if mon then return mon .. " " .. y end
-    return y
+    if not tostring(date or ""):match("^%d%d%d%d") then return date end
+    return require("lib/bookshelf_pubdate_format").short(date)
 end
 
 function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)

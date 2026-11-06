@@ -51,6 +51,17 @@ t.test("EPUB: dcterms:issued when there is no dc:date, either form", function()
     eq(P.fromOpf([[<meta name="dcterms:issued" content="1924-05"/>]]), "1924-05")
 end)
 
+-- EPUB 3 books from some stores carry the date only as dcterms:date, with no
+-- dc:date at all; they went to Unknown on the Decades shelf (PW5 library).
+t.test("EPUB: dcterms:date when there is no dc:date, after dcterms:issued", function()
+    eq(P.fromOpf([[<meta property="dcterms:date">2026</meta>]]), "2026")
+    eq(P.fromOpf([[<meta name="dcterms:date" content="2019-03"/>]]), "2019-03")
+    eq(P.fromOpf([[<meta property="dcterms:date">2001</meta>
+        <meta property="dcterms:issued">1999</meta>]]), "1999")
+    eq(P.fromOpf([[<meta property="dcterms:date">2001</meta>
+        <dc:date>1850</dc:date>]]), "1850")
+end)
+
 t.test("EPUB: calibre's undefined date is no date", function()
     eq(P.fromOpf([[<dc:date>0101-01-01T00:00:00+00:00</dc:date>]]), nil)
 end)

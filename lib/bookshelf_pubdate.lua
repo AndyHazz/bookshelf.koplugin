@@ -84,7 +84,8 @@ end
 -- fromOpf(opf) -> date | nil
 -- Preference, best first: a dc:date marked as the publication (EPUB 2's
 -- opf:event), a dc:date with no event (calibre's, and EPUB 3's, which is the
--- publication by definition), dcterms:issued, then any other event except a
+-- publication by definition), dcterms:issued, dcterms:date (some EPUB 3
+-- store files carry nothing else), then any other event except a
 -- modification.
 function M.fromOpf(opf)
     if type(opf) ~= "string" or opf == "" then return nil end
@@ -107,14 +108,15 @@ function M.fromOpf(opf)
     end
     for attrs, text in opf:gmatch("<%s*meta([^>]*)>(.-)</%s*meta%s*>") do
         local prop = attr(attrs, "property") or attr(attrs, "name")
-        if prop == "dcterms:issued" then offer(text, 3) end
+        if prop == "dcterms:issued" then offer(text, 3)
+        elseif prop == "dcterms:date" then offer(text, 3.5) end
     end
     -- An EPUB 2 <meta name="dcterms:issued" content="..."/> carries its value
     -- in an attribute.
     for attrs in opf:gmatch("<%s*meta([^>]*)/>") do
-        if (attr(attrs, "name") or attr(attrs, "property")) == "dcterms:issued" then
-            offer(attr(attrs, "content"), 3)
-        end
+        local prop = attr(attrs, "name") or attr(attrs, "property")
+        if prop == "dcterms:issued" then offer(attr(attrs, "content"), 3)
+        elseif prop == "dcterms:date" then offer(attr(attrs, "content"), 3.5) end
     end
     return best
 end

@@ -187,12 +187,36 @@ end
 -- touches a row carrying it.
 M.USER_MTIME = -1
 
+-- The date reader's version (lib/bookshelf_pubdate). A stored "no date" is
+-- that reader's answer, so when it learns a new form (2: EPUB 3's
+-- dcterms:date) the books it found nothing in are read again, once: they
+-- would otherwise stay dateless until Refresh metadata. Bump with the reader.
+M.READER_VERSION = 2
+local _migrated = false
+
+local function migrate(F)
+    _migrated = true
+    local ok, Store = pcall(require, "lib/bookshelf_settings_store")
+    if not (ok and Store and Store.read and Store.save) then return end
+    if (tonumber(Store.read("pubdate_reader_version")) or 1) >= M.READER_VERSION then return end
+    local map = F.publishedMap and F.publishedMap()
+    if not map then return end
+    local stale = {}
+    for fp, e in pairs(map) do
+        if e.pd == "" and e.pdm ~= M.USER_MTIME then stale[#stale + 1] = fp end
+    end
+    for _i, fp in ipairs(stale) do F.put(fp, { pd = false, pdm = false }) end
+    if #stale > 0 and F.flushSoon then F.flushSoon() end
+    Store.save("pubdate_reader_version", M.READER_VERSION)
+end
+
 -- stored(fp) -> the facts row's date fields, or nil. Every stored date at
 -- once (one query a session), not a query per book: a shelf sorted by year
 -- asks for all of them.
 local function stored(fp)
     local F = facts()
     if not F then return nil end
+    if not _migrated then migrate(F) end
     local map = F.publishedMap and F.publishedMap()
     if map then return map[fp] end
     return F.get(fp)
@@ -301,6 +325,7 @@ end
 -- For the tests.
 function M._reset()
     _pending, _order, _asked = {}, {}, {}
+    _migrated = false
     _running, _armed, _broken = false, false, false
     M.on_filled = nil
 end

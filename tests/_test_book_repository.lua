@@ -5536,6 +5536,44 @@ test("getBySource: a plugin's registered source is filtered, sorted and paged (i
     assert(list[1].source_kind == "demo", "records are stamped with their source")
 end)
 
+-- A Spines shelf builds its whole list, and the list-mode branch called the
+-- source's cover hook for every record in it: a Kobo library on Spines copied
+-- every book's cover on every rebuild, to colour spines whose colour was
+-- already kept. On Spines the hook waits until a cover is actually asked for
+-- (Repo.getCoverBB: a spine with no kept colour, a face-out cover).
+test("getBySource: on Spines a source's cover hook runs only when a cover is asked for", function()
+    local Sources = require("lib/bookshelf_sources")
+    local asked = {}
+    Sources.register("kobolike", {
+        api = 1,
+        label = function() return "Kobo-like" end,
+        available = function() return true end,
+        list = function()
+            local out = {}
+            for i = 1, 50 do out[i] = { title = "Book " .. i, filepath = "/kl/" .. i .. ".kepub" } end
+            return out
+        end,
+        cover = function(rec)
+            asked[#asked + 1] = rec.filepath
+            return { cover_of = rec.filepath }, 60, 90
+        end,
+    })
+    Repo.spine_light = true
+    local list = Repo.getBySource({ kind = "kobolike" }, nil, nil, 0, 1000000)
+    Repo.spine_light = nil
+    local whole_list_calls = #asked
+    local bb = Repo.getCoverBB("/kl/7.kepub")
+    -- Covers view still attaches the page's covers as it fetches.
+    asked = {}
+    local page = Repo.getBySource({ kind = "kobolike" }, nil, nil, 0, 10)
+    Sources.unregister("kobolike")
+    assert(#list == 50, "the whole list comes back, got " .. #list)
+    assert(whole_list_calls == 0, "a Spines fetch asked for " .. whole_list_calls .. " covers")
+    assert(list[1].has_cover == true, "a record from a cover-hook source can still face out")
+    assert(type(bb) == "table" and bb.cover_of == "/kl/7.kepub", "the cover is fetched when asked for")
+    assert(#asked == 10 and page[1].cover_bb, "a Covers page attaches its own covers")
+end)
+
 test("getBySource: an unregistered or failing source is an empty shelf, not an error", function()
     local Sources = require("lib/bookshelf_sources")
     Sources.register("flaky", {

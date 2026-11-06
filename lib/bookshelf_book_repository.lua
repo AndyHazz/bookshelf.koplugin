@@ -1430,8 +1430,21 @@ end
 -- it to ImageWidget with image_disposable=true or free() it explicitly
 -- after use. Same pcall guard as buildBookMeta for the import-window
 -- crash path.
+-- fp -> { spec, rec } for records a Spines fetch left without a cover:
+-- their source's cover hook, asked by getCoverBB on demand. A Repo field,
+-- not a local: this file is at Lua's 200-local limit.
+Repo._source_covers = {}
+
 function Repo.getCoverBB(filepath)
     if not filepath then return nil end
+    -- A source's own cover (Kobo: BIM cannot read a DRM'd kepub), before the
+    -- remote-path guard, since a source's paths may count as remote. The
+    -- hook hands back a fresh blitbuffer the caller owns, as BIM's is.
+    local lazy = Repo._source_covers[filepath]
+    if lazy then
+        local ok_c, bb = require("lib/bookshelf_sources").call(lazy.spec, "cover", lazy.rec)
+        if ok_c and bb then return bb end
+    end
     -- Remote catalog records have no local file and no BIM row: their cover is
     -- a cached image file the OPDS branch attaches as cover_image_path, which
     -- SpineWidget's external-cover branch renders before this lazy path is
@@ -8420,7 +8433,15 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
         for i = off + 1, math.min(off + lim, total) do
             local rec = books[i]
             if not light_only then
-                if src_spec.cover then
+                if src_spec.cover and Repo.spine_light then
+                    -- A Spines shelf takes the WHOLE list, and its spines
+                    -- read a cover once, for a colour the facts DB keeps.
+                    -- Asking here copied every book's cover on every
+                    -- rebuild; instead getCoverBB asks the source when a
+                    -- spine with no kept colour, or a face-out, wants one.
+                    Repo._source_covers[rec.filepath] = { spec = src_spec, rec = rec }
+                    if rec.has_cover == nil then rec.has_cover = true end
+                elseif src_spec.cover then
                     -- The source hands back a fresh blitbuffer the grid frees
                     -- after paint (Kobo: BIM cannot read a DRM'd kepub). Asked
                     -- again every rebuild, so a freed bb is never reused. nil

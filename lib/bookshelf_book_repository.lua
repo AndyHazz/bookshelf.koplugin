@@ -1010,6 +1010,7 @@ local _SORT_DEFAULT = {
     tags       = "latest_read",
     formats    = "name",
     languages  = "book_count",
+    decades    = "published",
 }
 
 local _SORT_VALID = {
@@ -1028,6 +1029,7 @@ local _SORT_VALID = {
     tags       = { name = true, latest_read = true, book_count = true },
     formats    = { name = true, latest_read = true, book_count = true },
     languages  = { name = true, latest_read = true, book_count = true },
+    decades    = { published = true, name = true, latest_read = true, book_count = true },
 }
 
 -- getSortPriority(tab_id): returns the priority list for a tab, falling back
@@ -1061,6 +1063,7 @@ function Repo.getSortPriority(tab_id)
         percent_natural        = { key = "percent_read", reverse = true  },
         name                   = { key = "filename",     reverse = false },
         book_count             = { key = "book_count",   reverse = true  },
+        published              = { key = "published",    reverse = true  },
     }
     return { map[legacy] or { key = "title", reverse = false } }
 end
@@ -2146,6 +2149,9 @@ local _genres_cache    = {}
 local _formats_cache   = {}
 local _ratings_cache   = {}
 local _languages_cache = {}
+-- The Decades shelf's groups. A field, not a local: this file is at Lua's
+-- 200-local limit. Cleared wherever _languages_cache is.
+Repo._decades_cache = {}
 -- SHAPE_CACHE_MAX: LRU cap for the two per-folder x per-sort "shape" caches
 -- below. Left unbounded, one entry accumulates per folder visited times each
 -- sort/filter combination for the life of the process; entries are cheap
@@ -2494,6 +2500,7 @@ function Repo.invalidateWalkCache()
     _formats_cache    = {}
     _ratings_cache    = {}
     _languages_cache  = {}
+    Repo._decades_cache = {}
     _all_cache        = {}
     _all_cache_order  = {}
     _bySource_cache   = {}
@@ -2549,6 +2556,7 @@ function Repo.invalidateSeriesCache()
     _formats_cache    = {}
     _ratings_cache    = {}
     _languages_cache  = {}
+    Repo._decades_cache = {}
     _light_meta_cache = {}
 end
 
@@ -2769,6 +2777,7 @@ function Repo.invalidateBookCache(reason)
     _formats_cache    = {}
     _ratings_cache    = {}
     _languages_cache  = {}
+    Repo._decades_cache = {}
     _all_cache        = {}
     _all_cache_order  = {}
     _bySource_cache   = {}
@@ -6252,6 +6261,7 @@ local function _hydrateGroupShape(shape, within_priority, filter, light_only)
         books_meta   = meta,  -- carried for drill-time re-sort
         latest       = shape.latest,
         latest_added = shape.latest_added,
+        decade_year  = shape.decade_year,
     }
 end
 
@@ -6497,6 +6507,8 @@ local function _buildGroups(group_kind, key_fn, multi, records)
                                 if fmt ~= "auto" then
                                     display_name = _AuthorName_mod.formatted(raw_k, fmt)
                                 end
+                            elseif group_kind == "decade" then
+                                display_name = Repo._decadeLabel(raw_k)
                             elseif group_kind == "language" then
                                 if raw_k == _LANG_UNKNOWN_KEY then
                                     display_name = tr("Unknown")
@@ -6514,6 +6526,9 @@ local function _buildGroups(group_kind, key_fn, multi, records)
                                 books       = {},
                                 latest      = 0,
                                 _seen       = {},
+                                -- A decade card sorts by its own year (the
+                                -- Published sort key, SortEngine.publishedOf).
+                                decade_year = group_kind == "decade" and tonumber(raw_k) or nil,
                             }
                             groups[lookup_k] = g
                             order[#order + 1] = lookup_k
@@ -6551,6 +6566,11 @@ local function _buildGroups(group_kind, key_fn, multi, records)
                                 authors      = book.authors,
                                 genres       = book.genres,
                                 lang         = book.lang,
+                                -- What Published.info reads ahead of the
+                                -- file, so a Decades card's books sort by
+                                -- the year that filed them.
+                                calibre      = book.calibre,
+                                hardcover_published = book.hardcover_published,
                                 _last_read   = rt,
                                 -- Walk candidates carry mtime; catalogue
                                 -- records carry date_added.
@@ -6633,6 +6653,8 @@ local function _cacheGroupShapes(list, kind)
                 authors      = b.authors,
                 genres       = b.genres,
                 lang         = b.lang,
+                calibre      = b.calibre,
+                hardcover_published = b.hardcover_published,
                 _last_read   = b._last_read,
                 date_added   = b.date_added,
                 size         = b.size,
@@ -6655,6 +6677,7 @@ local function _cacheGroupShapes(list, kind)
             books_meta   = books_meta,
             latest       = group.latest,
             latest_added = group.latest_added or 0,
+            decade_year  = group.decade_year,
         }
     end
     return shapes
@@ -7048,6 +7071,7 @@ function Repo.getGroupChoices(kind)
         format   = _formats_cache,
         rating   = _ratings_cache,
         language = _languages_cache,
+        decade   = Repo._decades_cache,
     }
     local store = cache_for_kind[kind]
     if not store then return {} end
@@ -7061,6 +7085,7 @@ function Repo.getGroupChoices(kind)
         elseif kind == "format"   then Repo.getFormats(0, 0)
         elseif kind == "rating"   then Repo.getRatings(0, 0)
         elseif kind == "language" then Repo.getLanguages(0, 0)
+        elseif kind == "decade"   then Repo.getDecades(0, 0)
         end
     end
 
@@ -7094,6 +7119,7 @@ function Repo.getGroupFilepaths(kind)
         format   = _formats_cache,
         rating   = _ratings_cache,
         language = _languages_cache,
+        decade   = Repo._decades_cache,
     }
     local store = cache_for_kind[kind]
     if not store then return {} end
@@ -7106,6 +7132,7 @@ function Repo.getGroupFilepaths(kind)
         elseif kind == "format"   then Repo.getFormats(0, 0)
         elseif kind == "rating"   then Repo.getRatings(0, 0)
         elseif kind == "language" then Repo.getLanguages(0, 0)
+        elseif kind == "decade"   then Repo.getDecades(0, 0)
         end
     end
 
@@ -7530,6 +7557,67 @@ function Repo.getLanguages(limit, offset, sort_priority_override, filter, opts)
     return out, total
 end
 
+-- getDecades: the Decades shelf. One card per decade of the year %published
+-- shows (lib/bookshelf_published: the reader's own date, Hardcover, calibre,
+-- an OPDS catalogue, else the book file), so the shelf, the token and the
+-- Published sort agree. A book whose file has not been read yet goes in
+-- Unknown and is queued for the background read; the shelf regroups as the
+-- dates arrive (BookshelfWidget:_refreshPublished). Cards carry decade_year,
+-- so the Published sort key orders them and sends Unknown to the end.
+Repo.DECADE_UNKNOWN = "__bookshelf_unknown_decade__"
+
+-- _decadeKey(book) -> "1850", or DECADE_UNKNOWN.
+function Repo._decadeKey(book)
+    local ok, Published = pcall(require, "lib/bookshelf_published")
+    local date = ok and Published.info and Published.info(book) or nil
+    local d = require("lib/bookshelf_pubdate_format").decade(date)
+    return d and tostring(d) or Repo.DECADE_UNKNOWN
+end
+
+-- _decadeLabel("1850") -> "1850s"; the Unknown key -> "Unknown".
+function Repo._decadeLabel(key)
+    local n = tonumber(key)
+    if not n then return tr("Unknown") end
+    return require("lib/bookshelf_pubdate_format").decadeLabel(n)
+end
+
+function Repo.getDecades(limit, offset, sort_priority_override, filter, opts)
+    local _t0 = _gettime()
+    local home  = HomeDir.get() or "/"
+    local depth = BookshelfSettings.read("latest_walk_depth") or 3
+    local key   = (home or "/") .. ":" .. tostring(depth or 0)
+    local now   = os.time()
+    local cached = Repo._decades_cache[key]
+    local _hit = cached
+    if not _hit then
+        local list = _buildGroups("decade", Repo._decadeKey, false)
+        Repo._decades_cache[key] = {
+            groups     = _cacheGroupShapes(list, "decade"),
+            expires_at = now + SERIES_CACHE_TTL,
+        }
+        cached = Repo._decades_cache[key]
+    end
+    local sk = sort_priority_override or Repo.getSortPriority("decades")
+    local within = _withinPriority(sk)
+    local sorted = {}
+    for _i, s in ipairs(cached.groups) do
+        if _shapeHasFilteredBook(s, filter) then sorted[#sorted + 1] = s end
+    end
+    table.sort(sorted, _groupShapeCmp(sk))
+    local total = #sorted
+    local out   = {}
+    offset      = offset or 0
+    _attachFlattenedCounts(out, sorted, offset)
+    local stop  = _hydrationStop(offset, limit, total, 8, "getDecades",
+                                 (opts and opts.light_only) or Repo.spine_light)
+    for i = offset + 1, stop do
+        out[#out + 1] = _hydrateGroupShape(sorted[i], within, filter, opts and opts.light_only)
+    end
+    logger.dbg(string.format("[bookshelf perf] getDecades: %s %.0fms groups=%d/%d",
+        _hit and "HIT" or "MISS", (_gettime() - _t0) * 1000, #out, total))
+    return out, total
+end
+
 -- UTF-8 star characters for the rating group display labels. Used as
 -- the group's series_name so chip + breadcrumb render '★★★★★' etc.
 local _STAR_REPEAT = {
@@ -7757,6 +7845,7 @@ function Repo.findGroup(kind, name, shelf)
     elseif kind == "format"   then cache = _formats_cache[key]
     elseif kind == "rating"   then cache = _ratings_cache[key]
     elseif kind == "language" then cache = _languages_cache[key]
+    elseif kind == "decade"   then cache = Repo._decades_cache[key]
     else return nil end
     if not cache then
         if     kind == "author"   then Repo.getAuthors(0, 0);      cache = _authors_cache[key]
@@ -7765,6 +7854,7 @@ function Repo.findGroup(kind, name, shelf)
         elseif kind == "format"   then Repo.getFormats(0, 0);      cache = _formats_cache[key]
         elseif kind == "rating"   then Repo.getRatings(0, 0);      cache = _ratings_cache[key]
         elseif kind == "language" then Repo.getLanguages(0, 0);    cache = _languages_cache[key]
+        elseif kind == "decade"   then Repo.getDecades(0, 0);      cache = Repo._decades_cache[key]
         end
         if not cache then return nil end
     end
@@ -8565,6 +8655,7 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
     if kind == "formats"   then return Repo.getFormats(limit, offset, sort_priority, filter, opts) end
     if kind == "ratings"   then return Repo.getRatings(limit, offset, sort_priority, filter, opts) end
     if kind == "languages" then return Repo.getLanguages(limit, offset, sort_priority, filter, opts) end
+    if kind == "decades"   then return Repo.getDecades(limit, offset, sort_priority, filter, opts) end
 
     -- Custom kinds: walk the library and apply a predicate filter.
     -- Results are cached by (source, filter, sort_priority) so pagination
@@ -8930,6 +9021,13 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
             local target = (source.id or ""):upper()
             candidates = loadCandidatesByPredicate(function(b)
                 return _formatKey(b.filepath) == target
+            end)
+        elseif kind == "decade" then
+            -- source.id is the decade card's key: "1850", or DECADE_UNKNOWN.
+            -- A card's label ("1850s") is accepted too.
+            local target = tostring(source.id or ""):match("^(%d+)s?$") or Repo.DECADE_UNKNOWN
+            candidates = loadCandidatesByPredicate(function(b)
+                return Repo._decadeKey(b) == target
             end)
         elseif kind == "language" then
             -- The chip's id is the language card's display label (e.g.

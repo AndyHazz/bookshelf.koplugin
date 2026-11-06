@@ -776,7 +776,7 @@ function BookshelfWidget:_serializeDrillPath()
         elseif e.kind == "author" or e.kind == "series"
                 or e.kind == "genre" or e.kind == "tag"
                 or e.kind == "format" or e.kind == "rating"
-                or e.kind == "language" then
+                or e.kind == "language" or e.kind == "decade" then
             out[#out + 1] = { kind = e.kind, label = e.label, whole = e.whole or nil }
             if e.kind == "series" and e.payload and e.payload._series_box then
                 local files = {}
@@ -907,7 +907,8 @@ function BookshelfWidget:_restoreDrillPath(saved)
             self:_searchAndDrill(e.query)
         elseif e.kind == "author" or e.kind == "series"
                 or e.kind == "genre" or e.kind == "format"
-                or e.kind == "rating" or e.kind == "language" then
+                or e.kind == "rating" or e.kind == "language"
+                or e.kind == "decade" then
             local g = Repo.findGroup(e.kind, e.label, true)
             if g and e.kind == "series" and type(e.series_box_files) == "table" then
                 g = require("lib/bookshelf_series_boxes").restore(g, e.series_box_files, e.label, Repo.lightMetaFor)
@@ -3745,7 +3746,7 @@ function BookshelfWidget:_fetchChipItems(n, want_all)
     if tip and (tip.kind == "series" or tip.kind == "author"
             or tip.kind == "genre" or tip.kind == "tag"
             or tip.kind == "format" or tip.kind == "rating"
-            or tip.kind == "language") then
+            or tip.kind == "language" or tip.kind == "decade") then
         -- Re-apply the within-group sort on EVERY fetch, not just at drill time.
         -- A return-from-book rebuild restores the drill payload fresh, and the
         -- tag restore rebuilds .books in non-deterministic pairs() order, so
@@ -25583,6 +25584,10 @@ end
 -- move books, not just their labels.
 function BookshelfWidget:_sortsByPublished()
     local tab = require("lib/bookshelf_tab_model").getById(self.chip)
+    -- A Decades shelf, or one decade, is grouped by the year: a book whose
+    -- date arrives moves out of Unknown whatever the sort.
+    local kind = tab and tab.source and tab.source.kind
+    if kind == "decades" or kind == "decade" then return true end
     for _i, lv in ipairs(tab and tab.sort_priority or {}) do
         if lv.key == "published" then return true end
     end
@@ -25591,20 +25596,39 @@ end
 
 function BookshelfWidget:_refreshPublished(fps)
     if self._closed or not (self._inner_vgroup and self._shelf_dims) then return end
-    -- Sorted by year: re-sort once the reads go quiet, not after every
-    -- batch of forty (a big shelf read for the first time is many batches).
-    -- The cached, sorted lists hold the old order, so they go too.
+    -- Sorted by year (and Decades): regroup at most every RESORT_EVERY
+    -- seconds while dates are still being read, and once soon after the last
+    -- batch. A first Decades shelf reads the whole library, forty books a
+    -- batch, a batch every ~3 s on a PW5: waiting for the reads to go quiet
+    -- for 3 s missed every gap under load and rebuilt the shelf after each
+    -- batch, dozens of full regroups in a row. The cached, sorted lists hold
+    -- the old order, so they go too.
     if self:_sortsByPublished() then
-        if self._published_resort then UIManager:unschedule(self._published_resort) end
+        local RESORT_EVERY = 15
+        local reading = require("lib/bookshelf_published").busy()
+        if self._published_resort then
+            -- One is already due within RESORT_EVERY: it takes these too.
+            if reading then return end
+            UIManager:unschedule(self._published_resort)
+        end
         self._published_resort = function()
             self._published_resort = nil
             if self._closed then return end
             Repo.invalidateBookCache("published")
             if self._spine_fetch_cache then self._spine_fetch_cache.at = 0 end
+            -- Inside one decade (most likely Unknown, on a first open) the
+            -- drill holds the books it was opened with: take the card again,
+            -- so a book whose year just arrived leaves it.
+            local path = self._drilldown_path
+            local tip = path and path[#path]
+            if tip and tip.kind == "decade" and tip.label then
+                local g = Repo.findGroup("decade", tip.label, true)
+                if g then tip.payload = g end
+            end
             self:_rebuild()
             UIManager:setDirty(self, "ui")
         end
-        UIManager:scheduleIn(3, self._published_resort)
+        UIManager:scheduleIn(reading and RESORT_EVERY or 1, self._published_resort)
         return
     end
     local wanted = {}
@@ -26008,6 +26032,16 @@ local GROUP_KINDS = {
             { key = "title",        reverse = false },
         },
     },
+    decade = {
+        source_kind     = "decade",
+        -- The card's label ("1850s", "Unknown"), as the A decade picker
+        -- stores it; the drill reads either back (Repo getBySource).
+        source_id_field = "series_name",
+        sort_priority   = {
+            { key = "published", reverse = true  },
+            { key = "title",     reverse = false },
+        },
+    },
     language = {
         source_kind     = "language",
         source_id_field = "series_name",
@@ -26300,6 +26334,13 @@ function BookshelfWidget:_openGroupMenu(group, kind)
     -- payload. Callers pass kind explicitly; fall back to group.kind
     -- for the folder case so both call shapes work.
     kind = kind or group.kind
+    -- Rating, format and decade stacks reach here through the series
+    -- callbacks (their cards are series-shaped), so "series" comes in for
+    -- them too; the card's own kind says what it really is.
+    if kind == "series" and group.kind and group.kind ~= "series"
+            and GROUP_KINDS[group.kind] then
+        kind = group.kind
+    end
     if not kind then return end
     local spec = GROUP_KINDS[kind]
     if not spec then return end

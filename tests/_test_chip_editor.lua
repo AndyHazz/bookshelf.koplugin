@@ -68,7 +68,7 @@ local VALID_SORT_KEYS = {
     last_opened = true, date_added = true, percent_read = true,
     read_status = true, read_status_active = true, favorites_first = true, rating = true,
     page_count = true, book_count = true, size = true,
-    collection_order = true,
+    collection_order = true, published = true,
 }
 
 t.test("every SOURCE_SORT_DEFAULTS entry is a non-empty list of {key,reverse}, except fixed-order sources", function()
@@ -114,6 +114,7 @@ t.test("GROUP_KINDS is exactly the expected set", function()
     eq(D.GROUP_KINDS, {
         series = true, authors = true, genres = true,
         tags = true, formats = true, languages = true,
+        decades = true,
     })
 end)
 

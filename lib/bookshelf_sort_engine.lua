@@ -160,6 +160,8 @@ function SortEngine.clearPublishedMemo() _pub_memo = setmetatable({}, { __mode =
 
 function SortEngine.publishedOf(item)
     if type(item) ~= "table" then return nil end
+    -- A Decades card: its decade (lib/bookshelf_book_repository getDecades).
+    if item.decade_year then return item.decade_year end
     local m = _pub_memo[item]
     if m == nil then
         local ok, P = pcall(require, "lib/bookshelf_published")

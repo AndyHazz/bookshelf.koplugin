@@ -99,7 +99,7 @@ local _specs = {}   -- id -> spec
 local RESERVED = {}
 for k in ("all library recent latest favorites folder folder_flat series authors "
           .. "genres tags formats ratings languages statuses collection tag genre "
-          .. "author single_series status format rating language opds search "
+          .. "author single_series status format rating language decades decade opds search "
           .. "shelves none"):gmatch("%S+") do
     RESERVED[k] = true
 end

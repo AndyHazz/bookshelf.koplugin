@@ -73,8 +73,62 @@ t.test("wiring: new dates clear the memo; a year-sorted shelf re-sorts, debounce
     local w = io.open("lib/bookshelf_widget.lua"):read("*a")
     local body = w:match("\nfunction BookshelfWidget:_refreshPublished%(fps%)\n(.-)\nend\n")
     assert(body and body:find("self:_sortsByPublished()", 1, true), "no re-sort for a year-sorted shelf")
-    assert(body:find("UIManager:unschedule(self._published_resort)", 1, true), "re-sort is not debounced")
     assert(body:find('Repo.invalidateBookCache("published")', 1, true), "the sorted lists keep the old order")
+end)
+
+-- A first Decades shelf reads the whole library's dates, forty books a batch,
+-- a batch every ~3 s on a PW5. Regrouping after each one rebuilt the shelf
+-- dozens of times in a row; while reads continue it regroups at most every
+-- RESORT_EVERY seconds, and once more when they finish.
+t.test("a year-sorted shelf regroups at most every 15 s while dates are read, and once at the end", function()
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    local body = w:match("\nfunction BookshelfWidget:_refreshPublished%(fps%)\n(.-)\nend\n")
+    assert(body, "_refreshPublished moved")
+    local now, tasks = 0, {}
+    local UI = {
+        scheduleIn = function(_s, secs, fn) tasks[#tasks + 1] = { at = now + secs, fn = fn } end,
+        unschedule = function(_s, fn)
+            for i = #tasks, 1, -1 do if tasks[i].fn == fn then table.remove(tasks, i) end end
+        end,
+        setDirty = function() end,
+    }
+    local busy = true
+    local env = setmetatable({
+        UIManager = UI,
+        Repo = { invalidateBookCache = function() end, findGroup = function() end },
+        require = function(name)
+            if name == "lib/bookshelf_published" then return { busy = function() return busy end } end
+            return require(name)
+        end,
+    }, { __index = _G })
+    local f = assert(load("return function(self, fps)\n" .. body .. "\nend", "rp", "t", env))()
+    local rebuilds = 0
+    local shelf = { _inner_vgroup = {}, _shelf_dims = {}, _drilldown_path = {},
+        _sortsByPublished = function() return true end,
+        _rebuild = function() rebuilds = rebuilds + 1 end }
+    local function advance(to)
+        while true do
+            table.sort(tasks, function(a, b) return a.at < b.at end)
+            local nxt = tasks[1]
+            if not nxt or nxt.at > to then break end
+            table.remove(tasks, 1)
+            now = nxt.at
+            nxt.fn()
+        end
+        now = to
+    end
+    -- 38 batches, one landing every 3.2 s: slower than the old 3 s debounce.
+    for i = 1, 38 do
+        advance(i * 3.2)
+        busy = i < 38
+        f(shelf, { "/b" .. i })
+    end
+    local during = rebuilds
+    assert(during >= 7 and during <= 9, "regrouped " .. during .. " times in ~2 min of reads")
+    advance(now + 2)
+    eq(rebuilds, during + 1, "no regroup straight after the last batch")
+    advance(now + 60)
+    eq(rebuilds, during + 1, "regrouped again with nothing new")
 end)
 
 t.test("a folder view's file entry (fp, attr) sorts by its year too", function()

@@ -201,6 +201,13 @@ local SOURCE_SORT_DEFAULTS = {
     languages     = { { key = "book_count",      reverse = true  },
                       { key = "series_name",     reverse = false },
                       { key = "series_index",    reverse = false } },
+    -- Decades: newest decade first, the books in each newest first, by the
+    -- year %published shows. Unknown stays last either way.
+    decades       = { { key = "published",        reverse = true  },
+                      { key = "published",        reverse = true  } },
+    -- Specific decade: a book list of one decade, newest first.
+    decade        = { { key = "published",        reverse = true  },
+                      { key = "title",            reverse = false } },
     -- Ratings group: highest rating first, books within each star
     -- bucket sorted series_name -> series_index -> title.
     ratings       = { { key = "rating",           reverse = true  },
@@ -322,6 +329,7 @@ end
 local GROUP_KINDS = {
     series  = true, authors = true, genres = true,
     tags    = true, formats = true, languages = true,
+    decades = true,
 }
 
 -- Level-1 (group order) labels for group tabs. The engine's labels
@@ -358,6 +366,8 @@ local GROUP_LEVEL1_LABEL = {
     last_opened    = function() return _("Most recently read") end,
     date_added     = function() return _("Most recently added") end,
     book_count     = function() return _("Book count") end,
+    -- Offered on a Decades shelf only: its cards ARE years.
+    published      = function() return _("Decade") end,
 }
 
 -- Friendly source labels shown on the "Source:" button in the editor.
@@ -376,6 +386,7 @@ SOURCE_LABEL = {
     formats       = function() return _("Formats")            end,
     ratings       = function() return _("Ratings")            end,
     languages     = function() return _("Languages")          end,
+    decades       = function() return _("Decades")            end,
     favorites     = function() return _("Favorites")          end,
     -- "Specific X" kinds carry an id; the resolver appends it.
     folder        = function() return _("Folder")             end,
@@ -389,6 +400,7 @@ SOURCE_LABEL = {
     format        = function() return _("Format")             end,
     rating        = function() return _("Rating")             end,
     language      = function() return _("Language")           end,
+    decade        = function() return _("Decade")             end,
     -- No id yet (picker not used, or the source table was hand-built):
     -- generic fallback. Once an id is present _resolveSourceLabel takes
     -- the "OPDS: <title>" branch instead of this one.
@@ -3428,6 +3440,7 @@ function Editor:_pickSource(draft, on_close)
             add(one("format", _("Format"), group_pick("format")))
             add(one("rating", _("Rating"), open_rating_picker))
             add(one("language", _("Language"), group_pick("language")))
+            add(one("decade", _("Decade"), group_pick("decade")))
         else
             -- Grouped: what readers looked for and did not find under
             -- "Source" (maintainer). Stacks and a shelf of one of them are
@@ -3441,6 +3454,7 @@ function Editor:_pickSource(draft, on_close)
                 stackChip("formats", _("Formats"), "\u{E918}"),
                 stackChip("ratings", _("Ratings"), "\u{EBCD}"),
                 stackChip("languages", _("Languages"), "\u{ECC9}"),
+                stackChip("decades", _("Decades"), "\u{ED77}"),
             } })
             add({ type = "heading", text = _("Just one") })
             add({ type = "chips", items = {
@@ -3451,6 +3465,7 @@ function Editor:_pickSource(draft, on_close)
                 oneChip("format", _("A format"), group_pick("format")),
                 oneChip("rating", _("A rating"), open_rating_picker),
                 oneChip("language", _("A language"), group_pick("language")),
+                oneChip("decade", _("A decade"), group_pick("decade")),
             } })
             add({ type = "heading", text = _("More") })
             -- Shelf of shelves (5.4): tiles that are shelves of their own.
@@ -3881,6 +3896,7 @@ local SOURCE_ICONS = {
     formats = "\u{E918}", format = "\u{E918}",
     ratings = "\u{EBCD}", rating = "\u{EBCD}",                  -- star
     languages = "\u{ECC9}", language = "\u{ECC9}",
+    decades = "\u{ED77}", decade = "\u{ED77}",                  -- calendar-range
     shelves = "\u{EC6F}", opds = "\u{EC9E}",                    -- view-grid, web
 }
 function Editor._sourceIcon(source)
@@ -3976,8 +3992,10 @@ function Editor:_openSort(draft, on_change, on_arranged, on_back)
         local function add(b) blocks[#blocks + 1] = b end
         if is_group and sel == 1 then
             add({ type = "heading", text = _("Order the groups by") })
-            add(chips({ "series_name", "author_surname", "book_count",
-                        "last_opened", "date_added", "added_or_opened" }))
+            local keys = { "series_name", "author_surname", "book_count",
+                           "last_opened", "date_added", "added_or_opened" }
+            if kind == "decades" then table.insert(keys, 1, "published") end
+            add(chips(keys))
         else
             -- A collection is the only book source carrying an order of its
             -- own: the one the reader arranged by hand in KOReader. It

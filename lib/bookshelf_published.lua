@@ -166,6 +166,10 @@ local function arm()
     end)
 end
 
+-- busy() -> true while books are still waiting to be read or a batch is
+-- being read: the shelf holds its regroup until the reads are done.
+function M.busy() return _running or #_order > 0 end
+
 -- enqueue(fp): read this book's file in the background, once a session.
 function M.enqueue(fp)
     if _broken or _asked[fp] then return end

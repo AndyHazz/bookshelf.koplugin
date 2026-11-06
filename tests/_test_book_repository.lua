@@ -6836,5 +6836,110 @@ test("printedPageCount: stable numbers or a p(N) name, never the render", functi
 end)
 
 -- ============================================================================
+-- getDecades: the Decades shelf groups by the year %published shows
+-- ============================================================================
+
+local function withDecadeLibrary(dates, fn)
+    Repo.invalidateWalkCache()
+    Repo.invalidateSeriesCache()
+    local files = { ".", ".." }
+    local bim = {}
+    for fp in pairs(dates) do
+        files[#files + 1] = fp:match("[^/]+$")
+        bim[fp] = { title = fp:match("([^/]+)%.epub$"), authors = "A" }
+    end
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local f = (path == "/lib") and files or { ".", ".." }
+        local i = 0; return function() i = i + 1; return f[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == "mode" then return "file" end; return 0
+    end
+    _G._test_bim_data = bim
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    local saved = package.loaded["lib/bookshelf_published"]
+    package.loaded["lib/bookshelf_published"] = {
+        info = function(b) return b and dates[b.filepath] or nil end,
+        forRecord = function(b)
+            local d = b and dates[b.filepath]
+            return d and d ~= false and d:sub(1, 4) or ""
+        end,
+    }
+    local SE = require("lib/bookshelf_sort_engine")
+    if SE.clearPublishedMemo then SE.clearPublishedMemo() end
+    local ok, err = pcall(fn)
+    package.loaded["lib/bookshelf_published"] = saved
+    if SE.clearPublishedMemo then SE.clearPublishedMemo() end
+    Repo.invalidateWalkCache()
+    Repo.invalidateBookCache("test")
+    if not ok then error(err, 0) end
+end
+
+local function names(out)
+    local n = {}
+    for i, g in ipairs(out) do n[i] = g.series_name end
+    return table.concat(n, ",")
+end
+
+test("getDecades: books go in the decade of their year; no year is Unknown", function()
+    withDecadeLibrary({
+        ["/lib/a.epub"] = "1851-10-18",
+        ["/lib/b.epub"] = "1859",
+        ["/lib/c.epub"] = false,
+    }, function()
+        local out, total = Repo.getDecades(10, 0)
+        assert(total == 2, "expected 2 groups, got " .. tostring(total))
+        local by = {}
+        for _i, g in ipairs(out) do by[g.series_name] = g end
+        assert(by["1850s"] and #by["1850s"].books == 2, "1850s should hold 2 books: " .. names(out))
+        assert(by["Unknown"] and #by["Unknown"].books == 1, "Unknown should hold 1 book: " .. names(out))
+    end)
+end)
+
+test("getDecades: newest first or oldest first, Unknown always last", function()
+    withDecadeLibrary({
+        ["/lib/a.epub"] = "1851",
+        ["/lib/b.epub"] = "2016-02-18",
+        ["/lib/c.epub"] = false,
+        ["/lib/d.epub"] = "1923",
+    }, function()
+        local out = Repo.getDecades(10, 0, { { key = "published", reverse = true } })
+        assert(names(out) == "2010s,1920s,1850s,Unknown", "newest first: " .. names(out))
+        out = Repo.getDecades(10, 0, { { key = "published", reverse = false } })
+        assert(names(out) == "1850s,1920s,2010s,Unknown", "oldest first: " .. names(out))
+    end)
+end)
+
+test("getDecades: the tab's default sort is the decade, newest first", function()
+    withDecadeLibrary({
+        ["/lib/a.epub"] = "1851",
+        ["/lib/b.epub"] = "2016",
+        ["/lib/c.epub"] = false,
+    }, function()
+        local out = Repo.getBySource({ kind = "decades" }, nil, nil, 0, 10)
+        assert(names(out) == "2010s,1850s,Unknown", "default order: " .. names(out))
+    end)
+end)
+
+test("one decade: the drill holds that decade's books", function()
+    withDecadeLibrary({
+        ["/lib/a.epub"] = "1851",
+        ["/lib/b.epub"] = "1859-01",
+        ["/lib/c.epub"] = "1923",
+        ["/lib/d.epub"] = false,
+    }, function()
+        local list, total = Repo.getBySource({ kind = "decade", id = "1850" }, nil, nil, 0, 10)
+        assert(total == 2, "expected 2 books in the 1850s, got " .. tostring(total))
+        local _l, unknown = Repo.getBySource({ kind = "decade", id = Repo.DECADE_UNKNOWN }, nil, nil, 0, 10)
+        assert(unknown == 1, "expected 1 book with no year, got " .. tostring(unknown))
+    end)
+end)
+
+test("a decade card sorts by its own year", function()
+    local SE = require("lib/bookshelf_sort_engine")
+    assert(SE.publishedOf({ decade_year = 1850 }) == 1850)
+end)
+
+-- ============================================================================
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

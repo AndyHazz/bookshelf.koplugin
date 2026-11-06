@@ -113,6 +113,22 @@ t.test("a long queue goes in batches, one child at a time", function()
     eq(#spawned, 2); eq(#spawned[2].batch, 5)
 end)
 
+t.test("busy while books wait or a batch is read; the last batch's news says it is done", function()
+    reset()
+    eq(Published.busy(), false)
+    local busy_at = {}
+    Published.on_filled = function() busy_at[#busy_at + 1] = Published.busy() end
+    for i = 1, 45 do Published.forRecord({ filepath = "/b/" .. i .. ".epub" }) end
+    eq(Published.busy(), true, "books queued, not busy")
+    tick()
+    eq(Published.busy(), true, "a batch being read, not busy")
+    spawned[1].done({ ["/b/1.epub"] = { date = "1901", mtime = 1 } })
+    eq(busy_at[1], true, "five books still to read, told it was done")
+    spawned[2].done({ ["/b/41.epub"] = { date = "1902", mtime = 1 } })
+    eq(busy_at[2], false, "the last batch, told more were coming")
+    eq(Published.busy(), false)
+end)
+
 t.test("a fork that fails stops asking for the session", function()
     reset()
     Published.forRecord({ filepath = "/b/1.epub" })

@@ -150,6 +150,7 @@ t.test("a refetch of the same list keeps the page states; a changed list drops t
     self._fetchChipItems = function() local o = {} for i, x in ipairs(list) do o[i] = x end return o end
     self._prepareSpineItems = function(_, items) return items end
     self._spineItemsSig = method("_spineItemsSig")
+    self._extractionHoldsOrder = self._extractionHoldsOrder or function() return false end
     self._anchorSpineCursor = method("_anchorSpineCursor")
     self._setSpineCursor = self._setSpineCursor or function(s, c, k) s._cursor, s._skip = c, k or 0 end
     self._spineSkip = self._spineSkip or function(s) return s._skip or 0 end
@@ -191,6 +192,7 @@ local function anchorRun(before, after, cursor)
     self._fetchChipItems = function() local o = {} for i, x in ipairs(list) do o[i] = x end return o end
     self._prepareSpineItems = function(_, items) return items end
     self._spineItemsSig = method("_spineItemsSig")
+    self._extractionHoldsOrder = self._extractionHoldsOrder or function() return false end
     self._anchorSpineCursor = method("_anchorSpineCursor")
     self._setSpineCursor = self._setSpineCursor or function(s, c, k) s._cursor, s._skip = c, k or 0 end
     self._spineSkip = self._spineSkip or function(s) return s._skip or 0 end
@@ -240,6 +242,7 @@ t.test("a per-book change expires the fetch, and the same list keeps its page st
     self._fetchChipItems = function() return { list[1], list[2] } end
     self._prepareSpineItems = function(_, items) return items end
     self._spineItemsSig = method("_spineItemsSig")
+    self._extractionHoldsOrder = self._extractionHoldsOrder or function() return false end
     self._anchorSpineCursor = method("_anchorSpineCursor")
     self._setSpineCursor = self._setSpineCursor or function(s, c, k) s._cursor, s._skip = c, k or 0 end
     self._spineSkip = self._spineSkip or function(s) return s._skip or 0 end
@@ -264,6 +267,7 @@ t.test("an open-ended feed neither reads nor writes another chip's page states",
     self._fetchChipItems = function() return { opds_open_ended = true } end
     self._prepareSpineItems = function(_, items) return items end
     self._spineItemsSig = method("_spineItemsSig")
+    self._extractionHoldsOrder = self._extractionHoldsOrder or function() return false end
     self._anchorSpineCursor = method("_anchorSpineCursor")
     self._setSpineCursor = self._setSpineCursor or function(s, c, k) s._cursor, s._skip = c, k or 0 end
     self._spineSkip = self._spineSkip or function(s) return s._skip or 0 end
@@ -294,6 +298,105 @@ t.test("the deal-state signature changes when the enabled pieces change, not onl
     local s2 = sigf(self)
     package.loaded["lib/bookshelf_ornaments"] = saved
     assert(s1 ~= s2, "swapping which pieces are on kept the signature")
+end)
+
+-- ── Held order while books are extracted ───────────────────────────────────
+-- A book KOReader has not read yet is titled by its file name ("Anthony
+-- Trollope - The Eustace Diamonds" under A), and moves when it is read (to
+-- E). A big extraction reordered a title-sorted shelf on every refetch, so
+-- the books moved under the reader and each turn rebuilt the page map. While
+-- BIM extracts, a refetch that brings back the same books in a new order
+-- keeps the order on screen, with the new records; a new book is taken.
+local function holdRun(before, after, holds)
+    local fetch = method("_spineCachedFetch")
+    local recs = {}
+    local function rec(n) recs[n] = recs[n] or { filepath = "/" .. n, v = 1 }; return recs[n] end
+    local list = {}
+    for i, n in ipairs(before) do list[i] = rec(n) end
+    local self = { chip = "all", _cursor = 1 }
+    self._fetchChipItems = function() local o = {} for i, x in ipairs(list) do o[i] = x end return o end
+    self._prepareSpineItems = function(_, items) return items end
+    self._spineItemsSig = method("_spineItemsSig")
+    self._extractionHoldsOrder = self._extractionHoldsOrder or function() return false end
+    self._anchorSpineCursor = method("_anchorSpineCursor")
+    self._heldExtractionOrder = method("_heldExtractionOrder")
+    self._extractionHoldsOrder = function() return holds end
+    self._spineSkip = function(s) return s._skip or 0 end
+    self._setSpineCursor = function(s, c, k) s._cursor, s._skip = c, k or 0 end
+    self._ornKey = method("_ornKey")
+    self._ornFirstState = method("_ornFirstState")
+    self._ornDrill = function(me) return me.drill end
+    fetch(self, 400)
+    local c = self._spine_fetch_cache
+    c.page_orn, c.orn_sig = { ["1:0"] = { n = 5, shelf = 2, bnd = 0, owed = {} },
+                              ["4:0"] = { n = 7, shelf = 3, bnd = 0, owed = {} } }, "s"
+    c.at = 0
+    list = {}
+    for i, n in ipairs(after) do
+        list[i] = { filepath = "/" .. n, v = 2 }   -- a fresh record each refetch
+    end
+    fetch(self, 400)
+    return self
+end
+local function names(items)
+    local o = {}
+    for i, it in ipairs(items) do o[i] = it.filepath:sub(2) end
+    return table.concat(o, ",")
+end
+
+t.test("while extracting, a reorder of the same books keeps the order and the page states", function()
+    local self = holdRun({ "a", "b", "c", "d", "e" }, { "b", "c", "a", "d", "e" }, true)
+    local c = self._spine_fetch_cache
+    eq(names(c.items), "a,b,c,d,e", "the books moved under the reader")
+    eq(c.items[1].v, 2, "kept the old records instead of the fresh ones")
+    eq(c.page_orn and c.page_orn["4:0"] and c.page_orn["4:0"].n, 7, "a held list lost its later pages' states")
+end)
+
+t.test("while extracting, a new book is taken at once, in its sorted place", function()
+    local self = holdRun({ "a", "b", "c" }, { "new", "a", "b", "c" }, true)
+    eq(names(self._spine_fetch_cache.items), "new,a,b,c")
+end)
+
+t.test("with nothing to hold for, a reorder is taken as before", function()
+    local self = holdRun({ "a", "b", "c", "d" }, { "d", "a", "b", "c" }, false)
+    eq(names(self._spine_fetch_cache.items), "d,a,b,c")
+end)
+
+t.test("only shelves sorted wholly by what extraction changes hold, and only while BIM extracts", function()
+    local holds = method("_extractionHoldsOrder")
+    local tab, busy = nil, true
+    package.loaded["lib/bookshelf_tab_model"] = { getById = function() return tab end }
+    package.loaded["bookinfomanager"] = { isExtractingInBackground = function() return busy end }
+    local self = { chip = "x" }
+    tab = { sort_priority = { { key = "title" } } }
+    eq(holds(self), true, "a title shelf did not hold")
+    tab = { sort_priority = { { key = "series_name" }, { key = "series_index" }, { key = "title" } } }
+    eq(holds(self), true)
+    tab = { sort_priority = { { key = "last_opened" } } }
+    eq(holds(self), false, "Recently read held a book that should move to the front")
+    tab = { sort_priority = { { key = "read_status" }, { key = "title" } } }
+    eq(holds(self), false, "a finished book's move was held")
+    tab = { sort_priority = { { key = "date_added" } } }
+    eq(holds(self), false)
+    tab = {}
+    eq(holds(self), false, "the default sort was held")
+    tab, busy = { sort_priority = { { key = "title" } } }, false
+    eq(holds(self), false, "held with nothing extracting")
+    package.loaded["lib/bookshelf_tab_model"] = nil
+    package.loaded["bookinfomanager"] = nil
+end)
+
+t.test("stacks and anything without a path are never held", function()
+    local held = method("_heldExtractionOrder")
+    local self = {}
+    eq(held(self, { { filepath = "/a" }, { filepath = "/b" } },
+                  { { filepath = "/b" }, { filepath = "/a" } }) ~= nil, true, "test premise")
+    eq(held(self, { { filepath = "/a", books = {} }, { filepath = "/b" } },
+                  { { filepath = "/b" }, { filepath = "/a", books = {} } }), nil, "held a stack")
+    eq(held(self, { { filepath = "/a" }, { module = "m" } },
+                  { { module = "m" }, { filepath = "/a" } }), nil, "held a module")
+    eq(held(self, { { filepath = "/a" }, { filepath = "/b" } },
+                  { { filepath = "/a" }, { filepath = "/b" } }), nil, "an unchanged order counts as held")
 end)
 
 t.done()

@@ -8016,6 +8016,11 @@ function BookshelfWidget:_spineCachedFetch(n)
     end
     items = self:_prepareSpineItems(items, hint)
     if mods then items = require("lib/bookshelf_shelf_modules").insertItems(items, mods) end
+    -- While KOReader extracts books, the same books coming back in a new
+    -- order keep the order on screen (see _heldExtractionOrder).
+    if c and c.key == key and c.items and self:_extractionHoldsOrder() then
+        items = self:_heldExtractionOrder(c.items, items) or items
+    end
     -- The ornament deal states (see _ornStartState) depend only on the list:
     -- a refetch that brings back the same list keeps them, or every page
     -- turn after the TTL would rebuild the whole page map to find its start.
@@ -8046,6 +8051,58 @@ function BookshelfWidget:_spineCachedFetch(n)
                                 orn_sig = keep and keep.orn_sig or nil,
                                 orn_epoch = keep and keep.orn_epoch or nil }
     return items, nil
+end
+
+-- _extractionHoldsOrder() -> true while BIM is extracting and this shelf
+-- sorts only by what extraction changes (or never changes). A book KOReader
+-- has not read yet is titled by its file name ("Anthony Trollope - The
+-- Eustace Diamonds" sorts under A) and moves when it is read (to E): a big
+-- extraction reordered a title-sorted shelf on every refetch, moving books
+-- under the reader, and each change made the next turn rebuild the page map
+-- (the ornament deal must be exact from page one). A shelf with any level
+-- the reader's own actions move (last opened, added, status, progress,
+-- rating, favourites) or the default sort never holds: a book opened or
+-- finished goes where it belongs at once.
+function BookshelfWidget:_extractionHoldsOrder()
+    local HOLD = { title = true, author_surname = true, author_name = true,
+        series_name = true, series_index = true, series_combined = true,
+        series_or_title = true, page_count = true, filename = true, size = true }
+    local tab = require("lib/bookshelf_tab_model").getById(self.chip)
+    local sp = tab and tab.sort_priority
+    if type(sp) ~= "table" or #sp == 0 then return false end
+    for _i, lv in ipairs(sp) do
+        if not (type(lv) == "table" and HOLD[lv.key]) then return false end
+    end
+    local ok, BIM = pcall(require, "bookinfomanager")
+    return (ok and type(BIM) == "table" and BIM.isExtractingInBackground
+        and BIM:isExtractingInBackground()) and true or false
+end
+
+-- _heldExtractionOrder(old, new) -> new's records in old's order, when new
+-- holds exactly old's books in another order; else nil (a book added or
+-- gone, a stack, a module, or nothing moved). The records are new's, so
+-- titles, covers and looks update in place; only the order waits, until
+-- the extraction ends and a refetch takes it.
+function BookshelfWidget:_heldExtractionOrder(old, new)
+    if type(old) ~= "table" or type(new) ~= "table" or #old ~= #new or #new == 0 then return nil end
+    local by_fp, moved = {}, false
+    for i, it in ipairs(new) do
+        if type(it) ~= "table" or type(it.filepath) ~= "string" or it.books then return nil end
+        if by_fp[it.filepath] then return nil end
+        by_fp[it.filepath] = it
+        local o = old[i]
+        if type(o) ~= "table" or o.filepath ~= it.filepath then moved = true end
+    end
+    if not moved then return nil end
+    local out = {}
+    for i, it in ipairs(old) do
+        local fp = type(it) == "table" and it.filepath
+        local fresh = fp and by_fp[fp]
+        if not fresh or it.books then return nil end
+        out[i] = fresh
+        by_fp[fp] = nil
+    end
+    return out
 end
 
 -- _anchorSpineCursor(old, new): after a refetch that changed the list, put

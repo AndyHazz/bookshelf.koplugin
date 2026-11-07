@@ -839,9 +839,21 @@ function LibraryModal:_renderSearchInput(content_width)
         -- search row from the segmented (square) chip strip below. The
         -- inner FrameContainer is what InputText renders the border
         -- through (inputtext.lua:569), so set radius there before paint.
-        input._frame_textwidget.radius = PopupKit.RADIUS
-        -- It sits on the grey strip: a white field.
-        input._frame_textwidget.background = Blitbuffer.COLOR_WHITE
+        -- It sits on the grey strip: a white field. InputText builds a new
+        -- frame on every keystroke (initTextBox), so set both again after
+        -- each: once only, typing left the field square with the grey
+        -- strip round a white text box.
+        local function styleField(this)
+            this._frame_textwidget.radius = PopupKit.RADIUS
+            this._frame_textwidget.background = Blitbuffer.COLOR_WHITE
+        end
+        local orig_initTextBox = input.initTextBox
+        input.initTextBox = function(this, ...)
+            local r = orig_initTextBox(this, ...)
+            styleField(this)
+            return r
+        end
+        styleField(input)
     else
         local desired = self.search_query or ""
         if self._search_input:getText() ~= desired then

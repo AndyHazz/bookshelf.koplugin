@@ -287,15 +287,18 @@ function M.spinesGeometry(book, base, opts)
     local SpineLayout = require("lib/bookshelf_spine_layout")
     local SpineShelf = require("lib/bookshelf_spine_shelf")
     local px_per_dp = Screen:scaleBySize(100) / 100
+    -- Its spines carry their titles: thicker with Spine text, as loose ones.
     local auto_thick = SpineLayout.autoThickness(
         opts.row_h and px_per_dp > 0 and (opts.row_h / px_per_dp) or nil)
+        * ((SpineShelf.textThicken and SpineShelf.textThicken(opts.text_scale)) or 1)
     local count = #book.books
     local border = math.max(2, Screen:scaleBySize(2))
     local face_h = base.face_h or base.h
     local lid = math.max(1, base.h - face_h)
     local row_w = math.max(2, (opts.content_w or base.w) - 2 * (opts.end_margin or 0))
     -- Up to two face-out covers wide (SPINES_MAX_COVERS), so a long series
-    -- shows a fair run of its books.
+    -- shows a fair run of its books, the more so with Spine text past 100%
+    -- making each one thicker.
     local max_w = math.min(row_w, math.max(2, M.SPINES_MAX_COVERS * base.w))
     -- The name is set at the size of the shelf's spine titles.
     local label_size = SpineShelf.titleSize(base.ref_w_dp)

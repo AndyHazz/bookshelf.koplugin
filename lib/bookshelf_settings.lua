@@ -5489,6 +5489,15 @@ function Settings:_pickStackLabelFontScale(touchmenu_instance)
     })
 end
 
+-- Spine text: the titles and authors on spine-out books
+-- (SpineShelf.titleFaceSize). 50-200%: past double a title rarely fits a
+-- spine's run, and the face already shrinks to fit across a thin one.
+function Settings:_pickSpineFontScale(touchmenu_instance)
+    self:_showScaleNudge(touchmenu_instance, {
+        key = "spine_font_scale", title = _("Spine text size"), max = 200, fine = 5,
+    })
+end
+
 -- _startMenuPreview() -> preview, on_done: the start menu open behind a
 -- size page as its live preview (as the shelf is behind the others), and
 -- closed again after if it was opened for it. Only opened if one is not
@@ -5837,6 +5846,7 @@ function Settings:_textSizeSubItems()
         row(_("Cover captions"),        "expanded_shelf_font_scale", 100, "_pickExpandedShelfFontScale"),
         row(_("Cover badges"),          "cover_badge_font_scale",    100, "_pickCoverBadgeFontScale"),
         row(_("Stack & folder labels"), "stack_label_font_scale",    100, "_pickStackLabelFontScale"),
+        row(_("Spine text"),            "spine_font_scale",          100, "_pickSpineFontScale"),
         row(_("Shelf menu"),              "chip_font_scale",           100, "_pickChipFontScale"),
         -- Adjacent to the chip bar because a list row is built to the same
         -- shape -- same face, same base size, same band arithmetic

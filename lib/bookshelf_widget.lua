@@ -7560,6 +7560,9 @@ function BookshelfWidget:_spinePlanBase(content_w, shelf_h, all_items)
         -- Book sizes: Same stands every book at the default shape and
         -- thickness (SpineShelf.bookShape). Changes how many fit a row.
         same_size       = self:_spineSameSize(),
+        -- Text size > Spine text: past 100% the spines stand thicker
+        -- (SpineShelf.textThicken), so fewer fit a row.
+        text_scale      = SpineShelf.spineTextScale(),
         -- Series boxes: Spines, the spine-out box. A box of its own width,
         -- so the pagination pass must plan with it too.
         series_box_style = self:_seriesBoxStyle(),

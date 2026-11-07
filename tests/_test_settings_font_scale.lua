@@ -230,6 +230,7 @@ local PLAIN_PICKERS = {
     -- _pickListFontScale is NOT here any more: it steps in rows, not in
     -- percentage points, and has its own tests below.
     { fn = "_pickStackLabelFontScale",    key = "stack_label_font_scale",   min = 50, max = 300, steps = { -10, -5, 5, 10 } },
+    { fn = "_pickSpineFontScale",         key = "spine_font_scale",         min = 50, max = 200, steps = { -10, -5, 5, 10 } },
 }
 
 for _, spec in ipairs(PLAIN_PICKERS) do
@@ -737,7 +738,7 @@ t.test("Text size lists every scale key exactly once, on its own picker", functi
     -- "Shelf menu" / "List text" are adjacent on purpose: they are the same band
     -- shape on two keys, and a user tuning one should see the other.
     eq(keys, {
-        "Cover captions", "Cover badges", "Stack & folder labels",
+        "Cover captions", "Cover badges", "Stack & folder labels", "Spine text",
         "Shelf menu", "List text",
         "\xEE\x9E\xBD  Top panel", "\xEE\xB1\xAF  Modules",
         "Start menu", "Modal tabs",

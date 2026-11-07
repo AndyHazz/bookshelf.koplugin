@@ -32,13 +32,14 @@ end
 
 local SHARED = { "content_w", "row_h", "gap", "group_gap", "face_out",
                  "face_recent_set", "thickness_pct", "same_size", "hang_gap", "book_binding", "series_bindings",
-                 "series_box_style" }
+                 "series_box_style", "text_scale" }
 
 -- ── the helper, run for real ───────────────────────────────────────────────
 
 local args, body = fnBody("_spinePlanBase")
 assert(body, "BookshelfWidget:_spinePlanBase is missing")
 local SpineShelf = { BOOK_GAP_DP = 0, GROUP_GAP_DP = 12,
+                     spineTextScale = function() return 100 end,
                      endMargin = function(h) return math.floor(h / 10) end }
 local base = assert(load("return function(self, " .. args .. ")\n" .. body .. "\nend",
     "_spinePlanBase", "t", {

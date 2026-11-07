@@ -1710,7 +1710,11 @@ end
 -- with the spine colour (so glyph anti-aliasing blends into the right
 -- ground), rotate the buffer, blit. Rotation cost is one copy of a
 -- text-sized buffer.
-local function _paintRotatedTitle(bb, x, y, run_len, band_w, text, face_size, look, night, author)
+local function _paintRotatedTitle(bb, x, y, run_len, band_w, text, face_size, look, night, author, inset)
+    -- inset: the spine's border, which the title and the band of the
+    -- spine's colour behind it must stay inside.
+    inset = math.max(0, inset or 0)
+    local inner = math.max(1, band_w - 2 * inset)
     if run_len < Screen:scaleBySize(14) or band_w < 8 then return end
 
     -- CJK-dominant titles: paint upright in a vertical column instead of
@@ -1751,7 +1755,7 @@ local function _paintRotatedTitle(bb, x, y, run_len, band_w, text, face_size, lo
                 padding   = 0,
             }
             sz = tw:getSize()
-            if sz.h <= band_w then break end
+            if sz.h <= inner then break end
             tw:free()
             tw = nil
             size = size - 2
@@ -1772,7 +1776,7 @@ local function _paintRotatedTitle(bb, x, y, run_len, band_w, text, face_size, lo
         local face_px = tonumber(BFont:getFace(face_name, size).size) or line_h
         local pitch = math.min(line_h, math.floor(face_px * 1.05 + 0.5))
         local lines = { tw }
-        if tw.isTruncated and tw:isTruncated() and pitch + line_h <= band_w then
+        if tw.isTruncated and tw:isTruncated() and pitch + line_h <= inner then
             local l1, l2 = SpineShelf._splitTitle(text, run_len, function(str)
                 local m = TextWidget:new{ text = str,
                     face = BFont:getFace(face_name, size), padding = 0 }
@@ -1835,7 +1839,30 @@ local function _paintRotatedTitle(bb, x, y, run_len, band_w, text, face_size, lo
         -- luminance via getColor8. Each scratch ROW becomes a screen COLUMN
         -- after rotation, so the prefill carries the body's gradient ramp
         -- row-by-row -- a flat band would sit as a stripe on the gradient.
-        local band_off = math.floor((band_w - sh) / 2)
+        -- Where the block sits across the spine: centred on its LETTERS,
+        -- not its box. A line's box runs from the ascender to the
+        -- descender, so the letters sit nearer its top, and centring the
+        -- box put them visibly off centre at larger sizes. The letters'
+        -- middle is taken as halfway up a capital (0.35 em above the
+        -- baseline); the block then moves by the difference, kept inside
+        -- the border. "Top" is the side the letters' tops face after the
+        -- rotation (scratch row 0; see below).
+        local ink_shift = 0
+        do
+            local base = lines[1].getBaseline and lines[1]:getBaseline() or nil
+            if base and #lines == 1 then
+                local ink_mid = base - 0.35 * face_px
+                ink_shift = math.floor(sh / 2 - ink_mid + 0.5)
+            end
+        end
+        local slack = inner - sh
+        local pos = math.floor(slack / 2)
+        -- Moving the block toward its letters' BOTTOM side centres them.
+        local rot_top_left = (SpineShelf.titleRotation() == 270)
+        pos = pos + (rot_top_left and ink_shift or -ink_shift)
+        if pos > slack then pos = slack end
+        if pos < 0 then pos = 0 end
+        local band_off = inset + pos
         -- Read ONCE, outside the row loop: this runs per scratch row.
         local rot_deg   = SpineShelf.titleRotation()
         local band_flip = (rot_deg == 270)
@@ -1862,8 +1889,9 @@ local function _paintRotatedTitle(bb, x, y, run_len, band_w, text, face_size, lo
         local rot = scratch:rotatedCopy(rot_deg)
         scratch:free()
         local rw, rh = rot:getWidth(), rot:getHeight()
-        -- Centre across the spine, centre along the run.
-        local dx = x + math.floor((band_w - rw) / 2)
+        -- Across the spine where band_off put it (inside the border, the
+        -- letters centred); centred along the run.
+        local dx = x + band_off
         local dy = y + math.floor((run_len - rh) / 2)
         bb:blitFrom(rot, dx, dy, 0, 0, rw, rh)
         rot:free()
@@ -2119,6 +2147,8 @@ function SpineBookSlot:_renderKey(night)
         -- keeps painting the old rotation until something else evicts it.
         SpineShelf.titleRotation(),
         e.binding or "hardcover",
+        -- Text size > Spine text: the lettering is baked in.
+        SpineShelf.spineTextScale(),
         -- The fill colour: Image contrast's boost changes it with nothing
         -- else about the book changing.
         e.look and string.format("%d,%d,%d", e.look.r or 0, e.look.g or 0, e.look.b or 0) or "-",
@@ -2444,16 +2474,22 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
 
     -- Status glyph (reading / finished / on hold), level, at the head.
     local glyph = _statusGlyph(self.book)
-    local w_dp = e.w_dp or 20
+    -- Lettering is sized from the spine as it was before Spine text
+    -- thickened it (textThicken), and titleFaceSize then scales the title
+    -- once: from the thickened width it would grow twice, and the marks
+    -- with it.
+    local thick = SpineShelf.textThicken(SpineShelf.spineTextScale())
+    local w_dp = (e.w_dp or 20) / thick
+    local txt_ref_w_dp = e.ref_w_dp and (e.ref_w_dp / thick) or nil
     if glyph then
-        local gsize = _glyphSizeDp(w_dp, e.ref_w_dp, GLYPH_STATUS)
+        local gsize = _glyphSizeDp(w_dp, txt_ref_w_dp, GLYPH_STATUS)
         local face = BFont:getFace("symbols", gsize)
         local used = _paintLevelText(bb, x, cur_top, spine_w, glyph, face, night)
         if used > 0 then cur_top = cur_top + used + math.floor(pad / 2) end
     end
     -- Favourite star under it (face-out favourites show the cover instead).
     if e.favourite and not e.face_out then
-        local gsize = _glyphSizeDp(w_dp, e.ref_w_dp, GLYPH_FAV)
+        local gsize = _glyphSizeDp(w_dp, txt_ref_w_dp, GLYPH_FAV)
         local face = BFont:getFace("symbols", gsize)
         -- The favourite icon the reader chose (heart unless set to star),
         -- as the cover grid and list draw it; this was always the star.
@@ -2494,11 +2530,10 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
     -- Thin spines still shrink below the cap as before.
     local run = bottom - cur_top
     if run > 0 and e.label and e.label ~= "" then
-        local tcap  = SpineShelf.titleSize(e.ref_w_dp)
-        local tsize = math.max(8, math.min(tcap, math.floor(w_dp * 0.5)))
+        local tsize = SpineShelf.titleFaceSize(w_dp, txt_ref_w_dp)
         local author = (self.show_author ~= false) and e.author or nil
         _paintRotatedTitle(bb, x, cur_top, run, spine_w, e.label, tsize,
-                           look, night, author)
+                           look, night, author, hairline)
     end
 
     -- Bulk selection: the cover grid's corner flag at FULL spine width,
@@ -2985,6 +3020,39 @@ end
 -- spines stop at); a series box's name strip uses it too.
 function SpineShelf.titleSize(ref_w_dp)
     return math.max(8, math.min(18, math.floor((ref_w_dp or 22) * 0.5)))
+end
+
+-- spineTextScale() -> Text size > Spine text, a percentage (50-200).
+-- Asked for every visible spine on every paint (the render key and the
+-- painter), so read once per settings change, as _themeChar is.
+local _text_scale_memo = nil
+function SpineShelf.spineTextScale()
+    local gen = BookshelfSettings.generation and BookshelfSettings.generation() or 0
+    local m = _text_scale_memo
+    if m and m.gen == gen then return m.v end
+    local v = tonumber(BookshelfSettings.read("spine_font_scale", 100)) or 100
+    _text_scale_memo = { gen = gen, v = v }
+    return v
+end
+
+-- textThicken(scale) -> how much thicker spines stand for Spine text at
+-- scale%: the same factor past 100 (to 2), so the bigger face has room
+-- across them; 1 at or below 100 (smaller text needs no thinner books).
+function SpineShelf.textThicken(scale)
+    local k = (tonumber(scale) or 100) / 100
+    if k <= 1 then return 1 end
+    return math.min(2, k)
+end
+
+-- titleFaceSize(w_dp, ref_w_dp) -> the title's face size on a spine w_dp
+-- wide: it follows the spine's width but caps at what an AVERAGE book on the
+-- shelf gets (titleSize), then Spine text scales it. The author is set a
+-- little smaller than this, and _paintRotatedTitle still steps the face
+-- down until a line fits across the spine, so a large scale cannot spill
+-- over a thin one.
+function SpineShelf.titleFaceSize(w_dp, ref_w_dp)
+    local base = math.max(8, math.min(SpineShelf.titleSize(ref_w_dp), math.floor((w_dp or 20) * 0.5)))
+    return math.max(6, math.floor(base * SpineShelf.spineTextScale() / 100 + 0.5))
 end
 
 function SpineShelf.badgeDrop(row_h)
@@ -4033,6 +4101,10 @@ function SpineShelf.plan(items, opts)
             ref_w_dp = ref_w_dp * t / 100
         end
     end
+    -- Spine text past 100%: every spine-out book thicker by its factor, so
+    -- the bigger lettering fits across it (opts.text_scale, both passes).
+    local text_k = SpineShelf.textThicken(opts.text_scale)
+    ref_w_dp = ref_w_dp * text_k
     -- Face-out policy: which books stand cover-forward. Mode string from
     -- the chip editor's picker; the old boolean pins normalise onto it
     -- (true/nil were "favourites face out: yes", false was "no").
@@ -4573,7 +4645,7 @@ function SpineShelf.plan(items, opts)
             if t and t >= 40 and t <= 300 and t ~= 100 then
                 w_dp = w_dp * t / 100
             end
-            w_dp = math.max(8, w_dp)
+            w_dp = math.max(8, w_dp * text_k)
             w = Screen:scaleBySize(w_dp)
         end
         local series_box

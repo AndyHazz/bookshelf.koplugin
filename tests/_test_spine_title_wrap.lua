@@ -64,7 +64,9 @@ t.test("only a title that was cut is broken", function()
 end)
 
 t.test("only where two lines fit across the spine", function()
-    assert(painter:find("pitch + line_h <= band_w", 1, true),
+    -- Inside the spine's border (inner), not its full width: the block and
+    -- its band covered both edges at large Spine text sizes.
+    assert(painter:find("pitch + line_h <= inner", 1, true),
         "two lines would be painted wider than the spine")
 end)
 
@@ -72,7 +74,8 @@ t.test("the prefill ramp spans the whole block, not one line", function()
     -- Each scratch row is a screen column after rotation; a ramp over one
     -- line's height would leave the second line on a stripe.
     assert(painter:find("local sh = (#lines - 1) * pitch + line_h", 1, true))
-    assert(painter:find("local band_off = math.floor((band_w - sh) / 2)", 1, true))
+    assert(painter:find("local slack = inner - sh", 1, true))
+    assert(painter:find("local band_off = inset + pos", 1, true))
 end)
 
 t.test("the lines sit 1.05 em apart, the top panel title's leading", function()

@@ -380,6 +380,28 @@ H.test("a Spines box has one seam between books, the width of those at its ends"
     for i=2,#seams do assert(seams[i]>seams[i-1],"two seams drawn at one gap") end
 end)
 
+-- Spine text past 100% thickens a Spines box's spines as it does loose
+-- ones (their titles grow too); the box stays within a cover's width, so
+-- fewer of a long series show. A slipcase's books carry no titles: unchanged.
+H.test("Spine text thickens a Spines box's spines; a slipcase's books stay as they were", function()
+    local SS=package.loaded["lib/bookshelf_spine_shelf"]
+    SS.textThicken=function(scale) local k=(scale or 100)/100; return k>1 and math.min(2,k) or 1 end
+    local box=Boxes.box(members(3,"Saga"),"Saga")
+    local a=Boxes.geometry(box,BASE,{series_box_style="spines",content_w=2000})
+    local b=Boxes.geometry(box,BASE,{series_box_style="spines",content_w=2000,text_scale=150})
+    for i,sp in ipairs(b.spines) do
+        assert(math.abs(sp.w-a.spines[i].w*1.5)<=1, "a boxed spine did not thicken with the text")
+    end
+    local long=Boxes.box(members(40,"Saga"),"Saga")
+    assert(#Boxes.geometry(long,BASE,{series_box_style="spines",content_w=2000,text_scale=150}).spines
+        < #Boxes.geometry(long,BASE,{series_box_style="spines",content_w=2000}).spines,
+        "thicker spines did not leave fewer in the box")
+    local s1=Boxes.geometry(box,BASE,{content_w=2000})
+    local s2=Boxes.geometry(box,BASE,{content_w=2000,text_scale=150})
+    H.eq(s2.w,s1.w,"a slipcase changed with the spine text")
+    SS.textThicken=nil
+end)
+
 H.test("a Spines box shrinks a long name before cutting it, never below the floor", function()
     local function nameOn(n, nm)
         local box=Boxes.box(members(n,nm),nm)
@@ -553,7 +575,7 @@ H.test("the native planner paginates boxes as single slots and resumes inside co
         faceOutSpec=function() return {all=true} end,recentSet=function() end,
         cachedProgress=function() return nil,nil,true end,
         persistProgress=function() end,prefetchFacts=function() end,
-        markSeriesHeads=function() end,thicknessPages=function() return 300 end,
+        markSeriesHeads=function() end,thicknessPages=function() return 300 end,textThicken=function() return 1 end,
         bookShape=function(look,pages) return look.aspect,look,pages end,
         bookLook=function() return {r=90,g=120,b=80,aspect=1.5} end,
     shownLook=function() return {r=90,g=120,b=80,aspect=1.5} end,

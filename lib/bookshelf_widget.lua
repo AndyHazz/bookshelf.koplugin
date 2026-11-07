@@ -2991,6 +2991,8 @@ end
 -- BIM has effectively abandoned the queued books.
 local BIM_POLL_INTERVALS_S    = { 0.4, 0.6, 1.0, 2.0, 3.0 }
 local BIM_POLL_TOTAL_BUDGET_S = 60
+-- Past the budget, while BIM is still extracting: a slow watch.
+local BIM_POLL_BUSY_S         = 5
 
 -- _kickOffMissingMetaExtraction(items, slot_w, slot_h)
 -- BookInfoManager only knows about books KOReader has already indexed. Books
@@ -3409,16 +3411,29 @@ end
 function BookshelfWidget:_scheduleExtractionPoll()
     if not self._bim_poll_files then return end
     local elapsed = os.time() - (self._bim_poll_started_at or os.time())
-    if elapsed >= BIM_POLL_TOTAL_BUDGET_S then
-        logger.dbg(string.format(
-            "[bim sched] budget exhausted elapsed=%ds pending=%d -- giving up",
-            elapsed, #(self._bim_poll_files or {})))
-        self._bim_poll_files = nil
-        return
+    local over = elapsed >= BIM_POLL_TOTAL_BUDGET_S
+    if over then
+        -- The budget is for an extraction that stalled. While BIM is still
+        -- working (a long job of someone else's, which the visible page
+        -- waits behind: a re-scan after a bulk edit took minutes on the
+        -- PW5), our books may yet land: keep watching, slowly. Giving up
+        -- then left their covers unshown, and their light records without
+        -- the BIM row, until something else rebuilt the shelf.
+        local ok_b, BIM = pcall(require, "bookinfomanager")
+        local working = ok_b and BIM and BIM.isExtractingInBackground
+            and BIM:isExtractingInBackground()
+        if not working then
+            logger.dbg(string.format(
+                "[bim sched] budget exhausted elapsed=%ds pending=%d -- giving up",
+                elapsed, #(self._bim_poll_files or {})))
+            self._bim_poll_files = nil
+            return
+        end
     end
     local streak   = self._bim_poll_empty_streak or 0
     local idx      = math.min(streak + 1, #BIM_POLL_INTERVALS_S)
     local interval = BIM_POLL_INTERVALS_S[idx]
+    if over then interval = math.max(interval, BIM_POLL_BUSY_S) end
     logger.dbg(string.format(
         "[bim sched] next=%.1fs streak=%d elapsed=%ds pending=%d",
         interval, streak, elapsed, #(self._bim_poll_files or {})))

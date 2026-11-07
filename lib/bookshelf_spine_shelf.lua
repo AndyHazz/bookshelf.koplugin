@@ -781,7 +781,7 @@ function SpineShelf.bookLook(book)
     -- The fallback below is NOT kept, because it usually means "not
     -- extracted yet"; this one is settled. invalidateBook drops it (a
     -- custom cover).
-    if not book.cover_bb then
+    if not book.cover_bb and not book.cover_image_path then
         local ok_r, Repo = pcall(require, "lib/bookshelf_book_repository")
         if ok_r and Repo and Repo.coverKnownAbsent and Repo.coverKnownAbsent(fp) then
             local look = _fallbackLook(label)
@@ -797,10 +797,25 @@ function SpineShelf.bookLook(book)
 
     local look
     local ok = pcall(function()
-        local bb, owned = nil, false
+        local bb, owned, ext_aspect = nil, false, nil
         if book.cover_bb then
             bb = book.cover_bb
-        else
+        elseif type(book.cover_image_path) == "string" and book.cover_image_path ~= "" then
+            -- A cover on disk the shelf shows in place of the book's own (a
+            -- source's download, issue 588; a Hardcover or picked cover): the
+            -- spine takes its colour from what is shown. Decoded small, and
+            -- held by ImageSource's cache, so not ours to free.
+            local ok_i, ImageSource = pcall(require, "lib/bookshelf_image_source")
+            if ok_i and ImageSource and ImageSource.loadImage then
+                bb = ImageSource.loadImage(book.cover_image_path, 40, 60)
+                -- Its shape from the file, not the small decode.
+                if ImageSource.probeSize then
+                    local nw, nh = ImageSource.probeSize(book.cover_image_path)
+                    if nw and nh and nw > 0 then ext_aspect = nh / nw end
+                end
+            end
+        end
+        if not bb and not book.cover_bb then
             local ok_repo, Repo = pcall(require, "lib/bookshelf_book_repository")
             if ok_repo and Repo and Repo.getCoverBB then
                 bb = Repo.getCoverBB(fp)
@@ -810,9 +825,9 @@ function SpineShelf.bookLook(book)
         if bb then
             SpineShelf._samples = (SpineShelf._samples or 0) + 1
             local r, g, b = _sampleAverage(bb)
-            local aspect
+            local aspect = ext_aspect
             local w, h = bb:getWidth(), bb:getHeight()
-            if w and h and w > 0 then aspect = h / w end
+            if not aspect and w and h and w > 0 then aspect = h / w end
             if owned and bb.free then bb:free() end
             if r then
                 r, g, b = _contrastClamp(r, g, b)
@@ -1986,6 +2001,9 @@ local SpineBookSlot = InputContainer:extend{
 -- lookup because every spine paints the same either way.
 local function _itemCallback(cbs, item, gesture)
     if not (cbs and item) then return nil end
+    -- A source's folder record (issue 588) carries a pseudo-path; it is a
+    -- folder for all that, so it is asked before "has a path, so a book".
+    if item.is_opds_nav or item.kind == "opds_nav" then return cbs["on_opds_nav_" .. gesture] end
     if item.filepath then return cbs["on_book_" .. gesture] end
     local kind = item.kind
     if kind == "folder"   then return cbs["on_folder_" .. gesture] end
@@ -2033,8 +2051,9 @@ function SpineBookSlot:onHold()
 end
 
 function SpineBookSlot:onDoubleTap()
-    -- Books only: double tap opens directly (#271); groups have no "open".
-    if self.book and self.book.filepath and self.callbacks
+    -- Books only: double tap opens directly (#271); groups have no "open",
+    -- nor has a source's folder record, path or not.
+    if self.book and self.book.filepath and not self.book.is_opds_nav and self.callbacks
             and self.callbacks.on_book_open then
         SpineShelf.last_tapped_slot = self
         self.callbacks.on_book_open(self.book)
@@ -4568,8 +4587,10 @@ function SpineShelf.plan(items, opts)
             end
         end
         -- A shelf of shelves' "+ Add shelf" takes a face-out cover's place
-        -- and size, as a dashed outline (see the tile branch below).
-        if bk.add_subshelf or bk._series_box then face_out = true end
+        -- and size, as a dashed outline (see the tile branch below). A
+        -- source's folder record (issue 588: a fetch-mode source on Spines)
+        -- stands as its folder tile too, not as a book's spine.
+        if bk.add_subshelf or bk._series_box or bk.is_opds_nav then face_out = true end
         if face_out and src.has_cover == nil and not src._cover_meta_tried
                 and src.filepath and ok_repo and Repo and Repo.buildBookMeta then
             -- Light page records carry no has_cover, and the cover tile
@@ -5603,13 +5624,18 @@ function SpineShelf.rowWidget(opts)
                     -- clamped terms, and a second copy of that arithmetic is
                     -- exactly what drifts.
                     e._drawn_h = cover_h + depth
+                    -- A source's folder record (issue 588) is a folder tile:
+                    -- its taps drill in, as in covers view, and a double tap
+                    -- does not "open" it as a book.
+                    local cbs_fo = opts.callbacks or {}
+                    local nav = e.book and e.book.is_opds_nav
                     local cover = CoverTile:new{
                         book          = e.book,
                         width         = e.w,
                         height        = cover_h,
-                        on_tap        = opts.callbacks and opts.callbacks.on_book_tap,
-                        on_hold       = opts.callbacks and opts.callbacks.on_book_hold,
-                        on_double_tap = opts.callbacks and opts.callbacks.on_book_open,
+                        on_tap        = nav and cbs_fo.on_opds_nav_tap or cbs_fo.on_book_tap,
+                        on_hold       = nav and cbs_fo.on_opds_nav_hold or cbs_fo.on_book_hold,
+                        on_double_tap = (not nav) and cbs_fo.on_book_open or nil,
                         show_progress = true,
                         -- The page block replaces the drop shadow: a shelved
                         -- book doesn't float. flat_thumb drops the shadow AND

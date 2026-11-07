@@ -203,7 +203,8 @@ local env2 = setmetatable({
         if name == "lib/bookshelf_tab_model" then
             return { getById = function() return { source = { kind = source_kind } } end }
         elseif name == "lib/bookshelf_sources" then
-            return { isPaged = function(k) return k == "komga" end }
+            return { isPaged = function(k) return k == "komga" or k == "orbit" end,
+                     spinesOk = function(k) return k ~= "komga" end }
         elseif name == "lib/bookshelf_book_repository" then
             return repo_stub
         end
@@ -258,6 +259,14 @@ t.test("a catalogue is left alone", function()
     end
     source_kind = "all"
     eq(#fetches, 0, "an OPDS or fetch-mode source must not be fetched for the note")
+end)
+
+t.test("a fetch-mode source that opted in to Spines gets the note (588)", function()
+    fetches = {}
+    source_kind = "orbit"
+    ensure(spineShelf())
+    source_kind = "all"
+    eq(#fetches, 1, "its spine shelf sized its top panel on a guess")
 end)
 
 t.test("_rebuild asks before sizing, for a collapsed list or spine shelf", function()

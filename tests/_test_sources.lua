@@ -142,6 +142,25 @@ t.test("fetch mode: exactly one of list or fetch", function()
     assert(Sources.isPaged("paged") and not Sources.isPaged("kindle"))
 end)
 
+-- Issue 588: a fetch-mode source may opt in to Spines (spec.spines = true).
+-- List mode always has them; fetch mode without the opt-in keeps the
+-- catalogue rule (no spines), so nothing changes for a source that did not ask.
+t.test("Spines: list mode yes, fetch mode only when the source opts in", function()
+    Sources._reset()
+    local plain = spec({ fetch = function() return {} end }); plain.list = nil
+    assert(Sources.register("plain", plain))
+    local opted = spec({ fetch = function() return {} end, spines = true }); opted.list = nil
+    assert(Sources.register("opted", opted))
+    assert(Sources.register("kindle", spec()))
+    eq(Sources.spinesOk("kindle"), true, "a list-mode source lost its spines")
+    eq(Sources.spinesOk("plain"), false, "a fetch-mode source that did not opt in got spines")
+    eq(Sources.spinesOk("opted"), true, "a fetch-mode source that opted in got no spines")
+    eq(Sources.spinesOk("all"), true, "Bookshelf's own sources lost their spines")
+    local bad = spec({ fetch = function() return {} end, spines = "yes" }); bad.list = nil
+    local ok, why = Sources.register("bad", bad)
+    assert(not ok and why:match("spines"), "a non-boolean spines was accepted: " .. tostring(why))
+end)
+
 t.test("fetch passes source, drill, offset and limit, and dresses folder records", function()
     Sources._reset()
     local got
@@ -161,6 +180,25 @@ t.test("fetch passes source, drill, offset and limit, and dresses folder records
     assert(f.filepath:match("^komga://nav/"), "a folder gets a stable pseudo-path: " .. tostring(f.filepath))
     eq(Sources.drillFor(f).series, "s1", "the record's own drill entry is the default")
     eq(items[2].kind, nil, "a book stays a book")
+end)
+
+-- Issue 588: on Spines a folder record may carry its member records in
+-- `books`, and stands as a run of their spines. The members are the source's
+-- books as much as top-level ones, so they carry its stamp too: opening a
+-- remote member and its long-press info find their way back.
+t.test("a folder's member books carry the source's stamp", function()
+    Sources._reset()
+    local paged = spec({ fetch = function()
+        return { { title = "Saga", is_folder = true, id = "s1",
+                   books = { { title = "Saga 1", filepath = "komga://book/1" },
+                             { title = "Saga 2", filepath = "komga://book/2", source_kind = "other" } } } }
+    end })
+    paged.list = nil
+    Sources.register("komga", paged)
+    local items = Sources.fetch("komga", { kind = "komga" }, nil, 0, 1000000)
+    local m = items[1].books
+    eq(m[1].source_kind, "komga", "a member book lost its way back to the source")
+    eq(m[2].source_kind, "other", "a member's own stamp was overwritten")
 end)
 
 t.test("open_folder decides the drill entry when given", function()

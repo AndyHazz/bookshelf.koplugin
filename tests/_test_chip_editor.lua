@@ -772,6 +772,14 @@ t.test("shelf style: under Auto, each listing level's card has its own numbers",
     eq(draft.list_rows_l2, 7); eq(draft.list_rows, 6)
 end)
 
+t.test("the editor's no-spines flag comes from the source's own answer (588)", function()
+    local src = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
+    assert(src:find("is_opds = is_opds_src or no_spines_src,", 1, true),
+        "the editor withholds Spines from every fetch-mode source")
+    assert(src:find("and not Sources.spinesOk(draft.source.kind)", 1, true),
+        "the editor does not ask the source whether it can stand as spines")
+end)
+
 t.test("shelf style: a spines shelf whose source became a catalogue shows covers", function()
     -- A catalogue has no spines; the shelf draws covers. The page showed Show
     -- as with nothing picked, and the editor's card still said Spines.

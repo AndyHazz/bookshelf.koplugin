@@ -51,7 +51,7 @@ Every spec needs `label` and `available`, and exactly one of `list` or `fetch`.
 }
 ```
 
-**Fetch mode** is for a source that pages and orders itself, such as a server catalogue, possibly with folders to drill into. Bookshelf shows what you return, in your order. The shelf editor shows "Server order" in place of its sort pickers and leaves out its Filters row, and the Spines view is not offered.
+**Fetch mode** is for a source that pages and orders itself, such as a server catalogue, possibly with folders to drill into. Bookshelf shows what you return, in your order. The shelf editor shows "Server order" in place of its sort pickers and leaves out its Filters row, and the Spines view is offered only if you ask for it (see [Spines](#spines-fetch-mode)).
 
 ```lua
 {
@@ -203,6 +203,22 @@ end,
 
 ## Refresh
 
+## Spines (fetch mode)
+
+Set `spines = true` in the spec and the shelf editor offers Spines for your shelves, as it does for list mode:
+
+```lua
+{ api = 1, spines = true, fetch = ..., ... }
+```
+
+A spine shelf lays out the whole level at once, to know where its pages start, so on Spines Bookshelf calls `fetch(source, drill, 0, limit)` with a very large `limit`. Return everything you hold for that level; you need not hold all of it yet. When more arrives, call `sourceChanged` as usual and the shelf lays itself out again.
+
+Each record stands as a spine, coloured from its cover: set `cover_image_path` for books not on the device (Bookshelf does not look your books up in KOReader's cover cache), and `page_count` where you know it, for the spine's thickness.
+
+A folder record (`is_folder`) stands face-out as its folder tile, the same tile covers view draws, and a tap drills in. Give it `books`, a list of its member records, and it stands instead as a run of their spines labelled with the folder's `title`, the way Bookshelf's own Series and Authors shelves stand their groups: a Series level then reads as runs of series, not a wall of tiles. Member records are ordinary book records (Bookshelf stamps them with your `source_kind` as it does top-level ones). Bookshelf keeps the level until you call `sourceChanged`, the reader refreshes or edits the shelf, or a book is closed, so the whole-level fetch is not repeated as the reader turns pages.
+
+Without `spines = true`, a fetch-mode shelf has no Spines view, as before.
+
 When the reader swipes down on your shelf, Bookshelf calls `refresh(source, drill, done)` for the level on screen. Fetch what is new, then call `done()` and the shelf redraws. Without a `refresh` hook, a swipe down does Bookshelf's usual library refresh and redraw.
 
 ## The rest of the spec
@@ -213,6 +229,7 @@ When the reader swipes down on your shelf, Bookshelf calls `refresh(source, dril
 | `sort_default` | list | `{ { key = "title", reverse = false } }`, the sort a new shelf starts with. |
 | `new_shelf(draft)` | both | Adjust a new shelf's defaults (a starting filter, say). |
 | `editor_rows(draft)` | fetch | Your own shelf-editor buttons in place of "Server order". See [Editor rows](#editor-rows-fetch-mode). |
+| `spines` | fetch | `true` to offer the Spines view for your shelves. See [Spines](#spines-fetch-mode). |
 | `library` | list | `true` to count your books as part of the library for search, the finished-books tallies and the Random book module's All books, once the reader has a shelf of your source. Off unless you set it. |
 | `cover(record)` | both | Return `bb, w, h`, a fresh blitbuffer for a record with no cover file. Called for the visible page only. The grid frees it after painting, so return a new one each call. |
 | `owns(book)` | both | `true` if a book is yours even without the `source_kind` stamp, for example after Bookshelf rebuilt it from its path. |
@@ -224,7 +241,7 @@ When the reader swipes down on your shelf, Bookshelf calls `refresh(source, dril
 - **`available()` is asked often.** Keep it cheap.
 - **Version 1 will not change under you.** New optional hooks may appear in a later version; a change that could break a version 1 spec would come as version 2, with `SOURCE_API` telling you which you have.
 - **A shelf of your source can sit inside a Shelf of shelves** (Bookshelf 5.4). Opened, it works as it does on its own. The shelf of shelves around it also asks your source for its first few records, for the shelf's tile, and on Spines for its records to stand as a run, so `fetch` being quick matters there too; `sourceChanged` redraws that shelf as well.
-- **Not in version 1:** a saved drill position across restarts, and Spines for fetch-mode shelves. Tell us if you need either.
+- **Not in version 1:** a saved drill position across restarts. Tell us if you need it.
 
 ## A complete example
 

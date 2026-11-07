@@ -25633,6 +25633,17 @@ function BookshelfWidget:_refreshPublished(fps)
     end
     local wanted = {}
     for _i, fp in ipairs(fps or {}) do wanted[fp] = true end
+    -- A spine never shows a publication date: repainting one (a metadata
+    -- read, its look and pixels dropped, the page fetch expired) changed
+    -- nothing but flickered along the shelf as each batch of dates landed.
+    -- Only the top panel (%published) can show it there.
+    if self:_isSpineMode() then
+        local preview_fp = self._preview_book and self._preview_book.filepath
+        if preview_fp and wanted[preview_fp] and not self._expanded then
+            pcall(self._swapHeroInPlace, self)
+        end
+        return
+    end
     local on_page = {}
     for _i, it in ipairs(self._page_items or {}) do
         local fp = type(it) == "table" and it.filepath

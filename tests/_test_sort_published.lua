@@ -131,6 +131,38 @@ t.test("a year-sorted shelf regroups at most every 15 s while dates are read, an
     eq(rebuilds, during + 1, "regrouped again with nothing new")
 end)
 
+-- A spine never shows a publication date, so a date landing for a book on a
+-- spine shelf repainted its spine for nothing: a metadata read, its look and
+-- pixels dropped, and the page fetch expired, book by book as each batch of
+-- dates came in (a flicker along the shelf on the PW5). The top panel can
+-- show it (%published), so that still updates.
+t.test("on a spine shelf a new date repaints the top panel only, never the spines", function()
+    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    local body = w:match("\nfunction BookshelfWidget:_refreshPublished%(fps%)\n(.-)\nend\n")
+    local env = setmetatable({ UIManager = { scheduleIn = function() end, unschedule = function() end,
+        setDirty = function() end }, Repo = {}, require = require }, { __index = _G })
+    local f = assert(load("return function(self, fps)\n" .. body .. "\nend", "rp", "t", env))()
+    local function shelf(spines)
+        local s = { _inner_vgroup = {}, _shelf_dims = {}, refreshed = {}, hero = 0, rebuilds = 0,
+            _page_items = { { filepath = "/a" }, { filepath = "/b" } },
+            _preview_book = { filepath = "/a" },
+            _sortsByPublished = function() return false end,
+            _isSpineMode = function() return spines end,
+            _rebuild = function(self) self.rebuilds = self.rebuilds + 1 end,
+            _swapHeroInPlace = function(self) self.hero = self.hero + 1 end }
+        s._refreshSpineInPlace = function(self, fp) self.refreshed[#self.refreshed + 1] = fp end
+        return s
+    end
+    local sp = shelf(true)
+    f(sp, { "/a", "/b" })
+    eq(#sp.refreshed, 0, "repainted spines for a date they cannot show")
+    eq(sp.rebuilds, 0)
+    eq(sp.hero, 1, "the top panel's date did not update")
+    local cov = shelf(false)
+    f(cov, { "/a", "/b" })
+    eq(#cov.refreshed, 2, "a cover shelf's captions can show the date")
+end)
+
 t.test("a folder view's file entry (fp, attr) sorts by its year too", function()
     years = { ["/f/old.epub"] = "1850", ["/f/new.epub"] = "2020" }
     SortEngine.clearPublishedMemo()

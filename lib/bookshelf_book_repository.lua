@@ -8890,7 +8890,55 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
             return matched
         end
 
-        if kind == "library" or kind == "all" or kind == "latest" then
+        -- Stub candidates: when neither the filter nor the sort reads a
+        -- book's metadata -- a status / format / collection / folder filter,
+        -- sorted by date added, status, progress, opened or size -- every
+        -- answer comes from the path, the walk's own stat and the sidecar.
+        -- Building a light record per book for those (BIM row decode, author
+        -- split, custom-metadata stat) is then the whole cost of the fetch and
+        -- scales with the library, not with the page: discussion 590, a
+        -- 5,900-book "Latest added" shelf filtered to unread + reading. The
+        -- visible slice is hydrated from the paths below as it always was.
+        local STUB_FILTER_KEYS = { statuses = true, formats = true, collections = true,
+            collections_not = true, folders = true }
+        local STUB_SORT_KEYS = { date_added = true, read_status = true,
+            read_status_active = true, last_opened = true, added_or_opened = true,
+            size = true, percent_read = true }
+        local function stubbable()
+            if (opts and opts.light_only) or Repo.spine_light then return false end
+            for k, v in pairs(filter or {}) do
+                if not STUB_FILTER_KEYS[k] then
+                    -- an inactive dimension (empty table, series "both") is harmless
+                    if type(v) == "table" and next(v) ~= nil then return false end
+                    if k == "series_membership" and (v == "standalone" or v == "in_series") then
+                        return false
+                    end
+                end
+            end
+            for _i, lv in ipairs(sort_priority or {}) do
+                if not STUB_SORT_KEYS[lv.key] then return false end
+            end
+            return true
+        end
+        local function loadStubCandidates()
+            local home  = HomeDir.get() or "/"
+            local depth = BookshelfSettings.read("latest_walk_depth") or 3
+            local read_time = {}
+            for _i, entry in ipairs(getReadHistory().hist) do
+                local t = entry.time or 0
+                if t > (read_time[entry.file] or 0) then read_time[entry.file] = t end
+            end
+            local out = {}
+            for _i, c in ipairs(cachedWalk(home, depth)) do
+                out[#out + 1] = { filepath = c.fp, date_added = c.mtime or 0,
+                                  size = c.size or 0, _last_read = read_time[c.fp] or 0 }
+            end
+            return out
+        end
+
+        if (kind == "library" or kind == "all" or kind == "latest") and stubbable() then
+            candidates = loadStubCandidates()
+        elseif kind == "library" or kind == "all" or kind == "latest" then
             -- Library walk + tautological predicate. 'all' (Home folders)
             -- and 'latest' (Latest added) reach this branch only when a
             -- filter is active -- otherwise their early-returns above

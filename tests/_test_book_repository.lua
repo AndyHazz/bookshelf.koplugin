@@ -7011,6 +7011,49 @@ test("getSeriesGroups: books with no series number follow by title", function()
         "got " .. table.concat(got, " "))
 end)
 
+-- Discussion 590: a "Latest added" shelf filtered by status and sorted by
+-- date built a light record for EVERY book in the library (a BIM read each,
+-- the author split, a custom-metadata stat) before drawing one page; on
+-- 5,900 books on a slow card that was most of the time. A status filter and
+-- a date sort need only the path, the walk's own stat and the sidecar, so
+-- only the page's books are read now. A filter that does read metadata
+-- (genre) still reads every book.
+test("getBySource: a status-filtered, date-sorted Latest reads only the page's books (590)", function()
+    local files = {}
+    for i = 1, 20 do files[i] = string.format("b%02d.epub", i) end
+    _setupWalk(files, { ["b03.epub"] = "complete", ["b04.epub"] = "reading" })
+    local reads = {}
+    local bim = package.loaded["bookinfomanager"]
+    local prev = bim.getBookInfo
+    bim.getBookInfo = function(self, fp, wc) reads[fp] = true; return prev(self, fp, wc) end
+    local ok, err = pcall(function()
+        local list, total = Repo.getBySource({ kind = "latest" },
+            { statuses = { unread = true, reading = true } },
+            { { key = "date_added", reverse = true } }, 0, 4)
+        assert(total == 19, "expected 19 books (all but the finished one), got " .. tostring(total))
+        assert(#list == 4, "expected a page of 4, got " .. #list)
+        for _i, b in ipairs(list) do
+            assert(b.filepath ~= "/lib/b03.epub", "the finished book passed the filter")
+            assert(b.title, "a page book was not read: " .. tostring(b.filepath))
+        end
+        local n = 0
+        for _fp in pairs(reads) do n = n + 1 end
+        assert(n <= 4, "read " .. n .. " books for a page of 4")
+        -- A genre filter reads every book (it needs their genres).
+        Repo.invalidateWalkCache()
+        reads = {}
+        Repo.getBySource({ kind = "latest" },
+            { statuses = { unread = true }, genres = { fantasy = true } },
+            { { key = "date_added", reverse = true } }, 0, 4)
+        n = 0
+        for _fp in pairs(reads) do n = n + 1 end
+        assert(n >= 19, "a genre filter skipped reading books: " .. n)
+    end)
+    bim.getBookInfo = prev
+    _teardownWalk()
+    assert(ok, err)
+end)
+
 -- ============================================================================
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

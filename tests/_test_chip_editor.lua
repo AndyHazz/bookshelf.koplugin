@@ -688,6 +688,16 @@ t.test("shelf style: series boxes can be Plain, and an old stored value reads as
         .find("Series boxes").active, "cover", "a test build's value lost its box")
 end)
 
+t.test("shelf style: series boxes can be Spines, stored as its own value", function()
+    local draft = { view_mode = "spines" }
+    local p = openStyle(draft, nil, "Spines")
+    p.find("Series boxes").on_pick("spines")
+    eq(draft.series_boxes, "spines")
+    eq(openStyle(draft, nil, "Spines").find("Series boxes").active, "spines")
+    p.find("Series boxes").on_pick("cover")
+    eq(draft.series_boxes, true)
+end)
+
 t.test("shelf style: Book sizes stores only Same", function()
     local draft = { view_mode = "spines" }
     local p = openStyle(draft, nil, "Spines")

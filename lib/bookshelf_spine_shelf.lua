@@ -721,6 +721,36 @@ function SpineShelf.shownLook(book)
     return require("lib/bookshelf_image_contrast").spineLook(SpineShelf.bookLook(book), MAX_FILL_LUMA)
 end
 
+-- lookFromRegion(bb, x, y, w, h, night) -> the look a spine takes from that
+-- region of a picture, as shownLook gives a book's: its average colour, held
+-- dark enough for the light lettering (MAX_FILL_LUMA), with Image contrast's
+-- boost; nil for an empty region. A spine-out series box gives each spine
+-- the strip of the first cover it stands behind, so the band behind its
+-- title matches the picture. night: the picture is stored inverted (as
+-- painted in night mode), so its samples are turned back to day colours.
+function SpineShelf.lookFromRegion(bb, x, y, w, h, night)
+    if not (bb and w and h and w >= 1 and h >= 1) then return nil end
+    local n, r, g, b = 0, 0, 0, 0
+    for sy = 0, SAMPLE_STEPS - 1 do
+        for sx = 0, SAMPLE_STEPS - 1 do
+            local px = x + math.floor((sx + 0.5) * w / SAMPLE_STEPS)
+            local py = y + math.floor((sy + 0.5) * h / SAMPLE_STEPS)
+            local p = bb:getPixel(px, py)
+            local c = p and p.getColorRGB32 and p:getColorRGB32() or nil
+            if c then
+                n = n + 1
+                r = r + c.r; g = g + c.g; b = b + c.b
+            end
+        end
+    end
+    if n == 0 then return nil end
+    r, g, b = r / n, g / n, b / n
+    if night then r, g, b = 255 - r, 255 - g, 255 - b end
+    r, g, b = _contrastClamp(r, g, b)
+    return require("lib/bookshelf_image_contrast").spineLook(
+        { r = r, g = g, b = b, sampled = true }, MAX_FILL_LUMA)
+end
+
 -- bookLook(book) -> { r, g, b, aspect|nil, sampled }
 -- Day-mode colour values; painters apply the night pre-invert.
 function SpineShelf.bookLook(book)
@@ -2271,7 +2301,9 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
     if tilt then
         -- Sized above with the face, from the same tip angles.
         edge_h = tilt_edge
-    elseif spine_h >= Screen:scaleBySize(60) then
+    elseif spine_h >= Screen:scaleBySize(60) and not e.no_top_edge then
+        -- (no_top_edge: a book standing in a spine-out series box, whose lid
+        -- is the depth.)
         -- The spine-out book's depth into the shelf is its COVER WIDTH
         -- (height over aspect), foreshortened by the camera's pitch (see
         -- VIEW_SIN) -- not a fraction of its height, which made every spine
@@ -2286,12 +2318,19 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
                                 edge = edge_h }
     local body_top = top + edge_h
     local body_h = spine_h - edge_h
-    for i = 0, spine_w - 1 do
-        bb:paintRectRGB32(x + i, body_top, 1, body_h,
-                          _tintColor(look, _rampF(i, spine_w), night))
+    -- A spine-out series box paints its spines in two passes with the first
+    -- cover between them: the body (marks = false), then the lettering
+    -- (body = false), so the cover tints the spines without dimming what is
+    -- written on them.
+    if e.body ~= false then
+        for i = 0, spine_w - 1 do
+            bb:paintRectRGB32(x + i, body_top, 1, body_h,
+                              _tintColor(look, _rampF(i, spine_w), night))
+        end
+        _paintBorderRGB32(bb, x, body_top, spine_w, spine_h - edge_h, hairline,
+                          skin and _tintColor(e.look, 0.8, night) or _boardColor(e.look, night))
     end
-    _paintBorderRGB32(bb, x, body_top, spine_w, spine_h - edge_h, hairline,
-                      skin and _tintColor(e.look, 0.8, night) or _boardColor(e.look, night))
+    if e.marks == false then return end
     -- The FOOT NICK -- a pixel square off each bottom corner, the softening
     -- where a book meets the shelf -- is not cut here. It takes the colour of
     -- the shelf directly BELOW the foot (maintainer's rule: "with or without

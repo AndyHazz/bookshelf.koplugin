@@ -265,19 +265,72 @@ function M.slipcaseGeometry(book, base, opts)
              pad = pad, spines = spines, name_lines = name_lines,
              count = count,
              -- Series boxes: Plain (issue 577): no picture on the front, the
-             -- name and read count in its middle. Same size either way.
+             -- name and read count where a picture box has them. Same size.
              plain = opts.series_box_plain and true or nil }
 end
 
+-- How many face-out covers wide a Spines box can grow.
+M.SPINES_MAX_COVERS = 2
+
+-- spinesGeometry(book, base, opts) -> the spine-out box's shape (Series
+-- boxes: Spines).
+--
+-- A box standing at the front of the plank like a spine, as tall as the
+-- books around it: a lid (the depth band above the front, where its read
+-- count is printed), then a front holding its books spine-out with the first
+-- cover printed across them, then a strip with the series name. The spines
+-- are the members' own widths, scaled to the opening, and the box is never
+-- wider than two face-out covers (base.w) or the row: a series with more
+-- than fit shows the first ones, and the count says how many it holds.
+function M.spinesGeometry(book, base, opts)
+    local Screen = require("device").screen
+    local SpineLayout = require("lib/bookshelf_spine_layout")
+    local SpineShelf = require("lib/bookshelf_spine_shelf")
+    local px_per_dp = Screen:scaleBySize(100) / 100
+    local auto_thick = SpineLayout.autoThickness(
+        opts.row_h and px_per_dp > 0 and (opts.row_h / px_per_dp) or nil)
+    local count = #book.books
+    local border = math.max(2, Screen:scaleBySize(2))
+    local face_h = base.face_h or base.h
+    local lid = math.max(1, base.h - face_h)
+    local row_w = math.max(2, (opts.content_w or base.w) - 2 * (opts.end_margin or 0))
+    -- Up to two face-out covers wide (SPINES_MAX_COVERS), so a long series
+    -- shows a fair run of its books.
+    local max_w = math.min(row_w, math.max(2, M.SPINES_MAX_COVERS * base.w))
+    -- The name is set at the size of the shelf's spine titles.
+    local label_size = SpineShelf.titleSize(base.ref_w_dp)
+    local strip_h = SpineShelf.textHeight(label_size) + 2 * math.max(1, Screen:scaleBySize(2))
+    local inner_h = math.max(1, face_h - 2 * border - strip_h)
+    local pad = math.max(1, Screen:scaleBySize(3))
+    local scale = inner_h / base.h
+    local spines, used = {}, 2 * border
+    for i = 1, count do
+        local w = math.max(Screen:scaleBySize(6), math.floor(
+            spinePx(book.books[i], auto_thick, opts.same_size) * scale + .5))
+        if used + w > max_w then break end
+        spines[#spines + 1] = { member = i, w = w }
+        used = used + w
+    end
+    return { style = "spines", w = used, h = base.h, face_h = face_h, lid = lid,
+             depth = lid, border = border, strip_h = strip_h, inner_h = inner_h,
+             label_size = label_size, pad = pad, spines = spines, count = count }
+end
+
 -- geometry(book, base, opts) -> the box's shape, or nil for anything else.
+-- opts.series_box_style "spines" is the spine-out box; anything else the
+-- slipcase (Cover or Plain).
 function M.geometry(book, base, opts)
     if not M.isBox(book) then return nil end
-    return M.slipcaseGeometry(book, base, opts or {})
+    opts = opts or {}
+    if opts.series_box_style == "spines" then return M.spinesGeometry(book, base, opts) end
+    return M.slipcaseGeometry(book, base, opts)
 end
 
 -- shadowColumns(p, x, inset) -> the columns the row's recess shadow follows:
 -- one, the box's own footprint, measured from the row's baseline.
 function M.shadowColumns(p, x, _inset)
+    -- The spine-out box stands at the front edge like a spine: one rectangle.
+    if p.style == "spines" then return { { x = x, w = p.w, h = p.h, foot = 0 } } end
     -- Stands at the front edge like a spine, so no face-out inset. The
     -- slipcase's outline: its books the full height in the middle, its side
     -- walls only as high as their tops. One rectangle cast the books' shadow

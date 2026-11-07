@@ -116,6 +116,8 @@ package.loaded["ffi/blitbuffer"]={ColorRGB32=function(r,g,b,a) return {r=r,g=g,b
     new=function(w,h) local t={w=w,h=h}
         function t:paintRectRGB32() end
         function t:paintRect() end
+        function t:blitFrom() end
+        function t:getType() return 1 end
         function t:free() end
         return t end}
 local W=H.widget()
@@ -149,7 +151,9 @@ package.loaded["lib/bookshelf_spine_widget"]=W
 local painted_slots
 local Slot=W:extend{}
 function Slot:_renderIntoAt(bb,x,y)
-    painted_slots[#painted_slots+1]={x=x,y=y,w=self.width,h=self.height}
+    painted_slots[#painted_slots+1]={x=x,y=y,w=self.width,h=self.height,
+        body=self.entry.body,marks=self.entry.marks,no_top_edge=self.entry.no_top_edge,
+        label=self.entry.label}
     bb:paintRect(x,y,self.width,self.height,"spine")
 end
 package.loaded["lib/bookshelf_spine_shelf"]={
@@ -200,6 +204,194 @@ H.test("every box carries its read count, whether or not all its books show", fu
     finished[many.books[1].filepath]=true; finished[many.books[2].filepath]=true
     w=BoxWidget:new{entry={book=many,series_box=Boxes.geometry(many,BASE,{content_w=2000})},width=400,height=300}
     H.eq(w.count.text,"2\xE2\x80\x8A/\xE2\x80\x8A12")
+end)
+
+-- ── The spine-out box (Series boxes: Spines) ────────────────────────────────
+-- A box at the front of the plank like a spine, its books spine-out with the
+-- first cover printed across them and its read count on the lid.
+local SPINES={series_box_style="spines",content_w=2000}
+
+H.test("a Spines box is no wider than two face-out covers, and keeps the true count", function()
+    for _,n in ipairs({2,3,8,9,40}) do
+        local box=Boxes.box(members(n,"Saga"),"Saga")
+        local g=Boxes.geometry(box,BASE,SPINES)
+        H.eq(g.style,"spines")
+        assert(g.w<=2*BASE.w, "box wider than two face-out covers")
+        assert(#g.spines>=1 and #g.spines<=n); H.eq(g.count,n)
+        local sum=2*g.border
+        for i,sp in ipairs(g.spines) do H.eq(sp.member,i); sum=sum+sp.w end
+        H.eq(g.w,sum); H.eq(g.h,BASE.h); H.eq(g.face_h,BASE.face_h)
+        H.eq(g.inner_h+g.strip_h+2*g.border,g.face_h)
+    end
+    local long=Boxes.geometry(Boxes.box(members(40,"Saga"),"Saga"),BASE,SPINES)
+    assert(#long.spines<40, "forty spines fitted two covers' width")
+    assert(long.w>BASE.w, "a long series' box stopped at one cover's width")
+    assert(long.w+long.spines[1].w>2*BASE.w, "the box stopped short of two covers' width")
+    H.eq(Boxes.geometry(book(1),BASE,SPINES),nil)
+end)
+
+H.test("a Spines box never runs past the row, dropping spines rather than squeezing them", function()
+    local box=Boxes.box(members(8,"Saga"),"Saga")
+    local wide=Boxes.geometry(box,BASE,SPINES)
+    for _,cw in ipairs({60,120,200,400}) do
+        local g=Boxes.geometry(box,BASE,{series_box_style="spines",content_w=cw})
+        assert(g.w<=cw,"box wider than the row at "..cw)
+        for i,sp in ipairs(g.spines) do H.eq(sp.w,wide.spines[i].w) end
+    end
+end)
+
+H.test("a Spines box casts one shadow, its own footprint", function()
+    local g=Boxes.geometry(Boxes.box(members(5,"Saga"),"Saga"),BASE,SPINES)
+    local cols=Boxes.shadowColumns(g,100,5)
+    H.eq(#cols,1); H.eq(cols[1].x,100); H.eq(cols[1].w,g.w); H.eq(cols[1].h,g.h)
+end)
+
+H.test("a Spines box paints its spines in two passes, the cover between them", function()
+    for _,n in ipairs({2,5,12}) do
+        local box=Boxes.box(members(n,"Saga"),"Saga")
+        local shape=Boxes.geometry(box,BASE,{series_box_style="spines",content_w=900})
+        local w=BoxWidget:new{entry={book=box,series_box=shape},width=shape.w,height=300}
+        painted_slots={}
+        local bb=surface(20,10,shape.w,300)
+        w:paintTo(bb,20,10)
+        H.eq(#painted_slots,2*#shape.spines)
+        for i,sl in ipairs(painted_slots) do
+            H.eq(sl.body,i<=#shape.spines, "bodies first, then the lettering")
+            H.eq(sl.no_top_edge,true,"a boxed spine drew its own page top")
+            assert(sl.label~="", "a boxed spine lost its title")
+        end
+        local art
+        for _,r in ipairs(bb.rects) do if r.what=="art" then art=r end end
+        assert(art, "no cover over the spines")
+        H.eq(art.y,painted_slots[1].y)
+        local name,count
+        for _,r in ipairs(bb.rects) do
+            if r.what=="text:Saga" then name=r end
+        end
+        assert(name, "the series name is missing")
+        assert(w.count, "the read count is missing")
+    end
+end)
+
+-- A first book with no cover yet (not extracted) or none at all would spread
+-- its placeholder across the spines: its title and author as big faint
+-- letters behind theirs. The spines stay plain until a real cover is there.
+H.test("a Spines box prints no cover across its spines until the first book has a real one", function()
+    for _,hc in ipairs({false,"nil"}) do
+        local ms=members(3,"Saga")
+        if hc=="nil" then ms[1].has_cover=nil else ms[1].has_cover=hc end
+        local box=Boxes.box(ms,"Saga")
+        local shape=Boxes.geometry(box,BASE,{series_box_style="spines",content_w=900})
+        local w=BoxWidget:new{entry={book=box,series_box=shape},width=shape.w,height=300}
+        painted_slots={}
+        local bb=surface(20,10,shape.w,300)
+        w:paintTo(bb,20,10)
+        for _,r in ipairs(bb.rects) do
+            assert(r.what~="art", "printed a placeholder across the spines (has_cover="..tostring(hc)..")")
+        end
+        H.eq(#painted_slots,2*#shape.spines, "the spines were not painted")
+    end
+end)
+
+-- Each spine takes the colour of the strip of the first cover it stands
+-- behind, so the band behind its title matches the picture.
+H.test("a Spines box colours each spine from the strip of the cover behind it", function()
+    local SS=package.loaded["lib/bookshelf_spine_shelf"]
+    local asked={}
+    SS.lookFromRegion=function(_bb,x,y,w,h) asked[#asked+1]={x=x,y=y,w=w,h=h}; return {r=x,g=1,b=2} end
+    local box=Boxes.box(members(4,"Saga"),"Saga")
+    local shape=Boxes.geometry(box,BASE,{series_box_style="spines",content_w=900})
+    local w=BoxWidget:new{entry={book=box,series_box=shape},width=shape.w,height=300}
+    painted_slots={}
+    w:paintTo(surface(20,10,shape.w,300),20,10)
+    H.eq(#asked,#shape.spines)
+    local x=0
+    for i,sl in ipairs(w.slots) do
+        H.eq(asked[i].x,x); H.eq(asked[i].w,sl.width); H.eq(asked[i].h,shape.inner_h)
+        H.eq(sl.entry.look.r,x,"a spine kept its own book's colour")
+        H.eq(sl.entry.look.aspect,1.5,"the spine lost its book's shape")
+        x=x+sl.width
+    end
+    -- No cover across the spines: they keep their own books' colours.
+    asked={}
+    local ms=members(3,"Saga"); ms[1].has_cover=false
+    local bare=Boxes.box(ms,"Saga")
+    local bs=Boxes.geometry(bare,BASE,{series_box_style="spines",content_w=900})
+    local bw=BoxWidget:new{entry={book=bare,series_box=bs},width=bs.w,height=300}
+    bw:paintTo(surface(20,10,bs.w,300),20,10)
+    H.eq(#asked,0,"sampled a picture that is not there")
+    H.eq(bw.slots[1].entry.look.r,90)
+    SS.lookFromRegion=nil
+end)
+
+-- A series' own image (its long-press menu, or the image library's series/
+-- folder) goes across the spines in place of the first cover, as it does on
+-- the slipcase and on series stacks in covers view: even when the first
+-- book has no cover of its own.
+H.test("a Spines box prints the series' own image across its spines", function()
+    local saved=package.loaded["lib/bookshelf_image_source"]
+    local loaded={}
+    package.loaded["lib/bookshelf_image_source"]={
+        resolveStackImage=function(kind,name) return (kind=="series" and name=="Saga") and "/lib/series/Saga.jpg" or nil end,
+        imageSizeTag=function() return "600x900" end,
+        loadImage=function(path,w,h)
+            loaded[#loaded+1]=path
+            local img=package.loaded["ffi/blitbuffer"].new(w,h)
+            function img:getWidth() return w end
+            function img:getHeight() return h end
+            function img:copy() return self end
+            return img
+        end,
+    }
+    local ms=members(4,"Saga"); ms[1].has_cover=false
+    local box=Boxes.box(ms,"Saga")
+    local shape=Boxes.geometry(box,BASE,{series_box_style="spines",content_w=900})
+    local w=BoxWidget:new{entry={book=box,series_box=shape},width=shape.w,height=300}
+    H.eq(w.custom_path,"/lib/series/Saga.jpg")
+    painted_slots={}
+    local bb=surface(20,10,shape.w,300)
+    w:paintTo(bb,20,10)
+    H.eq(loaded[1],"/lib/series/Saga.jpg","the series image was not loaded")
+    local art
+    for _,r in ipairs(bb.rects) do if r.what=="art" then art=r end end
+    assert(art,"the series image did not go across the spines")
+    package.loaded["lib/bookshelf_image_source"]=saved
+end)
+
+-- One seam between two books, as wide as the one between an end book and
+-- the case: each spine drew its own edge, so two books met at a double seam.
+H.test("a Spines box has one seam between books, the width of those at its ends", function()
+    local box=Boxes.box(members(5,"Saga"),"Saga")
+    local shape=Boxes.geometry(box,BASE,{series_box_style="spines",content_w=900})
+    local w=BoxWidget:new{entry={book=box,series_box=shape},width=shape.w,height=300}
+    painted_slots={}
+    local bb=surface(20,10,shape.w,300)
+    w:paintTo(bb,20,10)
+    local iy=10+300-shape.h+shape.lid+shape.border
+    local seams={}
+    for _,r in ipairs(bb.rects) do
+        if type(r.what)=="table" and r.what.r==0 and r.what.g==0 and r.what.b==0
+                and r.y==iy and r.h==shape.inner_h then
+            seams[#seams+1]=r.x
+        end
+    end
+    H.eq(#seams,#shape.spines+1,"a seam per edge, not one per gap")
+    table.sort(seams)
+    for i=2,#seams do assert(seams[i]>seams[i-1],"two seams drawn at one gap") end
+end)
+
+H.test("a Spines box shrinks a long name before cutting it, never below the floor", function()
+    local function nameOn(n, nm)
+        local box=Boxes.box(members(n,nm),nm)
+        local shape=Boxes.geometry(box,BASE,SPINES)
+        local w=BoxWidget:new{entry={book=box,series_box=shape},width=shape.w,height=300}
+        return w.name, shape
+    end
+    local short,shape=nameOn(8,"Saga")
+    H.eq(short.face.size,shape.label_size,"a name that fits keeps the spine-title size")
+    local long,lshape=nameOn(2,"A Rather Long Series Name")
+    assert(long.face.size<lshape.label_size,"a narrow box kept the full size")
+    assert(long.face.size>=8,"the name went below the floor")
 end)
 
 -- ── The face-out slipcase ────────────────────────────────────────────────────

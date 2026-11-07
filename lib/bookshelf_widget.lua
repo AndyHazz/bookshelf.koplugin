@@ -7560,6 +7560,9 @@ function BookshelfWidget:_spinePlanBase(content_w, shelf_h, all_items)
         -- Book sizes: Same stands every book at the default shape and
         -- thickness (SpineShelf.bookShape). Changes how many fit a row.
         same_size       = self:_spineSameSize(),
+        -- Series boxes: Spines, the spine-out box. A box of its own width,
+        -- so the pagination pass must plan with it too.
+        series_box_style = self:_seriesBoxStyle(),
         -- Whose ornament deck the pieces are dealt from: every shelf has its
         -- own (lib/bookshelf_ornament_deck). Here, so the render and the
         -- page map deal from the same one.
@@ -7949,6 +7952,13 @@ function BookshelfWidget:_seriesBoxesEnabled()
         and not (tab.source and tab.source.kind == "single_series")
         and not (tip and (tip.kind == "series" or tip.kind == "search" or tip.kind == "opds_nav"))
         and not self:_opdsEffectiveTab()
+end
+
+-- _seriesBoxStyle() -> "spines" for the spine-out box (Series boxes:
+-- Spines), else nil (the slipcase, with a cover or Plain).
+function BookshelfWidget:_seriesBoxStyle()
+    local tab = require("lib/bookshelf_tab_model").getById(self.chip)
+    return (tab and tab.series_boxes == "spines") and "spines" or nil
 end
 
 -- _seriesBoxPlain() -> true when this shelf's series boxes have a plain front.

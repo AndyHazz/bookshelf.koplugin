@@ -1980,27 +1980,7 @@ function BookshelfWidget:_rebuild()
             self:_rebuildRefreshBelowHero()
         end,
         on_breadcrumb = function(depth)
-            -- depth -1 = back pill (search mode only): exit search
-            --            entirely, restoring the prior drilldown path.
-            -- depth  0 = chip pill: in search mode, re-open the search
-            --            dialog with the current query prefilled (so the
-            --            user can fix typos without retyping); in other
-            --            drilldowns, pop to top of current chip.
-            -- depth  N = crumb at index N: in search mode for the deepest
-            --            crumb (= query), same edit-search behaviour as
-            --            the chip pill; otherwise pop to that level.
-            if depth == -1 then
-                self:_drillBackTo(0)
-                return
-            end
-            if in_search_mode then
-                local search_entry = self._drilldown_path[#self._drilldown_path]
-                local query = search_entry and search_entry.payload
-                              and search_entry.payload.query
-                self:_openSearchDialog(query)
-                return
-            end
-            self:_navBackTo(depth)
+            return self:_onBreadcrumb(depth, in_search_mode)
         end,
         -- from_tap: the current shelf's button tapped (its own switch,
         -- edit_shelf_tap, already said yes); else a long-press.
@@ -26938,6 +26918,42 @@ function BookshelfWidget:_shelfCrumbCount()
         if e.kind == "search" then return 0 end
     end
     return #self:_shelfChain()
+end
+
+-- _onBreadcrumb(depth, in_search) -- a tap on the breadcrumb.
+--   depth -1 = back pill (search mode only): exit search entirely,
+--              restoring the prior drilldown path.
+--   depth  0 = chip pill: in search mode, re-open the search dialog with the
+--              current query prefilled (so a typo is fixed without
+--              retyping); otherwise climb to the top of the shelf.
+--   depth  N = crumb N: in search mode the query's crumb, as the pill;
+--              otherwise climb to that level. The crumb of the shelf on
+--              screen, inside a shelf of shelves and with nothing open below
+--              it, opens that shelf's settings instead, as a tap on the
+--              current shelf's button does at the top level (same switch,
+--              edit_shelf_tap): climbing to where you already are did nothing.
+function BookshelfWidget:_onBreadcrumb(depth, in_search)
+    if depth == -1 then
+        self:_drillBackTo(0)
+        return
+    end
+    if in_search then
+        local search_entry = self._drilldown_path[#self._drilldown_path]
+        local query = search_entry and search_entry.payload
+                      and search_entry.payload.query
+        self:_openSearchDialog(query)
+        return
+    end
+    local S = self:_shelfCrumbCount()
+    if S > 0 and depth == S and #(self._drilldown_path or {}) == 0 then
+        if not Gestures.on("edit_shelf_tap") then return end
+        require("lib/bookshelf_chip_editor"):editTab(self.chip, {
+            bw = self,
+            on_change = function(info) self:_afterChipEdit(info) end,
+        })
+        return
+    end
+    self:_navBackTo(depth)
 end
 
 -- _navDepth() -> every level the breadcrumb can climb: shelves, then drills.

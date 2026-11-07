@@ -727,30 +727,6 @@ function ListRow.topCell(child, width, height)
     }
 end
 
--- chevronBand(art_h, glyph_h, content_h) -> the height the disclosure arrow
--- centres itself in.
---
--- The arrow belongs to the STACK, not to the row: it is the way in to what the
--- deck is showing, and an arrow floating level with nothing reads as a stray
--- mark. So the band is the deck's own height, and the arrow's cell is topped in
--- the row exactly as the deck's is -- the two then move together whatever the
--- art budget does to the fan.
---
--- `art_h` is content_h when there is nothing in the slot (no deck, no fallback
--- tile), and then this returns the row, which is the documented behaviour for
--- that case and deliberately unchanged.
---
--- The glyph floor is not cosmetic. Group.chevron centres through
--- CenterContainer, which offsets by floor((h - glyph)/2) and goes NEGATIVE for a
--- glyph taller than its box; with the cell pinned to the TOP of the row that
--- paints the arrow outside the row altogether. A deck can legitimately be
--- shorter than an arrow sized off a large first line.
-function ListRow.chevronBand(art_h, glyph_h, content_h)
-    local band = math.max(art_h or content_h or 0, glyph_h or 0)
-    if content_h and band > content_h then band = content_h end
-    return band
-end
-
 function ListRow.tickCell(width, height, on)
     local glyph = CoverProgress.buildGlyphWidget(
         on and ListRow.TICK_ON or ListRow.TICK_OFF,
@@ -2102,8 +2078,8 @@ function ListRow.new(opts)
     -- naming %book_pct twice still costs one sidecar read.
     local record = Lines.recordFor(item)
 
-    -- A folder or a stack does not render as a book: chevron instead of a
-    -- cover, its own name and member count instead of the user's templates.
+    -- A folder or a stack does not render as a book: no cover cell, its own
+    -- name and member count instead of the user's templates.
     -- nil for a plain book, which is the common case and pays nothing.
     -- See lib/bookshelf_list_group.lua for why this is hardcoded and why it
     -- borrows the user's line STYLES rather than setting its own.
@@ -2114,7 +2090,7 @@ function ListRow.new(opts)
 
     -- Held so onTap/onDoubleTap can set SpineWidget.last_tapped on it (see
     -- below); stays nil when covers are switched off, and for a group row,
-    -- whose cover cell is a chevron with no cover to squeeze into.
+    -- which has no cover cell.
     local spine_widget
 
     -- cover | text lines stacked. The cover cell is content_h tall -- the whole
@@ -2149,10 +2125,9 @@ function ListRow.new(opts)
     -- making the full row like a button with a border that gets thicker on
     -- tap, exactly the same behaviour as the cover view".
     --
-    -- Everything below -- cover cell, text column, deck, chevron -- is skipped
-    -- for it. There is no template to expand (a catalogue entry has no fields
-    -- a book template names), no artwork to fan, and the chevron said "this
-    -- opens" about a row that now visibly IS a button.
+    -- Everything below -- cover cell, text column, deck -- is skipped for it.
+    -- There is no template to expand (a catalogue entry has no fields a book
+    -- template names) and no artwork to fan; the row visibly IS a button.
     --
     -- The tick gutter is the exception and stays: a bulk selection is a state
     -- of the whole shelf, and a row that quietly opted out of showing it would
@@ -2180,9 +2155,8 @@ function ListRow.new(opts)
     if fill_tile then
         group[#group + 1] = fill_tile
     else
-        -- NO COVER CELL ON A GROUP ROW. The chevron used to stand in it; it is
-        -- at the far right now, past the deck (see ListGroup.chevron), and
-        -- nothing else belongs in a folder's cover column. Reclaiming the
+        -- NO COVER CELL ON A GROUP ROW. Nothing belongs in a folder's cover
+        -- column. Reclaiming the
         -- width is half of the ruling -- "left aligned to help title/book
         -- count" -- and it is what makes a group's text start at the row's
         -- left edge rather than indented to line up with book thumbnails.
@@ -2224,16 +2198,13 @@ function ListRow.new(opts)
         -- does not start hard against the cover.
         group[#group + 1] = HorizontalSpan:new{ width = pad }
 
-        -- The group row's right-hand end: the fanned deck of member covers,
-        -- then the chevron. Built BEFORE the text so the text knows how much
+        -- The group row's right-hand end: the fanned deck of member covers
+        -- (issue 589 took the arrow after it away). Built BEFORE the text so
+        -- the text knows how much
         -- room it has -- overlaying them on a full-width column instead would
         -- let a long folder name run underneath, which looks fine on every
         -- folder in the test library and breaks on someone's.
-        local deck, deck_w, chevron, chev_w
-        -- How tall whatever ends up in the picture slot actually is. content_h
-        -- while nothing is in it, and then the arrow keeps the whole row -- see
-        -- ListRow.chevronBand.
-        local art_h = content_h
+        local deck, deck_w
         local text_w = L.text_w
         if group_templates then
             -- The cover cell's width comes back to the row: a group does not
@@ -2243,21 +2214,14 @@ function ListRow.new(opts)
             -- The deck is COVER ARTWORK and answers to the cover setting. With
             -- covers switched off a fan of them is the one thing the reader
             -- has said they do not want.
-            -- What the pictures on this row may take, chevron included: the
-            -- deck is sized off the row HEIGHT and would otherwise outgrow the
-            -- row's own width in a narrow column. See ListGeom.ART_MAX_SHARE.
-            local art_budget = math.max(1,
-                ListGeom.artBudget(text_w) - ListGroup.chevronWidth(
-                    math.min(L.lines[1] and L.lines[1].band_h or content_h,
-                             content_h)))
+            -- What the pictures on this row may take: the deck is sized off
+            -- the row HEIGHT and would otherwise outgrow the row's own width
+            -- in a narrow column. See ListGeom.ART_MAX_SHARE.
+            local art_budget = math.max(1, ListGeom.artBudget(text_w))
             if cover_w > 0 then
-                local deck_h
-                deck, deck_w, deck_h = ListGroup.deck(
+                deck, deck_w = ListGroup.deck(
                     ListGroup.deckBooks(item), content_h,
                     { front = ListGroup.DECK_FRONT, max_w = art_budget })
-                if deck then
-                    art_h = math.min(deck_h or content_h, content_h)
-                end
                 -- Nothing to fan: fall back to the tile the cover grid would
                 -- have drawn for this group, in the same slot, so the column
                 -- of objects down the right-hand side is unbroken. Only on a
@@ -2291,31 +2255,9 @@ function ListRow.new(opts)
                         on_tap  = tap_cb  and function() return tap_cb(item)  end,
                         on_hold = hold_cb and function() return hold_cb(item) end,
                     })
-                    if deck then art_h = tile_h else deck_w = nil end
+                    if not deck then deck_w = nil end
                 end
             end
-            -- CENTRED ON THE STACK. It was briefly aligned with the first
-            -- line, because on a bare OPDS row the name sat at the top with
-            -- the arrow floating below it pointing at nothing -- but the arrow
-            -- was never the problem there. The problem was an empty slot
-            -- beside it, and the tile above fills it: "that cover/card is what
-            -- keeps everything aligned and looking good in other tabs like
-            -- series." With an object in the slot, centre is where the arrow
-            -- belongs -- centre of THAT OBJECT, which is the row only for as
-            -- long as the object fills it. See ListRow.chevronBand.
-            --
-            -- Sized against the first LINE, not the row, so it tracks the type
-            -- it sits beside -- the rule the bulk-select tick already follows.
-            -- Its size and the band it sits in are two separate questions.
-            local first_band = L.lines[1] and L.lines[1].band_h or content_h
-            first_band = math.min(first_band, content_h)
-            chev_w  = ListGroup.chevronWidth(first_band)
-            chevron = ListRow.topCell(
-                ListGroup.chevron(chev_w,
-                                  ListRow.chevronBand(art_h, chev_w, content_h),
-                                  first_band),
-                chev_w, content_h)
-            text_w = text_w - chev_w - gap
             if deck then text_w = text_w - deck_w - gap end
             text_w = math.max(1, text_w)
         end
@@ -2381,10 +2323,6 @@ function ListRow.new(opts)
             -- The deck had no cell of its own and was centred by the row's
             -- HorizontalGroup. See ListRow.topCell.
             group[#group + 1] = ListRow.topCell(deck, deck_w, content_h)
-        end
-        if chevron then
-            group[#group + 1] = HorizontalSpan:new{ width = gap }
-            group[#group + 1] = chevron
         end
     end  -- fill_tile
 

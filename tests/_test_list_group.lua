@@ -335,7 +335,7 @@ t.test("a group with no members has no deck", function()
     eq(Group.deck({}, 200), nil)
 end)
 
-t.test("a short row keeps the chevron alone", function()
+t.test("a row too short for a readable card gets no deck", function()
     reset()
     -- A one-line list row is about 60px on a Paperwhite, and four cards fanned
     -- across it are 40px wide each: a smear rather than an illustration.
@@ -379,8 +379,7 @@ end)
 -- The row hands the deck the row's height and gets back a fan that may be
 -- SHORTER than that: opts.max_w caps the fan's total WIDTH, and a narrower card
 -- keeps the book aspect by losing height. Until the deck reported it, the row
--- had no way to know what it actually got, so the chevron beside a capped fan
--- was centred on the ROW while the fan sat somewhere else entirely.
+-- had no way to know what it actually got, and could not align to it.
 
 t.test("the deck reports the height its cards came out at", function()
     reset()
@@ -467,18 +466,19 @@ t.test("member 1 is the front card in both arrangements", function()
     eq(foffs[1], 0)             -- member 3, painted first, leftmost
 end)
 
-t.test("the chevron is sized against what it is given", function()
-    reset()
-    -- At the row's right it is sized off the first LINE, not the row, so the
-    -- arrow tracks the type beside it instead of being a signpost the height
-    -- of a four-line item.
-    local small = Group.chevronWidth(40)
-    local big   = Group.chevronWidth(200)
-    assert(big > small, "a taller reference must give a bigger arrow")
-    -- Never zero, whatever it is handed: a nil reference is a missing line,
-    -- not a request for an invisible affordance.
-    assert(Group.chevronWidth(nil) >= 8)
-    assert(Group.chevronWidth(0) >= 8)
+-- Issue 589: the small arrow at the right of a group row is gone. It took
+-- width from the text and the deck, and was drawn in black whatever the
+-- shelf's ink colour (a dark panel showed it wrong). The deck already says
+-- the row holds books, and a tap on the row opens it as before.
+t.test("a group row draws no arrow, and nothing is left to draw one (589)", function()
+    local lg = io.open("lib/bookshelf_list_group.lua"):read("*a")
+    local lr = io.open("lib/bookshelf_list_row.lua"):read("*a")
+    for _, pat in ipairs({ "function Group.chevron", "Group.CHEVRON", "CHEVRON_FILL" }) do
+        assert(not lg:find(pat, 1, true), "bookshelf_list_group.lua still has " .. pat)
+    end
+    for _, pat in ipairs({ "ListGroup.chevron", "chevronBand" }) do
+        assert(not lr:find(pat, 1, true), "bookshelf_list_row.lua still has " .. pat)
+    end
 end)
 
 t.test("an OPDS subcatalogue counts what the feed declares, or says nothing",

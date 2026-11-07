@@ -60,23 +60,6 @@ local _              = require("lib/bookshelf_i18n").gettext
 
 local Group = {}
 
--- chevron-right, U+E841 in the bundled symbols face. PUA only: a non-PUA
--- codepoint has segfaulted this plugin before, and that face covers
--- U+E000..U+F8FF and nothing else (see bookshelf_cover_progress.lua's note on
--- GLYPH_DOWNLOADED).
-Group.CHEVRON = "\u{e841}"
-
--- How much of the cover cell's height the chevron fills. Sized off the cell
--- rather than off the font so it stays proportional when the row's density
--- changes -- at list_font_scale 60 a fixed-size glyph would overflow the
--- thumbnail slot it is standing in for.
---
--- 0.38 rather than the 0.55 first tried. A chevron is a signpost, not the
--- subject of the row: at 0.55 on a two-line row it rendered about twice the
--- cap height of the folder name beside it and pulled the eye down the column
--- of arrows instead of down the column of names. Measured against a 97px row
--- on a PW5, where this puts it at roughly the height of the title's capitals.
-local CHEVRON_FILL = 0.38
 
 -- ── The count ──────────────────────────────────────────────────────────────
 
@@ -170,44 +153,6 @@ function Group.countText(item, selection)
     return string.format(_("%d books"), total)
 end
 
--- ── The cover cell ─────────────────────────────────────────────────────────
-
--- chevron(width, height, glyph_h) -> a widget filling that cell with a right
--- chevron. `glyph_h` is what the glyph is sized against; the cell's own height
--- when omitted.
---
--- It is NOT a cover, and that is the point. A group's first book would give a
--- real one -- it is what the cover grid's stack tiles show -- and at thumbnail
--- size in a table that is exactly the problem: one arbitrary member's artwork,
--- too small to recognise, is indistinguishable from a book row. The chevron
--- says "this opens into something", which is the one thing artwork cannot say.
---
--- It moved to the RIGHT-HAND END of the row once the deck arrived, on the
--- maintainer's ruling: "moved the chevron the right of the books, and left
--- aligned to help title/book count". Two things fall out of that. The row
--- reads name, count, then the books it holds, then the way in -- and with the
--- cover cell gone the group's text starts at the row's left edge instead of
--- indented to line up with book thumbnails, which is the clearest signal yet
--- that a folder is not a book. There it is sized against the first LINE
--- rather than the row, the way the bulk-select tick is: a disclosure arrow
--- beside the title, not a signpost the height of the whole row.
-function Group.chevron(width, height, glyph_h)
-    local size = math.max(8, math.floor((glyph_h or height) * CHEVRON_FILL))
-    local glyph = CoverProgress.buildGlyphWidget(
-        Group.CHEVRON, size, Blitbuffer.COLOR_BLACK)
-    return CenterContainer:new{
-        dimen = Geom:new{ w = width, h = height },
-        glyph,
-    }
-end
-
--- chevronWidth(glyph_h) -> the cell width that arrow wants at the row's right.
--- Square on its glyph size, so it reserves no more of the row than the arrow
--- actually occupies.
-function Group.chevronWidth(glyph_h)
-    return math.max(8, math.floor((glyph_h or 0) * CHEVRON_FILL))
-end
-
 -- ── The deck ───────────────────────────────────────────────────────────────
 --
 -- Up to four member covers, overlapping like a fanned hand of cards, filling
@@ -225,9 +170,7 @@ end
 -- the space that is actually free: a group has two lines to say against a
 -- book's four or five, so on the maintainer's layout there were 750 empty
 -- pixels beside "Southern Reach / 4 books". The deck fills the emptiness that
--- made the row look broken, at full thumbnail size, and the chevron stays in
--- the cover cell saying "this opens into something" -- which artwork alone
--- does not say.
+-- made the row look broken, at full thumbnail size.
 Group.DECK_MAX = 4
 
 -- How many configured lines a row needs before a group with no covers gets the

@@ -1287,46 +1287,4 @@ t.test("the art cell reserves the row but tops the picture in it", function()
     eq(built.dimen.h, 700)
 end)
 
--- ── The chevron centres on the STACK, not on the row ───────────────────────
---
--- A folder row's right-hand end is the fanned deck of member covers, then the
--- disclosure arrow. Both were centred in the row, which agreed for as long as
--- the deck filled it. It does not once ListGeom.artBudget caps the fan's width:
--- the cards keep the book aspect by losing height, so on a very tall row the
--- fan is a fraction of it. The deck is now topped like a book's cover, and the
--- arrow has to follow it or it points at blank paper.
---
--- chevronBand answers ONE question -- how tall is the box the arrow centres in
--- -- so the row is left with a lookup rather than four-way arithmetic inline.
-
-local chevronBand = localFn2("ListRow.chevronBand", {})
-
-t.test("the arrow centres on a stack shorter than the row", function()
-    eq(chevronBand(180, 30, 600), 180)
-end)
-
-t.test("with nothing in the slot the arrow keeps the whole row", function()
-    -- No deck and no fallback tile: there is no stack to point at, and the row
-    -- is the only band left. This is the documented behaviour and must not move
-    -- -- see the note above the chevron in bookshelf_list_group.lua.
-    eq(chevronBand(600, 30, 600), 600)
-end)
-
-t.test("a stack shorter than the arrow still holds the whole arrow", function()
-    -- CenterContainer offsets by floor((h - glyph)/2), which goes NEGATIVE for
-    -- a glyph taller than its box: the arrow would paint above the cell, and
-    -- the cell is now at the very top of the row, so it would paint outside the
-    -- row altogether.
-    eq(chevronBand(20, 30, 600), 30)
-end)
-
-t.test("the band never outgrows the row", function()
-    eq(chevronBand(900, 30, 600), 600)
-    eq(chevronBand(900, 4000, 600), 600)
-end)
-
-t.test("a missing measurement falls back to the row", function()
-    eq(chevronBand(nil, nil, 600), 600)
-end)
-
 t.done()

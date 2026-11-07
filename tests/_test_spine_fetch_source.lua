@@ -85,4 +85,23 @@ t.test("a face-out folder tile is wired to the folder's callbacks", function()
         "a double tap on a face-out folder tile opens it as a book")
 end)
 
+-- A folder record carrying its members in `books` (SOURCE_API.md, Spines)
+-- stands as a run of their spines, the group being the run's item (whose
+-- title names the run's badge), not as a folder tile. OrbitShelf builds its
+-- Series, Authors and Genres levels on this.
+t.test("a folder with books stands as a run of its members' spines", function()
+    local m1 = { title = "Saga 1", filepath = "demo://book/1", source_kind = "demo", has_cover = false }
+    local m2 = { title = "Saga 2", filepath = "demo://book/2", source_kind = "demo", has_cover = false }
+    local folder = { kind = "opds_nav", is_opds_nav = true, source_nav = true, title = "Saga",
+                     label = "Saga", filepath = "demo://nav/s", source_kind = "demo", books = { m1, m2 } }
+    local plan = Shelf.plan({ folder }, { content_w = 800, row_h = 300, n_rows = 2, face_out = "none" })
+    eq(#plan.entries, 2, "the folder did not stand as its members")
+    for i, e in ipairs(plan.entries) do
+        eq(e.book, ({ m1, m2 })[i])
+        eq(e.face_out, false, "a member stood face-out as a folder tile")
+        eq(e.item, folder, "the run lost its group, and so its name")
+        eq(e.run_idx, plan.entries[1].run_idx, "the members are not one run")
+    end
+end)
+
 t.done()

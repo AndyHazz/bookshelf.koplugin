@@ -3552,7 +3552,11 @@ function BookshelfWidget:_pollExtraction()
             if SpineShelf.invalidateBook then
                 for fp in pairs(ready_paths) do SpineShelf.invalidateBook(fp, true) end
             end
-            self:_expireSpineFetch()
+            -- Not a fetch-mode source's level (issue 588): its records are the
+            -- source's, so a cover landing changes nothing in the list, and
+            -- expiring it fetched the whole level again for every book that
+            -- finished extracting.
+            if not self:_spineListFromPagedSource() then self:_expireSpineFetch() end
         end
         -- Their light records were built with no BIM row: take the rows now.
         if Repo.lightMetaReady then pcall(Repo.lightMetaReady, ready_paths) end
@@ -7963,7 +7967,10 @@ function BookshelfWidget:_spineCachedFetch(n)
         key = key .. "|m:" .. table.concat(sig, ",")
     end
     local c = self._spine_fetch_cache
-    if c and c.key == key and (os.time() - c.at) <= 30 then
+    -- A fetch-mode source's level (issue 588) is the source's own list:
+    -- kept until something expires it (sourceChanged, a refresh, an edit, a
+    -- book closing), not for 30 s. Its age says nothing about it.
+    if c and c.key == key and ((c.paged and c.at > 0) or (os.time() - c.at) <= 30) then
         self._spine_fetch_live = true
         return c.items, nil
     end
@@ -8010,6 +8017,8 @@ function BookshelfWidget:_spineCachedFetch(n)
     end
     self._spine_fetch_live = true
     self._spine_fetch_cache = { key = key, items = items, at = os.time(), items_sig = sig,
+                                paged = (self._spineListFromPagedSource
+                                         and self:_spineListFromPagedSource()) or nil,
                                 page_orn = page_orn,
                                 orn_sig = keep and keep.orn_sig or nil,
                                 orn_epoch = keep and keep.orn_epoch or nil }
@@ -27456,6 +27465,14 @@ end
 
 -- _currentRegisteredSource() -> the source table (with .drill when inside a
 -- folder) of the registered source on screen, or nil.
+-- _spineListFromPagedSource() -> true when the list on screen comes from a
+-- fetch-mode registered source (its top level or one of its folders): a list
+-- the source owns, which KOReader's book data does not change.
+function BookshelfWidget:_spineListFromPagedSource()
+    local src = self:_currentRegisteredSource()
+    return (src and require("lib/bookshelf_sources").isPaged(src.kind)) and true or false
+end
+
 function BookshelfWidget:_currentRegisteredSource()
     local Sources = require("lib/bookshelf_sources")
     local tab = require("lib/bookshelf_tab_model").getById(self.chip)

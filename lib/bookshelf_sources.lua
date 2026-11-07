@@ -301,6 +301,14 @@ function M.fetch(id, source, drill, offset, limit)
                 if type(r.filepath) ~= "string" or r.filepath == "" then
                     r.filepath = id .. "://nav/" .. tostring(r.id or (offset or 0) + i)
                 end
+                -- On Spines a folder may carry its member records (issue
+                -- 588), standing as a run of their spines: they are this
+                -- source's books too.
+                if type(r.books) == "table" then
+                    for _j, m in ipairs(r.books) do
+                        if type(m) == "table" and m.source_kind == nil then m.source_kind = id end
+                    end
+                end
             end
             out[#out + 1] = r
         end

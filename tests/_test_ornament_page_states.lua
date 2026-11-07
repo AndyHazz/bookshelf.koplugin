@@ -280,4 +280,44 @@ t.test("the deal-state signature changes when the enabled pieces change, not onl
     assert(s1 ~= s2, "swapping which pieces are on kept the signature")
 end)
 
+-- Issue 588: a fetch-mode source's level is its own list, not KOReader's
+-- book data, so a cover being extracted or the 30 s age does not make the
+-- shelf ask for the whole level again (OrbitShelf saw 17 fetches in a
+-- minute of paging). sourceChanged (at = 0) and an explicit expiry still do.
+t.test("a fetch-mode source's level is kept until it is expired, whatever its age", function()
+    local fetch, expire = method("_spineCachedFetch"), method("_expireSpineFetch")
+    local calls = 0
+    local self = { chip = "orbit", _cursor = 1 }
+    self._fetchChipItems = function() calls = calls + 1; return { { filepath = "/a" }, { filepath = "/b" } } end
+    self._prepareSpineItems = function(_, items) return items end
+    self._spineItemsSig = method("_spineItemsSig")
+    self._anchorSpineCursor = method("_anchorSpineCursor")
+    self._spineSkip = function(s) return s._skip or 0 end
+    self._setSpineCursor = function(s, c, k) s._cursor, s._skip = c, k or 0 end
+    self._ornKey = method("_ornKey")
+    self._ornFirstState = method("_ornFirstState")
+    self._ornDrill = function() return nil end
+    local paged = true
+    self._spineListFromPagedSource = function() return paged end
+    fetch(self, 400); eq(calls, 1)
+    self._spine_fetch_cache.at = os.time() - 120          -- two minutes old
+    fetch(self, 400); eq(calls, 1, "a source's level was fetched again for its age")
+    self._spine_fetch_cache.at = 0                         -- sourceChanged
+    fetch(self, 400); eq(calls, 2, "sourceChanged did not fetch the level again")
+    expire(self)
+    fetch(self, 400); eq(calls, 3, "an expiry did not fetch the level again")
+    -- An ordinary shelf, its list fetched while not from a source.
+    paged = false
+    self._spine_fetch_cache = nil
+    fetch(self, 400); eq(calls, 4)
+    self._spine_fetch_cache.at = os.time() - 120
+    fetch(self, 400); eq(calls, 5, "an ordinary shelf kept a stale list")
+end)
+
+t.test("extraction expires the spine list only for a list KOReader's data fills", function()
+    local src = io.open("lib/bookshelf_widget.lua"):read("*a")
+    assert(src:find("if not self:_spineListFromPagedSource() then self:_expireSpineFetch() end", 1, true),
+        "a cover extracted still makes a fetch-mode source's shelf fetch its whole level")
+end)
+
 t.done()

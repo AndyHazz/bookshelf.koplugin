@@ -182,6 +182,25 @@ t.test("fetch passes source, drill, offset and limit, and dresses folder records
     eq(items[2].kind, nil, "a book stays a book")
 end)
 
+-- Issue 588: on Spines a folder record may carry its member records in
+-- `books`, and stands as a run of their spines. The members are the source's
+-- books as much as top-level ones, so they carry its stamp too: opening a
+-- remote member and its long-press info find their way back.
+t.test("a folder's member books carry the source's stamp", function()
+    Sources._reset()
+    local paged = spec({ fetch = function()
+        return { { title = "Saga", is_folder = true, id = "s1",
+                   books = { { title = "Saga 1", filepath = "komga://book/1" },
+                             { title = "Saga 2", filepath = "komga://book/2", source_kind = "other" } } } }
+    end })
+    paged.list = nil
+    Sources.register("komga", paged)
+    local items = Sources.fetch("komga", { kind = "komga" }, nil, 0, 1000000)
+    local m = items[1].books
+    eq(m[1].source_kind, "komga", "a member book lost its way back to the source")
+    eq(m[2].source_kind, "other", "a member's own stamp was overwritten")
+end)
+
 t.test("open_folder decides the drill entry when given", function()
     Sources._reset()
     local paged = spec({ fetch = function() return {} end,

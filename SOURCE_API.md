@@ -213,7 +213,9 @@ Set `spines = true` in the spec and the shelf editor offers Spines for your shel
 
 A spine shelf lays out the whole level at once, to know where its pages start, so on Spines Bookshelf calls `fetch(source, drill, 0, limit)` with a very large `limit`. Return everything you hold for that level; you need not hold all of it yet. When more arrives, call `sourceChanged` as usual and the shelf lays itself out again.
 
-Each record stands as a spine, coloured from its cover: set `cover_image_path` for books not on the device (Bookshelf does not look your books up in KOReader's cover cache), and `page_count` where you know it, for the spine's thickness. Folder records (`is_folder`) stand face-out as their folder tile, the same tile covers view draws, and a tap drills in.
+Each record stands as a spine, coloured from its cover: set `cover_image_path` for books not on the device (Bookshelf does not look your books up in KOReader's cover cache), and `page_count` where you know it, for the spine's thickness.
+
+A folder record (`is_folder`) stands face-out as its folder tile, the same tile covers view draws, and a tap drills in. Give it `books`, a list of its member records, and it stands instead as a run of their spines labelled with the folder's `title`, the way Bookshelf's own Series and Authors shelves stand their groups: a Series level then reads as runs of series, not a wall of tiles. Member records are ordinary book records (Bookshelf stamps them with your `source_kind` as it does top-level ones). Bookshelf keeps the level until you call `sourceChanged`, the reader refreshes or edits the shelf, or a book is closed, so the whole-level fetch is not repeated as the reader turns pages.
 
 Without `spines = true`, a fetch-mode shelf has no Spines view, as before.
 

@@ -1333,6 +1333,13 @@ function Editor:editTab(tab_id, opts)
         -- the same way.
         local is_paged_src = draft.source
             and require("lib/bookshelf_sources").isPaged(draft.source.kind) or false
+        -- A paged source has no spines unless it opted in (issue 588).
+        local no_spines_src = false
+        do
+            local Sources = require("lib/bookshelf_sources")
+            no_spines_src = (is_paged_src and draft.source
+                and not Sources.spinesOk(draft.source.kind)) and true or false
+        end
         -- ...unless it offers editor buttons of its own (its list, sort and
         -- filters: SOURCE_API.md "Editor rows"), which take that row's place.
         -- A button edits draft.source and calls done(), which saves it; the
@@ -1481,7 +1488,7 @@ function Editor:editTab(tab_id, opts)
                 -- The mode, as the card's icon shows it: no mode of its own is
                 -- Covers, the default. A tile style named here ("View mode:
                 -- Ribbon") read as a mode of its own; the page shows both.
-                local shown = Editor._shownMode(draft[ViewMode.CHIP_KEY], is_opds_src or is_paged_src)
+                local shown = Editor._shownMode(draft[ViewMode.CHIP_KEY], is_opds_src or no_spines_src)
                 local mode = Editor._chipModeLabel(shown)
                 -- Spines with books face out read as covers on the shelf
                 -- behind, so the card says both (a fresh Home said "Spines"
@@ -1495,7 +1502,7 @@ function Editor:editTab(tab_id, opts)
                 return T(_("View mode: %1"), mode or _("Covers"))
             end,
             icon_func = function()
-                return Editor._modeIcon(draft[ViewMode.CHIP_KEY], is_opds_src or is_paged_src)
+                return Editor._modeIcon(draft[ViewMode.CHIP_KEY], is_opds_src or no_spines_src)
             end,
             callback = function()
                 -- now: the shelf behind rebuilt at once, not on the
@@ -1520,7 +1527,7 @@ function Editor:editTab(tab_id, opts)
                     -- Over its own box (editorRefresh), not the whole screen.
 
                     -- A catalogue gets Default and List only; see above.
-                    is_opds = is_opds_src or is_paged_src,
+                    is_opds = is_opds_src or no_spines_src,
                     -- The live shelf, so the density nudges can seed from the
                     -- numbers actually on screen instead of from a constant.
                     bw = opts.bw,

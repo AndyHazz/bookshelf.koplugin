@@ -47,6 +47,11 @@ Spec fields (label, available, and one of list / fetch are required):
                  record's own `drill` field.
     refresh      function(source, drill, done), the reader swiped down to
                  refresh. Call done() when there is something new to show.
+    spines       true: a fetch-mode shelf may be shown as Spines (issue 588).
+                 On Spines, fetch is asked for its records with a large limit
+                 (the whole level, from offset 0), as a spine shelf lays out
+                 the whole list; answer with what you hold, and call
+                 sourceChanged when more arrives. List mode always has Spines.
     remote_prefix a filepath prefix ("komga://") marking records that are not
                  files on the device: Bookshelf then never looks for a sidecar,
                  a KOReader cover or statistics for them.
@@ -130,6 +135,9 @@ function M.register(id, spec)
         if spec[f] ~= nil and type(spec[f]) ~= "function" then
             return false, f .. " must be a function"
         end
+    end
+    if spec.spines ~= nil and type(spec.spines) ~= "boolean" then
+        return false, "spines must be true or false"
     end
     if spec.remote_prefix ~= nil and (type(spec.remote_prefix) ~= "string"
             or not spec.remote_prefix:match("^%a[%w+.-]*://")) then
@@ -215,6 +223,15 @@ end
 function M.isPaged(id)
     local spec = M.get(id)
     return spec ~= nil and type(spec.fetch) == "function"
+end
+
+-- spinesOk(id) -> may a shelf of this source be shown as Spines? List-mode
+-- sources and Bookshelf's own: yes. A fetch-mode source: only when its spec
+-- opts in (spines = true); otherwise it is a catalogue, which has no spines.
+function M.spinesOk(id)
+    local spec = M.get(id)
+    if not (spec and type(spec.fetch) == "function") then return true end
+    return spec.spines == true
 end
 
 -- editorRows(id, draft) -> rows or nil. A fetch-mode source's own buttons for

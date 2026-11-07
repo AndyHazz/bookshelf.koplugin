@@ -5719,6 +5719,8 @@ end
 -- shapes, not their pictures. Once per item set and data generation. Skipped
 -- for a catalogue (OPDS, a fetch-mode source): its fetch reads feed windows,
 -- which are the network's business, and those shelves never stand as spines.
+-- A fetch-mode source that opted in to Spines (issue 588) answers from what it
+-- holds, as list mode does, so it gets the note too.
 function BookshelfWidget:_ensureGridLabels()
     local key = self:_gridLabelsKey()
     local gen = Repo.dataGeneration and Repo.dataGeneration()
@@ -5726,7 +5728,7 @@ function BookshelfWidget:_ensureGridLabels()
     if m and m.gen == gen then return end
     local tab = require("lib/bookshelf_tab_model").getById(self.chip)
     local kind = tab and tab.source and tab.source.kind
-    if kind == "opds" or (kind and require("lib/bookshelf_sources").isPaged(kind)) then
+    if kind == "opds" or (kind and not require("lib/bookshelf_sources").spinesOk(kind)) then
         return
     end
     local cursor, quiet = self._cursor, Repo.suppress_covers
@@ -5819,9 +5821,10 @@ function BookshelfWidget:_viewMode()
     -- catalogue after choosing Spines -- degrades to the covers default.
     if chip_mode == ViewMode.SPINES then
         local tab = require("lib/bookshelf_tab_model").getById(self.chip)
-        -- A fetch-mode registered source (a server catalogue) is the same case.
+        -- A fetch-mode registered source (a server catalogue) is the same
+        -- case, unless it opted in to Spines (issue 588).
         if tab and tab.source and (tab.source.kind == "opds"
-                or require("lib/bookshelf_sources").isPaged(tab.source.kind)) then
+                or not require("lib/bookshelf_sources").spinesOk(tab.source.kind)) then
             chip_mode = nil
         end
     end
@@ -5995,7 +5998,7 @@ function BookshelfWidget:_flipViewMode()
     elseif self:_isListMode() then
         local tab = TabModel.getById(self.chip)
         local is_opds = tab and tab.source and (tab.source.kind == "opds"
-            or require("lib/bookshelf_sources").isPaged(tab.source.kind))
+            or not require("lib/bookshelf_sources").spinesOk(tab.source.kind))
         target = is_opds and ViewMode.COVERS or ViewMode.SPINES
     else
         target = ViewMode.LIST

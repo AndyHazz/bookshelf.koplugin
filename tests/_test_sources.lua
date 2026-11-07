@@ -142,6 +142,25 @@ t.test("fetch mode: exactly one of list or fetch", function()
     assert(Sources.isPaged("paged") and not Sources.isPaged("kindle"))
 end)
 
+-- Issue 588: a fetch-mode source may opt in to Spines (spec.spines = true).
+-- List mode always has them; fetch mode without the opt-in keeps the
+-- catalogue rule (no spines), so nothing changes for a source that did not ask.
+t.test("Spines: list mode yes, fetch mode only when the source opts in", function()
+    Sources._reset()
+    local plain = spec({ fetch = function() return {} end }); plain.list = nil
+    assert(Sources.register("plain", plain))
+    local opted = spec({ fetch = function() return {} end, spines = true }); opted.list = nil
+    assert(Sources.register("opted", opted))
+    assert(Sources.register("kindle", spec()))
+    eq(Sources.spinesOk("kindle"), true, "a list-mode source lost its spines")
+    eq(Sources.spinesOk("plain"), false, "a fetch-mode source that did not opt in got spines")
+    eq(Sources.spinesOk("opted"), true, "a fetch-mode source that opted in got no spines")
+    eq(Sources.spinesOk("all"), true, "Bookshelf's own sources lost their spines")
+    local bad = spec({ fetch = function() return {} end, spines = "yes" }); bad.list = nil
+    local ok, why = Sources.register("bad", bad)
+    assert(not ok and why:match("spines"), "a non-boolean spines was accepted: " .. tostring(why))
+end)
+
 t.test("fetch passes source, drill, offset and limit, and dresses folder records", function()
     Sources._reset()
     local got

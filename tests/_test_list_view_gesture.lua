@@ -57,7 +57,8 @@ local function viewMode(opts)
             if m == "lib/bookshelf_tab_model" then
                 return { getById = function() return opts.tab or { source = { kind = "all" } } end }
             elseif m == "lib/bookshelf_sources" then
-                return { isPaged = function() return false end }
+                return { isPaged = function(k) return k == "komga" or k == "orbit" end,
+                         spinesOk = function(k) return k ~= "komga" end }
             end
             error("unexpected require " .. m)
         end,
@@ -115,6 +116,16 @@ t.test("a chip set to Auto shows Level 1 at its top level and Level 2 drilled in
                      tab = { source = { kind = "all" }, view_level2 = "spines" } } == "spines")
     assert(viewMode{ chip_mode = M,
                      tab = { source = { kind = "opds" }, view_level1 = "spines" } } == "covers")
+end)
+
+-- Issue 588: a fetch-mode source that opted in (spinesOk) keeps a Spines
+-- pin; one that did not still shows covers, as a catalogue does.
+t.test("a Spines pin stands on a fetch-mode source that opted in, not on one that did not", function()
+    assert(viewMode{ chip_mode = ViewMode.SPINES, tab = { source = { kind = "orbit" } } } == "spines",
+        "an opted-in source lost its spines")
+    assert(viewMode{ chip_mode = ViewMode.SPINES, tab = { source = { kind = "komga" } } } ~= "spines",
+        "a source that did not opt in got spines")
+    assert(viewMode{ chip_mode = ViewMode.SPINES, tab = { source = { kind = "opds" } } } ~= "spines")
 end)
 
 t.test("a level's button steps covers > list > spines > covers, no spines for a catalogue", function()

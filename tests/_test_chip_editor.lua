@@ -688,6 +688,38 @@ t.test("shelf style: series boxes can be Plain, and an old stored value reads as
         .find("Series boxes").active, "cover", "a test build's value lost its box")
 end)
 
+-- Issue 503: Covers and List group an opened group's series too, with the
+-- same stored setting; On keeps a Spines style already chosen.
+t.test("shelf style: Covers and List have Series boxes, on or off, the same setting", function()
+    for _i, mode in ipairs({ "covers", "list" }) do
+        local draft = { view_mode = mode }
+        local p = openStyle(draft)
+        local row = p.find("Series boxes")
+        assert(row, mode .. " has no Series boxes")
+        eq(row.active, false)
+        row.on_pick(true)
+        eq(draft.series_boxes, true)
+        eq(openStyle(draft).find("Series boxes").active, true)
+        p.find("Series boxes").on_pick(false)
+        eq(draft.series_boxes, nil)
+        draft.series_boxes = "plain"
+        openStyle(draft).find("Series boxes").on_pick(true)
+        eq(draft.series_boxes, "plain", mode .. " On lost the Spines page's style")
+    end
+end)
+
+t.test("shelf style: an Auto level's card says when Covers or List has series boxes", function()
+    local draft = { view_mode = "auto", series_boxes = true }
+    local descs = {}
+    for _i, b in ipairs(openStyle(draft).blocks()) do
+        if b.type == "option" and b.desc then descs[#descs + 1] = b.desc end
+    end
+    assert(#descs == 2, "no level cards")
+    for _i, d in ipairs(descs) do
+        assert(d:find("series boxes", 1, true), "a level card left series boxes out: " .. d)
+    end
+end)
+
 t.test("shelf style: series boxes can be Spines, stored as its own value", function()
     local draft = { view_mode = "spines" }
     local p = openStyle(draft, nil, "Spines")

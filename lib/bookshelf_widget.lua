@@ -1777,7 +1777,10 @@ function BookshelfWidget:_rebuild()
         -- pill changes to "Authors" so the breadcrumb is "Authors > X".
         -- Active chip stays unchanged; only the label is decoupled from
         -- self.chip for the duration of the cross-kind drill.
-        local tip = self._drilldown_path[#self._drilldown_path]
+        -- The FIRST drill decides: a series box opened inside an author
+        -- (issue 503) is a level below it, not a cross-kind drill, and
+        -- the deepest entry turned "Authors > X > Saga" into "Series > ...".
+        local tip = self._drilldown_path[1]
         if tip and tip.kind then
             -- No "opds_nav" entry, deliberately. An OPDS chip's label IS the
             -- catalog's title, and drilling into one of its navigation entries
@@ -3633,6 +3636,50 @@ local SPINE_ALL_LIMIT = 1000000
 -- page cache silently selected only what was on screen (issue #320 follow-up:
 -- Home reported 59 of 246 books). Everything else already returns the full
 -- list, so this only widens the window.
+-- _seriesBoxPage(books, boxed, want_all, n) -> the page's records, total:
+-- the page cut from a whole list (an opened group's books, or a shelf's top
+-- level, with series boxes made of it when boxed) and only its books built,
+-- each series box's front with its cover.
+function BookshelfWidget:_seriesBoxPage(books, boxed, want_all, n)
+    local total = #books
+    -- Cursor-based: offset is 0-based, cursor is 1-based. Clamp upstream
+    -- in _rebuild keeps cursor within range; defensive guard here too.
+    local offset = want_all and 0 or math.max(0, (self._cursor or 1) - 1)
+    local stop = math.min(offset + (want_all and n or self:_viewSize()), total)
+    local ScaledCoverCache = require("lib/bookshelf_scaled_cover_cache")
+    local fresh = {}
+    for i = offset + 1, stop do
+        local b = books[i]
+        local nb = b
+        if b.filepath then
+            -- Covers already in ScaledCoverCache skip the BIM zstd
+            -- decode; SpineWidget repaints from the cache by filepath.
+            local meta_opts
+            if Repo.spine_light then
+                -- Whole physical shelves need metadata, never one cover
+                -- decode per member. Hydrate only the visible box fronts.
+                nb = require("lib/bookshelf_series_boxes").copy(
+                    Repo.lightMetaFor(b.filepath) or Repo.buildBookMeta(b.filepath, { want_cover = false }) or b)
+            elseif ScaledCoverCache:has(b.filepath) then
+                meta_opts = { want_cover = false }
+            end
+            if not Repo.spine_light then
+                nb = Repo.buildBookMeta(b.filepath, meta_opts) or b
+            end
+        elseif boxed and b._series_box and b.books and b.books[1] then
+            -- The tile shows its first book's cover, as a Series shelf
+            -- card does: that one built in full, the rest stay light.
+            local first = b.books[1]
+            local meta_opts
+            if ScaledCoverCache:has(first.filepath) then meta_opts = { want_cover = false } end
+            local full = Repo.buildBookMeta(first.filepath, meta_opts)
+            if full then b.books[1], b.first_book = full, full end
+        end
+        fresh[#fresh + 1] = nb
+    end
+    return fresh, total
+end
+
 function BookshelfWidget:_fetchChipItems(n, want_all)
     -- Spine mode paints no covers on the shelf (spine looks persist; the
     -- few face-out favourites decode on demand at paint), so the whole
@@ -3768,35 +3815,13 @@ function BookshelfWidget:_fetchChipItems(n, want_all)
         if chip_tab and chip_tab.filter and Repo.filterMembers and not tip.whole then
             books = Repo.filterMembers(books, chip_tab.filter)
         end
-        local total = #books
-        -- Cursor-based: offset is 0-based, cursor is 1-based. Clamp upstream
-        -- in _rebuild keeps cursor within range; defensive guard here too.
-        local offset = want_all and 0 or math.max(0, (self._cursor or 1) - 1)
-        local stop = math.min(offset + (want_all and n or self:_viewSize()), total)
-        local ScaledCoverCache = require("lib/bookshelf_scaled_cover_cache")
-        local fresh = {}
-        for i = offset + 1, stop do
-            local b = books[i]
-            local nb = b
-            if b.filepath then
-                -- Covers already in ScaledCoverCache skip the BIM zstd
-                -- decode; SpineWidget repaints from the cache by filepath.
-                local meta_opts
-                if Repo.spine_light then
-                    -- Whole physical shelves need metadata, never one cover
-                    -- decode per member. Hydrate only the visible box fronts.
-                    nb = require("lib/bookshelf_series_boxes").copy(
-                        Repo.lightMetaFor(b.filepath) or Repo.buildBookMeta(b.filepath, { want_cover = false }) or b)
-                elseif ScaledCoverCache:has(b.filepath) then
-                    meta_opts = { want_cover = false }
-                end
-                if not Repo.spine_light then
-                    nb = Repo.buildBookMeta(b.filepath, meta_opts) or b
-                end
-            end
-            fresh[#fresh + 1] = nb
+        -- Series boxes in Covers and List (issue 503): a series' books share
+        -- a tile, so the page counts tiles. Before the window is cut.
+        local boxed = self:_coverSeriesBoxes()
+        if boxed then
+            books = require("lib/bookshelf_series_boxes").prepare(books, Repo.lightMetaFor)
         end
-        return fresh, total
+        return self:_seriesBoxPage(books, boxed, want_all, n)
     end
     -- For the all-chip and folder drill-down, fetch only the current
     -- visible window and return the total count as a second value.
@@ -3871,6 +3896,25 @@ function BookshelfWidget:_fetchChipItems(n, want_all)
         return Repo.getBySource(
             { kind = "opds", id = pay.server_key, feed_url = pay.feed_url },
             nil, nil, offset, LIMIT, fetch_opts)
+    end
+    -- Series boxes at the top level of a shelf of books (Home, Latest added,
+    -- Favourites...): the whole list, light, so a series is gathered from
+    -- anywhere on the shelf, and the page cut from the tiles. A top level
+    -- holding groups or folders, or a source that hands back only a window,
+    -- stays as it was.
+    if not tip and tab and self:_coverSeriesBoxes() then
+        local all, hint = Repo.getBySource(tab.source, tab.filter, tab.sort_priority,
+            0, SPINE_ALL_LIMIT, { light_only = true })
+        local whole = type(all) == "table" and not (hint and hint > #all)
+        if whole then
+            for _i, it in ipairs(all) do
+                if type(it) ~= "table" or not it.filepath then whole = false; break end
+            end
+        end
+        if whole then
+            local books = require("lib/bookshelf_series_boxes").prepare(all, Repo.lightMetaFor)
+            return self:_seriesBoxPage(books, true, want_all, n)
+        end
     end
     if tab then
         return Repo.getBySource(tab.source, tab.filter, tab.sort_priority, offset, LIMIT, fetch_opts)
@@ -7955,6 +7999,30 @@ end
 function BookshelfWidget:_seriesBoxPlain()
     local tab = require("lib/bookshelf_tab_model").getById(self.chip)
     return (tab and tab.series_boxes == "plain") or nil
+end
+
+-- _coverSeriesBoxes() -> true when Covers or List should give each series
+-- inside an opened group one tile (issue 503): the shelf's Series boxes on,
+-- an author, genre or other group open, not a series (it is the box), not a
+-- group opened from book details (it asks for the whole group). Spines draws
+-- its own boxes; the shelf's top level stays as it is.
+function BookshelfWidget:_coverSeriesBoxes()
+    if self:_isSpineMode() then return false end
+    local TabModel = require("lib/bookshelf_tab_model")
+    local tab = TabModel.getById(self.chip)
+    if not (tab and tab.series_boxes) or self:_opdsEffectiveTab() then return false end
+    local path = self._drilldown_path or {}
+    local tip = path[#path]
+    if not tip then
+        -- The top level: when it is a shelf of books, which _fetchChipItems
+        -- finds from the list. Not one series' shelf (it is the series), not
+        -- a shelf of shelves.
+        return not (tab.source and tab.source.kind == "single_series") and not TabModel.isShelves(tab)
+    end
+    return (tip.payload and not tip.whole
+        and (tip.kind == "author" or tip.kind == "genre" or tip.kind == "tag"
+            or tip.kind == "format" or tip.kind == "rating"
+            or tip.kind == "language" or tip.kind == "decade")) and true or false
 end
 
 function BookshelfWidget:_prepareSpineItems(items, total)

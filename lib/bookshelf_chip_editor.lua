@@ -2358,6 +2358,17 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             active = on and true or false,
             on_pick = function(v) pick(function() set(v) end)() end }
     end
+    -- Series boxes for Covers and List (issue 503): On or Off over the same
+    -- setting the Spines page styles, so On keeps a style chosen there.
+    local function seriesBoxesRow(pick, add)
+        if no_spines then return end
+        add(onOff(pick, _("Series boxes"), draft.series_boxes, function(v)
+            if v then draft.series_boxes = draft.series_boxes or true
+            else draft.series_boxes = nil end
+        end))
+        add({ type = "hint",
+            text = _("On a shelf of books, and inside an author or other group, a series' books share one tile.") })
+    end
     -- A number: nil is Auto, the automatic count. The first step seeds from
     -- live(), the number on screen, so + from Auto shows one more of what the
     -- reader sees; below lo goes back to Auto. inherit_key: unset shows that
@@ -2408,6 +2419,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         else
             listRows("")
         end
+        seriesBoxesRow(pick, add)
     end
     local function listSummary(level)
         local function one(sfx, inherit)
@@ -2417,10 +2429,14 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             -- "columns: Auto", not "Auto columns".
             return T(_("columns: %1, rows: %2"), numText(c), numText(r))
         end
+        local text
         if ViewMode.listLevelsSplit(draft) and level == 2 then
-            return Editor._capFirst(one(ViewMode.LEVEL2_SUFFIX, true))
+            text = one(ViewMode.LEVEL2_SUFFIX, true)
+        else
+            text = one("")
         end
-        return Editor._capFirst(one(""))
+        if draft.series_boxes and not no_spines then text = text .. ", " .. _("series boxes") end
+        return Editor._capFirst(text)
     end
 
     -- Ornaments: only ever on a spine shelf. Four stops picked for what they
@@ -2569,6 +2585,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                     if on_change then on_change() end
                 end, function() end, bw)
             end })
+        seriesBoxesRow(pick, add)
     end
     local function coversSummary()
         local parts = {}
@@ -2580,6 +2597,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             parts[#parts + 1] = T(_("folder tiles: %1"), label)
         end
         parts[#parts + 1] = T(_("captions: %1"), Editor._coverTextLabel(draft, draft.cover_text))
+        if draft.series_boxes and not no_spines then parts[#parts + 1] = _("series boxes") end
         return Editor._capFirst(table.concat(parts, ", "))
     end
 

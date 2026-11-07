@@ -50,7 +50,7 @@ local function widget(raw)
         _fetchChipItems=function() return raw,#raw end,
         _jumpScanList=function() return raw,"title","test" end,
     }
-    for _,name in ipairs({"_seriesBoxesEnabled","_prepareSpineItems","_spineCachedFetch",
+    for _,name in ipairs({"_seriesBoxesEnabled","_coverSeriesBoxes","_prepareSpineItems","_spineCachedFetch",
         "_spineItemsSig","_spineUpdateBookCounts","_serializeDrillPath","_restoreDrillPath",
         "_drillInto","_drillBackTo","_expandSeries","_applyWithinGroupSort","_jumpToLetterPrefix"}) do
         w[name]=method(name,env)
@@ -148,7 +148,7 @@ t.test("large series drills use the complete light list, not the current grid-si
     local books={}
     for i=1,120 do books[i]=book(i,"Saga"); metas[books[i].filepath]=books[i] end
     local box=Boxes.box(books,"Saga")
-    local w=widget({}); w._fetchChipItems=method("_fetchChipItems",env)
+    local w=widget({}); w._fetchChipItems=method("_fetchChipItems",env); w._seriesBoxPage=method("_seriesBoxPage",env)
     w:_expandSeries(box); w._cursor=51
     local all,total=w:_fetchChipItems(10000,true)
     eq(#all,120); eq(total,120); eq(all[1].series_num,"1")

@@ -8284,6 +8284,14 @@ end
 
 function BookshelfWidget:_ornStartState(dims)
     local Deck = require("lib/bookshelf_ornament_deck")
+    -- Ornaments off on this shelf: nothing is dealt, so there is no start to
+    -- find (the search below could lay out the whole shelf to find one).
+    do
+        local ok_o, Orn = pcall(require, "lib/bookshelf_ornaments")
+        if ok_o and type(Orn) == "table" and Orn.frequency and Orn.frequency() == 0 then
+            return Deck.newState()
+        end
+    end
     local cur, skip = self._cursor or 1, self:_spineSkip()
     local c = self._spine_fetch_cache
     -- An open-ended feed's window: the cache belongs to another chip.
@@ -8302,6 +8310,10 @@ function BookshelfWidget:_ornStartState(dims)
     end
     if cur <= 1 and skip == 0 then return self:_ornFirstState() end
     if c.page_orn[key] then return Deck.copyState(c.page_orn[key]) end
+    -- Built if need be, though it lays out every page before this one: the
+    -- deal has to be exact from the first page, or a piece a reader placed
+    -- (swap, the saved order) turns up somewhere else and a later page
+    -- repeats an earlier one's pieces.
     self:_spinePageFirsts(true, dims)
     c = self._spine_fetch_cache or c
     if c.page_orn and c.page_orn[key] then return Deck.copyState(c.page_orn[key]) end

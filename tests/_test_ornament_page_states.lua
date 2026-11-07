@@ -71,9 +71,25 @@ t.test("a known page's state is used without building the map", function()
 end)
 
 t.test("an unknown page builds the map once and uses what it recorded", function()
+    -- Exact from the first page: a reader's swaps place pieces by the deal's
+    -- order, so borrowing a nearby page's state would move them.
     local self = stub(5, 0)
     self._spine_fetch_cache.orn_sig = "sig"
     eq(method("_ornStartState")(self).n, 9); eq(self.builds, 1)
+end)
+
+t.test("with the shelf's ornaments off it asks nothing: no map, no states", function()
+    -- A shelf with Ornaments: Off still built the whole page map on a page
+    -- turn after its list changed, to find where pieces it never shows start.
+    package.loaded["lib/bookshelf_ornaments"] = { frequency = function() return 0 end }
+    local self = stub(5, 0)
+    self._spine_fetch_cache.orn_sig = "sig"
+    local asked = 0
+    self._spinePageFirsts = function() asked = asked + 1 end
+    method("_ornStartState")(self)
+    package.loaded["lib/bookshelf_ornaments"] = nil
+    eq(asked, 0, "looked at the page map for a shelf with no ornaments")
+    eq(next(self._spine_fetch_cache.page_orn), nil, "recorded a state for a shelf with no ornaments")
 end)
 
 t.test("no map (a windowed source): the nearest earlier known page, never a crash", function()

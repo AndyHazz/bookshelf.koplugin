@@ -916,10 +916,29 @@ Repo._applyCoverOverrides = _applyCoverOverrides
 -- Invalidation mirrors the progress cache (Repo.invalidateProgressCache):
 -- closing a book is the only in-app way a sidecar appears.
 local _sidecar_memo = {}
+function Repo._historyDirAbsent()
+    if Repo._history_absent == nil then
+        local ok_dst, DataStorage = pcall(require, "datastorage")
+        local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
+        local d = ok_dst and DataStorage and DataStorage.getHistoryDir and DataStorage:getHistoryDir()
+        Repo._history_absent = (d and ok_lfs and lfs and lfs.attributes(d, "mode") ~= "directory") and true or false
+    end
+    return Repo._history_absent
+end
 local function _hasSidecar(filepath)
     if not filepath then return false end
     local memo = _sidecar_memo[filepath]
     if memo ~= nil then return memo end
+    -- A definite no from the folder listings the walk already read
+    -- (_customMetaPossible: no sibling .sdr, none in the mirrored tree, no
+    -- hash location), without DocSettings' stat of each location: two per
+    -- book never opened, ~12,000 for a status filter over a 6,000-book
+    -- library (issue 590). Not while KOReader's legacy history folder
+    -- exists, which hasSidecarFile also looks in.
+    if Repo._historyDirAbsent() and not _customMetaPossible(filepath) then
+        _sidecar_memo[filepath] = false
+        return false
+    end
     local res = false
     local ds = getDocSettings()
     if ds and ds.hasSidecarFile then
@@ -2797,6 +2816,17 @@ function Repo.invalidateProgressCache(filepath)
     if filepath then
         _progress_cache[filepath] = nil
         _sidecar_memo[filepath] = nil
+        -- Its folder's listing too, which _hasSidecar answers "never opened"
+        -- from: a book opened for the first time has just gained its .sdr.
+        local parent = filepath:match("^(.*/)")
+        if parent then
+            _dir_entry_cache[parent] = nil
+            local ok_dst, DataStorage = pcall(require, "datastorage")
+            if ok_dst and DataStorage and DataStorage.getDocSettingsDir then
+                local root = DataStorage:getDocSettingsDir()
+                if root then _dir_entry_cache[root .. parent] = nil end
+            end
+        end
         _finished_on[filepath] = nil
         for _key, entry in pairs(_light_meta_cache) do
             if entry and entry.map then
@@ -3201,6 +3231,40 @@ end
 -- to detect "did anything in the library change since we cached?" with a
 -- single stat() per dir on subsequent reads, far cheaper than re-walking
 -- the entire tree on each chip tap.
+-- What a walk need not stat to know it holds no book (issue 590). With the
+-- home folder at the top of the device (a PocketBook's /mnt/ext1, a Kindle's
+-- /mnt/us), the walk reached every file of KOReader's own installation, the
+-- system's folders and every book's .sdr, one stat each: ~9,000 on a
+-- 6,000-book library, minutes on slow storage. Worse, KOReader keeps its
+-- settings in its own folder there, so every settings save (Bookshelf saves
+-- its place on each page turn) moved a walked folder's mtime and the next
+-- shelf walked the whole device again.
+--   * KOReader's own data folder (DataStorage:getFullDataDir()) is never
+--     walked into: no books live there, and it changes all the time.
+--   * A ".sdr" sidecar folder, or a file whose extension says it is no book
+--     and no folder (pictures, fonts, dictionaries, code), is passed over
+--     by name, without a stat. A book's own extension is tested first.
+-- (Kept on Repo: this module is at Lua's 200-locals limit.)
+Repo._NOT_BOOK_EXT = {
+    jpg = true, jpeg = true, png = true, gif = true, bmp = true, webp = true, svg = true, ico = true,
+    tif = true, tiff = true, heic = true,
+    opf = true, ncx = true, xml = true, json = true, ini = true, cfg = true, conf = true, log = true,
+    lua = true, so = true, sh = true, py = true, js = true, css = true, o = true, a = true, ko = true,
+    ttf = true, otf = true, ttc = true, woff = true, woff2 = true, pfb = true,
+    mo = true, po = true, pot = true, dat = true, db = true, sqlite = true, sqlite3 = true, bak = true,
+    dic = true, dict = true, dz = true, idx = true, ifo = true, syn = true, aff = true,
+    mp3 = true, m4a = true, m4b = true, ogg = true, wav = true, flac = true, mp4 = true, avi = true, mkv = true,
+    tmp = true, old = true, lock = true,
+}
+function Repo._koreaderDataDir()
+    if Repo._ko_data_dir == nil then
+        local ok, DataStorage = pcall(require, "datastorage")
+        local d = ok and DataStorage and DataStorage.getFullDataDir and DataStorage:getFullDataDir()
+        Repo._ko_data_dir = type(d) == "string" and d ~= "" and d:gsub("/+$", "") or false
+    end
+    return Repo._ko_data_dir or nil
+end
+
 local function walkBooks(root, depth, out, current_depth, dirs, listings)
     current_depth = current_depth or 0
     if current_depth > depth then return end
@@ -3249,7 +3313,14 @@ local function walkBooks(root, depth, out, current_depth, dirs, listings)
         -- never contain real books. The other walkers in this file
         -- (around lines 1222, 1269, 1406) already do this; walkBooks
         -- was the odd one out.
-        if entry:sub(1, 1) ~= "." and not SYSTEM_DIR_NAMES[entry] then
+        local skip = false
+        if entry:sub(-4) == ".sdr" then
+            skip = true
+        elseif not _supportedExt(entry) then
+            local ext = entry:match("%.([^%.]+)$")
+            skip = ext ~= nil and Repo._NOT_BOOK_EXT[ext:lower()] == true
+        end
+        if not skip and entry:sub(1, 1) ~= "." and not SYSTEM_DIR_NAMES[entry] then
             local fp = _joinPath(root, entry)
             -- One stat call instead of two on real lfs (which returns a
             -- table from attributes(fp) with no key). Falls back to two
@@ -3264,6 +3335,8 @@ local function walkBooks(root, depth, out, current_depth, dirs, listings)
                 }
             end
             local mode = attr.mode
+            local ko_dir = mode == "directory" and Repo._koreaderDataDir()
+            if ko_dir and fp:gsub("/+$", "") == ko_dir then mode = nil end
             if mode == "directory" then
                 -- Skip .sdr sidecar dirs. They contain KOReader's per-book
                 -- metadata (cover, progress, etc.) and no actual books -- so

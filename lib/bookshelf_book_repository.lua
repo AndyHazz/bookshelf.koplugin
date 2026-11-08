@@ -682,6 +682,54 @@ local function _bimGetBookInfo(bim, filepath, want_cover, what)
     return nil, res
 end
 
+-- Repo.bimStatus(bim, filepath) -> the book's extraction state (nil when BIM
+-- has no row), and on failure the error. The columns whether and how to
+-- extract a book is decided from (in_progress, has_meta, has_cover,
+-- cover_fetched, cover_w, cover_h, cover_sizetag), without the cover blob
+-- getBookInfo reads with every row: the extraction poll asks this of each
+-- book it watches, every 0.4-3 s, and the kickoff of each book on a page.
+-- Falls back to getBookInfo when the light read is not possible.
+-- Unlike getBookInfo, a row still being extracted is returned too, with its
+-- in_progress (the tries so far): getBookInfo answers nil for one, so a
+-- book BIM had given up on read as never tried, and was queued again on
+-- every page it showed on.
+-- (The statement is kept on Repo: this module is at Lua's 200-locals limit.)
+Repo._status_sql = "SELECT in_progress, has_meta, has_cover, cover_fetched, cover_w, cover_h, "
+    .. "cover_sizetag FROM bookinfo WHERE directory=? AND filename=?;"
+function Repo.bimStatus(bim, filepath)
+    if not bim or type(filepath) ~= "string" then return nil end
+    -- Split as BIM splits (util.splitFilePathName), or the row is not found.
+    local directory, filename = filepath:match("(.*/)(.*)")
+    local ok, res = pcall(function()
+        if not directory then error("no directory") end
+        bim:openDbConnection()
+        local conn = bim.db_conn
+        if not conn then error("no connection") end
+        if Repo._status_conn ~= conn then
+            Repo._status_stmt, Repo._status_conn = conn:prepare(Repo._status_sql), conn
+        end
+        local stmt = Repo._status_stmt
+        stmt:reset()
+        stmt:bind(directory, filename)
+        local row = stmt:step()
+        if not row then stmt:clearbind(); stmt:reset(); return false end
+        local out = {
+            in_progress   = tonumber(row[1]) or 0,
+            has_meta      = row[2],
+            has_cover     = row[3],
+            cover_fetched = row[4],
+            cover_w       = tonumber(row[5]),
+            cover_h       = tonumber(row[6]),
+            cover_sizetag = row[7],
+        }
+        stmt:clearbind(); stmt:reset()
+        return out
+    end)
+    if ok then return res or nil end
+    Repo._status_stmt, Repo._status_conn = nil, nil
+    return _bimGetBookInfo(bim, filepath, false, "getBookInfo (status)")
+end
+
 -- ─── Covers supplied by a getBookInfo wrapper (issue 500) ───────────────────
 -- A user patch can wrap BIM:getBookInfo and hand back a cover the database
 -- does not have -- 2-fallbackcover.lua draws one for every book without an

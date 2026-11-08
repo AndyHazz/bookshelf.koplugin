@@ -3022,6 +3022,10 @@ function BookshelfWidget:_allowCoverFetch(fp)
 end
 
 function BookshelfWidget:_kickOffMissingMetaExtraction(items, slot_w, slot_h, hero_w, hero_h)
+    -- Spines: items is the window fetched from the cursor, several pages'
+    -- worth; the page shows its first _spine_shown. Read now, while the
+    -- page that set it is the one on screen.
+    local shown_n = self:_isSpineMode() and tonumber(self._spine_shown) or nil
     -- Deferred until AFTER the repaint (tickAfterNext; nextTick still runs
     -- before the paint): the check loop below is a per-book BIM SQLite read,
     -- ~46 of them on a 3-row spine page, which on device flash was the bulk
@@ -3039,7 +3043,7 @@ function BookshelfWidget:_kickOffMissingMetaExtraction(items, slot_w, slot_h, he
         end
         pcall(function()
             self:_kickOffMissingMetaExtractionNow(
-                items, slot_w, slot_h, hero_w, hero_h)
+                items, slot_w, slot_h, hero_w, hero_h, shown_n)
         end)
     end
     if UIManager.tickAfterNext then
@@ -3049,7 +3053,13 @@ function BookshelfWidget:_kickOffMissingMetaExtraction(items, slot_w, slot_h, he
     end
 end
 
-function BookshelfWidget:_kickOffMissingMetaExtractionNow(items, slot_w, slot_h, hero_w, hero_h)
+-- shown_n: how many of items the page shows (Spines; nil = all of them).
+-- The books on screen are queued first and watched as the page's own
+-- (_bim_page_set): only one of THEM finishing redraws the page. The rest
+-- of the window is queued behind them, so the next pages are extracted
+-- while this one is read, and a turn onto them finds their books already
+-- in BIM's queue instead of interrupting it.
+function BookshelfWidget:_kickOffMissingMetaExtractionNow(items, slot_w, slot_h, hero_w, hero_h, shown_n)
     local _kick_t0 = _gettime()
     local ok, BIM = pcall(require, "bookinfomanager")
     if not ok or not BIM or not BIM.getBookInfo then return end
@@ -3063,6 +3073,9 @@ function BookshelfWidget:_kickOffMissingMetaExtractionNow(items, slot_w, slot_h,
     local max_tries = BIM.max_extract_tries or 3
     local files = {}
     local seen  = {}
+    -- Books past the page's end: queued after the page's own.
+    local extra_files = {}
+    local page_set = {}
     -- Two extraction specs, by where the book is shown:
     --   * HERO book -> hero-sized spec (the currently-reading card is the
     --     one place a cover is drawn large, so it earns the bigger bitmap).
@@ -3085,7 +3098,8 @@ function BookshelfWidget:_kickOffMissingMetaExtractionNow(items, slot_w, slot_h,
         max_cover_w = math.max(slot_w, hero_w or slot_w),
         max_cover_h = math.max(slot_h, hero_h or slot_h),
     }
-    local function maybe_queue(fp, specs)
+    local function maybe_queue(fp, specs, extra)
+        if fp and not extra then page_set[fp] = true end
         if not fp or seen[fp] then return end
         local mkey = fp .. "|" .. tostring(specs.max_cover_w)
                      .. "x" .. tostring(specs.max_cover_h)
@@ -3114,7 +3128,12 @@ function BookshelfWidget:_kickOffMissingMetaExtractionNow(items, slot_w, slot_h,
         if row and row.cover_w and row.has_meta and row.cover_fetched == "Y" then
             info = row
         else
-            info, bim_err = Repo.bimGetBookInfo(BIM, fp, false)
+            -- The state only (no cover blob): see Repo.bimStatus.
+            if Repo.bimStatus then
+                info, bim_err = Repo.bimStatus(BIM, fp)
+            else
+                info, bim_err = Repo.bimGetBookInfo(BIM, fp, false)
+            end
         end
         if bim_err then return end
         -- A format another plugin provides (Repo.isPluginFormatFile) gets its
@@ -3183,7 +3202,8 @@ function BookshelfWidget:_kickOffMissingMetaExtractionNow(items, slot_w, slot_h,
         if needs and require("libs/libkoreader-lfs").attributes(fp, "mode") ~= "file" then
             -- Neither queued nor memoised.
         elseif needs then
-            files[#files + 1] = {
+            local list = extra and extra_files or files
+            list[#list + 1] = {
                 filepath    = fp,
                 cover_specs = not text_only and specs or nil,
             }
@@ -3205,13 +3225,14 @@ function BookshelfWidget:_kickOffMissingMetaExtractionNow(items, slot_w, slot_h,
         hero_fp = Repo.currentFilepath and Repo.currentFilepath()
     end
     if hero_fp then maybe_queue(hero_fp, hero_specs) end
-    for _i, item in ipairs(items or {}) do
+    for i, item in ipairs(items or {}) do
+        local extra = shown_n ~= nil and shown_n > 0 and i > shown_n
         if item then
             -- Flat-book items (Recent / Latest / drilldown) carry filepath.
-            maybe_queue(item.filepath, slot_specs)
+            maybe_queue(item.filepath, slot_specs, extra)
             -- Folder items (Home chip drilldown) carry first_book.
             if item.first_book then
-                maybe_queue(item.first_book.filepath, slot_specs)
+                maybe_queue(item.first_book.filepath, slot_specs, extra)
             end
             -- Group items (series / authors / genres / tags) carry a books
             -- array. series_stack renders books[1] as the front cover plus
@@ -3224,9 +3245,9 @@ function BookshelfWidget:_kickOffMissingMetaExtractionNow(items, slot_w, slot_h,
             -- getCoverBB however many times the tile asks. The old cap of 3
             -- dates from when series_stack rendered three covers.
             if item.books then
-                for i = 1, math.min(4, #item.books) do
-                    local b = item.books[i]
-                    if b then maybe_queue(b.filepath, slot_specs) end
+                for j = 1, math.min(4, #item.books) do
+                    local b = item.books[j]
+                    if b then maybe_queue(b.filepath, slot_specs, extra) end
                 end
             end
         end
@@ -3235,10 +3256,20 @@ function BookshelfWidget:_kickOffMissingMetaExtractionNow(items, slot_w, slot_h,
         "[bookshelf perf] _kickOffMeta (post-paint): %.0fms queued=%d displayed=%d",
         (_gettime() - _kick_t0) * 1000, #files, #(items or {})))
     logger.dbg(string.format(
-        "[bim kickoff] queued=%d displayed=%d bim_busy=%s",
-        #files, #(items or {}),
+        "[bim kickoff] queued=%d ahead=%d displayed=%d bim_busy=%s",
+        #files, #extra_files, #(items or {}),
         tostring(BIM:isExtractingInBackground())))
-    if #files > 0 then
+    self._bim_page_set = page_set
+    -- The page's own first, then the rest; the busy checks below are about
+    -- the page's own (a turn whose books are queued already interrupts
+    -- nothing).
+    local fire = files
+    if #extra_files > 0 then
+        fire = {}
+        for _i, f in ipairs(files) do fire[#fire + 1] = f end
+        for _i, f in ipairs(extra_files) do fire[#fire + 1] = f end
+    end
+    if #fire > 0 then
         UIManager:nextTick(function()
             -- Priority interrupt model:
             --   * BIM idle -> FIRE (start our extraction).
@@ -3265,6 +3296,13 @@ function BookshelfWidget:_kickOffMissingMetaExtractionNow(items, slot_w, slot_h,
             --     here, which aborted a 17k-book scan at letter O when
             --     bookshelf re-paginated mid-scan.
             local bim_busy = BIM:isExtractingInBackground()
+            -- Nothing of the page's own to wait for: never worth stopping
+            -- BIM's job for books further on.
+            if bim_busy and #files == 0 then
+                logger.dbg(string.format(
+                    "[bim extract] SKIP ahead=%d (BIM busy, page's own done)", #extra_files))
+                return
+            end
             if bim_busy then
                 if not self._bim_owned_extraction then
                     logger.dbg(string.format(
@@ -3304,11 +3342,11 @@ function BookshelfWidget:_kickOffMissingMetaExtractionNow(items, slot_w, slot_h,
                     end
                 end
             end
-            self:_fireBimExtraction(files,
+            self:_fireBimExtraction(fire,
                 bim_busy and "kickoff-interrupt" or "kickoff")
         end)
     end
-    self:_armExtractionPoll(files)
+    self:_armExtractionPoll(fire)
 end
 
 -- _fireBimExtraction(files, label): wrapper around BIM:extractInBackground
@@ -3437,6 +3475,116 @@ function BookshelfWidget:_scheduleExtractionPoll()
     UIManager:scheduleIn(interval, self._bim_poll_fn)
 end
 
+-- How often finished extractions are applied while BIM works through a
+-- page. Each one that reaches the page on screen rebuilds it (0.5-1 s on a
+-- PW5, the shelf unresponsive meanwhile), and the poll finds books one or
+-- two at a time: applied as found, a page of new books was rebuilt every
+-- second or so for as long as BIM ran.
+local BIM_APPLY_GAP_S = 2.5
+
+-- _applyExtractionReady(): apply the books the poll found finished
+-- (_bim_ready_acc): their records refreshed, and the page on screen
+-- rebuilt when one of them is on it (_bim_page_set). The first is applied
+-- at once; then at most once per BIM_APPLY_GAP_S, the rest collected.
+function BookshelfWidget:_applyExtractionReady()
+    local acc = self._bim_ready_acc
+    if self._closed or not acc or not next(acc.paths) then return end
+    if not (self._inner_vgroup and self._shelf_dims) then return end
+    local wait = (self._bim_applied_at or -math.huge) + BIM_APPLY_GAP_S - _gettime()
+    -- And not while the reader swipes: a redraw is 0.5-1 s nothing can
+    -- get past (it landed between swipes on a PW5).
+    wait = math.max(wait, self:_inputBusyFor())
+    if wait > 0 then
+        if not self._bim_apply_fn then
+            self._bim_apply_fn = function()
+                self._bim_apply_fn = nil
+                self:_applyExtractionReady()
+            end
+            UIManager:scheduleIn(wait, self._bim_apply_fn)
+        end
+        return
+    end
+    self._bim_ready_acc = nil
+    self._bim_applied_at = _gettime()
+    local ready_paths, ready_cover_paths = acc.paths, acc.covers
+    local page_set = self._bim_page_set
+    local on_page = page_set == nil
+    if page_set then
+        for fp in pairs(ready_paths) do
+            if page_set[fp] then on_page = true; break end
+        end
+    end
+    -- A just-extracted cover is sharper than whatever we seeded on first
+    -- paint -- which, for a thumbnail that started smaller than the slot,
+    -- was an upscale (blurry). Drop those stale ScaledCoverCache entries
+    -- so the re-render below decodes the fresh BIM cover instead of
+    -- repainting the cached blurry bb. Without this the cover only
+    -- sharpens once a larger (hero) render forces a fresh decode, i.e.
+    -- when the user taps the book (issue #125). drop() is a no-op when
+    -- there's no entry (the no-cover -> cover case never seeded one).
+    if next(ready_cover_paths) then
+        local ScaledCoverCache = require("lib/bookshelf_scaled_cover_cache")
+        for fp in pairs(ready_cover_paths) do ScaledCoverCache:drop(fp) end
+    end
+    -- A spine shelf keeps its own caches of each book (look, hydration,
+    -- rendered pixels) and of the page fetch, all taken from the
+    -- stand-in record painted before extraction: the file name as
+    -- title, which for an OPDS download ("Author - Title") put the
+    -- author on the spine with authors off (GitHub issue 477), and the
+    -- grey default look. Drop them for the books now ready, as a
+    -- metadata edit does (_refreshSpineSlotInPlace).
+    if self:_isSpineMode() then
+        local SpineShelf = require("lib/bookshelf_spine_shelf")
+        if SpineShelf.invalidateBook then
+            for fp in pairs(ready_paths) do SpineShelf.invalidateBook(fp, true) end
+        end
+        -- Not a fetch-mode source's level (issue 588): its records are the
+        -- source's, so a cover landing changes nothing in the list, and
+        -- expiring it fetched the whole level again for every book that
+        -- finished extracting.
+        if not self:_spineListFromPagedSource() then self:_expireSpineFetch() end
+    end
+    -- Their light records were built with no BIM row: take the rows now.
+    if Repo.lightMetaReady then pcall(Repo.lightMetaReady, ready_paths) end
+    -- _swapShelvesInPlace re-fetches Book records (which re-query
+    -- BIM) and re-arms polling for whatever is still missing.
+    if not on_page then
+        -- None of them on screen: nothing to redraw. The page built ahead
+        -- read their old records (the data generation moved): build it
+        -- again.
+        self:_pageAheadArm(self._page_ahead_dir or 1)
+        return
+    end
+    self:_swapShelvesInPlace()
+    -- Only swap the hero if its specific book was in the just-ready
+    -- set. In expanded mode the "hero slot" is the static status strip
+    -- (time/battery), which doesn't depend on book covers, so skip
+    -- entirely. In collapsed mode, an unrelated grid book finishing
+    -- extraction shouldn't trigger a hero rebuild — that was the
+    -- bleed-through bug where _swapHeroInPlace slotted a tall
+    -- HeroCard into the thin-strip slot during expanded mode, and
+    -- also wasteful in collapsed mode (16 grid covers loading meant
+    -- ~16 hero rebuilds for nothing).
+    if not self._expanded
+            and self._hero_parent and self._hero_dims then
+        local hero_fp
+        if self._preview_book then
+            hero_fp = self._preview_book.filepath
+        else
+            -- Path only - this runs on every extraction-poll tick, so
+            -- getCurrent()'s BIM read here was a per-tick tax while
+            -- covers extract (issue #103's side door).
+            hero_fp = Repo.currentFilepath and Repo.currentFilepath()
+        end
+        if hero_fp and ready_paths[hero_fp] then
+            -- Its record from before the extraction is not what BIM now
+            -- has (Refresh metadata's rebuild memoised it with no row).
+            self._hero_current_memo = nil
+            self:_swapHeroInPlace()
+        end
+    end
+end
+
 function BookshelfWidget:_pollExtraction()
     self._bim_poll_fn = nil
     local files = self._bim_poll_files
@@ -3463,7 +3611,14 @@ function BookshelfWidget:_pollExtraction()
     local gave_up_count = 0
     for _i, f in ipairs(files) do
         -- Guarded; see maybe_queue comment for rationale (#71/#63).
-        local info = Repo.bimGetBookInfo(BIM, f.filepath, false, "getBookInfo (poll)")
+        -- The state only, no cover blob (see Repo.bimStatus): this runs for
+        -- every watched book every 0.4-3 s while BIM works.
+        local info
+        if Repo.bimStatus then
+            info = Repo.bimStatus(BIM, f.filepath)
+        else
+            info = Repo.bimGetBookInfo(BIM, f.filepath, false, "getBookInfo (poll)")
+        end
         local inprog = tonumber(info and info.in_progress) or 0
         local meta_ready = info and info.has_meta == "Y"
         -- Cover-readiness check: matters for *re-extractions*. A pre-existing
@@ -3539,68 +3694,19 @@ function BookshelfWidget:_pollExtraction()
             self:_fireBimExtraction(fire_list, "orphan-retry")
         end)
     end
-    if next(ready_paths) and self._inner_vgroup and self._shelf_dims then
-        -- A just-extracted cover is sharper than whatever we seeded on first
-        -- paint -- which, for a thumbnail that started smaller than the slot,
-        -- was an upscale (blurry). Drop those stale ScaledCoverCache entries
-        -- so the re-render below decodes the fresh BIM cover instead of
-        -- repainting the cached blurry bb. Without this the cover only
-        -- sharpens once a larger (hero) render forces a fresh decode, i.e.
-        -- when the user taps the book (issue #125). drop() is a no-op when
-        -- there's no entry (the no-cover -> cover case never seeded one).
-        if next(ready_cover_paths) then
-            local ScaledCoverCache = require("lib/bookshelf_scaled_cover_cache")
-            for fp in pairs(ready_cover_paths) do ScaledCoverCache:drop(fp) end
-        end
-        -- A spine shelf keeps its own caches of each book (look, hydration,
-        -- rendered pixels) and of the page fetch, all taken from the
-        -- stand-in record painted before extraction: the file name as
-        -- title, which for an OPDS download ("Author - Title") put the
-        -- author on the spine with authors off (GitHub issue 477), and the
-        -- grey default look. Drop them for the books now ready, as a
-        -- metadata edit does (_refreshSpineSlotInPlace).
-        if self:_isSpineMode() then
-            local SpineShelf = require("lib/bookshelf_spine_shelf")
-            if SpineShelf.invalidateBook then
-                for fp in pairs(ready_paths) do SpineShelf.invalidateBook(fp, true) end
-            end
-            -- Not a fetch-mode source's level (issue 588): its records are the
-            -- source's, so a cover landing changes nothing in the list, and
-            -- expiring it fetched the whole level again for every book that
-            -- finished extracting.
-            if not self:_spineListFromPagedSource() then self:_expireSpineFetch() end
-        end
-        -- Their light records were built with no BIM row: take the rows now.
-        if Repo.lightMetaReady then pcall(Repo.lightMetaReady, ready_paths) end
-        -- _swapShelvesInPlace re-fetches Book records (which re-query
-        -- BIM) and re-arms polling for whatever is still missing.
-        self:_swapShelvesInPlace()
-        -- Only swap the hero if its specific book was in the just-ready
-        -- set. In expanded mode the "hero slot" is the static status strip
-        -- (time/battery), which doesn't depend on book covers, so skip
-        -- entirely. In collapsed mode, an unrelated grid book finishing
-        -- extraction shouldn't trigger a hero rebuild — that was the
-        -- bleed-through bug where _swapHeroInPlace slotted a tall
-        -- HeroCard into the thin-strip slot during expanded mode, and
-        -- also wasteful in collapsed mode (16 grid covers loading meant
-        -- ~16 hero rebuilds for nothing).
-        if not self._expanded
-                and self._hero_parent and self._hero_dims then
-            local hero_fp
-            if self._preview_book then
-                hero_fp = self._preview_book.filepath
-            else
-                -- Path only - this runs on every extraction-poll tick, so
-                -- getCurrent()'s BIM read here was a per-tick tax while
-                -- covers extract (issue #103's side door).
-                hero_fp = Repo.currentFilepath and Repo.currentFilepath()
-            end
-            if hero_fp and ready_paths[hero_fp] then
-                -- Its record from before the extraction is not what BIM now
-                -- has (Refresh metadata's rebuild memoised it with no row).
-                self._hero_current_memo = nil
-                self:_swapHeroInPlace()
-            end
+    if next(ready_paths) then
+        -- Collected, and applied together (_applyExtractionReady): each
+        -- application refreshes the books' records and, when one is on the
+        -- page on screen, rebuilds that page.
+        local acc = self._bim_ready_acc or { paths = {}, covers = {} }
+        for fp in pairs(ready_paths) do acc.paths[fp] = true end
+        for fp in pairs(ready_cover_paths) do acc.covers[fp] = true end
+        self._bim_ready_acc = acc
+        self:_applyExtractionReady()
+        -- Books are landing: keep watching at the fast end.
+        self._bim_poll_empty_streak = 0
+        if self._bim_poll_files and not self._bim_poll_fn then
+            self:_scheduleExtractionPoll()
         end
         return
     end

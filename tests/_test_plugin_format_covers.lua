@@ -39,7 +39,7 @@ local Repo = {
 }
 
 local src = io.open("lib/bookshelf_widget.lua"):read("*a")
-local body = src:match("\nfunction BookshelfWidget:_kickOffMissingMetaExtractionNow%(items, slot_w, slot_h, hero_w, hero_h%)\n(.-)\nend\n")
+local body = src:match("\nfunction BookshelfWidget:_kickOffMissingMetaExtractionNow%(items, slot_w, slot_h, hero_w, hero_h, shown_n%)\n(.-)\nend\n")
 assert(body, "could not find BookshelfWidget:_kickOffMissingMetaExtractionNow - renamed?")
 
 local BookshelfWidget = {
@@ -56,7 +56,7 @@ local env = setmetatable({
     logger = { dbg = function() end, warn = function() end },
     _gettime = function() return 0 end,
 }, { __index = _G })
-local code = "return function(self, items, slot_w, slot_h, hero_w, hero_h)\n" .. body .. "\nend"
+local code = "return function(self, items, slot_w, slot_h, hero_w, hero_h, shown_n)\n" .. body .. "\nend"
 local chunk = assert((loadstring or load)(code, "=_kickOffMissingMetaExtractionNow"))
 if setfenv then setfenv(chunk, env) else chunk = assert(load(code, "=_kickOffMissingMetaExtractionNow", "t", env)) end
 local kickOff = chunk()

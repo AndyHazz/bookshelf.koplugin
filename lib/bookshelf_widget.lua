@@ -10649,9 +10649,12 @@ end
 
 -- _inputBusyFor() -> seconds until PAGE_AHEAD_QUIET_S have passed since the
 -- last input; 0 or less when the reader is idle.
-function BookshelfWidget:_inputBusyFor()
-    return PAGE_AHEAD_QUIET_S - (_gettime() - (self._last_input_at or -math.huge))
+function BookshelfWidget:_inputBusyFor(quiet)
+    return (quiet or PAGE_AHEAD_QUIET_S) - (_gettime() - (self._last_input_at or -math.huge))
 end
+-- Other shelves' warm-up: a whole shelf's fetch per step, which no swipe can
+-- get past, so it waits for a longer pause than the page built ahead.
+local CHIP_PRELOAD_QUIET_S = 5
 -- How many pages beyond the one on screen: the second is built from the
 -- first's state once the first is done, so two quick swipes after a pause
 -- both land on finished pages.
@@ -17435,6 +17438,12 @@ end
 -- the last paged direction.
 function BookshelfWidget:_preloadStep()
     if not self._preload_fn then return end   -- cancelled before this tick ran
+    -- Cover decodes in chunks: not while the reader is swiping either.
+    local busy = self:_inputBusyFor()
+    if busy > 0 then
+        UIManager:scheduleIn(busy, self._preload_fn)
+        return
+    end
     if not self._preload_queue then
         self._preload_seen = {}
         self._preload_counters = { decoded = 0, already = 0, failed = 0 }
@@ -17479,6 +17488,16 @@ end
 -- next-page preload to avoid stealing main-thread time mid page-turn.
 function BookshelfWidget:_chipPreloadStep()
     if not self._chip_preload_fn then return end
+    -- Each step can be a whole shelf's fetch (a cold Genres: 0.4-0.7 s on a
+    -- PW5; Decades 0.9 s) and cannot be interrupted: only once the reader
+    -- has stopped for a while, longer than the page built ahead waits (its
+    -- steps are sliced short; these are not). Right after startup, swipes
+    -- landed in them.
+    local busy = self:_inputBusyFor(CHIP_PRELOAD_QUIET_S)
+    if busy > 0 then
+        UIManager:scheduleIn(busy, self._chip_preload_fn)
+        return
+    end
     -- Yield to next-page preload: if it's scheduled or running, defer.
     if self._preload_fn then
         UIManager:scheduleIn(CHIP_PRELOAD_YIELD_S, self._chip_preload_fn)
@@ -17559,11 +17578,9 @@ function BookshelfWidget:_queueWarmForVisible()
     self._chip_preload_counters = self._chip_preload_counters or { decoded = 0, already = 0, failed = 0 }
     local TabModel = require("lib/bookshelf_tab_model")
     for _i, key in ipairs(self:_visibleWarmKeys()) do
-        if key ~= self.chip and not self._warmed_chip_keys[key] then
-            self._warmed_chip_keys[key] = true
-            self._chip_preload_keys[#self._chip_preload_keys + 1] = key
-        end
-        -- A shelf of shelves: each shelf inside it too, one per step.
+        -- A shelf of shelves: each shelf inside it first, one per step, so
+        -- its own step finds them warm. Warmed first, it read all of them
+        -- cold in one step (2.4 s for seven shelves on a PW5).
         local tab = TabModel.getById(key)
         if tab and TabModel.isShelves(tab) then
             for _j, c in ipairs(TabModel.childrenOf(tab.id)) do
@@ -17573,6 +17590,10 @@ function BookshelfWidget:_queueWarmForVisible()
                     self._chip_preload_keys[#self._chip_preload_keys + 1] = sk
                 end
             end
+        end
+        if key ~= self.chip and not self._warmed_chip_keys[key] then
+            self._warmed_chip_keys[key] = true
+            self._chip_preload_keys[#self._chip_preload_keys + 1] = key
         end
     end
     if (#self._chip_preload_keys > 0 or #self._chip_preload_queue > 0)
@@ -17762,6 +17783,13 @@ end
 
 function BookshelfWidget:_filePollTick()
     if not self._file_poll_fn then return end
+    -- Its folder checks (and the rebuild a change brings) wait while the
+    -- reader is swiping, as all background work does (_inputBusyFor).
+    local busy = self._inputBusyFor and self:_inputBusyFor() or 0
+    if busy > 0 then
+        self:_armFilePoll({ interval = busy })
+        return
+    end
     -- Self-correcting visibility guard (#304): the poll is only meant to run
     -- while this widget is the actual foreground thing. It's normally
     -- cancelled via _stopStatusTimer (onCloseWidget / _launchReader /

@@ -35,7 +35,7 @@ local SAFE   = bodyOf("_pageAheadSafe%(%)", "_pageAheadSafe")
 local BUILD  = bodyOf("_pageAheadBuild%(dir, base%)", "_pageAheadBuild")
 local STEP   = bodyOf("_pageAheadStep%(job%)", "_pageAheadStep")
 local CANCEL = bodyOf("_pageAheadCancel%(%)", "_pageAheadCancel")
-local BUSY   = bodyOf("_inputBusyFor%(%)", "_inputBusyFor")
+local BUSY   = bodyOf("_inputBusyFor%(quiet%)", "_inputBusyFor")
 -- The two local helpers, as written.
 local FIELDS = assert(src:match("\n(local function _takeFields%(self%).-\nend\nlocal function _putFields%(self, t%).-\nend)\n"),
     "_takeFields/_putFields moved")
@@ -143,7 +143,7 @@ local function wire(s, PC, top)
     s._pageAheadStep   = method(STEP, ", job", "step")
     s._pageAheadCancel = method(CANCEL, "", "cancel")
     s._pageAheadRun    = method(RUN, "", "run")
-    s._inputBusyFor    = method(BUSY, "", "busy")
+    s._inputBusyFor    = method(BUSY, ", quiet", "busy")
     s._page_gen = 0
     return e.UIManager
 end
@@ -349,6 +349,13 @@ t.test("a row's paint is cut into short steps: its books one at a time", functio
     assert(STEP:find("until job.leaf >= #job.leaves or (_gettime() - t_slice) >= PAGE_AHEAD_SLICE_S", 1, true),
         "a row is still painted in one step")
     assert(RUN:find("pcall(self._spineCachedFetch, self, 400)", 1, true), "an expired list is fetched inside the build step")
+end)
+
+t.test("all the shelf's background work waits for quiet, not only the page built ahead", function()
+    for _i, sig in ipairs({ "_chipPreloadStep%(%)", "_preloadStep%(%)", "_filePollTick%(%)" }) do
+        local b = bodyOf(sig, sig)
+        assert(b:find("_inputBusyFor(", 1, true), sig .. " runs while the reader swipes")
+    end
 end)
 
 t.test("every page turn arms it; spines at once, covers once their covers are warm", function()

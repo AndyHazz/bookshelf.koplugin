@@ -146,6 +146,43 @@ t.test("the background warm-up reaches the shelves inside a shelf of shelves", f
     assert(body("_subShelfCoverFps"):find("{ light_only = true }", 1, true), "tile covers build whole records")
 end)
 
+t.test("a shelf of shelves' own shelves warm one per step BEFORE it, and only after a long pause", function()
+    -- On a PW5 the shelf of shelves' chip, warmed first, read all seven of
+    -- its shelves cold in one 2.4 s step a swipe could not get past.
+    local Q = assert(W:match("\nfunction BookshelfWidget:_queueWarmForVisible%(%)\n(.-)\nend\n"))
+    local scheduled = 0
+    local tabs = {
+        sos = { id = "sos", shelves = true },
+        a = { id = "a" }, b = { id = "b" }, plain = { id = "plain" },
+    }
+    local env = setmetatable({
+        BookshelfSettings = { nilOrTrue = function() return true end },
+        UIManager = { scheduleIn = function() scheduled = scheduled + 1 end },
+        CHIP_PRELOAD_DELAY_S = 1,
+        require = function(n)
+            if n == "lib/bookshelf_tab_model" then
+                return {
+                    getById = function(id) return tabs[id] end,
+                    isShelves = function(t) return t.shelves end,
+                    childrenOf = function(id) if id == "sos" then return { tabs.a, tabs.b } end return {} end,
+                }
+            end
+            return require(n)
+        end,
+    }, { __index = _G })
+    local s = { chip = "plain", _drilldown_path = {} }
+    function s:_visibleWarmKeys() return { "plain", "sos" } end
+    function s:_chipPreloadStep() end
+    compile("local self = ...\n" .. Q, env)(s)
+    eq(table.concat(s._chip_preload_keys, " "), "sub:a sub:b sos",
+        "the shelf of shelves warms before its shelves (all of them cold, in one step)")
+    eq(scheduled, 1)
+    local quiet = tonumber(W:match("local CHIP_PRELOAD_QUIET_S = ([%d%.]+)"))
+    assert(quiet and quiet > tonumber(W:match("local PAGE_AHEAD_QUIET_S = ([%d%.]+)")),
+        "a whole-shelf fetch waits no longer than a sliced page build")
+    assert(body("_chipPreloadStep"):find("self:_inputBusyFor(CHIP_PRELOAD_QUIET_S)", 1, true))
+end)
+
 t.test("a grouped shelf compiles its filter once per pass, not once per group", function()
     local R = io.open("lib/bookshelf_book_repository.lua"):read("*a")
     local f = assert(R:match("\n_shapeHasFilteredBook = function%(shape, filter%)\n(.-)\nend\n"))

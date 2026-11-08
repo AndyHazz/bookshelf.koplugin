@@ -36,17 +36,31 @@ _G._test_db_rows = {}
 -- a fake statement whose rows() iterator walks _test_db_rows. Mirrors
 -- ljsqlite3's actual API where rows() lives on the statement, not the
 -- connection.
+-- A paged statement ("... rowid > ? ... LIMIT n") is honoured: the rows
+-- after the bound rowid (a row's rowid is its index), n at most, rowid
+-- first. _G._test_on_row runs for every row read (a test's read cost).
+_G._test_rows_read = 0
 package.loaded["lua-ljsqlite3/init"] = {
     open = function(_path)
         return {
-            prepare = function(_self, _sql)
+            prepare = function(_self, sql)
+                local paged = sql:find("rowid > ?", 1, true) ~= nil
+                local limit = tonumber(sql:match("LIMIT (%d+)")) or math.huge
+                local with_id = sql:find("^SELECT rowid") ~= nil
+                local after = 0
                 return {
+                    bind = function(_s, v) after = v end,
+                    reset = function() end,
                     rows = function(_self2)
-                        local i = 0
+                        local i, n = paged and after or 0, 0
                         return function()
                             i = i + 1
                             local r = _G._test_db_rows[i]
-                            if not r then return nil end
+                            if not r or n >= limit then return nil end
+                            n = n + 1
+                            _G._test_rows_read = _G._test_rows_read + 1
+                            if _G._test_on_row then _G._test_on_row() end
+                            if with_id then return { i, r.directory, r.filename, r.filemtime, r.filesize } end
                             return { r.directory, r.filename, r.filemtime, r.filesize }
                         end
                     end,
@@ -297,6 +311,56 @@ local function test_no_extraction_when_nothing_purged()
     assertEq(#_G._test_bim_extracted, 0, "no extraction fired when nothing stale")
 end
 
+
+-- A big library on slow storage (discussion 590: 5,900 books, a stat at up
+-- to ~13 ms): the sweep runs in slices of a few milliseconds, the first one
+-- off the startup path, and still checks every row.
+local function test_big_library_sliced_by_time()
+    reset()
+    local clock, queue = 0, {}
+    local real_lfs = package.loaded["libs/libkoreader-lfs"]
+    local attrs = real_lfs.attributes
+    package.loaded["libs/libkoreader-lfs"] = {
+        attributes = function(...) clock = clock + 0.013; return attrs(...) end,
+    }
+    package.loaded["lib/bookshelf_gettime"] = function() return clock end
+    package.loaded["ui/uimanager"] = { scheduleIn = function(_s, _d, fn) queue[#queue + 1] = fn end }
+    -- Reading a row cold: ~1.3 ms on a PW5 (each row's record holds its
+    -- cover, so 2,071 rows read 2.7 s from flash in one SELECT).
+    _G._test_rows_read = 0
+    _G._test_on_row = function() clock = clock + 0.0013 end
+    for i = 1, 300 do
+        _G._test_db_rows[i] = { directory = "/books/", filename = i .. ".epub", filemtime = 1, filesize = 10 }
+        _G._test_files["/books/" .. i .. ".epub"] = { size = (i == 250) and 11 or 10, mtime = 1 }
+    end
+    local ok, err = pcall(function()
+        local Sweep = require("lib/bookshelf_stale_sweep")
+        local stats = Sweep:run()
+        assertEq(stats.scanned, 0, "rows checked inline, before the first scheduled slice")
+        assertEq(_G._test_rows_read, 0, "the rows were read inline, before the first slice")
+        local slices, longest = 0, 0
+        while #queue > 0 do
+            local fn = table.remove(queue, 1)
+            local before, c0 = stats.scanned, clock
+            fn()
+            slices = slices + 1
+            if clock - c0 > longest then longest = clock - c0 end
+            -- Only the last may find nothing left (reading on from a slice
+            -- that stopped on the final row).
+            assert(stats.scanned > before or #queue == 0, "a slice checked nothing")
+        end
+        assertEq(stats.scanned, 300, "every row checked")
+        assertEq(stats.stale, 1, "the changed book found")
+        assert(longest <= 0.04, "a slice held the shelf for " .. longest .. " s")
+        assert(slices >= 100, "rows were checked in big batches")
+    end)
+    package.loaded["libs/libkoreader-lfs"] = real_lfs
+    package.loaded["lib/bookshelf_gettime"] = nil
+    package.loaded["ui/uimanager"] = nil
+    _G._test_on_row = nil
+    if not ok then error(err, 0) end
+end
+
 -- ---------- Runner ----------
 local tests = {
     { "fresh rows left alone",                     test_fresh_rows_left_alone },
@@ -310,6 +374,7 @@ local tests = {
     { "SELECT failure allows retry",               test_select_failure_allows_retry },
     { "purged books queued for re-extraction",     test_purged_books_queued_for_reextraction },
     { "no extraction when nothing purged",         test_no_extraction_when_nothing_purged },
+    { "a big library is checked in short slices",  test_big_library_sliced_by_time },
 }
 
 local failed = 0

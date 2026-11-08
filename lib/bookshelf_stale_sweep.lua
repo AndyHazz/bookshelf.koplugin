@@ -51,66 +51,10 @@ local function _openBimDb()
     return require("lib/bookshelf_bim_db").open()
 end
 
--- run(opts) -- opts.force=true to bypass the once-per-session guard.
--- Returns a small stats table for logging/tests:
---   { scanned=N, stale=N, missing=N }   (missing = row exists but file gone)
-function StaleSweep:run(opts)
-    opts = opts or {}
-    if self._ran and not opts.force then
-        return { scanned = 0, stale = 0, missing = 0, skipped = true }
-    end
-    -- self._ran is set at the SUCCESS path (after the SELECT completes),
-    -- not at entry. If we error out on require/open/SELECT, the next
-    -- init in the same KOReader session can retry. Catches the first-
-    -- deploy race where the sweep module loads before BIM has finished
-    -- its own startup.
-
-    local t0 = _gettime()
-    local stats = { scanned = 0, stale = 0, missing = 0 }
-
-    local ok_bim, BIM = pcall(require, "bookinfomanager")
-    if not (ok_bim and BIM and BIM.deleteBookInfo) then
-        logger.dbg("[bookshelf stale-sweep] BIM unavailable, skipping")
-        return stats
-    end
-
-    local db = _openBimDb()
-    if not db then
-        logger.dbg("[bookshelf stale-sweep] no bookinfo_cache.sqlite3 yet")
-        return stats
-    end
-
-    -- Collect everything first, then close the connection BEFORE we call
-    -- back into BIM (which opens its OWN connection). SQLite on Kindle
-    -- doesn't always tolerate two writers to the same WAL file at once,
-    -- and we want BIM's row deletes to commit cleanly.
-    -- ljsqlite3: :rows() lives on the statement, not the connection.
-    -- Connection has :exec / :rowexec / :prepare; statement-iteration
-    -- requires a prepared :step() loop or a :rows() coroutine on the stmt.
-    local rows = {}
-    local ok_select, select_err = pcall(function()
-        local stmt = db:prepare("SELECT directory, filename, filemtime, filesize FROM bookinfo WHERE in_progress = 0;")
-        for r in stmt:rows() do
-            rows[#rows + 1] = {
-                directory = r[1],
-                filename  = r[2],
-                filemtime = tonumber(r[3]) or 0,
-                filesize  = tonumber(r[4]) or 0,
-            }
-        end
-        stmt:close()
-    end)
-    pcall(function() db:close() end)
-    if not ok_select then
-        logger.warn("[bookshelf stale-sweep] SELECT failed; skipping:", tostring(select_err))
-        return stats
-    end
-    -- Scan succeeded; we've done useful work. Set the once-per-session
-    -- guard now so a transient delete error below doesn't make us
-    -- re-scan 200 rows every init for the rest of the session, while
-    -- still allowing retry if the setup steps above failed.
-    self._ran = true
-
+-- _pass(BIM, stats, t0) -> scanRow(row), finishSweep(): one row's check,
+-- and the purge of what the checks found. Shared by the paged and the
+-- one-SELECT paths.
+function StaleSweep._pass(BIM, stats, t0)
     local stale_paths = {}
     -- Scan one row: an lfs.attributes stat + size compare. Split out so the
     -- chunked path below can drive it across event-loop ticks.
@@ -215,35 +159,149 @@ function StaleSweep:run(opts)
         return stats
     end -- finishSweep
 
-    -- The stat pass is one lfs.attributes per row. On fast flash that's
-    -- ~0.5ms/row, but on slow media (Android SD card, issue 262 suspicion)
-    -- a single synchronous pass over a big library can block the UI loop
-    -- for many seconds right in the middle of startup. When a scheduler is
-    -- available and the library is big, slice the scan across event-loop
-    -- ticks; small libraries and the standalone test runner (no UIManager)
-    -- keep the synchronous path and its return-value contract.
-    local CHUNK_SIZE    = 100
-    local CHUNK_DELAY_S = 0.05
-    local ok_um, UIManager = pcall(require, "ui/uimanager")
-    if ok_um and UIManager and UIManager.scheduleIn and #rows > CHUNK_SIZE then
-        local idx = 1
-        local function step()
-            local last = math.min(idx + CHUNK_SIZE - 1, #rows)
-            for i = idx, last do
-                scanRow(rows[i])
+    return scanRow, finishSweep
+end
+
+-- _runPaged(db, BIM, stats, t0, UIManager): the sweep in time slices, each
+-- reading the next rows (PAGE at a time, by rowid) and checking them until
+-- SLICE_S is up. The statement is reset after every page, so no read is
+-- held open between slices while BIM writes.
+StaleSweep.PAGE = 16
+function StaleSweep:_runPaged(db, BIM, stats, t0, UIManager)
+    local SLICE_S, CHUNK_DELAY_S = 0.025, 0.1
+    local scanRow, finishSweep = StaleSweep._pass(BIM, stats, t0)
+    local PAGE = StaleSweep.PAGE
+    local last, stmt = 0, nil
+    local function closeDb()
+        if stmt then pcall(function() stmt:close() end); stmt = nil end
+        pcall(function() db:close() end)
+    end
+    local function step()
+        local t_slice = _gettime()
+        local finished = false
+        local ok, err = pcall(function()
+            if not stmt then
+                stmt = db:prepare("SELECT rowid, directory, filename, filemtime, filesize FROM bookinfo "
+                    .. "WHERE in_progress = 0 AND rowid > ? ORDER BY rowid LIMIT " .. PAGE .. ";")
             end
-            idx = last + 1
-            if idx <= #rows then
-                UIManager:scheduleIn(CHUNK_DELAY_S, step)
-            else
-                finishSweep()
-            end
+            repeat
+                stmt:reset()
+                stmt:bind(last)
+                local got, cut = 0, false
+                for r in stmt:rows() do
+                    got = got + 1
+                    last = tonumber(r[1]) or last
+                    scanRow({
+                        directory = r[2],
+                        filename  = r[3],
+                        filemtime = tonumber(r[4]) or 0,
+                        filesize  = tonumber(r[5]) or 0,
+                    })
+                    -- A stat can be slow (13 ms on some storage): the time is
+                    -- checked after every row; the next slice reads on from
+                    -- the last one checked.
+                    if (_gettime() - t_slice) >= SLICE_S then cut = true; break end
+                end
+                stmt:reset()
+                if got < PAGE and not cut then finished = true end
+            until finished or cut
+        end)
+        if not ok then
+            logger.warn("[bookshelf stale-sweep] read failed; stopping:", tostring(err))
+            closeDb()
+            -- Nothing read yet: let a later init try again.
+            if stats.scanned == 0 then self._ran = false end
+            return
         end
-        step() -- first chunk inline; the rest ride the scheduler
-        stats.async = true
-        return stats -- partial by design; device callers ignore the return
+        if finished then
+            -- Closed BEFORE BIM's deletes (its own connection).
+            closeDb()
+            finishSweep()
+        else
+            UIManager:scheduleIn(CHUNK_DELAY_S, step)
+        end
+    end
+    UIManager:scheduleIn(CHUNK_DELAY_S, step)
+    stats.async = true
+    return stats -- partial by design; device callers ignore the return
+end
+
+-- run(opts) -- opts.force=true to bypass the once-per-session guard.
+-- Returns a small stats table for logging/tests:
+--   { scanned=N, stale=N, missing=N }   (missing = row exists but file gone)
+function StaleSweep:run(opts)
+    opts = opts or {}
+    if self._ran and not opts.force then
+        return { scanned = 0, stale = 0, missing = 0, skipped = true }
+    end
+    -- self._ran is set at the SUCCESS path (after the SELECT completes),
+    -- not at entry. If we error out on require/open/SELECT, the next
+    -- init in the same KOReader session can retry. Catches the first-
+    -- deploy race where the sweep module loads before BIM has finished
+    -- its own startup.
+
+    local t0 = _gettime()
+    local stats = { scanned = 0, stale = 0, missing = 0 }
+
+    local ok_bim, BIM = pcall(require, "bookinfomanager")
+    if not (ok_bim and BIM and BIM.deleteBookInfo) then
+        logger.dbg("[bookshelf stale-sweep] BIM unavailable, skipping")
+        return stats
     end
 
+    local db = _openBimDb()
+    if not db then
+        logger.dbg("[bookshelf stale-sweep] no bookinfo_cache.sqlite3 yet")
+        return stats
+    end
+
+    -- With a scheduler: the rows are read a page at a time in the sweep's
+    -- own slices, not in one SELECT here. Each row's record holds its
+    -- cover, so one SELECT read the whole table from flash: 2.7 s for
+    -- 2,071 books on a PW5 with a cold cache (0.5 s at a real startup),
+    -- in the startup path, nothing able to get past it.
+    local ok_um, UIManager = pcall(require, "ui/uimanager")
+    if ok_um and UIManager and UIManager.scheduleIn then
+        -- Counted as run now: a second init before the first slice must
+        -- not start another (a failure below clears it again).
+        self._ran = true
+        return self:_runPaged(db, BIM, stats, t0, UIManager)
+    end
+
+    -- Collect everything first, then close the connection BEFORE we call
+    -- back into BIM (which opens its OWN connection). SQLite on Kindle
+    -- doesn't always tolerate two writers to the same WAL file at once,
+    -- and we want BIM's row deletes to commit cleanly.
+    -- ljsqlite3: :rows() lives on the statement, not the connection.
+    -- Connection has :exec / :rowexec / :prepare; statement-iteration
+    -- requires a prepared :step() loop or a :rows() coroutine on the stmt.
+    local rows = {}
+    local ok_select, select_err = pcall(function()
+        local stmt = db:prepare("SELECT directory, filename, filemtime, filesize FROM bookinfo WHERE in_progress = 0;")
+        for r in stmt:rows() do
+            rows[#rows + 1] = {
+                directory = r[1],
+                filename  = r[2],
+                filemtime = tonumber(r[3]) or 0,
+                filesize  = tonumber(r[4]) or 0,
+            }
+        end
+        stmt:close()
+    end)
+    pcall(function() db:close() end)
+    if not ok_select then
+        logger.warn("[bookshelf stale-sweep] SELECT failed; skipping:", tostring(select_err))
+        return stats
+    end
+    -- Scan succeeded; we've done useful work. Set the once-per-session
+    -- guard now so a transient delete error below doesn't make us
+    -- re-scan 200 rows every init for the rest of the session, while
+    -- still allowing retry if the setup steps above failed.
+    self._ran = true
+
+    local scanRow, finishSweep = StaleSweep._pass(BIM, stats, t0)
+
+    -- No scheduler (the standalone tests): one pass.
     for _i, r in ipairs(rows) do
         scanRow(r)
     end

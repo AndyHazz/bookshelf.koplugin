@@ -1137,6 +1137,23 @@ end
 -- Decades list page's ~90 were made again on nearly every visit, pulling
 -- each source cover in from disk and pushing other shelves' covers out
 -- (0.7 s of a 1.4 s shelf switch on a PW5).
+-- _sameShape(bb, w, h) -> whether a cached copy can stand in for a w x h
+-- slot: its shape (h/w) within SAME_SHAPE_TOL of the slot's. The cover cache
+-- keeps one copy per book, made for whichever slot asked first, and a fill
+-- copy is cropped or stretched to that slot's shape: a cover-grid cell's
+-- copy of a landscape strip collection is a portrait crop of it. Reused for
+-- a slot of another shape (a spine shelf's face-out of that book) it was
+-- stretched across. The tolerance keeps ordinary covers sharing as before:
+-- a face-out box follows its own cover's shape, 1.46 beside 1.50.
+local SAME_SHAPE_TOL = 0.04
+local function _sameShape(bb, w, h)
+    local bw, bh = bb:getWidth(), bb:getHeight()
+    if not (bw and bh and bw > 0 and w > 0 and h > 0) then return false end
+    local a, b = bh / bw, h / w
+    return math.abs(a - b) <= SAME_SHAPE_TOL * b
+end
+SpineWidget._sameShape = _sameShape
+
 local function _thumbFor(fp, src, w, h)
     local kept = ScaledCoverCache:getSized(fp, w, h)
     if kept then return kept end
@@ -2331,6 +2348,11 @@ function SpineWidget:_renderCover(bb)
     end
     if fp then
         local cached = ScaledCoverCache:get(fp)
+        -- A copy made for a slot of another shape is no use here, at any
+        -- size (_sameShape): this slot is made from the cover itself.
+        if cached and self.cover_fill and not _sameShape(cached, img_w, img_h) then
+            cached = nil
+        end
         cached_any = cached
         if cached
                 and cached:getWidth()  >= img_w
@@ -2489,6 +2511,12 @@ function SpineWidget:_renderCover(bb)
             -- disposable on the ImageWidget below ONLY when we use it
             -- (we never do — we always use the return value).
             local effective = ScaledCoverCache:put(fp, scaled_bb)
+            -- put() keeps a larger copy it already holds, and that one may
+            -- be another slot's shape: then this slot's copy is kept on its
+            -- own, by size (getSized above finds it next time).
+            if effective ~= scaled_bb and not _sameShape(effective, img_w, img_h) then
+                effective = ScaledCoverCache:putSized(fp, img_w, img_h, scaled_bb)
+            end
             local img_args = {
                 image            = effective,
                 image_disposable = false,  -- cache owns lifetime

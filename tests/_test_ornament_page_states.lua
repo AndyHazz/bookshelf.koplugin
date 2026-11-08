@@ -27,6 +27,9 @@ local function stub(cursor, skip)
     self._spineSkip = function() return skip or 0 end
     self._nShelves = function() return 2 end
     self._ornSig = function() return "sig" end
+    -- The state kept across a restart (_test_orn_resume): none here.
+    self._ornRemember = function() end
+    self._ornSaved = function() return nil end
     self._ornKey = method("_ornKey")
     self._ornFirstState = method("_ornFirstState")
     self._ornDrill = function(me) return me.drill end

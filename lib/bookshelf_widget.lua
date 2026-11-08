@@ -8497,7 +8497,11 @@ function BookshelfWidget:_spineItemsSig(items)
     local parts = {}
     for i = 1, #(items or {}) do
         local it = items[i]
-        local id = type(it) == "table" and (it.filepath or it.path or it.name or it.text) or it
+        -- A shelf module among the books by its id: by its table, the name
+        -- held for one session only (a start reusing a page's ornament deal,
+        -- _ornSaved, never matched).
+        local id = type(it) == "table" and (it.filepath or it.path or it.name or it.text
+            or (type(it.shelf_module) == "table" and ("module:" .. tostring(it.shelf_module.id)))) or it
         local n = type(it) == "table" and it.books and #it.books or 0
         parts[i] = tostring(id) .. "#" .. n
         if type(it) == "table" and (it._series_box or it._series_display_books) then
@@ -8712,14 +8716,30 @@ function BookshelfWidget:_ornStartState(dims)
         c.orn_sig, c.orn_epoch = sig, Deck.epoch()
     end
     if cur <= 1 and skip == 0 then return self:_ornFirstState() end
-    if c.page_orn[key] then return Deck.copyState(c.page_orn[key]) end
+    if c.page_orn[key] then
+        local st = Deck.copyState(c.page_orn[key])
+        self:_ornRemember(key, st, dims)
+        return st
+    end
+    -- The state the last session rendered this page with, when nothing it
+    -- rests on has changed since (_ornRemember): a start on a later page
+    -- laid out every page before it to find this (0.3-0.45 s on a PW3).
+    local saved = self:_ornSaved(key, dims)
+    if saved then
+        c.page_orn[key] = Deck.copyState(saved)
+        return saved
+    end
     -- Built if need be, though it lays out every page before this one: the
     -- deal has to be exact from the first page, or a piece a reader placed
     -- (swap, the saved order) turns up somewhere else and a later page
     -- repeats an earlier one's pieces.
     self:_spinePageFirsts(true, dims)
     c = self._spine_fetch_cache or c
-    if c.page_orn and c.page_orn[key] then return Deck.copyState(c.page_orn[key]) end
+    if c.page_orn and c.page_orn[key] then
+        local st = Deck.copyState(c.page_orn[key])
+        self:_ornRemember(key, st, dims)
+        return st
+    end
     -- No map (a windowed source) or it disagrees: the nearest page before.
     local best, best_c
     for k, st in pairs(c.page_orn or {}) do
@@ -8737,6 +8757,74 @@ function BookshelfWidget:_ornStartState(dims)
     local st = best and Deck.copyState(best) or Deck.newState()
     c.page_orn[key] = Deck.copyState(st)
     return st
+end
+
+-- _ornSavedSig(key, dims) -> a fingerprint, by content, of everything the
+-- deal state of the page at key rests on: the shelf and its list, the
+-- deck's saved order and level, the theme, the rows per page and the page's
+-- size. Unlike _ornSig (by identity, for within a session) it holds across
+-- a restart. nil when any of it is not known yet.
+function BookshelfWidget:_ornSavedSig(key, dims)
+    local c = self._spine_fetch_cache
+    local d = dims or self._shelf_dims
+    if not (c and c.key and c.items_sig and d and d.content_w and d.shelf_h) then return nil end
+    -- Anything in the list named by a table's address: no later session
+    -- could match it.
+    if c.items_sig:find("table: ", 1, true) then return nil end
+    local ok, deck = pcall(function()
+        local Orn = require("lib/bookshelf_ornaments")
+        local Deck = require("lib/bookshelf_ornament_deck")
+        local TP = require("lib/bookshelf_theme_pack")
+        local names = {}
+        for i, e in ipairs(Deck.order(Orn.listFor(TP.ornamentsFor(self.chip)), self.chip)) do names[i] = e.name end
+        return table.concat({ Deck.levelOf(Orn.frequency()), table.concat(names, "\1"),
+            TP.shelfKey and TP.shelfKey() or "" }, "\3")
+    end)
+    if not ok then return nil end
+    -- Kept as a digest: the list's fingerprint holds every book's path, and
+    -- the record is written with the settings file. The list's own digest
+    -- once per list.
+    local digest = BookshelfWidget._digest
+    if c.items_digest_of ~= c.items_sig then
+        c.items_digest, c.items_digest_of = digest(c.items_sig), c.items_sig
+    end
+    return digest(table.concat({ tostring(c.key), c.items_digest, deck, tostring(self:_nShelves()),
+        tostring(d.content_w), tostring(d.shelf_h), tostring(key) }, "\2"))
+end
+
+-- _digest(s) -> a short fixed-length name for s: MD5 (KOReader's ffi/sha2),
+-- or a 32-bit hash where that is not there (the standalone tests).
+function BookshelfWidget._digest(s)
+    local ok, sha2 = pcall(require, "ffi/sha2")
+    if ok and type(sha2) == "table" and sha2.md5 then return sha2.md5(s) end
+    local h = 5381
+    for i = 1, #s do h = (h * 33 + s:byte(i)) % 4294967296 end
+    return string.format("%08x", h)
+end
+
+-- _ornRemember(key, st, dims): the deal state the page at key is rendered
+-- with, kept for the next session's start on it (_ornSaved). In memory;
+-- written with the next settings flush (a page turn, exit or suspend).
+function BookshelfWidget:_ornRemember(key, st, dims)
+    -- Not a page built ahead: the one on screen is what a start reopens.
+    if BookshelfWidget._ahead_running then return end
+    local last = self._orn_remembered
+    if last and last.key == key and last.n == st.n and last.shelf == st.shelf and last.bnd == st.bnd then return end
+    local sig = self:_ornSavedSig(key, dims)
+    if not sig then return end
+    local rec = { key = key, sig = sig, n = st.n, shelf = st.shelf, bnd = st.bnd }
+    self._orn_remembered = rec
+    BookshelfSettings.saveDeferred("orn_resume", rec)
+end
+
+-- _ornSaved(key, dims) -> the deal state remembered for the page at key, or
+-- nil when there is none or anything it rests on has changed.
+function BookshelfWidget:_ornSaved(key, dims)
+    local rec = BookshelfSettings.read("orn_resume")
+    if type(rec) ~= "table" or rec.key ~= key then return nil end
+    if rec.sig ~= self:_ornSavedSig(key, dims) then return nil end
+    local Deck = require("lib/bookshelf_ornament_deck")
+    return Deck.copyState({ n = tonumber(rec.n) or 0, shelf = tonumber(rec.shelf) or 0, bnd = tonumber(rec.bnd) or 0 })
 end
 
 -- _dropOrnPages(keep_current): after a change to a piece's size or padding,
@@ -10868,8 +10956,10 @@ function BookshelfWidget:_pageAheadComposeStep(job, real)
         _putFields(self, job.sim)
     end
     local t_slice = _gettime()
+    BookshelfWidget._ahead_running = true
     local finished, ok, err = require("lib/bookshelf_slice").step(job.compose,
         function() return (_gettime() - t_slice) >= PAGE_AHEAD_SLICE_S end)
+    BookshelfWidget._ahead_running = nil
     local sim = _takeFields(self)
     _putFields(self, real)
     job.sim = sim

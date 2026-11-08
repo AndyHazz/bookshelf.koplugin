@@ -909,7 +909,9 @@ function BookshelfWidget:_flushNavStateNow()
     end
     if self._nav_dirty then
         self._nav_dirty = nil
-        BookshelfSettings.flush()
+        -- The place's own small file, and the main one only when a
+        -- deferred main key is waiting (bookshelf_settings_store).
+        BookshelfSettings.flushPending()
     end
 end
 

@@ -45,7 +45,8 @@ local OD = "/x/bookshelf/ornament_decks.lua"
 fileData(MAIN).migrated            = true
 fileData(MAIN).micromodule_foo_bar = "hello"
 fileData(MAIN).hardcover_links     = { ["/b.epub"] = { edition = 42 } }
-fileData(MAIN).active_chip         = "recent"
+fileData(MAIN).active_chip         = "recent"   -- the place: its own file now
+fileData(MAIN).chip_font_scale     = 110        -- an ordinary key
 -- The ornament decks: 208 KB of a 272 KB file on a PW5, rewritten with every
 -- preference saved. And three keys module_cache took over, left behind.
 fileData(MAIN).ornament_decks      = { all = { "a.png", "b.png" } }
@@ -78,8 +79,9 @@ t.test("first access relocates routed keys to their own files", function()
     end
     assert(fileData(MAIN).aux_data_relocated_v3 == true,
         "relocation must set its one-shot flag")
-    assert(fileData(MAIN).active_chip == "recent",
+    assert(fileData(MAIN).chip_font_scale == 110,
         "ordinary keys must be untouched by relocation")
+    assert(Store.read("active_chip") == "recent", "the shelf's place was lost in the move")
 end)
 
 t.test("hardcover_links reads/writes route to the HC file, not the main file", function()

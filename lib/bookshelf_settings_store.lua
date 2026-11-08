@@ -100,8 +100,35 @@ local function od()
     _od = _od or require("lib/bookshelf_file_store").new(Paths.settingsFile("ornament_decks.lua"))
     return _od
 end
+-- The shelf's place: which shelf, which page, the drill and the ornament
+-- deal of that page (orn_resume). Saved after every bout of paging, and in
+-- the main file each save rewrote all of it (48 KB on a PW5, twice with its
+-- backup) for a few numbers. Its own small file; read from the main file
+-- until first saved there (an upgrade keeps its place).
+local POSITION_KEYS = {
+    active_chip = true, active_cursor = true, active_page = true,
+    drill_path = true, orn_resume = true,
+}
+local _pos
+local function pos()
+    _pos = _pos or require("lib/bookshelf_file_store").new(Paths.settingsFile("position.lua"))
+    return _pos
+end
+-- A deferred write to the main file waiting for a flush (flushPending).
+local _main_pending = false
+-- The first write of a place key to its own file takes the main file's copy
+-- out (in memory; it goes with the next main write), or clearing the key
+-- would read the old place back from there.
+local function _dropOldPlace(s, key)
+    if POSITION_KEYS[key] and s:readSetting(key) ~= nil then
+        s:delSetting(key)
+        _main_pending = true
+    end
+end
+
 local function subStoreFor(key)
     if type(key) ~= "string" then return nil end
+    if POSITION_KEYS[key] then return pos() end
     if key == "ornament_decks" then return od() end
     if key:sub(1, 12) == "micromodule_" then return mm() end
     if key == "hardcover_links" then return hc() end
@@ -253,7 +280,14 @@ function Store.bump() _generation = _generation + 1 end
 
 function Store.read(key, default)
     local sub = subStoreFor(key)
-    if sub then _open(); return sub.read(key, default) end
+    if sub then
+        local s = _open()
+        local v = sub.read(key)
+        -- The place as an earlier version kept it, until first saved here.
+        if v == nil and POSITION_KEYS[key] then v = s:readSetting(key) end
+        if v == nil then return default end
+        return v
+    end
     local v = _open():readSetting(key)
     if v == nil then return default end
     return v
@@ -262,8 +296,10 @@ end
 function Store.save(key, value)
     local s = _open()
     local sub = subStoreFor(key)
+    if sub then _dropOldPlace(s, key) end
     if sub then sub.save(key, value); _generation = _generation + 1; return end
     s:saveSetting(key, value)
+    _main_pending = false   -- flushed just below, with anything deferred
     -- LuaSettings:saveSetting only updates the in-memory table; the
     -- file isn't touched until flush() runs. Relying on KOReader's
     -- shutdown hook is fragile: KOReader can be SIGTERM-killed
@@ -351,14 +387,17 @@ end
 function Store.saveDeferred(key, value)
     local s = _open()
     local sub = subStoreFor(key)
+    if sub then _dropOldPlace(s, key) end
     if sub then sub.saveDeferred(key, value); _generation = _generation + 1; return end
     s:saveSetting(key, value)
+    _main_pending = true
     _generation = _generation + 1
 end
 
 function Store.delete(key)
     local s = _open()
     local sub = subStoreFor(key)
+    if sub then _dropOldPlace(s, key) end
     if sub then sub.delete(key); _generation = _generation + 1; return end
     s:delSetting(key)
     s:flush()
@@ -367,6 +406,19 @@ end
 
 function Store.flush()
     if _settings then _settings:flush() end
+    _main_pending = false
+    if _pos then _pos.flush() end
+end
+
+-- flushPending(): what saveDeferred left in memory: the place's own file,
+-- and the main file only when a deferred main key is waiting. The shelf's
+-- paging save (a pinch's columns ride it too).
+function Store.flushPending()
+    if _pos then _pos.flush() end
+    if _main_pending and _settings then
+        _settings:flush()
+        _main_pending = false
+    end
 end
 
 function Store.isTrue(key)

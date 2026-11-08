@@ -34,6 +34,7 @@ local RUN    = bodyOf("_pageAheadRun%(%)", "_pageAheadRun")
 local SAFE   = bodyOf("_pageAheadSafe%(%)", "_pageAheadSafe")
 local BUILD  = bodyOf("_pageAheadBuild%(dir, base%)", "_pageAheadBuild")
 local STEP   = bodyOf("_pageAheadStep%(job%)", "_pageAheadStep")
+local COMPOSE = bodyOf("_pageAheadComposeStep%(job, real%)", "_pageAheadComposeStep")
 local CANCEL = bodyOf("_pageAheadCancel%(%)", "_pageAheadCancel")
 local BUSY   = bodyOf("_inputBusyFor%(quiet%)", "_inputBusyFor")
 -- The two local helpers, as written.
@@ -58,9 +59,11 @@ local function env(PC, top)
                 return { getById = function() return { source = { kind = "all" } } end }
             end
             if name == "lib/bookshelf_sources" then return { get = function() return nil end } end
+            if name == "lib/bookshelf_slice" then return require(name) end
             error("unexpected require " .. name)
         end,
-        _gettime = function() return 0 end,
+        _gettime = function() return _G._TEST_NOW and _G._TEST_NOW() or 0 end,
+        coroutine = coroutine,
         PAGE_AHEAD_QUIET_S = 1.0, PAGE_AHEAD_STEP_S = 0.05, PAGE_AHEAD_SLICE_S = 0.08, PAGE_AHEAD_DEPTH = _G._TEST_DEPTH or 1,
         logger = { dbg = function() end, warn = function() end },
         UIManager = { getTopmostVisibleWidget = function() return top end,
@@ -110,6 +113,14 @@ local function shelf(opts)
         self._spine_next_item = 17           -- what a build sets on the shelf
         self._page_items = { "b9" }
         if opts.cached then return { cached = true } end
+        if opts.sliced then
+            -- Two rows' covers, each a decode that may pause the build.
+            opts.compose_runs = (opts.compose_runs or 0) + 1
+            require("lib/bookshelf_slice").check()
+            opts.rows_built = (opts.rows_built or 0) + 1
+            require("lib/bookshelf_slice").check()
+            opts.rows_built = opts.rows_built + 1
+        end
         return { d = self._shelf_dims, n_shelves = 2, items = { "b9" }, rows = { "row9a", "row9b" }, key = "k9" }
     end
     s._footerAnchor = function() return "new footer" end
@@ -141,6 +152,7 @@ local function wire(s, PC, top)
     s._pageAheadSafe   = method(SAFE, "", "safe")
     s._pageAheadBuild  = method(BUILD, ", dir, base", "build")
     s._pageAheadStep   = method(STEP, ", job", "step")
+    s._pageAheadComposeStep = method(COMPOSE, ", job, real", "compose")
     s._pageAheadCancel = method(CANCEL, "", "cancel")
     s._pageAheadRun    = method(RUN, "", "run")
     s._inputBusyFor    = method(BUSY, ", quiet", "busy")
@@ -208,6 +220,41 @@ t.test("a failed paint keeps nothing and frees what it built", function()
     eq(PC.freed[1].rows[1], "row9a")
     eq(s._cursor, before._cursor)
     eq(s._overlap_group[1], "old footer")
+end)
+
+t.test("a page whose covers take longer than a step is built over several, the shelf untouched between", function()
+    local PC = cacheStub()
+    local opts = { sliced = true }
+    local s = shelf(opts)
+    local before = snapshot(s)
+    local now = 0
+    _G._TEST_NOW = function() now = now + 0.05; return now end   -- every clock read: 50 ms on
+    local um = wire(s, PC, s)
+    local steps, paused_seen = 0, false
+    local function look()
+        local job = s._page_ahead_job
+        if job and job.compose then
+            paused_seen = true
+            eq(s._cursor, before._cursor, "a paused build left its cursor on the shelf")
+            eq(s._spine_next_item, before._spine_next_item, "a paused build left its page state on the shelf")
+        end
+    end
+    s:_pageAheadRun()
+    look()
+    while tick(um) do
+        steps = steps + 1
+        assert(steps < 40, "never finished")
+        look()
+    end
+    _G._TEST_NOW = nil
+    assert(paused_seen, "the build never paused between covers")
+    eq(opts.compose_runs, 1, "the page was composed again from the start")
+    eq(opts.rows_built, 2)
+    eq(#PC.kept, 1, "the page was not kept once built")
+    eq(PC.kept[1].state._spine_next_item, 17)
+    for k, v in pairs(before) do
+        if not k:match("^_page_ahead") then eq(s[k], v, k .. " was not put back") end
+    end
 end)
 
 t.test("a page already kept is not built again", function()
@@ -313,7 +360,7 @@ t.test("after a pause, the page after the next is built too, from where the next
 end)
 
 t.test("a Spines list the build fetched again is kept, with the deal state it recorded", function()
-    assert(BUILD:find("if c_new and c_new ~= c_old and (not c_old or c_new.key == c_old.key) then", 1, true),
+    assert(COMPOSE:find("if c_new and c_new ~= c_old and (not c_old or c_new.key == c_old.key) then", 1, true),
         "the newer list was put back with the rest, and the next page laid out the whole shelf")
 end)
 

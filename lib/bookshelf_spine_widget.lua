@@ -15,6 +15,8 @@ local BookshelfSettings = require("lib/bookshelf_settings_store")
 local ScaledCoverCache = require("lib/bookshelf_scaled_cover_cache")
 -- The cheaper scaler for each cover (MuPDF or the Lua loop): bookshelf_scale.
 local _scaleCover = require("lib/bookshelf_scale").cover
+-- A pause point for work run in steps (bookshelf_slice): before a decode.
+local _sliceCheck = require("lib/bookshelf_slice").check
 local HeroTier         = require("lib/bookshelf_hero_tier")
 local BFont           = require("lib/bookshelf_fonts")
 local FrameContainer  = require("ui/widget/container/framecontainer")
@@ -2399,6 +2401,9 @@ function SpineWidget:_renderCover(bb)
             bb = HeroTier:take(fp)
         end
         if not bb then
+            -- A decode is a natural pause for a page built in steps
+            -- (bookshelf_slice); anywhere else this does nothing.
+            _sliceCheck()
             bb = fp and _getRepo().getCoverBB(fp)
         end
         if not bb and cached_any then
@@ -2685,6 +2690,7 @@ function SpineWidget:_renderCoverAlignTop(card_w, card_h, border, img_w, img_h)
                     scale_factor     = 1,
                 }
             else
+                _sliceCheck()   -- see the grid decode
                 bb, owned = fp and _getRepo().getCoverBB(fp), true
             end
         end

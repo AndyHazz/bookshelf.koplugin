@@ -6975,6 +6975,8 @@ function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD, n_rows)
         local row = ShelfRow.new(row_opts)
         if #heads > 0 then row = self:_moduleRow(row, heads) end
         rows[r] = row
+        -- Between rows, a page built ahead in steps may pause.
+        require("lib/bookshelf_slice").check()
     end
     return rows
 end
@@ -10744,7 +10746,12 @@ function BookshelfWidget:_pageAheadRun()
         self:_pageAheadCancel()
         return
     end
-    if job then
+    if job and job.compose then
+        -- Still composing: on with it, then (next step) its rows.
+        job = self:_pageAheadComposeStep(job)
+        self._page_ahead_job = job
+        if not job then return end
+    elseif job then
         if self:_pageAheadStep(job) then
             self._page_ahead_job = nil
             -- The page after it, built from where that one ends: in a step
@@ -10823,7 +10830,6 @@ end
 -- The shelf itself is left as it was. nil when there is nothing to build: no
 -- page that way, or one the cache holds already.
 function BookshelfWidget:_pageAheadBuild(dir, base)
-    local t0 = _gettime()
     self:_ornScanWindow()
     local real = _takeFields(self)
     if base then _putFields(self, base) end
@@ -10840,14 +10846,33 @@ function BookshelfWidget:_pageAheadBuild(dir, base)
         for i, v in ipairs(self._spine_hist) do h[i] = v end
         self._spine_hist = h
     end
-    local page
-    local ok, err = pcall(function()
+    -- Composed in steps (Slice): each cover a row decodes may pause it once
+    -- the step's time is up. Composed in one go it was 0.5-0.8 s on a
+    -- Series shelf on a PW5, nothing able to get past it.
+    local job = { dir = dir, row = 0, t0 = _gettime() }
+    job.compose = require("lib/bookshelf_slice").start(function()
         self:_advanceCursor(dir)
         self:_syncPageFromCursor()
-        page = self:_pageCompose(true, true)
+        job.page = self:_pageCompose(true, true)
     end)
+    return self:_pageAheadComposeStep(job, real)
+end
+
+-- _pageAheadComposeStep(job[, real]) -> the job, or nil when there is no
+-- page to build after all. Runs the compose until it finishes or pauses,
+-- with the shelf's fields as the build left them (real: the shelf's own,
+-- when the caller has already swapped them out), and puts them back.
+function BookshelfWidget:_pageAheadComposeStep(job, real)
+    if not real then
+        real = _takeFields(self)
+        _putFields(self, job.sim)
+    end
+    local t_slice = _gettime()
+    local finished, ok, err = require("lib/bookshelf_slice").step(job.compose,
+        function() return (_gettime() - t_slice) >= PAGE_AHEAD_SLICE_S end)
     local sim = _takeFields(self)
     _putFields(self, real)
+    job.sim = sim
     -- Except the Spines list, when the build fetched it again (its 30 s
     -- were up): the newer list holds the deal state recorded for the page
     -- after this one. Putting the older one back threw that away, and the
@@ -10859,13 +10884,17 @@ function BookshelfWidget:_pageAheadBuild(dir, base)
     end
     if not ok then
         logger.warn("[bookshelf] building the next page ahead failed:", tostring(err))
+        local page = job.page
         if page and page.rows then require("lib/bookshelf_page_cache")._free({ rows = page.rows }) end
         return nil
     end
+    if not finished then return job end
+    job.compose = nil
+    local page = job.page
     if not page or page.cached or not page.rows then return nil end
     logger.dbg(string.format("[bookshelf perf] page ahead: built rows in %.0fms dir=%d chip=%s",
-        (_gettime() - t0) * 1000, dir, tostring(self.chip)))
-    return { page = page, sim = sim, row = 0 }
+        (_gettime() - job.t0) * 1000, job.dir, tostring(self.chip)))
+    return job
 end
 
 -- _pageAheadStep(job) -> true when the job is over: one row painted alone

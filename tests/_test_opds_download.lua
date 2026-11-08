@@ -122,6 +122,17 @@ package.loaded["util"] = {
         end
     end,
 }
+-- KOReader's DocumentRegistry, as far as the filename code asks it: can a
+-- file with this suffix be opened. The extensions its providers register.
+local OPENABLE = {}
+for ext in ("epub epub3 fb2 fb3 mobi azw azw3 pdb prc pdf xps oxps djvu djv cbz cbr cbt "
+        .. "doc docx odt rtf chm txt html htm xhtml xml zip htmlz"):gmatch("%S+") do OPENABLE[ext] = true end
+package.loaded["document/documentregistry"] = {
+    hasProvider = function(_self, file)
+        local ext = type(file) == "string" and file:match("%.([^.]+)$")
+        return ext ~= nil and OPENABLE[ext:lower()] == true
+    end,
+}
 package.loaded["logger"] = { dbg = function() end, info = function() end,
                              warn = function() end, err = function() end }
 
@@ -332,6 +343,19 @@ t.test("the feed filter and the download extension map are ONE table", function(
         assert(type(ext) == "string" and ext ~= "" and not ext:find("^%."),
             mtype .. " extension must be a bare suffix, got " .. tostring(ext))
     end
+end)
+
+-- #592: a comics catalog labels its CBZs application/zip. KOReader's own
+-- browser takes the link's suffix first when it can open that kind of file,
+-- and the type only after (OPDSBrowser.getFiletype); a .zip is not a comic,
+-- so the book never showed on the shelf.
+t.test("filenameFor: a link's own openable suffix wins over its type (#592)", function()
+    local rec = { title = "Vol 1" }
+    eq(D.filenameFor(rec, { type = "application/zip", href = "http://x/files/vol1.cbz" }), "Vol 1.cbz")
+    eq(D.filenameFor(rec, { type = "application/zip", href = "http://x/files/vol1.CBZ?token=9" }), "Vol 1.cbz")
+    -- A suffix KOReader cannot open is not a format: the type decides.
+    eq(D.filenameFor(rec, { type = "application/epub+zip", href = "http://x/get.php?id=3" }), "Vol 1.epub")
+    eq(D.filenameFor(rec, { type = "application/epub+zip", href = "http://x/book/3" }), "Vol 1.epub")
 end)
 
 t.test("filenameFor: unknown type falls back to the URL path's own extension", function()

@@ -159,10 +159,14 @@ end
 -- util.getSafeFilename(name, dir) once it has picked dest_path's directory,
 -- for the length limit and the filesystem-specific pass.
 --
--- Extension: EXT_BY_TYPE keyed on acq.type; failing that, the acquisition
--- URL's own path suffix when it looks like a short extension (a dot
--- followed by 1-4 word characters at the end of the path, query/fragment
--- stripped); failing that, ".bin".
+-- Extension, in KOReader's own browser's order (OPDSBrowser.getFiletype):
+-- the acquisition URL's own path suffix when KOReader can open that kind of
+-- file; failing that, EXT_BY_TYPE keyed on acq.type; failing that, the
+-- path's suffix when it looks like a short extension (a dot followed by 1-4
+-- word characters at the end of the path, query/fragment stripped); failing
+-- that, ".bin". The link's suffix comes first because a type can be less
+-- specific than the file: a comics catalog serves its CBZs as
+-- application/zip, and saved as .zip they never showed as comics (#592).
 function D.filenameFor(rec, acq)
     local title = rec and (rec.title or rec.display_title)
     if type(title) ~= "string" or title == "" then title = "book" end
@@ -198,15 +202,21 @@ function D.filenameFor(rec, acq)
     local util = require("util")
     title = util.replaceAllInvalidChars(title) or title
 
-    local mtype = acq and acq.type
-    local ext = (type(mtype) == "string") and EXT_BY_TYPE[mtype] or nil
-    if not ext then
-        local href = acq and acq.href
-        if type(href) == "string" then
-            local path = href:match("^([^?#]*)") or href
-            ext = path:match("%.(%w%w?%w?%w?)$")
+    local href = acq and acq.href
+    local suffix
+    if type(href) == "string" then
+        local path = href:match("^([^?#]*)") or href
+        suffix = path:match("%.(%w%w?%w?%w?)$")
+    end
+    local ext
+    if suffix then
+        local ok_reg, DocumentRegistry = pcall(require, "document/documentregistry")
+        if ok_reg and DocumentRegistry and DocumentRegistry:hasProvider("dummy." .. suffix:lower()) then
+            ext = suffix:lower()
         end
     end
+    local mtype = acq and acq.type
+    ext = ext or ((type(mtype) == "string") and EXT_BY_TYPE[mtype] or nil) or suffix
     return title .. "." .. (ext or "bin")
 end
 

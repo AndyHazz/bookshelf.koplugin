@@ -17255,6 +17255,22 @@ function BookshelfWidget:_chipPreloadStep()
     if #q == 0 and #keys > 0 then
         local key = table.remove(keys, 1)
         local w, h = self:_currentSlotDims()
+        local sub = type(key) == "string" and key:match("^sub:(.+)$")
+        if sub then
+            -- A shelf inside a shelf of shelves in the bar: what its tile
+            -- reads (_subShelfItems), so opening the shelf of shelves does
+            -- not build each one's groups cold. On a PW5, genres and authors
+            -- were ~1 s of a 1.4 s first open, however long after startup.
+            local tab = require("lib/bookshelf_tab_model").getById(sub)
+            if tab then
+                local _t0 = _gettime()
+                pcall(self._subShelfCoverFps, self, tab, 4)
+                pcall(self._subShelfMemberFps, self, tab)
+                logger.dbg(string.format("[bookshelf perf] preload-chips: shelf %s in %.0fms",
+                    tostring(sub), (_gettime() - _t0) * 1000))
+            end
+            w = nil
+        end
         if w then
             local _qb_t0 = _gettime()
             pcall(self._collectPageCovers, self, q, self._chip_preload_seen, key, 1, w, h)
@@ -17301,10 +17317,22 @@ function BookshelfWidget:_queueWarmForVisible()
     self._chip_preload_queue    = self._chip_preload_queue    or {}
     self._chip_preload_seen     = self._chip_preload_seen     or {}
     self._chip_preload_counters = self._chip_preload_counters or { decoded = 0, already = 0, failed = 0 }
+    local TabModel = require("lib/bookshelf_tab_model")
     for _i, key in ipairs(self:_visibleWarmKeys()) do
         if key ~= self.chip and not self._warmed_chip_keys[key] then
             self._warmed_chip_keys[key] = true
             self._chip_preload_keys[#self._chip_preload_keys + 1] = key
+        end
+        -- A shelf of shelves: each shelf inside it too, one per step.
+        local tab = TabModel.getById(key)
+        if tab and TabModel.isShelves(tab) then
+            for _j, c in ipairs(TabModel.childrenOf(tab.id)) do
+                local sk = "sub:" .. tostring(c.id)
+                if not self._warmed_chip_keys[sk] then
+                    self._warmed_chip_keys[sk] = true
+                    self._chip_preload_keys[#self._chip_preload_keys + 1] = sk
+                end
+            end
         end
     end
     if (#self._chip_preload_keys > 0 or #self._chip_preload_queue > 0)
@@ -28070,8 +28098,13 @@ function BookshelfWidget:_subShelfCoverFps(tab, n, depth)
         end
         return out
     end
+    -- Light records: only their paths are read here. A full fetch built
+    -- each book's record to hand back a few paths, 917 ms of a 1.3 s first
+    -- open of a seven-shelf shelf of shelves on a PW5 (genres and authors
+    -- built every group's books). The count beside it (_subShelfMemberFps)
+    -- reads light records the same way.
     local ok, items = pcall(Repo.getBySource, tab.source, tab.filter,
-                            tab.sort_priority, 0, n, { lazy_cover = true })
+                            tab.sort_priority, 0, n, { light_only = true })
     if not ok or type(items) ~= "table" then return out end
     for _i, it in ipairs(items) do
         if type(it) == "table" then

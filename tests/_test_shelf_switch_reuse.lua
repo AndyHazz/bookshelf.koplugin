@@ -136,4 +136,20 @@ t.test("page counts a paint writes are marked, and the planner plans without the
         "a paint's count stops the planner reading the book's own")
 end)
 
+t.test("the background warm-up reaches the shelves inside a shelf of shelves", function()
+    local q = body("_queueWarmForVisible")
+    assert(q:find('local sk = "sub:" .. tostring(c.id)', 1, true), "a shelf of shelves' shelves are left cold")
+    local step = body("_chipPreloadStep")
+    assert(step:find("pcall(self._subShelfCoverFps, self, tab, 4)", 1, true)
+        and step:find("pcall(self._subShelfMemberFps, self, tab)", 1, true),
+        "the warm-up does not read what a shelf's tile reads")
+    assert(body("_subShelfCoverFps"):find("{ light_only = true }", 1, true), "tile covers build whole records")
+end)
+
+t.test("a grouped shelf compiles its filter once per pass, not once per group", function()
+    local R = io.open("lib/bookshelf_book_repository.lua"):read("*a")
+    local f = assert(R:match("\n_shapeHasFilteredBook = function%(shape, filter%)\n(.-)\nend\n"))
+    assert(f:find("if memo and memo.filter == filter and now - memo.at <= 1 then", 1, true))
+end)
+
 t.done()

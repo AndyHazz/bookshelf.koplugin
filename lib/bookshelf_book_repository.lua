@@ -6214,7 +6214,19 @@ _shapeHasFilteredBook = function(shape, filter)
     if not Filter.isActive(filter) then return true end
     local meta = shape.books_meta
     if not meta then return true end  -- transition-compat: nothing to test against
-    local compiled = Filter.compile(filter, Repo.filterOpts())
+    -- One compile per filter per pass, not per shape: a grouped shelf asks
+    -- this of every group, and the compile (with its options) was ~7% of a
+    -- shelf of shelves' first open on a PW5. Kept a second, for that filter
+    -- table only, so a collection changed meanwhile is read again next pass.
+    local memo = Repo._shape_compiled
+    local now = os.time()
+    local compiled
+    if memo and memo.filter == filter and now - memo.at <= 1 then
+        compiled = memo.compiled
+    else
+        compiled = Filter.compile(filter, Repo.filterOpts())
+        Repo._shape_compiled = { filter = filter, compiled = compiled, at = now }
+    end
     for i = 1, #meta do
         if _recordMatches(meta[i], compiled) then return true end
     end

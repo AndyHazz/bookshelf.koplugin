@@ -1137,7 +1137,7 @@ function M.collageBB(filepaths, width, height)
                 end
                 sources[i] = from or "none"
                 if not src then return end
-                local scaled = src:scale(cell.w, cell.h)
+                local scaled = require("lib/bookshelf_scale").cover(src, cell.w, cell.h)
                 -- Image contrast: a cached cover is boosted already; a file or
                 -- a fresh decode is not, so its copy is boosted here and every
                 -- tile matches. The collage is marked boosted below.

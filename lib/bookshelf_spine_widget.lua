@@ -13,6 +13,8 @@ local BD              = require("ui/bidi")
 local Blitbuffer      = require("ffi/blitbuffer")
 local BookshelfSettings = require("lib/bookshelf_settings_store")
 local ScaledCoverCache = require("lib/bookshelf_scaled_cover_cache")
+-- The cheaper scaler for each cover (MuPDF or the Lua loop): bookshelf_scale.
+local _scaleCover = require("lib/bookshelf_scale").cover
 local HeroTier         = require("lib/bookshelf_hero_tier")
 local BFont           = require("lib/bookshelf_fonts")
 local FrameContainer  = require("ui/widget/container/framecontainer")
@@ -370,10 +372,10 @@ end
 local function _coverFillBB(bb, img_w, img_h)
     local sw, sh = bb:getWidth(), bb:getHeight()
     if sw < sh then
-        return bb:scale(img_w, img_h)
+        return _scaleCover(bb, img_w, img_h)
     end
     local scaled_w = math.max(img_w, math.floor(sw * img_h / sh))
-    local filled   = bb:scale(scaled_w, img_h)
+    local filled   = _scaleCover(bb, scaled_w, img_h)
     if scaled_w <= img_w then
         return filled
     end
@@ -2688,7 +2690,7 @@ function SpineWidget:_renderCoverAlignTop(card_w, card_h, border, img_w, img_h)
         end
         if not cover_widget then
             if not bb then return self:_renderFallback() end
-            local scaled_bb = _derived(bb, bb:scale(img_w, nat_h))   -- new bb; leaves bb intact
+            local scaled_bb = _derived(bb, _scaleCover(bb, img_w, nat_h))   -- new bb; leaves bb intact
             if owned then bb:free() end
             local disposable = true
             if fp and not self.cover_bb then

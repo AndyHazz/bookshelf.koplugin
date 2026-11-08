@@ -117,7 +117,7 @@ function HeroTier:noteSource(fp, src_bb)
         -- What is stashed stays until taken, or the shelf changes (clear).
         local bpp = math.max(1, math.floor((tonumber(src_bb.stride) or sw) / sw + 0.5))
         if self._bytes + w * h * bpp > self._budget then return end
-        local copy = src_bb:scale(w, h)
+        local copy = require("lib/bookshelf_scale").cover(src_bb, w, h)
         if not copy then return end
         self._cache[fp] = copy
         self._sizes[fp] = _bbBytes(copy)

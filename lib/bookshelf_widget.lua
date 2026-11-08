@@ -17396,7 +17396,7 @@ local function _warmChunk(jobs, chunk, counters)
             else
                 local ok_bb, bb = pcall(Repo.getCoverBB, job.fp)
                 if ok_bb and bb then
-                    local ok_s, scaled = pcall(function() return bb:scale(job.w, job.h) end)
+                    local ok_s, scaled = pcall(function() return require("lib/bookshelf_scale").cover(bb, job.w, job.h) end)
                     if ok_s and scaled then
                         pcall(function() ScaledCoverCache:put(job.fp, scaled) end)
                         counters.decoded = counters.decoded + 1

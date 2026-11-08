@@ -1321,7 +1321,13 @@ function BookshelfWidget:_rebuild()
             if BookshelfWidget._rebuild_count >= 4 or orphans >= 8 * 1024 * 1024 then
                 BookshelfWidget._rebuild_count = 0
                 if ok_scc and SCC and SCC.resetOrphanBytes then SCC:resetOrphanBytes() end
-                collectgarbage("collect")
+                -- In slices once the reader stops (_collectWhenQuiet), not
+                -- a full collect: that is ~0.5 s on a PW5 (it walks all
+                -- ~50 MB in use, however little is garbage), and this ran it
+                -- just after every 4th shelf switch had drawn. Measured over
+                -- 60 turns and 12 switches, memory in use stayed the same
+                -- with no full collects at all.
+                if not self._closed then self:_collectWhenQuiet(orphans) end
             end
         end)
     end
@@ -10162,6 +10168,14 @@ function BookshelfWidget:_reclaimAfterTurn()
         -- waits for.
         self:_collectWhenQuiet(orphans)
     end
+end
+
+-- BookshelfWidget.collectSoon(): for code outside the shelf with garbage to
+-- reclaim (a popup closing): the live shelf's sliced, quiet-time collect;
+-- with no shelf, nothing (LuaJIT's own collector gets to it).
+function BookshelfWidget.collectSoon()
+    local bw = BookshelfWidget._clip_target
+    if bw and not bw._closed and bw._collectWhenQuiet then bw:_collectWhenQuiet() end
 end
 
 function BookshelfWidget:_collectWhenQuiet(orphans)

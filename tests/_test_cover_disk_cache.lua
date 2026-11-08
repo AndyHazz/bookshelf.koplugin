@@ -123,7 +123,9 @@ t.test("a stored cover comes back with its geometry intact", function()
     assert(got.data[0] == 200 and got.data[8 * 4 - 1] == 200, "pixels changed")
 end)
 
-t.test("a write that fails (disk full) keeps the good copy and leaves no temp file", function()
+t.test("a write that fails (disk full) keeps the good copy and leaves no temp file (Lua writes)", function()
+    local saved_stdio = Cache._stdio
+    Cache._stdio = false
     assert(Cache.store("/books/full.epub", makeBB(8, 4, 50)), "store failed")
     local real_open = io.open
     io.open = function(path, mode)
@@ -144,12 +146,47 @@ t.test("a write that fails (disk full) keeps the good copy and leaves no temp fi
     end
     local ok = Cache.store("/books/full.epub", makeBB(8, 4, 99))
     io.open = real_open
+    Cache._stdio = saved_stdio
     assert(not ok, "a short write reported as stored")
     local got = Cache.load("/books/full.epub")
     assert(got and got.data[0] == 50, "the good copy was replaced by a truncated one")
     for entry in lfs_real.dir(STORE) do
         assert(not entry:find("%.tmp$"), "left a temp file behind: " .. entry)
     end
+end)
+t.test("a write that fails (disk full) keeps the good copy and leaves no temp file (C writes)", function()
+    assert(Cache._cstdio(), "no C stdio under LuaJIT")
+    assert(Cache.store("/books/fullc.epub", makeBB(8, 4, 50)), "store failed")
+    local saved = Cache._stdio
+    local real_C = saved.C
+    Cache._stdio = { C = setmetatable({ fwrite = function() return 0 end },
+                                      { __index = function(_t, k) return real_C[k] end }) }
+    local ok = Cache.store("/books/fullc.epub", makeBB(8, 4, 99))
+    Cache._stdio = saved
+    assert(not ok, "a short write reported as stored")
+    local got = Cache.load("/books/fullc.epub")
+    assert(got and got.data[0] == 50, "the good copy was replaced by a truncated one")
+end)
+
+t.test("pixels go straight between file and buffer, not through a Lua string", function()
+    assert(Cache._cstdio(), "no C stdio under LuaJIT")
+    assert(Cache.store("/books/direct.epub", makeBB(256, 256, 77)))
+    local function grown()
+        collectgarbage("collect"); collectgarbage("stop")
+        local k0 = collectgarbage("count")
+        local got = Cache.load("/books/direct.epub")
+        local g = collectgarbage("count") - k0
+        collectgarbage("restart")
+        assert(got and got.data[0] == 77 and got.data[256 * 256 - 1] == 77, "the pixels did not come back")
+        return g
+    end
+    local c_kb = grown()
+    local saved = Cache._stdio
+    Cache._stdio = false
+    local lua_kb = grown()
+    Cache._stdio = saved
+    -- The image is 64 KB: the Lua way makes a string of it besides the buffer.
+    assert(lua_kb - c_kb > 50, string.format("C %.0f KB, Lua %.0f KB: no string saved", c_kb, lua_kb))
 end)
 
 t.test("a padded buffer keeps its row stride", function()

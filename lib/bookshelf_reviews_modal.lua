@@ -1322,9 +1322,13 @@ function ReviewsModal:onCloseWidget()
     -- Reclaim the popup's churned Lua garbage: modal close is an infrequent,
     -- natural boundary, and the book-detail popup allocates a fair amount per
     -- tab/chip/rating interaction. Native resources are already freed above.
-    -- A second later, not now: a full collect of the PW5's ~100 MB heap was
-    -- ~190 ms of the close, ahead of the shelf's repaint under the popup.
-    UIManager:scheduleIn(1, function() collectgarbage("collect") end)
+    -- In slices once the reader stops (BookshelfWidget.collectSoon), not a
+    -- full collect a second later: that walked the whole heap at once
+    -- (~0.5 s on a PW5), in the way of whatever the reader tapped next.
+    UIManager:scheduleIn(1, function()
+        local ok, BW = pcall(require, "lib/bookshelf_widget")
+        if ok and BW and BW.collectSoon then BW.collectSoon() end
+    end)
     UIManager:setDirty(nil, function()
         return "ui", self.frame.dimen
     end)

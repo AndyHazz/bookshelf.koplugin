@@ -2486,14 +2486,18 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             value = tostring(draft.spine_thickness_pct or 100) .. "%",
             on_dec = thick(-1), on_inc = thick(1) })
         -- Book sizes: Varied (height from the cover's shape, thickness from
-        -- the page count) or Same (every book the default size, face-outs
-        -- too). Only Same is stored.
+        -- the page count), Equal height (every book one height, its own
+        -- cover shape and thickness: comic strip collections stand as tall
+        -- as novels) or Same (every book the default size, face-outs too).
+        -- Stored as "height" or true; Varied is nil.
         add({ type = "segmented", label = _("Book sizes"),
             items = { { key = "varied", label = _("Varied") },
+                      { key = "height", label = _("Equal height") },
                       { key = "same",   label = _("Same") } },
-            active = draft.spine_same_size and "same" or "varied",
+            active = (draft.spine_same_size == "height" and "height")
+                or (draft.spine_same_size and "same") or "varied",
             on_pick = function(v) pick(function()
-                draft.spine_same_size = (v == "same") or nil
+                draft.spine_same_size = (v == "height" and "height") or (v == "same") or nil
             end)() end })
         add({ type = "segmented", label = _("Book binding"),
             items = { { key = "hardcover", label = Binding.label("hardcover") },
@@ -2543,7 +2547,8 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         local parts = { T(_("face out: %1"), Editor._faceOutText(draft)),
             T(_("rows: %1"), numText(draft.spine_rows)) }
         if draft.spine_thickness_pct then parts[#parts + 1] = T(_("%1% thick"), draft.spine_thickness_pct) end
-        if draft.spine_same_size then parts[#parts + 1] = _("same size books") end
+        if draft.spine_same_size == "height" then parts[#parts + 1] = _("equal height books")
+        elseif draft.spine_same_size then parts[#parts + 1] = _("same size books") end
         if draft.book_binding == "paperback" then parts[#parts + 1] = _("paperbacks") end
         if draft.series_boxes == "plain" then parts[#parts + 1] = _("plain series boxes")
         elseif draft.series_boxes == "spines" then parts[#parts + 1] = _("series boxes of spines")

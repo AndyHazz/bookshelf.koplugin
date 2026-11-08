@@ -648,20 +648,29 @@ function SpineShelf.thicknessPages(c)
     return c.stable or c.scan or c.filename or c.bim or c.rendered
 end
 
--- bookShape(look, pages, same_size) -> aspect, look, pages
+-- bookShape(look, pages, same_size) -> aspect, look, pages, height_aspect
 --
--- The shape the planner sizes a book from. A shelf's Book sizes is Varied by
--- default: height from the cover's shape, thickness from the page count. Same
--- stands every book at the default shape and thickness (the shelf's
--- Thickness % still applies on top), face-outs included. The look comes back
--- as a COPY with the default aspect, since the painter reads its top edge from
--- it and the cached one is shared with every other view.
+-- The shape the planner sizes a book from, and the shape whose height it
+-- stands at. A shelf's Book sizes is Varied by default: height from the
+-- cover's shape, thickness from the page count. Equal height ("height")
+-- keeps the cover's shape and the page count, so a face-out is as wide as
+-- its cover and a spine as thick as its book, but stands every book at the
+-- default height: a landscape strip collection as tall as the novels beside
+-- it, and wide. Same stands every book at the default shape and thickness
+-- (the shelf's Thickness % still applies on top), face-outs included.
+--
+-- Both give back the look as a COPY with the default aspect: the painter
+-- reads a spine's top edge from it (the cover's width seen from above), and
+-- the front face is what is left below that, so the default's edge is what
+-- gives every book one front height. The cached look is shared with every
+-- other view, so it is never changed.
 function SpineShelf.bookShape(look, pages, same_size)
-    if not same_size then return look.aspect, look, pages end
+    if not same_size then return look.aspect, look, pages, look.aspect end
     local copy = {}
     for k, v in pairs(look) do copy[k] = v end
     copy.aspect = SpineLayout.DEFAULT_ASPECT
-    return copy.aspect, copy, nil
+    if same_size == "height" then return look.aspect, copy, pages, copy.aspect end
+    return copy.aspect, copy, nil, copy.aspect
 end
 
 local function _sampleAverage(bb)
@@ -4622,10 +4631,10 @@ function SpineShelf.plan(items, opts)
         end
         -- The shape the book is sized from: its own, or the default on a
         -- shelf whose Book sizes is Same (bookShape).
-        local aspect, shape_pages
-        aspect, look, shape_pages = SpineShelf.bookShape(look,
+        local aspect, shape_pages, height_aspect
+        aspect, look, shape_pages, height_aspect = SpineShelf.bookShape(look,
             SpineShelf.thicknessPages(thick), opts.same_size)
-        local h = SpineLayout.spineHeight(budget, aspect)
+        local h = SpineLayout.spineHeight(budget, height_aspect)
         local w_dp, w, depth, face_h, true_thick
         if face_out then
             -- The page block above a face-out cover is the book's THICKNESS:
@@ -4655,7 +4664,7 @@ function SpineShelf.plan(items, opts)
             -- left the cover a whole spine's top edge taller than its
             -- neighbours, because a book's thickness is far smaller than its
             -- cover width.
-            face_h = h - SpineLayout.topEdgeHeight(h, aspect, Screen:scaleBySize(5))
+            face_h = h - SpineLayout.topEdgeHeight(h, height_aspect, Screen:scaleBySize(5))
             if face_h < Screen:scaleBySize(24) then face_h = Screen:scaleBySize(24) end
             -- Width from the COVER height, so the cover stays aspect-true.
             w = SpineLayout.faceOutWidth(face_h, aspect)

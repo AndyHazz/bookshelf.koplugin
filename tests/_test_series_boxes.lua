@@ -700,6 +700,15 @@ H.test("a Same size shelf gives every book in a box the same width", function()
     end
 end)
 
+H.test("an Equal height shelf keeps each boxed book's own thickness", function()
+    local b=members(3,"Sizes")
+    b[1].page_count=80; b[2].page_count=900; b[3].page_count=300
+    local box=Boxes.box(b,"Sizes")
+    local varied=Boxes.geometry(box,BASE,{content_w=2000})
+    local eqh=Boxes.geometry(box,BASE,{content_w=2000,same_size="height"})
+    for i=1,#varied.spines do H.eq(eqh.spines[i].w, varied.spines[i].w, "book "..i) end
+end)
+
 H.test("a box keeps its width when painting gives its books a page count", function()
     -- Painting a member's page-count badge writes the sidecar's count onto
     -- the record. A box sized from that read one width before its first

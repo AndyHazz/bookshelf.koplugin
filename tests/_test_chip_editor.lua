@@ -730,10 +730,16 @@ t.test("shelf style: series boxes can be Spines, stored as its own value", funct
     eq(draft.series_boxes, true)
 end)
 
-t.test("shelf style: Book sizes stores only Same", function()
+t.test("shelf style: Book sizes stores only Equal height and Same", function()
     local draft = { view_mode = "spines" }
     local p = openStyle(draft, nil, "Spines")
     eq(p.find("Book sizes").active, "varied")
+    local keys = {}
+    for i, it in ipairs(p.find("Book sizes").items) do keys[i] = it.key end
+    eq(table.concat(keys, " "), "varied height same")
+    p.find("Book sizes").on_pick("height")
+    eq(draft.spine_same_size, "height")
+    eq(openStyle(draft, nil, "Spines").find("Book sizes").active, "height")
     p.find("Book sizes").on_pick("same")
     eq(draft.spine_same_size, true)
     p.find("Book sizes").on_pick("varied")

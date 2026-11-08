@@ -8223,11 +8223,14 @@ function BookshelfWidget:_spineShowAuthor()
     return BookshelfSettings.nilOrTrue("spine_show_author")
 end
 
--- _spineSameSize() -> true when this shelf's Book sizes is Same, else nil
--- (Varied, the default: each book's own height and thickness).
+-- _spineSameSize() -> true when this shelf's Book sizes is Same, "height"
+-- when it is Equal height, else nil (Varied, the default: each book's own
+-- height and thickness). See SpineShelf.bookShape.
 function BookshelfWidget:_spineSameSize()
     local tab = require("lib/bookshelf_tab_model").getById(self.chip)
-    return (tab and tab.spine_same_size == true) or nil
+    local v = tab and tab.spine_same_size
+    if v == true or v == "height" then return v end
+    return nil
 end
 
 -- Opt-in presentation only: an opened series still shows its individual books.

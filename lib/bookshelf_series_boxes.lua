@@ -146,12 +146,13 @@ function M.restore(group, files, title, light_meta)
 end
 
 -- A member's spine width in px at full height, the way plan sizes a spine.
--- same_size: the shelf's Book sizes is Same, so every book is the default
--- thickness, as the loose spines beside the box are (SpineShelf.bookShape).
+-- same_size: the shelf's Book sizes is Same (true), so every book is the
+-- default thickness, as the loose spines beside the box are
+-- (SpineShelf.bookShape). Equal height ("height") keeps each book's own.
 local function spinePx(member, auto_thick, same_size)
     local SpineLayout = require("lib/bookshelf_spine_layout")
     local Screen = require("device").screen
-    if same_size then return Screen:scaleBySize(SpineLayout.spineWidthDp(nil) * auto_thick) end
+    if same_size == true then return Screen:scaleBySize(SpineLayout.spineWidthDp(nil) * auto_thick) end
     local pages
     local ok, SpineShelf = pcall(require, "lib/bookshelf_spine_shelf")
     if ok and SpineShelf and member.filepath then

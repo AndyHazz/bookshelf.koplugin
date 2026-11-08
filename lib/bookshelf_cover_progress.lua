@@ -167,6 +167,12 @@ function M.decide(book)
         -- readProgress branch entirely.
         if need_pages_fallback and pages then
             book.page_count = pages
+            -- Marked as the paint's: the spine planner sizes books from the
+            -- counts it reads itself, and one that came from the record
+            -- after a paint read as BIM's own, so a page laid out again
+            -- (a shelf switched back to, a page built a second time) broke
+            -- a book earlier or later than it first did.
+            if book._page_src == nil then book._page_src = "paint" end
         end
     end
     -- Page count > Printed page counts first: the badge's own count, kept off

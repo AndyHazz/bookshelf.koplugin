@@ -716,4 +716,13 @@ H.test("a box keeps its width when painting gives its books a page count", funct
         "a counted box is no thicker than an uncounted one")
 end)
 
+H.test("a count a paint left on a book's record does not size its box", function()
+    local plain=Boxes.box(members(4,"Saga"),"Saga")
+    local base=Boxes.geometry(plain,BASE,{content_w=2000}).w
+    local painted=members(4,"Saga")
+    for _,m in ipairs(painted) do m.page_count=900; m._page_src="paint" end
+    H.eq(Boxes.geometry(Boxes.box(painted,"Saga"),BASE,{content_w=2000}).w,base,
+        "a box made after its books were painted sized from the paint's counts")
+end)
+
 H.finish()

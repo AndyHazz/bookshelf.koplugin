@@ -19,7 +19,8 @@ local function memberMeta(book, light_meta)
     -- (its page-count badge) writes the sidecar's count onto the record, and
     -- a box sized from that read one width before its first paint and
     -- another after, so the same page laid out differently once revisited.
-    member._box_pages = member.page_count or member.pages or false
+    -- Not a paint's (CoverProgress marks those "paint"), for the same reason.
+    member._box_pages = (member._page_src ~= "paint") and (member.page_count or member.pages) or false
     return member
 end
 

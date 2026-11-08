@@ -4469,7 +4469,10 @@ function SpineShelf.plan(items, opts)
         -- the sidecar knows better and CoverProgress.decide reads it at
         -- paint time anyway for the glyphs, through the same TTL cache,
         -- so this backfill costs the page ONE sidecar read per book.
-        local pages = src.page_count
+        -- Not a count a paint left on the record (CoverProgress marks those
+        -- "paint"): the plan reads its own, or a page built again plans
+        -- differently from its first build.
+        local pages = (src._page_src ~= "paint") and src.page_count or nil
         -- BIM's own count, before this block writes others onto the record: a
         -- fixed-layout book's page count, which is layout-free (thickness).
         local bim_pages = (src._page_src == nil) and src.page_count or nil
@@ -4515,7 +4518,7 @@ function SpineShelf.plan(items, opts)
                     -- hero and the rows show, and a spine whose width came
                     -- from the sidecar's last-render figure instead read a few
                     -- pixels narrower than the same book everywhere else.
-                    if pc and not src.page_count then
+                    if pc and (not src.page_count or src._page_src == "paint") then
                         pages = pc
                         src.page_count = pc
                         src._page_src = pc_src or "render"

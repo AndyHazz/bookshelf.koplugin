@@ -73,6 +73,7 @@ local function env(PC, top)
                    getType = function() return 1 end },
         },
         Blitbuffer = { new = function() return { free = function(b) freed[#freed + 1] = b end } end },
+        BookshelfWidget = { _screenLike = function() return { free = function(b) freed[#freed + 1] = b end } end },
     }
     e._G = e
     local h = compile(FIELDS .. "\nreturn _takeFields, _putFields", e, "fields")

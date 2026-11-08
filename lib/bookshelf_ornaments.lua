@@ -524,6 +524,9 @@ M._list_key   = nil
 -- shows up within this many seconds rather than on the very next paint.
 -- Zero disables the limit (the tests set it so).
 M.SCAN_TTL = 15
+-- How long a scan stands inside the shelf's window (allowRecent) while
+-- scanStamp() is unchanged; see listAll.
+M.WINDOW_TTL = 600
 M._clock   = os.time
 
 -- ── Packs, and switching ornaments off ──────────────────────────────────────
@@ -1093,10 +1096,23 @@ function M._resetIndex() _index, _index_dirty, _checked = nil, nil, {} end
 
 function M.listAll()
     local now = M._clock()
-    if M._recent_until and now <= M._recent_until
-            and M._all_cache and M._all_at and M.SCAN_TTL > 0
-            and (now - M._all_at) < M.SCAN_TTL then
-        return M._all_cache, M._all_packs
+    if M._recent_until and now <= M._recent_until and M._all_cache and M._all_at then
+        local age = now - M._all_at
+        if M.SCAN_TTL > 0 and age < M.SCAN_TTL then
+            return M._all_cache, M._all_packs
+        end
+        -- Older, inside the window: the last scan stands while no folder it
+        -- walked has a new mtime and no ornaments.json was rewritten (stats
+        -- only, see scanStamp). A shelf switch after a while away listed
+        -- every pack's folder again, 120-310 ms on a PW5 with a few themes;
+        -- an added, renamed or edited file moves a stamp. A DELETE does not
+        -- on the Kindle's fuse.fsp mount (see bookshelf_asset_folder), so a
+        -- deleted piece can stand for WINDOW_TTL: the browser, the Theme
+        -- library and installs call outside the window and always look.
+        if M.WINDOW_TTL > 0 and age < M.WINDOW_TTL and M._all_stamp
+                and M.scanStamp() == M._all_stamp then
+            return M._all_cache, M._all_packs
+        end
     end
     M._all_at = now
     local fs = lfs()
@@ -1152,6 +1168,7 @@ function M.listAll()
     end
     local key = table.concat(key_parts, "\4")
     M._watch = watch
+    M._all_stamp = M.scanStamp()
     if M._all_cache and M._all_key == key then return M._all_cache, M._all_packs end
     local names = {}
     for n in pairs(loose) do names[#names + 1] = n end
@@ -1322,9 +1339,24 @@ function M.stampChanged(prev, now)
     return false
 end
 
+-- scanStamp() -> each folder the last scan walked, its mtime and its
+-- ornaments.json's, as one string: what listAll's window reuse is checked
+-- against. Stats only.
+function M.scanStamp()
+    local fs = lfs()
+    if not (fs and M._watch) then return nil end
+    local parts = {}
+    for i, d in ipairs(M._watch) do
+        parts[i] = d .. "\3" .. tostring(fs.attributes(d, "modification"))
+            .. "\5" .. tostring(fs.attributes(d .. "/" .. M.JSON_NAME, "modification"))
+    end
+    return table.concat(parts, "\4")
+end
+
 -- invalidate(): forget the cached lists (the browser, after a change).
 function M.invalidate()
     M._all_cache, M._all_key, M._list_cache, M._list_key, M._list_at = nil, nil, nil, nil, nil
+    M._all_stamp = nil
 end
 
 -- looksLikeWrappedBitmap(head) -> bool

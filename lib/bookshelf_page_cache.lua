@@ -20,9 +20,12 @@ mode, the geometry), so a stale page is a miss, never a hit.
 
 local M = {}
 
--- Two pages: the one just left and the one before it. Enough for turning
--- back and forth; each kept page holds its row widgets and their renders.
-M.MAX = 2
+-- Six pages: the one just left, the one built ahead of the next turn, and
+-- the pages of the shelves switched away from (each switch also builds the
+-- new shelf's next page ahead, so four left room for one other shelf).
+-- Each holds its row widgets and their renders; a turn's page its pixels
+-- too (2 MB on a PW5), a page kept by a switch none.
+M.MAX = 6
 
 -- Off switch, for tests and the rig's comparison runs.
 M.enabled = true

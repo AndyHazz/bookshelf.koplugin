@@ -30,14 +30,12 @@ end)
 
 t.test("past MAX the oldest page is freed; the same key replaces and frees", function()
     local pc, freed = PC.new(), {}
-    PC.put(pc, { key = "p1", rows = rows("a", freed) })
-    PC.put(pc, { key = "p2", rows = rows("b", freed) })
-    PC.put(pc, { key = "p3", rows = rows("c", freed) })
-    eq(PC.size(pc), 2)
-    eq(table.concat(freed, ","), "a1,a2", "the oldest page was not freed")
+    for i = 1, PC.MAX + 1 do PC.put(pc, { key = "p" .. i, rows = rows("r" .. i, freed) }) end
+    eq(PC.size(pc), PC.MAX)
+    eq(table.concat(freed, ","), "r11,r12", "the oldest page was not freed")
     eq(PC.take(pc, "p1"), nil)
-    PC.put(pc, { key = "p3", rows = rows("d", freed) })
-    eq(table.concat(freed, ","), "a1,a2,c1,c2", "a replaced page was not freed")
+    PC.put(pc, { key = "p2", rows = rows("d", freed) })
+    eq(table.concat(freed, ","), "r11,r12,r21,r22", "a replaced page was not freed")
 end)
 
 t.test("clear frees everything kept; switched off it keeps nothing", function()
@@ -55,12 +53,10 @@ end)
 t.test("an evicted or cleared page frees its kept pixels too", function()
     local pc, freed = PC.new(), {}
     local function px(tag) return { bb = { free = function() freed[#freed + 1] = tag end }, y0 = 0 } end
-    PC.put(pc, { key = "p1", rows = {}, px = px("x1") })
-    PC.put(pc, { key = "p2", rows = {}, px = px("x2") })
-    PC.put(pc, { key = "p3", rows = {}, px = px("x3") })
+    for i = 1, PC.MAX + 1 do PC.put(pc, { key = "p" .. i, rows = {}, px = px("x" .. i) }) end
     eq(table.concat(freed, ","), "x1", "an evicted page kept its pixels")
     PC.clear(pc)
-    eq(#freed, 3)
+    eq(#freed, PC.MAX + 1)
 end)
 
 -- The widget's side of it (rig-verified pixel for pixel; these pin the
@@ -108,6 +104,51 @@ t.test("a page with a ticking module is kept only for the minute it was drawn in
     assert(swap:find("pc_hit.minute ~= math.floor(os.time() / 60)", 1, true),
         "a page with a clock is reused after its minute")
     assert(body("_pageMinute"):find("math.floor(os.time() / 60)", 1, true))
+end)
+
+t.test("a shelf switch keeps pages; any other rebuild clears them", function()
+    local rb = body("_rebuild")
+    assert(rb:find("local switching = self._switching_shelf\n    if switching then\n        self._switching_shelf = nil\n        self:_pageKeepLeaving()\n    else\n        self:_pageCacheClear()\n", 1, true),
+        "a rebuild no longer tells a switch from a change")
+    local n = select(2, W:gsub("self._switching_shelf = true\n", ""))
+    eq(n, 4, "not every way to another shelf (tap, swipe, select, a sub-shelf) keeps its pages")
+    assert(rb:find("PageCache.take(self:_pageCache(), pc_key)", 1, true), "a rebuild never takes a kept page")
+    assert(rb:find("if not pc_hit then self:_hangUnder(", 1, true), "kept rows are hung again by a rebuild")
+    local key = body("_pageCacheKey")
+    for _i, f in ipairs({ "self._hero_dims.hero_h", "self._expanded", "self._chip_bar_hidden" }) do
+        assert(key:find(f, 1, true), "the key leaves out " .. f .. " (the rows' hanging gaps)")
+    end
+end)
+
+t.test("the page being left is taken out of the tree the rebuild frees", function()
+    local code = assert(W:match("\nfunction BookshelfWidget:_pageKeepLeaving%(%)\n(.-)\nend\n"))
+    local put = {}
+    local env = setmetatable({
+        require = function(name)
+            if name == "ui/widget/verticalspan" then return { new = function(_s, o) return { span = true } end } end
+            if name == "lib/bookshelf_page_cache" then return { put = function(_pc, e) put[#put + 1] = e end } end
+            return require(name)
+        end,
+    }, { __index = _G })
+    local f
+    if setfenv then f = assert(loadstring("local self = ...\n" .. code)); setfenv(f, env)
+    else f = assert(load("local self = ...\n" .. code, "keep", "t", env)) end
+    local pxfreed = false
+    local rowsA = { "rowA1", "rowA2" }
+    local self_ = {
+        _shelf_dims = { shelf_top_idx = 3 },
+        _inner_vgroup = { "hero", "gap", "rowA1", "gap", "rowA2" },
+        _page_cur = { key = "A1", rows = rowsA, px = { bb = { free = function() pxfreed = true end } } },
+        _pageCache = function() return "pc" end,
+    }
+    f(self_)
+    eq(#put, 1, "the page left was not kept")
+    eq(put[1].rows, rowsA)
+    eq(self_._inner_vgroup[3].span, true, "row 1 is still in the tree being freed")
+    eq(self_._inner_vgroup[5].span, true, "row 2 is still in the tree being freed")
+    eq(put[1].px, nil, "its screen's pixels were kept")
+    eq(pxfreed, true)
+    eq(self_._page_cur, nil)
 end)
 
 t.done()

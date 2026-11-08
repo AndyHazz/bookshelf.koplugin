@@ -305,13 +305,20 @@ t.test("cache: listAll keeps its answer for the TTL only inside a plan's window"
     local d = scratch()
     O._data_dir = d
     local listings = 0
+    local bump = 0      -- added to every mtime: a folder that changed
     O._lfs = setmetatable({
         dir = function(...) listings = listings + 1; return lfs_shim.dir(...) end,
+        attributes = function(path, what)
+            local v = lfs_shim.attributes(path, what)
+            if what == "modification" and v then return v + bump end
+            return v
+        end,
     }, { __index = lfs_shim })
     O.ensureTemplate()
     local t = 1000
     O._clock = function() return t end
     O.SCAN_TTL = 15
+    O.WINDOW_TTL = 600
     eq(#O.listAll(), 2)
     local n1 = listings
     O.listAll()
@@ -322,16 +329,25 @@ t.test("cache: listAll keeps its answer for the TTL only inside a plan's window"
     O.invalidate()
     O.listAll()
     eq(listings, n1 + 2, "invalidate() still forces a fresh look")
+    -- Past the scan TTL, inside the window: the scan stands while no folder
+    -- it walked has a new mtime (a shelf switch after a while away).
     t = t + 15
     O.allowRecent(true)
     O.listAll()
-    eq(listings, n1 + 3, "and so does the TTL running out")
+    eq(listings, n1 + 2, "unchanged folders were listed again")
+    bump = 1
+    O.listAll()
+    eq(listings, n1 + 3, "a folder with a new mtime was not looked at")
+    t = t + 600
+    O.allowRecent(true)
+    O.listAll()
+    eq(listings, n1 + 4, "past WINDOW_TTL the scan still stood")
     t = t + 3
     O.listAll()
-    eq(listings, n1 + 4, "a window left open closes on its own")
+    eq(listings, n1 + 5, "a window left open closes on its own")
     O.allowRecent(true); O.allowRecent(false)
     O.listAll()
-    eq(listings, n1 + 5, "closing the window ends it")
+    eq(listings, n1 + 6, "closing the window ends it")
     os.execute("rm -rf '" .. d .. "'")
 end)
 

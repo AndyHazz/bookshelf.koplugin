@@ -29,7 +29,7 @@ local env = { Repo = Repo, BookshelfWidget = BW, UIManager = { unschedule = func
 local close = method("onCloseWidget", env)
 local function shelf()
     local s = { _stopStatusTimer = function() end, _flushNavStateNow = function() end,
-                _pageCacheClear = function() end }
+                _pageCacheClear = function() end, _heroKeptClear = function() end }
     s._on_book_invalidated = function() end
     s._on_published_filled = function() end
     s._orn_handlers = {}

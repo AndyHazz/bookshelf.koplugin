@@ -394,11 +394,115 @@ function ScaledCoverCache:put(filepath, bb, from_disk)
     return bb
 end
 
+-- getSized / putSized(fp, w, h[, bb][, tag]) -- a cover kept at one exact
+-- size: a series or folder stack's cover (drawn at the book's own shape, not
+-- the grid's 2:3 slot, so the book's own entry never served it and each
+-- paint decoded it from BIM: 60% of a Series page turn on a PW5), and a list
+-- thumbnail (made from the book's shelf-sized cover, ~100 KB for ~5 KB).
+-- In memory only (cheap to remake; the disk keeps one file per book), and
+-- in an LRU of their own with their own budget: sharing the shelf covers'
+-- one, a cycle through six shelves pushed ~8 MB of covers through it and
+-- flushed every thumbnail, so each visit made them again and pulled their
+-- source covers back in from disk. drop(), dropMemory() and clear() take
+-- them with the rest.
+local SIZED = "\1sized:"
+-- tag: what kind of copy, when two kinds can share a size (a stack's whole
+-- cover and a grid's cropped thumbnail of the same book).
+local function _sizedKey(fp, w, h, tag)
+    return SIZED .. fp .. "|" .. tostring(w) .. "x" .. tostring(h) .. (tag and (":" .. tag) or "")
+end
+
+-- sizedBudget() -> bytes for the sized copies: a quarter of the cover
+-- budget, at least 4 MB (24 MB > 6 MB: ~1,200 grey thumbnails or ~60 stack
+-- covers).
+function ScaledCoverCache:sizedBudget()
+    return math.max(4 * 1024 * 1024, math.floor((self._byte_budget or 0) / 4))
+end
+
+-- The store: key -> { bb, bytes, t }. Use order is a queue of {key, t}
+-- appended on every use; a popped item whose t is not the entry's own is a
+-- stale use and skipped (no O(n) removal per hit, ~100 hits a list page).
+function ScaledCoverCache:_szReset()
+    for _k, e in pairs(self._sz or {}) do
+        self._orphan_bytes = (self._orphan_bytes or 0) + e.bytes
+    end
+    self._sz, self._sz_q, self._sz_head, self._sz_tick = {}, {}, 1, 0
+    self._sz_n, self._sized_bytes = 0, 0
+end
+
+function ScaledCoverCache:_szTouch(key, e)
+    self._sz_tick = self._sz_tick + 1
+    e.t = self._sz_tick
+    local q = self._sz_q
+    q[#q + 1] = { key, e.t }
+    -- Compact a queue grown mostly stale.
+    if #q - self._sz_head > 4 * self._sz_n + 64 then
+        local live = {}
+        for i = self._sz_head, #q do
+            local it = q[i]
+            local x = self._sz[it[1]]
+            if x and x.t == it[2] then live[#live + 1] = it end
+        end
+        self._sz_q, self._sz_head = live, 1
+    end
+end
+
+function ScaledCoverCache:_szRemove(key)
+    local e = self._sz[key]
+    if not e then return end
+    self._sz[key] = nil
+    self._sz_n = self._sz_n - 1
+    self._sized_bytes = self._sized_bytes - e.bytes
+    self._orphan_bytes = (self._orphan_bytes or 0) + e.bytes
+end
+
+function ScaledCoverCache:getSized(fp, w, h, tag)
+    if not fp or fp == "" or not self._sz then return nil end
+    local key = _sizedKey(fp, w, h, tag)
+    local e = self._sz[key]
+    if not e then return nil end
+    self._hits = self._hits + 1
+    self:_szTouch(key, e)
+    return e.bb
+end
+
+function ScaledCoverCache:putSized(fp, w, h, bb, tag)
+    if not fp or fp == "" or not bb then return bb end
+    if not self._sz then self:_szReset() end
+    local key = _sizedKey(fp, w, h, tag)
+    local e = self._sz[key]
+    if e then
+        -- Already kept: use that one (the caller's copy is theirs to drop).
+        self:_szTouch(key, e)
+        return e.bb
+    end
+    -- Image contrast, once per buffer: a copy marked as made from a boosted
+    -- cover (ImageContrast.derive) is left alone.
+    local ok_ic, ImageContrast = pcall(require, "lib/bookshelf_image_contrast")
+    if ok_ic and ImageContrast then ImageContrast.boostImage(bb) end
+    e = { bb = bb, bytes = _bbBytes(bb) }
+    self._sz[key] = e
+    self._sz_n = self._sz_n + 1
+    self._sized_bytes = self._sized_bytes + e.bytes
+    self:_szTouch(key, e)
+    local budget = self:sizedBudget()
+    local q = self._sz_q
+    while self._sized_bytes > budget and self._sz_n > 1 and self._sz_head <= #q do
+        local it = q[self._sz_head]
+        q[self._sz_head] = false
+        self._sz_head = self._sz_head + 1
+        local x = self._sz[it[1]]
+        if x and x.t == it[2] and it[1] ~= key then self:_szRemove(it[1]) end
+    end
+    return bb
+end
+
 -- dropMemory() -- forget every cover held in memory, keeping the disk copies
 -- (Image contrast's boost changed: the next paint reads them back and boosts
 -- them at the new strength). The widgets on screen still hold their buffers,
 -- so they are counted as orphans for the next reclaim rather than freed.
 function ScaledCoverCache:dropMemory()
+    self:_szReset()
     self._orphan_bytes = (self._orphan_bytes or 0) + (self._bytes or 0)
     self._cache = {}
     self._order = {}
@@ -428,6 +532,13 @@ function ScaledCoverCache:drop(filepath)
     pcall(function()
         require("lib/bookshelf_hero_tier"):drop(filepath)
     end)
+    -- Its sized copies (getSized), for the same reason.
+    if self._sz then
+        local prefix = SIZED .. filepath .. "|"
+        for key in pairs(self._sz) do
+            if key:sub(1, #prefix) == prefix then self:_szRemove(key) end
+        end
+    end
     if self._cache[filepath] == nil then return end
     self._bytes = self._bytes - (self._sizes[filepath] or 0)
     if self._bytes < 0 then self._bytes = 0 end
@@ -463,6 +574,7 @@ function ScaledCoverCache:clear()
     if D then pcall(D.clear) end
     -- Every resident bb is now dropped-but-not-freed; count it so the next
     -- reclaim pass collects rather than waits.
+    self:_szReset()
     self._orphan_bytes = (self._orphan_bytes or 0) + (self._bytes or 0)
     self._cache     = {}
     self._order     = {}

@@ -116,6 +116,9 @@ package.preload["lib/bookshelf_scaled_cover_cache"] = function()
     return {
         get = function(_, fp) return Cache.entry end,
         put = function(_, fp, bb) Cache.puts[#Cache.puts + 1] = bb; return bb end,
+        -- Sized copies (stack covers, thumbnails): none kept here.
+        getSized = function() return nil end,
+        putSized = function(_, _fp, _w, _h, bb) return bb end,
     }
 end
 

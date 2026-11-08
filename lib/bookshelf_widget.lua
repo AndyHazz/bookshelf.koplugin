@@ -314,6 +314,8 @@ function BookshelfWidget:init()
     -- marked unopened kept its reading glyph on the spine.
     local bw = self
     self._on_book_invalidated = function(fp)
+        -- A book changed: a kept page may show it as it was.
+        pcall(function() bw:_pageCacheClear() end)
         pcall(function()
             require("lib/bookshelf_spine_shelf").invalidateBook(fp)
         end)
@@ -1072,6 +1074,8 @@ function BookshelfWidget:_ornScanWindow()
 end
 
 function BookshelfWidget:_rebuild()
+    -- Something other than a page turn: no kept page is known to be right.
+    self:_pageCacheClear()
     self:_ornScanWindow()
     self:_syncShelfTheme()
     -- The night state this tree is baked for, and so no night rebuild is
@@ -9903,6 +9907,194 @@ function BookshelfWidget:_reclaimAfterTurn()
     end
 end
 
+-- ─── Recent pages (lib/bookshelf_page_cache) ────────────────────────────────
+-- What a page build sets on the shelf for the page it built. A page taken
+-- back from the cache puts these back, so the next turn starts from the page
+-- on screen and taps resolve against it.
+local PAGE_STATE_FIELDS = {
+    "_shelf_minute_cells", "_key_orns", "_spine_shown", "_spine_next_item",
+    "_spine_next_skip", "_spine_rows", "_spine_books_shown", "_spine_page_books",
+    "_spine_lift_headroom", "_spine_badges",
+}
+
+function BookshelfWidget:_pageCache()
+    if not self._page_cache then
+        self._page_cache = require("lib/bookshelf_page_cache").new()
+    end
+    return self._page_cache
+end
+
+-- _pageCacheClear(): forget every kept page, and the one on screen as a page
+-- to keep (it is live, so its rows are not freed here).
+function BookshelfWidget:_pageCacheClear()
+    if self._page_cache then require("lib/bookshelf_page_cache").clear(self._page_cache) end
+    self._page_cur = nil
+end
+
+-- _pageCacheKey(items, d, n_shelves) -> what the page shows, as a string; nil
+-- when a page must not come from the cache at all (a D-pad focus or a
+-- selection paints into the rows).
+function BookshelfWidget:_pageCacheKey(items, d, n_shelves)
+    if self._focus_zone ~= nil then return nil end
+    if self._selection and self._selection.isActive and self._selection:isActive() then return nil end
+    local parts = {
+        tostring(self.chip), self:_viewMode() or "?", tostring(self._cursor),
+        tostring(self:_isSpineMode() and self:_spineSkip() or 0), tostring(n_shelves),
+        tostring(d.content_w), tostring(d.shelf_h), tostring(d.book_gap or d.PAD),
+        tostring(Repo.dataGeneration and Repo.dataGeneration() or 0),
+        tostring(Screen.night_mode), tostring(Screen:getWidth()), tostring(Screen:getHeight()),
+        tostring(self:_selectedFilepath()),
+        -- The footer's numbers are part of the kept pixels.
+        tostring(self._total_items), tostring(self._total_pages),
+    }
+    for _i, e in ipairs(self._drilldown_path or {}) do
+        parts[#parts + 1] = tostring(e.kind) .. ":" .. tostring(e.label)
+    end
+    for i = 1, #items do
+        local it = items[i]
+        parts[#parts + 1] = tostring(it and (it.filepath or it.key or it.id or it.label or it.series_name) or "?")
+            .. ":" .. tostring(it and it.books and #it.books or 0)
+    end
+    return table.concat(parts, "|")
+end
+
+-- _pageKeepable() -> true: every page can be kept. A page holding a module
+-- that ticks every minute (a clock) is kept for the minute it was drawn in
+-- (_pageMinute): its module only ticks while the page is on screen, so
+-- within that minute a fresh build would draw it the same.
+function BookshelfWidget:_pageKeepable()
+    return true
+end
+
+-- _pageMinute() -> the minute this page was drawn in, when it holds a module
+-- that ticks every minute; nil otherwise.
+function BookshelfWidget:_pageMinute()
+    local cells = self._shelf_minute_cells
+    if type(cells) == "table" then
+        for k in pairs(cells) do
+            if k ~= "chip" then return math.floor(os.time() / 60) end
+        end
+    end
+    return nil
+end
+
+function BookshelfWidget:_pageStateSnapshot()
+    local st = {}
+    for _i, k in ipairs(PAGE_STATE_FIELDS) do st[k] = self[k] end
+    return st
+end
+
+function BookshelfWidget:_pageStateRestore(st)
+    for _i, k in ipairs(PAGE_STATE_FIELDS) do self[k] = st[k] end
+end
+
+-- _pagePxStaleBy(bb): drop the page's kept pixels when bb is the screen (or
+-- a clip of it) and the paint reaches the shelf's rows; an offscreen paint,
+-- or one clipped to the top panel (the clock), leaves them.
+function BookshelfWidget:_pagePxStaleBy(bb)
+    local cur = self._page_cur
+    if not (cur and cur.px) then return end
+    local ClipBB = require("lib/bookshelf_clip_bb")
+    if not rawequal(ClipBB.real(bb), Screen.bb) then return end
+    local d = self._shelf_dims
+    local top = d and d.wipe_rows_top
+    local rects = type(bb) == "table" and rawget(bb, "_is_clip") and rawget(bb, "_rects")
+    if rects and top then
+        local reach = false
+        for _i, r in ipairs(rects) do
+            if (r.y or 0) + (r.h or 0) > top - 200 then reach = true; break end
+        end
+        if not reach then return end
+    end
+    if cur.px.bb then cur.px.bb:free() end
+    cur.px = nil
+end
+
+-- _pagePxCapture(full_bb, d) -> { bb, y0 }: the page's pixels from the top
+-- of its shelf area down, copied out of a full-screen offscreen paint.
+function BookshelfWidget:_pagePxCapture(full_bb, d)
+    local y0 = math.max(0, math.floor(tonumber(d and d.px_top) or 0))
+    local W, H = full_bb:getWidth(), full_bb:getHeight()
+    if y0 >= H then return nil end
+    local bb = Blitbuffer.new(W, H - y0, full_bb:getType())
+    bb:blitFrom(full_bb, 0, 0, 0, y0, W, H - y0)
+    return { bb = bb, y0 = y0 }
+end
+
+-- _pagePxToFull(px) -> a screen-sized buffer holding the kept pixels at their
+-- place, for the wipe; nil if there are none.
+-- _placeFooterHitAreas(d): a turn shown from the page's kept pixels paints
+-- no widget, and the footer is built new on every turn: a KOReader Button
+-- learns where it is only when painted (its dimen), so every tap on the
+-- footer's arrows after such a turn found nothing (PW5). Painted where it
+-- stands into a scratch buffer, not over the pixels shown: a footer on a
+-- translucent panel painted twice would come out darker.
+function BookshelfWidget:_placeFooterHitAreas(d)
+    local og = self._overlap_group
+    local anchor = og and d and d.footer_overlap_idx and og[d.footer_overlap_idx]
+    if not (anchor and anchor.paintTo) then return end
+    local scratch = BookshelfWidget._screenLike()
+    pcall(function()
+        anchor:paintTo(scratch, og.dimen and og.dimen.x or 0, og.dimen and og.dimen.y or 0)
+    end)
+    scratch:free()
+end
+
+function BookshelfWidget:_pagePxToFull(px)
+    if not (px and px.bb) then return nil end
+    local full = Blitbuffer.new(Screen.bb:getWidth(), Screen.bb:getHeight(), Screen.bb:getType())
+    full:blitFrom(px.bb, 0, px.y0, 0, 0, px.bb:getWidth(), px.bb:getHeight())
+    return full
+end
+
+-- _pageShowOffscreen(px, shelf_top, d, old_reach, rows, footer_rect,
+-- footer_band, mode, keep) -> true when the page went to the screen this
+-- way: from px (the page's kept pixels) or from an offscreen paint, the rows
+-- band and the footer's changed part copied over and refreshed. keep(px)
+-- receives the pixels to keep with the page. False leaves it to the paint.
+function BookshelfWidget:_pageShowOffscreen(px, shelf_top, d, old_reach, rows,
+        footer_rect, footer_band, mode, keep)
+    local base_ry = BookshelfWidget._rowsRegionTop(shelf_top, d)
+    local function rowsTop()
+        return math.max(0, math.min(base_ry, old_reach or base_ry,
+            BookshelfWidget._ornReachTop({ rows[1] }) or base_ry))
+    end
+    -- The kept pixels start at the shelf area's top; a band reaching above
+    -- them (a taller piece on the page left) is painted instead.
+    if px and rowsTop() < px.y0 then
+        if px.bb then px.bb:free() end
+        px = nil
+    end
+    -- src at screen y = sy + src_y0: the kept band (no full-size copy), or a
+    -- fresh offscreen paint of the whole screen.
+    local src, src_y0, full = nil, 0, nil
+    if px and px.bb then
+        src, src_y0 = px.bb, px.y0
+        -- No widget is painted: the new footer's buttons need their place.
+        self:_placeFooterHitAreas(d)
+        -- Not kept again: freed once copied (below).
+        if keep then keep(px) else full = px.bb end
+    else
+        full = Blitbuffer.new(Screen.bb:getWidth(), Screen.bb:getHeight(), Screen.bb:getType())
+        local ok = pcall(function() self:paintTo(full, 0, 0) end)
+        if not ok then full:free(); return false end
+        if keep then keep(self:_pagePxCapture(full, d)) end
+        src = full
+    end
+    local ry = rowsTop()
+    local bottom = (footer_rect and footer_band and footer_band.y > ry) and footer_band.y or self.height
+    local region = Geom:new{ x = 0, y = ry, w = self.width, h = bottom - ry }
+    Screen.bb:blitFrom(src, 0, ry, 0, ry - src_y0, region.w, region.h)
+    UIManager:setDirty(nil, mode, region)
+    if bottom ~= self.height and footer_rect then
+        local r = footer_rect
+        Screen.bb:blitFrom(src, r.x, r.y, r.x, r.y - src_y0, r.w, r.h)
+        UIManager:setDirty(nil, "ui", r)
+    end
+    if full then full:free() end
+    return true
+end
+
 function BookshelfWidget:_swapShelvesInPlace()
     self:_ornScanWindow()
     local _perf_t0 = _gettime()
@@ -9966,8 +10158,24 @@ function BookshelfWidget:_swapShelvesInPlace()
     local items = self:_takeFetchedPage(all_items, _total_hint, VIEW_SIZE)
     -- Same dispatch as _rebuild; the stash is guaranteed to belong to this mode
     -- by the guard above, so d.shelf_h is already the right kind of height.
+    -- A page turn back to a page just left reuses its rows (and the page
+    -- state their build set) instead of building them again; see
+    -- lib/bookshelf_page_cache. Only a page turn reads or fills the cache:
+    -- any other swap means something on the shelf changed, so it clears it.
+    local PageCache = require("lib/bookshelf_page_cache")
+    local pc_key = _wipe_dir and self:_pageCacheKey(items, d, n_shelves) or nil
+    if not pc_key then self:_pageCacheClear() end
+    local pc_hit = pc_key and PageCache.take(self:_pageCache(), pc_key) or nil
+    -- A page with a ticking module, kept from an earlier minute: drawn anew.
+    if pc_hit and pc_hit.minute and pc_hit.minute ~= math.floor(os.time() / 60) then
+        PageCache._free(pc_hit)
+        pc_hit = nil
+    end
     local rows
-    if self:_isListMode() then
+    if pc_hit then
+        rows = pc_hit.rows
+        self:_pageStateRestore(pc_hit.state)
+    elseif self:_isListMode() then
         rows = self:_buildListRows(items, d.content_w, d.shelf_h, d.book_gap or d.PAD, n_shelves)
     elseif self:_isSpineMode() then
         rows = self:_buildSpineRows(items, d.content_w, d.shelf_h, d.book_gap or d.PAD, n_shelves)
@@ -10048,7 +10256,9 @@ function BookshelfWidget:_swapShelvesInPlace()
     local ListRow      = list_rows and require("lib/bookshelf_list_row") or nil
     local VerticalSpan = list_rows and require("ui/widget/verticalspan") or nil
     local old_rows = {}
-    if d.row_pitch then self:_hangUnder(rows, d.row_pitch, d.hang_top_gap) end
+    -- Not for kept rows: _hangUnder shifts the ornaments by their current
+    -- offsets, so a second pass would move them twice.
+    if d.row_pitch and not pc_hit then self:_hangUnder(rows, d.row_pitch, d.hang_top_gap) end
     -- How high the leaving page's pieces reach, read while its rows still
     -- hold their painted positions (see _ornReachTop).
     local old_reach = BookshelfWidget._ornReachTop({ self._inner_vgroup[d.shelf_top_idx] })
@@ -10080,10 +10290,21 @@ function BookshelfWidget:_swapShelvesInPlace()
     if self._overlap_group and self._overlap_group.resetLayout then
         self._overlap_group:resetLayout()
     end
+    -- The page left is kept rather than freed when a page turn built (or
+    -- took) it and nothing marks it unfit to keep; the page now shown
+    -- becomes the one a later turn keeps.
+    local outgoing = self._page_cur
+    local keep_old = pc_key and outgoing and outgoing.rows and outgoing.rows[1] == old_rows[1]
+    if keep_old then
+        PageCache.put(self:_pageCache(), outgoing)
+    end
+    self._page_cur = pc_key and self:_pageKeepable() and
+        { key = pc_key, rows = rows, state = self:_pageStateSnapshot(),
+          minute = pc_hit and pc_hit.minute or self:_pageMinute() } or nil
     UIManager:nextTick(function()
         for _i = 1, #old_rows do
             local w = old_rows[_i]
-            if w and w.free then pcall(function() w:free() end) end
+            if w and w.free and not keep_old then pcall(function() w:free() end) end
         end
         if old_footer and old_footer.free then
             pcall(function() old_footer:free() end)
@@ -10195,6 +10416,10 @@ function BookshelfWidget:_swapShelvesInPlace()
     if flash then anim_steps = nil end
     local refresh_mode = flash and "full" or "ui"
     local wiped = false
+    -- The kept page's own pixels, painted offscreen when it was last shown
+    -- (lib/bookshelf_page_cache); cur_px: this page's, kept with it.
+    local px_hit = pc_hit and pc_hit.px or nil
+    local cur_px = nil
     if anim_steps then
         local ry = BookshelfWidget._rowsRegionTop(shelf_top, d)
         local rh, region
@@ -10213,9 +10438,14 @@ function BookshelfWidget:_swapShelvesInPlace()
             -- Allocated per turn, deliberately: a reused screen-sized scratch
             -- buffer was tried and measured no faster (413ms against 408ms,
             -- and noisier), so it was 2MB held for nothing.
-            local new_bb = Blitbuffer.new(Screen.bb:getWidth(), Screen.bb:getHeight(),
-                                          Screen.bb:getType())
-            self:paintTo(new_bb, 0, 0)
+            local new_bb = px_hit and self:_pagePxToFull(px_hit)
+            -- From kept pixels nothing is painted: place the new footer.
+            if px_hit then self:_placeFooterHitAreas(d) end
+            if not new_bb then
+                new_bb = Blitbuffer.new(Screen.bb:getWidth(), Screen.bb:getHeight(),
+                                        Screen.bb:getType())
+                self:paintTo(new_bb, 0, 0)
+            end
             -- Up to the highest piece of either page, now both are placed.
             ry = math.max(0, math.min(ry, old_reach or ry,
                 BookshelfWidget._ornReachTop({ rows[1] }) or ry))
@@ -10235,8 +10465,26 @@ function BookshelfWidget:_swapShelvesInPlace()
                 Screen.bb:blitFrom(new_bb, r.x, r.y, r.x, r.y, r.w, r.h)
                 UIManager:setDirty(nil, "ui", r)
             end
+            -- Pixels only for a page that will be kept (a page with a
+            -- ticking module is not): the copy is 2MB on a PW5.
+            if pc_key and self._page_cur and self._page_cur.rows == rows then
+                cur_px = px_hit or self:_pagePxCapture(new_bb, d)
+            end
             new_bb:free()
         end)
+    end
+    if not wiped and shelf_top and pc_key then
+        -- A page turn without the wipe: painted offscreen (or taken from the
+        -- page's kept pixels) and copied to the screen, so the page can be
+        -- kept as pixels too. Painting offscreen is the wipe's own route,
+        -- verified byte-identical to painting the framebuffer, and on the
+        -- PW5 faster than it (no reads of the uncached framebuffer).
+        local keeping = self._page_cur and self._page_cur.rows == rows
+        local ok_px, done = pcall(function()
+            return self:_pageShowOffscreen(px_hit, shelf_top, d, old_reach, rows,
+                footer_rect, footer_band, refresh_mode, keeping and function(px) cur_px = px end or nil)
+        end)
+        wiped = ok_px and done or false
     end
     if not wiped then
         if shelf_top then
@@ -10277,6 +10525,11 @@ function BookshelfWidget:_swapShelvesInPlace()
     -- Pagination via _swapShelvesInPlace bypasses _rebuild's persist hook;
     -- repeat the save here so a forward/back swipe is enough to land back
     -- on the right page after a book read or KOReader restart.
+    if self._page_cur and self._page_cur.rows == rows then
+        self._page_cur.px = cur_px
+    elseif cur_px then
+        cur_px.bb:free()
+    end
     self:_persistNavState()
     -- ...and bypasses _rebuild's OPDS hook too: a page turn INTO the tail of
     -- an OPDS window is exactly the moment the next feed page is needed.
@@ -12395,6 +12648,7 @@ function BookshelfWidget:onCloseWidget()
     -- shelf, and kept a closed one -- its whole widget tree, page items and
     -- fetch cache -- alive until the next open (kindle_benchmark's heap
     -- after its stress run). A hook a newer shelf has taken is left alone.
+    self:_pageCacheClear()
     if BookshelfWidget._clip_target == self then BookshelfWidget._clip_target = nil end
     if Repo.on_book_invalidated == self._on_book_invalidated then Repo.on_book_invalidated = nil end
     local Pub = package.loaded["lib/bookshelf_published"]
@@ -14467,6 +14721,11 @@ function BookshelfWidget:paintTo(bb, x, y)
     -- ReaderUI is tearing down to open another book, and cleared once the new
     -- reader is ready (or whenever the shelf is intentionally shown again).
     if self._suppress_transition_paint then return end
+    -- A paint of the screen over the rows means something there changed in
+    -- place (a cover's finished scale after its draft, say): the page's
+    -- kept pixels (lib/bookshelf_page_cache) no longer match it. Its rows
+    -- are still right; only the pixels go.
+    self:_pagePxStaleBy(bb)
 
     local sw = Screen:getWidth()
     local sh = Screen:getHeight()
@@ -22684,6 +22943,8 @@ end
 -- scoped optimisation should mirror _setBookRating's per-cell
 -- refresh path. Called from cover-tap dispatch (wired in Task 8).
 function BookshelfWidget:_refreshCoverFrame(_filepath)
+    -- A cover drawn anew in place: a kept page may hold the old one.
+    self:_pageCacheClear()
     self:_rebuild()
     UIManager:setDirty(self, "ui")
 end

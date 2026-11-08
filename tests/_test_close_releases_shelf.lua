@@ -28,7 +28,8 @@ local BW = {}
 local env = { Repo = Repo, BookshelfWidget = BW, UIManager = { unschedule = function() end } }
 local close = method("onCloseWidget", env)
 local function shelf()
-    local s = { _stopStatusTimer = function() end, _flushNavStateNow = function() end }
+    local s = { _stopStatusTimer = function() end, _flushNavStateNow = function() end,
+                _pageCacheClear = function() end }
     s._on_book_invalidated = function() end
     s._on_published_filled = function() end
     s._orn_handlers = {}

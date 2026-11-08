@@ -280,7 +280,8 @@ t.test("the page turn repaints down from the panel's bottom", function()
     eq(top(500, { PAD = 20, hang_top_gap = 8 }), 480, "a narrow gap gave up the PAD band")
     eq(top(10, { PAD = 20 }), 0)
     local n = select(2, widget:gsub("BookshelfWidget%._rowsRegionTop%(shelf_top, d%)", ""))
-    eq(n, 3, "the wipe and the scoped refresh do not both use it")
+    -- The wipe, the scoped refresh and the offscreen page turn (page cache).
+    eq(n, 4, "the wipe, the scoped refresh and the offscreen turn do not all use it")
 end)
 
 t.done()

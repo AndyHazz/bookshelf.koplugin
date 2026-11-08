@@ -52,6 +52,7 @@ local function harness(self_)
     env._G = env
     self_._cancelPreload        = function(s) compile("local self = ...\n" .. CANCEL, env, "cancel")(s) end
     self_._applyCoverCacheBudget = function() end
+    self_._pageAheadCancel      = function() end
     self_._preloadStep          = function() end
     return env, scheduled,
         function(dir) compile("local self, direction = ...\n" .. SCHEDULE, env, "sched")(self_, dir) end,

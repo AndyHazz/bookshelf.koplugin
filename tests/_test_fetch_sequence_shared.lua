@@ -109,7 +109,7 @@ end)
 
 -- ── both callers use them, in the order the clamp needs ────────────────────
 
-for _i, fname in ipairs({ "_rebuild", "_swapShelvesInPlace" }) do
+for _i, fname in ipairs({ "_rebuild", "_pageCompose" }) do
     t.test(fname .. " notes totals, clamps, then takes the page", function()
         local _a, b = method(fname)
         local note  = b:find("self:_noteFetchTotals(all_items, _total_hint, VIEW_SIZE)", 1, true)

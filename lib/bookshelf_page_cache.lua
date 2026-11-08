@@ -54,6 +54,15 @@ function M.take(pc, key)
     return nil
 end
 
+-- has(pc, key) -> true when a page is kept under key (left in the cache).
+function M.has(pc, key)
+    if not (pc and key and M.enabled) then return false end
+    for _i, e in ipairs(pc.list) do
+        if e.key == key then return true end
+    end
+    return false
+end
+
 -- put(pc, entry): keep entry (newest first); the oldest beyond MAX is freed.
 -- An entry under a key already kept replaces it.
 function M.put(pc, entry)

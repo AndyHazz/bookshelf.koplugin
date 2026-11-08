@@ -74,7 +74,8 @@ end
 t.test("only a page turn reads or fills the cache; anything else clears it", function()
     assert(body("_rebuild"):find("self:_pageCacheClear()", 1, true), "a rebuild keeps stale pages")
     local swap = body("_swapShelvesInPlace")
-    assert(swap:find("local pc_key = _wipe_dir and self:_pageCacheKey(items, d, n_shelves) or nil", 1, true),
+    assert(swap:find("self:_pageCompose(_wipe_dir ~= nil, false)", 1, true)
+        and body("_pageCompose"):find("local pc_key = turning and self:_pageCacheKey(items, d, n_shelves) or nil", 1, true),
         "a swap that is not a page turn can use the cache")
     assert(swap:find("if not pc_key then self:_pageCacheClear() end", 1, true),
         "a swap that is not a page turn leaves kept pages")
@@ -83,7 +84,7 @@ t.test("only a page turn reads or fills the cache; anything else clears it", fun
 end)
 
 t.test("kept rows are not hung twice, and their page state comes back with them", function()
-    local swap = body("_swapShelvesInPlace")
+    local swap = body("_pageCompose")
     assert(swap:find("if d.row_pitch and not pc_hit then self:_hangUnder(", 1, true),
         "kept rows are hung again (their pieces move twice)")
     assert(swap:find("self:_pageStateRestore(pc_hit.state)", 1, true), "a kept page's state is not restored")
@@ -103,7 +104,7 @@ t.test("a screen paint over the rows drops the page's kept pixels; the key holds
 end)
 
 t.test("a page with a ticking module is kept only for the minute it was drawn in", function()
-    local swap = body("_swapShelvesInPlace")
+    local swap = body("_pageCompose")
     assert(swap:find("pc_hit.minute ~= math.floor(os.time() / 60)", 1, true),
         "a page with a clock is reused after its minute")
     assert(body("_pageMinute"):find("math.floor(os.time() / 60)", 1, true))

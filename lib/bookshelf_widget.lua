@@ -1074,6 +1074,7 @@ function BookshelfWidget:_ornScanWindow()
 end
 
 function BookshelfWidget:_rebuild()
+    self:_pageGenBump()
     -- Something other than a page turn: no kept page is known to be right.
     self:_pageCacheClear()
     self:_ornScanWindow()
@@ -2951,6 +2952,10 @@ function BookshelfWidget:_rebuild()
     -- preload and re-syncs cache capacity.
     if (self._total_pages or 1) > (self.page or 1) then
         self:_schedulePreload(1)
+    elseif self:_isSpineMode() then
+        -- A spine shelf's page count can read 1 with more pages to come:
+        -- the build ahead asks the plan (_pageForwardPossible) itself.
+        self:_pageAheadArm(1)
     end
     -- OPDS chips only: pull more feed pages if the repo flagged this page as
     -- running past the cached window, and fill in missing thumbnails. No-op
@@ -9927,6 +9932,7 @@ end
 -- _pageCacheClear(): forget every kept page, and the one on screen as a page
 -- to keep (it is live, so its rows are not freed here).
 function BookshelfWidget:_pageCacheClear()
+    self:_pageGenBump()
     if self._page_cache then require("lib/bookshelf_page_cache").clear(self._page_cache) end
     self._page_cur = nil
 end
@@ -10095,19 +10101,16 @@ function BookshelfWidget:_pageShowOffscreen(px, shelf_top, d, old_reach, rows,
     return true
 end
 
-function BookshelfWidget:_swapShelvesInPlace()
-    self:_ornScanWindow()
-    local _perf_t0 = _gettime()
-    -- Page-turn animation direction, set by the paginate handlers just before
-    -- they call us (1 = next, -1 = prev); nil for every other caller (selection
-    -- changes, refreshes) so only real pagination animates. Consumed once.
-    local _wipe_dir = self._wipe_dir
-    self._wipe_dir = nil
-    if not self._inner_vgroup or not self._shelf_dims then
-        self:_rebuild()
-        UIManager:setDirty(self, "ui")
-        return
-    end
+-- _pageCompose(turning, ahead) -> page, or nil when the page at the cursor
+-- cannot be swapped in where the rows stand (the layout changed shape, the
+-- fetched window moved, the shelf went empty): the shelf is rebuilt instead.
+-- The page is fetched, the totals noted, and its rows built and hung, or
+-- taken from the page cache on a page turn. turning: a page turn, which keys
+-- the page for the cache. ahead: the page built before its turn
+-- (_pageAheadRun), which never takes from the cache: page.cached says the
+-- cache holds it already, and then no rows are built.
+function BookshelfWidget:_pageCompose(turning, ahead)
+    local t0 = _gettime()
     -- Fast path handles ANY row count, not just the standard 2-row layout --
     -- as long as the stashed layout still matches the current mode. A changed
     -- _nShelves (rotation, expand/collapse toggle, cover-size change) means the
@@ -10121,9 +10124,7 @@ function BookshelfWidget:_swapShelvesInPlace()
     -- row COUNT that happens to be equal in both would otherwise let a stale
     -- stash through and paint the wrong row type on the next page turn.
     if n_shelves ~= (d.n_shelves or 2) or self:_viewMode() ~= d.view_mode then
-        self:_rebuild()
-        UIManager:setDirty(self, "ui")
-        return
+        return nil
     end
     local VIEW_SIZE = self:_viewSize()
     local MAX_FETCH = 400
@@ -10134,43 +10135,43 @@ function BookshelfWidget:_swapShelvesInPlace()
         all_items, _total_hint = self:_fetchWithShelfModules(MAX_FETCH)
     end
     all_items = all_items or {}
-    local _perf_t1 = _gettime()
+    local t1 = _gettime()
     logger.dbg(string.format("[bookshelf perf] _swapShelves: fetch=%.0fms items=%d chip=%s",
-        (_perf_t1 - _perf_t0) * 1000, _total_hint or #all_items, self.chip))
+        (t1 - t0) * 1000, _total_hint or #all_items, self.chip))
     local total = self:_noteFetchTotals(all_items, _total_hint, VIEW_SIZE)
     -- Same order as _rebuild, so the same hazard: the window was fetched at
     -- the cursor as it stood, and a clamp that moves it leaves this page from
     -- somewhere else (issue 369). A moved window is a change of shape this
     -- path cannot swap in place, like the empty state below -- and _rebuild
     -- fetches at the cursor this clamp has just corrected.
-    if self:_clampFetchedWindow(total, _total_hint ~= nil) then
-        self:_rebuild()
-        UIManager:setDirty(self, "ui")
-        return
-    end
-    if total == 0 then
-        -- Going to empty state needs a structural change (hero + chips +
-        -- placeholder, no shelves) — fall back to full rebuild.
-        self:_rebuild()
-        UIManager:setDirty(self, "ui")
-        return
-    end
+    if self:_clampFetchedWindow(total, _total_hint ~= nil) then return nil end
+    -- Going to empty state needs a structural change (hero + chips +
+    -- placeholder, no shelves) — fall back to full rebuild.
+    if total == 0 then return nil end
     local items = self:_takeFetchedPage(all_items, _total_hint, VIEW_SIZE)
-    -- Same dispatch as _rebuild; the stash is guaranteed to belong to this mode
-    -- by the guard above, so d.shelf_h is already the right kind of height.
     -- A page turn back to a page just left reuses its rows (and the page
     -- state their build set) instead of building them again; see
     -- lib/bookshelf_page_cache. Only a page turn reads or fills the cache:
     -- any other swap means something on the shelf changed, so it clears it.
     local PageCache = require("lib/bookshelf_page_cache")
-    local pc_key = _wipe_dir and self:_pageCacheKey(items, d, n_shelves) or nil
-    if not pc_key then self:_pageCacheClear() end
-    local pc_hit = pc_key and PageCache.take(self:_pageCache(), pc_key) or nil
-    -- A page with a ticking module, kept from an earlier minute: drawn anew.
-    if pc_hit and pc_hit.minute and pc_hit.minute ~= math.floor(os.time() / 60) then
-        PageCache._free(pc_hit)
-        pc_hit = nil
+    local pc_key = turning and self:_pageCacheKey(items, d, n_shelves) or nil
+    local page = { d = d, n_shelves = n_shelves, items = items, key = pc_key, t_fetched = t1 }
+    local pc_hit
+    if ahead then
+        if not pc_key or PageCache.has(self:_pageCache(), pc_key) then
+            page.cached = true
+            return page
+        end
+    elseif pc_key then
+        pc_hit = PageCache.take(self:_pageCache(), pc_key)
+        -- A page with a ticking module, kept from an earlier minute: drawn anew.
+        if pc_hit and pc_hit.minute and pc_hit.minute ~= math.floor(os.time() / 60) then
+            PageCache._free(pc_hit)
+            pc_hit = nil
+        end
     end
+    -- Same dispatch as _rebuild; the stash is guaranteed to belong to this mode
+    -- by the guard above, so d.shelf_h is already the right kind of height.
     local rows
     if pc_hit then
         rows = pc_hit.rows
@@ -10188,13 +10189,315 @@ function BookshelfWidget:_swapShelvesInPlace()
         d.cover_w = rows[1].cover_w
         d.cover_h = rows[1].cover_h
     end
-    local _perf_t2 = _gettime()
+    -- Not for kept rows: _hangUnder shifts the ornaments by their current
+    -- offsets, so a second pass would move them twice.
+    if d.row_pitch and not pc_hit then self:_hangUnder(rows, d.row_pitch, d.hang_top_gap) end
+    page.rows, page.hit = rows, pc_hit
+    return page
+end
+
+-- _footerAnchor(d) -> the footer row for the page at the cursor, in its
+-- screen-anchor BottomContainer, ready for the overlap group.
+function BookshelfWidget:_footerAnchor(d)
+    local BottomContainer = require("ui/widget/container/bottomcontainer")
+    return BottomContainer:new{
+        dimen = Geom:new{ w = self.width, h = self.height - d.FOOTER_BOTTOM_MARGIN },
+        self:_buildFooterRow(d.content_w, self._total_pages, d.FOOTER_H),
+    }
+end
+
+-- _pagePlace(d, n_shelves, items, rows, footer) -> what it replaced, as
+-- { rows, gaps, footer }: the page's rows put where the shelf's stand, rows
+-- at shelf_top_idx, +2, +4, ... (each separated by exactly one gap widget --
+-- a VerticalSpan in cover mode, the hairline divider in list mode -- so
+-- inter-row spacing, including the widths GridMargins dealt out, is
+-- preserved), and its footer in the overlap group. _pageUnplace puts back
+-- what it returns.
+--
+-- The gap widgets are left alone in cover mode but NOT in list mode: which
+-- of them is a divider depends on where the page's items run out, and a
+-- turn onto a partial last page would otherwise leave the previous page's
+-- rules hanging under blank rows.
+function BookshelfWidget:_pagePlace(d, n_shelves, items, rows, footer)
+    local list_rows    = self:_isListMode()
+    local ListRow      = list_rows and require("lib/bookshelf_list_row") or nil
+    local VerticalSpan = list_rows and require("ui/widget/verticalspan") or nil
+    local vg = self._inner_vgroup
+    local old = { rows = {}, gaps = {} }
+    for r = 1, n_shelves do
+        local idx = d.shelf_top_idx + 2 * (r - 1)
+        old.rows[r] = vg[idx]
+        vg[idx] = rows[r]
+        if list_rows then
+            old.gaps[r] = vg[idx + 1]
+            -- Rewritten unconditionally rather than inspected: the two are the
+            -- same height (the divider IS Size.line.thin), so this can never
+            -- move a row, and neither widget owns a blitbuffer to free.
+            if r < n_shelves and self:_listRowFilled(items, r + 1) then
+                vg[idx + 1] = ListRow.divider(d.content_w, self:_listDividerOpts(items, r))
+            else
+                vg[idx + 1] = VerticalSpan:new{ width = self:_listRowGap() }
+            end
+        end
+    end
+    local og = self._overlap_group
+    old.footer = og and og[d.footer_overlap_idx]
+    if og then og[d.footer_overlap_idx] = footer end
+    if vg.resetLayout then vg:resetLayout() end
+    if og and og.resetLayout then og:resetLayout() end
+    return old
+end
+
+function BookshelfWidget:_pageUnplace(d, n_shelves, old)
+    local vg, og = self._inner_vgroup, self._overlap_group
+    for r = 1, n_shelves do
+        local idx = d.shelf_top_idx + 2 * (r - 1)
+        vg[idx] = old.rows[r]
+        if old.gaps[r] then vg[idx + 1] = old.gaps[r] end
+    end
+    if og then og[d.footer_overlap_idx] = old.footer end
+    if vg.resetLayout then vg:resetLayout() end
+    if og and og.resetLayout then og:resetLayout() end
+end
+
+-- ─── The next page, built ahead (lib/bookshelf_page_cache) ──────────────────
+-- Once a page has settled, the page a turn in the same direction would show
+-- is built and painted offscreen, and kept in the page cache under the key
+-- that turn will look for: the turn then takes it as it takes a page turned
+-- back to, with no fetch of covers, no build and no paint. The build runs
+-- exactly as the turn's own would (advance the cursor, compose, place,
+-- paint), and everything it set on the shelf is put back after.
+--
+-- In steps, the event loop between them, so a tap or a turn is never held
+-- up by more than one: the rows are built, then painted one at a time (which
+-- caches their renders), then the whole page is painted, which is then
+-- cheap. On a PW5 the build in one go held the shelf for 0.6-1.2 s, enough
+-- to make a book tapped just after a turn wait for it. A turn, a rebuild or
+-- anything that clears the page cache between steps drops the page half
+-- built (_page_gen).
+
+-- Long enough for the page just shown to reach the panel first.
+local PAGE_AHEAD_DELAY_S = 0.5
+-- Between steps: long enough for a waiting tap to be read first.
+local PAGE_AHEAD_STEP_S = 0.05
+
+-- The shelf's fields as a table, and back: the build sets fields on the
+-- live shelf as a turn does, and every one goes back after each step.
+local function _takeFields(self)
+    local t = {}
+    for k, v in pairs(self) do t[k] = v end
+    return t
+end
+local function _putFields(self, t)
+    for k in pairs(self) do
+        if t[k] == nil then self[k] = nil end
+    end
+    for k, v in pairs(t) do self[k] = v end
+end
+
+-- _pageGenBump(): something changed the page on screen or what pages show
+-- (a turn, a rebuild, the page cache cleared): a page half built ahead of
+-- it is dropped.
+function BookshelfWidget:_pageGenBump()
+    self._page_gen = (self._page_gen or 0) + 1
+end
+
+function BookshelfWidget:_pageAheadArm(dir)
+    self:_pageAheadCancel()
+    if not require("lib/bookshelf_page_cache").enabled then return end
+    self._page_ahead_dir = (dir and dir < 0) and -1 or 1
+    self._page_ahead_fn = function() self:_pageAheadRun() end
+    UIManager:scheduleIn(PAGE_AHEAD_DELAY_S, self._page_ahead_fn)
+end
+
+-- _pageAheadCancel(): no further step; a page half built is freed.
+function BookshelfWidget:_pageAheadCancel()
+    if self._page_ahead_fn then
+        UIManager:unschedule(self._page_ahead_fn)
+        self._page_ahead_fn = nil
+    end
+    local job = self._page_ahead_job
+    self._page_ahead_job = nil
+    if job then
+        if job.scratch then job.scratch:free(); job.scratch = nil end
+        if job.page and job.page.rows then
+            require("lib/bookshelf_page_cache")._free({ rows = job.page.rows })
+        end
+    end
+end
+
+-- _pageAheadSafe() -> true when the next page may be built now.
+function BookshelfWidget:_pageAheadSafe()
+    if self._closed or not (self._inner_vgroup and self._shelf_dims) then return false end
+    if not require("lib/bookshelf_page_cache").enabled then return false end
+    -- Only with the shelf on top: under a menu, a dialog or an open book
+    -- nothing is about to be turned, and the paint would be for nothing.
+    if UIManager:getTopmostVisibleWidget() ~= self then return false end
+    -- A rotation not yet rebuilt for: paintTo would rebuild mid-build.
+    if Screen:getWidth() ~= self.width or Screen:getHeight() ~= self.height then return false end
+    -- Never a feed's or another plugin's page: fetching it could reach the
+    -- network, which only the reader's own action may do.
+    if self._opds_open_ended or self:_opdsEffectiveTab() then return false end
+    local tab = require("lib/bookshelf_tab_model").getById(self.chip)
+    local kind = tab and tab.source and tab.source.kind
+    if kind == "opds" or (kind and require("lib/bookshelf_sources").get(kind)) then return false end
+    return true
+end
+
+-- _pageAheadRun(): one step of the build; the next is scheduled after it.
+function BookshelfWidget:_pageAheadRun()
+    self._page_ahead_fn = nil
+    -- Not before the shelf is on screen (a cold start): then, once it is.
+    if not self._first_paint_done then
+        self:_pageAheadArm(self._page_ahead_dir)
+        return
+    end
+    local job = self._page_ahead_job
+    if job and (job.gen ~= self._page_gen or not self:_pageAheadSafe()) then
+        self:_pageAheadCancel()
+        return
+    end
+    if job then
+        if self:_pageAheadStep(job) then
+            self._page_ahead_job = nil
+            return
+        end
+    else
+        if not self:_pageAheadSafe() then return end
+        job = self:_pageAheadBuild(self._page_ahead_dir or 1)
+        if not job then return end
+        job.gen = self._page_gen
+    end
+    self._page_ahead_job = job
+    self._page_ahead_fn = function() self:_pageAheadRun() end
+    UIManager:scheduleIn(PAGE_AHEAD_STEP_S, self._page_ahead_fn)
+end
+
+-- _pageAheadBuild(dir) -> a job: the page a turn in dir would show, its rows
+-- built and hung, and the shelf's fields as that build left them (sim). The
+-- shelf itself is left as it was. nil when there is nothing to build: no
+-- page that way, or one the cache holds already.
+function BookshelfWidget:_pageAheadBuild(dir)
+    if dir > 0 and not self:_pageForwardPossible() then return nil end
+    if dir < 0 and not self:_pageBackPossible() then return nil end
+    local t0 = _gettime()
+    self:_ornScanWindow()
+    local real = _takeFields(self)
+    -- The one table the step changes in place, the spine page history, is
+    -- lent as a copy.
+    if type(self._spine_hist) == "table" then
+        local h = {}
+        for i, v in ipairs(self._spine_hist) do h[i] = v end
+        self._spine_hist = h
+    end
+    local page
+    local ok, err = pcall(function()
+        self:_advanceCursor(dir)
+        self:_syncPageFromCursor()
+        page = self:_pageCompose(true, true)
+    end)
+    local sim = _takeFields(self)
+    _putFields(self, real)
+    if not ok then
+        logger.warn("[bookshelf] building the next page ahead failed:", tostring(err))
+        if page and page.rows then require("lib/bookshelf_page_cache")._free({ rows = page.rows }) end
+        return nil
+    end
+    if not page or page.cached or not page.rows then return nil end
+    logger.dbg(string.format("[bookshelf perf] page ahead: built rows in %.0fms dir=%d chip=%s",
+        (_gettime() - t0) * 1000, dir, tostring(self.chip)))
+    return { page = page, sim = sim, row = 0 }
+end
+
+-- _pageAheadStep(job) -> true when the job is over: one row painted alone
+-- (its renders cached), or, once all are, the page placed, painted whole,
+-- its pixels kept and the page put in the cache. Run with the shelf's
+-- fields as the build left them, and put back after.
+function BookshelfWidget:_pageAheadStep(job)
+    local PageCache = require("lib/bookshelf_page_cache")
+    local page = job.page
+    local t0 = _gettime()
+    local real = _takeFields(self)
+    _putFields(self, job.sim)
+    local entry, placed, ahead_footer
+    local last = job.row >= page.n_shelves
+    local ok, err = pcall(function()
+        if not last then
+            job.row = job.row + 1
+            local row = page.rows[job.row]
+            if row and row.paintTo then
+                job.scratch = job.scratch or Blitbuffer.new(Screen.bb:getWidth(),
+                    Screen.bb:getHeight(), Screen.bb:getType())
+                row:paintTo(job.scratch, 0, 0)
+            end
+            return
+        end
+        if job.scratch then job.scratch:free(); job.scratch = nil end
+        placed = self:_pagePlace(page.d, page.n_shelves, page.items, page.rows, self:_footerAnchor(page.d))
+        local full = Blitbuffer.new(Screen.bb:getWidth(), Screen.bb:getHeight(), Screen.bb:getType())
+        local ok_paint, perr = pcall(function() self:paintTo(full, 0, 0) end)
+        if ok_paint then
+            entry = { key = page.key, rows = page.rows, state = self:_pageStateSnapshot(),
+                      minute = self:_pageMinute(), px = self:_pagePxCapture(full, page.d) }
+        end
+        full:free()
+        if not ok_paint then error(perr) end
+    end)
+    if placed then
+        ahead_footer = self._overlap_group and self._overlap_group[page.d.footer_overlap_idx]
+        self:_pageUnplace(page.d, page.n_shelves, placed)
+    end
+    _putFields(self, real)
+    if ahead_footer and ahead_footer.free then pcall(function() ahead_footer:free() end) end
+    if not ok then
+        logger.warn("[bookshelf] building the next page ahead failed:", tostring(err))
+        if job.scratch then job.scratch:free(); job.scratch = nil end
+        PageCache._free({ rows = page.rows })
+        job.page = nil
+        return true
+    end
+    logger.dbg(string.format("[bookshelf perf] page ahead: %s in %.0fms",
+        last and "painted" or ("row " .. job.row), (_gettime() - t0) * 1000))
+    if not last then return false end
+    job.page = nil
+    if entry then
+        PageCache.put(self:_pageCache(), entry)
+    else
+        PageCache._free({ rows = page.rows })
+    end
+    return true
+end
+
+function BookshelfWidget:_swapShelvesInPlace()
+    self:_pageGenBump()
+    self:_ornScanWindow()
+    local _perf_t0 = _gettime()
+    -- Page-turn animation direction, set by the paginate handlers just before
+    -- they call us (1 = next, -1 = prev); nil for every other caller (selection
+    -- changes, refreshes) so only real pagination animates. Consumed once.
+    local _wipe_dir = self._wipe_dir
+    self._wipe_dir = nil
+    if not self._inner_vgroup or not self._shelf_dims then
+        self:_rebuild()
+        UIManager:setDirty(self, "ui")
+        return
+    end
+    local page = self:_pageCompose(_wipe_dir ~= nil, false)
+    if not page then
+        self:_rebuild()
+        UIManager:setDirty(self, "ui")
+        return
+    end
+    local d, n_shelves, items, rows = page.d, page.n_shelves, page.items, page.rows
+    local PageCache = require("lib/bookshelf_page_cache")
+    local pc_key, pc_hit = page.key, page.hit
+    if not pc_key then self:_pageCacheClear() end
+    local _perf_t1, _perf_t2 = page.t_fetched, _gettime()
     logger.dbg(string.format("[bookshelf perf] _swapShelves: shelves=%.0fms",
         (_perf_t2 - _perf_t1) * 1000))
     -- Rebuild the entire footer row (chev nav + optional bucket+✕),
     -- wrapped in its screen-anchor BottomContainer. Swap it into the
     -- overlap_group at the stashed footer_overlap_idx.
-    local BottomContainer = require("ui/widget/container/bottomcontainer")
     -- Footer geometry from the OUTGOING footer (same layout as the incoming
     -- one): the row's painted band and the page label's slot. With these the
     -- turn's refresh can stop at the footer's top edge and repaint only the
@@ -10206,7 +10509,7 @@ function BookshelfWidget:_swapShelvesInPlace()
     local label_rect   = self._page_text_button and self._page_text_button.dimen
                          and self._page_text_button.dimen:copy() or nil
     local prev_nav     = self._footer_nav_state
-    local new_footer_row = self:_buildFooterRow(d.content_w, self._total_pages, d.FOOTER_H)
+    local new_footer_anchor = self:_footerAnchor(d)
     local new_nav = self._footer_nav_state
     local nav_changed = not (prev_nav and new_nav)
                         or prev_nav.back ~= new_nav.back
@@ -10215,10 +10518,6 @@ function BookshelfWidget:_swapShelvesInPlace()
     -- text moved, the whole band when a chevron lit up or went dark. nil =
     -- geometry unknown (first paint), fall back to the old full band.
     local footer_rect = footer_band and (nav_changed and footer_band or label_rect) or nil
-    local new_footer_anchor = BottomContainer:new{
-        dimen = Geom:new{ w = self.width, h = self.height - d.FOOTER_BOTTOM_MARGIN },
-        new_footer_row,
-    }
 
     -- Kick off BIM extraction for newly-paginated books that aren't
     -- cached yet. Same slot + hero dims as _rebuild's call so both
@@ -10252,44 +10551,11 @@ function BookshelfWidget:_swapShelvesInPlace()
     -- of them is a divider depends on where the page's items run out, and a
     -- turn onto a partial last page would otherwise leave the previous page's
     -- rules hanging under blank rows.
-    local list_rows    = self:_isListMode()
-    local ListRow      = list_rows and require("lib/bookshelf_list_row") or nil
-    local VerticalSpan = list_rows and require("ui/widget/verticalspan") or nil
-    local old_rows = {}
-    -- Not for kept rows: _hangUnder shifts the ornaments by their current
-    -- offsets, so a second pass would move them twice.
-    if d.row_pitch and not pc_hit then self:_hangUnder(rows, d.row_pitch, d.hang_top_gap) end
     -- How high the leaving page's pieces reach, read while its rows still
     -- hold their painted positions (see _ornReachTop).
     local old_reach = BookshelfWidget._ornReachTop({ self._inner_vgroup[d.shelf_top_idx] })
-    for r = 1, n_shelves do
-        local idx = d.shelf_top_idx + 2 * (r - 1)
-        old_rows[r] = self._inner_vgroup[idx]
-        self._inner_vgroup[idx] = rows[r]
-        if list_rows then
-            -- Rewritten unconditionally rather than inspected: the two are the
-            -- same height (the divider IS Size.line.thin), so this can never
-            -- move a row, and neither widget owns a blitbuffer to free.
-            if r < n_shelves and self:_listRowFilled(items, r + 1) then
-                self._inner_vgroup[idx + 1] = ListRow.divider(
-                    d.content_w, self:_listDividerOpts(items, r))
-            else
-                self._inner_vgroup[idx + 1] =
-                    VerticalSpan:new{ width = self:_listRowGap() }
-            end
-        end
-    end
-    local old_footer = self._overlap_group and self._overlap_group[d.footer_overlap_idx]
-    if self._overlap_group then
-        self._overlap_group[d.footer_overlap_idx] = new_footer_anchor
-    end
-
-    if self._inner_vgroup.resetLayout then
-        self._inner_vgroup:resetLayout()
-    end
-    if self._overlap_group and self._overlap_group.resetLayout then
-        self._overlap_group:resetLayout()
-    end
+    local placed = self:_pagePlace(d, n_shelves, items, rows, new_footer_anchor)
+    local old_rows, old_footer = placed.rows, placed.footer
     -- The page left is kept rather than freed when a page turn built (or
     -- took) it and nothing marks it unfit to keep; the page now shown
     -- becomes the one a later turn keeps.
@@ -10534,6 +10800,12 @@ function BookshelfWidget:_swapShelvesInPlace()
     -- ...and bypasses _rebuild's OPDS hook too: a page turn INTO the tail of
     -- an OPDS window is exactly the moment the next feed page is needed.
     self:_opdsAfterPage(self._page_items)
+    -- Any other swap (a cover landing from extraction, a refresh) cleared
+    -- the page cache and the page built ahead with it: build it again. A
+    -- turn arms its own (_schedulePreload). On a PW5 still extracting part
+    -- of its library, extraction re-swapped the page after most turns, and
+    -- the next turn found nothing built.
+    if not _wipe_dir then self:_pageAheadArm(self._page_ahead_dir or 1) end
 end
 
 -- Walk a widget tree looking for the SpineWidget whose .book.filepath
@@ -16407,6 +16679,7 @@ function BookshelfWidget:_applyCoverCacheBudget()
 end
 
 function BookshelfWidget:_cancelPreload()
+    self:_pageAheadCancel()
     self._preload_pending = nil
     if self._preload_fn then
         UIManager:unschedule(self._preload_fn)
@@ -16652,6 +16925,8 @@ function BookshelfWidget:_preloadStep()
         self._preload_fn = nil
         self._preload_queue = nil
         self._preload_seen = nil
+        -- The page's covers are warm: now the page itself.
+        self:_pageAheadArm(self._preload_dir)
         return
     end
     if self._preload_fn then
@@ -17048,7 +17323,10 @@ function BookshelfWidget:_schedulePreload(direction)
     -- paints (a spine is colour and text; the few face-out favourites decode
     -- on demand), and the warm loop's decode chunks were exactly what made
     -- the first tap after a chip switch feel dead. Nothing worth warming.
-    if self:_isSpineMode() then return end
+    if self:_isSpineMode() then
+        self:_pageAheadArm(direction)
+        return
+    end
     self:_cancelPreload()
     self:_applyCoverCacheBudget()
     self._preload_dir = direction

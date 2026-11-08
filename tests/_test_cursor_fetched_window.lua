@@ -131,15 +131,20 @@ end)
 -- cannot swap in place (the empty state); a moved window is another.
 
 t.test("the page-turn fast path falls back to a rebuild when the clamp moved it", function()
-    local body = src:match("\nfunction BookshelfWidget:_swapShelvesInPlace%(%)\n(.-)\nend\n")
-    assert(body, "_swapShelvesInPlace moved or was renamed")
+    -- The swap composes its page in _pageCompose, which answers nil for a
+    -- page it cannot swap in place; the swap then rebuilds.
+    local body = src:match("\nfunction BookshelfWidget:_pageCompose%(turning, ahead%)\n(.-)\nend\n")
+    assert(body, "_pageCompose moved or was renamed")
     local at = body:find("self:_clampFetchedWindow(total", 1, true)
     assert(at, "the page swap renders a window fetched before its clamp")
-    local after = body:sub(at, at + 400)
-    assert(after:find("self:_rebuild()", 1, true),
+    local after = body:sub(at, at + 120)
+    assert(after:find("then return nil end", 1, true),
         "a moved window is swapped in place instead of being fetched again")
     assert(not body:find("\n    self:_clampCursor(total)\n", 1, true),
         "the swap still clamps without asking whether its window moved")
+    local swap = src:match("\nfunction BookshelfWidget:_swapShelvesInPlace%(%)\n(.-)\nend\n")
+    assert(swap and swap:find("local page = self:_pageCompose(_wipe_dir ~= nil, false)\n    if not page then\n        self:_rebuild()", 1, true),
+        "the swap no longer rebuilds when its page cannot be swapped in")
 end)
 
 t.done()

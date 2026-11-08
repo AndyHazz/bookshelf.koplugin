@@ -232,7 +232,18 @@ function BookshelfWidget._coverNeedsResize(info, specs)
     return info.cover_w < target_w * 0.8 or info.cover_h < target_h * 0.8
 end
 
+-- onInputEvent(): every input KOReader reads (UIManager's InputEvent hook,
+-- registered in init): when the reader last touched anything, which the
+-- page built ahead waits on (PAGE_AHEAD_QUIET_S).
+function BookshelfWidget:onInputEvent()
+    self._last_input_at = _gettime()
+end
+
 function BookshelfWidget:init()
+    -- (registerWidget unregisters itself when the shelf closes.)
+    if UIManager.event_hook and UIManager.event_hook.registerWidget then
+        pcall(function() UIManager.event_hook:registerWidget("InputEvent", self) end)
+    end
     -- Clipped repaints (see _noteDirty): the newest shelf is the one listened for.
     BookshelfWidget._clip_target = self
     BookshelfWidget.installClipHook()
@@ -873,6 +884,14 @@ function BookshelfWidget:_scheduleNavFlush()
     if self._nav_flush_cb then UIManager:unschedule(self._nav_flush_cb) end
     self._nav_flush_cb = function()
         self._nav_flush_cb = nil
+        -- A settings write (~0.1 s on a PW5): not while the reader is
+        -- swiping, in the same quiet the background work waits for. Every
+        -- exit, suspend and settings flush still writes it at once.
+        local busy = self._inputBusyFor and self:_inputBusyFor() or 0
+        if busy > 0 then
+            self:_scheduleNavFlush()
+            return
+        end
         self:_flushNavStateNow()
     end
     UIManager:scheduleIn(NAV_FLUSH_DELAY, self._nav_flush_cb)
@@ -991,6 +1010,7 @@ function BookshelfWidget:_selectChip(key)
     BookshelfSettings.saveDeferred("active_chip", key)
     self._switching_shelf = true
     self:_rebuild()
+    self:_noteBusy()
     UIManager:setDirty(self, "ui")
 end
 
@@ -2014,6 +2034,7 @@ function BookshelfWidget:_rebuild()
             BookshelfSettings.saveDeferred("active_chip", key)
             self._switching_shelf = true
             self:_rebuildRefreshBelowHero()
+            self:_noteBusy()
         end,
         on_breadcrumb = function(depth)
             return self:_onBreadcrumb(depth, in_search_mode)
@@ -10135,12 +10156,47 @@ function BookshelfWidget:_reclaimAfterTurn()
             or BookshelfWidget._turns_since_collect >= RECLAIM_TURNS then
         if ok and SCC and SCC.resetOrphanBytes then SCC:resetOrphanBytes() end
         BookshelfWidget._turns_since_collect = 0
-        local _t0 = _gettime()
-        collectgarbage("collect")
-        logger.dbg(string.format(
-            "[bookshelf perf] reclaim: full collect %.0fms (orphans=%dKB)",
-            (_gettime() - _t0) * 1000, math.floor(orphans / 1024)))
+        -- The full collect is ~0.6 s on a PW5: after the reader stops, not
+        -- between two quick swipes (maintainer: a swipe after a few quick
+        -- ones waited seconds), in the same pause the page built ahead
+        -- waits for.
+        self:_collectWhenQuiet(orphans)
     end
+end
+
+function BookshelfWidget:_collectWhenQuiet(orphans)
+    if self._collect_fn then return end
+    -- In slices, not one full collect (~0.6 s on a PW5, which a swipe
+    -- arriving meanwhile waited out): incremental steps of ~30 ms with the
+    -- event loop between them, until the cycle completes.
+    local t_start = _gettime()
+    local run
+    run = function()
+        self._collect_fn = nil
+        if self._closed then return end
+        -- A method, not PAGE_AHEAD_QUIET_S: that local is declared below.
+        local busy = self:_inputBusyFor()
+        if busy > 0 then
+            self._collect_fn = run
+            UIManager:scheduleIn(busy, run)
+            return
+        end
+        local t0 = _gettime()
+        local done = false
+        repeat
+            done = collectgarbage("step", 64)
+        until done or (_gettime() - t0) >= 0.03
+        if not done then
+            self._collect_fn = run
+            UIManager:scheduleIn(0.05, run)
+            return
+        end
+        logger.dbg(string.format(
+            "[bookshelf perf] reclaim: collect cycle over %.0fms (orphans=%dKB)",
+            (_gettime() - t_start) * 1000, math.floor((orphans or 0) / 1024)))
+    end
+    self._collect_fn = run
+    UIManager:scheduleIn(0.05, run)
 end
 
 -- ─── Recent pages (lib/bookshelf_page_cache) ────────────────────────────────
@@ -10432,6 +10488,7 @@ function BookshelfWidget:_pageCompose(turning, ahead)
             return page
         end
     elseif pc_key then
+        self:_pageAheadAdopt(pc_key)
         pc_hit = PageCache.take(self:_pageCache(), pc_key)
         -- A page with a ticking module, kept from an earlier minute: drawn anew.
         if pc_hit and pc_hit.minute and pc_hit.minute ~= math.floor(os.time() / 60) then
@@ -10549,6 +10606,42 @@ end
 local PAGE_AHEAD_DELAY_S = 0.5
 -- Between steps: long enough for a waiting tap to be read first.
 local PAGE_AHEAD_STEP_S = 0.05
+-- No step while the reader is busy: only after this long without any input
+-- (onInputEvent) or work of the shelf's own (_noteBusy). Rapid swipes
+-- otherwise landed in a step and waited for it, then built their page
+-- themselves (maintainer, PW5). A step cannot be interrupted, so steps are
+-- kept short (PAGE_AHEAD_SLICE_S, a fetch on its own) and a swipe meeting
+-- one waits a fraction of a turn.
+local PAGE_AHEAD_QUIET_S = 1.5
+-- The longest a step of it may run (but at least one piece of work).
+local PAGE_AHEAD_SLICE_S = 0.08
+
+-- BookshelfWidget._rowLeaves(row) -> the widgets in a row that stand for a
+-- book or a module (they carry a .book or an .entry): what a row's first
+-- paint renders and keeps, painted one at a time by the build ahead.
+function BookshelfWidget._rowLeaves(row)
+    local out = {}
+    local function walk(node, depth)
+        if type(node) ~= "table" or depth > 14 then return end
+        if (rawget(node, "book") or rawget(node, "entry")) and node.paintTo then
+            out[#out + 1] = node
+            return
+        end
+        for _i, c in ipairs(node) do walk(c, depth + 1) end
+    end
+    walk(row, 0)
+    return out
+end
+
+-- _inputBusyFor() -> seconds until PAGE_AHEAD_QUIET_S have passed since the
+-- last input; 0 or less when the reader is idle.
+function BookshelfWidget:_inputBusyFor()
+    return PAGE_AHEAD_QUIET_S - (_gettime() - (self._last_input_at or -math.huge))
+end
+-- How many pages beyond the one on screen: the second is built from the
+-- first's state once the first is done, so two quick swipes after a pause
+-- both land on finished pages.
+local PAGE_AHEAD_DEPTH = 2
 
 -- The shelf's fields as a table, and back: the build sets fields on the
 -- live shelf as a turn does, and every one goes back after each step.
@@ -10581,6 +10674,7 @@ end
 
 -- _pageAheadCancel(): no further step; a page half built is freed.
 function BookshelfWidget:_pageAheadCancel()
+    self._page_ahead_next, self._page_ahead_fetched = nil, nil
     if self._page_ahead_fn then
         UIManager:unschedule(self._page_ahead_fn)
         self._page_ahead_fn = nil
@@ -10589,6 +10683,7 @@ function BookshelfWidget:_pageAheadCancel()
     self._page_ahead_job = nil
     if job then
         if job.scratch then job.scratch:free(); job.scratch = nil end
+        if job.full then job.full:free(); job.full = nil end
         if job.page and job.page.rows then
             require("lib/bookshelf_page_cache")._free({ rows = job.page.rows })
         end
@@ -10616,6 +10711,12 @@ end
 -- _pageAheadRun(): one step of the build; the next is scheduled after it.
 function BookshelfWidget:_pageAheadRun()
     self._page_ahead_fn = nil
+    local busy = self:_inputBusyFor()
+    if busy > 0 then
+        self._page_ahead_fn = function() self:_pageAheadRun() end
+        UIManager:scheduleIn(busy, self._page_ahead_fn)
+        return
+    end
     -- Not before the shelf is on screen (a cold start): then, once it is.
     if not self._first_paint_done then
         self:_pageAheadArm(self._page_ahead_dir)
@@ -10629,11 +10730,40 @@ function BookshelfWidget:_pageAheadRun()
     if job then
         if self:_pageAheadStep(job) then
             self._page_ahead_job = nil
+            -- The page after it, built from where that one ends: in a step
+            -- of its own.
+            if job.kept and (job.depth or 1) < PAGE_AHEAD_DEPTH and job.sim then
+                self._page_ahead_next = { base = job.sim, depth = (job.depth or 1) + 1, gen = self._page_gen }
+                self._page_ahead_fn = function() self:_pageAheadRun() end
+                UIManager:scheduleIn(PAGE_AHEAD_STEP_S, self._page_ahead_fn)
+            end
             return
         end
     else
         if not self:_pageAheadSafe() then return end
-        job = self:_pageAheadBuild(self._page_ahead_dir or 1)
+        local nxt = self._page_ahead_next
+        self._page_ahead_next = nil
+        if nxt and nxt.gen ~= self._page_gen then nxt = nil end
+        -- An expired Spines list is fetched in a step of its own first
+        -- (0.15-0.5 s on a PW5): the build then finds it in hand.
+        if not nxt and self:_isSpineMode() and not self._page_ahead_fetched then
+            local c = self._spine_fetch_cache
+            local stale = not c or (not (c.paged and c.at > 0) and (os.time() - (c.at or 0)) > 30)
+            if stale then
+                self._page_ahead_fetched = true
+                pcall(self._spineCachedFetch, self, 400)
+                self._page_ahead_fn = function() self:_pageAheadRun() end
+                UIManager:scheduleIn(PAGE_AHEAD_STEP_S, self._page_ahead_fn)
+                return
+            end
+        end
+        self._page_ahead_fetched = nil
+        if nxt then
+            job = self:_pageAheadBuild(self._page_ahead_dir or 1, nxt.base)
+            if job then job.depth = nxt.depth end
+        else
+            job = self:_pageAheadBuild(self._page_ahead_dir or 1)
+        end
         if not job then return end
         job.gen = self._page_gen
     end
@@ -10642,16 +10772,50 @@ function BookshelfWidget:_pageAheadRun()
     UIManager:scheduleIn(PAGE_AHEAD_STEP_S, self._page_ahead_fn)
 end
 
--- _pageAheadBuild(dir) -> a job: the page a turn in dir would show, its rows
--- built and hung, and the shelf's fields as that build left them (sim). The
--- shelf itself is left as it was. nil when there is nothing to build: no
+-- _pageAheadAdopt(key): a turn onto the page being built ahead, before it
+-- was finished: its rows, built and hung, go into the cache as the page,
+-- with the state their build set, so the turn does not build them again.
+function BookshelfWidget:_pageAheadAdopt(key)
+    local job = self._page_ahead_job
+    local page = job and job.page
+    if not (page and page.rows and page.key == key and job.sim) then return end
+    local st = {}
+    for _i, k in ipairs(PAGE_STATE_FIELDS) do st[k] = job.sim[k] end
+    local minute
+    local cells = job.sim._shelf_minute_cells
+    if type(cells) == "table" then
+        for k in pairs(cells) do
+            if k ~= "chip" then minute = math.floor(os.time() / 60); break end
+        end
+    end
+    if job.scratch then job.scratch:free(); job.scratch = nil end
+    if job.full then job.full:free(); job.full = nil end
+    job.page = nil
+    self._page_ahead_job = nil
+    if self._page_ahead_fn then
+        UIManager:unschedule(self._page_ahead_fn)
+        self._page_ahead_fn = nil
+    end
+    require("lib/bookshelf_page_cache").put(self:_pageCache(),
+        { key = key, rows = page.rows, state = st, minute = minute })
+end
+
+-- _pageAheadBuild(dir[, base]) -> a job: the page a turn in dir would show,
+-- its rows built and hung, and the shelf's fields as that build left them
+-- (sim). From base (a page built ahead's own sim) for the page after it.
+-- The shelf itself is left as it was. nil when there is nothing to build: no
 -- page that way, or one the cache holds already.
-function BookshelfWidget:_pageAheadBuild(dir)
-    if dir > 0 and not self:_pageForwardPossible() then return nil end
-    if dir < 0 and not self:_pageBackPossible() then return nil end
+function BookshelfWidget:_pageAheadBuild(dir, base)
     local t0 = _gettime()
     self:_ornScanWindow()
     local real = _takeFields(self)
+    if base then _putFields(self, base) end
+    local possible
+    if dir > 0 then possible = self:_pageForwardPossible() else possible = self:_pageBackPossible() end
+    if not possible then
+        _putFields(self, real)
+        return nil
+    end
     -- The one table the step changes in place, the spine page history, is
     -- lent as a copy.
     if type(self._spine_hist) == "table" then
@@ -10667,6 +10831,15 @@ function BookshelfWidget:_pageAheadBuild(dir)
     end)
     local sim = _takeFields(self)
     _putFields(self, real)
+    -- Except the Spines list, when the build fetched it again (its 30 s
+    -- were up): the newer list holds the deal state recorded for the page
+    -- after this one. Putting the older one back threw that away, and the
+    -- next page built on a turn laid out the whole shelf to find it again
+    -- (4.2 s on a PW5, a turn just after a quick swipe).
+    local c_new, c_old = sim._spine_fetch_cache, real._spine_fetch_cache
+    if c_new and c_new ~= c_old and (not c_old or c_new.key == c_old.key) then
+        self._spine_fetch_cache = c_new
+    end
     if not ok then
         logger.warn("[bookshelf] building the next page ahead failed:", tostring(err))
         if page and page.rows then require("lib/bookshelf_page_cache")._free({ rows = page.rows }) end
@@ -10689,27 +10862,66 @@ function BookshelfWidget:_pageAheadStep(job)
     local real = _takeFields(self)
     _putFields(self, job.sim)
     local entry, placed, ahead_footer
-    local last = job.row >= page.n_shelves
+    local last = job.row >= page.n_shelves and not job.leaves
     local ok, err = pcall(function()
         if not last then
-            job.row = job.row + 1
-            local row = page.rows[job.row]
-            if row and row.paintTo then
-                job.scratch = job.scratch or BookshelfWidget._screenLike()
-                row:paintTo(job.scratch, 0, 0)
+            -- A row's books, painted alone a few at a time (their renders
+            -- cached, which is what the whole paint then saves), so no step
+            -- is longer than PAGE_AHEAD_SLICE_S: a step cannot be
+            -- interrupted, and a swipe arriving in one waits for it. A row
+            -- with no books found in it is painted whole.
+            job.scratch = job.scratch or BookshelfWidget._screenLike()
+            if not job.leaves then
+                local row = page.rows[job.row + 1]
+                job.leaves, job.leaf = BookshelfWidget._rowLeaves(row), 0
+                if #job.leaves == 0 then job.leaves = { row } end
+            end
+            local t_slice = _gettime()
+            repeat
+                job.leaf = job.leaf + 1
+                local w = job.leaves[job.leaf]
+                if w and w.paintTo then w:paintTo(job.scratch, 0, 0) end
+            until job.leaf >= #job.leaves or (_gettime() - t_slice) >= PAGE_AHEAD_SLICE_S
+            if job.leaf >= #job.leaves then
+                job.row, job.leaves, job.leaf = job.row + 1, nil, nil
             end
             return
         end
-        if job.scratch then job.scratch:free(); job.scratch = nil end
-        placed = self:_pagePlace(page.d, page.n_shelves, page.items, page.rows, self:_footerAnchor(page.d))
-        local full = BookshelfWidget._screenLike()
-        local ok_paint, perr = pcall(function() self:paintTo(full, 0, 0) end)
-        if ok_paint then
-            entry = { key = page.key, rows = page.rows, state = self:_pageStateSnapshot(),
-                      minute = self:_pageMinute(), px = self:_pagePxCapture(full, page.d) }
+        -- The whole page, in steps too: first the tree with the page's rows
+        -- only noting where they are drawn (the hero, the bar, the wallpaper,
+        -- the footer), then each row into the same buffer at its place, one
+        -- a step. Painted in one go it was 0.24-0.41 s on a PW5.
+        if not job.full then
+            if job.scratch then job.scratch:free(); job.scratch = nil end
+            placed = self:_pagePlace(page.d, page.n_shelves, page.items, page.rows, self:_footerAnchor(page.d))
+            job.full = BookshelfWidget._screenLike()
+            job.deferred = {}
+            local own = {}
+            for i, r in ipairs(page.rows) do
+                if type(r) == "table" then
+                    own[i] = rawget(r, "paintTo")
+                    local real_paint = r.paintTo
+                    rawset(r, "paintTo", function(rw, _bb, x, y)
+                        job.deferred[#job.deferred + 1] = { rw, x, y, real_paint }
+                    end)
+                end
+            end
+            local ok_paint, perr = pcall(function() self:paintTo(job.full, 0, 0) end)
+            for i, r in ipairs(page.rows) do
+                if type(r) == "table" then rawset(r, "paintTo", own[i]) end
+            end
+            if not ok_paint then error(perr) end
+            last = false
+            return
         end
-        full:free()
-        if not ok_paint then error(perr) end
+        local d = table.remove(job.deferred, 1)
+        if d then
+            d[4](d[1], job.full, d[2], d[3])
+            if #job.deferred > 0 then last = false; return end
+        end
+        entry = { key = page.key, rows = page.rows, state = self:_pageStateSnapshot(),
+                  minute = self:_pageMinute(), px = self:_pagePxCapture(job.full, page.d) }
+        job.full:free(); job.full = nil
     end)
     if placed then
         ahead_footer = self._overlap_group and self._overlap_group[page.d.footer_overlap_idx]
@@ -10720,6 +10932,7 @@ function BookshelfWidget:_pageAheadStep(job)
     if not ok then
         logger.warn("[bookshelf] building the next page ahead failed:", tostring(err))
         if job.scratch then job.scratch:free(); job.scratch = nil end
+        if job.full then job.full:free(); job.full = nil end
         PageCache._free({ rows = page.rows })
         job.page = nil
         return true
@@ -10730,6 +10943,7 @@ function BookshelfWidget:_pageAheadStep(job)
     job.page = nil
     if entry then
         PageCache.put(self:_pageCache(), entry)
+        job.kept = true
     else
         PageCache._free({ rows = page.rows })
     end
@@ -11073,6 +11287,17 @@ function BookshelfWidget:_swapShelvesInPlace()
     -- of its library, extraction re-swapped the page after most turns, and
     -- the next turn found nothing built.
     if not _wipe_dir then self:_pageAheadArm(self._page_ahead_dir or 1) end
+    -- The quiet the background work waits for counts from here, the end of
+    -- the shelf's own work, not from the swipe that started it: a turn takes
+    -- 0.5-1 s on a PW5, and counted from the swipe the build ahead started
+    -- that much sooner, into the next swipe (rig: swipes up to 1 s late).
+    if _wipe_dir then self:_noteBusy() end
+end
+
+-- _noteBusy(): the shelf has just been busy on the reader's behalf; see
+-- _inputBusyFor.
+function BookshelfWidget:_noteBusy()
+    self._last_input_at = _gettime()
 end
 
 -- Walk a widget tree looking for the SpineWidget whose .book.filepath
@@ -15111,6 +15336,7 @@ function BookshelfWidget:_setActiveChip(key)
     -- painted yet (no dimen).
     self._switching_shelf = true
     self:_rebuildRefreshBelowHero()
+    self:_noteBusy()
     logger.dbg(string.format(
         "[bookshelf perf] chip-switch: from=%s to=%s flash=%.0fms rebuild=%.0fms TOTAL=%.0fms",
         _diag_from, key,
@@ -27972,6 +28198,7 @@ function BookshelfWidget:_openShelf(id, going_in)
     BookshelfSettings.saveDeferred("active_chip", id)
     self._switching_shelf = true
     self:_rebuild()
+    self:_noteBusy()
     UIManager:setDirty(self, "ui")
 end
 

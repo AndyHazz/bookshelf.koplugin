@@ -96,6 +96,7 @@ local function widget(chip, drill)
     w._clearDpadFocus = function() end
     w._syncPageFromCursor = function() end
     w._rebuild = function(self) self.log[#self.log + 1] = "rebuild:" .. self.chip end
+    w._noteBusy = function() end
     w._drillBackTo = function(self, d) self.log[#self.log + 1] = "drill:" .. d end
     return w
 end

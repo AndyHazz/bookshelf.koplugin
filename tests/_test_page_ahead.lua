@@ -32,9 +32,10 @@ end
 
 local RUN    = bodyOf("_pageAheadRun%(%)", "_pageAheadRun")
 local SAFE   = bodyOf("_pageAheadSafe%(%)", "_pageAheadSafe")
-local BUILD  = bodyOf("_pageAheadBuild%(dir%)", "_pageAheadBuild")
+local BUILD  = bodyOf("_pageAheadBuild%(dir, base%)", "_pageAheadBuild")
 local STEP   = bodyOf("_pageAheadStep%(job%)", "_pageAheadStep")
 local CANCEL = bodyOf("_pageAheadCancel%(%)", "_pageAheadCancel")
+local BUSY   = bodyOf("_inputBusyFor%(%)", "_inputBusyFor")
 -- The two local helpers, as written.
 local FIELDS = assert(src:match("\n(local function _takeFields%(self%).-\nend\nlocal function _putFields%(self, t%).-\nend)\n"),
     "_takeFields/_putFields moved")
@@ -60,6 +61,7 @@ local function env(PC, top)
             error("unexpected require " .. name)
         end,
         _gettime = function() return 0 end,
+        PAGE_AHEAD_QUIET_S = 1.0, PAGE_AHEAD_STEP_S = 0.05, PAGE_AHEAD_SLICE_S = 0.08, PAGE_AHEAD_DEPTH = _G._TEST_DEPTH or 1,
         logger = { dbg = function() end, warn = function() end },
         UIManager = { getTopmostVisibleWidget = function() return top end,
                       scheduleIn = function(um, _d, fn) um.queue[#um.queue + 1] = fn end,
@@ -73,7 +75,8 @@ local function env(PC, top)
                    getType = function() return 1 end },
         },
         Blitbuffer = { new = function() return { free = function(b) freed[#freed + 1] = b end } end },
-        BookshelfWidget = { _screenLike = function() return { free = function(b) freed[#freed + 1] = b end } end },
+        BookshelfWidget = { _screenLike = function() return { free = function(b) freed[#freed + 1] = b end } end,
+                            _rowLeaves = function() return {} end },
     }
     e._G = e
     local h = compile(FIELDS .. "\nreturn _takeFields, _putFields", e, "fields")
@@ -96,6 +99,7 @@ local function shelf(opts)
     s._pageBackPossible = function() return false end
     s._ornScanWindow = function() end
     s._opdsEffectiveTab = function() return nil end
+    s._isSpineMode = function() return false end
     s._advanceCursor = function(self, dir)
         table.insert(self._spine_hist, { c = self._cursor, s = 0 })
         self._cursor = self._cursor + 8 * dir
@@ -135,10 +139,11 @@ local function wire(s, PC, top)
         return function(...) return f(...) end
     end
     s._pageAheadSafe   = method(SAFE, "", "safe")
-    s._pageAheadBuild  = method(BUILD, ", dir", "build")
+    s._pageAheadBuild  = method(BUILD, ", dir, base", "build")
     s._pageAheadStep   = method(STEP, ", job", "step")
     s._pageAheadCancel = method(CANCEL, "", "cancel")
     s._pageAheadRun    = method(RUN, "", "run")
+    s._inputBusyFor    = method(BUSY, "", "busy")
     s._page_gen = 0
     return e.UIManager
 end
@@ -186,7 +191,7 @@ t.test("the shelf is left exactly as it was", function()
         if k ~= "_page_ahead_fn" and k ~= "_page_ahead_job" then eq(s[k], v, k .. " was not put back") end
     end
     for k in pairs(s) do
-        assert(before[k] ~= nil or k == "_page_ahead_fn" or k == "_page_gen" or k:match("^_pageAhead"), k .. " was left behind")
+        assert(before[k] ~= nil or k == "_page_ahead_fn" or k == "_page_gen" or k:match("^_pageAhead") or k == "_inputBusyFor", k .. " was left behind")
     end
     eq(#hist, 1, "the spine history was pushed in place")
     eq(s._overlap_group[1], "old footer", "the page's own footer was left in place")
@@ -247,6 +252,103 @@ t.test("in steps, the shelf as it was between them, and a turn drops a page half
     eq(#PC.freed, 1, "its rows were not freed")
     eq(s._page_ahead_job, nil)
     eq(#um.queue, 0)
+end)
+
+t.test("nothing is built while the reader is busy: it waits for a quiet second", function()
+    local PC = cacheStub()
+    local s = shelf()
+    local um = wire(s, PC, s)
+    s._last_input_at = 0          -- the clock stub reads 0: input just now
+    s:_pageAheadRun()
+    eq(s._page_ahead_job, nil, "a step ran right after an input")
+    eq(#um.queue, 1, "it was not put off until the reader stops")
+    assert(RUN:find("local busy = self:_inputBusyFor()", 1, true))
+    assert(src:find('UIManager.event_hook:registerWidget("InputEvent", self)', 1, true), "inputs are not heard")
+end)
+
+t.test("a turn onto a page half built ahead takes its rows instead of building them", function()
+    local ADOPT = bodyOf("_pageAheadAdopt%(key%)", "_pageAheadAdopt")
+    local put = {}
+    local env = setmetatable({
+        PAGE_STATE_FIELDS = { "_spine_next_item", "_shelf_minute_cells" },
+        UIManager = { unschedule = function() end },
+        require = function(n)
+            if n == "lib/bookshelf_page_cache" then return { put = function(_pc, e) put[#put + 1] = e end } end
+            return require(n)
+        end,
+    }, { __index = _G })
+    local adopt = compile("local self, key = ...\n" .. ADOPT, env, "adopt")
+    local s = { _pageCache = function() return "pc" end, _page_ahead_fn = function() end }
+    s._page_ahead_job = { page = { key = "k9", rows = { "r1", "r2" } },
+                          sim = { _spine_next_item = 17, _shelf_minute_cells = { chip = "x" } } }
+    adopt(s, "other")
+    eq(#put, 0, "a page for another key was taken")
+    adopt(s, "k9")
+    eq(#put, 1)
+    eq(put[1].rows[1], "r1")
+    eq(put[1].state._spine_next_item, 17, "the build's page state was left behind")
+    eq(s._page_ahead_job, nil)
+    assert(src:find("self:_pageAheadAdopt(pc_key)\n        pc_hit = PageCache.take(self:_pageCache(), pc_key)", 1, true),
+        "a turn does not look at the page being built ahead")
+end)
+
+t.test("after a pause, the page after the next is built too, from where the next one ends", function()
+    _G._TEST_DEPTH = 2
+    local PC = cacheStub()
+    local s = shelf()
+    local cursors = {}
+    local compose = s._pageCompose
+    s._pageCompose = function(self, a, b)
+        cursors[#cursors + 1] = self._cursor
+        local p = compose(self, a, b)
+        if p and p.key then p.key = "k" .. self._cursor end
+        return p
+    end
+    run(s, PC, s)
+    _G._TEST_DEPTH = nil
+    eq(#PC.kept, 2, "only one page was built ahead")
+    eq(cursors[1], 9); eq(cursors[2], 17, "the second page was not built from the first's end")
+    eq(PC.kept[2].key, "k17")
+    eq(s._cursor, 1, "the shelf was left on another page")
+end)
+
+t.test("a Spines list the build fetched again is kept, with the deal state it recorded", function()
+    assert(BUILD:find("if c_new and c_new ~= c_old and (not c_old or c_new.key == c_old.key) then", 1, true),
+        "the newer list was put back with the rest, and the next page laid out the whole shelf")
+end)
+
+t.test("a full garbage collect waits for the same pause, not the next swipe", function()
+    local rec = bodyOf("_reclaimAfterTurn%(%)", "_reclaimAfterTurn")
+    assert(rec:find("self:_collectWhenQuiet(orphans)", 1, true) and not rec:find('collectgarbage("collect")', 1, true),
+        "the full collect runs straight after a turn")
+    local cq = bodyOf("_collectWhenQuiet%(orphans%)", "_collectWhenQuiet")
+    assert(cq:find("local busy = self:_inputBusyFor()", 1, true))
+    assert(cq:find('done = collectgarbage("step", 64)', 1, true) and not cq:find('collectgarbage("collect")', 1, true),
+        "the collect runs as one long pause")
+    local R = io.open("lib/bookshelf_book_repository.lua"):read("*a")
+    assert(R:find("if m and m.sgen == sgen and _light_meta_cache[m.key] == m.entry and m.entry then", 1, true),
+        "every series box member resolves the light-record map afresh")
+end)
+
+t.test("the quiet counts from the end of the shelf's own work", function()
+    local swap = bodyOf("_swapShelvesInPlace%(%)", "swap")
+    assert(swap:find("if _wipe_dir then self:_noteBusy() end", 1, true), "a turn's own work eats into the quiet")
+    eq(select(2, src:gsub("self._switching_shelf = true\n%s+self:_rebuild[%w]*%(%)\n%s+self:_noteBusy%(%)", "")), 4,
+        "a shelf switch's own work eats into the quiet")
+end)
+
+t.test("a row's paint is cut into short steps: its books one at a time", function()
+    local LEAVES = assert(src:match("\nfunction BookshelfWidget%._rowLeaves%(row%)\n(.-)\nend\n"))
+    local leaves = compile("local row = ...\n" .. LEAVES, setmetatable({}, { __index = _G }), "leaves")
+    local slotA = { book = {}, paintTo = function() end }
+    local slotB = { entry = {}, paintTo = function() end, { book = {}, paintTo = function() end } }
+    local row = { { { slotA }, { "plank" } }, slotB }
+    local got = leaves(row)
+    eq(#got, 2, "a book's own parts were painted as books too, or a book was missed")
+    eq(got[1], slotA); eq(got[2], slotB)
+    assert(STEP:find("until job.leaf >= #job.leaves or (_gettime() - t_slice) >= PAGE_AHEAD_SLICE_S", 1, true),
+        "a row is still painted in one step")
+    assert(RUN:find("pcall(self._spineCachedFetch, self, 400)", 1, true), "an expired list is fetched inside the build step")
 end)
 
 t.test("every page turn arms it; spines at once, covers once their covers are warm", function()

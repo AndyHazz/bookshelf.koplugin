@@ -4201,12 +4201,29 @@ end
 -- SELECT has run, nil when the batch doesn't know the file -- the caller
 -- falls back to a full build. Returns the SHARED cached record: read from
 -- it, never mutate it (see _resetLightMetaProgress for why).
+--
+-- The map is remembered between calls while it is still the one cached and
+-- no setting has been written (home folder and walk depth name it): a Spines
+-- list's series boxes ask this for every member, and resolving the home
+-- folder, reading the depth and formatting the cache's debug line each time
+-- was most of a 220-490 ms refetch of a 1,300-book Home on a PW5.
 function Repo.lightMetaFor(filepath)
     if type(filepath) ~= "string" then return nil end
+    local m = Repo._lm_memo
+    local sgen = Repo._storeGeneration()
+    if m and m.sgen == sgen and _light_meta_cache[m.key] == m.entry and m.entry then
+        return m.entry.map and m.entry.map[filepath] or nil
+    end
     local home  = HomeDir.get() or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local cache = _getLightMetaCache(home, depth)
+    local key = (home or "/") .. ":" .. tostring(depth or 0)
+    Repo._lm_memo = { key = key, entry = _light_meta_cache[key], sgen = sgen }
     return cache and cache[filepath] or nil
+end
+function Repo._storeGeneration()
+    local ok, Store = pcall(require, "lib/bookshelf_settings_store")
+    return ok and Store and Store.generation and Store.generation() or 0
 end
 
 -- Flat list of every book filepath in the library: the same depth-capped

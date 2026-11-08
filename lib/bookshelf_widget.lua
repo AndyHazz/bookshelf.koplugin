@@ -1281,6 +1281,8 @@ function BookshelfWidget:_rebuild()
         self._cursor = 1
         -- Out of any shelf of shelves too, to the top-level shelf.
         self.chip = require("lib/bookshelf_tab_model").rootOf(self.chip)
+        -- The top-level shelf's theme, not the sub-shelf's.
+        self:_syncShelfTheme()
     end
     if self._pending_restore_drill then
         local saved = self._pending_restore_drill
@@ -1471,6 +1473,8 @@ function BookshelfWidget:_rebuild()
         -- cost a full settings-file write (~140ms on Kindle flash).
         BookshelfSettings.saveDeferred("active_chip", self.chip)
         root_chip = self.chip
+        -- The theme was synced from the shelf that is gone: this one's.
+        self:_syncShelfTheme()
     end
     -- Append a search "chip" (icon-only, action-on-tap rather than
     -- chip-switch). Always appended last so it sits at the right edge.

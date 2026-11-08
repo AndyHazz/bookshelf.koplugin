@@ -700,4 +700,20 @@ H.test("a Same size shelf gives every book in a box the same width", function()
     end
 end)
 
+H.test("a box keeps its width when painting gives its books a page count", function()
+    -- Painting a member's page-count badge writes the sidecar's count onto
+    -- the record. A box sized from that read one width before its first
+    -- paint and another after: the same page laid out differently when it
+    -- was built again (rig: Culture 348px, then 385px, then 348px).
+    local box=Boxes.box(members(4,"Saga"),"Saga")
+    local before=Boxes.geometry(box,BASE,{content_w=2000}).w
+    for _,m in ipairs(box.books) do m.page_count=900 end
+    H.eq(Boxes.geometry(box,BASE,{content_w=2000}).w,before,"the paint moved the box")
+    -- A count the book had when the box was made still sizes it.
+    local counted=members(4,"Saga")
+    for _,m in ipairs(counted) do m.page_count=900 end
+    H.eq(Boxes.geometry(Boxes.box(counted,"Saga"),BASE,{content_w=2000}).w>before,true,
+        "a counted box is no thicker than an uncounted one")
+end)
+
 H.finish()

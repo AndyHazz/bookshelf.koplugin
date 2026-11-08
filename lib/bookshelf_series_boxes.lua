@@ -15,6 +15,11 @@ local function memberMeta(book, light_meta)
     for k, v in pairs(light_meta and light_meta(book.filepath) or {}) do
         if k ~= "cover_bb" and member[k] == nil then member[k] = v end
     end
+    -- The count the box is sized from, as it stands now: painting a member
+    -- (its page-count badge) writes the sidecar's count onto the record, and
+    -- a box sized from that read one width before its first paint and
+    -- another after, so the same page laid out differently once revisited.
+    member._box_pages = member.page_count or member.pages or false
     return member
 end
 
@@ -152,7 +157,11 @@ local function spinePx(member, auto_thick, same_size)
         local pp, _ps, _known, psrc = SpineShelf.cachedProgress(member.filepath)
         if pp and psrc ~= "render" then pages = pp end
     end
-    pages = pages or member.page_count or member.pages
+    if member._box_pages ~= nil then
+        pages = pages or member._box_pages or nil
+    else
+        pages = pages or member.page_count or member.pages
+    end
     return Screen:scaleBySize(SpineLayout.spineWidthDp(pages) * auto_thick)
 end
 

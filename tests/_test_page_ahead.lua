@@ -64,7 +64,7 @@ local function env(PC, top)
         end,
         _gettime = function() return _G._TEST_NOW and _G._TEST_NOW() or 0 end,
         coroutine = coroutine,
-        PAGE_AHEAD_QUIET_S = 1.0, PAGE_AHEAD_STEP_S = 0.05, PAGE_AHEAD_SLICE_S = 0.08, PAGE_AHEAD_DEPTH = _G._TEST_DEPTH or 1,
+        PAGE_AHEAD_QUIET_S = 1.0, BACKGROUND_QUIET_S = 1.0, PAGE_AHEAD_STEP_S = 0.05, PAGE_AHEAD_SLICE_S = 0.08, PAGE_AHEAD_DEPTH = _G._TEST_DEPTH or 1,
         logger = { dbg = function() end, warn = function() end },
         UIManager = { getTopmostVisibleWidget = function() return top end,
                       scheduleIn = function(um, _d, fn) um.queue[#um.queue + 1] = fn end,
@@ -309,7 +309,7 @@ t.test("nothing is built while the reader is busy: it waits for a quiet second",
     s:_pageAheadRun()
     eq(s._page_ahead_job, nil, "a step ran right after an input")
     eq(#um.queue, 1, "it was not put off until the reader stops")
-    assert(RUN:find("local busy = self:_inputBusyFor()", 1, true))
+    assert(RUN:find("local busy = self:_inputBusyFor(PAGE_AHEAD_QUIET_S)", 1, true))
     assert(src:find('UIManager.event_hook:registerWidget("InputEvent", self)', 1, true), "inputs are not heard")
 end)
 
@@ -417,6 +417,22 @@ t.test("every page turn arms it; spines at once, covers once their covers are wa
     for _i, f in ipairs({ "_swapShelvesInPlace%(%)", "_rebuild%(%)", "_pageCacheClear%(%)" }) do
         assert(bodyOf(f, f):find("self:_pageGenBump()", 1, true), f .. " leaves a half-built page standing")
     end
+end)
+
+t.test("the next page waits for a short pause; heavier background work for a longer one", function()
+    -- A reader pausing naturally (2-3 s) often turned onto a page not built
+    -- yet: the build waited for 1.5 s without input, and in Covers the cover
+    -- warm-up before it waited as long again (PW5: ready 5.2-5.7 s after a
+    -- turn). Its steps are short now; the redraw of finished extractions,
+    -- the file poll and the collector keep the longer wait.
+    local ahead = tonumber(src:match("local PAGE_AHEAD_QUIET_S = ([%d%.]+)"))
+    local bg = tonumber(src:match("local BACKGROUND_QUIET_S = ([%d%.]+)"))
+    assert(ahead and bg, "the two waits are not both declared")
+    assert(ahead <= 0.75 and bg >= 1.5, "page ahead " .. tostring(ahead) .. ", background " .. tostring(bg))
+    assert(BUSY:find("(quiet or BACKGROUND_QUIET_S)", 1, true), "the default wait is not the background one")
+    assert(RUN:find("self:_inputBusyFor(PAGE_AHEAD_QUIET_S)", 1, true), "the page build waits as long as the background work")
+    local pre = bodyOf("_preloadStep%(%)", "_preloadStep")
+    assert(pre:find("self:_inputBusyFor(PAGE_AHEAD_QUIET_S)", 1, true), "the cover warm-up before it waits the long way")
 end)
 
 t.done()

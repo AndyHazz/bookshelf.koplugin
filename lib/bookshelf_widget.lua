@@ -234,7 +234,8 @@ end
 
 -- onInputEvent(): every input KOReader reads (UIManager's InputEvent hook,
 -- registered in init): when the reader last touched anything, which the
--- page built ahead waits on (PAGE_AHEAD_QUIET_S).
+-- page built ahead (PAGE_AHEAD_QUIET_S) and the shelf's other background
+-- work (BACKGROUND_QUIET_S) wait on.
 function BookshelfWidget:onInputEvent()
     self._last_input_at = _gettime()
 end
@@ -10284,7 +10285,7 @@ function BookshelfWidget:_collectWhenQuiet(orphans)
     run = function()
         self._collect_fn = nil
         if self._closed then return end
-        -- A method, not PAGE_AHEAD_QUIET_S: that local is declared below.
+        -- A method, not BACKGROUND_QUIET_S: that local is declared below.
         local busy = self:_inputBusyFor()
         if busy > 0 then
             self._collect_fn = run
@@ -10720,9 +10721,16 @@ local PAGE_AHEAD_STEP_S = 0.05
 -- (onInputEvent) or work of the shelf's own (_noteBusy). Rapid swipes
 -- otherwise landed in a step and waited for it, then built their page
 -- themselves (maintainer, PW5). A step cannot be interrupted, so steps are
--- kept short (PAGE_AHEAD_SLICE_S, a fetch on its own) and a swipe meeting
--- one waits a fraction of a turn.
-local PAGE_AHEAD_QUIET_S = 1.5
+-- kept short (PAGE_AHEAD_SLICE_S, a fetch on its own, the compose paused
+-- before each cover: bookshelf_slice) and a swipe meeting one waits a
+-- fraction of a turn. Short, so a natural pause finds the page built: at
+-- 1.5 s (and as long again for the cover warm-up before it in Covers) a
+-- reader pausing for two or three seconds often turned onto a page not
+-- built yet (maintainer, PW5: ready 5.2-5.7 s after a turn in Covers).
+local PAGE_AHEAD_QUIET_S = 0.6
+-- The shelf's heavier background work (the redraw of finished extractions,
+-- the file poll, the collector's slices, the saved place) waits longer.
+local BACKGROUND_QUIET_S = 1.5
 -- The longest a step of it may run (but at least one piece of work).
 local PAGE_AHEAD_SLICE_S = 0.08
 
@@ -10743,10 +10751,10 @@ function BookshelfWidget._rowLeaves(row)
     return out
 end
 
--- _inputBusyFor() -> seconds until PAGE_AHEAD_QUIET_S have passed since the
--- last input; 0 or less when the reader is idle.
+-- _inputBusyFor([quiet]) -> seconds until quiet (BACKGROUND_QUIET_S when not
+-- given) have passed since the last input; 0 or less when the reader is idle.
 function BookshelfWidget:_inputBusyFor(quiet)
-    return (quiet or PAGE_AHEAD_QUIET_S) - (_gettime() - (self._last_input_at or -math.huge))
+    return (quiet or BACKGROUND_QUIET_S) - (_gettime() - (self._last_input_at or -math.huge))
 end
 -- Other shelves' warm-up: a whole shelf's fetch per step, which no swipe can
 -- get past, so it waits for a longer pause than the page built ahead.
@@ -10824,7 +10832,7 @@ end
 -- _pageAheadRun(): one step of the build; the next is scheduled after it.
 function BookshelfWidget:_pageAheadRun()
     self._page_ahead_fn = nil
-    local busy = self:_inputBusyFor()
+    local busy = self:_inputBusyFor(PAGE_AHEAD_QUIET_S)
     if busy > 0 then
         self._page_ahead_fn = function() self:_pageAheadRun() end
         UIManager:scheduleIn(busy, self._page_ahead_fn)
@@ -17564,7 +17572,7 @@ end
 function BookshelfWidget:_preloadStep()
     if not self._preload_fn then return end   -- cancelled before this tick ran
     -- Cover decodes in chunks: not while the reader is swiping either.
-    local busy = self:_inputBusyFor()
+    local busy = self:_inputBusyFor(PAGE_AHEAD_QUIET_S)
     if busy > 0 then
         UIManager:scheduleIn(busy, self._preload_fn)
         return

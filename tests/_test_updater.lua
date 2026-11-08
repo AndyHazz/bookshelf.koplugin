@@ -175,4 +175,45 @@ t.test("composeBranchUrl: a single dot is still fine inside a name", function()
     assert(Updater.composeBranchUrl("v5.2") == BASE .. "v5.2")
 end)
 
+-- ── The background check runs its request in a child process ──────────────
+-- An HTTPS request to GitHub, made on the UI thread at startup and on every
+-- wake (when "notify on wake" is on): 0.5 s on a PW5 with nothing able to
+-- get past it. The child sends back only what the check reads.
+t.test("the latest release travels from the child as one short line", function()
+    local line = Updater._latestLine({ tag_name = "v6.5.0", draft = false, prerelease = false,
+        body = string.rep("notes ", 20000),
+        assets = { { name = "notes.txt", browser_download_url = "x" },
+                   { name = "bookshelf.zip", browser_download_url = "https://e/b.zip" } } })
+    assert(#line < 300, "the whole payload went through the pipe: " .. #line)
+    local r = Updater._parseLatest(line)
+    assert(r.tag_name == "v6.5.0" and r.draft == false and r.prerelease == false)
+    assert(r.assets[1].browser_download_url == "https://e/b.zip")
+    assert(Updater._parseLatest("") == nil, "nothing read as a release")
+    assert(Updater._parseLatest(Updater._latestLine(nil)) == nil, "a failed request read as a release")
+end)
+
+t.test("checkBackground asks through the child, and reports a newer version", function()
+    package.loaded["ui/network/manager"] = { isWifiOn = function() return true end }
+    local sched = {}
+    package.loaded["ui/uimanager"].scheduleIn = function(_s, _d, fn) sched[#sched + 1] = fn end
+    local orig_fetch, orig_ver = Updater._fetchLatest, Updater.getInstalledVersion
+    local asked
+    Updater._fetchLatest = function(ua, done)
+        asked = ua
+        done({ tag_name = "v99.0.0", assets = { { name = "b.zip", browser_download_url = "https://e/b.zip" } } })
+    end
+    Updater.getInstalledVersion = function() return "6.4.0" end
+    local found
+    Updater.checkBackground(function(v) found = v end)
+    for _i, fn in ipairs(sched) do fn() end
+    Updater._fetchLatest, Updater.getInstalledVersion = orig_fetch, orig_ver
+    assert(asked and asked:find("6.4.0", 1, true), "the request did not go through _fetchLatest")
+    assert(found == "99.0.0", tostring(found))
+    local v, zip = Updater.getAvailableUpdate()
+    assert(v == "99.0.0" and zip == "https://e/b.zip")
+    local src = io.open("lib/bookshelf_updater.lua"):read("*a")
+    local body = assert(src:match("\nfunction Updater%.checkBackground%(on_update_found%)\n(.-)\nend\n"))
+    assert(not body:find("httpGetJSON(", 1, true), "the check still makes its request on the UI thread")
+end)
+
 t.done()

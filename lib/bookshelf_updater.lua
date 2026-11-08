@@ -241,6 +241,64 @@ function Updater.offerReleasesPage(message)
     end
 end
 
+-- ── The background check's request, in a child process ─────────────────────
+-- An HTTPS request to GitHub made on the UI thread: 0.5 s on a PW5 at
+-- startup and on every wake, nothing able to get past it. The child makes it
+-- and sends back one short line with what the check reads -- not the whole
+-- payload, which (release notes and all) could fill the pipe before the
+-- parent, reading once the child is done, empties it.
+local LATEST_URL = "https://api.github.com/repos/AndyHazz/bookshelf.koplugin/releases/latest"
+local FETCH_POLL_S, FETCH_TIMEOUT_S = 0.5, 30
+
+-- _latestLine(release) -> "tag\tdraft\tprerelease\tzip_url\n" ("\n" for none).
+function Updater._latestLine(release)
+    if type(release) ~= "table" or type(release.tag_name) ~= "string" then return "\n" end
+    local zip = ""
+    for _i, a in ipairs(type(release.assets) == "table" and release.assets or {}) do
+        if type(a) == "table" and type(a.name) == "string" and a.name:match("%.zip$") then
+            zip = tostring(a.browser_download_url or "")
+            break
+        end
+    end
+    local function clean(v) return (tostring(v):gsub("[\t\n]", "")) end
+    return table.concat({ clean(release.tag_name), release.draft and "1" or "0",
+        release.prerelease and "1" or "0", clean(zip) }, "\t") .. "\n"
+end
+
+-- _parseLatest(line) -> a release table as checkBackground reads it, or nil.
+function Updater._parseLatest(line)
+    local tag, d, pre, zip = tostring(line or ""):match("^([^\t\n]+)\t([01])\t([01])\t([^\t\n]*)")
+    if not tag then return nil end
+    local r = { tag_name = tag, draft = d == "1", prerelease = pre == "1", assets = {} }
+    if zip ~= "" then r.assets[1] = { name = "release.zip", browser_download_url = zip } end
+    return r
+end
+
+-- _fetchLatest(user_agent, done): done(release or nil), on the UI thread.
+function Updater._fetchLatest(user_agent, done)
+    local ok_u, util = pcall(require, "ffi/util")
+    if not (ok_u and util and util.runInSubProcess) then return done(nil) end
+    local pid, fd = util.runInSubProcess(function(_pid, write_fd)
+        util.writeToFD(write_fd, Updater._latestLine(httpGetJSON(LATEST_URL, user_agent)), true)
+    end, true)
+    if not pid or not fd then return done(nil) end
+    local waited = 0
+    local function check()
+        if util.isSubProcessDone(pid) then
+            return done(Updater._parseLatest(util.readAllFromFD(fd)))
+        end
+        waited = waited + FETCH_POLL_S
+        if waited >= FETCH_TIMEOUT_S then
+            pcall(util.terminateSubProcess, pid)
+            UIManager:scheduleIn(1, function() pcall(util.isSubProcessDone, pid) end)
+            pcall(util.readAllFromFD, fd)
+            return done(nil)
+        end
+        UIManager:scheduleIn(FETCH_POLL_S, check)
+    end
+    UIManager:scheduleIn(FETCH_POLL_S, check)
+end
+
 --- Return the available update version and zip URL, or nil if none/not checked.
 function Updater.getAvailableUpdate()
     return _cached_version, _cached_zip_url
@@ -263,36 +321,33 @@ function Updater.checkBackground(on_update_found)
     UIManager:scheduleIn(0.1, function()
         local installed_version = Updater.getInstalledVersion()
         local user_agent = "KOReader-Bookshelf/" .. installed_version
+        -- Only the latest release (lightweight), fetched in a child process.
+        Updater._fetchLatest(user_agent, function(release)
+            _check_in_flight = false
 
-        -- Only fetch the latest release (lightweight)
-        local release = httpGetJSON(
-            "https://api.github.com/repos/AndyHazz/bookshelf.koplugin/releases/latest",
-            user_agent)
+            if not release or not release.tag_name then return end
+            if release.draft or release.prerelease then return end
 
-        _check_in_flight = false
-
-        if not release or not release.tag_name then return end
-        if release.draft or release.prerelease then return end
-
-        local ver = release.tag_name:gsub("^v", "")
-        if isNewer(ver, installed_version) then
-            _cached_version = ver
-            _cached_zip_url = nil
-            if release.assets then
-                for _i, asset in ipairs(release.assets) do
-                    if asset.name:match("%.zip$") then
-                        _cached_zip_url = asset.browser_download_url
-                        break
+            local ver = release.tag_name:gsub("^v", "")
+            if isNewer(ver, installed_version) then
+                _cached_version = ver
+                _cached_zip_url = nil
+                if release.assets then
+                    for _i, asset in ipairs(release.assets) do
+                        if asset.name:match("%.zip$") then
+                            _cached_zip_url = asset.browser_download_url
+                            break
+                        end
                     end
                 end
+                if on_update_found then
+                    on_update_found(ver)
+                end
+            else
+                _cached_version = nil
+                _cached_zip_url = nil
             end
-            if on_update_found then
-                on_update_found(ver)
-            end
-        else
-            _cached_version = nil
-            _cached_zip_url = nil
-        end
+        end)
     end)
 end
 

@@ -323,6 +323,12 @@ function M.install(bw)
     end
 end
 
+-- release(bw): the shelf closed. Forget it (and the pixels kept from under
+-- its dialogs) if it is still the one installed, so it can be collected.
+function M.release(bw)
+    if bw ~= nil and _bw == bw then M._reset() end
+end
+
 function M._debugPieces() return _pieces end
 
 function M._reset()

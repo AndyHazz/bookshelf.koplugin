@@ -356,6 +356,8 @@ end
 -- listener instead of piling up beside it.
 local _listeners = {}
 function M.onChanged(name, fn) _listeners[name] = fn end
+-- offChanged(name, fn): drop that listener, if it is still this one.
+function M.offChanged(name, fn) if fn and _listeners[name] == fn then _listeners[name] = nil end end
 function M.changed(id)
     for _name, fn in pairs(_listeners) do pcall(fn, id) end
 end

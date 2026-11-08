@@ -255,7 +255,7 @@ t.test("a per-book change expires the fetch, and the same list keeps its page st
     assert(self._spine_fetch_cache ~= before, "an expired fetch was served")
     eq(self._spine_fetch_cache.page_orn["2:0"].n, 3, "the page states went with the expired fetch")
     local w = io.open("lib/bookshelf_widget.lua"):read("*a")
-    local hook = w:match("Repo%.on_book_invalidated = function%(fp%)(.-)\n    end\n")
+    local hook = w:match("self%._on_book_invalidated = function%(fp%)(.-)\n    end\n")
     assert(hook and hook:find("bw:_expireSpineFetch()", 1, true), "a book's invalidation still drops the page states")
 end)
 

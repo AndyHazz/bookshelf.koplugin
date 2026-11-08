@@ -129,7 +129,7 @@ end)
 -- not change, so the listener expires it (keeping the entry: a same-list
 -- refetch keeps its ornament deal). The listener body, run for real.
 t.test("sourceChanged expires the spine shelf's fetch cache before redrawing", function()
-    local cb = src:match('onChanged%("widget", (function%(id%).-\n    end)%)')
+    local cb = src:match('self%._on_source_changed = (function%(id%).-\n    end)\n')
     assert(cb, "could not find the sourceChanged listener in init - moved?")
     local ticks, order = {}, {}
     local e = env()

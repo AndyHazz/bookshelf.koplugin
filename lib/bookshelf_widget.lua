@@ -240,15 +240,16 @@ function BookshelfWidget:init()
     -- %published reads book files in the background (lib/bookshelf_published);
     -- the books that gained a date repaint where they show. The newest shelf
     -- is the one listened for, as above.
-    require("lib/bookshelf_published").on_filled = function(fps)
+    self._on_published_filled = function(fps)
         if self._closed then return end
         self:_refreshPublished(fps)
     end
+    require("lib/bookshelf_published").on_filled = self._on_published_filled
     -- A registered source that has fetched more (lib/bookshelf_sources,
     -- ui.bookshelf:sourceChanged) redraws the shelf, but only while that
     -- source is what is on screen. One named slot, so a later widget replaces
     -- this one's listener rather than stacking beside it.
-    require("lib/bookshelf_sources").onChanged("widget", function(id)
+    self._on_source_changed = function(id)
         if self._closed then return end
         local src = self:_currentRegisteredSource()
         if not ((src and (id == nil or src.kind == id)) or self:_shelvesHoldSource(id)) then return end
@@ -261,7 +262,8 @@ function BookshelfWidget:init()
             if self._spine_fetch_cache then self._spine_fetch_cache.at = 0 end
             self:_rebuild(); UIManager:setDirty(self, "ui")
         end)
-    end)
+    end
+    require("lib/bookshelf_sources").onChanged("widget", self._on_source_changed)
     -- Diag: cradle init so the cold-start trace shows init time
     -- distinct from the _rebuild it triggers at the end. Two markers
     -- (entry, post-settings-and-gesture-setup) plus the existing
@@ -275,7 +277,7 @@ function BookshelfWidget:init()
     -- handed these (the live shelf's, replaced by each new one).
     do
         local shelf = self
-        require("lib/bookshelf_ornaments").handlers = {
+        self._orn_handlers = {
             -- A piece never takes a gesture in the footer's band: its
             -- buttons (the start menu, page turns) are under it.
             -- Nor over the top panel and shelf menu, which a tall piece on
@@ -303,6 +305,7 @@ function BookshelfWidget:init()
                 return true
             end,
         }
+        require("lib/bookshelf_ornaments").handlers = self._orn_handlers
     end
     -- Per-book invalidation from the repo (status edits, history removal,
     -- cover changes) must reach the spine shelf's own caches -- the
@@ -310,7 +313,7 @@ function BookshelfWidget:init()
     -- rendered pixels, and the cached page fetch. Without this a book
     -- marked unopened kept its reading glyph on the spine.
     local bw = self
-    Repo.on_book_invalidated = function(fp)
+    self._on_book_invalidated = function(fp)
         pcall(function()
             require("lib/bookshelf_spine_shelf").invalidateBook(fp)
         end)
@@ -328,6 +331,7 @@ function BookshelfWidget:init()
             end
         end
     end
+    Repo.on_book_invalidated = self._on_book_invalidated
     self:_refreshDitherFlag()   -- colour-panel cover saturation, #289
     -- "all" (labelled Home), not "recent". A genuinely fresh install has no
     -- reading history -- Recent IS KOReader's history.lua -- so falling back
@@ -12387,6 +12391,31 @@ function BookshelfWidget:onCloseWidget()
     -- to open a book) so the page/cursor is durable for the next launch.
     self:_flushNavStateNow()
     if BookshelfWidget.live == self then BookshelfWidget.live = nil end
+    -- Let the closed shelf go. The hooks init installed name the newest
+    -- shelf, and kept a closed one -- its whole widget tree, page items and
+    -- fetch cache -- alive until the next open (kindle_benchmark's heap
+    -- after its stress run). A hook a newer shelf has taken is left alone.
+    if BookshelfWidget._clip_target == self then BookshelfWidget._clip_target = nil end
+    if Repo.on_book_invalidated == self._on_book_invalidated then Repo.on_book_invalidated = nil end
+    local Pub = package.loaded["lib/bookshelf_published"]
+    if type(Pub) == "table" and Pub.on_filled == self._on_published_filled then Pub.on_filled = nil end
+    local Src = package.loaded["lib/bookshelf_sources"]
+    if type(Src) == "table" and Src.offChanged then Src.offChanged("widget", self._on_source_changed) end
+    local Underlay = package.loaded["lib/bookshelf_underlay"]
+    if type(Underlay) == "table" and Underlay.release then Underlay.release(self) end
+    local Orn = package.loaded["lib/bookshelf_ornaments"]
+    if type(Orn) == "table" and Orn.handlers ~= nil and Orn.handlers == self._orn_handlers then Orn.handlers = {} end
+    -- The module hosts' keys are weak, but a host holds this shelf, which
+    -- holds the entries that are its keys: without ephemerons (LuaJIT) that
+    -- cycle never goes.
+    local HM = package.loaded["lib/bookshelf_hero_modules"]
+    if type(HM) == "table" and type(HM._hosts) == "table" and self._shelf_module_owners then
+        local mine = {}
+        for _id, owner in pairs(self._shelf_module_owners) do mine[owner] = true end
+        for entry, host in pairs(HM._hosts) do
+            if mine[host] then HM._hosts[entry] = nil end
+        end
+    end
     if self._on_close_callback then self._on_close_callback() end
 end
 

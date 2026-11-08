@@ -81,7 +81,9 @@ local lang = detectLang()
 if lang ~= "en" and lang ~= "en_US" then
     local function try(name)
         local path = _base .. "locale/" .. name .. ".po"
-        local t = parsePO(path)
+        -- Parsed once, then read back as bytecode (~140 ms a start on a PW3).
+        local ok_bc, Bytecode = pcall(require, "lib/bookshelf_bytecode")
+        local t = ok_bc and Bytecode.data(path, "po_" .. name, parsePO) or parsePO(path)
         if t and next(t) then
             local n = 0; for _k in pairs(t) do n = n + 1 end
             logger.dbg("bookshelf i18n: loaded " .. path .. " -- " .. n .. " strings")

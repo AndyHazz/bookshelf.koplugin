@@ -28,6 +28,10 @@
 --   * is_doc_only = false — plugin loads in both FileManager and Reader contexts,
 --     which is required so the close-document hook fires inside the Reader.
 
+-- Before any module of ours: they load from compiled bytecode kept on the
+-- device (lib/bookshelf_bytecode), not parsed from source on every start.
+pcall(function() require("lib/bookshelf_bytecode").install() end)
+
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
 -- First of all: a KOReader older than Bookshelf needs gets a stub plugin that
 -- says so, instead of a crash somewhere in what follows.

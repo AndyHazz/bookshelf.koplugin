@@ -106,6 +106,13 @@ function Swatch:paintTo(bb, x, y)
     if self.seen and bb.getInverse and bb:getInverse() == 1 then
         local v = 0xFF - fill:getR()
         fill = Blitbuffer.ColorRGB32(v, v, v, 0xFF)
+    elseif not self.seen and require("lib/bookshelf_night_mode_sync").active() then
+        -- Night mode inverts what is painted (the panel, the paint or the
+        -- whole frame, by device), so a colour painted as it is showed as its
+        -- opposite: the tile that looked green was #8B008B, and picking it
+        -- gave the shelf purple text. Pre-inverted, it shows as itself.
+        fill = Blitbuffer.ColorRGB32(0xFF - self._fill.r, 0xFF - self._fill.g,
+            0xFF - self._fill.b, 0xFF)
     end
     -- The guarded helper: a direct paintRoundedRectRGB32 gave the swatch
     -- corners in the opposite colour in Android's night mode.

@@ -1166,6 +1166,33 @@ local function _thumbFor(fp, src, w, h)
 end
 SpineWidget._thumbFor = _thumbFor
 
+-- SpineWidget.warmFaceOut(fp, w, h) -> "already" | "decoded" | "failed".
+-- A Spines shelf's background warm-up (BookshelfWidget:_spineFaceOutJobs):
+-- the face-out tile's cover, made ahead at the size it draws at and by the
+-- same rules (_renderCover), so the turn finds it kept. "already" when the
+-- tile would take what the cache holds; otherwise one decode, filled to the
+-- slot and kept (and so written to disk: paid once per book, not per visit).
+function SpineWidget.warmFaceOut(fp, w, h)
+    if ScaledCoverCache:getSized(fp, w, h) then return "already" end
+    local cached = ScaledCoverCache:get(fp)
+    if cached and _sameShape(cached, w, h)
+            and cached:getWidth() >= w and cached:getHeight() >= h then
+        return "already"
+    end
+    local bb = _getRepo().getCoverBB(fp)
+    if not bb then return "failed" end
+    local scaled = _derived(bb, _coverFillBB(bb, w, h))
+    bb:free()
+    local effective = ScaledCoverCache:put(fp, scaled)
+    if effective ~= scaled then
+        -- put() kept a larger copy it holds: this one is kept on its own
+        -- if that copy is another shape, else it is not needed.
+        if _sameShape(effective, w, h) then scaled:free()
+        else ScaledCoverCache:putSized(fp, w, h, scaled) end
+    end
+    return "decoded"
+end
+
 function SpineWidget:init()
     self.dimen = Geom:new{ w = self.width, h = self.height }
     if self.draft == nil then self.draft = _draft_mode end
@@ -2332,6 +2359,11 @@ function SpineWidget:_renderCover(bb)
     -- fallback below grows it rather than show a placeholder when BIM has
     -- nothing to decode.
     local cached_any
+    -- The size a face-out draws at, for the warm-up of the covers ahead
+    -- (warmFaceOut): the shelf's own measure, whatever its rows and DPI.
+    if self.spine_face_out and self.cover_fill then
+        SpineWidget.face_out_dims = { w = img_w, h = img_h }
+    end
     -- A thumbnail already made at this size (_thumbFor): no need for the
     -- cover it was made from, which may have to come in from disk.
     local kept = fp and self.cover_fill and ScaledCoverCache:getSized(fp, img_w, img_h)

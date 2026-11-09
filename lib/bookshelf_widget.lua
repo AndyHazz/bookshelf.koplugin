@@ -17369,6 +17369,7 @@ end
 local PRELOAD_START_DELAY_S = 0.35   -- let the current page's EPDC flush drain first
 local PRELOAD_TICK_S        = 0.05   -- gap between chunks
 local PRELOAD_CHUNK         = 4      -- covers warmed per tick (upper bound)
+local SPINE_WARM_AHEAD      = 24     -- Spines face-out covers warmed ahead (_spineFaceOutJobs)
 -- Main-thread time budget per chunk. PRELOAD_CHUNK alone is a count budget:
 -- fine on fast hardware (4 jobs ≈ a few ms) but on a 1GHz e-ink device 4
 -- cover decodes can hold the main thread 200-600ms per 50ms tick, so taps
@@ -17577,6 +17578,14 @@ local function _warmChunk(jobs, chunk, counters)
             -- _progress_cache (120s TTL) on the next page render.
             pcall(Repo.readProgress, job.progress_fp)
             counters.progress = (counters.progress or 0) + 1
+        elseif job.face_out then
+            -- A Spines face-out: at its own size and by its tile's cache
+            -- rules, where any copy at all (has) may be a list thumbnail.
+            local SW = require("lib/bookshelf_spine_widget")
+            local ok_w, res = pcall(function() return SW.warmFaceOut(job.fp, job.w, job.h) end)
+            if ok_w and res == "already" then counters.already = counters.already + 1
+            elseif ok_w and res == "decoded" then counters.decoded = counters.decoded + 1
+            else counters.failed = counters.failed + 1 end
         elseif job.fp then
             if ScaledCoverCache:has(job.fp) then
                 counters.already = counters.already + 1
@@ -17615,6 +17624,36 @@ function BookshelfWidget:_buildPhaseJobs(phase, seen)
         local target = (self._cursor or 1) + (self._preload_dir or 1) * view
         if target >= 1 and (total == 0 or target <= total) then
             self:_collectPageCovers(jobs, seen, self.chip, target, w, h)
+        end
+    end
+    return jobs
+end
+
+-- _spineFaceOutJobs(direction) -> warm jobs for a Spines shelf's covers ahead.
+-- Only with every book facing out (Face out: all): a page there is ~9 covers,
+-- and one never shown at face-out size cost 70-150 ms on the turn (PW5,
+-- Decades: 0.7-1 s a page), against 23-31 ms once kept. With fewer facing
+-- out, the few decode on demand. The next SPINE_WARM_AHEAD books in the paged
+-- direction (two pages and more), at the size the tiles draw at, recorded by
+-- the last face-out drawn; none drawn yet, nothing to go by. Not where
+-- building ahead is not allowed: a feed's list fetch can reach the network.
+function BookshelfWidget:_spineFaceOutJobs(direction)
+    local jobs = {}
+    local dims = require("lib/bookshelf_spine_widget").face_out_dims
+    if not dims then return jobs end
+    local spec = require("lib/bookshelf_spine_shelf").faceOutSpec(self:_spineFaceOut())
+    if not spec.all then return jobs end
+    if not self:_pageAheadSafe() then return jobs end
+    local items = self:_spineCachedFetch(400) or {}
+    local cur = self._cursor or 1
+    local from, to, step = cur, math.min(#items, cur + SPINE_WARM_AHEAD - 1), 1
+    if (direction or 1) < 0 then
+        from, to, step = cur - 1, math.max(1, cur - SPINE_WARM_AHEAD), -1
+    end
+    for i = from, to, step do
+        local it = items[i]
+        if it and it.filepath and not it._series_box and not it.add_subshelf then
+            jobs[#jobs + 1] = { fp = it.filepath, w = dims.w, h = dims.h, face_out = true }
         end
     end
     return jobs
@@ -18102,14 +18141,27 @@ function BookshelfWidget:_schedulePreload(direction)
     -- Spine mode: a page holds ~a hundred books whose covers the shelf never
     -- paints (a spine is colour and text; the few face-out favourites decode
     -- on demand), and the warm loop's decode chunks were exactly what made
-    -- the first tap after a chip switch feel dead. Nothing worth warming.
+    -- the first tap after a chip switch feel dead. Nothing worth warming --
+    -- unless every book faces out: then a page is ~9 covers, each a decode
+    -- the first time it shows (_spineFaceOutJobs).
+    local spine_jobs
     if self:_isSpineMode() then
-        self:_pageAheadArm(direction)
-        return
+        local ok_j, jobs = pcall(self._spineFaceOutJobs, self, direction)
+        spine_jobs = ok_j and jobs or {}
+        if #spine_jobs == 0 then
+            self:_pageAheadArm(direction)
+            return
+        end
     end
     self:_cancelPreload()
     self:_applyCoverCacheBudget()
     self._preload_dir = direction
+    if spine_jobs then
+        -- The queue is the covers, ready: _preloadStep builds none of its own.
+        self._preload_queue, self._preload_total = spine_jobs, #spine_jobs
+        self._preload_seen = {}
+        self._preload_counters = { decoded = 0, already = 0, failed = 0 }
+    end
     self._preload_fn = function() self:_preloadStep() end
     -- The delay exists to let the CURRENT page's EPDC flush drain before the
     -- preload starts decoding. On the first rebuild there is no current page:

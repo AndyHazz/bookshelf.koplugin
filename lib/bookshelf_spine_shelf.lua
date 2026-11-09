@@ -35,18 +35,11 @@ local RoundCorner    = require("lib/bookshelf_round_corner")
 
 local SpineShelf = {}
 
-local _gettime
-do
-    local ok, TimeVal = pcall(require, "ui/timeval")
-    if ok and TimeVal and TimeVal.now then
-        _gettime = function()
-            local tv = TimeVal:now()
-            return tv.sec + tv.usec / 1e6
-        end
-    else
-        _gettime = os.clock
-    end
-end
+-- The shared wall clock. This file had its own, trying KOReader's old TimeVal
+-- first: gone, so it fell back to os.clock, CPU time, which leaves out the
+-- waits a cover decode spends reading its data (a page's covers reported at
+-- 158 ms that took 557 ms on a PW5).
+local _gettime = require("lib/bookshelf_gettime")
 
 -- Gap between neighbouring spines, dp. Books on a real shelf TOUCH, and now
 -- so do these: at 2dp a strip of wallpaper showed between every pair and the

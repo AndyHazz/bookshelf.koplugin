@@ -30,4 +30,21 @@ t.test("socket without gettime also falls back", function()
     package.loaded["socket"] = nil
 end)
 
+-- ui/timeval is gone from KOReader (ui/time replaced it), so a module that
+-- tried it first fell back to os.clock on every current device: CPU time,
+-- which leaves out the waits a cover decode spends reading its data. The
+-- spine shelf's turn summary reported a cold page's covers at 158 ms that
+-- took 557 ms (PW5).
+t.test("no module asks for the clock KOReader no longer has", function()
+    local p = io.popen("ls lib/*.lua")
+    for path in p:lines() do
+        local f = io.open(path); local src = f:read("*a"); f:close()
+        assert(not src:find("ui/timeval", 1, true), path .. " still reads ui/timeval")
+    end
+    p:close()
+    local f = io.open("lib/bookshelf_spine_shelf.lua"); local src = f:read("*a"); f:close()
+    assert(src:find('local _gettime = require("lib/bookshelf_gettime")', 1, true),
+        "the spine shelf keeps a clock of its own")
+end)
+
 t.done()

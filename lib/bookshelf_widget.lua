@@ -14145,13 +14145,25 @@ function BookshelfWidget:onResume()
     -- first, and builds again a kept page whose data moved while asleep.
     self._ahead_wake_until = _gettime() + PAGE_AHEAD_WAKE_WINDOW_S
     self:_pageAheadArm(self._page_ahead_dir or 1)
-    -- Repaint immediately so post-wake clock + batt + wifi state shows
-    -- without waiting for the next minute boundary. Hint "status" so
-    -- the panel refresh stays scoped to the status strip.
-    local _hc_resume = self._hero_card or (self._hero_parent and self._hero_parent[1])
-    if UIManager:getTopmostVisibleWidget() == self
-            and _hc_resume
-            and _hc_resume.replaceRightColumn then
+    -- The status as it is now, without waiting for the minute tick. With the
+    -- sleep screen still up this does nothing: the underlay asks again when
+    -- it puts the shelf back from under it.
+    self:_wakeStatusRefresh()
+end
+
+-- _wakeStatusRefresh(): draw the status again, in place, for a wake: clock,
+-- battery and wifi as they are now, not as the device slept (issue 596).
+-- Only with the shelf on top; the panel refresh stays on the status.
+function BookshelfWidget:_wakeStatusRefresh()
+    if self._closed or UIManager:getTopmostVisibleWidget() ~= self then return end
+    -- As the minute tick does: a micro grid's clocks, then the status line.
+    if self._hero_mode == "micro" and not self._expanded then
+        require("lib/bookshelf_hero_modules").tickClocks(self)
+    end
+    local hc = self._hero_card or (self._hero_parent and self._hero_parent[1])
+    if self._hero_status_strip then
+        self:_swapHeroStatusStrip()
+    elseif hc and hc.replaceRightColumn then
         local Regions = require("lib/bookshelf_hero_regions")
         self:_swapHeroRightColumnInPlace(Regions.read(), "status")
     end

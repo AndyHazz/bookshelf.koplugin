@@ -303,6 +303,12 @@ function M.install(bw)
             local ok, err = pcall(close, um, window, ...)
             _restoring = false
             if not ok then error(err, 0) end
+            -- What went back is the shelf as the device slept: its clock,
+            -- battery and wifi too. Draw the status again (issue 596).
+            local bw = _bw
+            if sleepScreen(window) and bw and bw._wakeStatusRefresh and um.nextTick then
+                um:nextTick(function() bw:_wakeStatusRefresh() end)
+            end
             return
         end
         return close(um, window, ...)

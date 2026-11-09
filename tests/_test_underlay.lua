@@ -226,6 +226,33 @@ t.test("a sleep screen shown before the shelf's pending paint isn't kept", funct
     assert(ok, err)
 end)
 
+-- The pixels put back are the shelf as it was when the device slept: its
+-- clock too. A wake that puts them back has to have the status line drawn
+-- again, or the time stays wrong until the next minute tick (issue 596).
+t.test("a sleep screen's close that put the shelf back has its status redrawn", function()
+    U._reset()
+    Screen.bb:fillRect(0, 0, W, H, "shelf")
+    local calls = 0
+    local bw = { _wakeStatusRefresh = function() calls = calls + 1 end }
+    local UI = package.loaded["ui/uimanager"]
+    local ticks = {}
+    UI.nextTick = function(_um, fn) ticks[#ticks + 1] = fn end
+    U.install(bw)
+    local ss = sleepOver()
+    UI.close(UI, ss)
+    eq(calls, 0)              -- not inside the close
+    eq(#ticks, 1)
+    ticks[1]()
+    eq(calls, 1)
+    -- Any other window's close: nothing to catch up.
+    local win, x, y = window("Dialog", 10, 10, 20, 20)
+    U.shown(win)
+    win:paintTo(Screen.bb, x, y)
+    UI.close(UI, win)
+    eq(#ticks, 1)
+    UI.nextTick = nil
+end)
+
 t.test("the shelf reports its whole paints to the screen", function()
     local src = io.open("lib/bookshelf_widget.lua"):read("*a")
     local i = src:find("local clip_rects = self:_takePaintClip(bb)", 1, true)

@@ -91,7 +91,14 @@ t.test("both plan callers hand it one, from the WHOLE list", function()
     -- list each caller names -- and what has to stay true is which list that
     -- is: the render reaches past the PAGE it draws to the chip's whole list.
     local w = io.open("lib/bookshelf_widget.lua"):read("*a")
-    local n = select(2, w:gsub("face_recent_set = self:_spineFaceRecent", ""))
+    -- The one other asker is the warm-up of the covers ahead, which decides
+    -- face-outs as the plan does (SpineShelf.faceOutPaths): from the whole
+    -- list as well.
+    local warm = w:match("\nfunction BookshelfWidget:_spineFaceOutJobs%(direction%)\n(.-)\nend\n")
+    assert(warm and warm:find("local items = self:_spineCachedFetch(400)", 1, true)
+        and warm:find("face_recent_set = self:_spineFaceRecent(items)", 1, true),
+        "the warm-up's recent set is not from the shelf's whole list")
+    local n = select(2, w:gsub("face_recent_set = self:_spineFaceRecent", "")) - 1
     eq(n, 1, "the face-out set is computed somewhere other than _spinePlanBase: " .. n)
     local base = w:match("\nfunction BookshelfWidget:_spinePlanBase%(content_w, shelf_h, all_items%)\n(.-)\nend\n")
     assert(base and base:find("face_recent_set = self:_spineFaceRecent(all_items)", 1, true),

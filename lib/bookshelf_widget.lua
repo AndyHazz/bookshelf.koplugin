@@ -17616,6 +17616,10 @@ end
 -- tick.)
 function BookshelfWidget:_buildPhaseJobs(phase, seen)
     local jobs = {}
+    -- A Spines shelf: the covers that will face out ahead.
+    if phase == "next" and self:_isSpineMode() then
+        return self:_spineFaceOutJobs(self._preload_dir)
+    end
     local w, h = self:_currentSlotDims()
     if not w then return jobs end
     local view = self:_viewSize()
@@ -17629,32 +17633,49 @@ function BookshelfWidget:_buildPhaseJobs(phase, seen)
     return jobs
 end
 
--- _spineFaceOutJobs(direction) -> warm jobs for a Spines shelf's covers ahead.
--- Only with every book facing out (Face out: all): a page there is ~9 covers,
--- and one never shown at face-out size cost 70-150 ms on the turn (PW5,
--- Decades: 0.7-1 s a page), against 23-31 ms once kept. With fewer facing
--- out, the few decode on demand. The next SPINE_WARM_AHEAD books in the paged
--- direction (two pages and more), at the size the tiles draw at, recorded by
--- the last face-out drawn; none drawn yet, nothing to go by. Not where
--- building ahead is not allowed: a feed's list fetch can reach the network.
+-- _spineWarmable() -> true when a Spines shelf has covers ahead to warm:
+-- some reason stands books face out, a face-out has been drawn (its size is
+-- what they are warmed at), and building ahead is allowed here (a feed's list
+-- fetch can reach the network). Cheap: asked on the turn.
+function BookshelfWidget:_spineWarmable()
+    if not require("lib/bookshelf_spine_widget").face_out_dims then return false end
+    local SpineShelf = require("lib/bookshelf_spine_shelf")
+    if SpineShelf.faceOutEmpty(SpineShelf.faceOutSpec(self:_spineFaceOut())) then return false end
+    return self:_pageAheadSafe() and true or false
+end
+
+-- _spineFaceOutJobs(direction) -> warm jobs for a Spines shelf's covers ahead:
+-- the books among the next SPINE_WARM_AHEAD in the paged direction (two
+-- pages and more) that will stand face out, decided as the plan decides it
+-- (SpineShelf.faceOutPaths), nearest first, at the size the face-outs draw
+-- at. A cover never shown at that size cost 70-150 ms on the turn (PW5,
+-- Decades with every book out: 0.7-1 s a page), 1-3 ms once warmed.
 function BookshelfWidget:_spineFaceOutJobs(direction)
     local jobs = {}
     local dims = require("lib/bookshelf_spine_widget").face_out_dims
     if not dims then return jobs end
-    local spec = require("lib/bookshelf_spine_shelf").faceOutSpec(self:_spineFaceOut())
-    if not spec.all then return jobs end
+    local SpineShelf = require("lib/bookshelf_spine_shelf")
+    local face_out = self:_spineFaceOut()
+    local spec = SpineShelf.faceOutSpec(face_out)
+    if SpineShelf.faceOutEmpty(spec) then return jobs end
     if not self:_pageAheadSafe() then return jobs end
     local items = self:_spineCachedFetch(400) or {}
     local cur = self._cursor or 1
-    local from, to, step = cur, math.min(#items, cur + SPINE_WARM_AHEAD - 1), 1
-    if (direction or 1) < 0 then
-        from, to, step = cur - 1, math.max(1, cur - SPINE_WARM_AHEAD), -1
+    local back = (direction or 1) < 0
+    local first = back and math.max(1, cur - SPINE_WARM_AHEAD) or cur
+    local last = back and (cur - 1) or math.min(#items, cur + SPINE_WARM_AHEAD - 1)
+    -- The run in shelf order: first in series and the like are decided in it.
+    local window = {}
+    for i = first, last do window[#window + 1] = items[i] end
+    local opts = { face_out = face_out, face_recent_set = self:_spineFaceRecent(items) }
+    if spec.first_unread and not spec.all then
+        opts.series_next_claimed = SpineShelf.seriesClaimedBefore(items, first, window)
     end
+    local fps = SpineShelf.faceOutPaths(window, opts)
+    local from, to, step = 1, #fps, 1
+    if back then from, to, step = #fps, 1, -1 end
     for i = from, to, step do
-        local it = items[i]
-        if it and it.filepath and not it._series_box and not it.add_subshelf then
-            jobs[#jobs + 1] = { fp = it.filepath, w = dims.w, h = dims.h, face_out = true }
-        end
+        jobs[#jobs + 1] = { fp = fps[i], w = dims.w, h = dims.h, face_out = true }
     end
     return jobs
 end
@@ -18141,14 +18162,12 @@ function BookshelfWidget:_schedulePreload(direction)
     -- Spine mode: a page holds ~a hundred books whose covers the shelf never
     -- paints (a spine is colour and text; the few face-out favourites decode
     -- on demand), and the warm loop's decode chunks were exactly what made
-    -- the first tap after a chip switch feel dead. Nothing worth warming --
-    -- unless every book faces out: then a page is ~9 covers, each a decode
-    -- the first time it shows (_spineFaceOutJobs).
-    local spine_jobs
+    -- the first tap after a chip switch feel dead. Only the covers that face
+    -- out are worth warming: each is a decode the first time it shows
+    -- (_spineFaceOutJobs, chosen in the loop's first step).
     if self:_isSpineMode() then
-        local ok_j, jobs = pcall(self._spineFaceOutJobs, self, direction)
-        spine_jobs = ok_j and jobs or {}
-        if #spine_jobs == 0 then
+        local ok_w, warm = pcall(self._spineWarmable, self)
+        if not (ok_w and warm) then
             self:_pageAheadArm(direction)
             return
         end
@@ -18156,12 +18175,6 @@ function BookshelfWidget:_schedulePreload(direction)
     self:_cancelPreload()
     self:_applyCoverCacheBudget()
     self._preload_dir = direction
-    if spine_jobs then
-        -- The queue is the covers, ready: _preloadStep builds none of its own.
-        self._preload_queue, self._preload_total = spine_jobs, #spine_jobs
-        self._preload_seen = {}
-        self._preload_counters = { decoded = 0, already = 0, failed = 0 }
-    end
     self._preload_fn = function() self:_preloadStep() end
     -- The delay exists to let the CURRENT page's EPDC flush drain before the
     -- preload starts decoding. On the first rebuild there is no current page:

@@ -21,21 +21,43 @@ local function compile(code, env, name)
 end
 
 -- ── Which covers: BookshelfWidget:_spineFaceOutJobs(direction) ──────────
+-- The books themselves come from SpineShelf.faceOutPaths (the plan's own
+-- decision, _test_face_out_ahead); this is which run of the list it is asked
+-- about, and what it is handed.
 local JOBS = assert(wsrc:match("\nfunction BookshelfWidget:_spineFaceOutJobs%(direction%)\n(.-)\nend\n"),
     "BookshelfWidget:_spineFaceOutJobs is gone")
-local dims
+local WARMABLE = assert(wsrc:match("\nfunction BookshelfWidget:_spineWarmable%(%)\n(.-)\nend\n"),
+    "BookshelfWidget:_spineWarmable is gone")
+local dims, asked
+local SpineStub = {
+    faceOutSpec = function(v)
+        if v == "all" then return { all = true } end
+        if v == "none" then return {} end
+        return { [v] = true }
+    end,
+    faceOutEmpty = function(spec) return next(spec) == nil end,
+    -- Faces out: every book whose path ends in an even number.
+    faceOutPaths = function(items, opts)
+        asked = { items = items, opts = opts }
+        local out = {}
+        for _i, it in ipairs(items) do
+            local n = tonumber(it.filepath and it.filepath:match("(%d+)%.epub$"))
+            if n and (opts.face_out == "all" or n % 2 == 0) then out[#out + 1] = it.filepath end
+        end
+        return out
+    end,
+    seriesClaimedBefore = function(all, first, window) return { claimed_from = first } end,
+}
 local jobs_env = setmetatable({
     SPINE_WARM_AHEAD = 24,
     require = function(n)
         if n == "lib/bookshelf_spine_widget" then return { face_out_dims = dims } end
-        if n == "lib/bookshelf_spine_shelf" then return require("lib/bookshelf_spine_shelf") end
+        if n == "lib/bookshelf_spine_shelf" then return SpineStub end
         error("unexpected require " .. n)
     end,
 }, { __index = _G })
-package.loaded["lib/bookshelf_spine_shelf"] = package.loaded["lib/bookshelf_spine_shelf"] or {
-    faceOutSpec = function(v) return v == "all" and { all = true } or { favorites = true } end,
-}
 local jobsFor = compile("local self, direction = ...\n" .. JOBS, jobs_env, "jobs")
+local warmable = compile("local self = ...\n" .. WARMABLE, jobs_env, "warmable")
 
 local function shelf(face, cursor, n)
     local items = {}
@@ -44,6 +66,7 @@ local function shelf(face, cursor, n)
         _cursor = cursor,
         _spineFaceOut = function() return face end,
         _spineCachedFetch = function() return items end,
+        _spineFaceRecent = function(_s, all) return { recent_of = all } end,
         _pageAheadSafe = function() return true end,
     }, items
 end
@@ -56,7 +79,25 @@ t.test("every cover facing out: the next books' covers, at the size drawn", func
     eq(jobs[1].w, 199); eq(jobs[1].h, 301); eq(jobs[1].face_out, true)
 end)
 
-t.test("paging back warms the books before the page", function()
+t.test("some facing out: only those, as the plan decides", function()
+    dims = { w = 199, h = 301 }
+    local jobs = jobsFor(shelf("favorites", 10, 100), 1)
+    eq(#jobs, 12)
+    eq(jobs[1].fp, "/b/10.epub"); eq(jobs[2].fp, "/b/12.epub")
+end)
+
+t.test("decided with the shelf around it: the run in shelf order, the shelf's recent set", function()
+    dims = { w = 199, h = 301 }
+    local s, items = shelf("first_unread", 30, 100)
+    jobsFor(s, -1)
+    eq(asked.items[1].filepath, "/b/6.epub")      -- shelf order, not paging order
+    eq(#asked.items, 24)
+    eq(asked.opts.face_out, "first_unread")
+    eq(asked.opts.face_recent_set.recent_of, items)
+    eq(asked.opts.series_next_claimed.claimed_from, 6)
+end)
+
+t.test("paging back warms the nearest first", function()
     dims = { w = 199, h = 301 }
     local jobs = jobsFor(shelf("all", 30, 100), -1)
     eq(#jobs, 24)
@@ -69,30 +110,21 @@ t.test("stops at either end of the list", function()
     eq(#jobsFor(shelf("all", 3, 100), -1), 2)
 end)
 
-t.test("nothing unless every book faces out, or before a face-out was drawn", function()
+t.test("warmable: something faces out, a face-out was drawn, building ahead allowed", function()
     dims = { w = 199, h = 301 }
-    eq(#jobsFor(shelf("favorites", 10, 100), 1), 0)
+    eq(warmable(shelf("favorites", 1, 10)), true)
+    eq(warmable(shelf("none", 1, 10)), false)
+    local s = shelf("all", 1, 10)
+    s._pageAheadSafe = function() return false end   -- a feed's list can reach the network
+    eq(warmable(s), false)
     dims = nil
-    eq(#jobsFor(shelf("all", 10, 100), 1), 0)
+    eq(warmable(shelf("all", 1, 10)), false)
 end)
 
-t.test("never where building ahead is not allowed (a feed's list can reach the network)", function()
-    dims = { w = 199, h = 301 }
-    local s = shelf("all", 10, 100)
-    local fetched = false
-    s._pageAheadSafe = function() return false end
-    s._spineCachedFetch = function() fetched = true; return {} end
-    eq(#jobsFor(s, 1), 0)
-    assert(not fetched, "fetched the list anyway")
-end)
-
-t.test("only books: a series box or an add tile has no cover of its own to warm", function()
-    dims = { w = 199, h = 301 }
-    local s, items = shelf("all", 1, 4)
-    items[2] = { _series_box = true }
-    items[3] = { add_subshelf = true }
-    local jobs = jobsFor(s, 1)
-    eq(#jobs, 2); eq(jobs[2].fp, "/b/4.epub")
+t.test("the warm loop's first step asks for them, after the pause", function()
+    local b = assert(wsrc:match("\nfunction BookshelfWidget:_buildPhaseJobs%(phase, seen%)\n(.-)\nend\n"))
+    assert(b:find("self:_spineFaceOutJobs(self._preload_dir)", 1, true),
+        "the preload's first step does not choose a Spines shelf's covers")
 end)
 
 -- ── Warming one: SpineWidget.warmFaceOut(fp, w, h) ──────────────────────

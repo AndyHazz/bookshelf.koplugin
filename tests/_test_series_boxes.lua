@@ -576,6 +576,8 @@ H.test("the native planner paginates boxes as single slots and resumes inside co
         cachedProgress=function() return nil,nil,true end,
         persistProgress=function() end,prefetchFacts=function() end,
         markSeriesHeads=function() end,thicknessPages=function() return 300 end,textThicken=function() return 1 end,
+        -- Every book faces out (faceOutSpec above), as SpineShelf.facesOut answers it.
+        facesOut=function(_spec,_f,src) return src.filepath ~= nil end,
         bookShape=function(look,pages) return look.aspect,look,pages end,
         bookLook=function() return {r=90,g=120,b=80,aspect=1.5} end,
     shownLook=function() return {r=90,g=120,b=80,aspect=1.5} end,

@@ -92,26 +92,27 @@ t.test("after the first paint it schedules immediately, as before", function()
     assert(not self_._preload_pending, "a page-turn preload was needlessly held")
 end)
 
-t.test("Spines with every cover out: the next covers are warmed, then the page is built", function()
+t.test("Spines with covers facing out: the warm loop runs first, then the page is built", function()
     local armed
-    local job = { fp = "/b/1.epub", w = 10, h = 15, face_out = true }
     local self_ = { _first_paint_done = true,
                     _isSpineMode = function() return true end,
-                    _spineFaceOutJobs = function(_s, dir) return { job } end,
+                    _spineWarmable = function() return true end,
                     _pageAheadArm = function(_s, dir) armed = dir end }
     local _e, scheduled, schedule = harness(self_)
     schedule(-1)
     assert(#scheduled == 1, "the warm loop was not scheduled")
-    assert(self_._preload_queue and self_._preload_queue[1] == job, "its covers were not queued")
-    assert(self_._preload_total == 1 and self_._preload_dir == -1)
+    assert(self_._preload_dir == -1)
+    -- Which covers is worked out in the loop's first step, after the pause,
+    -- not on the turn: it reads statuses for books off the screen.
+    assert(self_._preload_queue == nil, "the covers were chosen on the turn")
     assert(armed == nil, "the page was built ahead before its covers were warm")
 end)
 
-t.test("Spines with no covers to warm builds the page ahead at once", function()
+t.test("Spines with no covers facing out builds the page ahead at once", function()
     local armed
     local self_ = { _first_paint_done = true,
                     _isSpineMode = function() return true end,
-                    _spineFaceOutJobs = function() return {} end,
+                    _spineWarmable = function() return false end,
                     _pageAheadArm = function(_s, dir) armed = dir end }
     local _e, scheduled, schedule = harness(self_)
     schedule(1)

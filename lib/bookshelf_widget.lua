@@ -10766,6 +10766,10 @@ local CHIP_PRELOAD_QUIET_S = 5
 -- first's state once the first is done, so two quick swipes after a pause
 -- both land on finished pages.
 local PAGE_AHEAD_DEPTH = 2
+-- After a wake: how long the build keeps looking for the shelf to come back
+-- from under the sleep screen, and how often it looks.
+local PAGE_AHEAD_WAKE_WINDOW_S = 120
+local PAGE_AHEAD_WAKE_RETRY_S = 1
 
 -- The shelf's fields as a table, and back: the build sets fields on the
 -- live shelf as a turn does, and every one goes back after each step.
@@ -10869,7 +10873,16 @@ function BookshelfWidget:_pageAheadRun()
             return
         end
     else
-        if not self:_pageAheadSafe() then return end
+        if not self:_pageAheadSafe() then
+            -- Just woken: the sleep screen may still be over the shelf (a
+            -- delay, a tap or a gesture to leave it). Look again shortly.
+            if not self._closed and (self._ahead_wake_until or 0) > _gettime()
+                    and UIManager:getTopmostVisibleWidget() ~= self then
+                self._page_ahead_fn = function() self:_pageAheadRun() end
+                UIManager:scheduleIn(PAGE_AHEAD_WAKE_RETRY_S, self._page_ahead_fn)
+            end
+            return
+        end
         local nxt = self._page_ahead_next
         self._page_ahead_next = nil
         if nxt and nxt.gen ~= self._page_gen then nxt = nil end
@@ -14106,6 +14119,12 @@ function BookshelfWidget:onResume()
     -- into sleep; bring it back so a wake-up detects any files synced
     -- while the device was suspended. Idempotent.
     self:_startFilePoll()
+    -- Build ahead again. A sleep outlasts the Spines list (30 s), and the
+    -- first turn after a wake fetched it with the device just awake: 338 ms
+    -- against 115 ms for the same fetch awake (PW5). The build fetches it
+    -- first, and builds again a kept page whose data moved while asleep.
+    self._ahead_wake_until = _gettime() + PAGE_AHEAD_WAKE_WINDOW_S
+    self:_pageAheadArm(self._page_ahead_dir or 1)
     -- Repaint immediately so post-wake clock + batt + wifi state shows
     -- without waiting for the next minute boundary. Hint "status" so
     -- the panel refresh stays scoped to the status strip.

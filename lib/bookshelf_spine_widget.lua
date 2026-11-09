@@ -1166,13 +1166,102 @@ local function _thumbFor(fp, src, w, h)
 end
 SpineWidget._thumbFor = _thumbFor
 
--- SpineWidget.warmFaceOut(fp, w, h) -> "already" | "decoded" | "failed".
+-- A face-out's cover slot is its card less this border (the warm-up sizes by it).
+SpineWidget.CARD_BORDER = CARD_BORDER
+
+-- SpineWidget.externalCover(path, img_w, img_h, cover_fill) -> bb, fit, cached
+-- A cover from an image file (Hardcover's, or one the reader picked) for a
+-- slot of img_w x img_h. bb: what to paint, owned by the cache when it could
+-- be keyed; fit: true when it is not the slot's own size and has to be fitted
+-- (painted through width/height); cached: it came from the cache. nil when
+-- nothing could be loaded. The tile (_renderCover) and the warm-up of the
+-- covers ahead (warmFaceOut) both load through here, so a warmed one is the
+-- one the tile takes.
+--
+-- Cached keyed on the SOURCE FILE's identity rather than the book's path.
+-- Without this the image was decoded from disk on every single render:
+-- measured on a PW5, the hero cover of a book with a picked cover cost 361ms
+-- of a 496ms hero build, paid again on every rebuild, chip switch and book
+-- close. Why path+mtime+size instead of the book's filepath, which is what the
+-- rest of the cache is keyed on: an external cover can be REPLACED at any time
+-- (the cover picker, a Hardcover download), and nothing drops the cover cache
+-- when that happens. Keying on the file's identity means a replacement simply
+-- misses, instead of every writer having to remember to invalidate and one
+-- that forgets showing the old cover forever now that the cache is on disk.
+-- Costs one stat against a full decode.
+function SpineWidget.externalCover(path, img_w, img_h, cover_fill)
+    local ck = SpineWidget.externalCoverKey(path)
+    -- Same contract as the embedded cache-first path: usable only when the
+    -- cached bb covers the slot in both axes, and painted through
+    -- width/height so ImageWidget downscales (Kindle-safe direction).
+    if ck then
+        local cached = ScaledCoverCache:get(ck)
+        if cached
+                and cached:getWidth()  >= img_w
+                and cached:getHeight() >= img_h then
+            return cached, true, true
+        end
+    end
+    local ok_img, ImageSource = pcall(require, "lib/bookshelf_image_source")
+    local external_bb
+    if ok_img then
+        -- How big the file actually is, read from its header rather than
+        -- from a decode (ImageSource.probeSize). When it holds fewer
+        -- pixels than the slot wants, asking the renderer for slot-sized
+        -- output is an UPSCALE through MuPDF -- the direction that
+        -- corrupts on Kindle, which is why the embedded-cover path
+        -- uses bb:scale instead -- and it invents no detail either way.
+        -- Load it at its own size and grow it the safe way.
+        local nat_w, nat_h = ImageSource.probeSize(path)
+        if nat_w and nat_h and (nat_w < img_w or nat_h < img_h) then
+            local native = ImageSource.loadImageNative(path)
+            if native then
+                -- Owned by ImageSource's cache: copy it, never free it.
+                local ok_g, grown = pcall(function()
+                    if cover_fill then
+                        return _coverFillBB(native, img_w, img_h)
+                    end
+                    local sw, sh = native:getWidth(), native:getHeight()
+                    local f = math.min(img_w / sw, img_h / sh)
+                    return native:scale(math.max(1, math.floor(sw * f)),
+                                        math.max(1, math.floor(sh * f)))
+                end)
+                if ok_g then external_bb = grown end
+            end
+        end
+        -- The file is big enough (or the header could not be read): the
+        -- renderer downscales, which is the safe direction.
+        if not external_bb then
+            external_bb = ImageSource.loadImage(path, img_w, img_h)
+        end
+    end
+    if not external_bb then return nil end
+    local paint_bb = external_bb
+    -- put() boosts after writing the raw disk copy; with no key to
+    -- cache under, boost it here.
+    if ck then
+        paint_bb = ScaledCoverCache:put(ck, external_bb)
+    else
+        _boostCover(external_bb)
+    end
+    return paint_bb, paint_bb ~= external_bb, false
+end
+
+-- SpineWidget.warmFaceOut(job) -> "already" | "decoded" | "failed".
 -- A Spines shelf's background warm-up (BookshelfWidget:_spineFaceOutJobs):
 -- the face-out tile's cover, made ahead at the size it draws at and by the
 -- same rules (_renderCover), so the turn finds it kept. "already" when the
 -- tile would take what the cache holds; otherwise one decode, filled to the
 -- slot and kept (and so written to disk: paid once per book, not per visit).
-function SpineWidget.warmFaceOut(fp, w, h)
+-- job: { fp, w, h, ext }: the book, its cover slot (px, inside the card's
+-- border) and its own cover image if it has one, which is what the tile shows.
+function SpineWidget.warmFaceOut(job)
+    local fp, w, h = job.fp, job.w, job.h
+    if job.ext then
+        local bb, _fit, cached = SpineWidget.externalCover(job.ext, w, h, true)
+        if not bb then return "failed" end
+        return cached and "already" or "decoded"
+    end
     if ScaledCoverCache:getSized(fp, w, h) then return "already" end
     local cached = ScaledCoverCache:get(fp)
     if cached and _sameShape(cached, w, h)
@@ -2239,97 +2328,23 @@ function SpineWidget:_renderCover(bb)
     local external_cover = self.book and self.book.cover_image_path
 
     if external_cover then
-        -- Cache the scaled result, keyed on the SOURCE FILE's identity rather
-        -- than the book's path. Without this the image was decoded from disk on
-        -- every single render: measured on a PW5, the hero cover of a book with
-        -- a picked cover cost 361ms of a 496ms hero build, paid again on every
-        -- rebuild, chip switch and book close, because this branch sits above
-        -- the cache-first block below and never put anything back.
-        --
-        -- Why path+mtime+size instead of the book's filepath, which is what the
-        -- rest of the cache is keyed on: an external cover can be REPLACED at
-        -- any time (the cover picker, a Hardcover download), and nothing today
-        -- drops the cover cache when that happens -- it did not have to, since
-        -- this path never cached. Keying on the file's identity means a
-        -- replacement simply misses, instead of every writer having to remember
-        -- to invalidate and one that forgets showing the old cover forever now
-        -- that the cache is on disk. Costs one stat against a full decode.
-        local ck = SpineWidget.externalCoverKey(external_cover)
-        -- Same contract as the embedded cache-first path: usable only when the
-        -- cached bb covers the slot in both axes, and painted through
-        -- width/height so ImageWidget downscales (Kindle-safe direction).
-        if ck then
-            local cached = ScaledCoverCache:get(ck)
-            if cached
-                    and cached:getWidth()  >= img_w
-                    and cached:getHeight() >= img_h then
-                local img_args = {
-                    image            = cached,
-                    image_disposable = false,
-                    width            = img_w,
-                    height           = img_h,
-                }
-                if not self.cover_fill then img_args.scale_factor = 0 end
-                return self:_wrapCoverInCard(
-                    ImageWidget:new(img_args), card_w, card_h, border)
-            end
-        end
-        local ok_img, ImageSource = pcall(require, "lib/bookshelf_image_source")
-        local external_bb
-        if ok_img then
-            -- How big the file actually is, read from its header rather than
-            -- from a decode (ImageSource.probeSize). When it holds fewer
-            -- pixels than the slot wants, asking the renderer for slot-sized
-            -- output is an UPSCALE through MuPDF -- the direction that
-            -- corrupts on Kindle, which is why the embedded-cover path below
-            -- uses bb:scale instead -- and it invents no detail either way.
-            -- Load it at its own size and grow it the safe way.
-            local nat_w, nat_h = ImageSource.probeSize(external_cover)
-            if nat_w and nat_h and (nat_w < img_w or nat_h < img_h) then
-                local native = ImageSource.loadImageNative(external_cover)
-                if native then
-                    -- Owned by ImageSource's cache: copy it, never free it.
-                    local ok_g, grown = pcall(function()
-                        if self.cover_fill then
-                            return _coverFillBB(native, img_w, img_h)
-                        end
-                        local sw, sh = native:getWidth(), native:getHeight()
-                        local f = math.min(img_w / sw, img_h / sh)
-                        return native:scale(math.max(1, math.floor(sw * f)),
-                                            math.max(1, math.floor(sh * f)))
-                    end)
-                    if ok_g then external_bb = grown end
-                end
-            end
-            -- The file is big enough (or the header could not be read): the
-            -- renderer downscales, which is the safe direction.
-            if not external_bb then
-                external_bb = ImageSource.loadImage(external_cover, img_w, img_h)
-            end
-        end
-        if external_bb then
-            local paint_bb = external_bb
-            -- put() boosts after writing the raw disk copy; with no key to
-            -- cache under, boost it here.
-            if ck then
-                paint_bb = ScaledCoverCache:put(ck, external_bb)
-            else
-                _boostCover(external_bb)
-            end
+        -- Loaded and cached by SpineWidget.externalCover, which the warm-up
+        -- of a Spines shelf's covers ahead uses too (warmFaceOut).
+        local paint_bb, fit = SpineWidget.externalCover(external_cover, img_w, img_h, self.cover_fill)
+        if paint_bb then
             local img_args = {
                 image            = paint_bb,
                 image_disposable = false,
             }
-            if paint_bb == external_bb then
-                -- Ours, loaded at exactly this slot's size.
-                img_args.scale_factor = 1
-            else
-                -- put() kept a bigger entry (a hero render seeded it). It is
-                -- not this slot's size, so it has to be fitted like a cache hit
-                -- rather than painted 1:1.
+            if fit then
+                -- Not this slot's own size (a cache hit, or put() kept a
+                -- bigger entry a hero render seeded): fitted to the slot.
                 img_args.width  = img_w
                 img_args.height = img_h
                 if not self.cover_fill then img_args.scale_factor = 0 end
+            else
+                -- Ours, loaded at exactly this slot's size.
+                img_args.scale_factor = 1
             end
             return self:_wrapCoverInCard(
                 ImageWidget:new(img_args), card_w, card_h, border)
@@ -2359,11 +2374,6 @@ function SpineWidget:_renderCover(bb)
     -- fallback below grows it rather than show a placeholder when BIM has
     -- nothing to decode.
     local cached_any
-    -- The size a face-out draws at, for the warm-up of the covers ahead
-    -- (warmFaceOut): the shelf's own measure, whatever its rows and DPI.
-    if self.spine_face_out and self.cover_fill then
-        SpineWidget.face_out_dims = { w = img_w, h = img_h }
-    end
     -- A thumbnail already made at this size (_thumbFor): no need for the
     -- cover it was made from, which may have to come in from disk.
     local kept = fp and self.cover_fill and ScaledCoverCache:getSized(fp, img_w, img_h)

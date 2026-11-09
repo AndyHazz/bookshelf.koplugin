@@ -28,7 +28,7 @@ local JOBS = assert(wsrc:match("\nfunction BookshelfWidget:_spineFaceOutJobs%(di
     "BookshelfWidget:_spineFaceOutJobs is gone")
 local WARMABLE = assert(wsrc:match("\nfunction BookshelfWidget:_spineWarmable%(%)\n(.-)\nend\n"),
     "BookshelfWidget:_spineWarmable is gone")
-local dims, asked
+local dims, asked, slot_args
 local SpineStub = {
     faceOutSpec = function(v)
         if v == "all" then return { all = true } end
@@ -39,19 +39,27 @@ local SpineStub = {
     -- Faces out: every book whose path ends in an even number.
     faceOutPaths = function(items, opts)
         asked = { items = items, opts = opts }
-        local out = {}
+        local out, books = {}, {}
         for _i, it in ipairs(items) do
             local n = tonumber(it.filepath and it.filepath:match("(%d+)%.epub$"))
-            if n and (opts.face_out == "all" or n % 2 == 0) then out[#out + 1] = it.filepath end
+            if n and (opts.face_out == "all" or n % 2 == 0) then
+                out[#out + 1] = it.filepath; books[#books + 1] = it
+            end
         end
-        return out
+        return out, books
+    end,
+    -- A book's cover, by its number: wider for higher numbers.
+    faceOutSlot = function(b, row_h, same_size)
+        slot_args = { row_h = row_h, same_size = same_size }
+        local n = tonumber(b.filepath:match("(%d+)%.epub$"))
+        return 301, 190 + (n % 10)
     end,
     seriesClaimedBefore = function(all, first, window) return { claimed_from = first } end,
 }
 local jobs_env = setmetatable({
     SPINE_WARM_AHEAD = 24,
     require = function(n)
-        if n == "lib/bookshelf_spine_widget" then return { face_out_dims = dims } end
+        if n == "lib/bookshelf_spine_widget" then return { CARD_BORDER = 1 } end
         if n == "lib/bookshelf_spine_shelf" then return SpineStub end
         error("unexpected require " .. n)
     end,
@@ -68,6 +76,8 @@ local function shelf(face, cursor, n)
         _spineCachedFetch = function() return items end,
         _spineFaceRecent = function(_s, all) return { recent_of = all } end,
         _pageAheadSafe = function() return true end,
+        _spineSameSize = function() return "height" end,
+        _shelf_dims = dims and { shelf_h = 432 } or nil,
     }, items
 end
 
@@ -76,7 +86,19 @@ t.test("every cover facing out: the next books' covers, at the size drawn", func
     local jobs = jobsFor(shelf("all", 10, 100), 1)
     eq(#jobs, 24)
     eq(jobs[1].fp, "/b/10.epub"); eq(jobs[24].fp, "/b/33.epub")
-    eq(jobs[1].w, 199); eq(jobs[1].h, 301); eq(jobs[1].face_out, true)
+    eq(jobs[1].face_out, true)
+end)
+
+t.test("each cover at its own slot: the card less its border, sized as the plan sizes it", function()
+    dims = { w = 199, h = 301 }
+    local s, items = shelf("all", 10, 100)
+    items[13].cover_image_path = "/c/13.jpg"
+    local jobs = jobsFor(s, 1)
+    eq(jobs[1].w, 190 - 2); eq(jobs[1].h, 301 - 2)     -- /b/10
+    eq(jobs[2].w, 191 - 2)                            -- /b/11: its own width
+    eq(slot_args.row_h, 432); eq(slot_args.same_size, "height")
+    eq(jobs[4].ext, "/c/13.jpg")                      -- its own cover image goes with it
+    eq(jobs[1].ext, nil)
 end)
 
 t.test("some facing out: only those, as the plan decides", function()
@@ -110,14 +132,14 @@ t.test("stops at either end of the list", function()
     eq(#jobsFor(shelf("all", 3, 100), -1), 2)
 end)
 
-t.test("warmable: something faces out, a face-out was drawn, building ahead allowed", function()
+t.test("warmable: something faces out, a shelf laid out, building ahead allowed", function()
     dims = { w = 199, h = 301 }
     eq(warmable(shelf("favorites", 1, 10)), true)
     eq(warmable(shelf("none", 1, 10)), false)
     local s = shelf("all", 1, 10)
     s._pageAheadSafe = function() return false end   -- a feed's list can reach the network
     eq(warmable(s), false)
-    dims = nil
+    dims = nil   -- no shelf laid out yet
     eq(warmable(shelf("all", 1, 10)), false)
 end)
 
@@ -128,7 +150,7 @@ t.test("the warm loop's first step asks for them, after the pause", function()
 end)
 
 -- ── Warming one: SpineWidget.warmFaceOut(fp, w, h) ──────────────────────
-local WARM = assert(ssrc:match("\nfunction SpineWidget%.warmFaceOut%(fp, w, h%)\n(.-)\nend\n"),
+local WARM = assert(ssrc:match("\nfunction SpineWidget%.warmFaceOut%(job%)\n(.-)\nend\n"),
     "SpineWidget.warmFaceOut is gone")
 local log
 local function bb(w, h) return { w = w, h = h, getWidth = function(s) return s.w end,
@@ -146,9 +168,17 @@ local warm_env = setmetatable({
     _derived = function(_s, c) return c end,
     _sameShape = function(b, w, h) return math.abs(b.h / b.w - h / w) < 0.02 end,
 }, { __index = _G })
-local warm = compile("local fp, w, h = ...\n" .. WARM, warm_env, "warm")
+local ext_calls
+warm_env.SpineWidget = {
+    externalCover = function(path, w, h, fill)
+        ext_calls[#ext_calls + 1] = { path = path, w = w, h = h, fill = fill }
+        return cache.ext_bb, cache.ext_fit, cache.ext_cached
+    end,
+}
+local warm_job = compile("local job = ...\n" .. WARM, warm_env, "warm")
+local function warm(fp, w, h, ext) return warm_job{ fp = fp, w = w, h = h, ext = ext } end
 
-local function reset(c) cache, log, src_bb = c, {}, bb(600, 900) end
+local function reset(c) cache, log, src_bb, ext_calls = c, {}, bb(600, 900), {} end
 
 t.test("a cover already kept at the size, or larger in its shape, is left alone", function()
     reset{ sized = bb(199, 301) }
@@ -188,16 +218,27 @@ t.test("no cover to decode: failed, nothing kept", function()
     eq(#log, 1)
 end)
 
--- ── Wiring ───────────────────────────────────────────────────────────────
-t.test("a face-out tile records the size it draws at", function()
-    local body = assert(ssrc:match("\nfunction SpineWidget:_renderCover%(bb%)\n(.-)\nend\n"))
-    assert(body:find("SpineWidget.face_out_dims = { w = img_w, h = img_h }", 1, true),
-        "_renderCover does not record the face-out size")
+t.test("a book with its own cover image is warmed from that image, as the tile shows it", function()
+    reset{ ext_bb = bb(198, 299), ext_cached = false }
+    eq(warm("/b/1", 198, 299, "/c/1.jpg"), "decoded")
+    eq(ext_calls[1].path, "/c/1.jpg"); eq(ext_calls[1].w, 198); eq(ext_calls[1].fill, true)
+    eq(#log, 0)                                  -- the book's own cover was never decoded
+    reset{ ext_bb = bb(198, 299), ext_cached = true }
+    eq(warm("/b/1", 198, 299, "/c/1.jpg"), "already")
+    reset{}
+    eq(warm("/b/1", 198, 299, "/c/1.jpg"), "failed")
 end)
 
+t.test("the tile loads its own cover image through the same function", function()
+    local body = assert(ssrc:match("\nfunction SpineWidget:_renderCover%(bb%)\n(.-)\nend\n"))
+    assert(body:find("SpineWidget.externalCover(external_cover, img_w, img_h, self.cover_fill)", 1, true),
+        "_renderCover loads external covers on its own again")
+end)
+
+-- ── Wiring ───────────────────────────────────────────────────────────────
 t.test("the warm loop warms a face-out job through the tile's own cache rules", function()
     local body = assert(wsrc:match("\nlocal function _warmChunk%(jobs, chunk, counters%)\n(.-)\nend\n"))
-    assert(body:find("warmFaceOut(job.fp, job.w, job.h)", 1, true),
+    assert(body:find("SW.warmFaceOut(job)", 1, true),
         "_warmChunk does not warm face-out jobs")
 end)
 

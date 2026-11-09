@@ -115,6 +115,57 @@ t.test("not a series box, an add tile or a feed's folder: no cover of a book's o
     eq(#got, 1); eq(got[1], "/d")
 end)
 
+t.test("the records come back too, so a book's own cover image goes with it", function()
+    local a = book("/a", { cover_image_path = "/a.jpg" })
+    local fps, books = SS.faceOutPaths({ a, book("/b") }, { face_out = "all" })
+    eq(fps[1], "/a"); eq(books[1], a); eq(books[2].filepath, "/b")
+end)
+
+-- ── The cover's size: one function for the plan and the warm-up ──────────
+local Layout = require("lib/bookshelf_spine_layout")
+local size_env = setmetatable({ SpineShelf = SS, SpineLayout = Layout,
+    Screen = { scaleBySize = function(_s, v) return v end } }, { __index = _G })
+SS.faceOutCover = assert(load("return function(row_h, aspect, height_aspect)\n"
+    .. body("faceOutCover%(row_h, aspect, height_aspect%)") .. "\nend", "cover", "t", size_env))()
+
+t.test("a face-out's cover: height from the row, width true to the book's shape", function()
+    local face_h, w = SS.faceOutCover(432, 1.5, 1.5)
+    local h = Layout.spineHeight(432, 1.5)
+    eq(face_h, h - Layout.topEdgeHeight(h, 1.5, 5))
+    eq(w, Layout.faceOutWidth(face_h, 1.5))
+    -- At the same height (Book sizes: Same height), a taller shape is narrower.
+    local fh2, w2 = SS.faceOutCover(432, 1.6, 1.5)
+    eq(fh2, face_h)
+    assert(w2 < w, "a taller-shaped book is not narrower")
+end)
+
+t.test("the plan sizes its face-outs with it", function()
+    assert(body("plan%(items, opts%)"):find("face_h, w = SpineShelf.faceOutCover(budget, aspect, height_aspect)", 1, true),
+        "plan() sizes face-out covers on its own again")
+end)
+
+local known = {}
+SS.knownLook = function(b) return known[b.filepath] end
+SS.bookShape = assert(load("return function(look, pages, same_size)\n"
+    .. body("bookShape%(look, pages, same_size%)") .. "\nend", "shape", "t",
+    setmetatable({ SpineLayout = Layout }, { __index = _G })))()
+SS.faceOutSlot = assert(load("return function(book, row_h, same_size)\n"
+    .. body("faceOutSlot%(book, row_h, same_size%)") .. "\nend", "slot", "t", size_env))()
+
+t.test("a book's slot from the shape remembered for it, Same size as the plan applies it", function()
+    known = { ["/a"] = { aspect = 1.6 } }
+    local fh, w = SS.faceOutSlot(book("/a"), 432, nil)
+    local efh, ew = SS.faceOutCover(432, 1.6, 1.6)
+    eq(fh, efh); eq(w, ew)
+    local sfh, sw = SS.faceOutSlot(book("/a"), 432, true)
+    local dfh, dw = SS.faceOutCover(432, Layout.DEFAULT_ASPECT, Layout.DEFAULT_ASPECT)
+    eq(sfh, dfh); eq(sw, dw)
+    -- Nothing remembered: the plan's own default.
+    known = {}
+    local nfh, nw = SS.faceOutSlot(book("/z"), 432, nil)
+    eq(nw, select(2, SS.faceOutCover(432, nil, nil)))
+end)
+
 t.test("the plan asks the same function", function()
     local plan = body("plan%(items, opts%)")
     assert(plan:find("face_out = SpineShelf.facesOut(face_spec, f, src, fav, face_recent)", 1, true),

@@ -221,7 +221,7 @@ test("covers made from boosted ones carry the mark", function()
     assert(w:find("_derived(bb, _coverFillBB(bb, img_w, img_h))", 1, true),
         "a collage drawn as a cover is boosted twice")
     assert(not w:find("_boostCover(external_bb)   -- put() would too", 1, true)
-        and w:find("paint_bb = ScaledCoverCache:put(ck, external_bb)\n            else\n                _boostCover(external_bb)", 1, true),
+        and w:find("paint_bb = ScaledCoverCache:put(ck, external_bb)\n    else\n        _boostCover(external_bb)", 1, true),
         "a keyed custom cover must be boosted by put(), after its raw disk copy")
     local d = src("lib/bookshelf_stack_display.lua")
     assert(d:find("IC.markBoosted(out)", 1, true), "the collage is not marked")

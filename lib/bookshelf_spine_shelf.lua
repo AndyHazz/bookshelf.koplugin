@@ -673,6 +673,32 @@ function SpineShelf.bookShape(look, pages, same_size)
     return copy.aspect, copy, nil, copy.aspect
 end
 
+-- faceOutCover(row_h, aspect, height_aspect) -> face_h, w: a face-out's
+-- cover, px. Its height is the book's front face, the height its spine would
+-- show turned the other way: the book's height on this row less the top edge
+-- a spine-out carves (SpineLayout.topEdgeHeight). NOT the book's height less
+-- its page block: that stood a face-out a whole top edge taller than its
+-- neighbours, a book's thickness being far less than its cover width. Its
+-- width from that height, so the cover stays true to its shape. plan() sizes
+-- face-outs with it, and the warm-up of the covers ahead (faceOutSlot), so a
+-- cover is warmed at the size it will be drawn.
+function SpineShelf.faceOutCover(row_h, aspect, height_aspect)
+    local h = SpineLayout.spineHeight(row_h, height_aspect)
+    local face_h = h - SpineLayout.topEdgeHeight(h, height_aspect, Screen:scaleBySize(5))
+    if face_h < Screen:scaleBySize(24) then face_h = Screen:scaleBySize(24) end
+    return face_h, SpineLayout.faceOutWidth(face_h, aspect)
+end
+
+-- faceOutSlot(book, row_h, same_size) -> face_h, w: the cover the book would
+-- stand face out with on this row, from the shape remembered for it
+-- (knownLook: no decode) and the shelf's Book sizes (bookShape), as plan()
+-- comes to it.
+function SpineShelf.faceOutSlot(book, row_h, same_size)
+    local aspect, _look, _pages, height_aspect = SpineShelf.bookShape(
+        SpineShelf.knownLook(book) or {}, nil, same_size)
+    return SpineShelf.faceOutCover(row_h, aspect, height_aspect)
+end
+
 local function _sampleAverage(bb)
     local n, r, g, b = 0, 0, 0, 0
     local w, h = bb:getWidth(), bb:getHeight()
@@ -868,6 +894,21 @@ function SpineShelf.bookLook(book)
         end
     end
     return look
+end
+
+-- knownLook(book) -> { aspect = h/w or nil }: the shape bookLook would give,
+-- from what is already known (this session's looks, the facts store, BIM's
+-- cover size tag) and never a decode. For the warm-up's sizing (faceOutSlot),
+-- which runs for books ahead that may never have been sampled.
+function SpineShelf.knownLook(book)
+    local fp = book and book.filepath
+    if not fp then return nil end
+    local hit = _look_cache[fp]
+    if hit then return hit end
+    local F = _facts()
+    local kept = F and F.get(fp)
+    local a = type(kept) == "table" and kept.r and kept.a or nil
+    return { aspect = a or _aspectFromSizetag(book.cover_sizetag) }
 end
 
 -- The whole-chip plan entries, kept between calls (see plan, where the cache
@@ -4031,7 +4072,7 @@ function SpineShelf._flattenItems(items)
     return flat
 end
 
--- faceOutPaths(items, opts) -> { filepath, ... } the books among items that
+-- faceOutPaths(items, opts) -> { filepath, ... }, { record, ... } the books among items that
 -- would stand face out, in shelf order: a run of the shelf's list walked as
 -- plan() walks it (groups flattened, series heads marked in order, the
 -- reasons through facesOut). For the warm-up of the covers ahead
@@ -4041,8 +4082,8 @@ end
 function SpineShelf.faceOutPaths(items, opts)
     opts = opts or {}
     local face_spec = SpineShelf.faceOutSpec(opts.face_out)
-    local out = {}
-    if SpineShelf.faceOutEmpty(face_spec) then return out end
+    local out, books = {}, {}
+    if SpineShelf.faceOutEmpty(face_spec) then return out, books end
     local by_status = not face_spec.all and (face_spec.first_unread or face_spec.reading
         or face_spec.finished or face_spec.on_hold or face_spec.unread or face_spec.standalone)
     local flat = SpineShelf._flattenItems(items or {})
@@ -4066,10 +4107,11 @@ function SpineShelf.faceOutPaths(items, opts)
             SpineShelf.markSeriesHeads(f, view, st)
             if SpineShelf.facesOut(face_spec, f, view, _isFavourite(bk.filepath), face_recent) then
                 out[#out + 1] = bk.filepath
+                books[#books + 1] = bk
             end
         end
     end
-    return out
+    return out, books
 end
 
 -- ── The entries cache ──────────────────────────────────────────────────────
@@ -4720,10 +4762,7 @@ function SpineShelf.plan(items, opts)
             -- left the cover a whole spine's top edge taller than its
             -- neighbours, because a book's thickness is far smaller than its
             -- cover width.
-            face_h = h - SpineLayout.topEdgeHeight(h, height_aspect, Screen:scaleBySize(5))
-            if face_h < Screen:scaleBySize(24) then face_h = Screen:scaleBySize(24) end
-            -- Width from the COVER height, so the cover stays aspect-true.
-            w = SpineLayout.faceOutWidth(face_h, aspect)
+            face_h, w = SpineShelf.faceOutCover(budget, aspect, height_aspect)
             w_dp = math.floor(w / (Screen:scaleBySize(100) / 100) + 0.5)
         else
             w_dp = SpineLayout.spineWidthDp(shape_pages) * auto_thick

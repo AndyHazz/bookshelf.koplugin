@@ -17582,7 +17582,7 @@ local function _warmChunk(jobs, chunk, counters)
             -- A Spines face-out: at its own size and by its tile's cache
             -- rules, where any copy at all (has) may be a list thumbnail.
             local SW = require("lib/bookshelf_spine_widget")
-            local ok_w, res = pcall(function() return SW.warmFaceOut(job.fp, job.w, job.h) end)
+            local ok_w, res = pcall(function() return SW.warmFaceOut(job) end)
             if ok_w and res == "already" then counters.already = counters.already + 1
             elseif ok_w and res == "decoded" then counters.decoded = counters.decoded + 1
             else counters.failed = counters.failed + 1 end
@@ -17634,11 +17634,11 @@ function BookshelfWidget:_buildPhaseJobs(phase, seen)
 end
 
 -- _spineWarmable() -> true when a Spines shelf has covers ahead to warm:
--- some reason stands books face out, a face-out has been drawn (its size is
--- what they are warmed at), and building ahead is allowed here (a feed's list
--- fetch can reach the network). Cheap: asked on the turn.
+-- some reason stands books face out, the shelf is laid out (its rows are
+-- what the covers are sized from), and building ahead is allowed here (a
+-- feed's list fetch can reach the network). Cheap: asked on the turn.
 function BookshelfWidget:_spineWarmable()
-    if not require("lib/bookshelf_spine_widget").face_out_dims then return false end
+    if not (self._shelf_dims and self._shelf_dims.shelf_h) then return false end
     local SpineShelf = require("lib/bookshelf_spine_shelf")
     if SpineShelf.faceOutEmpty(SpineShelf.faceOutSpec(self:_spineFaceOut())) then return false end
     return self:_pageAheadSafe() and true or false
@@ -17647,13 +17647,15 @@ end
 -- _spineFaceOutJobs(direction) -> warm jobs for a Spines shelf's covers ahead:
 -- the books among the next SPINE_WARM_AHEAD in the paged direction (two
 -- pages and more) that will stand face out, decided as the plan decides it
--- (SpineShelf.faceOutPaths), nearest first, at the size the face-outs draw
--- at. A cover never shown at that size cost 70-150 ms on the turn (PW5,
--- Decades with every book out: 0.7-1 s a page), 1-3 ms once warmed.
+-- (SpineShelf.faceOutPaths), nearest first, each at its own slot as the plan
+-- sizes it (SpineShelf.faceOutSlot: covers differ in shape, so in width) and
+-- from the picture its tile shows (its own cover image, when it has one). A
+-- cover never shown at that size cost 70-150 ms on the turn (PW5, Decades
+-- with every book out: 0.7-1 s a page), 1-3 ms once warmed.
 function BookshelfWidget:_spineFaceOutJobs(direction)
     local jobs = {}
-    local dims = require("lib/bookshelf_spine_widget").face_out_dims
-    if not dims then return jobs end
+    local row_h = self._shelf_dims and self._shelf_dims.shelf_h
+    if not row_h then return jobs end
     local SpineShelf = require("lib/bookshelf_spine_shelf")
     local face_out = self:_spineFaceOut()
     local spec = SpineShelf.faceOutSpec(face_out)
@@ -17671,11 +17673,18 @@ function BookshelfWidget:_spineFaceOutJobs(direction)
     if spec.first_unread and not spec.all then
         opts.series_next_claimed = SpineShelf.seriesClaimedBefore(items, first, window)
     end
-    local fps = SpineShelf.faceOutPaths(window, opts)
+    local fps, books = SpineShelf.faceOutPaths(window, opts)
+    local same_size = self:_spineSameSize()
+    local border = require("lib/bookshelf_spine_widget").CARD_BORDER or 0
     local from, to, step = 1, #fps, 1
     if back then from, to, step = #fps, 1, -1 end
     for i = from, to, step do
-        jobs[#jobs + 1] = { fp = fps[i], w = dims.w, h = dims.h, face_out = true }
+        local bk = books[i]
+        local face_h, w = SpineShelf.faceOutSlot(bk, row_h, same_size)
+        local ext = bk.cover_image_path
+        jobs[#jobs + 1] = { fp = fps[i], w = w - 2 * border, h = face_h - 2 * border,
+                            ext = (type(ext) == "string" and ext ~= "") and ext or nil,
+                            face_out = true }
     end
     return jobs
 end

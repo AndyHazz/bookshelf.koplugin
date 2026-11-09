@@ -578,6 +578,14 @@ H.test("the native planner paginates boxes as single slots and resumes inside co
         markSeriesHeads=function() end,thicknessPages=function() return 300 end,textThicken=function() return 1 end,
         -- Every book faces out (faceOutSpec above), as SpineShelf.facesOut answers it.
         facesOut=function(_spec,_f,src) return src.filepath ~= nil end,
+        -- SpineShelf.faceOutCover, as plan() sizes a face-out's cover.
+        faceOutCover=function(row_h,aspect,ha)
+            local Scr=package.loaded.device.screen
+            local h=SL.spineHeight(row_h,ha)
+            local fh=h-SL.topEdgeHeight(h,ha,Scr:scaleBySize(5))
+            if fh<Scr:scaleBySize(24) then fh=Scr:scaleBySize(24) end
+            return fh,SL.faceOutWidth(fh,aspect)
+        end,
         bookShape=function(look,pages) return look.aspect,look,pages end,
         bookLook=function() return {r=90,g=120,b=80,aspect=1.5} end,
     shownLook=function() return {r=90,g=120,b=80,aspect=1.5} end,

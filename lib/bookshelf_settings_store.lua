@@ -101,13 +101,14 @@ local function od()
     return _od
 end
 -- The shelf's place: which shelf, which page, the drill and the ornament
--- deal of that page (orn_resume). Saved after every bout of paging, and in
--- the main file each save rewrote all of it (48 KB on a PW5, twice with its
+-- deal of that page (orn_resume), and whether it is full screen
+-- (home_expanded, a swipe up or down). Saved after every bout of paging, and
+-- in the main file each save rewrote all of it (48 KB on a PW5, twice with its
 -- backup) for a few numbers. Its own small file; read from the main file
 -- until first saved there (an upgrade keeps its place).
 local POSITION_KEYS = {
     active_chip = true, active_cursor = true, active_page = true,
-    drill_path = true, orn_resume = true,
+    drill_path = true, orn_resume = true, home_expanded = true,
 }
 local _pos
 local function pos()
@@ -421,15 +422,15 @@ function Store.flushPending()
     end
 end
 
+-- Through read() for a routed key: it falls back to the place an earlier
+-- version kept it in (POSITION_KEYS), as read() does.
 function Store.isTrue(key)
-    local sub = subStoreFor(key)
-    if sub then _open(); return sub.read(key) == true end
+    if subStoreFor(key) then return Store.read(key) == true end
     return _open():isTrue(key)
 end
 
 function Store.nilOrTrue(key)
-    local sub = subStoreFor(key)
-    if sub then _open(); local v = sub.read(key); return v == nil or v == true end
+    if subStoreFor(key) then local v = Store.read(key); return v == nil or v == true end
     return _open():nilOrTrue(key)
 end
 

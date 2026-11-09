@@ -25,13 +25,16 @@ package.loaded["luasettings"] = {
             readSetting = function(_, k) return data[k] end,
             saveSetting = function(_, k, v) data[k] = v end,
             delSetting  = function(_, k) data[k] = nil end,
+            isTrue      = function(_, k) return data[k] == true end,
+            nilOrTrue   = function(_, k) return data[k] == nil or data[k] == true end,
             flush       = function() flushes[path] = (flushes[path] or 0) + 1 end,
         }
     end,
 }
 _G.G_reader_settings = { readSetting = function() end, delSetting = function() end, flush = function() end }
 files[MAIN] = { migrated = true, reader_keys_moved = true, aux_data_relocated_v2 = true,
-                active_chip = "series", active_cursor = 41 }   -- an upgrade: still in the main file
+                active_chip = "series", active_cursor = 41,     -- an upgrade: still in the main file
+                home_expanded = true }
 
 local H = dofile("tests/_helpers.lua")
 local t, eq = H.runner(), H.eq
@@ -47,6 +50,25 @@ end
 t.test("an upgrade keeps its place: read from the main file until the first save", function()
     eq(Store.read("active_chip"), "series")
     eq(Store.read("active_cursor"), 41)
+end)
+
+t.test("an upgrade keeps full screen: isTrue reads the main file's copy until the first save", function()
+    -- The shelf reads it with isTrue at startup; read() fell back to the old
+    -- place and isTrue did not, so a shelf left full screen opened collapsed.
+    eq(Store.isTrue("home_expanded"), true)
+    eq(Store.nilOrTrue("home_expanded"), true)
+end)
+
+t.test("full screen is part of the place: saved to the small file", function()
+    -- Swiping up or down saved it to the main file: a whole-file rewrite at
+    -- the next pause (128-1116 ms on a PW5) for one boolean.
+    Store.saveDeferred("home_expanded", false)
+    local P = assert(posPath(), "no position file")
+    eq(files[P].home_expanded, false)
+    eq(Store.isTrue("home_expanded"), false, "the new place does not win over the old one")
+    eq(Store.nilOrTrue("home_expanded"), false)
+    eq(files[MAIN].home_expanded, nil, "the old copy would be read back")
+    Store.flushPending()                          -- the one main write that drops it
 end)
 
 t.test("the place is saved to its own file, not the main one", function()

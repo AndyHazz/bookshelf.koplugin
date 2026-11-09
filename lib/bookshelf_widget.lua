@@ -249,6 +249,9 @@ function BookshelfWidget:init()
     BookshelfWidget._clip_target = self
     BookshelfWidget.installClipHook()
     require("lib/bookshelf_underlay").install(self)
+    -- A data generation bump makes the pages built ahead stale: build them
+    -- again before the turn (_onDataGeneration).
+    if Repo.onDataGeneration then Repo.onDataGeneration(self, BookshelfWidget._onDataGeneration) end
     -- %published reads book files in the background (lib/bookshelf_published);
     -- the books that gained a date repaint where they show. The newest shelf
     -- is the one listened for, as above.
@@ -10800,6 +10803,22 @@ function BookshelfWidget:_pageAheadArm(dir)
     UIManager:scheduleIn(PAGE_AHEAD_DELAY_S, self._page_ahead_fn)
 end
 
+-- _onDataGeneration(): the book data moved (Repo.dataGeneration), so a page
+-- built ahead is keyed by data that is gone, and the turn would find it stale
+-- and build on the spot. Build ahead again. Deferred: the bump can come from
+-- inside a build's own step, which arming now would cancel under itself; and
+-- a burst of bumps (an extraction batch) arms once. The PW5's first turn after
+-- a start missed this way: the light-meta refresh moved the generation a few
+-- seconds after the page was built.
+function BookshelfWidget:_onDataGeneration()
+    if self._closed or self._ahead_regen_fn then return end
+    self._ahead_regen_fn = function()
+        self._ahead_regen_fn = nil
+        if not self._closed then self:_pageAheadArm(self._page_ahead_dir or 1) end
+    end
+    UIManager:scheduleIn(PAGE_AHEAD_DELAY_S, self._ahead_regen_fn)
+end
+
 -- _pageAheadCancel(): no further step; a page half built is freed.
 function BookshelfWidget:_pageAheadCancel()
     self._page_ahead_next, self._page_ahead_fetched = nil, nil
@@ -13560,6 +13579,7 @@ end
 -- callback in show().
 function BookshelfWidget:onCloseWidget()
     self._closed = true   -- the registered-source listener (init) stands down
+    if Repo.onDataGeneration then Repo.onDataGeneration(self, nil) end
     self:_heroKeptClear()
     self:_stopStatusTimer()
     -- Invalidate any pending Kobo prepare-poll (_openKoboWhenReady). The poll

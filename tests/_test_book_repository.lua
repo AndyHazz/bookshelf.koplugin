@@ -7054,6 +7054,33 @@ test("getBySource: a status-filtered, date-sorted Latest reads only the page's b
     assert(ok, err)
 end)
 
+-- A shelf keeps pages built ahead, keyed by the data generation: when it
+-- moves, a kept page is stale, and the shelf has to hear of it to build the
+-- page again before the turn finds it stale (PW5: the light-meta refresh a few
+-- seconds after start moved it, and the first turn rebuilt on the spot).
+test("a data generation listener hears every bump, with its owner, until removed", function()
+    local owner, heard = {}, {}
+    Repo.onDataGeneration(owner, function(o) heard[#heard + 1] = o end)
+    Repo.invalidateLightMeta()
+    Repo.invalidateProgressCache()
+    assert(#heard == 2, "listener heard " .. #heard .. " bumps, expected 2")
+    assert(heard[1] == owner, "listener was not passed its owner")
+    Repo.onDataGeneration(owner, nil)
+    Repo.invalidateLightMeta()
+    assert(#heard == 2, "a removed listener still heard a bump")
+end)
+
+test("a failing listener does not stop the bump or the others", function()
+    local a, b, n = {}, {}, 0
+    Repo.onDataGeneration(a, function() error("boom") end)
+    Repo.onDataGeneration(b, function() n = n + 1 end)
+    local g = Repo.dataGeneration()
+    Repo.invalidateLightMeta()
+    Repo.onDataGeneration(a, nil); Repo.onDataGeneration(b, nil)
+    assert(Repo.dataGeneration() == g + 1, "the generation did not move")
+    assert(n == 1, "the second listener did not hear the bump")
+end)
+
 -- ============================================================================
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

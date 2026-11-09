@@ -320,6 +320,37 @@ t.test("a wake arms it, with the window open", function()
     assert(res:find("self:_pageAheadArm(self._page_ahead_dir or 1)", 1, true), "a wake does not build ahead")
 end)
 
+t.test("a data generation bump builds ahead again, once, outside the step that bumped it", function()
+    local body = bodyOf("_onDataGeneration%(%)", "_onDataGeneration")
+    local e = env(cacheStub(), nil)
+    e.PAGE_AHEAD_DELAY_S = 0.5
+    local f = compile("local self = ...\n" .. body, e, "ondatagen")
+    local armed = {}
+    local w = { _page_ahead_dir = -1,
+                _pageAheadArm = function(_s, dir) armed[#armed + 1] = dir end }
+    f(w); f(w)
+    eq(#armed, 0)                 -- not from inside whatever bumped it
+    eq(#e.UIManager.queue, 1)     -- two bumps, one build
+    e.UIManager.queue[1]()
+    eq(#armed, 1); eq(armed[1], -1)
+    f(w)                          -- a later bump arms again
+    eq(#e.UIManager.queue, 2)
+    w._closed = true
+    e.UIManager.queue[2]()
+    eq(#armed, 1)                 -- closed meanwhile: nothing
+    f(w)
+    eq(#e.UIManager.queue, 2)     -- closed: not even scheduled
+end)
+
+t.test("the shelf listens for bumps while open, and stops when closed", function()
+    local init = bodyOf("init%(%)", "init")
+    local close = bodyOf("onCloseWidget%(%)", "onCloseWidget")
+    assert(init:find("Repo.onDataGeneration(self, BookshelfWidget._onDataGeneration)", 1, true),
+        "init does not listen for data generation bumps")
+    assert(close:find("Repo.onDataGeneration(self, nil)", 1, true),
+        "onCloseWidget does not stop listening")
+end)
+
 t.test("never for a feed's or another plugin's page (no network the reader did not ask for)", function()
     assert(SAFE:find('if self._opds_open_ended or self:_opdsEffectiveTab() then return false end', 1, true))
     assert(SAFE:find('kind == "opds" or (kind and require("lib/bookshelf_sources").get(kind))', 1, true))

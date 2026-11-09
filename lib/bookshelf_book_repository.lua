@@ -2371,7 +2371,20 @@ _progress_cache    = {}   -- filepath → { pct, status, expires_at }
 -- costs one expansion per visible cover, once.
 local _data_generation = 0
 function Repo.dataGeneration() return _data_generation end
-local function _bumpDataGeneration() _data_generation = _data_generation + 1 end
+
+-- Repo.onDataGeneration(owner, fn): fn(owner) on every bump; fn nil stops it.
+-- For the shelf's pages built ahead, keyed by the generation: a bump makes
+-- them stale, and the shelf builds them again before the turn instead of the
+-- turn building on the spot. Weak keys and the owner passed in (fn need not
+-- capture it), so a shelf that never said goodbye is not kept alive. A field,
+-- not a local: this chunk is at Lua's 200-local limit.
+Repo._gen_listeners = setmetatable({}, { __mode = "k" })
+function Repo.onDataGeneration(owner, fn) Repo._gen_listeners[owner] = fn end
+
+local function _bumpDataGeneration()
+    _data_generation = _data_generation + 1
+    for owner, fn in pairs(Repo._gen_listeners) do pcall(fn, owner) end
+end
 
 -- Forward declarations so invalidateWalkCache below resolves these to the
 -- module-local tables created later (Repo.folderHasBooks's memo at

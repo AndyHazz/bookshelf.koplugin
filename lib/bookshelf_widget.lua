@@ -19058,8 +19058,13 @@ function BookshelfWidget:_setExpanded(expanded)
         self:_clampCursor(self._total_items)
         self:_syncPageFromCursor()
     end
-    BookshelfSettings.save("home_expanded", expanded)
-    BookshelfSettings.flush()
+    -- Remembered now, written with the nav state at the next pause (or a
+    -- suspend, an exit, KOReader's settings flush), as the page and the row
+    -- count are: the write rewrites the whole settings file, and on the swipe
+    -- it cost 128, 159 and 1116 ms ahead of the rebuild (PW5).
+    BookshelfSettings.saveDeferred("home_expanded", expanded)
+    self._nav_dirty = true
+    self:_scheduleNavFlush()
 end
 
 -- ── Rows from the top panel (issue 465) ─────────────────────────────────────

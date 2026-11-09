@@ -136,9 +136,10 @@ _G.UIManager          = { setDirty = function() end }
 _G.Gestures           = { on = function() return true end }
 _G.logger             = { dbg = function() end }
 _G._gettime           = function() return 0 end
-_G.BookshelfSettings  = { saved = {},
+_G.BookshelfSettings  = { saved = {}, flushes = 0,
                           save  = function(k, v) _G.BookshelfSettings.saved[k] = v end,
-                          flush = function() end }
+                          saveDeferred = function(k, v) _G.BookshelfSettings.saved[k] = v end,
+                          flush = function() _G.BookshelfSettings.flushes = _G.BookshelfSettings.flushes + 1 end }
 
 -- A shelf about to expand: _viewSize answers the size for the CURRENT state,
 -- the way the real one does, so the swipe sees the new size the moment the
@@ -157,6 +158,7 @@ local function expanding(collapsed_view, expanded_view, total_items, cursor)
         _clearDpadFocus = function() end,
         _rebuild        = function(self_) self_._rebuilt = true end,
         _isHeroSwipe    = function() return false end,
+        _scheduleNavFlush = function(self_) self_._nav_flush_scheduled = true end,
     }
     for k, fn in pairs(Shelf) do s[k] = fn end
     return s
@@ -199,6 +201,19 @@ t.test("the toggle-hero action expands the same way a swipe does", function()
     eq(s._cursor, 1, "the action stranded the books above the cursor")
     eq(_G.BookshelfSettings.saved.home_expanded, true,
         "the action did not persist the state it changed")
+end)
+
+t.test("expanding remembers the state without writing the settings file on the swipe", function()
+    -- The write rewrites the whole settings file: 128, 159 and 1116 ms on
+    -- three expands on a PW5, ahead of the rebuild, on every expand and
+    -- collapse. It waits for the nav state's own flush (a pause, suspend,
+    -- exit), as the page and the row count do.
+    _G.BookshelfSettings.saved, _G.BookshelfSettings.flushes = {}, 0
+    local s = expanding(4, 8, 100, 9)
+    s:onSwipeShelvesUp()
+    eq(_G.BookshelfSettings.saved.home_expanded, true, "the state is not remembered")
+    eq(_G.BookshelfSettings.flushes, 0, "the settings file was written on the swipe")
+    assert(s._nav_dirty and s._nav_flush_scheduled, "the state never reaches the file")
 end)
 
 -- ── Spine shelves: pages of no fixed size ──────────────────────────────────

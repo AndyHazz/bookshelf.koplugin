@@ -78,6 +78,34 @@ t.test("paints its own bitmap as the mask, in the ink, and leaves it as it found
     eq(w.dimen.x, 7); eq(w.dimen.y, 9)
 end)
 
+-- On a colour screen colorblitFrom takes the ink's grey (getColor8A): a blue
+-- Text ink came out dim grey on the top panel's title, author and
+-- description over a wallpaper or a Dark shelf, while every other line of
+-- the panel, drawn the ordinary way, was blue. colorblitFromRGB32 keeps it.
+t.test("on a colour screen the ink is blended in colour, not as its grey", function()
+    local w = TT:new{ text = "hello", width = 20, fgcolor = INK }
+    local rgb_calls, grey_calls = {}, {}
+    local bb = {
+        isRGB = function() return true end,
+        colorblitFrom = function(_s, ...) grey_calls[#grey_calls + 1] = { ... } end,
+        colorblitFromRGB32 = function(_s, src, x, y, ox, oy, ww, hh, color)
+            rgb_calls[#rgb_calls + 1] = { src = src, x = x, color = color } end,
+    }
+    w:paintTo(bb, 3, 5)
+    eq(#grey_calls, 0, "the ink was flattened to grey")
+    eq(#rgb_calls, 1)
+    eq(rgb_calls[1].color, INK); eq(rgb_calls[1].src, w._bb); eq(rgb_calls[1].x, 3)
+    eq(w._bb.inverts, 2)
+end)
+
+t.test("the wallpaper's text mask blends its ink the same way", function()
+    local src = io.open("lib/bookshelf_wallpaper.lua"):read("*a")
+    local paint = assert(src:match("function Mask:paintTo%(target, x, y%)\n(.-)\n        end\n"), "Mask:paintTo moved")
+    assert(paint:find('require("lib/bookshelf_color").blendInk(target, m,', 1, true),
+        "Wallpaper.mask flattens a coloured ink to grey")
+    assert(not paint:find("colorblitFrom", 1, true))
+end)
+
 t.test("without a bitmap it falls back to the base paint rather than failing", function()
     local w = TT:new{ text = "hello", width = 20, fgcolor = INK }
     w._bb = nil

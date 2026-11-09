@@ -82,6 +82,9 @@ local function fakeBB(inverse)
     function bb:paintRoundedRect() self.calls[#self.calls + 1] = { "c8", self.inv } end
     function bb:paintBorderRGB32() self.calls[#self.calls + 1] = { "rgb", self.inv } end
     function bb:paintBorder() self.calls[#self.calls + 1] = { "c8", self.inv } end
+    function bb:isRGB() return true end
+    function bb:colorblitFromRGB32() self.calls[#self.calls + 1] = { "rgb", self.inv } end
+    function bb:colorblitFrom() self.calls[#self.calls + 1] = { "c8", self.inv } end
     return bb
 end
 local RED = { rgb = true, r = 200, g = 0, b = 0 }
@@ -120,6 +123,9 @@ for _, case in ipairs({
     { "CoverProgress.paintBorder", function(bb) CP.paintBorder(bb, 0, 0, 100, 150, 4, RED, 12) end },
     { "Color.paintRoundedRect", function(bb) Color.paintRoundedRect(bb, 0, 0, 100, 150, RED, 12) end },
     { "Color.paintBorder", function(bb) Color.paintBorder(bb, 0, 0, 100, 150, 4, RED, 12) end },
+    -- Text ink: the Lua colour blit inverts the ink itself, and Android
+    -- inverts the frame again, so a picked ink came out inverted at night.
+    { "Color.blendInk", function(bb) Color.blendInk(bb, {}, 0, 0, 100, 20, RED) end },
 }) do
     test(case[1] .. ": Android night paints with the flag off and restores it", function()
         android = true
@@ -130,6 +136,35 @@ for _, case in ipairs({
         assert(bb.inv == 1, "flag restored")
     end)
 end
+
+-- Every rounded true-colour paint goes through a guarded helper. A direct
+-- call skipped it: the colour picker's swatches had corners in the opposite
+-- colour in Android's night mode (red corners on a cyan swatch).
+test("no unguarded rounded true-colour paint in lib/", function()
+    local guarded = {
+        ["lib/bookshelf_color.lua"] = true,          -- the helpers themselves
+        ["lib/bookshelf_cover_progress.lua"] = true, -- its own guarded pair
+        ["lib/bookshelf_spine_widget.lua"] = true,   -- _paintColorSafeBorder
+        ["lib/bookshelf_folder_card.lua"] = true,    -- setInverse(0) round each
+        ["lib/bookshelf_clip_bb.lua"] = true,        -- names in a list, no call
+        ["lib/bookshelf_underlay.lua"] = true,       -- names in a list, no call
+        -- Kept line for line with bookends' painter (_test_bar_parity): to
+        -- be guarded in both at once.
+        ["lib/bookshelf_bar_paint.lua"] = true,
+    }
+    local bad = {}
+    local p = io.popen("ls lib/*.lua")
+    for path in p:lines() do
+        if not guarded[path] then
+            local f = io.open(path); local src = f:read("*a"); f:close()
+            for _, name in ipairs({ ":paintRoundedRectRGB32(", ":paintBorderRGB32(" }) do
+                if src:find(name, 1, true) then bad[#bad + 1] = path .. " " .. name end
+            end
+        end
+    end
+    p:close()
+    assert(#bad == 0, "unguarded: " .. table.concat(bad, ", "))
+end)
 
 print(string.format("PASS %d  FAIL %d", pass, fail))
 if fail > 0 then os.exit(1) end

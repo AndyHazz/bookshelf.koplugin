@@ -107,7 +107,10 @@ function Swatch:paintTo(bb, x, y)
         local v = 0xFF - fill:getR()
         fill = Blitbuffer.ColorRGB32(v, v, v, 0xFF)
     end
-    bb:paintRoundedRectRGB32(x + m, y + m, inner, inner, fill, math.max(0, r - Space.px(2)))
+    -- The guarded helper: a direct paintRoundedRectRGB32 gave the swatch
+    -- corners in the opposite colour in Android's night mode.
+    require("lib/bookshelf_color").paintRoundedRect(bb, x + m, y + m, inner, inner, fill,
+        math.max(0, r - Space.px(2)))
     -- A hairline round the colour, so white and the palest shades read on
     -- the grey card.
     bb:paintBorder(x + m, y + m, inner, inner, Size.border.thin, Blitbuffer.COLOR_GRAY,

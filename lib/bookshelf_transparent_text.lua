@@ -27,6 +27,7 @@ local TransparentTextBox = TextBoxWidget:extend{
     ink = nil,
 }
 
+
 function TransparentTextBox:init()
     self.ink     = self.fgcolor or Blitbuffer.COLOR_BLACK
     self.fgcolor = Blitbuffer.COLOR_BLACK
@@ -40,7 +41,7 @@ function TransparentTextBox:paintTo(bb, x, y)
     self.dimen.x, self.dimen.y = x, y
     local w, h = m:getWidth(), m:getHeight()
     m:invertRect(0, 0, w, h)
-    local ok = pcall(bb.colorblitFrom, bb, m, x, y, 0, 0, w, h, self.ink)
+    local ok = pcall(require("lib/bookshelf_color").blendInk, bb, m, x, y, w, h, self.ink)
     m:invertRect(0, 0, w, h)
     if not ok then TextBoxWidget.paintTo(self, bb, x, y) end
 end

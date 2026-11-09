@@ -1779,7 +1779,8 @@ function M.mask(active, inner, fgcolor)
             self.dimen.x, self.dimen.y = x, y
             local m = self._mask
             pcall(function()
-                target:colorblitFrom(m, x, y, 0, 0,
+                -- In colour on a colour screen (Color.blendInk).
+                require("lib/bookshelf_color").blendInk(target, m, x, y,
                                      m:getWidth(), m:getHeight(), self.fgcolor)
             end)
         end

@@ -302,4 +302,21 @@ function Color.flushCache()
     _last_color_mode = nil  -- reset so next parseColorValue re-seeds the mode
 end
 
+-- blendInk(bb, mask, x, y, w, h, ink): paint ink through a coverage mask
+-- (white = ink, black = leave), in colour on a colour screen. colorblitFrom
+-- takes the ink's grey (getColor8A), so a coloured Text ink came out dim grey
+-- wherever text was drawn this way (the top panel over a wallpaper or on a
+-- Dark shelf: TransparentTextBox, Wallpaper.mask) while text drawn the
+-- ordinary way kept its colour.
+function Color.blendInk(bb, mask, x, y, w, h, ink)
+    local blit = bb.colorblitFrom
+    if bb.colorblitFromRGB32 and bb.isRGB and bb:isRGB() then blit = bb.colorblitFromRGB32 end
+    -- In night mode the Lua blit inverts the ink itself; on Android the frame
+    -- is inverted again, which gave a picked ink in its opposite colour.
+    local raw = Color.rawInvertBegin(bb)
+    local ok, err = pcall(blit, bb, mask, x, y, 0, 0, w, h, ink)
+    Color.rawInvertEnd(bb, raw)
+    if not ok then error(err, 0) end
+end
+
 return Color

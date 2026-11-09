@@ -117,6 +117,7 @@ local ScaledCoverCache = {
     -- book's copy; when the next may be written.
     _write_q     = {},
     _write_bb    = {},
+    _write_own   = {},  -- filepath → true: its waiting copy was made for the write
     _write_after = 0,
 }
 
@@ -394,13 +395,20 @@ function ScaledCoverCache:put(filepath, bb, from_disk)
     local arrived_boosted = ok_ic0 and IC0 and IC0.isBoosted(bb)
     if not from_disk and not arrived_boosted and _disk() then
         -- After the turn, not during it (_queueWrite): 20-26 ms a cover on a
-        -- PW5, ~180 ms of a page of nine new ones. Immediate when the boost
-        -- below would change this buffer before a later write (the disk copy
-        -- has to be the raw one), or with no event loop to write it later.
+        -- PW5, ~180 ms of a page of nine new ones. The disk copy has to be
+        -- the raw one, and the boost below changes this buffer in place, so
+        -- with Image contrast on a raw copy is what waits (a memory copy,
+        -- well under a millisecond), freed once written. Immediate with no
+        -- event loop to write it later, or when no copy can be made.
         local boosting = ok_ic0 and IC0 and IC0.boost and (tonumber(IC0.boost()) or 0) > 0
-        local UM = (not boosting) and _eventLoop() or nil
-        if UM then
-            self:_queueWrite(filepath, bb, UM)
+        local UM = _eventLoop()
+        local wbb = bb
+        if UM and boosting then
+            local ok_c, raw = pcall(function() return bb:copy() end)
+            wbb = ok_c and raw or nil
+        end
+        if UM and wbb then
+            self:_queueWrite(filepath, wbb, UM, wbb ~= bb)
         else
             self:_writeNow(filepath, bb)
         end
@@ -434,16 +442,36 @@ end
 -- arriving for DISK_WRITE_DELAY_S (a reader paging on keeps making them),
 -- then a few at a time (_writeStep). A later put of the same book replaces
 -- the waiting copy; drop and clear cancel it; flushWrites writes them all.
-function ScaledCoverCache:_queueWrite(filepath, bb, UM)
+-- owned: bb is a raw copy made for the write, freed once written or cancelled.
+function ScaledCoverCache:_queueWrite(filepath, bb, UM, owned)
     if not self._write_bb[filepath] then
         self._write_q[#self._write_q + 1] = filepath
+    else
+        self:_cancelWrite(filepath)
     end
     self._write_bb[filepath] = bb
+    self._write_own[filepath] = owned or nil
     self._write_after = _gettime() + ScaledCoverCache.DISK_WRITE_DELAY_S
     if not self._write_fn then
         self._write_fn = function() self:_writeStep(UM) end
         UM:scheduleIn(ScaledCoverCache.DISK_WRITE_DELAY_S, self._write_fn)
     end
+end
+
+-- _cancelWrite(filepath): the waiting copy is not written; a raw copy made
+-- for it is freed. Its place in the order stays (an empty slot is skipped).
+function ScaledCoverCache:_cancelWrite(filepath)
+    local bb = self._write_bb[filepath]
+    if bb and self._write_own[filepath] then pcall(function() bb:free() end) end
+    self._write_bb[filepath], self._write_own[filepath] = nil, nil
+end
+
+-- _writeQueued(filepath): the waiting copy, written now and let go.
+function ScaledCoverCache:_writeQueued(filepath)
+    local bb = self._write_bb[filepath]
+    if not bb then return end
+    self:_writeNow(filepath, bb)
+    self:_cancelWrite(filepath)
 end
 
 function ScaledCoverCache:_writeStep(UM)
@@ -459,10 +487,7 @@ function ScaledCoverCache:_writeStep(UM)
     local first = true
     while #self._write_q > 0 and (first or _gettime() < deadline) do
         first = false
-        local fp = table.remove(self._write_q, 1)
-        local bb = self._write_bb[fp]
-        self._write_bb[fp] = nil
-        if bb then self:_writeNow(fp, bb) end
+        self:_writeQueued(table.remove(self._write_q, 1))
     end
     if #self._write_q > 0 then
         self._write_fn = function() self:_writeStep(UM) end
@@ -475,11 +500,7 @@ end
 function ScaledCoverCache:flushWrites()
     local q = self._write_q
     self._write_q = {}
-    for _i, fp in ipairs(q) do
-        local bb = self._write_bb[fp]
-        self._write_bb[fp] = nil
-        if bb then self:_writeNow(fp, bb) end
-    end
+    for _i, fp in ipairs(q) do self:_writeQueued(fp) end
 end
 
 -- getSized / putSized(fp, w, h[, bb][, tag]) -- a cover kept at one exact
@@ -615,7 +636,7 @@ function ScaledCoverCache:drop(filepath)
         self._disk_miss[filepath] = true
     end
     -- Nor written back afterwards from a copy still waiting (_queueWrite).
-    self._write_bb[filepath] = nil
+    self:_cancelWrite(filepath)
     -- The hero tier stashes hero-height copies of the same source bytes;
     -- every drop() caller means "re-decode next time", so a stashed copy
     -- would resurrect the old art. One funnel keeps the two in step.
@@ -662,7 +683,8 @@ function ScaledCoverCache:clear()
     -- the next launch.
     local D = _disk()
     if D then pcall(D.clear) end
-    self._write_q, self._write_bb = {}, {}
+    for fp in pairs(self._write_bb) do self:_cancelWrite(fp) end
+    self._write_q, self._write_bb, self._write_own = {}, {}, {}
     -- Every resident bb is now dropped-but-not-freed; count it so the next
     -- reclaim pass collects rather than waits.
     self:_szReset()

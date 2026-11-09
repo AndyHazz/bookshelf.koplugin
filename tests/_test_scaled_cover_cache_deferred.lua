@@ -18,8 +18,8 @@ package.loaded["ui/uimanager"] = {
 local boost = 0
 package.loaded["lib/bookshelf_image_contrast"] = {
     boost = function() return boost end,
-    isBoosted = function() return false end,
-    boostImage = function() end,
+    isBoosted = function(b) return b ~= nil and b.boosted == true end,
+    boostImage = function(b) if boost > 0 then b.boosted = true end end,
 }
 local disk = { files = {}, stores = 0 }
 function disk.store(fp, bb) disk.stores = disk.stores + 1; disk.files[fp] = bb; return true end
@@ -32,7 +32,16 @@ local Cache = require("lib/bookshelf_scaled_cover_cache")
 local H = dofile("tests/_helpers.lua")
 local t, eq = H.runner(), H.eq
 
-local function bb(w, h) return { stride = w, getWidth = function() return w end, getHeight = function() return h end } end
+local function bb(w, h)
+    local b = { stride = w, getWidth = function() return w end, getHeight = function() return h end }
+    function b.copy(self)
+        local c = bb(w, h)
+        c.copy_of, c.boosted = self, self.boosted
+        return c
+    end
+    function b.free(self) self.freed = true end
+    return b
+end
 local function reset()
     Cache:clear(); queue = {}; disk.files, disk.stores = {}, 0; boost = 0; now = 100
 end
@@ -98,11 +107,44 @@ t.test("a larger copy replaces the waiting one: written once, the larger", funct
     eq(disk.files["/b/a.epub"], big)
 end)
 
-t.test("with Image contrast on, written at once: the raw copy, before the boost", function()
+t.test("with Image contrast on, a raw copy waits for the write; the cached one is boosted", function()
     reset()
-    boost = 3
+    boost = 35
+    local cover = bb(10, 10)
+    Cache:put("/b/a.epub", cover)
+    eq(disk.stores, 0)                      -- not on the turn either
+    assert(cover.boosted, "the cover in memory was not boosted")
+    runUntil(now + Cache.DISK_WRITE_DELAY_S + 1)
+    local written = disk.files["/b/a.epub"]
+    assert(written and written.copy_of == cover, "the disk did not get a copy")
+    assert(not written.boosted, "the disk copy is boosted")
+    assert(written.freed, "the raw copy was kept after its write")
+end)
+
+t.test("a raw copy whose write is cancelled is freed", function()
+    reset()
+    boost = 35
     Cache:put("/b/a.epub", bb(10, 10))
-    eq(disk.stores, 1)
+    local pending = Cache._write_bb["/b/a.epub"]
+    Cache:drop("/b/a.epub")
+    assert(pending and pending.freed, "a dropped book's raw copy leaked")
+    Cache:put("/b/b.epub", bb(10, 10))
+    pending = Cache._write_bb["/b/b.epub"]
+    Cache:clear()
+    assert(pending and pending.freed, "a cleared cache's raw copy leaked")
+    Cache:put("/b/c.epub", bb(10, 10))
+    pending = Cache._write_bb["/b/c.epub"]
+    Cache:put("/b/c.epub", bb(20, 20))      -- a larger one replaces it
+    assert(pending.freed, "a replaced raw copy leaked")
+end)
+
+t.test("a cover that arrives boosted is never written (not raw), as before", function()
+    reset()
+    boost = 35
+    local b = bb(10, 10); b.boosted = true
+    Cache:put("/b/a.epub", b)
+    runUntil(now + Cache.DISK_WRITE_DELAY_S + 1)
+    eq(disk.stores, 0)
 end)
 
 t.test("flushWrites writes what is waiting now (suspend, exit)", function()

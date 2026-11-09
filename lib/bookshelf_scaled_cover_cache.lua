@@ -113,7 +113,16 @@ local ScaledCoverCache = {
     _disk_miss  = {},  -- filepath → true, books known not to be on disk
     _disk_hits  = 0,   -- perf: covers served from disk this session
     _disk_writes= 0,   -- perf: covers written to disk this session
+    -- Disk copies waiting to be written (_queueWrite): the order, and each
+    -- book's copy; when the next may be written.
+    _write_q     = {},
+    _write_bb    = {},
+    _write_after = 0,
 }
+
+ScaledCoverCache.DISK_WRITE_DELAY_S  = 2     -- quiet before writing (no new covers)
+ScaledCoverCache.DISK_WRITE_BUDGET_S = 0.03  -- per step, after the first write
+ScaledCoverCache.DISK_WRITE_TICK_S   = 0.2   -- between steps
 
 -- Default RAM budget, by device memory ----------------------------------
 --
@@ -182,6 +191,18 @@ local function _disk()
         DiskCache = (ok and mod) or false
     end
     return DiskCache or nil
+end
+
+local _gettime = require("lib/bookshelf_gettime")
+
+-- _eventLoop() -> KOReader's UIManager when there is one to write the disk
+-- copies later (_queueWrite), else nil: tests and standalone use write them
+-- at once. A table only: after a failed require LuaJIT leaves its loading
+-- sentinel in package.loaded.
+local function _eventLoop()
+    local ok, UM = pcall(require, "ui/uimanager")
+    if ok and type(UM) == "table" and type(UM.scheduleIn) == "function" then return UM end
+    return nil
 end
 
 -- setByteBudget(bytes) — hard cap on total resident cover bytes. Optional
@@ -371,17 +392,17 @@ function ScaledCoverCache:put(filepath, bb, from_disk)
     -- stays what it was rather than taking boosted pixels.
     local ok_ic0, IC0 = pcall(require, "lib/bookshelf_image_contrast")
     local arrived_boosted = ok_ic0 and IC0 and IC0.isBoosted(bb)
-    if not from_disk and not arrived_boosted then
-        local D = _disk()
-        if D then
-            -- store() reports failure by RETURNING false, so the pcall
-            -- result alone would count a full disk as a successful write.
-            local ok, wrote = pcall(D.store, filepath, bb)
-            if ok and wrote then
-                self._disk_writes = self._disk_writes + 1
-                -- It is on disk now, so a later probe should find it.
-                self._disk_miss[filepath] = nil
-            end
+    if not from_disk and not arrived_boosted and _disk() then
+        -- After the turn, not during it (_queueWrite): 20-26 ms a cover on a
+        -- PW5, ~180 ms of a page of nine new ones. Immediate when the boost
+        -- below would change this buffer before a later write (the disk copy
+        -- has to be the raw one), or with no event loop to write it later.
+        local boosting = ok_ic0 and IC0 and IC0.boost and (tonumber(IC0.boost()) or 0) > 0
+        local UM = (not boosting) and _eventLoop() or nil
+        if UM then
+            self:_queueWrite(filepath, bb, UM)
+        else
+            self:_writeNow(filepath, bb)
         end
     end
     -- Image contrast's boost, on the copy in memory only: the disk copy
@@ -392,6 +413,73 @@ function ScaledCoverCache:put(filepath, bb, from_disk)
     if ok_ic and ImageContrast then ImageContrast.boostImage(bb) end
     self:_evictIfNeeded()
     return bb
+end
+
+-- _writeNow(filepath, bb): the disk copy, now. Failures cost nothing but the
+-- disk cache.
+function ScaledCoverCache:_writeNow(filepath, bb)
+    local D = _disk()
+    if not D then return end
+    -- store() reports failure by RETURNING false, so the pcall
+    -- result alone would count a full disk as a successful write.
+    local ok, wrote = pcall(D.store, filepath, bb)
+    if ok and wrote then
+        self._disk_writes = self._disk_writes + 1
+        -- It is on disk now, so a later probe should find it.
+        self._disk_miss[filepath] = nil
+    end
+end
+
+-- _queueWrite(filepath, bb, UIManager): the disk copy, once covers stop
+-- arriving for DISK_WRITE_DELAY_S (a reader paging on keeps making them),
+-- then a few at a time (_writeStep). A later put of the same book replaces
+-- the waiting copy; drop and clear cancel it; flushWrites writes them all.
+function ScaledCoverCache:_queueWrite(filepath, bb, UM)
+    if not self._write_bb[filepath] then
+        self._write_q[#self._write_q + 1] = filepath
+    end
+    self._write_bb[filepath] = bb
+    self._write_after = _gettime() + ScaledCoverCache.DISK_WRITE_DELAY_S
+    if not self._write_fn then
+        self._write_fn = function() self:_writeStep(UM) end
+        UM:scheduleIn(ScaledCoverCache.DISK_WRITE_DELAY_S, self._write_fn)
+    end
+end
+
+function ScaledCoverCache:_writeStep(UM)
+    self._write_fn = nil
+    if #self._write_q == 0 then return end
+    local wait = self._write_after - _gettime()
+    if wait > 0 then
+        self._write_fn = function() self:_writeStep(UM) end
+        UM:scheduleIn(wait, self._write_fn)
+        return
+    end
+    local deadline = _gettime() + ScaledCoverCache.DISK_WRITE_BUDGET_S
+    local first = true
+    while #self._write_q > 0 and (first or _gettime() < deadline) do
+        first = false
+        local fp = table.remove(self._write_q, 1)
+        local bb = self._write_bb[fp]
+        self._write_bb[fp] = nil
+        if bb then self:_writeNow(fp, bb) end
+    end
+    if #self._write_q > 0 then
+        self._write_fn = function() self:_writeStep(UM) end
+        UM:scheduleIn(ScaledCoverCache.DISK_WRITE_TICK_S, self._write_fn)
+    end
+end
+
+-- flushWrites(): every disk copy still waiting, now (suspend, exit): one not
+-- written is a cover decoded again next session.
+function ScaledCoverCache:flushWrites()
+    local q = self._write_q
+    self._write_q = {}
+    for _i, fp in ipairs(q) do
+        local bb = self._write_bb[fp]
+        self._write_bb[fp] = nil
+        if bb then self:_writeNow(fp, bb) end
+    end
 end
 
 -- getSized / putSized(fp, w, h[, bb][, tag]) -- a cover kept at one exact
@@ -526,6 +614,8 @@ function ScaledCoverCache:drop(filepath)
         pcall(D.drop, filepath)
         self._disk_miss[filepath] = true
     end
+    -- Nor written back afterwards from a copy still waiting (_queueWrite).
+    self._write_bb[filepath] = nil
     -- The hero tier stashes hero-height copies of the same source bytes;
     -- every drop() caller means "re-decode next time", so a stashed copy
     -- would resurrect the old art. One funnel keeps the two in step.
@@ -572,6 +662,7 @@ function ScaledCoverCache:clear()
     -- the next launch.
     local D = _disk()
     if D then pcall(D.clear) end
+    self._write_q, self._write_bb = {}, {}
     -- Every resident bb is now dropped-but-not-freed; count it so the next
     -- reclaim pass collects rather than waits.
     self:_szReset()

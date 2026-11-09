@@ -1259,8 +1259,9 @@ function SpineWidget.warmFaceOut(job)
     local fp, w, h = job.fp, job.w, job.h
     if job.ext then
         local bb, _fit, cached = SpineWidget.externalCover(job.ext, w, h, true)
-        if not bb then return "failed" end
-        return cached and "already" or "decoded"
+        if bb then return cached and "already" or "decoded" end
+        -- Nothing loaded from it (gone, unreadable): the tile falls through
+        -- to the book's own cover, so that is the one to warm.
     end
     if ScaledCoverCache:getSized(fp, w, h) then return "already" end
     local cached = ScaledCoverCache:get(fp)

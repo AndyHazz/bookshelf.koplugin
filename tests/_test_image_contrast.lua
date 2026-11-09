@@ -157,8 +157,13 @@ test("a cover is boosted after its raw disk copy is written", function()
     local f = src("lib/bookshelf_scaled_cover_cache.lua")
     local put = f:match("\nfunction ScaledCoverCache:put%(.-\nend\n")
     assert(put, "put not found")
-    local store, boost = put:find("D.store", 1, true), put:find("boostImage", 1, true)
+    local store, boost = put:find("self:_writeNow(filepath, bb)", 1, true), put:find("boostImage", 1, true)
     assert(store and boost and store < boost, "the disk copy would be boosted")
+    -- A write left for later (_queueWrite) would find the buffer boosted by
+    -- then: never while boosting.
+    assert(put:find("local UM = (not boosting) and _eventLoop() or nil", 1, true),
+        "a cover being boosted could have its disk write deferred past the boost")
+    assert(f:find("local ok, wrote = pcall(D.store, filepath, bb)", 1, true), "_writeNow no longer stores")
 end)
 
 test("the wallpaper's adjustment is in its keys and before the night inversion", function()

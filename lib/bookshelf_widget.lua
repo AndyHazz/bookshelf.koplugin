@@ -14116,12 +14116,21 @@ local function flushOpenPickers()
     if Orn and Orn._defer then BookshelfSettings.flush() end
 end
 
+-- The cover cache's disk copies still waiting to be written (they wait for
+-- a pause, off the turn): written before a sleep or an exit, or those covers
+-- are decoded again next session.
+local function flushCoverWrites()
+    local SCC = package.loaded["lib/bookshelf_scaled_cover_cache"]
+    if type(SCC) == "table" and SCC.flushWrites then pcall(SCC.flushWrites, SCC) end
+end
+
 function BookshelfWidget:onSuspend()
     self:_stopStatusTimer()
     -- Suspend can be followed by a SIGTERM (Kindle frame switch) that never
     -- reaches onCloseWidget, so land deferred nav state here too.
     self:_flushNavStateNow()
     flushOpenPickers()
+    flushCoverWrites()
 end
 
 -- KOReader broadcasts onFlushSettings on its periodic autosave and on a
@@ -14131,6 +14140,7 @@ end
 function BookshelfWidget:onFlushSettings()
     self:_flushNavStateNow()
     flushOpenPickers()
+    flushCoverWrites()
 end
 
 function BookshelfWidget:onResume()

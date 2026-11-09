@@ -225,7 +225,15 @@ t.test("a book with its own cover image is warmed from that image, as the tile s
     eq(#log, 0)                                  -- the book's own cover was never decoded
     reset{ ext_bb = bb(198, 299), ext_cached = true }
     eq(warm("/b/1", 198, 299, "/c/1.jpg"), "already")
+end)
+
+t.test("an image that cannot be loaded falls back to the book's own cover, as the tile does", function()
+    reset{}                                      -- externalCover loads nothing
+    eq(warm("/b/1", 198, 299, "/c/1.jpg"), "decoded")
+    eq(#ext_calls, 1)
+    eq(log[1], "decode")                         -- the book's own cover, warmed
     reset{}
+    src_bb = nil
     eq(warm("/b/1", 198, 299, "/c/1.jpg"), "failed")
 end)
 

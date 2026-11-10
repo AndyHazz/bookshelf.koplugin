@@ -64,7 +64,7 @@ t.test("picked colours reach these borders and fills through the colour-aware ca
     has("lib/bookshelf_hero_modules.lua", 'require("lib/bookshelf_color").colourBorder(FrameContainer:new{')
     has("lib/bookshelf_hero_modules.lua", 'require("lib/bookshelf_color").paintBorder(bb, dx, dy')
     has("lib/bookshelf_count_badge.lua", 'require("lib/bookshelf_color").colourBorder(FrameContainer:new{')
-    has("lib/bookshelf_widget.lua", 'require("lib/bookshelf_color").colourBorder(FrameContainer_:new{')
+    has("lib/bookshelf_widget_book_popup.lua", 'require("lib/bookshelf_color").colourBorder(FrameContainer_:new{')
     has("micromodules/battery.lua", "Color.paintBorder(bb, bx, by")
     local add = io.open("lib/bookshelf_add_tile.lua"):read("*a")
     assert(not add:find("bb:paintRect(x", 1, true), "the add tile's dashes take the ink's grey")

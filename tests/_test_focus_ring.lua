@@ -206,7 +206,7 @@ t.test("book popup and footer: rings, not inversions; every control keyed", func
     assert(rm:find("strip.seg_rows = seg_rows", 1, true)
            and rm:find("local focus = body.seg_rows and { layout = { body.seg_rows[1] },", 1, true),
         "the source switch is not keyed")
-    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    local w = dofile("tests/_widget_source.lua")
     assert(w:find('ringFocus(pill, 0, Space.radius.button)', 1, true), "a focused pill is inverted")
     assert(w:find('ringFocus(star, 0, Space.px(4))', 1, true), "a focused star is inverted")
     assert(not w:find("star.onFocus = function() frame.invert = true", 1, true), "a star still inverts")
@@ -229,7 +229,7 @@ t.test("shelf menu bar and shelf: chip and crumb rings; the cover's ring follows
         "the chip ring is not in the chip's own ink")
     assert(not cb:find("bordersize = pb,\n                    color      = Blitbuffer.COLOR_BLACK", 1, true),
         "the crumb ring is still a black box")
-    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    local w = dofile("tests/_widget_source.lua")
     assert(w:find('local on_grid = self._focus_zone == nil or self._focus_zone == "grid"', 1, true),
         "the cover keeps its ring off the grid")
     assert(w:find('for _i, name in ipairs({ "onBSFocusUp", "onBSFocusDown", "onBSFocusLeft", "onBSFocusRight" }) do', 1, true),

@@ -8,7 +8,7 @@ package.path = "./?.lua;./?/init.lua;" .. package.path
 local t = dofile("tests/_helpers.lua").runner()
 
 local function read(p) local f = assert(io.open(p)); local s = f:read("*a"); f:close(); return s end
-local widget = read("lib/bookshelf_widget.lua")
+local widget = dofile("tests/_widget_source.lua")
 local function method(src, name)
     return assert(src:match("\nfunction [%w_]+:" .. name .. "%(.-\nend\n"), "no " .. name)
 end

@@ -27,10 +27,7 @@ t.test("the Reviews tab's scroller yields swipe-down at the top", function()
     -- onScrollText claims every south swipe even at the top, so swipe-down
     -- close (issue 338) worked on every tab except Reviews. Pin that the
     -- builder routes through modal:_scroller, the yielding factory.
-    local f = io.open("lib/bookshelf_widget.lua", "r")
-    assert(f, "cannot read bookshelf_widget.lua")
-    local wsrc = f:read("*a")
-    f:close()
+    local wsrc = dofile("tests/_widget_source.lua")
     -- Both review bodies (Hardcover's and the reader's own) build through
     -- _headedHtmlBody, so that is where the scroller is made.
     assert(wsrc:find("function BookshelfWidget:_buildReviewsTab", 1, true), "_buildReviewsTab went missing")

@@ -5,7 +5,7 @@
 package.path = "./?.lua;./?/init.lua;" .. package.path
 local t = dofile("tests/_helpers.lua").runner()
 local eq = dofile("tests/_helpers.lua").eq
-local src = io.open("lib/bookshelf_widget.lua"):read("*a")
+local src = dofile("tests/_widget_source.lua")
 
 local sidecars = {}
 local DocSettings = {

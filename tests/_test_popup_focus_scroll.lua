@@ -44,7 +44,7 @@ end)
 t.test("each key move brings the focus into view", function()
     assert(src:find("function ReviewsModal:onFocusMove(args)\n    local r = FocusManager.onFocusMove(self, args)\n    self:_scrollFocusIntoView()", 1, true),
         "the move does not scroll")
-    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    local w = dofile("tests/_widget_source.lua")
     assert(w:find("out.focus_scroll = scroll", 1, true), "the Edit tab does not name its scroll")
 end)
 

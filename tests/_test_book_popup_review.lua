@@ -5,7 +5,7 @@
 package.path = "./?.lua;./?/init.lua;" .. package.path
 local H = dofile("tests/_helpers.lua")
 local t = H.runner()
-local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+local w = dofile("tests/_widget_source.lua")
 
 t.test("a plugin's action card is keyed by its registration, not its label", function()
     assert(w:find('if type(id) == "string" then row._bs_id = id end', 1, true), "the registration id is not kept")

@@ -68,7 +68,7 @@ t.test("a tapped highlight's panel: chapter, page, day, text, note", function()
 end)
 
 t.test("the book modal has a Highlights tab: our list, at the modal's size, scrolling", function()
-    local w = io.open("lib/bookshelf_widget.lua"):read("*a")
+    local w = dofile("tests/_widget_source.lua")
     assert(w:find('id = "highlights", label = _("Highlights")', 1, true), "no Highlights tab")
     assert(w:find("Highlights.count(book.filepath)", 1, true), "shown without highlights")
     assert(w:find("return Highlights.buildTab(self, book.filepath, show_parent or modal, avail_w, avail_h)", 1, true), "not our list")

@@ -12,7 +12,7 @@ local h  = dofile("tests/_helpers.lua")
 local t  = h.runner()
 local eq = h.eq
 
-local src = io.open("lib/bookshelf_widget.lua"):read("*a")
+local src = dofile("tests/_widget_source.lua")
 local function body(sig)
     local b = src:match("\nfunction BookshelfWidget:" .. sig:gsub("[%(%)]", "%%%0") .. "\n(.-)\nend\n")
     assert(b, sig .. " not found - renamed?")

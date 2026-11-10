@@ -42,7 +42,7 @@ t.test("a long name in no folder, multi-byte letters kept whole", function()
 end)
 
 t.test("the book popup's file line is one line, shortened this way", function()
-    local src = io.open("lib/bookshelf_widget.lua"):read("*a")
+    local src = dofile("tests/_widget_source.lua")
     local i = src:find("local function _icon_row(glyph, text, one_line)", 1, true)
     assert(i, "the icon row takes no one-line flag")
     assert(src:find("pathOneLine(text,", i, true), "the icon row does not shorten its text")

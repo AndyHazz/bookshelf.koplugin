@@ -269,7 +269,7 @@ t.test("the hero's tag pills go unfilled over a painted ground", function()
     -- box on the wallpaper, and its black border would vanish on the dark
     -- page. The builder takes the ink and drops the fill; the hero passes it
     -- only when the ground is painted, so the popups keep their white pills.
-    local src = read("lib/bookshelf_widget.lua")
+    local src = dofile("tests/_widget_source.lua")
     local grp = src:match("\nfunction BookshelfWidget:_buildPillGroup%(.-\nend\n")
     assert(grp, "no _buildPillGroup")
     assert(grp:find("on_overflow, ink", 1, true), "_buildPillGroup takes no ink")

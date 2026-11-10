@@ -10,7 +10,7 @@
 package.path = "./?.lua;./?/init.lua;" .. package.path
 local t  = dofile("tests/_helpers.lua").runner()
 
-local src  = io.open("lib/bookshelf_widget.lua"):read("*a")
+local src  = dofile("tests/_widget_source.lua")
 local body = src:match("\nfunction BookshelfWidget:_buildBookCoverTab%(.-%)\n(.-)\nend\n")
 assert(body, "could not find BookshelfWidget:_buildBookCoverTab() - renamed?")
 

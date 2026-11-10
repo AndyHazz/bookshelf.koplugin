@@ -8,7 +8,7 @@ package.path = "./?.lua;./?/init.lua;" .. package.path
 local H = dofile("tests/_helpers.lua")
 local t, eq = H.runner(), H.eq
 
-local src = io.open("lib/bookshelf_widget.lua"):read("*a")
+local src = dofile("tests/_widget_source.lua")
 local body = src:match("\nfunction BookshelfWidget%._headerCardBook%(book, fresh%)\n(.-)\nend\n")
 assert(body, "BookshelfWidget._headerCardBook not found")
 local f = assert((loadstring or load)("local book, fresh = ...\n" .. body))

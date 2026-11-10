@@ -38,7 +38,7 @@ local Repo = {
     isPluginFormatFile = function(fp) return fp:match("%.meguru$") ~= nil end,
 }
 
-local src = io.open("lib/bookshelf_widget.lua"):read("*a")
+local src = dofile("tests/_widget_source.lua")
 local body = src:match("\nfunction BookshelfWidget:_kickOffMissingMetaExtractionNow%(items, slot_w, slot_h, hero_w, hero_h, shown_n%)\n(.-)\nend\n")
 assert(body, "could not find BookshelfWidget:_kickOffMissingMetaExtractionNow - renamed?")
 

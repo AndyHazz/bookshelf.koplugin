@@ -4273,7 +4273,7 @@ msgid "Draw plank designs (Oak, or one from a pack or a theme) on spine shelves.
 msgstr ""
 
 #: lib/bookshelf_settings.lua:4180
-msgid "Instant book close (beta)"
+msgid "Close books in the background"
 msgstr ""
 
 #: lib/bookshelf_settings.lua:4181

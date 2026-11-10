@@ -4313,8 +4313,8 @@ msgid "Draw plank designs (Oak, or one from a pack or a theme) on spine shelves.
 msgstr "Dessine les motifs de planche (Chêne, ou un motif provenant d'un pack ou d'un thème) sur les étagères de dos. Les dessiner est lent sur certaines liseuses noir et blanc ; désactivez cette option pour utiliser à la place la couleur unie de la planche. Choisir à nouveau une planche, dans le sélecteur Planche, réactive cette option."
 
 #: lib/bookshelf_settings.lua:4180
-msgid "Instant book close (beta)"
-msgstr "Fermeture instantanée du livre (bêta)"
+msgid "Close books in the background"
+msgstr "Fermer les livres en arrière-plan"
 
 #: lib/bookshelf_settings.lua:4181
 msgid "Show Bookshelf immediately when leaving a book. The book finishes closing at the next quiet moment - opening another book, half a minute of inactivity, or leaving Bookshelf - so browsing never has to wait for it. Until then, going straight back into the same book is instant. Turn this off to close books fully before Bookshelf appears, as before."

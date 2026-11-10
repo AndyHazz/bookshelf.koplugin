@@ -4322,8 +4322,8 @@ msgid "Draw plank designs (Oak, or one from a pack or a theme) on spine shelves.
 msgstr "Малювати дизайни дощок (Дуб або дошку з набору чи теми) на полицях із корінцями. На деяких чорно-білих рідерах це повільно; вимкніть, щоб натомість використовувати простий колір дошки. Повторний вибір дошки у вікні «Дошка» знову вмикає цей параметр."
 
 #: lib/bookshelf_settings.lua:4180
-msgid "Instant book close (beta)"
-msgstr "Миттєве закриття книги (бета)"
+msgid "Close books in the background"
+msgstr "Закривати книги у фоновому режимі"
 
 #: lib/bookshelf_settings.lua:4181
 msgid "Show Bookshelf immediately when leaving a book. The book finishes closing at the next quiet moment - opening another book, half a minute of inactivity, or leaving Bookshelf - so browsing never has to wait for it. Until then, going straight back into the same book is instant. Turn this off to close books fully before Bookshelf appears, as before."

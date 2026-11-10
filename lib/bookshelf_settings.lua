@@ -4177,7 +4177,7 @@ function Settings:_performanceSubItems()
             end,
         },
         {
-            text = _("Instant book close (beta)"),
+            text = _("Close books in the background"),
             help_text = _("Show Bookshelf immediately when leaving a "
                 .. "book. The book finishes closing at the next quiet "
                 .. "moment - opening another book, half a minute of "

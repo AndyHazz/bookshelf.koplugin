@@ -4316,8 +4316,8 @@ msgid "Draw plank designs (Oak, or one from a pack or a theme) on spine shelves.
 msgstr "在書脊書架上繪製層板設計 (橡木，或擺飾包、主題提供的層板)。在部分黑白電子閱讀器上繪製速度較慢；關閉後改用純色層板。在層板選擇器中再次選擇層板即可重新開啟。"
 
 #: lib/bookshelf_settings.lua:4180
-msgid "Instant book close (beta)"
-msgstr "極速關閉書籍 (Beta)"
+msgid "Close books in the background"
+msgstr "在背景關閉書籍"
 
 #: lib/bookshelf_settings.lua:4181
 msgid "Show Bookshelf immediately when leaving a book. The book finishes closing at the next quiet moment - opening another book, half a minute of inactivity, or leaving Bookshelf - so browsing never has to wait for it. Until then, going straight back into the same book is instant. Turn this off to close books fully before Bookshelf appears, as before."

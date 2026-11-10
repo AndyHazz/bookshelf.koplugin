@@ -2078,12 +2078,26 @@ function ChipBar:flashPending(key)
         end
         if not plain then mode = "ui" end
     end
-    UIManager:setDirty(self.show_parent, mode, Geom:new{
+    local region = Geom:new{
         x = self.dimen.x + d.x,          -- cell x, less the outline's border
         y = self.dimen.y,                -- the strip's own top edge
         w = d.w + 2 * b,
         h = self.height + 2 * b,         -- ...to its painted bottom
-    })
+    }
+    -- ONLY THE STRIP IS PAINTED, where the strip can stand being painted on
+    -- its own. Marking show_parent dirty repaints the whole shelf (every
+    -- cover, the top panel, the footer) to change one chip's outline, and the
+    -- rebuild that follows throws all of it away: on a PW5 that was a whole
+    -- extra screen paint in front of every shelf switch. Painting the strip
+    -- alone is right when it lays its own ground (solid_ground) or stands on
+    -- plain paper; a see-through strip over a picture or a tint would blend
+    -- onto its own last paint, so that one still goes the long way round.
+    if self.solid_ground or not self.painted_ground then
+        UIManager:widgetRepaint(self, self.dimen.x, self.dimen.y)
+        UIManager:setDirty(nil, mode, region)
+    else
+        UIManager:setDirty(self.show_parent, mode, region)
+    end
     UIManager:forceRePaint()
 end
 

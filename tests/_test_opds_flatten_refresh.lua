@@ -24,7 +24,7 @@ package.path = "./?.lua;./?/init.lua;" .. package.path
 local helpers = dofile("tests/_helpers.lua")
 local t  = helpers.runner()
 local eq = helpers.eq
-local src = io.open("lib/bookshelf_widget.lua"):read("*a")
+local src = io.open("lib/bookshelf_widget_opds.lua"):read("*a")
 
 local body = src:match(
     "\nfunction BookshelfWidget:_opdsResetFlattenedChildren%(server_key, win%)\n(.-)\nend\n")

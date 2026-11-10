@@ -32,7 +32,7 @@ end
 
 -- 1. The call site. Extracted by name so a rename fails the test instead of
 -- quietly skipping it.
-local src  = io.open("lib/bookshelf_widget.lua"):read("*a")
+local src  = io.open("lib/bookshelf_widget_opds.lua"):read("*a")
 local body = src:match("\nfunction BookshelfWidget:_opdsSearch%(tab, server, src, query%)\n(.-)\nend\n")
 ok(body ~= nil, "_opdsSearch(tab, server, src, query) found in the widget")
 

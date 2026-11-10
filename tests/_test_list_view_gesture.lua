@@ -369,8 +369,12 @@ end)
 -- A method WITH arguments, so it needs the general form of the extractor.
 
 local function methodWithArgs(name, env)
-    local args, body = src:match("\nfunction BookshelfWidget:" .. name
-        .. "%((.-)%)\n(.-)\nend\n")
+    local pat = "\nfunction BookshelfWidget:" .. name .. "%((.-)%)\n(.-)\nend\n"
+    local args, body = src:match(pat)
+    if not body then
+        -- the widget's OPDS methods are kept in a file of their own
+        args, body = io.open("lib/bookshelf_widget_opds.lua"):read("*a"):match(pat)
+    end
     assert(body, "could not find BookshelfWidget:" .. name .. " - renamed?")
     local sig = "self" .. (args ~= "" and (", " .. args) or "")
     return compile("return function(" .. sig .. ")\n" .. body .. "\nend",

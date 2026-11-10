@@ -9,8 +9,11 @@ local H = dofile("tests/_helpers.lua")
 local t, eq = H.runner(), H.eq
 
 local src = io.open("lib/bookshelf_widget.lua"):read("*a")
+-- the OPDS folder menu is one of the widget's methods kept in its own file
+local opds_src = io.open("lib/bookshelf_widget_opds.lua"):read("*a")
 local function method(name)
-    local b = src:match("\n(function BookshelfWidget:" .. name .. "%(.-\nend)\n")
+    local pat = "\n(function BookshelfWidget:" .. name .. "%(.-\nend)\n"
+    local b = src:match(pat) or opds_src:match(pat)
     assert(b, name .. " moved")
     return b
 end

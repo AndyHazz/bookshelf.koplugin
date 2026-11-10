@@ -1182,7 +1182,7 @@ do
        "anything else still reports what the server said")
 
     -- and the widget has to speak it, at both sites that translate an err
-    local wsrc = io.open("lib/bookshelf_widget.lua"):read("a")
+    local wsrc = io.open("lib/bookshelf_widget_opds.lua"):read("a")
     -- Count the MESSAGE, not the comparison: the pool worker tests the same
     -- err string for a different purpose (deciding to back off), so counting
     -- `err == "ratelimited"` catches that too and means nothing.

@@ -93,7 +93,7 @@ t.test("bad registrations are refused", function()
 end)
 
 t.test("the details window offers streaming and plugin buttons before giving up", function()
-    local src = io.open("lib/bookshelf_widget.lua"):read("*a")
+    local src = io.open("lib/bookshelf_widget_opds.lua"):read("*a")
     local body = src:match("\nfunction BookshelfWidget:_showRemoteBookInfo%(book, opts%)\n(.-)\nend\n")
     assert(body, "could not find _showRemoteBookInfo")
     assert(body:find('_("Page stream")', 1, true), "no Page stream button")

@@ -29,7 +29,7 @@ local function ok(cond, label)
     if cond then pass = pass + 1 else fail = fail + 1; print("FAIL " .. label) end
 end
 
-local src = io.open("lib/bookshelf_widget.lua"):read("*a")
+local src = io.open("lib/bookshelf_widget_opds.lua"):read("*a")
 local body = src:match("\nfunction BookshelfWidget:_opdsCoverStep%(queue, idx, token, state%)\n(.-)\nend\n")
 ok(body ~= nil, "_opdsCoverStep(queue, idx, token, state) found in the widget")
 assert(body, "cannot continue without the function body")

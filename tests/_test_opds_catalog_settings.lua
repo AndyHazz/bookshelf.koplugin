@@ -22,7 +22,7 @@ local function ok(cond, label)
     if cond then pass = pass + 1 else fail = fail + 1; print("FAIL " .. label) end
 end
 
-local src = io.open("lib/bookshelf_widget.lua"):read("*a")
+local src = io.open("lib/bookshelf_widget_opds.lua"):read("*a")
 local function extract(sig)
     local pat = "\nfunction BookshelfWidget:" .. sig .. "\n(.-)\nend\n"
     local body = src:match(pat)

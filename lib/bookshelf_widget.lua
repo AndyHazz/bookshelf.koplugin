@@ -2902,7 +2902,10 @@ function BookshelfWidget:_emptyShelfText()
                 label)
         end
     end
-    return placeholder_text, _is_home_source
+    -- A search that found nothing is not a library with no home folder: the
+    -- button belongs to the shelf's own empty state only.
+    local searching = _tip and _tip.kind == "search"
+    return placeholder_text, _is_home_source and not searching
 end
 
 -- _buildEmptyShelf(L) - the screen for a shelf with nothing on it: the top

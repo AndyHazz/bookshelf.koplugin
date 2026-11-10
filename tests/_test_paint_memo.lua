@@ -139,7 +139,7 @@ t.test("the spine plan keeps its entries between page turns", function()
     assert(not plan:find("_plan_cache%.items%s*==%s*items"), "the entries cache checks items by identity")
     assert(plan:find("table%.concat%(ids"), "the entries key does not fingerprint the items")
     local w = read("lib/bookshelf_widget.lua")
-    local rb = body(w, "\nfunction BookshelfWidget:_rebuild%(%)\n")
+    local rb = body(w, "\nfunction BookshelfWidget:_rebuildPrepare%(%)\n")
     assert(rb:find("dropPlanCache", 1, true), "a rebuild does not drop the plan cache")
 end)
 

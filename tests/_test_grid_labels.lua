@@ -270,9 +270,13 @@ t.test("a fetch-mode source that opted in to Spines gets the note (588)", functi
 end)
 
 t.test("_rebuild asks before sizing, for a collapsed list or spine shelf", function()
+    -- _rebuildPrepare is the first thing _rebuild runs; read as one body, the
+    -- order of the two is the order things happen in.
+    local prep = src:match("\nfunction BookshelfWidget:_rebuildPrepare%(%)\n(.-)\nend\n")
     local body = src:match("\nfunction BookshelfWidget:_rebuild%(%)\n(.-)\nend\n")
-    assert(body, "no _rebuild")
-    body = body:gsub("%-%-[^\n]*", "")
+    assert(prep and body, "no _rebuild")
+    assert(body:match("^    local switching = self:_rebuildPrepare%(%)\n"), "_rebuild does not prepare first")
+    body = (prep .. "\n" .. body):gsub("%-%-[^\n]*", "")
     local at = body:find("self:_ensureGridLabels()", 1, true)
     assert(at, "_rebuild never asks for the cover grid's label note")
     local gate = body:sub(1, at - 1):match("if ([^\n]-) then%s*$")

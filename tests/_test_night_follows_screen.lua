@@ -105,8 +105,10 @@ t.test("the event path marks its rebuild pending", function()
 end)
 
 t.test("every rebuild records the state it built for and settles the flag", function()
-    local rb = src:match("\nfunction BookshelfWidget:_rebuild%(%)\n(.-)\nend\n")
-    assert(rb, "_rebuild moved")
+    local rb = src:match("\nfunction BookshelfWidget:_rebuildPrepare%(%)\n(.-)\nend\n")
+    assert(rb, "_rebuildPrepare moved")
+    assert(src:find("\nfunction BookshelfWidget:_rebuild()\n    local switching = self:_rebuildPrepare()\n", 1, true),
+        "_rebuild does not prepare first")
     local head = rb:sub(1, 1500)
     assert(head:find("self._built_night = Screen.night_mode and true or false", 1, true),
         "the rebuild does not record which night state it baked")

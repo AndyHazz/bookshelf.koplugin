@@ -75,7 +75,7 @@ end)
 t.test("only a switch reuses it, only the book card, and the signature holds what it shows", function()
     local rb = body("_rebuild")
     assert(rb:find("hero = switching and self:_heroReuse(sig) or nil", 1, true), "a rebuild that is not a switch reuses the card")
-    assert(rb:find("self:_pageCacheClear()\n        -- ...and the book cards kept for switching back (_heroReuse).\n        self:_heroKeptClear()", 1, true),
+    assert(body("_rebuildPrepare"):find("self:_pageCacheClear()\n        -- ...and the book cards kept for switching back (_heroReuse).\n        self:_heroKeptClear()", 1, true),
         "a rebuild that is not a switch keeps cards that may be stale")
     assert(body("onCloseWidget"):find("self:_heroKeptClear()", 1, true), "closing keeps the cards")
     local sig = body("_heroSig")

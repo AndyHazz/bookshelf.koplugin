@@ -1103,196 +1103,7 @@ function BookshelfWidget:_ornScanWindow()
 end
 
 function BookshelfWidget:_rebuild()
-    self:_ornScanWindow()
-    self:_pageGenBump()
-    -- Something other than a page turn: no kept page is known to be right.
-    -- Except a switch to another shelf, which changes nothing the kept
-    -- pages show (each is keyed by its shelf): they are kept, the page
-    -- being left with them, so switching back takes its rows again.
-    local switching = self._switching_shelf
-    if switching then
-        self._switching_shelf = nil
-        self:_pageKeepLeaving()
-    else
-        self:_pageCacheClear()
-        -- ...and the book cards kept for switching back (_heroReuse).
-        self:_heroKeptClear()
-    end
-    self:_syncShelfTheme()
-    -- The night state this tree is baked for, and so no night rebuild is
-    -- pending any more (see _followScreenNight).
-    self._built_night = Screen.night_mode and true or false
-    self._night_rebuild_pending = nil
-    self._ground_memo = nil
-    pcall(function() require("lib/bookshelf_spine_shelf").dropPlanCache() end)
-    -- FIRST, before anything is built. Both the spine renderer and the list
-    -- row are opaque-by-default and read a MODULE-LEVEL flag at build time, so
-    -- a flag set later in this function is set too late to matter: the rows
-    -- were already made. That is exactly what shipped for one build -- list
-    -- cards came up white and only went transparent once pagination rebuilt
-    -- them through _swapShelvesInPlace, which ran after the assignment.
-    --
-    -- Cheap to ask here: _wallpaperWidget serves a cached widget, so the
-    -- later call for the actual paint costs a table lookup.
-    do
-        local on = self:groundIsPainted()
-        pcall(function()
-            require("lib/bookshelf_spine_shelf").setHasWallpaper(on)
-        end)
-        pcall(function()
-            local LR = require("lib/bookshelf_list_row")
-            -- A row paints its own paper and ink, and both have to follow the
-            -- shelf's theme -- it is the one surface that cannot rely on the
-            -- frame inversion, because the theme can be dark while the frame
-            -- is not.
-            local CP = require("lib/bookshelf_cover_progress")
-            local ok_c, colors = pcall(CP.resolvedColors)
-            if ok_c and colors and LR.setTheme then
-                -- On a painted ground the list sits on the panel, so its ink
-                -- is the panel's (Colors > Panel text, or the text a panel
-                -- colour brings), as the hero's and the tag pills' are. The
-                -- shelf's own ink is for the page: search results listed on
-                -- a coloured panel came out black on brown (maintainer, PW5).
-                local row_ink = colors.ink
-                if on and CP.panelInk then row_ink = CP.panelInk() or row_ink end
-                LR.setTheme(colors.panel_bg, row_ink)
-            end
-            -- And whether there is a ground under us at all. A row that keeps
-            -- painting its own card over the scrim leaves the picture showing
-            -- only between rows; told here, with the spine renderer, because
-            -- both read the flag at build time.
-            if LR.setOverGround then LR.setOverGround(on) end
-        end)
-        -- How many ornaments THIS shelf wants. A chip may pin its own; the
-        -- resolver falls back to the library setting, and the frequency is
-        -- read when the shelf plan is built, so it has to be pushed before
-        -- anything is.
-        pcall(function()
-            local Orn = require("lib/bookshelf_ornaments")
-            -- The chip's OWN number, with no library fallback: there is no
-            -- library-wide frequency, by design (see the key's declaration in
-            -- bookshelf_ornaments). Absent, the module's own default stands.
-            if Orn.setChipFrequency then
-                local tab = require("lib/bookshelf_tab_model").getById(self.chip)
-                Orn.setChipFrequency(tab and tab[Orn.FREQ_SETTING])
-            end
-        end)
-        -- What "behind" IS, for the three painters that put real pixels back.
-        -- nil when the shelf is plain paper, which is what keeps their
-        -- historical no-picture path.
-        pcall(function()
-            require("lib/bookshelf_wallpaper").setGround(
-                on and not self:hasWallpaper() and self:_pageGroundColor() or nil)
-        end)
-    end
-    -- Drop the list-geometry memo. Everything it caches -- the band, the row
-    -- height, the one-line minimum -- is derived from settings and screen
-    -- geometry, and every path that changes either comes through a rebuild:
-    -- a font nudge, a pinch, a chip switch, a rotation. One table, cleared in
-    -- one place, so a stale entry cannot outlive the layout it described.
-    self._list_geom_memo = nil
-    -- Before anything is sized: a collapsed list or spine shelf's hero is the
-    -- cover grid's, and that depends on the grid's label note for this set.
-    if not self._expanded and (self:_isListMode() or self:_isSpineMode()) then
-        self:_ensureGridLabels()
-    end
-    -- FIRST LIST RENDER: take up the slack once, before anything is built.
-    -- "yes I think we want that first render scale implemented, if there's a
-    -- list on screen" -- so it is gated on list mode, which means a session
-    -- that starts in the cover grid settles the first time the list appears
-    -- rather than never.
-    --
-    -- ONCE PER SESSION, on a flag, and here rather than as a second rebuild:
-    -- the band plan is a pure function of the widget's geometry and settings,
-    -- so it can be asked before the tree exists, and settling first means the
-    -- build below is the only one. Doing it after would cost a full second
-    -- rebuild on the first paint of every session.
-    --
-    -- Per session rather than once ever, because it is idempotent and only
-    -- ever grows the type when there is slack to take up: a rotation, a
-    -- KOReader font change or a new device profile all leave slack that this
-    -- then closes, and re-running it costs nothing when there is none.
-        -- Re-read the colour-dither hint so toggling "Colour panel dithering"
-    -- takes effect on the next refresh (#289).
-    self:_refreshDitherFlag()
-    -- Drop last render's status-strip measurement: the book, the width or the
-    -- status template may all have changed since. Everything inside this
-    -- rebuild then shares ONE fresh probe (see _statusStripHeight), which is
-    -- what makes the row-count budget and the layout agree on the hero's height.
-    self._strip_h_memo = nil
-    -- A structural rebuild (chip switch, drill, settings change) invalidates
-    -- any in-flight next-page preload — it was queued for the old view.
-    if self._cancelPreload then self:_cancelPreload() end
-    -- Kick off chip preload as a deferred one-shot. Internally gated: returns
-    -- immediately if already done, in-flight, disabled, or drilled in. nextTick
-    -- so it runs after this rebuild's paint queue drains.
-    UIManager:nextTick(function() self:_maybeStartChipPreload() end)
-    -- Start (or keep alive) the periodic file-poll so books sideloaded by
-    -- Syncthing / Calibre / KOReader's network browser appear without a
-    -- manual swipe-down refresh. Internally gated -- idempotent, returns
-    -- immediately if already polling.
-    UIManager:nextTick(function() self:_startFilePoll() end)
-    -- Detect external toggles of KOReader's "Folders and files mixed"
-    -- setting. The menu callback flips collate_mixed in G_reader_settings
-    -- and refreshes the File Browser, but doesn't dispatch an Event we
-    -- could subscribe to. Polling at the top of every _rebuild is
-    -- effectively free (one boolean read) and catches both menu toggles
-    -- and dispatcher actions. When the value changed since last build,
-    -- wipe the All shape cache so the next getAll picks up the new
-    -- folders-first vs interleaved layout.
-    do
-        local current_mixed = G_reader_settings
-                              and G_reader_settings:isTrue("collate_mixed") or false
-        if self._last_collate_mixed ~= nil
-           and self._last_collate_mixed ~= current_mixed then
-            local Repo = require("lib/bookshelf_book_repository")
-            if Repo.invalidateAllCache then Repo.invalidateAllCache() end
-            -- ...and the SPINE shelf's own whole-list fetch, which is keyed
-            -- on the chip and the drill tip alone and holds for 30 seconds.
-            -- A toggle changes neither, so the rebuild below re-rendered the
-            -- list it already had -- in the old order -- and the shelf only
-            -- caught up once the TTL lapsed. Cover and list mode refetch per
-            -- page, which is why only spine mode looked stuck.
-            self._spine_fetch_cache = nil
-            self._spine_fetch_others = nil
-        end
-        self._last_collate_mixed = current_mixed
-    end
-
-    -- Refresh dimensions; detect landscape from whether Screen swapped them.
-    -- Screen:getWidth()/getHeight() DO swap on rotation (KOReader software
-    -- rotates the framebuffer content), so raw_w > raw_h reliably means
-    -- landscape. The fb0/rotate sysfs node is a permanent panel calibration
-    -- constant on PW5 and cannot be used for orientation detection.
-    local _raw_w    = Screen:getWidth()
-    local _raw_h    = Screen:getHeight()
-    self._landscape = (_raw_w > _raw_h)
-    self.width      = _raw_w
-    self.height     = _raw_h
-    self.dimen      = Geom:new{ w = self.width, h = self.height }
-    -- One-shot drill restore on the first rebuild after init. Deferred until
-    -- here (rather than in init) so the chip-fallback / sort-priority lookups
-    -- happen against a fully-loaded TabModel.
-    -- "Go to home screen" (#223) requested before this widget existed: skip the
-    -- saved-drilldown restore below so the first paint is the top level. Class-
-    -- level because the requesting code runs before the instance does (same
-    -- reason as BookshelfWidget.live); cleared on consumption so it can never
-    -- send a later, unrelated rebuild home.
-    if BookshelfWidget.go_home_pending then
-        BookshelfWidget.go_home_pending = nil
-        self._pending_restore_drill = nil
-        self._drilldown_path = {}
-        self._cursor = 1
-        -- Out of any shelf of shelves too, to the top-level shelf.
-        self.chip = require("lib/bookshelf_tab_model").rootOf(self.chip)
-        -- The top-level shelf's theme, not the sub-shelf's.
-        self:_syncShelfTheme()
-    end
-    if self._pending_restore_drill then
-        local saved = self._pending_restore_drill
-        self._pending_restore_drill = nil
-        self:_restoreDrillPath(saved)
-    end
+    local switching = self:_rebuildPrepare()
     local _perf_t0   = _gettime()
     local _perf_chip = self.chip
     local _perf_page = self.page
@@ -1890,195 +1701,12 @@ function BookshelfWidget:_rebuild()
         #active_chips, tostring(hide_chip_bar),
         tostring(breadcrumb_path and #breadcrumb_path or nil),
         #self._drilldown_path))
-    local chips = not hide_chip_bar and ChipBar:new{
-        chips             = active_chips,
-        -- The CHOICE, not the fact: a chip has a perfectly good opaque look
-        -- and only gives it up if the reader asked.
-        has_wallpaper     = self:wallpaperButtonsTransparent(),
-        -- The FACT of a painted ground, for the tap flash's refresh mode.
-        painted_ground    = self:groundIsPainted(),
-        -- The bar is left out only when the reader chose Shelf menu
-        -- background: Transparent. Panel shading is the panels' and no
-        -- longer clears it too (maintainer, 2026-10-09: Transparent shading
-        -- made the bar transparent though it was not set to be; a reader
-        -- who had that look keeps it, migration step 5).
-        solid_ground      = require("lib/bookshelf_theme_pack").partRead("chip_bar_transparent") ~= true,
-        active            = root_chip or self.chip,
-        selected_key      = root_chip or self.chip,   -- seeds the chip page (infinite-chips)
-        focused_key       = self._chip_cursor_key,
-        width             = content_w,
-        height            = chip_h,
-        breadcrumb_path   = breadcrumb_path,
-        chip_pill_label   = chip_pill_label,
-        chip_pill_glyph   = chip_pill_glyph,
-        on_pill_hold      = in_search_mode and function()
-            self:_showSearchViewModePicker()
-        end or nil,
-        back_label        = back_label,
-        -- show_parent points the strip at the window-level widget so
-        -- its tap-feedback can flag a repaint. UIManager:setDirty only
-        -- accepts widgets registered with UIManager:show.
-        show_parent       = self,
-        -- Page changed (swipe/chevron): warm the chips the new page reveals.
-        on_page_change = function() self:_queueWarmForVisible() end,
-        on_change = function(key)
-            -- Search "chip" is an action, not a navigable tab — open
-            -- the search dialog and bail before switching self.chip.
-            --
-            -- WHICH search depends on what is on screen. On an OPDS view
-            -- (the catalog chip's root feed, or a subcatalog drilled from
-            -- it) the books listed are not on disk, so running the local
-            -- library search there would answer a question the user did
-            -- not ask -- they are looking at a catalog and expect to
-            -- search THAT. _opdsEffectiveTab is the same "is this view a
-            -- feed" test every other OPDS path uses, so the two searches
-            -- can never both apply. Every non-OPDS view is unchanged.
-            if key == "search" then
-                local opds_tab = self:_opdsEffectiveTab()
-                if opds_tab then
-                    self:_opdsOpenSearchDialog(opds_tab)
-                else
-                    self:_openSearchDialog()
-                end
-                return
-            end
-            -- "Micro modules" chip: switch the hero to the module grid.
-            -- Mutually exclusive with the book hero — clears _expanded so
-            -- the grid claims the full (non-strip) hero slot. No-op when
-            -- already in micro mode (mirrors the "current" chip's no-op
-            -- when already selected). Full rebuild: the chip's own selected
-            -- state and the "current" chip's both flip.
-            if key == "modules" then
-                -- No-op only when the grid is already visible; when collapsed
-                -- (expanded strip showing) this restores it, like swipe-down.
-                if self._hero_mode == "micro" and not self._expanded then return end
-                local was_expanded = self._expanded
-                self:_clearDpadFocus()
-                self._hero_mode = "micro"
-                self._hero_page = 1 -- always enter the grid on the first page
-                self:_setExpanded(false)
-                require("lib/bookshelf_start_menu_modules").bumpGeneration()
-                if was_expanded then
-                    -- Leaving expanded mode also changes the shelf row count,
-                    -- so the whole layout shifts — full refresh.
-                    self:_rebuild()
-                    UIManager:setDirty(self, "ui")
-                else
-                    -- Book hero <-> grid: same hero height, shelves unchanged,
-                    -- so scope the refresh to the hero + chip band instead of
-                    -- flashing the whole screen.
-                    self:_rebuildRefreshHeroAndChips()
-                end
-                return
-            end
-            -- "Currently reading" chip clears the preview so the hero
-            -- falls back to Repo.getCurrent() (= lastfile). Same effect
-            -- as the swipe-up gesture, but discoverable via the visible
-            -- icon. Doesn't change self.chip — user stays on whatever
-            -- shelf they were browsing. Full _rebuild because the action
-            -- chip itself disappears with this clear (its presence is
-            -- conditional on preview ≠ lastfile).
-            if key == "current" then
-                -- Clear preview AND collapse expanded mode so the hero
-                -- comes back showing the lastfile. In expanded mode the
-                -- chip is rendered deselected (no visible hero), so the
-                -- user expects this tap to restore the hero view.
-                -- The drill-down path is preserved: the user is asking
-                -- to pop their open book back into the hero slot, not
-                -- to leave the stack/folder they're browsing.
-                local was_expanded = self._expanded
-                -- Whatever the shelf is currently highlighting, not just the
-                -- preview: a d-pad cell or a pending expanded tap selects too
-                -- (see _selectedFilepath), and all of them are cleared below.
-                local prior_fp = self:_selectedFilepath()
-                -- Captured BEFORE the rebuild below replaces the widgets (see
-                -- _shelfSlotRect): this is the band that has to reach the
-                -- panel, and it is nowhere near the hero-and-chips band the
-                -- refresh below covers.
-                local prior_rect = self:_shelfSlotRect(prior_fp)
-                self:_clearDpadFocus()
-                self._hero_mode    = "current"
-                self._preview_book = nil
-                self._tap_selected_fp = nil
-                self:_setExpanded(false)
-                if was_expanded then
-                    -- Leaving expanded mode shifts the shelf row count — full
-                    -- refresh.
-                    self:_rebuild()
-                    UIManager:setDirty(self, "ui")
-                else
-                    -- Only the hero + chips change; scope the refresh to that
-                    -- band rather than flashing the whole screen.
-                    self:_rebuildRefreshHeroAndChips()
-                    -- The rebuild above already dropped the highlight from
-                    -- the tree; what is left is getting that part of the
-                    -- SCREEN refreshed, since the band above covers only the
-                    -- hero and the chips.
-                    --
-                    -- Unconditional. This used to run only when the previewed
-                    -- book was not the one being read, on the reasoning that
-                    -- there would be nothing highlighted otherwise -- but the
-                    -- shelf highlights whatever is previewed, that book
-                    -- included. On a spine shelf the highlight is a LIFT, so
-                    -- the book stayed standing out of the row until something
-                    -- else refreshed it (device report: "a lifted book is not
-                    -- always dropped when the currently reading button is
-                    -- tapped").
-                    if prior_rect then self:_dirtyDroppedBook(prior_rect) end
-                end
-                return
-            end
-            -- Switch chips → reset drill path and page; preserve
-            -- _preview_book so the user's "current selection" survives
-            -- a tab tour. The highlight on the new chip's shelf only
-            -- paints when the previewed book happens to be visible
-            -- there; the hero still shows the previewed book in any
-            -- case (it's bound to _preview_book, not the chip).
-            -- User TAPPED this chip: arm the OPDS fetch gate. The swipe path
-            -- (_setActiveChip) and _selectChip arm their own; this leg inlines
-            -- the same transition, so without this a tapped OPDS chip renders
-            -- its empty window and never fetches.
-            self:_markOpdsNav()
-            self:_clearDpadFocus()
-            self._drilldown_path = {}
-            self.chip            = key
-            self._cursor         = 1
-            self:_syncPageFromCursor()
-            -- Deferred: _rebuild's _persistNavState saves + schedules the
-            -- coalesced flush; a sync save here added a ~140ms file write
-            -- to every chip tap.
-            BookshelfSettings.saveDeferred("active_chip", key)
-            self._switching_shelf = true
-            self:_rebuildRefreshBelowHero()
-            self:_noteBusy()
-        end,
-        on_breadcrumb = function(depth)
-            return self:_onBreadcrumb(depth, in_search_mode)
-        end,
-        -- from_tap: the current shelf's button tapped (its own switch,
-        -- edit_shelf_tap, already said yes); else a long-press.
-        on_hold = function(key, from_tap)
-            if not from_tap and not Gestures.on("edit_shelf") then return end
-            -- The modules chip isn't an editable tab; its long-press opens the
-            -- micro-module options menu instead of the tab editor.
-            if key == "modules" then
-                self:_showModulesOptions()
-                return
-            end
-            if key == "search" then
-                self:_showSearchViewModePicker()
-                return
-            end
-            -- Long-pressing a chip that isn't the active one selects it first,
-            -- so editing a tab always leaves you on that tab (request). The
-            -- editor then opens over the now-selected shelf.
-            if key ~= self.chip then self:_selectChip(key) end
-            local Editor = require("lib/bookshelf_chip_editor")
-            Editor:editTab(key, {
-                on_change = function(info) self:_afterChipEdit(info) end,
-                bw        = self,
-            })
-        end,
+    local chips = self:_buildChipBar{
+        content_w = content_w, chip_h = chip_h, active_chips = active_chips,
+        hide_chip_bar = hide_chip_bar, root_chip = root_chip,
+        in_search_mode = in_search_mode, breadcrumb_path = breadcrumb_path,
+        back_label = back_label, chip_pill_label = chip_pill_label,
+        chip_pill_glyph = chip_pill_glyph,
     }
     -- Stash the strip so swipe-cycling (_setActiveChip) can ask it to
     -- pre-paint a "pending" border on the destination chip — same
@@ -2174,329 +1802,12 @@ function BookshelfWidget:_rebuild()
     --   • "recent"     when ReadHistory is empty
     --   • "latest"     when home_dir is empty / yields no supported files
     if #items == 0 then
-        -- Resolve the chip's source kind so we can branch on it (not on
-        -- self.chip, which is a chip id -- custom chips have ids like
-        -- "custom_3" but their source.kind tells us what view they show).
-        -- Default built-in chips have id == source.kind, so the existing
-        -- chip-id checks below still hit; the source-kind path catches
-        -- custom chips that adopt a built-in source (e.g. user's chip
-        -- with source.kind = "all" or "library", i.e. home folders /
-        -- home flattened).
-        local TabModel = require("lib/bookshelf_tab_model")
-        local _tab = TabModel.getById(self.chip)
-        local _source_kind = (_tab and _tab.source and _tab.source.kind)
-                              or self.chip
-        local _is_home_source = _source_kind == "all" or _source_kind == "library"
-
-        -- Branch on _source_kind, NOT self.chip. Chip IDs stay sticky
-        -- after the user changes a chip's source via the editor (a chip
-        -- created as "genres" keeps id="genres" even when re-pointed at
-        -- "library"), so keying off self.chip lights the wrong empty
-        -- message ("No genres yet" on a home-flattened chip). Default
-        -- built-in chips have id == source.kind so this still serves
-        -- them correctly.
-        local placeholder_text
-        local _tip = self._drilldown_path[#self._drilldown_path]
-        if _tip and _tip.kind == "search" then
-            placeholder_text = string.format(
-                _("No matches for \"%s\""), _tip.payload.query or "")
-        elseif _source_kind == "series" then
-            placeholder_text = _("Nothing in Series yet · Add series metadata to your books and they will appear here")
-        elseif _source_kind == "authors" then
-            placeholder_text = _("No authors yet · Add author metadata to your books and they will appear here")
-        elseif _source_kind == "genres" then
-            placeholder_text = _("No genres yet · Add keywords or subject metadata to your books and they will appear here")
-        elseif _source_kind == "tags" then
-            placeholder_text = _("No collections yet · Long-press a book and tap 'Collections…' to create one")
-        elseif _source_kind == "favorites" then
-            placeholder_text = _("No favorites yet · Long-press a book and tap 'Add to favorites'")
-        elseif _source_kind == "latest" then
-            placeholder_text = _("No books found · Set your library folder in Settings then tap Latest")
-        elseif _source_kind == "recent" then
-            placeholder_text = _("No recent reads yet · Open a book and it will appear here")
-        elseif _is_home_source then
-            -- "Home (folders)" (kind "all") + "Home (flattened)" (kind
-            -- "library") both depend on KOReader's home_dir being set.
-            -- The "Set home folder" button below drives KOReader's
-            -- path-chooser dialog directly.
-            placeholder_text = _("No books here yet \xC2\xB7 Pick a folder to use as your KOReader library and books in it will appear here.")
-        elseif _source_kind == "opds" then
-            -- A CATALOG IS NOT YOUR LIBRARY, and the generic message below
-            -- treats it as one: "No books in Internet Archive yet · Long-press
-            -- the chip to edit its source or filter". Every part of that is
-            -- wrong here. The books are on someone else's server, so there is
-            -- no "yet" and nothing the reader can add; the source is a URL
-            -- they already chose; and the overwhelmingly common reason a
-            -- catalog shelf is empty is not that the catalog is empty.
-            --
-            -- Three cases, and telling them apart is the whole point:
-            --
-            --   * THE FETCH FAILED. Recorded at the failure site, keyed by
-            --     url. Seen on archive.org's language facets, which are slow
-            --     enough to trip the TLS read timeout ("wantread") -- the
-            --     shelf then shows an empty state for a feed nobody managed to
-            --     read. A retry is the action, so name it.
-            --   * A START FOLDER IS SET. The reader pointed this chip at a
-            --     subcatalog, and if that one is unreachable or genuinely
-            --     empty they are looking at a shelf with no way back that they
-            --     can see -- the clear lives in Catalog settings, so say so.
-            --   * Genuinely empty, which does happen and is not an error.
-            local _label = _tab and _tab.label or self:_chipLabel()
-            local _start = select(2, self:_opdsStartFeed(_tab))
-            if self._opds_fail_url then
-                placeholder_text = string.format(
-                    _("Couldn't load %s \xC2\xB7 Pull down to try again"),
-                    _label)
-            elseif _start then
-                placeholder_text = string.format(
-                    _("Nothing in \"%s\" \xC2\xB7 Pull down to refresh, or clear the start folder in Catalog settings"),
-                    _start)
-            else
-                placeholder_text = string.format(
-                    _("Nothing in %s \xC2\xB7 Pull down to refresh"), _label)
-            end
-        else
-            -- Source kinds without a bespoke message: formats / ratings,
-            -- "specific" group drill-ins (folder / collection / tag /
-            -- genre / author), or anything else not enumerated above.
-            local builtin_kinds = { all=1, library=1, recent=1, latest=1,
-                series=1, authors=1, genres=1, tags=1, formats=1,
-                ratings=1, favorites=1 }
-            if _source_kind == "none" then
-                -- A new shelf with no source yet (behind its source picker,
-                -- or left without one): there is nothing to long-press for,
-                -- only a source to choose (shelf of shelves demo, 2026-10-10).
-                placeholder_text = _("Choose a source to keep this new shelf.")
-            elseif _source_kind and not builtin_kinds[_source_kind] and _tab and _tab.parent then
-                -- A shelf inside a shelf of shelves has no name in the shelf
-                -- menu above: it is edited from its tile in the shelf it
-                -- sits in.
-                placeholder_text = string.format(
-                    _("No books in %s yet \xC2\xB7 Go back and long-press its tile to edit its source or filter"),
-                    _tab.label or self.chip)
-            elseif _source_kind and not builtin_kinds[_source_kind] then
-                placeholder_text = string.format(
-                    -- "the shelf" reads as the shelf AREA, which is not
-                    -- what takes the long press: the shelf's own name in the
-                    -- menu above is.
-                    _("No books in %s yet \xC2\xB7 Long-press it in the shelf menu above to edit its source or filter"),
-                    _tab and _tab.label or self.chip)
-            else
-                placeholder_text = string.format(_("No books in %s yet"), self:_chipLabel())
-            end
-        end
-        -- Status-filtered chips (custom chips whose source is e.g. "all"
-        -- but whose filter narrows to status=reading / finished / etc.)
-        -- fall into one of the branches above with a generic message. The
-        -- filter is the actual reason there are no books, so override the
-        -- placeholder when statuses are set.
-        if _tab and _tab.filter and Filter.isActive(_tab.filter) then
-            local label = _tab.label or self:_chipLabel()
-            if _tab.parent then
-                placeholder_text = string.format(
-                    _("Nothing in %s yet \xC2\xB7 Go back and long-press its tile to edit its filter"),
-                    label)
-            else
-                placeholder_text = string.format(
-                    _("Nothing in %s yet \xC2\xB7 Long-press it in the shelf menu above to edit its filter"),
-                    label)
-            end
-        end
-
-        -- Blitbuffer.gray semantics: 0 = white, 1 = black (i.e. "blackness level").
-        -- Page background is plain white (matches e-ink unprinted paper);
-        -- placeholder card has a faint grey tint to set it apart from the page.
-        -- Same rule as the main screen; see there for why this is an if.
-        local empty_wallpaper = self:_wallpaperWidget()
-        -- Whole screen here: an empty library has no hero, shelves or footer
-        -- to band. Cleared explicitly because the background widget is CACHED
-        -- and would otherwise still carry the last shelf's bands.
-        if empty_wallpaper then empty_wallpaper.bands = nil end
-        local paper_bg = self:_pageGroundColor()
-        if empty_wallpaper then
-            empty_wallpaper.ground = paper_bg
-            paper_bg = nil
-        end
-        local card_bg  = Blitbuffer.gray(0.07)
-
-        -- Split the placeholder text into headline + sub on the bullet
-        -- marker. Most chip-specific messages already follow this shape
-        -- ("No favourites yet · Long-press a book and tap..."), so we
-        -- can render the parts with different weights. Strings without
-        -- a bullet render as headline only.
-        local headline_text, sub_text
-        local sep_start, sep_end = placeholder_text:find(" \xC2\xB7 ", 1, true)
-        if sep_start then
-            headline_text = placeholder_text:sub(1, sep_start - 1)
-            sub_text      = placeholder_text:sub(sep_end + 1)
-        else
-            headline_text = placeholder_text
-            sub_text      = nil
-        end
-
-        -- Card claims all available shelf-area height so the empty state
-        -- has visible presence -- the original card was a thin strip pinned
-        -- to the chip-strip bottom with the rest of the screen blank, which
-        -- read as broken UI rather than guidance. Account for outer
-        -- FrameContainer padding (PAD * 2), the hero + chip strip + their
-        -- gaps inside the vgroup, and an extra PAD margin around the card.
-        local VerticalSpan = require("ui/widget/verticalspan")
-        -- The placeholder card stops short of the screen-anchored footer
-        -- (pagination + bulk-select bar). Without subtracting footer_h
-        -- the card extended through the bottom of the screen and the
-        -- footer chrome painted on top of the card border / set-home
-        -- button.
-        local card_h
-        if hide_chip_bar then
-            card_h = self.height - 3 * PAD - hero_h - footer_h
-        else
-            card_h = self.height - 4 * PAD - hero_h - chip_h - footer_h
-        end
-        -- Floor at a sensible minimum so an unusually tall hero doesn't
-        -- squash the card into nothing.
-        local min_card_h = Screen:scaleBySize(140)
-        if card_h < min_card_h then card_h = min_card_h end
-
-        local card_inner_w = content_w - Space.padding.large * 2
-
-        local card_children = { align = "center" }
-        -- bgcolor must match the card -- TextBoxWidget defaults to
-        -- COLOR_WHITE and paints its own background fill, which shows up
-        -- as a white block on the grey card if we don't override.
-        local hl_face, hl_bold = BFont:getFace("infofont", 22, { bold = true })
-        card_children[#card_children + 1] = TextBoxWidget:new{
-            text      = headline_text,
-            face      = hl_face,
-            bold      = hl_bold,
-            bgcolor   = card_bg,
-            width     = card_inner_w,
-            alignment = "center",
+        self:_buildEmptyShelf{
+            hero = hero, chips = chips, hide_chip_bar = hide_chip_bar,
+            PAD = PAD, content_w = content_w, hero_h = hero_h, chip_h = chip_h,
+            footer_h = footer_h, FOOTER_H = FOOTER_H,
+            FOOTER_BOTTOM_MARGIN = FOOTER_BOTTOM_MARGIN,
         }
-        if sub_text and sub_text ~= "" then
-            card_children[#card_children + 1] = VerticalSpan:new{
-                width = Space.padding.large,
-            }
-            local sub_face, sub_bold = BFont:getFace("infofont", 15)
-            card_children[#card_children + 1] = TextBoxWidget:new{
-                text      = sub_text,
-                face      = sub_face,
-                bold      = sub_bold,
-                bgcolor   = card_bg,
-                width     = card_inner_w,
-                alignment = "center",
-            }
-        end
-        if _is_home_source then
-            local Button = require("ui/widget/button")
-            card_children[#card_children + 1] = VerticalSpan:new{
-                width = Space.padding.fullscreen,
-            }
-            local bw = self
-            card_children[#card_children + 1] = Button:new{
-                text           = _("Set home folder"),
-                width          = math.floor(card_inner_w * 0.5),
-                text_font_size = 16,
-                callback       = function()
-                    local filemanagerutil =
-                        require("apps/filemanager/filemanagerutil")
-                    local current = G_reader_settings:readSetting("home_dir")
-                    local default = filemanagerutil.getDefaultDir()
-                    filemanagerutil.showChooseDialog(
-                        _("Current home folder:"),
-                        function(path)
-                            G_reader_settings:saveSetting("home_dir", path)
-                            if Repo.invalidateWalkCache then
-                                Repo.invalidateWalkCache()
-                            end
-                            bw:_rebuild()
-                            UIManager:setDirty(bw, "ui")
-                        end,
-                        current,
-                        default)
-                end,
-            }
-        end
-
-        local placeholder = FrameContainer:new{
-            bordersize = Size.border.thin,
-            background = card_bg,
-            padding    = Space.padding.large,
-            width      = content_w,
-            height     = card_h,
-            CenterContainer:new{
-                dimen = Geom:new{
-                    w = card_inner_w,
-                    h = card_h - Space.padding.large * 2,
-                },
-                VerticalGroup:new(card_children),
-            },
-        }
-
-        local empty_vgroup
-        if hide_chip_bar then
-            empty_vgroup = VerticalGroup:new{
-                align = "left",
-                hero,
-                VerticalSpan:new{ width = PAD },
-                placeholder,
-            }
-        else
-            empty_vgroup = VerticalGroup:new{
-                align = "left",
-                hero,
-                VerticalSpan:new{ width = PAD },
-                chips,
-                VerticalSpan:new{ width = PAD },
-                placeholder,
-            }
-        end
-        self._hero_parent = empty_vgroup        -- hero lives at index 1
-        -- The same panel the shelf gets behind its top band. An empty CHIP
-        -- still shows the hero and the chip bar, and without this they stood
-        -- on the bare wallpaper: unreadable, and showing whatever the last
-        -- frame had left there (issue 423). The gap here is a plain PAD span,
-        -- not hero_chip_pad, so the band is measured from what is actually in
-        -- this group.
-        self:_attachTopPanel(empty_vgroup, {
-            band_h    = hero_h + (hide_chip_bar and 0 or (PAD + chip_h)),
-            content_w = content_w,
-            PAD       = PAD,
-            list_full = false,
-        })
-        local empty_frame = FrameContainer:new{
-            bordersize = 0,
-            padding    = PAD,
-            background = paper_bg,
-            -- Force the page background to fill the whole screen so the
-            -- underlying FileManager doesn't bleed through below the content.
-            width      = self.width,
-            height     = self.height,
-            empty_vgroup,
-        }
-        -- Wrap with OverlapGroup so the screen-anchored footer (with the
-        -- selection bucket+✕, when active) can render on the empty-library
-        -- screen too.
-        local OverlapGroup    = require("ui/widget/overlapgroup")
-        local BottomContainer = require("ui/widget/container/bottomcontainer")
-        local empty_overlap = OverlapGroup:new{
-            dimen           = Geom:new{ w = self.width, h = self.height },
-            allow_mirroring = false,
-        }
-        if empty_wallpaper then
-            empty_overlap[#empty_overlap + 1] = empty_wallpaper
-        end
-        empty_overlap[#empty_overlap + 1] = empty_frame
-        -- Always build the footer on an empty tab: it hosts the start-menu
-        -- hamburger (and, in selection mode, the bucket+✕ bar). The gate
-        -- used to be `if self._selection:isActive()`, which dropped the
-        -- launcher whenever a tab had no items -- e.g. an empty Series tab
-        -- left the user with no way to open the start menu.
-        local empty_footer = self:_buildFooterRow(content_w, 1, FOOTER_H)
-        empty_overlap[#empty_overlap + 1] = BottomContainer:new{
-            dimen = Geom:new{ w = self.width, h = self.height - FOOTER_BOTTOM_MARGIN },
-            empty_footer,
-        }
-        self[1] = empty_overlap
         logger.dbg(string.format("[bookshelf perf] _rebuild: EMPTY total=%.0fms chip=%s",
             (_gettime() - _perf_t0) * 1000, _perf_chip))
         -- An OPDS chip lands HERE on its first tap -- the window starts empty,
@@ -3055,6 +2366,749 @@ function BookshelfWidget:_rebuild()
     -- onCloseDocument); softRefresh has nothing to bring up to date while
     -- it holds.
     self._tree_fresh = true
+end
+
+-- _buildChipBar(L) -> ChipBar, or false when the shelf menu is hidden
+-- The shelf menu under the top panel: the chips, or the breadcrumb and its
+-- pill when drilled in or searching, with what a tap, a hold and a page of
+-- chips do. L carries what _rebuild worked out about the bar before building
+-- it.
+function BookshelfWidget:_buildChipBar(L)
+    local content_w, chip_h, active_chips = L.content_w, L.chip_h, L.active_chips
+    local hide_chip_bar, root_chip, in_search_mode = L.hide_chip_bar, L.root_chip, L.in_search_mode
+    local breadcrumb_path, back_label = L.breadcrumb_path, L.back_label
+    local chip_pill_label, chip_pill_glyph = L.chip_pill_label, L.chip_pill_glyph
+    return not hide_chip_bar and ChipBar:new{
+        chips             = active_chips,
+        -- The CHOICE, not the fact: a chip has a perfectly good opaque look
+        -- and only gives it up if the reader asked.
+        has_wallpaper     = self:wallpaperButtonsTransparent(),
+        -- The FACT of a painted ground, for the tap flash's refresh mode.
+        painted_ground    = self:groundIsPainted(),
+        -- The bar is left out only when the reader chose Shelf menu
+        -- background: Transparent. Panel shading is the panels' and no
+        -- longer clears it too (maintainer, 2026-10-09: Transparent shading
+        -- made the bar transparent though it was not set to be; a reader
+        -- who had that look keeps it, migration step 5).
+        solid_ground      = require("lib/bookshelf_theme_pack").partRead("chip_bar_transparent") ~= true,
+        active            = root_chip or self.chip,
+        selected_key      = root_chip or self.chip,   -- seeds the chip page (infinite-chips)
+        focused_key       = self._chip_cursor_key,
+        width             = content_w,
+        height            = chip_h,
+        breadcrumb_path   = breadcrumb_path,
+        chip_pill_label   = chip_pill_label,
+        chip_pill_glyph   = chip_pill_glyph,
+        on_pill_hold      = in_search_mode and function()
+            self:_showSearchViewModePicker()
+        end or nil,
+        back_label        = back_label,
+        -- show_parent points the strip at the window-level widget so
+        -- its tap-feedback can flag a repaint. UIManager:setDirty only
+        -- accepts widgets registered with UIManager:show.
+        show_parent       = self,
+        -- Page changed (swipe/chevron): warm the chips the new page reveals.
+        on_page_change = function() self:_queueWarmForVisible() end,
+        on_change = function(key)
+            -- Search "chip" is an action, not a navigable tab — open
+            -- the search dialog and bail before switching self.chip.
+            --
+            -- WHICH search depends on what is on screen. On an OPDS view
+            -- (the catalog chip's root feed, or a subcatalog drilled from
+            -- it) the books listed are not on disk, so running the local
+            -- library search there would answer a question the user did
+            -- not ask -- they are looking at a catalog and expect to
+            -- search THAT. _opdsEffectiveTab is the same "is this view a
+            -- feed" test every other OPDS path uses, so the two searches
+            -- can never both apply. Every non-OPDS view is unchanged.
+            if key == "search" then
+                local opds_tab = self:_opdsEffectiveTab()
+                if opds_tab then
+                    self:_opdsOpenSearchDialog(opds_tab)
+                else
+                    self:_openSearchDialog()
+                end
+                return
+            end
+            -- "Micro modules" chip: switch the hero to the module grid.
+            -- Mutually exclusive with the book hero — clears _expanded so
+            -- the grid claims the full (non-strip) hero slot. No-op when
+            -- already in micro mode (mirrors the "current" chip's no-op
+            -- when already selected). Full rebuild: the chip's own selected
+            -- state and the "current" chip's both flip.
+            if key == "modules" then
+                -- No-op only when the grid is already visible; when collapsed
+                -- (expanded strip showing) this restores it, like swipe-down.
+                if self._hero_mode == "micro" and not self._expanded then return end
+                local was_expanded = self._expanded
+                self:_clearDpadFocus()
+                self._hero_mode = "micro"
+                self._hero_page = 1 -- always enter the grid on the first page
+                self:_setExpanded(false)
+                require("lib/bookshelf_start_menu_modules").bumpGeneration()
+                if was_expanded then
+                    -- Leaving expanded mode also changes the shelf row count,
+                    -- so the whole layout shifts — full refresh.
+                    self:_rebuild()
+                    UIManager:setDirty(self, "ui")
+                else
+                    -- Book hero <-> grid: same hero height, shelves unchanged,
+                    -- so scope the refresh to the hero + chip band instead of
+                    -- flashing the whole screen.
+                    self:_rebuildRefreshHeroAndChips()
+                end
+                return
+            end
+            -- "Currently reading" chip clears the preview so the hero
+            -- falls back to Repo.getCurrent() (= lastfile). Same effect
+            -- as the swipe-up gesture, but discoverable via the visible
+            -- icon. Doesn't change self.chip — user stays on whatever
+            -- shelf they were browsing. Full _rebuild because the action
+            -- chip itself disappears with this clear (its presence is
+            -- conditional on preview ≠ lastfile).
+            if key == "current" then
+                -- Clear preview AND collapse expanded mode so the hero
+                -- comes back showing the lastfile. In expanded mode the
+                -- chip is rendered deselected (no visible hero), so the
+                -- user expects this tap to restore the hero view.
+                -- The drill-down path is preserved: the user is asking
+                -- to pop their open book back into the hero slot, not
+                -- to leave the stack/folder they're browsing.
+                local was_expanded = self._expanded
+                -- Whatever the shelf is currently highlighting, not just the
+                -- preview: a d-pad cell or a pending expanded tap selects too
+                -- (see _selectedFilepath), and all of them are cleared below.
+                local prior_fp = self:_selectedFilepath()
+                -- Captured BEFORE the rebuild below replaces the widgets (see
+                -- _shelfSlotRect): this is the band that has to reach the
+                -- panel, and it is nowhere near the hero-and-chips band the
+                -- refresh below covers.
+                local prior_rect = self:_shelfSlotRect(prior_fp)
+                self:_clearDpadFocus()
+                self._hero_mode    = "current"
+                self._preview_book = nil
+                self._tap_selected_fp = nil
+                self:_setExpanded(false)
+                if was_expanded then
+                    -- Leaving expanded mode shifts the shelf row count — full
+                    -- refresh.
+                    self:_rebuild()
+                    UIManager:setDirty(self, "ui")
+                else
+                    -- Only the hero + chips change; scope the refresh to that
+                    -- band rather than flashing the whole screen.
+                    self:_rebuildRefreshHeroAndChips()
+                    -- The rebuild above already dropped the highlight from
+                    -- the tree; what is left is getting that part of the
+                    -- SCREEN refreshed, since the band above covers only the
+                    -- hero and the chips.
+                    --
+                    -- Unconditional. This used to run only when the previewed
+                    -- book was not the one being read, on the reasoning that
+                    -- there would be nothing highlighted otherwise -- but the
+                    -- shelf highlights whatever is previewed, that book
+                    -- included. On a spine shelf the highlight is a LIFT, so
+                    -- the book stayed standing out of the row until something
+                    -- else refreshed it (device report: "a lifted book is not
+                    -- always dropped when the currently reading button is
+                    -- tapped").
+                    if prior_rect then self:_dirtyDroppedBook(prior_rect) end
+                end
+                return
+            end
+            -- Switch chips → reset drill path and page; preserve
+            -- _preview_book so the user's "current selection" survives
+            -- a tab tour. The highlight on the new chip's shelf only
+            -- paints when the previewed book happens to be visible
+            -- there; the hero still shows the previewed book in any
+            -- case (it's bound to _preview_book, not the chip).
+            -- User TAPPED this chip: arm the OPDS fetch gate. The swipe path
+            -- (_setActiveChip) and _selectChip arm their own; this leg inlines
+            -- the same transition, so without this a tapped OPDS chip renders
+            -- its empty window and never fetches.
+            self:_markOpdsNav()
+            self:_clearDpadFocus()
+            self._drilldown_path = {}
+            self.chip            = key
+            self._cursor         = 1
+            self:_syncPageFromCursor()
+            -- Deferred: _rebuild's _persistNavState saves + schedules the
+            -- coalesced flush; a sync save here added a ~140ms file write
+            -- to every chip tap.
+            BookshelfSettings.saveDeferred("active_chip", key)
+            self._switching_shelf = true
+            self:_rebuildRefreshBelowHero()
+            self:_noteBusy()
+        end,
+        on_breadcrumb = function(depth)
+            return self:_onBreadcrumb(depth, in_search_mode)
+        end,
+        -- from_tap: the current shelf's button tapped (its own switch,
+        -- edit_shelf_tap, already said yes); else a long-press.
+        on_hold = function(key, from_tap)
+            if not from_tap and not Gestures.on("edit_shelf") then return end
+            -- The modules chip isn't an editable tab; its long-press opens the
+            -- micro-module options menu instead of the tab editor.
+            if key == "modules" then
+                self:_showModulesOptions()
+                return
+            end
+            if key == "search" then
+                self:_showSearchViewModePicker()
+                return
+            end
+            -- Long-pressing a chip that isn't the active one selects it first,
+            -- so editing a tab always leaves you on that tab (request). The
+            -- editor then opens over the now-selected shelf.
+            if key ~= self.chip then self:_selectChip(key) end
+            local Editor = require("lib/bookshelf_chip_editor")
+            Editor:editTab(key, {
+                on_change = function(info) self:_afterChipEdit(info) end,
+                bw        = self,
+            })
+        end,
+    }
+end
+
+-- _rebuildPrepare() -> switching
+-- Everything a rebuild settles before it measures or builds anything: the
+-- shelf being switched from, the theme and night state, the memos a rebuild
+-- invalidates, the screen's size, and the one-shot go-home and drill
+-- restore. Returns whether this rebuild is a switch between shelves.
+function BookshelfWidget:_rebuildPrepare()
+    self:_ornScanWindow()
+    self:_pageGenBump()
+    -- Something other than a page turn: no kept page is known to be right.
+    -- Except a switch to another shelf, which changes nothing the kept
+    -- pages show (each is keyed by its shelf): they are kept, the page
+    -- being left with them, so switching back takes its rows again.
+    local switching = self._switching_shelf
+    if switching then
+        self._switching_shelf = nil
+        self:_pageKeepLeaving()
+    else
+        self:_pageCacheClear()
+        -- ...and the book cards kept for switching back (_heroReuse).
+        self:_heroKeptClear()
+    end
+    self:_syncShelfTheme()
+    -- The night state this tree is baked for, and so no night rebuild is
+    -- pending any more (see _followScreenNight).
+    self._built_night = Screen.night_mode and true or false
+    self._night_rebuild_pending = nil
+    self._ground_memo = nil
+    pcall(function() require("lib/bookshelf_spine_shelf").dropPlanCache() end)
+    -- FIRST, before anything is built. Both the spine renderer and the list
+    -- row are opaque-by-default and read a MODULE-LEVEL flag at build time, so
+    -- a flag set later in this function is set too late to matter: the rows
+    -- were already made. That is exactly what shipped for one build -- list
+    -- cards came up white and only went transparent once pagination rebuilt
+    -- them through _swapShelvesInPlace, which ran after the assignment.
+    --
+    -- Cheap to ask here: _wallpaperWidget serves a cached widget, so the
+    -- later call for the actual paint costs a table lookup.
+    do
+        local on = self:groundIsPainted()
+        pcall(function()
+            require("lib/bookshelf_spine_shelf").setHasWallpaper(on)
+        end)
+        pcall(function()
+            local LR = require("lib/bookshelf_list_row")
+            -- A row paints its own paper and ink, and both have to follow the
+            -- shelf's theme -- it is the one surface that cannot rely on the
+            -- frame inversion, because the theme can be dark while the frame
+            -- is not.
+            local CP = require("lib/bookshelf_cover_progress")
+            local ok_c, colors = pcall(CP.resolvedColors)
+            if ok_c and colors and LR.setTheme then
+                -- On a painted ground the list sits on the panel, so its ink
+                -- is the panel's (Colors > Panel text, or the text a panel
+                -- colour brings), as the hero's and the tag pills' are. The
+                -- shelf's own ink is for the page: search results listed on
+                -- a coloured panel came out black on brown (maintainer, PW5).
+                local row_ink = colors.ink
+                if on and CP.panelInk then row_ink = CP.panelInk() or row_ink end
+                LR.setTheme(colors.panel_bg, row_ink)
+            end
+            -- And whether there is a ground under us at all. A row that keeps
+            -- painting its own card over the scrim leaves the picture showing
+            -- only between rows; told here, with the spine renderer, because
+            -- both read the flag at build time.
+            if LR.setOverGround then LR.setOverGround(on) end
+        end)
+        -- How many ornaments THIS shelf wants. A chip may pin its own; the
+        -- resolver falls back to the library setting, and the frequency is
+        -- read when the shelf plan is built, so it has to be pushed before
+        -- anything is.
+        pcall(function()
+            local Orn = require("lib/bookshelf_ornaments")
+            -- The chip's OWN number, with no library fallback: there is no
+            -- library-wide frequency, by design (see the key's declaration in
+            -- bookshelf_ornaments). Absent, the module's own default stands.
+            if Orn.setChipFrequency then
+                local tab = require("lib/bookshelf_tab_model").getById(self.chip)
+                Orn.setChipFrequency(tab and tab[Orn.FREQ_SETTING])
+            end
+        end)
+        -- What "behind" IS, for the three painters that put real pixels back.
+        -- nil when the shelf is plain paper, which is what keeps their
+        -- historical no-picture path.
+        pcall(function()
+            require("lib/bookshelf_wallpaper").setGround(
+                on and not self:hasWallpaper() and self:_pageGroundColor() or nil)
+        end)
+    end
+    -- Drop the list-geometry memo. Everything it caches -- the band, the row
+    -- height, the one-line minimum -- is derived from settings and screen
+    -- geometry, and every path that changes either comes through a rebuild:
+    -- a font nudge, a pinch, a chip switch, a rotation. One table, cleared in
+    -- one place, so a stale entry cannot outlive the layout it described.
+    self._list_geom_memo = nil
+    -- Before anything is sized: a collapsed list or spine shelf's hero is the
+    -- cover grid's, and that depends on the grid's label note for this set.
+    if not self._expanded and (self:_isListMode() or self:_isSpineMode()) then
+        self:_ensureGridLabels()
+    end
+    -- FIRST LIST RENDER: take up the slack once, before anything is built.
+    -- "yes I think we want that first render scale implemented, if there's a
+    -- list on screen" -- so it is gated on list mode, which means a session
+    -- that starts in the cover grid settles the first time the list appears
+    -- rather than never.
+    --
+    -- ONCE PER SESSION, on a flag, and here rather than as a second rebuild:
+    -- the band plan is a pure function of the widget's geometry and settings,
+    -- so it can be asked before the tree exists, and settling first means the
+    -- build below is the only one. Doing it after would cost a full second
+    -- rebuild on the first paint of every session.
+    --
+    -- Per session rather than once ever, because it is idempotent and only
+    -- ever grows the type when there is slack to take up: a rotation, a
+    -- KOReader font change or a new device profile all leave slack that this
+    -- then closes, and re-running it costs nothing when there is none.
+        -- Re-read the colour-dither hint so toggling "Colour panel dithering"
+    -- takes effect on the next refresh (#289).
+    self:_refreshDitherFlag()
+    -- Drop last render's status-strip measurement: the book, the width or the
+    -- status template may all have changed since. Everything inside this
+    -- rebuild then shares ONE fresh probe (see _statusStripHeight), which is
+    -- what makes the row-count budget and the layout agree on the hero's height.
+    self._strip_h_memo = nil
+    -- A structural rebuild (chip switch, drill, settings change) invalidates
+    -- any in-flight next-page preload — it was queued for the old view.
+    if self._cancelPreload then self:_cancelPreload() end
+    -- Kick off chip preload as a deferred one-shot. Internally gated: returns
+    -- immediately if already done, in-flight, disabled, or drilled in. nextTick
+    -- so it runs after this rebuild's paint queue drains.
+    UIManager:nextTick(function() self:_maybeStartChipPreload() end)
+    -- Start (or keep alive) the periodic file-poll so books sideloaded by
+    -- Syncthing / Calibre / KOReader's network browser appear without a
+    -- manual swipe-down refresh. Internally gated -- idempotent, returns
+    -- immediately if already polling.
+    UIManager:nextTick(function() self:_startFilePoll() end)
+    -- Detect external toggles of KOReader's "Folders and files mixed"
+    -- setting. The menu callback flips collate_mixed in G_reader_settings
+    -- and refreshes the File Browser, but doesn't dispatch an Event we
+    -- could subscribe to. Polling at the top of every _rebuild is
+    -- effectively free (one boolean read) and catches both menu toggles
+    -- and dispatcher actions. When the value changed since last build,
+    -- wipe the All shape cache so the next getAll picks up the new
+    -- folders-first vs interleaved layout.
+    do
+        local current_mixed = G_reader_settings
+                              and G_reader_settings:isTrue("collate_mixed") or false
+        if self._last_collate_mixed ~= nil
+           and self._last_collate_mixed ~= current_mixed then
+            local Repo = require("lib/bookshelf_book_repository")
+            if Repo.invalidateAllCache then Repo.invalidateAllCache() end
+            -- ...and the SPINE shelf's own whole-list fetch, which is keyed
+            -- on the chip and the drill tip alone and holds for 30 seconds.
+            -- A toggle changes neither, so the rebuild below re-rendered the
+            -- list it already had -- in the old order -- and the shelf only
+            -- caught up once the TTL lapsed. Cover and list mode refetch per
+            -- page, which is why only spine mode looked stuck.
+            self._spine_fetch_cache = nil
+            self._spine_fetch_others = nil
+        end
+        self._last_collate_mixed = current_mixed
+    end
+
+    -- Refresh dimensions; detect landscape from whether Screen swapped them.
+    -- Screen:getWidth()/getHeight() DO swap on rotation (KOReader software
+    -- rotates the framebuffer content), so raw_w > raw_h reliably means
+    -- landscape. The fb0/rotate sysfs node is a permanent panel calibration
+    -- constant on PW5 and cannot be used for orientation detection.
+    local _raw_w    = Screen:getWidth()
+    local _raw_h    = Screen:getHeight()
+    self._landscape = (_raw_w > _raw_h)
+    self.width      = _raw_w
+    self.height     = _raw_h
+    self.dimen      = Geom:new{ w = self.width, h = self.height }
+    -- One-shot drill restore on the first rebuild after init. Deferred until
+    -- here (rather than in init) so the chip-fallback / sort-priority lookups
+    -- happen against a fully-loaded TabModel.
+    -- "Go to home screen" (#223) requested before this widget existed: skip the
+    -- saved-drilldown restore below so the first paint is the top level. Class-
+    -- level because the requesting code runs before the instance does (same
+    -- reason as BookshelfWidget.live); cleared on consumption so it can never
+    -- send a later, unrelated rebuild home.
+    if BookshelfWidget.go_home_pending then
+        BookshelfWidget.go_home_pending = nil
+        self._pending_restore_drill = nil
+        self._drilldown_path = {}
+        self._cursor = 1
+        -- Out of any shelf of shelves too, to the top-level shelf.
+        self.chip = require("lib/bookshelf_tab_model").rootOf(self.chip)
+        -- The top-level shelf's theme, not the sub-shelf's.
+        self:_syncShelfTheme()
+    end
+    if self._pending_restore_drill then
+        local saved = self._pending_restore_drill
+        self._pending_restore_drill = nil
+        self:_restoreDrillPath(saved)
+    end
+    return switching
+end
+
+-- _emptyShelfText() -> text, is_home_source
+-- What an empty shelf says, by the shelf's source: a headline and, after a
+-- middle dot, what to do about it. is_home_source asks for the Set home
+-- folder button under it.
+function BookshelfWidget:_emptyShelfText()
+    -- Resolve the chip's source kind so we can branch on it (not on
+    -- self.chip, which is a chip id -- custom chips have ids like
+    -- "custom_3" but their source.kind tells us what view they show).
+    -- Default built-in chips have id == source.kind, so the existing
+    -- chip-id checks below still hit; the source-kind path catches
+    -- custom chips that adopt a built-in source (e.g. user's chip
+    -- with source.kind = "all" or "library", i.e. home folders /
+    -- home flattened).
+    local TabModel = require("lib/bookshelf_tab_model")
+    local _tab = TabModel.getById(self.chip)
+    local _source_kind = (_tab and _tab.source and _tab.source.kind)
+                          or self.chip
+    local _is_home_source = _source_kind == "all" or _source_kind == "library"
+
+    -- Branch on _source_kind, NOT self.chip. Chip IDs stay sticky
+    -- after the user changes a chip's source via the editor (a chip
+    -- created as "genres" keeps id="genres" even when re-pointed at
+    -- "library"), so keying off self.chip lights the wrong empty
+    -- message ("No genres yet" on a home-flattened chip). Default
+    -- built-in chips have id == source.kind so this still serves
+    -- them correctly.
+    local placeholder_text
+    local _tip = self._drilldown_path[#self._drilldown_path]
+    if _tip and _tip.kind == "search" then
+        placeholder_text = string.format(
+            _("No matches for \"%s\""), _tip.payload.query or "")
+    elseif _source_kind == "series" then
+        placeholder_text = _("Nothing in Series yet · Add series metadata to your books and they will appear here")
+    elseif _source_kind == "authors" then
+        placeholder_text = _("No authors yet · Add author metadata to your books and they will appear here")
+    elseif _source_kind == "genres" then
+        placeholder_text = _("No genres yet · Add keywords or subject metadata to your books and they will appear here")
+    elseif _source_kind == "tags" then
+        placeholder_text = _("No collections yet · Long-press a book and tap 'Collections…' to create one")
+    elseif _source_kind == "favorites" then
+        placeholder_text = _("No favorites yet · Long-press a book and tap 'Add to favorites'")
+    elseif _source_kind == "latest" then
+        placeholder_text = _("No books found · Set your library folder in Settings then tap Latest")
+    elseif _source_kind == "recent" then
+        placeholder_text = _("No recent reads yet · Open a book and it will appear here")
+    elseif _is_home_source then
+        -- "Home (folders)" (kind "all") + "Home (flattened)" (kind
+        -- "library") both depend on KOReader's home_dir being set.
+        -- The "Set home folder" button below drives KOReader's
+        -- path-chooser dialog directly.
+        placeholder_text = _("No books here yet \xC2\xB7 Pick a folder to use as your KOReader library and books in it will appear here.")
+    elseif _source_kind == "opds" then
+        -- A CATALOG IS NOT YOUR LIBRARY, and the generic message below
+        -- treats it as one: "No books in Internet Archive yet · Long-press
+        -- the chip to edit its source or filter". Every part of that is
+        -- wrong here. The books are on someone else's server, so there is
+        -- no "yet" and nothing the reader can add; the source is a URL
+        -- they already chose; and the overwhelmingly common reason a
+        -- catalog shelf is empty is not that the catalog is empty.
+        --
+        -- Three cases, and telling them apart is the whole point:
+        --
+        --   * THE FETCH FAILED. Recorded at the failure site, keyed by
+        --     url. Seen on archive.org's language facets, which are slow
+        --     enough to trip the TLS read timeout ("wantread") -- the
+        --     shelf then shows an empty state for a feed nobody managed to
+        --     read. A retry is the action, so name it.
+        --   * A START FOLDER IS SET. The reader pointed this chip at a
+        --     subcatalog, and if that one is unreachable or genuinely
+        --     empty they are looking at a shelf with no way back that they
+        --     can see -- the clear lives in Catalog settings, so say so.
+        --   * Genuinely empty, which does happen and is not an error.
+        local _label = _tab and _tab.label or self:_chipLabel()
+        local _start = select(2, self:_opdsStartFeed(_tab))
+        if self._opds_fail_url then
+            placeholder_text = string.format(
+                _("Couldn't load %s \xC2\xB7 Pull down to try again"),
+                _label)
+        elseif _start then
+            placeholder_text = string.format(
+                _("Nothing in \"%s\" \xC2\xB7 Pull down to refresh, or clear the start folder in Catalog settings"),
+                _start)
+        else
+            placeholder_text = string.format(
+                _("Nothing in %s \xC2\xB7 Pull down to refresh"), _label)
+        end
+    else
+        -- Source kinds without a bespoke message: formats / ratings,
+        -- "specific" group drill-ins (folder / collection / tag /
+        -- genre / author), or anything else not enumerated above.
+        local builtin_kinds = { all=1, library=1, recent=1, latest=1,
+            series=1, authors=1, genres=1, tags=1, formats=1,
+            ratings=1, favorites=1 }
+        if _source_kind == "none" then
+            -- A new shelf with no source yet (behind its source picker,
+            -- or left without one): there is nothing to long-press for,
+            -- only a source to choose (shelf of shelves demo, 2026-10-10).
+            placeholder_text = _("Choose a source to keep this new shelf.")
+        elseif _source_kind and not builtin_kinds[_source_kind] and _tab and _tab.parent then
+            -- A shelf inside a shelf of shelves has no name in the shelf
+            -- menu above: it is edited from its tile in the shelf it
+            -- sits in.
+            placeholder_text = string.format(
+                _("No books in %s yet \xC2\xB7 Go back and long-press its tile to edit its source or filter"),
+                _tab.label or self.chip)
+        elseif _source_kind and not builtin_kinds[_source_kind] then
+            placeholder_text = string.format(
+                -- "the shelf" reads as the shelf AREA, which is not
+                -- what takes the long press: the shelf's own name in the
+                -- menu above is.
+                _("No books in %s yet \xC2\xB7 Long-press it in the shelf menu above to edit its source or filter"),
+                _tab and _tab.label or self.chip)
+        else
+            placeholder_text = string.format(_("No books in %s yet"), self:_chipLabel())
+        end
+    end
+    -- Status-filtered chips (custom chips whose source is e.g. "all"
+    -- but whose filter narrows to status=reading / finished / etc.)
+    -- fall into one of the branches above with a generic message. The
+    -- filter is the actual reason there are no books, so override the
+    -- placeholder when statuses are set.
+    if _tab and _tab.filter and Filter.isActive(_tab.filter) then
+        local label = _tab.label or self:_chipLabel()
+        if _tab.parent then
+            placeholder_text = string.format(
+                _("Nothing in %s yet \xC2\xB7 Go back and long-press its tile to edit its filter"),
+                label)
+        else
+            placeholder_text = string.format(
+                _("Nothing in %s yet \xC2\xB7 Long-press it in the shelf menu above to edit its filter"),
+                label)
+        end
+    end
+    return placeholder_text, _is_home_source
+end
+
+-- _buildEmptyShelf(L) - the screen for a shelf with nothing on it: the top
+-- panel and shelf menu as usual, then one card with _emptyShelfText's words
+-- where the shelves would be, and the footer. Sets self[1]. L carries what
+-- _rebuild had already measured and built by the time it found no items.
+function BookshelfWidget:_buildEmptyShelf(L)
+    local hero, chips, hide_chip_bar = L.hero, L.chips, L.hide_chip_bar
+    local PAD, content_w, hero_h, chip_h = L.PAD, L.content_w, L.hero_h, L.chip_h
+    local footer_h, FOOTER_H, FOOTER_BOTTOM_MARGIN = L.footer_h, L.FOOTER_H, L.FOOTER_BOTTOM_MARGIN
+    local placeholder_text, _is_home_source = self:_emptyShelfText()
+
+    -- Blitbuffer.gray semantics: 0 = white, 1 = black (i.e. "blackness level").
+    -- Page background is plain white (matches e-ink unprinted paper);
+    -- placeholder card has a faint grey tint to set it apart from the page.
+    -- Same rule as the main screen; see there for why this is an if.
+    local empty_wallpaper = self:_wallpaperWidget()
+    -- Whole screen here: an empty library has no hero, shelves or footer
+    -- to band. Cleared explicitly because the background widget is CACHED
+    -- and would otherwise still carry the last shelf's bands.
+    if empty_wallpaper then empty_wallpaper.bands = nil end
+    local paper_bg = self:_pageGroundColor()
+    if empty_wallpaper then
+        empty_wallpaper.ground = paper_bg
+        paper_bg = nil
+    end
+    local card_bg  = Blitbuffer.gray(0.07)
+
+    -- Split the placeholder text into headline + sub on the bullet
+    -- marker. Most chip-specific messages already follow this shape
+    -- ("No favourites yet · Long-press a book and tap..."), so we
+    -- can render the parts with different weights. Strings without
+    -- a bullet render as headline only.
+    local headline_text, sub_text
+    local sep_start, sep_end = placeholder_text:find(" \xC2\xB7 ", 1, true)
+    if sep_start then
+        headline_text = placeholder_text:sub(1, sep_start - 1)
+        sub_text      = placeholder_text:sub(sep_end + 1)
+    else
+        headline_text = placeholder_text
+        sub_text      = nil
+    end
+
+    -- Card claims all available shelf-area height so the empty state
+    -- has visible presence -- the original card was a thin strip pinned
+    -- to the chip-strip bottom with the rest of the screen blank, which
+    -- read as broken UI rather than guidance. Account for outer
+    -- FrameContainer padding (PAD * 2), the hero + chip strip + their
+    -- gaps inside the vgroup, and an extra PAD margin around the card.
+    local VerticalSpan = require("ui/widget/verticalspan")
+    -- The placeholder card stops short of the screen-anchored footer
+    -- (pagination + bulk-select bar). Without subtracting footer_h
+    -- the card extended through the bottom of the screen and the
+    -- footer chrome painted on top of the card border / set-home
+    -- button.
+    local card_h
+    if hide_chip_bar then
+        card_h = self.height - 3 * PAD - hero_h - footer_h
+    else
+        card_h = self.height - 4 * PAD - hero_h - chip_h - footer_h
+    end
+    -- Floor at a sensible minimum so an unusually tall hero doesn't
+    -- squash the card into nothing.
+    local min_card_h = Screen:scaleBySize(140)
+    if card_h < min_card_h then card_h = min_card_h end
+
+    local card_inner_w = content_w - Space.padding.large * 2
+
+    local card_children = { align = "center" }
+    -- bgcolor must match the card -- TextBoxWidget defaults to
+    -- COLOR_WHITE and paints its own background fill, which shows up
+    -- as a white block on the grey card if we don't override.
+    local hl_face, hl_bold = BFont:getFace("infofont", 22, { bold = true })
+    card_children[#card_children + 1] = TextBoxWidget:new{
+        text      = headline_text,
+        face      = hl_face,
+        bold      = hl_bold,
+        bgcolor   = card_bg,
+        width     = card_inner_w,
+        alignment = "center",
+    }
+    if sub_text and sub_text ~= "" then
+        card_children[#card_children + 1] = VerticalSpan:new{
+            width = Space.padding.large,
+        }
+        local sub_face, sub_bold = BFont:getFace("infofont", 15)
+        card_children[#card_children + 1] = TextBoxWidget:new{
+            text      = sub_text,
+            face      = sub_face,
+            bold      = sub_bold,
+            bgcolor   = card_bg,
+            width     = card_inner_w,
+            alignment = "center",
+        }
+    end
+    if _is_home_source then
+        local Button = require("ui/widget/button")
+        card_children[#card_children + 1] = VerticalSpan:new{
+            width = Space.padding.fullscreen,
+        }
+        local bw = self
+        card_children[#card_children + 1] = Button:new{
+            text           = _("Set home folder"),
+            width          = math.floor(card_inner_w * 0.5),
+            text_font_size = 16,
+            callback       = function()
+                local filemanagerutil =
+                    require("apps/filemanager/filemanagerutil")
+                local current = G_reader_settings:readSetting("home_dir")
+                local default = filemanagerutil.getDefaultDir()
+                filemanagerutil.showChooseDialog(
+                    _("Current home folder:"),
+                    function(path)
+                        G_reader_settings:saveSetting("home_dir", path)
+                        if Repo.invalidateWalkCache then
+                            Repo.invalidateWalkCache()
+                        end
+                        bw:_rebuild()
+                        UIManager:setDirty(bw, "ui")
+                    end,
+                    current,
+                    default)
+            end,
+        }
+    end
+
+    local placeholder = FrameContainer:new{
+        bordersize = Size.border.thin,
+        background = card_bg,
+        padding    = Space.padding.large,
+        width      = content_w,
+        height     = card_h,
+        CenterContainer:new{
+            dimen = Geom:new{
+                w = card_inner_w,
+                h = card_h - Space.padding.large * 2,
+            },
+            VerticalGroup:new(card_children),
+        },
+    }
+
+    local empty_vgroup
+    if hide_chip_bar then
+        empty_vgroup = VerticalGroup:new{
+            align = "left",
+            hero,
+            VerticalSpan:new{ width = PAD },
+            placeholder,
+        }
+    else
+        empty_vgroup = VerticalGroup:new{
+            align = "left",
+            hero,
+            VerticalSpan:new{ width = PAD },
+            chips,
+            VerticalSpan:new{ width = PAD },
+            placeholder,
+        }
+    end
+    self._hero_parent = empty_vgroup        -- hero lives at index 1
+    -- The same panel the shelf gets behind its top band. An empty CHIP
+    -- still shows the hero and the chip bar, and without this they stood
+    -- on the bare wallpaper: unreadable, and showing whatever the last
+    -- frame had left there (issue 423). The gap here is a plain PAD span,
+    -- not hero_chip_pad, so the band is measured from what is actually in
+    -- this group.
+    self:_attachTopPanel(empty_vgroup, {
+        band_h    = hero_h + (hide_chip_bar and 0 or (PAD + chip_h)),
+        content_w = content_w,
+        PAD       = PAD,
+        list_full = false,
+    })
+    local empty_frame = FrameContainer:new{
+        bordersize = 0,
+        padding    = PAD,
+        background = paper_bg,
+        -- Force the page background to fill the whole screen so the
+        -- underlying FileManager doesn't bleed through below the content.
+        width      = self.width,
+        height     = self.height,
+        empty_vgroup,
+    }
+    -- Wrap with OverlapGroup so the screen-anchored footer (with the
+    -- selection bucket+✕, when active) can render on the empty-library
+    -- screen too.
+    local OverlapGroup    = require("ui/widget/overlapgroup")
+    local BottomContainer = require("ui/widget/container/bottomcontainer")
+    local empty_overlap = OverlapGroup:new{
+        dimen           = Geom:new{ w = self.width, h = self.height },
+        allow_mirroring = false,
+    }
+    if empty_wallpaper then
+        empty_overlap[#empty_overlap + 1] = empty_wallpaper
+    end
+    empty_overlap[#empty_overlap + 1] = empty_frame
+    -- Always build the footer on an empty tab: it hosts the start-menu
+    -- hamburger (and, in selection mode, the bucket+✕ bar). The gate
+    -- used to be `if self._selection:isActive()`, which dropped the
+    -- launcher whenever a tab had no items -- e.g. an empty Series tab
+    -- left the user with no way to open the start menu.
+    local empty_footer = self:_buildFooterRow(content_w, 1, FOOTER_H)
+    empty_overlap[#empty_overlap + 1] = BottomContainer:new{
+        dimen = Geom:new{ w = self.width, h = self.height - FOOTER_BOTTOM_MARGIN },
+        empty_footer,
+    }
+    self[1] = empty_overlap
 end
 
 -- ─── Background metadata extraction ──────────────────────────────────────────

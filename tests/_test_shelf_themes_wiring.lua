@@ -9,8 +9,8 @@ local function read(p) return io.open(p):read("*a") end
 
 t.test("_rebuild names the shelf first and refreshes the whole screen when the look changes", function()
     local w = read("lib/bookshelf_widget.lua")
-    local body = w:match("\nfunction BookshelfWidget:_rebuild%(%)\n(.-)\nend\n")
-    assert(body, "_rebuild moved")
+    local body = w:match("\nfunction BookshelfWidget:_rebuildPrepare%(%)\n(.-)\nend\n")
+    assert(body, "_rebuildPrepare moved")
     local at = body:find("self:_syncShelfTheme()", 1, true)
     assert(at, "_rebuild does not name the shelf")
     assert(at < body:find("dropPlanCache", 1, true), "the shelf is named after the plan cache work began")

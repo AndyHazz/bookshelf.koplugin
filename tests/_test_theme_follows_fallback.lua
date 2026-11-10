@@ -22,8 +22,9 @@ t.test("the fallback to the first shelf left syncs the theme again", function()
 end)
 
 t.test("going home out of a shelf of shelves syncs it too", function()
-    local i = assert(rb:find('self.chip = require("lib/bookshelf_tab_model").rootOf(self.chip)', 1, true))
-    assert(rb:sub(i, i + 200):find("self:_syncShelfTheme()", 1, true), "home wears the sub-shelf's theme")
+    local prep = assert(W:match("\nfunction BookshelfWidget:_rebuildPrepare%(%)\n(.-)\nend\n"), "_rebuildPrepare moved")
+    local i = assert(prep:find('self.chip = require("lib/bookshelf_tab_model").rootOf(self.chip)', 1, true))
+    assert(prep:sub(i, i + 200):find("self:_syncShelfTheme()", 1, true), "home wears the sub-shelf's theme")
 end)
 
 t.done()

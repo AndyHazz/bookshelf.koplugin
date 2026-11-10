@@ -68,7 +68,7 @@ local function body(name)
 end
 
 t.test("only a page turn reads or fills the cache; anything else clears it", function()
-    assert(body("_rebuild"):find("self:_pageCacheClear()", 1, true), "a rebuild keeps stale pages")
+    assert(body("_rebuildPrepare"):find("self:_pageCacheClear()", 1, true), "a rebuild keeps stale pages")
     local swap = body("_swapShelvesInPlace")
     assert(swap:find("self:_pageCompose(_wipe_dir ~= nil, false)", 1, true)
         and body("_pageCompose"):find("local pc_key = turning and self:_pageCacheKey(items, d, n_shelves) or nil", 1, true),
@@ -108,7 +108,7 @@ end)
 
 t.test("a shelf switch keeps pages; any other rebuild clears them", function()
     local rb = body("_rebuild")
-    assert(rb:find("local switching = self._switching_shelf\n    if switching then\n        self._switching_shelf = nil\n        self:_pageKeepLeaving()\n    else\n        self:_pageCacheClear()\n", 1, true),
+    assert(body("_rebuildPrepare"):find("local switching = self._switching_shelf\n    if switching then\n        self._switching_shelf = nil\n        self:_pageKeepLeaving()\n    else\n        self:_pageCacheClear()\n", 1, true),
         "a rebuild no longer tells a switch from a change")
     local n = select(2, W:gsub("self._switching_shelf = true\n", ""))
     eq(n, 4, "not every way to another shelf (tap, swipe, select, a sub-shelf) keeps its pages")

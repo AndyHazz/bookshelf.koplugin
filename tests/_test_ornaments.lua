@@ -363,7 +363,10 @@ end)
 
 t.test("a rebuild and a page turn hold the window open for their whole run", function()
     local w = io.open("lib/bookshelf_widget.lua"):read("*a")
-    for _i, name in ipairs({ "BookshelfWidget:_rebuild", "BookshelfWidget:_swapShelvesInPlace" }) do
+    -- _rebuildPrepare is the first thing _rebuild runs
+    assert(w:find("\nfunction BookshelfWidget:_rebuild()\n    local switching = self:_rebuildPrepare()\n", 1, true),
+        "_rebuild does not prepare first")
+    for _i, name in ipairs({ "BookshelfWidget:_rebuildPrepare", "BookshelfWidget:_swapShelvesInPlace" }) do
         local f = w:match("\nfunction " .. name:gsub("[%.%:]", "%%%0") .. "%(.-\n")
         assert(f, name .. " not found")
         local at = w:find("\nfunction " .. name, 1, true)

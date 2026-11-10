@@ -489,7 +489,7 @@ t.test("every page turn arms it; spines at once, covers once their covers are wa
     assert(bodyOf("_swapShelvesInPlace%(%)", "swap"):find("if not _wipe_dir then self:_pageAheadArm(self._page_ahead_dir or 1) end", 1, true),
         "a swap that is not a turn leaves no page built ahead")
     -- What drops a page half built: a turn, a rebuild, the cache cleared.
-    for _i, f in ipairs({ "_swapShelvesInPlace%(%)", "_rebuild%(%)", "_pageCacheClear%(%)" }) do
+    for _i, f in ipairs({ "_swapShelvesInPlace%(%)", "_rebuildPrepare%(%)", "_pageCacheClear%(%)" }) do
         assert(bodyOf(f, f):find("self:_pageGenBump()", 1, true), f .. " leaves a half-built page standing")
     end
 end)

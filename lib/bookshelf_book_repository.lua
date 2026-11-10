@@ -3252,8 +3252,12 @@ end
 -- settings in its own folder there, so every settings save (Bookshelf saves
 -- its place on each page turn) moved a walked folder's mtime and the next
 -- shelf walked the whole device again.
---   * KOReader's own data folder (DataStorage:getFullDataDir()) is never
---     walked into: no books live there, and it changes all the time.
+--   * In KOReader's own data folder (DataStorage:getFullDataDir()) the
+--     walk passes KOReader's own folders by name (Repo._KO_OWN_DIRS), and
+--     the data folder's own mtime is never recorded: every settings save
+--     moves it. Books kept in a folder of their own there are still found:
+--     KOReader's News downloader saves to koreader/news by default, and
+--     skipping the whole data folder (6.4.0) lost them from Home.
 --   * A ".sdr" sidecar folder, or a file whose extension says it is no book
 --     and no folder (pictures, fonts, dictionaries, code), is passed over
 --     by name, without a stat. A book's own extension is tested first.
@@ -3268,6 +3272,13 @@ Repo._NOT_BOOK_EXT = {
     dic = true, dict = true, dz = true, idx = true, ifo = true, syn = true, aff = true,
     mp3 = true, m4a = true, m4b = true, ogg = true, wav = true, flac = true, mp4 = true, avi = true, mkv = true,
     tmp = true, old = true, lock = true,
+}
+Repo._KO_OWN_DIRS = {
+    cache = true, clipboard = true, common = true, data = true, docsettings = true,
+    ffi = true, fonts = true, frontend = true, hashdocsettings = true, history = true,
+    l10n = true, libs = true, ota = true, patches = true, plugins = true,
+    resources = true, rocks = true, screenshots = true, settings = true, spec = true,
+    statistics = true, styletweaks = true, tools = true, web = true,
 }
 function Repo._koreaderDataDir()
     if Repo._ko_data_dir == nil then
@@ -3313,6 +3324,8 @@ local function walkBooks(root, depth, out, current_depth, dirs, listings)
     -- subfolders wait in `found` / `subdirs` until then -- no extra stat.
     local seen_mimetype, seen_meta_inf = false, false
     local found, subdirs = {}, {}
+    local ko_dir = Repo._koreaderDataDir()
+    local in_ko_dir = ko_dir ~= nil and root:gsub("/+$", "") == ko_dir
     for entry in iter, dir_obj do
         if listing then listing[entry] = true end
         if entry == "mimetype" then seen_mimetype = true
@@ -3327,7 +3340,7 @@ local function walkBooks(root, depth, out, current_depth, dirs, listings)
         -- (around lines 1222, 1269, 1406) already do this; walkBooks
         -- was the odd one out.
         local skip = false
-        if entry:sub(-4) == ".sdr" then
+        if entry:sub(-4) == ".sdr" or (in_ko_dir and Repo._KO_OWN_DIRS[entry]) then
             skip = true
         elseif not _supportedExt(entry) then
             local ext = entry:match("%.([^%.]+)$")
@@ -3348,8 +3361,6 @@ local function walkBooks(root, depth, out, current_depth, dirs, listings)
                 }
             end
             local mode = attr.mode
-            local ko_dir = mode == "directory" and Repo._koreaderDataDir()
-            if ko_dir and fp:gsub("/+$", "") == ko_dir then mode = nil end
             if mode == "directory" then
                 -- Skip .sdr sidecar dirs. They contain KOReader's per-book
                 -- metadata (cover, progress, etc.) and no actual books -- so
@@ -3358,7 +3369,8 @@ local function walkBooks(root, depth, out, current_depth, dirs, listings)
                 -- rewrite), which would falsely invalidate the walk cache
                 -- on every read session if we recorded them in `dirs`.
                 if entry:sub(-4) ~= ".sdr" then
-                    subdirs[#subdirs + 1] = { fp = fp, mtime = attr.modification or 0 }
+                    subdirs[#subdirs + 1] = { fp = fp, mtime = attr.modification or 0,
+                        untracked = ko_dir ~= nil and fp:gsub("/+$", "") == ko_dir }
                 end
             elseif mode == "file" then
                 if _supportedExt(entry) then
@@ -3379,7 +3391,7 @@ local function walkBooks(root, depth, out, current_depth, dirs, listings)
     for i = 1, #found do out[#out + 1] = found[i] end
     for i = 1, #subdirs do
         local d = subdirs[i]
-        if dirs then dirs[d.fp] = d.mtime end
+        if dirs and not d.untracked then dirs[d.fp] = d.mtime end
         walkBooks(d.fp, depth, out, current_depth + 1, dirs, listings)
     end
 end
@@ -3563,7 +3575,12 @@ local function cachedWalk(home, depth)
         local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
         if ok_lfs and lfs and lfs.attributes then
             local root_m = lfs.attributes(home, "modification")
-            if root_m then dirs[home] = root_m end
+            -- Not when home IS KOReader's data folder: its settings saves move
+            -- that mtime (see Repo._KO_OWN_DIRS).
+            local ko_dir = Repo._koreaderDataDir()
+            if root_m and not (ko_dir and home:gsub("/+$", "") == ko_dir) then
+                dirs[home] = root_m
+            end
         end
         local listings = {}
         walkBooks(home, depth, fresh, 0, dirs, listings)

@@ -2381,8 +2381,20 @@ function Repo.dataGeneration() return _data_generation end
 Repo._gen_listeners = setmetatable({}, { __mode = "k" })
 function Repo.onDataGeneration(owner, fn) Repo._gen_listeners[owner] = fn end
 
+-- Repo.cacheEpoch() -> a number that changes whenever ANY of this file's
+-- caches is dropped: every Repo.invalidate* call (wrapped at the end of the
+-- file), a data generation bump, and the walk finding the book set changed.
+-- Wider than dataGeneration on purpose: favourites and read-state changes
+-- drop cached lists without touching a book's fields. For a caller that keeps
+-- something derived from WHICH books a source holds (the shelf's sub-shelf
+-- tiles): while the number stands, a fetch would hand back the same lists.
+-- A field, not a local: this chunk is at Lua's 200-local limit.
+Repo._cache_epoch = 0
+function Repo.cacheEpoch() return Repo._cache_epoch end
+
 local function _bumpDataGeneration()
     _data_generation = _data_generation + 1
+    Repo._cache_epoch = Repo._cache_epoch + 1
     for owner, fn in pairs(Repo._gen_listeners) do pcall(fn, owner) end
 end
 
@@ -3623,6 +3635,7 @@ local function cachedWalk(home, depth)
             -- fresh walk. Skipped when the book set is unchanged --
             -- saves rebuilding 13+ author/genre group caches just
             -- because a .sdr was created.
+            Repo._cache_epoch = Repo._cache_epoch + 1
             _series_cache    = {}
             _authors_cache   = {}
             _genres_cache    = {}
@@ -9418,5 +9431,20 @@ SortEngine.setPageCountResolver(function(fp)
     end
     return Repo.pageCountFor(fp)
 end)
+
+-- Every invalidation moves the cache epoch (Repo.cacheEpoch), whichever
+-- cache it drops and wherever it is called from; one added later is covered
+-- without being listed. In a function of its own: the chunk has no locals to
+-- spare.
+;(function()
+    for name, fn in pairs(Repo) do
+        if type(fn) == "function" and (name:match("^invalidate") or name == "forgetBook") then
+            Repo[name] = function(...)
+                Repo._cache_epoch = Repo._cache_epoch + 1
+                return fn(...)
+            end
+        end
+    end
+end)()
 
 return Repo

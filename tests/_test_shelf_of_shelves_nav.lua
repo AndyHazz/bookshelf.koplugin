@@ -84,7 +84,7 @@ local env = setmetatable({
 local W = {}
 for _i, name in ipairs({ "_shelfChain", "_shelfCrumbCount", "_navDepth", "_navBackTo",
                          "_openShelf", "_enterSubShelf", "_subShelfItems",
-                         "_subShelfCoverFps", "_chipNeighbour", "_subShelfSpill" }) do
+                         "_subShelfCoverFps", "_subShelfMemo", "_chipNeighbour", "_subShelfSpill" }) do
     W[name] = methodOf(name, env)
 end
 

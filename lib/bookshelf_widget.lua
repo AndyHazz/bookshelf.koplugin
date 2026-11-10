@@ -20902,6 +20902,13 @@ end
 -- its own shelves, depth first. Remote records (OPDS, a synthetic key) have
 -- no local cover and are skipped.
 function BookshelfWidget:_subShelfCoverFps(tab, n, depth)
+    -- The call from outside (no depth) answers from the memo; the walk
+    -- below, and its own calls into a shelf's shelves, always carry one.
+    if depth == nil and tab then
+        return self:_subShelfMemo("covers" .. tostring(n), tab, function()
+            return self:_subShelfCoverFps(tab, n, 0)
+        end)
+    end
     local TabModel = require("lib/bookshelf_tab_model")
     local out = {}
     depth = depth or 0
@@ -20943,6 +20950,48 @@ end
 -- An OPDS shelf counts nothing -- its cached window is a slice of the catalog,
 -- not its size -- and remote records are skipped the same way.
 function BookshelfWidget:_subShelfMemberFps(tab)
+    if not tab then return {} end
+    return self:_subShelfMemo("members", tab, function()
+        return self:_subShelfMemberWalk(tab)
+    end)
+end
+
+-- _subShelfMemo(slot, tab, compute) -> compute()'s answer for this shelf,
+-- kept while it would come out the same.
+--
+-- A shelf of shelves asked every shelf inside it for its books on every
+-- build: each one's whole list fetched, its groups hydrated and sorted, its
+-- paths walked into a set, to print a count and deal four covers. On a PW5
+-- that was about a third of a switch to a seven-shelf shelf of shelves, and
+-- the same again in the cover grid's label note on a first visit.
+--
+-- Kept until the repository drops any cache (Repo.cacheEpoch: a book closed,
+-- a favourite, a refresh, new files) or any shelf is saved
+-- (TabModel.generation: a source, a filter, a sort, a shelf moved in or out).
+-- Both are wider than this needs; a miss costs what every build used to.
+-- The answer is shared between callers and must be read, not changed.
+function BookshelfWidget:_subShelfMemo(slot, tab, compute)
+    local TabModel = require("lib/bookshelf_tab_model")
+    local epoch = Repo.cacheEpoch and Repo.cacheEpoch()
+    local tabs  = TabModel.generation and TabModel.generation()
+    local memo  = self._subshelf_memo
+    if not memo or memo.epoch ~= epoch or memo.tabs ~= tabs then
+        memo = { epoch = epoch, tabs = tabs, kept = {} }
+        self._subshelf_memo = memo
+    end
+    local key = slot .. "|" .. tostring(tab.id)
+    local hit = memo.kept[key]
+    if hit == nil then
+        hit = compute()
+        -- compute can itself move the epoch (the walk finding new files):
+        -- then this answer belongs to the newer one, and is not kept under
+        -- the old.
+        if (Repo.cacheEpoch and Repo.cacheEpoch()) == epoch then memo.kept[key] = hit end
+    end
+    return hit
+end
+
+function BookshelfWidget:_subShelfMemberWalk(tab)
     local TabModel = require("lib/bookshelf_tab_model")
     local out, seen = {}, {}
     local function add(fp)

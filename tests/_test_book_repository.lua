@@ -7081,6 +7081,32 @@ test("a failing listener does not stop the bump or the others", function()
     assert(n == 1, "the second listener did not hear the bump")
 end)
 
+test("cacheEpoch: every invalidation moves it, favourites and read state included", function()
+    -- The shelf keeps its sub-shelf tiles' book lists while this number
+    -- stands, so an invalidation that left it alone would leave a stale count.
+    local names = {}
+    for name, fn in pairs(Repo) do
+        if type(fn) == "function" and (name:match("^invalidate") or name == "forgetBook") then
+            names[#names + 1] = name
+        end
+    end
+    table.sort(names)
+    assert(#names >= 10, "expected the invalidate* family, found " .. #names)
+    for _i, name in ipairs(names) do
+        local e = Repo.cacheEpoch()
+        pcall(Repo[name], "/no/such/book.epub")
+        assert(Repo.cacheEpoch() > e, name .. " left the cache epoch where it was")
+    end
+    -- a data generation bump is an invalidation too
+    local e = Repo.cacheEpoch()
+    Repo.invalidateLightMeta()
+    assert(Repo.cacheEpoch() > e)
+    -- and a read does not move it
+    e = Repo.cacheEpoch()
+    Repo.dataGeneration()
+    assert(Repo.cacheEpoch() == e, "reading moved the epoch")
+end)
+
 -- ============================================================================
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

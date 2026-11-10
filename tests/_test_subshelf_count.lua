@@ -12,8 +12,8 @@ local t  = helpers.runner()
 local eq = helpers.eq
 
 local src = io.open("lib/bookshelf_widget.lua"):read("a")
-local body = src:match("(function BookshelfWidget:_subShelfMemberFps%(tab%).-\nend\n)")
-assert(body, "_subShelfMemberFps is missing")
+local body = src:match("(function BookshelfWidget:_subShelfMemberWalk%(tab%).-\nend\n)")
+assert(body, "_subShelfMemberWalk is missing")
 
 local tabs, by_source, fetches, folders = {}, {}, {}, {}
 local TabModel = {
@@ -52,15 +52,15 @@ t.test("a shelf counts its books, a grouped shelf its groups' members", function
         C = { { filepath = "/a" }, { filepath = "/b" } },
         authors = { { kind = "author", books = { { filepath = "/c" }, { filepath = "/d" } } } },
     }
-    eq(sorted(W._subShelfMemberFps(W, { id = "x", source = { kind = "collection", id = "C" } })), "/a,/b")
-    eq(sorted(W._subShelfMemberFps(W, { id = "y", source = { kind = "authors" } })), "/c,/d")
+    eq(sorted(W._subShelfMemberWalk(W, { id = "x", source = { kind = "collection", id = "C" } })), "/a,/b")
+    eq(sorted(W._subShelfMemberWalk(W, { id = "y", source = { kind = "authors" } })), "/c,/d")
 end)
 
 t.test("Home's folder cards count what is inside them", function()
     tabs = {}
     by_source = { all = { { kind = "folder", path = "/lib/Fiction" }, { filepath = "/top.epub" } } }
     folders = { ["/lib/Fiction"] = { "/lib/Fiction/1.epub", "/lib/Fiction/2.epub" } }
-    eq(sorted(W._subShelfMemberFps(W, { id = "h", source = { kind = "all" } })),
+    eq(sorted(W._subShelfMemberWalk(W, { id = "h", source = { kind = "all" } })),
        "/lib/Fiction/1.epub,/lib/Fiction/2.epub,/top.epub")
 end)
 
@@ -72,22 +72,22 @@ t.test("a shelf of shelves sums its shelves, counting a shared book once", funct
     }
     by_source = { P = { { filepath = "/1" }, { filepath = "/2" } },
                   Q = { { filepath = "/2" }, { filepath = "/3" } } }
-    eq(sorted(W._subShelfMemberFps(W, { id = "sos", source = { kind = "shelves" } })), "/1,/2,/3")
+    eq(sorted(W._subShelfMemberWalk(W, { id = "sos", source = { kind = "shelves" } })), "/1,/2,/3")
 end)
 
 t.test("an OPDS shelf and remote records count nothing", function()
     tabs, fetches = {}, {}
-    eq(#W._subShelfMemberFps(W, { id = "o", source = { kind = "opds", id = "O" } }), 0)
+    eq(#W._subShelfMemberWalk(W, { id = "o", source = { kind = "opds", id = "O" } }), 0)
     eq(#fetches, 0, "an OPDS shelf must not be fetched for a count")
     by_source = { R = { { filepath = "https://x/1" }, { filepath = "/local" } } }
-    eq(sorted(W._subShelfMemberFps(W, { id = "r", source = { kind = "collection", id = "R" } })), "/local")
+    eq(sorted(W._subShelfMemberWalk(W, { id = "r", source = { kind = "collection", id = "R" } })), "/local")
 end)
 
 t.test("the fetch is light and under the shelf's own sort (the cached list)", function()
     tabs, fetches = {}, {}
     by_source = { C = {} }
     local sort = { { key = "title" } }
-    W._subShelfMemberFps(W, { id = "x", source = { kind = "collection", id = "C" }, sort_priority = sort })
+    W._subShelfMemberWalk(W, { id = "x", source = { kind = "collection", id = "C" }, sort_priority = sort })
     eq(fetches[1].sort, sort)
     eq(fetches[1].opts.light_only, true)
 end)

@@ -171,9 +171,16 @@ end
 -- save(tabs): persist a tab list. Caller is responsible for ordering and
 -- well-formedness; this function does NO validation beyond writing.
 function TabModel.save(tabs)
+    TabModel._generation = TabModel._generation + 1
     BookshelfSettings.save(STORAGE_KEY, tabs)
     BookshelfSettings.flush()
 end
+
+-- generation() -> a number that changes on every save: a shelf was added,
+-- removed, moved or edited. For what is worked out from the shelves' own
+-- definitions and kept between rebuilds.
+TabModel._generation = 0
+function TabModel.generation() return TabModel._generation end
 
 -- saveDeferred(tabs): the same write with no flush, for a hot path.
 --
@@ -185,6 +192,7 @@ end
 -- durability rides the shared nav-flush debounce and every close / suspend /
 -- onFlushSettings boundary, exactly as the column nudge does.
 function TabModel.saveDeferred(tabs)
+    TabModel._generation = TabModel._generation + 1
     BookshelfSettings.saveDeferred(STORAGE_KEY, tabs)
 end
 

@@ -99,6 +99,8 @@ local function intervalEnv(mods)
         return m
     end
     e.pcall, e.type = pcall, type
+    -- the clock's seconds, for the idle tick's place on the minute
+    e.os = { date = function() return { sec = 17 } end }
     return e
 end
 
@@ -110,6 +112,7 @@ t.test("_filePollInterval: Wi-Fi state, idle clock and covered flag are handed t
     local r = loadMethod("BookshelfWidget:_filePollInterval(covered)", e, "self, covered")({}, true)
     eq(r, 7)
     eq(e.seen.st.wifi_on, false); eq(e.seen.st.idle_s, 42); eq(e.seen.st.covered, true)
+    eq(e.seen.st.second, 17, "the clock's seconds reach the decision")
 end)
 
 t.test("_filePollInterval: a host that cannot say leaves Wi-Fi unknown (nil), never false", function()

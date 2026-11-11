@@ -18001,7 +18001,8 @@ function BookshelfWidget:_filePollInterval(covered)
         local ok_i, s = pcall(Park.idleSeconds)
         if ok_i and type(s) == "number" then idle_s = s end
     end
-    return FilePoll.nextInterval{ wifi_on = wifi_on, covered = covered, idle_s = idle_s }
+    return FilePoll.nextInterval{ wifi_on = wifi_on, covered = covered, idle_s = idle_s,
+                                  second = os.date("*t").sec }
 end
 
 -- _armFilePoll(opts): (re)schedule the poll's next tick. opts.interval forces

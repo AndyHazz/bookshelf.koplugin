@@ -46,10 +46,25 @@ end
 -- Rule order: Wi-Fi off beats everything and returns nil (don't schedule);
 -- otherwise covered beats idle; otherwise idle-for-a-while beats active; the
 -- default is the active interval.
+--
+-- st.second (0..59, the clock's seconds now): the IDLE tick lands on the
+-- minute. The shelf's status clock already wakes on the minute, and a poll
+-- sixty seconds from wherever it last ran woke the device a second time
+-- each minute, at its own phase: on a Kobo that cuts the standby between
+-- into two short sleeps where one wake does both jobs. nil keeps the plain
+-- interval.
 function M.nextInterval(st)
     if st.wifi_on == false then return nil end
     if st.covered then return M.COVERED_INTERVAL_S end
-    if (st.idle_s or 0) >= M.IDLE_AFTER_S then return M.IDLE_INTERVAL_S end
+    if (st.idle_s or 0) >= M.IDLE_AFTER_S then
+        local sec = st.second
+        if type(sec) == "number" and sec >= 0 and sec < 60 and M.IDLE_INTERVAL_S == 60 then
+            local to_minute = 60 - math.floor(sec)
+            -- right on the boundary (or a second short of it): the next one
+            return to_minute > 1 and to_minute or to_minute + 60
+        end
+        return M.IDLE_INTERVAL_S
+    end
     return M.ACTIVE_INTERVAL_S
 end
 

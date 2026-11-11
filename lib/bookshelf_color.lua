@@ -51,6 +51,9 @@ local DEFAULT_HEX = {
     bookmark           = "#404040",
     complete_bookmark  = "#FFFFFF",  -- white centre on the finished badge
     favorite_star      = "#FFD700",  -- yellow on color panels; luminance on B&W
+    -- The top panel's rating stars (issue 594): unset they follow the text
+    -- ink, so this is only the picker's default swatch.
+    rating_star        = "#FFD700",
     badge_fg           = "#000000",
     badge_bg           = "#FFFFFF",
     border             = "#000000",  -- cover frame + pill / badge borders

@@ -56,7 +56,49 @@ local function keepColour(c)
     return common.EXCLUSION_COLOR
 end
 
+-- `runs` (lib/bookshelf_colour_runs): stretches of the line, in characters,
+-- that take a colour of their own - the rating stars. The line is drawn glyph
+-- by glyph here, each glyph in its run's colour or the line's ink: a colour
+-- through the RGB32 blit where the buffer has one, anything else through the
+-- grey blit TextWidget itself uses. Needs the shaped glyph list, so with
+-- advanced text shaping off the line is drawn the ordinary way in one ink.
+local function paintRuns(self, bb, x, y)
+    self:updateSize()
+    if self._is_empty then return end
+    if not self._xshaping then
+        self._xshaping = self._xtext:shapeLine(self._shape_start, self._shape_end,
+                                               self._shape_idx_to_substitute_with_ellipsis)
+    end
+    local Runs = require("lib/bookshelf_colour_runs")
+    local ink = self.fgcolor
+    if type(ink) == "nil" then ink = Blitbuffer.COLOR_BLACK end
+    local rgb = bb.colorblitFromRGB32 and COLOUR_BB[bb:getType()] and true or false
+    local text_width = bb:getWidth() - x
+    if self.max_width and self.max_width < text_width then text_width = self.max_width end
+    local pen_x = 0
+    local baseline = self.forced_baseline or self._baseline_h
+    for _i, xglyph in ipairs(self._xshaping) do
+        if pen_x >= text_width then break end
+        local face = self.face.getFallbackFont(xglyph.font_num)
+        local glyph = RenderText:getGlyphByIndex(face, xglyph.glyph, self.bold)
+        local run = xglyph.text_index and Runs.at(self.runs, xglyph.text_index)
+        local c = run and run.colour or ink
+        local blit = (rgb and not Blitbuffer.isColor8(c)) and bb.colorblitFromRGB32
+            or bb.colorblitFrom
+        blit(bb, glyph.bb,
+            x + pen_x + glyph.l + xglyph.x_offset,
+            y + baseline - glyph.t - xglyph.y_offset,
+            0, 0,
+            glyph.bb:getWidth(), glyph.bb:getHeight(),
+            c)
+        pen_x = pen_x + xglyph.x_advance
+    end
+end
+
 function ColourTextWidget:paintTo(bb, x, y)
+    if type(self.runs) == "table" and #self.runs > 0 and self.use_xtext then
+        return paintRuns(self, bb, x, y)
+    end
     local c = self.fgcolor
     if type(c) == "nil" or Blitbuffer.isColor8(c) or not bb.colorblitFromRGB32
             or not COLOUR_BB[bb:getType()] or not self.use_xtext then

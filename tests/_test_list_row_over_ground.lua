@@ -32,11 +32,15 @@ local widget = io.open("lib/bookshelf_widget.lua"):read("*a")
 local body = src:match("\nlocal function wrapBox%(line, flat, inner_w, height%)\n(.-)\nend\n")
 assert(body, "wrapBox moved or was renamed")
 
-local function wrapBoxWith(over_ground)
+local function wrapBoxWith(over_ground, star_runs)
     local env = {
         ListRow = { ROW_BG = "PAPER", ROW_FG = "INK", OVER_GROUND = over_ground },
         TextBoxWidget      = { new = function(_, o) o.built = "opaque";      return o end },
         TransparentTextBox = { new = function(_, o) o.built = "transparent"; return o end },
+        -- A line holding the book's rating stars, with a star colour set
+        -- (issue 594), builds the box that recolours them where they land.
+        RunTextBox         = { new = function(_, o) o.built = "runs";        return o end },
+        StarRuns           = { inText = function() return star_runs end },
         canEllipsis = function() return false end,
         type = type,
     }
@@ -63,6 +67,17 @@ t.test("over a ground the paragraph composites in one ink and fills nothing", fu
     -- that passes `ink` silently gets black text (which is what shipped for
     -- one build: descriptions came out black on the dark shelf).
     eq(box.fgcolor, "INK", "the composite takes its colour from fgcolor")
+end)
+
+t.test("a paragraph holding coloured rating stars composites too, on either ground", function()
+    local runs = { { s = 1, e = 5, colour = "GOLD" } }
+    for _i, ground in ipairs({ false, true }) do
+        local box = wrapBoxWith(ground, runs)(LINE, "hello", 100, 40)
+        eq(box.built, "runs")
+        eq(box.runs, runs)
+        eq(box.fgcolor, "INK", "the row's ink, as the transparent box takes it")
+        eq(box.bgcolor, nil, "it fills nothing")
+    end
 end)
 
 t.test("a paragraph's own colour still wins over the row default", function()

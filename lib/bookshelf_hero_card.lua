@@ -78,6 +78,21 @@ end
 local SpineWidget     = require("lib/bookshelf_spine_widget")
 local Tokens          = require("lib/bookshelf_tokens")
 local Regions         = require("lib/bookshelf_hero_regions")
+local StarRuns        = require("lib/bookshelf_star_runs")
+local RunTextBox      = require("lib/bookshelf_run_text_box")
+
+-- The rating stars' own colour (issue 594, lib/bookshelf_star_runs). A
+-- template's text is searched for the star rows of the book being built just
+-- before it is drawn, so the stars are coloured wherever the template put
+-- them. Module state like _over_ground: set by _setStarRuns at the top of
+-- each way into the panel.
+local _star_book = nil
+local function _setStarRuns(book)
+    _star_book = book
+end
+local function _runsIn(text)
+    return StarRuns.inText(_star_book, text)
+end
 local HeroBar         = require("lib/bookshelf_hero_bar")
 local TextSegments    = require("lib/bookshelf_text_segments")
 local TextFit         = require("lib/bookshelf_text_fit")
@@ -269,13 +284,13 @@ local function _buildSegmentedInline(text, face, bold, max_width, truncate_left)
     -- right-anchored tail -- battery/wifi/etc -- stays and the cut sits by the spacer).
     if max_width or not bold or not text:find("[\x80-\xFF]") then
         return TextWidget:new{ text = text, face = face, bold = bold or false,
-            fgcolor = _ink(),
+            fgcolor = _ink(), runs = _runsIn(text),
             max_width = max_width, truncate_left = truncate_left or false }
     end
     local segments = TextSegments.labelSegments(text)
     if #segments <= 1 then
         return TextWidget:new{ text = text, face = face, bold = bold,
-                               fgcolor = _ink() }
+                               fgcolor = _ink(), runs = _runsIn(text) }
     end
     local hg = HorizontalGroup:new{ align = "center" }
     for _i, seg in ipairs(segments) do
@@ -284,6 +299,8 @@ local function _buildSegmentedInline(text, face, bold, max_width, truncate_left)
             face = face,
             bold = seg.class == "text",
             fgcolor = _ink(),
+            -- A star row is all icon glyphs, so it is whole inside one piece.
+            runs = _runsIn(seg.text),
         }
     end
     return hg
@@ -339,6 +356,7 @@ local function buildText(text, region, width, max_height)
                     -- bold segments, which under a dark shelf land on a dark
                     -- panel.
                     fgcolor = _ink() or Blitbuffer.COLOR_BLACK,
+                    runs    = _runsIn(seg.text),
                 }
             end
             -- HorizontalGroup doesn't honour region.alignment the way
@@ -356,8 +374,12 @@ local function buildText(text, region, width, max_height)
             return LeftContainer:new{ dimen = dimen, hg }
         end
     end
-    return textBoxClass():new{
+    -- Star rows in wrapped text take their colour through RunTextBox, which
+    -- lets KOReader lay the text out and recolours the stars where they land.
+    local runs = _runsIn(rendered)
+    return (runs and RunTextBox or textBoxClass()):new{
         text        = rendered,
+        runs        = runs,
         face        = face,
         bold        = is_bold,
         fgcolor     = _ink(),
@@ -489,6 +511,7 @@ local function _buildStatusRow(book, state, width, with_hairline, allow_job)
     end
     if not regions.status or regions.status.disabled then return nil end
     if not book then return nil end
+    _setStarRuns(book)
     -- This is the FULL-WIDTH status line (micro-module hero + full-screen
     -- overlay), so [if:full_width]…[/if] in the template activates here but not
     -- in the narrow cover-view status (_buildRightColumn, which passes the raw
@@ -768,6 +791,7 @@ end
 function HeroCard:_buildRightColumn(book, regions, state, dimen)
     -- Every text block built below picks its widget through textBoxClass().
     _over_ground = self.has_wallpaper and true or false
+    _setStarRuns(book)
     local right_w = dimen.w
     local cover_h = dimen.h
 
@@ -866,6 +890,10 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
             local gap       = Space.px(4)
             local row       = HorizontalGroup:new{ align = "center" }
             local hero_self = self
+            -- The reader's star colour (issue 594), for filled and empty stars
+            -- alike; unset, the text ink as before.
+            local star_ink = StarRuns.ink()
+            if type(star_ink) == "nil" then star_ink = _ink() end
             for i = 1, 5 do
                 local glyph
                 if hardcover_mode then
@@ -888,7 +916,7 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
                     text = glyph,
                     face = face,
                     bold = true,
-                    fgcolor = _ink(),
+                    fgcolor = star_ink,
                 }
                 local sz = tw:getSize()
                 if hardcover_mode or not self.on_rating_change then
@@ -1215,7 +1243,11 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
                         VerticalSpan:new{ width = gap }
                     total_h = total_h + gap
                 end
-                local pwid = textBoxClass():new{
+                -- A star row the template put in the description takes
+                -- the star colour where it lands (RunTextBox).
+                local pruns = _runsIn(ptext)
+                local pwid = (pruns and RunTextBox or textBoxClass()):new{
+                    runs                          = pruns,
                     text                          = ptext,
                     face                          = desc_face,
                     bold                          = desc_bold,

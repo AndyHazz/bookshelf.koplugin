@@ -1035,6 +1035,8 @@ function M.resolvedColors()
     -- The micro-module card's hairline (issue 424). No default: unset, the
     -- card keeps the theme's own ink (see _cardBorderInk in hero_modules).
     local module_border_raw = _readModeColor("module_border", nil)
+    -- The top panel's rating stars (issue 594). Unset = the text ink.
+    local rating_star_raw = _readModeColor("rating_star_color", nil)
     -- Shadow color is hard-coded so it always paints DARK ON SCREEN
     -- regardless of mode. KOReader's night mode inverts the framebuffer
     -- at refresh time, so the shadow color in code is BLACK in day mode
@@ -1093,6 +1095,7 @@ function M.resolvedColors()
         ribbon_bg         = ribbon_bg_raw and _paint(ribbon_bg_raw) or nil,
         folder_fg         = folder_fg_raw and _paint(folder_fg_raw) or nil,
         module_border     = module_border_raw and _paint(module_border_raw) or nil,
+        rating_star       = rating_star_raw and _paint(rating_star_raw) or nil,
     }
     _resolved_gen   = gen
     _resolved_mode  = is_color
@@ -1179,6 +1182,7 @@ function M.rawColors()
         folder_bg         = _readOwnColor("folder_overlay_bg", nil),
         folder_fg         = _readOwnColor("folder_overlay_fg", nil),
         module_border     = _readOwnColor("module_border", nil),
+        rating_star       = _readOwnColor("rating_star_color", nil),
         -- Panel color / Panel text: unset means the theme's own (and Auto).
         panel_color       = _readOwnColor("panel_color", nil),
         panel_ink         = _readOwnColor("panel_ink", nil),

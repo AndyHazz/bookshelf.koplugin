@@ -2783,6 +2783,7 @@ function Settings:_colorsSubItems()
                     "progress_fill", "progress_track",
                     "bookmark_color", "complete_bookmark_color",
                     "favorite_star_color", "favorite_heart_color",
+                    "rating_star_color",
                     "badge_fg", "badge_bg", "border_color",
                     "chrome_bg", "chip_bar_transparent",
                     "module_bg", "module_border", "panel_bg",
@@ -2946,6 +2947,28 @@ function Settings:_colorsSubItems()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
             separator = true,   -- end of the marks on a cover band
+        },
+        {
+            -- The rating stars (issue 594): the top panel's star row, and
+            -- the star rows the rating tokens write into the panel's text
+            -- and into list rows.
+            text_func = function()
+                return _("Rating stars") .. ": " .. valueLabel("rating_star")
+            end,
+            help_text = _("The rating stars in the top panel and in list "
+                .. "rows. Left unset they follow the text color. Long-press "
+                .. "to clear."),
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                pickColor("rating_star_color", "rating_star", 100,
+                    _("Rating stars"), touchmenu_instance)
+            end,
+            hold_callback = function(touchmenu_instance)
+                deleteModeKey("rating_star_color")
+                markDirty()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end,
+            separator = true,
         },
         {
             text_func = function()

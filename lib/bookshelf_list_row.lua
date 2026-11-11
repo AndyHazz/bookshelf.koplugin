@@ -25,6 +25,9 @@ local RightContainer  = require("ui/widget/container/rightcontainer")
 local TopContainer    = require("ui/widget/container/topcontainer")
 local TextWidget      = require("lib/bookshelf_colour_text")
 local TextBoxWidget   = require("ui/widget/textboxwidget")
+-- Rating stars in a row take the colour the reader gave them (issue 594).
+local StarRuns        = require("lib/bookshelf_star_runs")
+local RunTextBox      = require("lib/bookshelf_run_text_box")
 local TransparentTextBox = require("lib/bookshelf_transparent_text")
 local RenderText      = require("ui/rendertext")
 local Widget          = require("ui/widget/widget")
@@ -1429,6 +1432,23 @@ local function wrapBox(line, flat, inner_w, height)
     -- alpha mask in a single ink instead -- the hero column's solution, see
     -- lib/bookshelf_transparent_text.lua. Only paragraphs need it: the
     -- single-line TextWidget paints glyphs and no paper.
+    -- A star row in a wrapping line takes the star colour where it lands.
+    -- RunTextBox composites like TransparentTextBox, so it serves any ground.
+    -- ListRow._star_record: the row being built (packRow and textLine set it).
+    local runs = StarRuns.inText(ListRow._star_record, flat)
+    if runs then
+        return RunTextBox:new{
+            text      = flat,
+            runs      = runs,
+            face      = line.box_face or line.face,
+            bold      = (line.box_bold ~= nil) and line.box_bold or line.bold,
+            fgcolor   = line.fgcolor or ListRow.ROW_FG,
+            width     = inner_w,
+            height    = height,
+            height_overflow_show_ellipsis = canEllipsis(line.face, inner_w),
+            alignment = line.alignment or "left",
+        }
+    end
     if ListRow.OVER_GROUND then
         return TransparentTextBox:new{
             text      = flat,
@@ -1532,6 +1552,7 @@ local function fitBox(line, flat, w, offer)
 end
 
 function ListRow.packRow(record, L, group_templates, text_w)
+    ListRow._star_record = record
     local lines = L.lines or {}
     local n     = #lines
     if n < 2 then return nil end
@@ -1696,6 +1717,7 @@ end
 -- And `opts.box` is the wrapping line's laid-out TextBoxWidget, which packRow
 -- already has because measuring one and building one are the same operation.
 function ListRow.textLine(record, line, width, pad, template, opts)
+    ListRow._star_record = record
     local inner_w = math.max(1, width - 2 * pad)
     local band_h  = (opts and opts.band_h) or line.band_h
     local text    = opts and opts.text
@@ -1737,6 +1759,8 @@ function ListRow.textLine(record, line, width, pad, template, opts)
             face          = face or line.face,
             bold          = bold,
             fgcolor       = line.fgcolor,
+            -- The book's star row, in the star colour (nil almost always).
+            runs          = StarRuns.inText(record, s),
             -- nil leaves TextWidget's own default in place, which is what the
             -- one-line row must have; 0 trims the decoration for a multi-line
             -- item (see ListGeom.textBands).

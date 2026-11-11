@@ -58,6 +58,7 @@ M.COLOUR_NAMES = {
     ["finished bookmark"]    = "complete_bookmark_color",
     ["favourite star"]       = "favorite_star_color",
     ["favourite heart"]      = "favorite_heart_color",
+    ["rating stars"]         = "rating_star_color",
     ["badge text"]           = "badge_fg",
     ["badge background"]     = "badge_bg",
     ["menu bar"]             = "chrome_bg",

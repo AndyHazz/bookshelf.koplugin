@@ -82,6 +82,39 @@ t.test("a damaged copy falls back to the source", function()
     eq(require("lib/bookshelf_bctest").v, 2)
 end)
 
+t.test("an EMPTY copy falls back to the source, and is replaced", function()
+    -- A device that lost power just after a copy was written came back with
+    -- it at zero bytes (PW5, 2026-11-12). An empty file loads as a chunk
+    -- that returns nothing, so require handed out `true` for the module and
+    -- KOReader died at start, every start, until the file was deleted.
+    local dir = CACHE .. "/" .. BC.vmTag()
+    local copy
+    for _i, name in ipairs(files(dir)) do
+        if name:find("^lib_bookshelf_bctest%-") then copy = dir .. "/" .. name end
+    end
+    assert(copy, "no cached copy to empty")
+    write(copy, "")
+    package.loaded["lib/bookshelf_bctest"] = nil
+    local before = compiles
+    local m = require("lib/bookshelf_bctest")
+    eq(type(m), "table", "an empty copy was run as the module")
+    eq(compiles, before + 1, "compiled from the source")
+    local f = assert(io.open(copy, "rb")); local size = #f:read("*a"); f:close()
+    assert(size > 0, "the empty copy was left in place")
+end)
+
+t.test("a copy that is not bytecode falls back to the source", function()
+    -- Readable Lua in the cache would run as-is: only our own dumps count.
+    local dir = CACHE .. "/" .. BC.vmTag()
+    local copy
+    for _i, name in ipairs(files(dir)) do
+        if name:find("^lib_bookshelf_bctest%-") then copy = dir .. "/" .. name end
+    end
+    write(copy, "return 'not the module'")
+    package.loaded["lib/bookshelf_bctest"] = nil
+    eq(type(require("lib/bookshelf_bctest")), "table")
+end)
+
 t.test("other modules are left to the usual search", function()
     eq(BC._search("lib/somebody_else"), nil)
     eq(BC._search("ui/widget/foo"), nil)

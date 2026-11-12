@@ -86,6 +86,24 @@ end
 
 -- _search(name) -> a loader for one of our modules, or nil to let the usual
 -- searchers have it.
+-- loadCopy(path) -> the chunk in a cached copy, or nil when it is not one of
+-- our dumps. A dump starts with ESC; anything else is not run. That matters
+-- most for an EMPTY file, which loadfile accepts as a chunk returning
+-- nothing: a device that lost power just after a copy was written came back
+-- with it at zero bytes, require handed out `true` for the module, and
+-- KOReader died at every start until the file was deleted (PW5, 2026-11-12).
+-- A copy that is no use is removed, so the next store replaces it.
+local function loadCopy(path)
+    local f = io.open(path, "rb")
+    if not f then return nil end
+    local head = f:read(1)
+    f:close()
+    local fn = (head == "\27") and loadfile(path) or nil
+    if not fn then os.remove(path) end
+    return fn
+end
+M._loadCopy = loadCopy
+
 function M._search(name)
     if type(name) ~= "string" or name:sub(1, #M.PREFIX) ~= M.PREFIX or not _root then return nil end
     local L = lfs()
@@ -98,7 +116,7 @@ function M._search(name)
     local dir = _dir .. "/" .. M.vmTag()
     local cached = dir .. "/" .. file
     if L.attributes(cached) then
-        local fn = loadfile(cached)
+        local fn = loadCopy(cached)
         if fn then return fn end
     end
     local fn, err = M._compile(src)
@@ -136,7 +154,7 @@ function M.data(src, tag, build)
     local dir = _dir .. "/" .. M.vmTag()
     local cached = dir .. "/" .. file
     if L.attributes(cached) then
-        local fn = loadfile(cached)
+        local fn = loadCopy(cached)
         local ok, t = false, nil
         if fn then ok, t = pcall(fn) end
         if ok and type(t) == "table" then return t end

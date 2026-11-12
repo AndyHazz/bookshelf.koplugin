@@ -2890,7 +2890,9 @@ function BookshelfWidget:_emptyShelfText()
     -- fall into one of the branches above with a generic message. The
     -- filter is the actual reason there are no books, so override the
     -- placeholder when statuses are set.
-    if _tab and _tab.filter and Filter.isActive(_tab.filter) then
+    -- Not under a search: there the query is why, and its message stands.
+    local searching = _tip and _tip.kind == "search"
+    if not searching and _tab and _tab.filter and Filter.isActive(_tab.filter) then
         local label = _tab.label or self:_chipLabel()
         if _tab.parent then
             placeholder_text = string.format(
@@ -2904,7 +2906,6 @@ function BookshelfWidget:_emptyShelfText()
     end
     -- A search that found nothing is not a library with no home folder: the
     -- button belongs to the shelf's own empty state only.
-    local searching = _tip and _tip.kind == "search"
     return placeholder_text, _is_home_source and not searching
 end
 

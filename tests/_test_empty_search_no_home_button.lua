@@ -8,14 +8,14 @@ local src = dofile("tests/_widget_source.lua")
 local body = src:match("\nfunction BookshelfWidget:_emptyShelfText%(%)\n(.-)\nend\n")
 assert(body, "could not find BookshelfWidget:_emptyShelfText() - renamed?")
 
-local function run(source_kind, tip)
+local function run(source_kind, tip, filtered)
     local env = {
         string = string, select = select,
         _ = function(s) return s end,
-        Filter = { isActive = function() return false end },
+        Filter = { isActive = function() return filtered == true end },
         require = function(name)
             assert(name == "lib/bookshelf_tab_model", "unexpected require " .. name)
-            return { getById = function() return { label = "Home", source = { kind = source_kind } } end }
+            return { getById = function() return { label = "Home", filter = {}, source = { kind = source_kind } } end }
         end,
     }
     local f
@@ -40,6 +40,14 @@ t.test("a search with no matches on a Home shelf does not", function()
     eq(button, false, "no home folder button under a search")
     local _text2, button2 = run("library", { kind = "search", payload = { query = "zz" } })
     eq(button2, false, "nor on the flattened Home shelf")
+end)
+
+t.test("a search with no matches on a FILTERED shelf still says so", function()
+    -- The filter's "Nothing in Home yet" wording used to overwrite it.
+    local text = run("all", { kind = "search", payload = { query = "zz" } }, true)
+    eq(text, 'No matches for "zz"')
+    local plain = run("all", nil, true)
+    assert(plain:find("Nothing in Home yet", 1, true), plain)
 end)
 
 t.test("a shelf that is not Home never asked for it", function()

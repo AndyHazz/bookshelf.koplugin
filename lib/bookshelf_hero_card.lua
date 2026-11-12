@@ -879,7 +879,10 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
         -- it's disabled the user has opted out of hero stars entirely, so we
         -- must NOT fall back to it -- only Hardcover community stars (above)
         -- may still show.
+        -- And only on the books the row's own choice names (issue 484): all of
+        -- them, rated and finished ones, or rated ones only.
         local show_interactive = (not regions.rating.disabled) and self.on_rating_change ~= nil
+            and Regions.ratingShown(regions.rating.show, book)
         if not hardcover_mode and show_interactive then
             rating = tonumber(book.rating) or 0
         end

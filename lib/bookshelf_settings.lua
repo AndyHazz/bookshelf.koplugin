@@ -483,13 +483,6 @@ function Settings:_heroSubItems(keys)
                 return not Regions.read()[key].disabled
             end,
             callback = function(touchmenu_instance)
-                -- Rating is an interactive widget, not a text-templated
-                -- region — a line editor for it is meaningless. Tap toggles
-                -- enabled, same as hold elsewhere.
-                if key == "rating" then
-                    self:_toggleRegionEnabled(key, touchmenu_instance)
-                    return
-                end
                 self:_editHeroRegion(key, touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance)
@@ -497,6 +490,15 @@ function Settings:_heroSubItems(keys)
             end,
         }
         if key == "tags" then
+        if key == "rating" then
+            -- Rating is an interactive widget, not a text-templated region, so
+            -- it has no line editor: tap opens its options (issue 484). The
+            -- checkbox and the long-press toggle stay, as on the text rows.
+            item.callback = nil
+            item.sub_item_table_func = function()
+                return self:_ratingRegionSubItems()
+            end
+        end
             -- Tags is interactive AND configurable (#99): the row opens a
             -- submenu (enable + per-category visibility + font size +
             -- alignment) instead of a plain enable toggle. Drop the toggle
@@ -515,6 +517,87 @@ function Settings:_heroSubItems(keys)
 end
 
 -- _tagsRegionSubItems() — the "Tags (interactive)" configuration submenu
+-- _ratingRegionSubItems() -- the "Rating (interactive)" row's options (issue
+-- 484): whose rating the row shows and on which books, and whether a tap on a
+-- star rates. Two of the rows are switches that already existed elsewhere
+-- (Hardcover > Show Hardcover ratings, Gestures > Tap the stars to rate a
+-- book), gathered here because this is where a reader looks for them; they
+-- read and write the same settings.
+function Settings:_ratingRegionSubItems()
+    local Regions  = require("lib/bookshelf_hero_regions")
+    local Gestures = require("lib/bookshelf_gestures")
+    local function refresh(touchmenu_instance)
+        if self._bw and self._bw._swapHeroRightColumnInPlace then
+            self._bw:_swapHeroRightColumnInPlace(Regions.read())
+        end
+        if touchmenu_instance and touchmenu_instance.updateItems then
+            touchmenu_instance:updateItems()
+        end
+    end
+    local function shown()
+        local v = Regions.read().rating.show
+        for _i, mode in ipairs(Regions.RATING_SHOW) do
+            if v == mode then return mode end
+        end
+        return "all"
+    end
+    local labels = {
+        all            = _("Show your stars on all books"),
+        rated_finished = _("Show your stars on rated and finished books"),
+        rated          = _("Show your stars on rated books only"),
+    }
+    local items = {
+        {
+            text = _("Show Hardcover rating when a book has one"),
+            keep_menu_open = true,
+            separator = true,
+            enabled_func = function()
+                local ok_hc, HC = pcall(require, "lib/bookshelf_hardcover")
+                return (ok_hc and HC and HC.isAvailable and HC.isAvailable()) or false
+            end,
+            checked_func = function()
+                return BookshelfSettings.isTrue("hardcover_hero_rating")
+            end,
+            callback = function(touchmenu_instance)
+                BookshelfSettings.save("hardcover_hero_rating",
+                    not BookshelfSettings.isTrue("hardcover_hero_rating"))
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+                self:_markDirty()
+            end,
+        },
+    }
+    for i, mode in ipairs(Regions.RATING_SHOW) do
+        items[#items + 1] = {
+            text = labels[mode],
+            radio = true,
+            keep_menu_open = true,
+            separator = (i == #Regions.RATING_SHOW) or nil,
+            checked_func = function() return shown() == mode end,
+            callback = function(touchmenu_instance)
+                local snap = Regions.snapshot("rating") or {}
+                -- "all" is the default: store nothing for it.
+                snap.show = (mode ~= "all") and mode or nil
+                Regions.write("rating", snap)
+                refresh(touchmenu_instance)
+            end,
+        }
+    end
+    items[#items + 1] = {
+        text = _("Tap a star to rate"),
+        keep_menu_open = true,
+        checked_func = function() return Gestures.on("rate") end,
+        callback = function(touchmenu_instance)
+            Gestures.set("rate", not Gestures.on("rate"))
+            if touchmenu_instance and touchmenu_instance.updateItems then
+                touchmenu_instance:updateItems()
+            end
+        end,
+    }
+    return items
+end
+
 -- (#99). Enable switch, per-category visibility checkboxes, font size, and
 -- alignment. Each control writes one merged field on the tags region and
 -- live-refreshes the hero (which re-reads the config on its next pill
@@ -3377,7 +3460,17 @@ function Settings:_settingsSubItems()
             .. " it. The status line at the top has its own entry."),
         enabled_func        = function() return self._bw ~= nil end,
         sub_item_table_func = function()
-            return self:_heroSubItems()
+            -- How the rows work, where it reads without a tap: a row's
+            -- long-press is its on/off switch, so no row can show help text.
+            local rows = {
+                {
+                    text = _("Tap a line for its options, long-press to turn it on or off."),
+                    enabled = false,
+                    separator = true,
+                },
+            }
+            for _i, row in ipairs(self:_heroSubItems()) do rows[#rows + 1] = row end
+            return rows
         end,
     }
     -- ("Show text below covers" lives in the Cover display submenu since 4.0:

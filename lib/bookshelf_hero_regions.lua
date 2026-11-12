@@ -303,4 +303,21 @@ function Regions.restore(key, snap)
     Regions.write(key, snap)
 end
 
+-- Which books show the reader's own stars in the Rating row (issue 484), the
+-- row's `show` field. In menu order; "all" is the default and stores nothing.
+--   all             every book, rated or not (five empty stars to tap)
+--   rated_finished  books with a rating, and finished books waiting for one
+--   rated           books with a rating only (rate from the book menu)
+Regions.RATING_SHOW = { "all", "rated_finished", "rated" }
+
+-- ratingShown(mode, book) -> does this book show the reader's own stars?
+function Regions.ratingShown(mode, book)
+    if mode ~= "rated_finished" and mode ~= "rated" then return true end
+    if type(book) ~= "table" then return false end
+    if (tonumber(book.rating) or 0) > 0 then return true end
+    if mode == "rated" then return false end
+    -- The repository names it "finished"; KOReader's own word is "complete".
+    return book.status == "finished" or book.status == "complete"
+end
+
 return Regions

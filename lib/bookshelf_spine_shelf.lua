@@ -1838,24 +1838,20 @@ local function _paintRotatedTitle(bb, x, y, run_len, band_w, text, face_size, lo
         -- Shrink to fit: a narrow spine can't take the nominal size, so step
         -- the face down (never below 6dp) until the rendered line's height
         -- fits across the spine, rather than silently dropping the title.
+        -- Which size is SpineShelf.titleFitSize's answer, so a series box can
+        -- ask the same question of all its books before lettering any.
         local face_name = BFont.getUIFontFace() or "cfont"
-        local tw, sz
-        local size = face_size
-        while size >= 6 do
-            tw = TextWidget:new{
-                text      = text,
-                face      = BFont:getFace(face_name, size),
-                fgcolor   = _textColor(night),
-                max_width = run_len,
-                padding   = 0,
-            }
-            sz = tw:getSize()
-            if sz.h <= inner then break end
-            tw:free()
-            tw = nil
-            size = size - 2
-        end
-        if not tw then return end
+        local size = SpineShelf.titleFitSize(band_w, face_size, inset)
+        if not size then return end
+        local tw = TextWidget:new{
+            text      = text,
+            face      = BFont:getFace(face_name, size),
+            fgcolor   = _textColor(night),
+            max_width = run_len,
+            padding   = 0,
+        }
+        local sz = tw:getSize()
+        if sz.h > inner then tw:free() return end
         local line_h = sz.h
         if sz.w < 1 or line_h < 1 then tw:free() return end
         -- A title too long for the run takes a second line where the spine
@@ -3104,16 +3100,20 @@ end
 -- A face's text height, measured once per size.
 function SpineShelf.textHeight(size)
     SpineShelf._badge_text_h = SpineShelf._badge_text_h or {}
-    local text_h = SpineShelf._badge_text_h[size]
+    -- Per font as well as per size: the reader can change the UI font
+    -- mid-session, and titleFitSize trusts this to say what fits.
+    local font = BFont.getUIFontFace() or "cfont"
+    local key = font .. "|" .. size
+    local text_h = SpineShelf._badge_text_h[key]
     if not text_h then
         local ok = pcall(function()
-            local face = BFont:getFace(BFont.getUIFontFace() or "cfont", size)
+            local face = BFont:getFace(font, size)
             local tw = TextWidget:new{ text = "Xg", face = face, padding = 0 }
             text_h = tw:getSize().h
             tw:free()
         end)
         if not ok or not text_h then text_h = math.floor(size * 1.9) end
-        SpineShelf._badge_text_h[size] = text_h
+        SpineShelf._badge_text_h[key] = text_h
     end
     return text_h
 end
@@ -3187,6 +3187,39 @@ end
 --            which is exactly where a reader reads the shelf's depth. NOT a
 --            multiple of the edge unit: see plankSurface.
 --   LIFT     how far a held book rises off the plank. Nothing to do with how
+-- titleFitSize(band_w, face_size, inset, heightOf) -> the size a rotated
+-- title is set at on a spine band_w px wide, or nil when none fits and the
+-- spine stands bare. From face_size down in twos, and always the floor last:
+-- a spine starting on an odd size used to stop at 7 and lose a title that a
+-- slightly thinner one, starting on 8 and reaching 6, kept. inset is the
+-- spine's border, off both sides. heightOf(size) -> a line's height in px
+-- (the test seam; the UI font's own by default).
+SpineShelf.TITLE_MIN_SIZE = 6
+function SpineShelf.titleFitSize(band_w, face_size, inset, heightOf)
+    if band_w < 8 then return nil end
+    heightOf = heightOf or SpineShelf.textHeight
+    local floor = SpineShelf.TITLE_MIN_SIZE
+    local inner = math.max(1, band_w - 2 * math.max(0, inset or 0))
+    local size = math.max(floor, face_size or floor)
+    while true do
+        if heightOf(size) <= inner then return size end
+        if size <= floor then return nil end
+        size = math.max(floor, size - 2)
+    end
+end
+
+-- entryTitleFits(e) -> does this spine entry's title fit across it? The
+-- sizes _renderIntoAt hands the painter, for a caller deciding before paint.
+function SpineShelf.entryTitleFits(e)
+    -- An upright CJK column is laid out by its own painter, not this fit.
+    if _isCJKText(e.label) then return true end
+    local thick = SpineShelf.textThicken(SpineShelf.spineTextScale())
+    local w_dp = (e.w_dp or 20) / thick
+    local ref = e.ref_w_dp and (e.ref_w_dp / thick) or nil
+    local hairline = math.max(1, Screen:scaleBySize(1))
+    return SpineShelf.titleFitSize(e.w, SpineShelf.titleFaceSize(w_dp, ref), hairline) ~= nil
+end
+
 --            deep the board is; it was the old surface value and it stays
 --            that value, or deepening the shelf would double the jump.
 SpineShelf.PLANK_INSET_UNITS  = 0.8

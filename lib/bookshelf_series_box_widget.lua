@@ -462,6 +462,21 @@ local ART_DARKEN = 0       -- wallpaperLUT's b: toward black
 local COUNT_SQUASH = 0.7
 local COUNT_TINT = 0.4       -- from the lid's colour toward white
 
+-- titlesAllOrNone(entries, fits) -> true if the titles stay. A box letters
+-- all of its books or none: one too thin for the smallest lettering stood
+-- bare beside lettered neighbours of nearly its own width, which read as a
+-- fault (maintainer). fits(entry) -> does that spine take its title. A book
+-- with no title to draw does not count.
+function Box.titlesAllOrNone(entries, fits)
+    local all = true
+    for _, e in ipairs(entries) do
+        if e.label and e.label ~= "" and not fits(e) then all = false; break end
+    end
+    if all then return true end
+    for _, e in ipairs(entries) do e.label = "" end
+    return false
+end
+
 function Box:_initSpines()
     local entry, shape = self.entry, self.entry.series_box
     local SpineShelf = require("lib/bookshelf_spine_shelf")
@@ -488,6 +503,14 @@ function Box:_initSpines()
         run_w = run_w + sp.w
     end
     self.run_w = run_w
+    do
+        local es = {}
+        for i, slot in ipairs(self.slots) do es[i] = slot.entry end
+        Box.titlesAllOrNone(es, function(e)
+            local ok, fits = pcall(SpineShelf.entryTitleFits, e)
+            return not ok or fits
+        end)
+    end
     -- The series' own image when it has one, as on the slipcase's front.
     local ok_is, ImageSource = pcall(require, "lib/bookshelf_image_source")
     local sname = entry.book.series_name

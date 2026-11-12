@@ -28,6 +28,11 @@ local Screen            = Device.screen
 
 local M = {}
 
+-- How see-through a faded book is (on hold, or finished with "Fade finished
+-- books"): the share of what is behind it that shows. One number for a
+-- cover, the page block above a face-out, and a spine.
+M.FADE_STRENGTH = 0.6
+
 -- Glyph code points (KOReader's bundled nerd font).
 M.GLYPH_BOOKMARK       = "\u{e7bf}"  -- in-progress
 M.GLYPH_BOOKMARK_CHECK = "\u{e7c0}"  -- finished

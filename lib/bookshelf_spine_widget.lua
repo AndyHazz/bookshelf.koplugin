@@ -174,12 +174,11 @@ local SHADOW_OFFSET   = Space.px(4)                 -- shadow offset in dp
 local CARD_RADIUS     = Space.px(4)                 -- rounded corner radius (shape: no DPI growth)
 local CARD_BORDER     = Screen:scaleBySize(1)       -- 1dp border on the card
 
--- How far an on-hold book's cover is faded toward the page background, as a
--- white-blend opacity for bb:lightenRect. Night mode inverts the framebuffer,
--- so the same white blend reads as a darken toward the black page there — a
--- mode-correct "shelved / paused" de-emphasis either way. Grid covers only
--- (gated on show_progress in _wrapCoverInCard, which the hero / stacks clear).
-local ON_HOLD_FADE = 0.6
+-- How see-through a faded book's cover is: the share of what is behind it
+-- that shows (see lib/bookshelf_see_through). It was a white wash, which is
+-- the same picture on a white page and a pale tint on anything else.
+local ON_HOLD_FADE = CoverProgress.FADE_STRENGTH
+local SeeThrough = require("lib/bookshelf_see_through")
 -- Selected-state border thickness: matches SHADOW_OFFSET so the border's
 -- outer perimeter sits exactly where the unselected-state drop shadow's
 -- outer edge sits. The selected→unselected transition is then just a
@@ -698,6 +697,12 @@ function RoundedCornerCard:paintTo(bb, x, y)
     -- (the opening-book squeeze in bookshelf_widget) can target the exact
     -- cover card rather than reconstructing layout geometry.
     self.dimen.x, self.dimen.y = x, y
+    -- A faded cover is see-through: what is behind the whole card is copied
+    -- now and mixed back over it at the end.
+    local see = nil
+    if self.fade_by and self.fade_by > 0 then
+        see = SeeThrough.take(bb, x, y, self.width, self.height)
+    end
     -- What is behind the corners, before the cover paints over it (see
     -- CornerKeep). An explicit bg_color -- the selection ring behind a
     -- selected cover -- is meant to show at the corner, so it still wins.
@@ -708,11 +713,9 @@ function RoundedCornerCard:paintTo(bb, x, y)
     if self.inner then
         self.inner:paintTo(bb, x + self.border_size, y + self.border_size)
     end
-    -- On-hold fade: blend the page colour over the cover image so the book
-    -- reads as shelved. Applied over the inner area only (inside the border),
-    -- BEFORE the corner mask + border so the rounded shape and frame stay
-    -- crisp on top of the wash.
-    if self.fade_by and self.fade_by > 0 then
+    -- The old fade, a white wash over the cover image, kept for a target
+    -- whose pixels could not be copied.
+    if self.fade_by and self.fade_by > 0 and not see then
         local b  = self.border_size
         local iw = self.width  - 2 * b
         local ih = self.height - 2 * b
@@ -855,6 +858,8 @@ function RoundedCornerCard:paintTo(bb, x, y)
         _paintColorSafeBorder(bb, x, y, self.width, self.height,
                               self.border_size, border_color, self.radius, true)
     end
+    -- Last, so the corners and the frame fade with the picture.
+    if see then SeeThrough.put(see, bb, self.fade_by) end
 end
 
 -- _renderCornerFlag helper widget: paints the top-left bulk-select
@@ -2823,6 +2828,13 @@ function SpineWidget:_frameColor(colors)
     return colors.border
 end
 
+-- isFaded() -> is this cover drawn faded? The card asks, and so does the
+-- page block above a face-out on a spine shelf, which fades with it.
+function SpineWidget:isFaded()
+    return not self.is_selected and not self.is_bulk_selected
+        and self:_statusIndicators().on_hold_fade or false
+end
+
 function SpineWidget:_wrapCoverInCard(cover_inner, card_w, card_h, border)
     -- Faded on-hold books are fully recessed: faded toward the page
     -- background, no border, and no drop shadow (the shadow is skipped in
@@ -2833,8 +2845,7 @@ function SpineWidget:_wrapCoverInCard(cover_inner, card_w, card_h, border)
     -- but set neither flag, so they stay clean by construction. Excluded
     -- while selected (current-book ring) or bulk-selected, which own their
     -- cover chrome.
-    local on_hold_fade = not self.is_selected and not self.is_bulk_selected
-        and self:_statusIndicators().on_hold_fade or false
+    local on_hold_fade = self:isFaded()
     local cover_args = {
         inner       = cover_inner,
         width       = card_w,

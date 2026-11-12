@@ -2013,6 +2013,18 @@ local function _paintLevelText(bb, x, y, box_w, text, face, night)
     return used
 end
 
+local SeeThrough = require("lib/bookshelf_see_through")
+
+-- spineFaded(book) -> is this book faded on a spine shelf (on hold, or
+-- finished with "Fade finished books" on)? The same decision a cover takes.
+function SpineShelf.spineFaded(book)
+    if not book then return false end
+    if book._spine_status_checked and book.status == nil then return false end
+    local d
+    local ok = pcall(function() d = CoverProgress.decide(book, "spines") end)
+    return ok and type(d) == "table" and d.on_hold_fade == true
+end
+
 local function _statusGlyph(book)
     if book and book._spine_status_checked and book.status == nil then
         -- Checked at plan time and genuinely never opened: nothing for
@@ -2266,6 +2278,16 @@ function SpineBookSlot:paintTo(bb, x, y)
             g:blitFrom(require("lib/bookshelf_clip_bb").real(bb), 0, 0, x, y, self.width, self.height)
         end)
     end
+    -- A faded book is faded spine out too: what is behind the spine is
+    -- copied now and mixed back over it once it has painted. Decided once a
+    -- slot (invalidate() forgets it), not once a paint.
+    if self._faded == nil then
+        self._faded = SpineShelf.spineFaded(self.book) and true or false
+    end
+    local see = nil
+    if self._faded and not self.is_bulk_selected then
+        see = SeeThrough.take(bb, x, y, self.width, self.height)
+    end
     local night = _nightMode()
     local key = self:_renderKey(night)
     local cached = _render_cache[key]
@@ -2312,6 +2334,7 @@ function SpineBookSlot:paintTo(bb, x, y)
         if not ok or not cached then
             -- Render straight to the target rather than showing nothing.
             self:_renderIntoAt(bb, x, y, night)
+            if see then SeeThrough.put(see, bb, CoverProgress.FADE_STRENGTH) end
             SpineShelf.finishSlot(bb, x, y, self._paint_after,
                                   x - (self.flush_dx or 0) - 1)
             return
@@ -2328,11 +2351,13 @@ function SpineBookSlot:paintTo(bb, x, y)
     else
         bb:blitFrom(cached, x, y, 0, 0, self.width, self.height)
     end
+    if see then SeeThrough.put(see, bb, CoverProgress.FADE_STRENGTH) end
     SpineShelf.finishSlot(bb, x, y, _render_after[key],
                           x - (self.flush_dx or 0) - 1)
 end
 
 function SpineBookSlot:invalidate()
+    self._faded = nil
     -- The pixel cache is module-level and keyed by book; drop every render
     -- of this one (state variants included).
     SpineShelf.invalidateRender(self.book and self.book.filepath)
@@ -2720,6 +2745,10 @@ function FaceOutTopBlock:paintTo(bb, x, y)
     self.dimen.x, self.dimen.y = x, y
     local w, h = self.dimen.w, self.dimen.h
     if w < 6 or h < 3 then return end
+    -- The block fades with the cover it sits on: one book, one fade.
+    local see = nil
+    local ok_f, faded = pcall(function() return self.cover and self.cover:isFaded() end)
+    if ok_f and faded then see = SeeThrough.take(bb, x, y, w, h) end
     local night = _nightMode()
     local skin = BookBinding.skin(self.binding)
     local board = skin and math.max(1, Screen:scaleBySize(1)) or math.max(2, math.min(Screen:scaleBySize(3),
@@ -2755,6 +2784,7 @@ function FaceOutTopBlock:paintTo(bb, x, y)
     bb:paintRectRGB32(x, y + ch, board, h - ch, fill)     -- left board, below the chamfer
     bb:paintRectRGB32(x + ch, y, w - ch, board, fill)     -- top board, notched at the left
     bb:paintRectRGB32(x + w - rb, y + board, rb, h - board, fill)  -- right sliver
+    if see then SeeThrough.put(see, bb, CoverProgress.FADE_STRENGTH) end
 end
 
 -- ── Face-out foot nicks ─────────────────────────────────────────────────────
@@ -3157,36 +3187,6 @@ function SpineShelf.titleFaceSize(w_dp, ref_w_dp)
     return math.max(6, math.floor(base * SpineShelf.spineTextScale() / 100 + 0.5))
 end
 
-function SpineShelf.badgeDrop(row_h)
-    local scale = 100
-    pcall(function()
-        local BookshelfSettings = require("lib/bookshelf_settings_store")
-        scale = BookshelfSettings.read("stack_label_font_scale", 100) or 100
-    end)
-    local text_h = SpineShelf.textHeight(math.max(8, math.floor(14 * scale / 100 + 0.5)))
-    local pad_y = Space.px(2)
-    local drop  = text_h + 2 * pad_y - SpineShelf.plankFace(row_h) - 2
-    return math.max(0, drop)
-end
-
--- The plank's THREE numbers, and the accessors that read them. They were two
--- literals -- `3 * b` in five places and `math.floor(b * 0.8)` in three --
--- and the tilt and lift maths reads them as a PAIR, so changing either in one
--- place moved a book without moving the shelf it stands on.
---
--- They are three because they mean three different things, and the old code
--- had two of them sharing one number by accident:
---
---   INSET    how much surface shows in FRONT of the feet. Small on purpose:
---            the books stand almost on the lip, which is how they sit on a
---            real shelf (maintainer, when this was tried the other way). It
---            is the one that costs book height, since the stand height is
---            the row minus the front face minus this.
---   SURFACE  the whole painted top face. Mostly HIDDEN behind the books, and
---            visible in the gaps between them and past the ends of a run --
---            which is exactly where a reader reads the shelf's depth. NOT a
---            multiple of the edge unit: see plankSurface.
---   LIFT     how far a held book rises off the plank. Nothing to do with how
 -- titleFitSize(band_w, face_size, inset, heightOf) -> the size a rotated
 -- title is set at on a spine band_w px wide, or nil when none fits and the
 -- spine stands bare. From face_size down in twos, and always the floor last:
@@ -3220,6 +3220,36 @@ function SpineShelf.entryTitleFits(e)
     return SpineShelf.titleFitSize(e.w, SpineShelf.titleFaceSize(w_dp, ref), hairline) ~= nil
 end
 
+function SpineShelf.badgeDrop(row_h)
+    local scale = 100
+    pcall(function()
+        local BookshelfSettings = require("lib/bookshelf_settings_store")
+        scale = BookshelfSettings.read("stack_label_font_scale", 100) or 100
+    end)
+    local text_h = SpineShelf.textHeight(math.max(8, math.floor(14 * scale / 100 + 0.5)))
+    local pad_y = Space.px(2)
+    local drop  = text_h + 2 * pad_y - SpineShelf.plankFace(row_h) - 2
+    return math.max(0, drop)
+end
+
+-- The plank's THREE numbers, and the accessors that read them. They were two
+-- literals -- `3 * b` in five places and `math.floor(b * 0.8)` in three --
+-- and the tilt and lift maths reads them as a PAIR, so changing either in one
+-- place moved a book without moving the shelf it stands on.
+--
+-- They are three because they mean three different things, and the old code
+-- had two of them sharing one number by accident:
+--
+--   INSET    how much surface shows in FRONT of the feet. Small on purpose:
+--            the books stand almost on the lip, which is how they sit on a
+--            real shelf (maintainer, when this was tried the other way). It
+--            is the one that costs book height, since the stand height is
+--            the row minus the front face minus this.
+--   SURFACE  the whole painted top face. Mostly HIDDEN behind the books, and
+--            visible in the gaps between them and past the ends of a run --
+--            which is exactly where a reader reads the shelf's depth. NOT a
+--            multiple of the edge unit: see plankSurface.
+--   LIFT     how far a held book rises off the plank. Nothing to do with how
 --            deep the board is; it was the old surface value and it stays
 --            that value, or deepening the shelf would double the jump.
 SpineShelf.PLANK_INSET_UNITS  = 0.8
@@ -5846,6 +5876,7 @@ function SpineShelf.rowWidget(opts)
                         dimen = Geom:new{ w = e.w, h = depth },
                         look  = e.look,
                         binding = e.binding,
+                        cover = cover,
                     } or nil
                     local feet = FaceOutFeet:new{
                         dimen  = Geom:new{ w = e.w, h = cover_h },

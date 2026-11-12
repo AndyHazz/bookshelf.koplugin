@@ -14,6 +14,7 @@ local _            = require("lib/bookshelf_i18n").gettext
 local Focus        = require("lib/bookshelf_focus")
 
 local BookshelfSettings = require("lib/bookshelf_settings_store")
+local Marks        = require("lib/bookshelf_cover_marks")
 local BFont        = require("lib/bookshelf_fonts")
 local Space        = require("lib/bookshelf_space")
 -- Up here, not beside ICON_RESET: the Theme menu's rows above that use it
@@ -489,7 +490,6 @@ function Settings:_heroSubItems(keys)
                 self:_toggleRegionEnabled(key, touchmenu_instance)
             end,
         }
-        if key == "tags" then
         if key == "rating" then
             -- Rating is an interactive widget, not a text-templated region, so
             -- it has no line editor: tap opens its options (issue 484). The
@@ -499,6 +499,7 @@ function Settings:_heroSubItems(keys)
                 return self:_ratingRegionSubItems()
             end
         end
+        if key == "tags" then
             -- Tags is interactive AND configurable (#99): the row opens a
             -- submenu (enable + per-category visibility + font size +
             -- alignment) instead of a plain enable toggle. Drop the toggle
@@ -516,7 +517,6 @@ function Settings:_heroSubItems(keys)
     return items
 end
 
--- _tagsRegionSubItems() — the "Tags (interactive)" configuration submenu
 -- _ratingRegionSubItems() -- the "Rating (interactive)" row's options (issue
 -- 484): whose rating the row shows and on which books, and whether a tap on a
 -- star rates. Two of the rows are switches that already existed elsewhere
@@ -598,6 +598,7 @@ function Settings:_ratingRegionSubItems()
     return items
 end
 
+-- _tagsRegionSubItems() — the "Tags (interactive)" configuration submenu
 -- (#99). Enable switch, per-category visibility checkboxes, font size, and
 -- alignment. Each control writes one merged field on the tags region and
 -- live-refreshes the hero (which re-reads the config on its next pill
@@ -874,6 +875,45 @@ function Settings:_pageCountSubItems(markDirty)
     }
 end
 
+-- Issue 597: every cover mark has a switch for covers and one for spine
+-- shelves (lib/bookshelf_cover_marks). These are the two rows that head each
+-- mark's submenu. `enabled` greys them: a function for both, or a table
+-- { covers = fn, spines = fn } for one each (a style set to None has nothing
+-- to switch).
+function Settings._markSurfaceRows(mark, markDirty, enabled)
+    local function row(surface, label, separator)
+        local enabled_func = enabled
+        if type(enabled) == "table" then enabled_func = enabled[surface] end
+        return {
+            text = label,
+            checked_func = function() return Marks.shown(mark, surface) end,
+            enabled_func = enabled_func,
+            keep_menu_open = true,
+            separator = separator,
+            callback = function(touchmenu_instance)
+                Marks.set(mark, surface, not Marks.shown(mark, surface))
+                markDirty()
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+            end,
+        }
+    end
+    return {
+        row("covers", _("Show on covers")),
+        row("spines", _("Show on spine shelves"), true),
+    }
+end
+
+-- Where a mark shows, for its parent row.
+function Settings._markWhereLabel(mark)
+    local where = Marks.where(mark)
+    if where == "both" then return _("Covers and spine shelves") end
+    if where == "covers" then return _("Covers only") end
+    if where == "spines" then return _("Spine shelves only") end
+    return _("Off")
+end
+
 function Settings:_coverDisplaySubItems()
     local function markDirty()
         if self._bw and self._bw._rebuild then
@@ -881,31 +921,26 @@ function Settings:_coverDisplaySubItems()
             UIManager:setDirty(self._bw, "ui")
         end
     end
-
-    -- Three independent toggles (defaults all ON when unset). Inline the
-    -- builder so each row reads/writes its own setting key without
-    -- repetition.
-    -- default_off: when true, treats nil as false. Used for opt-in
-    -- toggles like Show page count where defaulting ON would be
-    -- intrusive for users upgrading from a prior version.
-    local function toggleRow(setting_key, label, separator, default_off)
-        local default_value = not default_off  -- true unless explicitly off
+    local function surfaceRows(mark, enabled)
+        return Settings._markSurfaceRows(mark, markDirty, enabled)
+    end
+    -- The switches, then a mark's own choices under them.
+    local function withSurfaceRows(mark, enabled, rows)
+        local out = surfaceRows(mark, enabled)
+        for _i = 1, #rows do out[#out + 1] = rows[_i] end
+        return out
+    end
+    -- A mark with nothing to choose but where it shows.
+    local function surfaceOnlyRow(mark, label, separator)
         return {
-            text = label,
-            checked_func = function()
-                local v = BookshelfSettings.read(setting_key)
-                if v == nil then return default_value end
-                return v == true
-            end,
-            callback = function()
-                local v = BookshelfSettings.read(setting_key)
-                if v == nil then v = default_value end
-                BookshelfSettings.save(setting_key, not v)
-                markDirty()
+            text_func = function()
+                return label .. ": " .. Settings._markWhereLabel(mark)
             end,
             separator = separator,
+            sub_item_table_func = function() return surfaceRows(mark) end,
         }
     end
+
     -- Unified label mode: one setting drives the strip under covers on EVERY
     -- shelf surface (regular grid and expanded shelf). Replaces the 3.x pair
     -- of an expanded-only mode plus a grid on/off checkbox; the stored key
@@ -1142,10 +1177,8 @@ function Settings:_coverDisplaySubItems()
             separator = true,
         },
         -- ── reading progress on covers ──
-        toggleRow("progress_bar_enabled",
-                  _("Show progress bars"), false),
-        toggleRow("progress_bookmark_enabled",
-                  _("Show reading bookmarks"), false),
+        surfaceOnlyRow("progress_bar", _("Progress bars")),
+        surfaceOnlyRow("bookmark", _("Reading bookmarks")),
         -- Page count on covers: one row opening its own menu (it was two
         -- rows, which the long menu split across its pages).
         {
@@ -1153,7 +1186,9 @@ function Settings:_coverDisplaySubItems()
                 return _("Page badge") .. ": " .. Settings._pageCountSummary()
             end,
             sub_item_table_func = function()
-                return self:_pageCountSubItems(markDirty)
+                return withSurfaceRows("page_badge", function()
+                    return BookshelfSettings.read("progress_page_count_enabled") == true
+                end, self:_pageCountSubItems(markDirty))
             end,
         },
         -- ── reading-status treatments ──
@@ -1202,18 +1237,19 @@ function Settings:_coverDisplaySubItems()
                     return _("Completed book badge") .. ": " .. labels[readMode()]
                 end,
                 sub_item_table_func = function()
-                    return {
+                    return withSurfaceRows("done_badge",
+                        function() return readMode() ~= "none" end, {
                         optionRow("none",     labels.none),
                         optionRow("bookmark", labels.bookmark),
                         optionRow("tickbox",  labels.tickbox),
-                    }
+                    })
                 end,
             }
         end)(),
         -- Fade finished books like the on-hold faded cover (#138). Opt-in
         -- (default off) and independent of the badge style above, mirroring
         -- the #121 split of badge vs fade for on-hold books.
-        toggleRow("finished_fade_enabled", _("Fade finished books"), false, true),
+        surfaceOnlyRow("finished_fade", _("Fade finished books")),
         -- On-hold display: four-state. "both" (default; pause badge +
         -- faded cover), "pause" (badge only), "fade" (faded cover only),
         -- "none". Replaces the old Show on-hold badge boolean, which
@@ -1267,12 +1303,13 @@ function Settings:_coverDisplaySubItems()
                     return _("On-hold display") .. ": " .. parent_labels[readMode()]
                 end,
                 sub_item_table_func = function()
-                    return {
+                    return withSurfaceRows("on_hold",
+                        function() return readMode() ~= "none" end, {
                         optionRow("none",  labels.none),
                         optionRow("pause", labels.pause),
                         optionRow("fade",  labels.fade),
                         optionRow("both",  labels.both),
-                    }
+                    })
                 end,
                 separator = true,  -- end the reading-status band
             }
@@ -1320,11 +1357,15 @@ function Settings:_coverDisplaySubItems()
                 end,
                 separator = true,
                 sub_item_table_func = function()
-                    return {
+                    -- The choices below are about covers. A spine's foot
+                    -- carries the number whatever they say, so its switch
+                    -- stays live under Never.
+                    return withSurfaceRows("series_num",
+                        { covers = function() return readMode() ~= "never" end }, {
                         optionRow("always",    labels.always),
                         optionRow("in_series", labels.in_series),
                         optionRow("never",     labels.never),
-                    }
+                    })
                 end,
             }
         end)(),
@@ -1333,8 +1374,7 @@ function Settings:_coverDisplaySubItems()
         -- collection. Defaults ON: favouriting a book should mark it without
         -- a second opt-in (render gate uses nilOrTrue to match). Users who
         -- explicitly turn it off keep it off.
-        toggleRow("show_fav_badge",
-                  _("Show favorites icon"), false, false),
+        -- Where it shows: the two switches that head the row below.
         -- The cover's corner badge: a favourite's heart (default; reads
         -- distinctly from the rating stars) or star, or the book's star
         -- rating on every rated book (issue 538). The choice also selects
@@ -1368,11 +1408,11 @@ function Settings:_coverDisplaySubItems()
                     return T(_("Favorite icon or star rating: %1"), labels[readIcon()])
                 end,
                 sub_item_table_func = function()
-                    return {
+                    return withSurfaceRows("favorite", nil, {
                         optionRow("heart",  labels.heart),
                         optionRow("star",   labels.star),
                         optionRow("rating", labels.rating),
-                    }
+                    })
                 end,
                 separator = true,  -- end the decorations band
             }

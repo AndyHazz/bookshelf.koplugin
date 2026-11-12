@@ -29,6 +29,7 @@ local Widget         = require("ui/widget/widget")
 local logger         = require("logger")
 local BFont          = require("lib/bookshelf_fonts")
 local CoverProgress  = require("lib/bookshelf_cover_progress")
+local Marks = require("lib/bookshelf_cover_marks")
 local SpineLayout    = require("lib/bookshelf_spine_layout")
 local BookBinding    = require("lib/bookshelf_book_binding")
 local RoundCorner    = require("lib/bookshelf_round_corner")
@@ -2023,7 +2024,7 @@ local function _statusGlyph(book)
         return nil
     end
     local d
-    local ok = pcall(function() d = CoverProgress.decide(book) end)
+    local ok = pcall(function() d = CoverProgress.decide(book, "spines") end)
     if not ok or type(d) ~= "table" then return nil end
     if d.glyph == "in_progress" then return CoverProgress.GLYPH_BOOKMARK end
     if d.glyph == "complete_bookmark" or d.glyph == "complete_tickbox" then
@@ -2586,7 +2587,10 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
         if used > 0 then cur_top = cur_top + used + math.floor(pad / 2) end
     end
     -- Favourite star under it (face-out favourites show the cover instead).
-    if e.favourite and not e.face_out then
+    -- Shown unless switched off for spine shelves; it never followed the
+    -- covers switch here.
+    if e.favourite and not e.face_out
+            and Marks.explicit("favorite", "spines") ~= false then
         local gsize = _glyphSizeDp(w_dp, txt_ref_w_dp, GLYPH_FAV)
         local face = BFont:getFace("symbols", gsize)
         -- The favourite icon the reader chose (heart unless set to star),
@@ -2602,7 +2606,7 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
     -- anchored so the text BOTTOM sits one pad above the spine's foot --
     -- the reserve arithmetic this replaces drifted with font size and let
     -- the number float above the base.
-    if self.show_series and e.series_num then
+    if self.show_series and e.series_num and Marks.shown("series_num", "spines") then
         local ssize = math.max(7, math.min(13, math.floor(w_dp * 0.45)))
         local face = BFont:getFace(BFont.getUIFontFace() or "cfont", ssize)
         pcall(function()
@@ -5750,11 +5754,14 @@ function SpineShelf.rowWidget(opts)
                         -- Top-RIGHT: the status glyphs have the top-left here,
                         -- and the "#N" pill that sits top-right is off.
                         favorite_top_right = true,
-                        -- Same argument for the "#N" and "<n>p" pills: the
-                        -- spines beside it already number their series on the
-                        -- foot, and a book's length is its width here (user
-                        -- ruling). The progress bar and status glyphs stay.
+                        -- Same argument for the "#N" pill: the spines beside
+                        -- it already number their series on the foot (user
+                        -- ruling).
                         suppress_number_badges  = true,
+                        -- The rest follow the "Show on spine shelves" switches
+                        -- (issue 597). The "<n>p" pill is off until a reader
+                        -- asks for it: a book's length is its width here.
+                        marks_surface = "spines",
                         is_bulk_selected = is_bulk,
                         -- No frame around a face-out on this shelf, so the
                         -- bulk flag keeps its circle off the card's edges.

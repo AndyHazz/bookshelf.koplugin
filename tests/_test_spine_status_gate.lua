@@ -100,8 +100,9 @@ package.preload["lib/bookshelf_cover_progress"] = function()
         badgeSize      = function(n) return n end,
         glyphRenderedH = function() return 0 end,
         resolvedColors = function() return {} end,
-        decide         = function()
+        decide         = function(_book, surface)
             _G.__decide_calls = _G.__decide_calls + 1
+            _G.__decide_surface = surface
             return _G.__decide_result
         end,
     }
@@ -315,6 +316,46 @@ t.test("the face-out tile asks for both pills to go", function()
     assert(tile, "the face-out tile construction moved")
     assert(tile:find("suppress_number_badges%s*=%s*true"),
         "the shelf stopped asking, so the pills are back")
+end)
+
+-- ── Per-surface switches (issue 597) ───────────────────────────────────────
+--
+-- The page pill on a face-out is now the reader's choice (Cover display >
+-- Page badge > Show on spine shelves, off until chosen), so the tile says
+-- which surface it is on and decide() answers for that surface. The series
+-- pill stays off a face-out: suppress_number_badges still asks for that.
+
+t.test("a tile on a spine shelf asks decide() about spine shelves", function()
+    ask{ show_progress = true, marks_surface = "spines" }
+    eq(_G.__decide_surface, "spines")
+    ask{ show_progress = true }
+    eq(_G.__decide_surface, nil, "every other tile asks about covers")
+end)
+
+t.test("on a spine shelf the page pill is the surface's decision", function()
+    local ind = ask{ show_progress = true, suppress_number_badges = true,
+                     marks_surface = "spines" }
+    eq(ind.page_count, true, "decide() said yes for spines and the tile overruled it")
+end)
+
+t.test("the face-out tile says it is on a spine shelf", function()
+    local src = assert(io.open("lib/bookshelf_spine_shelf.lua")):read("*a")
+    local tile = src:match("CoverTile:new{(.-)}")
+    assert(tile:find('marks_surface%s*=%s*"spines"'),
+        "a face-out no longer follows the spine shelf switches")
+end)
+
+t.test("the favourite badge follows its switch for the tile's surface", function()
+    local src = assert(io.open("lib/bookshelf_spine_widget.lua")):read("*a")
+    assert(src:find('Marks.shown("favorite", self.marks_surface)', 1, true),
+        "the favourite badge reads the covers setting on every surface")
+end)
+
+t.test("the series pill has a covers switch", function()
+    local src = assert(io.open("lib/bookshelf_spine_widget.lua")):read("*a")
+    local body = src:match("\nlocal function _showSeriesNum%(in_series%)\n(.-)\nend\n")
+    assert(body and body:find('Marks.shown("series_num", "covers")', 1, true),
+        "Show on covers does nothing for the series number")
 end)
 
 t.done()

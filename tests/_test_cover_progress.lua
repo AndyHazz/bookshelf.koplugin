@@ -560,5 +560,113 @@ test("rating stars: full, half from .5, never an empty star on a cover", functio
     end
 end)
 
+-- Per-surface switches (issue 597) -------------------------------------------
+-- decide(book, "spines") answers for a spine shelf: a face-out cover there and
+-- a narrow spine's glyph. Without the argument it answers for covers.
+local function clearSurfaces()
+    for _, k in ipairs({ "progress_bar_spines", "progress_bookmark_spines",
+            "finished_fade_spines", "progress_page_count_spines",
+            "progress_page_count_covers", "progress_badge_spines",
+            "progress_badge_covers", "on_hold_spines", "on_hold_covers",
+            "progress_page_count_enabled", "finished_fade_enabled" }) do
+        S[k] = nil
+    end
+end
+test("untouched: a spine shelf gets what covers get, minus the page badge and the bar", function()
+    setAll(true); clearSurfaces(); S.progress_page_count_enabled = true
+    local c = CP.decide(book("reading", 0.5))
+    local s = CP.decide(book("reading", 0.5), "spines")
+    eq(c.page_count, true); eq(s.page_count, false)
+    eq(c.bar, true); eq(s.bar, false, "no bar on a face-out until asked for")
+    eq(s.glyph, "in_progress")
+    clearSurfaces()
+end)
+test("page badge on spines only", function()
+    setAll(true); clearSurfaces()
+    S.progress_page_count_enabled = true
+    S.progress_page_count_covers = false
+    S.progress_page_count_spines = true
+    eq(CP.decide(book("reading", 0.5)).page_count, false)
+    eq(CP.decide(book("reading", 0.5), "spines").page_count, true)
+    eq(CP.decide(nil, "spines").page_count, true, "no book: the switch still answers")
+    clearSurfaces()
+end)
+test("the page badge's own Off beats both switches", function()
+    setAll(true); clearSurfaces()
+    S.progress_page_count_spines = true
+    eq(CP.decide(book("reading", 0.5), "spines").page_count, false)
+    clearSurfaces()
+end)
+test("bar and bookmark off on spines, on for covers", function()
+    setAll(true); clearSurfaces()
+    S.progress_bar_spines = false; S.progress_bookmark_spines = false
+    local c = CP.decide(book("reading", 0.5))
+    local s = CP.decide(book("reading", 0.5), "spines")
+    eq(c.bar, true); eq(c.glyph, "in_progress")
+    eq(s.bar, false); eq(s.glyph, nil)
+    clearSurfaces()
+end)
+test("completed badge off on one surface only", function()
+    setAll(true); clearSurfaces()
+    S.progress_badge_spines = false
+    eq(CP.decide(book("complete", 1)).glyph, "complete_bookmark")
+    eq(CP.decide(book("complete", 1), "spines").glyph, nil)
+    S.progress_badge_spines = nil; S.progress_badge_covers = false
+    eq(CP.decide(book("complete", 1)).glyph, nil)
+    clearSurfaces()
+end)
+test("fade finished on spines only", function()
+    setAll(true); clearSurfaces()
+    S.finished_fade_spines = true
+    eq(CP.decide(book("complete", 1)).on_hold_fade, nil)
+    eq(CP.decide(book("complete", 1), "spines").on_hold_fade, true)
+    clearSurfaces()
+end)
+test("on-hold display off on spines reads as the display's own None", function()
+    setAll(true); clearSurfaces()
+    S.on_hold_spines = false
+    local c = CP.decide(book("on_hold", 0.3))
+    local s = CP.decide(book("on_hold", 0.3), "spines")
+    eq(c.on_hold, true); eq(c.on_hold_fade, true)
+    eq(s.on_hold, nil); eq(s.on_hold_fade, nil)
+    eq(s.glyph, "in_progress", "falls back to the reading bookmark, as None does")
+    clearSurfaces()
+end)
+
+-- A spine shelf's records carry the status its planner read and no
+-- percentage, so a face-out cover never drew its bar: decide() only went to
+-- the sidecar when the STATUS was missing.
+local progress_reads = 0
+package.loaded["lib/bookshelf_book_repository"] = {
+    readProgress = function(fp)
+        progress_reads = progress_reads + 1
+        if fp == "/read.epub" then return 0.4, "reading", nil, 300 end
+        return nil, nil, nil, nil
+    end,
+}
+test("a record with a status and no percentage gets the percentage looked up", function()
+    setAll(true); clearSurfaces(); progress_reads = 0
+    S.progress_bar_spines = true
+    local b = { status = "reading", filepath = "/read.epub" }
+    local r = CP.decide(b, "spines")
+    eq(r.bar, true); eq(r.bar_pct, 0.4); eq(r.badge_pct, 0.4)
+    eq(progress_reads, 1)
+    clearSurfaces()
+end)
+test("an untouched spine shelf reads no sidecar for a bar it does not draw", function()
+    setAll(true); clearSurfaces(); progress_reads = 0
+    eq(CP.decide({ status = "reading", filepath = "/read.epub" }, "spines").bar, false)
+    eq(progress_reads, 0)
+end)
+test("...and not when there is no bar to draw", function()
+    setAll(true); clearSurfaces(); progress_reads = 0
+    S.progress_bar_spines = false
+    eq(CP.decide({ status = "reading", filepath = "/read.epub" }, "spines").bar, false)
+    eq(CP.decide({ status = "complete", filepath = "/read.epub" }).bar, false)
+    eq(CP.decide({ status = "reading", book_pct = 0.2, filepath = "/read.epub" }).bar_pct, 0.2)
+    eq(progress_reads, 0, "a sidecar read for nothing")
+    clearSurfaces()
+end)
+
 print(string.format("%d passed, %d failed", pass, fail))
 if fail > 0 then os.exit(1) end

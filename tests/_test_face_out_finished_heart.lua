@@ -72,8 +72,11 @@ t.test("a face-out favourite keeps its heart, top-right", function()
 end)
 
 t.test("an edge-on spine draws the reader's favourite icon", function()
-    local block = shelf:match("if e%.favourite and not e%.face_out then(.-)\n    end\n")
+    local cond, block = shelf:match("if e%.favourite and not e%.face_out(.-)then(.-)\n    end\n")
     assert(block, "could not find the spine's favourite mark")
+    -- Issue 597: off only when switched off for spine shelves.
+    assert(cond:find('Marks.explicit("favorite", "spines") ~= false', 1, true),
+        "the spine's favourite mark ignores its switch")
     assert(block:find("CoverProgress.favoriteIcon()", 1, true), "the spine ignores the icon setting")
     assert(block:find("FAV_GLYPH_HEART", 1, true))
 end)

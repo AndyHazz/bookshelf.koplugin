@@ -34,6 +34,7 @@ local Device          = require("device")
 local Screen          = Device.screen
 local Space           = require("lib/bookshelf_space")
 local CoverProgress   = require("lib/bookshelf_cover_progress")
+local Marks = require("lib/bookshelf_cover_marks")
 -- Image contrast's boost for a cover drawn without the cover cache (the
 -- cache boosts in put()); once per buffer.
 local function _boostCover(bb)
@@ -1026,6 +1027,12 @@ local SpineWidget = InputContainer:extend{
     -- does want -- it is the only cover on the shelf big enough to read
     -- them.
     suppress_number_badges = false,
+    -- "spines" on a spine shelf's face-out cover: its marks follow the "Show
+    -- on spine shelves" switches (lib/bookshelf_cover_marks, issue 597). nil
+    -- everywhere else, which is covers. With it set the page pill is that
+    -- switch's to decide, and suppress_number_badges only holds the series
+    -- pill back.
+    marks_surface = nil,
     -- True when this cover renders inside a single-series view (drilled
     -- into a series stack OR a chip whose source.kind = "single_series").
     -- Consumed by _showSeriesNum's "in_series" three-state choice so the
@@ -1116,6 +1123,7 @@ end
 -- Unset reads as "always" (the original boolean-true behaviour); fresh
 -- installs are seeded with "in_series" (BFont.maybeSeedFreshInstall).
 local function _showSeriesNum(in_series)
+    if not Marks.shown("series_num", "covers") then return false end
     local v = BookshelfSettings.read("show_series_num")
     if v == nil or v == true or v == "always" then return true end
     if v == "in_series"                       then return in_series == true end
@@ -1378,14 +1386,15 @@ function SpineWidget:_statusIndicators()
     if not (self.show_progress or self.show_status) then
         return { bar = false, bar_pct = 0, glyph = nil }
     end
-    local ind = CoverProgress.decide(self.book)
+    local ind = CoverProgress.decide(self.book, self.marks_surface)
     if self.show_progress then
         -- The page-count pill is a NUMBER BADGE, so it leaves with the series
         -- one; the bar and the glyphs stay. Decided here rather than at the
         -- paint site so every "which surface shows which chrome" rule lives
         -- in one function -- which is also the only way the split is
         -- testable (see tests/_test_spine_status_gate.lua).
-        if self.suppress_number_badges and ind.page_count then
+        if self.suppress_number_badges and ind.page_count
+                and not self.marks_surface then
             local copy = {}
             for k, v in pairs(ind) do copy[k] = v end
             copy.page_count = false
@@ -2025,7 +2034,7 @@ function SpineWidget:_renderShadowedCard(inner)
     if (not self.is_bulk_selected)
             and (not self.suppress_favorite_badge)
             and fp
-            and BookshelfSettings.nilOrTrue("show_fav_badge") then
+            and Marks.shown("favorite", self.marks_surface) then
         -- The corner shows a favourite's heart or star, or (issue 538) the
         -- book's star rating, for any book that has one.
         local badge_mode = CoverProgress.badgeMode()
@@ -2925,7 +2934,7 @@ function SpineWidget:_renderFallback()
     -- rounded pill sits within the paper-tone bottom strip with the same
     -- breathing room above the bar as below it (bar_pad on each side).
     local inset_v_bottom = inset_v_top
-    if self.show_progress and CoverProgress.decide(self.book).bar then
+    if self.show_progress and CoverProgress.decide(self.book, self.marks_surface).bar then
         local needed = CARD_BORDER + 2 * _barBottomPadding() + _barHeight()
         if needed > inset_v_bottom then inset_v_bottom = needed end
     end

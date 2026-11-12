@@ -4317,8 +4317,8 @@ msgid "Close books in the background"
 msgstr "Fechar livros em segundo plano"
 
 #: lib/bookshelf_settings.lua:4181
-msgid "Show Bookshelf immediately when leaving a book. The book finishes closing at the next quiet moment - opening another book, half a minute of inactivity, or leaving Bookshelf - so browsing never has to wait for it. Until then, going straight back into the same book is instant. Turn this off to close books fully before Bookshelf appears, as before."
-msgstr "Mostra o Bookshelf imediatamente ao sair de um livro. O livro termina de fechar no próximo momento ocioso - ao abrir outro livro, após meio minuto de inatividade ou ao sair do Bookshelf - para que a navegação nunca precise esperar por ele. Até lá, voltar direto para o mesmo livro é instantâneo. Desative isto para fechar os livros por completo antes de o Bookshelf aparecer, como antes."
+msgid "Show Bookshelf immediately when leaving a book. The book finishes closing at the next quiet moment - opening another book, half a minute of inactivity, or leaving Bookshelf - so browsing never has to wait for it. Until then, going straight back into the same book is instant. Turn this off to close books fully before Bookshelf appears."
+msgstr "Mostra o Bookshelf imediatamente ao sair de um livro. O livro termina de fechar no próximo momento ocioso - ao abrir outro livro, após meio minuto de inatividade ou ao sair do Bookshelf - para que a navegação nunca precise esperar por ele. Até lá, voltar direto para o mesmo livro é instantâneo. Desative isto para fechar os livros por completo antes de o Bookshelf aparecer."
 
 #: lib/bookshelf_settings.lua:4202
 msgid "Use E-ink refresh rate for shelf pages"

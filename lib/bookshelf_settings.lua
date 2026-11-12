@@ -4341,7 +4341,7 @@ function Settings:_performanceSubItems()
                 .. "never has to wait for it. Until then, going "
                 .. "straight back into the same book is instant. Turn "
                 .. "this off to close books fully before Bookshelf "
-                .. "appears, as before."),
+                .. "appears."),
             checked_func = function()
                 return BookshelfSettings.nilOrTrue("hot_park")
             end,

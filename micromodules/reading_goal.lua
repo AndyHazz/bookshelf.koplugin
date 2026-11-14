@@ -96,8 +96,8 @@ end
 
 -- ─── View cycling ────────────────────────────────────────────────────────────
 
--- The hero shows goals paired (2 per view) when the cell is tall enough; the
--- start menu shows one per view. _current_view is the ANCHOR goal — the first
+-- The hero shows as many goals as the cell has room for (arrangement: two,
+-- or all of them); the start menu shows one per view. _current_view is the ANCHOR goal — the first
 -- goal of the visible view. A "view" is the chunk of `per_view` active goals
 -- aligned to the chunk boundary containing the anchor. _last_per_view is set by
 -- render() so on_tap's cycleView (which has no render context) steps by the
@@ -605,6 +605,15 @@ end
 
 -- ─── Render ──────────────────────────────────────────────────────────────────
 
+-- The yearly goal's line: the months after this one. No plural forms here
+-- (lib/bookshelf_i18n), so one string each, as "book" / "books" above.
+local function monthsLeftText(month)
+    local left = 12 - month
+    if left <= 0 then return _("Last month") end
+    if left == 1 then return T(_("%1 month left"), left) end
+    return T(_("%1 months left"), left)
+end
+
 -- Compute the display fields (header / big number / suffix / progress / context)
 -- for one goal type against the current stats. `t` is os.date("*t").
 local function computeGoal(goal, data, t)
@@ -656,21 +665,87 @@ local function computeGoal(goal, data, t)
             .. (target == 1 and _("book") or _("books"))
         if met then suffix = suffix .. " \xE2\x9C\x93" end
         pct          = math.min(1, data.year_books / math.max(1, target))
-        local months_left = 12 - t.month
         context_text = met and _("Goal met!")
-            or T(_("%1 months left"), months_left)
+            or monthsLeftText(t.month)
     end
     return header_text, big_text, suffix, pct, context_text
 end
 
---- How many goals to show at once, and side by side or stacked. Two side by
---- side in a wide cell; two stacked when one block takes under 65% of the
---- height; else one (a tap cycles). No height (the start menu): one.
-local function arrangement(shape, n_active, block_h, avail_h)
-    if not (avail_h and avail_h > 0) or n_active < 2 then return 1, false end
-    if shape == "wide" then return 2, true end
-    if block_h and block_h < 0.65 * avail_h then return 2, false end
-    return 1, false
+--- arrangement(shape, n_active, block_h, avail_h, room) -> how many goals to
+--- show at once, and in how many columns. As many as the cell has room for
+--- (Reddit: a bigger cell only made two goals bigger): all of them in a row
+--- when it is wide enough, four as two rows of two, all in a stack in a tall
+--- one. Else as it always was: two side by side in a wide cell, two stacked
+--- when one block takes under 65% of the height, or one; a tap cycles the
+--- rest. No height (the start menu): one.
+--- room: { width, min_w = the least width one goal reads at, gap, hgap }; a
+--- caller that gives none gets the old answer.
+--- Rows count as fitting up to 1.3 times the height, as the pair's 65% does:
+--- the host's auto-fit shrinks the card that much without it reading small.
+local function arrangement(shape, n_active, block_h, avail_h, room)
+    if not (avail_h and avail_h > 0) or n_active < 2 then return 1, 1 end
+    local function across(c)
+        return room ~= nil and room.width ~= nil and room.min_w ~= nil
+            and room.width >= c * room.min_w + (c - 1) * (room.hgap or 0)
+    end
+    local function down(r)
+        return room ~= nil and block_h ~= nil
+            and r * block_h + (r - 1) * (room.gap or 0) <= 1.3 * avail_h
+    end
+    if shape == "wide" then
+        if n_active > 2 and across(n_active) then return n_active, n_active end
+        if n_active == 4 and across(2) and down(2) then return 4, 2 end
+        return 2, 2
+    end
+    if n_active == 4 and across(2) and down(2) then return 4, 2 end
+    if n_active > 2 and down(n_active) then return n_active, 1 end
+    if block_h and block_h < 0.65 * avail_h then return 2, 1 end
+    return 1, 1
+end
+
+-- columnScale(widest_at, cell_w, scale_pct) -> the scale goals side by side
+-- are drawn at: the page's, or the largest under it at which every line fits
+-- its column (widest_at(s) = the longest line's width at scale s). The page
+-- fits a module by its height and a goal's lines cut themselves short, so at
+-- the page's 175% two rows of two read "2026 challen..." (rig). Text widths
+-- follow the scale closely: a first guess, then down in steps. Not under 70%
+-- (nor the page's own, if less): a very long name is cut instead.
+local function columnScale(widest_at, cell_w, scale_pct)
+    local s = scale_pct or 100
+    local least = math.min(70, s)
+    local w = widest_at(s)
+    if w <= cell_w then return s end
+    s = math.max(least, math.min(s - 1, math.floor(s * cell_w / w)))
+    for _i = 1, 12 do
+        if s <= least or widest_at(s) <= cell_w then break end
+        s = math.max(least, s - 5)
+    end
+    return s
+end
+
+-- widestLine(goals, s, data, t) -> the longest line any of these goals draws
+-- at scale s: the heading, the number with its suffix, the line under the bar
+-- (the faces Kit.valueCard uses for a card that is not a strip).
+local function widestLine(goals, s, data, t)
+    local Kit        = require("lib/bookshelf_module_kit")
+    local TextWidget = require("lib/bookshelf_colour_text")
+    local function w(text, face, bold)
+        if not text or text == "" then return 0 end
+        local tw = TextWidget:new{ text = text, face = face, bold = bold }
+        local x = tw:getSize().w
+        tw:free()
+        return x
+    end
+    local most = 0
+    for _i, g in ipairs(goals) do
+        local header, big, suffix, _pct, context = computeGoal(g, data, t)
+        local fh, bh = Kit.face(15, s, { bold = true })
+        local fb, bb = Kit.face(20, s, { bold = true })
+        most = math.max(most, w(header, fh, bh),
+            w(big, fb, bb) + w(suffix, Kit.face(14, s)),
+            w(context, Kit.face(13, s, { italic = true })))
+    end
+    return most
 end
 
 -- Build one goal's widget block: header, big progress number + baseline-aligned
@@ -730,13 +805,26 @@ return {
         -- goal per view (the start menu passes no avail_h; a short cell stays
         -- single). The gate only gets easier as the scale drops, so per_view
         -- stays stable (never flips 2->1) across the host's fit iterations.
-        local per_view, side = 1, false
+        -- More than two where the cell has room for them: every goal in a
+        -- row, two rows of two, or a stack (arrangement).
+        -- Decided at the base size (100%), not the host's scale: a full-screen
+        -- page grows each module's text to fill its cell and keeps the
+        -- largest scale that fits, and deciding at each scale chose two rows
+        -- of two up to 152% and two stacked from 175%, so the page kept two
+        -- goals where four had room (maintainer, PW5). Decided once, a bigger
+        -- scale only makes the same goals bigger.
+        local per_view, cols = 1, 1
+        local hgap = sc(20)
         if avail_h and avail_h > 0 and not preview and #getActiveList() >= 2 then
-            local probe = buildGoalBlock(getCurrentView(), mw, scale_pct, data, t)
+            local probe = buildGoalBlock(getCurrentView(), mw, 100, data, t)
             local h1 = probe:getSize().h
             if probe.free then probe:free() end
             local Kit = require("lib/bookshelf_module_kit")
-            per_view, side = arrangement(Kit.shape(mw, avail_h), #getActiveList(), h1, avail_h)
+            local Screen = require("device").screen
+            per_view, cols = arrangement(Kit.shape(mw, avail_h), #getActiveList(), h1, avail_h, {
+                width = mw, gap = 12, hgap = 20,
+                min_w = Screen:scaleBySize(120),
+            })
         end
         _last_per_view = per_view  -- on_tap's cycleView steps by this
 
@@ -745,25 +833,37 @@ return {
             -- One goal: lays itself out sideways in a strip (Kit.isStrip).
             return buildGoalBlock(goals[1] or getCurrentView(), mw, scale_pct, data, t, avail_h)
         end
-        if side then
-            -- Side by side, each in half the width.
-            local HorizontalGroup = require("ui/widget/horizontalgroup")
-            local HorizontalSpan  = require("ui/widget/horizontalspan")
-            local hgap = sc(20)
-            local half = math.floor((mw - hgap) / 2)
-            local row = HorizontalGroup:new{ align = "top" }
+        if cols <= 1 then
+            local container = VerticalGroup:new{ align = "left" }
             for i, g in ipairs(goals) do
-                if i > 1 then row[#row + 1] = HorizontalSpan:new{ width = hgap } end
-                row[#row + 1] = buildGoalBlock(g, half, scale_pct, data, t)
+                if i > 1 then container[#container + 1] = VerticalSpan:new{ width = gap } end
+                container[#container + 1] = buildGoalBlock(g, mw, scale_pct, data, t)
             end
-            return row
+            return container
         end
-        local container = VerticalGroup:new{ align = "left" }
-        for i, g in ipairs(goals) do
-            if i > 1 then container[#container + 1] = VerticalSpan:new{ width = gap } end
-            container[#container + 1] = buildGoalBlock(g, mw, scale_pct, data, t)
+        -- Rows of `cols` goals, each an equal share of the width: one row
+        -- (two side by side, or all of them), or two rows of two.
+        local HorizontalGroup = require("ui/widget/horizontalgroup")
+        local HorizontalSpan  = require("ui/widget/horizontalspan")
+        local cell_w = math.floor((mw - (cols - 1) * hgap) / cols)
+        -- Every goal at one scale, at which all their lines fit a column.
+        local col_scale = columnScale(function(sv) return widestLine(goals, sv, data, t) end,
+            cell_w, scale_pct or 100)
+        local rows = VerticalGroup:new{ align = "left" }
+        for r = 1, math.ceil(#goals / cols) do
+            if r > 1 then rows[#rows + 1] = VerticalSpan:new{ width = gap } end
+            local row = HorizontalGroup:new{ align = "top" }
+            for c = 1, cols do
+                local g = goals[(r - 1) * cols + c]
+                if g then
+                    if c > 1 then row[#row + 1] = HorizontalSpan:new{ width = hgap } end
+                    row[#row + 1] = buildGoalBlock(g, cell_w, col_scale, data, t)
+                end
+            end
+            rows[#rows + 1] = row
         end
-        return container
+        if #rows == 1 then return rows[1] end
+        return rows
     end,
 
     on_tap = function(ctx)
